@@ -4,7 +4,7 @@ import Dygraph from 'shared/components/Dygraph'
 import shallowCompare from 'react-addons-shallow-compare'
 
 import SingleStat from 'src/shared/components/SingleStat'
-import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
+import timeSeriesToDygraph from 'utils/timeSeriesTransformers'
 
 import {colorsStringSchema} from 'shared/schemas'
 

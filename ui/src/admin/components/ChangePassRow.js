@@ -2,7 +2,7 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 
 class ChangePassRow extends Component {
   constructor(props) {
@@ -59,7 +59,7 @@ class ChangePassRow extends Component {
             onKeyPress={this.handleKeyPress(user)}
             autoFocus={true}
           />
-          <ConfirmButtons
+          <ConfirmOrCancel
             onConfirm={this.handleSubmit}
             item={user}
             onCancel={this.handleCancel}

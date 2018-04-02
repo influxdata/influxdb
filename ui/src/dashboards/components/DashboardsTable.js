@@ -5,7 +5,7 @@ import _ from 'lodash'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
-import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import ConfirmButton from 'shared/components/ConfirmButton'
 
 const AuthorizedEmptyState = ({onCreateDashboard}) => (
   <div className="generic-empty-state">
@@ -33,6 +33,7 @@ const DashboardsTable = ({
   dashboards,
   onDeleteDashboard,
   onCreateDashboard,
+  onCloneDashboard,
   dashboardLink,
 }) => {
   return dashboards && dashboards.length ? (
@@ -67,11 +68,22 @@ const DashboardsTable = ({
               requiredRole={EDITOR_ROLE}
               replaceWithIfNotAuthorized={<td />}
             >
-              <DeleteConfirmTableCell
-                onDelete={onDeleteDashboard}
-                item={dashboard}
-                buttonSize="btn-xs"
-              />
+              <td className="text-right">
+                <button
+                  className="btn btn-xs btn-default table--show-on-row-hover"
+                  onClick={onCloneDashboard(dashboard)}
+                >
+                  <span className="icon duplicate" />
+                  Clone
+                </button>
+                <ConfirmButton
+                  confirmAction={onDeleteDashboard(dashboard)}
+                  size="btn-xs"
+                  type="btn-danger"
+                  text="Delete"
+                  customClass="table--show-on-row-hover"
+                />
+              </td>
             </Authorized>
           </tr>
         ))}
@@ -93,6 +105,7 @@ DashboardsTable.propTypes = {
   dashboards: arrayOf(shape()),
   onDeleteDashboard: func.isRequired,
   onCreateDashboard: func.isRequired,
+  onCloneDashboard: func.isRequired,
   dashboardLink: string.isRequired,
 }
 

@@ -1,1 +1,1 @@
-export default jest.fn(() => Promise.resolve())
+export default jest.fn(() => Promise.resolve({data: {}}))

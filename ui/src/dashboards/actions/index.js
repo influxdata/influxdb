@@ -11,7 +11,7 @@ import {
 import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
-import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
+import {generateNewDashboardCell} from 'src/dashboards/constants'
 import {
   notifyDashboardDeleted,
   notifyDashboardDeleteFailed,
@@ -201,10 +201,13 @@ export const getDashboardsAsync = () => async dispatch => {
 
 const removeUnselectedTemplateValues = dashboard => {
   const templates = dashboard.templates.map(template => {
-    const values =
-      template.type === 'csv'
-        ? template.values
-        : [template.values.find(val => val.selected)] || []
+    if (template.type === 'csv') {
+      return template
+    }
+
+    const value = template.values.find(val => val.selected)
+    const values = value ? [value] : []
+
     return {...template, values}
   })
   return templates
@@ -277,7 +280,7 @@ export const addDashboardCellAsync = dashboard => async dispatch => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
-      NEW_DEFAULT_DASHBOARD_CELL
+      generateNewDashboardCell(dashboard)
     )
     dispatch(addDashboardCell(dashboard, data))
   } catch (error) {
