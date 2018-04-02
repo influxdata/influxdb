@@ -97,6 +97,15 @@
   # to cache snapshotting.
   # max-concurrent-compactions = 0
 
+  # The threshold, in bytes, when an index write-ahead log file will compact
+  # into an index file. Lower sizes will cause log files to be compacted more
+  # quickly and result in lower heap usage at the expense of write throughput.
+  # Higher sizes will be compacted less frequently, store more series in-memory,
+  # and provide higher write throughput.
+  # Valid size suffixes are k, m, or g (case insensitive, 1024 = 1k).
+  # Values without a size suffix are in bytes.
+  # max-index-log-file-size = "1m"
+
   # The maximum series allowed per database before writes are dropped.  This limit can prevent
   # high cardinality issues at the database level.  This limit can be disabled by setting it to
   # 0.
