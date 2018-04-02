@@ -145,7 +145,19 @@ class AlertTabs extends Component {
       return null
     }
 
-    const showDeprecation = this.getEnabled(configSections, 'pagerduty')
+    const pagerDutyV1Enabled = this.getEnabled(configSections, 'pagerduty')
+    const showDeprecation = pagerDutyV1Enabled
+    const pagerDutyDeprecationMessage = (
+      <div>
+        PagerDuty v2 is being{' '}
+        {
+          <a href="https://v2.developer.pagerduty.com/docs/v1-rest-api-decommissioning-faq">
+            deprecated
+          </a>
+        }
+        . Please update your Kapacitor and configure PagerDuty v2.
+      </div>
+    )
 
     const supportedConfigs = {
       alerta: {
@@ -299,7 +311,7 @@ class AlertTabs extends Component {
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
         {showDeprecation && (
-          <DeprecationWarning message="PagerDuty v1 is being deprecated. Please update your Kapacitor and configure PagerDuty v2." />
+          <DeprecationWarning message={pagerDutyDeprecationMessage} />
         )}
 
         <Tabs
