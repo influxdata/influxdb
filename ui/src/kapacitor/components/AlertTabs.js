@@ -32,6 +32,7 @@ import {
   notifyTestAlertSent,
   notifyTestAlertFailed,
 } from 'shared/copy/notifications'
+import DeprecationWarning from 'src/admin/components/DeprecationWarning'
 
 class AlertTabs extends Component {
   constructor(props) {
@@ -143,6 +144,9 @@ class AlertTabs extends Component {
     if (!configSections) {
       return null
     }
+
+    const showDeprecation = this.getEnabled(configSections, 'pagerduty')
+
     const supportedConfigs = {
       alerta: {
         type: 'Alerta',
@@ -294,6 +298,9 @@ class AlertTabs extends Component {
         <div className="panel-heading">
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
+        {showDeprecation && (
+          <DeprecationWarning message="PagerDuty v1 is being deprecated. Please update your Kapacitor and configure PagerDuty v2." />
+        )}
 
         <Tabs
           tabContentsClass="config-endpoint"
