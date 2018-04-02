@@ -151,7 +151,10 @@ class AlertTabs extends Component {
       <div>
         PagerDuty v2 is being{' '}
         {
-          <a href="https://v2.developer.pagerduty.com/docs/v1-rest-api-decommissioning-faq">
+          <a
+            href="https://v2.developer.pagerduty.com/docs/v1-rest-api-decommissioning-faq"
+            target="_blank"
+          >
             deprecated
           </a>
         }
