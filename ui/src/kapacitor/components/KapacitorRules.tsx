@@ -1,12 +1,21 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 import {Link} from 'react-router'
 
-import NoKapacitorError from 'shared/components/NoKapacitorError'
+import NoKapacitorError from 'src/shared/components/NoKapacitorError'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
 import TasksTable from 'src/kapacitor/components/TasksTable'
 
-const KapacitorRules = ({
+import {Source, AlertRule} from 'src/types'
+
+interface Props {
+  source: Source
+  rules: AlertRule[]
+  hasKapacitor: boolean
+  loading: boolean
+  onDelete: (rule: AlertRule) => void
+  onChangeRuleStatus: (rule: AlertRule) => void
+}
+const KapacitorRules: SFC<Props> = ({
   source,
   rules,
   hasKapacitor,
@@ -36,12 +45,12 @@ const KapacitorRules = ({
     )
   }
 
-  const builderRules = rules.filter(r => r.query)
+  const builderRules: AlertRule[] = rules.filter((r: AlertRule) => r.query)
 
-  const builderHeader = `${builderRules.length} Alert Rule${
+  const builderHeader: string = `${builderRules.length} Alert Rule${
     builderRules.length === 1 ? '' : 's'
   }`
-  const scriptsHeader = `${rules.length} TICKscript${
+  const scriptsHeader: string = `${rules.length} TICKscript${
     rules.length === 1 ? '' : 's'
   }`
 
@@ -89,17 +98,6 @@ const KapacitorRules = ({
       </div>
     </div>
   )
-}
-
-const {arrayOf, bool, func, shape} = PropTypes
-
-KapacitorRules.propTypes = {
-  source: shape(),
-  rules: arrayOf(shape()),
-  hasKapacitor: bool,
-  loading: bool,
-  onChangeRuleStatus: func,
-  onDelete: func,
 }
 
 export default KapacitorRules

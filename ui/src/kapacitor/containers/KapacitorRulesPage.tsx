@@ -97,7 +97,7 @@ const PageContents: SFC<PageContentsProps> = ({children}) => (
             tipID="manage-tasks--tooltip"
             tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."
           />
-          <SourceIndicator sourceOverride={{}} />
+          <SourceIndicator />
         </div>
       </div>
     </div>
