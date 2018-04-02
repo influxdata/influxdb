@@ -55,8 +55,8 @@ const generateTemplateVariableQuery = ({
 
 export const makeQueryForTemplate = ({influxql, db, measurement, tagKey}) =>
   influxql
-    .replace(':database:', db)
-    .replace(':measurement:', measurement)
-    .replace(':tagKey:', tagKey)
+    .replace(':database:', `"${db}"`)
+    .replace(':measurement:', `"${measurement}"`)
+    .replace(':tagKey:', `"${tagKey}"`)
 
 export default generateTemplateVariableQuery
