@@ -14,6 +14,9 @@ const KapacitorRules = ({
   onDelete,
   onChangeRuleStatus,
 }) => {
+  if (!hasKapacitor) {
+    return <NoKapacitorError source={source} />
+  }
   if (loading) {
     return (
       <div>
@@ -30,10 +33,6 @@ const KapacitorRules = ({
         </div>
       </div>
     )
-  }
-
-  if (!hasKapacitor) {
-    return <NoKapacitorError source={source} />
   }
 
   const builderRules = rules.filter(r => r.query)
