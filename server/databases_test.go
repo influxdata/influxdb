@@ -2,10 +2,15 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
 )
 
@@ -313,22 +318,27 @@ func TestService_DropRetentionPolicy(t *testing.T) {
 func TestService_Measurements(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
+		Logger       chronograf.Logger
 		Databases    chronograf.Databases
 	}
 	type args struct {
-		w http.ResponseWriter
-		r *http.Request
+		queryParams map[string]string
+	}
+	type wants struct {
+		statusCode int
+		body       string
 	}
 	tests := []struct {
 		name   string
 		fields fields
 		args   args
+		wants  wants
 	}{
 		{
-			name: "Gets all measurements",
+			name: "Gets 100 measurements when no limit or offset provided",
 			fields: fields{
 				SourcesStore: &mocks.SourcesStore{
-					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
+					GetF: func(ctx context.Context, srcID int) (chronograf.Source, error) {
 						return chronograf.Source{
 							ID: 0,
 						}, nil
@@ -338,7 +348,7 @@ func TestService_Measurements(t *testing.T) {
 					ConnectF: func(context.Context, *chronograf.Source) error {
 						return nil
 					},
-					GetMeasurementsF: func(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
+					GetMeasurementsF: func(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
 						return []chronograf.Measurement{
 							{
 								Name: "pineapple",
@@ -353,19 +363,74 @@ func TestService_Measurements(t *testing.T) {
 					},
 				},
 			},
+			args: args{
+				queryParams: map[string]string{},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","first":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=100"}}
+`,
+			},
 		},
-		// TODO: Add more test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// TODO(jared): start here -- need to bring in http module
+			logger := log.New(log.DebugLevel)
 			h := &Service{
-				Store: &Store{
+				Store: &mocks.Store{
 					SourcesStore: tt.fields.SourcesStore,
 				},
+				Logger:    logger,
 				Databases: tt.fields.Databases,
 			}
-			h.Measurements(tt.args.w, tt.args.r)
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(
+				"GET",
+				"http://any.url",
+				nil,
+			)
+			r = r.WithContext(httprouter.WithParams(
+				context.Background(),
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: "0",
+					},
+					{
+						Key:   "dbid",
+						Value: "0",
+					},
+				}))
+
+			q := r.URL.Query()
+			for key, value := range tt.args.queryParams {
+				q.Add(key, value)
+			}
+			r.URL.RawQuery = q.Encode()
+
+			h.Measurements(w, r)
+
+			resp := w.Result()
+			body, err := ioutil.ReadAll(resp.Body)
+			defer resp.Body.Close()
+
+			if err != nil {
+				t.Error("TestService_Measurements not able to retrieve body")
+			}
+
+			var msmts measurementsResponse
+			if err := json.Unmarshal(body, &msmts); err != nil {
+				t.Error("TestService_Measurements not able to unmarshal JSON response")
+			}
+
+			if tt.wants.statusCode != resp.StatusCode {
+				t.Errorf("%q. StatusCode:\nwant\n%v\ngot\n%v", tt.name, tt.wants.statusCode, resp.StatusCode)
+			}
+
+			if tt.wants.body != string(body) {
+				t.Errorf("%q. Body:\nwant\n*%s*\ngot\n*%s*", tt.name, tt.wants.body, string(body))
+			}
 		})
 	}
 }
