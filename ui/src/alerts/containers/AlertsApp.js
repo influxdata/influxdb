@@ -118,9 +118,9 @@ class AlertsApp extends Component {
 
   renderSubComponents = () => {
     const {source, isWidget, limit} = this.props
-    const {isAlertsMaxedOut, alerts, hasKapacitor} = this.state
+    const {isAlertsMaxedOut, alerts} = this.state
 
-    return hasKapacitor ? (
+    return this.state.hasKapacitor ? (
       <AlertsTable
         source={source}
         alerts={this.state.alerts}
