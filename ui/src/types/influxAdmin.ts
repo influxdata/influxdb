@@ -1,4 +1,4 @@
-interface UserRole {
+export interface UserRole {
   name: string
 }
 

@@ -6,12 +6,12 @@ import _ from 'lodash'
 import MultiSelectDropdown from 'src/shared/components/MultiSelectDropdown'
 
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
-import {User} from 'src/types/influxAdmin'
+import {User, UserRole} from 'src/types/influxAdmin'
 
 interface Props {
   user: User
   allRoles: any[]
-  onUpdateRoles: (user: User, roles: any[]) => void
+  onUpdateRoles: (user: User, roles: UserRole[]) => void
 }
 
 class UserRoleDropdown extends PureComponent<Props> {
@@ -39,18 +39,18 @@ class UserRoleDropdown extends PureComponent<Props> {
     onUpdateRoles(user, roles)
   }
 
-  private get roles() {
-    const roles = _.get(this.props.user, 'roles', [])
-    return roles.map(r => ({name: r.name}))
+  private get roles(): UserRole[] {
+    const roles = _.get(this.props.user, 'roles', []) as UserRole[]
+    return roles.map(({name}) => ({name}))
   }
 
-  private get rolesClass() {
+  private get rolesClass(): string {
     return classnames(`dropdown-${USERS_TABLE.colRoles}`, {
       'admin-table--multi-select-empty': !this.roles.length,
     })
   }
 
-  private get rolesLabel() {
+  private get rolesLabel(): string {
     return this.roles.length ? '' : 'Select Roles'
   }
 }
