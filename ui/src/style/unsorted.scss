@@ -203,7 +203,7 @@ br {
   margin-bottom: 4px;
 
   &.intro {
-    @include gradient-h($c-pool,$c-star);
+    @include gradient-h($c-pool, $c-star);
     color: $g20-white;
   }
 
@@ -306,7 +306,7 @@ $tick-script-overlay-margin: 30px;
   -----------------------------------------------------------------------------
 */
 .icon.download.dlcsv:before {
-  content: "\e91d";
+  content: '\e91d';
   font-weight: bold;
   color: #bec2cc;
 }
@@ -403,23 +403,23 @@ $dash-editable-header-padding: 7px;
 
 .page-header__left.page-header__dash-editable,
 .dashboard-title,
-.dashboard-title input[type="text"].form-control.dashboard-title--input,
+.dashboard-title input[type='text'].form-control.dashboard-title--input,
 .dashboard-title h1 {
   flex: 1 0 0;
 }
 .dashboard-title {
   display: flex;
 
-  input[type="text"].form-control.dashboard-title--input,
-  input[type="text"].form-control.dashboard-title--input:focus,
+  input[type='text'].form-control.dashboard-title--input,
+  input[type='text'].form-control.dashboard-title--input:focus,
   h1 {
     font-size: $page-header-size;
     font-weight: $page-header-weight;
     padding: 0 $dash-editable-header-padding;
   }
 
-  input[type="text"].form-control.dashboard-title--input,
-  input[type="text"].form-control.dashboard-title--input:focus {
+  input[type='text'].form-control.dashboard-title--input,
+  input[type='text'].form-control.dashboard-title--input:focus {
     font-size: $page-header-size;
     font-weight: $page-header-weight;
   }
@@ -439,7 +439,7 @@ $dash-editable-header-padding: 7px;
       border-color 0.25s ease;
 
     &:after {
-      content: "\f058";
+      content: '\f058';
       font-family: 'icomoon';
       position: absolute;
       font-size: 15px;
@@ -549,4 +549,12 @@ div.dropdown.dropdown-stretch,
 div.dropdown.dropdown-stretch > div.dropdown-toggle,
 div.dropdown.dropdown-stretch > button.dropdown-toggle {
   width: 100%;
+}
+
+/*
+  Delete Source
+  -----------------------------------------------------------------------------
+*/
+.delete-source {
+  display: inline-block;
 }

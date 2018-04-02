@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import {notify as notifyAction} from 'shared/actions/notifications'
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
 import {notifyDatabaseDeleteConfirmationRequired} from 'shared/copy/notifications'
 
 const DatabaseTableHeader = ({
@@ -101,7 +101,7 @@ const Header = ({
         autoComplete={false}
         spellCheck={false}
       />
-      <ConfirmButtons
+      <ConfirmOrCancel
         item={database}
         onConfirm={onConfirm}
         onCancel={onCancel}
@@ -132,7 +132,11 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
       spellCheck={false}
       autoComplete={false}
     />
-    <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
+    <ConfirmOrCancel
+      item={database}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
   </div>
 )
 

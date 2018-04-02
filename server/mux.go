@@ -156,6 +156,12 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/sources/:id", EnsureEditor(service.UpdateSource))
 	router.DELETE("/chronograf/v1/sources/:id", EnsureEditor(service.RemoveSource))
 
+	// IFQL
+	router.GET("/chronograf/v1/ifql", EnsureViewer(service.IFQL))
+	router.POST("/chronograf/v1/ifql/ast", EnsureViewer(service.IFQLAST))
+	router.GET("/chronograf/v1/ifql/suggestions", EnsureViewer(service.IFQLSuggestions))
+	router.GET("/chronograf/v1/ifql/suggestions/:name", EnsureViewer(service.IFQLSuggestion))
+
 	// Source Proxy to Influx; Has gzip compression around the handler
 	influx := gziphandler.GzipHandler(http.HandlerFunc(EnsureViewer(service.Influx)))
 	router.Handler("POST", "/chronograf/v1/sources/:id/proxy", influx)

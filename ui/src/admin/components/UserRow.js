@@ -7,8 +7,8 @@ import classnames from 'classnames'
 import UserEditName from 'src/admin/components/UserEditName'
 import UserNewPassword from 'src/admin/components/UserNewPassword'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
-import ConfirmButtons from 'shared/components/ConfirmButtons'
-import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
+import ConfirmButton from 'shared/components/ConfirmButton'
 import ChangePassRow from 'src/admin/components/ChangePassRow'
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 
@@ -46,6 +46,10 @@ const UserRow = ({
 
   const perms = _.get(permissions, ['0', 'allowed'], [])
 
+  const wrappedDelete = () => {
+    onDelete(user)
+  }
+
   if (isEditing) {
     return (
       <tr className="admin-table--edit-row">
@@ -62,7 +66,7 @@ const UserRow = ({
           className="text-right"
           style={{width: `${USERS_TABLE.colDelete}px`}}
         >
-          <ConfirmButtons
+          <ConfirmOrCancel
             item={user}
             onConfirm={onSave}
             onCancel={onCancel}
@@ -118,11 +122,15 @@ const UserRow = ({
           />
         ) : null}
       </td>
-      <DeleteConfirmTableCell
-        onDelete={onDelete}
-        item={user}
-        buttonSize="btn-xs"
-      />
+      <td className="text-right" style={{width: `${USERS_TABLE.colDelete}px`}}>
+        <ConfirmButton
+          size="btn-xs"
+          type="btn-danger"
+          text="Delete User"
+          confirmAction={wrappedDelete}
+          customClass="table--show-on-row-hover"
+        />
+      </td>
     </tr>
   )
 }

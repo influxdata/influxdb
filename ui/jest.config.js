@@ -8,7 +8,7 @@ module.exports = {
       ],
       modulePaths: ['<rootDir>', '<rootDir>/node_modules/'],
       moduleDirectories: ['src'],
-      setupFiles: ['<rootDir>/test/setupTests.js'],
+      setupFiles: ['<rootDir>/test/setup.js'],
       transform: {
         '^.+\\.tsx?$': 'ts-jest',
         '^.+\\.js$': 'babel-jest',

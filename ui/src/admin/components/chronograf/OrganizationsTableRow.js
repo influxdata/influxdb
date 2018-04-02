@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter} from 'react-router'
 
-import ConfirmButtons from 'shared/components/ConfirmButtons'
+import ConfirmButton from 'shared/components/ConfirmButton'
 import Dropdown from 'shared/components/Dropdown'
 import InputClickToEdit from 'shared/components/InputClickToEdit'
 
@@ -13,32 +13,7 @@ import {meChangeOrganizationAsync} from 'shared/actions/auth'
 import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 
-const OrganizationsTableRowDeleteButton = ({organization, onClickDelete}) =>
-  organization.id === DEFAULT_ORG_ID ? (
-    <button
-      className="btn btn-sm btn-default btn-square orgs-table--delete"
-      disabled={true}
-    >
-      <span className="icon trash" />
-    </button>
-  ) : (
-    <button
-      className="btn btn-sm btn-default btn-square"
-      onClick={onClickDelete}
-    >
-      <span className="icon trash" />
-    </button>
-  )
-
 class OrganizationsTableRow extends Component {
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      isDeleting: false,
-    }
-  }
-
   handleChangeCurrentOrganization = async () => {
     const {router, links, meChangeOrganization, organization} = this.props
 
@@ -48,13 +23,6 @@ class OrganizationsTableRow extends Component {
   handleUpdateOrgName = newName => {
     const {organization, onRename} = this.props
     onRename(organization, newName)
-  }
-  handleDeleteClick = () => {
-    this.setState({isDeleting: true})
-  }
-
-  handleDismissDeleteConfirmation = () => {
-    this.setState({isDeleting: false})
   }
 
   handleDeleteOrg = organization => {
@@ -68,17 +36,12 @@ class OrganizationsTableRow extends Component {
   }
 
   render() {
-    const {isDeleting} = this.state
     const {organization, currentOrganization} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
       ...role,
       text: role.name,
     }))
-
-    const defaultRoleClassName = isDeleting
-      ? 'fancytable--td orgs-table--default-role deleting'
-      : 'fancytable--td orgs-table--default-role'
 
     return (
       <div className="fancytable--row">
@@ -101,7 +64,7 @@ class OrganizationsTableRow extends Component {
           wrapperClass="fancytable--td orgs-table--name"
           onBlur={this.handleUpdateOrgName}
         />
-        <div className={defaultRoleClassName}>
+        <div className="fancytable--td orgs-table--default-role">
           <Dropdown
             items={dropdownRolesItems}
             onChoose={this.handleChooseDefaultRole}
@@ -109,21 +72,14 @@ class OrganizationsTableRow extends Component {
             className="dropdown-stretch"
           />
         </div>
-        {isDeleting ? (
-          <ConfirmButtons
-            item={organization}
-            onCancel={this.handleDismissDeleteConfirmation}
-            onConfirm={this.handleDeleteOrg}
-            onClickOutside={this.handleDismissDeleteConfirmation}
-            confirmLeft={true}
-            confirmTitle="Delete"
-          />
-        ) : (
-          <OrganizationsTableRowDeleteButton
-            organization={organization}
-            onClickDelete={this.handleDeleteClick}
-          />
-        )}
+        <ConfirmButton
+          confirmAction={this.handleDeleteOrg}
+          confirmText="Delete Organization?"
+          size="btn-sm"
+          square={true}
+          icon="trash"
+          disabled={organization.id === DEFAULT_ORG_ID}
+        />
       </div>
     )
   }
@@ -159,15 +115,6 @@ OrganizationsTableRow.propTypes = {
     }),
   }),
   meChangeOrganization: func.isRequired,
-}
-
-OrganizationsTableRowDeleteButton.propTypes = {
-  organization: shape({
-    id: string, // when optimistically created, organization will not have an id
-    name: string.isRequired,
-    defaultRole: string.isRequired,
-  }).isRequired,
-  onClickDelete: func.isRequired,
 }
 
 const mapDispatchToProps = dispatch => ({

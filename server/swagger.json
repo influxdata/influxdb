@@ -3,7 +3,7 @@
   "info": {
     "title": "Chronograf",
     "description": "API endpoints for Chronograf",
-    "version": "1.4.2.3"
+    "version": "1.4.3.0"
   },
   "schemes": ["http"],
   "basePath": "/chronograf/v1",
@@ -23,7 +23,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -44,7 +44,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -66,7 +66,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully create data source",
+            "description": "Data source successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -117,7 +117,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -191,7 +191,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -235,7 +235,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -294,7 +294,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -379,7 +379,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -439,7 +439,7 @@
           "200": {
             "description": "Listing of all users",
             "schema": {
-              "$ref": "#/definitions/Users"
+              "$ref": "#/definitions/InfluxDB-Users"
             }
           },
           "404": {
@@ -472,13 +472,13 @@
             "in": "body",
             "description": "Configuration options for new user",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             }
           }
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new user",
+            "description": "User successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -487,7 +487,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             }
           },
           "404": {
@@ -530,7 +530,7 @@
           "200": {
             "description": "Information relating to the user",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             }
           },
           "404": {
@@ -540,7 +540,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -572,7 +572,7 @@
             "in": "body",
             "description": "user configuration",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             },
             "required": true
           }
@@ -581,7 +581,7 @@
           "200": {
             "description": "Users's configuration was changed",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/InfluxDB-User"
             }
           },
           "404": {
@@ -629,7 +629,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -655,7 +655,7 @@
           "200": {
             "description": "Listing of all roles",
             "schema": {
-              "$ref": "#/definitions/Roles"
+              "$ref": "#/definitions/InfluxDB-Roles"
             }
           },
           "404": {
@@ -688,13 +688,13 @@
             "in": "body",
             "description": "Configuration options for new role",
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             }
           }
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new role",
+            "description": "Role successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -703,7 +703,7 @@
               }
             },
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             }
           },
           "404": {
@@ -746,7 +746,7 @@
           "200": {
             "description": "Information relating to the role",
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             }
           },
           "404": {
@@ -756,7 +756,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -786,7 +786,7 @@
             "in": "body",
             "description": "role configuration",
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             },
             "required": true
           }
@@ -795,7 +795,7 @@
           "200": {
             "description": "Roles's configuration was changed",
             "schema": {
-              "$ref": "#/definitions/Role"
+              "$ref": "#/definitions/InfluxDB-Role"
             }
           },
           "404": {
@@ -843,7 +843,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1181,7 +1181,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1210,7 +1210,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created kapacitor source",
+            "description": "Kapacitor source successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -1267,7 +1267,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1356,7 +1356,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1436,7 +1436,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new kapacitor alert rule",
+            "description": "Kapacitor alert rule successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -1514,7 +1514,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1615,7 +1615,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1841,7 +1841,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1887,7 +1887,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1910,7 +1910,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new layout",
+            "description": "Layout successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -1961,7 +1961,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -1991,7 +1991,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2055,7 +2055,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2077,7 +2077,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Successfully created new dashboard",
+            "description": "Dashboard successfully created",
             "headers": {
               "Location": {
                 "type": "string",
@@ -2129,7 +2129,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2159,7 +2159,7 @@
             }
           },
           "default": {
-            "description": "Unexpected internal service error",
+            "description": "Unexpected internal server error",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2257,9 +2257,675 @@
           }
         }
       }
+    },
+    "/organizations": {
+      "get": {
+        "tags": ["organizations", "users"],
+        "summary": "Retrieve all organizations",
+        "description": "Returns all organizations from the store",
+        "responses": {
+          "200": {
+            "description":
+              "Successfully retrieved all organizations from the store",
+            "schema": {
+              "$ref": "#/definitions/Organizations"
+            }
+          },
+          "400": {
+            "description": "Failed to retrieve organizations from store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["organizations", "users"],
+        "summary": "Create new organization",
+        "description": "Creates a Chronograf organization in the store",
+        "parameters": [
+          {
+            "name": "organization",
+            "in": "body",
+            "description": "Organization to create",
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Organization successfully created",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "format": "url",
+                "description":
+                  "Location of the newly created organization resource"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            }
+          },
+          "400": {
+            "description":
+              "Invalid JSON – unable to encode or decode; or failed to perform operation in data store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "422": {
+            "description":
+              "Invalid data schema provided to server for organization",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/organizations/{id}": {
+      "get": {
+        "tags": ["organizations", "users"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the organization",
+            "required": true
+          }
+        ],
+        "summary": "Retrieve a specific organization",
+        "description": "Returns a specific organization from the store",
+        "responses": {
+          "200": {
+            "description": "An Organization object",
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            }
+          },
+          "400": {
+            "description": "Failed to load organization from store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["organizations", "users"],
+        "summary": "Update existing organization",
+        "description": "Updates a Chronograf organization in the store",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the organization",
+            "required": true
+          },
+          {
+            "name": "organization",
+            "in": "body",
+            "description": "Updated organization",
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Organization successfully updated",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "format": "url",
+                "description": "Location of the updated organization resource"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/Organization"
+            }
+          },
+          "400": {
+            "description":
+              "Invalid JSON – unable to encode or decode; or failed to perform operation in data store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "422": {
+            "description":
+              "Invalid data schema provided to server for organization",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["organizations", "users"],
+        "summary": "Delete organization",
+        "description": "Deletes a Chronograf organization in the store",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the organization",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Organization successfully deleted"
+          },
+          "400": {
+            "description": "Failed to perform operation in data store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Organization not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["organizations", "users"],
+        "summary":
+          "Retrieve all Chronograf users within the current organization",
+        "description":
+          "Returns all Chronograf users within the current organization from the store",
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved all users from the store",
+            "schema": {
+              "$ref": "#/definitions/Users"
+            }
+          },
+          "400": {
+            "description": "Failed to load users from store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["organizations", "users"],
+        "summary": "Create new user",
+        "description": "Creates a Chronograf user in the store",
+        "parameters": [
+          {
+            "name": "user",
+            "in": "body",
+            "description": "User to create",
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "User successfully created",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "format": "url",
+                "description": "Location of the newly created user resource"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          },
+          "400": {
+            "description":
+              "Invalid JSON – unable to encode or decode; or failed to perform operation in data store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized to perform this operation",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "422": {
+            "description": "Invalid data schema provided to server for user",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "tags": ["organizations", "users"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the user",
+            "required": true
+          }
+        ],
+        "summary": "Retrieve a specific user",
+        "description": "Returns a specific user from the store",
+        "responses": {
+          "200": {
+            "description": "An User object",
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          },
+          "400": {
+            "description":
+              "Failed to load user from store; or failed to parse user ID as valid",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["organizations", "users"],
+        "summary": "Update existing user",
+        "description": "Updates a Chronograf user in the store",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the user",
+            "required": true
+          },
+          {
+            "name": "user",
+            "in": "body",
+            "description": "Updated user",
+            "schema": {
+              "$ref": "#/definitions/User"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "User successfully updated",
+            "headers": {
+              "Location": {
+                "type": "string",
+                "format": "url",
+                "description": "Location of the updated user resource"
+              }
+            },
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          },
+          "400": {
+            "description":
+              "Invalid JSON – unable to encode or decode; failed to parse user id as valid; or failed to perform operation in data store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "401": {
+            "description": "Unauthorized to perform operation",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "422": {
+            "description": "Invalid data schema provided to server for user",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["organizations", "users"],
+        "summary": "Delete user",
+        "description": "Deletes a Chronograf user in the store",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the user",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User successfully deleted"
+          },
+          "400": {
+            "description":
+              "Failed to parse user id as valid; failed to retrieve user from context; or failed to perform operation in data store",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "403": {
+            "description": "Forbidden to access this route",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
+    "Organization": {
+      "type": "object",
+      "description":
+        "A group of Chronograf users with various role-based access-control.",
+      "properties": {
+        "defaultRole": {
+          "description":
+            "The default role that new users in this organization will have.",
+          "type": "string",
+          "enum": ["member", "viewer", "editor", "admin"]
+        },
+        "id": {
+          "type": "string",
+          "description":
+            "Unique identifier representing an organization resource. The Default organization will have the id 'default', and any further will start at '1' and increment.",
+          "readOnly": true
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          },
+          "readOnly": true
+        },
+        "name": {
+          "type": "string",
+          "description": "User-facing name of the organization resource."
+        }
+      },
+      "required": ["name"],
+      "example": {
+        "defaultRole": "viewer",
+        "id": "1",
+        "links": {
+          "self": "/chronograf/v1/organizations/1"
+        },
+        "name": "Chronogiraffes"
+      }
+    },
+    "Organizations": {
+      "type": "object",
+      "required": ["organizations"],
+      "properties": {
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          },
+          "readOnly": true
+        },
+        "organizations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Organization"
+          }
+        }
+      }
+    },
+    "User": {
+      "type": "object",
+      "description":
+        "A Chronograf user with role-based access-control to an organization's resources.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier representing a user resource",
+          "readOnly": true
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          },
+          "readOnly": true
+        },
+        "name": {
+          "type": "string",
+          "description":
+            "Username (as taken from principal given by auth provider)",
+          "readOnly": true
+        },
+        "provider": {
+          "type": "string",
+          "description": "OAuth provider used to authenticate",
+          "readOnly": true
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Role"
+          }
+        },
+        "scheme": {
+          "type": "string",
+          "description":
+            "Scheme used to authenticate (only OAuth2 currently supported)",
+          "readOnly": true
+        },
+        "superAdmin": {
+          "type": "boolean",
+          "description":
+            "If user has the ability to perform CRUD operations on Organizations, across Organizations, and on other SuperAdmin users"
+        }
+      },
+      "required": ["id", "name", "provider", "roles", "scheme"],
+      "example": {
+        "id": "1",
+        "links": {
+          "self": "/chronograf/v1/users/1"
+        },
+        "name": "pineapple@cubeoctohedron.flux",
+        "provider": "github",
+        "roles": {
+          "name": "editor",
+          "organization": "SpaceTeam"
+        },
+        "scheme": "oauth2",
+        "superAdmin": false
+      }
+    },
+    "Users": {
+      "type": "object",
+      "required": ["users"],
+      "properties": {
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          }
+        },
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/User"
+          }
+        }
+      }
+    },
+    "Role": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "A Chronograf user's role within an organization.",
+          "type": "string",
+          "enum": ["member", "viewer", "editor", "admin"]
+        },
+        "organization": {
+          "type": "string",
+          "description": "Name of organization user belongs to"
+        }
+      }
+    },
     "Databases": {
       "type": "object",
       "required": ["databases"],
@@ -2289,7 +2955,7 @@
             "default": true,
             "links": {
               "self":
-                "/chronograf/v1/ousrces/1/dbs/NOAA_water_database/rps/liquid"
+                "/chronograf/v1/sources/1/dbs/NOAA_water_database/rps/liquid"
             }
           }
         ],
@@ -2689,7 +3355,7 @@
         "shardDuration": "7d",
         "default": true,
         "links": {
-          "self": "/chronograf/v1/ousrces/1/dbs/NOAA_water_database/rps/liquid"
+          "self": "/chronograf/v1/sources/1/dbs/NOAA_water_database/rps/liquid"
         }
       },
       "properties": {
@@ -2957,7 +3623,6 @@
           "description": "Date the task was last set to status enabled",
           "readOnly": true
         },
-
         "links": {
           "type": "object",
           "required": ["self", "kapacitor"],
@@ -3264,10 +3929,10 @@
         }
       }
     },
-    "Roles": {
+    "InfluxDB-Roles": {
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Role"
+        "$ref": "#/definitions/InfluxDB-Role"
       },
       "example": {
         "roles": [
@@ -3295,7 +3960,7 @@
         ]
       }
     },
-    "Role": {
+    "InfluxDB-Role": {
       "type": "object",
       "required": ["name"],
       "properties": {
@@ -3306,10 +3971,10 @@
           "minLength": 1
         },
         "users": {
-          "$ref": "#/definitions/Users"
+          "$ref": "#/definitions/InfluxDB-Users"
         },
         "permissions": {
-          "$ref": "#/definitions/Permissions"
+          "$ref": "#/definitions/InfluxDB-Permissions"
         },
         "links": {
           "type": "object",
@@ -3345,13 +4010,13 @@
         }
       }
     },
-    "Users": {
+    "InfluxDB-Users": {
       "type": "object",
       "properties": {
         "users": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/User"
+            "$ref": "#/definitions/InfluxDB-User"
           }
         }
       },
@@ -3402,7 +4067,7 @@
         ]
       }
     },
-    "User": {
+    "InfluxDB-User": {
       "type": "object",
       "properties": {
         "name": {
@@ -3415,10 +4080,10 @@
           "type": "string"
         },
         "permissions": {
-          "$ref": "#/definitions/Permissions"
+          "$ref": "#/definitions/InfluxDB-Permissions"
         },
         "roles": {
-          "$ref": "#/definitions/Roles"
+          "$ref": "#/definitions/InfluxDB-Roles"
         },
         "links": {
           "type": "object",
@@ -3475,17 +4140,17 @@
         }
       }
     },
-    "Permissions": {
+    "InfluxDB-Permissions": {
       "description":
-        "Permissions represent the entire set of permissions a User or Role may have",
+        "Permissions represent the entire set of permissions a InfluxDB User or InfluxDB Role may have",
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Permission"
+        "$ref": "#/definitions/InfluxDB-Permission"
       }
     },
-    "Permission": {
+    "InfluxDB-Permission": {
       "description":
-        "Permission is a specific allowance for User or Role bound to a scope of the data source",
+        "Permission is a specific allowance for InfluxDB User or InfluxDB Role bound to a scope of the data source",
       "type": "object",
       "required": ["scope", "allowed"],
       "properties": {
@@ -3501,7 +4166,7 @@
             "If the scope is database this identifies the name of the database"
         },
         "allowed": {
-          "$ref": "#/definitions/Allowances"
+          "$ref": "#/definitions/InfluxDB-Allowances"
         }
       },
       "example": {
@@ -3516,7 +4181,7 @@
       "type": "object",
       "properties": {
         "permissions": {
-          "$ref": "#/definitions/Permissions"
+          "$ref": "#/definitions/InfluxDB-Permissions"
         },
         "links": {
           "type": "object",
@@ -3535,7 +4200,7 @@
         }
       }
     },
-    "Allowances": {
+    "InfluxDB-Allowances": {
       "description":
         "Allowances defines what actions a user can have on a scoped permission",
       "type": "array",
@@ -3684,39 +4349,141 @@
           "format": "uuid4"
         },
         "x": {
-          "description": "X-coordinate of Cell in the Layout",
+          "description": "X-coordinate of Cell in the Dashboard",
           "type": "integer",
           "format": "int32"
         },
         "y": {
-          "description": "Y-coordinate of Cell in the Layout",
+          "description": "Y-coordinate of Cell in the Dashboard",
           "type": "integer",
           "format": "int32"
         },
         "w": {
-          "description": "Width of Cell in the Layout",
+          "description": "Width of Cell in the Dashboard",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "minimum": 1,
+          "default": 4
         },
         "h": {
-          "description": "Height of Cell in the Layout",
+          "description": "Height of Cell in the Dashboard",
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "minimum": 1,
+          "default": 4
         },
         "name": {
-          "description": "Cell name",
+          "description": "Title of Cell in the Dashboard",
           "type": "string"
         },
         "queries": {
-          "description": "Time-series data queries for Cell.",
+          "description": "Time-series data queries for Cell",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/LayoutQuery"
+            "$ref": "#/definitions/DashboardQuery"
+          }
+        },
+        "axes": {
+          "description": "The viewport for a Cell's visualizations",
+          "type": "object",
+          "properties": {
+            "x": {
+              "$ref": "#/definitions/Axis"
+            },
+            "y": {
+              "$ref": "#/definitions/Axis"
+            },
+            "y2": {
+              "$ref": "#/definitions/Axis"
+            }
           }
         },
         "type": {
           "description": "Cell visualization type",
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "single-stat",
+            "line",
+            "line-plus-single-stat",
+            "line-stacked",
+            "line-stepplot",
+            "bar",
+            "gauge",
+            "table"
+          ],
+          "default": "line"
+        },
+        "colors": {
+          "description": "Colors define encoding data into a visualization",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DashboardColor"
+          }
+        },
+        "legend": {
+          "description":
+            "Legend define encoding of the data into a cell's legend",
+          "type": "object",
+          "properties": {
+            "type": {
+              "description": "type is the style of the legend",
+              "type": "string",
+              "enum": ["static"]
+            },
+            "orientation": {
+              "description":
+                "orientation is the location of the legend with respect to the cell graph",
+              "type": "string",
+              "enum": ["top", "bottom", "left", "right"]
+            }
+          }
+        },
+        "tableOptions": {
+          "timeFormat": {
+            "description":
+              "timeFormat describes the display format for time values according to moment.js date formatting",
+            "type": "string"
+          },
+          "verticalTimeAxis": {
+            "description":
+              "verticalTimeAxis describes the orientation of the table by indicating whether the time axis will be displayed vertically",
+            "type": "boolean"
+          },
+          "sortBy": {
+            "description":
+              "sortBy contains the name of the series that is used for sorting the table",
+            "type": "object",
+            "$ref": "#/definitions/RenamableField"
+          },
+          "wrapping": {
+            "description":
+              "wrapping describes the text wrapping style to be used in table cells",
+            "type": "string",
+            "enum": ["truncate", "wrap", "single-line"]
+          },
+          "fieldNames": {
+            "description":
+              "fieldNames represent the fields retrieved by the query with customization options",
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/RenamableField"
+            }
+          },
+          "fixFirstColumn": {
+            "description":
+              "fixFirstColumn indicates whether the first column of the table should be locked",
+            "type": "boolean"
+          }
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            }
+          }
         }
       },
       "example": {
@@ -3893,154 +4660,9 @@
           "format": "int64"
         },
         "cells": {
-          "description": "a list of dashboard visualizations",
           "type": "array",
           "items": {
-            "description": "cell visualization information",
-            "type": "object",
-            "properties": {
-              "x": {
-                "description": "X-coordinate of Cell in the Dashboard",
-                "type": "integer",
-                "format": "int32"
-              },
-              "y": {
-                "description": "Y-coordinate of Cell in the Dashboard",
-                "type": "integer",
-                "format": "int32"
-              },
-              "w": {
-                "description": "Width of Cell in the Dashboard",
-                "type": "integer",
-                "format": "int32",
-                "minimum": 1,
-                "default": 4
-              },
-              "h": {
-                "description": "Height of Cell in the Dashboard",
-                "type": "integer",
-                "format": "int32",
-                "minimum": 1,
-                "default": 4
-              },
-              "name": {
-                "description": "Name of Cell in the Dashboard",
-                "type": "string"
-              },
-              "queries": {
-                "description": "Time-series data queries for Cell.",
-                "type": "array",
-                "items": {
-                  "$ref": "#/definitions/DashboardQuery"
-                }
-              },
-              "axes": {
-                "description": "The viewport for a cell's visualizations",
-                "type": "object",
-                "properties": {
-                  "x": {
-                    "$ref": "#/definitions/Axis"
-                  },
-                  "y": {
-                    "$ref": "#/definitions/Axis"
-                  },
-                  "y2": {
-                    "$ref": "#/definitions/Axis"
-                  }
-                }
-              },
-              "type": {
-                "description": "Cell visualization type",
-                "type": "string",
-                "enum": [
-                  "single-stat",
-                  "line",
-                  "line-plus-single-stat",
-                  "line-stacked",
-                  "line-stepplot",
-                  "bar"
-                ],
-                "default": "line"
-              },
-              "colors": {
-                "description":
-                  "Colors define encoding data into a visualization",
-                "type": "array",
-                "items": {
-                  "$ref": "#/definitions/DashboardColor"
-                }
-              },
-              "legend": {
-                "description":
-                  "Legend define encoding of the data into a cell's legend",
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "description": "type is the style of the legend",
-                    "type": "string",
-                    "enum": ["static"]
-                  },
-                  "orientation": {
-                    "description":
-                      "orientation is the location of the legend with respect to the cell graph",
-                    "type": "string",
-                    "enum": ["top", "bottom", "left", "right"]
-                  }
-                }
-              },
-              "tableOptions": {
-                "description":
-                  "visualization options for a cell with table type",
-                "type": "object",
-                "properties": {
-                  "timeFormat": {
-                    "description":
-                      "timeFormat describes the display format for time values according to moment.js date formatting",
-                    "type": "string"
-                  },
-                  "verticalTimeAxis": {
-                    "description":
-                      "verticalTimeAxis describes the orientation of the table by indicating whether the time axis will be displayed vertically",
-                    "type": "boolean"
-                  },
-                  "sortBy": {
-                    "description":
-                      "sortBy contains the name of the series that is used for sorting the table",
-                    "type": "object",
-                    "$ref": "#/definitions/RenamableField"
-                  },
-                  "wrapping": {
-                    "description":
-                      "wrapping describes the text wrapping style to be used in table cells",
-                    "type": "string",
-                    "enum": ["truncate", "wrap", "single-line"]
-                  },
-                  "fieldNames": {
-                    "description":
-                      "fieldNames represent the fields retrieved by the query with customization options",
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/definitions/RenamableField"
-                    }
-                  },
-                  "fixFirstColumn": {
-                    "description":
-                      "fixFirstColumn indicates whether this field should be visible on the table",
-                    "type": "boolean"
-                  }
-                }
-              },
-              "links": {
-                "type": "object",
-                "properties": {
-                  "self": {
-                    "type": "string",
-                    "description": "Self link mapping to this resource",
-                    "format": "url"
-                  }
-                }
-              }
-            }
+            "$ref": "#/definitions/Cell"
           }
         },
         "name": {

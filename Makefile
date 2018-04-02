@@ -124,3 +124,6 @@ clean:
 
 ctags:
 	ctags -R --languages="Go" --exclude=.git --exclude=ui .
+
+lint:
+	cd ui && yarn prettier
