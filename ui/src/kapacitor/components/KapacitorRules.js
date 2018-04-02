@@ -14,9 +14,6 @@ const KapacitorRules = ({
   onDelete,
   onChangeRuleStatus,
 }) => {
-  if (!hasKapacitor) {
-    return <NoKapacitorError source={source} />
-  }
   if (loading) {
     return (
       <div>
@@ -28,7 +25,11 @@ const KapacitorRules = ({
         </div>
         <div className="panel-body">
           <div className="generic-empty-state">
-            <p>Loading Rules...</p>
+            {hasKapacitor ? (
+              <p>Loading Rules...</p>
+            ) : (
+              <NoKapacitorError source={source} />
+            )}
           </div>
         </div>
       </div>
