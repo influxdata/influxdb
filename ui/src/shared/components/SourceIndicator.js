@@ -6,12 +6,8 @@ import uuid from 'uuid'
 import ReactTooltip from 'react-tooltip'
 
 const SourceIndicator = ({sourceOverride}, {source: {name, url}}) => {
-  const sourceName = _.get(sourceOverride, 'name', null)
-    ? sourceOverride.name
-    : name
-  const sourceUrl = _.get(sourceOverride, 'url', null)
-    ? sourceOverride.url
-    : url
+  const sourceName = _.get(sourceOverride, 'name', name)
+  const sourceUrl = _.get(sourceOverride, 'url', url)
 
   if (!sourceName) {
     return null
