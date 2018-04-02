@@ -70,7 +70,7 @@ const TemplateVariableRow = ({
       <Dropdown
         items={TEMPLATE_TYPES}
         onChoose={onSelectType}
-        onClick={onStartEdit}
+        onClick={onStartEdit('tempVar')}
         selected={TEMPLATE_TYPES.find(t => t.type === selectedType).text}
         className="dropdown-140"
       />
@@ -84,7 +84,7 @@ const TemplateVariableRow = ({
         selectedMeasurement={selectedMeasurement}
         selectedTagKey={selectedTagKey}
         onSelectTagKey={onSelectTagKey}
-        onStartEdit={onStartEdit}
+        onStartEdit={onStartEdit('tempVar')}
         onErrorThrown={onErrorThrown}
       />
       <RowValues
