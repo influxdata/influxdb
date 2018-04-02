@@ -3,6 +3,7 @@ import classnames from 'classnames'
 import _ from 'lodash'
 
 import MultiSelectDropdown from 'src/shared/components/MultiSelectDropdown'
+
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 import {User} from 'src/types/influxAdmin'
 
@@ -13,10 +14,6 @@ interface Props {
 }
 
 class UserPermissionsDropdown extends PureComponent<Props> {
-  constructor(props) {
-    super(props)
-  }
-
   public render() {
     return (
       <MultiSelectDropdown

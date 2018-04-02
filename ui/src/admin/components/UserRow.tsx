@@ -1,11 +1,9 @@
 import React, {PureComponent} from 'react'
 
-import classnames from 'classnames'
-
 import UserPermissionsDropdown from 'src/admin/components/UserPermissionsDropdown'
-import MultiSelectDropdown from 'src/shared/components/MultiSelectDropdown'
-import ConfirmButton from 'src/shared/components/ConfirmButton'
+import UserRoleDropdown from 'src/admin/components/UserRoleDropdown'
 import ChangePassRow from 'src/admin/components/ChangePassRow'
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 
 import UserRowEdit from 'src/admin/components/UserRowEdit'
@@ -30,7 +28,7 @@ interface UserRowProps {
 class UserRow extends PureComponent<UserRowProps> {
   public render() {
     const {
-      user: {name, roles = [], password},
+      user: {name, password},
       user,
       allRoles,
       allPermissions,
@@ -45,13 +43,6 @@ class UserRow extends PureComponent<UserRowProps> {
       onUpdateRoles,
       onUpdatePassword,
     } = this.props
-
-    function handleUpdateRoles(roleNames): void {
-      onUpdateRoles(
-        user,
-        allRoles.filter(r => roleNames.find(rn => rn.name === r.name))
-      )
-    }
 
     function handleUpdatePassword(): void {
       onUpdatePassword(user, password)
@@ -85,22 +76,15 @@ class UserRow extends PureComponent<UserRowProps> {
             buttonSize="btn-xs"
           />
         </td>
-        {hasRoles ? (
+        {hasRoles && (
           <td>
-            <MultiSelectDropdown
-              items={allRoles}
-              selectedItems={roles.map(r => ({name: r.name}))}
-              label={roles.length ? '' : 'Select Roles'}
-              onApply={handleUpdateRoles}
-              buttonSize="btn-xs"
-              buttonColor="btn-primary"
-              customClass={classnames(`dropdown-${USERS_TABLE.colRoles}`, {
-                'admin-table--multi-select-empty': !roles.length,
-              })}
-              resetStateOnReceiveProps={false}
+            <UserRoleDropdown
+              user={user}
+              allRoles={allRoles}
+              onUpdateRoles={onUpdateRoles}
             />
           </td>
-        ) : null}
+        )}
         <td>
           {allPermissions &&
             !!allPermissions.length && (
