@@ -6,7 +6,7 @@ import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
 
-import {stringifyColorValues} from 'src/shared/constants/colorOperations'
+import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 
 const DashVisualization = (
   {
@@ -27,25 +27,12 @@ const DashVisualization = (
   },
   {source: {links: {proxy}}}
 ) => {
-  let colors = []
-  switch (type) {
-    case 'gauge': {
-      colors = stringifyColorValues(gaugeColors)
-      break
-    }
-    case 'single-stat':
-    case 'line-plus-single-stat':
-    case 'table': {
-      colors = stringifyColorValues(thresholdsListColors)
-      break
-    }
-    case 'bar':
-    case 'line':
-    case 'line-stacked':
-    case 'line-stepplot': {
-      colors = stringifyColorValues(lineColors)
-    }
-  }
+  const colors = getCellTypeColors({
+    cellType: type,
+    gaugeColors,
+    thresholdsListColors,
+    lineColors,
+  })
 
   return (
     <div className="graph">

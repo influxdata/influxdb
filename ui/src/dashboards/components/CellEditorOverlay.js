@@ -24,7 +24,7 @@ import {
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {AUTO_GROUP_BY} from 'src/shared/constants'
-import {stringifyColorValues} from 'src/shared/constants/colorOperations'
+import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -120,26 +120,12 @@ class CellEditorOverlay extends Component {
       }
     })
 
-    let colors = []
-
-    switch (cell.type) {
-      case 'gauge': {
-        colors = stringifyColorValues(gaugeColors)
-        break
-      }
-      case 'single-stat':
-      case 'line-plus-single-stat':
-      case 'table': {
-        colors = stringifyColorValues(thresholdsListColors)
-        break
-      }
-      case 'bar':
-      case 'line':
-      case 'line-stacked':
-      case 'line-stepplot': {
-        colors = stringifyColorValues(lineColors)
-      }
-    }
+    const colors = getCellTypeColors({
+      cellType: cell.type,
+      gaugeColors,
+      thresholdsListColors,
+      lineColors,
+    })
 
     this.props.onSave({
       ...cell,
