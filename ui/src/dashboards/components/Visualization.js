@@ -6,7 +6,8 @@ import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
 
-import {stringifyColorValues} from 'src/shared/constants/colorOperations'
+import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
+import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 
 const DashVisualization = (
   {
@@ -14,6 +15,7 @@ const DashVisualization = (
     type,
     templates,
     timeRange,
+    lineColors,
     autoRefresh,
     gaugeColors,
     queryConfigs,
@@ -26,14 +28,19 @@ const DashVisualization = (
   },
   {source: {links: {proxy}}}
 ) => {
-  const colors = type === 'gauge' ? gaugeColors : thresholdsListColors
+  const colors = getCellTypeColors({
+    cellType: type,
+    gaugeColors,
+    thresholdsListColors,
+    lineColors,
+  })
 
   return (
     <div className="graph">
       <VisualizationName />
       <div className="graph-container">
         <RefreshingGraph
-          colors={stringifyColorValues(colors)}
+          colors={colors}
           axes={axes}
           type={type}
           tableOptions={tableOptions}
@@ -69,24 +76,9 @@ DashVisualization.propTypes = {
   }),
   tableOptions: shape({}),
   resizerTopHeight: number,
-  thresholdsListColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
-  gaugeColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
+  thresholdsListColors: colorsNumberSchema,
+  gaugeColors: colorsNumberSchema,
+  lineColors: colorsStringSchema,
   staticLegend: bool,
   setDataLabels: func,
 }
@@ -103,11 +95,13 @@ const mapStateToProps = ({
   cellEditorOverlay: {
     thresholdsListColors,
     gaugeColors,
+    lineColors,
     cell: {type, axes, tableOptions},
   },
 }) => ({
   gaugeColors,
   thresholdsListColors,
+  lineColors,
   type,
   axes,
   tableOptions,

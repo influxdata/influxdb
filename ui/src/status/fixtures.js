@@ -1,3 +1,5 @@
+import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
+
 export const fixtureStatusPageCells = [
   {
     i: 'alerts-bar-graph',
@@ -8,6 +10,7 @@ export const fixtureStatusPageCells = [
     h: 4,
     legend: {},
     name: 'Alert Events per Day – Last 30 Days',
+    colors: DEFAULT_LINE_COLORS,
     queries: [
       {
         query:

@@ -10,6 +10,7 @@ import Threshold from 'src/dashboards/components/Threshold'
 import ColorDropdown from 'shared/components/ColorDropdown'
 
 import {updateThresholdsListColors} from 'src/dashboards/actions/cellEditorOverlay'
+import {colorsNumberSchema} from 'shared/schemas'
 
 import {
   THRESHOLD_COLORS,
@@ -166,22 +167,14 @@ class ThresholdsList extends Component {
     )
   }
 }
-const {arrayOf, bool, func, number, shape, string} = PropTypes
+const {bool, func, string} = PropTypes
 
 ThresholdsList.defaultProps = {
   showListHeading: false,
 }
 ThresholdsList.propTypes = {
   thresholdsListType: string.isRequired,
-  thresholdsListColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
+  thresholdsListColors: colorsNumberSchema.isRequired,
   handleUpdateThresholdsListColors: func.isRequired,
   onResetFocus: func.isRequired,
   showListHeading: bool,

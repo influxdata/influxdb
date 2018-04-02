@@ -1,4 +1,5 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
+import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 
 export const initializeOptions = cellType => {
   switch (cellType) {
@@ -18,3 +19,33 @@ export const AXES_SCALE_OPTIONS = {
 
 export const TOOLTIP_Y_VALUE_FORMAT =
   '<p><strong>K/M/B</strong> = Thousand / Million / Billion<br/><strong>K/M/G</strong> = Kilo / Mega / Giga </p>'
+
+export const getCellTypeColors = ({
+  cellType,
+  gaugeColors,
+  thresholdsListColors,
+  lineColors,
+}) => {
+  let colors = []
+
+  switch (cellType) {
+    case 'gauge': {
+      colors = stringifyColorValues(gaugeColors)
+      break
+    }
+    case 'single-stat':
+    case 'line-plus-single-stat':
+    case 'table': {
+      colors = stringifyColorValues(thresholdsListColors)
+      break
+    }
+    case 'bar':
+    case 'line':
+    case 'line-stacked':
+    case 'line-stepplot': {
+      colors = stringifyColorValues(lineColors)
+    }
+  }
+
+  return colors
+}

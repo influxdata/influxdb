@@ -6,6 +6,7 @@ import lastValues from 'shared/parsing/lastValues'
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'shared/constants'
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
+import {colorsStringSchema} from 'shared/schemas'
 
 class SingleStat extends PureComponent {
   render() {
@@ -78,15 +79,7 @@ SingleStat.propTypes = {
   data: arrayOf(shape()).isRequired,
   isFetchingInitially: bool,
   cellHeight: number,
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ),
+  colors: colorsStringSchema,
   prefix: string,
   suffix: string,
   lineGraph: bool,

@@ -4,6 +4,10 @@
 */
 
 $color-dropdown--circle: 14px;
+$color-dropdown--bar: 104px;
+$color-dropdown--bar-height: 10px;
+$color-dropdown--left-padding: 11px;
+$color-dropdown--name-padding: 20px;
 
 .color-dropdown {
   width: 140px;
@@ -31,11 +35,11 @@ $color-dropdown--circle: 14px;
   position: absolute;
   top: 30px;
   left: 0;
-  z-index: 2;
+  z-index: 5;
   width: 100%;
   border-radius: 4px;
   box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.7);
-  @include gradient-h($g0-obsidian,$g2-kevlar);
+  @include gradient-h($g0-obsidian, $g2-kevlar);
 }
 .color-dropdown--item {
   @include no-user-select();
@@ -43,9 +47,7 @@ $color-dropdown--circle: 14px;
   height: 28px;
   position: relative;
   color: $g11-sidewalk;
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
+  transition: color 0.25s ease, background-color 0.25s ease;
 
   &:hover {
     background-color: $g4-onyx;
@@ -67,6 +69,7 @@ $color-dropdown--circle: 14px;
   }
 }
 .color-dropdown--swatch,
+.color-dropdown--swatches,
 .color-dropdown--name {
   position: absolute;
   top: 50%;
@@ -76,21 +79,35 @@ $color-dropdown--circle: 14px;
   width: $color-dropdown--circle;
   height: $color-dropdown--circle;
   border-radius: 50%;
-  left: 11px;
+  left: $color-dropdown--left-padding;
+}
+.color-dropdown--swatches {
+  width: $color-dropdown--bar;
+  height: $color-dropdown--bar-height;
+  border-radius: $color-dropdown--bar-height / 2;
+  left: $color-dropdown--left-padding;
 }
 .color-dropdown--name {
   text-align: left;
-  right: 11px;
-  left: 34px;
+  right: $color-dropdown--name-padding;
+  left: $color-dropdown--circle + $color-dropdown--name-padding;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
   text-transform: capitalize;
+
+  .color-dropdown--swatches + & {
+    left: $color-dropdown--bar + $color-dropdown--name-padding;
+  }
 }
-.color-dropdown .color-dropdown--menu .fancy-scroll--container .fancy-scroll--track-v .fancy-scroll--thumb-v {
-  @include gradient-v($g9-mountain,$g7-graphite);
+.color-dropdown
+  .color-dropdown--menu
+  .fancy-scroll--container
+  .fancy-scroll--track-v
+  .fancy-scroll--thumb-v {
+  @include gradient-v($g9-mountain, $g7-graphite);
 }
 .color-dropdown--toggle.color-dropdown__disabled {
   color: $g7-graphite;

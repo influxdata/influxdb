@@ -9,6 +9,11 @@ import {
   getThresholdsListType,
 } from 'shared/constants/thresholds'
 
+import {
+  DEFAULT_LINE_COLORS,
+  validateLineColors,
+} from 'src/shared/constants/graphColorPalettes'
+
 import {initializeOptions} from 'src/dashboards/constants/cellEditor'
 
 export const initialState = {
@@ -16,6 +21,7 @@ export const initialState = {
   thresholdsListType: THRESHOLD_TYPE_TEXT,
   thresholdsListColors: DEFAULT_THRESHOLDS_LIST_COLORS,
   gaugeColors: DEFAULT_GAUGE_COLORS,
+  lineColors: DEFAULT_LINE_COLORS,
 }
 
 export default function cellEditorOverlay(state = initialState, action) {
@@ -36,12 +42,15 @@ export default function cellEditorOverlay(state = initialState, action) {
         initializeOptions('table')
       )
 
+      const lineColors = validateLineColors(colors)
+
       return {
         ...state,
         cell: {...cell, tableOptions},
         thresholdsListType,
         thresholdsListColors,
         gaugeColors,
+        lineColors,
       }
     }
 
@@ -100,6 +109,12 @@ export default function cellEditorOverlay(state = initialState, action) {
       const cell = {...state.cell, tableOptions}
 
       return {...state, cell}
+    }
+
+    case 'UPDATE_LINE_COLORS': {
+      const {lineColors} = action.payload
+
+      return {...state, lineColors}
     }
   }
 
