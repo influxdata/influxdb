@@ -9,6 +9,10 @@ v1.5.2 [unreleased]
 -	[#9660](https://github.com/influxdata/influxdb/pull/9660): Ignore index size in Engine.DiskSize().
 -	[#9662](https://github.com/influxdata/influxdb/pull/9662): [1.5] Fix buildtsi partition key.
 
+### Features
+
+-	[#9672](https://github.com/influxdata/influxdb/pull/9672): [1.5] Adjustable TSI Compaction Threshold
+
 v1.5.1 [2018-03-20]
 -------------------
 
