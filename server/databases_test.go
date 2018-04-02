@@ -382,24 +382,6 @@ func TestService_Measurements(t *testing.T) {
 						}, nil
 					},
 				},
-				Databases: &mocks.Databases{
-					ConnectF: func(context.Context, *chronograf.Source) error {
-						return nil
-					},
-					GetMeasurementsF: func(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
-						return []chronograf.Measurement{
-							{
-								Name: "pineapple",
-							},
-							{
-								Name: "cubeapple",
-							},
-							{
-								Name: "pinecube",
-							},
-						}, nil
-					},
-				},
 			},
 			args: args{
 				queryParams: map[string]string{
@@ -409,6 +391,27 @@ func TestService_Measurements(t *testing.T) {
 			wants: wants{
 				statusCode: 422,
 				body:       `{"code":422,"message":"strconv.Atoi: parsing \"joe\": invalid syntax"}`,
+			},
+		},
+		{
+			name: "Fails when invalid offset value provided",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, srcID int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID: 0,
+						}, nil
+					},
+				},
+			},
+			args: args{
+				queryParams: map[string]string{
+					"offset": "bob",
+				},
+			},
+			wants: wants{
+				statusCode: 422,
+				body:       `{"code":422,"message":"strconv.Atoi: parsing \"bob\": invalid syntax"}`,
 			},
 		},
 	}
