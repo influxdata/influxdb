@@ -22,6 +22,7 @@ import {
 export const DEFAULT_SORT = ASCENDING
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
+import {colorsStringSchema} from 'shared/schemas'
 
 export const filterInvisibleColumns = (data, fieldNames) => {
   const visibility = {}
@@ -451,15 +452,7 @@ TableGraph.propTypes = {
   }),
   hoverTime: string,
   onSetHoverTime: func,
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ),
+  colors: colorsStringSchema,
   setDataLabels: func,
 }
 

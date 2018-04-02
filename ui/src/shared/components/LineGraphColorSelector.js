@@ -6,6 +6,7 @@ import {bindActionCreators} from 'redux'
 import ColorScaleDropdown from 'shared/components/ColorScaleDropdown'
 
 import {updateLineColors} from 'src/dashboards/actions/cellEditorOverlay'
+import {colorsStringSchema} from 'shared/schemas'
 
 class LineGraphColorSelector extends Component {
   handleSelectColors = colorScale => {
@@ -31,17 +32,10 @@ class LineGraphColorSelector extends Component {
   }
 }
 
-const {arrayOf, func, shape, string} = PropTypes
+const {func} = PropTypes
 
 LineGraphColorSelector.propTypes = {
-  lineColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-    }).isRequired
-  ).isRequired,
+  lineColors: colorsStringSchema.isRequired,
   handleUpdateLineColors: func.isRequired,
 }
 

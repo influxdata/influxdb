@@ -9,21 +9,21 @@ export const LINE_COLORS_A = [
     hex: '#31C0F6',
     id: '0',
     name: 'Nineteen Eighty Four',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#A500A5',
     id: '0',
     name: 'Nineteen Eighty Four',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#FF7E27',
     id: '0',
     name: 'Nineteen Eighty Four',
-    value: 0,
+    value: '0',
   },
 ]
 
@@ -33,21 +33,21 @@ export const LINE_COLORS_B = [
     hex: '#74D495',
     id: '1',
     name: 'Atlantis',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#3F3FBA',
     id: '1',
     name: 'Atlantis',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#FF4D9E',
     id: '1',
     name: 'Atlantis',
-    value: 0,
+    value: '0',
   },
 ]
 
@@ -57,21 +57,21 @@ export const LINE_COLORS_C = [
     hex: '#8F8AF4',
     id: '1',
     name: 'Do Androids Dream of Electric Sheep?',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#A51414',
     id: '1',
     name: 'Do Androids Dream of Electric Sheep?',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#F4CF31',
     id: '1',
     name: 'Do Androids Dream of Electric Sheep?',
-    value: 0,
+    value: '0',
   },
 ]
 
@@ -81,21 +81,21 @@ export const LINE_COLORS_D = [
     hex: '#FD7A5D',
     id: '1',
     name: 'Delorean',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#5F1CF2',
     id: '1',
     name: 'Delorean',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#4CE09A',
     id: '1',
     name: 'Delorean',
-    value: 0,
+    value: '0',
   },
 ]
 
@@ -105,21 +105,21 @@ export const LINE_COLORS_E = [
     hex: '#FDC44F',
     id: '1',
     name: 'Cthulhu',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#007C76',
     id: '1',
     name: 'Cthulhu',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#8983FF',
     id: '1',
     name: 'Cthulhu',
-    value: 0,
+    value: '0',
   },
 ]
 
@@ -129,21 +129,21 @@ export const LINE_COLORS_F = [
     hex: '#DA6FF1',
     id: '1',
     name: 'Ectoplasm',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#00717A',
     id: '1',
     name: 'Ectoplasm',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#ACFF76',
     id: '1',
     name: 'Ectoplasm',
-    value: 0,
+    value: '0',
   },
 ]
 
@@ -153,21 +153,21 @@ export const LINE_COLORS_G = [
     hex: '#F6F6F8',
     id: '1',
     name: 'T-Max 400 Film',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#A4A8B6',
     id: '1',
     name: 'T-Max 400 Film',
-    value: 0,
+    value: '0',
   },
   {
     type: COLOR_TYPE_SCALE,
     hex: '#545667',
     id: '1',
     name: 'T-Max 400 Film',
-    value: 0,
+    value: '0',
   },
 ]
 
@@ -177,7 +177,7 @@ export const LINE_COLORS_RULE_GRAPH = [
     hex: '#4ED8A0',
     id: '1',
     name: 'Rainforest',
-    value: 0,
+    value: '0',
   },
 ]
 

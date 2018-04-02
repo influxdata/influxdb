@@ -6,6 +6,8 @@ import shallowCompare from 'react-addons-shallow-compare'
 import SingleStat from 'src/shared/components/SingleStat'
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
 
+import {colorsStringSchema} from 'shared/schemas'
+
 class LineGraph extends Component {
   constructor(props) {
     super(props)
@@ -196,15 +198,7 @@ LineGraph.propTypes = {
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,
   data: arrayOf(shape({}).isRequired).isRequired,
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ),
+  colors: colorsStringSchema,
 }
 
 export default LineGraph

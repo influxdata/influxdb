@@ -7,6 +7,7 @@ import buildQueries from 'utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
 
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
+import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 
 const DashVisualization = (
   {
@@ -75,9 +76,9 @@ DashVisualization.propTypes = {
   }),
   tableOptions: shape({}),
   resizerTopHeight: number,
-  thresholdsListColors: arrayOf(shape({}).isRequired),
-  gaugeColors: arrayOf(shape({}).isRequired),
-  lineColors: arrayOf(shape({}).isRequired),
+  thresholdsListColors: colorsNumberSchema,
+  gaugeColors: colorsNumberSchema,
+  lineColors: colorsStringSchema,
   staticLegend: bool,
   setDataLabels: func,
 }

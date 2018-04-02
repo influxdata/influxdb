@@ -8,6 +8,8 @@ import {IS_STATIC_LEGEND} from 'src/shared/constants'
 
 import _ from 'lodash'
 
+import {colorsStringSchema} from 'shared/schemas'
+
 const getSource = (cell, source, sources, defaultSource) => {
   const s = _.get(cell, ['queries', '0', 'source'], null)
   if (!s) {
@@ -134,15 +136,7 @@ const propTypes = {
     i: string.isRequired,
     name: string.isRequired,
     type: string.isRequired,
-    colors: arrayOf(
-      shape({
-        type: string.isRequired,
-        hex: string.isRequired,
-        id: string.isRequired,
-        name: string.isRequired,
-        value: string.isRequired,
-      }).isRequired
-    ),
+    colors: colorsStringSchema,
   }).isRequired,
   templates: arrayOf(shape()),
   host: string,

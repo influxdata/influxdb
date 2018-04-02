@@ -37,6 +37,7 @@ import {
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 import {notifyDashboardNotFound} from 'shared/copy/notifications'
+import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -532,9 +533,9 @@ DashboardPage.propTypes = {
   handleDismissEditingAnnotation: func.isRequired,
   selectedCell: shape({}),
   thresholdsListType: string.isRequired,
-  thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
-  gaugeColors: arrayOf(shape({}).isRequired).isRequired,
-  lineColors: arrayOf(shape({}).isRequired).isRequired,
+  thresholdsListColors: colorsNumberSchema.isRequired,
+  gaugeColors: colorsNumberSchema.isRequired,
+  lineColors: colorsStringSchema.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {

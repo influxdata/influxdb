@@ -48,7 +48,7 @@ const RuleGraph = ({
         isGraphFilled={false}
         ruleValues={rule.values}
         autoRefresh={autoRefreshMs}
-        overrideLineColors={LINE_COLORS_RULE_GRAPH}
+        colors={LINE_COLORS_RULE_GRAPH}
         underlayCallback={underlayCallback(rule)}
       />
     </div>

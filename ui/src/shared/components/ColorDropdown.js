@@ -99,7 +99,7 @@ ColorDropdown.propTypes = {
     shape({
       hex: string.isRequired,
       name: string.isRequired,
-    })
+    }).isRequired
   ).isRequired,
   stretchToFit: bool,
   disabled: bool,

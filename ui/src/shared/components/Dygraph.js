@@ -32,6 +32,8 @@ import {
 } from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
+import {colorsStringSchema} from 'shared/schemas'
+
 class Dygraph extends Component {
   constructor(props) {
     super(props)
@@ -458,15 +460,7 @@ Dygraph.propTypes = {
   onZoom: func,
   mode: string,
   children: node,
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ),
+  colors: colorsStringSchema.isRequired,
 }
 
 const mapStateToProps = ({annotations: {mode}}) => ({
