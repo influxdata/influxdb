@@ -5,8 +5,9 @@ interface Props {
 }
 
 const DeprecationWarning: SFC<Props> = ({message}) => (
-  <div>
-    <span className="icon stop" /> {message}
+  <div className="alert alert-primary">
+    <span className="icon stop" />
+    <div className="alert-message">{message}</div>
   </div>
 )
 
