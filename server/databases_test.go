@@ -372,6 +372,45 @@ func TestService_Measurements(t *testing.T) {
 `,
 			},
 		},
+		{
+			name: "Fails when invalid limit value provided",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, srcID int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID: 0,
+						}, nil
+					},
+				},
+				Databases: &mocks.Databases{
+					ConnectF: func(context.Context, *chronograf.Source) error {
+						return nil
+					},
+					GetMeasurementsF: func(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
+						return []chronograf.Measurement{
+							{
+								Name: "pineapple",
+							},
+							{
+								Name: "cubeapple",
+							},
+							{
+								Name: "pinecube",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				queryParams: map[string]string{
+					"limit": "joe",
+				},
+			},
+			wants: wants{
+				statusCode: 422,
+				body:       `{"code":422,"message":"strconv.Atoi: parsing \"joe\": invalid syntax"}`,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
