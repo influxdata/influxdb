@@ -454,6 +454,46 @@ func TestService_Measurements(t *testing.T) {
 `,
 			},
 		},
+		{
+			name: "Overrides offset less than 0 with offset 0",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, srcID int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID: 0,
+						}, nil
+					},
+				},
+				Databases: &mocks.Databases{
+					ConnectF: func(context.Context, *chronograf.Source) error {
+						return nil
+					},
+					GetMeasurementsF: func(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
+						return []chronograf.Measurement{
+							{
+								Name: "pineapple",
+							},
+							{
+								Name: "cubeapple",
+							},
+							{
+								Name: "pinecube",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				queryParams: map[string]string{
+					"offset": "-1337",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","first":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=100"}}
+`,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
