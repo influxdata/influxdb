@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxql"
 )
 
@@ -534,6 +536,15 @@ func (b *exprIteratorBuilder) callIterator(ctx context.Context, expr *influxql.C
 }
 
 func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic IteratorCreator, opt IteratorOptions) (Cursor, error) {
+	span := tracing.SpanFromContext(ctx)
+	if span != nil {
+		span = span.StartSpan("build_cursor")
+		defer span.Finish()
+
+		span.SetLabels("statement", stmt.String())
+		ctx = tracing.NewContextWithSpan(ctx, span)
+	}
+
 	switch opt.Fill {
 	case influxql.NumberFill:
 		if v, ok := opt.FillValue.(int); ok {
@@ -665,6 +676,19 @@ func buildCursor(ctx context.Context, stmt *influxql.SelectStatement, ic Iterato
 }
 
 func buildAuxIterator(ctx context.Context, ic IteratorCreator, sources influxql.Sources, opt IteratorOptions) (Iterator, error) {
+	span := tracing.SpanFromContext(ctx)
+	if span != nil {
+		span = span.StartSpan("iterator_scanner")
+		defer span.Finish()
+
+		auxFieldNames := make([]string, len(opt.Aux))
+		for i, ref := range opt.Aux {
+			auxFieldNames[i] = ref.String()
+		}
+		span.SetLabels("auxiliary_fields", strings.Join(auxFieldNames, ", "))
+		ctx = tracing.NewContextWithSpan(ctx, span)
+	}
+
 	inputs := make([]Iterator, 0, len(sources))
 	if err := func() error {
 		for _, source := range sources {
@@ -725,6 +749,23 @@ func buildAuxIterator(ctx context.Context, ic IteratorCreator, sources influxql.
 }
 
 func buildFieldIterator(ctx context.Context, expr influxql.Expr, ic IteratorCreator, sources influxql.Sources, opt IteratorOptions, selector, writeMode bool) (Iterator, error) {
+	span := tracing.SpanFromContext(ctx)
+	if span != nil {
+		span = span.StartSpan("iterator_scanner")
+		defer span.Finish()
+
+		labels := []string{"expr", expr.String()}
+		if len(opt.Aux) > 0 {
+			auxFieldNames := make([]string, len(opt.Aux))
+			for i, ref := range opt.Aux {
+				auxFieldNames[i] = ref.String()
+			}
+			labels = append(labels, "auxiliary_fields", strings.Join(auxFieldNames, ", "))
+		}
+		span.SetLabels(labels...)
+		ctx = tracing.NewContextWithSpan(ctx, span)
+	}
+
 	input, err := buildExprIterator(ctx, expr, ic, sources, opt, selector, writeMode)
 	if err != nil {
 		return nil, err
