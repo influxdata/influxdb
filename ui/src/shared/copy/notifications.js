@@ -133,7 +133,7 @@ export const notifySourceDeleteFailed = sourceName => ({
 })
 
 export const notifySourceNoLongerAvailable = sourceName =>
-  `Source ${sourceName} is no longer available. Successfully connected to another source.`
+  `Source ${sourceName} is no longer available. Please ensure InfluxDB is running.`
 
 export const notifyNoSourcesAvailable = sourceName =>
   `Unable to connect to source ${sourceName}. No other sources available.`

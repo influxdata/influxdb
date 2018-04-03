@@ -11,7 +11,7 @@ import {
   ADMIN_ROLE,
 } from 'src/auth/Authorized'
 
-import {showDatabases} from 'src/shared/apis/metaQuery'
+import {getSourceHealth} from 'src/sources/apis'
 
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import {errorThrown as errorThrownAction} from 'src/shared/actions/errors'
@@ -87,16 +87,15 @@ class CheckSources extends Component<Props, State> {
   }
 
   public shouldComponentUpdate(nextProps) {
-    const {auth: {isUsingAuth, me}} = nextProps
-    // don't update this component if currentOrganization is what has changed,
-    // or else the app will try to call showDatabases in componentWillUpdate,
-    // which will fail unless sources have been refreshed
+    const {location} = nextProps
+
     if (
-      isUsingAuth &&
-      me.currentOrganization.id !== this.props.auth.me.currentOrganization.id
+      !this.state.isFetching &&
+      this.props.location.pathname === location.pathname
     ) {
       return false
     }
+
     return true
   }
 
@@ -109,7 +108,6 @@ class CheckSources extends Component<Props, State> {
       sources,
       auth: {isUsingAuth, me, me: {organizations = [], currentOrganization}},
       notify,
-      getSources,
     } = nextProps
     const {isFetching} = nextState
     const source = sources.find(s => s.id === params.sourceID)
@@ -169,22 +167,10 @@ class CheckSources extends Component<Props, State> {
     }
 
     if (!isFetching && !location.pathname.includes('/manage-sources')) {
-      // Do simple query to proxy to see if the source is up.
       try {
-        // the guard around currentOrganization prevents this showDatabases
-        // invocation since sources haven't been refreshed yet
-        await showDatabases(source.links.proxy)
+        await getSourceHealth(source.links.health)
       } catch (error) {
-        try {
-          const newSources = await getSources()
-          if (newSources.length) {
-            errorThrown(error, copy.notifySourceNoLongerAvailable(source.name))
-          } else {
-            errorThrown(error, copy.notifyNoSourcesAvailable(source.name))
-          }
-        } catch (error2) {
-          errorThrown(error2, copy.notifyUnableToRetrieveSources())
-        }
+        errorThrown(error, copy.notifySourceNoLongerAvailable(source.name))
       }
     }
   }
