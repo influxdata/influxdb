@@ -1152,7 +1152,83 @@
             }
           },
           "default": {
-            "description": "A processing or an unexpected error.",
+            "description": "Unexpected internal service error.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/sources/{id}/dbs/{db_id}/measurements": {
+      "get": {
+        "tags": ["measurements"],
+        "summary": "Retrieve measurements in a database",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "type": "string",
+            "description": "ID of the data source",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "db_id",
+            "type": "string",
+            "description": "ID of the database",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "type": "integer",
+            "minimum": 1,
+            "default": 100,
+            "description":
+              "The upper limit of the number of available database measurements to return.",
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description":
+              "The number of measurements to skip before starting to collect the result set.",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listing of measurements for a database",
+            "schema": {
+              "$ref": "#/definitions/MeasurementsResponse"
+            }
+          },
+          "400": {
+            "description":
+              "Unable to connect to source; or unable to get measurements from database.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "404": {
+            "description": "Source not found.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "422": {
+            "description":
+              "Invalid source id param value in path; or invalid limit or offset param value in query.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal service error.",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2961,7 +3037,9 @@
         ],
         "links": {
           "self": "/chronograf/v1/sources/1/dbs/NOAA_water_database",
-          "rps": "/chronograf/v1/sources/1/dbs/NOAA_water_database/rps"
+          "rps": "/chronograf/v1/sources/1/dbs/NOAA_water_database/rps",
+          "measurements":
+            "/chronograf/v1/sources/1/dbs/NOAA_water_database/measurements?limit=100&offset=0"
         }
       },
       "properties": {
@@ -2999,6 +3077,11 @@
             "rps": {
               "type": "string",
               "description": "Link to retention policies for this database",
+              "format": "url"
+            },
+            "measurements": {
+              "type": "string",
+              "description": "Link to measurements for this database",
               "format": "url"
             }
           }
@@ -3390,6 +3473,76 @@
               "format": "url"
             }
           }
+        }
+      }
+    },
+    "MeasurementsResponse": {
+      "type": "object",
+      "properties": {
+        "measurements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Measurement"
+          }
+        },
+        "links": {
+          "type": "object",
+          "description":
+            "Links to paginated measurements, relative to the current page.",
+          "properties": {
+            "self": {
+              "type": "string",
+              "format": "url",
+              "description": "Current page measurements",
+              "required": true
+            },
+            "first": {
+              "type": "string",
+              "format": "url",
+              "description": "First page of measurements",
+              "required": true
+            },
+            "next": {
+              "type": "string",
+              "format": "url",
+              "description": "Next page of measurements",
+              "required": true
+            },
+            "prev": {
+              "type": "string",
+              "format": "url",
+              "description":
+                "Previous page of measurements, if not at the first page.",
+              "required": false
+            }
+          }
+        }
+      },
+      "example": {
+        "measurements": [
+          {
+            "name": "alerts"
+          },
+          {
+            "name": "annotations"
+          }
+        ],
+        "links": {
+          "self":
+            "/chronograf/v1/sources/1/dbs/chronograf/measurements?limit=100&offset=0",
+          "first":
+            "/chronograf/v1/sources/1/dbs/chronograf/measurements?limit=100&offset=0",
+          "next":
+            "/chronograf/v1/sources/1/dbs/chronograf/measurements?limit=100&offset=100"
+        }
+      }
+    },
+    "Measurement": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Measurement name."
         }
       }
     },
