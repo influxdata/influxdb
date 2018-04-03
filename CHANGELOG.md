@@ -10,8 +10,10 @@
 ### Bug Fixes
 
 ## v1.4.3.0 [unreleased]
+
 1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add tabular data visualization option with features
 1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
+1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
 
 ### UI Improvements
 
