@@ -16,17 +16,9 @@
   flex-wrap: wrap;
   max-height: 50%;
   overflow: auto;
-  @include custom-scrollbar($g3-castle,$g6-smoke);
+  @include custom-scrollbar($g3-castle, $g6-smoke);
 }
-.static-legend--dot {
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 4px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: $g20-white;
-}
+
 .static-legend--item,
 .static-legend--single {
   height: 22px;
@@ -43,8 +35,7 @@
 .static-legend--item {
   transition: background-color 0.25s ease, color 0.25s ease;
 
-  span,
-  .static-legend--dot {
+  span {
     opacity: 0.8;
     transition: opacity 0.25s ease;
   }
@@ -53,8 +44,7 @@
     cursor: pointer;
     background-color: $g6-smoke;
 
-    span,
-    .static-legend--dot {
+    span {
       opacity: 1;
     }
   }
@@ -62,16 +52,14 @@
     background-color: $g1-raven;
     font-style: italic;
 
-    span,
-    .static-legend--dot {
+    span {
       opacity: 0.35;
     }
 
     &:hover {
       background-color: $g2-kevlar;
 
-      span,
-      .static-legend--dot {
+      span {
         opacity: 0.65;
       }
     }

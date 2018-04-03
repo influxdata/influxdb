@@ -86,10 +86,6 @@ class StaticLegend extends Component {
             key={uuid.v4()}
             onMouseDown={this.handleClick(i)}
           >
-            <div
-              className="static-legend--dot"
-              style={{backgroundColor: colors[i]}}
-            />
             <span style={{color: colors[i]}}>{removeMeasurement(v)}</span>
           </div>
         ))}

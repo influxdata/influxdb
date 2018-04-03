@@ -27,6 +27,7 @@ import {
 } from 'src/shared/constants/tableGraph'
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
+import {colorsStringSchema} from 'shared/schemas'
 
 class TableGraph extends Component {
   constructor(props) {
@@ -432,15 +433,7 @@ TableGraph.propTypes = {
   }),
   hoverTime: string,
   onSetHoverTime: func,
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ),
+  colors: colorsStringSchema,
   setDataLabels: func,
 }
 

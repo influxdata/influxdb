@@ -20,6 +20,7 @@ import {
   updateGaugeColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
+import {colorsNumberSchema} from 'shared/schemas'
 
 class GaugeOptions extends Component {
   handleAddThreshold = () => {
@@ -219,18 +220,10 @@ class GaugeOptions extends Component {
   }
 }
 
-const {arrayOf, func, number, shape, string} = PropTypes
+const {func, shape} = PropTypes
 
 GaugeOptions.propTypes = {
-  gaugeColors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: number.isRequired,
-    }).isRequired
-  ),
+  gaugeColors: colorsNumberSchema,
   handleUpdateGaugeColors: func.isRequired,
   handleUpdateAxes: func.isRequired,
   axes: shape({}).isRequired,

@@ -9,6 +9,8 @@ import SingleStat from 'shared/components/SingleStat'
 import GaugeChart from 'shared/components/GaugeChart'
 import TableGraph from 'shared/components/TableGraph'
 
+import {colorsStringSchema} from 'shared/schemas'
+
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
 const RefreshingGaugeChart = AutoRefresh(GaugeChart)
@@ -154,15 +156,7 @@ RefreshingGraph.propTypes = {
   onZoom: func,
   resizeCoords: shape(),
   grabDataForDownload: func,
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ),
+  colors: colorsStringSchema,
   cellID: string,
   inView: bool,
   tableOptions: shape({}),

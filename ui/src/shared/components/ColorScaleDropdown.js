@@ -1,16 +1,19 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
-
+import uuid from 'uuid'
 import classnames from 'classnames'
+
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-class ColorDropdown extends Component {
+import {LINE_COLOR_SCALES} from 'src/shared/constants/graphColorPalettes'
+
+class ColorScaleDropdown extends Component {
   constructor(props) {
     super(props)
 
     this.state = {
-      visible: false,
+      expanded: false,
     }
   }
 
@@ -20,29 +23,35 @@ class ColorDropdown extends Component {
     if (disabled) {
       return
     }
-    this.setState({visible: !this.state.visible})
+    this.setState({expanded: !this.state.expanded})
   }
 
   handleClickOutside = () => {
-    this.setState({visible: false})
+    this.setState({expanded: false})
   }
 
-  handleColorClick = color => () => {
-    this.props.onChoose(color)
-    this.setState({visible: false})
+  handleDropdownClick = colorScale => () => {
+    this.props.onChoose(colorScale)
+    this.setState({expanded: false})
   }
+
+  generateGradientStyle = colors => ({
+    background: `linear-gradient(to right, ${colors[0].hex} 0%,${
+      colors[1].hex
+    } 50%,${colors[2].hex} 100%)`,
+  })
 
   render() {
-    const {visible} = this.state
-    const {colors, selected, disabled, stretchToFit} = this.props
+    const {expanded} = this.state
+    const {selected, disabled, stretchToFit} = this.props
 
     const dropdownClassNames = classnames('color-dropdown', {
-      open: visible,
+      open: expanded,
       'color-dropdown--stretch': stretchToFit,
     })
     const toggleClassNames = classnames(
       'btn btn-sm btn-default color-dropdown--toggle',
-      {active: visible, 'color-dropdown__disabled': disabled}
+      {active: expanded, 'color-dropdown__disabled': disabled}
     )
 
     return (
@@ -53,30 +62,32 @@ class ColorDropdown extends Component {
           disabled={disabled}
         >
           <div
-            className="color-dropdown--swatch"
-            style={{backgroundColor: selected.hex}}
+            className="color-dropdown--swatches"
+            style={this.generateGradientStyle(selected)}
           />
-          <div className="color-dropdown--name">{selected.name}</div>
+          <div className="color-dropdown--name">{selected[0].name}</div>
           <span className="caret" />
         </div>
-        {visible ? (
+        {expanded ? (
           <div className="color-dropdown--menu">
             <FancyScrollbar autoHide={false} autoHeight={true}>
-              {colors.map((color, i) => (
+              {LINE_COLOR_SCALES.map(colorScale => (
                 <div
                   className={
-                    color.name === selected.name
+                    colorScale.name === selected[0].name
                       ? 'color-dropdown--item active'
                       : 'color-dropdown--item'
                   }
-                  key={i}
-                  onClick={this.handleColorClick(color)}
+                  key={uuid.v4()}
+                  onClick={this.handleDropdownClick(colorScale)}
                 >
-                  <span
-                    className="color-dropdown--swatch"
-                    style={{backgroundColor: color.hex}}
+                  <div
+                    className="color-dropdown--swatches"
+                    style={this.generateGradientStyle(colorScale.colors)}
                   />
-                  <span className="color-dropdown--name">{color.name}</span>
+                  <span className="color-dropdown--name">
+                    {colorScale.name}
+                  </span>
                 </div>
               ))}
             </FancyScrollbar>
@@ -89,20 +100,18 @@ class ColorDropdown extends Component {
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 
-ColorDropdown.propTypes = {
-  selected: shape({
-    hex: string.isRequired,
-    name: string.isRequired,
-  }).isRequired,
-  onChoose: func.isRequired,
-  colors: arrayOf(
+ColorScaleDropdown.propTypes = {
+  selected: arrayOf(
     shape({
+      type: string.isRequired,
       hex: string.isRequired,
+      id: string.isRequired,
       name: string.isRequired,
     }).isRequired
   ).isRequired,
+  onChoose: func.isRequired,
   stretchToFit: bool,
   disabled: bool,
 }
 
-export default OnClickOutside(ColorDropdown)
+export default OnClickOutside(ColorScaleDropdown)

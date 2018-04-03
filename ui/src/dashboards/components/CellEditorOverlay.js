@@ -24,7 +24,8 @@ import {
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {AUTO_GROUP_BY} from 'src/shared/constants'
-import {stringifyColorValues} from 'src/shared/constants/colorOperations'
+import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
+import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -107,7 +108,7 @@ class CellEditorOverlay extends Component {
 
   handleSaveCell = () => {
     const {queriesWorkingDraft, staticLegend} = this.state
-    const {cell, thresholdsListColors, gaugeColors} = this.props
+    const {cell, thresholdsListColors, gaugeColors, lineColors} = this.props
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
@@ -120,20 +121,12 @@ class CellEditorOverlay extends Component {
       }
     })
 
-    let colors = []
-
-    switch (cell.type) {
-      case 'gauge': {
-        colors = stringifyColorValues(gaugeColors)
-        break
-      }
-      case 'single-stat':
-      case 'line-plus-single-stat':
-      case 'table': {
-        colors = stringifyColorValues(thresholdsListColors)
-        break
-      }
-    }
+    const colors = getCellTypeColors({
+      cellType: cell.type,
+      gaugeColors,
+      thresholdsListColors,
+      lineColors,
+    })
 
     this.props.onSave({
       ...cell,
@@ -390,8 +383,9 @@ CellEditorOverlay.propTypes = {
   dashboardID: string.isRequired,
   sources: arrayOf(shape()),
   thresholdsListType: string.isRequired,
-  thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
-  gaugeColors: arrayOf(shape({}).isRequired).isRequired,
+  thresholdsListColors: colorsNumberSchema.isRequired,
+  gaugeColors: colorsNumberSchema.isRequired,
+  lineColors: colorsStringSchema.isRequired,
 }
 
 CEOBottom.propTypes = {

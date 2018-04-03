@@ -23,10 +23,16 @@ import {
   LABEL_WIDTH,
   CHAR_PIXELS,
   barPlotter,
-  hasherino,
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
+
+import {
+  DEFAULT_LINE_COLORS,
+  getLineColorsHexes,
+} from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
+
+import {colorsStringSchema} from 'shared/schemas'
 
 class Dygraph extends Component {
   constructor(props) {
@@ -53,7 +59,7 @@ class Dygraph extends Component {
       fillGraph,
       logscale: y.scale === LOG,
       colors: this.getLineColors(),
-      series: this.hashColorDygraphSeries(),
+      series: this.colorDygraphSeries(),
       plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
@@ -149,7 +155,7 @@ class Dygraph extends Component {
         },
       },
       colors: this.getLineColors(),
-      series: this.hashColorDygraphSeries(),
+      series: this.colorDygraphSeries(),
       plotter: isBarGraph ? barPlotter : null,
       drawCallback: this.annotationsRef.heartbeat,
     }
@@ -189,6 +195,33 @@ class Dygraph extends Component {
     onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
   }
 
+  colorDygraphSeries = () => {
+    const {dygraphSeries, children, colors, overrideLineColors} = this.props
+    const numSeries = Object.keys(dygraphSeries).length
+
+    let lineColors = getLineColorsHexes(colors, numSeries)
+
+    if (React.children && React.children.count(children)) {
+      // If graph is line-plus-single-stat then reserve colors for single stat
+      lineColors = getLineColorsHexes(DEFAULT_LINE_COLORS, numSeries)
+    }
+
+    if (overrideLineColors) {
+      lineColors = getLineColorsHexes(overrideLineColors, numSeries)
+    }
+
+    const coloredDygraphSeries = {}
+
+    for (const seriesName in dygraphSeries) {
+      const series = dygraphSeries[seriesName]
+      const color = lineColors[Object.keys(dygraphSeries).indexOf(seriesName)]
+
+      coloredDygraphSeries[seriesName] = {...series, color}
+    }
+
+    return coloredDygraphSeries
+  }
+
   eventToTimestamp = ({pageX: pxBetweenMouseAndPage}) => {
     const {left: pxBetweenGraphAndPage} = this.graphRef.getBoundingClientRect()
     const graphXCoordinate = pxBetweenMouseAndPage - pxBetweenGraphAndPage
@@ -211,21 +244,6 @@ class Dygraph extends Component {
       this.props.onSetHoverTime(NULL_HOVER_TIME)
     }
     this.setState({isHoveringThisGraph: false})
-  }
-
-  hashColorDygraphSeries = () => {
-    const {dygraphSeries} = this.props
-    const colors = this.getLineColors()
-    const hashColorDygraphSeries = {}
-
-    for (const seriesName in dygraphSeries) {
-      const series = dygraphSeries[seriesName]
-      const hashIndex = hasherino(seriesName, colors.length)
-      const color = colors[hashIndex]
-      hashColorDygraphSeries[seriesName] = {...series, color}
-    }
-
-    return hashColorDygraphSeries
   }
 
   handleHideLegend = e => {
@@ -363,7 +381,7 @@ class Dygraph extends Component {
         />
         {staticLegend && (
           <StaticLegend
-            dygraphSeries={this.hashColorDygraphSeries()}
+            dygraphSeries={this.colorDygraphSeries()}
             dygraph={this.dygraph}
             handleReceiveStaticLegendHeight={
               this.handleReceiveStaticLegendHeight
@@ -420,7 +438,12 @@ Dygraph.propTypes = {
   isGraphFilled: bool,
   isBarGraph: bool,
   staticLegend: bool,
-  overrideLineColors: array,
+  overrideLineColors: arrayOf(
+    shape({
+      type: string.isRequired,
+      hex: string.isRequired,
+    }).isRequired
+  ),
   dygraphSeries: shape({}).isRequired,
   ruleValues: shape({
     operator: string,
@@ -437,6 +460,7 @@ Dygraph.propTypes = {
   onZoom: func,
   mode: string,
   children: node,
+  colors: colorsStringSchema.isRequired,
 }
 
 const mapStateToProps = ({annotations: {mode}}) => ({
