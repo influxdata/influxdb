@@ -28,7 +28,6 @@ interface UserRowProps {
 class UserRow extends PureComponent<UserRowProps> {
   public render() {
     const {
-      user: {name, password},
       user,
       allRoles,
       allPermissions,
@@ -38,19 +37,9 @@ class UserRow extends PureComponent<UserRowProps> {
       onEdit,
       onSave,
       onCancel,
-      onDelete,
       onUpdatePermissions,
       onUpdateRoles,
-      onUpdatePassword,
     } = this.props
-
-    function handleUpdatePassword(): void {
-      onUpdatePassword(user, password)
-    }
-
-    const wrappedDelete = () => {
-      onDelete(user)
-    }
 
     if (isEditing) {
       return (
@@ -67,13 +56,13 @@ class UserRow extends PureComponent<UserRowProps> {
 
     return (
       <tr>
-        <td style={{width: `${USERS_TABLE.colUsername}px`}}>{name}</td>
+        <td style={{width: `${USERS_TABLE.colUsername}px`}}>{user.name}</td>
         <td style={{width: `${USERS_TABLE.colPassword}px`}}>
           <ChangePassRow
-            onEdit={onEdit}
-            onApply={handleUpdatePassword}
             user={user}
+            onEdit={onEdit}
             buttonSize="btn-xs"
+            onApply={this.handleUpdatePassword}
           />
         </td>
         {hasRoles && (
@@ -86,14 +75,13 @@ class UserRow extends PureComponent<UserRowProps> {
           </td>
         )}
         <td>
-          {allPermissions &&
-            !!allPermissions.length && (
-              <UserPermissionsDropdown
-                user={user}
-                allPermissions={allPermissions}
-                onUpdatePermissions={onUpdatePermissions}
-              />
-            )}
+          {this.hasPermissions && (
+            <UserPermissionsDropdown
+              user={user}
+              allPermissions={allPermissions}
+              onUpdatePermissions={onUpdatePermissions}
+            />
+          )}
         </td>
         <td
           className="text-right"
@@ -103,12 +91,29 @@ class UserRow extends PureComponent<UserRowProps> {
             size="btn-xs"
             type="btn-danger"
             text="Delete User"
-            confirmAction={wrappedDelete}
+            confirmAction={this.handleDelete}
             customClass="table--show-on-row-hover"
           />
         </td>
       </tr>
     )
+  }
+
+  private handleDelete = (): void => {
+    const {user, onDelete} = this.props
+
+    onDelete(user)
+  }
+
+  private handleUpdatePassword = (): void => {
+    const {user, onUpdatePassword} = this.props
+
+    onUpdatePassword(user, user.password)
+  }
+
+  private get hasPermissions() {
+    const {allPermissions} = this.props
+    return allPermissions && !!allPermissions.length
   }
 }
 
