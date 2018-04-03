@@ -13,9 +13,6 @@
 
 ### Bug Fixes
 
-1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
-1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading
-
 ## v1.4.3.1 [2018-04-02]
 ### Bug Fixes
 
