@@ -500,7 +500,7 @@ type Databases interface {
 	// DropRP drops a retention policy in the current data source
 	DropRP(context.Context, string, string) error
 
-	// GetMeasurements lists some or all measurements in the current data source
+	// GetMeasurements lists measurements in the current data source
 	GetMeasurements(ctx context.Context, db string, limit, offset int) ([]Measurement, error)
 }
 

@@ -151,9 +151,9 @@ func (c *Client) DropRP(ctx context.Context, database string, rp string) error {
 	return nil
 }
 
-// GetMeasurements returns measurements for a specific database. It allows for
-// paging via limit and offset. If no limit or offset is provided, it returns
-// all measurements.
+// GetMeasurements returns measurements in a specified database, paginated by
+// optional limit and offset. If no limit or offset is provided, it defaults to
+// a limit of 100 measurements with no offset.
 func (c *Client) GetMeasurements(ctx context.Context, database string, limit, offset int) ([]chronograf.Measurement, error) {
 	return c.showMeasurements(ctx, database, limit, offset)
 }

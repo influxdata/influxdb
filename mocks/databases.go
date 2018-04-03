@@ -63,7 +63,7 @@ func (d *Databases) DropRP(ctx context.Context, rpX string, rpY string) error {
 	return d.DropRPF(ctx, rpX, rpY)
 }
 
-// GetMeasurements lists some or all measurements in the current data source
+// GetMeasurements lists measurements in the current data source
 func (d *Databases) GetMeasurements(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
 	return d.GetMeasurementsF(ctx, dbID, limit, offset)
 }
