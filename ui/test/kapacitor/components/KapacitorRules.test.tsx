@@ -4,6 +4,7 @@ import {shallow} from 'enzyme'
 import _ from 'lodash'
 
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
+import NoKapacitorError from 'src/shared/components/NoKapacitorError'
 import KapacitorRulesTable from 'src/kapacitor/components/KapacitorRulesTable'
 import TasksTable from 'src/kapacitor/components/TasksTable'
 
@@ -41,6 +42,20 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
 
       const tasksTable = wrapper.find(TasksTable)
       expect(tasksTable.length).toEqual(1)
+    })
+
+    it('renders NoKapacitorError if loading and no kapacitor configured', () => {
+      const noKapacitorProps = {...props, loading: true, hasKapacitor: false}
+      const wrapper = shallow(<KapacitorRules {...noKapacitorProps} />)
+      const noKapacitorError = wrapper.find(NoKapacitorError)
+      expect(noKapacitorError.length).toEqual(1)
+    })
+
+    it('doesnt render NoKapacitorError if loading and kapacitor is configured', () => {
+      const noKapacitorProps = {...props, loading: true, hasKapacitor: true}
+      const wrapper = shallow(<KapacitorRules {...noKapacitorProps} />)
+      const noKapacitorError = wrapper.find(NoKapacitorError)
+      expect(noKapacitorError.length).toEqual(0)
     })
 
     describe('rows in KapacitorRulesTable and TasksTable', () => {
