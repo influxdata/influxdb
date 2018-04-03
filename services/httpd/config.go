@@ -22,6 +22,7 @@ type Config struct {
 	BindAddress        string `toml:"bind-address"`
 	AuthEnabled        bool   `toml:"auth-enabled"`
 	LogEnabled         bool   `toml:"log-enabled"`
+	WriteLogEnabled    bool   `toml:"write-log-enabled"`
 	WriteTracing       bool   `toml:"write-tracing"`
 	PprofEnabled       bool   `toml:"pprof-enabled"`
 	HTTPSEnabled       bool   `toml:"https-enabled"`
@@ -43,6 +44,7 @@ func NewConfig() Config {
 		Enabled:           true,
 		BindAddress:       DefaultBindAddress,
 		LogEnabled:        true,
+		WriteLogEnabled:   true,
 		PprofEnabled:      true,
 		HTTPSEnabled:      false,
 		HTTPSCertificate:  "/etc/ssl/influxdb.pem",
