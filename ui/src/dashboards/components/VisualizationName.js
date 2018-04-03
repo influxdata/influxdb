@@ -3,7 +3,6 @@ import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
 import {renameCell} from 'src/dashboards/actions/cellEditorOverlay'
 
 class VisualizationName extends Component {
@@ -11,33 +10,23 @@ class VisualizationName extends Component {
     super(props)
 
     this.state = {
-      isEditing: false,
+      workingName: props.name,
     }
   }
-
-  handleInputClick = () => {
-    this.setState({isEditing: true})
+  handleChange = e => {
+    this.setState({workingName: e.target.value})
   }
 
-  handleCancel = () => {
-    this.setState({
-      isEditing: false,
-    })
-  }
+  handleBlur = () => {
+    const {handleRenameCell} = this.props
+    const {workingName} = this.state
 
-  handleInputBlur = () => {
-    this.setState({isEditing: false})
+    handleRenameCell(workingName)
   }
 
   handleKeyDown = e => {
-    const {handleRenameCell} = this.props
-
-    if (e.key === 'Enter') {
-      handleRenameCell(e.target.value)
-      this.handleInputBlur(e)
-    }
-    if (e.key === 'Escape') {
-      this.handleInputBlur(e)
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      e.target.blur()
     }
   }
 
@@ -46,32 +35,21 @@ class VisualizationName extends Component {
   }
 
   render() {
-    const {name} = this.props
-    const {isEditing} = this.state
-    const graphNameClass =
-      name === NEW_DEFAULT_DASHBOARD_CELL.name
-        ? 'graph-name graph-name__untitled'
-        : 'graph-name'
+    const {workingName} = this.state
 
     return (
       <div className="graph-heading">
-        {isEditing ? (
-          <input
-            type="text"
-            className="form-control input-sm"
-            defaultValue={name}
-            onBlur={this.handleInputBlur}
-            onKeyDown={this.handleKeyDown}
-            autoFocus={true}
-            onFocus={this.handleFocus}
-            placeholder="Name this Cell..."
-            spellCheck={false}
-          />
-        ) : (
-          <div className={graphNameClass} onClick={this.handleInputClick}>
-            {name}
-          </div>
-        )}
+        <input
+          type="text"
+          className="form-control input-sm"
+          value={workingName}
+          onChange={this.handleChange}
+          onFocus={this.handleFocus}
+          onBlur={this.handleBlur}
+          onKeyDown={this.handleKeyDown}
+          placeholder="Name this Cell..."
+          spellCheck={false}
+        />
       </div>
     )
   }
