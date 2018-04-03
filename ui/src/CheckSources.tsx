@@ -206,12 +206,7 @@ class CheckSources extends Component<Props, State> {
 
     return (
       this.props.children &&
-      React.cloneElement(
-        this.props.children,
-        Object.assign({}, this.props, {
-          source,
-        })
-      )
+      React.cloneElement(this.props.children, {...this.props, source})
     )
   }
 }
