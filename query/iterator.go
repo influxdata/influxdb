@@ -1105,10 +1105,28 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 
 	// Set condition, if set.
 	if opt.Condition != nil {
-		pb.Condition = proto.String(opt.Condition.String())
+		pb.Condition = proto.String(encodeConditionExpr(opt.Condition))
 	}
 
 	return pb
+}
+
+// encodeConditionExpr will encode the condition to a string and will also
+// fix the condition by adding parenthesis if the AST was improperly created.
+func encodeConditionExpr(expr influxql.Expr) string {
+	cond := influxql.RewriteExpr(influxql.CloneExpr(expr), func(expr influxql.Expr) influxql.Expr {
+		if expr, ok := expr.(*influxql.BinaryExpr); ok {
+			if e, ok := expr.LHS.(*influxql.BinaryExpr); ok && e.Op.Precedence() < expr.Op.Precedence() {
+				expr.LHS = &influxql.ParenExpr{Expr: expr.LHS}
+			}
+			if e, ok := expr.RHS.(*influxql.BinaryExpr); ok && e.Op.Precedence() <= expr.Op.Precedence() {
+				expr.RHS = &influxql.ParenExpr{Expr: expr.RHS}
+			}
+			return expr
+		}
+		return expr
+	})
+	return cond.String()
 }
 
 func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, error) {
