@@ -6,7 +6,7 @@ import shallowCompare from 'react-addons-shallow-compare'
 import SingleStat from 'src/shared/components/SingleStat'
 import timeSeriesToDygraph from 'utils/timeSeriesTransformers'
 
-import {SINGLE_STAT_LINE_COLORS} from 'src/shared/graphs/helpers'
+import {colorsStringSchema} from 'shared/schemas'
 
 class LineGraph extends Component {
   constructor(props) {
@@ -85,10 +85,6 @@ class LineGraph extends Component {
       connectSeparatedPoints: true,
     }
 
-    const lineColors = showSingleStat
-      ? SINGLE_STAT_LINE_COLORS
-      : overrideLineColors
-
     const containerStyle = {
       width: 'calc(100% - 32px)',
       height: 'calc(100% - 16px)',
@@ -118,7 +114,8 @@ class LineGraph extends Component {
           resizeCoords={resizeCoords}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
-          overrideLineColors={lineColors}
+          colors={colors}
+          overrideLineColors={overrideLineColors}
           containerStyle={containerStyle}
           staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
@@ -201,15 +198,7 @@ LineGraph.propTypes = {
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,
   data: arrayOf(shape({}).isRequired).isRequired,
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ),
+  colors: colorsStringSchema,
 }
 
 export default LineGraph

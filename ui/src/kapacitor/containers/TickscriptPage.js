@@ -173,6 +173,7 @@ class TickscriptPage extends Component {
         response = await updateTask(kapacitor, task, ruleID, router, sourceID)
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
+        router.push(`/sources/${sourceID}/tickscript/${response.id}`)
       }
       if (response.code) {
         this.setState({unsavedChanges: true, consoleMessage: response.message})
@@ -227,6 +228,7 @@ class TickscriptPage extends Component {
       unsavedChanges,
       consoleMessage,
     } = this.state
+
     return (
       <Tickscript
         task={task}

@@ -7,6 +7,8 @@ import {DEFAULT_GAUGE_COLORS} from 'src/shared/constants/thresholds'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 
+import {colorsStringSchema} from 'shared/schemas'
+
 class GaugeChart extends PureComponent {
   render() {
     const {
@@ -82,15 +84,7 @@ GaugeChart.propTypes = {
   cellHeight: number,
   resizerTopHeight: number,
   resizeCoords: shape(),
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ),
+  colors: colorsStringSchema,
   prefix: string.isRequired,
   suffix: string.isRequired,
 }
