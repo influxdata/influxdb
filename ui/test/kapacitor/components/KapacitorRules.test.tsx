@@ -51,6 +51,13 @@ describe('Kapacitor.Containers.KapacitorRules', () => {
       expect(noKapacitorError.length).toEqual(1)
     })
 
+    it('renders NoKapacitorError if not loading and no kapacitor configured', () => {
+      const noKapacitorProps = {...props, loading: false, hasKapacitor: false}
+      const wrapper = shallow(<KapacitorRules {...noKapacitorProps} />)
+      const noKapacitorError = wrapper.find(NoKapacitorError)
+      expect(noKapacitorError.length).toEqual(1)
+    })
+
     it('doesnt render NoKapacitorError if loading and kapacitor is configured', () => {
       const noKapacitorProps = {...props, loading: true, hasKapacitor: true}
       const wrapper = shallow(<KapacitorRules {...noKapacitorProps} />)

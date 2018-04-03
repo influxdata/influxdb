@@ -17,30 +17,27 @@ const SourceIndicator: SFC<Props> = (
 ) => {
   const sourceName: string = _.get(sourceOverride, 'name', name)
   const sourceUrl: string = _.get(sourceOverride, 'url', url)
+  const sourceNameTooltip: string = `<h1>Connected to Source:</h1><p><code>${sourceName} @ ${sourceUrl}</code></p>`
+  const uuidTooltip: string = uuid.v4()
 
-  if (sourceName) {
-    const sourceNameTooltip: string = `<h1>Connected to Source:</h1><p><code>${sourceName} @ ${sourceUrl}</code></p>`
-    const uuidTooltip: string = uuid.v4()
-
-    return (
-      <div
-        className="source-indicator"
-        data-for={uuidTooltip}
-        data-tip={sourceNameTooltip}
-      >
-        <span className="icon server2" />
-        <ReactTooltip
-          id={uuidTooltip}
-          effect="solid"
-          html={true}
-          place="left"
-          class="influx-tooltip"
-        />
-      </div>
-    )
-  }
-  return null
+  return sourceName ? (
+    <div
+      className="source-indicator"
+      data-for={uuidTooltip}
+      data-tip={sourceNameTooltip}
+    >
+      <span className="icon server2" />
+      <ReactTooltip
+        id={uuidTooltip}
+        effect="solid"
+        html={true}
+        place="left"
+        class="influx-tooltip"
+      />
+    </div>
+  ) : null
 }
+
 const {shape} = PropTypes
 
 SourceIndicator.contextTypes = {

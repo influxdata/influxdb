@@ -7,7 +7,7 @@ import TasksTable from 'src/kapacitor/components/TasksTable'
 
 import {Source, AlertRule} from 'src/types'
 
-interface Props {
+interface KapacitorRulesProps {
   source: Source
   rules: AlertRule[]
   hasKapacitor: boolean
@@ -15,7 +15,8 @@ interface Props {
   onDelete: (rule: AlertRule) => void
   onChangeRuleStatus: (rule: AlertRule) => void
 }
-const KapacitorRules: SFC<Props> = ({
+
+const KapacitorRules: SFC<KapacitorRulesProps> = ({
   source,
   rules,
   hasKapacitor,
@@ -23,7 +24,7 @@ const KapacitorRules: SFC<Props> = ({
   onDelete,
   onChangeRuleStatus,
 }) => {
-  if (loading) {
+  if (loading || !hasKapacitor) {
     return (
       <div>
         <div className="panel-heading">
@@ -34,10 +35,10 @@ const KapacitorRules: SFC<Props> = ({
         </div>
         <div className="panel-body">
           <div className="generic-empty-state">
-            {hasKapacitor ? (
-              <p>Loading Rules...</p>
-            ) : (
+            {!hasKapacitor ? (
               <NoKapacitorError source={source} />
+            ) : (
+              <p>Loading Rules...</p>
             )}
           </div>
         </div>
@@ -45,12 +46,12 @@ const KapacitorRules: SFC<Props> = ({
     )
   }
 
-  const builderRules: AlertRule[] = rules.filter((r: AlertRule) => r.query)
+  const builderRules = rules.filter((r: AlertRule) => r.query)
 
-  const builderHeader: string = `${builderRules.length} Alert Rule${
+  const builderHeader = `${builderRules.length} Alert Rule${
     builderRules.length === 1 ? '' : 's'
   }`
-  const scriptsHeader: string = `${rules.length} TICKscript${
+  const scriptsHeader = `${rules.length} TICKscript${
     rules.length === 1 ? '' : 's'
   }`
 

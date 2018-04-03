@@ -49,20 +49,6 @@ export class KapacitorRulesPage extends PureComponent<Props, State> {
     this.setState({loading: false, hasKapacitor: !!kapacitor})
   }
 
-  public handleDeleteRule = (rule: AlertRule) => {
-    const {actions} = this.props
-
-    actions.deleteRule(rule)
-  }
-
-  public handleRuleStatus = (rule: AlertRule) => {
-    const {actions} = this.props
-    const status = rule.status === 'enabled' ? 'disabled' : 'enabled'
-
-    actions.updateRuleStatus(rule, status)
-    actions.updateRuleStatusSuccess(rule.id, status)
-  }
-
   public render() {
     const {source, rules} = this.props
     const {hasKapacitor, loading} = this.state
@@ -78,6 +64,20 @@ export class KapacitorRulesPage extends PureComponent<Props, State> {
         />
       </PageContents>
     )
+  }
+
+  private handleDeleteRule = (rule: AlertRule) => {
+    const {actions} = this.props
+
+    actions.deleteRule(rule)
+  }
+
+  private handleRuleStatus = (rule: AlertRule) => {
+    const {actions} = this.props
+    const status = rule.status === 'enabled' ? 'disabled' : 'enabled'
+
+    actions.updateRuleStatus(rule, status)
+    actions.updateRuleStatusSuccess(rule.id, status)
   }
 }
 
