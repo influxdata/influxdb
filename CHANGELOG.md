@@ -15,6 +15,7 @@
 
 1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
 1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading
+1.  [#3109](https://github.com/influxdata/chronograf/pull/3109): Display link to configure Kapacitor on Alerts Page if no configured kapacitor.
 
 ## v1.4.3.0 [2018-3-28]
 
