@@ -7,17 +7,6 @@
 
 ### UI Improvements
 
-### Bug Fixes
-
-## v1.4.3.1 [2018-04-02]
-### Bug Fixes
-
-1.  [#3107](https://github.com/influxdata/chronograf/pull/3107): Fixes template variable editing not allowing saving
-1.  [#3094](https://github.com/influxdata/chronograf/pull/3094): Save template variables on first edit
-1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading all values
-
-### UI Improvements
-
 1.  [#3088](https://github.com/influxdata/chronograf/pull/3088): New dashboard cells appear at bottom of layout and assume the size of the most common cell
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize delete confirmation interactions
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize save & cancel interactions
@@ -26,6 +15,13 @@
 
 1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
 1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading
+
+## v1.4.3.1 [2018-04-02]
+### Bug Fixes
+
+1.  [#3107](https://github.com/influxdata/chronograf/pull/3107): Fixes template variable editing not allowing saving
+1.  [#3094](https://github.com/influxdata/chronograf/pull/3094): Save template variables on first edit
+1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading all values
 
 ## v1.4.3.0 [2018-3-28]
 
