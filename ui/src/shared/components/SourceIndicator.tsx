@@ -41,13 +41,10 @@ const SourceIndicator: SFC<Props> = (
   }
   return null
 }
-const {shape, string} = PropTypes
+const {shape} = PropTypes
 
 SourceIndicator.contextTypes = {
-  source: shape({
-    name: string,
-    url: string,
-  }),
+  source: shape({}),
 }
 
 export default SourceIndicator
