@@ -49,9 +49,11 @@ class UserPermissionsDropdown extends PureComponent<Props> {
 
   private get permissionsLabel() {
     const {user} = this.props
-    return user.permissions && user.permissions.length
-      ? ''
-      : 'Select Permissions'
+    if (user.permissions && user.permissions.length) {
+      return 'Select Permissions'
+    }
+
+    return ''
   }
 
   private get permissionsClass() {
