@@ -1,7 +1,33 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
+import {Input} from 'src/types/kapacitor'
 
-class SensuConfig extends Component {
+interface Properties {
+  source: string
+  addr: string
+}
+
+interface Config {
+  options: {
+    source: string
+    addr: string
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class SensuConfig extends PureComponent<Props, State> {
+  private source: Input
+  private addr: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -9,25 +35,7 @@ class SensuConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    const properties = {
-      source: this.source.value,
-      addr: this.addr.value,
-    }
-
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  render() {
+  public render() {
     const {source, addr} = this.props.config.options
 
     return (
@@ -77,20 +85,24 @@ class SensuConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, func, shape, string} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
 
-SensuConfig.propTypes = {
-  config: shape({
-    options: shape({
-      source: string.isRequired,
-      addr: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+    const properties = {
+      source: this.source.value,
+      addr: this.addr.value,
+    }
+
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
 }
 
 export default SensuConfig

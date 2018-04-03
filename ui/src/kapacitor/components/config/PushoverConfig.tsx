@@ -1,12 +1,41 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 
-import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
+import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import RedactedInput from './RedactedInput'
 
 import {PUSHOVER_DOCS_LINK} from 'src/kapacitor/copy'
+import {Input} from 'src/types/kapacitor'
 
-class PushoverConfig extends Component {
+interface Properties {
+  token: string
+  url: string
+  'user-key': string
+}
+
+interface Config {
+  options: {
+    token: boolean
+    'user-key': boolean
+    url: string
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class PushoverConfig extends PureComponent<Props, State> {
+  private token: Input
+  private url: Input
+  private userKey: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -14,30 +43,7 @@ class PushoverConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    const properties = {
-      token: this.token.value,
-      url: this.url.value,
-      'user-key': this.userKey.value,
-    }
-
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  handleUserKeyRef = r => (this.userKey = r)
-
-  handleTokenRef = r => (this.token = r)
-
-  render() {
+  public render() {
     const {options} = this.props.config
     const {token, url} = options
     const userKey = options['user-key']
@@ -109,21 +115,29 @@ class PushoverConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, func, shape, string} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
 
-PushoverConfig.propTypes = {
-  config: shape({
-    options: shape({
-      token: bool.isRequired,
-      'user-key': bool.isRequired,
-      url: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+    const properties = {
+      token: this.token.value,
+      url: this.url.value,
+      'user-key': this.userKey.value,
+    }
+
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
+
+  private handleUserKeyRef = r => (this.userKey = r)
+
+  private handleTokenRef = r => (this.token = r)
 }
 
 export default PushoverConfig

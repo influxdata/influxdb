@@ -1,9 +1,41 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 
 import RedactedInput from './RedactedInput'
+import {Input} from 'src/types/kapacitor'
 
-class AlertaConfig extends Component {
+interface Properties {
+  environment: string
+  origin: string
+  token: string
+  url: string
+}
+
+interface Config {
+  options: {
+    environment: string
+    origin: string
+    token: boolean
+    url: string
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class AlertaConfig extends PureComponent<Props, State> {
+  private environment: Input
+  private origin: Input
+  private token: Input
+  private url: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -11,29 +43,7 @@ class AlertaConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    const properties = {
-      environment: this.environment.value,
-      origin: this.origin.value,
-      token: this.token.value,
-      url: this.url.value,
-    }
-
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  handleTokenRef = r => (this.token = r)
-
-  render() {
+  public render() {
     const {environment, origin, token, url} = this.props.config.options
 
     return (
@@ -105,22 +115,28 @@ class AlertaConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, func, shape, string} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
 
-AlertaConfig.propTypes = {
-  config: shape({
-    options: shape({
-      environment: string,
-      origin: string,
-      token: bool,
-      url: string,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+    const properties = {
+      environment: this.environment.value,
+      origin: this.origin.value,
+      token: this.token.value,
+      url: this.url.value,
+    }
+
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
+
+  private handleTokenRef = r => (this.token = r)
 }
 
 export default AlertaConfig

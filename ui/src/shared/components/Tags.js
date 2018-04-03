@@ -3,22 +3,24 @@ import PropTypes from 'prop-types'
 import TagsAddButton from 'src/shared/components/TagsAddButton'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
-const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) => (
-  <div className="input-tag-list">
-    {tags.map(item => {
-      return (
-        <Tag
-          key={item.text || item.name || item}
-          item={item}
-          onDelete={onDeleteTag}
-        />
-      )
-    })}
-    {addMenuItems.length && addMenuChoose ? (
-      <TagsAddButton items={addMenuItems} onChoose={addMenuChoose} />
-    ) : null}
-  </div>
-)
+const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) => {
+  return (
+    <div className="input-tag-list">
+      {tags.map(item => {
+        return (
+          <Tag
+            key={item.text || item.name || item}
+            item={item}
+            onDelete={onDeleteTag}
+          />
+        )
+      })}
+      {addMenuItems && addMenuItems.length && addMenuChoose ? (
+        <TagsAddButton items={addMenuItems} onChoose={addMenuChoose} />
+      ) : null}
+    </div>
+  )
+}
 
 class Tag extends Component {
   handleClickDelete = item => () => {

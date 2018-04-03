@@ -1,11 +1,40 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 
-import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
+import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
 import RedactedInput from './RedactedInput'
+import {Input} from 'src/types/kapacitor'
 
-class HipchatConfig extends Component {
+interface Properties {
+  room: string
+  url: string
+  token: string
+}
+
+interface Config {
+  options: {
+    room: string
+    token: boolean
+    url: string
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class HipchatConfig extends PureComponent<Props, State> {
+  private room: Input
+  private token: Input
+  private url: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -13,28 +42,7 @@ class HipchatConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    const properties = {
-      room: this.room.value,
-      url: `https://${this.url.value}.hipchat.com/v2/room`,
-      token: this.token.value,
-    }
-
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  handleTokenRef = r => (this.token = r)
-
-  render() {
+  public render() {
     const {options} = this.props.config
     const {url, room, token} = options
 
@@ -104,21 +112,27 @@ class HipchatConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, func, shape, string} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
 
-HipchatConfig.propTypes = {
-  config: shape({
-    options: shape({
-      room: string.isRequired,
-      token: bool.isRequired,
-      url: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+    const properties = {
+      room: this.room.value,
+      url: `https://${this.url.value}.hipchat.com/v2/room`,
+      token: this.token.value,
+    }
+
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
+
+  private handleTokenRef = r => (this.token = r)
 }
 
 export default HipchatConfig

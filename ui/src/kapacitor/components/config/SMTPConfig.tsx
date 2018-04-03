@@ -1,7 +1,45 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
+import {Input} from 'src/types/kapacitor'
 
-class SMTPConfig extends Component {
+interface Properties {
+  host: string
+  port: string
+  from: string
+  to: string[]
+  username: string
+  password: string
+}
+
+interface Config {
+  options: {
+    host: string
+    port: number
+    username: string
+    password: boolean
+    from: string
+    to: string
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class SMTPConfig extends PureComponent<Props, State> {
+  private host: Input
+  private port: Input
+  private from: Input
+  private to: Input
+  private username: Input
+  private password: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -9,28 +47,7 @@ class SMTPConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    const properties = {
-      host: this.host.value,
-      port: this.port.value,
-      from: this.from.value,
-      to: this.to.value ? [this.to.value] : [],
-      username: this.username.value,
-      password: this.password.value,
-    }
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  render() {
+  public render() {
     const {host, port, from, username, password, to} = this.props.config.options
 
     return (
@@ -54,7 +71,7 @@ class SMTPConfig extends Component {
             id="smtp-port"
             type="text"
             ref={r => (this.port = r)}
-            defaultValue={port || ''}
+            defaultValue={port.toString() || ''}
             onChange={this.disableTest}
           />
         </div>
@@ -130,23 +147,27 @@ class SMTPConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, func, number, shape, string} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
 
-SMTPConfig.propTypes = {
-  config: shape({
-    options: shape({
-      host: string,
-      port: number,
-      username: string,
-      password: bool,
-      from: string,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+    const properties = {
+      host: this.host.value,
+      port: this.port.value,
+      from: this.from.value,
+      to: this.to.value ? [this.to.value] : [],
+      username: this.username.value,
+      password: this.password.value,
+    }
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
 }
 
 export default SMTPConfig

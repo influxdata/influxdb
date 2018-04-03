@@ -1,9 +1,35 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
-
+import React, {PureComponent} from 'react'
+import _ from 'lodash'
 import RedactedInput from './RedactedInput'
+import {Input} from 'src/types/kapacitor'
 
-class SlackConfig extends Component {
+interface Properties {
+  channel: string
+  url: string
+}
+
+interface Config {
+  options: {
+    url: boolean
+    channel: string
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class SlackConfig extends PureComponent<Props, State> {
+  private url: Input
+  private channel: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -11,24 +37,7 @@ class SlackConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-    const properties = {
-      url: this.url.value,
-      channel: this.channel.value,
-    }
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  handleUrlRef = r => (this.url = r)
-
-  render() {
+  public render() {
     const {url, channel} = this.props.config.options
 
     return (
@@ -85,20 +94,24 @@ class SlackConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, func, shape, string} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
+    const properties = {
+      url: this.url.value,
+      channel: this.channel.value,
+    }
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
 
-SlackConfig.propTypes = {
-  config: shape({
-    options: shape({
-      url: bool.isRequired,
-      channel: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
+
+  private handleUrlRef = r => (this.url = r)
 }
 
 export default SlackConfig

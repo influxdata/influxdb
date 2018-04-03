@@ -1,9 +1,36 @@
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 
 import RedactedInput from './RedactedInput'
+import {Input} from 'src/types/kapacitor'
 
-class TalkConfig extends Component {
+interface Properties {
+  url: string
+  author_name: string
+}
+
+interface Config {
+  options: {
+    url: boolean
+    author_name: string
+  }
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+class TalkConfig extends PureComponent<Props, State> {
+  private url: Input
+  private author: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -11,27 +38,7 @@ class TalkConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    const properties = {
-      url: this.url.value,
-      author_name: this.author.value,
-    }
-
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  handleUrlRef = r => (this.url = r)
-
-  render() {
+  public render() {
     const {url, author_name: author} = this.props.config.options
 
     return (
@@ -79,20 +86,26 @@ class TalkConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, string, shape, func} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
 
-TalkConfig.propTypes = {
-  config: shape({
-    options: shape({
-      url: bool.isRequired,
-      author_name: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+    const properties = {
+      url: this.url.value,
+      author_name: this.author.value,
+    }
+
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
+
+  private handleUrlRef = r => (this.url = r)
 }
 
 export default TalkConfig

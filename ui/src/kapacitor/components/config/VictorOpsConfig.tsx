@@ -1,9 +1,38 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 
 import RedactedInput from './RedactedInput'
+import {Input} from 'src/types/kapacitor'
 
-class VictorOpsConfig extends Component {
+interface Properties {
+  'api-key': string
+  'routing-key': string
+  url: string
+}
+
+interface Config {
+  options: {
+    'api-key': boolean
+    'routing-key': string
+    url: string
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class VictorOpsConfig extends PureComponent<Props, State> {
+  private apiKey: Input
+  private routingKey: Input
+  private url: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -11,28 +40,7 @@ class VictorOpsConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    const properties = {
-      'api-key': this.apiKey.value,
-      'routing-key': this.routingKey.value,
-      url: this.url.value,
-    }
-
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  handleApiRef = r => (this.apiKey = r)
-
-  render() {
+  public render() {
     const {options} = this.props.config
     const apiKey = options['api-key']
     const routingKey = options['routing-key']
@@ -95,21 +103,27 @@ class VictorOpsConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, shape, string, func} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
 
-VictorOpsConfig.propTypes = {
-  config: shape({
-    options: shape({
-      'api-key': bool,
-      'routing-key': string,
-      url: string,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+    const properties = {
+      'api-key': this.apiKey.value,
+      'routing-key': this.routingKey.value,
+      url: this.url.value,
+    }
+
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
+
+  private handleApiRef = r => (this.apiKey = r)
 }
 
 export default VictorOpsConfig

@@ -1,11 +1,47 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
-import QuestionMarkTooltip from 'shared/components/QuestionMarkTooltip'
+import React, {PureComponent} from 'react'
+import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
 import RedactedInput from './RedactedInput'
+import {Input, Checkbox} from 'src/types/kapacitor'
 
-class TelegramConfig extends Component {
+interface Properties {
+  'chat-id': string
+  'disable-notification': boolean
+  'disable-web-page-preview': boolean
+  'parse-mode': string
+  token: string
+}
+
+interface Config {
+  options: {
+    'chat-id': string
+    'disable-notification': boolean
+    'disable-web-page-preview': boolean
+    'parse-mode': string
+    token: boolean
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class TelegramConfig extends PureComponent<Props, State> {
+  private parseModeHTML: Checkbox
+  private parseModeMarkdown: Checkbox
+  private chatID: Input
+  private disableNotification: Checkbox
+  private disableWebPagePreview: Checkbox
+  private token: Input
+
   constructor(props) {
     super(props)
     this.state = {
@@ -13,38 +49,7 @@ class TelegramConfig extends Component {
     }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    let parseMode
-    if (this.parseModeHTML.checked) {
-      parseMode = 'HTML'
-    }
-    if (this.parseModeMarkdown.checked) {
-      parseMode = 'Markdown'
-    }
-
-    const properties = {
-      'chat-id': this.chatID.value,
-      'disable-notification': this.disableNotification.checked,
-      'disable-web-page-preview': this.disableWebPagePreview.checked,
-      'parse-mode': parseMode,
-      token: this.token.value,
-    }
-
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  handleTokenRef = r => (this.token = r)
-
-  render() {
+  public render() {
     const {options} = this.props.config
     const {token} = options
     const chatID = options['chat-id']
@@ -188,23 +193,37 @@ class TelegramConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, func, shape, string} = PropTypes
+  private handleSubmit = async e => {
+    e.preventDefault()
 
-TelegramConfig.propTypes = {
-  config: shape({
-    options: shape({
-      'chat-id': string.isRequired,
-      'disable-notification': bool.isRequired,
-      'disable-web-page-preview': bool.isRequired,
-      'parse-mode': string.isRequired,
-      token: bool.isRequired,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+    let parseMode
+    if (this.parseModeHTML.checked) {
+      parseMode = 'HTML'
+    }
+    if (this.parseModeMarkdown.checked) {
+      parseMode = 'Markdown'
+    }
+
+    const properties = {
+      'chat-id': this.chatID.value,
+      'disable-notification': this.disableNotification.checked,
+      'disable-web-page-preview': this.disableWebPagePreview.checked,
+      'parse-mode': parseMode,
+      token: this.token.value,
+    }
+
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
+
+  private handleTokenRef = r => (this.token = r)
 }
 
 export default TelegramConfig

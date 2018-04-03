@@ -2,18 +2,18 @@ import React, {PureComponent} from 'react'
 import RedactedInput from './RedactedInput'
 import _ from 'lodash'
 
-interface Options {
-  'service-key': boolean
-  url: string
-}
-
-interface Config {
-  options: Options
-}
+import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   'service-key': string
   url: string
+}
+
+interface Config {
+  options: {
+    'service-key': boolean
+    url: string
+  }
 }
 
 interface Props {
@@ -28,8 +28,8 @@ interface State {
 }
 
 class PagerDutyConfig extends PureComponent<Props, State> {
-  private serviceKey: {value: string}
-  private url: {value: string}
+  private serviceKey: Input
+  private url: Input
 
   constructor(props) {
     super(props)
