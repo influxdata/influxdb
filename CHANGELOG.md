@@ -4,6 +4,8 @@
 
 1.  [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
 1.  [#3060](https://github.com/influxdata/chronograf/pull/3060): Add ability to set a color palette for Line, Stacked, Step-Plot, and Bar graphs
+1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
+1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add tabular data visualization option with features
 
 ### UI Improvements
 
@@ -12,6 +14,8 @@
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize save & cancel interactions
 
 ### Bug Fixes
+
+1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
 
 ## v1.4.3.1 [2018-04-02]
 ### Bug Fixes
