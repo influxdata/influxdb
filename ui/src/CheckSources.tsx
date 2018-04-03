@@ -1,6 +1,6 @@
-import React, {Component} from 'react'
+import React, {ReactElement, Component} from 'react'
 import PropTypes from 'prop-types'
-import {withRouter} from 'react-router'
+import {withRouter, Params, Router, Location} from 'react-router'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -11,26 +11,56 @@ import {
   ADMIN_ROLE,
 } from 'src/auth/Authorized'
 
-import {showDatabases} from 'shared/apis/metaQuery'
+import {showDatabases} from 'src/shared/apis/metaQuery'
 
-import {getSourcesAsync} from 'shared/actions/sources'
-import {errorThrown as errorThrownAction} from 'shared/actions/errors'
-import {notify as notifyAction} from 'shared/actions/notifications'
+import {getSourcesAsync} from 'src/shared/actions/sources'
+import {errorThrown as errorThrownAction} from 'src/shared/actions/errors'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import {DEFAULT_HOME_PAGE} from 'shared/constants'
-import {
-  notifySourceNoLongerAvailable,
-  notifyNoSourcesAvailable,
-  notifyUnableToRetrieveSources,
-  notifyUserRemovedFromAllOrgs,
-  notifyUserRemovedFromCurrentOrg,
-  notifyOrgHasNoSources,
-} from 'shared/copy/notifications'
+import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
+
+import * as copy from 'src/shared/copy/notifications'
+
+import {Source, Me} from 'src/types'
+
+interface Auth {
+  isUsingAuth: boolean
+  me: Me
+}
+
+interface State {
+  isFetching: boolean
+}
+
+interface Props {
+  getSources: () => void
+  sources: Source[]
+  children: ReactElement<any>
+  params: Params
+  router: Router
+  location: Location
+  auth: Auth
+  notify: () => void
+}
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
-// getting the list of data nodes, but not every page requires them to function.
-// Routes that do require data nodes can be nested under this component.
-class CheckSources extends Component {
+// getting the list of data sources, but not every page requires them to function.
+// Routes that do require data sources can be nested under this component.
+class CheckSources extends Component<Props, State> {
+  public static childContextTypes = {
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
+        kapacitors: PropTypes.string.isRequired,
+        queries: PropTypes.string.isRequired,
+        permissions: PropTypes.string.isRequired,
+        users: PropTypes.string.isRequired,
+        databases: PropTypes.string.isRequired,
+      }).isRequired,
+    }),
+  }
+
   constructor(props) {
     super(props)
 
@@ -39,12 +69,12 @@ class CheckSources extends Component {
     }
   }
 
-  getChildContext() {
-    const {sources, params: {sourceID}} = this.props
-    return {source: sources.find(s => s.id === sourceID)}
+  public getChildContext() {
+    const {sources, params} = this.props
+    return {source: sources.find(s => s.id === params.sourceID)}
   }
 
-  async componentWillMount() {
+  public async componentWillMount() {
     const {router, auth: {isUsingAuth, me}} = this.props
 
     if (!isUsingAuth || isUserAuthorized(me.role, VIEWER_ROLE)) {
@@ -56,7 +86,7 @@ class CheckSources extends Component {
     }
   }
 
-  shouldComponentUpdate(nextProps) {
+  public shouldComponentUpdate(nextProps) {
     const {auth: {isUsingAuth, me}} = nextProps
     // don't update this component if currentOrganization is what has changed,
     // or else the app will try to call showDatabases in componentWillUpdate,
@@ -70,7 +100,7 @@ class CheckSources extends Component {
     return true
   }
 
-  async componentWillUpdate(nextProps, nextState) {
+  public async componentWillUpdate(nextProps, nextState) {
     const {
       router,
       location,
@@ -93,7 +123,7 @@ class CheckSources extends Component {
     }
 
     if (!isFetching && isUsingAuth && !organizations.length) {
-      notify(notifyUserRemovedFromAllOrgs())
+      notify(copy.notifyUserRemovedFromAllOrgs())
       return router.push('/purgatory')
     }
 
@@ -101,7 +131,7 @@ class CheckSources extends Component {
       me.superAdmin &&
       !organizations.find(o => o.id === currentOrganization.id)
     ) {
-      notify(notifyUserRemovedFromCurrentOrg())
+      notify(copy.notifyUserRemovedFromCurrentOrg())
       return router.push('/purgatory')
     }
 
@@ -123,7 +153,7 @@ class CheckSources extends Component {
           return router.push(`/sources/${sources[0].id}/${restString}`)
         }
         // if you're a viewer and there are no sources, go to purgatory.
-        notify(notifyOrgHasNoSources())
+        notify(copy.notifyOrgHasNoSources())
         return router.push('/purgatory')
       }
 
@@ -148,18 +178,18 @@ class CheckSources extends Component {
         try {
           const newSources = await getSources()
           if (newSources.length) {
-            errorThrown(error, notifySourceNoLongerAvailable(source.name))
+            errorThrown(error, copy.notifySourceNoLongerAvailable(source.name))
           } else {
-            errorThrown(error, notifyNoSourcesAvailable(source.name))
+            errorThrown(error, copy.notifyNoSourcesAvailable(source.name))
           }
         } catch (error2) {
-          errorThrown(error2, notifyUnableToRetrieveSources())
+          errorThrown(error2, copy.notifyUnableToRetrieveSources())
         }
       }
     }
   }
 
-  render() {
+  public render() {
     const {
       params,
       sources,
@@ -184,59 +214,6 @@ class CheckSources extends Component {
       )
     )
   }
-}
-
-const {arrayOf, bool, func, node, shape, string} = PropTypes
-
-CheckSources.propTypes = {
-  getSources: func.isRequired,
-  sources: arrayOf(
-    shape({
-      links: shape({
-        proxy: string.isRequired,
-        self: string.isRequired,
-        kapacitors: string.isRequired,
-        queries: string.isRequired,
-        permissions: string.isRequired,
-        users: string.isRequired,
-        databases: string.isRequired,
-      }).isRequired,
-    })
-  ),
-  children: node,
-  params: shape({
-    sourceID: string,
-  }).isRequired,
-  router: shape({
-    push: func.isRequired,
-  }).isRequired,
-  location: shape({
-    pathname: string.isRequired,
-  }).isRequired,
-  auth: shape({
-    isUsingAuth: bool,
-    me: shape({
-      currentOrganization: shape({
-        name: string.isRequired,
-        id: string.isRequired,
-      }),
-    }),
-  }),
-  notify: func.isRequired,
-}
-
-CheckSources.childContextTypes = {
-  source: shape({
-    links: shape({
-      proxy: string.isRequired,
-      self: string.isRequired,
-      kapacitors: string.isRequired,
-      queries: string.isRequired,
-      permissions: string.isRequired,
-      users: string.isRequired,
-      databases: string.isRequired,
-    }).isRequired,
-  }),
 }
 
 const mapStateToProps = ({sources, auth}) => ({
