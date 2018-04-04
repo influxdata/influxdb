@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"fmt"
 	"log"
 	"strings"
 
@@ -27,7 +26,7 @@ func updateDashboard(board *Dashboard) {
 	}
 }
 
-var up = func(db bolt.DB) error {
+var up = func(db *bolt.DB) error {
 	// For each dashboard
 	err := db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(dashboardBucket)
@@ -39,21 +38,18 @@ var up = func(db bolt.DB) error {
 				log.Fatal("unmarshaling error: ", err)
 			}
 
-			fmt.Println(board)
 			// Migrate the dashboard
 			updateDashboard(board)
 
-			fmt.Println(board)
+			data, err = proto.Marshal(board)
+			if err != nil {
+				log.Fatal("marshaling error: ", err)
+			}
 
-			// data, err = proto.Marshal(board)
-			// if err != nil {
-			// 	log.Fatal("marshaling error: ", err)
-			// }
-
-			// err = bucket.Put(id, data)
-			// if err != nil {
-			// 	log.Fatal("error updating dashboard: ", err)
-			// }
+			err = bucket.Put(id, data)
+			if err != nil {
+				log.Fatal("error updating dashboard: ", err)
+			}
 
 			return nil
 		})
@@ -72,10 +68,15 @@ var up = func(db bolt.DB) error {
 	return nil
 }
 
-var down = func(db bolt.DB) error {
+var down = func(db *bolt.DB) error {
 	return nil
 }
 
+/*
+	Import protobuf types and bucket names that are pertinent to this migration.
+	This isolates the migration from the codebase, and prevents a future change
+	to a type definition from invalidating the migration functions.
+*/
 var dashboardBucket = []byte("Dashoard")
 
 type Dashboard struct {
@@ -91,17 +92,18 @@ func (m *Dashboard) Reset()         { *m = Dashboard{} }
 func (m *Dashboard) String() string { return proto.CompactTextString(m) }
 
 type DashboardCell struct {
-	X       int32    `protobuf:"varint,1,opt,name=x,proto3" json:"x,omitempty"`
-	Y       int32    `protobuf:"varint,2,opt,name=y,proto3" json:"y,omitempty"`
-	W       int32    `protobuf:"varint,3,opt,name=w,proto3" json:"w,omitempty"`
-	H       int32    `protobuf:"varint,4,opt,name=h,proto3" json:"h,omitempty"`
-	Queries []*Query `protobuf:"bytes,5,rep,name=queries" json:"queries,omitempty"`
-	Name    string   `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	Type    string   `protobuf:"bytes,7,opt,name=type,proto3" json:"type,omitempty"`
-	ID      string   `protobuf:"bytes,8,opt,name=ID,proto3" json:"ID,omitempty"`
-	Axes    string   `protobuf:"bytes,9,rep,name=axes" json:"axes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
-	Colors  string   `protobuf:"bytes,10,rep,name=colors" json:"colors,omitempty"`
-	Legend  string   `protobuf:"bytes,11,opt,name=legend" json:"legend,omitempty"`
+	X            int32    `protobuf:"varint,1,opt,name=x,proto3" json:"x,omitempty"`
+	Y            int32    `protobuf:"varint,2,opt,name=y,proto3" json:"y,omitempty"`
+	W            int32    `protobuf:"varint,3,opt,name=w,proto3" json:"w,omitempty"`
+	H            int32    `protobuf:"varint,4,opt,name=h,proto3" json:"h,omitempty"`
+	Queries      []*Query `protobuf:"bytes,5,rep,name=queries" json:"queries,omitempty"`
+	Name         string   `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	Type         string   `protobuf:"bytes,7,opt,name=type,proto3" json:"type,omitempty"`
+	ID           string   `protobuf:"bytes,8,opt,name=ID,proto3" json:"ID,omitempty"`
+	Axes         string   `protobuf:"bytes,9,rep,name=axes" json:"axes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
+	Colors       string   `protobuf:"bytes,10,rep,name=colors" json:"colors,omitempty"`
+	Legend       string   `protobuf:"bytes,11,opt,name=legend" json:"legend,omitempty"`
+	TableOptions string   `protobuf:"bytes,12,opt,name=tableOptions" json:"tableOptions,omitempty"`
 }
 
 func (m *DashboardCell) Reset()         { *m = DashboardCell{} }
