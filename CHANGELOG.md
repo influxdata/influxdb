@@ -7,6 +7,7 @@
 1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
 1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add tabular data visualization option with features
 1.  [#3120](https://github.com/influxdata/chronograf/pull/3120): Change :interval: to represent a raw influxql duration value
+1.  [#2832](https://github.com/influxdata/chronograf/pull/2832): Add paginated measurements API to server
 
 ### UI Improvements
 
@@ -32,7 +33,7 @@
 1.  [#3094](https://github.com/influxdata/chronograf/pull/3094): Save template variables on first edit
 1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading all values
 
-## v1.4.3.0 [2018-3-28]
+## v1.4.3.0 [2018-03-28]
 
 ### Features
 
