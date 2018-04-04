@@ -10,7 +10,7 @@
                 "name": "Untitled Cell",
                 "queries": [
                     {
-                        "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time \u003e :dashboardTime: GROUP BY :interval: FILL(null)",
+                        "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time \u003e :dashboardTime: GROUP BY time(:interval:) FILL(null)",
                         "queryConfig": {
                             "id": "b20baa61-bacb-4a17-b27d-b904a0d18114",
                             "database": "telegraf",
