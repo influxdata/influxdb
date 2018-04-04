@@ -144,15 +144,17 @@ class OpsGenieConfig extends PureComponent<Props, State> {
 
   private handleDeleteTeam = team => {
     this.setState({
-      currentTeams: this.state.currentTeams.filter(t => t !== team),
+      currentTeams: this.state.currentTeams.filter(t => t !== team.name),
+      testEnabled: false,
     })
   }
 
   private handleDeleteRecipient = recipient => {
     this.setState({
       currentRecipients: this.state.currentRecipients.filter(
-        r => r !== recipient
+        r => r !== recipient.name
       ),
+      testEnabled: false,
     })
   }
 
