@@ -98,9 +98,6 @@ const InfluxTable = ({
   isUsingAuth,
   me,
 }) => {
-  const wrappedDelete = s => () => {
-    handleDeleteSource(s)
-  }
   return (
     <div className="row">
       <div className="col-md-12">
@@ -191,7 +188,7 @@ const InfluxTable = ({
                             type="btn-danger"
                             size="btn-xs"
                             text="Delete Connection"
-                            confirmAction={wrappedDelete(s)}
+                            confirmAction={handleDeleteSource(s)}
                           />
                         </Authorized>
                       </td>
