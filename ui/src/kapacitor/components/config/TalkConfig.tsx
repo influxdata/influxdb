@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import PropTypes from 'prop-types'
 
 import RedactedInput from './RedactedInput'
 import {Input} from 'src/types/kapacitor'

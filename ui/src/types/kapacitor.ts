@@ -195,3 +195,7 @@ export interface Input {
 export interface Checkbox {
   checked: boolean
 }
+
+export interface DropdownItem {
+  text: string
+}

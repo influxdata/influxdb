@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import RedactedInput from './RedactedInput'
-import _ from 'lodash'
 
 import {Input} from 'src/types/kapacitor'
 
