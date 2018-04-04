@@ -124,6 +124,21 @@ export const validateThresholdsListColors = (colors, type) => {
     return DEFAULT_THRESHOLDS_LIST_COLORS
   }
 
+  const colorsAreIncorrectType =
+    colors.reduce((acc, color) => {
+      if (
+        color.type === THRESHOLD_TYPE_BASE ||
+        color.type === THRESHOLD_TYPE_TEXT ||
+        color.type === THRESHOLD_TYPE_BG
+      ) {
+        return (acc += 1)
+      }
+    }, 0) !== colors.length
+
+  if (colorsAreIncorrectType) {
+    return DEFAULT_THRESHOLDS_LIST_COLORS
+  }
+
   let containsBaseColor = false
 
   const formattedColors = colors.map(color => {
