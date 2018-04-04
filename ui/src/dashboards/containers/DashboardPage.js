@@ -35,7 +35,7 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
-import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
+import {interval, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 import {notifyDashboardNotFound} from 'shared/copy/notifications'
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 
@@ -79,12 +79,19 @@ class DashboardPage extends Component {
       notify,
       getAnnotationsAsync,
       timeRange,
+      autoRefresh,
     } = this.props
 
     const annotationRange = this.millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
-    window.addEventListener('resize', this.handleWindowResize, true)
 
+    if (autoRefresh) {
+      this.intervalID = setInterval(() => {
+        getAnnotationsAsync(source.links.annotations, annotationRange)
+      }, autoRefresh)
+    }
+
+    window.addEventListener('resize', this.handleWindowResize, true)
     const dashboards = await getDashboardsAsync()
     const dashboard = dashboards.find(
       d => d.id === idNormalizer(TYPE_ID, dashboardID)
@@ -104,11 +111,26 @@ class DashboardPage extends Component {
     }
   }
 
+  componentWillReceiveProps(nextProps) {
+    const {source, getAnnotationsAsync, timeRange} = this.props
+    if (this.props.autoRefresh !== nextProps.autoRefresh) {
+      clearInterval(this.intervalID)
+      const annotationRange = this.millisecondTimeRange(timeRange)
+      if (nextProps.autoRefresh) {
+        this.intervalID = setInterval(() => {
+          getAnnotationsAsync(source.links.annotations, annotationRange)
+        }, nextProps.autoRefresh)
+      }
+    }
+  }
+
   handleWindowResize = () => {
     this.setState({windowHeight: window.innerHeight})
   }
 
   componentWillUnmount() {
+    clearInterval(this.intervalID)
+    this.intervalID = false
     window.removeEventListener('resize', this.handleWindowResize, true)
     this.props.handleDismissEditingAnnotation()
   }
@@ -329,25 +351,6 @@ class DashboardPage extends Component {
         {
           value: up || 'now()',
           type: upperType,
-          selected: true,
-        },
-      ],
-    }
-
-    const interval = {
-      id: 'interval',
-      type: 'autoGroupBy',
-      tempVar: ':interval:',
-      label: 'automatically determine the best group by time',
-      values: [
-        {
-          value: '1000', // pixels
-          type: 'resolution',
-          selected: true,
-        },
-        {
-          value: '3',
-          type: 'pointsPerPixel',
           selected: true,
         },
       ],

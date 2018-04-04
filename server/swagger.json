@@ -387,6 +387,39 @@
         }
       }
     },
+    "/sources/{id}/health": {
+      "get": {
+        "tags": ["sources"],
+        "summary": "Health check for source",
+        "description": "Returns if the tsdb source can be contacted",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the data source",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source was able to be contacted"
+          },
+          "404": {
+            "description": "Source could not be contacted",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "A processing or an unexpected error.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/sources/{id}/permissions": {
       "get": {
         "tags": ["sources", "users"],
@@ -3838,7 +3871,8 @@
           "queries": "/chronograf/v1/sources/4/queries",
           "permissions": "/chronograf/v1/sources/4/permissions",
           "users": "/chronograf/v1/sources/4/users",
-          "roles": "/chronograf/v1/sources/4/roles"
+          "roles": "/chronograf/v1/sources/4/roles",
+          "health": "/chronograf/v1/sources/4/health"
         }
       },
       "required": ["url"],
@@ -3944,6 +3978,11 @@
               "type": "string",
               "description":
                 "Optional path to the roles endpoint IFF it is supported on this source",
+              "format": "url"
+            },
+            "health": {
+              "type": "string",
+              "description": "Path to determine if source is healthy",
               "format": "url"
             }
           }

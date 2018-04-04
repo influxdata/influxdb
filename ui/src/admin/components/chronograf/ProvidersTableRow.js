@@ -16,8 +16,8 @@ class ProvidersTableRow extends Component {
     }
   }
 
-  handleDeleteMap = mapping => {
-    const {onDelete} = this.props
+  handleDeleteMap = () => {
+    const {onDelete, mapping} = this.props
     onDelete(mapping)
   }
 

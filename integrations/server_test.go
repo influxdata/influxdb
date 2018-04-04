@@ -114,7 +114,8 @@ func TestServer(t *testing.T) {
     "users": "/chronograf/v1/sources/5000/users",
     "roles": "/chronograf/v1/sources/5000/roles",
     "databases": "/chronograf/v1/sources/5000/dbs",
-    "annotations": "/chronograf/v1/sources/5000/annotations"
+    "annotations": "/chronograf/v1/sources/5000/annotations",
+    "health": "/chronograf/v1/sources/5000/health"
   }
 }
 `,
@@ -300,7 +301,8 @@ func TestServer(t *testing.T) {
         "users": "/chronograf/v1/sources/5000/users",
         "roles": "/chronograf/v1/sources/5000/roles",
         "databases": "/chronograf/v1/sources/5000/dbs",
-        "annotations": "/chronograf/v1/sources/5000/annotations"
+        "annotations": "/chronograf/v1/sources/5000/annotations",
+    		"health": "/chronograf/v1/sources/5000/health"
       }
     }
   ]
@@ -463,7 +465,7 @@ func TestServer(t *testing.T) {
       "name": "Untitled Cell",
       "queries": [
         {
-          "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time > :dashboardTime: GROUP BY :interval: FILL(null)",
+          "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)",
           "queryConfig": {
             "database": "telegraf",
             "measurement": "cpg",
@@ -718,7 +720,7 @@ func TestServer(t *testing.T) {
           "name": "Untitled Cell",
           "queries": [
             {
-              "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time > :dashboardTime: GROUP BY :interval: FILL(null)",
+              "query": "SELECT mean(\"value\") AS \"mean_value\" FROM \"telegraf\".\"autogen\".\"cpg\" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)",
               "queryConfig": {
                 "database": "telegraf",
                 "measurement": "cpg",

@@ -7,6 +7,11 @@ export interface Organization {
   name: string
 }
 
+export interface Me {
+  currentOrganization?: Organization
+  role: Role
+}
+
 export interface Role {
   name: string
   organization: string
