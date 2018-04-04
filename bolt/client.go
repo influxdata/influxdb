@@ -185,7 +185,7 @@ func (c *Client) migrate(ctx context.Context, build chronograf.BuildInfo) error 
 		if err := c.LayoutsStore.Migrate(ctx); err != nil {
 			return err
 		}
-		if err := c.DashboardsStore.Migrate(ctx, build); err != nil {
+		if err := c.DashboardsStore.Migrate(ctx); err != nil {
 			return err
 		}
 		if err := c.ConfigStore.Migrate(ctx); err != nil {

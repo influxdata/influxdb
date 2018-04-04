@@ -48,7 +48,7 @@ func (d *DashboardsStore) AddIDs(ctx context.Context, boards []chronograf.Dashbo
 }
 
 // Migrate updates the dashboards at runtime
-func (d *DashboardsStore) Migrate(ctx context.Context, build chronograf.BuildInfo) error {
+func (d *DashboardsStore) Migrate(ctx context.Context) error {
 	// 1. Add UUIDs to cells without one
 	boards, err := d.All(ctx)
 	if err != nil {
