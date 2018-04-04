@@ -4,10 +4,14 @@ import _ from 'lodash'
 import Tags from 'src/shared/components/Tags'
 import {Input} from 'src/types/kapacitor'
 
+interface Item {
+  text?: string
+  name?: string
+}
 interface Props {
-  onAddTag: (item: string) => void
-  onDeleteTag: (item: string) => void
-  tags: string[]
+  onAddTag: (item: Item) => void
+  onDeleteTag: (item: Item) => void
+  tags: Item[]
   title: string
   disableTest: () => void
 }

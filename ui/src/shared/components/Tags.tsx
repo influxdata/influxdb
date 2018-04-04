@@ -1,19 +1,30 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent, SFC} from 'react'
 import TagsAddButton from 'src/shared/components/TagsAddButton'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
+import uuid from 'uuid'
 
-const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) => {
+interface Item {
+  text?: string
+  name?: string
+}
+
+interface TagsProps {
+  tags: Item[]
+  onDeleteTag?: (item: Item) => void
+  addMenuItems?: Item[]
+  addMenuChoose?: (item: Item) => void
+}
+
+const Tags: SFC<TagsProps> = ({
+  tags,
+  onDeleteTag,
+  addMenuItems,
+  addMenuChoose,
+}) => {
   return (
     <div className="input-tag-list">
       {tags.map(item => {
-        return (
-          <Tag
-            key={item.text || item.name || item}
-            item={item}
-            onDelete={onDeleteTag}
-          />
-        )
+        return <Tag key={uuid.v4()} item={item} onDelete={onDeleteTag} />
       })}
       {addMenuItems && addMenuItems.length && addMenuChoose ? (
         <TagsAddButton items={addMenuItems} onChoose={addMenuChoose} />
@@ -22,15 +33,16 @@ const Tags = ({tags, onDeleteTag, addMenuItems, addMenuChoose}) => {
   )
 }
 
-class Tag extends Component {
-  handleClickDelete = item => () => {
-    this.props.onDelete(item)
-  }
+interface TagProps {
+  item: Item
+  onDelete: (item: Item) => void
+}
 
-  render() {
+class Tag extends PureComponent<TagProps> {
+  public render() {
     const {item} = this.props
     return (
-      <span key={item} className="input-tag--item">
+      <span key={uuid.v4()} className="input-tag--item">
         <span>{item.text || item.name || item}</span>
         <ConfirmButton
           icon="remove"
@@ -43,20 +55,10 @@ class Tag extends Component {
       </span>
     )
   }
-}
 
-const {arrayOf, func, oneOfType, shape, string} = PropTypes
-
-Tags.propTypes = {
-  tags: arrayOf(oneOfType([shape(), string])),
-  onDeleteTag: func,
-  addMenuItems: arrayOf(shape({})),
-  addMenuChoose: func,
-}
-
-Tag.propTypes = {
-  item: oneOfType([shape(), string]),
-  onDelete: func,
+  private handleClickDelete = item => () => {
+    this.props.onDelete(item)
+  }
 }
 
 export default Tags

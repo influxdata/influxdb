@@ -18,6 +18,10 @@ interface Config {
   }
 }
 
+interface Item {
+  name?: string
+}
+
 interface Props {
   config: Config
   onSave: (properties: Properties) => void
@@ -49,7 +53,6 @@ class OpsGenieConfig extends PureComponent<Props, State> {
   public render() {
     const {options} = this.props.config
     const apiKey = options['api-key']
-    const {currentTeams, currentRecipients} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -67,14 +70,14 @@ class OpsGenieConfig extends PureComponent<Props, State> {
           title="Teams"
           onAddTag={this.handleAddTeam}
           onDeleteTag={this.handleDeleteTeam}
-          tags={currentTeams}
+          tags={this.currentTeams}
           disableTest={this.disableTest}
         />
         <TagInput
           title="Recipients"
           onAddTag={this.handleAddRecipient}
           onDeleteTag={this.handleDeleteRecipient}
-          tags={currentRecipients}
+          tags={this.currentRecipients}
           disableTest={this.disableTest}
         />
 
@@ -98,6 +101,16 @@ class OpsGenieConfig extends PureComponent<Props, State> {
         </div>
       </form>
     )
+  }
+
+  private get currentTeams(): Item[] {
+    const {currentTeams} = this.state
+    return currentTeams.map(team => ({name: team}))
+  }
+
+  private get currentRecipients(): Item[] {
+    const {currentRecipients} = this.state
+    return currentRecipients.map(recipient => ({name: recipient}))
   }
 
   private handleSubmit = async e => {

@@ -1,12 +1,16 @@
 import React, {PureComponent} from 'react'
 
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-import {DropdownItem} from 'src/types/kapacitor'
 import uuid from 'uuid'
 
 interface Props {
-  items: DropdownItem[]
-  onChoose: (item: DropdownItem) => void
+  items: Item[]
+  onChoose: (item: Item) => void
+}
+
+interface Item {
+  text?: string
+  name?: string
 }
 
 interface State {
