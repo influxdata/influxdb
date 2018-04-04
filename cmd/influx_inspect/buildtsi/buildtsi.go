@@ -7,8 +7,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -28,6 +30,7 @@ type Command struct {
 	databaseFilter  string
 	retentionFilter string
 	shardFilter     string
+	maxLogFileSize  int64
 }
 
 // NewCommand returns a new instance of Command.
@@ -47,12 +50,14 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.databaseFilter, "database", "", "optional: database name")
 	fs.StringVar(&cmd.retentionFilter, "retention", "", "optional: retention policy")
 	fs.StringVar(&cmd.shardFilter, "shard", "", "optional: shard id")
+	fs.Int64Var(&cmd.maxLogFileSize, "max-log-file-size", tsdb.DefaultMaxIndexLogFileSize, "optional: maximum log file size")
 	fs.BoolVar(&cmd.Verbose, "v", false, "verbose")
 	fs.SetOutput(cmd.Stdout)
 	if err := fs.Parse(args); err != nil {
 		return err
 	} else if fs.NArg() > 0 || *dataDir == "" || *walDir == "" {
-		return flag.ErrHelp
+		fs.Usage()
+		return nil
 	}
 	cmd.Logger = logger.New(cmd.Stderr)
 
@@ -60,6 +65,19 @@ func (cmd *Command) Run(args ...string) error {
 }
 
 func (cmd *Command) run(dataDir, walDir string) error {
+	// Verify the user actually wants to run as root.
+	if isRoot() {
+		fmt.Println("You are currently running as root. This will build your")
+		fmt.Println("index files with root ownership and will be inaccessible")
+		fmt.Println("if you run influxd as a non-root user. You should run")
+		fmt.Println("buildtsi as the same user you are running influxd.")
+		fmt.Print("Are you sure you want to continue? (y/N): ")
+		var answer string
+		if fmt.Scanln(&answer); !strings.HasPrefix(strings.TrimSpace(strings.ToLower(answer)), "y") {
+			return fmt.Errorf("Operation aborted.")
+		}
+	}
+
 	fis, err := ioutil.ReadDir(dataDir)
 	if err != nil {
 		return err
@@ -172,7 +190,7 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 	}
 
 	// Open TSI index in temporary path.
-	tsiIndex := tsi1.NewIndex(sfile, dbName, tsi1.WithPath(tmpPath))
+	tsiIndex := tsi1.NewIndex(sfile, dbName, tsi1.WithPath(tmpPath), tsi1.WithMaximumLogFileSize(cmd.maxLogFileSize))
 	tsiIndex.WithLogger(cmd.Logger)
 	cmd.Logger.Info("opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
@@ -288,4 +306,9 @@ func (cmd *Command) collectWALFiles(path string) ([]string, error) {
 		paths = append(paths, filepath.Join(path, fi.Name()))
 	}
 	return paths, nil
+}
+
+func isRoot() bool {
+	user, _ := user.Current()
+	return user != nil && user.Username == "root"
 }
