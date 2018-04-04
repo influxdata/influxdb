@@ -1502,6 +1502,41 @@ func TestIteratorOptions_MarshalBinary(t *testing.T) {
 	}
 }
 
+func TestIteratorOptions_MarshalBinary_ImproperCondition(t *testing.T) {
+	// This expression will get mangled by ConditionExpr so we need to make
+	// sure it gets fixed and is not lost in encoding.
+	s := `(host = 'server01' OR host = 'server02') AND region = 'uswest'`
+	cond := MustParseExpr(s)
+	cond, _, err := influxql.ConditionExpr(cond, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if cond.String() == s {
+		t.Skip("condition expr bug not present")
+	}
+
+	opt := query.IteratorOptions{
+		Condition: cond,
+	}
+
+	buf, err := opt.MarshalBinary()
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// Unmarshal the buffer into a new IteratorOptions.
+	var target query.IteratorOptions
+	if err := target.UnmarshalBinary(buf); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// Ensure that the condition string is correct.
+	if got, want := target.Condition.String(), s; got != want {
+		t.Fatalf("unexpected condition expression: got=%v want=%v", got, want)
+	}
+}
+
 // Ensure iterator can be encoded and decoded over a byte stream.
 func TestIterator_EncodeDecode(t *testing.T) {
 	var buf bytes.Buffer
