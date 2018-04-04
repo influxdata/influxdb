@@ -83,10 +83,6 @@ type measurementLinks struct {
 }
 
 func newMeasurementLinks(src int, db string, limit, offset int) measurementLinks {
-	if limit <= 0 {
-		limit = 100
-	}
-
 	base := "/chronograf/v1/sources"
 	res := measurementLinks{
 		Self:  fmt.Sprintf("%s/%d/dbs/%s/measurements?limit=%d&offset=%d", base, src, db, limit, offset),
