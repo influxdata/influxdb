@@ -7,6 +7,7 @@ import OptIn from 'shared/components/OptIn'
 import Input from 'src/dashboards/components/DisplayOptionsInput'
 import {Tabber, Tab} from 'src/dashboards/components/Tabber'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import LineGraphColorSelector from 'src/shared/components/LineGraphColorSelector'
 
 import {
   AXES_SCALE_OPTIONS,
@@ -102,6 +103,7 @@ class AxesOptions extends Component {
                 type="text"
               />
             </div>
+            <LineGraphColorSelector />
             <div className="form-group col-sm-6">
               <label htmlFor="min">Min</label>
               <OptIn

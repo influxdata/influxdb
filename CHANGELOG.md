@@ -3,18 +3,32 @@
 ### Features
 
 1.  [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
+1.  [#3060](https://github.com/influxdata/chronograf/pull/3060): Add ability to set a color palette for Line, Stacked, Step-Plot, and Bar graphs
+1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
+1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add tabular data visualization option with features
+1.  [#3120](https://github.com/influxdata/chronograf/pull/3120): Change :interval: to represent a raw influxql duration value
 
 ### UI Improvements
 
 1.  [#3088](https://github.com/influxdata/chronograf/pull/3088): New dashboard cells appear at bottom of layout and assume the size of the most common cell
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize delete confirmation interactions
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize save & cancel interactions
+1.  [#3116](https://github.com/influxdata/chronograf/pull/3116): Improve cell renaming
 
 ### Bug Fixes
 
 1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
-1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading
 1.  [#3104](https://github.com/influxdata/chronograf/pull/3104): Query annotations at auto-refresh interval
+1.  [#3109](https://github.com/influxdata/chronograf/pull/3109): Display link to configure Kapacitor on Alerts Page if no configured kapacitor.
+1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
+
+## v1.4.3.1 [2018-04-02]
+
+### Bug Fixes
+
+1.  [#3107](https://github.com/influxdata/chronograf/pull/3107): Fixes template variable editing not allowing saving
+1.  [#3094](https://github.com/influxdata/chronograf/pull/3094): Save template variables on first edit
+1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading all values
 
 ## v1.4.3.0 [2018-3-28]
 
@@ -62,7 +76,6 @@
 1.  [#2837](https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
 1.  [#2829](https://github.com/influxdata/chronograf/pull/2829): Add an optional persistent legend which can toggle series visibility to dashboard cells
 1.  [#2846](https://github.com/influxdata/chronograf/pull/2846): Allow user to annotate graphs via UI or API
-
 ### UI Improvements
 
 1.  [#2848](https://github.com/influxdata/chronograf/pull/2848): Add ability to set a prefix and suffix on Single Stat and Gauge cell types

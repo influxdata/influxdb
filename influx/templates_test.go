@@ -126,59 +126,79 @@ func TestTemplateReplace(t *testing.T) {
 			want: `SELECT :field: FROM "cpu"`,
 		},
 		{
-			name:  "auto group by",
-			query: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by :interval:`,
+			name:  "auto interval",
+			query: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(:interval:)`,
 			vars: []chronograf.TemplateVar{
 				{
 					Var: ":interval:",
 					Values: []chronograf.TemplateValue{
 						{
-							Value: "1000",
-							Type:  "resolution",
-						},
-						{
-							Value: "3",
-							Type:  "pointsPerPixel",
+							Value: "333",
+							Type:  "points",
 						},
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(46655s)`,
+			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(46702s)`,
+		},
+		{
+			name:  "auto interval",
+			query: `SELECT derivative(mean(usage_idle),:interval:) from "cpu" where time > now() - 4320h group by time(:interval:)`,
+			vars: []chronograf.TemplateVar{
+				{
+					Var: ":interval:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value: "333",
+							Type:  "points",
+						},
+					},
+				},
+			},
+			want: `SELECT derivative(mean(usage_idle),46702s) from "cpu" where time > now() - 4320h group by time(46702s)`,
+		},
+		{
+			name:  "auto group by",
+			query: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(:interval:)`,
+			vars: []chronograf.TemplateVar{
+				{
+					Var: ":interval:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value: "333",
+							Type:  "points",
+						},
+					},
+				},
+			},
+			want: `SELECT mean(usage_idle) from "cpu" where time > now() - 4320h group by time(46702s)`,
 		},
 		{
 			name:  "auto group by without duration",
-			query: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by :interval:`,
+			query: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(:interval:)`,
 			vars: []chronograf.TemplateVar{
 				{
 					Var: ":interval:",
 					Values: []chronograf.TemplateValue{
 						{
-							Value: "1000",
-							Type:  "resolution",
-						},
-						{
-							Value: "3",
-							Type:  "pointsPerPixel",
+							Value: "333",
+							Type:  "points",
 						},
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(46655s)`,
+			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(46702s)`,
 		},
 		{
 			name:  "auto group by with :dashboardTime:",
-			query: `SELECT mean(usage_idle) from "cpu" WHERE time > :dashboardTime: group by :interval:`,
+			query: `SELECT mean(usage_idle) from "cpu" WHERE time > :dashboardTime: group by time(:interval:)`,
 			vars: []chronograf.TemplateVar{
 				{
 					Var: ":interval:",
 					Values: []chronograf.TemplateValue{
 						{
-							Value: "1000",
-							Type:  "resolution",
-						},
-						{
-							Value: "3",
-							Type:  "pointsPerPixel",
+							Value: "333",
+							Type:  "points",
 						},
 					},
 				},
@@ -192,22 +212,18 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(46655s)`,
+			want: `SELECT mean(usage_idle) from "cpu" WHERE time > now() - 4320h group by time(46702s)`,
 		},
 		{
 			name:  "auto group by failing condition",
-			query: `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY :interval:`,
+			query: `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:)`,
 			vars: []chronograf.TemplateVar{
 				{
 					Var: ":interval:",
 					Values: []chronograf.TemplateValue{
 						{
-							Value: "115",
-							Type:  "resolution",
-						},
-						{
-							Value: "3",
-							Type:  "pointsPerPixel",
+							Value: "38",
+							Type:  "points",
 						},
 					},
 				},
@@ -222,27 +238,23 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) FROM "cpu" WHERE time > now() - 1h GROUP BY time(93s)`,
+			want: `SELECT mean(usage_idle) FROM "cpu" WHERE time > now() - 1h GROUP BY time(94s)`,
 		},
 		{
 			name:  "no template variables specified",
-			query: `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY :interval:`,
-			want:  `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY :interval:`,
+			query: `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:)`,
+			want:  `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:)`,
 		},
 		{
 			name:  "auto group by failing condition",
-			query: `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY :interval:`,
+			query: `SELECT mean(usage_idle) FROM "cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:)`,
 			vars: []chronograf.TemplateVar{
 				{
 					Var: ":interval:",
 					Values: []chronograf.TemplateValue{
 						{
-							Value: "115",
-							Type:  "resolution",
-						},
-						{
-							Value: "3",
-							Type:  "pointsPerPixel",
+							Value: "38",
+							Type:  "points",
 						},
 					},
 				},
@@ -257,7 +269,7 @@ func TestTemplateReplace(t *testing.T) {
 					},
 				},
 			},
-			want: `SELECT mean(usage_idle) FROM "cpu" WHERE time > now() - 1h GROUP BY time(93s)`,
+			want: `SELECT mean(usage_idle) FROM "cpu" WHERE time > now() - 1h GROUP BY time(94s)`,
 		},
 		{
 			name:  "query with no template variables contained should return query",
@@ -268,11 +280,7 @@ func TestTemplateReplace(t *testing.T) {
 					Values: []chronograf.TemplateValue{
 						{
 							Value: "115",
-							Type:  "resolution",
-						},
-						{
-							Value: "3",
-							Type:  "pointsPerPixel",
+							Type:  "points",
 						},
 					},
 				},
@@ -313,12 +321,8 @@ func Test_TemplateVarsUnmarshalling(t *testing.T) {
 		"tempVar": ":interval:",
 		"values": [
 			{
-				"value": "1000",
-				"type":  "resolution"
-			},
-			{
-				"value": "3",
-				"type":  "pointsPerPixel"
+				"value": "333",
+				"type":  "points"
 			},
 			{
 				"value": "10",
@@ -343,12 +347,8 @@ func Test_TemplateVarsUnmarshalling(t *testing.T) {
 			Var: ":interval:",
 			Values: []chronograf.TemplateValue{
 				{
-					Value: "1000",
-					Type:  "resolution",
-				},
-				{
-					Value: "3",
-					Type:  "pointsPerPixel",
+					Value: "333",
+					Type:  "points",
 				},
 				{
 					Value: "10",
@@ -379,46 +379,6 @@ func Test_TemplateVarsUnmarshalling(t *testing.T) {
 	}
 }
 
-func TestAutoGroupBy(t *testing.T) {
-	tests := []struct {
-		name           string
-		resolution     int64
-		pixelsPerPoint int64
-		duration       time.Duration
-		want           string
-	}{
-		{
-			name:           "String() calculates the GROUP BY interval",
-			resolution:     700,
-			pixelsPerPoint: 3,
-			duration:       24 * time.Hour,
-			want:           "time(370s)",
-		},
-		{
-			name:           "String() milliseconds if less than one second intervals",
-			resolution:     100000,
-			pixelsPerPoint: 3,
-			duration:       time.Hour,
-			want:           "time(107ms)",
-		},
-		{
-			name:           "String() milliseconds if less than one millisecond",
-			resolution:     100000,
-			pixelsPerPoint: 3,
-			duration:       time.Second,
-			want:           "time(1ms)",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := AutoGroupBy(tt.resolution, tt.pixelsPerPoint, tt.duration)
-			if got != tt.want {
-				t.Errorf("TestAutoGroupBy %s =\n%s\nwant\n%s", tt.name, got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_RenderTemplate(t *testing.T) {
 	gbvTests := []struct {
 		name       string
@@ -428,38 +388,38 @@ func Test_RenderTemplate(t *testing.T) {
 	}{
 		{
 			name:       "relative time only lower bound with one day of duration",
-			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d GROUP BY :interval:",
-			resolution: 1000,
+			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d GROUP BY time(:interval:)",
+			resolution: 333,
 			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d GROUP BY time(259s)",
 		},
 		{
 			name:       "relative time offset by week",
-			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d - 7d AND time < now() - 7d GROUP BY :interval:",
-			resolution: 1000,
+			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d - 7d AND time < now() - 7d GROUP BY time(:interval:)",
+			resolution: 333,
 			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d - 7d AND time < now() - 7d GROUP BY time(259s)",
 		},
 		{
 			name:       "relative time with relative upper bound with one minute of duration",
-			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 3m  AND time < now() - 2m GROUP BY :interval:",
-			resolution: 1000,
-			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 3m  AND time < now() - 2m GROUP BY time(179ms)",
+			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 3m  AND time < now() - 2m GROUP BY time(:interval:)",
+			resolution: 333,
+			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 3m  AND time < now() - 2m GROUP BY time(180ms)",
 		},
 		{
 			name:       "relative time with relative lower bound and now upper with one day of duration",
-			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d  AND time < now() GROUP BY :interval:",
-			resolution: 1000,
+			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d  AND time < now() GROUP BY time(:interval:)",
+			resolution: 333,
 			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > now() - 1d  AND time < now() GROUP BY time(259s)",
 		},
 		{
 			name:       "absolute time with one minute of duration",
-			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > '1985-10-25T00:01:00Z' and time < '1985-10-25T00:02:00Z' GROUP BY :interval:",
-			resolution: 1000,
-			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > '1985-10-25T00:01:00Z' and time < '1985-10-25T00:02:00Z' GROUP BY time(179ms)",
+			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > '1985-10-25T00:01:00Z' and time < '1985-10-25T00:02:00Z' GROUP BY time(:interval:)",
+			resolution: 333,
+			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > '1985-10-25T00:01:00Z' and time < '1985-10-25T00:02:00Z' GROUP BY time(180ms)",
 		},
 		{
 			name:       "absolute time with nano seconds and zero duration",
-			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > '2017-07-24T15:33:42.994Z' and time < '2017-07-24T15:33:42.994Z' GROUP BY :interval:",
-			resolution: 1000,
+			query:      "SELECT mean(usage_idle) FROM cpu WHERE time > '2017-07-24T15:33:42.994Z' and time < '2017-07-24T15:33:42.994Z' GROUP BY time(:interval:)",
+			resolution: 333,
 			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > '2017-07-24T15:33:42.994Z' and time < '2017-07-24T15:33:42.994Z' GROUP BY time(1ms)",
 		},
 		{
@@ -480,7 +440,7 @@ func Test_RenderTemplate(t *testing.T) {
 				Values: []chronograf.TemplateValue{
 					{
 						Value: fmt.Sprintf("%d", tt.resolution),
-						Type:  "resolution",
+						Type:  "points",
 					},
 				},
 			}

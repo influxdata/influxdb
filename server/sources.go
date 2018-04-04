@@ -25,6 +25,7 @@ type sourceLinks struct {
 	Roles       string `json:"roles,omitempty"` // URL for all users associated with this source
 	Databases   string `json:"databases"`       // URL for the databases contained within this source
 	Annotations string `json:"annotations"`     // URL for the annotations of this source
+	Health      string `json:"health"`          // URL for source health
 }
 
 type sourceResponse struct {
@@ -55,6 +56,7 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 			Users:       fmt.Sprintf("%s/%d/users", httpAPISrcs, src.ID),
 			Databases:   fmt.Sprintf("%s/%d/dbs", httpAPISrcs, src.ID),
 			Annotations: fmt.Sprintf("%s/%d/annotations", httpAPISrcs, src.ID),
+			Health:      fmt.Sprintf("%s/%d/health", httpAPISrcs, src.ID),
 		},
 	}
 
@@ -190,6 +192,38 @@ func (s *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// SourceHealth determines if the tsdb is running
+func (s *Service) SourceHealth(w http.ResponseWriter, r *http.Request) {
+	id, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), s.Logger)
+		return
+	}
+
+	ctx := r.Context()
+	src, err := s.Store.Sources(ctx).Get(ctx, id)
+	if err != nil {
+		notFound(w, id, s.Logger)
+		return
+	}
+
+	cli := &influx.Client{
+		Logger: s.Logger,
+	}
+
+	if err := cli.Connect(ctx, &src); err != nil {
+		Error(w, http.StatusBadRequest, "Error contacting source", s.Logger)
+		return
+	}
+
+	if err := cli.Ping(ctx); err != nil {
+		Error(w, http.StatusBadRequest, "Error contacting source", s.Logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // removeSrcsKapa will remove all kapacitors and kapacitor rules from the stores.
@@ -635,7 +669,7 @@ type sourceUsersResponse struct {
 }
 
 func (r *sourceUserRequest) ValidUpdate() error {
-	if r.Password == "" && len(r.Permissions) == 0 && len(r.Roles) == 0 {
+	if r.Password == "" && r.Permissions == nil && r.Roles == nil {
 		return fmt.Errorf("No fields to update")
 	}
 	return validPermissions(&r.Permissions)

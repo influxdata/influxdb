@@ -10,6 +10,8 @@ import {
   MIN_THRESHOLDS,
 } from 'shared/constants/thresholds'
 
+import {colorsStringSchema} from 'shared/schemas'
+
 class Gauge extends Component {
   constructor(props) {
     super(props)
@@ -325,21 +327,13 @@ class Gauge extends Component {
   }
 }
 
-const {arrayOf, number, shape, string} = PropTypes
+const {number, string} = PropTypes
 
 Gauge.propTypes = {
   width: string.isRequired,
   height: string.isRequired,
   gaugePosition: number.isRequired,
-  colors: arrayOf(
-    shape({
-      type: string.isRequired,
-      hex: string.isRequired,
-      id: string.isRequired,
-      name: string.isRequired,
-      value: string.isRequired,
-    }).isRequired
-  ).isRequired,
+  colors: colorsStringSchema.isRequired,
   prefix: string.isRequired,
   suffix: string.isRequired,
 }

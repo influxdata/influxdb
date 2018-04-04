@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 
 import Table from './Table'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
+import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 
 const VisView = ({
   axes,
@@ -37,6 +38,7 @@ const VisView = ({
 
   return (
     <RefreshingGraph
+      colors={DEFAULT_LINE_COLORS}
       axes={axes}
       type={cellType}
       queries={queries}

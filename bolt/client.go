@@ -121,6 +121,10 @@ func (c *Client) Open(ctx context.Context, logger chronograf.Logger, build chron
 // initialize creates Buckets that are missing
 func (c *Client) initialize(ctx context.Context) error {
 	if err := c.db.Update(func(tx *bolt.Tx) error {
+		// Always create SchemaVersions bucket.
+		if _, err := tx.CreateBucketIfNotExists(SchemaVersionBucket); err != nil {
+			return err
+		}
 		// Always create Organizations bucket.
 		if _, err := tx.CreateBucketIfNotExists(OrganizationsBucket); err != nil {
 			return err
@@ -193,6 +197,8 @@ func (c *Client) migrate(ctx context.Context, build chronograf.BuildInfo) error 
 		if err := c.MappingsStore.Migrate(ctx); err != nil {
 			return err
 		}
+
+		MigrateAll(c)
 	}
 	return nil
 }

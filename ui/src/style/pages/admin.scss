@@ -16,9 +16,7 @@
   .tab {
     font-weight: 500 !important;
     border-radius: $radius $radius 0 0 !important;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease !important;
+    transition: background-color 0.25s ease, color 0.25s ease !important;
     border: 0 !important;
     text-align: left;
     height: 60px !important;
@@ -41,16 +39,24 @@
   }
 }
 .admin-tabs--content {
-  .panel {border-top-left-radius: 0;}
-  .panel-heading {height: 60px;}
+  .panel {
+    border-top-left-radius: 0;
+  }
+  .panel-heading {
+    height: 60px;
+  }
   .panel-title {
     font-size: 17px;
     font-weight: 400 !important;
     color: $g12-forge;
     padding: 6px 0;
   }
-  .panel-body {min-height: 300px;}
-  .panel-heading + .panel-body {padding-top: 0;}
+  .panel-body {
+    min-height: 300px;
+  }
+  .panel-heading + .panel-body {
+    padding-top: 0;
+  }
 }
 
 /*
@@ -69,7 +75,9 @@
       border-radius: $radius 0 0 $radius !important;
       padding: 0 0 0 16px !important;
     }
-    & + div {padding-left: 0;}
+    & + div {
+      padding-left: 0;
+    }
   }
 }
 
@@ -82,8 +90,13 @@
   font-weight: 600;
   color: $g14-chromium;
   transition: none !important;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 
-  .caret {opacity: 0;}
+  .caret {
+    opacity: 0;
+  }
 }
 .admin-table--multi-select-empty .dropdown-toggle {
   color: $g8-storm;
@@ -92,7 +105,9 @@
   color: $g20-white !important;
   background-color: $c-pool;
 
-  .caret {opacity: 1;}
+  .caret {
+    opacity: 1;
+  }
 
   &:hover {
     transition: background-color 0.25s ease;
@@ -100,7 +115,9 @@
   }
 }
 table > tbody > tr > td.admin-table--left-offset,
-table > thead > tr > th.admin-table--left-offset {padding-left: 15px;}
+table > thead > tr > th.admin-table--left-offset {
+  padding-left: 15px;
+}
 
 table > tbody > tr.admin-table--edit-row,
 table > tbody > tr.admin-table--edit-row:hover,
@@ -141,9 +158,15 @@ pre.admin-table--query {
 .db-manager {
   margin-bottom: 8px;
 
-  &:last-child {margin-bottom: 0;}
-  .db-manager-header--actions {visibility: hidden;}
-  &:hover .db-manager-header--actions {visibility: visible;}
+  &:last-child {
+    margin-bottom: 0;
+  }
+  .db-manager-header--actions {
+    visibility: hidden;
+  }
+  &:hover .db-manager-header--actions {
+    visibility: visible;
+  }
 }
 .db-manager-header {
   padding: 0 11px;
@@ -182,7 +205,9 @@ pre.admin-table--query {
   padding: 9px 11px;
   border-radius: 0 0 $radius-small $radius-small;
 
-  .table-highlight > tbody > tr:hover {background-color: $g5-pepper;}
+  .table-highlight > tbody > tr:hover {
+    background-color: $g5-pepper;
+  }
 }
 
 /*

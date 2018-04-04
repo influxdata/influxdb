@@ -33,11 +33,9 @@ const DashboardsTable = ({
   dashboards,
   onDeleteDashboard,
   onCreateDashboard,
+  onCloneDashboard,
   dashboardLink,
 }) => {
-  const wrappedDelete = dashboard => () => {
-    onDeleteDashboard(dashboard)
-  }
   return dashboards && dashboards.length ? (
     <table className="table v-center admin-table table-highlight">
       <thead>
@@ -71,8 +69,15 @@ const DashboardsTable = ({
               replaceWithIfNotAuthorized={<td />}
             >
               <td className="text-right">
+                <button
+                  className="btn btn-xs btn-default table--show-on-row-hover"
+                  onClick={onCloneDashboard(dashboard)}
+                >
+                  <span className="icon duplicate" />
+                  Clone
+                </button>
                 <ConfirmButton
-                  confirmAction={wrappedDelete}
+                  confirmAction={onDeleteDashboard(dashboard)}
                   size="btn-xs"
                   type="btn-danger"
                   text="Delete"
@@ -100,6 +105,7 @@ DashboardsTable.propTypes = {
   dashboards: arrayOf(shape()),
   onDeleteDashboard: func.isRequired,
   onCreateDashboard: func.isRequired,
+  onCloneDashboard: func.isRequired,
   dashboardLink: string.isRequired,
 }
 

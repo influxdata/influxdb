@@ -23,7 +23,16 @@ class DashboardsPage extends Component {
     push(`/sources/${id}/dashboards/${data.id}`)
   }
 
-  handleDeleteDashboard = dashboard => {
+  handleCloneDashboard = dashboard => async () => {
+    const {source: {id}, router: {push}} = this.props
+    const {data} = await createDashboard({
+      ...dashboard,
+      name: `${dashboard.name} (clone)`,
+    })
+    push(`/sources/${id}/dashboards/${data.id}`)
+  }
+
+  handleDeleteDashboard = dashboard => () => {
     this.props.handleDeleteDashboard(dashboard)
   }
 
@@ -39,6 +48,7 @@ class DashboardsPage extends Component {
           dashboards={dashboards}
           onDeleteDashboard={this.handleDeleteDashboard}
           onCreateDashboard={this.handleCreateDashbord}
+          onCloneDashboard={this.handleCloneDashboard}
         />
       </div>
     )

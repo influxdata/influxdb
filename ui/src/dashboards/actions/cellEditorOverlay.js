@@ -57,3 +57,10 @@ export const updateTableOptions = tableOptions => ({
     tableOptions,
   },
 })
+
+export const updateLineColors = lineColors => ({
+  type: 'UPDATE_LINE_COLORS',
+  payload: {
+    lineColors,
+  },
+})

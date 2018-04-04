@@ -35,8 +35,9 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
-import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
+import {interval, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 import {notifyDashboardNotFound} from 'shared/copy/notifications'
+import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -305,6 +306,7 @@ class DashboardPage extends Component {
       showTemplateControlBar,
       dashboard,
       dashboards,
+      lineColors,
       gaugeColors,
       autoRefresh,
       selectedCell,
@@ -349,25 +351,6 @@ class DashboardPage extends Component {
         {
           value: up || 'now()',
           type: upperType,
-          selected: true,
-        },
-      ],
-    }
-
-    const interval = {
-      id: 'interval',
-      type: 'autoGroupBy',
-      tempVar: ':interval:',
-      label: 'automatically determine the best group by time',
-      values: [
-        {
-          value: '1000', // pixels
-          type: 'resolution',
-          selected: true,
-        },
-        {
-          value: '3',
-          type: 'pointsPerPixel',
           selected: true,
         },
       ],
@@ -421,6 +404,7 @@ class DashboardPage extends Component {
             thresholdsListType={thresholdsListType}
             thresholdsListColors={thresholdsListColors}
             gaugeColors={gaugeColors}
+            lineColors={lineColors}
           />
         ) : null}
         <DashboardHeader
@@ -552,8 +536,9 @@ DashboardPage.propTypes = {
   handleDismissEditingAnnotation: func.isRequired,
   selectedCell: shape({}),
   thresholdsListType: string.isRequired,
-  thresholdsListColors: arrayOf(shape({}).isRequired).isRequired,
-  gaugeColors: arrayOf(shape({}).isRequired).isRequired,
+  thresholdsListColors: colorsNumberSchema.isRequired,
+  gaugeColors: colorsNumberSchema.isRequired,
+  lineColors: colorsStringSchema.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -571,6 +556,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
       thresholdsListType,
       thresholdsListColors,
       gaugeColors,
+      lineColors,
     },
   } = state
 
@@ -601,6 +587,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     thresholdsListType,
     thresholdsListColors,
     gaugeColors,
+    lineColors,
   }
 }
 

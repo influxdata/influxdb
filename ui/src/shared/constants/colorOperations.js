@@ -1,36 +1,21 @@
 import _ from 'lodash'
+import chroma from 'chroma-js'
+
 import {
   THRESHOLD_COLORS,
   THRESHOLD_TYPE_BASE,
   THRESHOLD_TYPE_TEXT,
 } from 'shared/constants/thresholds'
 
-const hexToRgb = hex => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
-    : null
-}
-
-const averageRgbValues = valuesObject => {
-  const {r, g, b} = valuesObject
-  return (r + g + b) / 3
-}
-
-const trueNeutralGrey = 128
+const luminanceThreshold = 0.5
 
 const getLegibleTextColor = bgColorHex => {
-  const averageBackground = averageRgbValues(hexToRgb(bgColorHex))
-  const isBackgroundLight = averageBackground > trueNeutralGrey
-
   const darkText = '#292933'
   const lightText = '#ffffff'
 
-  return isBackgroundLight ? darkText : lightText
+  return chroma(bgColorHex).luminance() < luminanceThreshold
+    ? darkText
+    : lightText
 }
 
 const findNearestCrossedThreshold = (colors, lastValue) => {
