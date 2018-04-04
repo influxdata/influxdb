@@ -15,9 +15,27 @@
   pointer-events: none;
   display: none;
   background: fade-out($g20-white, 1);
-  background: -moz-linear-gradient(top,  fade-out($g20-white, 1) 0%, fade-out($g20-white, 0.71) 6%, fade-out($g20-white, 0.71) 80%, fade-out($g20-white, 1) 100%);
-  background: -webkit-linear-gradient(top,  fade-out($g20-white, 1) 0%,fade-out($g20-white, 0.71) 6%,fade-out($g20-white, 0.71) 80%,fade-out($g20-white, 1) 100%);
-  background: linear-gradient(to bottom,  fade-out($g20-white, 1) 0%,fade-out($g20-white, 0.71) 6%,fade-out($g20-white, 0.71) 80%,fade-out($g20-white, 1) 100%);
+  background: -moz-linear-gradient(
+    top,
+    fade-out($g20-white, 1) 0%,
+    fade-out($g20-white, 0.71) 6%,
+    fade-out($g20-white, 0.71) 80%,
+    fade-out($g20-white, 1) 100%
+  );
+  background: -webkit-linear-gradient(
+    top,
+    fade-out($g20-white, 1) 0%,
+    fade-out($g20-white, 0.71) 6%,
+    fade-out($g20-white, 0.71) 80%,
+    fade-out($g20-white, 1) 100%
+  );
+  background: linear-gradient(
+    to bottom,
+    fade-out($g20-white, 1) 0%,
+    fade-out($g20-white, 0.71) 6%,
+    fade-out($g20-white, 0.71) 80%,
+    fade-out($g20-white, 1) 100%
+  );
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='fade-out($g20-white, 0.71)', endColorstr='fade-out($g20-white, 0.71)',GradientType=0 );
 }
 
@@ -38,7 +56,8 @@
   text-align: right !important;
   user-select: none;
 }
-.graph-container > div > div > div > div {}
+.graph-container > div > div > div > div {
+}
 
 /* Vertical Axis Labels */
 .dygraph-ylabel,
@@ -51,8 +70,11 @@
   top: -12px !important;
   color: $g11-sidewalk;
   font-weight: 500;
-  padding:0 0 2px 0 !important;
+  padding: 0 0 2px 0 !important;
   border-bottom: 2px solid $g4-onyx !important;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .dygraph-ylabel {
   transform: rotate(-90deg);
@@ -62,7 +84,6 @@
 }
 
 .graph--hasYLabel {
-
   .dygraph-axis-label-y {
     padding: 0 1px 0 16px !important;
   }
@@ -70,7 +91,6 @@
     padding: 0 16px 0 1px !important;
   }
 }
-
 
 /* Single Stat Cells */
 .single-stat {
@@ -100,7 +120,7 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%,-50%);
+  transform: translate(-50%, -50%);
   width: auto;
   max-width: calc(100% - 32px);
   text-align: center;
@@ -130,15 +150,13 @@
   left: 50%;
   width: 90%;
   height: 0;
-  transform: translate(-50%,-50%);
+  transform: translate(-50%, -50%);
   box-shadow: fade-out($g2-kevlar, 0.3) 0 0 50px 30px;
   z-index: -1;
 }
 .single-stat--small .single-stat--shadow:after {
   box-shadow: fade-out($g2-kevlar, 0.3) 0 0 30px 10px;
 }
-
-
 
 /*
   Legend Styles
@@ -201,7 +219,9 @@
   align-items: center;
   flex-wrap: nowrap;
 
-  > .btn { margin-left: 4px; }
+  > .btn {
+    margin-left: 4px;
+  }
 }
 .dygraph-legend--timestamp {
   margin-right: 8px;
@@ -228,7 +248,7 @@
   line-height: 13px;
   max-height: 123px;
   overflow-y: auto;
-  @include custom-scrollbar-round($g0-obsidian,$g3-castle);
+  @include custom-scrollbar-round($g0-obsidian, $g3-castle);
 }
 .dygraph-legend--row {
   display: flex;
@@ -254,7 +274,9 @@
   &.highlight {
     opacity: 1;
     background-color: $g3-castle;
-    figure {color: $g20-white;}
+    figure {
+      color: $g20-white;
+    }
   }
   &.highlight:only-child {
     background-color: transparent;
