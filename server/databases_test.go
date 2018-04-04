@@ -494,6 +494,56 @@ func TestService_Measurements(t *testing.T) {
 `,
 			},
 		},
+		{
+			name: "Provides a prev link when offset exceeds limit",
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, srcID int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID: 0,
+						}, nil
+					},
+				},
+				Databases: &mocks.Databases{
+					ConnectF: func(context.Context, *chronograf.Source) error {
+						return nil
+					},
+					GetMeasurementsF: func(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
+						return []chronograf.Measurement{
+							{
+								Name: "pineapple",
+							},
+							{
+								Name: "cubeapple",
+							},
+							{
+								Name: "pinecube",
+							},
+							{
+								Name: "billietta",
+							},
+							{
+								Name: "bobbetta",
+							},
+							{
+								Name: "bobcube",
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				queryParams: map[string]string{
+					"limit":  "2",
+					"offset": "4",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"},{"name":"billietta"},{"name":"bobbetta"},{"name":"bobcube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=2\u0026offset=4","first":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=2\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=2\u0026offset=6","prev":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=2\u0026offset=2"}}
+`,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
