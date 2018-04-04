@@ -348,7 +348,7 @@ func TestService_Measurements(t *testing.T) {
 					ConnectF: func(context.Context, *chronograf.Source) error {
 						return nil
 					},
-					GetMeasurementsF: func(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
+					GetMeasurementsF: func(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
 						return []chronograf.Measurement{
 							{
 								Name: "pineapple",
@@ -368,7 +368,7 @@ func TestService_Measurements(t *testing.T) {
 			},
 			wants: wants{
 				statusCode: 200,
-				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","first":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=100"}}
+				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=0","first":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=100"}}
 `,
 			},
 		},
@@ -428,7 +428,7 @@ func TestService_Measurements(t *testing.T) {
 					ConnectF: func(context.Context, *chronograf.Source) error {
 						return nil
 					},
-					GetMeasurementsF: func(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
+					GetMeasurementsF: func(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
 						return []chronograf.Measurement{
 							{
 								Name: "pineapple",
@@ -450,7 +450,7 @@ func TestService_Measurements(t *testing.T) {
 			},
 			wants: wants{
 				statusCode: 200,
-				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","first":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=100"}}
+				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=0","first":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=100"}}
 `,
 			},
 		},
@@ -468,7 +468,7 @@ func TestService_Measurements(t *testing.T) {
 					ConnectF: func(context.Context, *chronograf.Source) error {
 						return nil
 					},
-					GetMeasurementsF: func(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
+					GetMeasurementsF: func(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
 						return []chronograf.Measurement{
 							{
 								Name: "pineapple",
@@ -490,7 +490,7 @@ func TestService_Measurements(t *testing.T) {
 			},
 			wants: wants{
 				statusCode: 200,
-				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","first":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/0/measurements?limit=100\u0026offset=100"}}
+				body: `{"measurements":[{"name":"pineapple"},{"name":"cubeapple"},{"name":"pinecube"}],"links":{"self":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=0","first":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=0","next":"/chronograf/v1/sources/0/dbs/pineapples/measurements?limit=100\u0026offset=100"}}
 `,
 			},
 		},
@@ -520,8 +520,8 @@ func TestService_Measurements(t *testing.T) {
 						Value: "0",
 					},
 					{
-						Key:   "dbid",
-						Value: "0",
+						Key:   "db",
+						Value: "pineapples",
 					},
 				}))
 

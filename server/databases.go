@@ -121,14 +121,14 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := h.Databases
-	if err = db.Connect(ctx, &src); err != nil {
+	dbsvc := h.Databases
+	if err = dbsvc.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
 	}
 
-	databases, err := db.AllDB(ctx)
+	databases, err := dbsvc.AllDB(ctx)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
@@ -136,7 +136,7 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 
 	dbs := make([]dbResponse, len(databases))
 	for i, d := range databases {
-		rps, err := h.allRPs(ctx, db, srcID, d.Name)
+		rps, err := h.allRPs(ctx, dbsvc, srcID, d.Name)
 		if err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 			return
@@ -167,9 +167,9 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := h.Databases
+	dbsvc := h.Databases
 
-	if err = db.Connect(ctx, &src); err != nil {
+	if err = dbsvc.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
@@ -186,13 +186,13 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := db.CreateDB(ctx, postedDB)
+	database, err := dbsvc.CreateDB(ctx, postedDB)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
 	}
 
-	rps, err := h.allRPs(ctx, db, srcID, database.Name)
+	rps, err := h.allRPs(ctx, dbsvc, srcID, database.Name)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
@@ -217,17 +217,17 @@ func (h *Service) DropDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := h.Databases
+	dbsvc := h.Databases
 
-	if err = db.Connect(ctx, &src); err != nil {
+	if err = dbsvc.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
 	}
 
-	dbID := httprouter.GetParamFromContext(ctx, "dbid")
+	db := httprouter.GetParamFromContext(ctx, "db")
 
-	dropErr := db.DropDB(ctx, dbID)
+	dropErr := dbsvc.DropDB(ctx, db)
 	if dropErr != nil {
 		Error(w, http.StatusBadRequest, dropErr.Error(), h.Logger)
 		return
@@ -252,15 +252,15 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := h.Databases
-	if err = db.Connect(ctx, &src); err != nil {
+	dbsvc := h.Databases
+	if err = dbsvc.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
 	}
 
-	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-	res, err := h.allRPs(ctx, db, srcID, dbID)
+	db := httprouter.GetParamFromContext(ctx, "db")
+	res, err := h.allRPs(ctx, dbsvc, srcID, db)
 	if err != nil {
 		msg := fmt.Sprintf("Unable to connect get RPs %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
@@ -269,8 +269,8 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *Service) allRPs(ctx context.Context, db chronograf.Databases, srcID int, dbID string) ([]rpResponse, error) {
-	allRP, err := db.AllRP(ctx, dbID)
+func (h *Service) allRPs(ctx context.Context, dbsvc chronograf.Databases, srcID int, db string) ([]rpResponse, error) {
+	allRP, err := dbsvc.AllRP(ctx, db)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +284,7 @@ func (h *Service) allRPs(ctx context.Context, db chronograf.Databases, srcID int
 			ShardDuration: rp.ShardDuration,
 			Default:       rp.Default,
 		}
-		rp.WithLinks(srcID, dbID)
+		rp.WithLinks(srcID, db)
 		rps[i] = rp
 	}
 	return rps, nil
@@ -306,8 +306,8 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := h.Databases
-	if err = db.Connect(ctx, &src); err != nil {
+	dbsvc := h.Databases
+	if err = dbsvc.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
@@ -323,8 +323,8 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-	rp, err := db.CreateRP(ctx, dbID, postedRP)
+	db := httprouter.GetParamFromContext(ctx, "db")
+	rp, err := dbsvc.CreateRP(ctx, db, postedRP)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
@@ -336,7 +336,7 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 		ShardDuration: rp.ShardDuration,
 		Default:       rp.Default,
 	}
-	res.WithLinks(srcID, dbID)
+	res.WithLinks(srcID, db)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
@@ -356,8 +356,8 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	db := h.Databases
-	if err = db.Connect(ctx, &src); err != nil {
+	dbsvc := h.Databases
+	if err = dbsvc.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
@@ -373,9 +373,9 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-	rpID := httprouter.GetParamFromContext(ctx, "rpid")
-	rp, err := db.UpdateRP(ctx, dbID, rpID, postedRP)
+	db := httprouter.GetParamFromContext(ctx, "db")
+	rp := httprouter.GetParamFromContext(ctx, "rp")
+	p, err := dbsvc.UpdateRP(ctx, db, rp, postedRP)
 
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
@@ -383,13 +383,13 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 	}
 
 	res := rpResponse{
-		Name:          rp.Name,
-		Duration:      rp.Duration,
-		Replication:   rp.Replication,
-		ShardDuration: rp.ShardDuration,
-		Default:       rp.Default,
+		Name:          p.Name,
+		Duration:      p.Duration,
+		Replication:   p.Replication,
+		ShardDuration: p.ShardDuration,
+		Default:       p.Default,
 	}
-	res.WithLinks(srcID, dbID)
+	res.WithLinks(srcID, db)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
@@ -409,16 +409,16 @@ func (s *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := s.Databases
-	if err = db.Connect(ctx, &src); err != nil {
+	dbsvc := s.Databases
+	if err = dbsvc.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, s.Logger)
 		return
 	}
 
-	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-	rpID := httprouter.GetParamFromContext(ctx, "rpid")
-	dropErr := db.DropRP(ctx, dbID, rpID)
+	db := httprouter.GetParamFromContext(ctx, "db")
+	rp := httprouter.GetParamFromContext(ctx, "rp")
+	dropErr := dbsvc.DropRP(ctx, db, rp)
 	if dropErr != nil {
 		Error(w, http.StatusBadRequest, dropErr.Error(), s.Logger)
 		return
@@ -449,15 +449,15 @@ func (h *Service) Measurements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := h.Databases
-	if err = db.Connect(ctx, &src); err != nil {
+	dbsvc := h.Databases
+	if err = dbsvc.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
 	}
 
-	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-	measurements, err := db.GetMeasurements(ctx, dbID, limit, offset)
+	db := httprouter.GetParamFromContext(ctx, "db")
+	measurements, err := dbsvc.GetMeasurements(ctx, db, limit, offset)
 	if err != nil {
 		msg := fmt.Sprintf("Unable to get measurements %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
@@ -466,7 +466,7 @@ func (h *Service) Measurements(w http.ResponseWriter, r *http.Request) {
 
 	res := measurementsResponse{
 		Measurements: measurements,
-		Links:        newMeasurementLinks(srcID, dbID, limit, offset),
+		Links:        newMeasurementLinks(srcID, db, limit, offset),
 	}
 
 	encodeJSON(w, http.StatusOK, res, h.Logger)

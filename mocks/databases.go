@@ -39,8 +39,8 @@ func (d *Databases) CreateDB(ctx context.Context, db *chronograf.Database) (*chr
 }
 
 // DropDB drops a database in the current data source
-func (d *Databases) DropDB(ctx context.Context, dbID string) error {
-	return d.DropDBF(ctx, dbID)
+func (d *Databases) DropDB(ctx context.Context, db string) error {
+	return d.DropDBF(ctx, db)
 }
 
 // AllRP lists all retention policies in the current data source
@@ -64,6 +64,6 @@ func (d *Databases) DropRP(ctx context.Context, rpX string, rpY string) error {
 }
 
 // GetMeasurements lists measurements in the current data source
-func (d *Databases) GetMeasurements(ctx context.Context, dbID string, limit, offset int) ([]chronograf.Measurement, error) {
-	return d.GetMeasurementsF(ctx, dbID, limit, offset)
+func (d *Databases) GetMeasurements(ctx context.Context, db string, limit, offset int) ([]chronograf.Measurement, error) {
+	return d.GetMeasurementsF(ctx, db, limit, offset)
 }

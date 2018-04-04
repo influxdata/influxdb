@@ -928,7 +928,7 @@
         }
       }
     },
-    "/sources/{id}/dbs/{db_id}": {
+    "/sources/{id}/dbs/{db}": {
       "delete": {
         "tags": ["databases"],
         "summary": "Delete database for a source",
@@ -941,10 +941,10 @@
             "required": true
           },
           {
-            "name": "db_id",
+            "name": "db",
             "in": "path",
             "type": "string",
-            "description": "ID of the database",
+            "description": "Name of the database",
             "required": true
           }
         ],
@@ -967,7 +967,7 @@
         }
       }
     },
-    "/sources/{id}/dbs/{db_id}/rps": {
+    "/sources/{id}/dbs/{db}/rps": {
       "get": {
         "tags": ["retention policies"],
         "summary": "Retrieve all retention policies for a database",
@@ -980,10 +980,10 @@
             "required": true
           },
           {
-            "name": "db_id",
+            "name": "db",
             "in": "path",
             "type": "string",
-            "description": "ID of the database",
+            "description": "Name of the database",
             "required": true
           }
         ],
@@ -1020,10 +1020,10 @@
             "required": true
           },
           {
-            "name": "db_id",
+            "name": "db",
             "in": "path",
             "type": "string",
-            "description": "ID of the database",
+            "description": "Name of the database",
             "required": true
           },
           {
@@ -1058,7 +1058,7 @@
         }
       }
     },
-    "/sources/{id}/dbs/{db_id}/rps/{rp_id}": {
+    "/sources/{id}/dbs/{db}/rps/{rp}": {
       "patch": {
         "tags": ["retention policies"],
         "summary": "Alter retention policy for a database",
@@ -1071,17 +1071,17 @@
             "required": true
           },
           {
-            "name": "db_id",
+            "name": "db",
             "in": "path",
             "type": "string",
-            "description": "ID of the database",
+            "description": "Name of the database",
             "required": true
           },
           {
-            "name": "rp_id",
+            "name": "rp",
             "in": "path",
             "type": "string",
-            "description": "ID of the retention policy",
+            "description": "Name of the retention policy",
             "required": true
           },
           {
@@ -1127,17 +1127,17 @@
             "required": true
           },
           {
-            "name": "db_id",
+            "name": "db",
             "in": "path",
             "type": "string",
-            "description": "ID of the database",
+            "description": "Name of the database",
             "required": true
           },
           {
-            "name": "rp_id",
+            "name": "rp",
             "in": "path",
             "type": "string",
-            "description": "ID of the retention policy",
+            "description": "Name of the retention policy",
             "required": true
           }
         ],
@@ -1160,7 +1160,7 @@
         }
       }
     },
-    "/sources/{id}/dbs/{db_id}/measurements": {
+    "/sources/{id}/dbs/{db}/measurements": {
       "get": {
         "tags": ["measurements"],
         "summary": "Retrieve measurements in a database",
@@ -1174,9 +1174,9 @@
           },
           {
             "in": "path",
-            "name": "db_id",
+            "name": "db",
             "type": "string",
-            "description": "ID of the database",
+            "description": "Name of the database",
             "required": true
           },
           {
