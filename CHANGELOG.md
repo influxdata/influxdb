@@ -12,6 +12,7 @@
 1.  [#3088](https://github.com/influxdata/chronograf/pull/3088): New dashboard cells appear at bottom of layout and assume the size of the most common cell
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize delete confirmation interactions
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize save & cancel interactions
+1.  [#3116](https://github.com/influxdata/chronograf/pull/3116): Improve cell renaming
 
 ### Bug Fixes
 
@@ -20,6 +21,7 @@
 1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
 
 ## v1.4.3.1 [2018-04-02]
+
 ### Bug Fixes
 
 1.  [#3107](https://github.com/influxdata/chronograf/pull/3107): Fixes template variable editing not allowing saving
