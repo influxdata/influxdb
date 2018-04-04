@@ -33,15 +33,15 @@ type dbResponse struct {
 }
 
 // newDBResponse creates the response for the /databases endpoint
-func newDBResponse(srcID int, name string, rps []rpResponse) dbResponse {
+func newDBResponse(srcID int, db string, rps []rpResponse) dbResponse {
 	base := "/chronograf/v1/sources"
 	return dbResponse{
-		Name: name,
+		Name: db,
 		RPs:  rps,
 		Links: dbLinks{
-			Self:         fmt.Sprintf("%s/%d/dbs/%s", base, srcID, name),
-			RPs:          fmt.Sprintf("%s/%d/dbs/%s/rps", base, srcID, name),
-			Measurements: fmt.Sprintf("%s/%d/dbs/%s/measurements?limit=100&offset=0", base, srcID, name),
+			Self:         fmt.Sprintf("%s/%d/dbs/%s", base, srcID, db),
+			RPs:          fmt.Sprintf("%s/%d/dbs/%s/rps", base, srcID, db),
+			Measurements: fmt.Sprintf("%s/%d/dbs/%s/measurements?limit=100&offset=0", base, srcID, db),
 		},
 	}
 }
@@ -64,10 +64,10 @@ type rpResponse struct {
 }
 
 // WithLinks adds links to an rpResponse in place
-func (r *rpResponse) WithLinks(srcID int, dbName string) {
+func (r *rpResponse) WithLinks(srcID int, db string) {
 	base := "/chronograf/v1/sources"
 	r.Links = rpLinks{
-		Self: fmt.Sprintf("%s/%d/dbs/%s/rps/%s", base, srcID, dbName, r.Name),
+		Self: fmt.Sprintf("%s/%d/dbs/%s/rps/%s", base, srcID, db, r.Name),
 	}
 }
 
