@@ -21,7 +21,8 @@
 1.  [#3104](https://github.com/influxdata/chronograf/pull/3104): Query annotations at auto-refresh interval
 1.  [#3109](https://github.com/influxdata/chronograf/pull/3109): Display link to configure Kapacitor on Alerts Page if no configured kapacitor.
 1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
-1.  [#3129](https://github.com/influxdata/chronograf/pull/3120): Only add stateChangesOnly to new rules
+1.  [#3129](https://github.com/influxdata/chronograf/pull/3129): Only add stateChangesOnly to new rules
+1.  [#3131](https://github.com/influxdata/chronograf/pull/3131): Fix 500s when deleting organizations
 
 ## v1.4.3.1 [2018-04-02]
 
