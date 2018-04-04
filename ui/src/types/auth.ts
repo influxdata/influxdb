@@ -8,7 +8,7 @@ export interface Organization {
 }
 
 export interface Me {
-  currentOrganization: Organization
+  currentOrganization?: Organization
   role: Role
 }
 

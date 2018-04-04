@@ -12,8 +12,8 @@ import {
 } from 'src/auth/Authorized'
 
 import {getSourceHealth} from 'src/sources/apis'
-
 import {getSourcesAsync} from 'src/shared/actions/sources'
+
 import {errorThrown as errorThrownAction} from 'src/shared/actions/errors'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
@@ -41,12 +41,13 @@ interface Props {
   location: Location
   auth: Auth
   notify: () => void
+  errorThrown: () => void
 }
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data sources, but not every page requires them to function.
 // Routes that do require data sources can be nested under this component.
-class CheckSources extends Component<Props, State> {
+export class CheckSources extends Component<Props, State> {
   public static childContextTypes = {
     source: PropTypes.shape({
       links: PropTypes.shape({
@@ -76,7 +77,6 @@ class CheckSources extends Component<Props, State> {
 
   public async componentWillMount() {
     const {router, auth: {isUsingAuth, me}} = this.props
-
     if (!isUsingAuth || isUserAuthorized(me.role, VIEWER_ROLE)) {
       await this.props.getSources()
       this.setState({isFetching: false})

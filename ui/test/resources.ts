@@ -1,3 +1,22 @@
+export const role = {
+  name: '',
+  organization: '',
+}
+
+export const currentOrganization = {
+  name: '',
+  defaultRole: '',
+  id: '',
+  links: {
+    self: '',
+  },
+}
+
+export const me = {
+  currentOrganization,
+  role,
+}
+
 export const links = {
   self: '/chronograf/v1/sources/16',
   kapacitors: '/chronograf/v1/sources/16/kapacitors',
@@ -7,6 +26,7 @@ export const links = {
   permissions: '/chronograf/v1/sources/16/permissions',
   users: '/chronograf/v1/sources/16/users',
   databases: '/chronograf/v1/sources/16/dbs',
+  health: '/chronograf/v1/sources/16/health',
 }
 
 export const source = {
