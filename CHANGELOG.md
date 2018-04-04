@@ -10,6 +10,7 @@ v1.6.0 [unreleased]
 -	[#9429](https://github.com/influxdata/influxdb/pull/9429): Support proxy environment variables in the influx client.
 -	[#9499](https://github.com/influxdata/influxdb/pull/9499): Implement basic trigonometry functions.
 -	[#9643](https://github.com/influxdata/influxdb/pull/9643): Add ability to delete many series with predicate.
+-	[#9632](https://github.com/influxdata/influxdb/pull/9632): Implement floor, ceil, and round functions.
 
 ### Bugfixes
 
