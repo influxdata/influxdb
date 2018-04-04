@@ -104,18 +104,10 @@ const AutoRefresh = ComposedComponent => {
               // resize event
               return {
                 ...temp,
-                values: temp.values.map(v => {
-                  if (v.type === 'resolution') {
-                    return {...v, value: `${resolution}`}
-                  }
-                  if (v.type === 'points') {
-                    return {
-                      ...v,
-                      value: `${_.toInteger(Number(resolution) / 3)}`,
-                    }
-                  }
-                  return v
-                }),
+                values: temp.values.map(v => ({
+                  ...v,
+                  value: `${_.toInteger(Number(resolution) / 3)}`,
+                })),
               }
             }
 
