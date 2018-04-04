@@ -182,7 +182,7 @@ class GaugeOptions extends Component {
                 }
                 visualizationType="gauge"
                 threshold={color}
-                key={color.id}
+                key={uuid.v4()}
                 disableMaxColor={disableMaxColor}
                 onChooseColor={this.handleChooseColor}
                 onValidateColorValue={this.handleValidateColorValue}
