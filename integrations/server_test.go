@@ -114,7 +114,8 @@ func TestServer(t *testing.T) {
     "users": "/chronograf/v1/sources/5000/users",
     "roles": "/chronograf/v1/sources/5000/roles",
     "databases": "/chronograf/v1/sources/5000/dbs",
-    "annotations": "/chronograf/v1/sources/5000/annotations"
+    "annotations": "/chronograf/v1/sources/5000/annotations",
+    "health": "/chronograf/v1/sources/5000/health"
   }
 }
 `,
@@ -300,7 +301,8 @@ func TestServer(t *testing.T) {
         "users": "/chronograf/v1/sources/5000/users",
         "roles": "/chronograf/v1/sources/5000/roles",
         "databases": "/chronograf/v1/sources/5000/dbs",
-        "annotations": "/chronograf/v1/sources/5000/annotations"
+        "annotations": "/chronograf/v1/sources/5000/annotations",
+    		"health": "/chronograf/v1/sources/5000/health"
       }
     }
   ]
