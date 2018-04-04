@@ -18,6 +18,7 @@
 ### Bug Fixes
 
 1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
+1.  [#3104](https://github.com/influxdata/chronograf/pull/3104): Query annotations at auto-refresh interval
 1.  [#3109](https://github.com/influxdata/chronograf/pull/3109): Display link to configure Kapacitor on Alerts Page if no configured kapacitor.
 1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
 
