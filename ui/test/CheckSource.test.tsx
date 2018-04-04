@@ -1,9 +1,9 @@
 import React from 'react'
-import {mount} from 'enzyme'
+import {shallow} from 'enzyme'
 import {CheckSources} from 'src/CheckSources'
 import MockChild from 'mocks/MockChild'
 
-import {source, me} from 'test/resources'
+import {source} from 'test/resources'
 
 jest.mock('src/sources/apis', () => require('mocks/sources/apis'))
 const getSources = jest.fn(() => Promise.resolve)
@@ -28,7 +28,7 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = mount(
+  const wrapper = shallow(
     <CheckSources {...props}>
       <MockChild />
     </CheckSources>
@@ -57,8 +57,8 @@ describe('CheckSources', () => {
     it('renders its children when it is done fetching', async () => {
       const {wrapper} = setup()
 
-      // must call and await componentWillMount manually test to register state change
-      await wrapper.instance().componentWillMount()
+      // ensure that assertion runs after async behavior of getSources
+      await getSources()
       wrapper.update()
 
       const kid = wrapper.find(MockChild)
