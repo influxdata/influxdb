@@ -100,7 +100,6 @@ export class DataExplorer extends PureComponent<Props, State> {
     } = this.props
 
     const {showWriteForm} = this.state
-    const selectedDatabase = _.get(queryConfigs, ['0', 'database'], null)
     return (
       <div className="data-explorer">
         {showWriteForm ? (
@@ -108,7 +107,7 @@ export class DataExplorer extends PureComponent<Props, State> {
             <WriteDataForm
               source={source}
               errorThrown={errorThrownAction}
-              selectedDatabase={selectedDatabase}
+              selectedDatabase={this.selectedDatabase}
               onClose={this.handleCloseWriteData}
               writeLineProtocol={writeLineProtocol}
             />
@@ -152,16 +151,20 @@ export class DataExplorer extends PureComponent<Props, State> {
     )
   }
 
-  private handleCloseWriteData = () => {
+  private handleCloseWriteData = (): void => {
     this.setState({showWriteForm: false})
   }
 
-  private handleOpenWriteData = () => {
+  private handleOpenWriteData = (): void => {
     this.setState({showWriteForm: true})
   }
 
-  private handleChooseTimeRange = bounds => {
+  private handleChooseTimeRange = (bounds: TimeRange): void => {
     this.props.setTimeRange(bounds)
+  }
+
+  private get selectedDatabase() {
+    return _.get(this.props.queryConfigs, ['0', 'database'], null)
   }
 
   private get activeQuery() {
