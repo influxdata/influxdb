@@ -1,6 +1,8 @@
 package bolt
 
 import (
+	"time"
+
 	"github.com/boltdb/bolt"
 )
 
@@ -26,7 +28,8 @@ func IsMigrationComplete(db *bolt.DB, id string) (bool, error) {
 // MarkMigrationAsComplete adds the migration id to the schema bucket
 func MarkMigrationAsComplete(db *bolt.DB, id string) error {
 	if err := db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(SchemaVersionBucket).Put([]byte(id), []byte{})
+		now := time.Now().UTC().Format(time.RFC3339)
+		return tx.Bucket(SchemaVersionBucket).Put([]byte(id), []byte(now))
 	}); err != nil {
 		return err
 	}
