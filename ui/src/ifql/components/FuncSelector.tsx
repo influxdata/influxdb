@@ -8,7 +8,6 @@ interface State {
   isOpen: boolean
   inputText: string
   selectedFunc: string
-  availableFuncs: string[]
 }
 
 interface Props {
@@ -24,12 +23,11 @@ export class FuncSelector extends PureComponent<Props, State> {
       isOpen: false,
       inputText: '',
       selectedFunc: '',
-      availableFuncs: [],
     }
   }
 
   public render() {
-    const {isOpen, inputText, selectedFunc, availableFuncs} = this.state
+    const {isOpen, inputText, selectedFunc} = this.state
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
@@ -38,7 +36,7 @@ export class FuncSelector extends PureComponent<Props, State> {
             <FuncList
               inputText={inputText}
               onAddNode={this.handleAddNode}
-              funcs={availableFuncs}
+              funcs={this.availableFuncs}
               onInputChange={this.handleInputChange}
               onKeyDown={this.handleKeyDown}
               selectedFunc={selectedFunc}
@@ -59,7 +57,7 @@ export class FuncSelector extends PureComponent<Props, State> {
   }
 
   private handleCloseList = () => {
-    this.setState({isOpen: false, selectedFunc: '', availableFuncs: []})
+    this.setState({isOpen: false, selectedFunc: ''})
   }
 
   private handleAddNode = (name: string) => {
@@ -67,29 +65,37 @@ export class FuncSelector extends PureComponent<Props, State> {
     this.props.onAddNode(name)
   }
 
-  private setAvailableFuncs = inputText => {
-    const {funcs} = this.props
+  private get availableFuncs() {
+    return this.props.funcs.filter(f =>
+      f.toLowerCase().includes(this.state.inputText)
+    )
+  }
+
+  private setSelectedFunc = () => {
     const {selectedFunc} = this.state
 
-    const availableFuncs = funcs.filter(f =>
-      f.toLowerCase().includes(inputText)
+    const isSelectedVisible = !!this.availableFuncs.find(
+      a => a === selectedFunc
     )
-    const isSelectedVisible = !!availableFuncs.find(a => a === selectedFunc)
-    const newSelectedFunc = availableFuncs.length > 0 ? availableFuncs[0] : ''
+    const newSelectedFunc =
+      this.availableFuncs.length > 0 ? this.availableFuncs[0] : ''
 
     this.setState({
-      inputText,
-      availableFuncs,
       selectedFunc: isSelectedVisible ? selectedFunc : newSelectedFunc,
     })
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    this.setAvailableFuncs(e.target.value)
+    this.setState(
+      {
+        inputText: e.target.value,
+      },
+      this.setSelectedFunc
+    )
   }
 
   private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    const {selectedFunc, availableFuncs} = this.state
+    const {selectedFunc} = this.state
     const selectedFuncExists = selectedFunc !== ''
 
     if (e.key === 'Enter' && selectedFuncExists) {
@@ -103,13 +109,13 @@ export class FuncSelector extends PureComponent<Props, State> {
     if (e.key === 'ArrowUp' && selectedFuncExists) {
       // get index of selectedFunc in availableFuncs
       const selectedIndex = _.findIndex(
-        availableFuncs,
+        this.availableFuncs,
         func => func === selectedFunc
       )
       const previousIndex = selectedIndex - 1
       // if there is selectedIndex - 1 in availableFuncs make that the new SelectedFunc
       if (previousIndex >= 0) {
-        return this.setState({selectedFunc: availableFuncs[previousIndex]})
+        return this.setState({selectedFunc: this.availableFuncs[previousIndex]})
       }
       // if not then keep selectedFunc as is
     }
@@ -117,13 +123,13 @@ export class FuncSelector extends PureComponent<Props, State> {
     if (e.key === 'ArrowDown' && selectedFuncExists) {
       // get index of selectedFunc in availableFuncs
       const selectedIndex = _.findIndex(
-        availableFuncs,
+        this.availableFuncs,
         func => func === selectedFunc
       )
       const nextIndex = selectedIndex + 1
       // if there is selectedIndex + 1 in availableFuncs make that the new SelectedFunc
-      if (nextIndex < availableFuncs.length) {
-        return this.setState({selectedFunc: availableFuncs[nextIndex]})
+      if (nextIndex < this.availableFuncs.length) {
+        return this.setState({selectedFunc: this.availableFuncs[nextIndex]})
       }
       // if not then keep selectedFunc as is
     }
@@ -138,7 +144,6 @@ export class FuncSelector extends PureComponent<Props, State> {
     this.setState({
       isOpen: true,
       inputText: '',
-      availableFuncs: funcs,
       selectedFunc: funcs[0],
     })
   }
