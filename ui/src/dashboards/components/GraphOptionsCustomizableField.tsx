@@ -12,7 +12,7 @@ interface Props {
   internalName: string
   displayName: string
   visible: boolean
-  onFieldUpdate: (field: Field) => void
+  onFieldUpdate?: (field: Field) => void
 }
 
 class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
