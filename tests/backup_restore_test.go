@@ -50,11 +50,6 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Skip("Skipping.  Cannot modify remote server config")
 		}
 
-		err := partialExpectedJson.UnmarshalJSON([]byte(expectedResult))
-		if err != nil {
-			t.Fatal(err)
-		}
-		fmt.Printf("json: %v", partialExpectedJson)
 		if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
 			t.Fatal(err)
 		}
@@ -100,10 +95,19 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", expected, res)
 		}
 
-		for !strings.Contains(res, "_internal") {
+		i := 0
+		for {
 			res, err = s.Query(`SHOW DATABASES`)
 			if err != nil {
 				t.Fatalf("error querying: %s", err.Error())
+			}
+
+			if strings.Contains(res, "_internal") {
+				break
+			}
+			i++
+			if i > 90 {
+				t.Fatal("_internal not created within 90 seconds")
 			}
 			// technically not necessary, but no reason to crush the CPU for polling
 			time.Sleep(time.Second)
@@ -120,6 +124,10 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 		}
 
+		err = partialExpectedJson.UnmarshalJSON([]byte(expectedResult))
+		if err != nil {
+			t.Fatal(err)
+		}
 		for i := 0; i < 2000; i++ {
 			line := fmt.Sprintf("myseries,host=C value=%d %d", i, 9000000+i)
 			if _, err := s.Write(db, rp, line, nil); err != nil {
