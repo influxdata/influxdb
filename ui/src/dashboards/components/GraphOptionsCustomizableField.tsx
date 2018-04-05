@@ -1,7 +1,5 @@
 import React, {PureComponent} from 'react'
 
-import InputClickToEdit from 'src/shared/components/InputClickToEdit'
-
 interface Field {
   internalName: string
   displayName: string
@@ -51,15 +49,17 @@ class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
               : `Click to SHOW ${internalName}`
           }
         >
+          <span className={'icon shuffle'} />
           <span className={visible ? 'icon eye-open' : 'icon eye-closed'} />
           {internalName}
         </div>
-        <InputClickToEdit
+        <input
+          className="customizable-field--input"
+          type="text"
+          id="internalName"
           value={displayName}
-          wrapperClass="customizable-field--input"
           onBlur={this.handleFieldRename}
           placeholder={`Rename ${internalName}`}
-          appearAsNormalInput={true}
           disabled={!visible}
         />
       </div>

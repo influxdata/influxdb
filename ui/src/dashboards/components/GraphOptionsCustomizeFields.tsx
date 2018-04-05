@@ -1,14 +1,16 @@
 import React, {PureComponent} from 'react'
+import GraphOptionsSortableField from 'src/dashboards/components/GraphOptionsSortableField'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
-import uuid from 'uuid'
-import {SortableContainer, SortableElement, arrayMove} from 'react-sortable-hoc'
+// import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import _ from 'lodash'
+import {DragDropContext} from 'react-dnd'
+import HTML5Backend from 'react-dnd-html5-backend'
 
 interface Field {
   internalName: string
   displayName: string
   visible: boolean
+  displayOrder: number
 }
 
 interface Props {
@@ -16,76 +18,61 @@ interface Props {
   onFieldUpdate: (field: Field) => void
 }
 interface State {
-  items: Field[]
+  fields: Field[]
 }
 
-const SortableItem = SortableElement(({value, onFieldUpdate}) => (
-  <li>
-    <GraphOptionsCustomizableField
-      internalName={value.internalName}
-      displayName={value.displayName}
-      visible={value.visible}
-      onFieldUpdate={onFieldUpdate}
-    />
-  </li>
-))
-
-const SortableList = SortableContainer(({items, onFieldUpdate}) => {
-  return (
-    <ul>
-      {items.map((value, index) => (
-        <SortableItem
-          key={`item-${index}`}
-          index={index}
-          value={value}
-          onFieldUpdate={onFieldUpdate}
-        />
-      ))}
-    </ul>
-  )
-})
-
-export default class GraphOptionsCustomizeFields extends PureComponent<
-  Props,
-  State
-> {
+class GraphOptionsCustomizeFields extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      items: this.props.fields,
+      fields: this.props.fields || [],
     }
+    this.moveField = this.moveField.bind(this)
   }
-  onSortEnd = ({oldIndex, newIndex}) => {
-    this.setState({
-      items: arrayMove(this.state.items, oldIndex, newIndex),
-    })
-  }
+
   componentWillReceiveProps(nextProps) {
     if (nextProps.fields == this.props.fields) {
       return
     }
-    this.setState({items: nextProps.fields})
+    this.setState({fields: nextProps.fields})
+  }
+  moveField(dragIndex, hoverIndex) {
+    const {fields} = this.state
+    const dragField = fields[dragIndex]
+    const removedFields = _.concat(
+      _.slice(fields, 0, dragIndex),
+      _.slice(fields, dragIndex + 1)
+    )
+    const addedFields = _.concat(
+      _.slice(removedFields, 0, hoverIndex),
+      [dragField],
+      _.slice(removedFields, hoverIndex)
+    )
+    this.setState({fields: addedFields})
   }
 
   public render() {
-    const {items} = this.state
+    const {fields} = this.state
     const {onFieldUpdate} = this.props
-    console.log('items', items)
     return (
       <div className="graph-options-group">
         <label className="form-label">Customize Fields</label>
-        <SortableList
-          items={items}
-          onSortEnd={this.onSortEnd}
-          onFieldUpdate={onFieldUpdate}
-        />
+        <div>
+          {fields.map((field, i) => (
+            <GraphOptionsSortableField
+              key={field.internalName}
+              index={i}
+              id={field.internalName}
+              internalName={field.internalName}
+              displayName={field.displayName}
+              moveField={this.moveField}
+              onFieldUpdate={onFieldUpdate}
+            />
+          ))}
+        </div>
       </div>
     )
   }
 }
-// <FancyScrollbar
-//   className="customize-fields"
-//   maxHeight={225}
-//   autoHeight={true}
-// >
-// </FancyScrollbar>
+
+export default DragDropContext(HTML5Backend)(GraphOptionsCustomizeFields)
