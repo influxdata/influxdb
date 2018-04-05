@@ -125,8 +125,13 @@ class FieldList extends Component {
         console.error('Error parsing fields keys: ', errors)
       }
 
+      const newFields = _.get(fieldSets, measurement, []).map(f => ({
+        value: f,
+        type: 'field',
+      }))
+
       this.setState({
-        fields: fieldSets[measurement].map(f => ({value: f, type: 'field'})),
+        fields: newFields,
       })
     })
   }
