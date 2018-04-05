@@ -76,9 +76,10 @@ export class DataExplorer extends PureComponent<Props, State> {
   public componentWillReceiveProps(nextProps) {
     const {router} = this.props
     const {queryConfigs, timeRange} = nextProps
-    const query = buildRawText(_.get(queryConfigs, ['0'], ''), timeRange)
 
+    const query = buildRawText(_.get(queryConfigs, ['0'], ''), timeRange)
     const qsCurrent = queryString.parse(location.search)
+
     if (query.length && qsCurrent.query !== query) {
       const qsNew = queryString.stringify({query})
       router.push(`${location.pathname}?${qsNew}`)
@@ -100,6 +101,7 @@ export class DataExplorer extends PureComponent<Props, State> {
     } = this.props
 
     const {showWriteForm} = this.state
+
     return (
       <div className="data-explorer">
         {showWriteForm ? (
@@ -130,8 +132,8 @@ export class DataExplorer extends PureComponent<Props, State> {
         >
           <QueryMaker
             source={source}
+            rawText={this.rawText}
             actions={queryConfigActions}
-            timeRange={timeRange}
             activeQuery={this.activeQuery}
             initialGroupByTime={AUTO_GROUP_BY}
           />
@@ -163,11 +165,11 @@ export class DataExplorer extends PureComponent<Props, State> {
     this.props.setTimeRange(bounds)
   }
 
-  private get selectedDatabase() {
+  private get selectedDatabase(): string {
     return _.get(this.props.queryConfigs, ['0', 'database'], null)
   }
 
-  private get activeQuery() {
+  private get activeQuery(): Query {
     const {queryConfigs} = this.props
 
     if (queryConfigs.length === 0) {
@@ -177,6 +179,11 @@ export class DataExplorer extends PureComponent<Props, State> {
     }
 
     return queryConfigs[0]
+  }
+
+  get rawText(): string {
+    const {timeRange} = this.props
+    return buildRawText(this.activeQuery, timeRange)
   }
 }
 

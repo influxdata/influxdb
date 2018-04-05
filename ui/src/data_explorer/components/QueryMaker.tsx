@@ -2,15 +2,14 @@ import React, {PureComponent} from 'react'
 
 import QueryEditor from './QueryEditor'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
-import {buildRawText} from 'src/utils/influxql'
-import {Source, TimeRange, Query} from 'src/types'
+import {Source, Query} from 'src/types'
 
 const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
 
 interface Props {
   source: Source
-  timeRange: TimeRange
+  rawText: string
   actions: any
   activeQuery: Query
   initialGroupByTime: string
@@ -18,13 +17,19 @@ interface Props {
 
 class QueryMaker extends PureComponent<Props> {
   public render() {
-    const {source, actions, activeQuery, initialGroupByTime} = this.props
+    const {
+      source,
+      actions,
+      rawText,
+      activeQuery,
+      initialGroupByTime,
+    } = this.props
 
     return (
       <div className="query-maker query-maker--panel">
         <div className="query-maker--tab-contents">
           <QueryEditor
-            query={this.rawText}
+            query={rawText}
             config={activeQuery}
             onUpdate={rawTextBinder(
               source.links,
@@ -34,18 +39,13 @@ class QueryMaker extends PureComponent<Props> {
           />
           <SchemaExplorer
             source={source}
-            query={activeQuery}
             actions={actions}
+            query={activeQuery}
             initialGroupByTime={initialGroupByTime}
           />
         </div>
       </div>
     )
-  }
-
-  get rawText(): string {
-    const {activeQuery, timeRange} = this.props
-    return buildRawText(activeQuery, timeRange)
   }
 }
 
