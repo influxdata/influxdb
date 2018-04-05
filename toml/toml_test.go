@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"os/user"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -59,6 +62,81 @@ func TestSize_UnmarshalText(t *testing.T) {
 		if err := s.UnmarshalText([]byte(str)); err == nil {
 			t.Fatalf("input should have failed: %s", str)
 		}
+	}
+}
+
+func TestFileMode_MarshalText(t *testing.T) {
+	for _, test := range []struct {
+		mode int
+		want string
+	}{
+		{mode: 0755, want: `0755`},
+		{mode: 0777, want: `0777`},
+		{mode: 01777, want: `1777`},
+	} {
+		mode := itoml.FileMode(test.mode)
+		if got, err := mode.MarshalText(); err != nil {
+			t.Errorf("unexpected error: %s", err)
+		} else if test.want != string(got) {
+			t.Errorf("wanted: %v got: %v", test.want, string(got))
+		}
+	}
+}
+
+func TestFileMode_UnmarshalText(t *testing.T) {
+	for _, test := range []struct {
+		str  string
+		want uint32
+	}{
+		{str: ``, want: 0},
+		{str: `0777`, want: 0777},
+		{str: `777`, want: 0777},
+		{str: `1777`, want: 01777},
+		{str: `0755`, want: 0755},
+	} {
+		var mode itoml.FileMode
+		if err := mode.UnmarshalText([]byte(test.str)); err != nil {
+			t.Errorf("unexpected error: %s", err)
+		} else if mode != itoml.FileMode(test.want) {
+			t.Errorf("wanted: %04o got: %04o", test.want, mode)
+		}
+	}
+}
+
+func TestGroup_UnmarshalTOML(t *testing.T) {
+	// Skip this test on windows since it does not support setting the group anyway.
+	if runtime.GOOS == "windows" {
+		t.Skip("unsupported on windows")
+	}
+
+	// Find the current user ID so we can use that group name.
+	u, err := user.Current()
+	if err != nil {
+		t.Skipf("unable to find the current user: %s", err)
+	}
+
+	// Lookup the group by the group id.
+	gr, err := user.LookupGroupId(u.Gid)
+	if err == nil {
+		var group itoml.Group
+		if err := group.UnmarshalTOML(gr.Name); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		} else if got, want := u.Gid, strconv.Itoa(int(group)); got != want {
+			t.Fatalf("unexpected group id: %s != %s", got, want)
+		}
+	}
+
+	// Attempt to convert the group to an integer so we can test reading an integer.
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		t.Fatalf("group id is not an integer: %s", err)
+	}
+
+	var group itoml.Group
+	if err := group.UnmarshalTOML(int64(gid)); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if int(group) != gid {
+		t.Fatalf("unexpected group id: %d != %d", gid, int(group))
 	}
 }
 

@@ -1,6 +1,9 @@
 package httpd
 
-import "github.com/influxdata/influxdb/monitor/diagnostics"
+import (
+	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/toml"
+)
 
 const (
 	// DefaultBindAddress is the default address to bind to.
@@ -18,39 +21,42 @@ const (
 
 // Config represents a configuration for a HTTP service.
 type Config struct {
-	Enabled            bool   `toml:"enabled"`
-	BindAddress        string `toml:"bind-address"`
-	AuthEnabled        bool   `toml:"auth-enabled"`
-	LogEnabled         bool   `toml:"log-enabled"`
-	WriteTracing       bool   `toml:"write-tracing"`
-	PprofEnabled       bool   `toml:"pprof-enabled"`
-	HTTPSEnabled       bool   `toml:"https-enabled"`
-	HTTPSCertificate   string `toml:"https-certificate"`
-	HTTPSPrivateKey    string `toml:"https-private-key"`
-	MaxRowLimit        int    `toml:"max-row-limit"`
-	MaxConnectionLimit int    `toml:"max-connection-limit"`
-	SharedSecret       string `toml:"shared-secret"`
-	Realm              string `toml:"realm"`
-	UnixSocketEnabled  bool   `toml:"unix-socket-enabled"`
-	BindSocket         string `toml:"bind-socket"`
-	MaxBodySize        int    `toml:"max-body-size"`
-	AccessLogPath      string `toml:"access-log-path"`
+	Enabled               bool          `toml:"enabled"`
+	BindAddress           string        `toml:"bind-address"`
+	AuthEnabled           bool          `toml:"auth-enabled"`
+	LogEnabled            bool          `toml:"log-enabled"`
+	WriteTracing          bool          `toml:"write-tracing"`
+	PprofEnabled          bool          `toml:"pprof-enabled"`
+	HTTPSEnabled          bool          `toml:"https-enabled"`
+	HTTPSCertificate      string        `toml:"https-certificate"`
+	HTTPSPrivateKey       string        `toml:"https-private-key"`
+	MaxRowLimit           int           `toml:"max-row-limit"`
+	MaxConnectionLimit    int           `toml:"max-connection-limit"`
+	SharedSecret          string        `toml:"shared-secret"`
+	Realm                 string        `toml:"realm"`
+	UnixSocketEnabled     bool          `toml:"unix-socket-enabled"`
+	UnixSocketGroup       *toml.Group   `toml:"unix-socket-group"`
+	UnixSocketPermissions toml.FileMode `toml:"unix-socket-permissions"`
+	BindSocket            string        `toml:"bind-socket"`
+	MaxBodySize           int           `toml:"max-body-size"`
+	AccessLogPath         string        `toml:"access-log-path"`
 }
 
 // NewConfig returns a new Config with default settings.
 func NewConfig() Config {
 	return Config{
-		Enabled:           true,
-		BindAddress:       DefaultBindAddress,
-		LogEnabled:        true,
-		PprofEnabled:      true,
-		HTTPSEnabled:      false,
-		HTTPSCertificate:  "/etc/ssl/influxdb.pem",
-		MaxRowLimit:       0,
-		Realm:             DefaultRealm,
-		UnixSocketEnabled: false,
-		BindSocket:        DefaultBindSocket,
-		MaxBodySize:       DefaultMaxBodySize,
+		Enabled:               true,
+		BindAddress:           DefaultBindAddress,
+		LogEnabled:            true,
+		PprofEnabled:          true,
+		HTTPSEnabled:          false,
+		HTTPSCertificate:      "/etc/ssl/influxdb.pem",
+		MaxRowLimit:           0,
+		Realm:                 DefaultRealm,
+		UnixSocketEnabled:     false,
+		UnixSocketPermissions: 0777,
+		BindSocket:            DefaultBindSocket,
+		MaxBodySize:           DefaultMaxBodySize,
 	}
 }
 

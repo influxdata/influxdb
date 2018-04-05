@@ -55,6 +55,8 @@ type Service struct {
 	err   chan error
 
 	unixSocket         bool
+	unixSocketPerm     uint32
+	unixSocketGroup    int
 	bindSocket         string
 	unixSocketListener net.Listener
 
@@ -66,19 +68,23 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	s := &Service{
-		addr:       c.BindAddress,
-		https:      c.HTTPSEnabled,
-		cert:       c.HTTPSCertificate,
-		key:        c.HTTPSPrivateKey,
-		limit:      c.MaxConnectionLimit,
-		err:        make(chan error),
-		unixSocket: c.UnixSocketEnabled,
-		bindSocket: c.BindSocket,
-		Handler:    NewHandler(c),
-		Logger:     zap.NewNop(),
+		addr:           c.BindAddress,
+		https:          c.HTTPSEnabled,
+		cert:           c.HTTPSCertificate,
+		key:            c.HTTPSPrivateKey,
+		limit:          c.MaxConnectionLimit,
+		err:            make(chan error),
+		unixSocket:     c.UnixSocketEnabled,
+		unixSocketPerm: uint32(c.UnixSocketPermissions),
+		bindSocket:     c.BindSocket,
+		Handler:        NewHandler(c),
+		Logger:         zap.NewNop(),
 	}
 	if s.key == "" {
 		s.key = s.cert
+	}
+	if c.UnixSocketGroup != nil {
+		s.unixSocketGroup = int(*c.UnixSocketGroup)
 	}
 	s.Handler.Logger = s.Logger
 	return s
@@ -132,6 +138,16 @@ func (s *Service) Open() error {
 		listener, err := net.Listen("unix", s.bindSocket)
 		if err != nil {
 			return err
+		}
+		if s.unixSocketPerm != 0 {
+			if err := os.Chmod(s.bindSocket, os.FileMode(s.unixSocketPerm)); err != nil {
+				return err
+			}
+		}
+		if s.unixSocketGroup != 0 {
+			if err := os.Chown(s.bindSocket, -1, s.unixSocketGroup); err != nil {
+				return err
+			}
 		}
 
 		s.Logger.Info("Listening on unix socket",

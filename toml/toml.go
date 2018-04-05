@@ -3,9 +3,11 @@ package toml // import "github.com/influxdata/influxdb/toml"
 
 import (
 	"encoding"
+	"errors"
 	"fmt"
 	"math"
 	"os"
+	"os/user"
 	"reflect"
 	"strconv"
 	"strings"
@@ -92,6 +94,53 @@ func (s *Size) UnmarshalText(text []byte) error {
 
 	*s = Size(size)
 	return nil
+}
+
+type FileMode uint32
+
+func (m *FileMode) UnmarshalText(text []byte) error {
+	// Ignore if there is no value set.
+	if len(text) == 0 {
+		return nil
+	}
+
+	mode, err := strconv.ParseUint(string(text), 8, 32)
+	if err != nil {
+		return err
+	} else if mode == 0 {
+		return errors.New("file mode cannot be zero")
+	}
+	*m = FileMode(mode)
+	return nil
+}
+
+func (m FileMode) MarshalText() (text []byte, err error) {
+	if m != 0 {
+		return []byte(fmt.Sprintf("%04o", m)), nil
+	}
+	return nil, nil
+}
+
+type Group int
+
+func (g *Group) UnmarshalTOML(data interface{}) error {
+	if grpName, ok := data.(string); ok {
+		group, err := user.LookupGroup(grpName)
+		if err != nil {
+			return err
+		}
+
+		gid, err := strconv.Atoi(group.Gid)
+		if err != nil {
+			return err
+		}
+		*g = Group(gid)
+		return nil
+	} else if gid, ok := data.(int64); ok {
+		*g = Group(gid)
+		return nil
+	}
+	return errors.New("group must be a name (string) or id (int)")
 }
 
 func ApplyEnvOverrides(getenv func(string) string, prefix string, val interface{}) error {
