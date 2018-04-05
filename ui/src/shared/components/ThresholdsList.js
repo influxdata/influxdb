@@ -154,7 +154,7 @@ class ThresholdsList extends Component {
               <Threshold
                 visualizationType="single-stat"
                 threshold={color}
-                key={color.id}
+                key={uuid.v4()}
                 onChooseColor={this.handleChooseColor}
                 onValidateColorValue={this.handleValidateColorValue}
                 onUpdateColorValue={this.handleUpdateColorValue}
