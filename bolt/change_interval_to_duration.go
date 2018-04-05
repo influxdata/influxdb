@@ -81,10 +81,10 @@ var dashboardBucket = []byte("Dashoard")
 
 type Dashboard struct {
 	ID           int64            `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Name         string           `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	Name         []byte           `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
 	Cells        []*DashboardCell `protobuf:"bytes,3,rep,name=cells" json:"cells,omitempty"`
-	Templates    string           `protobuf:"bytes,4,rep,name=templates" json:"templates,omitempty"`
-	Organization string           `protobuf:"bytes,5,opt,name=Organization,proto3" json:"Organization,omitempty"`
+	Templates    []byte           `protobuf:"bytes,4,rep,name=templates" json:"templates,omitempty"`
+	Organization []byte           `protobuf:"bytes,5,opt,name=Organization,proto3" json:"Organization,omitempty"`
 }
 
 func (*Dashboard) ProtoMessage()    {}
@@ -97,13 +97,13 @@ type DashboardCell struct {
 	W            int32    `protobuf:"varint,3,opt,name=w,proto3" json:"w,omitempty"`
 	H            int32    `protobuf:"varint,4,opt,name=h,proto3" json:"h,omitempty"`
 	Queries      []*Query `protobuf:"bytes,5,rep,name=queries" json:"queries,omitempty"`
-	Name         string   `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	Type         string   `protobuf:"bytes,7,opt,name=type,proto3" json:"type,omitempty"`
-	ID           string   `protobuf:"bytes,8,opt,name=ID,proto3" json:"ID,omitempty"`
-	Axes         string   `protobuf:"bytes,9,rep,name=axes" json:"axes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
-	Colors       string   `protobuf:"bytes,10,rep,name=colors" json:"colors,omitempty"`
-	Legend       string   `protobuf:"bytes,11,opt,name=legend" json:"legend,omitempty"`
-	TableOptions string   `protobuf:"bytes,12,opt,name=tableOptions" json:"tableOptions,omitempty"`
+	Name         []byte   `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	Type         []byte   `protobuf:"bytes,7,opt,name=type,proto3" json:"type,omitempty"`
+	ID           []byte   `protobuf:"bytes,8,opt,name=ID,proto3" json:"ID,omitempty"`
+	Axes         []byte   `protobuf:"bytes,9,rep,name=axes" json:"axes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value"`
+	Colors       []byte   `protobuf:"bytes,10,rep,name=colors" json:"colors,omitempty"`
+	Legend       []byte   `protobuf:"bytes,11,opt,name=legend" json:"legend,omitempty"`
+	TableOptions []byte   `protobuf:"bytes,12,opt,name=tableOptions" json:"tableOptions,omitempty"`
 }
 
 func (m *DashboardCell) Reset()         { *m = DashboardCell{} }
@@ -112,14 +112,14 @@ func (*DashboardCell) ProtoMessage()    {}
 
 type Query struct {
 	Command  string `protobuf:"bytes,1,opt,name=Command,proto3" json:"Command,omitempty"`
-	DB       string `protobuf:"bytes,2,opt,name=DB,proto3" json:"DB,omitempty"`
-	RP       string `protobuf:"bytes,3,opt,name=RP,proto3" json:"RP,omitempty"`
-	GroupBys string `protobuf:"bytes,4,rep,name=GroupBys" json:"GroupBys,omitempty"`
-	Wheres   string `protobuf:"bytes,5,rep,name=Wheres" json:"Wheres,omitempty"`
-	Label    string `protobuf:"bytes,6,opt,name=Label,proto3" json:"Label,omitempty"`
-	Range    string `protobuf:"bytes,7,opt,name=Range" json:"Range,omitempty"`
-	Source   string `protobuf:"bytes,8,opt,name=Source,proto3" json:"Source,omitempty"`
-	Shifts   string `protobuf:"bytes,9,rep,name=Shifts" json:"Shifts,omitempty"`
+	DB       []byte `protobuf:"bytes,2,opt,name=DB,proto3" json:"DB,omitempty"`
+	RP       []byte `protobuf:"bytes,3,opt,name=RP,proto3" json:"RP,omitempty"`
+	GroupBys []byte `protobuf:"bytes,4,rep,name=GroupBys" json:"GroupBys,omitempty"`
+	Wheres   []byte `protobuf:"bytes,5,rep,name=Wheres" json:"Wheres,omitempty"`
+	Label    []byte `protobuf:"bytes,6,opt,name=Label,proto3" json:"Label,omitempty"`
+	Range    []byte `protobuf:"bytes,7,opt,name=Range" json:"Range,omitempty"`
+	Source   []byte `protobuf:"bytes,8,opt,name=Source,proto3" json:"Source,omitempty"`
+	Shifts   []byte `protobuf:"bytes,9,rep,name=Shifts" json:"Shifts,omitempty"`
 }
 
 func (m *Query) Reset()         { *m = Query{} }
