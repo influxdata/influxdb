@@ -49,6 +49,8 @@ class TableGraph extends Component {
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sortField,
       sortDirection: DEFAULT_SORT,
+      columnWidths: {},
+      totalColumnWidths: 0,
     }
   }
 
@@ -92,7 +94,12 @@ class TableGraph extends Component {
       sortFieldName = internalName
     }
 
-    const {processedData, sortedTimeVals} = processTableData(
+    const {
+      processedData,
+      sortedTimeVals,
+      columnWidths,
+      totalWidths,
+    } = processTableData(
       data,
       sortFieldName,
       direction,
@@ -117,6 +124,8 @@ class TableGraph extends Component {
       sortField: sortFieldName,
       sortDirection: direction,
       labelsColumnWidth,
+      columnWidths,
+      totalColumnWidths: totalWidths,
     })
   }
 
@@ -208,7 +217,13 @@ class TableGraph extends Component {
   calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
     const {tableOptions: {verticalTimeAxis}} = this.props
-    const {timeColumnWidth, labelsColumnWidth, processedData} = this.state
+    const {
+      timeColumnWidth,
+      labelsColumnWidth,
+      processedData,
+      columnWidths,
+      totalColumnWidths,
+    } = this.state
     const columnCount = _.get(processedData, ['0', 'length'], 0)
     const processedLabels = verticalTimeAxis
       ? processedData[0]
@@ -220,11 +235,37 @@ class TableGraph extends Component {
 
     let adjustedColumnSizerWidth = columnSizerWidth
 
-    if (columnSizerWidth !== specialColumnWidth) {
-      const difference = columnSizerWidth - specialColumnWidth
-      const increment = difference / (columnCount - 1)
+    const columnLabel = processedData[0][index]
 
-      adjustedColumnSizerWidth = columnSizerWidth + increment
+    const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
+    if (tableWidth > totalColumnWidths) {
+      if (columnSizerWidth !== specialColumnWidth) {
+        const difference = columnSizerWidth - specialColumnWidth
+        const increment = difference / (columnCount - 1)
+        adjustedColumnSizerWidth = columnSizerWidth + increment
+      }
+      const {widerColumns, greaterBy, widerCount} = _.reduce(
+        columnWidths,
+        (acc, width, key) => {
+          if (width > adjustedColumnSizerWidth) {
+            acc.widerColumns[key] = width
+            acc.greaterBy += width - adjustedColumnSizerWidth
+            acc.widerCount += 1
+          }
+          return acc
+        },
+        {widerColumns: {}, greaterBy: 0, widerCount: 0}
+      )
+      if (greaterBy > 0) {
+        if (widerColumns[columnLabel]) {
+          adjustedColumnSizerWidth = widerColumns[columnLabel]
+        } else {
+          const increment = greaterBy / (columnCount - widerCount)
+          adjustedColumnSizerWidth -= increment
+        }
+      }
+    } else {
+      adjustedColumnSizerWidth = columnWidths[columnLabel]
     }
 
     return processedLabels[index] === 'time'
@@ -334,24 +375,16 @@ class TableGraph extends Component {
       hoveredColumnIndex,
       hoveredRowIndex,
       timeColumnWidth,
-      labelsColumnWidth,
       sortField,
       sortDirection,
       processedData,
     } = this.state
-    const {
-      hoverTime,
-      tableOptions,
-      tableOptions: {verticalTimeAxis},
-      colors,
-    } = this.props
+    const {hoverTime, tableOptions, colors} = this.props
     const {fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT} = tableOptions
     const columnCount = _.get(processedData, ['0', 'length'], 0)
     const rowCount = columnCount === 0 ? 0 : processedData.length
 
-    const COLUMN_MIN_WIDTH = verticalTimeAxis
-      ? labelsColumnWidth
-      : timeColumnWidth
+    const COLUMN_MIN_WIDTH = 100
     const COLUMN_MAX_WIDTH = 1000
     const ROW_HEIGHT = 30
 
@@ -367,13 +400,12 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseLeave={this.handleMouseLeave}
       >
-        {rowCount > 0 && (
+        {rowCount > 2 && (
           <ColumnSizer
             columnCount={columnCount}
             columnMaxWidth={COLUMN_MAX_WIDTH}
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
-            timeColumnWidth={timeColumnWidth}
           >
             {({columnWidth, registerChild}) => (
               <MultiGrid

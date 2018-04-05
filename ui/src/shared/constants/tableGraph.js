@@ -21,7 +21,7 @@ export const DEFAULT_SORT = ASCENDING
 export const FIX_FIRST_COLUMN_DEFAULT = true
 export const VERTICAL_TIME_AXIS_DEFAULT = true
 
-export const CELL_HORIZONTAL_PADDING = 18
+export const CELL_HORIZONTAL_PADDING = 30
 
 export const TIME_FORMAT_DEFAULT = 'MM/DD/YYYY HH:mm:ss'
 export const TIME_FORMAT_CUSTOM = 'Custom'

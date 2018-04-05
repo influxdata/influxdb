@@ -1,6 +1,8 @@
 import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, filter, forEach, concat, clone} from 'fast.js'
+import calculateSize from 'calculate-size'
+import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
 
 /**
  * Accepts an array of raw influxdb responses and returns a format
@@ -198,6 +200,43 @@ export const filterTableColumns = (data, fieldNames) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
+const updateMaxWidths = (row, maxColumnWidths, topRow, isTopRow) => {
+  return reduce(
+    row,
+    (acc, col, c) => {
+      const colValue = `${col}`
+      const columnLabel = topRow[c]
+
+      const {width} = calculateSize(colValue, {
+        font: isTopRow ? '"Roboto"' : '"RobotoMono", monospace',
+        fontSize: '13px',
+        fontWeight: 'bold',
+      })
+      const currentWidth = width + CELL_HORIZONTAL_PADDING
+
+      const {widths: maxWidths} = maxColumnWidths
+      const maxWidth = _.get(maxWidths, `${columnLabel}`, 0)
+
+      if (isTopRow || currentWidth > maxWidth) {
+        acc.widths[columnLabel] = currentWidth
+        acc.totalWidths += currentWidth - maxWidth
+      }
+      return acc
+    },
+    {...maxColumnWidths}
+  )
+}
+
+const calculateColumnWidths = data => {
+  return reduce(
+    data,
+    (acc, row, r) => {
+      return updateMaxWidths(row, acc, data[0], r === 0)
+    },
+    {widths: {}, totalWidths: 0}
+  )
+}
+
 export const processTableData = (
   data,
   sortFieldName,
@@ -213,8 +252,11 @@ export const processTableData = (
   const sortedTimeVals = map(sortedData, r => r[0])
   const filteredData = filterTableColumns(sortedData, fieldNames)
   const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
+  const {widths: columnWidths, totalWidths} = calculateColumnWidths(
+    processedData
+  )
 
-  return {processedData, sortedTimeVals}
+  return {processedData, sortedTimeVals, columnWidths, totalWidths}
 }
 
 export default timeSeriesToDygraph
