@@ -11,6 +11,7 @@ v1.6.0 [unreleased]
 -	[#9499](https://github.com/influxdata/influxdb/pull/9499): Implement basic trigonometry functions.
 -	[#9643](https://github.com/influxdata/influxdb/pull/9643): Add ability to delete many series with predicate.
 -	[#9632](https://github.com/influxdata/influxdb/pull/9632): Implement floor, ceil, and round functions.
+-	[#9399](https://github.com/influxdata/influxdb/pull/9399): Allow customizing the unix socket group and permissions created by the server.
 
 ### Bugfixes
 
