@@ -140,7 +140,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			}
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(time.Second * 5)
 		if err := cmd.Run("-host", hostAddress, "-database", "mydb", "-start", "1970-01-01T00:00:00.001Z", "-end", "1970-01-01T00:00:00.009Z", partialBackupDir); err != nil {
 			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 		}
