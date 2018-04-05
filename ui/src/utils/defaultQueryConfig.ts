@@ -1,6 +1,6 @@
 import uuid from 'uuid'
 
-import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import {NULL_STRING} from 'src/shared/constants/queryFillOptions'
 
 const defaultQueryConfig = (
   {id, isKapacitorRule = false} = {id: uuid.v4()}
@@ -20,6 +20,7 @@ const defaultQueryConfig = (
     rawText: null,
     status: null,
     shifts: [],
+    fill: null,
   }
 
   return isKapacitorRule ? queryConfig : {...queryConfig, fill: NULL_STRING}
