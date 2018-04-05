@@ -12,7 +12,6 @@ import (
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/toml"
 	"strings"
 )
@@ -35,10 +34,9 @@ func TestServer_BackupAndRestore(t *testing.T) {
 
 	db := "mydb"
 	rp := "forever"
-	expectedResult := `{"statement_id":0,"series":[{"name":"myseries","columns":["time","host","value"],"values":[["1970-01-01T00:00:00.001Z","A",23],["1970-01-01T00:00:00.005Z","B",24],["1970-01-01T00:00:00.006Z","C",22],["1970-01-01T00:00:00.007Z","C",23],["1970-01-01T00:00:00.008Z","C",24]]}]}`
-	expected := `{"results":[` + expectedResult + `]}`
-	var partialExpectedJson query.Result
 
+	expected := `{"results":[{"statement_id":0,"series":[{"name":"myseries","columns":["time","host","value"],"values":[["1970-01-01T00:00:00.001Z","A",23],["1970-01-01T00:00:00.005Z","B",24],["1970-01-01T00:00:00.006Z","C",22],["1970-01-01T00:00:00.007Z","C",23],["1970-01-01T00:00:00.008Z","C",24],["1970-01-01T00:00:00.009000001Z","D",24],["1970-01-01T00:00:00.009000002Z","D",25],["1970-01-01T00:00:00.009000003Z","D",26]]}]}]}`
+	partialExpected := `{"results":[{"statement_id":0,"series":[{"name":"myseries","columns":["time","host","value"],"values":[["1970-01-01T00:00:00.001Z","A",23],["1970-01-01T00:00:00.005Z","B",24],["1970-01-01T00:00:00.006Z","C",22],["1970-01-01T00:00:00.007Z","C",23],["1970-01-01T00:00:00.008Z","C",24]]}]}]}`
 	// set the cache snapshot size low so that a single point will cause TSM file creation
 	config.Data.CacheSnapshotMemorySize = 1
 
@@ -77,6 +75,18 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		}
 
 		if _, err := s.Write(db, rp, "myseries,host=C value=24 8000000", nil); err != nil {
+			t.Fatalf("failed to write: %s", err)
+		}
+
+		if _, err := s.Write(db, rp, "myseries,host=D value=24 9000001", nil); err != nil {
+			t.Fatalf("failed to write: %s", err)
+		}
+
+		if _, err := s.Write(db, rp, "myseries,host=D value=25 9000002", nil); err != nil {
+			t.Fatalf("failed to write: %s", err)
+		}
+
+		if _, err := s.Write(db, rp, "myseries,host=D value=26 9000003", nil); err != nil {
 			t.Fatalf("failed to write: %s", err)
 		}
 
@@ -122,22 +132,6 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		hostAddress := net.JoinHostPort("localhost", port)
 		if err := cmd.Run("-host", hostAddress, "-database", "mydb", fullBackupDir); err != nil {
 			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
-		}
-
-		err = partialExpectedJson.UnmarshalJSON([]byte(expectedResult))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for i := 0; i < 2000; i++ {
-			line := fmt.Sprintf("myseries,host=C value=%d %d", i, 9000000+i)
-			if _, err := s.Write(db, rp, line, nil); err != nil {
-				t.Fatalf("failed to write: %s", err)
-			}
-			if i < 1000 {
-				tstr := time.Date(1970, 1, 1, 0, 0, 0, (9000000 + i), time.UTC).Format(time.RFC3339Nano)
-				point := []interface{}{string(tstr), "C", i}
-				partialExpectedJson.Series[0].Values = append(partialExpectedJson.Series[0].Values, point)
-			}
 		}
 
 		time.Sleep(time.Second)
@@ -210,11 +204,6 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		t.Fatalf("error querying: %s", err.Error())
 	}
 
-	b, err := partialExpectedJson.MarshalJSON()
-	if err != nil {
-		t.Fatalf("error marshaling partialExpectedJson: %s", err.Error())
-	}
-	partialExpected := `{"results":[` + string(b) + `]}`
 	if res != partialExpected {
 		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", partialExpected, res)
 	}
