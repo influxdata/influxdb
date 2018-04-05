@@ -48,16 +48,6 @@ const (
 	MaxKeyLength = 65535
 )
 
-// enableUint64Support will enable uint64 support if set to true.
-var enableUint64Support = false
-
-// EnableUintSupport manually enables uint support for the point parser.
-// This function will be removed in the future and only exists for unit tests during the
-// transition.
-func EnableUintSupport() {
-	enableUint64Support = true
-}
-
 // Point defines the values that will be written to the database.
 type Point interface {
 	// Name return the measurement name for the point.
@@ -957,10 +947,6 @@ func scanNumber(buf []byte, i int) (int, error) {
 			}
 		}
 	} else if isUnsigned {
-		// Return an error if uint64 support has not been enabled.
-		if !enableUint64Support {
-			return i, ErrInvalidNumber
-		}
 		// Make sure the last char is a 'u' for unsigned
 		if buf[i-1] != 'u' {
 			return i, ErrInvalidNumber

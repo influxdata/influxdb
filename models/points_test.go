@@ -2495,8 +2495,3 @@ func BenchmarkMakeKey(b *testing.B) {
 		})
 	}
 }
-
-func init() {
-	// Force uint support to be enabled for testing.
-	models.EnableUintSupport()
-}
