@@ -24,6 +24,7 @@ const setup = () => {
     },
     activeQuery: query,
     initialGroupByTime: '',
+    rawText: '',
   }
 
   const wrapper = shallow(<QueryMaker {...props} />)

@@ -66,10 +66,15 @@ export class DataExplorer extends PureComponent<Props, State> {
   }
 
   public componentDidMount() {
+    const {source} = this.props
     const {query} = queryString.parse(location.search)
     if (query && query.length) {
       const qc = this.props.queryConfigs[0]
-      this.props.queryConfigActions.editRawText(qc.id, query)
+      this.props.queryConfigActions.editRawTextAsync(
+        source.links.queries,
+        qc.id,
+        query
+      )
     }
   }
 
