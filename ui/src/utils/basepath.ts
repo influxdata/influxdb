@@ -5,9 +5,7 @@ export const getBasepath = () => {
   return rootNode.getAttribute('data-basepath') || ''
 }
 
-export const stripPrefix = pathname => {
-  const basepath = getBasepath()
-
+export const stripPrefix = (pathname, basepath = getBasepath()) => {
   if (basepath === '') {
     return pathname
   }
