@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import {FuncSelector} from 'src/ifql/components/FuncSelector'
-import DropdownInput from 'src/shared/components/DropdownInput'
+import FuncSelectorInput from 'src/shared/components/FuncSelectorInput'
 import FuncListItem from 'src/ifql/components/FuncListItem'
 import FuncList from 'src/ifql/components/FuncList'
 
@@ -82,7 +82,7 @@ describe('IFQL.Components.FuncsButton', () => {
         const input = wrapper
           .find(FuncList)
           .dive()
-          .find(DropdownInput)
+          .find(FuncSelectorInput)
           .dive()
           .find('input')
 
@@ -94,10 +94,10 @@ describe('IFQL.Components.FuncsButton', () => {
           .dive()
           .find(FuncListItem)
 
-        const func = list.first().dive()
+        const func = list.first()
 
         expect(list.length).toBe(1)
-        expect(func.text()).toBe('f2')
+        expect(func.dive().text()).toBe('f2')
       })
     })
 
@@ -118,19 +118,40 @@ describe('IFQL.Components.FuncsButton', () => {
         const input = wrapper
           .find(FuncList)
           .dive()
-          .find(DropdownInput)
+          .find(FuncSelectorInput)
           .dive()
           .find('input')
 
         input.simulate('keyDown', {key: 'Escape'})
         wrapper.update()
 
-        list = wrapper
-          .find(FuncList)
-          .dive()
-          .find(FuncListItem)
+        list = wrapper.find(FuncList)
 
         expect(list.exists()).toBe(false)
+      })
+    })
+
+    describe('selecting a function with the keyboard', () => {
+      describe('ArrowDown', () => {
+        it('adds a function to the page', () => {
+          const onAddNode = jest.fn()
+          const {wrapper} = setup({onAddNode})
+
+          const dropdownButton = wrapper.find('button')
+          dropdownButton.simulate('click')
+
+          const list = wrapper.find(FuncList).dive()
+
+          const input = list
+            .find(FuncSelectorInput)
+            .dive()
+            .find('input')
+
+          input.simulate('keyDown', {key: 'ArrowDown'})
+          input.simulate('keyDown', {key: 'Enter'})
+
+          expect(onAddNode).toHaveBeenCalledWith('f2')
+        })
       })
     })
   })
