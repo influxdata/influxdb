@@ -111,16 +111,8 @@ describe('IFQL.Components.FuncsButton', () => {
         const dropdownButton = wrapper.find('button')
         dropdownButton.simulate('click')
 
-        let list = wrapper
-          .find(FuncList)
-          .dive()
-          .find(FuncListItem)
-
-        expect(list.exists()).toBe(true)
-
-        const input = wrapper
-          .find(FuncList)
-          .dive()
+        let list = wrapper.find(FuncList).dive()
+        const input = list
           .find(FuncSelectorInput)
           .dive()
           .find('input')
@@ -139,7 +131,7 @@ describe('IFQL.Components.FuncsButton', () => {
         it('adds a function to the page', () => {
           const onAddNode = jest.fn()
           const {wrapper, props} = setup({onAddNode})
-          const [__, func2] = props.funcs
+          const [, func2] = props.funcs
 
           const dropdownButton = wrapper.find('button')
           dropdownButton.simulate('click')
