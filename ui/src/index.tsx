@@ -21,7 +21,7 @@ import {
 import CheckSources from 'src/CheckSources'
 import {StatusPage} from 'src/status'
 import {HostsPage, HostPage} from 'src/hosts'
-import DataExplorer from 'src/data_explorer'
+import DataExplorerPage from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import AlertsApp from 'src/alerts'
 import {
@@ -124,7 +124,10 @@ class Root extends PureComponent<{}, State> {
               <Route path="status" component={StatusPage} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
-              <Route path="chronograf/data-explorer" component={DataExplorer} />
+              <Route
+                path="chronograf/data-explorer"
+                component={DataExplorerPage}
+              />
               <Route path="dashboards" component={DashboardsPage} />
               <Route path="dashboards/:dashboardID" component={DashboardPage} />
               <Route path="alerts" component={AlertsApp} />
