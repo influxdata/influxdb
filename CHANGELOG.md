@@ -24,6 +24,7 @@
 1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
 1.  [#3129](https://github.com/influxdata/chronograf/pull/3129): Only add stateChangesOnly to new rules
 1.  [#3131](https://github.com/influxdata/chronograf/pull/3131): Fix 500s when deleting organizations
+1.  [#3137](https://github.com/influxdata/chronograf/pull/3137): Fixes issues with providing regexp in query
 
 ## v1.4.3.1 [2018-04-02]
 
