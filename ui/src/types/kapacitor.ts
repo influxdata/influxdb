@@ -34,6 +34,15 @@ export interface AlertRule {
   'last-enabled'?: string
 }
 
+export interface Task {
+  id: string
+  name: string
+  status: string
+  tickscript: string
+  dbrps: DBRP[]
+  type: string
+}
+
 type TICKScript = string
 
 // AlertNodes defines all possible kapacitor interactions with an alert.
