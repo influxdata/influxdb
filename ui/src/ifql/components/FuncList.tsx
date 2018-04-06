@@ -37,7 +37,7 @@ const FuncList: SFC<Props> = ({
           maxHeight={240}
           className="fancy-scroll--func-selector"
         >
-          {funcs.length > 0 ? (
+          {!!funcs.length ? (
             funcs.map((func, i) => (
               <FuncListItem
                 key={i}
