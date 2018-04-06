@@ -231,10 +231,13 @@ const updateMaxWidths = (
           isTopRow &&
           topRow[0] === TIME_FIELD_DEFAULT.internalName)
 
+      const isLabel =
+        (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
+
       const currentWidth = useTimeWidth
         ? timeFormatWidth
         : calculateSize(colValue, {
-            font: isTopRow ? '"Roboto"' : '"RobotoMono", monospace',
+            font: isLabel ? '"Roboto"' : '"RobotoMono", monospace',
             fontSize: '13px',
             fontWeight: 'bold',
           }).width + CELL_HORIZONTAL_PADDING
