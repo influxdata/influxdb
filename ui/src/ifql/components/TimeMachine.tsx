@@ -1,32 +1,39 @@
-import React, {SFC} from 'react'
+import React, {PureComponent} from 'react'
 import FuncSelector from 'src/ifql/components/FuncSelector'
-import Node from 'src/ifql/components/Node'
+import FuncNode from 'src/ifql/components/FuncNode'
 
-interface Arg {
-  key: string
-  value: string
-}
+import {Func} from 'src/ifql/components/FuncArgs'
 
-interface NodeProp {
+export interface Suggestion {
   name: string
-  arguments: Arg[]
+  params: {
+    [key: string]: string
+  }
 }
 
 interface Props {
-  funcs: string[]
-  nodes: NodeProp[]
+  suggestions: Suggestion[]
+  funcs: Func[]
   onAddNode: (name: string) => void
 }
 
-const TimeMachine: SFC<Props> = ({funcs, nodes, onAddNode}) => {
-  return (
-    <div>
-      <div className="func-node-container">
-        {nodes.map((n, i) => <Node key={i} node={n} />)}
-        <FuncSelector funcs={funcs} onAddNode={onAddNode} />
+class TimeMachine extends PureComponent<Props> {
+  public render() {
+    const {funcs, onAddNode} = this.props
+
+    return (
+      <div>
+        <div className="func-nodes-container">
+          {funcs.map((f, i) => <FuncNode key={i} func={f} />)}
+          <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  private get funcNames() {
+    return this.props.suggestions.map(f => f.name)
+  }
 }
 
 export default TimeMachine

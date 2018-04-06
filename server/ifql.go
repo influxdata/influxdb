@@ -10,6 +10,8 @@ import (
 	"github.com/influxdata/ifql/parser"
 )
 
+type Params map[string]string
+
 // SuggestionsResponse provides a list of available IFQL functions
 type SuggestionsResponse struct {
 	Functions []SuggestionResponse `json:"funcs"`
@@ -17,8 +19,8 @@ type SuggestionsResponse struct {
 
 // SuggestionResponse provides the parameters available for a given IFQL function
 type SuggestionResponse struct {
-	Name   string            `json:"name"`
-	Params map[string]string `json:"params"`
+	Name   string `json:"name"`
+	Params Params `json:"params"`
 }
 
 type ifqlLinks struct {
@@ -55,9 +57,18 @@ func (s *Service) IFQLSuggestions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		filteredParams := make(Params)
+		for key, value := range suggestion.Params {
+			if key == "table" {
+				continue
+			}
+
+			filteredParams[key] = value
+		}
+
 		functions = append(functions, SuggestionResponse{
 			Name:   name,
-			Params: suggestion.Params,
+			Params: filteredParams,
 		})
 	}
 	res := SuggestionsResponse{Functions: functions}

@@ -15,12 +15,8 @@ input.btn {
   border-style: solid;
   margin: 0;
   position: relative;
-  transition:
-    background-color 0.25s ease,
-    color 0.25s ease,
-    border-color 0.25s ease,
-    box-shadow 0.25s ease,
-    opacity 0.3s ease;
+  transition: background-color 0.25s ease, color 0.25s ease,
+    border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease;
   outline: none !important;
   border-radius: 4px;
   padding: 0 $form-md-padding;
@@ -138,13 +134,12 @@ a.btn {
 // Solid Button styles mixin
 // -----------------------------------------------------------------------------
 @mixin btn-base-styles(
-    $bg-color,
-    $bg-color-hover,
-    $bg-color-press,
-    $text-color,
-    $text-color-hover
-  ) {
-
+  $bg-color,
+  $bg-color-hover,
+  $bg-color-press,
+  $text-color,
+  $text-color-hover
+) {
   // Default State
   background-color: $bg-color;
   color: $text-color;
@@ -155,7 +150,6 @@ a.btn {
   &:focus {
     background-color: $bg-color;
     color: $text-color;
-    box-shadow: none;
   }
 
   // Hover State
@@ -165,6 +159,7 @@ a.btn {
     color: $text-color-hover;
     cursor: pointer;
   }
+
   // MouseDown State
   &.active,
   &.active:hover,
@@ -172,7 +167,7 @@ a.btn {
   &:active:hover,
   &:focus:active,
   &:focus:active:hover,
-  .dropdown.open &.dropdown-toggle  {
+  .dropdown.open &.dropdown-toggle {
     background-color: $bg-color-press;
     color: $text-color-hover;
     cursor: pointer;
@@ -289,17 +284,15 @@ input.btn-alert {
   );
 }
 
-
 // Outline Button styles mixin
 // -----------------------------------------------------------------------------
-@mixin btn-outline-styles (
-    $text-color,
-    $text-color-hover,
-    $border-color,
-    $border-color-hover,
-    $border-color-press
-  ) {
-
+@mixin btn-outline-styles(
+  $text-color,
+  $text-color-hover,
+  $border-color,
+  $border-color-hover,
+  $border-color-press
+) {
   // Adjusting line height in response to more borders
   line-height: $form-md-height - 4px;
   &.btn-xs {
@@ -373,7 +366,6 @@ input.btn-alert {
       display: none;
     }
   }
-
 }
 
 a.btn-link,

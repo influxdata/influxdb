@@ -144,7 +144,7 @@ class Root extends PureComponent<{}, State> {
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
-              <Route path="ifql" component={IFQLPage} />
+              <Route path="delorean" component={IFQLPage} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />

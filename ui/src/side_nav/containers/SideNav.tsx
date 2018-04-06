@@ -144,10 +144,10 @@ class SideNav extends PureComponent<Props> {
         <FeatureFlag name="time-machine">
           <NavBlock
             icon="cog-thick"
-            link={`${sourcePrefix}/ifql`}
+            link={`${sourcePrefix}/delorean`}
             location={location}
           >
-            <NavHeader link={`${sourcePrefix}/ifql`} title="IFQL Builder" />
+            <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" />
           </NavBlock>
         </FeatureFlag>
       </nav>

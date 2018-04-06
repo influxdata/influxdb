@@ -1,3 +1,68 @@
-.dropdown-item.func {
-  text-transform: uppercase;
+/*
+    IFQL Add Function Button
+    ----------------------------------------------------------------------------
+*/
+
+.ifql-func--selector {
+  position: relative;
+}
+
+.ifql-func--button {
+  &:focus {
+    box-shadow: 0 0 8px 3px $c-amethyst;
+  }
+}
+
+.ifql-func--autocomplete,
+.ifql-func--list {
+  position: absolute;
+  left: 0;
+  width: 166px;
+}
+
+.ifql-func--autocomplete {
+  top: 0;
+}
+
+.ifql-func--list {
+  border-radius: 4px;
+  top: 30px;
+  padding: 0;
+  margin: 0;
+  @extend %no-user-select;
+  @include gradient-h($c-star, $c-pool);
+}
+
+.ifql-func--input {
+}
+
+.ifql-func--item {
+  height: 28px;
+  line-height: 28px;
+  padding: 0 11px;
+  margin: 0;
+  font-size: 13px;
+  color: $c-neutrino;
+
+  &:first-child {
+    border-radius: 4px 4px 0 0;
+  }
+
+  &:last-child {
+    border-radius: 0 0 4px 4px;
+  }
+
+  &.active {
+    @include gradient-h($c-comet, $c-laser);
+    color: $g20-white;
+  }
+
+  &:hover {
+    cursor: pointer;
+  }
+
+  &.empty {
+    font-style: italic;
+    color: $c-hydrogen;
+  }
 }
