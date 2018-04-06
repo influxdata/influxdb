@@ -9,15 +9,13 @@ interface Props {
 
 export default class FuncListItem extends PureComponent<Props> {
   public render() {
-    const {name} = this.props
-
     return (
       <li
         onClick={this.handleClick}
         onMouseEnter={this.handleMouseEnter}
         className={`ifql-func--item ${this.activeClass}`}
       >
-        {name}
+        {this.props.name}
       </li>
     )
   }
