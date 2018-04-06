@@ -12,6 +12,7 @@ import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
 import {getRootNode} from 'src/utils/nodes'
+import {getBasepath} from 'src/utils/basepath'
 
 import App from 'src/App'
 import {
@@ -52,6 +53,8 @@ const errorsQueue = []
 
 const rootNode = getRootNode()
 
+const basepath = getBasepath()
+
 declare global {
   interface Window {
     basepath: string
@@ -59,7 +62,6 @@ declare global {
 }
 
 // Older method used for pre-IE 11 compatibility
-const basepath = rootNode.getAttribute('data-basepath') || ''
 window.basepath = basepath
 
 const browserHistory = useRouterHistory(createHistory)({
