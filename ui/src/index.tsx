@@ -11,6 +11,9 @@ import {bindActionCreators} from 'redux'
 import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
+import {getRootNode} from 'src/utils/nodes'
+import {getBasepath} from 'src/utils/basepath'
+
 import App from 'src/App'
 import {
   Login,
@@ -21,7 +24,7 @@ import {
 import CheckSources from 'src/CheckSources'
 import {StatusPage} from 'src/status'
 import {HostsPage, HostPage} from 'src/hosts'
-import DataExplorer from 'src/data_explorer'
+import DataExplorerPage from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import AlertsApp from 'src/alerts'
 import {
@@ -48,7 +51,9 @@ import {HEARTBEAT_INTERVAL} from 'src/shared/constants'
 
 const errorsQueue = []
 
-const rootNode = document.getElementById('react-root')
+const rootNode = getRootNode()
+
+const basepath = getBasepath()
 
 declare global {
   interface Window {
@@ -57,7 +62,6 @@ declare global {
 }
 
 // Older method used for pre-IE 11 compatibility
-const basepath = rootNode.getAttribute('data-basepath') || ''
 window.basepath = basepath
 
 const browserHistory = useRouterHistory(createHistory)({
@@ -124,7 +128,10 @@ class Root extends PureComponent<{}, State> {
               <Route path="status" component={StatusPage} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
-              <Route path="chronograf/data-explorer" component={DataExplorer} />
+              <Route
+                path="chronograf/data-explorer"
+                component={DataExplorerPage}
+              />
               <Route path="dashboards" component={DashboardsPage} />
               <Route path="dashboards/:dashboardID" component={DashboardPage} />
               <Route path="alerts" component={AlertsApp} />
