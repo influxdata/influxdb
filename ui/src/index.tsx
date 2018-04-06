@@ -11,6 +11,8 @@ import {bindActionCreators} from 'redux'
 import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
+import {getRootNode} from 'src/utils/nodes'
+
 import App from 'src/App'
 import {
   Login,
@@ -48,7 +50,7 @@ import {HEARTBEAT_INTERVAL} from 'src/shared/constants'
 
 const errorsQueue = []
 
-const rootNode = document.getElementById('react-root')
+const rootNode = getRootNode()
 
 declare global {
   interface Window {
