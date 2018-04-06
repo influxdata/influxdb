@@ -8,6 +8,8 @@ import queryString from 'query-string'
 
 import _ from 'lodash'
 
+import {stripPrefix} from 'src/utils/basepath'
+
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
@@ -87,7 +89,8 @@ export class DataExplorer extends PureComponent<Props, State> {
 
     if (query.length && qsCurrent.query !== query) {
       const qsNew = queryString.stringify({query})
-      router.push(`${location.pathname}?${qsNew}`)
+      const pathname = stripPrefix(location.pathname)
+      router.push(`${pathname}?${qsNew}`)
     }
   }
 
