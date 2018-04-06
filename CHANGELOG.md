@@ -1,6 +1,10 @@
 v1.5.2 [unreleased]
 -------------------
 
+### Features
+
+-	[#9680](https://github.com/influxdata/influxdb/pull/9680): Check for root user when running buildtsi.
+
 ### Bugfixes
 
 -	[#9638](https://github.com/influxdata/influxdb/pull/9638): backport: check for failure case where backup dir has no manifest files.
