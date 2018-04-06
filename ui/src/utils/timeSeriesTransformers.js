@@ -2,7 +2,11 @@ import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, filter, forEach, concat, clone} from 'fast.js'
 import calculateSize from 'calculate-size'
-import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
+import {
+  CELL_HORIZONTAL_PADDING,
+  calculateTimeColumnWidth,
+  TIME_FIELD_DEFAULT,
+} from 'src/shared/constants/tableGraph'
 
 /**
  * Accepts an array of raw influxdb responses and returns a format
@@ -200,19 +204,40 @@ export const filterTableColumns = (data, fieldNames) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
-const updateMaxWidths = (row, maxColumnWidths, topRow, isTopRow) => {
+const updateMaxWidths = (
+  row,
+  maxColumnWidths,
+  topRow,
+  isTopRow,
+  fieldNames,
+  timeFormatWidth,
+  verticalTimeAxis
+) => {
   return reduce(
     row,
     (acc, col, c) => {
-      const colValue = `${col}`
+      const foundField = isTopRow
+        ? fieldNames.find(field => field.internalName === col)
+        : undefined
+      const colValue =
+        foundField && foundField.displayName ? foundField.displayName : `${col}`
       const columnLabel = topRow[c]
 
-      const {width} = calculateSize(colValue, {
-        font: isTopRow ? '"Roboto"' : '"RobotoMono", monospace',
-        fontSize: '13px',
-        fontWeight: 'bold',
-      })
-      const currentWidth = width + CELL_HORIZONTAL_PADDING
+      const useTimeWidth =
+        (columnLabel === TIME_FIELD_DEFAULT.internalName &&
+          verticalTimeAxis &&
+          !isTopRow) ||
+        (!verticalTimeAxis &&
+          isTopRow &&
+          topRow[0] === TIME_FIELD_DEFAULT.internalName)
+
+      const currentWidth = useTimeWidth
+        ? timeFormatWidth
+        : calculateSize(colValue, {
+            font: isTopRow ? '"Roboto"' : '"RobotoMono", monospace',
+            fontSize: '13px',
+            fontWeight: 'bold',
+          }).width + CELL_HORIZONTAL_PADDING
 
       const {widths: maxWidths} = maxColumnWidths
       const maxWidth = _.get(maxWidths, `${columnLabel}`, 0)
@@ -227,11 +252,27 @@ const updateMaxWidths = (row, maxColumnWidths, topRow, isTopRow) => {
   )
 }
 
-const calculateColumnWidths = data => {
+const calculateColumnWidths = (
+  data,
+  fieldNames,
+  timeFormat,
+  verticalTimeAxis
+) => {
+  const timeFormatWidth = calculateTimeColumnWidth(
+    timeFormat === '' ? new Date().toISOString() : timeFormat
+  )
   return reduce(
     data,
     (acc, row, r) => {
-      return updateMaxWidths(row, acc, data[0], r === 0)
+      return updateMaxWidths(
+        row,
+        acc,
+        data[0],
+        r === 0,
+        fieldNames,
+        timeFormatWidth,
+        verticalTimeAxis
+      )
     },
     {widths: {}, totalWidths: 0}
   )
@@ -242,7 +283,8 @@ export const processTableData = (
   sortFieldName,
   direction,
   verticalTimeAxis,
-  fieldNames
+  fieldNames,
+  timeFormat
 ) => {
   const sortIndex = _.indexOf(data[0], sortFieldName)
   const sortedData = [
@@ -253,7 +295,10 @@ export const processTableData = (
   const filteredData = filterTableColumns(sortedData, fieldNames)
   const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
   const {widths: columnWidths, totalWidths} = calculateColumnWidths(
-    processedData
+    processedData,
+    fieldNames,
+    timeFormat,
+    verticalTimeAxis
   )
 
   return {processedData, sortedTimeVals, columnWidths, totalWidths}

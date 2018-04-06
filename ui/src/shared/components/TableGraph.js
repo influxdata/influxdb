@@ -102,7 +102,8 @@ class TableGraph extends Component {
       sortFieldName,
       direction,
       verticalTimeAxis,
-      fieldNames
+      fieldNames,
+      timeFormat
     )
 
     const processedLabels = verticalTimeAxis
