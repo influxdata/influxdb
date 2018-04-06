@@ -116,7 +116,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
 
     if (this._isEditing()) {
       await kapacitorActions.getRule(kapacitor, ruleID)
-      const {id, name, tickscript, dbrps, type} = this.props.rules.find(
+      const {id, name, tickscript, status, dbrps, type} = this.props.rules.find(
         r => r.id === ruleID
       )
 

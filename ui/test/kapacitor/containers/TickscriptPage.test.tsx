@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import {TickscriptPage} from 'src/kapacitor/containers/TickscriptPage'
-import {source} from 'test/resources'
+import {source, kapacitorRules} from 'test/resources'
 
 jest.mock('src/shared/apis', () => require('mocks/shared/apis'))
 jest.mock('src/kapacitor/apis', () => require('mocks/kapacitor/apis'))
@@ -21,9 +21,9 @@ const setup = () => {
       push: () => {},
     },
     params: {
-      ruleID: '',
+      ruleID: kapacitorRules[0].id,
     },
-    rules: [],
+    rules: kapacitorRules,
     notify: () => {},
   }
   const wrapper = shallow(<TickscriptPage {...props} />)
