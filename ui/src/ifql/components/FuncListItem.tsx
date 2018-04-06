@@ -15,14 +15,14 @@ export default class FuncListItem extends PureComponent<Props> {
       <li
         onClick={this.handleClick}
         onMouseEnter={this.handleMouseEnter}
-        className={`ifql-func--item ${this.getActiveClass()}`}
+        className={`ifql-func--item ${this.activeClass}`}
       >
         {name}
       </li>
     )
   }
 
-  private getActiveClass(): string {
+  private get activeClass(): string {
     const {name, selectedFunc} = this.props
     return name === selectedFunc ? 'active' : ''
   }
