@@ -380,6 +380,13 @@ func (s *Service) usersOrganizations(ctx context.Context, u *chronograf.User) ([
 	orgs := []chronograf.Organization{}
 	for orgID, _ := range orgIDs {
 		org, err := s.Store.Organizations(ctx).Get(ctx, chronograf.OrganizationQuery{ID: &orgID})
+
+		// There can be race conditions between deleting a organization and the me query
+		if err == chronograf.ErrOrganizationNotFound {
+			continue
+		}
+
+		// Any other error should cause an error to be returned
 		if err != nil {
 			return nil, err
 		}

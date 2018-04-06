@@ -110,12 +110,30 @@ func (r *showResults) RetentionPolicies() []chronograf.RetentionPolicy {
 					continue
 				} else {
 					d := chronograf.RetentionPolicy{
-						Name: name,
-						Duration: duration,
+						Name:          name,
+						Duration:      duration,
 						ShardDuration: sduration,
-						Replication: int32(replication),
-						Default: def,
+						Replication:   int32(replication),
+						Default:       def,
 					}
+					res = append(res, d)
+				}
+			}
+		}
+	}
+	return res
+}
+
+// Measurements converts SHOW MEASUREMENTS to chronograf Measurement
+func (r *showResults) Measurements() []chronograf.Measurement {
+	res := []chronograf.Measurement{}
+	for _, u := range *r {
+		for _, s := range u.Series {
+			for _, v := range s.Values {
+				if name, ok := v[0].(string); !ok {
+					continue
+				} else {
+					d := chronograf.Measurement{Name: name}
 					res = append(res, d)
 				}
 			}

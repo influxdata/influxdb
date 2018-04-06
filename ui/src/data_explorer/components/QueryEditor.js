@@ -86,7 +86,7 @@ class QueryEditor extends Component {
 const {func, shape, string} = PropTypes
 
 QueryEditor.propTypes = {
-  query: string.isRequired,
+  query: string,
   onUpdate: func.isRequired,
   config: shape().isRequired,
 }

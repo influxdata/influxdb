@@ -20,13 +20,14 @@ class OrganizationsTableRow extends Component {
     await meChangeOrganization(links.me, {organization: organization.id})
     router.push('')
   }
+
   handleUpdateOrgName = newName => {
     const {organization, onRename} = this.props
     onRename(organization, newName)
   }
 
-  handleDeleteOrg = organization => {
-    const {onDelete} = this.props
+  handleDeleteOrg = () => {
+    const {onDelete, organization} = this.props
     onDelete(organization)
   }
 

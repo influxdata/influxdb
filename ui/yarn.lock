@@ -41,6 +41,10 @@
     "@types/cheerio" "*"
     "@types/react" "*"
 
+"@types/history@^3":
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/@types/history/-/history-3.2.2.tgz#b6affa240cb10b5f841c6443d8a24d7f3fc8bb0c"
+
 "@types/jest@^22.1.4":
   version "22.2.0"
   resolved "https://registry.yarnpkg.com/@types/jest/-/jest-22.2.0.tgz#55ce83139f7ad1b48b414c3927746614c6963c0f"
@@ -56,6 +60,13 @@
 "@types/prop-types@^15.5.2":
   version "15.5.2"
   resolved "https://registry.yarnpkg.com/@types/prop-types/-/prop-types-15.5.2.tgz#3c6b8dceb2906cc87fe4358e809f9d20c8d59be1"
+
+"@types/react-router@3":
+  version "3.0.15"
+  resolved "https://registry.yarnpkg.com/@types/react-router/-/react-router-3.0.15.tgz#b55b0dc5ad8f6fa66b609f0efc390b191381d082"
+  dependencies:
+    "@types/history" "^3"
+    "@types/react" "*"
 
 "@types/react@*", "@types/react@^16.0.38":
   version "16.0.40"

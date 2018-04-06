@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {withRouter} from 'react-router'
 import DataExplorer from './DataExplorer'
 
 import {Source} from 'src/types'
@@ -18,4 +17,4 @@ class DataExplorerPage extends PureComponent<Props> {
   }
 }
 
-export default withRouter(DataExplorerPage)
+export default DataExplorerPage
