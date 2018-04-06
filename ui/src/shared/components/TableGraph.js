@@ -213,7 +213,7 @@ class TableGraph extends Component {
     })
   }
 
-  calculateColumnWidth = column => {
+  calculateColumnWidth = __ => column => {
     const {index} = column
     const {tableOptions: {fixFirstColumn}} = this.props
     const {processedData, columnWidths, totalColumnWidths} = this.state
@@ -370,11 +370,11 @@ class TableGraph extends Component {
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
           >
-            {({registerChild}) => (
+            {({columnWidth, registerChild}) => (
               <MultiGrid
                 ref={r => this.getMultiGridRef(r, registerChild)}
                 columnCount={columnCount}
-                columnWidth={this.calculateColumnWidth}
+                columnWidth={this.calculateColumnWidth(columnWidth)}
                 rowCount={rowCount}
                 rowHeight={ROW_HEIGHT}
                 height={tableHeight}
