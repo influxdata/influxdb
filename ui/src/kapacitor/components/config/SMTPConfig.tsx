@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   host: string
@@ -17,7 +16,7 @@ interface Config {
     username: string
     password: boolean
     from: string
-    to: string
+    to: string | string[]
   }
 }
 
@@ -33,12 +32,12 @@ interface State {
 }
 
 class SMTPConfig extends PureComponent<Props, State> {
-  private host: Input
-  private port: Input
-  private from: Input
-  private to: Input
-  private username: Input
-  private password: Input
+  private host: HTMLInputElement
+  private port: HTMLInputElement
+  private from: HTMLInputElement
+  private to: HTMLInputElement
+  private username: HTMLInputElement
+  private password: HTMLInputElement
 
   constructor(props) {
     super(props)

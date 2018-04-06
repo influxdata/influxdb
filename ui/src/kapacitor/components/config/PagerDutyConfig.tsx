@@ -1,8 +1,6 @@
 import React, {PureComponent} from 'react'
 import RedactedInput from './RedactedInput'
 
-import {Input} from 'src/types/kapacitor'
-
 interface Properties {
   'service-key': string
   url: string
@@ -27,8 +25,8 @@ interface State {
 }
 
 class PagerDutyConfig extends PureComponent<Props, State> {
-  private serviceKey: Input
-  private url: Input
+  private serviceKey: HTMLInputElement
+  private url: HTMLInputElement
 
   constructor(props) {
     super(props)
@@ -48,7 +46,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
           <RedactedInput
             defaultValue={serviceKey}
             id="service-key"
-            refFunc={this.refFunc}
+            refFunc={this.handleServiceKeyRef}
             disableTest={this.disableTest}
           />
         </div>
@@ -87,9 +85,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
     )
   }
 
-  private refFunc = r => {
-    this.serviceKey = r
-  }
+  private handleServiceKeyRef = r => (this.serviceKey = r)
 
   private handleSubmit = async e => {
     e.preventDefault()

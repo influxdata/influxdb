@@ -186,16 +186,3 @@ interface DBRP {
   db: string
   rp: string
 }
-
-// Input represents the values from an input field in the Kapacitor Configs
-export interface Input {
-  value: string
-}
-
-export interface Checkbox {
-  checked: boolean
-}
-
-export interface DropdownItem {
-  text: string
-}

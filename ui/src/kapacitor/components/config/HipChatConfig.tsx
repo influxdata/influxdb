@@ -3,7 +3,6 @@ import React, {PureComponent} from 'react'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
 import RedactedInput from './RedactedInput'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   room: string
@@ -31,9 +30,9 @@ interface State {
 }
 
 class HipchatConfig extends PureComponent<Props, State> {
-  private room: Input
-  private token: Input
-  private url: Input
+  private room: HTMLInputElement
+  private token: HTMLInputElement
+  private url: HTMLInputElement
 
   constructor(props) {
     super(props)

@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import RedactedInput from './RedactedInput'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   channel: string
@@ -26,8 +25,8 @@ interface State {
 }
 
 class SlackConfig extends PureComponent<Props, State> {
-  private url: Input
-  private channel: Input
+  private url: HTMLInputElement
+  private channel: HTMLInputElement
 
   constructor(props) {
     super(props)

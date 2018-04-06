@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   source: string
@@ -25,8 +24,8 @@ interface State {
 }
 
 class SensuConfig extends PureComponent<Props, State> {
-  private source: Input
-  private addr: Input
+  private source: HTMLInputElement
+  private addr: HTMLInputElement
 
   constructor(props) {
     super(props)

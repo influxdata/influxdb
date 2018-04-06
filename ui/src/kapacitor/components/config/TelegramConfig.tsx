@@ -3,7 +3,6 @@ import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
 import RedactedInput from './RedactedInput'
-import {Input, Checkbox} from 'src/types/kapacitor'
 
 interface Properties {
   'chat-id': string
@@ -35,12 +34,12 @@ interface State {
 }
 
 class TelegramConfig extends PureComponent<Props, State> {
-  private parseModeHTML: Checkbox
-  private parseModeMarkdown: Checkbox
-  private chatID: Input
-  private disableNotification: Checkbox
-  private disableWebPagePreview: Checkbox
-  private token: Input
+  private parseModeHTML: HTMLInputElement
+  private parseModeMarkdown: HTMLInputElement
+  private chatID: HTMLInputElement
+  private disableNotification: HTMLInputElement
+  private disableWebPagePreview: HTMLInputElement
+  private token: HTMLInputElement
 
   constructor(props) {
     super(props)

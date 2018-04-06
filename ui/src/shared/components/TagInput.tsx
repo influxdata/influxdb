@@ -2,7 +2,6 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 import Tags from 'src/shared/components/Tags'
-import {Input} from 'src/types/kapacitor'
 
 interface Item {
   text?: string
@@ -17,7 +16,7 @@ interface Props {
 }
 
 class TagInput extends PureComponent<Props> {
-  private input: Input
+  private input: HTMLInputElement
 
   public render() {
     const {title, tags} = this.props
@@ -54,11 +53,11 @@ class TagInput extends PureComponent<Props> {
     }
   }
 
-  private handleDeleteTag = item => {
+  private handleDeleteTag = (item: Item) => {
     this.props.onDeleteTag(item)
   }
 
-  private shouldAddToList(item, tags) {
+  private shouldAddToList(item: Item, tags: Item[]): boolean {
     return !_.isEmpty(item) && !tags.find(l => l === item)
   }
 }

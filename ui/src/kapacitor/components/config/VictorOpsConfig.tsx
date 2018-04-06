@@ -1,7 +1,6 @@
 import React, {PureComponent} from 'react'
 
 import RedactedInput from './RedactedInput'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   'api-key': string
@@ -29,9 +28,9 @@ interface State {
 }
 
 class VictorOpsConfig extends PureComponent<Props, State> {
-  private apiKey: Input
-  private routingKey: Input
-  private url: Input
+  private apiKey: HTMLInputElement
+  private routingKey: HTMLInputElement
+  private url: HTMLInputElement
 
   constructor(props) {
     super(props)

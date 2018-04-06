@@ -1,7 +1,6 @@
 import React, {PureComponent} from 'react'
 
 import RedactedInput from './RedactedInput'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   environment: string
@@ -31,10 +30,10 @@ interface State {
 }
 
 class AlertaConfig extends PureComponent<Props, State> {
-  private environment: Input
-  private origin: Input
-  private token: Input
-  private url: Input
+  private environment: HTMLInputElement
+  private origin: HTMLInputElement
+  private token: HTMLInputElement
+  private url: HTMLInputElement
 
   constructor(props) {
     super(props)

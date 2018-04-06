@@ -1,7 +1,6 @@
 import React, {PureComponent} from 'react'
 
 import RedactedInput from './RedactedInput'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   url: string
@@ -27,8 +26,8 @@ interface Props {
 }
 
 class TalkConfig extends PureComponent<Props, State> {
-  private url: Input
-  private author: Input
+  private url: HTMLInputElement
+  private author: HTMLInputElement
 
   constructor(props) {
     super(props)

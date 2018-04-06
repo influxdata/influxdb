@@ -4,7 +4,6 @@ import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import RedactedInput from './RedactedInput'
 
 import {PUSHOVER_DOCS_LINK} from 'src/kapacitor/copy'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   token: string
@@ -32,9 +31,9 @@ interface State {
 }
 
 class PushoverConfig extends PureComponent<Props, State> {
-  private token: Input
-  private url: Input
-  private userKey: Input
+  private token: HTMLInputElement
+  private url: HTMLInputElement
+  private userKey: HTMLInputElement
 
   constructor(props) {
     super(props)

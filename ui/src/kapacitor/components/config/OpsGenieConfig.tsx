@@ -2,7 +2,6 @@ import React, {PureComponent} from 'react'
 
 import RedactedInput from './RedactedInput'
 import TagInput from 'src/shared/components/TagInput'
-import {Input} from 'src/types/kapacitor'
 
 interface Properties {
   'api-key': string
@@ -36,7 +35,7 @@ interface State {
 }
 
 class OpsGenieConfig extends PureComponent<Props, State> {
-  private apiKey: Input
+  private apiKey: HTMLInputElement
 
   constructor(props) {
     super(props)
@@ -70,14 +69,14 @@ class OpsGenieConfig extends PureComponent<Props, State> {
           title="Teams"
           onAddTag={this.handleAddTeam}
           onDeleteTag={this.handleDeleteTeam}
-          tags={this.currentTeams}
+          tags={this.currentTeamsForTags}
           disableTest={this.disableTest}
         />
         <TagInput
           title="Recipients"
           onAddTag={this.handleAddRecipient}
           onDeleteTag={this.handleDeleteRecipient}
-          tags={this.currentRecipients}
+          tags={this.currentRecipientsForTags}
           disableTest={this.disableTest}
         />
 
@@ -103,12 +102,12 @@ class OpsGenieConfig extends PureComponent<Props, State> {
     )
   }
 
-  private get currentTeams(): Item[] {
+  private get currentTeamsForTags(): Item[] {
     const {currentTeams} = this.state
     return currentTeams.map(team => ({name: team}))
   }
 
-  private get currentRecipients(): Item[] {
+  private get currentRecipientsForTags(): Item[] {
     const {currentRecipients} = this.state
     return currentRecipients.map(recipient => ({name: recipient}))
   }
