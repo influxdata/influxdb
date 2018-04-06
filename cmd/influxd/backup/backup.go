@@ -146,7 +146,9 @@ func (cmd *Command) parseFlags(args []string) (err error) {
 
 	fs.StringVar(&cmd.host, "host", "localhost:8088", "")
 	fs.StringVar(&cmd.database, "database", "", "")
+	fs.StringVar(&cmd.database, "db", "", "")
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "")
+	fs.StringVar(&cmd.retentionPolicy, "rp", "", "")
 	fs.StringVar(&cmd.shardID, "shard", "", "")
 	var sinceArg string
 	var startArg string
@@ -586,28 +588,29 @@ func (cmd *Command) requestInfo(request *snapshotter.Request) (*snapshotter.Resp
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stdout, `
-Downloads a file level age-based snapshot of a data node and saves it to disk.
+Downloads a snapshot of a data node and saves it to disk. NOTE: newer versions of influxd are 
+not compatible with older versions.  When running the backup, be sure to use the same version 
+of the influxd binary as the server that you are backing up.  
 
 Usage: influxd backup [flags] PATH
 
+    -portable
+            Generate backup files in a format that is portable between different influxdb products.
     -host <host:port>
-            The host to connect to snapshot. Defaults to 127.0.0.1:8088.
-    -database <name>
+            The host to connect to that will be backed up. Defaults to 127.0.0.1:8088.
+    -db <name>
             The database to backup.
-    -retention <name>
+    -rp <name>
             Optional. The retention policy to backup.
     -shard <id>
             Optional. The shard id to backup. If specified, retention is required.
-    -since <2015-12-24T08:12:23Z>
-            Optional. Do an incremental backup since the passed in RFC3339
-            formatted time.  Not compatible with -start or -end.
     -start <2015-12-24T08:12:23Z>
             All points earlier than this time stamp will be excluded from the export. Not compatible with -since.
     -end <2015-12-24T08:12:23Z>
             All points later than this time stamp will be excluded from the export. Not compatible with -since.
-    -portable
-            Generate backup files in a format that is portable between different influxdb products.
-
+    -since <2015-12-24T08:12:23Z>
+            Optional. Do an incremental backup since the passed in RFC3339
+            formatted time.  Not compatible with -start or -end.
 `)
 
 }
