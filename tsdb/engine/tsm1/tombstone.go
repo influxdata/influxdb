@@ -604,7 +604,7 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 				}
 
 				keyLen := int(binary.BigEndian.Uint32(b[:4]))
-				if keyLen > len(b)+16 {
+				if keyLen+16 > len(b) {
 					b = make([]byte, keyLen+16)
 				}
 
