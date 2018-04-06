@@ -1,7 +1,17 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 
-class RedactedInput extends Component {
+interface Props {
+  id: string
+  defaultValue?: boolean
+  refFunc: (r: any) => void
+  disableTest?: () => void
+}
+
+interface State {
+  editing: boolean
+}
+
+class RedactedInput extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -9,11 +19,7 @@ class RedactedInput extends Component {
     }
   }
 
-  handleClick = () => {
-    this.setState({editing: true})
-  }
-
-  render() {
+  public render() {
     const {defaultValue, id, refFunc, disableTest} = this.props
     const {editing} = this.state
 
@@ -31,7 +37,7 @@ class RedactedInput extends Component {
             id={id}
             type="hidden"
             ref={refFunc}
-            defaultValue={defaultValue}
+            defaultValue={defaultValue.toString()}
           />
         </div>
       )
@@ -48,15 +54,10 @@ class RedactedInput extends Component {
       />
     )
   }
-}
 
-const {bool, func, string} = PropTypes
-
-RedactedInput.propTypes = {
-  id: string.isRequired,
-  defaultValue: bool,
-  refFunc: func.isRequired,
-  disableTest: func,
+  private handleClick = () => {
+    this.setState({editing: true})
+  }
 }
 
 export default RedactedInput

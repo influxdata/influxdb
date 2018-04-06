@@ -4,11 +4,11 @@ import classnames from 'classnames'
 
 interface TabProps {
   children: JSX.Element[] | JSX.Element
-  onClick: () => void
-  isDisabled: boolean
-  isActive: boolean
-  isKapacitorTab: boolean
-  isConfigured: boolean
+  onClick?: () => void
+  isDisabled?: boolean
+  isActive?: boolean
+  isKapacitorTab?: boolean
+  isConfigured?: boolean
 }
 
 export const Tab: SFC<TabProps> = ({
@@ -45,9 +45,9 @@ export const Tab: SFC<TabProps> = ({
 
 interface TabListProps {
   children: JSX.Element[] | JSX.Element
-  activeIndex: number
-  onActivate: (index: number) => void
-  isKapacitorTabs: string
+  activeIndex?: number
+  onActivate?: (index: number) => void
+  isKapacitorTabs?: string
   customClass: string
 }
 
@@ -119,10 +119,10 @@ export const TabPanel: SFC<TabPanelProps> = ({children}) => (
 
 interface TabsProps {
   children: JSX.Element[] | JSX.Element
-  onSelect: (activeIndex: number) => void
+  onSelect?: (activeIndex: number) => void
   tabContentsClass: string
-  tabsClass: string
-  initialIndex: number
+  tabsClass?: string
+  initialIndex?: number
 }
 
 interface TabsState {
