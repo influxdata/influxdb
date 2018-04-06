@@ -43,8 +43,6 @@ class TableGraph extends Component {
       processedData: [[]],
       sortedTimeVals: [],
       labels: [],
-      timeColumnWidth: calculateTimeColumnWidth(props.tableOptions.timeFormat),
-      labelsColumnWidth: calculateLabelsColumnWidth(props.data.labels),
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sortField,
@@ -214,63 +212,27 @@ class TableGraph extends Component {
     })
   }
 
-  calculateColumnWidth = columnSizerWidth => column => {
+  calculateColumnWidth = column => {
     const {index} = column
-    const {tableOptions: {verticalTimeAxis}} = this.props
-    const {
-      timeColumnWidth,
-      labelsColumnWidth,
-      processedData,
-      columnWidths,
-      totalColumnWidths,
-    } = this.state
+    const {tableOptions: {fixFirstColumn}} = this.props
+    const {processedData, columnWidths, totalColumnWidths} = this.state
     const columnCount = _.get(processedData, ['0', 'length'], 0)
-    const processedLabels = verticalTimeAxis
-      ? processedData[0]
-      : processedData.map(row => row[0])
-
-    const specialColumnWidth = verticalTimeAxis
-      ? timeColumnWidth
-      : labelsColumnWidth
-
-    let adjustedColumnSizerWidth = columnSizerWidth
-
     const columnLabel = processedData[0][index]
+
+    let adjustedColumnSizerWidth = columnWidths[columnLabel]
 
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     if (tableWidth > totalColumnWidths) {
-      if (columnSizerWidth !== specialColumnWidth) {
-        const difference = columnSizerWidth - specialColumnWidth
-        const increment = difference / (columnCount - 1)
-        adjustedColumnSizerWidth = columnSizerWidth + increment
-      }
-      const {widerColumns, greaterBy, widerCount} = _.reduce(
-        columnWidths,
-        (acc, width, key) => {
-          if (width > adjustedColumnSizerWidth) {
-            acc.widerColumns[key] = width
-            acc.greaterBy += width - adjustedColumnSizerWidth
-            acc.widerCount += 1
-          }
-          return acc
-        },
-        {widerColumns: {}, greaterBy: 0, widerCount: 0}
-      )
-      if (greaterBy > 0) {
-        if (widerColumns[columnLabel]) {
-          adjustedColumnSizerWidth = widerColumns[columnLabel]
-        } else {
-          const increment = greaterBy / (columnCount - widerCount)
-          adjustedColumnSizerWidth -= increment
-        }
-      }
-    } else {
-      adjustedColumnSizerWidth = columnWidths[columnLabel]
+      const difference = tableWidth - totalColumnWidths
+      const distributeOver = fixFirstColumn ? columnCount - 1 : columnCount
+      const increment = difference / distributeOver
+      adjustedColumnSizerWidth =
+        fixFirstColumn && index === 0
+          ? columnWidths[columnLabel]
+          : columnWidths[columnLabel] + increment
     }
 
-    return processedLabels[index] === 'time'
-      ? specialColumnWidth
-      : adjustedColumnSizerWidth
+    return adjustedColumnSizerWidth
   }
 
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
@@ -407,11 +369,11 @@ class TableGraph extends Component {
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
           >
-            {({columnWidth, registerChild}) => (
+            {({registerChild}) => (
               <MultiGrid
                 ref={r => this.getMultiGridRef(r, registerChild)}
                 columnCount={columnCount}
-                columnWidth={this.calculateColumnWidth(columnWidth)}
+                columnWidth={this.calculateColumnWidth}
                 rowCount={rowCount}
                 rowHeight={ROW_HEIGHT}
                 height={tableHeight}
