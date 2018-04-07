@@ -1,5 +1,6 @@
 import calculateSize from 'calculate-size'
 import _ from 'lodash'
+import {reduce} from 'fast.js'
 
 export const NULL_ARRAY_INDEX = -1
 
