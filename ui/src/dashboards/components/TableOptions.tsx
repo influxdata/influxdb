@@ -66,12 +66,18 @@ export class TableOptions extends PureComponent<Props, {}> {
 
     return _.isEmpty(dataLabels)
       ? [this.timeField]
-      : dataLabels.map(label => {
-          const existing = this.fieldNames.find(f => f.internalName === label)
-          return (
-            existing || {internalName: label, displayName: '', visible: true}
-          )
-        })
+      : _.concat(
+          this.fieldNames,
+          dataLabels
+            .filter(
+              label => !this.fieldNames.find(f => f.internalName === label)
+            )
+            .map(label => ({
+              internalName: label,
+              displayName: '',
+              visible: true,
+            }))
+        )
   }
 
   public handleChooseSortBy = (option: Option) => {
