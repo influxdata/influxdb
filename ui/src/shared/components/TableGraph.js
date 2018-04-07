@@ -240,7 +240,7 @@ class TableGraph extends Component {
       sortField,
       sortDirection,
     } = this.state
-    const {tableOptions, colors} = this.props
+    const {tableOptions, colors} = parent.props
 
     const {
       timeFormat = TIME_FORMAT_DEFAULT,
@@ -251,6 +251,10 @@ class TableGraph extends Component {
 
     const cellData = processedData[rowIndex][columnIndex]
 
+    const timeFieldIndex = fieldNames.findIndex(
+      field => field.internalName === TIME_FIELD_DEFAULT.internalName
+    )
+    console.log('timeFieldIndex', timeFieldIndex)
     const timeField = fieldNames.find(
       field => field.internalName === TIME_FIELD_DEFAULT.internalName
     )
@@ -260,7 +264,9 @@ class TableGraph extends Component {
     const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0
     const isTimeData =
       visibleTime &&
-      (verticalTimeAxis ? rowIndex > 0 && columnIndex === 0 : isFixedRow)
+      (verticalTimeAxis
+        ? rowIndex !== 0 && columnIndex === timeFieldIndex
+        : rowIndex === timeFieldIndex && columnIndex !== 0)
     const isFieldName = verticalTimeAxis ? rowIndex === 0 : columnIndex === 0
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
     const dataIsNumerical = _.isNumber(cellData)
