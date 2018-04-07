@@ -191,7 +191,7 @@ interface TriggerValues {
 }
 
 // DBRP represents a database and retention policy for a time series source
-interface DBRP {
+export interface DBRP {
   db: string
   rp: string
 }
