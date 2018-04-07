@@ -22,8 +22,6 @@ import {
   DEFAULT_SORT,
   FIX_FIRST_COLUMN_DEFAULT,
   VERTICAL_TIME_AXIS_DEFAULT,
-  calculateTimeColumnWidth,
-  calculateLabelsColumnWidth,
 } from 'src/shared/constants/tableGraph'
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
@@ -69,13 +67,6 @@ class TableGraph extends Component {
       setDataLabels,
     } = nextProps
 
-    if (timeFormat !== this.props.tableOptions.timeFormat) {
-      this.setState({
-        timeColumnWidth: calculateTimeColumnWidth(timeFormat),
-      })
-      this.multiGridRef.forceUpdateGrids()
-    }
-
     if (setDataLabels) {
       setDataLabels(labels)
     }
@@ -106,15 +97,6 @@ class TableGraph extends Component {
       timeFormat
     )
 
-    const processedLabels = verticalTimeAxis
-      ? processedData[0]
-      : processedData.map(row => row[0])
-
-    const labelsColumnWidth = calculateLabelsColumnWidth(
-      processedLabels,
-      fieldNames
-    )
-
     this.setState({
       data,
       labels,
@@ -122,7 +104,6 @@ class TableGraph extends Component {
       sortedTimeVals,
       sortField: sortFieldName,
       sortDirection: direction,
-      labelsColumnWidth,
       columnWidths,
       totalColumnWidths: totalWidths,
     })

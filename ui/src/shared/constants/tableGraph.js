@@ -63,34 +63,80 @@ export const calculateTimeColumnWidth = timeFormat => {
   return width + CELL_HORIZONTAL_PADDING
 }
 
-export const calculateLabelsColumnWidth = (labels, fieldNames) => {
-  if (!labels) {
-    return
-  }
-  if (fieldNames.length === 1) {
-    const longestLabel = labels.reduce((a, b) => (a.length > b.length ? a : b))
-    const {width} = calculateSize(longestLabel, {
-      font: '"RobotoMono", monospace',
-      fontSize: '13px',
-      fontWeight: 'bold',
-    })
+const updateMaxWidths = (
+  row,
+  maxColumnWidths,
+  topRow,
+  isTopRow,
+  fieldNames,
+  timeFormatWidth,
+  verticalTimeAxis
+) => {
+  return reduce(
+    row,
+    (acc, col, c) => {
+      const isLabel =
+        (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
 
-    return width + CELL_HORIZONTAL_PADDING
-  }
+      const foundField = isLabel
+        ? fieldNames.find(field => field.internalName === col)
+        : undefined
+      const colValue =
+        foundField && foundField.displayName ? foundField.displayName : `${col}`
+      const columnLabel = topRow[c]
 
-  const longestFieldName = fieldNames
-    .map(fieldName => {
-      return fieldName.displayName
-        ? fieldName.displayName
-        : fieldName.internalName
-    })
-    .reduce((a, b) => (a.length > b.length ? a : b))
+      const useTimeWidth =
+        (columnLabel === TIME_FIELD_DEFAULT.internalName &&
+          verticalTimeAxis &&
+          !isTopRow) ||
+        (!verticalTimeAxis &&
+          isTopRow &&
+          topRow[0] === TIME_FIELD_DEFAULT.internalName &&
+          c !== 0)
 
-  const {width} = calculateSize(longestFieldName, {
-    font: '"RobotoMono", monospace',
-    fontSize: '13px',
-    fontWeight: 'bold',
-  })
+      const currentWidth = useTimeWidth
+        ? timeFormatWidth
+        : calculateSize(colValue, {
+            font: isLabel ? '"Roboto"' : '"RobotoMono", monospace',
+            fontSize: '13px',
+            fontWeight: 'bold',
+          }).width + CELL_HORIZONTAL_PADDING
 
-  return width + CELL_HORIZONTAL_PADDING
+      const {widths: maxWidths} = maxColumnWidths
+      const maxWidth = _.get(maxWidths, `${columnLabel}`, 0)
+
+      if (isTopRow || currentWidth > maxWidth) {
+        acc.widths[columnLabel] = currentWidth
+        acc.totalWidths += currentWidth - maxWidth
+      }
+      return acc
+    },
+    {...maxColumnWidths}
+  )
+}
+
+export const calculateColumnWidths = (
+  data,
+  fieldNames,
+  timeFormat,
+  verticalTimeAxis
+) => {
+  const timeFormatWidth = calculateTimeColumnWidth(
+    timeFormat === '' ? new Date().toISOString() : timeFormat
+  )
+  return reduce(
+    data,
+    (acc, row, r) => {
+      return updateMaxWidths(
+        row,
+        acc,
+        data[0],
+        r === 0,
+        fieldNames,
+        timeFormatWidth,
+        verticalTimeAxis
+      )
+    },
+    {widths: {}, totalWidths: 0}
+  )
 }
