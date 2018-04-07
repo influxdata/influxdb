@@ -85,13 +85,25 @@ export class TickscriptSave extends PureComponent<SaveProps> {
     return (
       <button
         className="btn btn-success btn-sm"
-        title="You have unsaved changes"
+        title={this.title}
         onClick={onSave}
         disabled={this.isDisabled}
       >
         {this.textContent}
       </button>
     )
+  }
+
+  private get title(): string {
+    const {task} = this.props
+
+    if (!task.id) {
+      return 'Name your TICKscript to save'
+    }
+
+    if (!task.dbrps.length) {
+      return 'Select databases to save'
+    }
   }
 
   private get textContent(): string {
