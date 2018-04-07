@@ -33,11 +33,11 @@ class QueryMakerTab extends PureComponent<Props> {
     )
   }
 
-  private handleSelect() {
+  private handleSelect = () => {
     this.props.onSelect(this.props.queryIndex)
   }
 
-  private handleDelete(e) {
+  private handleDelete = e => {
     e.stopPropagation()
     this.props.onDelete(this.props.queryIndex)
   }

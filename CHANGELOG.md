@@ -28,6 +28,7 @@
 1.  [#3137](https://github.com/influxdata/chronograf/pull/3137): Fixes issues with providing regexp in query
 1.  [#3144](https://github.com/influxdata/chronograf/pull/3144): Ensure correct basepath prefix in URL pathname when passing InfluxQL query param to Data Explorer
 1.  [#3128](https://github.com/influxdata/chronograf/pull/3128): Fix type error bug in Kapacitor Alert Config page and persist deleting of team and recipient in OpsGenieConfig
+1.  [#3149](https://github.com/influxdata/chronograf/pull/3149): Fixes errors caused by switching query tabs in CEO
 
 ## v1.4.3.1 [2018-04-02]
 
