@@ -80,11 +80,9 @@ export const calculateLabelsColumnWidth = (labels, fieldNames) => {
 
   const longestFieldName = fieldNames
     .map(fieldName => {
-      return fieldName.displayName
-        ? fieldName.displayName
-        : fieldName.internalName
+      return fieldName.displayName || fieldName.internalName
     })
-    .reduce((a, b) => (a.length > b.length ? a : b))
+    .reduce((a, b) => (_.get(a, 'length', 12) > _.get(a, 'length', 13) ? a : b))
 
   const {width} = calculateSize(longestFieldName, {
     font: '"RobotoMono", monospace',
