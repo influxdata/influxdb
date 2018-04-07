@@ -12,6 +12,7 @@ interface Props {
   displayName: string
   visible: boolean
   onFieldUpdate?: (field: Field) => void
+  opacity: number
 }
 
 class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
@@ -33,11 +34,12 @@ class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
   }
 
   public render() {
-    const {internalName, displayName, visible} = this.props
+    const {internalName, displayName, visible, opacity} = this.props
 
     return (
       <div className="customizable-field">
         <div
+          style={{opacity: opacity}}
           className={
             visible
               ? 'customizable-field--label'

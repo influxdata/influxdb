@@ -208,6 +208,7 @@ export const orderTableColumns = (data, fieldNames) => {
     })
   })
   return orderedData[0].length ? orderedData : [[]]
+}
 
 export const processTableData = (
   data,
