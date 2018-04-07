@@ -254,7 +254,6 @@ class TableGraph extends Component {
     const timeFieldIndex = fieldNames.findIndex(
       field => field.internalName === TIME_FIELD_DEFAULT.internalName
     )
-    console.log('timeFieldIndex', timeFieldIndex)
     const timeField = fieldNames.find(
       field => field.internalName === TIME_FIELD_DEFAULT.internalName
     )
@@ -279,7 +278,7 @@ class TableGraph extends Component {
 
     let cellStyle = style
 
-    if (!isFixedRow && !isFixedColumn && !isFixedCorner) {
+    if (!isFixedRow && !isFixedColumn && !isFixedCorner && !isTimeData) {
       const {bgColor, textColor} = generateThresholdsListHexs({
         colors,
         lastValue: cellData,
