@@ -4,6 +4,7 @@ interface Field {
   internalName: string
   displayName: string
   visible: boolean
+  order?: number
 }
 
 interface Props {

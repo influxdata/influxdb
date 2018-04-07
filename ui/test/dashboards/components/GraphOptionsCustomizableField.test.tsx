@@ -74,7 +74,7 @@ describe('Dashboards.Components.GraphOptionsCustomizableField', () => {
   })
 
   describe('instance methods', () => {
-    describe('#handleFieldUpdate', () => {
+    describe('#handleSingleFieldUpdate', () => {
       it('calls onFieldUpdate once with internalName, new name, and visible', () => {
         const onFieldUpdate = jest.fn()
         const internalName = 'test'

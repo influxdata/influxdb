@@ -5,7 +5,7 @@ import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOption
 
 const FieldType = 'field'
 
-const cardSource = {
+const fieldSource = {
   beginDrag(props) {
     return {
       id: props.id,
@@ -14,7 +14,7 @@ const cardSource = {
   },
 }
 
-const cardTarget = {
+const fieldTarget = {
   hover(props, monitor, component) {
     const dragIndex = monitor.getItem().index
     const hoverIndex = props.index
@@ -49,7 +49,6 @@ const cardTarget = {
     if (dragIndex > hoverIndex && hoverClientY > hoverMiddleY) {
       return
     }
-
     // Time to actually perform the action
     props.moveField(dragIndex, hoverIndex)
 
@@ -61,6 +60,13 @@ const cardTarget = {
   },
 }
 
+interface Field {
+  internalName: string
+  displayName: string
+  visible: boolean
+  order?: number
+}
+
 interface Props {
   internalName: string
   displayName: string
@@ -68,15 +74,16 @@ interface Props {
   id: string
   key: string
   isDragging: boolean
+  onFieldUpdate?: (field: Field) => void
   connectDragSource: any
   connectDropTarget: any
   moveField: (dragIndex: number, hoverIndex: number) => void
 }
 
-@DropTarget(FieldType, cardTarget, connect => ({
+@DropTarget(FieldType, fieldTarget, connect => ({
   connectDropTarget: connect.dropTarget(),
 }))
-@DragSource(FieldType, cardSource, (connect, monitor) => ({
+@DragSource(FieldType, fieldSource, (connect, monitor) => ({
   connectDragSource: connect.dragSource(),
   isDragging: monitor.isDragging(),
 }))
@@ -86,10 +93,10 @@ export default class GraphOptionsSortableField extends PureComponent<Props> {
       internalName,
       displayName,
       isDragging,
+      onFieldUpdate,
       connectDragSource,
       connectDropTarget,
     } = this.props
-    const opacity = isDragging ? 0 : 1
 
     return connectDragSource(
       connectDropTarget(
@@ -98,6 +105,8 @@ export default class GraphOptionsSortableField extends PureComponent<Props> {
             internalName={internalName}
             displayName={displayName}
             visible={true}
+            onFieldUpdate={onFieldUpdate}
+            opacity={isDragging ? 0 : 1}
           />
         </div>
       )

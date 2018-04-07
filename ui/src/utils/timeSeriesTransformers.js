@@ -198,6 +198,17 @@ export const filterTableColumns = (data, fieldNames) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
+export const orderTableColumns = (data, fieldNames) => {
+  const fieldsSortOrder = fieldNames.map(v => {
+    return data[0].indexOf(v.displayName || v.internalName)
+  })
+  const orderedData = map(data, row => {
+    return row.map((v, j, arr) => {
+      return arr[fieldsSortOrder[j]]
+    })
+  })
+  return orderedData[0].length ? orderedData : [[]]
+
 export const processTableData = (
   data,
   sortFieldName,
@@ -212,7 +223,8 @@ export const processTableData = (
   ]
   const sortedTimeVals = map(sortedData, r => r[0])
   const filteredData = filterTableColumns(sortedData, fieldNames)
-  const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
+  const orderedData = orderTableColumns(filteredData, fieldNames)
+  const processedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
 
   return {processedData, sortedTimeVals}
 }

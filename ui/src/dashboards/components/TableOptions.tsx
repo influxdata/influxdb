@@ -26,6 +26,7 @@ interface RenamableField {
   internalName: string
   displayName: string
   visible: boolean
+  order?: number
 }
 
 interface Options {
@@ -46,6 +47,7 @@ interface Props {
 export class TableOptions extends PureComponent<Props, {}> {
   constructor(props) {
     super(props)
+    this.moveField = this.moveField.bind(this)
   }
 
   get fieldNames() {
@@ -99,7 +101,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     handleUpdateTableOptions({...tableOptions, fixFirstColumn})
   }
 
-  public handleFieldUpdate = field => {
+  public handleSingleFieldUpdate = field => {
     const {handleUpdateTableOptions, tableOptions, dataLabels} = this.props
     const {sortBy, fieldNames} = tableOptions
     const fields =
@@ -109,6 +111,11 @@ export class TableOptions extends PureComponent<Props, {}> {
     const updatedFields = fields.map(
       f => (f.internalName === field.internalName ? field : f)
     )
+
+    _.sortBy(updatedFields, f => {
+      f.order
+    })
+
     const updatedSortBy =
       sortBy.internalName === field.internalName
         ? {...sortBy, displayName: field.displayName}
@@ -138,6 +145,31 @@ export class TableOptions extends PureComponent<Props, {}> {
     const dataLabelsDifferent = !_.isEqual(dataLabels, nextProps.dataLabels)
 
     return tableOptionsDifferent || dataLabelsDifferent
+  }
+
+  public moveField(dragIndex, hoverIndex) {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const {fieldNames} = tableOptions
+    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
+
+    const dragField = fields[dragIndex]
+    const removedFields = _.concat(
+      _.slice(fields, 0, dragIndex),
+      _.slice(fields, dragIndex + 1)
+    )
+    const addedFields = _.concat(
+      _.slice(removedFields, 0, hoverIndex),
+      [dragField],
+      _.slice(removedFields, hoverIndex)
+    )
+    const orderedFields = addedFields.map((f, i) => {
+      return {...f, order: i}
+    })
+    console.log('orderedFields', orderedFields)
+    handleUpdateTableOptions({
+      ...tableOptions,
+      fieldNames: orderedFields,
+    })
   }
 
   public render() {
@@ -182,7 +214,8 @@ export class TableOptions extends PureComponent<Props, {}> {
           </div>
           <GraphOptionsCustomizeFields
             fields={fields}
-            onFieldUpdate={this.handleFieldUpdate}
+            onFieldUpdate={this.handleSingleFieldUpdate}
+            moveField={this.moveField}
           />
           <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />
           <div className="form-group-wrapper graph-options-group">
