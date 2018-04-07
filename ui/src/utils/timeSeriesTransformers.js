@@ -216,7 +216,10 @@ const updateMaxWidths = (
   return reduce(
     row,
     (acc, col, c) => {
-      const foundField = isTopRow
+      const isLabel =
+        (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
+
+      const foundField = isLabel
         ? fieldNames.find(field => field.internalName === col)
         : undefined
       const colValue =
@@ -229,10 +232,8 @@ const updateMaxWidths = (
           !isTopRow) ||
         (!verticalTimeAxis &&
           isTopRow &&
-          topRow[0] === TIME_FIELD_DEFAULT.internalName)
-
-      const isLabel =
-        (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
+          topRow[0] === TIME_FIELD_DEFAULT.internalName &&
+          c !== 0)
 
       const currentWidth = useTimeWidth
         ? timeFormatWidth
