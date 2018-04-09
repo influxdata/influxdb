@@ -1,9 +1,8 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import TickscriptHeader, {
-  TickscriptSave,
-} from 'src/kapacitor/components/TickscriptHeader'
+import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
+import TickscriptSave from 'src/kapacitor/components/TickscriptSave'
 
 const setup = (override?) => {
   const props = {

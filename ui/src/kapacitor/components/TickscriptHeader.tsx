@@ -1,15 +1,9 @@
-import React, {SFC, PureComponent} from 'react'
+import React, {SFC} from 'react'
 
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 import LogsToggle from 'src/kapacitor/components/LogsToggle'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
-
-import {DBRP} from 'src/types/kapacitor'
-
-interface Task {
-  dbrps: DBRP[]
-  id: string
-}
+import TickscriptSave, {Task} from 'src/kapacitor/components/TickscriptSave'
 
 interface Props {
   task: Task
@@ -70,60 +64,5 @@ const TickscriptHeader: SFC<Props> = ({
     </div>
   </div>
 )
-
-interface SaveProps {
-  onSave: () => void
-  task: Task
-  isNewTickscript: boolean
-  unsavedChanges: boolean
-}
-
-export class TickscriptSave extends PureComponent<SaveProps> {
-  public render() {
-    const {onSave} = this.props
-
-    return (
-      <button
-        className="btn btn-success btn-sm"
-        title={this.title}
-        onClick={onSave}
-        disabled={this.isDisabled}
-      >
-        {this.textContent}
-      </button>
-    )
-  }
-
-  private get title(): string {
-    const {task} = this.props
-
-    if (!task.id) {
-      return 'Name your TICKscript to save'
-    }
-
-    if (!task.dbrps.length) {
-      return 'Select databases to save'
-    }
-  }
-
-  private get textContent(): string {
-    if (this.props.isNewTickscript) {
-      return 'Save New TICKscript'
-    }
-
-    return 'Save Changes'
-  }
-
-  private get isDisabled(): boolean {
-    const {isNewTickscript, unsavedChanges, task} = this.props
-    const {id, dbrps} = task
-
-    if (isNewTickscript) {
-      return !id || !dbrps.length
-    }
-
-    return !unsavedChanges || !dbrps.length
-  }
-}
 
 export default TickscriptHeader
