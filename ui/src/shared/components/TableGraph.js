@@ -292,7 +292,9 @@ class TableGraph extends Component {
     })
 
     const cellContents = isTimeData
-      ? `${moment(cellData).format(timeFormat)}`
+      ? `${moment(cellData).format(
+          timeFormat === '' ? TIME_FORMAT_DEFAULT : timeFormat
+        )}`
       : fieldName || `${cellData}`
 
     return (
@@ -344,7 +346,7 @@ class TableGraph extends Component {
         ref={gridContainer => (this.gridContainer = gridContainer)}
         onMouseLeave={this.handleMouseLeave}
       >
-        {rowCount > 2 && (
+        {rowCount > 0 && (
           <ColumnSizer
             columnCount={columnCount}
             columnMaxWidth={COLUMN_MAX_WIDTH}

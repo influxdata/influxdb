@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, filter, forEach, concat, clone} from 'fast.js'
-import {calculateColumnWidths} from 'src/shared/constants/tableGraph'
+import {calculateColumnWidths} from 'src/dashboards/utils/tableGraph'
 
 /**
  * Accepts an array of raw influxdb responses and returns a format
