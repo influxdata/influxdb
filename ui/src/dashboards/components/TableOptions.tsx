@@ -16,6 +16,7 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
+import {QueryConfig} from 'src/types/query'
 
 interface Option {
   text: string
@@ -34,16 +35,6 @@ interface Options {
   sortBy: RenamableField
   fieldNames: RenamableField[]
   fixFirstColumn: boolean
-}
-
-interface QueryConfig {
-  measurement: string
-  fields: [
-    {
-      alias: string
-      value: string
-    }
-  ]
 }
 
 interface Props {
@@ -83,7 +74,7 @@ export class TableOptions extends PureComponent<Props, {}> {
       tableOptions,
     } = this.props
 
-    const tableSortByOptions = this.computedFieldNames.map(field => ({
+    const tableSortByOptions = this.fieldNames.map(field => ({
       key: field.internalName,
       text: field.displayName || field.internalName,
     }))
