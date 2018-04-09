@@ -26,10 +26,7 @@ import {
   highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 
-import {
-  DEFAULT_LINE_COLORS,
-  getLineColorsHexes,
-} from 'src/shared/constants/graphColorPalettes'
+import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 import {colorsStringSchema} from 'shared/schemas'
@@ -196,15 +193,10 @@ class Dygraph extends Component {
   }
 
   colorDygraphSeries = () => {
-    const {dygraphSeries, children, colors, overrideLineColors} = this.props
+    const {dygraphSeries, colors, overrideLineColors} = this.props
     const numSeries = Object.keys(dygraphSeries).length
 
     let lineColors = getLineColorsHexes(colors, numSeries)
-
-    if (React.children && React.children.count(children)) {
-      // If graph is line-plus-single-stat then reserve colors for single stat
-      lineColors = getLineColorsHexes(DEFAULT_LINE_COLORS, numSeries)
-    }
 
     if (overrideLineColors) {
       lineColors = getLineColorsHexes(overrideLineColors, numSeries)
