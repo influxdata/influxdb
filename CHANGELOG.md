@@ -8,6 +8,7 @@
 1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add tabular data visualization option with features
 1.  [#3120](https://github.com/influxdata/chronograf/pull/3120): Change :interval: to represent a raw influxql duration value
 1.  [#2832](https://github.com/influxdata/chronograf/pull/2832): Add paginated measurements API to server
+1.  [#3148](https://github.com/influxdata/chronograf/pull/3148): Data explorer measurements can be toggled open
 
 ### UI Improvements
 
