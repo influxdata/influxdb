@@ -154,3 +154,47 @@ func TestResponseWriter_MessagePack_Error(t *testing.T) {
 		t.Fatalf("unexpected output: %s != %s", have, want)
 	}
 }
+
+func TestResponseWriter_CSV_DifferentColumns(t *testing.T) {
+	header := make(http.Header)
+	header.Set("Accept", "text/csv")
+	r := &http.Request{
+		Header: header,
+		URL:    &url.URL{},
+	}
+	w := httptest.NewRecorder()
+
+	writer := httpd.NewResponseWriter(w, r)
+	writer.WriteResponse(httpd.Response{
+		Results: []*query.Result{
+			{
+				StatementID: 0,
+				Series: []*models.Row{
+					{
+						Name:    "network",
+						Columns: []string{"hostname"},
+						Values: [][]interface{}{
+							{"localhost"},
+						},
+					},
+					{
+						Name:    "runtime",
+						Columns: []string{"GOARCH", "GOMAXPROCS", "GOOS", "version"},
+						Values: [][]interface{}{
+							{"amd64", int64(8), "darwin", "go1.10"},
+						},
+					},
+				},
+			},
+		},
+	})
+
+	if got, want := w.Body.String(), `name,tags,hostname
+network,,localhost
+
+name,tags,GOARCH,GOMAXPROCS,GOOS,version
+runtime,,amd64,8,darwin,go1.10
+`; got != want {
+		t.Errorf("unexpected output:\n\ngot=%v\nwant=%s", got, want)
+	}
+}

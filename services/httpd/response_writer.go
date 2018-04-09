@@ -147,7 +147,29 @@ func (w *csvFormatter) WriteResponse(resp Response) (n int, err error) {
 			}
 		}
 
-		for _, row := range result.Series {
+		for i, row := range result.Series {
+			if i > 0 && !stringsEqual(result.Series[i-1].Columns, row.Columns) {
+				// The columns have changed. Print a newline and reprint the header.
+				csv.Flush()
+				if err := csv.Error(); err != nil {
+					return n, err
+				}
+
+				out, err := io.WriteString(w, "\n")
+				if err != nil {
+					return n, err
+				}
+				n += out
+
+				w.columns = make([]string, 2+len(row.Columns))
+				w.columns[0] = "name"
+				w.columns[1] = "tags"
+				copy(w.columns[2:], row.Columns)
+				if err := csv.Write(w.columns); err != nil {
+					return n, err
+				}
+			}
+
 			w.columns[0] = row.Name
 			if len(row.Tags) > 0 {
 				w.columns[1] = string(models.NewTags(row.Tags).HashKey()[1:])
@@ -290,4 +312,16 @@ func (f *msgpackFormatter) WriteResponse(resp Response) (n int, err error) {
 		}
 	}
 	return 0, nil
+}
+
+func stringsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
