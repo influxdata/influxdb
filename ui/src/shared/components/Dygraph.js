@@ -49,20 +49,20 @@ class Dygraph extends Component {
       options,
     } = this.props
 
-    const timeSeries = this.getTimeSeries()
+    const timeSeries = this.timeSeries
     const graphRef = this.graphRef
 
     let defaultOptions = {
       fillGraph,
       logscale: y.scale === LOG,
-      colors: this.getLineColors(),
-      series: this.colorDygraphSeries(),
+      colors: this.lineColors,
+      series: this.colorDygraphSeries,
       axes: {
         y: {
           valueRange: this.getYRange(timeSeries),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
-          axisLabelWidth: this.getLabelWidth(),
+          axisLabelWidth: this.labelWidth,
           labelsKMB: y.base === BASE_10,
           labelsKMG2: y.base === BASE_2,
         },
@@ -128,7 +128,7 @@ class Dygraph extends Component {
       )
     }
 
-    const timeSeries = this.getTimeSeries()
+    const timeSeries = this.timeSeries
 
     const updateOptions = {
       ...options,
@@ -141,7 +141,7 @@ class Dygraph extends Component {
           valueRange: this.getYRange(timeSeries),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
-          axisLabelWidth: this.getLabelWidth(),
+          axisLabelWidth: this.labelWidth,
           labelsKMB: y.base === BASE_10,
           labelsKMG2: y.base === BASE_2,
         },
@@ -149,8 +149,8 @@ class Dygraph extends Component {
           valueRange: getRange(timeSeries, y2.bounds),
         },
       },
-      colors: this.getLineColors(),
-      series: this.colorDygraphSeries(),
+      colors: this.lineColors,
+      series: this.colorDygraphSeries,
       plotter: isBarGraph ? barPlotter : null,
       drawCallback: this.annotationsRef.heartbeat,
     }
@@ -190,7 +190,7 @@ class Dygraph extends Component {
     onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
   }
 
-  colorDygraphSeries = () => {
+  get colorDygraphSeries() {
     const {dygraphSeries, colors, overrideLineColors} = this.props
     const numSeries = Object.keys(dygraphSeries).length
     const dygraphSeriesKeys = Object.keys(dygraphSeries).sort()
@@ -223,11 +223,11 @@ class Dygraph extends Component {
     this.setState({isHidden: true})
   }
 
-  getLineColors = () => {
+  get lineColors() {
     return [...(this.props.overrideLineColors || LINE_COLORS)]
   }
 
-  getLabelWidth = () => {
+  get labelWidth() {
     const {axes: {y}} = this.props
     return (
       LABEL_WIDTH +
@@ -236,7 +236,7 @@ class Dygraph extends Component {
     )
   }
 
-  getTimeSeries = () => {
+  get timeSeries() {
     const {timeSeries} = this.props
     // Avoid 'Can't plot empty data set' errors by falling back to a
     // default dataset that's valid for Dygraph.
@@ -342,7 +342,7 @@ class Dygraph extends Component {
         />
         {staticLegend && (
           <StaticLegend
-            dygraphSeries={this.colorDygraphSeries()}
+            dygraphSeries={this.colorDygraphSeries}
             dygraph={this.dygraph}
             handleReceiveStaticLegendHeight={
               this.handleReceiveStaticLegendHeight
