@@ -3,7 +3,9 @@ package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -46,13 +48,14 @@ const (
 
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
-	ln    net.Listener
-	addr  string
-	https bool
-	cert  string
-	key   string
-	limit int
-	err   chan error
+	ln     net.Listener
+	addr   string
+	https  bool
+	cacert string
+	cert   string
+	key    string
+	limit  int
+	err    chan error
 
 	unixSocket         bool
 	bindSocket         string
@@ -68,6 +71,7 @@ func NewService(c Config) *Service {
 	s := &Service{
 		addr:       c.BindAddress,
 		https:      c.HTTPSEnabled,
+		cacert:     c.HTTPSCACertificate,
 		cert:       c.HTTPSCertificate,
 		key:        c.HTTPSPrivateKey,
 		limit:      c.MaxConnectionLimit,
@@ -97,9 +101,24 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		listener, err := tls.Listen("tcp", s.addr, &tls.Config{
+		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{cert},
-		})
+		}
+
+		if s.cacert != "" {
+			caCert, err := ioutil.ReadFile(s.cacert)
+			if err != nil {
+					return err
+			}
+
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(caCert)
+
+			tlsConfig.ClientCAs  = caCertPool
+			tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven // Allow certs to be optional
+		}
+
+		listener, err := tls.Listen("tcp", s.addr, tlsConfig)
 		if err != nil {
 			return err
 		}

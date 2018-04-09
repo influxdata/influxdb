@@ -25,6 +25,7 @@ type Config struct {
 	WriteTracing       bool   `toml:"write-tracing"`
 	PprofEnabled       bool   `toml:"pprof-enabled"`
 	HTTPSEnabled       bool   `toml:"https-enabled"`
+	HTTPSCACertificate string `toml:"https-ca-certificate"`
 	HTTPSCertificate   string `toml:"https-certificate"`
 	HTTPSPrivateKey    string `toml:"https-private-key"`
 	MaxRowLimit        int    `toml:"max-row-limit"`

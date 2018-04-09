@@ -61,6 +61,9 @@ const (
 
 	// Authenticate with jwt.
 	BearerAuthentication
+
+	// Authenticate with TLS client certificate
+	TLSAuthentication
 )
 
 // TODO: Check HTTP response codes: 400, 401, 403, 409.
@@ -1356,6 +1359,14 @@ func parseCredentials(r *http.Request) (*credentials, error) {
 		}
 	}
 
+	// Check for TLS client certificate
+	if r.TLS.PeerCertificates != nil {
+		return &credentials{
+			Method:   TLSAuthentication,
+			Username: r.TLS.PeerCertificates[0].Subject.CommonName, // CN=Username
+		}, nil
+	}
+
 	return nil, fmt.Errorf("unable to parse authentication credentials")
 }
 
@@ -1440,6 +1451,21 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 
 				// Lookup user in the metastore.
 				if user, err = h.MetaClient.User(username); err != nil {
+					h.httpError(w, err.Error(), http.StatusUnauthorized)
+					return
+				} else if user == nil {
+					h.httpError(w, meta.ErrUserNotFound.Error(), http.StatusUnauthorized)
+					return
+				}
+			case TLSAuthentication:
+				if creds.Username == "" {
+					atomic.AddInt64(&h.stats.AuthenticationFailures, 1)
+					h.httpError(w, "username required", http.StatusUnauthorized)
+					return
+				}
+
+				// Lookup user in the metastore.
+				if user, err = h.MetaClient.User(creds.Username); err != nil {
 					h.httpError(w, err.Error(), http.StatusUnauthorized)
 					return
 				} else if user == nil {
