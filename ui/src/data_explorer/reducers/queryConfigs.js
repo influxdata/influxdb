@@ -34,13 +34,16 @@ const queryConfigs = (state = {}, action) => {
 
     case 'DE_CHOOSE_MEASUREMENT': {
       const {queryID, measurement} = action.payload
+
       const nextQueryConfig = chooseMeasurement(state[queryID], measurement)
 
-      return Object.assign({}, state, {
-        [queryID]: Object.assign(nextQueryConfig, {
+      return {
+        ...state,
+        [queryID]: {
+          ...nextQueryConfig,
           rawText: state[queryID].rawText,
-        }),
-      })
+        },
+      }
     }
 
     // there is an additional reducer for this same action in the ui reducer

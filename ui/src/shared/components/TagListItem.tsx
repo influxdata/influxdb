@@ -1,6 +1,6 @@
 import classnames from 'classnames'
 import _ from 'lodash'
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 
 interface Tag {
   key: string
@@ -36,11 +36,13 @@ class TagListItem extends PureComponent<Props, State> {
     this.handleFilterText = this.handleFilterText.bind(this)
   }
 
-  public handleChoose(tagValue: string) {
+  public handleChoose(tagValue: string, e: MouseEvent<HTMLElement>) {
+    e.stopPropagation()
     this.props.onChooseTag({key: this.props.tagKey, value: tagValue})
   }
 
-  public handleClickKey() {
+  public handleClickKey(e: MouseEvent<HTMLElement>) {
+    e.stopPropagation()
     this.setState({isOpen: !this.state.isOpen})
   }
 
