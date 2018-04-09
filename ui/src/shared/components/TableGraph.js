@@ -40,7 +40,6 @@ class TableGraph extends Component {
       data: [[]],
       processedData: [[]],
       sortedTimeVals: [],
-      labels: [],
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sortField,
@@ -51,7 +50,7 @@ class TableGraph extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    const {labels, data} = timeSeriesToTableGraph(nextProps.data)
+    const {data} = timeSeriesToTableGraph(nextProps.data)
     if (_.isEmpty(data[0])) {
       return
     }
@@ -64,12 +63,7 @@ class TableGraph extends Component {
         verticalTimeAxis,
         timeFormat,
       },
-      setDataLabels,
     } = nextProps
-
-    if (setDataLabels) {
-      setDataLabels(labels)
-    }
 
     let direction, sortFieldName
     if (
@@ -99,7 +93,6 @@ class TableGraph extends Component {
 
     this.setState({
       data,
-      labels,
       processedData,
       sortedTimeVals,
       sortField: sortFieldName,
@@ -412,7 +405,6 @@ TableGraph.propTypes = {
   hoverTime: string,
   onSetHoverTime: func,
   colors: colorsStringSchema,
-  setDataLabels: func,
 }
 
 export default TableGraph

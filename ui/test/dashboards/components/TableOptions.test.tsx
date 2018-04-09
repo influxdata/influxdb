@@ -12,7 +12,6 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 
 const defaultProps = {
-  dataLabels: [],
   handleUpdateTableOptions: () => {},
   onResetFocus: () => {},
   queryConfigs: [],
@@ -89,46 +88,6 @@ describe('Dashboards.Components.TableOptions', () => {
           const {instance} = setup({tableOptions: {fieldNames}})
 
           expect(instance.timeField).toBe(TIME_FIELD_DEFAULT)
-        })
-      })
-    })
-
-    describe('computedFieldNames', () => {
-      describe('if dataLabels are not passed in', () => {
-        it('returns an array of the time column', () => {
-          const {instance} = setup()
-
-          expect(instance.computedFieldNames).toEqual([TIME_FIELD_DEFAULT])
-        })
-      })
-
-      describe('if dataLabels are passed in', () => {
-        describe('if dataLabel has a matching fieldName', () => {
-          it('returns array with the matching fieldName', () => {
-            const fieldNames = [
-              {internalName: 'foo', displayName: 'bar', visible: true},
-            ]
-            const dataLabels = ['foo']
-            const {instance} = setup({tableOptions: {fieldNames}, dataLabels})
-
-            expect(instance.computedFieldNames).toEqual(fieldNames)
-          })
-        })
-
-        describe('if dataLabel does not have a matching fieldName', () => {
-          it('returns array with a new fieldName created for it', () => {
-            const fieldNames = [
-              {internalName: 'time', displayName: 'bar', visible: true},
-            ]
-            const unmatchedLabel = 'foo'
-            const dataLabels = ['time', unmatchedLabel]
-            const {instance} = setup({tableOptions: {fieldNames}, dataLabels})
-
-            expect(instance.computedFieldNames).toEqual([
-              ...fieldNames,
-              {internalName: unmatchedLabel, displayName: '', visible: true},
-            ])
-          })
         })
       })
     })
