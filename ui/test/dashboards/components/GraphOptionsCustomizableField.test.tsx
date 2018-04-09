@@ -72,47 +72,4 @@ describe('Dashboards.Components.GraphOptionsCustomizableField', () => {
       })
     })
   })
-
-  describe('instance methods', () => {
-    describe('#handleFieldUpdate', () => {
-      it('calls onFieldUpdate once with internalName, new name, and visible', () => {
-        const onFieldUpdate = jest.fn()
-        const internalName = 'test'
-        const {instance, props: {visible}} = setup({
-          internalName,
-          onFieldUpdate,
-        })
-        const rename = 'TEST'
-
-        instance.handleFieldRename(rename)
-
-        expect(onFieldUpdate).toHaveBeenCalledTimes(1)
-        expect(onFieldUpdate).toHaveBeenCalledWith({
-          displayName: rename,
-          internalName,
-          visible,
-        })
-      })
-    })
-
-    describe('#handleToggleVisible', () => {
-      it('calls onFieldUpdate once with !visible, internalName, and displayName', () => {
-        const onFieldUpdate = jest.fn()
-        const visible = true
-        const {instance, props: {internalName, displayName}} = setup({
-          onFieldUpdate,
-          visible,
-        })
-
-        instance.handleToggleVisible()
-
-        expect(onFieldUpdate).toHaveBeenCalledTimes(1)
-        expect(onFieldUpdate).toHaveBeenCalledWith({
-          displayName,
-          internalName,
-          visible: !visible,
-        })
-      })
-    })
-  })
 })
