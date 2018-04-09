@@ -10,8 +10,9 @@ export interface Query {
   rawText: string | null
   range?: DurationRange | null
   source?: string
-  fill: string
+  fill?: string
   status?: Status
+  shifts: TimeShift[]
 }
 
 export interface Field {
@@ -51,6 +52,11 @@ export interface Status {
   error?: string
   warn?: string
   success?: string
+}
+
+export interface TimeRange {
+  lower: string
+  upper?: string
 }
 
 export interface DurationRange {

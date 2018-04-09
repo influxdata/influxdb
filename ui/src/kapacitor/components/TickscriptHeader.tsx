@@ -1,17 +1,28 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-import SourceIndicator from 'shared/components/SourceIndicator'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
 import LogsToggle from 'src/kapacitor/components/LogsToggle'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
+import TickscriptSave, {Task} from 'src/kapacitor/components/TickscriptSave'
 
-const TickscriptHeader = ({
-  task: {id},
+interface Props {
+  task: Task
+  unsavedChanges: boolean
+  areLogsVisible: boolean
+  areLogsEnabled: boolean
+  isNewTickscript: boolean
+  onSave: () => void
+  onExit: () => void
+  onToggleLogsVisibility: () => void
+}
+
+const TickscriptHeader: SFC<Props> = ({
+  task,
   onSave,
   onExit,
   unsavedChanges,
-  areLogsVisible,
   areLogsEnabled,
+  areLogsVisible,
   isNewTickscript,
   onToggleLogsVisibility,
 }) => (
@@ -23,31 +34,17 @@ const TickscriptHeader = ({
       {areLogsEnabled && (
         <LogsToggle
           areLogsVisible={areLogsVisible}
-          areLogsEnabled={areLogsEnabled}
           onToggleLogsVisibility={onToggleLogsVisibility}
         />
       )}
       <div className="page-header__right">
         <SourceIndicator />
-        {isNewTickscript ? (
-          <button
-            className="btn btn-success btn-sm"
-            title="Name your TICKscript to save"
-            onClick={onSave}
-            disabled={!id}
-          >
-            Save New TICKscript
-          </button>
-        ) : (
-          <button
-            className="btn btn-success btn-sm"
-            title="You have unsaved changes"
-            onClick={onSave}
-            disabled={!unsavedChanges}
-          >
-            Save Changes
-          </button>
-        )}
+        <TickscriptSave
+          task={task}
+          onSave={onSave}
+          unsavedChanges={unsavedChanges}
+          isNewTickscript={isNewTickscript}
+        />
         {unsavedChanges ? (
           <ConfirmButton
             text="Exit"
@@ -67,25 +64,5 @@ const TickscriptHeader = ({
     </div>
   </div>
 )
-
-const {arrayOf, bool, func, shape, string} = PropTypes
-
-TickscriptHeader.propTypes = {
-  isNewTickscript: bool,
-  onSave: func,
-  onExit: func.isRequired,
-  areLogsVisible: bool,
-  areLogsEnabled: bool,
-  onToggleLogsVisibility: func.isRequired,
-  task: shape({
-    dbrps: arrayOf(
-      shape({
-        db: string,
-        rp: string,
-      })
-    ),
-  }),
-  unsavedChanges: bool,
-}
 
 export default TickscriptHeader

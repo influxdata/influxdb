@@ -54,7 +54,7 @@ describe('CheckSources', () => {
       expect(spinner.exists()).toBe(true)
     })
 
-    it('renders its children when it is done fetching', () => {
+    it('renders its children when it is done fetching', done => {
       const {wrapper} = setup()
 
       // ensure that assertion runs after async behavior of getSources
@@ -62,6 +62,7 @@ describe('CheckSources', () => {
         wrapper.update()
         const child = wrapper.find(MockChild)
         expect(child.exists()).toBe(true)
+        done()
       })
     })
   })

@@ -1,11 +1,14 @@
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import {withRouter} from 'react-router'
+import {withRouter, InjectedRouter} from 'react-router'
+import {Location} from 'history'
 import queryString from 'query-string'
 
 import _ from 'lodash'
+
+import {stripPrefix} from 'src/utils/basepath'
 
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
@@ -17,14 +20,45 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {VIS_VIEWS, AUTO_GROUP_BY, TEMPLATES} from 'src/shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
-import {errorThrown} from 'shared/actions/errors'
-import {setAutoRefresh} from 'shared/actions/app'
+import {errorThrown} from 'src/shared/actions/errors'
+import {setAutoRefresh} from 'src/shared/actions/app'
 import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
 import {writeLineProtocolAsync} from 'src/data_explorer/actions/view/write'
 import {buildRawText} from 'src/utils/influxql'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
-class DataExplorer extends Component {
+import {Source, Query, TimeRange} from 'src/types'
+
+interface Props {
+  source: Source
+  queryConfigs: Query[]
+  queryConfigActions: any // TODO: actually type these
+  autoRefresh: number
+  handleChooseAutoRefresh: () => void
+  router?: InjectedRouter
+  location?: Location
+  setTimeRange: (range: TimeRange) => void
+  timeRange: TimeRange
+  manualRefresh: number
+  onManualRefresh: () => void
+  errorThrownAction: () => void
+  writeLineProtocol: () => void
+}
+
+interface State {
+  showWriteForm: boolean
+}
+
+export class DataExplorer extends PureComponent<Props, State> {
+  public static childContextTypes = {
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
+  }
+
   constructor(props) {
     super(props)
 
@@ -33,51 +67,34 @@ class DataExplorer extends Component {
     }
   }
 
-  getActiveQuery = () => {
-    const {queryConfigs} = this.props
-
-    if (queryConfigs.length === 0) {
-      const qc = defaultQueryConfig()
-      this.props.queryConfigActions.addQuery(qc.id)
-      queryConfigs.push(qc)
-    }
-
-    return queryConfigs[0]
-  }
-
-  componentDidMount() {
-    const {router} = this.props
-    const {query} = queryString.parse(router.location.search)
+  public componentDidMount() {
+    const {source} = this.props
+    const {query} = queryString.parse(location.search)
     if (query && query.length) {
       const qc = this.props.queryConfigs[0]
-      this.props.queryConfigActions.editRawText(qc.id, query)
+      this.props.queryConfigActions.editRawTextAsync(
+        source.links.queries,
+        qc.id,
+        query
+      )
     }
   }
 
-  componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps) {
     const {router} = this.props
     const {queryConfigs, timeRange} = nextProps
+
     const query = buildRawText(_.get(queryConfigs, ['0'], ''), timeRange)
-    const qsCurrent = queryString.parse(router.location.search)
+    const qsCurrent = queryString.parse(location.search)
+
     if (query.length && qsCurrent.query !== query) {
       const qsNew = queryString.stringify({query})
-      router.push(`${router.location.pathname}?${qsNew}`)
+      const pathname = stripPrefix(location.pathname)
+      router.push(`${pathname}?${qsNew}`)
     }
   }
 
-  handleCloseWriteData = () => {
-    this.setState({showWriteForm: false})
-  }
-
-  handleOpenWriteData = () => {
-    this.setState({showWriteForm: true})
-  }
-
-  handleChooseTimeRange = bounds => {
-    this.props.setTimeRange(bounds)
-  }
-
-  render() {
+  public render() {
     const {
       source,
       timeRange,
@@ -92,7 +109,7 @@ class DataExplorer extends Component {
     } = this.props
 
     const {showWriteForm} = this.state
-    const selectedDatabase = _.get(queryConfigs, ['0', 'database'], null)
+
     return (
       <div className="data-explorer">
         {showWriteForm ? (
@@ -100,7 +117,7 @@ class DataExplorer extends Component {
             <WriteDataForm
               source={source}
               errorThrown={errorThrownAction}
-              selectedDatabase={selectedDatabase}
+              selectedDatabase={this.selectedDatabase}
               onClose={this.handleCloseWriteData}
               writeLineProtocol={writeLineProtocol}
             />
@@ -123,9 +140,9 @@ class DataExplorer extends Component {
         >
           <QueryMaker
             source={source}
+            rawText={this.rawText}
             actions={queryConfigActions}
-            timeRange={timeRange}
-            activeQuery={this.getActiveQuery()}
+            activeQuery={this.activeQuery}
             initialGroupByTime={AUTO_GROUP_BY}
           />
           <Visualization
@@ -143,51 +160,39 @@ class DataExplorer extends Component {
       </div>
     )
   }
-}
 
-const {arrayOf, func, number, shape, string} = PropTypes
+  private handleCloseWriteData = (): void => {
+    this.setState({showWriteForm: false})
+  }
 
-DataExplorer.propTypes = {
-  source: shape({
-    links: shape({
-      proxy: string.isRequired,
-      self: string.isRequired,
-      queries: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  router: shape({
-    location: shape({
-      search: string,
-      pathanme: string,
-    }),
-  }),
-  queryConfigs: arrayOf(shape({})).isRequired,
-  queryConfigActions: shape({
-    editQueryStatus: func.isRequired,
-  }).isRequired,
-  autoRefresh: number.isRequired,
-  handleChooseAutoRefresh: func.isRequired,
-  timeRange: shape({
-    upper: string,
-    lower: string,
-  }).isRequired,
-  setTimeRange: func.isRequired,
-  dataExplorer: shape({
-    queryIDs: arrayOf(string).isRequired,
-  }).isRequired,
-  writeLineProtocol: func.isRequired,
-  errorThrownAction: func.isRequired,
-  onManualRefresh: func.isRequired,
-  manualRefresh: number.isRequired,
-}
+  private handleOpenWriteData = (): void => {
+    this.setState({showWriteForm: true})
+  }
 
-DataExplorer.childContextTypes = {
-  source: shape({
-    links: shape({
-      proxy: string.isRequired,
-      self: string.isRequired,
-    }).isRequired,
-  }).isRequired,
+  private handleChooseTimeRange = (bounds: TimeRange): void => {
+    this.props.setTimeRange(bounds)
+  }
+
+  private get selectedDatabase(): string {
+    return _.get(this.props.queryConfigs, ['0', 'database'], null)
+  }
+
+  private get activeQuery(): Query {
+    const {queryConfigs} = this.props
+
+    if (queryConfigs.length === 0) {
+      const qc = defaultQueryConfig()
+      this.props.queryConfigActions.addQuery(qc.id)
+      queryConfigs.push(qc)
+    }
+
+    return queryConfigs[0]
+  }
+
+  get rawText(): string {
+    const {timeRange} = this.props
+    return buildRawText(this.activeQuery, timeRange)
+  }
 }
 
 const mapStateToProps = state => {

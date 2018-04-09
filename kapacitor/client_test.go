@@ -1306,7 +1306,7 @@ func TestClient_Create(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				rule: chronograf.AlertRule{
-					ID:   "howdy",
+					ID:   "",
 					Name: "myname's",
 					Query: &chronograf.QueryConfig{
 						Database:        "db",
@@ -1456,7 +1456,7 @@ trigger
 			args: args{
 				ctx: context.Background(),
 				rule: chronograf.AlertRule{
-					ID:   "howdy",
+					ID:   "",
 					Name: "myname's",
 					Query: &chronograf.QueryConfig{
 						Database:        "db",

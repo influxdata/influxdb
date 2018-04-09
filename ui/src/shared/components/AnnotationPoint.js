@@ -149,7 +149,7 @@ AnnotationPoint.propTypes = {
   dygraph: shape({}).isRequired,
   updateAnnotation: func.isRequired,
   updateAnnotationAsync: func.isRequired,
-  staticLegendHeight: number.isRequired,
+  staticLegendHeight: number,
 }
 
 const mdtp = {

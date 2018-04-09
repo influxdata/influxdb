@@ -1,6 +1,7 @@
 import React, {ReactElement, Component} from 'react'
 import PropTypes from 'prop-types'
-import {withRouter, Params, Router, Location} from 'react-router'
+import {withRouter, InjectedRouter} from 'react-router'
+import {Location} from 'history'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -32,12 +33,16 @@ interface State {
   isFetching: boolean
 }
 
+interface Params {
+  sourceID: string
+}
+
 interface Props {
   getSources: () => void
   sources: Source[]
   children: ReactElement<any>
   params: Params
-  router: Router
+  router: InjectedRouter
   location: Location
   auth: Auth
   notify: () => void

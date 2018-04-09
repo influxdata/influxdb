@@ -34,6 +34,15 @@ export interface AlertRule {
   'last-enabled'?: string
 }
 
+export interface Task {
+  id: string
+  name: string
+  status: string
+  tickscript: string
+  dbrps: DBRP[]
+  type: string
+}
+
 type TICKScript = string
 
 // AlertNodes defines all possible kapacitor interactions with an alert.
@@ -182,7 +191,7 @@ interface TriggerValues {
 }
 
 // DBRP represents a database and retention policy for a time series source
-interface DBRP {
+export interface DBRP {
   db: string
   rp: string
 }

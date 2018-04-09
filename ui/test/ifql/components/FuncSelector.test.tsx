@@ -1,13 +1,13 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import {FuncSelector} from 'src/ifql/components/FuncSelector'
-import DropdownInput from 'src/shared/components/DropdownInput'
+import FuncSelectorInput from 'src/shared/components/FuncSelectorInput'
 import FuncListItem from 'src/ifql/components/FuncListItem'
 import FuncList from 'src/ifql/components/FuncList'
 
 const setup = (override = {}) => {
   const props = {
-    funcs: ['f1', 'f2'],
+    funcs: ['count', 'range'],
     onAddNode: () => {},
     ...override,
   }
@@ -15,6 +15,7 @@ const setup = (override = {}) => {
   const wrapper = shallow(<FuncSelector {...props} />)
 
   return {
+    props,
     wrapper,
   }
 }
@@ -41,7 +42,8 @@ describe('IFQL.Components.FuncsButton', () => {
   describe('user interraction', () => {
     describe('clicking the add function button', () => {
       it('displays the list of functions', () => {
-        const {wrapper} = setup()
+        const {wrapper, props} = setup()
+        const [func1, func2] = props.funcs
 
         const dropdownButton = wrapper.find('button')
         dropdownButton.simulate('click')
@@ -55,14 +57,15 @@ describe('IFQL.Components.FuncsButton', () => {
         const last = list.last().dive()
 
         expect(list.length).toBe(2)
-        expect(first.text()).toBe('f1')
-        expect(last.text()).toBe('f2')
+        expect(first.text()).toBe(func1)
+        expect(last.text()).toBe(func2)
       })
     })
 
     describe('filtering the list', () => {
       it('displays the filtered funcs', () => {
-        const {wrapper} = setup()
+        const {wrapper, props} = setup()
+        const [func1, func2] = props.funcs
 
         const dropdownButton = wrapper.find('button')
         dropdownButton.simulate('click')
@@ -76,17 +79,17 @@ describe('IFQL.Components.FuncsButton', () => {
         const last = list.last().dive()
 
         expect(list.length).toBe(2)
-        expect(first.text()).toBe('f1')
-        expect(last.text()).toBe('f2')
+        expect(first.text()).toBe(func1)
+        expect(last.text()).toBe(func2)
 
         const input = wrapper
           .find(FuncList)
           .dive()
-          .find(DropdownInput)
+          .find(FuncSelectorInput)
           .dive()
           .find('input')
 
-        input.simulate('change', {target: {value: '2'}})
+        input.simulate('change', {target: {value: 'ra'}})
         wrapper.update()
 
         list = wrapper
@@ -94,10 +97,10 @@ describe('IFQL.Components.FuncsButton', () => {
           .dive()
           .find(FuncListItem)
 
-        const func = list.first().dive()
+        const func = list.first()
 
         expect(list.length).toBe(1)
-        expect(func.text()).toBe('f2')
+        expect(func.dive().text()).toBe(func2)
       })
     })
 
@@ -108,29 +111,43 @@ describe('IFQL.Components.FuncsButton', () => {
         const dropdownButton = wrapper.find('button')
         dropdownButton.simulate('click')
 
-        let list = wrapper
-          .find(FuncList)
-          .dive()
-          .find(FuncListItem)
-
-        expect(list.exists()).toBe(true)
-
-        const input = wrapper
-          .find(FuncList)
-          .dive()
-          .find(DropdownInput)
+        let list = wrapper.find(FuncList).dive()
+        const input = list
+          .find(FuncSelectorInput)
           .dive()
           .find('input')
 
         input.simulate('keyDown', {key: 'Escape'})
         wrapper.update()
 
-        list = wrapper
-          .find(FuncList)
-          .dive()
-          .find(FuncListItem)
+        list = wrapper.find(FuncList)
 
         expect(list.exists()).toBe(false)
+      })
+    })
+
+    describe('selecting a function with the keyboard', () => {
+      describe('ArrowDown', () => {
+        it('adds a function to the page', () => {
+          const onAddNode = jest.fn()
+          const {wrapper, props} = setup({onAddNode})
+          const [, func2] = props.funcs
+
+          const dropdownButton = wrapper.find('button')
+          dropdownButton.simulate('click')
+
+          const list = wrapper.find(FuncList).dive()
+
+          const input = list
+            .find(FuncSelectorInput)
+            .dive()
+            .find('input')
+
+          input.simulate('keyDown', {key: 'ArrowDown'})
+          input.simulate('keyDown', {key: 'Enter'})
+
+          expect(onAddNode).toHaveBeenCalledWith(func2)
+        })
       })
     })
   })

@@ -7,7 +7,9 @@
       "enzyme",
       "react",
       "prop-types",
-      "jest"
+      "jest",
+      "react-router",
+      "text-encoding"
     ],
     "target": "es6",
     "module": "es2015",

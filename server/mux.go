@@ -279,14 +279,17 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/chronograf/v1/sources/:id/dbs", EnsureViewer(service.GetDatabases))
 	router.POST("/chronograf/v1/sources/:id/dbs", EnsureEditor(service.NewDatabase))
 
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid", EnsureEditor(service.DropDatabase))
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:db", EnsureEditor(service.DropDatabase))
 
 	// Retention Policies
-	router.GET("/chronograf/v1/sources/:id/dbs/:dbid/rps", EnsureViewer(service.RetentionPolicies))
-	router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", EnsureEditor(service.NewRetentionPolicy))
+	router.GET("/chronograf/v1/sources/:id/dbs/:db/rps", EnsureViewer(service.RetentionPolicies))
+	router.POST("/chronograf/v1/sources/:id/dbs/:db/rps", EnsureEditor(service.NewRetentionPolicy))
 
-	router.PUT("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.UpdateRetentionPolicy))
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", EnsureEditor(service.DropRetentionPolicy))
+	router.PUT("/chronograf/v1/sources/:id/dbs/:db/rps/:rp", EnsureEditor(service.UpdateRetentionPolicy))
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:db/rps/:rp", EnsureEditor(service.DropRetentionPolicy))
+
+	// Measurements
+	router.GET("/chronograf/v1/sources/:id/dbs/:db/measurements", EnsureViewer(service.Measurements))
 
 	// Global application config for Chronograf
 	router.GET("/chronograf/v1/config", EnsureSuperAdmin(service.Config))

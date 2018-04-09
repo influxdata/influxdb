@@ -1,19 +1,40 @@
-.func-node-container {
+.func-nodes-container {
   display: inline-flex;
   flex-direction: column;
 }
 
 .func-node {
+  display: flex;
+}
+
+.func-node--name {
   background: #252b35;
   border-radius: $radius-small;
   padding: 10px;
   width: auto;
   display: flex;
-  flex-direction: column;
   color: $ix-text-default;
   text-transform: uppercase;
-  margin: $ix-marg-a;
+  margin-bottom: $ix-marg-a;
   font-family: $ix-text-font;
   font-weight: 500;
   cursor: pointer;
+}
+
+.func-args {
+  background: #252b35;
+  border-radius: $radius-small;
+  padding: 10px;
+  margin-bottom: $ix-marg-a;
+  width: auto;
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  color: $ix-text-default;
+  font-family: $ix-text-font;
+  font-weight: 500;
+}
+
+.func-arg {
+  display: flex;
 }

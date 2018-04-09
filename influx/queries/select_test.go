@@ -16,6 +16,7 @@ func TestSelect(t *testing.T) {
 		{q: `SELECT derivative(field1, 1h) / derivative(field2, 1h) FROM myseries`},
 		{q: `SELECT mean("load1") FROM "system" WHERE "cluster_id" =~ /^$ClusterID$/ AND time > now() - 1h GROUP BY time(10m), "host" fill(null)`},
 		{q: "SELECT max(\"n_cpus\") AS \"max_cpus\", non_negative_derivative(median(\"n_users\"), 5m) FROM \"system\" WHERE \"cluster_id\" =~ /^23/ AND \"host\" = 'prod-2ccccc04-us-east-1-data-3' AND time > now() - 15m GROUP BY time(15m, 10s),host,tag_x fill(10)"},
+		{q: "SELECT mean(\"usage_user\") AS \"mean_usage_user\" FROM \"telegraf\".\"default\".\"cpu\" WHERE host =~ /\\./ AND time > now() - 1h"},
 		{q: `SELECT 1 + "A" FROM howdy`},
 	}
 

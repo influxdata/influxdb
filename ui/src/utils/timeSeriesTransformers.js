@@ -1,6 +1,7 @@
 import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, filter, forEach, concat, clone} from 'fast.js'
+import {calculateColumnWidths} from 'src/dashboards/utils/tableGraph'
 
 /**
  * Accepts an array of raw influxdb responses and returns a format
@@ -215,7 +216,8 @@ export const processTableData = (
   sortFieldName,
   direction,
   verticalTimeAxis,
-  fieldNames
+  fieldNames,
+  timeFormat
 ) => {
   const sortIndex = _.indexOf(data[0], sortFieldName)
   const sortedData = [
@@ -226,8 +228,13 @@ export const processTableData = (
   const filteredData = filterTableColumns(sortedData, fieldNames)
   const orderedData = orderTableColumns(filteredData, fieldNames)
   const processedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
-
-  return {processedData, sortedTimeVals}
+  const {widths: columnWidths, totalWidths} = calculateColumnWidths(
+    processedData,
+    fieldNames,
+    timeFormat,
+    verticalTimeAxis
+  )
+  return {processedData, sortedTimeVals, columnWidths, totalWidths}
 }
 
 export default timeSeriesToDygraph

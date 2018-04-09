@@ -1,6 +1,6 @@
 import {AuthLinks, Organization, Role, User, Me} from './auth'
-import {AlertRule, Kapacitor} from './kapacitor'
-import {Query, QueryConfig} from './query'
+import {Query, QueryConfig, TimeRange} from './query'
+import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source} from './sources'
 import {DropdownAction, DropdownItem} from './shared'
 
@@ -17,4 +17,6 @@ export {
   Source,
   DropdownAction,
   DropdownItem,
+  TimeRange,
+  Task,
 }

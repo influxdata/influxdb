@@ -1,37 +1,41 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import RedactedInput from './RedactedInput'
 
-class PagerDutyConfig extends Component {
+interface Properties {
+  'service-key': string
+  url: string
+}
+
+interface Config {
+  options: {
+    'service-key': boolean
+    url: string
+  }
+}
+
+interface Props {
+  config: Config
+  onSave: (properties: Properties) => void
+  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  enabled: boolean
+}
+
+interface State {
+  testEnabled: boolean
+}
+
+class PagerDutyConfig extends PureComponent<Props, State> {
+  private serviceKey: HTMLInputElement
+  private url: HTMLInputElement
+
   constructor(props) {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
     }
-    this.refFunc = r => {
-      this.serviceKey = r
-    }
   }
 
-  handleSubmit = async e => {
-    e.preventDefault()
-
-    const properties = {
-      'service-key': this.serviceKey.value,
-      url: this.url.value,
-    }
-
-    const success = await this.props.onSave(properties)
-    if (success) {
-      this.setState({testEnabled: true})
-    }
-  }
-
-  disableTest = () => {
-    this.setState({testEnabled: false})
-  }
-
-  render() {
+  public render() {
     const {options} = this.props.config
     const {url} = options
     const serviceKey = options['service-key']
@@ -40,9 +44,9 @@ class PagerDutyConfig extends Component {
         <div className="form-group col-xs-12">
           <label htmlFor="service-key">Service Key</label>
           <RedactedInput
-            defaultValue={serviceKey || ''}
+            defaultValue={serviceKey}
             id="service-key"
-            refFunc={this.refFunc}
+            refFunc={this.handleServiceKeyRef}
             disableTest={this.disableTest}
           />
         </div>
@@ -80,20 +84,26 @@ class PagerDutyConfig extends Component {
       </form>
     )
   }
-}
 
-const {bool, func, shape, string} = PropTypes
+  private handleServiceKeyRef = r => (this.serviceKey = r)
 
-PagerDutyConfig.propTypes = {
-  config: shape({
-    options: shape({
-      'service-key': bool.isRequired,
-      url: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  onSave: func.isRequired,
-  onTest: func.isRequired,
-  enabled: bool.isRequired,
+  private handleSubmit = async e => {
+    e.preventDefault()
+
+    const properties = {
+      'service-key': this.serviceKey.value,
+      url: this.url.value,
+    }
+
+    const success = await this.props.onSave(properties)
+    if (success) {
+      this.setState({testEnabled: true})
+    }
+  }
+
+  private disableTest = () => {
+    this.setState({testEnabled: false})
+  }
 }
 
 export default PagerDutyConfig

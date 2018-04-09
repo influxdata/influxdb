@@ -13,6 +13,12 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
+type literalJSON struct {
+	Expr string `json:"expr"`
+	Val  string `json:"val"`
+	Type string `json:"type"`
+}
+
 func ParseSelect(q string) (*SelectStatement, error) {
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
@@ -115,8 +121,13 @@ func (p *ParenExpr) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`{"expr": "paren", "val": %s}`, expr)), nil
 }
 
-func LiteralJSON(lit string, litType string) []byte {
-	return []byte(fmt.Sprintf(`{"expr": "literal", "val": "%s", "type": "%s"}`, lit, litType))
+func LiteralJSON(lit string, litType string) ([]byte, error) {
+	result := literalJSON{
+		Expr: "literal",
+		Val:  lit,
+		Type: litType,
+	}
+	return json.Marshal(result)
 }
 
 type BooleanLiteral struct {
@@ -124,7 +135,7 @@ type BooleanLiteral struct {
 }
 
 func (b *BooleanLiteral) MarshalJSON() ([]byte, error) {
-	return LiteralJSON(b.String(), "boolean"), nil
+	return LiteralJSON(b.String(), "boolean")
 }
 
 type DurationLiteral struct {
@@ -132,7 +143,7 @@ type DurationLiteral struct {
 }
 
 func (d *DurationLiteral) MarshalJSON() ([]byte, error) {
-	return LiteralJSON(d.String(), "duration"), nil
+	return LiteralJSON(d.String(), "duration")
 }
 
 type IntegerLiteral struct {
@@ -140,7 +151,7 @@ type IntegerLiteral struct {
 }
 
 func (i *IntegerLiteral) MarshalJSON() ([]byte, error) {
-	return LiteralJSON(i.String(), "integer"), nil
+	return LiteralJSON(i.String(), "integer")
 }
 
 type NumberLiteral struct {
@@ -148,7 +159,7 @@ type NumberLiteral struct {
 }
 
 func (n *NumberLiteral) MarshalJSON() ([]byte, error) {
-	return LiteralJSON(n.String(), "number"), nil
+	return LiteralJSON(n.String(), "number")
 }
 
 type RegexLiteral struct {
@@ -156,7 +167,7 @@ type RegexLiteral struct {
 }
 
 func (r *RegexLiteral) MarshalJSON() ([]byte, error) {
-	return LiteralJSON(r.String(), "regex"), nil
+	return LiteralJSON(r.String(), "regex")
 }
 
 // TODO: I don't think list is right
@@ -178,7 +189,7 @@ type StringLiteral struct {
 }
 
 func (s *StringLiteral) MarshalJSON() ([]byte, error) {
-	return LiteralJSON(s.Val, "string"), nil
+	return LiteralJSON(s.Val, "string")
 }
 
 type TimeLiteral struct {
@@ -186,7 +197,7 @@ type TimeLiteral struct {
 }
 
 func (t *TimeLiteral) MarshalJSON() ([]byte, error) {
-	return LiteralJSON(t.Val.UTC().Format(time.RFC3339Nano), "time"), nil
+	return LiteralJSON(t.Val.UTC().Format(time.RFC3339Nano), "time")
 }
 
 type VarRef struct {

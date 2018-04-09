@@ -7,6 +7,8 @@
 1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
 1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add tabular data visualization option with features
 1.  [#3120](https://github.com/influxdata/chronograf/pull/3120): Change :interval: to represent a raw influxql duration value
+1.  [#2832](https://github.com/influxdata/chronograf/pull/2832): Add paginated measurements API to server
+1.  [#3148](https://github.com/influxdata/chronograf/pull/3148): Data explorer measurements can be toggled open
 
 ### UI Improvements
 
@@ -18,8 +20,16 @@
 ### Bug Fixes
 
 1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
+1.  [#3104](https://github.com/influxdata/chronograf/pull/3104): Query annotations at auto-refresh interval
 1.  [#3109](https://github.com/influxdata/chronograf/pull/3109): Display link to configure Kapacitor on Alerts Page if no configured kapacitor.
 1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
+1.  [#3130](https://github.com/influxdata/chronograf/pull/3130): Fix appearance of cell Y-Axis titles
+1.  [#3129](https://github.com/influxdata/chronograf/pull/3129): Only add stateChangesOnly to new rules
+1.  [#3131](https://github.com/influxdata/chronograf/pull/3131): Fix 500s when deleting organizations
+1.  [#3137](https://github.com/influxdata/chronograf/pull/3137): Fixes issues with providing regexp in query
+1.  [#3144](https://github.com/influxdata/chronograf/pull/3144): Ensure correct basepath prefix in URL pathname when passing InfluxQL query param to Data Explorer
+1.  [#3128](https://github.com/influxdata/chronograf/pull/3128): Fix type error bug in Kapacitor Alert Config page and persist deleting of team and recipient in OpsGenieConfig
+1.  [#3149](https://github.com/influxdata/chronograf/pull/3149): Fixes errors caused by switching query tabs in CEO
 
 ## v1.4.3.1 [2018-04-02]
 
@@ -29,7 +39,7 @@
 1.  [#3094](https://github.com/influxdata/chronograf/pull/3094): Save template variables on first edit
 1.  [#3101](https://github.com/influxdata/chronograf/pull/3101): Fix template variables not loading all values
 
-## v1.4.3.0 [2018-3-28]
+## v1.4.3.0 [2018-03-28]
 
 ### Features
 
@@ -75,6 +85,7 @@
 1.  [#2837](https://github.com/influxdata/chronograf/pull/2837): Prevent execution of queries in cells that are not in view on the dashboard page
 1.  [#2829](https://github.com/influxdata/chronograf/pull/2829): Add an optional persistent legend which can toggle series visibility to dashboard cells
 1.  [#2846](https://github.com/influxdata/chronograf/pull/2846): Allow user to annotate graphs via UI or API
+
 ### UI Improvements
 
 1.  [#2848](https://github.com/influxdata/chronograf/pull/2848): Add ability to set a prefix and suffix on Single Stat and Gauge cell types
