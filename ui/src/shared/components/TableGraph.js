@@ -187,7 +187,7 @@ class TableGraph extends Component {
     })
   }
 
-  calculateColumnWidth = __ => column => {
+  calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
     const {tableOptions: {fixFirstColumn}} = this.props
     const {processedData, columnWidths, totalColumnWidths} = this.state
@@ -198,8 +198,12 @@ class TableGraph extends Component {
 
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     if (tableWidth > totalColumnWidths) {
+      if (columnCount === 1) {
+        return columnSizerWidth
+      }
       const difference = tableWidth - totalColumnWidths
-      const distributeOver = fixFirstColumn ? columnCount - 1 : columnCount
+      const distributeOver =
+        fixFirstColumn && columnCount > 1 ? columnCount - 1 : columnCount
       const increment = difference / distributeOver
       adjustedColumnSizerWidth =
         fixFirstColumn && index === 0
