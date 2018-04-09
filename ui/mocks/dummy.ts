@@ -20,6 +20,15 @@ export const source = {
   },
 }
 
+const rule = {
+  id: '1',
+  name: 't1',
+  status: 'enabled',
+  tickscript: 'foo',
+  dbrps: [{name: 'db1', rp: 'rp1'}],
+  type: 'stream',
+}
+
 export const kapacitor = {
   id: '1',
   name: 'Test Kapacitor',
@@ -30,6 +39,8 @@ export const kapacitor = {
     self: '/chronograf/v1/sources/47/kapacitors/1',
     proxy: '/chronograf/v1/sources/47/kapacitors/1/proxy',
   },
+  rules: [rule],
+  status: 'enabled',
 }
 
 export const createKapacitorBody = {
