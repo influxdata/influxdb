@@ -7,15 +7,15 @@ import {
   THRESHOLD_TYPE_TEXT,
 } from 'shared/constants/thresholds'
 
-const luminanceThreshold = 0.5
-
 const getLegibleTextColor = bgColorHex => {
   const darkText = '#292933'
   const lightText = '#ffffff'
 
-  return chroma(bgColorHex).luminance() < luminanceThreshold
-    ? darkText
-    : lightText
+  const [red, green, blue] = chroma(bgColorHex).rgb()
+  const average = (red + green + blue) / 3
+  const mediumGrey = 128
+
+  return average > mediumGrey ? darkText : lightText
 }
 
 const findNearestCrossedThreshold = (colors, lastValue) => {
