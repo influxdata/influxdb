@@ -3,7 +3,29 @@ import classnames from 'classnames'
 import React, {PureComponent, MouseEvent} from 'react'
 import TagList from 'src/shared/components/TagList'
 
-import {Query, Source} from 'src/types'
+interface SourceLinks {
+  proxy: string
+}
+
+interface Source {
+  links: SourceLinks
+}
+
+interface GroupBy {
+  tags?: string[]
+}
+
+interface Tags {
+  [key: string]: string[]
+}
+
+interface Query {
+  database: string
+  measurement: string
+  retentionPolicy: string
+  tags: Tags
+  groupBy: GroupBy
+}
 
 interface Props {
   query: Query
