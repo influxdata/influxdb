@@ -57,7 +57,6 @@ class Dygraph extends Component {
       logscale: y.scale === LOG,
       colors: this.getLineColors(),
       series: this.colorDygraphSeries(),
-      plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
       axes: {
         y: {
           valueRange: this.getYRange(timeSeries),
@@ -79,7 +78,6 @@ class Dygraph extends Component {
       defaultOptions = {
         ...defaultOptions,
         plotter: barPlotter,
-        plugins: [],
         highlightSeriesOpts: {
           ...highlightSeriesOpts,
           highlightCircleSize: 0,
@@ -221,23 +219,6 @@ class Dygraph extends Component {
     return `${clamped}`
   }
 
-  handleMouseMove = e => {
-    if (this.props.onSetHoverTime) {
-      const newTime = this.eventToTimestamp(e)
-      this.props.onSetHoverTime(newTime)
-    }
-
-    this.setState({isHoveringThisGraph: true})
-  }
-
-  handleMouseOut = () => {
-    if (this.props.onSetHoverTime) {
-      this.props.onSetHoverTime(NULL_HOVER_TIME)
-    }
-
-    this.setState({isHoveringThisGraph: false})
-  }
-
   handleHideLegend = () => {
     this.setState({isHidden: true})
   }
@@ -288,17 +269,18 @@ class Dygraph extends Component {
     return date.toISOString()
   }
 
-  deselectCrosshair = () => {
-    const plugins = this.dygraph.plugins_
-    const crosshair = plugins.find(
-      ({plugin}) => plugin.toString() === 'Crosshair Plugin'
-    )
-
-    if (!crosshair || this.props.isBarGraph) {
-      return
+  handleMouseMove = e => {
+    if (this.props.handleSetHoverTime) {
+      const newTime = this.eventToTimestamp(e)
+      this.props.handleSetHoverTime(newTime)
     }
 
-    crosshair.plugin.deselect()
+    this.setState({isHoveringThisGraph: true})
+  }
+
+  handleMouseLeave = () => {
+    this.props.handleSetHoverTime(NULL_HOVER_TIME)
+    this.setState({isHoveringThisGraph: false})
   }
 
   handleShowLegend = () => {
@@ -312,7 +294,7 @@ class Dygraph extends Component {
   }
 
   render() {
-    const {isHidden, staticLegendHeight, isHoveringThisGraph} = this.state
+    const {isHidden, staticLegendHeight} = this.state
     const {staticLegend, children, hoverTime} = this.props
     const nestedGraph = (children && children.length && children[0]) || children
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
@@ -327,7 +309,7 @@ class Dygraph extends Component {
     }
 
     return (
-      <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
+      <div className="dygraph-child" onMouseLeave={this.handleMouseLeave}>
         {this.dygraph && (
           <div className="dygraph-addons">
             <Annotations
@@ -341,13 +323,11 @@ class Dygraph extends Component {
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
             />
-            {!isHoveringThisGraph && (
-              <Crosshair
-                dygraph={this.dygraph}
-                staticLegendHeight={staticLegendHeight}
-                hoverTime={hoverTime}
-              />
-            )}
+            <Crosshair
+              dygraph={this.dygraph}
+              staticLegendHeight={staticLegendHeight}
+              hoverTime={hoverTime}
+            />
           </div>
         )}
         <div
@@ -357,7 +337,7 @@ class Dygraph extends Component {
           }}
           className="dygraph-child-container"
           style={dygraphStyle}
-          onMouseMove={this.handleMouseMove}
+          onMouseMove={_.throttle(this.handleMouseMove, 100)}
           onMouseOut={this.handleMouseOut}
         />
         {staticLegend && (
@@ -403,6 +383,7 @@ Dygraph.defaultProps = {
 }
 
 Dygraph.propTypes = {
+  handleSetHoverTime: func,
   axes: shape({
     y: shape({
       bounds: array,
@@ -435,7 +416,6 @@ Dygraph.propTypes = {
     lower: string.isRequired,
   }),
   hoverTime: string,
-  onSetHoverTime: func,
   setResolution: func,
   dygraphRef: func,
   onZoom: func,

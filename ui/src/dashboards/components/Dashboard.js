@@ -25,8 +25,6 @@ const Dashboard = ({
   showTemplateControlBar,
   setScrollTop,
   inView,
-  onSetHoverTime,
-  hoverTime,
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {
@@ -67,8 +65,6 @@ const Dashboard = ({
             timeRange={timeRange}
             autoRefresh={autoRefresh}
             manualRefresh={manualRefresh}
-            hoverTime={hoverTime}
-            onSetHoverTime={onSetHoverTime}
             onDeleteCell={onDeleteCell}
             onPositionChange={onPositionChange}
             templates={templatesIncludingDashTime}
@@ -116,8 +112,6 @@ Dashboard.propTypes = {
   onPositionChange: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  hoverTime: string,
-  onSetHoverTime: func,
   source: shape({
     links: shape({
       proxy: string,
