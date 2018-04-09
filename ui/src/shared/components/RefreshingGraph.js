@@ -25,7 +25,6 @@ const RefreshingGraph = ({
   cellID,
   queries,
   tableOptions,
-  setDataLabels,
   templates,
   timeRange,
   cellHeight,
@@ -101,7 +100,6 @@ const RefreshingGraph = ({
         hoverTime={hoverTime}
         onSetHoverTime={onSetHoverTime}
         inView={inView}
-        setDataLabels={setDataLabels}
       />
     )
   }
@@ -160,7 +158,6 @@ RefreshingGraph.propTypes = {
   cellID: string,
   inView: bool,
   tableOptions: shape({}),
-  setDataLabels: func,
 }
 
 RefreshingGraph.defaultProps = {
