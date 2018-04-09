@@ -16,6 +16,7 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
+import {QueryConfig} from 'src/types/query'
 
 interface Option {
   text: string
@@ -37,88 +38,15 @@ interface Options {
 }
 
 interface Props {
+  queryConfigs: QueryConfig[]
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
   onResetFocus: () => void
-  dataLabels: string[]
 }
 
 export class TableOptions extends PureComponent<Props, {}> {
   constructor(props) {
     super(props)
-  }
-
-  get fieldNames() {
-    const {tableOptions: {fieldNames}} = this.props
-    return fieldNames || []
-  }
-
-  get timeField() {
-    return (
-      this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
-    )
-  }
-
-  get computedFieldNames() {
-    const {dataLabels} = this.props
-
-    return _.isEmpty(dataLabels)
-      ? [this.timeField]
-      : dataLabels.map(label => {
-          const existing = this.fieldNames.find(f => f.internalName === label)
-          return (
-            existing || {internalName: label, displayName: '', visible: true}
-          )
-        })
-  }
-
-  public handleChooseSortBy = (option: Option) => {
-    const {tableOptions, handleUpdateTableOptions} = this.props
-    const sortBy = {
-      displayName: option.text === option.key ? '' : option.text,
-      internalName: option.key,
-      visible: true,
-    }
-
-    handleUpdateTableOptions({...tableOptions, sortBy})
-  }
-
-  public handleTimeFormatChange = timeFormat => {
-    const {tableOptions, handleUpdateTableOptions} = this.props
-    handleUpdateTableOptions({...tableOptions, timeFormat})
-  }
-
-  public handleToggleVerticalTimeAxis = verticalTimeAxis => () => {
-    const {tableOptions, handleUpdateTableOptions} = this.props
-    handleUpdateTableOptions({...tableOptions, verticalTimeAxis})
-  }
-
-  public handleToggleFixFirstColumn = () => {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const fixFirstColumn = !tableOptions.fixFirstColumn
-    handleUpdateTableOptions({...tableOptions, fixFirstColumn})
-  }
-
-  public handleFieldUpdate = field => {
-    const {handleUpdateTableOptions, tableOptions, dataLabels} = this.props
-    const {sortBy, fieldNames} = tableOptions
-    const fields =
-      fieldNames.length >= dataLabels.length
-        ? fieldNames
-        : this.computedFieldNames
-    const updatedFields = fields.map(
-      f => (f.internalName === field.internalName ? field : f)
-    )
-    const updatedSortBy =
-      sortBy.internalName === field.internalName
-        ? {...sortBy, displayName: field.displayName}
-        : sortBy
-
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: updatedFields,
-      sortBy: updatedSortBy,
-    })
   }
 
   public componentWillMount() {
@@ -130,14 +58,13 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   public shouldComponentUpdate(nextProps) {
-    const {tableOptions, dataLabels} = this.props
+    const {tableOptions} = this.props
     const tableOptionsDifferent = !_.isEqual(
       tableOptions,
       nextProps.tableOptions
     )
-    const dataLabelsDifferent = !_.isEqual(dataLabels, nextProps.dataLabels)
 
-    return tableOptionsDifferent || dataLabelsDifferent
+    return tableOptionsDifferent
   }
 
   public render() {
@@ -147,12 +74,10 @@ export class TableOptions extends PureComponent<Props, {}> {
       tableOptions,
     } = this.props
 
-    const tableSortByOptions = this.computedFieldNames.map(field => ({
+    const tableSortByOptions = this.fieldNames.map(field => ({
       key: field.internalName,
       text: field.displayName || field.internalName,
     }))
-
-    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
 
     return (
       <FancyScrollbar
@@ -181,7 +106,7 @@ export class TableOptions extends PureComponent<Props, {}> {
             />
           </div>
           <GraphOptionsCustomizeFields
-            fields={fields}
+            fields={fieldNames}
             onFieldUpdate={this.handleFieldUpdate}
           />
           <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />
@@ -191,6 +116,79 @@ export class TableOptions extends PureComponent<Props, {}> {
         </div>
       </FancyScrollbar>
     )
+  }
+
+  private get fieldNames() {
+    const {tableOptions: {fieldNames}} = this.props
+    return fieldNames || []
+  }
+
+  private get timeField() {
+    return (
+      this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
+    )
+  }
+
+  private get computedFieldNames() {
+    const {queryConfigs} = this.props
+    const queryFields = _.flatten(
+      queryConfigs.map(({measurement, fields}) => {
+        return fields.map(({alias}) => {
+          const internalName = `${measurement}.${alias}`
+          const existing = this.fieldNames.find(
+            c => c.internalName === internalName
+          )
+          return existing || {internalName, displayName: '', visible: true}
+        })
+      })
+    )
+
+    return [this.timeField, ...queryFields]
+  }
+
+  private handleChooseSortBy = (option: Option) => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    const sortBy = {
+      displayName: option.text === option.key ? '' : option.text,
+      internalName: option.key,
+      visible: true,
+    }
+
+    handleUpdateTableOptions({...tableOptions, sortBy})
+  }
+
+  private handleTimeFormatChange = timeFormat => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, timeFormat})
+  }
+
+  private handleToggleVerticalTimeAxis = verticalTimeAxis => () => {
+    const {tableOptions, handleUpdateTableOptions} = this.props
+    handleUpdateTableOptions({...tableOptions, verticalTimeAxis})
+  }
+
+  private handleToggleFixFirstColumn = () => {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const fixFirstColumn = !tableOptions.fixFirstColumn
+    handleUpdateTableOptions({...tableOptions, fixFirstColumn})
+  }
+
+  private handleFieldUpdate = field => {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const {sortBy, fieldNames} = tableOptions
+    const updatedFields = fieldNames.map(
+      f => (f.internalName === field.internalName ? field : f)
+    )
+    const updatedSortBy =
+      sortBy.internalName === field.internalName
+        ? {...sortBy, displayName: field.displayName}
+        : sortBy
+
+    handleUpdateTableOptions({
+      ...tableOptions,
+      fieldNames: updatedFields,
+      sortBy: updatedSortBy,
+    })
   }
 }
 
