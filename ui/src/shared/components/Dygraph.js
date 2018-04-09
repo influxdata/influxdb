@@ -236,6 +236,7 @@ class Dygraph extends Component {
       const newTime = this.eventToTimestamp(e)
       this.props.onSetHoverTime(newTime)
     }
+
     this.setState({isHoveringThisGraph: true})
   }
 
@@ -243,22 +244,12 @@ class Dygraph extends Component {
     if (this.props.onSetHoverTime) {
       this.props.onSetHoverTime(NULL_HOVER_TIME)
     }
+
     this.setState({isHoveringThisGraph: false})
   }
 
-  handleHideLegend = e => {
-    const {top, bottom, left, right} = this.graphRef.getBoundingClientRect()
-
-    const mouseY = e.clientY
-    const mouseX = e.clientX
-
-    const mouseInGraphY = mouseY <= bottom && mouseY >= top
-    const mouseInGraphX = mouseX <= right && mouseX >= left
-    const isMouseHoveringGraph = mouseInGraphY && mouseInGraphX
-
-    if (!isMouseHoveringGraph) {
-      this.setState({isHidden: true})
-    }
+  handleHideLegend = () => {
+    this.setState({isHidden: true})
   }
 
   getLineColors = () => {
