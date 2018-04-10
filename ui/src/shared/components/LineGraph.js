@@ -44,6 +44,7 @@ class LineGraph extends Component {
       colors,
       onZoom,
       queries,
+      hoverTime,
       timeRange,
       cellHeight,
       ruleValues,
@@ -58,8 +59,7 @@ class LineGraph extends Component {
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
-      hoverTime,
-      onSetHoverTime,
+      handleSetHoverTime,
     } = this.props
 
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
@@ -101,20 +101,20 @@ class LineGraph extends Component {
         <Dygraph
           cell={cell}
           axes={axes}
+          colors={colors}
           onZoom={onZoom}
           labels={labels}
+          hoverTime={hoverTime}
           queries={queries}
           options={options}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
-          hoverTime={hoverTime}
-          onSetHoverTime={onSetHoverTime}
           resizeCoords={resizeCoords}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
-          colors={colors}
+          handleSetHoverTime={handleSetHoverTime}
           overrideLineColors={overrideLineColors}
           containerStyle={containerStyle}
           staticLegend={staticLegend}
@@ -170,6 +170,8 @@ LineGraph.propTypes = {
       label: string,
     }),
   }),
+  hoverTime: string,
+  handleSetHoverTime: func,
   title: string,
   isFetchingInitially: bool,
   isRefreshing: bool,
@@ -189,8 +191,6 @@ LineGraph.propTypes = {
     lower: string.isRequired,
   }),
   isInDataExplorer: bool,
-  hoverTime: string,
-  onSetHoverTime: func,
   setResolution: func,
   cellHeight: number,
   cell: shape(),
