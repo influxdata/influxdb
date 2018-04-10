@@ -31,6 +31,7 @@ import {
   notifyAlertEndpointSaveFailed,
   notifyTestAlertSent,
   notifyTestAlertFailed,
+  notifyCouldNotRetrieveKapacitorServices,
 } from 'shared/copy/notifications'
 import DeprecationWarning from 'src/admin/components/DeprecationWarning'
 
@@ -45,10 +46,15 @@ class AlertTabs extends Component {
   }
 
   async componentDidMount() {
-    this.refreshKapacitorConfig(this.props.kapacitor)
-    const services = await getAllServices(this.props.kapacitor)
-
-    this.setState({services})
+    const {kapacitor} = this.props
+    try {
+      this.refreshKapacitorConfig(kapacitor)
+      const services = await getAllServices(kapacitor)
+      this.setState({services})
+    } catch (error) {
+      this.setState({services: null})
+      this.props.notify(notifyCouldNotRetrieveKapacitorServices(kapacitor))
+    }
   }
 
   componentWillReceiveProps(nextProps) {
