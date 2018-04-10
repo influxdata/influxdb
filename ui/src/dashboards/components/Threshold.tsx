@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 import {THRESHOLD_COLORS} from 'src/shared/constants/thresholds'
@@ -7,7 +7,7 @@ interface SelectedColor {
   hex: string
   name: string
 }
-interface Threshold {
+interface ThresholdProps {
   type: string
   hex: string
   id: string
@@ -17,12 +17,15 @@ interface Threshold {
 
 interface Props {
   visualizationType: string
-  threshold: Threshold
+  threshold: ThresholdProps
   disableMaxColor: boolean
-  onChooseColor: (threshold: Threshold) => void
-  onValidateColorValue: (threshold: Threshold, targetValue: number) => boolean
-  onUpdateColorValue: (threshold: Threshold, targetValue: number) => void
-  onDeleteThreshold: (threshold: Threshold) => void
+  onChooseColor: (threshold: ThresholdProps) => void
+  onValidateColorValue: (
+    threshold: ThresholdProps,
+    targetValue: number
+  ) => boolean
+  onUpdateColorValue: (threshold: ThresholdProps, targetValue: number) => void
+  onDeleteThreshold: (threshold: ThresholdProps) => void
   isMin: boolean
   isMax: boolean
 }
@@ -154,7 +157,7 @@ class Threshold extends PureComponent<Props, State> {
     }
   }
 
-  private handleKeyUp = (e: KeyboardEvent) => {
+  private handleKeyUp = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       this.thresholdInputRef.blur()
     }
