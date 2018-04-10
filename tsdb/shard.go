@@ -698,12 +698,12 @@ func (s *Shard) DeleteSeriesRange(itr SeriesIterator, min, max int64) error {
 
 // DeleteSeriesRangeWithPredicate deletes all values from for seriesKeys between min and max (inclusive)
 // for which predicate() returns true. If predicate() is nil, then all values in range are deleted.
-func (s *Shard) DeleteSeriesRangeWithPredicate(itr SeriesIterator, min, max int64, predicate func(name []byte, tags models.Tags) bool) error {
+func (s *Shard) DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
 	engine, err := s.engine()
 	if err != nil {
 		return err
 	}
-	return engine.DeleteSeriesRangeWithPredicate(itr, min, max, predicate)
+	return engine.DeleteSeriesRangeWithPredicate(itr, predicate)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
