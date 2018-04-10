@@ -195,7 +195,7 @@ class Dygraph extends Component {
   colorDygraphSeries = () => {
     const {dygraphSeries, colors, overrideLineColors} = this.props
     const numSeries = Object.keys(dygraphSeries).length
-
+    const dygraphSeriesKeys = Object.keys(dygraphSeries).sort()
     let lineColors = getLineColorsHexes(colors, numSeries)
 
     if (overrideLineColors) {
@@ -203,14 +203,12 @@ class Dygraph extends Component {
     }
 
     const coloredDygraphSeries = {}
-
     for (const seriesName in dygraphSeries) {
       const series = dygraphSeries[seriesName]
-      const color = lineColors[Object.keys(dygraphSeries).indexOf(seriesName)]
+      const color = lineColors[dygraphSeriesKeys.indexOf(seriesName)]
 
       coloredDygraphSeries[seriesName] = {...series, color}
     }
-
     return coloredDygraphSeries
   }
 
