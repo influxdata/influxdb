@@ -9,8 +9,8 @@ import * as schema from 'shared/schemas'
 const Annotation = ({
   mode,
   dygraph,
+  dWidth,
   annotation,
-  lastUpdated,
   staticLegendHeight,
 }) => (
   <div>
@@ -19,7 +19,7 @@ const Annotation = ({
         mode={mode}
         dygraph={dygraph}
         annotation={annotation}
-        lastUpdated={lastUpdated}
+        dWidth={dWidth}
         staticLegendHeight={staticLegendHeight}
       />
     ) : (
@@ -27,7 +27,7 @@ const Annotation = ({
         mode={mode}
         dygraph={dygraph}
         annotation={annotation}
-        lastUpdated={lastUpdated}
+        dWidth={dWidth}
         staticLegendHeight={staticLegendHeight}
       />
     )}
@@ -38,7 +38,7 @@ const {number, shape, string} = PropTypes
 
 Annotation.propTypes = {
   mode: string,
-  lastUpdated: number,
+  dWidth: number,
   annotation: schema.annotation.isRequired,
   dygraph: shape({}).isRequired,
   staticLegendHeight: number,

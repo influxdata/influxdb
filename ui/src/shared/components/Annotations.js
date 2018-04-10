@@ -19,25 +19,10 @@ import {
 import {visibleAnnotations} from 'src/shared/annotations/helpers'
 
 class Annotations extends Component {
-  state = {
-    lastUpdated: null,
-  }
-
-  componentDidMount() {
-    this.props.dygraph.updateOptions({
-      drawCallback: this.redraw,
-    })
-  }
-
-  redraw = () => {
-    // force a redraw of annotations
-    this.setState({lastUpdated: Date.now()})
-  }
-
   render() {
-    const {lastUpdated} = this.state
     const {
       mode,
+      dWidth,
       dygraph,
       isTempHovering,
       handleUpdateAnnotation,
@@ -70,7 +55,7 @@ class Annotations extends Component {
             mode={mode}
             annotation={a}
             dygraph={dygraph}
-            lastUpdated={lastUpdated}
+            dWidth={dWidth}
             staticLegendHeight={staticLegendHeight}
           />
         ))}
@@ -94,7 +79,8 @@ const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 Annotations.propTypes = {
   annotations: arrayOf(schema.annotation),
-  dygraph: shape({}),
+  dygraph: shape({}).isRequired,
+  dWidh: number.isRequired,
   mode: string,
   isTempHovering: bool,
   handleUpdateAnnotation: func.isRequired,

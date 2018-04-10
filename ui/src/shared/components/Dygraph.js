@@ -288,6 +288,15 @@ class Dygraph extends Component {
     this.setState({staticLegendHeight})
   }
 
+  get areAnnotationsVisible() {
+    if (!this.dygraph) {
+      return false
+    }
+
+    const [start, end] = this.dygraph && this.dygraph.xAxisRange()
+    return !!start && !!end
+  }
+
   render() {
     const {isHidden, staticLegendHeight} = this.state
     const {staticLegend, children, hoverTime} = this.props
@@ -305,10 +314,11 @@ class Dygraph extends Component {
 
     return (
       <div className="dygraph-child" onMouseLeave={this.handleMouseLeave}>
-        {this.dygraph && (
+        {this.areAnnotationsVisible && (
           <div className="dygraph-addons">
             <Annotations
               dygraph={this.dygraph}
+              dWidth={this.dygraph.width_}
               staticLegendHeight={staticLegendHeight}
             />
             <DygraphLegend
