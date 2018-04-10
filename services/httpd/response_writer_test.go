@@ -28,7 +28,7 @@ func TestResponseWriter_CSV(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	writer := httpd.NewResponseWriter(w, r)
-	writer.WriteResponse(httpd.Response{
+	n, err := writer.WriteResponse(httpd.Response{
 		Results: []*query.Result{
 			{
 				StatementID: 0,
@@ -54,6 +54,9 @@ func TestResponseWriter_CSV(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 
 	if got, want := w.Body.String(), `name,tags,time,value
 cpu,"host=server01,region=uswest",10,2.5
@@ -65,6 +68,8 @@ cpu,"host=server01,region=uswest",60,false
 cpu,"host=server01,region=uswest",70,9223372036854775808
 `; got != want {
 		t.Errorf("unexpected output:\n\ngot=%v\nwant=%s", got, want)
+	} else if got, want := n, len(want); got != want {
+		t.Errorf("unexpected output length: got=%d want=%d", got, want)
 	}
 }
 
@@ -78,7 +83,7 @@ func TestResponseWriter_MessagePack(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	writer := httpd.NewResponseWriter(w, r)
-	writer.WriteResponse(httpd.Response{
+	_, err := writer.WriteResponse(httpd.Response{
 		Results: []*query.Result{
 			{
 				StatementID: 0,
@@ -103,6 +108,9 @@ func TestResponseWriter_MessagePack(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 
 	// The reader always reads times as time.Local so encode the expected response
 	// as JSON and insert it into the expected values.
@@ -125,8 +133,8 @@ func TestResponseWriter_MessagePack(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	want := fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":%s}]}]}`, string(values))
-	if have := strings.TrimSpace(buf.String()); have != want {
-		t.Fatalf("unexpected output: %s != %s", have, want)
+	if got := strings.TrimSpace(buf.String()); got != want {
+		t.Fatalf("unexpected output:\n\ngot=%v\nwant=%v", got, want)
 	}
 }
 
