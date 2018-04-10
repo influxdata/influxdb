@@ -37,6 +37,7 @@ const RefreshingGraph = ({
   grabDataForDownload,
   hoverTime,
   onSetHoverTime,
+  onNewQueryAST,
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
@@ -100,6 +101,7 @@ const RefreshingGraph = ({
         hoverTime={hoverTime}
         onSetHoverTime={onSetHoverTime}
         inView={inView}
+        onNewQueryAST={onNewQueryAST}
       />
     )
   }

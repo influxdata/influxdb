@@ -5,6 +5,7 @@ import _ from 'lodash'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {intervalValuesPoints} from 'src/shared/constants'
+import {getQueryConfig} from 'shared/apis'
 
 const AutoRefresh = ComposedComponent => {
   class wrapper extends Component {
@@ -28,7 +29,7 @@ const AutoRefresh = ComposedComponent => {
       }
     }
 
-    componentWillReceiveProps(nextProps) {
+    async componentWillReceiveProps(nextProps) {
       const inViewDidUpdate = this.props.inView !== nextProps.inView
 
       const queriesDidUpdate = this.queryDifference(
@@ -45,6 +46,23 @@ const AutoRefresh = ComposedComponent => {
         queriesDidUpdate || tempVarsDidUpdate || inViewDidUpdate
 
       if (shouldRefetch) {
+        // call to /queries endpoint to get AST.
+        const queries = nextProps.queries
+        const queryASTs = await Promise.all(
+          queries.map(async q => {
+            const url = q.host[0].replace('proxy', 'queries')
+            const id = q.id
+            const text = q.text
+            const {data} = await getQueryConfig(
+              url,
+              [{query: text, id}],
+              nextProps.templates
+            )
+            return data.queries[0].queryAST
+          })
+        )
+        nextProps.onNewQueryAST(queryASTs)
+
         this.executeQueries(
           nextProps.queries,
           nextProps.templates,

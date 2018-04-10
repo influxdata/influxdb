@@ -24,6 +24,7 @@ const DashVisualization = (
     staticLegend,
     thresholdsListColors,
     tableOptions,
+    onNewQueryAST,
   },
   {source: {links: {proxy}}}
 ) => {
@@ -49,6 +50,7 @@ const DashVisualization = (
           editQueryStatus={editQueryStatus}
           resizerTopHeight={resizerTopHeight}
           staticLegend={staticLegend}
+          onNewQueryAST={onNewQueryAST}
         />
       </div>
     </div>

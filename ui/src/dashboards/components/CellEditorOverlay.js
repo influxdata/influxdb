@@ -190,6 +190,10 @@ class CellEditorOverlay extends Component {
     text: `${s.name} @ ${s.url}`,
   }))
 
+  handleQueryAST = queryAST => {
+    console.log('queryAST', queryAST)
+  }
+
   findSelectedSource = () => {
     const {source} = this.props
     const sources = this.formatSources
@@ -298,6 +302,7 @@ class CellEditorOverlay extends Component {
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
             staticLegend={staticLegend}
+            onNewQueryAST={this.handleQueryAST}
           />
           <CEOBottom>
             <OverlayControls
