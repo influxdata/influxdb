@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"path"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -344,12 +346,20 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 
-	basepath = s.Basepath
-	if basepath != "" && s.PrefixRoutes == false {
+	if strings.HasPrefix(s.Basepath, "/") {
+		err := fmt.Errorf("Basepath must begin with '/'")
+		logger.
+			WithField("component", "server").
+			WithField("basepath", "invalid").
+			Error(err)
+		return err
+	}
+	if s.Basepath != "" && s.PrefixRoutes == false {
 		logger.
 			WithField("component", "server").
 			Info("Note: you may want to use --prefix-routes with --basepath. Try `./chronograf --help` for more info.")
 	}
+	basepath = s.Basepath
 
 	providerFuncs := []func(func(oauth2.Provider, oauth2.Mux)){}
 
