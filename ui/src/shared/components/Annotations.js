@@ -25,11 +25,12 @@ class Annotations extends Component {
 
   componentDidMount() {
     this.props.dygraph.updateOptions({
-      drawCallback: this.heartbeat,
+      drawCallback: this.redraw,
     })
   }
 
-  heartbeat = () => {
+  redraw = () => {
+    // force a redraw of annotations
     this.setState({lastUpdated: Date.now()})
   }
 
@@ -69,8 +70,8 @@ class Annotations extends Component {
             mode={mode}
             annotation={a}
             dygraph={dygraph}
-            staticLegendHeight={staticLegendHeight}
             lastUpdated={lastUpdated}
+            staticLegendHeight={staticLegendHeight}
           />
         ))}
       </div>

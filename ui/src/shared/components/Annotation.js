@@ -7,9 +7,9 @@ import AnnotationSpan from 'shared/components/AnnotationSpan'
 import * as schema from 'shared/schemas'
 
 const Annotation = ({
+  mode,
   dygraph,
   annotation,
-  mode,
   lastUpdated,
   staticLegendHeight,
 }) => (
