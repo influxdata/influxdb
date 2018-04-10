@@ -88,7 +88,7 @@ interface Props {
   isDragging: monitor.isDragging(),
 }))
 export default class GraphOptionsSortableField extends PureComponent<Props> {
-  render() {
+  public render() {
     const {
       internalName,
       displayName,

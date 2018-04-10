@@ -87,7 +87,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     const orderedFields = addedFields.map((f, i) => {
       return {...f, order: i}
     })
-    console.log('orderedFields', orderedFields)
     handleUpdateTableOptions({
       ...tableOptions,
       fieldNames: orderedFields,

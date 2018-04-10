@@ -29,7 +29,7 @@ class GraphOptionsCustomizableField extends PureComponent<Props, {}> {
     return (
       <div className="customizable-field">
         <div
-          style={{opacity: opacity}}
+          style={{opacity}}
           className={
             visible
               ? 'customizable-field--label'
