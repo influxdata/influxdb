@@ -101,9 +101,6 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizeCoords={resizeCoords}
         tableOptions={tableOptions}
-        hoverTime={hoverTime}
-        inView={inView}
-        setDataLabels={setDataLabels}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
       />
@@ -162,12 +159,8 @@ RefreshingGraph.propTypes = {
   cellID: string,
   inView: bool,
   tableOptions: shape({}),
-<<<<<<< HEAD
-=======
-  setDataLabels: func,
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
->>>>>>> Fix crosshair hovering performance issue
 }
 
 RefreshingGraph.defaultProps = {
