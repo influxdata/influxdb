@@ -42,13 +42,17 @@ export const generateThresholdsListHexs = ({
   }
   const lastValueNumber = Number(lastValue) || 0
 
-  if (!colors.length || !lastValue) {
+  if (!colors.length) {
     return defaultColoring
   }
 
   // baseColor is expected in all cases
   const baseColor = colors.find(color => (color.id = THRESHOLD_TYPE_BASE)) || {
     hex: defaultColoring.textColor,
+  }
+
+  if (!lastValue) {
+    return {...defaultColoring, textColor: baseColor}
   }
 
   // If the single stat is above a line graph never have a background color
