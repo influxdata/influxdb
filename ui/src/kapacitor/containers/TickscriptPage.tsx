@@ -114,7 +114,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
       errorActions.errorThrown(notifyKapacitorNotFound())
     }
 
-    if (this._isEditing()) {
+    if (this.isEditing) {
       await kapacitorActions.getRule(kapacitor, ruleID)
       const {id, name, tickscript, status, dbrps, type} = this.props.rules.find(
         r => r.id === ruleID
@@ -156,7 +156,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
         consoleMessage={consoleMessage}
         onChangeID={this.handleChangeID}
         onChangeType={this.handleChangeType}
-        isNewTickscript={!this._isEditing()}
+        isNewTickscript={!this.isEditing}
         onSelectDbrps={this.handleSelectDbrps}
         onChangeScript={this.handleChangeScript}
         onToggleLogsVisibility={this.handleToggleLogsVisibility}
@@ -176,7 +176,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
     let response
 
     try {
-      if (this._isEditing()) {
+      if (this.isEditing) {
         response = await updateTask(kapacitor, task, ruleID, router, sourceID)
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
@@ -225,7 +225,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
     this.setState({areLogsVisible: !this.state.areLogsVisible})
   }
 
-  private _isEditing() {
+  private get isEditing() {
     const {params} = this.props
     return params.ruleID && params.ruleID !== 'new'
   }
