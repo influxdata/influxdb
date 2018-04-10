@@ -24,7 +24,9 @@ class Annotations extends Component {
   }
 
   componentDidMount() {
-    this.props.annotationsRef(this)
+    this.props.dygraph.updateOptions({
+      drawCallback: this.heartbeat,
+    })
   }
 
   heartbeat = () => {
@@ -94,7 +96,6 @@ Annotations.propTypes = {
   dygraph: shape({}),
   mode: string,
   isTempHovering: bool,
-  annotationsRef: func,
   handleUpdateAnnotation: func.isRequired,
   handleDismissAddingAnnotation: func.isRequired,
   handleAddingAnnotationSuccess: func.isRequired,

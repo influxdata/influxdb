@@ -16,18 +16,18 @@ const Annotation = ({
   <div>
     {annotation.startTime === annotation.endTime ? (
       <AnnotationPoint
-        lastUpdated={lastUpdated}
-        annotation={annotation}
         mode={mode}
         dygraph={dygraph}
+        annotation={annotation}
+        lastUpdated={lastUpdated}
         staticLegendHeight={staticLegendHeight}
       />
     ) : (
       <AnnotationSpan
-        lastUpdated={lastUpdated}
-        annotation={annotation}
         mode={mode}
         dygraph={dygraph}
+        annotation={annotation}
+        lastUpdated={lastUpdated}
         staticLegendHeight={staticLegendHeight}
       />
     )}

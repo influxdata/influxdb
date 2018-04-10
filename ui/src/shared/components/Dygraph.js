@@ -152,7 +152,6 @@ class Dygraph extends Component {
       colors: this.lineColors,
       series: this.colorDygraphSeries,
       plotter: isBarGraph ? barPlotter : null,
-      drawCallback: this.annotationsRef.heartbeat,
     }
 
     dygraph.updateOptions(updateOptions)
@@ -270,10 +269,8 @@ class Dygraph extends Component {
   }
 
   handleMouseMove = e => {
-    if (this.props.handleSetHoverTime) {
-      const newTime = this.eventToTimestamp(e)
-      this.props.handleSetHoverTime(newTime)
-    }
+    const newTime = this.eventToTimestamp(e)
+    this.props.handleSetHoverTime(newTime)
 
     this.setState({isHoveringThisGraph: true})
   }
@@ -286,8 +283,6 @@ class Dygraph extends Component {
   handleShowLegend = () => {
     this.setState({isHidden: false})
   }
-
-  handleAnnotationsRef = ref => (this.annotationsRef = ref)
 
   handleReceiveStaticLegendHeight = staticLegendHeight => {
     this.setState({staticLegendHeight})
@@ -314,7 +309,6 @@ class Dygraph extends Component {
           <div className="dygraph-addons">
             <Annotations
               dygraph={this.dygraph}
-              annotationsRef={this.handleAnnotationsRef}
               staticLegendHeight={staticLegendHeight}
             />
             <DygraphLegend
@@ -377,6 +371,7 @@ Dygraph.defaultProps = {
   overrideLineColors: null,
   dygraphRef: () => {},
   onZoom: () => {},
+  handleSetHoverTime: () => {},
   staticLegend: {
     type: null,
   },
