@@ -23,7 +23,6 @@ import {
   LABEL_WIDTH,
   CHAR_PIXELS,
   barPlotter,
-  highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 
 import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
@@ -70,7 +69,6 @@ class Dygraph extends Component {
           valueRange: getRange(timeSeries, y2.bounds),
         },
       },
-      highlightSeriesOpts,
       zoomCallback: (lower, upper) => this.handleZoom(lower, upper),
     }
 
@@ -78,10 +76,6 @@ class Dygraph extends Component {
       defaultOptions = {
         ...defaultOptions,
         plotter: barPlotter,
-        highlightSeriesOpts: {
-          ...highlightSeriesOpts,
-          highlightCircleSize: 0,
-        },
       }
     }
 
