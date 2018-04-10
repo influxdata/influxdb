@@ -183,7 +183,6 @@ export class TickscriptPage extends PureComponent<Props, State> {
       }
 
       if (response.code === 422) {
-        router.push(`/sources/${sourceID}/tickscript/new`)
         this.setState({unsavedChanges: true, consoleMessage: response.message})
         return
       } else if (response.code) {

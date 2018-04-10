@@ -83,7 +83,7 @@ describe('Kapacitor.Containers.TickscriptPage', () => {
         })
       })
 
-      it('routes the user to Tickscript /new page if save fails', done => {
+      it('keeps the user on /new if save fails', done => {
         const push = jest.fn()
         const createTask = jest.fn(() =>
           Promise.resolve({code: 422, message: 'invalid tickscript'})
@@ -106,8 +106,7 @@ describe('Kapacitor.Containers.TickscriptPage', () => {
         save.dive().simulate('click')
 
         process.nextTick(() => {
-          expect(push).toHaveBeenCalledTimes(1)
-          expect(push.mock.calls[0][0]).toMatch('new')
+          expect(push).not.toHaveBeenCalled()
           done()
         })
       })
