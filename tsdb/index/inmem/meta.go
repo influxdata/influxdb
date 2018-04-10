@@ -632,7 +632,9 @@ func (m *measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, influxql.Ex
 	if !ok {
 		name, ok = n.RHS.(*influxql.VarRef)
 		if !ok {
-			return nil, nil, fmt.Errorf("invalid expression: %s", n.String())
+			// This is an expression we do not know how to evaluate. Let the
+			// query engine take care of this.
+			return m.SeriesIDs(), n, nil
 		}
 		value = n.LHS
 	}
@@ -771,10 +773,9 @@ func (m *measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, influxql.Ex
 		return ids, nil, nil
 	}
 
-	if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
-		return m.SeriesIDs(), nil, nil
-	}
-	return nil, nil, nil
+	// We do not know how to evaluate this expression so pass it
+	// on to the query engine.
+	return m.SeriesIDs(), n, nil
 }
 
 // FilterExprs represents a map of series IDs to filter expressions.

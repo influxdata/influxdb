@@ -1850,7 +1850,13 @@ func (is IndexSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 	if !ok {
 		key, ok = n.RHS.(*influxql.VarRef)
 		if !ok {
-			return nil, fmt.Errorf("invalid expression: %s", n.String())
+			// This is an expression we do not know how to evaluate. Let the
+			// query engine take care of this.
+			itr, err := is.measurementSeriesIDIterator(name)
+			if err != nil {
+				return nil, err
+			}
+			return newSeriesIDExprIterator(itr, n), nil
 		}
 		value = n.LHS
 	}
@@ -1882,10 +1888,13 @@ func (is IndexSet) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExp
 	case *influxql.VarRef:
 		return is.seriesByBinaryExprVarRefIterator(name, []byte(key.Val), value, n.Op)
 	default:
-		if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
-			return is.measurementSeriesIDIterator(name)
+		// We do not know how to evaluate this expression so pass it
+		// on to the query engine.
+		itr, err := is.measurementSeriesIDIterator(name)
+		if err != nil {
+			return nil, err
 		}
-		return nil, nil
+		return newSeriesIDExprIterator(itr, n), nil
 	}
 }
 
