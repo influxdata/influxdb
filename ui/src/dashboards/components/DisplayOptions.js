@@ -43,6 +43,7 @@ class DisplayOptions extends Component {
       onToggleStaticLegend,
       onResetFocus,
       queryConfigs,
+      queryASTs,
     } = this.props
     switch (type) {
       case 'gauge':
@@ -54,6 +55,7 @@ class DisplayOptions extends Component {
           <TableOptions
             onResetFocus={onResetFocus}
             queryConfigs={queryConfigs}
+            queryASTs={queryASTs}
           />
         )
       default:

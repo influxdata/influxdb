@@ -59,6 +59,7 @@ class DashboardPage extends Component {
       scrollTop: 0,
       windowHeight: window.innerHeight,
       hoverTime: NULL_HOVER_TIME,
+      queryASTs: [],
     }
   }
 
@@ -279,6 +280,10 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
+  handleQueryAST = queryASTs => {
+    this.setState({queryASTs})
+  }
+
   handleSetHoverTime = hoverTime => {
     this.setState({hoverTime})
   }
@@ -296,7 +301,7 @@ class DashboardPage extends Component {
   }
 
   render() {
-    const {zoomedTimeRange, hoverTime} = this.state
+    const {zoomedTimeRange, hoverTime, queryASTs} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
     const {
       source,
@@ -405,6 +410,8 @@ class DashboardPage extends Component {
             thresholdsListColors={thresholdsListColors}
             gaugeColors={gaugeColors}
             lineColors={lineColors}
+            queryASTs={queryASTs}
+            onNewQueryAST={this.handleQueryAST}
           />
         ) : null}
         <DashboardHeader
@@ -451,6 +458,8 @@ class DashboardPage extends Component {
             onOpenTemplateManager={this.handleOpenTemplateManager}
             templatesIncludingDashTime={templatesIncludingDashTime}
             onSummonOverlayTechnologies={handleShowCellEditorOverlay}
+            queryASTs={queryASTs}
+            onNewQueryAST={this.handleQueryAST}
           />
         ) : null}
       </div>

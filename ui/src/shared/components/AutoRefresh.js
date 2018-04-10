@@ -15,18 +15,36 @@ const AutoRefresh = ComposedComponent => {
         lastQuerySuccessful: true,
         timeSeries: [],
         resolution: null,
+        queryASTs: [],
       }
     }
 
-    componentDidMount() {
-      const {queries, templates, autoRefresh} = this.props
+    async componentDidMount() {
+      const {queries, templates, autoRefresh, onNewQueryAST} = this.props
       this.executeQueries(queries, templates)
+      if (onNewQueryAST) {
+        const queryASTs = await this.getQueryASTs(queries, templates)
+        onNewQueryAST(queryASTs)
+        this.setState({queryASTs})
+      }
       if (autoRefresh) {
         this.intervalID = setInterval(
           () => this.executeQueries(queries, templates),
           autoRefresh
         )
       }
+    }
+
+    getQueryASTs = async (queries, templates) => {
+      return await Promise.all(
+        queries.map(async q => {
+          const host = _.isArray(q.host) ? q.host[0] : q.host
+          const url = host.replace('proxy', 'queries')
+          const text = q.text
+          const {data} = await getQueryConfig(url, [{query: text}], templates)
+          return data.queries[0].queryAST
+        })
+      )
     }
 
     async componentWillReceiveProps(nextProps) {
@@ -46,22 +64,14 @@ const AutoRefresh = ComposedComponent => {
         queriesDidUpdate || tempVarsDidUpdate || inViewDidUpdate
 
       if (shouldRefetch) {
-        // call to /queries endpoint to get AST.
-        const queries = nextProps.queries
-        const queryASTs = await Promise.all(
-          queries.map(async q => {
-            const url = q.host[0].replace('proxy', 'queries')
-            const id = q.id
-            const text = q.text
-            const {data} = await getQueryConfig(
-              url,
-              [{query: text, id}],
-              nextProps.templates
-            )
-            return data.queries[0].queryAST
-          })
-        )
-        nextProps.onNewQueryAST(queryASTs)
+        if (nextProps.onNewQueryAST) {
+          const queryASTs = await this.getQueryASTs(
+            nextProps.queries,
+            nextProps.templates
+          )
+          nextProps.onNewQueryAST(queryASTs)
+          this.setState({queryASTs})
+        }
 
         this.executeQueries(
           nextProps.queries,
@@ -182,7 +192,7 @@ const AutoRefresh = ComposedComponent => {
     }
 
     render() {
-      const {timeSeries} = this.state
+      const {timeSeries, queryASTs} = this.state
 
       if (this.state.isFetching && this.state.lastQuerySuccessful) {
         return (
@@ -192,6 +202,7 @@ const AutoRefresh = ComposedComponent => {
             setResolution={this.setResolution}
             isFetchingInitially={false}
             isRefreshing={true}
+            queryASTs={queryASTs}
           />
         )
       }
@@ -201,6 +212,7 @@ const AutoRefresh = ComposedComponent => {
           {...this.props}
           data={timeSeries}
           setResolution={this.setResolution}
+          queryASTs={queryASTs}
         />
       )
     }
@@ -269,6 +281,7 @@ const AutoRefresh = ComposedComponent => {
     }),
     editQueryStatus: func,
     grabDataForDownload: func,
+    onNewQueryAST: func,
   }
 
   return wrapper

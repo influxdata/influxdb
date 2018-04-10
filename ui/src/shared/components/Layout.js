@@ -62,6 +62,8 @@ const Layout = (
     grabDataForDownload,
     hoverTime,
     onSetHoverTime,
+    queryASTs,
+    onNewQueryAST,
   },
   {source: defaultSource}
 ) => (
@@ -96,6 +98,8 @@ const Layout = (
         onStopAddAnnotation={onStopAddAnnotation}
         grabDataForDownload={grabDataForDownload}
         resizeCoords={resizeCoords}
+        queryASTs={queryASTs}
+        onNewQueryAST={onNewQueryAST}
         queries={buildQueriesForLayouts(
           cell,
           getSource(cell, source, sources, defaultSource),
@@ -157,6 +161,8 @@ const propTypes = {
   resizeCoords: shape(),
   onZoom: func,
   sources: arrayOf(shape()),
+  onNewQueryAST: func,
+  queryASTs: arrayOf(shape()),
 }
 
 LayoutState.propTypes = {...propTypes}

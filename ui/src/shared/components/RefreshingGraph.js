@@ -160,6 +160,8 @@ RefreshingGraph.propTypes = {
   cellID: string,
   inView: bool,
   tableOptions: shape({}),
+  onNewQueryAST: func,
+  queryASTs: arrayOf(shape()),
 }
 
 RefreshingGraph.defaultProps = {

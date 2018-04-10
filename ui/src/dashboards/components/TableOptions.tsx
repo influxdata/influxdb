@@ -39,6 +39,7 @@ interface Options {
 
 interface Props {
   queryConfigs: QueryConfig[]
+  queryASTs: {}[]
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
   onResetFocus: () => void

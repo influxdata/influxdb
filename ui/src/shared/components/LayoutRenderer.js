@@ -76,6 +76,8 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
       hoverTime,
       onSetHoverTime,
+      queryASTs,
+      onNewQueryAST,
     } = this.props
 
     const {rowHeight, resizeCoords} = this.state
@@ -136,6 +138,8 @@ class LayoutRenderer extends Component {
                     onCancelEditCell={onCancelEditCell}
                     onStopAddAnnotation={this.handleStopAddAnnotation}
                     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+                    queryASTs={queryASTs}
+                    onNewQueryAST={onNewQueryAST}
                   />
                 </Authorized>
               </div>
@@ -193,6 +197,8 @@ LayoutRenderer.propTypes = {
   onCancelEditCell: func,
   onZoom: func,
   sources: arrayOf(shape({})),
+  onNewQueryAST: func,
+  queryASTs: arrayOf(shape()),
 }
 
 export default LayoutRenderer

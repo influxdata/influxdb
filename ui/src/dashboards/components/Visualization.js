@@ -80,6 +80,7 @@ DashVisualization.propTypes = {
   gaugeColors: colorsNumberSchema,
   lineColors: colorsStringSchema,
   staticLegend: bool,
+  onNewQueryAST: func,
 }
 
 DashVisualization.contextTypes = {

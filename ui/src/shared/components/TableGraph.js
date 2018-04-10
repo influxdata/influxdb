@@ -54,7 +54,6 @@ class TableGraph extends Component {
     if (_.isEmpty(data[0])) {
       return
     }
-
     const {sortField, sortDirection} = this.state
     const {
       tableOptions: {
@@ -322,7 +321,7 @@ class TableGraph extends Component {
       sortDirection,
       processedData,
     } = this.state
-    const {hoverTime, tableOptions, colors} = this.props
+    const {hoverTime, tableOptions, colors, queryASTs} = this.props
     const {fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT} = tableOptions
     const columnCount = _.get(processedData, ['0', 'length'], 0)
     const rowCount = columnCount === 0 ? 0 : processedData.length
@@ -336,7 +335,6 @@ class TableGraph extends Component {
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
     const {scrollToColumn, scrollToRow} = this.calcScrollToColRow()
-
     return (
       <div
         className="table-graph-container"
@@ -409,6 +407,7 @@ TableGraph.propTypes = {
   hoverTime: string,
   onSetHoverTime: func,
   colors: colorsStringSchema,
+  queryASTs: arrayOf(shape()),
 }
 
 export default TableGraph
