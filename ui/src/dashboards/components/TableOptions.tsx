@@ -37,9 +37,30 @@ interface Options {
   fixFirstColumn: boolean
 }
 
+interface Sources {
+  database: string
+  retentionPolicy: string
+  name: string
+  type: string
+}
+
+interface Field {
+  column: {
+    expr: string
+    val?: string
+  }
+  alias?: string
+}
+interface QueryAST {
+  fields: Field[]
+  limits: {limit: number}
+  sources: Sources[]
+  condition?: any
+}
+
 interface Props {
   queryConfigs: QueryConfig[]
-  queryASTs: {}[]
+  queryASTs: QueryAST[]
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
   onResetFocus: () => void
@@ -131,20 +152,30 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   private get computedFieldNames() {
-    const {queryConfigs} = this.props
-    const queryFields = _.flatten(
-      queryConfigs.map(({measurement, fields}) => {
-        return fields.map(({alias}) => {
-          const internalName = `${measurement}.${alias}`
-          const existing = this.fieldNames.find(
-            c => c.internalName === internalName
-          )
-          return existing || {internalName, displayName: '', visible: true}
-        })
+    const {queryASTs} = this.props
+    const existingFieldNames = this.fieldNames
+    let astNames = [this.timeField]
+    queryASTs.forEach(q => {
+      const {fields, sources} = q
+      const {name: sourceName} = sources[0]
+      fields.forEach(f => {
+        const {alias, column: {val}} = f
+        const value = val || alias
+        const internalName = `${sourceName}.${value}`
+        const field = {internalName, displayName: '', visible: true}
+        astNames = [...astNames, field]
       })
-    )
+    })
 
-    return [this.timeField, ...queryFields]
+    const intersection = existingFieldNames.filter(f => {
+      return astNames.find(a => a.internalName === f.internalName)
+    })
+
+    const newFields = astNames.filter(a => {
+      return !existingFieldNames.find(f => f.internalName === a.internalName)
+    })
+
+    return [...intersection, ...newFields]
   }
 
   private handleChooseSortBy = (option: Option) => {

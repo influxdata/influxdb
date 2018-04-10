@@ -95,6 +95,7 @@ DisplayOptions.propTypes = {
   onToggleStaticLegend: func.isRequired,
   staticLegend: bool,
   onResetFocus: func.isRequired,
+  queryASTs: arrayOf(shape()),
 }
 
 const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({

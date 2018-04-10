@@ -321,7 +321,7 @@ class TableGraph extends Component {
       sortDirection,
       processedData,
     } = this.state
-    const {hoverTime, tableOptions, colors, queryASTs} = this.props
+    const {hoverTime, tableOptions, colors} = this.props
     const {fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT} = tableOptions
     const columnCount = _.get(processedData, ['0', 'length'], 0)
     const rowCount = columnCount === 0 ? 0 : processedData.length
