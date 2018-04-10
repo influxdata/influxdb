@@ -1675,75 +1675,6 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 	}
 }
 
-func BenchmarkEngine_CreateIterator_Count_1K(b *testing.B) {
-	benchmarkEngineCreateIteratorCount(b, 1000)
-}
-func BenchmarkEngine_CreateIterator_Count_100K(b *testing.B) {
-	benchmarkEngineCreateIteratorCount(b, 100000)
-}
-func BenchmarkEngine_CreateIterator_Count_1M(b *testing.B) {
-	benchmarkEngineCreateIteratorCount(b, 1000000)
-}
-
-func benchmarkEngineCreateIteratorCount(b *testing.B, pointN int) {
-	benchmarkIterator(b, query.IteratorOptions{
-		Expr:      influxql.MustParseExpr("count(value)"),
-		Ascending: true,
-		StartTime: influxql.MinTime,
-		EndTime:   influxql.MaxTime,
-	}, pointN)
-}
-
-func BenchmarkEngine_CreateIterator_First_1K(b *testing.B) {
-	benchmarkEngineCreateIteratorFirst(b, 1000)
-}
-func BenchmarkEngine_CreateIterator_First_100K(b *testing.B) {
-	benchmarkEngineCreateIteratorFirst(b, 100000)
-}
-func BenchmarkEngine_CreateIterator_First_1M(b *testing.B) {
-	benchmarkEngineCreateIteratorFirst(b, 1000000)
-}
-
-func benchmarkEngineCreateIteratorFirst(b *testing.B, pointN int) {
-	benchmarkIterator(b, query.IteratorOptions{
-		Expr:       influxql.MustParseExpr("first(value)"),
-		Dimensions: []string{"host"},
-		Ascending:  true,
-		StartTime:  influxql.MinTime,
-		EndTime:    influxql.MaxTime,
-	}, pointN)
-}
-
-func BenchmarkEngine_CreateIterator_Last_1K(b *testing.B) {
-	benchmarkEngineCreateIteratorLast(b, 1000)
-}
-func BenchmarkEngine_CreateIterator_Last_100K(b *testing.B) {
-	benchmarkEngineCreateIteratorLast(b, 100000)
-}
-func BenchmarkEngine_CreateIterator_Last_1M(b *testing.B) {
-	benchmarkEngineCreateIteratorLast(b, 1000000)
-}
-
-func benchmarkEngineCreateIteratorLast(b *testing.B, pointN int) {
-	benchmarkIterator(b, query.IteratorOptions{
-		Expr:       influxql.MustParseExpr("last(value)"),
-		Dimensions: []string{"host"},
-		Ascending:  true,
-		StartTime:  influxql.MinTime,
-		EndTime:    influxql.MaxTime,
-	}, pointN)
-}
-
-func BenchmarkEngine_CreateIterator_Limit_1K(b *testing.B) {
-	benchmarkEngineCreateIteratorLimit(b, 1000)
-}
-func BenchmarkEngine_CreateIterator_Limit_100K(b *testing.B) {
-	benchmarkEngineCreateIteratorLimit(b, 100000)
-}
-func BenchmarkEngine_CreateIterator_Limit_1M(b *testing.B) {
-	benchmarkEngineCreateIteratorLimit(b, 1000000)
-}
-
 func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
@@ -1819,53 +1750,187 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	}
 }
 
-func benchmarkEngineCreateIteratorLimit(b *testing.B, pointN int) {
-	benchmarkIterator(b, query.IteratorOptions{
-		Expr:       influxql.MustParseExpr("value"),
-		Dimensions: []string{"host"},
-		Ascending:  true,
-		StartTime:  influxql.MinTime,
-		EndTime:    influxql.MaxTime,
-		Limit:      10,
-	}, pointN)
+var benchmarks = []struct {
+	name string
+	opt  query.IteratorOptions
+}{
+	{
+		name: "Count",
+		opt: query.IteratorOptions{
+			Expr:      influxql.MustParseExpr("count(value)"),
+			Ascending: true,
+			StartTime: influxql.MinTime,
+			EndTime:   influxql.MaxTime,
+		},
+	},
+	{
+		name: "First",
+		opt: query.IteratorOptions{
+			Expr:      influxql.MustParseExpr("first(value)"),
+			Ascending: true,
+			StartTime: influxql.MinTime,
+			EndTime:   influxql.MaxTime,
+		},
+	},
+	{
+		name: "Last",
+		opt: query.IteratorOptions{
+			Expr:      influxql.MustParseExpr("last(value)"),
+			Ascending: true,
+			StartTime: influxql.MinTime,
+			EndTime:   influxql.MaxTime,
+		},
+	},
+	{
+		name: "Limit",
+		opt: query.IteratorOptions{
+			Expr:      influxql.MustParseExpr("value"),
+			Ascending: true,
+			StartTime: influxql.MinTime,
+			EndTime:   influxql.MaxTime,
+			Limit:     10,
+		},
+	},
 }
 
-func benchmarkIterator(b *testing.B, opt query.IteratorOptions, pointN int) {
-	e := MustInitDefaultBenchmarkEngine(pointN)
-	b.ResetTimer()
-	b.ReportAllocs()
+var benchmarkVariants = []struct {
+	name   string
+	modify func(opt query.IteratorOptions) query.IteratorOptions
+}{
+	{
+		name: "All",
+		modify: func(opt query.IteratorOptions) query.IteratorOptions {
+			return opt
+		},
+	},
+	{
+		name: "GroupByTime_1m-1h",
+		modify: func(opt query.IteratorOptions) query.IteratorOptions {
+			opt.StartTime = 0
+			opt.EndTime = int64(time.Hour) - 1
+			opt.Interval = query.Interval{
+				Duration: time.Minute,
+			}
+			return opt
+		},
+	},
+	{
+		name: "GroupByTime_1h-1d",
+		modify: func(opt query.IteratorOptions) query.IteratorOptions {
+			opt.StartTime = 0
+			opt.EndTime = int64(24*time.Hour) - 1
+			opt.Interval = query.Interval{
+				Duration: time.Hour,
+			}
+			return opt
+		},
+	},
+	{
+		name: "GroupByTime_1m-1d",
+		modify: func(opt query.IteratorOptions) query.IteratorOptions {
+			opt.StartTime = 0
+			opt.EndTime = int64(24*time.Hour) - 1
+			opt.Interval = query.Interval{
+				Duration: time.Minute,
+			}
+			return opt
+		},
+	},
+	{
+		name: "GroupByHost",
+		modify: func(opt query.IteratorOptions) query.IteratorOptions {
+			opt.Dimensions = []string{"host"}
+			return opt
+		},
+	},
+	{
+		name: "GroupByHostAndTime_1m-1h",
+		modify: func(opt query.IteratorOptions) query.IteratorOptions {
+			opt.Dimensions = []string{"host"}
+			opt.StartTime = 0
+			opt.EndTime = int64(time.Hour) - 1
+			opt.Interval = query.Interval{
+				Duration: time.Minute,
+			}
+			return opt
+		},
+	},
+	{
+		name: "GroupByHostAndTime_1h-1d",
+		modify: func(opt query.IteratorOptions) query.IteratorOptions {
+			opt.Dimensions = []string{"host"}
+			opt.StartTime = 0
+			opt.EndTime = int64(24*time.Hour) - 1
+			opt.Interval = query.Interval{
+				Duration: time.Hour,
+			}
+			return opt
+		},
+	},
+	{
+		name: "GroupByHostAndTime_1m-1d",
+		modify: func(opt query.IteratorOptions) query.IteratorOptions {
+			opt.Dimensions = []string{"host"}
+			opt.StartTime = 0
+			opt.EndTime = int64(24*time.Hour) - 1
+			opt.Interval = query.Interval{
+				Duration: time.Hour,
+			}
+			return opt
+		},
+	},
+}
 
-	for i := 0; i < b.N; i++ {
-		itr, err := e.CreateIterator(context.Background(), "cpu", opt)
-		if err != nil {
-			b.Fatal(err)
+func BenchmarkEngine_CreateIterator(b *testing.B) {
+	engines := make([]*benchmarkEngine, len(sizes))
+	for i, size := range sizes {
+		engines[i] = MustInitDefaultBenchmarkEngine(size.name, size.sz)
+	}
+
+	for _, tt := range benchmarks {
+		for _, variant := range benchmarkVariants {
+			name := tt.name + "_" + variant.name
+			opt := variant.modify(tt.opt)
+			b.Run(name, func(b *testing.B) {
+				for _, e := range engines {
+					b.Run(e.Name, func(b *testing.B) {
+						b.ReportAllocs()
+						for i := 0; i < b.N; i++ {
+							itr, err := e.CreateIterator(context.Background(), "cpu", opt)
+							if err != nil {
+								b.Fatal(err)
+							}
+							query.DrainIterator(itr)
+						}
+					})
+				}
+			})
 		}
-		query.DrainIterator(itr)
 	}
 }
 
-var benchmark struct {
-	Engine *Engine
+type benchmarkEngine struct {
+	*Engine
+	Name   string
 	PointN int
 }
 
-var hostNames = []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J"}
+var (
+	hostNames = []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J"}
+	sizes     = []struct {
+		name string
+		sz   int
+	}{
+		{name: "1K", sz: 1000},
+		{name: "100K", sz: 100000},
+		{name: "1M", sz: 1000000},
+	}
+)
 
 // MustInitDefaultBenchmarkEngine creates a new engine using the default index
 // and fills it with points.  Reuses previous engine if the same parameters
 // were used.
-func MustInitDefaultBenchmarkEngine(pointN int) *Engine {
-	// Reuse engine, if available.
-	if benchmark.Engine != nil {
-		if benchmark.PointN == pointN {
-			return benchmark.Engine
-		}
-
-		// Otherwise close and remove it.
-		benchmark.Engine.Close()
-		benchmark.Engine = nil
-	}
-
+func MustInitDefaultBenchmarkEngine(name string, pointN int) *benchmarkEngine {
 	const batchSize = 1000
 	if pointN%batchSize != 0 {
 		panic(fmt.Sprintf("point count (%d) must be a multiple of batch size (%d)", pointN, batchSize))
@@ -1905,10 +1970,11 @@ func MustInitDefaultBenchmarkEngine(pointN int) *Engine {
 	runtime.GC()
 
 	// Save engine reference for reuse.
-	benchmark.Engine = e
-	benchmark.PointN = pointN
-
-	return e
+	return &benchmarkEngine{
+		Engine: e,
+		Name:   name,
+		PointN: pointN,
+	}
 }
 
 // Engine is a test wrapper for tsm1.Engine.
