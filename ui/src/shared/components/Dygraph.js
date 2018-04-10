@@ -70,6 +70,7 @@ class Dygraph extends Component {
         },
       },
       zoomCallback: (lower, upper) => this.handleZoom(lower, upper),
+      highlightCircleSize: 0,
     }
 
     if (isBarGraph) {
