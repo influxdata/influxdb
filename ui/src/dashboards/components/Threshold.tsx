@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 import {THRESHOLD_COLORS} from 'src/shared/constants/thresholds'
@@ -134,7 +134,7 @@ class Threshold extends PureComponent<Props, State> {
     return label
   }
 
-  private handleChangeWorkingValue = e => {
+  private handleChangeWorkingValue = (e: ChangeEvent<HTMLInputElement>) => {
     const {threshold, onValidateColorValue} = this.props
     const targetValue = Number(e.target.value)
 
@@ -154,7 +154,7 @@ class Threshold extends PureComponent<Props, State> {
     }
   }
 
-  private handleKeyUp = e => {
+  private handleKeyUp = (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       this.thresholdInputRef.blur()
     }
