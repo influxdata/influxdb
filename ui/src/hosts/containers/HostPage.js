@@ -66,7 +66,7 @@ class HostPage extends Component {
     let filteredHosts = hosts
     if (focusedApp) {
       filteredHosts = _.pickBy(hosts, (val, __, ___) => {
-        return val.apps.includes(focusedApp)
+        return _.get(val, 'apps', []).includes(focusedApp)
       })
     }
 
