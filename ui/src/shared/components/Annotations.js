@@ -80,7 +80,7 @@ const {arrayOf, bool, func, number, shape, string} = PropTypes
 Annotations.propTypes = {
   annotations: arrayOf(schema.annotation),
   dygraph: shape({}).isRequired,
-  dWidh: number.isRequired,
+  dWidth: number.isRequired,
   mode: string,
   isTempHovering: bool,
   handleUpdateAnnotation: func.isRequired,
