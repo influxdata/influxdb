@@ -12,6 +12,7 @@ v1.5.2 [unreleased]
 -	[#9614](https://github.com/influxdata/influxdb/pull/9614): 1.5: Revert "Use MADV_WILLNEED when loading TSM files".
 -	[#9660](https://github.com/influxdata/influxdb/pull/9660): Ignore index size in Engine.DiskSize().
 -	[#9662](https://github.com/influxdata/influxdb/pull/9662): [1.5] Fix buildtsi partition key.
+-	[#9676](https://github.com/influxdata/influxdb/pull/9676): Ensure that conditions are encoded correctly even if the AST is not properly formed.
 
 ### Features
 
