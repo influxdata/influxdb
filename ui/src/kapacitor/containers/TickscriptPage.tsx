@@ -180,13 +180,19 @@ export class TickscriptPage extends PureComponent<Props, State> {
         response = await updateTask(kapacitor, task, ruleID, router, sourceID)
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
-        router.push(`/sources/${sourceID}/tickscript/${response.id}`)
       }
-      if (response.code) {
+
+      if (response.code === 422) {
+        router.push(`/sources/${sourceID}/tickscript/new`)
+        this.setState({unsavedChanges: true, consoleMessage: response.message})
+        return
+      } else if (response.code) {
         this.setState({unsavedChanges: true, consoleMessage: response.message})
       } else {
         this.setState({unsavedChanges: false, consoleMessage: ''})
       }
+
+      router.push(`/sources/${sourceID}/tickscript/${response.id}`)
     } catch (error) {
       console.error(error)
       throw error
