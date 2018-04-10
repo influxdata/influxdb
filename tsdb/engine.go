@@ -55,7 +55,7 @@ type Engine interface {
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DeleteSeriesRange(itr SeriesIterator, min, max int64) error
-	DeleteSeriesRangeWithPredicate(itr SeriesIterator, min, max int64, predicate func(name []byte, tags models.Tags) bool) error
+	DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error
 
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)

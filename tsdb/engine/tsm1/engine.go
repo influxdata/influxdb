@@ -1258,12 +1258,14 @@ func (e *Engine) WritePoints(points []models.Point) error {
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
 func (e *Engine) DeleteSeriesRange(itr tsdb.SeriesIterator, min, max int64) error {
-	return e.DeleteSeriesRangeWithPredicate(itr, min, max, nil)
+	return e.DeleteSeriesRangeWithPredicate(itr, func(name []byte, tags models.Tags) (int64, int64, bool) {
+		return min, max, true
+	})
 }
 
 // DeleteSeriesRangeWithPredicate removes the values between min and max (inclusive) from all series
 // for which predicate() returns true. If predicate() is nil, then all values in range are removed.
-func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, min, max int64, predicate func(name []byte, tags models.Tags) bool) error {
+func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
 	var disableOnce bool
 
 	// Ensure that the index does not compact away the measurement or series we're
@@ -1280,7 +1282,24 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, min, ma
 		defer fs.Release()
 	}
 
-	var sz int
+	var (
+		sz       int
+		min, max int64 = math.MinInt64, math.MaxInt64
+
+		// Indicator that the min/max time for the current batch has changed and
+		// we need to flush the current batch before appending to it.
+		flushBatch bool
+	)
+
+	// These are reversed from min/max to ensure they are different the first time through.
+	newMin, newMax := int64(math.MaxInt64), int64(math.MinInt64)
+
+	// There is no predicate, so setup newMin/newMax to delete the full time range.
+	if predicate == nil {
+		newMin = min
+		newMax = max
+	}
+
 	batch := make([][]byte, 0, 10000)
 	for {
 		elem, err := itr.Next()
@@ -1288,8 +1307,19 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, min, ma
 			return err
 		} else if elem == nil {
 			break
-		} else if predicate != nil && !predicate(elem.Name(), elem.Tags()) {
-			continue
+		}
+
+		// See if the series should be deleted and if so, what range of time.
+		if predicate != nil {
+			var shouldDelete bool
+			newMin, newMax, shouldDelete = predicate(elem.Name(), elem.Tags())
+			if !shouldDelete {
+				continue
+			}
+
+			// If the min/max happens to change for the batch, we need to flush
+			// the current batch and start a new one.
+			flushBatch = (min != newMin || max != newMax) && len(batch) > 0
 		}
 
 		if elem.Expr() != nil {
@@ -1315,18 +1345,23 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, min, ma
 			disableOnce = true
 		}
 
-		key := models.MakeKey(elem.Name(), elem.Tags())
-		sz += len(key)
-		batch = append(batch, key)
-
-		if sz >= deleteFlushThreshold {
+		if sz >= deleteFlushThreshold || flushBatch {
 			// Delete all matching batch.
 			if err := e.deleteSeriesRange(batch, min, max); err != nil {
 				return err
 			}
 			batch = batch[:0]
 			sz = 0
+			flushBatch = false
 		}
+
+		// Use the new min/max time for the next iteration
+		min = newMin
+		max = newMax
+
+		key := models.MakeKey(elem.Name(), elem.Tags())
+		sz += len(key)
+		batch = append(batch, key)
 	}
 
 	if len(batch) > 0 {
