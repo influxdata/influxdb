@@ -50,7 +50,7 @@ class TableGraph extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    const {data} = timeSeriesToTableGraph(nextProps.data)
+    const {data} = timeSeriesToTableGraph(nextProps.data, nextProps.queryASTs)
     if (_.isEmpty(data[0])) {
       return
     }
@@ -158,7 +158,7 @@ class TableGraph extends Component {
   }
 
   handleClickFieldName = fieldName => () => {
-    const {tableOptions} = this.props
+    const {tableOptions, queryASTs} = this.props
     const {data, sortField, sortDirection} = this.state
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
     const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
@@ -175,7 +175,8 @@ class TableGraph extends Component {
       fieldName,
       direction,
       verticalTimeAxis,
-      fieldNames
+      fieldNames,
+      timeFormat
     )
 
     this.setState({

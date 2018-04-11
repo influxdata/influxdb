@@ -56,6 +56,10 @@ interface QueryAST {
   limits: {limit: number}
   sources: Sources[]
   condition?: any
+  groupBy?: {
+    tags?: string[]
+    time: {interval: string}
+  }
 }
 
 interface Props {
