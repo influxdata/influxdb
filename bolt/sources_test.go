@@ -68,8 +68,10 @@ func TestSourceStore(t *testing.T) {
 	// Update source.
 	srcs[0].Username = "calvinklein"
 	srcs[1].Name = "Enchantment Under the Sea Dance"
+	srcs[2].DefaultRP = "cubeapple"
 	mustUpdateSource(t, s, srcs[0])
 	mustUpdateSource(t, s, srcs[1])
+	mustUpdateSource(t, s, srcs[2])
 
 	// Confirm sources have updated.
 	if src, err := s.Get(ctx, srcs[0].ID); err != nil {
@@ -81,6 +83,11 @@ func TestSourceStore(t *testing.T) {
 		t.Fatal(err)
 	} else if src.Name != "Enchantment Under the Sea Dance" {
 		t.Fatalf("source 1 update error: got %v, expected %v", src.Name, "Enchantment Under the Sea Dance")
+	}
+	if src, err := s.Get(ctx, srcs[2].ID); err != nil {
+		t.Fatal(err)
+	} else if src.DefaultRP != "cubeapple" {
+		t.Fatalf("source 2 update error: got %v, expected %v", src.DefaultRP, "cubeapple")
 	}
 
 	// Attempt to make two default sources
