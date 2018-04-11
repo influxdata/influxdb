@@ -32,7 +32,7 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, celldata} = this.props
+    const {cell, children, isEditable, celldata, onCloneCell} = this.props
 
     const queries = _.get(cell, ['queries'], [])
 
@@ -51,6 +51,7 @@ class LayoutCell extends Component {
             isEditable={isEditable}
             onDelete={this.handleDeleteCell}
             onEdit={this.handleSummonOverlay}
+            onClone={onCloneCell}
             onCSVDownload={this.handleCSVDownload}
           />
         </Authorized>
@@ -89,6 +90,7 @@ LayoutCell.propTypes = {
   }).isRequired,
   children: node.isRequired,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,

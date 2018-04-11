@@ -16,6 +16,7 @@ const Dashboard = ({
   autoRefresh,
   manualRefresh,
   onDeleteCell,
+  onCloneCell,
   onPositionChange,
   inPresentationMode,
   onOpenTemplateManager,
@@ -66,6 +67,7 @@ const Dashboard = ({
             autoRefresh={autoRefresh}
             manualRefresh={manualRefresh}
             onDeleteCell={onDeleteCell}
+            onCloneCell={onCloneCell}
             onPositionChange={onPositionChange}
             templates={templatesIncludingDashTime}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -111,6 +113,7 @@ Dashboard.propTypes = {
   onAddCell: func,
   onPositionChange: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
   source: shape({
     links: shape({

@@ -5,6 +5,7 @@
 1.  [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
 1.  [#3060](https://github.com/influxdata/chronograf/pull/3060): Add ability to set a color palette for Line, Stacked, Step-Plot, and Bar graphs
 1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
+1.  [#3184](https://github.com/influxdata/chronograf/pull/3184): Add ability to clone cells
 1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add tabular data visualization option with features
 1.  [#3120](https://github.com/influxdata/chronograf/pull/3120): Change :interval: to represent a raw influxql duration value
 1.  [#2832](https://github.com/influxdata/chronograf/pull/2832): Add paginated measurements API to server

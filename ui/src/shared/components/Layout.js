@@ -52,6 +52,7 @@ const Layout = (
     timeRange,
     isEditable,
     onEditCell,
+    onCloneCell,
     autoRefresh,
     manualRefresh,
     onDeleteCell,
@@ -68,6 +69,7 @@ const Layout = (
     celldata={celldata}
     isEditable={isEditable}
     onEditCell={onEditCell}
+    onCloneCell={onCloneCell}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -144,6 +146,7 @@ const propTypes = {
   onPositionChange: func,
   onEditCell: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
   isStatusPage: bool,
   isEditable: bool,
