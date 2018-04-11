@@ -68,6 +68,16 @@ export const generateNewDashboardCell = dashboard => {
   }
 }
 
+export const cloneDashboardCell = (dashboard, cloneCell) => {
+  const newCellY = dashboard.cells
+    .map(cell => cell.y + cell.h)
+    .reduce((a, b) => (a > b ? a : b))
+
+  const name = `${cloneCell.name} (Clone)`
+
+  return {...cloneCell, y: newCellY, name}
+}
+
 export const NEW_DASHBOARD = {
   name: 'Name This Dashboard',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
