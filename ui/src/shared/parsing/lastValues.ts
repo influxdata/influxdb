@@ -1,6 +1,28 @@
 import _ from 'lodash'
 
-export default function(timeSeriesResponse) {
+interface Result {
+  lastValues: any[]
+  series: any[]
+}
+
+interface Series {
+  value: any
+  column: string
+}
+
+interface TimeSeriesResult {
+  series: Series[]
+}
+
+export interface TimeSeriesResponse {
+  response: {
+    result: TimeSeriesResult[]
+  }
+}
+
+export default function(
+  timeSeriesResponse: TimeSeriesResponse[] | null
+): Result {
   const values = _.get(
     timeSeriesResponse,
     ['0', 'response', 'results', '0', 'series', '0', 'values'],
