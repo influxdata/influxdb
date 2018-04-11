@@ -12,9 +12,9 @@ import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
 import {
-  generateNewDashboardCell,
-  cloneDashboardCell,
-} from 'src/dashboards/constants'
+  getNewDashboardCell,
+  getClonedDashboardCell,
+} from 'src/dashboards/utils/cellGetters'
 import {
   notifyDashboardDeleted,
   notifyDashboardDeleteFailed,
@@ -290,7 +290,7 @@ export const addDashboardCellAsync = dashboard => async dispatch => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
-      generateNewDashboardCell(dashboard)
+      getNewDashboardCell(dashboard)
     )
     dispatch(addDashboardCell(dashboard, data))
   } catch (error) {
@@ -303,7 +303,7 @@ export const cloneDashboardCellAsync = (dashboard, cell) => async dispatch => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
-      cloneDashboardCell(dashboard, cell)
+      getClonedDashboardCell(dashboard, cell)
     )
     dispatch(addDashboardCell(dashboard, data))
   } catch (error) {
