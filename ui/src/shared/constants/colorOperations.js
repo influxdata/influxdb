@@ -7,15 +7,15 @@ import {
   THRESHOLD_TYPE_TEXT,
 } from 'shared/constants/thresholds'
 
-const luminanceThreshold = 0.5
-
 const getLegibleTextColor = bgColorHex => {
   const darkText = '#292933'
   const lightText = '#ffffff'
 
-  return chroma(bgColorHex).luminance() < luminanceThreshold
-    ? darkText
-    : lightText
+  const [red, green, blue] = chroma(bgColorHex).rgb()
+  const average = (red + green + blue) / 3
+  const mediumGrey = 128
+
+  return average > mediumGrey ? darkText : lightText
 }
 
 const findNearestCrossedThreshold = (colors, lastValue) => {
@@ -42,13 +42,17 @@ export const generateThresholdsListHexs = ({
   }
   const lastValueNumber = Number(lastValue) || 0
 
-  if (!colors.length || !lastValue) {
+  if (!colors.length) {
     return defaultColoring
   }
 
   // baseColor is expected in all cases
   const baseColor = colors.find(color => (color.id = THRESHOLD_TYPE_BASE)) || {
     hex: defaultColoring.textColor,
+  }
+
+  if (!lastValue) {
+    return {...defaultColoring, textColor: baseColor}
   }
 
   // If the single stat is above a line graph never have a background color

@@ -23,13 +23,9 @@ import {
   LABEL_WIDTH,
   CHAR_PIXELS,
   barPlotter,
-  highlightSeriesOpts,
 } from 'src/shared/graphs/helpers'
 
-import {
-  DEFAULT_LINE_COLORS,
-  getLineColorsHexes,
-} from 'src/shared/constants/graphColorPalettes'
+import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 import {colorsStringSchema} from 'shared/schemas'
@@ -52,21 +48,20 @@ class Dygraph extends Component {
       options,
     } = this.props
 
-    const timeSeries = this.getTimeSeries()
+    const timeSeries = this.timeSeries
     const graphRef = this.graphRef
 
     let defaultOptions = {
       fillGraph,
       logscale: y.scale === LOG,
-      colors: this.getLineColors(),
-      series: this.colorDygraphSeries(),
-      plugins: [new Dygraphs.Plugins.Crosshair({direction: 'vertical'})],
+      colors: this.lineColors,
+      series: this.colorDygraphSeries,
       axes: {
         y: {
           valueRange: this.getYRange(timeSeries),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
-          axisLabelWidth: this.getLabelWidth(),
+          axisLabelWidth: this.labelWidth,
           labelsKMB: y.base === BASE_10,
           labelsKMG2: y.base === BASE_2,
         },
@@ -74,19 +69,14 @@ class Dygraph extends Component {
           valueRange: getRange(timeSeries, y2.bounds),
         },
       },
-      highlightSeriesOpts,
       zoomCallback: (lower, upper) => this.handleZoom(lower, upper),
+      highlightCircleSize: 0,
     }
 
     if (isBarGraph) {
       defaultOptions = {
         ...defaultOptions,
         plotter: barPlotter,
-        plugins: [],
-        highlightSeriesOpts: {
-          ...highlightSeriesOpts,
-          highlightCircleSize: 0,
-        },
       }
     }
 
@@ -133,7 +123,7 @@ class Dygraph extends Component {
       )
     }
 
-    const timeSeries = this.getTimeSeries()
+    const timeSeries = this.timeSeries
 
     const updateOptions = {
       ...options,
@@ -146,7 +136,7 @@ class Dygraph extends Component {
           valueRange: this.getYRange(timeSeries),
           axisLabelFormatter: (yval, __, opts) =>
             numberValueFormatter(yval, opts, y.prefix, y.suffix),
-          axisLabelWidth: this.getLabelWidth(),
+          axisLabelWidth: this.labelWidth,
           labelsKMB: y.base === BASE_10,
           labelsKMG2: y.base === BASE_2,
         },
@@ -154,10 +144,9 @@ class Dygraph extends Component {
           valueRange: getRange(timeSeries, y2.bounds),
         },
       },
-      colors: this.getLineColors(),
-      series: this.colorDygraphSeries(),
+      colors: this.lineColors,
+      series: this.colorDygraphSeries,
       plotter: isBarGraph ? barPlotter : null,
-      drawCallback: this.annotationsRef.heartbeat,
     }
 
     dygraph.updateOptions(updateOptions)
@@ -195,30 +184,23 @@ class Dygraph extends Component {
     onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
   }
 
-  colorDygraphSeries = () => {
-    const {dygraphSeries, children, colors, overrideLineColors} = this.props
+  get colorDygraphSeries() {
+    const {dygraphSeries, colors, overrideLineColors} = this.props
     const numSeries = Object.keys(dygraphSeries).length
-
+    const dygraphSeriesKeys = Object.keys(dygraphSeries).sort()
     let lineColors = getLineColorsHexes(colors, numSeries)
-
-    if (React.children && React.children.count(children)) {
-      // If graph is line-plus-single-stat then reserve colors for single stat
-      lineColors = getLineColorsHexes(DEFAULT_LINE_COLORS, numSeries)
-    }
 
     if (overrideLineColors) {
       lineColors = getLineColorsHexes(overrideLineColors, numSeries)
     }
 
     const coloredDygraphSeries = {}
-
     for (const seriesName in dygraphSeries) {
       const series = dygraphSeries[seriesName]
-      const color = lineColors[Object.keys(dygraphSeries).indexOf(seriesName)]
+      const color = lineColors[dygraphSeriesKeys.indexOf(seriesName)]
 
       coloredDygraphSeries[seriesName] = {...series, color}
     }
-
     return coloredDygraphSeries
   }
 
@@ -231,32 +213,15 @@ class Dygraph extends Component {
     return `${clamped}`
   }
 
-  handleMouseMove = e => {
-    if (this.props.onSetHoverTime) {
-      const newTime = this.eventToTimestamp(e)
-      this.props.onSetHoverTime(newTime)
-    }
-
-    this.setState({isHoveringThisGraph: true})
-  }
-
-  handleMouseOut = () => {
-    if (this.props.onSetHoverTime) {
-      this.props.onSetHoverTime(NULL_HOVER_TIME)
-    }
-
-    this.setState({isHoveringThisGraph: false})
-  }
-
   handleHideLegend = () => {
     this.setState({isHidden: true})
   }
 
-  getLineColors = () => {
+  get lineColors() {
     return [...(this.props.overrideLineColors || LINE_COLORS)]
   }
 
-  getLabelWidth = () => {
+  get labelWidth() {
     const {axes: {y}} = this.props
     return (
       LABEL_WIDTH +
@@ -265,7 +230,7 @@ class Dygraph extends Component {
     )
   }
 
-  getTimeSeries = () => {
+  get timeSeries() {
     const {timeSeries} = this.props
     // Avoid 'Can't plot empty data set' errors by falling back to a
     // default dataset that's valid for Dygraph.
@@ -298,31 +263,37 @@ class Dygraph extends Component {
     return date.toISOString()
   }
 
-  deselectCrosshair = () => {
-    const plugins = this.dygraph.plugins_
-    const crosshair = plugins.find(
-      ({plugin}) => plugin.toString() === 'Crosshair Plugin'
-    )
+  handleMouseMove = e => {
+    const newTime = this.eventToTimestamp(e)
+    this.props.handleSetHoverTime(newTime)
 
-    if (!crosshair || this.props.isBarGraph) {
-      return
-    }
+    this.setState({isHoveringThisGraph: true})
+  }
 
-    crosshair.plugin.deselect()
+  handleMouseLeave = () => {
+    this.props.handleSetHoverTime(NULL_HOVER_TIME)
+    this.setState({isHoveringThisGraph: false})
   }
 
   handleShowLegend = () => {
     this.setState({isHidden: false})
   }
 
-  handleAnnotationsRef = ref => (this.annotationsRef = ref)
-
   handleReceiveStaticLegendHeight = staticLegendHeight => {
     this.setState({staticLegendHeight})
   }
 
+  get areAnnotationsVisible() {
+    if (!this.dygraph) {
+      return false
+    }
+
+    const [start, end] = this.dygraph && this.dygraph.xAxisRange()
+    return !!start && !!end
+  }
+
   render() {
-    const {isHidden, staticLegendHeight, isHoveringThisGraph} = this.state
+    const {isHidden, staticLegendHeight} = this.state
     const {staticLegend, children, hoverTime} = this.props
     const nestedGraph = (children && children.length && children[0]) || children
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
@@ -337,12 +308,12 @@ class Dygraph extends Component {
     }
 
     return (
-      <div className="dygraph-child" onMouseLeave={this.deselectCrosshair}>
-        {this.dygraph && (
+      <div className="dygraph-child" onMouseLeave={this.handleMouseLeave}>
+        {this.areAnnotationsVisible && (
           <div className="dygraph-addons">
             <Annotations
               dygraph={this.dygraph}
-              annotationsRef={this.handleAnnotationsRef}
+              dWidth={this.dygraph.width_}
               staticLegendHeight={staticLegendHeight}
             />
             <DygraphLegend
@@ -351,13 +322,11 @@ class Dygraph extends Component {
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
             />
-            {!isHoveringThisGraph && (
-              <Crosshair
-                dygraph={this.dygraph}
-                staticLegendHeight={staticLegendHeight}
-                hoverTime={hoverTime}
-              />
-            )}
+            <Crosshair
+              dygraph={this.dygraph}
+              staticLegendHeight={staticLegendHeight}
+              hoverTime={hoverTime}
+            />
           </div>
         )}
         <div
@@ -367,12 +336,12 @@ class Dygraph extends Component {
           }}
           className="dygraph-child-container"
           style={dygraphStyle}
-          onMouseMove={this.handleMouseMove}
+          onMouseMove={_.throttle(this.handleMouseMove, 100)}
           onMouseOut={this.handleMouseOut}
         />
         {staticLegend && (
           <StaticLegend
-            dygraphSeries={this.colorDygraphSeries()}
+            dygraphSeries={this.colorDygraphSeries}
             dygraph={this.dygraph}
             handleReceiveStaticLegendHeight={
               this.handleReceiveStaticLegendHeight
@@ -407,12 +376,14 @@ Dygraph.defaultProps = {
   overrideLineColors: null,
   dygraphRef: () => {},
   onZoom: () => {},
+  handleSetHoverTime: () => {},
   staticLegend: {
     type: null,
   },
 }
 
 Dygraph.propTypes = {
+  handleSetHoverTime: func,
   axes: shape({
     y: shape({
       bounds: array,
@@ -445,7 +416,6 @@ Dygraph.propTypes = {
     lower: string.isRequired,
   }),
   hoverTime: string,
-  onSetHoverTime: func,
   setResolution: func,
   dygraphRef: func,
   onZoom: func,

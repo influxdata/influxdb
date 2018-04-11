@@ -1,35 +1,47 @@
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
+import classnames from 'classnames'
+
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'shared/constants'
 import {NULL_HOVER_TIME} from 'shared/constants/tableGraph'
 
-import classnames from 'classnames'
+class Crosshair extends PureComponent {
+  shouldCompnentUpdate(nextProps) {
+    return this.props.hoverTime !== nextProps.hoverTime
+  }
 
-class Crosshair extends Component {
   render() {
-    const {dygraph, staticLegendHeight, hoverTime} = this.props
-    const crosshairLeft = Math.round(
-      Math.max(-1000, dygraph.toDomXCoord(hoverTime)) || -1000 + 1
-    )
-    const crosshairHeight = `calc(100% - ${staticLegendHeight +
-      DYGRAPH_CONTAINER_XLABEL_MARGIN}px)`
-
-    const crosshairHidden = hoverTime === NULL_HOVER_TIME
-
     return (
       <div className="crosshair-container">
         <div
           className={classnames('crosshair', {
-            hidden: crosshairHidden,
+            hidden: this.isHidden,
           })}
           style={{
-            left: crosshairLeft,
-            height: crosshairHeight,
+            left: this.crosshairLeft,
+            height: this.crosshairHeight,
             zIndex: 1999,
           }}
         />
       </div>
     )
+  }
+
+  get crosshairLeft() {
+    const {dygraph, hoverTime} = this.props
+
+    return Math.round(
+      Math.max(-1000, dygraph.toDomXCoord(hoverTime)) || -1000 + 1
+    )
+  }
+
+  get crosshairHeight() {
+    return `calc(100% - ${this.props.staticLegendHeight +
+      DYGRAPH_CONTAINER_XLABEL_MARGIN}px)`
+  }
+
+  get isHidden() {
+    return this.props.hoverTime === NULL_HOVER_TIME
   }
 }
 

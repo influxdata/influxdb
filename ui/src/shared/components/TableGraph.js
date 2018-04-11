@@ -131,16 +131,16 @@ class TableGraph extends Component {
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
-    const {onSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
+    const {handleSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
     const {sortedTimeVals} = this.state
     if (verticalTimeAxis && rowIndex === 0) {
       return
     }
-    if (onSetHoverTime) {
+    if (handleSetHoverTime) {
       const hoverTime = verticalTimeAxis
         ? sortedTimeVals[rowIndex]
         : sortedTimeVals[columnIndex]
-      onSetHoverTime(hoverTime.toString())
+      handleSetHoverTime(hoverTime.toString())
     }
     this.setState({
       hoveredColumnIndex: columnIndex,
@@ -149,8 +149,8 @@ class TableGraph extends Component {
   }
 
   handleMouseLeave = () => {
-    if (this.props.onSetHoverTime) {
-      this.props.onSetHoverTime(NULL_HOVER_TIME)
+    if (this.props.handleSetHoverTime) {
+      this.props.handleSetHoverTime(NULL_HOVER_TIME)
       this.setState({
         hoveredColumnIndex: NULL_ARRAY_INDEX,
         hoveredRowIndex: NULL_ARRAY_INDEX,
@@ -305,7 +305,7 @@ class TableGraph extends Component {
         style={cellStyle}
         className={cellClass}
         onClick={isFieldName ? this.handleClickFieldName(cellData) : null}
-        onMouseOver={this.handleHover(columnIndex, rowIndex)}
+        onMouseOver={_.throttle(this.handleHover(columnIndex, rowIndex), 100)}
         title={cellContents}
       >
         {cellContents}
@@ -412,7 +412,7 @@ TableGraph.propTypes = {
     fixFirstColumn: bool,
   }),
   hoverTime: string,
-  onSetHoverTime: func,
+  handleSetHoverTime: func,
   colors: colorsStringSchema,
 }
 

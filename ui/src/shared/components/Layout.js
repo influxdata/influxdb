@@ -60,8 +60,6 @@ const Layout = (
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
-    hoverTime,
-    onSetHoverTime,
   },
   {source: defaultSource}
 ) => (
@@ -90,8 +88,6 @@ const Layout = (
         timeRange={timeRange}
         templates={templates}
         autoRefresh={autoRefresh}
-        hoverTime={hoverTime}
-        onSetHoverTime={onSetHoverTime}
         manualRefresh={manualRefresh}
         onStopAddAnnotation={onStopAddAnnotation}
         grabDataForDownload={grabDataForDownload}
@@ -149,8 +145,6 @@ const propTypes = {
   onEditCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  hoverTime: string,
-  onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,

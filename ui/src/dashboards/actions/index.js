@@ -186,6 +186,13 @@ export const editTemplateVariableValues = (
   },
 })
 
+export const setHoverTime = hoverTime => ({
+  type: 'SET_HOVER_TIME',
+  payload: {
+    hoverTime,
+  },
+})
+
 // Async Action Creators
 
 export const getDashboardsAsync = () => async dispatch => {

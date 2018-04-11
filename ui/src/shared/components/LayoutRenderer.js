@@ -74,8 +74,6 @@ class LayoutRenderer extends Component {
       onDeleteCell,
       onCancelEditCell,
       onSummonOverlayTechnologies,
-      hoverTime,
-      onSetHoverTime,
     } = this.props
 
     const {rowHeight, resizeCoords} = this.state
@@ -130,8 +128,6 @@ class LayoutRenderer extends Component {
                     autoRefresh={autoRefresh}
                     resizeCoords={resizeCoords}
                     onDeleteCell={onDeleteCell}
-                    hoverTime={hoverTime}
-                    onSetHoverTime={onSetHoverTime}
                     manualRefresh={manualRefresh}
                     onCancelEditCell={onCancelEditCell}
                     onStopAddAnnotation={this.handleStopAddAnnotation}
@@ -186,8 +182,6 @@ LayoutRenderer.propTypes = {
   onEditCell: func,
   onDeleteCell: func,
   onSummonOverlayTechnologies: func,
-  hoverTime: string,
-  onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,
