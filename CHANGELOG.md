@@ -31,6 +31,7 @@
 1.  [#3128](https://github.com/influxdata/chronograf/pull/3128): Fix type error bug in Kapacitor Alert Config page and persist deleting of team and recipient in OpsGenieConfig
 1.  [#3149](https://github.com/influxdata/chronograf/pull/3149): Fixes errors caused by switching query tabs in CEO
 1.  [#3162](https://github.com/influxdata/chronograf/pull/3162): Only send threshold value to parent on blur
+1.  [#3168](https://github.com/influxdata/chronograf/pull/3168): Fix the github oauth2 implementation with multiple emails
 
 ## v1.4.3.1 [2018-04-02]
 

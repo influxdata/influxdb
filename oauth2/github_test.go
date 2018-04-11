@@ -18,7 +18,9 @@ func TestGithubPrincipalID(t *testing.T) {
 		Primary  bool   `json:"primary"`
 		Verified bool   `json:"verified"`
 	}{
-		{"martymcfly@example.com", true, false},
+		{"mcfly@example.com", false, true},
+		{"martymcspelledwrong@example.com", false, false},
+		{"martymcfly@example.com", true, true},
 	}
 	mockAPI := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/user/emails" {
@@ -50,8 +52,8 @@ func TestGithubPrincipalID(t *testing.T) {
 		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
 	}
 
-	if email != expected[0].Email {
-		t.Fatal("Retrieved email was not as expected. Want:", expected[0].Email, "Got:", email)
+	if got, want := email, "martymcfly@example.com"; got != want {
+		t.Fatal("Retrieved email was not as expected. Want:", want, "Got:", got)
 	}
 }
 
@@ -63,7 +65,7 @@ func TestGithubPrincipalIDOrganization(t *testing.T) {
 		Primary  bool   `json:"primary"`
 		Verified bool   `json:"verified"`
 	}{
-		{"martymcfly@example.com", true, false},
+		{"martymcfly@example.com", true, true},
 	}
 	expectedOrg := []struct {
 		Login string `json:"login"`

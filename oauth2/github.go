@@ -26,22 +26,22 @@ type Github struct {
 	Logger       chronograf.Logger
 }
 
-// Name is the name of the provider
+// Name is the name of the provider.
 func (g *Github) Name() string {
 	return "github"
 }
 
-// ID returns the github application client id
+// ID returns the github application client id.
 func (g *Github) ID() string {
 	return g.ClientID
 }
 
-// Secret returns the github application client secret
+// Secret returns the github application client secret.
 func (g *Github) Secret() string {
 	return g.ClientSecret
 }
 
-// Scopes for github is only the email addres and possible organizations if
+// Scopes for github is only the email address and possible organizations if
 // we are filtering by organizations.
 func (g *Github) Scopes() []string {
 	scopes := []string{"user:email"}
@@ -51,7 +51,7 @@ func (g *Github) Scopes() []string {
 	return scopes
 }
 
-// Config is the Github OAuth2 exchange information and endpoints
+// Config is the Github OAuth2 exchange information and endpoints.
 func (g *Github) Config() *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     g.ID(),
@@ -122,7 +122,7 @@ func logResponseError(log chronograf.Logger, resp *github.Response, err error) {
 	}
 }
 
-// isMember makes sure that the user is in one of the required organizations
+// isMember makes sure that the user is in one of the required organizations.
 func isMember(requiredOrgs []string, userOrgs []*github.Organization) bool {
 	for _, requiredOrg := range requiredOrgs {
 		for _, userOrg := range userOrgs {
@@ -134,7 +134,7 @@ func isMember(requiredOrgs []string, userOrgs []*github.Organization) bool {
 	return false
 }
 
-// getOrganizations gets all organization for the currently authenticated user
+// getOrganizations gets all organization for the currently authenticated user.
 func getOrganizations(client *github.Client, log chronograf.Logger) ([]*github.Organization, error) {
 	// Get all pages of results
 	var allOrgs []*github.Organization
@@ -175,9 +175,23 @@ func getPrimaryEmail(client *github.Client, log chronograf.Logger) (string, erro
 
 func primaryEmail(emails []*github.UserEmail) (string, error) {
 	for _, m := range emails {
-		if m != nil && m.Primary != nil && m.Verified != nil && m.Email != nil {
+		if m != nil && getPrimary(m) && getVerified(m) && m.Email != nil {
 			return *m.Email, nil
 		}
 	}
 	return "", errors.New("No primary email address")
+}
+
+func getPrimary(m *github.UserEmail) bool {
+	if m == nil || m.Primary == nil {
+		return false
+	}
+	return *m.Primary
+}
+
+func getVerified(m *github.UserEmail) bool {
+	if m == nil || m.Verified == nil {
+		return false
+	}
+	return *m.Verified
 }
