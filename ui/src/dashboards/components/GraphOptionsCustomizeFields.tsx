@@ -1,5 +1,5 @@
 import React, {SFC} from 'react'
-import GraphOptionsSortableField from 'src/dashboards/components/GraphOptionsSortableField'
+import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
 
 // import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {DragDropContext} from 'react-dnd'
@@ -27,7 +27,7 @@ const GraphOptionsCustomizeFields: SFC<Props> = ({
       <label className="form-label">Customize Fields</label>
       <div>
         {fields.map((field, i) => (
-          <GraphOptionsSortableField
+          <GraphOptionsCustomizableField
             key={field.internalName}
             index={i}
             id={field.internalName}
