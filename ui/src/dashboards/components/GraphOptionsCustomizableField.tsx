@@ -1,10 +1,40 @@
 import React, {PureComponent} from 'react'
 import {findDOMNode} from 'react-dom'
-import {DragSource, DropTarget} from 'react-dnd'
+import {
+  DragSourceSpec,
+  DropTargetConnector,
+  DragSourceMonitor,
+  DragSource,
+  DropTarget,
+  DragSourceConnector,
+} from 'react-dnd'
 
 const FieldType = 'field'
 
-const fieldSource = {
+interface Field {
+  internalName: string
+  displayName: string
+  visible: boolean
+  order?: number
+  index?: number
+}
+
+interface FieldSourceProps {
+  internalName: string
+  displayName: string
+  visible: boolean
+  index: number
+  id: string
+  key: string
+  isDragging?: boolean
+  onFieldUpdate?: (field: Field) => void
+  connectDragSource?: any
+  connectDropTarget?: any
+  connectDragPreview?: any
+  moveField: (dragIndex: number, hoverIndex: number) => void
+}
+
+const fieldSource: DragSourceSpec<FieldSourceProps> = {
   beginDrag(props) {
     return {
       id: props.id,
@@ -59,36 +89,28 @@ const fieldTarget = {
   },
 }
 
-interface Field {
-  internalName: string
-  displayName: string
-  visible: boolean
-  order?: number
+function MyDropTarget(dropv1, dropv2, dropfunc1) {
+  return target => DropTarget(dropv1, dropv2, dropfunc1)(target) as any
 }
 
-interface Props {
-  internalName: string
-  displayName: string
-  index: number
-  id: string
-  key: string
-  isDragging: boolean
-  onFieldUpdate?: (field: Field) => void
-  connectDragSource: any
-  connectDropTarget: any
-  moveField: (dragIndex: number, hoverIndex: number) => void
+function MyDragSource(dragv1, dragv2, dragfunc1) {
+  return target => DragSource(dragv1, dragv2, dragfunc1)(target) as any
 }
 
-@DropTarget(FieldType, fieldTarget, connect => ({
+@MyDropTarget(FieldType, fieldTarget, (connect: DropTargetConnector) => ({
   connectDropTarget: connect.dropTarget(),
 }))
-@DragSource(FieldType, fieldSource, (connect, monitor) => ({
-  connectDragSource: connect.dragSource(),
-  connectDragPreview: connect.dragPreview(),
-  isDragging: monitor.isDragging(),
-}))
+@MyDragSource(
+  FieldType,
+  fieldSource,
+  (connect: DragSourceConnector, monitor: DragSourceMonitor) => ({
+    connectDragSource: connect.dragSource(),
+    connectDragPreview: connect.dragPreview(),
+    isDragging: monitor.isDragging(),
+  })
+)
 export default class GraphOptionsCustomizableField extends PureComponent<
-  Props
+  FieldSourceProps
 > {
   constructor(props) {
     super(props)
@@ -96,18 +118,17 @@ export default class GraphOptionsCustomizableField extends PureComponent<
     this.handleFieldRename = this.handleFieldRename.bind(this)
     this.handleToggleVisible = this.handleToggleVisible.bind(this)
   }
-  public render() {
+  public render(): JSX.Element | null {
     const {
       internalName,
       displayName,
       isDragging,
-      onFieldUpdate,
       connectDragSource,
       connectDragPreview,
       connectDropTarget,
+      visible,
     } = this.props
-    const visible = true
-    const opacity = isDragging ? 0 : 1
+    const opacity = isDragging ? 0.2 : 1
     return connectDragPreview(
       connectDropTarget(
         <div className="customizable-field">
@@ -135,6 +156,7 @@ export default class GraphOptionsCustomizableField extends PureComponent<
             id="internalName"
             value={displayName}
             onBlur={this.handleFieldRename}
+            onChange={this.handleFieldRename}
             placeholder={`Rename ${internalName}`}
             disabled={!visible}
           />
@@ -143,9 +165,9 @@ export default class GraphOptionsCustomizableField extends PureComponent<
     )
   }
 
-  private handleFieldRename(rename: string) {
+  private handleFieldRename(e) {
     const {onFieldUpdate, internalName, visible} = this.props
-    onFieldUpdate({internalName, displayName: rename, visible})
+    onFieldUpdate({internalName, displayName: e.target.value, visible})
   }
 
   private handleToggleVisible() {

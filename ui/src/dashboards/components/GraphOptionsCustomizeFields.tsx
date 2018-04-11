@@ -15,7 +15,7 @@ interface Field {
 interface Props {
   fields: Field[]
   onFieldUpdate: (field: Field) => void
-  moveField: (dragIndex: number, hoverIndex: number) => void
+  moveField?: (dragIndex: number, hoverIndex: number) => void
 }
 const GraphOptionsCustomizeFields: SFC<Props> = ({
   fields,
@@ -33,6 +33,7 @@ const GraphOptionsCustomizeFields: SFC<Props> = ({
             id={field.internalName}
             internalName={field.internalName}
             displayName={field.displayName}
+            visible={field.visible}
             onFieldUpdate={onFieldUpdate}
             moveField={moveField}
           />
