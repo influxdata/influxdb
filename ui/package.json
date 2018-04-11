@@ -40,7 +40,7 @@
     "@types/node": "^9.4.6",
     "@types/prop-types": "^15.5.2",
     "@types/react": "^16.0.38",
-    "@types/react-router": "3",
+    "@types/react-router": "^3.0.15",
     "@types/text-encoding": "^0.0.32",
     "autoprefixer": "^6.3.1",
     "babel-core": "^6.5.1",
