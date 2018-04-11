@@ -399,6 +399,84 @@ func TestService_newSourceKapacitor(t *testing.T) {
 	}
 }
 
+func TestService_SourcesID(t *testing.T) {
+	type fields struct {
+		SourcesStore chronograf.SourcesStore
+		Logger       chronograf.Logger
+	}
+	type args struct {
+		w *httptest.ResponseRecorder
+		r *http.Request
+	}
+	tests := []struct {
+		name            string
+		args            args
+		fields          fields
+		ID              string
+		wantStatusCode  int
+		wantContentType string
+		wantBody        string
+	}{
+		{
+			name: "Get source without defaultRP includes empty defaultRP in response",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"GET",
+					"http://any.url",
+					nil,
+				),
+			},
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID: 1,
+						}, nil
+					},
+				},
+				Logger: log.New(log.DebugLevel),
+			},
+			ID:              "1",
+			wantStatusCode:  200,
+			wantContentType: "application/json",
+			wantBody:        `{"id":"1","name":"","url":"","default":false,"telegraf":"telegraf","organization":"","links":{"self":"/chronograf/v1/sources/1","kapacitors":"/chronograf/v1/sources/1/kapacitors","proxy":"/chronograf/v1/sources/1/proxy","queries":"/chronograf/v1/sources/1/queries","write":"/chronograf/v1/sources/1/write","permissions":"/chronograf/v1/sources/1/permissions","users":"/chronograf/v1/sources/1/users","databases":"/chronograf/v1/sources/1/dbs","annotations":"/chronograf/v1/sources/1/annotations","health":"/chronograf/v1/sources/1/health"}, "defaultRP":""}`,
+		},
+	}
+	for _, tt := range tests {
+		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
+			context.Background(),
+			httprouter.Params{
+				{
+					Key:   "id",
+					Value: tt.ID,
+				},
+			}))
+		h := &Service{
+			Store: &mocks.Store{
+				SourcesStore: tt.fields.SourcesStore,
+			},
+			Logger: tt.fields.Logger,
+		}
+		h.SourcesID(tt.args.w, tt.args.r)
+
+		resp := tt.args.w.Result()
+		contentType := resp.Header.Get("Content-Type")
+		body, _ := ioutil.ReadAll(resp.Body)
+
+		if resp.StatusCode != tt.wantStatusCode {
+			t.Errorf("%q. SourcesID() =got %v, want %v", tt.name, resp.StatusCode, tt.wantStatusCode)
+		}
+		if tt.wantContentType != "" && contentType != tt.wantContentType {
+			t.Errorf("%q. SourcesID() =got %v, want %v", tt.name, contentType, tt.wantContentType)
+		}
+		if tt.wantBody != "" && string(body) != tt.wantBody {
+			t.Errorf("%q. SourcesID() =\ngot  ***%v***\nwant ***%v***\n", tt.name, string(body), tt.wantBody)
+		}
+
+	}
+}
+
 func TestService_NewSourceUser(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
