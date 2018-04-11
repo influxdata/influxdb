@@ -7,7 +7,7 @@ import classnames from 'classnames'
 
 import MenuTooltipButton from 'src/shared/components/MenuTooltipButton'
 import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
-
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {EDITING} from 'src/shared/annotations/helpers'
 import {cellSupportsAnnotations} from 'src/shared/constants/index'
 
@@ -90,11 +90,13 @@ class LayoutCellMenu extends Component {
                   informParent={this.handleToggleSubMenu}
                 />
               ) : null}
-              <MenuTooltipButton
-                icon="duplicate"
-                menuOptions={[{text: 'Clone Cell', action: onClone(cell)}]}
-                informParent={this.handleToggleSubMenu}
-              />
+              <Authorized requiredRole={EDITOR_ROLE}>
+                <MenuTooltipButton
+                  icon="duplicate"
+                  menuOptions={[{text: 'Clone Cell', action: onClone(cell)}]}
+                  informParent={this.handleToggleSubMenu}
+                />
+              </Authorized>
               <MenuTooltipButton
                 icon="trash"
                 theme="danger"
