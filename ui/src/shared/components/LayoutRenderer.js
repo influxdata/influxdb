@@ -72,6 +72,7 @@ class LayoutRenderer extends Component {
       autoRefresh,
       manualRefresh,
       onDeleteCell,
+      onCloneCell,
       onCancelEditCell,
       onSummonOverlayTechnologies,
     } = this.props
@@ -128,6 +129,7 @@ class LayoutRenderer extends Component {
                     autoRefresh={autoRefresh}
                     resizeCoords={resizeCoords}
                     onDeleteCell={onDeleteCell}
+                    onCloneCell={onCloneCell}
                     manualRefresh={manualRefresh}
                     onCancelEditCell={onCancelEditCell}
                     onStopAddAnnotation={this.handleStopAddAnnotation}
@@ -181,6 +183,7 @@ LayoutRenderer.propTypes = {
   onPositionChange: func,
   onEditCell: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
   isStatusPage: bool,
   isEditable: bool,

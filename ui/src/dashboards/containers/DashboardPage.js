@@ -218,6 +218,11 @@ class DashboardPage extends Component {
     dashboardActions.addDashboardCellAsync(dashboard)
   }
 
+  handleCloneCell = cell => () => {
+    const {dashboardActions, dashboard} = this.props
+    dashboardActions.cloneDashboardCellAsync(dashboard, cell)
+  }
+
   handleEditDashboard = () => {
     this.setState({isEditMode: true})
   }
@@ -437,6 +442,7 @@ class DashboardPage extends Component {
             onPositionChange={this.handleUpdatePosition}
             onSelectTemplate={this.handleSelectTemplate}
             onDeleteCell={this.handleDeleteDashboardCell}
+            onCloneCell={this.handleCloneCell}
             showTemplateControlBar={showTemplateControlBar}
             onOpenTemplateManager={this.handleOpenTemplateManager}
             templatesIncludingDashTime={templatesIncludingDashTime}

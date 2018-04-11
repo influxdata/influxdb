@@ -32,6 +32,7 @@ class LayoutCellMenu extends Component {
       mode,
       cell,
       onEdit,
+      onClone,
       queries,
       onDelete,
       isEditable,
@@ -64,7 +65,10 @@ class LayoutCellMenu extends Component {
                 <MenuTooltipButton
                   icon="pencil"
                   menuOptions={[
-                    {text: 'Configure', action: onEdit(cell)},
+                    {
+                      text: 'Configure',
+                      action: onEdit(cell),
+                    },
                     {
                       text: 'Add Annotation',
                       action: onStartAddingAnnotation,
@@ -74,6 +78,10 @@ class LayoutCellMenu extends Component {
                       text: 'Edit Annotations',
                       action: onStartEditingAnnotation,
                       disabled: !cellSupportsAnnotations(cell.type),
+                    },
+                    {
+                      text: 'Clone Cell',
+                      action: onClone(cell),
                     },
                   ]}
                   informParent={this.handleToggleSubMenu}
@@ -117,6 +125,7 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 LayoutCellMenu.propTypes = {
   mode: string,
   onEdit: func,
+  onClone: func,
   onDelete: func,
   cell: shape(),
   isEditable: bool,
