@@ -28,6 +28,7 @@ func TestSourceStore(t *testing.T) {
 			URL:          "toyota-hilux.lyon-estates.local",
 			Default:      true,
 			Organization: "1337",
+			DefaultRP:    "pineapple",
 		},
 		chronograf.Source{
 			Name:         "HipToBeSquare",
