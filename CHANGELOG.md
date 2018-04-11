@@ -35,6 +35,7 @@
 1.  [#3168](https://github.com/influxdata/chronograf/pull/3168): Require that emails on GitHub & Generic OAuth2 principals be verified & primary, if those fields are provided
 1.  [#3182](https://github.com/influxdata/chronograf/pull/3182): Send notification when rp creation returns a failure
 1.  [#3181](https://github.com/influxdata/chronograf/pull/3181): Show valid time in custom time range when now is selected
+1.  [#3179](https://github.com/influxdata/chronograf/pull/3179): Default to zero for gauges
 
 ## v1.4.3.1 [2018-04-02]
 
