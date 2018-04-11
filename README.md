@@ -66,6 +66,10 @@ curl -G "http://localhost:8086/query?pretty=true" --data-urlencode "db=mydb" \
 
 If you're feeling adventurous and want to contribute to InfluxDB, see our [contributing doc](https://github.com/influxdata/influxdb/blob/master/CONTRIBUTING.md) for info on how to make feature requests, build from source, and run tests.
 
+## Licensing
+
+See [LICENSE](./LICENSE) and [DEPENDENCIES](./DEPENDENCIES).
+
 ## Looking for Support?
 
 InfluxDB offers a number of services to help your project succeed. We offer Developer Support for organizations in active development, Managed Hosting to make it easy to move into production, and Enterprise Support for companies requiring the best response times, SLAs, and technical fixes. Visit our [support page](https://influxdata.com/services/) or contact [sales@influxdb.com](mailto:sales@influxdb.com) to learn how we can best help you succeed.
