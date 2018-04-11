@@ -58,11 +58,12 @@ class LayoutCellMenu extends Component {
         action: onStartEditingAnnotation,
         disabled: !cellSupportsAnnotations(cell.type),
       },
+      {
+        text: 'Download CSV',
+        action: onCSVDownload(cell),
+        disabled: !dataExists,
+      },
     ]
-
-    if (dataExists) {
-      menuOptions.push({text: 'Download CSV', action: onCSVDownload(cell)})
-    }
 
     return (
       <div
@@ -89,13 +90,11 @@ class LayoutCellMenu extends Component {
                   informParent={this.handleToggleSubMenu}
                 />
               ) : null}
-
               <MenuTooltipButton
                 icon="duplicate"
                 menuOptions={[{text: 'Clone Cell', action: onClone(cell)}]}
                 informParent={this.handleToggleSubMenu}
               />
-
               <MenuTooltipButton
                 icon="trash"
                 theme="danger"
