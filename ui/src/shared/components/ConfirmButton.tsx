@@ -48,7 +48,7 @@ class ConfirmButton extends PureComponent<Props, State> {
         >
           {icon && <span className={`icon ${icon}`} />}
           {text && text}
-          <div className={`confirm-button--tooltip ${this.calculatePosition}`}>
+          <div className={`confirm-button--tooltip ${this.calculatedPosition}`}>
             <div
               className="confirm-button--confirmation"
               onClick={this.handleConfirmClick}
@@ -90,7 +90,7 @@ class ConfirmButton extends PureComponent<Props, State> {
     this.setState({expanded: false})
   }
 
-  private get calculatePosition() {
+  private get calculatedPosition() {
     if (!this.buttonDiv || !this.tooltipDiv) {
       return ''
     }
