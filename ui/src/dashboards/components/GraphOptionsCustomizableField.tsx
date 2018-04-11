@@ -128,31 +128,40 @@ export default class GraphOptionsCustomizableField extends PureComponent<
       connectDropTarget,
       visible,
     } = this.props
-    const opacity = isDragging ? 0.2 : 1
+
+    const fieldClass = `customizable-field${isDragging ? ' dragging' : ''}`
+    const labelClass = `${
+      visible
+        ? 'customizable-field--label'
+        : 'customizable-field--label__hidden'
+    }`
+
+    const visibilityTitle = visible
+      ? `Click to HIDE ${internalName}`
+      : `Click to SHOW ${internalName}`
+
     return connectDragPreview(
       connectDropTarget(
-        <div className="customizable-field">
-          <div
-            style={{opacity}}
-            className={
-              visible
-                ? 'customizable-field--label'
-                : 'customizable-field--label__hidden'
-            }
-            onClick={this.handleToggleVisible}
-            title={
-              visible
-                ? `Click to HIDE ${internalName}`
-                : `Click to SHOW ${internalName}`
-            }
-          >
-            {connectDragSource(<span className={'icon shuffle'} />)}
-            <span className={visible ? 'icon eye-open' : 'icon eye-closed'} />
-            {internalName}
+        <div className={fieldClass}>
+          <div className={labelClass}>
+            {connectDragSource(
+              <div className="customizable-field--drag">
+                <span className="hamburger" />
+              </div>
+            )}
+            <div
+              className="customizable-field--visibility"
+              onClick={this.handleToggleVisible}
+              title={visibilityTitle}
+            >
+              <span className={visible ? 'icon eye-open' : 'icon eye-closed'} />
+            </div>
+            <div className="customizable-field--name">{internalName}</div>
           </div>
           <input
-            className="customizable-field--input"
+            className="form-control input-sm customizable-field--input"
             type="text"
+            spellCheck={false}
             id="internalName"
             value={displayName}
             onBlur={this.handleFieldRename}
