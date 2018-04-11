@@ -1,7 +1,9 @@
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter, InjectedRouter} from 'react-router'
+
+import _ from 'lodash'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import Dropdown from 'src/shared/components/Dropdown'
@@ -41,27 +43,9 @@ interface Props {
   router: InjectedRouter
 }
 
-class OrganizationsTableRow extends Component<Props, {}> {
-  public handleChangeCurrentOrganization = async () => {
-    const {router, links, meChangeOrganization, organization} = this.props
-
-    await meChangeOrganization(links.me, {organization: organization.id})
-    router.push('')
-  }
-
-  public handleUpdateOrgName = newName => {
-    const {organization, onRename} = this.props
-    onRename(organization, newName)
-  }
-
-  public handleDeleteOrg = () => {
-    const {onDelete, organization} = this.props
-    onDelete(organization)
-  }
-
-  public handleChooseDefaultRole = role => {
-    const {organization, onChooseDefaultRole} = this.props
-    onChooseDefaultRole(organization, role.name)
+class OrganizationsTableRow extends PureComponent<Props, {}> {
+  public shouldComponentUpdate(nextProps) {
+    return !_.isEqual(this.props, nextProps)
   }
 
   public render() {
@@ -111,6 +95,28 @@ class OrganizationsTableRow extends Component<Props, {}> {
         />
       </div>
     )
+  }
+
+  public handleChangeCurrentOrganization = async () => {
+    const {router, links, meChangeOrganization, organization} = this.props
+
+    await meChangeOrganization(links.me, {organization: organization.id})
+    router.push('')
+  }
+
+  public handleUpdateOrgName = newName => {
+    const {organization, onRename} = this.props
+    onRename(organization, newName)
+  }
+
+  public handleDeleteOrg = () => {
+    const {onDelete, organization} = this.props
+    onDelete(organization)
+  }
+
+  public handleChooseDefaultRole = role => {
+    const {organization, onChooseDefaultRole} = this.props
+    onChooseDefaultRole(organization, role.name)
   }
 }
 

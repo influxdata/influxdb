@@ -2,6 +2,7 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
 import uuid from 'uuid'
+import _ from 'lodash'
 
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
@@ -13,6 +14,12 @@ class OrganizationsTable extends Component {
     this.state = {
       isCreatingOrganization: false,
     }
+  }
+
+  shouldComponentUpdate(nextProps, nextState) {
+    return (
+      !_.isEqual(this.props, nextProps) || !_.isEqual(this.state, nextState)
+    )
   }
 
   handleClickCreateOrganization = () => {
