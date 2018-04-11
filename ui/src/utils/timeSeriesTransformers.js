@@ -200,10 +200,13 @@ export const filterTableColumns = (data, fieldNames) => {
 
 export const orderTableColumns = (data, fieldNames) => {
   const fieldsSortOrder = fieldNames.map(fieldName => {
-    return data[0].findIndex(dataLabel => dataLabel === fieldName.internalName)
+    return _.findIndex(data[0], dataLabel => {
+      return dataLabel === fieldName.internalName
+    })
   })
+  const filteredFieldSortOrder = _.filter(fieldsSortOrder, f => f !== -1)
   const orderedData = map(data, row => {
-    return row.map((v, j, arr) => arr[fieldsSortOrder[j]])
+    return row.map((v, j, arr) => arr[filteredFieldSortOrder[j]])
   })
   return orderedData[0].length ? orderedData : [[]]
 }

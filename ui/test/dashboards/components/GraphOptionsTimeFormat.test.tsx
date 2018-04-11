@@ -4,7 +4,6 @@ import {shallow} from 'enzyme'
 
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
 import {Dropdown} from 'src/shared/components/Dropdown'
-import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {
   TIME_FORMAT_CUSTOM,
@@ -29,7 +28,7 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
 
         expect(wrapper.find(Dropdown).exists()).toBe(true)
         expect(wrapper.find(QuestionMarkTooltip).exists()).toBe(false)
-        expect(wrapper.find(InputClickToEdit).exists()).toBe(false)
+        expect(wrapper.find('input.custom-time-format').exists()).toBe(false)
       })
     })
 
@@ -47,7 +46,7 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
         expect(link.exists()).toBe(true)
         expect(link.prop('href')).toBe(TIME_FORMAT_TOOLTIP_LINK)
         expect(link.find(QuestionMarkTooltip).exists()).toBe(true)
-        expect(wrapper.find(InputClickToEdit).exists()).toBe(true)
+        expect(wrapper.find('input.custom-time-format').exists()).toBe(true)
       })
     })
 
@@ -56,7 +55,7 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
         const timeFormat = 'mmmmmmm'
         const wrapper = setup({timeFormat})
         const dropdown = wrapper.find(Dropdown)
-        const input = wrapper.find(InputClickToEdit)
+        const input = wrapper.find('input.custom-time-format')
         const label = wrapper.find('label')
         const link = label.find('a')
 
@@ -103,7 +102,7 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
           onTimeFormatChange,
         }).instance() as GraphOptionsTimeFormat
 
-        instance.handleChangeFormat(format)
+        instance.handleChangeFormat({target: {value: format}})
         expect(instance.state.format).toBe(format)
         expect(onTimeFormatChange).toBeCalledWith(format)
         expect(onTimeFormatChange).toHaveBeenCalledTimes(1)
