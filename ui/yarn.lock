@@ -61,6 +61,18 @@
   version "15.5.2"
   resolved "https://registry.yarnpkg.com/@types/prop-types/-/prop-types-15.5.2.tgz#3c6b8dceb2906cc87fe4358e809f9d20c8d59be1"
 
+"@types/react-dnd-html5-backend@^2.1.9":
+  version "2.1.9"
+  resolved "https://registry.yarnpkg.com/@types/react-dnd-html5-backend/-/react-dnd-html5-backend-2.1.9.tgz#dfc9efe2a68bd12407815a2d61ddfd18bb8686fb"
+  dependencies:
+    "@types/react-dnd" "*"
+
+"@types/react-dnd@*", "@types/react-dnd@^2.0.36":
+  version "2.0.36"
+  resolved "https://registry.yarnpkg.com/@types/react-dnd/-/react-dnd-2.0.36.tgz#67e08a3608f112a3af27201d1fb6f79334d43214"
+  dependencies:
+    "@types/react" "*"
+
 "@types/react-router@3":
   version "3.0.15"
   resolved "https://registry.yarnpkg.com/@types/react-router/-/react-router-3.0.15.tgz#b55b0dc5ad8f6fa66b609f0efc390b191381d082"

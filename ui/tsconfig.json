@@ -9,7 +9,9 @@
       "prop-types",
       "jest",
       "react-router",
-      "text-encoding"
+      "text-encoding",
+      "react-dnd",
+      "react-dnd-html5-backend"
     ],
     "target": "es6",
     "module": "es2015",
