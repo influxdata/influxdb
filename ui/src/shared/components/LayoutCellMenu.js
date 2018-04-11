@@ -43,6 +43,27 @@ class LayoutCellMenu extends Component {
       onDismissEditingAnnotation,
     } = this.props
 
+    const menuOptions = [
+      {
+        text: 'Configure',
+        action: onEdit(cell),
+      },
+      {
+        text: 'Add Annotation',
+        action: onStartAddingAnnotation,
+        disabled: !cellSupportsAnnotations(cell.type),
+      },
+      {
+        text: 'Edit Annotations',
+        action: onStartEditingAnnotation,
+        disabled: !cellSupportsAnnotations(cell.type),
+      },
+    ]
+
+    if (dataExists) {
+      menuOptions.push({text: 'Download CSV', action: onCSVDownload(cell)})
+    }
+
     return (
       <div
         className={classnames('dash-graph-context', {
@@ -64,38 +85,17 @@ class LayoutCellMenu extends Component {
               {queries.length ? (
                 <MenuTooltipButton
                   icon="pencil"
-                  menuOptions={[
-                    {
-                      text: 'Configure',
-                      action: onEdit(cell),
-                    },
-                    {
-                      text: 'Add Annotation',
-                      action: onStartAddingAnnotation,
-                      disabled: !cellSupportsAnnotations(cell.type),
-                    },
-                    {
-                      text: 'Edit Annotations',
-                      action: onStartEditingAnnotation,
-                      disabled: !cellSupportsAnnotations(cell.type),
-                    },
-                    {
-                      text: 'Clone Cell',
-                      action: onClone(cell),
-                    },
-                  ]}
+                  menuOptions={menuOptions}
                   informParent={this.handleToggleSubMenu}
                 />
               ) : null}
-              {dataExists && (
-                <MenuTooltipButton
-                  icon="download"
-                  menuOptions={[
-                    {text: 'Download CSV', action: onCSVDownload(cell)},
-                  ]}
-                  informParent={this.handleToggleSubMenu}
-                />
-              )}
+
+              <MenuTooltipButton
+                icon="duplicate"
+                menuOptions={[{text: 'Clone Cell', action: onClone(cell)}]}
+                informParent={this.handleToggleSubMenu}
+              />
+
               <MenuTooltipButton
                 icon="trash"
                 theme="danger"
