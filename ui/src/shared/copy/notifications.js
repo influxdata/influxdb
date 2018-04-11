@@ -324,6 +324,11 @@ export const notifyRetentionPolicyCreated = () => ({
   message: 'Retention Policy created successfully.',
 })
 
+export const notifyRetentionPolicyCreationError = () => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create Retention Policy. Please check name and duration.',
+})
+
 export const notifyRetentionPolicyCreationFailed = errorMessage =>
   `Failed to create Retention Policy: ${errorMessage}`
 

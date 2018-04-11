@@ -50,6 +50,7 @@ import {
   notifyRetentionPolicyDeleteFailed,
   notifyRetentionPolicyUpdated,
   notifyRetentionPolicyUpdateFailed,
+  notifyRetentionPolicyCreationError,
 } from 'shared/copy/notifications'
 
 import {REVERT_STATE_DELAY} from 'shared/constants'
@@ -352,6 +353,7 @@ export const createRetentionPolicyAsync = (
     dispatch(notify(notifyRetentionPolicyCreated()))
     dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
+    dispatch(notify(notifyRetentionPolicyCreationError()))
     dispatch(
       errorThrown(notifyRetentionPolicyCreationFailed(error.data.message))
     )
