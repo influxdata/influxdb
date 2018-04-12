@@ -11,7 +11,7 @@ interface State {
 
 interface Props {
   timeRange: {
-    upper: string
+    upper?: string
     lower: string
   }
   onApplyTimeRange: () => void
@@ -32,7 +32,7 @@ class CustomTimeRangeDropdown extends PureComponent<Props, State> {
     const {expanded} = this.state
 
     return (
-      <ClickOutside onClickOutside={this.handleCloseDropdown}>
+      <ClickOutside onClickOutside={this.closeDropdown}>
         <div
           className={classnames('dropdown dropdown-280 custom-time-range', {
             open: expanded,
@@ -51,7 +51,7 @@ class CustomTimeRangeDropdown extends PureComponent<Props, State> {
           <CustomTimeRange
             onApplyTimeRange={onApplyTimeRange}
             timeRange={timeRange}
-            onClose={this.handleCloseDropdown}
+            onClose={this.closeDropdown}
           />
         </div>
       </ClickOutside>
@@ -81,7 +81,7 @@ class CustomTimeRangeDropdown extends PureComponent<Props, State> {
     this.setState({expanded: !this.state.expanded})
   }
 
-  private handleCloseDropdown = () => {
+  private closeDropdown = () => {
     this.setState({expanded: false})
   }
 }
