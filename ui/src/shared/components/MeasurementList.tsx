@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types'
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 import _ from 'lodash'
 
@@ -80,7 +80,7 @@ class MeasurementList extends PureComponent<Props, State> {
     this.getMeasurements()
   }
 
-  public handleFilterText(e) {
+  public handleFilterText(e: ChangeEvent<HTMLInputElement>) {
     e.stopPropagation()
     const filterText = e.target.value
     this.setState({
