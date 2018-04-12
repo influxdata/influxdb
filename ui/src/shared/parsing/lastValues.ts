@@ -17,7 +17,7 @@ interface TimeSeriesResult {
 
 export interface TimeSeriesResponse {
   response: {
-    result: TimeSeriesResult[]
+    results: TimeSeriesResult[]
   }
 }
 
