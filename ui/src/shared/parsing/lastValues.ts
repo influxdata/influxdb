@@ -1,13 +1,14 @@
 import _ from 'lodash'
 
 interface Result {
-  lastValues: any[]
-  series: any[]
+  lastValues: number[]
+  series: string[]
 }
 
 interface Series {
-  value: any
-  column: string
+  name: string
+  values: number[] | null
+  columns: string[] | null
 }
 
 interface TimeSeriesResult {
