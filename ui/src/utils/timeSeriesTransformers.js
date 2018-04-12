@@ -179,25 +179,51 @@ const hasGroupBy = queryASTs => {
   })
 }
 
+const groupbysNotSelected = (raw, groupby) => {
+  const columnsInRaw = _.get(
+    raw,
+    ['0', 'response', 'results', '0', 'series', '0', 'columns'],
+    []
+  )
+  return groupby.filter(gb => {
+    return !_.includes(columnsInRaw, gb)
+  })
+}
+
 const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
   const groupBys = queryASTs.map(queryAST => {
     return _.get(queryAST, ['groupBy', 'tags'], false)
   })
+  console.log('raw', raw)
+  console.log('queryASTs', queryASTs)
 
   raw.forEach((r, i) => {
     if (groupBys[i]) {
-      // treat it like a groupBy
-    } else {
-      // don't treat it like a groupby..
+      console.log('groupbysNotSelected', groupbysNotSelected(r, groupBys[i]))
+      // groupby not selected? add it in.
+
+      //   const series = _.get(r, ['response', 'results', '0', 'series'], [])
+      //   const result = reduce(
+      //     series,
+      //     (acc, s, j) => {
+      //       const seriesValues = s.values
+      //       const seriesRows = map(seriesValues, v => [v[0], ...v.slice(1)])
+      //       return [acc, ...seriesRows]
+      //     },
+      //     [[series[0].columns[0], ...series[0].columns.slice(1)]]
+      //   )
+      // } else {
+      // don't treat it like a groupby
     }
   })
 
-  console.log('queryASTs', queryASTs)
+  // if not group by is not selected, then act like it is selected, do not
+
   // foreachqueryAST in queryASTs
   // determine if hasGroupBy
   // if hasGroupBy time// tag/ select
   // if nothasGroupBy append
-  console.log('raw', raw)
+
   // collect results from each influx response
   const results = reduce(
     raw,
@@ -220,17 +246,7 @@ const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
     },
     []
   )
-  console.log('serieses', serieses)
-
-  const tags = queryASTs.reduce((acc, queryAST) => {
-    return [...acc, ..._.get(queryAST, ['groupBy', 'tags'], [])]
-  }, [])
-
-  tags.forEach(tag => {
-    const filtered = serieses.filter(s => {
-      const t = _.get(s, '')
-    })
-  })
+  // console.log('serieses', serieses)
 
   const size = reduce(
     serieses,
@@ -338,6 +354,8 @@ const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
 }
 
 export const timeSeriesToTableGraph = (raw, queryASTs) => {
+  console.log('raw', raw)
+  console.log('queryASTs', queryASTs)
   const {sortedLabels, sortedTimeSeries} = hasGroupBy(queryASTs)
     ? groupByTimeSeriesTransform(raw, queryASTs)
     : timeSeriesTransform(raw)
