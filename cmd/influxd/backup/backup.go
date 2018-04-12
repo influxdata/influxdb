@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -514,6 +515,7 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 	}
 	defer f.Close()
 
+	min := 2 * time.Second
 	for i := 0; i < 10; i++ {
 		if err = func() error {
 			// Connect to snapshotter service.
@@ -541,8 +543,12 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 		}(); err == nil {
 			break
 		} else if err != nil {
-			cmd.StderrLogger.Printf("Download shard %v failed %s.  Retrying (%d)...\n", req.ShardID, err, i)
-			time.Sleep(time.Second)
+			backoff := time.Duration(math.Pow(3.8, float64(i))) * time.Millisecond
+			if backoff < min {
+				backoff = min
+			}
+			cmd.StderrLogger.Printf("Download shard %v failed %s.  Waiting %v and retrying (%d)...\n", req.ShardID, err, backoff, i)
+			time.Sleep(backoff)
 		}
 	}
 
