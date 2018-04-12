@@ -1,9 +1,10 @@
-v1.5.2 [unreleased]
+v1.5.2 [2018-04-12]
 -------------------
 
 ### Features
 
 -	[#9680](https://github.com/influxdata/influxdb/pull/9680): Check for root user when running buildtsi.
+-	[#9672](https://github.com/influxdata/influxdb/pull/9672): [1.5] Adjustable TSI Compaction Threshold
 
 ### Bugfixes
 
@@ -14,9 +15,6 @@ v1.5.2 [unreleased]
 -	[#9662](https://github.com/influxdata/influxdb/pull/9662): [1.5] Fix buildtsi partition key.
 -	[#9676](https://github.com/influxdata/influxdb/pull/9676): Ensure that conditions are encoded correctly even if the AST is not properly formed.
 
-### Features
-
--	[#9672](https://github.com/influxdata/influxdb/pull/9672): [1.5] Adjustable TSI Compaction Threshold
 
 v1.5.1 [2018-03-20]
 -------------------
