@@ -38,8 +38,6 @@ export default function(
     ['', '']
   ).slice(1)
 
-  console.dir(values)
-
   const lastValues = values[values.length - 1].slice(1) // remove time with slice 1
 
   return {lastValues, series}
