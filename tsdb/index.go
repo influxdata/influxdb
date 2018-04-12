@@ -765,6 +765,7 @@ func (itr *seriesPointIterator) readSeriesKeys(name []byte) error {
 			select {
 			case <-itr.opt.InterruptCh:
 				return itr.Close()
+			default:
 			}
 		}
 
