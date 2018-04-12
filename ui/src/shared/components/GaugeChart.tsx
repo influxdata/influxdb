@@ -1,4 +1,4 @@
-import React, {PureComponent, ReactNode} from 'react'
+import React, {PureComponent} from 'react'
 import getLastValues, {TimeSeriesResponse} from 'src/shared/parsing/lastValues'
 import Gauge from 'src/shared/components/Gauge'
 import _ from 'lodash'
@@ -39,7 +39,11 @@ class GaugeChart extends PureComponent<Props> {
     const {isFetchingInitially, colors, prefix, suffix} = this.props
 
     if (isFetchingInitially) {
-      return this.spinner
+      return (
+        <div className="graph-empty">
+          <h3 className="graph-spinner" />
+        </div>
+      )
     }
 
     return (
@@ -48,7 +52,7 @@ class GaugeChart extends PureComponent<Props> {
           width="900"
           height={this.height}
           colors={colors}
-          gaugePosition={this.lastValue}
+          gaugePosition={this.lastValueForGauge}
           prefix={prefix}
           suffix={suffix}
         />
@@ -92,20 +96,12 @@ class GaugeChart extends PureComponent<Props> {
     return resizeCoords ? cellID === resizeCoords.i : false
   }
 
-  private get lastValue(): number {
+  private get lastValueForGauge(): number {
     const {data} = this.props
     const {lastValues} = getLastValues(data)
     const precision = 100.0
 
     return Math.round(_.get(lastValues, 1, 0) * precision) / precision
-  }
-
-  private get spinner(): ReactNode {
-    return (
-      <div className="graph-empty">
-        <h3 className="graph-spinner" />
-      </div>
-    )
   }
 }
 
