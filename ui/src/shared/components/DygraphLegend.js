@@ -88,13 +88,13 @@ class DygraphLegend extends Component {
     const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
 
     if (!isMouseHoveringLegend) {
-      this.props.onHide(e)
+      this.props.onHide()
     }
   }
 
-  highlightCallback = ({pageX}) => {
-    this.setState({pageX})
-    this.props.onShow()
+  highlightCallback = e => {
+    this.setState({pageX: e.pageX})
+    this.props.onShow(e)
   }
 
   legendFormatter = legend => {
