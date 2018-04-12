@@ -346,18 +346,21 @@ func (e *TagBlockValueElem) SeriesID(i int) uint64 {
 }
 
 // SeriesIDs returns a list decoded series ids.
-func (e *TagBlockValueElem) SeriesIDs() []uint64 {
+func (e *TagBlockValueElem) SeriesIDs() ([]uint64, error) {
 	a := make([]uint64, 0, e.series.n)
 	var prev uint64
 	for data := e.series.data; len(data) > 0; {
-		delta, n := binary.Uvarint(data)
+		delta, n, err := uvarint(data)
+		if err != nil {
+			return nil, err
+		}
 		data = data[n:]
 
 		seriesID := prev + uint64(delta)
 		a = append(a, seriesID)
 		prev = seriesID
 	}
-	return a
+	return a, nil
 }
 
 // Size returns the size of the element.

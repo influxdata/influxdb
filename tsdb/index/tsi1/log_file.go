@@ -1024,18 +1024,6 @@ type LogEntry struct {
 
 // UnmarshalBinary unmarshals data into e.
 func (e *LogEntry) UnmarshalBinary(data []byte) error {
-	// Wrapper for binary.Uvarint(); returned n is > 0 else err != nil
-	uvarint := func(data []byte) (value uint64, n int, err error) {
-		if len(data) < 1 {
-			err = io.ErrShortBuffer
-		} else if value, n = binary.Uvarint(data); n == 0 || n > len(data) {
-			err = io.ErrShortBuffer
-		} else if n < 0 {
-			err = fmt.Errorf("parsing binary-encoded uint64 value failed; binary.Uvarint() returned %d", n)
-		}
-		return
-	}
-
 	var sz uint64
 	var n int
 	var seriesID uint64
