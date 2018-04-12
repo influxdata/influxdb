@@ -9,7 +9,7 @@ type SeriesValue = number | string
 
 interface Series {
   name: string
-  values: SeriesValue[] | null
+  values: SeriesValue[][] | null
   columns: string[] | null
 }
 
@@ -37,6 +37,8 @@ export default function(
     ['0', 'response', 'results', '0', 'series', '0', 'columns'],
     ['', '']
   ).slice(1)
+
+  console.dir(values)
 
   const lastValues = values[values.length - 1].slice(1) // remove time with slice 1
 

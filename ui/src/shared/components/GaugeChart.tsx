@@ -101,7 +101,7 @@ class GaugeChart extends PureComponent<Props> {
     const {lastValues} = getLastValues(data)
     const precision = 100.0
 
-    return Math.round(_.get(lastValues, 1, 0) * precision) / precision
+    return Math.round(_.get(lastValues, 0, 0) * precision) / precision
   }
 }
 
