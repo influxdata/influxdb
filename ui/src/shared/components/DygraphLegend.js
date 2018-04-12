@@ -9,26 +9,28 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
 class DygraphLegend extends Component {
-  state = {
-    legend: {
-      x: null,
-      series: [],
-    },
-    sortType: '',
-    isAscending: true,
-    filterText: '',
-    isSnipped: false,
-    isFilterVisible: false,
-    legendStyles: {},
-    pageX: null,
-  }
+  constructor(props) {
+    super(props)
 
-  componentDidMount() {
     this.props.dygraph.updateOptions({
       legendFormatter: this.legendFormatter,
       highlightCallback: this.highlightCallback,
       unhighlightCallback: this.unhighlightCallback,
     })
+
+    this.state = {
+      legend: {
+        x: null,
+        series: [],
+      },
+      sortType: '',
+      isAscending: true,
+      filterText: '',
+      isSnipped: false,
+      isFilterVisible: false,
+      legendStyles: {},
+      pageX: null,
+    }
   }
 
   componentWillUnmount() {
@@ -37,6 +39,53 @@ class DygraphLegend extends Component {
       !this.props.dygraph.visibility().find(bool => bool === true)
     ) {
       this.setState({filterText: ''})
+    }
+  }
+
+  highlightCallback = e => {
+    console.log('callback firing: ', this, e, e.target)
+    this.setState({pageX: e.pageX})
+    this.props.onShow(e)
+  }
+
+  legendFormatter = legend => {
+    if (!legend.x) {
+      return ''
+    }
+
+    const {legend: prevLegend} = this.state
+    const highlighted = legend.series.find(s => s.isHighlighted)
+    const prevHighlighted = prevLegend.series.find(s => s.isHighlighted)
+
+    const yVal = highlighted && highlighted.y
+    const prevY = prevHighlighted && prevHighlighted.y
+
+    if (legend.x === prevLegend.x && yVal === prevY) {
+      return ''
+    }
+
+    this.legend = this.setState({legend})
+    return ''
+  }
+
+  unhighlightCallback = e => {
+    const {
+      top,
+      bottom,
+      left,
+      right,
+    } = this.legendNodeRef.getBoundingClientRect()
+
+    const mouseY = e.clientY
+    const mouseX = e.clientX
+
+    const mouseBuffer = 5
+    const mouseInLegendY = mouseY <= bottom && mouseY >= top - mouseBuffer
+    const mouseInLegendX = mouseX <= right && mouseX >= left
+    const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
+
+    if (!isMouseHoveringLegend) {
+      this.props.onHide()
     }
   }
 
@@ -69,52 +118,6 @@ class DygraphLegend extends Component {
 
   handleSortLegend = sortType => () => {
     this.setState({sortType, isAscending: !this.state.isAscending})
-  }
-
-  unhighlightCallback = e => {
-    const {
-      top,
-      bottom,
-      left,
-      right,
-    } = this.legendNodeRef.getBoundingClientRect()
-
-    const mouseY = e.clientY
-    const mouseX = e.clientX
-
-    const mouseBuffer = 5
-    const mouseInLegendY = mouseY <= bottom && mouseY >= top - mouseBuffer
-    const mouseInLegendX = mouseX <= right && mouseX >= left
-    const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
-
-    if (!isMouseHoveringLegend) {
-      this.props.onHide()
-    }
-  }
-
-  highlightCallback = e => {
-    this.setState({pageX: e.pageX})
-    this.props.onShow(e)
-  }
-
-  legendFormatter = legend => {
-    if (!legend.x) {
-      return ''
-    }
-
-    const {legend: prevLegend} = this.state
-    const highlighted = legend.series.find(s => s.isHighlighted)
-    const prevHighlighted = prevLegend.series.find(s => s.isHighlighted)
-
-    const yVal = highlighted && highlighted.y
-    const prevY = prevHighlighted && prevHighlighted.y
-
-    if (legend.x === prevLegend.x && yVal === prevY) {
-      return ''
-    }
-
-    this.legend = this.setState({legend})
-    return ''
   }
 
   render() {

@@ -15,10 +15,6 @@ class LineGraph extends Component {
     super(props)
   }
 
-  shouldComponentUpdate(nextProps, nextState) {
-    return shallowCompare(this, nextProps, nextState)
-  }
-
   componentWillMount() {
     const {data, isInDataExplorer} = this.props
     this._timeSeries = timeSeriesToDygraph(data, isInDataExplorer)

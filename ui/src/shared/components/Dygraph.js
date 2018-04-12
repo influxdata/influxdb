@@ -97,24 +97,12 @@ class Dygraph extends Component {
   }
 
   shouldComponentUpdate(nextProps, nextState) {
-    const timeRangeChanged = !_.isEqual(
-      nextProps.timeRange,
-      this.props.timeRange
-    )
-
-    if (this.dygraph.isZoomed() && timeRangeChanged) {
-      this.dygraph.resetZoom()
-    }
-
     const arePropsEqual = _.isEqual(this.props, nextProps)
     const areStatesEqual = _.isEqual(this.state, nextState)
-
-    const shouldUpdate = !arePropsEqual || !areStatesEqual
-
-    return shouldUpdate
+    return !arePropsEqual || !areStatesEqual
   }
 
-  componentDidUpdate() {
+  componentDidUpdate(prevProps) {
     const {labels, axes: {y, y2}, options, isBarGraph} = this.props
 
     const dygraph = this.dygraph
@@ -126,6 +114,15 @@ class Dygraph extends Component {
     }
 
     const timeSeries = this.timeSeries
+
+    const timeRangeChanged = !_.isEqual(
+      prevProps.timeRange,
+      this.props.timeRange
+    )
+
+    if (this.dygraph.isZoomed() && timeRangeChanged) {
+      this.dygraph.resetZoom()
+    }
 
     const updateOptions = {
       ...options,
