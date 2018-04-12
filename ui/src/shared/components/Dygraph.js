@@ -2,7 +2,6 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
-import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
 import NanoDate from 'nano-date'
 
@@ -107,11 +106,12 @@ class Dygraph extends Component {
       this.dygraph.resetZoom()
     }
 
-    // Will cause componentDidUpdate to fire twice, currently. This could
-    // be reduced by returning false from within the reset conditional above,
-    // though that would be based on the assumption that props for timeRange
-    // will always change before those for data.
-    return shallowCompare(this, nextProps, nextState)
+    const arePropsEqual = _.isEqual(this.props, nextProps)
+    const areStatesEqual = _.isEqual(this.state, nextState)
+
+    const shouldUpdate = !arePropsEqual || !areStatesEqual
+
+    return shouldUpdate
   }
 
   componentDidUpdate() {
