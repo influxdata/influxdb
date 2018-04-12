@@ -24,12 +24,22 @@
   version "0.22.7"
   resolved "https://registry.yarnpkg.com/@types/cheerio/-/cheerio-0.22.7.tgz#4a92eafedfb2b9f4437d3a4410006d81114c66ce"
 
+"@types/dygraphs@^1.1.6":
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/@types/dygraphs/-/dygraphs-1.1.6.tgz#20ff1a01e353e813ff97898c0fee5defc66626be"
+  dependencies:
+    "@types/google.visualization" "*"
+
 "@types/enzyme@^3.1.9":
   version "3.1.9"
   resolved "https://registry.yarnpkg.com/@types/enzyme/-/enzyme-3.1.9.tgz#fbd97f3beb7cad76fc9c6f04c97d77f4834522ef"
   dependencies:
     "@types/cheerio" "*"
     "@types/react" "*"
+
+"@types/google.visualization@*":
+  version "0.0.41"
+  resolved "https://registry.yarnpkg.com/@types/google.visualization/-/google.visualization-0.0.41.tgz#cd4858a66fd039e31586ef3989c59ab0e42d0392"
 
 "@types/history@^3":
   version "3.2.2"

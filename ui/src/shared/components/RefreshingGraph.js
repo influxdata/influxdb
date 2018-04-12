@@ -123,7 +123,6 @@ const RefreshingGraph = ({
       templates={templates}
       timeRange={timeRange}
       autoRefresh={autoRefresh}
-      hoverTime={hoverTime}
       isBarGraph={type === 'bar'}
       resizeCoords={resizeCoords}
       staticLegend={staticLegend}
