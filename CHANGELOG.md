@@ -15,7 +15,6 @@ v1.5.2 [2018-04-12]
 -	[#9662](https://github.com/influxdata/influxdb/pull/9662): [1.5] Fix buildtsi partition key.
 -	[#9676](https://github.com/influxdata/influxdb/pull/9676): Ensure that conditions are encoded correctly even if the AST is not properly formed.
 
-
 v1.5.1 [2018-03-20]
 -------------------
 
