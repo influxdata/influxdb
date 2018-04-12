@@ -1026,6 +1026,8 @@ type LogEntry struct {
 func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	var sz uint64
 	var n int
+	var seriesID uint64
+	var err error
 
 	orig := data
 	start := len(data)
@@ -1037,17 +1039,14 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	e.Flag, data = data[0], data[1:]
 
 	// Parse series id.
-	if len(data) < 1 {
-		return io.ErrShortBuffer
+	if seriesID, n, err = uvarint(data); err != nil {
+		return err
 	}
-	seriesID, n := binary.Uvarint(data)
-	e.SeriesID, data = uint64(seriesID), data[n:]
+	e.SeriesID, data = seriesID, data[n:]
 
 	// Parse name length.
-	if len(data) < 1 {
-		return io.ErrShortBuffer
-	} else if sz, n = binary.Uvarint(data); n == 0 {
-		return io.ErrShortBuffer
+	if sz, n, err = uvarint(data); err != nil {
+		return err
 	}
 
 	// Read name data.
@@ -1057,10 +1056,8 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	e.Name, data = data[n:n+int(sz)], data[n+int(sz):]
 
 	// Parse key length.
-	if len(data) < 1 {
-		return io.ErrShortBuffer
-	} else if sz, n = binary.Uvarint(data); n == 0 {
-		return io.ErrShortBuffer
+	if sz, n, err = uvarint(data); err != nil {
+		return err
 	}
 
 	// Read key data.
@@ -1070,10 +1067,8 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	e.Key, data = data[n:n+int(sz)], data[n+int(sz):]
 
 	// Parse value length.
-	if len(data) < 1 {
-		return io.ErrShortBuffer
-	} else if sz, n = binary.Uvarint(data); n == 0 {
-		return io.ErrShortBuffer
+	if sz, n, err = uvarint(data); err != nil {
+		return err
 	}
 
 	// Read value data.

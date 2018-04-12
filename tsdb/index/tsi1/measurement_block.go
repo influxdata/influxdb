@@ -191,7 +191,10 @@ func (itr *rawSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 		return tsdb.SeriesIDElem{}, nil
 	}
 
-	delta, n := binary.Uvarint(itr.data)
+	delta, n, err := uvarint(itr.data)
+	if err != nil {
+		return tsdb.SeriesIDElem{}, err
+	}
 	itr.data = itr.data[n:]
 
 	seriesID := itr.prev + uint64(delta)
@@ -360,11 +363,14 @@ func (e *MeasurementBlockElem) SeriesIDs() []uint64 {
 func (e *MeasurementBlockElem) ForEachSeriesID(fn func(uint64) error) error {
 	var prev uint64
 	for data := e.series.data; len(data) > 0; {
-		delta, n := binary.Uvarint(data)
+		delta, n, err := uvarint(data)
+		if err != nil {
+			return err
+		}
 		data = data[n:]
 
 		seriesID := prev + uint64(delta)
-		if err := fn(seriesID); err != nil {
+		if err = fn(seriesID); err != nil {
 			return err
 		}
 		prev = seriesID
@@ -387,13 +393,22 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	e.tagBlock.size, data = int64(binary.BigEndian.Uint64(data)), data[8:]
 
 	// Parse name.
-	sz, n := binary.Uvarint(data)
+	sz, n, err := uvarint(data)
+	if err != nil {
+		return err
+	}
 	e.name, data = data[n:n+int(sz)], data[n+int(sz):]
 
 	// Parse series data.
-	v, n := binary.Uvarint(data)
+	v, n, err := uvarint(data)
+	if err != nil {
+		return err
+	}
 	e.series.n, data = uint64(v), data[n:]
-	sz, n = binary.Uvarint(data)
+	sz, n, err = uvarint(data)
+	if err != nil {
+		return err
+	}
 	data = data[n:]
 	e.series.data, data = data[:sz], data[sz:]
 

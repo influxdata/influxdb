@@ -49,28 +49,38 @@ func TestTagBlockWriter(t *testing.T) {
 	// Verify data.
 	if e := blk.TagValueElem([]byte("region"), []byte("us-east")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{1, 2}) {
+	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else if !reflect.DeepEqual(a, []uint64{1, 2}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 
 	if e := blk.TagValueElem([]byte("region"), []byte("us-west")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{3}) {
+	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else if !reflect.DeepEqual(a, []uint64{3}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 	if e := blk.TagValueElem([]byte("host"), []byte("server0")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{1}) {
+	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else if !reflect.DeepEqual(a, []uint64{1}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 	if e := blk.TagValueElem([]byte("host"), []byte("server1")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{2}) {
+	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else if !reflect.DeepEqual(a, []uint64{2}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 	if e := blk.TagValueElem([]byte("host"), []byte("server2")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{3}) {
+	} else if a, err := e.(*tsi1.TagBlockValueElem).SeriesIDs(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else if !reflect.DeepEqual(a, []uint64{3}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 }

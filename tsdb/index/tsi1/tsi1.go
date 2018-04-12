@@ -532,6 +532,19 @@ func assert(condition bool, msg string, v ...interface{}) {
 	}
 }
 
+// uvarint is a wrapper around binary.Uvarint.
+// Returns a non-nil error when binary.Uvarint returns n <= 0 or n > len(data).
+func uvarint(data []byte) (value uint64, n int, err error) {
+	if len(data) < 1 {
+		err = io.ErrShortBuffer
+	} else if value, n = binary.Uvarint(data); n == 0 || n > len(data) {
+		err = io.ErrShortBuffer
+	} else if n < 0 {
+		err = fmt.Errorf("parsing binary-encoded uint64 value failed; binary.Uvarint() returned %d", n)
+	}
+	return
+}
+
 // hexdump is a helper for dumping binary data to stderr.
 // func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }
 
