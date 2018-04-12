@@ -40,6 +40,7 @@ export const source = {
   telegraf: 'telegraf',
   organization: '0',
   role: 'viewer',
+  defaultRP: '',
   links,
 }
 

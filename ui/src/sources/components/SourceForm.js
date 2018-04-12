@@ -8,7 +8,7 @@ import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
 
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
-const SourceForm = ({
+export const SourceForm = ({
   source,
   editMode,
   onSubmit,

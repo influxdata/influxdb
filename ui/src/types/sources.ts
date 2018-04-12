@@ -13,6 +13,7 @@ export interface Source {
   links: SourceLinks
   kapacitors?: Kapacitor[]
   metaUrl?: string
+  defaultRP: string
 }
 
 interface SourceLinks {
