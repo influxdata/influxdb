@@ -33,6 +33,7 @@
 1.  [#3149](https://github.com/influxdata/chronograf/pull/3149): Fixes errors caused by switching query tabs in CEO
 1.  [#3162](https://github.com/influxdata/chronograf/pull/3162): Only send threshold value to parent on blur
 1.  [#3168](https://github.com/influxdata/chronograf/pull/3168): Require that emails on GitHub & Generic OAuth2 principals be verified & primary, if those fields are provided
+1.  [#3182](https://github.com/influxdata/chronograf/pull/3182): Send notification when rp creation returns a failure
 
 ## v1.4.3.1 [2018-04-02]
 
