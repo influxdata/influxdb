@@ -5,9 +5,11 @@ interface Result {
   series: string[]
 }
 
+type SeriesValue = number | string
+
 interface Series {
   name: string
-  values: number[] | null
+  values: SeriesValue[] | null
   columns: string[] | null
 }
 
