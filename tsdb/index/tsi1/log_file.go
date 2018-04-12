@@ -1024,9 +1024,22 @@ type LogEntry struct {
 
 // UnmarshalBinary unmarshals data into e.
 func (e *LogEntry) UnmarshalBinary(data []byte) error {
+	// Wrapper for binary.Uvarint(); returned n is > 0 else err != nil
+	uvarint := func(data []byte) (value uint64, n int, err error) {
+		if len(data) < 1 {
+			err = io.ErrShortBuffer
+		} else if value, n = binary.Uvarint(data); n == 0 || n > len(data) {
+			err = io.ErrShortBuffer
+		} else if n < 0 {
+			err = fmt.Errorf("parsing binary-encoded uint64 value failed; binary.Uvarint() returned %d", n)
+		}
+		return
+	}
+
 	var sz uint64
 	var n int
 	var seriesID uint64
+	var err error
 
 	orig := data
 	start := len(data)
@@ -1038,22 +1051,14 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	e.Flag, data = data[0], data[1:]
 
 	// Parse series id.
-	if len(data) < 1 {
-		return io.ErrShortBuffer
-	} else if seriesID, n = binary.Uvarint(data); n == 0 || n > len(data) {
-		return io.ErrShortBuffer
-	} else if n < 0 {
-		return fmt.Errorf("parsing binary-encoded uint64 value failed; binary.Uvarint() returned %d", n)
+	if seriesID, n, err = uvarint(data); err != nil {
+		return err
 	}
-	e.SeriesID, data = uint64(seriesID), data[n:]
+	e.SeriesID, data = seriesID, data[n:]
 
 	// Parse name length.
-	if len(data) < 1 {
-		return io.ErrShortBuffer
-	} else if sz, n = binary.Uvarint(data); n == 0 || n > len(data) {
-		return io.ErrShortBuffer
-	} else if n < 0 {
-		return fmt.Errorf("parsing binary-encoded uint64 value failed; binary.Uvarint() returned %d", n)
+	if sz, n, err = uvarint(data); err != nil {
+		return err
 	}
 
 	// Read name data.
@@ -1063,12 +1068,8 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	e.Name, data = data[n:n+int(sz)], data[n+int(sz):]
 
 	// Parse key length.
-	if len(data) < 1 {
-		return io.ErrShortBuffer
-	} else if sz, n = binary.Uvarint(data); n == 0 || n > len(data) {
-		return io.ErrShortBuffer
-	} else if n < 0 {
-		return fmt.Errorf("parsing binary-encoded uint64 value failed; binary.Uvarint() returned %d", n)
+	if sz, n, err = uvarint(data); err != nil {
+		return err
 	}
 
 	// Read key data.
@@ -1078,12 +1079,8 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	e.Key, data = data[n:n+int(sz)], data[n+int(sz):]
 
 	// Parse value length.
-	if len(data) < 1 {
-		return io.ErrShortBuffer
-	} else if sz, n = binary.Uvarint(data); n == 0 || n > len(data) {
-		return io.ErrShortBuffer
-	} else if n < 0 {
-		return fmt.Errorf("parsing binary-encoded uint64 value failed; binary.Uvarint() returned %d", n)
+	if sz, n, err = uvarint(data); err != nil {
+		return err
 	}
 
 	// Read value data.
