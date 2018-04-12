@@ -9,7 +9,7 @@ type SeriesValue = number | string
 
 interface Series {
   name: string
-  values: SeriesValue[] | null
+  values: SeriesValue[][] | null
   columns: string[] | null
 }
 

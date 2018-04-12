@@ -69,6 +69,10 @@ class TagListItem extends PureComponent<Props, State> {
     this.props.onGroupByTag(this.props.tagKey)
   }
 
+  public handleInputClick(e: MouseEvent<HTMLInputElement>) {
+    e.stopPropagation()
+  }
+
   public renderTagValues() {
     const {tagValues, selectedTagValues} = this.props
     if (!tagValues || !tagValues.length) {
@@ -88,6 +92,7 @@ class TagListItem extends PureComponent<Props, State> {
             value={this.state.filterText}
             onChange={this.handleFilterText}
             onKeyUp={this.handleEscape}
+            onClick={this.handleInputClick}
             spellCheck={false}
             autoComplete="false"
           />
