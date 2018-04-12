@@ -8,8 +8,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"runtime"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx-tools/internal/format/binary"
 	"github.com/influxdata/influxdb/cmd/influx-tools/internal/format/line"
 	"github.com/influxdata/influxdb/cmd/influx-tools/internal/format/text"
+	"github.com/influxdata/influxdb/cmd/influx-tools/internal/profile"
 	"github.com/influxdata/influxdb/cmd/influx-tools/server"
 	"go.uber.org/zap"
 )
@@ -35,8 +34,6 @@ type Command struct {
 	Logger *zap.Logger
 	server server.Interface
 
-	cpu       *os.File
-	mem       *os.File
 	conflicts io.WriteCloser
 
 	configPath    string
@@ -96,8 +93,9 @@ func (cmd *Command) Run(args []string) (err error) {
 		}
 	}
 
-	cmd.startProfile()
-	defer cmd.stopProfile()
+	p := profile.NewProfiler(cmd.cpuProfile, cmd.memProfile, cmd.Stderr)
+	p.StartProfile()
+	defer p.StopProfile()
 
 	var wr format.Writer
 	switch cmd.format {
@@ -166,42 +164,6 @@ func (cmd *Command) parseFlags(args []string) error {
 	}
 
 	return nil
-}
-
-// StartProfile initializes the cpu and memory profile, if specified.
-func (cmd *Command) startProfile() {
-	if cmd.cpuProfile != "" {
-		f, err := os.Create(cmd.cpuProfile)
-		if err != nil {
-			fmt.Fprintf(cmd.Stderr, "cpuprofile: %v\n", err)
-			os.Exit(1)
-		}
-		cmd.cpu = f
-		pprof.StartCPUProfile(cmd.cpu)
-	}
-
-	if cmd.memProfile != "" {
-		f, err := os.Create(cmd.memProfile)
-		if err != nil {
-			fmt.Fprintf(cmd.Stderr, "memprofile: %v\n", err)
-			os.Exit(1)
-		}
-		cmd.mem = f
-		runtime.MemProfileRate = 4096
-	}
-
-}
-
-// StopProfile closes the cpu and memory profiles if they are running.
-func (cmd *Command) stopProfile() {
-	if cmd.cpu != nil {
-		pprof.StopCPUProfile()
-		cmd.cpu.Close()
-	}
-	if cmd.mem != nil {
-		pprof.Lookup("heap").WriteTo(cmd.mem, 0)
-		cmd.mem.Close()
-	}
 }
 
 type rangeValue struct {

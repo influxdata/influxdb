@@ -28,7 +28,11 @@ func ReadTLV(r io.Reader) (byte, []byte, error) {
 func ReadType(r io.Reader) (byte, error) {
 	var typ [1]byte
 	if _, err := io.ReadFull(r, typ[:]); err != nil {
-		return 0, fmt.Errorf("read message type: %s", err)
+		if err == io.EOF {
+			return 0, err
+		} else {
+			return 0, fmt.Errorf("read message type: %s", err)
+		}
 	}
 	return typ[0], nil
 }
