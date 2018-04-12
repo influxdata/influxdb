@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/tcp"
+	"math"
 )
 
 const (
@@ -541,8 +542,13 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 		}(); err == nil {
 			break
 		} else if err != nil {
-			cmd.StderrLogger.Printf("Download shard %v failed %s.  Retrying (%d)...\n", req.ShardID, err, i)
-			time.Sleep(time.Second)
+			min := 2 * time.Second
+			backoff := time.Duration(math.Pow(3.8, float64(i))) * time.Millisecond
+			if backoff < min {
+				backoff = min
+			}
+			cmd.StderrLogger.Printf("Download shard %v failed %s.  Waiting %v and retrying (%d)...\n", req.ShardID, err, backoff, i)
+			time.Sleep(backoff)
 		}
 	}
 
