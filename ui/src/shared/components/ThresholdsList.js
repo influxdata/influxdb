@@ -65,7 +65,7 @@ class ThresholdsList extends Component {
     onResetFocus()
   }
 
-  handleDeleteThreshold = threshold => () => {
+  handleDeleteThreshold = threshold => {
     const {
       handleUpdateThresholdsListColors,
       onResetFocus,
