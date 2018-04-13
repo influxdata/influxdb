@@ -10,6 +10,7 @@ describe('IFQL.AST.Walker', () => {
         expect(walker.functions).toEqual([
           {
             name: 'from',
+            source: 'from(db: "telegraf")',
             arguments: [
               {
                 key: 'db',
@@ -27,10 +28,12 @@ describe('IFQL.AST.Walker', () => {
         expect(walker.functions).toEqual([
           {
             name: 'from',
+            source: 'from(db: "telegraf")',
             arguments: [{key: 'db', value: 'telegraf'}],
           },
           {
             name: 'filter',
+            source: '|> filter(fn: (r) => r["_measurement"] == "cpu")',
             arguments: [
               {
                 key: 'fn',
@@ -40,6 +43,7 @@ describe('IFQL.AST.Walker', () => {
           },
           {
             name: 'range',
+            source: '|> range(start: -1m)',
             arguments: [{key: 'start', value: '-1m'}],
           },
         ])
