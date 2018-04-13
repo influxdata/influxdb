@@ -67,7 +67,7 @@ function run_test_docker {
     build_docker_image "$dockerfile" "$imagename"
     echo "Running test in docker $name with args $@"
 
-    docker run \
+    echo docker run \
          --rm=$DOCKER_RM \
          -v "$DIR:/root/go/src/github.com/influxdata/influxdb" \
          -e "INFLUXDB_DATA_ENGINE=$INFLUXDB_DATA_ENGINE" \
