@@ -7,6 +7,8 @@ const setup = () => {
     funcs: [],
     suggestions: [],
     onAddNode: () => {},
+    onChangeScript: () => {},
+    script: '',
   }
 
   const wrapper = shallow(<TimeMachine {...props} />)

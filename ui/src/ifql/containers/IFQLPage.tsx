@@ -21,7 +21,7 @@ interface Props {
 interface State {
   suggestions: Suggestion[]
   ast: object
-  query: string
+  script: string
 }
 
 export class IFQLPage extends PureComponent<Props, State> {
@@ -30,7 +30,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       suggestions: [],
       ast: null,
-      query: 'from(db: "telegraf") |> filter() |> range(start: -15m)',
+      script: 'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)',
     }
   }
 
@@ -44,11 +44,11 @@ export class IFQLPage extends PureComponent<Props, State> {
       console.error('Could not get function suggestions: ', error)
     }
 
-    this.getASTResponse(this.state.query)
+    this.getASTResponse(this.state.script)
   }
 
   public render() {
-    const {suggestions} = this.state
+    const {suggestions, script} = this.state
 
     return (
       <div className="page">
@@ -62,9 +62,12 @@ export class IFQLPage extends PureComponent<Props, State> {
         <div className="page-contents">
           <div className="container-fluid">
             <TimeMachine
-              suggestions={suggestions}
+              script={script}
               funcs={this.funcs}
+              suggestions={suggestions}
               onAddNode={this.handleAddNode}
+              onChangeScript={this.handleChangeScript}
+              onSubmitScript={this.getASTResponse}
             />
           </div>
         </div>
@@ -72,9 +75,13 @@ export class IFQLPage extends PureComponent<Props, State> {
     )
   }
 
+  private handleChangeScript = (script: string): void => {
+    this.setState({script})
+  }
+
   private handleAddNode = (name: string) => {
-    const query = `${this.state.query} |> ${name}()`
-    this.getASTResponse(query)
+    const script = `${this.state.script}\n\t|> ${name}()`
+    this.getASTResponse(script)
   }
 
   private get funcs() {
@@ -111,12 +118,12 @@ export class IFQLPage extends PureComponent<Props, State> {
     return functions
   }
 
-  private async getASTResponse(query: string) {
+  private getASTResponse = async (script: string) => {
     const {links} = this.props
 
     try {
-      const ast = await getAST({url: links.ast, body: query})
-      this.setState({ast, query})
+      const ast = await getAST({url: links.ast, body: script})
+      this.setState({ast, script})
     } catch (error) {
       console.error('Could not parse AST', error)
     }
