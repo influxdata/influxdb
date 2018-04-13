@@ -1,0 +1,19 @@
+version: 2
+
+jobs:
+  build:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+    environment:
+      - PARALLELISM: 4 # Input to influxdb/build.py
+    parallelism: 5 # How many CircleCI test containers
+    steps:
+      - checkout
+      - run:
+          name: Ensure CircleCI parallelism matches "./test.sh count"
+          command: "[ `./test.sh count` -eq $CIRCLE_NODE_TOTAL ]"
+      - run:
+          name: Execute test
+          command: ./test.sh $CIRCLE_NODE_INDEX
+          no_output_timeout: 1500s
