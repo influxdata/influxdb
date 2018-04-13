@@ -466,15 +466,118 @@ func TestService_SourcesID(t *testing.T) {
 		body, _ := ioutil.ReadAll(resp.Body)
 
 		if resp.StatusCode != tt.wantStatusCode {
-			t.Errorf("%q. SourcesID() =got %v, want %v", tt.name, resp.StatusCode, tt.wantStatusCode)
+			t.Errorf("%q. SourcesID() = got %v, want %v", tt.name, resp.StatusCode, tt.wantStatusCode)
 		}
 		if tt.wantContentType != "" && contentType != tt.wantContentType {
-			t.Errorf("%q. SourcesID() =got %v, want %v", tt.name, contentType, tt.wantContentType)
+			t.Errorf("%q. SourcesID() = got %v, want %v", tt.name, contentType, tt.wantContentType)
 		}
 		if tt.wantBody != "" && string(body) != tt.wantBody {
 			t.Errorf("%q. SourcesID() =\ngot  ***%v***\nwant ***%v***\n", tt.name, string(body), tt.wantBody)
 		}
 
+	}
+}
+func TestService_UpdateSource(t *testing.T) {
+	type fields struct {
+		SourcesStore       chronograf.SourcesStore
+		OrganizationsStore chronograf.OrganizationsStore
+		Logger             chronograf.Logger
+	}
+	type args struct {
+		w *httptest.ResponseRecorder
+		r *http.Request
+	}
+	tests := []struct {
+		name            string
+		args            args
+		fields          fields
+		ID              string
+		wantStatusCode  int
+		wantContentType string
+		wantBody        func(string) string
+	}{
+		{
+			name: "Update source updates fields",
+			args: args{
+				w: httptest.NewRecorder(),
+				r: httptest.NewRequest(
+					"PATCH",
+					"http://any.url",
+					nil),
+			},
+			fields: fields{
+				SourcesStore: &mocks.SourcesStore{
+					GetF: func(ctx context.Context, ID int) (chronograf.Source, error) {
+						return chronograf.Source{
+							ID: 1,
+						}, nil
+					},
+					UpdateF: func(ctx context.Context, upd chronograf.Source) error {
+						return nil
+					},
+				},
+				OrganizationsStore: &mocks.OrganizationsStore{
+					DefaultOrganizationF: func(context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID:   "1337",
+							Name: "pineapple_kingdom",
+						}, nil
+					},
+				},
+				Logger: log.New(log.DebugLevel),
+			},
+			ID:              "1",
+			wantStatusCode:  200,
+			wantContentType: "application/json",
+			wantBody: func(url string) string {
+				return fmt.Sprintf(`{"id":"1","name":"marty","type":"influx","username":"bob","url":"%s","metaUrl":"http://murl","default":false,"telegraf":"murlin","organization":"1337","defaultRP":"pineapple","links":{"self":"/chronograf/v1/sources/1","kapacitors":"/chronograf/v1/sources/1/kapacitors","proxy":"/chronograf/v1/sources/1/proxy","queries":"/chronograf/v1/sources/1/queries","write":"/chronograf/v1/sources/1/write","permissions":"/chronograf/v1/sources/1/permissions","users":"/chronograf/v1/sources/1/users","databases":"/chronograf/v1/sources/1/dbs","annotations":"/chronograf/v1/sources/1/annotations","health":"/chronograf/v1/sources/1/health"}}
+`, url)
+			},
+		},
+	}
+	for _, tt := range tests {
+		h := &Service{
+			Store: &mocks.Store{
+				SourcesStore:       tt.fields.SourcesStore,
+				OrganizationsStore: tt.fields.OrganizationsStore,
+			},
+			Logger: tt.fields.Logger,
+		}
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+			w.Header().Set("X-Influxdb-Build", "ENT")
+		}))
+		defer ts.Close()
+
+		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
+			context.Background(),
+			httprouter.Params{
+				{
+					Key:   "id",
+					Value: tt.ID,
+				},
+			}))
+		tt.args.r.Body = ioutil.NopCloser(
+			bytes.NewReader([]byte(
+				fmt.Sprintf(`{"name":"marty","password":"the_lake","username":"bob","type":"influx","telegraf":"murlin","defaultRP":"pineapple","url":"%s","metaUrl":"http://murl"}`, ts.URL)),
+			),
+		)
+		h.UpdateSource(tt.args.w, tt.args.r)
+
+		resp := tt.args.w.Result()
+		contentType := resp.Header.Get("Content-Type")
+		body, _ := ioutil.ReadAll(resp.Body)
+
+		if resp.StatusCode != tt.wantStatusCode {
+			t.Errorf("%q. UpdateSource() = got %v, want %v", tt.name, resp.StatusCode, tt.wantStatusCode)
+		}
+		if contentType != tt.wantContentType {
+			t.Errorf("%q. UpdateSource() = got %v, want %v", tt.name, contentType, tt.wantContentType)
+		}
+		wantBody := tt.wantBody(ts.URL)
+		if string(body) != wantBody {
+			t.Errorf("%q. UpdateSource() =\ngot  ***%v***\nwant ***%v***\n", tt.name, string(body), wantBody)
+		}
 	}
 }
 
