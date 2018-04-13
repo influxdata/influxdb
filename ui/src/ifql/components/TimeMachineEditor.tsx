@@ -24,7 +24,7 @@ class TimeMachineEditor extends PureComponent<Props> {
     }
 
     return (
-      <div>
+      <div className="time-machine-editor-container">
         <div className="time-machine-editor">
           <CodeMirror
             value={script}

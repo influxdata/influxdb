@@ -1,6 +1,13 @@
 .time-machine-container {
   display: flex;
-  justify-content: space-around;
+  height: 90%;
+  justify-content: baseline;
+  align-items: stretch;
+}
+
+.func-nodes-container,
+.time-machine-editor-container {
+  flex: 1 0 50%;
 }
 
 .time-machine-editor {

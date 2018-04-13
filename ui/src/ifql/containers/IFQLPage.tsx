@@ -51,7 +51,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {suggestions, script} = this.state
 
     return (
-      <div className="page">
+      <div className="page hosts-list-page">
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
