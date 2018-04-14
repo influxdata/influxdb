@@ -4,6 +4,7 @@ import {Func} from 'src/ifql/components/FuncArgs'
 
 interface Props {
   func: Func
+  onDelete: (id: string) => void
 }
 
 interface State {
@@ -28,8 +29,15 @@ export default class FuncNode extends PureComponent<Props, State> {
           <div>{func.name}</div>
         </div>
         {isOpen && <FuncArgs func={func} />}
+        <div className="btn btn-danger btn-square" onClick={this.handleDelete}>
+          <span className="icon-trash" />
+        </div>
       </div>
     )
+  }
+
+  private handleDelete = (): void => {
+    this.props.onDelete(this.props.func.id)
   }
 
   private handleClick = (e: MouseEvent<HTMLElement>) => {

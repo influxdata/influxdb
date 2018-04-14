@@ -19,16 +19,18 @@ interface Props {
   onAddNode: (name: string) => void
   onChangeScript: (script: string) => void
   onSubmitScript: (script: string) => void
+  onDeleteFuncNode: (id: string) => void
 }
 
 class TimeMachine extends PureComponent<Props> {
   public render() {
     const {
       funcs,
-      onAddNode,
       script,
+      onAddNode,
       onChangeScript,
       onSubmitScript,
+      onDeleteFuncNode,
     } = this.props
 
     return (
@@ -39,7 +41,9 @@ class TimeMachine extends PureComponent<Props> {
           onSubmitScript={onSubmitScript}
         />
         <div className="func-nodes-container">
-          {funcs.map((f, i) => <FuncNode key={i} func={f} />)}
+          {funcs.map(f => (
+            <FuncNode key={f.id} func={f} onDelete={onDeleteFuncNode} />
+          ))}
           <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
         </div>
       </div>

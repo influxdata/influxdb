@@ -9,6 +9,8 @@ interface Arg {
 export interface Func {
   name: string
   args: Arg[]
+  source: string
+  id: string
 }
 
 interface Props {
