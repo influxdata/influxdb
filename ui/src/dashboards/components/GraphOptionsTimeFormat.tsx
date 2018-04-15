@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import {Dropdown} from 'src/shared/components/Dropdown'
-import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {
   FORMAT_OPTIONS,
@@ -36,7 +35,8 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     return this.props.onTimeFormatChange
   }
 
-  public handleChangeFormat = (format: string) => {
+  public handleChangeFormat = e => {
+    const format = e.target.value
     this.onTimeFormatChange(format)
     this.setState({format})
   }
@@ -79,16 +79,15 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
           onChoose={this.handleChooseFormat}
         />
         {showCustom && (
-          <div className="column-controls--section">
-            <InputClickToEdit
-              wrapperClass="field-controls-input "
-              value={format}
-              onBlur={this.handleChangeFormat}
-              onChange={this.handleChangeFormat}
-              placeholder="Enter custom format..."
-              appearAsNormalInput={true}
-            />
-          </div>
+          <input
+            type="text"
+            spellCheck={false}
+            placeholder="Enter custom format..."
+            value={format}
+            data-test="custom-time-format"
+            className="form-control input-sm custom-time-format"
+            onChange={this.handleChangeFormat}
+          />
         )}
       </div>
     )

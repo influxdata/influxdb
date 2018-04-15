@@ -558,3 +558,11 @@ div.dropdown.dropdown-stretch > button.dropdown-toggle {
 .delete-source {
   display: inline-block;
 }
+
+/*
+  Add spacing between time format dropdown and input
+  -----------------------------------------------------------------------------
+*/
+.custom-time-format {
+  margin-top: 4px;
+}
