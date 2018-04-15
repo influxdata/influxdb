@@ -25,10 +25,8 @@
     "tslint:fix": "tslint --fix -c ./tslint.json '{src,test}/**/*.ts?(x)'",
     "prettier":
       "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"",
-    "lint:fix":
-      "yarn run prettier && yarn run eslint:fix && yarn run tslint:fix",
-    "eslint-check":
-      "eslint --print-config .eslintrc | eslint-config-prettier-check"
+    "lint:fix": "yarn run prettier && yarn run eslint:fix && yarn run tslint:fix",
+    "eslint-check": "eslint --print-config .eslintrc | eslint-config-prettier-check"
   },
   "author": "",
   "eslintConfig": {

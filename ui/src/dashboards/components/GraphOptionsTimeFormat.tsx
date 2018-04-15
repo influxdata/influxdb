@@ -84,6 +84,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
             spellCheck={false}
             placeholder="Enter custom format..."
             value={format}
+            data-test="custom-time-format"
             className="form-control input-sm custom-time-format"
             onChange={this.handleChangeFormat}
           />

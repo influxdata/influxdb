@@ -1,23 +1,21 @@
 import React, {SFC} from 'react'
-import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
-
-// import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {DragDropContext} from 'react-dnd'
 import HTML5Backend from 'react-dnd-html5-backend'
 
-interface Field {
+import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
+
+interface RenamableField {
   internalName: string
   displayName: string
   visible: boolean
-  order?: number
 }
 
-interface Props {
-  fields: Field[]
-  onFieldUpdate: (field: Field) => void
-  moveField?: (dragIndex: number, hoverIndex: number) => void
+interface GraphOptionsCustomizeFieldsProps {
+  fields: RenamableField[]
+  onFieldUpdate: (field: RenamableField) => void
+  moveField: (dragIndex: number, hoverIndex: number) => void
 }
-const GraphOptionsCustomizeFields: SFC<Props> = ({
+const GraphOptionsCustomizeFields: SFC<GraphOptionsCustomizeFieldsProps> = ({
   fields,
   onFieldUpdate,
   moveField,

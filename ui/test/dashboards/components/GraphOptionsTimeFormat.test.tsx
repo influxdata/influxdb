@@ -25,10 +25,11 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
     describe('when it is not a custom format', () => {
       it('renders only a dropdown', () => {
         const wrapper = setup()
+        const input = wrapper.find({'data-test': 'custom-time-format'})
 
         expect(wrapper.find(Dropdown).exists()).toBe(true)
         expect(wrapper.find(QuestionMarkTooltip).exists()).toBe(false)
-        expect(wrapper.find('input.custom-time-format').exists()).toBe(false)
+        expect(input.exists()).toBe(false)
       })
     })
 
@@ -40,13 +41,14 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
 
         const label = wrapper.find('label')
         const link = label.find('a')
+        const input = wrapper.find({'data-test': 'custom-time-format'})
 
         expect(wrapper.find(Dropdown).exists()).toBe(true)
         expect(label.exists()).toBe(true)
         expect(link.exists()).toBe(true)
         expect(link.prop('href')).toBe(TIME_FORMAT_TOOLTIP_LINK)
         expect(link.find(QuestionMarkTooltip).exists()).toBe(true)
-        expect(wrapper.find('input.custom-time-format').exists()).toBe(true)
+        expect(input.exists()).toBe(true)
       })
     })
 
@@ -55,7 +57,7 @@ describe('Dashboards.Components.GraphOptionsTimeFormat', () => {
         const timeFormat = 'mmmmmmm'
         const wrapper = setup({timeFormat})
         const dropdown = wrapper.find(Dropdown)
-        const input = wrapper.find('input.custom-time-format')
+        const input = wrapper.find({'data-test': 'custom-time-format'})
         const label = wrapper.find('label')
         const link = label.find('a')
 

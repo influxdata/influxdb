@@ -204,7 +204,7 @@ export const orderTableColumns = (data, fieldNames) => {
       return dataLabel === fieldName.internalName
     })
   })
-  const filteredFieldSortOrder = _.filter(fieldsSortOrder, f => f !== -1)
+  const filteredFieldSortOrder = filter(fieldsSortOrder, f => f !== -1)
   const orderedData = map(data, row => {
     return row.map((v, j, arr) => arr[filteredFieldSortOrder[j]])
   })

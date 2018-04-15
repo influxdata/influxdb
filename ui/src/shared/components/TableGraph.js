@@ -236,10 +236,8 @@ class TableGraph extends Component {
     const timeFieldIndex = fieldNames.findIndex(
       field => field.internalName === TIME_FIELD_DEFAULT.internalName
     )
-    const timeField = fieldNames.find(
-      field => field.internalName === TIME_FIELD_DEFAULT.internalName
-    )
-    const visibleTime = _.get(timeField, 'visible', true)
+
+    const visibleTime = _.get(fieldNames, [timeFieldIndex, 'visible'], true)
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
     const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0

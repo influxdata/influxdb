@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {findDOMNode} from 'react-dom'
 import {
   DragSourceSpec,
@@ -7,34 +7,35 @@ import {
   DragSource,
   DropTarget,
   DragSourceConnector,
+  ConnectDragSource,
+  ConnectDropTarget,
+  ConnectDragPreview,
 } from 'react-dnd'
 
-const FieldType = 'field'
+const fieldType = 'field'
 
-interface Field {
+interface RenamableField {
   internalName: string
   displayName: string
   visible: boolean
-  order?: number
-  index?: number
 }
 
-interface FieldSourceProps {
+interface GraphOptionsCustomizableFieldProps {
   internalName: string
   displayName: string
   visible: boolean
   index: number
   id: string
   key: string
+  onFieldUpdate: (field: RenamableField) => void
   isDragging?: boolean
-  onFieldUpdate?: (field: Field) => void
-  connectDragSource?: any
-  connectDropTarget?: any
-  connectDragPreview?: any
+  connectDragSource?: ConnectDragSource
+  connectDropTarget?: ConnectDropTarget
+  connectDragPreview?: ConnectDragPreview
   moveField: (dragIndex: number, hoverIndex: number) => void
 }
 
-const fieldSource: DragSourceSpec<FieldSourceProps> = {
+const fieldSource: DragSourceSpec<GraphOptionsCustomizableFieldProps> = {
   beginDrag(props) {
     return {
       id: props.id,
@@ -97,11 +98,11 @@ function MyDragSource(dragv1, dragv2, dragfunc1) {
   return target => DragSource(dragv1, dragv2, dragfunc1)(target) as any
 }
 
-@MyDropTarget(FieldType, fieldTarget, (connect: DropTargetConnector) => ({
+@MyDropTarget(fieldType, fieldTarget, (connect: DropTargetConnector) => ({
   connectDropTarget: connect.dropTarget(),
 }))
 @MyDragSource(
-  FieldType,
+  fieldType,
   fieldSource,
   (connect: DragSourceConnector, monitor: DragSourceMonitor) => ({
     connectDragSource: connect.dragSource(),
@@ -110,7 +111,7 @@ function MyDragSource(dragv1, dragv2, dragfunc1) {
   })
 )
 export default class GraphOptionsCustomizableField extends PureComponent<
-  FieldSourceProps
+  GraphOptionsCustomizableFieldProps
 > {
   constructor(props) {
     super(props)
@@ -164,7 +165,7 @@ export default class GraphOptionsCustomizableField extends PureComponent<
             spellCheck={false}
             id="internalName"
             value={displayName}
-            onBlur={this.handleFieldRename}
+            data-test="custom-time-format"
             onChange={this.handleFieldRename}
             placeholder={`Rename ${internalName}`}
             disabled={!visible}
@@ -174,7 +175,7 @@ export default class GraphOptionsCustomizableField extends PureComponent<
     )
   }
 
-  private handleFieldRename(e) {
+  private handleFieldRename(e: ChangeEvent<HTMLInputElement>) {
     const {onFieldUpdate, internalName, visible} = this.props
     onFieldUpdate({internalName, displayName: e.target.value, visible})
   }

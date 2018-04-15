@@ -27,7 +27,6 @@ interface RenamableField {
   internalName: string
   displayName: string
   visible: boolean
-  order?: number
 }
 
 interface Options {
@@ -67,30 +66,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     )
 
     return tableOptionsDifferent
-  }
-
-  public moveField(dragIndex, hoverIndex) {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const {fieldNames} = tableOptions
-    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
-
-    const dragField = fields[dragIndex]
-    const removedFields = _.concat(
-      _.slice(fields, 0, dragIndex),
-      _.slice(fields, dragIndex + 1)
-    )
-    const addedFields = _.concat(
-      _.slice(removedFields, 0, hoverIndex),
-      [dragField],
-      _.slice(removedFields, hoverIndex)
-    )
-    const orderedFields = addedFields.map((f, i) => {
-      return {...f, order: i}
-    })
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: orderedFields,
-    })
   }
 
   public render() {
@@ -154,6 +129,27 @@ export class TableOptions extends PureComponent<Props, {}> {
     return (
       this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
     )
+  }
+
+  private moveField(dragIndex, hoverIndex) {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const {fieldNames} = tableOptions
+    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
+
+    const dragField = fields[dragIndex]
+    const removedFields = _.concat(
+      _.slice(fields, 0, dragIndex),
+      _.slice(fields, dragIndex + 1)
+    )
+    const addedFields = _.concat(
+      _.slice(removedFields, 0, hoverIndex),
+      [dragField],
+      _.slice(removedFields, hoverIndex)
+    )
+    handleUpdateTableOptions({
+      ...tableOptions,
+      fieldNames: addedFields,
+    })
   }
 
   private get computedFieldNames() {
