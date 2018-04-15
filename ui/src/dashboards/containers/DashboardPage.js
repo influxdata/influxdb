@@ -18,7 +18,6 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {notify as notifyAction} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
-import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 import * as annotationActions from 'shared/actions/annotations'
@@ -58,12 +57,9 @@ class DashboardPage extends Component {
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      hoverTime: NULL_HOVER_TIME,
       queryASTs: [],
     }
   }
-
-  dygraphs = []
 
   async componentDidMount() {
     const {
@@ -223,6 +219,11 @@ class DashboardPage extends Component {
     dashboardActions.addDashboardCellAsync(dashboard)
   }
 
+  handleCloneCell = cell => () => {
+    const {dashboardActions, dashboard} = this.props
+    dashboardActions.cloneDashboardCellAsync(dashboard, cell)
+  }
+
   handleEditDashboard = () => {
     this.setState({isEditMode: true})
   }
@@ -284,10 +285,6 @@ class DashboardPage extends Component {
     this.setState({queryASTs})
   }
 
-  handleSetHoverTime = hoverTime => {
-    this.setState({hoverTime})
-  }
-
   handleToggleTempVarControls = () => {
     this.props.templateControlBarVisibilityToggled()
   }
@@ -301,7 +298,7 @@ class DashboardPage extends Component {
   }
 
   render() {
-    const {zoomedTimeRange, hoverTime, queryASTs} = this.state
+    const {zoomedTimeRange, queryASTs} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
     const {
       source,
@@ -448,12 +445,11 @@ class DashboardPage extends Component {
             manualRefresh={manualRefresh}
             onZoom={this.handleZoomedTimeRange}
             onAddCell={this.handleAddCell}
-            hoverTime={hoverTime}
-            onSetHoverTime={this.handleSetHoverTime}
             inPresentationMode={inPresentationMode}
             onPositionChange={this.handleUpdatePosition}
             onSelectTemplate={this.handleSelectTemplate}
             onDeleteCell={this.handleDeleteDashboardCell}
+            onCloneCell={this.handleCloneCell}
             showTemplateControlBar={showTemplateControlBar}
             onOpenTemplateManager={this.handleOpenTemplateManager}
             templatesIncludingDashTime={templatesIncludingDashTime}

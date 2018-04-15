@@ -52,6 +52,7 @@ const Layout = (
     timeRange,
     isEditable,
     onEditCell,
+    onCloneCell,
     autoRefresh,
     manualRefresh,
     onDeleteCell,
@@ -60,8 +61,6 @@ const Layout = (
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
-    hoverTime,
-    onSetHoverTime,
     queryASTs,
     onNewQueryAST,
   },
@@ -72,6 +71,7 @@ const Layout = (
     celldata={celldata}
     isEditable={isEditable}
     onEditCell={onEditCell}
+    onCloneCell={onCloneCell}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -92,8 +92,6 @@ const Layout = (
         timeRange={timeRange}
         templates={templates}
         autoRefresh={autoRefresh}
-        hoverTime={hoverTime}
-        onSetHoverTime={onSetHoverTime}
         manualRefresh={manualRefresh}
         onStopAddAnnotation={onStopAddAnnotation}
         grabDataForDownload={grabDataForDownload}
@@ -152,9 +150,8 @@ const propTypes = {
   onPositionChange: func,
   onEditCell: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
-  hoverTime: string,
-  onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,

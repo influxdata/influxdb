@@ -155,7 +155,9 @@ func TestGenericPrincipalIDDomain(t *testing.T) {
 		Primary  bool   `json:"primary"`
 		Verified bool   `json:"verified"`
 	}{
-		{"martymcfly@pinheads.rok", true, false},
+		{"mcfly@example.com", false, true},
+		{"martymcspelledwrong@example.com", false, false},
+		{"martymcfly@pinheads.rok", true, true},
 	}
 	mockAPI := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {

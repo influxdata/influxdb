@@ -1,42 +1,54 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import {withRouter} from 'react-router'
+import {withRouter, InjectedRouter} from 'react-router'
 
-import ConfirmButton from 'shared/components/ConfirmButton'
-import Dropdown from 'shared/components/Dropdown'
-import InputClickToEdit from 'shared/components/InputClickToEdit'
+import _ from 'lodash'
 
-import {meChangeOrganizationAsync} from 'shared/actions/auth'
+import ConfirmButton from 'src/shared/components/ConfirmButton'
+import Dropdown from 'src/shared/components/Dropdown'
+import InputClickToEdit from 'src/shared/components/InputClickToEdit'
+
+import {meChangeOrganizationAsync} from 'src/shared/actions/auth'
 
 import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
+import {Organization} from 'src/types'
 
-class OrganizationsTableRow extends Component {
-  handleChangeCurrentOrganization = async () => {
-    const {router, links, meChangeOrganization, organization} = this.props
+interface CurrentOrganization {
+  name: string
+  id: string
+}
 
-    await meChangeOrganization(links.me, {organization: organization.id})
-    router.push('')
+interface ExternalLink {
+  name: string
+  url: string
+}
+interface ExternalLinks {
+  custom: ExternalLink[]
+}
+interface Links {
+  me: string
+  external: ExternalLinks
+}
+
+interface Props {
+  organization: Organization
+  currentOrganization: CurrentOrganization
+  onDelete: (Organization) => void
+  onRename: (Organization, newName: string) => void
+  onChooseDefaultRole: (Organization, roleName: string) => void
+  meChangeOrganization: (me: string, id) => void
+  links: Links
+  router: InjectedRouter
+}
+
+class OrganizationsTableRow extends PureComponent<Props, {}> {
+  public shouldComponentUpdate(nextProps) {
+    return !_.isEqual(this.props, nextProps)
   }
 
-  handleUpdateOrgName = newName => {
-    const {organization, onRename} = this.props
-    onRename(organization, newName)
-  }
-
-  handleDeleteOrg = () => {
-    const {onDelete, organization} = this.props
-    onDelete(organization)
-  }
-
-  handleChooseDefaultRole = role => {
-    const {organization, onChooseDefaultRole} = this.props
-    onChooseDefaultRole(organization, role.name)
-  }
-
-  render() {
+  public render() {
     const {organization, currentOrganization} = this.props
 
     const dropdownRolesItems = USER_ROLES.map(role => ({
@@ -84,38 +96,28 @@ class OrganizationsTableRow extends Component {
       </div>
     )
   }
-}
 
-const {arrayOf, func, shape, string} = PropTypes
+  public handleChangeCurrentOrganization = async () => {
+    const {router, links, meChangeOrganization, organization} = this.props
 
-OrganizationsTableRow.propTypes = {
-  organization: shape({
-    id: string, // when optimistically created, organization will not have an id
-    name: string.isRequired,
-    defaultRole: string.isRequired,
-  }).isRequired,
-  onDelete: func.isRequired,
-  onRename: func.isRequired,
-  onChooseDefaultRole: func.isRequired,
-  currentOrganization: shape({
-    name: string.isRequired,
-    id: string.isRequired,
-  }),
-  router: shape({
-    push: func.isRequired,
-  }).isRequired,
-  links: shape({
-    me: string,
-    external: shape({
-      custom: arrayOf(
-        shape({
-          name: string.isRequired,
-          url: string.isRequired,
-        })
-      ),
-    }),
-  }),
-  meChangeOrganization: func.isRequired,
+    await meChangeOrganization(links.me, {organization: organization.id})
+    router.push('')
+  }
+
+  public handleUpdateOrgName = newName => {
+    const {organization, onRename} = this.props
+    onRename(organization, newName)
+  }
+
+  public handleDeleteOrg = () => {
+    const {onDelete, organization} = this.props
+    onDelete(organization)
+  }
+
+  public handleChooseDefaultRole = role => {
+    const {organization, onChooseDefaultRole} = this.props
+    onChooseDefaultRole(organization, role.name)
+  }
 }
 
 const mapDispatchToProps = dispatch => ({
@@ -126,6 +128,6 @@ const mapStateToProps = ({links}) => ({
   links,
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(
-  withRouter(OrganizationsTableRow)
+export default withRouter(
+  connect(mapStateToProps, mapDispatchToProps)(OrganizationsTableRow)
 )

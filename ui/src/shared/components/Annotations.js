@@ -19,22 +19,10 @@ import {
 import {visibleAnnotations} from 'src/shared/annotations/helpers'
 
 class Annotations extends Component {
-  state = {
-    lastUpdated: null,
-  }
-
-  componentDidMount() {
-    this.props.annotationsRef(this)
-  }
-
-  heartbeat = () => {
-    this.setState({lastUpdated: Date.now()})
-  }
-
   render() {
-    const {lastUpdated} = this.state
     const {
       mode,
+      dWidth,
       dygraph,
       isTempHovering,
       handleUpdateAnnotation,
@@ -45,42 +33,45 @@ class Annotations extends Component {
       staticLegendHeight,
     } = this.props
 
-    const annotations = visibleAnnotations(
-      dygraph,
-      this.props.annotations
-    ).filter(a => a.id !== TEMP_ANNOTATION.id)
-    const tempAnnotation = this.props.annotations.find(
-      a => a.id === TEMP_ANNOTATION.id
-    )
-
     return (
       <div className="annotations-container">
         {mode === ADDING &&
-          tempAnnotation && (
+          this.tempAnnotation && (
             <NewAnnotation
               dygraph={dygraph}
-              tempAnnotation={tempAnnotation}
+              isTempHovering={isTempHovering}
+              tempAnnotation={this.tempAnnotation}
+              staticLegendHeight={staticLegendHeight}
+              onUpdateAnnotation={handleUpdateAnnotation}
               onDismissAddingAnnotation={handleDismissAddingAnnotation}
               onAddingAnnotationSuccess={handleAddingAnnotationSuccess}
-              onUpdateAnnotation={handleUpdateAnnotation}
-              isTempHovering={isTempHovering}
               onMouseEnterTempAnnotation={handleMouseEnterTempAnnotation}
               onMouseLeaveTempAnnotation={handleMouseLeaveTempAnnotation}
-              staticLegendHeight={staticLegendHeight}
             />
           )}
-        {annotations.map(a => (
+        {this.annotations.map(a => (
           <Annotation
             key={a.id}
             mode={mode}
             annotation={a}
             dygraph={dygraph}
+            dWidth={dWidth}
             staticLegendHeight={staticLegendHeight}
-            lastUpdated={lastUpdated}
           />
         ))}
       </div>
     )
+  }
+
+  get annotations() {
+    return visibleAnnotations(
+      this.props.dygraph,
+      this.props.annotations
+    ).filter(a => a.id !== TEMP_ANNOTATION.id)
+  }
+
+  get tempAnnotation() {
+    return this.props.annotations.find(a => a.id === TEMP_ANNOTATION.id)
   }
 }
 
@@ -88,10 +79,10 @@ const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 Annotations.propTypes = {
   annotations: arrayOf(schema.annotation),
-  dygraph: shape({}),
+  dygraph: shape({}).isRequired,
+  dWidth: number.isRequired,
   mode: string,
   isTempHovering: bool,
-  annotationsRef: func,
   handleUpdateAnnotation: func.isRequired,
   handleDismissAddingAnnotation: func.isRequired,
   handleAddingAnnotationSuccess: func.isRequired,

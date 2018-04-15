@@ -16,6 +16,7 @@ const Dashboard = ({
   autoRefresh,
   manualRefresh,
   onDeleteCell,
+  onCloneCell,
   onPositionChange,
   inPresentationMode,
   onOpenTemplateManager,
@@ -25,8 +26,6 @@ const Dashboard = ({
   showTemplateControlBar,
   setScrollTop,
   inView,
-  onSetHoverTime,
-  hoverTime,
   queryASTs,
   onNewQueryAST,
 }) => {
@@ -69,9 +68,8 @@ const Dashboard = ({
             timeRange={timeRange}
             autoRefresh={autoRefresh}
             manualRefresh={manualRefresh}
-            hoverTime={hoverTime}
-            onSetHoverTime={onSetHoverTime}
             onDeleteCell={onDeleteCell}
+            onCloneCell={onCloneCell}
             onPositionChange={onPositionChange}
             templates={templatesIncludingDashTime}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -119,9 +117,8 @@ Dashboard.propTypes = {
   onAddCell: func,
   onPositionChange: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
-  hoverTime: string,
-  onSetHoverTime: func,
   source: shape({
     links: shape({
       proxy: string,

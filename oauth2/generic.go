@@ -165,6 +165,28 @@ type UserEmail struct {
 	Verified *bool   `json:"verified,omitempty"`
 }
 
+// GetPrimary returns if the email is the primary email.
+// If primary is not present, all emails are considered the primary.
+func (u *UserEmail) GetPrimary() bool {
+	if u == nil {
+		return false
+	} else if u.Primary == nil {
+		return true
+	}
+	return *u.Primary
+}
+
+// GetVerified returns if the email has been verified.
+// If verified is not present, all emails are considered verified.
+func (u *UserEmail) GetVerified() bool {
+	if u == nil {
+		return false
+	} else if u.Verified == nil {
+		return true
+	}
+	return *u.Verified
+}
+
 // getPrimaryEmail gets the private email account for the authenticated user.
 func (g *Generic) getPrimaryEmail(client *http.Client) (string, error) {
 	emailsEndpoint := g.APIURL + "/emails"
@@ -189,7 +211,7 @@ func (g *Generic) getPrimaryEmail(client *http.Client) (string, error) {
 
 func (g *Generic) primaryEmail(emails []*UserEmail) (string, error) {
 	for _, m := range emails {
-		if m != nil && m.Primary != nil && m.Verified != nil && m.Email != nil {
+		if m != nil && m.GetPrimary() && m.GetVerified() && m.Email != nil {
 			return *m.Email, nil
 		}
 	}

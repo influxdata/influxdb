@@ -1,7 +1,9 @@
 import React from 'react'
 import PropTypes from 'prop-types'
+import {connect} from 'react-redux'
 
 import {emptyGraphCopy} from 'src/shared/copy/cell'
+import {bindActionCreators} from 'redux'
 
 import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
@@ -10,6 +12,7 @@ import GaugeChart from 'shared/components/GaugeChart'
 import TableGraph from 'shared/components/TableGraph'
 
 import {colorsStringSchema} from 'shared/schemas'
+import {setHoverTime} from 'src/dashboards/actions'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
@@ -24,6 +27,7 @@ const RefreshingGraph = ({
   onZoom,
   cellID,
   queries,
+  hoverTime,
   tableOptions,
   templates,
   timeRange,
@@ -34,9 +38,8 @@ const RefreshingGraph = ({
   manualRefresh, // when changed, re-mounts the component
   resizeCoords,
   editQueryStatus,
+  handleSetHoverTime,
   grabDataForDownload,
-  hoverTime,
-  onSetHoverTime,
   onNewQueryAST,
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
@@ -88,20 +91,20 @@ const RefreshingGraph = ({
   if (type === 'table') {
     return (
       <RefreshingTableGraph
+        cellID={cellID}
         colors={colors}
+        inView={inView}
+        hoverTime={hoverTime}
         key={manualRefresh}
         queries={queries}
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
-        resizerTopHeight={resizerTopHeight}
         resizeCoords={resizeCoords}
-        cellID={cellID}
         tableOptions={tableOptions}
-        hoverTime={hoverTime}
-        onSetHoverTime={onSetHoverTime}
-        inView={inView}
         onNewQueryAST={onNewQueryAST}
+        resizerTopHeight={resizerTopHeight}
+        handleSetHoverTime={handleSetHoverTime}
       />
     )
   }
@@ -122,14 +125,14 @@ const RefreshingGraph = ({
       templates={templates}
       timeRange={timeRange}
       autoRefresh={autoRefresh}
-      isBarGraph={type === 'bar'}
       hoverTime={hoverTime}
-      onSetHoverTime={onSetHoverTime}
+      isBarGraph={type === 'bar'}
       resizeCoords={resizeCoords}
       staticLegend={staticLegend}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
       grabDataForDownload={grabDataForDownload}
+      handleSetHoverTime={handleSetHoverTime}
       showSingleStat={type === 'line-plus-single-stat'}
     />
   )
@@ -144,8 +147,6 @@ RefreshingGraph.propTypes = {
   autoRefresh: number.isRequired,
   manualRefresh: number,
   templates: arrayOf(shape()),
-  hoverTime: string,
-  onSetHoverTime: func,
   type: string.isRequired,
   cellHeight: number,
   resizerTopHeight: number,
@@ -162,6 +163,8 @@ RefreshingGraph.propTypes = {
   tableOptions: shape({}),
   onNewQueryAST: func,
   queryASTs: arrayOf(shape()),
+  hoverTime: string.isRequired,
+  handleSetHoverTime: func.isRequired,
 }
 
 RefreshingGraph.defaultProps = {
@@ -170,4 +173,13 @@ RefreshingGraph.defaultProps = {
   inView: true,
 }
 
-export default RefreshingGraph
+const mapStateToProps = ({dashboardUI, annotations: {mode}}) => ({
+  mode,
+  hoverTime: dashboardUI.hoverTime,
+})
+
+const mapDispatchToProps = dispatch => ({
+  handleSetHoverTime: bindActionCreators(setHoverTime, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(RefreshingGraph)

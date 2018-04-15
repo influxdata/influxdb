@@ -34,13 +34,13 @@ export const getCellTypeColors = ({
       break
     }
     case 'single-stat':
-    case 'line-plus-single-stat':
     case 'table': {
       colors = stringifyColorValues(thresholdsListColors)
       break
     }
     case 'bar':
     case 'line':
+    case 'line-plus-single-stat':
     case 'line-stacked':
     case 'line-stepplot': {
       colors = stringifyColorValues(lineColors)

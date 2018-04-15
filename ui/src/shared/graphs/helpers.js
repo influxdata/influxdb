@@ -190,10 +190,6 @@ export const OPTIONS = {
   highlightSeriesBackgroundColor: 'rgb(41, 41, 51)',
 }
 
-export const highlightSeriesOpts = {
-  highlightCircleSize: 5,
-}
-
 export const hasherino = (str, len) =>
   str
     .split('')

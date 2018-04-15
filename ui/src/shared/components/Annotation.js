@@ -7,27 +7,27 @@ import AnnotationSpan from 'shared/components/AnnotationSpan'
 import * as schema from 'shared/schemas'
 
 const Annotation = ({
-  dygraph,
-  annotation,
   mode,
-  lastUpdated,
+  dygraph,
+  dWidth,
+  annotation,
   staticLegendHeight,
 }) => (
   <div>
     {annotation.startTime === annotation.endTime ? (
       <AnnotationPoint
-        lastUpdated={lastUpdated}
-        annotation={annotation}
         mode={mode}
         dygraph={dygraph}
+        annotation={annotation}
+        dWidth={dWidth}
         staticLegendHeight={staticLegendHeight}
       />
     ) : (
       <AnnotationSpan
-        lastUpdated={lastUpdated}
-        annotation={annotation}
         mode={mode}
         dygraph={dygraph}
+        annotation={annotation}
+        dWidth={dWidth}
         staticLegendHeight={staticLegendHeight}
       />
     )}
@@ -38,7 +38,7 @@ const {number, shape, string} = PropTypes
 
 Annotation.propTypes = {
   mode: string,
-  lastUpdated: number,
+  dWidth: number,
   annotation: schema.annotation.isRequired,
   dygraph: shape({}).isRequired,
   staticLegendHeight: number,

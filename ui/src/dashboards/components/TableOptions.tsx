@@ -73,6 +73,7 @@ interface Props {
 export class TableOptions extends PureComponent<Props, {}> {
   constructor(props) {
     super(props)
+    this.moveField = this.moveField.bind(this)
   }
 
   public componentWillMount() {
@@ -100,7 +101,7 @@ export class TableOptions extends PureComponent<Props, {}> {
       tableOptions,
     } = this.props
 
-    const tableSortByOptions = this.fieldNames.map(field => ({
+    const tableSortByOptions = fieldNames.map(field => ({
       key: field.internalName,
       text: field.displayName || field.internalName,
     }))
@@ -134,6 +135,7 @@ export class TableOptions extends PureComponent<Props, {}> {
           <GraphOptionsCustomizeFields
             fields={fieldNames}
             onFieldUpdate={this.handleFieldUpdate}
+            moveField={this.moveField}
           />
           <ThresholdsList showListHeading={true} onResetFocus={onResetFocus} />
           <div className="form-group-wrapper graph-options-group">
@@ -153,6 +155,27 @@ export class TableOptions extends PureComponent<Props, {}> {
     return (
       this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
     )
+  }
+
+  private moveField(dragIndex, hoverIndex) {
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const {fieldNames} = tableOptions
+    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
+
+    const dragField = fields[dragIndex]
+    const removedFields = _.concat(
+      _.slice(fields, 0, dragIndex),
+      _.slice(fields, dragIndex + 1)
+    )
+    const addedFields = _.concat(
+      _.slice(removedFields, 0, hoverIndex),
+      [dragField],
+      _.slice(removedFields, hoverIndex)
+    )
+    handleUpdateTableOptions({
+      ...tableOptions,
+      fieldNames: addedFields,
+    })
   }
 
   private get computedFieldNames() {
