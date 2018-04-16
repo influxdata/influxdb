@@ -1,10 +1,12 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import FuncArgs from 'src/ifql/components/FuncArgs'
 import {Func} from 'src/ifql/components/FuncArgs'
+import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
 
 interface Props {
   func: Func
   onDelete: (id: string) => void
+  onChangeArg: OnChangeArg
 }
 
 interface State {
@@ -20,7 +22,7 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {func} = this.props
+    const {func, onChangeArg} = this.props
     const {isOpen} = this.state
 
     return (
@@ -28,7 +30,7 @@ export default class FuncNode extends PureComponent<Props, State> {
         <div className="func-node--name" onClick={this.handleClick}>
           <div>{func.name}</div>
         </div>
-        {isOpen && <FuncArgs func={func} />}
+        {isOpen && <FuncArgs func={func} onChangeArg={onChangeArg} />}
         <div className="btn btn-danger btn-square" onClick={this.handleDelete}>
           <span className="icon-trash" />
         </div>
@@ -40,7 +42,7 @@ export default class FuncNode extends PureComponent<Props, State> {
     this.props.onDelete(this.props.func.id)
   }
 
-  private handleClick = (e: MouseEvent<HTMLElement>) => {
+  private handleClick = (e: MouseEvent<HTMLElement>): void => {
     e.stopPropagation()
 
     const {isOpen} = this.state

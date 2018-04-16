@@ -4,6 +4,7 @@ import FuncNode from 'src/ifql/components/FuncNode'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 
 import {Func} from 'src/ifql/components/FuncArgs'
+import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
 
 export interface Suggestion {
   name: string
@@ -20,6 +21,7 @@ interface Props {
   onChangeScript: (script: string) => void
   onSubmitScript: (script: string) => void
   onDeleteFuncNode: (id: string) => void
+  onChangeArg: OnChangeArg
 }
 
 class TimeMachine extends PureComponent<Props> {
@@ -31,6 +33,7 @@ class TimeMachine extends PureComponent<Props> {
       onChangeScript,
       onSubmitScript,
       onDeleteFuncNode,
+      onChangeArg,
     } = this.props
 
     return (
@@ -42,7 +45,12 @@ class TimeMachine extends PureComponent<Props> {
         />
         <div className="func-nodes-container">
           {funcs.map(f => (
-            <FuncNode key={f.id} func={f} onDelete={onDeleteFuncNode} />
+            <FuncNode
+              key={f.id}
+              func={f}
+              onChangeArg={onChangeArg}
+              onDelete={onDeleteFuncNode}
+            />
           ))}
           <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
         </div>

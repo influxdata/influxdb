@@ -7,6 +7,7 @@ import _ from 'lodash'
 import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
 import Walker from 'src/ifql/ast/walker'
 import {Func} from 'src/ifql/components/FuncArgs'
+import {InputArg} from 'src/ifql/components/FuncArgInput'
 
 import {getSuggestions, getAST} from 'src/ifql/apis'
 
@@ -70,6 +71,7 @@ export class IFQLPage extends PureComponent<Props, State> {
               funcs={this.state.funcs}
               suggestions={suggestions}
               onAddNode={this.handleAddNode}
+              onChangeArg={this.handleChangeArg}
               onSubmitScript={this.getASTResponse}
               onChangeScript={this.handleChangeScript}
               onDeleteFuncNode={this.handleDeleteFuncNode}
@@ -78,6 +80,26 @@ export class IFQLPage extends PureComponent<Props, State> {
         </div>
       </div>
     )
+  }
+
+  private handleChangeArg = ({funcID, key, value}: InputArg) => {
+    const funcs = this.state.funcs.map(f => {
+      if (f.id !== funcID) {
+        return f
+      }
+
+      const args = f.args.map(a => {
+        if (a.key === key) {
+          return {...a, value}
+        }
+
+        return a
+      })
+
+      return {...f, args}
+    })
+
+    this.setState({funcs})
   }
 
   private handleChangeScript = (script: string): void => {
