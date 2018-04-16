@@ -27,6 +27,33 @@ import {
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 import {colorsStringSchema} from 'shared/schemas'
 
+const computedFieldNames = (existingFieldNames, queryASTs) => {
+  const timeField =
+    existingFieldNames.find(f => f.internalName === 'time') ||
+    TIME_FIELD_DEFAULT
+  let astNames = [timeField]
+  queryASTs.forEach(q => {
+    const {fields, sources} = q
+    const sourceName = _.get(sources, ['0', 'name'])
+    fields.forEach(f => {
+      const {alias, column: {val}} = f
+      const value = val || alias
+      const internalName = `${sourceName}.${value}`
+      const field = {internalName, displayName: '', visible: true}
+      astNames = [...astNames, field]
+    })
+  })
+
+  const intersection = existingFieldNames.filter(f => {
+    return astNames.find(a => a.internalName === f.internalName)
+  })
+
+  const newFields = astNames.filter(a => {
+    return !existingFieldNames.find(f => f.internalName === a.internalName)
+  })
+  return [...intersection, ...newFields]
+}
+
 class TableGraph extends Component {
   constructor(props) {
     super(props)
@@ -64,6 +91,8 @@ class TableGraph extends Component {
       },
     } = nextProps
 
+    const newFieldNames = computedFieldNames(fieldNames, nextProps.queryASTs)
+
     let direction, sortFieldName
     if (
       _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') ===
@@ -86,10 +115,9 @@ class TableGraph extends Component {
       sortFieldName,
       direction,
       verticalTimeAxis,
-      fieldNames,
+      newFieldNames,
       timeFormat
     )
-
     this.setState({
       data,
       processedData,
@@ -158,7 +186,8 @@ class TableGraph extends Component {
   }
 
   handleClickFieldName = fieldName => () => {
-    const {tableOptions, queryASTs} = this.props
+    const {tableOptions} = this.props
+    const {timeFormat} = tableOptions
     const {data, sortField, sortDirection} = this.state
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
     const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])

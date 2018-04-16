@@ -51,6 +51,7 @@ interface Field {
   }
   alias?: string
 }
+
 interface QueryAST {
   fields: Field[]
   limits: {limit: number}
@@ -85,13 +86,23 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   public shouldComponentUpdate(nextProps) {
-    const {tableOptions} = this.props
+    const {tableOptions, queryASTs} = this.props
     const tableOptionsDifferent = !_.isEqual(
       tableOptions,
       nextProps.tableOptions
     )
+    const queryASTsDifferent = !_.isEqual(queryASTs, nextProps.queryASTs)
+    return tableOptionsDifferent || queryASTsDifferent
+  }
 
-    return tableOptionsDifferent
+  public componentWillReceiveProps(nextProps) {
+    const {queryASTs, handleUpdateTableOptions, tableOptions} = this.props
+    if (!_.isEqual(queryASTs, nextProps.queryASTs)) {
+      handleUpdateTableOptions({
+        ...tableOptions,
+        fieldNames: this.computedFieldNames,
+      })
+    }
   }
 
   public render() {
@@ -201,7 +212,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     const newFields = astNames.filter(a => {
       return !existingFieldNames.find(f => f.internalName === a.internalName)
     })
-
     return [...intersection, ...newFields]
   }
 

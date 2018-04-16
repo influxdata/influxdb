@@ -3,6 +3,7 @@ import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, filter, forEach, concat, clone} from 'fast.js'
 import {calculateColumnWidths} from 'src/dashboards/utils/tableGraph'
 import {groupByTag} from 'src/kapacitor/actions/queryConfigs'
+import {groupByTimeSeriesTransform} from 'src/utils/groupBy.js'
 
 /**
  * Accepts an array of raw influxdb responses and returns a format
@@ -190,172 +191,9 @@ const groupbysNotSelected = (raw, groupby) => {
   })
 }
 
-const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
-  const groupBys = queryASTs.map(queryAST => {
-    return _.get(queryAST, ['groupBy', 'tags'], false)
-  })
-  console.log('raw', raw)
-  console.log('queryASTs', queryASTs)
-
-  raw.forEach((r, i) => {
-    if (groupBys[i]) {
-      console.log('groupbysNotSelected', groupbysNotSelected(r, groupBys[i]))
-      // groupby not selected? add it in.
-
-      //   const series = _.get(r, ['response', 'results', '0', 'series'], [])
-      //   const result = reduce(
-      //     series,
-      //     (acc, s, j) => {
-      //       const seriesValues = s.values
-      //       const seriesRows = map(seriesValues, v => [v[0], ...v.slice(1)])
-      //       return [acc, ...seriesRows]
-      //     },
-      //     [[series[0].columns[0], ...series[0].columns.slice(1)]]
-      //   )
-      // } else {
-      // don't treat it like a groupby
-    }
-  })
-
-  // if not group by is not selected, then act like it is selected, do not
-
-  // foreachqueryAST in queryASTs
-  // determine if hasGroupBy
-  // if hasGroupBy time// tag/ select
-  // if nothasGroupBy append
-
-  // collect results from each influx response
-  const results = reduce(
-    raw,
-    (acc, rawResponse, responseIndex) => {
-      const responses = _.get(rawResponse, 'response.results', [])
-      const indexedResponses = map(responses, response => ({
-        ...response,
-        responseIndex,
-      }))
-      return [...acc, ...indexedResponses]
-    },
-    []
-  )
-
-  // collect each series
-  const serieses = reduce(
-    results,
-    (acc, {series = [], responseIndex}, index) => {
-      return [...acc, ...map(series, item => ({...item, responseIndex, index}))]
-    },
-    []
-  )
-  // console.log('serieses', serieses)
-
-  const size = reduce(
-    serieses,
-    (acc, {columns, values}) => {
-      if (columns.length && (values && values.length)) {
-        return acc + (columns.length - 1) * values.length
-      }
-      return acc
-    },
-    0
-  )
-
-  // convert series into cells with rows and columns
-  let cellIndex = 0
-  let labels = []
-
-  forEach(
-    serieses,
-    ({
-      name: measurement,
-      columns,
-      values,
-      index: seriesIndex,
-      responseIndex,
-      tags = {},
-    }) => {
-      const rows = map(values || [], vals => ({
-        vals,
-      }))
-
-      // tagSet is each tag key and value for a series
-      const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
-        .sort()
-        .join('')
-      const unsortedLabels = map(columns.slice(1), field => ({
-        label: `${measurement}.${field}${tagSet}`,
-        responseIndex,
-        seriesIndex,
-      }))
-      labels = concat(labels, unsortedLabels)
-
-      forEach(rows, ({vals}) => {
-        const [time, ...rowValues] = vals
-
-        forEach(rowValues, (value, i) => {
-          cells.label[cellIndex] = unsortedLabels[i].label
-          cells.value[cellIndex] = value
-          cells.time[cellIndex] = time
-          cells.seriesIndex[cellIndex] = seriesIndex
-          cells.responseIndex[cellIndex] = responseIndex
-          cellIndex++ // eslint-disable-line no-plusplus
-        })
-      })
-    }
-  )
-
-  const sortedLabels = _.sortBy(labels, 'label')
-  const tsMemo = {}
-  const nullArray = Array(sortedLabels.length).fill(null)
-
-  const labelsToValueIndex = reduce(
-    sortedLabels,
-    (acc, {label, seriesIndex}, i) => {
-      // adding series index prevents overwriting of two distinct labels that have the same field and measurements
-      acc[label + seriesIndex] = i
-      return acc
-    },
-    {}
-  )
-
-  const timeSeries = []
-  for (let i = 0; i < size; i++) {
-    let time = cells.time[i]
-    const value = cells.value[i]
-    const label = cells.label[i]
-    const seriesIndex = cells.seriesIndex[i]
-
-    if (label.includes('_shifted__')) {
-      const [, quantity, duration] = label.split('__')
-      time = +shiftDate(time, quantity, duration).format('x')
-    }
-
-    let existingRowIndex = tsMemo[time]
-
-    if (existingRowIndex === undefined) {
-      timeSeries.push({
-        time,
-        values: clone(nullArray),
-      })
-
-      existingRowIndex = timeSeries.length - 1
-      tsMemo[time] = existingRowIndex
-    }
-
-    timeSeries[existingRowIndex].values[
-      labelsToValueIndex[label + seriesIndex]
-    ] = value
-  }
-  const sortedTimeSeries = _.sortBy(timeSeries, 'time')
-
-  return {
-    sortedLabels,
-    sortedTimeSeries,
-  }
-}
-
 export const timeSeriesToTableGraph = (raw, queryASTs) => {
-  console.log('raw', raw)
-  console.log('queryASTs', queryASTs)
+  // console.log('raw', raw)
+  // console.log('queryASTs', queryASTs)
   const {sortedLabels, sortedTimeSeries} = hasGroupBy(queryASTs)
     ? groupByTimeSeriesTransform(raw, queryASTs)
     : timeSeriesTransform(raw)
@@ -364,6 +202,7 @@ export const timeSeriesToTableGraph = (raw, queryASTs) => {
 
   const tableData = map(sortedTimeSeries, ({time, values}) => [time, ...values])
   const data = tableData.length ? [labels, ...tableData] : [[]]
+  // console.log('data', data)
   return {
     data,
   }
@@ -384,6 +223,7 @@ export const filterTableColumns = (data, fieldNames) => {
 }
 
 export const orderTableColumns = (data, fieldNames) => {
+  // console.log('data[0]', data[0])
   const fieldsSortOrder = fieldNames.map(fieldName => {
     return _.findIndex(data[0], dataLabel => {
       return dataLabel === fieldName.internalName
@@ -409,9 +249,13 @@ export const processTableData = (
     data[0],
     ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
   ]
+  // console.log('sortedData', sortedData)
   const sortedTimeVals = map(sortedData, r => r[0])
+  // console.log('sortedTimeVals', sortedTimeVals)
   const filteredData = filterTableColumns(sortedData, fieldNames)
+  // console.log('filteredData', filteredData)
   const orderedData = orderTableColumns(filteredData, fieldNames)
+  // console.log('orderedData', orderedData)
   const processedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
   const {widths: columnWidths, totalWidths} = calculateColumnWidths(
     processedData,
