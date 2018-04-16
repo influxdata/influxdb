@@ -11,10 +11,7 @@ $template-control-dropdown-min-width: 146px;
 $template-control-dropdown-max-width: 300px;
 
 .template-control-bar {
-  position: absolute;
-  top: $chronograf-page-header-height;
-  left: 0;
-  width: 100%;
+  position: relative;
   display: none;
   background-color: $g3-castle;
 
@@ -24,12 +21,12 @@ $template-control-dropdown-max-width: 300px;
 }
 .template-control--container {
   width: 100%;
-  height: $chronograf-page-header-height;
+  min-height: $chronograf-page-header-height;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  padding: 0 60px;
+  padding: 8px 60px;
 }
 .template-control--heading {
   font-size: 16px;
@@ -45,36 +42,7 @@ button.btn.template-control--manage {
 .template-control--controls {
   display: flex;
   flex: 1 0 0%;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-
-  &::-webkit-scrollbar {
-    height: 8px;
-
-    &-button {
-      display: none;
-    }
-    &-track {
-      background-color: $g3-castle;
-    }
-    &-track-piece {
-      background-color: $g3-castle;
-      border: 2px solid $g3-castle;
-      border-radius: 4px;
-    }
-    &-thumb {
-      background-color: $g6-smoke;
-      border: 2px solid $g3-castle;
-      border-radius: 4px;
-    }
-    &-corner {
-      display: none;
-    }
-  }
-  &::-webkit-resizer {
-    display: none;
-  }
+  flex-wrap: wrap;
 }
 .template-control--empty {
   color: $g11-sidewalk;
