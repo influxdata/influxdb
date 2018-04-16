@@ -122,7 +122,8 @@ class HostPage extends Component {
         }
         cell.queries.forEach(q => {
           q.text = q.query
-          q.database = source.telegraf
+          q.db = source.telegraf
+          q.rp = source.defaultRP
         })
       })
       translateY = maxY

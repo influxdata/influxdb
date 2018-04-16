@@ -5,7 +5,8 @@ import _ from 'lodash'
 export const getCpuAndLoadForHosts = (
   proxyLink,
   telegrafDB,
-  telegrafSystemInterval
+  telegrafSystemInterval,
+  rp
 ) => {
   return proxy({
     source: proxyLink,
@@ -17,6 +18,7 @@ export const getCpuAndLoadForHosts = (
       SELECT non_negative_derivative(mean("System_Up_Time")) AS winDeltaUptime FROM win_system WHERE time > now() - ${telegrafSystemInterval} * 10 GROUP BY host, time(${telegrafSystemInterval}) fill(0);
       SHOW TAG VALUES WITH KEY = "host";`,
     db: telegrafDB,
+    rp,
   }).then(resp => {
     const hosts = {}
     const precision = 100
