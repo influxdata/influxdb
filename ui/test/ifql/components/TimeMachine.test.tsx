@@ -12,6 +12,7 @@ const setup = () => {
     onSubmitScript: () => {},
     onDeleteFuncNode: () => {},
     onChangeArg: () => {},
+    onGenerateScript: () => {},
   }
 
   const wrapper = shallow(<TimeMachine {...props} />)

@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
 export type OnChangeArg = (inputArg: InputArg) => void
 
@@ -14,6 +14,7 @@ interface Props {
   value: string
   type: string
   onChangeArg: OnChangeArg
+  onGenerateScript: () => void
 }
 
 class FuncArgInput extends PureComponent<Props> {
@@ -23,22 +24,32 @@ class FuncArgInput extends PureComponent<Props> {
       <div>
         <label htmlFor={argKey}>{argKey}: </label>
         <input
-          type="text"
           name={argKey}
-          className="form-control input-xs"
+          value={value}
           placeholder={type}
+          onChange={this.handleChange}
+          onKeyDown={this.handleKeyDown}
+          type="text"
+          className="form-control input-xs"
           spellCheck={false}
           autoComplete="off"
-          value={value}
-          onChange={this.handleChange}
         />
       </div>
     )
   }
 
+  private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') {
+      return
+    }
+
+    this.props.onGenerateScript()
+    e.preventDefault()
+  }
+
   private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {funcID, argKey} = this.props
-    console.log(this.props)
+
     this.props.onChangeArg({funcID, key: argKey, value: e.target.value})
   }
 }

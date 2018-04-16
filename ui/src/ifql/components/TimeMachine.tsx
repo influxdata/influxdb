@@ -22,6 +22,7 @@ interface Props {
   onSubmitScript: (script: string) => void
   onDeleteFuncNode: (id: string) => void
   onChangeArg: OnChangeArg
+  onGenerateScript: () => void
 }
 
 class TimeMachine extends PureComponent<Props> {
@@ -30,10 +31,11 @@ class TimeMachine extends PureComponent<Props> {
       funcs,
       script,
       onAddNode,
+      onChangeArg,
       onChangeScript,
       onSubmitScript,
       onDeleteFuncNode,
-      onChangeArg,
+      onGenerateScript,
     } = this.props
 
     return (
@@ -50,6 +52,7 @@ class TimeMachine extends PureComponent<Props> {
               func={f}
               onChangeArg={onChangeArg}
               onDelete={onDeleteFuncNode}
+              onGenerateScript={onGenerateScript}
             />
           ))}
           <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />

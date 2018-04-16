@@ -10,6 +10,7 @@ import {Func} from 'src/ifql/components/FuncArgs'
 import {InputArg} from 'src/ifql/components/FuncArgInput'
 
 import {getSuggestions, getAST} from 'src/ifql/apis'
+import * as argTypes from 'src/ifql/constants/argumentTypes'
 
 interface Links {
   self: string
@@ -75,11 +76,16 @@ export class IFQLPage extends PureComponent<Props, State> {
               onSubmitScript={this.getASTResponse}
               onChangeScript={this.handleChangeScript}
               onDeleteFuncNode={this.handleDeleteFuncNode}
+              onGenerateScript={this.handleGenerateScript}
             />
           </div>
         </div>
       </div>
     )
+  }
+
+  private handleGenerateScript = () => {
+    this.getASTResponse(this.funcsToScript)
   }
 
   private handleChangeArg = ({funcID, key, value}: InputArg) => {
@@ -100,6 +106,26 @@ export class IFQLPage extends PureComponent<Props, State> {
     })
 
     this.setState({funcs})
+  }
+
+  private get funcsToScript(): string {
+    return this.state.funcs
+      .map(func => `${func.name}(${this.argsToScript(func.args)})`)
+      .join('\n\t|> ')
+  }
+
+  private argsToScript(args): string {
+    const withValues = args.filter(arg => arg.value)
+
+    return withValues
+      .map(({key, value, type}) => {
+        if (type === argTypes.STRING) {
+          return `${key}: "${value}"`
+        }
+
+        return `${key}: ${value}`
+      })
+      .join(', ')
   }
 
   private handleChangeScript = (script: string): void => {

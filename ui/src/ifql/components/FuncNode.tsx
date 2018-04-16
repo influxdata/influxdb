@@ -7,6 +7,7 @@ interface Props {
   func: Func
   onDelete: (id: string) => void
   onChangeArg: OnChangeArg
+  onGenerateScript: () => void
 }
 
 interface State {
@@ -22,7 +23,7 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {func, onChangeArg} = this.props
+    const {func, onChangeArg, onGenerateScript} = this.props
     const {isOpen} = this.state
 
     return (
@@ -30,7 +31,13 @@ export default class FuncNode extends PureComponent<Props, State> {
         <div className="func-node--name" onClick={this.handleClick}>
           <div>{func.name}</div>
         </div>
-        {isOpen && <FuncArgs func={func} onChangeArg={onChangeArg} />}
+        {isOpen && (
+          <FuncArgs
+            func={func}
+            onChangeArg={onChangeArg}
+            onGenerateScript={onGenerateScript}
+          />
+        )}
         <div className="btn btn-danger btn-square" onClick={this.handleDelete}>
           <span className="icon-trash" />
         </div>
