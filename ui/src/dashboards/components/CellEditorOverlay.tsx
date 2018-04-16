@@ -397,7 +397,7 @@ class CellEditorOverlay extends Component<Props, State> {
     return _.get(queries, '0.source.links.self', links.self)
   }
 
-  private get source() {
+  private get source(): Source {
     const {source, sources} = this.props
     const query = _.get(this.state.queriesWorkingDraft, 0, {source: null})
 
