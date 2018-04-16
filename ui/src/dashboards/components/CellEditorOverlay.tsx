@@ -88,6 +88,7 @@ const createWorkingDrafts = (source: string, queries: CellQuery[]): Query[] =>
 
 class CellEditorOverlay extends Component<Props, State> {
   private overlayRef: HTMLDivElement
+
   private formattedSources = this.props.sources.map(s => ({
     ...s,
     text: `${s.name} @ ${s.url}`,
@@ -96,7 +97,14 @@ class CellEditorOverlay extends Component<Props, State> {
   constructor(props) {
     super(props)
 
-    const {cell: {queries, legend}} = props
+    const {cell: {legend}} = props
+    let {cell: {queries}} = props
+
+    // Always have at least one query
+    if (_.isEmpty(queries)) {
+      queries = [{id: uuid.v4()}]
+    }
+
     const queriesWorkingDraft = createWorkingDrafts(this.sourceLink, queries)
 
     this.state = {
