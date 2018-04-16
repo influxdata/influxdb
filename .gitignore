@@ -66,6 +66,7 @@ config.toml
 
 # test data files
 integration/migration_data/
+test-logs/
 
 # man outputs
 man/*.xml

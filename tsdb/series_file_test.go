@@ -13,6 +13,7 @@ import (
 
 // Ensure series file contains the correct set of series.
 func TestSeriesFile_Series(t *testing.T) {
+	t.Fail()
 	sfile := MustOpenSeriesFile()
 	defer sfile.Close()
 
