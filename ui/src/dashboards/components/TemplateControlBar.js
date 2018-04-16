@@ -74,7 +74,7 @@ const TemplateControlBar = ({
           })
         ) : (
           <div className="template-control--empty">
-            This dashboard does not have any Template Variables
+            This dashboard does not have any <strong>Template Variables</strong>
           </div>
         )}
       </div>
