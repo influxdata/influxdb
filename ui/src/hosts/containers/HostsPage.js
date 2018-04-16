@@ -13,6 +13,7 @@ import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 import {getEnv} from 'src/shared/apis/env'
 import {setAutoRefresh} from 'shared/actions/app'
 import {notify as notifyAction} from 'shared/actions/notifications'
+import {generateTempVarsForHosts} from 'src/hosts/constants'
 
 import {
   notifyUnableToGetHosts,
@@ -34,12 +35,14 @@ class HostsPage extends Component {
     const {source, links, notify} = this.props
     const {telegrafSystemInterval} = await getEnv(links.environment)
     const hostsError = notifyUnableToGetHosts().message
+    const tempVars = generateTempVarsForHosts(source)
+
     try {
       const hosts = await getCpuAndLoadForHosts(
         source.links.proxy,
         source.telegraf,
         telegrafSystemInterval,
-        source.defaultRP
+        tempVars
       )
       if (!hosts) {
         throw new Error(hostsError)
