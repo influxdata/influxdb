@@ -13,7 +13,7 @@
       "name": "System - Total Processes",
       "queries": [
         {
-          "query": "SELECT mean(\"total\") AS \"total\" FROM processes",
+          "query": "SELECT mean(\"total\") AS \"total\" FROM \":db:\".\":rp:\".\"processes\"",
           "groupbys": [],
           "wheres": []
         }

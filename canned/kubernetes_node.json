@@ -13,7 +13,7 @@
       "name": "K8s - Node Millicores",
       "queries": [
         {
-          "query": "SELECT mean(\"cpu_usage_nanocores\") / 1000000  AS \"cpu_usage_millicores\" FROM kubernetes_node",
+          "query": "SELECT mean(\"cpu_usage_nanocores\") / 1000000  AS \"cpu_usage_millicores\" FROM \":db:\".\":rp:\".\"kubernetes_node\"",
           "groupbys": [
             "\"node_name\""
           ],
@@ -30,7 +30,7 @@
       "name": "K8s - Node Memory Bytes",
       "queries": [
         {
-          "query": "SELECT mean(\"memory_usage_bytes\") AS \"memory_usage_bytes\" FROM kubernetes_node",
+          "query": "SELECT mean(\"memory_usage_bytes\") AS \"memory_usage_bytes\" FROM \":db:\".\":rp:\".\"kubernetes_node\"",
           "groupbys": [
             "\"node_name\""
           ],

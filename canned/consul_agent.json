@@ -13,7 +13,7 @@
       "name": "Consul Agent – Number of Go Routines",
       "queries": [
         {
-          "query": "SELECT max(\"value\") AS \"Go Routines\" FROM \"consul_ip-172-31-6-247_runtime_num_goroutines\"",
+          "query": "SELECT max(\"value\") AS \"Go Routines\" FROM \":db:\".\":rp:\".\"consul_ip-172-31-6-247_runtime_num_goroutines\"",
           "groupbys": [
           ],
           "wheres": [
@@ -30,7 +30,7 @@
       "name": "Consul Agent – Runtime Alloc Bytes",
       "queries": [
         {
-          "query": "SELECT max(\"value\") AS \"Runtime Alloc Bytes\" FROM \"consul_ip-172-31-6-247_runtime_alloc_bytes\"",
+          "query": "SELECT max(\"value\") AS \"Runtime Alloc Bytes\" FROM \":db:\".\":rp:\".\"consul_ip-172-31-6-247_runtime_alloc_bytes\"",
           "groupbys": [
           ],
           "wheres": [
@@ -47,7 +47,7 @@
       "name": "Consul Agent – Heap Objects",
       "queries": [
         {
-          "query": "SELECT max(\"value\") AS \"Heap Objects\" FROM \"consul_ip-172-31-6-247_runtime_heap_objects\"",
+          "query": "SELECT max(\"value\") AS \"Heap Objects\" FROM \":db:\".\":rp:\".\"consul_ip-172-31-6-247_runtime_heap_objects\"",
           "groupbys": [
           ],
           "wheres": [

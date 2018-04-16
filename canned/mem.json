@@ -13,7 +13,7 @@
       "name": "System - Memory Gigabytes Used",
       "queries": [
         {
-          "query": "SELECT mean(\"used\") / 1073741824 AS \"used\", mean(\"available\") / 1073741824 AS \"available\" FROM \"mem\"",
+          "query": "SELECT mean(\"used\") / 1073741824 AS \"used\", mean(\"available\") / 1073741824 AS \"available\" FROM \":db:\".\":rp:\".\"mem\"",
           "label": "GB",
           "groupbys": [],
           "wheres": []

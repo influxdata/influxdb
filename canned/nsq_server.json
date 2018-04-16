@@ -13,7 +13,7 @@
       "name": "NSQ - Topic Count",
       "queries": [
         {
-          "query": "SELECT mean(\"topic_count\") AS \"topic_count\" FROM nsq_server",
+          "query": "SELECT mean(\"topic_count\") AS \"topic_count\" FROM \":db:\".\":rp:\".\"nsq_server\"",
           "groupbys": [],
           "wheres": []
         }
@@ -28,7 +28,7 @@
       "name": "NSQ - Server Count",
       "queries": [
         {
-          "query": "SELECT mean(\"server_count\") AS \"server_count\" FROM nsq_server",
+          "query": "SELECT mean(\"server_count\") AS \"server_count\" FROM \":db:\".\":rp:\".\"nsq_server\"",
           "groupbys": [],
           "wheres": []
         }

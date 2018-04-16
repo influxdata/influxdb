@@ -13,7 +13,7 @@
             "name": "Consul – Number of serf events",
             "queries": [
                 {
-                    "query": "SELECT max(\"value\") AS \"serf_events\" FROM \"consul_serf_events\"",
+                    "query": "SELECT max(\"value\") AS \"serf_events\" FROM \":db:\".\":rp:\".\"consul_serf_events\"",
                     "label": "count",
                     "groupbys": [],
                     "wheres": []
