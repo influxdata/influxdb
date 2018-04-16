@@ -15,6 +15,12 @@ const defaultSuccessNotification = {
   duration: FIVE_SECONDS,
 }
 
+const defaultDeletionNotification = {
+  type: 'primary',
+  icon: 'trash',
+  duration: FIVE_SECONDS,
+}
+
 //  Misc Notifications
 //  ----------------------------------------------------------------------------
 export const notifyGenericFail = () => 'Could not communicate with server.'
