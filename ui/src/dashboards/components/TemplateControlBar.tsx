@@ -1,17 +1,34 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
+
 import classnames from 'classnames'
 import calculateSize from 'calculate-size'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-
-import Dropdown from 'shared/components/Dropdown'
+import Dropdown from 'src/shared/components/Dropdown'
 
 const minTempVarDropdownWidth = 146
 const maxTempVarDropdownWidth = 300
 const tempVarDropdownPadding = 30
 
-const TemplateControlBar = ({
+interface TemplateValue {
+  value: string
+  selected?: boolean
+}
+
+interface Template {
+  id: string
+  tempVar: string
+  values: TemplateValue[]
+}
+
+interface Props {
+  templates: Template[]
+  isOpen: boolean
+  onOpenTemplateManager: () => void
+  onSelectTemplate: (id: string) => void
+}
+
+const TemplateControlBar: SFC<Props> = ({
   isOpen,
   templates,
   onSelectTemplate,
@@ -20,7 +37,7 @@ const TemplateControlBar = ({
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
       <div className="template-control--controls">
-        {templates.length ? (
+        {templates && templates.length ? (
           templates.map(({id, values, tempVar}) => {
             const items = values.map(value => ({...value, text: value.value}))
             const itemValues = values.map(value => value.value)
@@ -90,28 +107,5 @@ const TemplateControlBar = ({
     </div>
   </div>
 )
-
-const {arrayOf, bool, func, shape, string} = PropTypes
-
-TemplateControlBar.defaultProps = {
-  templates: [],
-}
-
-TemplateControlBar.propTypes = {
-  templates: arrayOf(
-    shape({
-      id: string.isRequired,
-      values: arrayOf(
-        shape({
-          value: string.isRequired,
-        })
-      ),
-      tempVar: string.isRequired,
-    })
-  ).isRequired,
-  onSelectTemplate: func.isRequired,
-  onOpenTemplateManager: func.isRequired,
-  isOpen: bool,
-}
 
 export default TemplateControlBar
