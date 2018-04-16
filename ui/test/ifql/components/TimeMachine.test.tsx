@@ -5,8 +5,12 @@ import TimeMachine from 'src/ifql/components/TimeMachine'
 const setup = () => {
   const props = {
     funcs: [],
+    script: '',
     suggestions: [],
     onAddNode: () => {},
+    onChangeScript: () => {},
+    onSubmitScript: () => {},
+    onDeleteFuncNode: () => {},
   }
 
   const wrapper = shallow(<TimeMachine {...props} />)

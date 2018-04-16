@@ -1,10 +1,12 @@
 import React, {PureComponent} from 'react'
 
 import {connect} from 'react-redux'
+import uuid from 'uuid'
 import _ from 'lodash'
 
 import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
 import Walker from 'src/ifql/ast/walker'
+import {Func} from 'src/ifql/components/FuncArgs'
 
 import {getSuggestions, getAST} from 'src/ifql/apis'
 
@@ -20,8 +22,9 @@ interface Props {
 
 interface State {
   suggestions: Suggestion[]
+  funcs: Func[]
   ast: object
-  query: string
+  script: string
 }
 
 export class IFQLPage extends PureComponent<Props, State> {
@@ -29,8 +32,9 @@ export class IFQLPage extends PureComponent<Props, State> {
     super(props)
     this.state = {
       suggestions: [],
+      funcs: [],
       ast: null,
-      query: 'from(db: "telegraf") |> filter() |> range(start: -15m)',
+      script: 'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)',
     }
   }
 
@@ -44,14 +48,14 @@ export class IFQLPage extends PureComponent<Props, State> {
       console.error('Could not get function suggestions: ', error)
     }
 
-    this.getASTResponse(this.state.query)
+    this.getASTResponse(this.state.script)
   }
 
   public render() {
-    const {suggestions} = this.state
+    const {suggestions, script} = this.state
 
     return (
-      <div className="page">
+      <div className="page hosts-list-page">
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
@@ -62,9 +66,13 @@ export class IFQLPage extends PureComponent<Props, State> {
         <div className="page-contents">
           <div className="container-fluid">
             <TimeMachine
+              script={script}
+              funcs={this.state.funcs}
               suggestions={suggestions}
-              funcs={this.funcs}
               onAddNode={this.handleAddNode}
+              onSubmitScript={this.getASTResponse}
+              onChangeScript={this.handleChangeScript}
+              onDeleteFuncNode={this.handleDeleteFuncNode}
             />
           </div>
         </div>
@@ -72,14 +80,29 @@ export class IFQLPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleAddNode = (name: string) => {
-    const query = `${this.state.query} |> ${name}()`
-    this.getASTResponse(query)
+  private handleChangeScript = (script: string): void => {
+    this.setState({script})
   }
 
-  private get funcs() {
-    const {ast, suggestions} = this.state
+  private handleAddNode = (name: string): void => {
+    const script = `${this.state.script}\n\t|> ${name}()`
+    this.getASTResponse(script)
+  }
 
+  private handleDeleteFuncNode = (id: string): void => {
+    const funcs = this.state.funcs.filter(f => f.id !== id)
+    const script = funcs.reduce((acc, f, i) => {
+      if (i === 0) {
+        return `${f.source}`
+      }
+
+      return `${acc}\n\t${f.source}`
+    }, '')
+
+    this.getASTResponse(script)
+  }
+
+  private funcs = (ast, suggestions): Func[] => {
     if (!ast) {
       return []
     }
@@ -103,6 +126,8 @@ export class IFQLPage extends PureComponent<Props, State> {
       })
 
       return {
+        id: uuid.v4(),
+        source: func.source,
         name,
         args,
       }
@@ -111,12 +136,13 @@ export class IFQLPage extends PureComponent<Props, State> {
     return functions
   }
 
-  private async getASTResponse(query: string) {
+  private getASTResponse = async (script: string) => {
     const {links} = this.props
 
     try {
-      const ast = await getAST({url: links.ast, body: query})
-      this.setState({ast, query})
+      const ast = await getAST({url: links.ast, body: script})
+      const funcs = this.funcs(ast, this.state.suggestions)
+      this.setState({ast, script, funcs})
     } catch (error) {
       console.error('Could not parse AST', error)
     }

@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 import FuncSelector from 'src/ifql/components/FuncSelector'
 import FuncNode from 'src/ifql/components/FuncNode'
+import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 
 import {Func} from 'src/ifql/components/FuncArgs'
 
@@ -12,19 +13,37 @@ export interface Suggestion {
 }
 
 interface Props {
+  script: string
   suggestions: Suggestion[]
   funcs: Func[]
   onAddNode: (name: string) => void
+  onChangeScript: (script: string) => void
+  onSubmitScript: (script: string) => void
+  onDeleteFuncNode: (id: string) => void
 }
 
 class TimeMachine extends PureComponent<Props> {
   public render() {
-    const {funcs, onAddNode} = this.props
+    const {
+      funcs,
+      script,
+      onAddNode,
+      onChangeScript,
+      onSubmitScript,
+      onDeleteFuncNode,
+    } = this.props
 
     return (
-      <div>
+      <div className="time-machine-container">
+        <TimeMachineEditor
+          script={script}
+          onChangeScript={onChangeScript}
+          onSubmitScript={onSubmitScript}
+        />
         <div className="func-nodes-container">
-          {funcs.map((f, i) => <FuncNode key={i} func={f} />)}
+          {funcs.map(f => (
+            <FuncNode key={f.id} func={f} onDelete={onDeleteFuncNode} />
+          ))}
           <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
         </div>
       </div>
