@@ -38,8 +38,7 @@ class HostsPage extends Component {
       const hosts = await getCpuAndLoadForHosts(
         source.links.proxy,
         source.telegraf,
-        telegrafSystemInterval,
-        source.defaultRP
+        telegrafSystemInterval
       )
       if (!hosts) {
         throw new Error(hostsError)
