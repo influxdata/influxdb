@@ -17,6 +17,7 @@
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize delete confirmation interactions
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize save & cancel interactions
 1.  [#3116](https://github.com/influxdata/chronograf/pull/3116): Improve cell renaming
+1.  [#3204](https://github.com/influxdata/chronograf/pull/3204): Notify user when a dashboard cell is added, removed, or cloned
 
 ### Bug Fixes
 
