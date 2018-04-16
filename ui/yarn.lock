@@ -16,16 +16,6 @@
     esutils "^2.0.2"
     js-tokens "^3.0.0"
 
-"@skidding/react-codemirror@^1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@skidding/react-codemirror/-/react-codemirror-1.0.2.tgz#819ac6b4e043824ae3a71144e1541295fcfaa269"
-  dependencies:
-    classnames "^2.2.5"
-    codemirror "^5.18.2"
-    create-react-class "^15.5.1"
-    lodash.isequal "^4.5.0"
-    prop-types "^15.5.4"
-
 "@types/chai@^4.1.2":
   version "4.1.2"
   resolved "https://registry.yarnpkg.com/@types/chai/-/chai-4.1.2.tgz#f1af664769cfb50af805431c407425ed619daa21"

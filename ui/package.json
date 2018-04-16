@@ -118,7 +118,6 @@
     "webpack-dev-server": "^2.11.1"
   },
   "dependencies": {
-    "@skidding/react-codemirror": "^1.0.2",
     "axios": "^0.13.1",
     "bignumber.js": "^4.0.2",
     "calculate-size": "^1.1.1",
