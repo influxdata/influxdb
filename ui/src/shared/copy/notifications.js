@@ -15,6 +15,12 @@ const defaultSuccessNotification = {
   duration: FIVE_SECONDS,
 }
 
+const defaultDeletionNotification = {
+  type: 'primary',
+  icon: 'trash',
+  duration: FIVE_SECONDS,
+}
+
 //  Misc Notifications
 //  ----------------------------------------------------------------------------
 export const notifyGenericFail = () => 'Could not communicate with server.'
@@ -405,6 +411,27 @@ export const notifyDashboardDeleted = name => ({
 
 export const notifyDashboardDeleteFailed = (name, errorMessage) =>
   `Failed to delete Dashboard ${name}: ${errorMessage}.`
+
+export const notifyCellAdded = () => ({
+  ...defaultSuccessNotification,
+  icon: 'dash-h',
+  duration: 2200,
+  message: 'Added "Untitled Cell" to dashboard.',
+})
+
+export const notifyCellCloned = name => ({
+  ...defaultSuccessNotification,
+  icon: 'duplicate',
+  duration: 2200,
+  message: `Added "${name}" to dashboard.`,
+})
+
+export const notifyCellDeleted = name => ({
+  ...defaultDeletionNotification,
+  icon: 'dash-h',
+  duration: 2200,
+  message: `Deleted "${name}" from dashboard.`,
+})
 
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
