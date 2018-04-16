@@ -33,6 +33,10 @@
   display: flex;
   align-items: stretch;
 }
+.template-control-bar.show + .page-contents {
+  top: $chronograf-page-header-height * 2;
+  height: calc(100% - #{$chronograf-page-header-height * 2}) !important;
+}
 .container-fluid {
   margin: 0 auto;
   padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;

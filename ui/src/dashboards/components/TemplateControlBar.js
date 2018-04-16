@@ -93,6 +93,10 @@ const TemplateControlBar = ({
 
 const {arrayOf, bool, func, shape, string} = PropTypes
 
+TemplateControlBar.defaultProps = {
+  templates: [],
+}
+
 TemplateControlBar.propTypes = {
   templates: arrayOf(
     shape({

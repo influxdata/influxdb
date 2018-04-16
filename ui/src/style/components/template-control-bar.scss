@@ -11,23 +11,25 @@ $template-control-dropdown-min-width: 146px;
 $template-control-dropdown-max-width: 300px;
 
 .template-control-bar {
+  position: absolute;
+  top: $chronograf-page-header-height;
+  left: 0;
+  width: 100%;
   display: none;
-  height: auto;
-  margin-bottom: 8px;
+  background-color: $g3-castle;
 
   &.show {
     display: block;
   }
 }
 .template-control--container {
+  width: 100%;
+  height: $chronograf-page-header-height;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  padding: $template-control--margin;
-  @extend .cell-shell;
-  background-color: $g0-obsidian;
-  min-height: $template-control--min-height;
+  padding: 0 60px;
 }
 .template-control--heading {
   font-size: 16px;
@@ -38,18 +40,46 @@ $template-control-dropdown-max-width: 300px;
   white-space: nowrap;
 }
 button.btn.template-control--manage {
-  margin: 7px 8px;
+  margin: 7px 0 7px 8px;
 }
 .template-control--controls {
   display: flex;
   flex: 1 0 0%;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  &::-webkit-scrollbar {
+    height: 8px;
+
+    &-button {
+      display: none;
+    }
+    &-track {
+      background-color: $g3-castle;
+    }
+    &-track-piece {
+      background-color: $g3-castle;
+      border: 2px solid $g3-castle;
+      border-radius: 4px;
+    }
+    &-thumb {
+      background-color: $g6-smoke;
+      border: 2px solid $g3-castle;
+      border-radius: 4px;
+    }
+    &-corner {
+      display: none;
+    }
+  }
+  &::-webkit-resizer {
+    display: none;
+  }
 }
 .template-control--empty {
   color: $g11-sidewalk;
   font-size: 14px;
   font-weight: 500;
-  margin-left: 18px;
   @include no-user-select();
 }
 .template-control--dropdown {

@@ -14,6 +14,7 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
+import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {notify as notifyAction} from 'shared/actions/notifications'
@@ -373,7 +374,7 @@ class DashboardPage extends Component {
     }))
 
     return (
-      <div className="page">
+      <div className="page dashboard-page">
         {isTemplating ? (
           <OverlayTechnologies>
             <TemplateVariableManager
@@ -426,6 +427,14 @@ class DashboardPage extends Component {
           onToggleTempVarControls={this.handleToggleTempVarControls}
           handleClickPresentationButton={handleClickPresentationButton}
         />
+        {inPresentationMode ? null : (
+          <TemplateControlBar
+            templates={dashboard && dashboard.templates}
+            onSelectTemplate={this.handleSelectTemplate}
+            onOpenTemplateManager={this.handleOpenTemplateManager}
+            isOpen={showTemplateControlBar}
+          />
+        )}
         {dashboard ? (
           <Dashboard
             source={source}
