@@ -12,6 +12,7 @@ v1.6.0 [unreleased]
 -	[#9643](https://github.com/influxdata/influxdb/pull/9643): Add ability to delete many series with predicate.
 -	[#9632](https://github.com/influxdata/influxdb/pull/9632): Implement floor, ceil, and round functions.
 -	[#9399](https://github.com/influxdata/influxdb/pull/9399): Allow customizing the unix socket group and permissions created by the server.
+-	[#9620](https://github.com/influxdata/influxdb/pull/9620): Add more math functions to influxql.
 
 ### Bugfixes
 
@@ -26,6 +27,8 @@ v1.6.0 [unreleased]
 -	[#9659](https://github.com/influxdata/influxdb/pull/9659): Ignore index size in Engine.DiskSize().
 -	[#9661](https://github.com/influxdata/influxdb/pull/9661): Fix buildtsi partition key.
 -	[#9665](https://github.com/influxdata/influxdb/pull/9665): Enable casting values from a subquery.
+-	[#9682](https://github.com/influxdata/influxdb/pull/9682): Avoid a panic when using show diagnostics with text/csv.
+-	[#9696](https://github.com/influxdata/influxdb/pull/9696): Properly track the response bytes written for queries in all format types.
 
 v1.5.0 [2018-03-06]
 -------------------
