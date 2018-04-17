@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/query/internal/gota"
 	"github.com/influxdata/influxql"
 )
 
@@ -1244,6 +1245,214 @@ func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Itera
 		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
 	default:
 		return nil, fmt.Errorf("unsupported moving average iterator type: %T", input)
+	}
+}
+
+// newExponentialMovingAverageIterator returns an iterator for operating on an exponential_moving_average() call.
+func newExponentialMovingAverageIterator(input Iterator, n, nHold int, warmupType gota.WarmupType, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported exponential moving average iterator type: %T", input)
+	}
+}
+
+// newDoubleExponentialMovingAverageIterator returns an iterator for operating on a double_exponential_moving_average() call.
+func newDoubleExponentialMovingAverageIterator(input Iterator, n int, nHold int, warmupType gota.WarmupType, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewDoubleExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewDoubleExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewDoubleExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported double exponential moving average iterator type: %T", input)
+	}
+}
+
+// newTripleExponentialMovingAverageIterator returns an iterator for operating on a triple_exponential_moving_average() call.
+func newTripleExponentialMovingAverageIterator(input Iterator, n int, nHold int, warmupType gota.WarmupType, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewTripleExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewTripleExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewTripleExponentialMovingAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported triple exponential moving average iterator type: %T", input)
+	}
+}
+
+// newRelativeStrengthIndexIterator returns an iterator for operating on a triple_exponential_moving_average() call.
+func newRelativeStrengthIndexIterator(input Iterator, n int, nHold int, warmupType gota.WarmupType, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewRelativeStrengthIndexReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewRelativeStrengthIndexReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewRelativeStrengthIndexReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported relative strength index iterator type: %T", input)
+	}
+}
+
+// newTripleExponentialAverageIterator returns an iterator for operating on a triple_exponential_moving_average() call.
+func newTripleExponentialAverageIterator(input Iterator, n int, nHold int, warmupType gota.WarmupType, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewTripleExponentialAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewTripleExponentialAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewTripleExponentialAverageReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported triple exponential average iterator type: %T", input)
+	}
+}
+
+// newKaufmansEfficiencyRatioIterator returns an iterator for operating on a kaufmans_efficiency_ratio() call.
+func newKaufmansEfficiencyRatioIterator(input Iterator, n int, nHold int, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewKaufmansEfficiencyRatioReducer(n, nHold)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewKaufmansEfficiencyRatioReducer(n, nHold)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewKaufmansEfficiencyRatioReducer(n, nHold)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported kaufmans efficiency ratio iterator type: %T", input)
+	}
+}
+
+// newKaufmansAdaptiveMovingAverageIterator returns an iterator for operating on a kaufmans_adaptive_moving_average() call.
+func newKaufmansAdaptiveMovingAverageIterator(input Iterator, n int, nHold int, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewKaufmansAdaptiveMovingAverageReducer(n, nHold)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewKaufmansAdaptiveMovingAverageReducer(n, nHold)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewKaufmansAdaptiveMovingAverageReducer(n, nHold)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported kaufmans adaptive moving average iterator type: %T", input)
+	}
+}
+
+// newChandeMomentumOscillatorIterator returns an iterator for operating on a triple_exponential_moving_average() call.
+func newChandeMomentumOscillatorIterator(input Iterator, n int, nHold int, warmupType gota.WarmupType, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewChandeMomentumOscillatorReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewChandeMomentumOscillatorReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewChandeMomentumOscillatorReducer(n, nHold, warmupType)
+			return fn, fn
+		}
+		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported chande momentum oscillator iterator type: %T", input)
 	}
 }
 

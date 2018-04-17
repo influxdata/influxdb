@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb/query/internal/gota"
 	"github.com/influxdata/influxdb/query/neldermead"
 	"github.com/influxdata/influxql"
 )
@@ -634,6 +635,392 @@ func (r *UnsignedMovingAverageReducer) Emit() []FloatPoint {
 			Value:      float64(r.sum) / float64(len(r.buf)),
 			Time:       r.time,
 			Aggregated: uint32(len(r.buf)),
+		},
+	}
+}
+
+type ExponentialMovingAverageReducer struct {
+	ema        gota.EMA
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewExponentialMovingAverageReducer(period int, holdPeriod int, warmupType gota.WarmupType) *ExponentialMovingAverageReducer {
+	ema := gota.NewEMA(period, warmupType)
+	if holdPeriod == -1 {
+		holdPeriod = ema.WarmCount()
+	}
+	return &ExponentialMovingAverageReducer{
+		ema:        *ema,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+
+func (r *ExponentialMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *ExponentialMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *ExponentialMovingAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *ExponentialMovingAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.ema.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *ExponentialMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return nil
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
+type DoubleExponentialMovingAverageReducer struct {
+	dema       gota.DEMA
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewDoubleExponentialMovingAverageReducer(period int, holdPeriod int, warmupType gota.WarmupType) *DoubleExponentialMovingAverageReducer {
+	dema := gota.NewDEMA(period, warmupType)
+	if holdPeriod == -1 {
+		holdPeriod = dema.WarmCount()
+	}
+	return &DoubleExponentialMovingAverageReducer{
+		dema:       *dema,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+
+func (r *DoubleExponentialMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *DoubleExponentialMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *DoubleExponentialMovingAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *DoubleExponentialMovingAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.dema.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *DoubleExponentialMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return nil
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
+type TripleExponentialMovingAverageReducer struct {
+	tema       gota.TEMA
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewTripleExponentialMovingAverageReducer(period int, holdPeriod int, warmupType gota.WarmupType) *TripleExponentialMovingAverageReducer {
+	tema := gota.NewTEMA(period, warmupType)
+	if holdPeriod == -1 {
+		holdPeriod = tema.WarmCount()
+	}
+	return &TripleExponentialMovingAverageReducer{
+		tema:       *tema,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+
+func (r *TripleExponentialMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *TripleExponentialMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *TripleExponentialMovingAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *TripleExponentialMovingAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.tema.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *TripleExponentialMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return nil
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
+type RelativeStrengthIndexReducer struct {
+	rsi        gota.RSI
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewRelativeStrengthIndexReducer(period int, holdPeriod int, warmupType gota.WarmupType) *RelativeStrengthIndexReducer {
+	rsi := gota.NewRSI(period, warmupType)
+	if holdPeriod == -1 {
+		holdPeriod = rsi.WarmCount()
+	}
+	return &RelativeStrengthIndexReducer{
+		rsi:        *rsi,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *RelativeStrengthIndexReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *RelativeStrengthIndexReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *RelativeStrengthIndexReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *RelativeStrengthIndexReducer) aggregate(v float64, t int64) {
+	r.v = r.rsi.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *RelativeStrengthIndexReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return nil
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
+type TripleExponentialAverageReducer struct {
+	trix       gota.TRIX
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewTripleExponentialAverageReducer(period int, holdPeriod int, warmupType gota.WarmupType) *TripleExponentialAverageReducer {
+	trix := gota.NewTRIX(period, warmupType)
+	if holdPeriod == -1 {
+		holdPeriod = trix.WarmCount()
+	}
+	return &TripleExponentialAverageReducer{
+		trix:       *trix,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *TripleExponentialAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *TripleExponentialAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *TripleExponentialAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *TripleExponentialAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.trix.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *TripleExponentialAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return nil
+	}
+	if math.IsInf(r.v, 0) {
+		return nil
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
+type KaufmansEfficiencyRatioReducer struct {
+	ker        gota.KER
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewKaufmansEfficiencyRatioReducer(period int, holdPeriod int) *KaufmansEfficiencyRatioReducer {
+	ker := gota.NewKER(period)
+	if holdPeriod == -1 {
+		holdPeriod = ker.WarmCount()
+	}
+	return &KaufmansEfficiencyRatioReducer{
+		ker:        *ker,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *KaufmansEfficiencyRatioReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *KaufmansEfficiencyRatioReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *KaufmansEfficiencyRatioReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *KaufmansEfficiencyRatioReducer) aggregate(v float64, t int64) {
+	r.v = r.ker.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *KaufmansEfficiencyRatioReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return nil
+	}
+	if math.IsInf(r.v, 0) {
+		return nil
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
+type KaufmansAdaptiveMovingAverageReducer struct {
+	kama       gota.KAMA
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewKaufmansAdaptiveMovingAverageReducer(period int, holdPeriod int) *KaufmansAdaptiveMovingAverageReducer {
+	kama := gota.NewKAMA(period)
+	if holdPeriod == -1 {
+		holdPeriod = kama.WarmCount()
+	}
+	return &KaufmansAdaptiveMovingAverageReducer{
+		kama:       *kama,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) aggregate(v float64, t int64) {
+	r.v = r.kama.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *KaufmansAdaptiveMovingAverageReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return nil
+	}
+	if math.IsInf(r.v, 0) {
+		return nil
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
+		},
+	}
+}
+
+type ChandeMomentumOscillatorReducer struct {
+	cmo        gota.AlgSimple
+	holdPeriod uint32
+	count      uint32
+	v          float64
+	t          int64
+}
+
+func NewChandeMomentumOscillatorReducer(period int, holdPeriod int, warmupType gota.WarmupType) *ChandeMomentumOscillatorReducer {
+	var cmo gota.AlgSimple
+	if warmupType == gota.WarmupType(-1) {
+		cmo = gota.NewCMO(period)
+	} else {
+		cmo = gota.NewCMOS(period, warmupType)
+	}
+
+	if holdPeriod == -1 {
+		holdPeriod = cmo.WarmCount()
+	}
+	return &ChandeMomentumOscillatorReducer{
+		cmo:        cmo,
+		holdPeriod: uint32(holdPeriod),
+	}
+}
+func (r *ChandeMomentumOscillatorReducer) AggregateFloat(p *FloatPoint) {
+	r.aggregate(p.Value, p.Time)
+}
+func (r *ChandeMomentumOscillatorReducer) AggregateInteger(p *IntegerPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *ChandeMomentumOscillatorReducer) AggregateUnsigned(p *UnsignedPoint) {
+	r.aggregate(float64(p.Value), p.Time)
+}
+func (r *ChandeMomentumOscillatorReducer) aggregate(v float64, t int64) {
+	r.v = r.cmo.Add(v)
+	r.t = t
+	r.count++
+}
+func (r *ChandeMomentumOscillatorReducer) Emit() []FloatPoint {
+	if r.count <= r.holdPeriod {
+		return nil
+	}
+
+	return []FloatPoint{
+		{
+			Value:      r.v,
+			Time:       r.t,
+			Aggregated: r.count,
 		},
 	}
 }
