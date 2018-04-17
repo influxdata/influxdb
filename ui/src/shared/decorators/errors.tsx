@@ -1,3 +1,4 @@
+/* tslint:disable no-console */
 import React from 'react'
 
 export function ErrorHandling<
@@ -10,7 +11,7 @@ export function ErrorHandling<
 
     public componentDidCatch(error, info) {
       console.error(error)
-      console.error(info)
+      console.warn(info)
       this.error = true
       this.forceUpdate()
     }
