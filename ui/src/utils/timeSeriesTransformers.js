@@ -2,7 +2,6 @@ import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, filter, forEach, concat, clone} from 'fast.js'
 import {calculateColumnWidths} from 'src/dashboards/utils/tableGraph'
-import {groupByTag} from 'src/kapacitor/actions/queryConfigs'
 import {groupByTimeSeriesTransform} from 'src/utils/groupBy.js'
 
 /**
@@ -177,17 +176,6 @@ export const timeSeriesToDygraph = (raw = [], isInDataExplorer) => {
 const hasGroupBy = queryASTs => {
   return queryASTs.some(queryAST => {
     return _.get(queryAST, ['groupBy', 'tags'], false)
-  })
-}
-
-const groupbysNotSelected = (raw, groupby) => {
-  const columnsInRaw = _.get(
-    raw,
-    ['0', 'response', 'results', '0', 'series', '0', 'columns'],
-    []
-  )
-  return groupby.filter(gb => {
-    return !_.includes(columnsInRaw, gb)
   })
 }
 

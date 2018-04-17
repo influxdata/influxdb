@@ -11,6 +11,7 @@ import {
   timeSeriesToTableGraph,
   processTableData,
 } from 'src/utils/timeSeriesTransformers'
+import {computeFieldNames} from 'src/dashboards/utils/tableGraph'
 
 import {
   NULL_ARRAY_INDEX,
@@ -26,33 +27,6 @@ import {
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 import {colorsStringSchema} from 'shared/schemas'
-
-const computedFieldNames = (existingFieldNames, queryASTs) => {
-  const timeField =
-    existingFieldNames.find(f => f.internalName === 'time') ||
-    TIME_FIELD_DEFAULT
-  let astNames = [timeField]
-  queryASTs.forEach(q => {
-    const {fields, sources} = q
-    const sourceName = _.get(sources, ['0', 'name'])
-    fields.forEach(f => {
-      const {alias, column: {val}} = f
-      const value = val || alias
-      const internalName = `${sourceName}.${value}`
-      const field = {internalName, displayName: '', visible: true}
-      astNames = [...astNames, field]
-    })
-  })
-
-  const intersection = existingFieldNames.filter(f => {
-    return astNames.find(a => a.internalName === f.internalName)
-  })
-
-  const newFields = astNames.filter(a => {
-    return !existingFieldNames.find(f => f.internalName === a.internalName)
-  })
-  return [...intersection, ...newFields]
-}
 
 class TableGraph extends Component {
   constructor(props) {
@@ -76,6 +50,14 @@ class TableGraph extends Component {
     }
   }
 
+  shouldComponentUpdate(nextProps) {
+    const updatedProps = _.keys(nextProps).filter(
+      k => !_.isEqual(this.props[k], nextProps[k])
+    )
+    return !!_.intersection(updatedProps, ['data', 'queryASTs', 'tableOptions'])
+      .length
+  }
+
   componentWillReceiveProps(nextProps) {
     const {data} = timeSeriesToTableGraph(nextProps.data, nextProps.queryASTs)
     if (_.isEmpty(data[0])) {
@@ -90,8 +72,10 @@ class TableGraph extends Component {
         timeFormat,
       },
     } = nextProps
-
-    const newFieldNames = computedFieldNames(fieldNames, nextProps.queryASTs)
+    const computedFieldNames = computeFieldNames(
+      fieldNames,
+      nextProps.queryASTs
+    )
 
     let direction, sortFieldName
     if (
@@ -115,7 +99,7 @@ class TableGraph extends Component {
       sortFieldName,
       direction,
       verticalTimeAxis,
-      newFieldNames,
+      computedFieldNames,
       timeFormat
     )
     this.setState({

@@ -77,6 +77,31 @@ const updateMaxWidths = (
   )
 }
 
+export const computeFieldNames = (existingFieldNames, queryASTs) => {
+  const timeField =
+    existingFieldNames.find(f => f.internalName === 'time') ||
+    TIME_FIELD_DEFAULT
+  let astNames = [timeField]
+  queryASTs.forEach(q => {
+    const {fields, sources} = q
+    const sourceName = _.get(sources, ['0', 'name'])
+    fields.forEach(f => {
+      const {alias, column: {val}} = f
+      const value = val || alias
+      const internalName = `${sourceName}.${value}`
+      const field = {internalName, displayName: '', visible: true}
+      astNames = [...astNames, field]
+    })
+  })
+  const intersection = existingFieldNames.filter(f => {
+    return astNames.find(a => a.internalName === f.internalName)
+  })
+  const newFields = astNames.filter(a => {
+    return !existingFieldNames.find(f => f.internalName === a.internalName)
+  })
+  return [...intersection, ...newFields]
+}
+
 export const calculateColumnWidths = (
   data,
   fieldNames,

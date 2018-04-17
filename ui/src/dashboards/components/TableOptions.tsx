@@ -15,6 +15,7 @@ import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
+import {computeFieldNames} from 'src/dashboards/utils/tableGraph'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {QueryConfig} from 'src/types/query'
 
@@ -81,7 +82,7 @@ export class TableOptions extends PureComponent<Props, {}> {
     const {handleUpdateTableOptions, tableOptions} = this.props
     handleUpdateTableOptions({
       ...tableOptions,
-      fieldNames: this.computedFieldNames,
+      fieldNames: computeFieldNames([], this.props.queryASTs),
     })
   }
 
@@ -100,7 +101,10 @@ export class TableOptions extends PureComponent<Props, {}> {
     if (!_.isEqual(queryASTs, nextProps.queryASTs)) {
       handleUpdateTableOptions({
         ...tableOptions,
-        fieldNames: this.computedFieldNames,
+        fieldNames: computeFieldNames(
+          tableOptions.fieldNames,
+          this.props.queryASTs
+        ),
       })
     }
   }
@@ -157,21 +161,24 @@ export class TableOptions extends PureComponent<Props, {}> {
     )
   }
 
-  private get fieldNames() {
-    const {tableOptions: {fieldNames}} = this.props
-    return fieldNames || []
-  }
+  // private get fieldNames() {
+  //   const {tableOptions: {fieldNames}} = this.props
+  //   return fieldNames || []
+  // }
 
-  private get timeField() {
-    return (
-      this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
-    )
-  }
+  // private get timeField() {
+  //   return (
+  //     this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
+  //   )
+  // }
 
   private moveField(dragIndex, hoverIndex) {
-    const {handleUpdateTableOptions, tableOptions} = this.props
+    const {handleUpdateTableOptions, tableOptions, queryASTs} = this.props
     const {fieldNames} = tableOptions
-    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
+    const fields =
+      fieldNames.length > 1
+        ? fieldNames
+        : computeFieldNames(fieldNames, queryASTs)
 
     const dragField = fields[dragIndex]
     const removedFields = _.concat(
@@ -189,31 +196,31 @@ export class TableOptions extends PureComponent<Props, {}> {
     })
   }
 
-  private get computedFieldNames() {
-    const {queryASTs} = this.props
-    const existingFieldNames = this.fieldNames
-    let astNames = [this.timeField]
-    queryASTs.forEach(q => {
-      const {fields, sources} = q
-      const {name: sourceName} = sources[0]
-      fields.forEach(f => {
-        const {alias, column: {val}} = f
-        const value = val || alias
-        const internalName = `${sourceName}.${value}`
-        const field = {internalName, displayName: '', visible: true}
-        astNames = [...astNames, field]
-      })
-    })
-
-    const intersection = existingFieldNames.filter(f => {
-      return astNames.find(a => a.internalName === f.internalName)
-    })
-
-    const newFields = astNames.filter(a => {
-      return !existingFieldNames.find(f => f.internalName === a.internalName)
-    })
-    return [...intersection, ...newFields]
-  }
+  // private get computedFieldNames() {
+  //   const {queryASTs} = this.props
+  //   const existingFieldNames = this.fieldNames
+  //   let astNames = [this.timeField]
+  //   queryASTs.forEach(q => {
+  //     const {fields, sources} = q
+  //     const {name: sourceName} = sources[0]
+  //     fields.forEach(f => {
+  //       const {alias, column: {val}} = f
+  //       const value = val || alias
+  //       const internalName = `${sourceName}.${value}`
+  //       const field = {internalName, displayName: '', visible: true}
+  //       astNames = [...astNames, field]
+  //     })
+  //   })
+  //
+  //   const intersection = existingFieldNames.filter(f => {
+  //     return astNames.find(a => a.internalName === f.internalName)
+  //   })
+  //
+  //   const newFields = astNames.filter(a => {
+  //     return !existingFieldNames.find(f => f.internalName === a.internalName)
+  //   })
+  //   return [...intersection, ...newFields]
+  // }
 
   private handleChooseSortBy = (option: Option) => {
     const {tableOptions, handleUpdateTableOptions} = this.props
