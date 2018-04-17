@@ -2,6 +2,7 @@ import React, {PureComponent} from 'react'
 
 import FuncArgInput, {OnChangeArg} from 'src/ifql/components/FuncArgInput'
 import * as types from 'src/ifql/constants/argumentTypes'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   funcID: string
@@ -12,6 +13,7 @@ interface Props {
   onGenerateScript: () => void
 }
 
+@ErrorHandling
 class FuncArg extends PureComponent<Props> {
   public render() {
     const {

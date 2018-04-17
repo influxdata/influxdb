@@ -11,6 +11,7 @@ import {InputArg} from 'src/ifql/components/FuncArgInput'
 
 import {getSuggestions, getAST} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Links {
   self: string
@@ -29,6 +30,7 @@ interface State {
   script: string
 }
 
+@ErrorHandling
 export class IFQLPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

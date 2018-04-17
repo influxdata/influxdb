@@ -5,6 +5,7 @@ import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 
 import {Func} from 'src/ifql/components/FuncArgs'
 import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export interface Suggestion {
   name: string
@@ -25,6 +26,7 @@ interface Props {
   onGenerateScript: () => void
 }
 
+@ErrorHandling
 class TimeMachine extends PureComponent<Props> {
   public render() {
     const {
