@@ -84,11 +84,11 @@ export class IFQLPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleGenerateScript = () => {
+  private handleGenerateScript = (): void => {
     this.getASTResponse(this.funcsToScript)
   }
 
-  private handleChangeArg = ({funcID, key, value}: InputArg) => {
+  private handleChangeArg = ({funcID, key, value}: InputArg): void => {
     const funcs = this.state.funcs.map(f => {
       if (f.id !== funcID) {
         return f
