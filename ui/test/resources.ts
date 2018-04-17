@@ -1,3 +1,6 @@
+import {Source} from 'src/types'
+import {SourceLinks} from 'src/types/sources'
+
 export const role = {
   name: '',
   organization: '',
@@ -17,7 +20,7 @@ export const me = {
   role,
 }
 
-export const links = {
+export const sourceLinks: SourceLinks = {
   self: '/chronograf/v1/sources/16',
   kapacitors: '/chronograf/v1/sources/16/kapacitors',
   proxy: '/chronograf/v1/sources/16/proxy',
@@ -26,10 +29,11 @@ export const links = {
   permissions: '/chronograf/v1/sources/16/permissions',
   users: '/chronograf/v1/sources/16/users',
   databases: '/chronograf/v1/sources/16/dbs',
+  annotations: '/chronograf/v1/sources/16/annotations',
   health: '/chronograf/v1/sources/16/health',
 }
 
-export const source = {
+export const source: Source = {
   id: '16',
   name: 'ssl',
   type: 'influx',
@@ -41,7 +45,7 @@ export const source = {
   organization: '0',
   role: 'viewer',
   defaultRP: '',
-  links,
+  links: sourceLinks,
 }
 
 export const timeRange = {
