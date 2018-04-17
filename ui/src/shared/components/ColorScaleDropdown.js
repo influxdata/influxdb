@@ -7,7 +7,9 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
 import {LINE_COLOR_SCALES} from 'src/shared/constants/graphColorPalettes'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class ColorScaleDropdown extends Component {
   constructor(props) {
     super(props)

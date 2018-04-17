@@ -1,6 +1,7 @@
 import classnames from 'classnames'
 import _ from 'lodash'
 import React, {PureComponent, MouseEvent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Tag {
   key: string
@@ -21,6 +22,7 @@ interface State {
   filterText: string
 }
 
+@ErrorHandling
 class TagListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

@@ -4,7 +4,9 @@ import classnames from 'classnames'
 
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'shared/constants'
 import {NULL_HOVER_TIME} from 'shared/constants/tableGraph'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class Crosshair extends PureComponent {
   shouldCompnentUpdate(nextProps) {
     return this.props.hoverTime !== nextProps.hoverTime

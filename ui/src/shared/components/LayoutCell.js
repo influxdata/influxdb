@@ -10,7 +10,9 @@ import {notify} from 'src/shared/actions/notifications'
 import {notifyCSVDownloadFailed} from 'src/shared/copy/notifications'
 import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
 import download from 'src/external/download.js'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class LayoutCell extends Component {
   handleDeleteCell = cell => () => {
     this.props.onDeleteCell(cell)

@@ -4,6 +4,7 @@ import classnames from 'classnames'
 
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import CustomTimeRange from 'src/shared/components/CustomTimeRange'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface State {
   expanded: boolean
@@ -17,6 +18,7 @@ interface Props {
   onApplyTimeRange: () => void
 }
 
+@ErrorHandling
 class CustomTimeRangeDropdown extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

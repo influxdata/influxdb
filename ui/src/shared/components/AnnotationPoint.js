@@ -11,7 +11,9 @@ import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class AnnotationPoint extends React.Component {
   state = {
     isMouseOver: false,

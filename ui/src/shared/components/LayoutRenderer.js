@@ -15,9 +15,11 @@ import {
   LAYOUT_MARGIN,
   DASHBOARD_LAYOUT_ROW_HEIGHT,
 } from 'shared/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const GridLayout = WidthProvider(ReactGridLayout)
 
+@ErrorHandling
 class LayoutRenderer extends Component {
   constructor(props) {
     super(props)

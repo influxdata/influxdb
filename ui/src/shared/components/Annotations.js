@@ -17,7 +17,9 @@ import {
   mouseLeaveTempAnnotation,
 } from 'src/shared/actions/annotations'
 import {visibleAnnotations} from 'src/shared/annotations/helpers'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class Annotations extends Component {
   render() {
     const {

@@ -1,4 +1,5 @@
 import React, {ChangeEvent, KeyboardEvent, PureComponent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   wrapperClass: string
@@ -16,6 +17,7 @@ interface State {
   initialValue: string
 }
 
+@ErrorHandling
 class InputClickToEdit extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     tabIndex: 0,

@@ -8,6 +8,7 @@ import TagListItem from 'src/shared/components/TagListItem'
 import {showTagKeys, showTagValues} from 'src/shared/apis/metaQuery'
 import showTagKeysParser from 'src/shared/parsing/showTagKeys'
 import showTagValuesParser from 'src/shared/parsing/showTagValues'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const {shape} = PropTypes
 
@@ -45,6 +46,7 @@ interface State {
   tags: {}
 }
 
+@ErrorHandling
 class TagList extends PureComponent<Props, State> {
   public static contextTypes = {
     source: shape({

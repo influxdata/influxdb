@@ -2,7 +2,9 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import {Scrollbars} from 'react-custom-scrollbars'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class FancyScrollbar extends Component {
   constructor(props) {
     super(props)

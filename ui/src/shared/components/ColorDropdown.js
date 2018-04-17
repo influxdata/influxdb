@@ -4,7 +4,9 @@ import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class ColorDropdown extends Component {
   constructor(props) {
     super(props)
