@@ -123,6 +123,10 @@ export class IFQLPage extends PureComponent<Props, State> {
           return `${key}: "${value}"`
         }
 
+        if (type === argTypes.ARRAY) {
+          return `${key}: [${value}]`
+        }
+
         return `${key}: ${value}`
       })
       .join(', ')
