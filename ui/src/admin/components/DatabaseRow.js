@@ -11,7 +11,9 @@ import {formatRPDuration} from 'utils/formatting'
 import ConfirmButton from 'shared/components/ConfirmButton'
 import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
 import {notifyRetentionPolicyCantHaveEmptyFields} from 'shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DatabaseRow extends Component {
   constructor(props) {
     super(props)

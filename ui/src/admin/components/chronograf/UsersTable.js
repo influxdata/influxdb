@@ -9,7 +9,9 @@ import UsersTableRowNew from 'src/admin/components/chronograf/UsersTableRowNew'
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class UsersTable extends Component {
   constructor(props) {
     super(props)

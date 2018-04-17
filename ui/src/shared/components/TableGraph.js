@@ -7,6 +7,8 @@ import {MultiGrid, ColumnSizer} from 'react-virtualized'
 import moment from 'moment'
 import {reduce} from 'fast.js'
 
+const {arrayOf, bool, shape, string, func} = PropTypes
+
 import {
   timeSeriesToTableGraph,
   processTableData,
@@ -26,7 +28,9 @@ import {
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class TableGraph extends Component {
   constructor(props) {
     super(props)
@@ -386,8 +390,6 @@ class TableGraph extends Component {
     )
   }
 }
-
-const {arrayOf, bool, shape, string, func} = PropTypes
 
 TableGraph.propTypes = {
   data: arrayOf(shape()),

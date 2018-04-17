@@ -7,7 +7,9 @@ import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {notify as notifyAction} from 'shared/actions/notifications'
 
 import ProvidersTable from 'src/admin/components/chronograf/ProvidersTable'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class ProvidersPage extends Component {
   constructor(props) {
     super(props)

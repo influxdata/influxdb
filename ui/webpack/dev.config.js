@@ -117,6 +117,7 @@ module.exports = {
             loader: 'babel-loader',
             options: {
               presets: ['env', 'react', 'stage-0'],
+              plugins: ['transform-decorators-legacy'],
               cacheDirectory: true, // use a cache directory to speed up compilation
             },
           },

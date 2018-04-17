@@ -5,9 +5,11 @@ import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {notify as notifyAction} from 'shared/actions/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 
+@ErrorHandling
 class UsersPage extends PureComponent {
   constructor(props) {
     super(props)

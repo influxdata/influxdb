@@ -8,6 +8,8 @@ import AllUsersTableRowNew from 'src/admin/components/chronograf/AllUsersTableRo
 import AllUsersTableRow from 'src/admin/components/chronograf/AllUsersTableRow'
 
 import {ALL_USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 const {
   colOrganizations,
   colProvider,
@@ -21,6 +23,7 @@ import {
   notifyChronografUserRemovedFromOrg,
 } from 'shared/copy/notifications'
 
+@ErrorHandling
 class AllUsersTable extends Component {
   constructor(props) {
     super(props)

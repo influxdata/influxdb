@@ -7,10 +7,12 @@ import {notify as notifyAction} from 'shared/actions/notifications'
 
 import Dropdown from 'shared/components/Dropdown'
 
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import {notifyChronografUserMissingNameAndProvider} from 'shared/copy/notifications'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 
+@ErrorHandling
 class UsersTableRowNew extends Component {
   constructor(props) {
     super(props)

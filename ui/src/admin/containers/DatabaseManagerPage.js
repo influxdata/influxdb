@@ -8,6 +8,7 @@ import DatabaseManager from 'src/admin/components/DatabaseManager'
 
 import * as adminActionCreators from 'src/admin/actions/influxdb'
 import {notify as notifyAction} from 'shared/actions/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {
   notifyDatabaseDeleteConfirmationRequired,
@@ -15,6 +16,7 @@ import {
   notifyDatabaseNameInvalid,
 } from 'shared/copy/notifications'
 
+@ErrorHandling
 class DatabaseManagerPage extends Component {
   constructor(props) {
     super(props)

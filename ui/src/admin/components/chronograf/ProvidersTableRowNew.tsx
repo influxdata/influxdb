@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import Dropdown from 'src/shared/components/Dropdown'
 import InputClickToEdit from 'src/shared/components/InputClickToEdit'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Organization {
   id: string
@@ -28,6 +29,7 @@ interface State {
   organizationId: string
 }
 
+@ErrorHandling
 class ProvidersTableRowNew extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
