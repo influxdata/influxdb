@@ -250,7 +250,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 		return nil
 	case *influxql.Call:
 		if isMathFunction(expr) {
-			return c.compileTrigFunction(expr)
+			return c.compileMathFunction(expr)
 		}
 
 		// Register the function call in the list of function calls.
@@ -668,11 +668,29 @@ func (c *compiledField) compileTopBottom(call *influxql.Call) error {
 	return nil
 }
 
-func (c *compiledField) compileTrigFunction(expr *influxql.Call) error {
-	if exp, got := 1, len(expr.Args); exp != got {
-		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+func (c *compiledField) compileMathFunction(expr *influxql.Call) error {
+	// How many arguments are we expecting?
+	nargs := 1
+	switch expr.Name {
+	case "atan2", "pow", "log":
+		nargs = 2
 	}
-	return c.compileExpr(expr.Args[0])
+
+	// Did we get the expected number of args?
+	if got := len(expr.Args); got != nargs {
+		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, nargs, got)
+	}
+
+	// Compile all the argument expressions that are not just literals.
+	for _, arg := range expr.Args {
+		if _, ok := arg.(influxql.Literal); ok {
+			continue
+		}
+		if err := c.compileExpr(arg); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) error {
@@ -801,10 +819,26 @@ func (c *compiledStatement) validateCondition(expr influxql.Expr) error {
 		if !isMathFunction(expr) {
 			return fmt.Errorf("invalid function call in condition: %s", expr)
 		}
-		if exp, got := 1, len(expr.Args); exp != got {
-			return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+
+		// How many arguments are we expecting?
+		nargs := 1
+		switch expr.Name {
+		case "atan2", "pow":
+			nargs = 2
 		}
-		return c.validateCondition(expr.Args[0])
+
+		// Did we get the expected number of args?
+		if got := len(expr.Args); got != nargs {
+			return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, nargs, got)
+		}
+
+		// Are all the args valid?
+		for _, arg := range expr.Args {
+			if err := c.validateCondition(arg); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return nil
 	}
