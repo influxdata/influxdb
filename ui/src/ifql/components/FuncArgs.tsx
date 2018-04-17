@@ -1,4 +1,6 @@
 import React, {PureComponent} from 'react'
+import FuncArg from 'src/ifql/components/FuncArg'
+import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
 
 interface Arg {
   key: string
@@ -15,17 +17,29 @@ export interface Func {
 
 interface Props {
   func: Func
+  onChangeArg: OnChangeArg
+  onGenerateScript: () => void
 }
 
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
+    const {func, onChangeArg, onGenerateScript} = this.props
+
     return (
       <div className="func-args">
-        {this.props.func.args.map(({key, value}) => (
-          <div className="func-arg" key={key}>
-            {key} : {value}
-          </div>
-        ))}
+        {func.args.map(({key, value, type}) => {
+          return (
+            <FuncArg
+              funcID={func.id}
+              key={key}
+              type={type}
+              argKey={key}
+              value={value}
+              onChangeArg={onChangeArg}
+              onGenerateScript={onGenerateScript}
+            />
+          )
+        })}
       </div>
     )
   }
