@@ -5,7 +5,9 @@ import {Link} from 'react-router'
 import classnames from 'classnames'
 
 import {HOSTS_TABLE} from 'src/hosts/constants/tableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class HostRow extends Component {
   constructor(props) {
     super(props)

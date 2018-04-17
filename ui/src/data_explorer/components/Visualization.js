@@ -6,9 +6,11 @@ import VisView from 'src/data_explorer/components/VisView'
 import {GRAPH, TABLE} from 'shared/constants'
 import buildQueries from 'utils/buildQueriesForGraphs'
 import _ from 'lodash'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const META_QUERY_REGEX = /^(show|create|drop)/i
 
+@ErrorHandling
 class Visualization extends Component {
   constructor(props) {
     super(props)

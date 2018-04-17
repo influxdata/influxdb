@@ -20,7 +20,9 @@ import {
 
 import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class HostPage extends Component {
   constructor(props) {
     super(props)
