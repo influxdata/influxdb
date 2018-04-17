@@ -4,7 +4,9 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import {renameCell} from 'src/dashboards/actions/cellEditorOverlay'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class VisualizationName extends Component {
   constructor(props) {
     super(props)

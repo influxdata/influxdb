@@ -9,7 +9,9 @@ import AxesOptions from 'src/dashboards/components/AxesOptions'
 import TableOptions from 'src/dashboards/components/TableOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DisplayOptions extends Component {
   constructor(props) {
     super(props)

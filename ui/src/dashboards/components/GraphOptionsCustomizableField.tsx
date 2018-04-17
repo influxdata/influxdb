@@ -11,6 +11,7 @@ import {
   ConnectDropTarget,
   ConnectDragPreview,
 } from 'react-dnd'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const fieldType = 'field'
 
@@ -98,6 +99,7 @@ function MyDragSource(dragv1, dragv2, dragfunc1) {
   return target => DragSource(dragv1, dragv2, dragfunc1)(target) as any
 }
 
+@ErrorHandling
 @MyDropTarget(fieldType, fieldTarget, (connect: DropTargetConnector) => ({
   connectDropTarget: connect.dropTarget(),
 }))

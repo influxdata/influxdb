@@ -30,6 +30,7 @@ import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 import {TimeRange, Source, Query} from 'src/types'
 import {Status} from 'src/types/query'
 import {Cell, CellQuery, Legend} from 'src/types/dashboard'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const staticLegend: Legend = {
   type: 'static',
@@ -86,6 +87,7 @@ const createWorkingDrafts = (source: string, queries: CellQuery[]): Query[] =>
     queries.map((query: CellQuery) => createWorkingDraft(source, query))
   )
 
+@ErrorHandling
 class CellEditorOverlay extends Component<Props, State> {
   private overlayRef: HTMLDivElement
 

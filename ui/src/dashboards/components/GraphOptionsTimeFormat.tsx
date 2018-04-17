@@ -7,6 +7,7 @@ import {
   TIME_FORMAT_DEFAULT,
   TIME_FORMAT_TOOLTIP_LINK,
 } from 'src/shared/constants/tableGraph'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface TimeFormatOptions {
   text: string
@@ -22,6 +23,7 @@ interface State {
   format: string
 }
 
+@ErrorHandling
 class GraphOptionsTimeFormat extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
