@@ -8,7 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
 class Crosshair extends PureComponent {
-  shouldCompnentUpdate(nextProps) {
+  shouldComponentUpdate(nextProps) {
     return this.props.hoverTime !== nextProps.hoverTime
   }
 
