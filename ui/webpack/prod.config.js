@@ -6,14 +6,15 @@ const HtmlWebpackPlugin = require('html-webpack-plugin')
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 
-const package = require('../package.json')
-const dependencies = package.dependencies
+const pkg = require('../package.json')
+const dependencies = pkg.dependencies
 
 const babelLoader = {
   loader: 'babel-loader',
   options: {
     cacheDirectory: false,
     presets: [['env', {modules: false}], 'react', 'stage-0'],
+    plugins: ['transform-decorators-legacy'],
   },
 }
 
@@ -170,7 +171,7 @@ const config = {
         const {compilation: {errors}} = stats
 
         if (errors && errors.length) {
-          errors.forEach(err => console.log(err))
+          errors.forEach(err => console.error(err))
           process.exit(1)
         }
       })

@@ -3,7 +3,9 @@ import PropTypes from 'prop-types'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
 import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class ChangePassRow extends Component {
   constructor(props) {
     super(props)

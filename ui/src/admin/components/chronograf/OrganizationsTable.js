@@ -6,7 +6,9 @@ import _ from 'lodash'
 
 import OrganizationsTableRow from 'src/admin/components/chronograf/OrganizationsTableRow'
 import OrganizationsTableRowNew from 'src/admin/components/chronograf/OrganizationsTableRowNew'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class OrganizationsTable extends Component {
   constructor(props) {
     super(props)

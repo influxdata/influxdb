@@ -5,9 +5,11 @@ import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {getMeAsync} from 'shared/actions/auth'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import OrganizationsTable from 'src/admin/components/chronograf/OrganizationsTable'
 
+@ErrorHandling
 class OrganizationsPage extends Component {
   componentDidMount() {
     const {links, actionsAdmin: {loadOrganizationsAsync}} = this.props

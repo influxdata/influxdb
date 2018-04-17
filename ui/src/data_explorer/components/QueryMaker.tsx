@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 import QueryEditor from './QueryEditor'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
 import {Source, Query} from 'src/types'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
@@ -15,6 +16,7 @@ interface Props {
   initialGroupByTime: string
 }
 
+@ErrorHandling
 class QueryMaker extends PureComponent<Props> {
   public render() {
     const {

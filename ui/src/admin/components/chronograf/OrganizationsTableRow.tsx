@@ -11,6 +11,7 @@ import InputClickToEdit from 'src/shared/components/InputClickToEdit'
 
 import {meChangeOrganizationAsync} from 'src/shared/actions/auth'
 
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import {Organization} from 'src/types'
@@ -43,6 +44,7 @@ interface Props {
   router: InjectedRouter
 }
 
+@ErrorHandling
 class OrganizationsTableRow extends PureComponent<Props, {}> {
   public shouldComponentUpdate(nextProps) {
     return !_.isEqual(this.props, nextProps)
