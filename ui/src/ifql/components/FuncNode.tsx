@@ -2,6 +2,7 @@ import React, {PureComponent, MouseEvent} from 'react'
 import FuncArgs from 'src/ifql/components/FuncArgs'
 import {Func} from 'src/ifql/components/FuncArgs'
 import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   func: Func
@@ -14,6 +15,7 @@ interface State {
   isOpen: boolean
 }
 
+@ErrorHandling
 export default class FuncNode extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

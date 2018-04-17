@@ -7,7 +7,9 @@ import HostRow from 'src/hosts/components/HostRow'
 import InfiniteScroll from 'shared/components/InfiniteScroll'
 
 import {HOSTS_TABLE} from 'src/hosts/constants/tableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class HostsTable extends Component {
   constructor(props) {
     super(props)

@@ -11,9 +11,11 @@ import TabItem from 'src/data_explorer/components/TableTabItem'
 import {TEMPLATES} from 'src/shared/constants'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const emptySeries = {columns: [], values: []}
 
+@ErrorHandling
 class ChronoTable extends Component {
   constructor(props) {
     super(props)

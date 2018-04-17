@@ -1,7 +1,9 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class SearchBar extends Component {
   constructor(props) {
     super(props)

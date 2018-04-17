@@ -3,6 +3,7 @@ import _ from 'lodash'
 
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FuncList from 'src/ifql/components/FuncList'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface State {
   isOpen: boolean
@@ -15,6 +16,7 @@ interface Props {
   onAddNode: (name: string) => void
 }
 
+@ErrorHandling
 export class FuncSelector extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

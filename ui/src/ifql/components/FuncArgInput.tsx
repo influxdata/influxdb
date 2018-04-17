@@ -1,4 +1,5 @@
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export type OnChangeArg = (inputArg: InputArg) => void
 
@@ -17,6 +18,7 @@ interface Props {
   onGenerateScript: () => void
 }
 
+@ErrorHandling
 class FuncArgInput extends PureComponent<Props> {
   public render() {
     const {argKey, value, type} = this.props

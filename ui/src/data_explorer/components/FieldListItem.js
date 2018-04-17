@@ -5,7 +5,9 @@ import _ from 'lodash'
 
 import FunctionSelector from 'shared/components/FunctionSelector'
 import {firstFieldName} from 'shared/reducers/helpers/fields'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class FieldListItem extends Component {
   constructor(props) {
     super(props)

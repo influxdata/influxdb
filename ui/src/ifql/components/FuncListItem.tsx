@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   name: string
@@ -7,6 +8,7 @@ interface Props {
   onSetSelectedFunc: (name: string) => void
 }
 
+@ErrorHandling
 export default class FuncListItem extends PureComponent<Props> {
   public render() {
     return (

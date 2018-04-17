@@ -2,6 +2,7 @@ import React, {PureComponent} from 'react'
 import {Controlled as CodeMirror, IInstance} from 'react-codemirror2'
 import {EditorChange} from 'codemirror'
 import 'src/external/codemirror'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   script: string
@@ -9,6 +10,7 @@ interface Props {
   onSubmitScript: (script: string) => void
 }
 
+@ErrorHandling
 class TimeMachineEditor extends PureComponent<Props> {
   constructor(props) {
     super(props)
