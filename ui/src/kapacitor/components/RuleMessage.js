@@ -3,7 +3,9 @@ import PropTypes from 'prop-types'
 
 import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
 import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class RuleMessage extends Component {
   constructor(props) {
     super(props)

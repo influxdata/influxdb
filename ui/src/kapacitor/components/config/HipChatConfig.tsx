@@ -2,7 +2,8 @@ import React, {PureComponent} from 'react'
 
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
-import RedactedInput from './RedactedInput'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   room: string
@@ -29,6 +30,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class HipchatConfig extends PureComponent<Props, State> {
   private room: HTMLInputElement
   private token: HTMLInputElement

@@ -17,6 +17,7 @@ import {
   notifyTickscriptLoggingError,
   notifyKapacitorNotFound,
 } from 'src/shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface ErrorActions {
   errorThrown: (notify: string | object) => void
@@ -69,6 +70,7 @@ interface State {
   unsavedChanges: boolean
 }
 
+@ErrorHandling
 export class TickscriptPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

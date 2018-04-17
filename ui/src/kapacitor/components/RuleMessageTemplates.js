@@ -6,8 +6,10 @@ import ReactTooltip from 'react-tooltip'
 import CodeData from 'src/kapacitor/components/CodeData'
 
 import {RULE_MESSAGE_TEMPLATES} from 'src/kapacitor/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // needs to be React Component for CodeData click handler to work
+@ErrorHandling
 class RuleMessageTemplates extends Component {
   constructor(props) {
     super(props)

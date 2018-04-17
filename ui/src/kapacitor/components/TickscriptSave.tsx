@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import {DBRP} from 'src/types/kapacitor'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export interface Task {
   dbrps: DBRP[]
@@ -13,6 +14,7 @@ interface SaveProps {
   unsavedChanges: boolean
 }
 
+@ErrorHandling
 class TickscriptSave extends PureComponent<SaveProps> {
   public render() {
     const {onSave} = this.props

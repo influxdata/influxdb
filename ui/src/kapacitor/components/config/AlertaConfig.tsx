@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 
-import RedactedInput from './RedactedInput'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   environment: string
@@ -29,6 +30,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class AlertaConfig extends PureComponent<Props, State> {
   private environment: HTMLInputElement
   private origin: HTMLInputElement

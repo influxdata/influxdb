@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 
-import RedactedInput from './RedactedInput'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   url: string
@@ -25,6 +26,7 @@ interface Props {
   enabled: boolean
 }
 
+@ErrorHandling
 class TalkConfig extends PureComponent<Props, State> {
   private url: HTMLInputElement
   private author: HTMLInputElement

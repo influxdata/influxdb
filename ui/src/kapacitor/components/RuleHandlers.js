@@ -8,7 +8,9 @@ import Dropdown from 'shared/components/Dropdown'
 import {parseHandlersFromRule} from 'src/shared/parsing/parseHandlersFromRule'
 
 import {DEFAULT_HANDLERS} from 'src/kapacitor/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class RuleHandlers extends Component {
   constructor(props) {
     super(props)

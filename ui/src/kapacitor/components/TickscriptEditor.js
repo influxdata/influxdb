@@ -2,7 +2,9 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {Controlled as CodeMirror} from 'react-codemirror2'
 import 'src/external/codemirror'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class TickscriptEditor extends Component {
   constructor(props) {
     super(props)
