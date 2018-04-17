@@ -2,9 +2,11 @@ import React, {PureComponent} from 'react'
 import FuncArg from 'src/ifql/components/FuncArg'
 import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
 
+type Value = string | boolean
+
 interface Arg {
   key: string
-  value: string
+  value: Value
   type: string
 }
 

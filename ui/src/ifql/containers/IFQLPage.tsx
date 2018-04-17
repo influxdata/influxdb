@@ -5,6 +5,7 @@ import uuid from 'uuid'
 import _ from 'lodash'
 
 import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
+import KeyboardShortcuts from 'src/ifql/components/KeyboardShortcuts'
 import Walker from 'src/ifql/ast/walker'
 import {Func} from 'src/ifql/components/FuncArgs'
 import {InputArg} from 'src/ifql/components/FuncArgInput'
@@ -36,7 +37,8 @@ export class IFQLPage extends PureComponent<Props, State> {
       suggestions: [],
       funcs: [],
       ast: null,
-      script: 'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)',
+      script:
+        'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)',
     }
   }
 
@@ -57,38 +59,49 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {suggestions, script} = this.state
 
     return (
-      <div className="page hosts-list-page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Time Machine</h1>
+      <KeyboardShortcuts onControlEnter={this.handleSubmitScript}>
+        <div className="page hosts-list-page">
+          <div className="page-header">
+            <div className="page-header__container">
+              <div className="page-header__left">
+                <h1 className="page-header__title">Time Machine</h1>
+              </div>
+            </div>
+          </div>
+          <div className="page-contents">
+            <div className="container-fluid">
+              <TimeMachine
+                script={script}
+                funcs={this.state.funcs}
+                suggestions={suggestions}
+                onAddNode={this.handleAddNode}
+                onChangeArg={this.handleChangeArg}
+                onSubmitScript={this.handleSubmitScript}
+                onChangeScript={this.handleChangeScript}
+                onDeleteFuncNode={this.handleDeleteFuncNode}
+                onGenerateScript={this.handleGenerateScript}
+              />
             </div>
           </div>
         </div>
-        <div className="page-contents">
-          <div className="container-fluid">
-            <TimeMachine
-              script={script}
-              funcs={this.state.funcs}
-              suggestions={suggestions}
-              onAddNode={this.handleAddNode}
-              onChangeArg={this.handleChangeArg}
-              onSubmitScript={this.getASTResponse}
-              onChangeScript={this.handleChangeScript}
-              onDeleteFuncNode={this.handleDeleteFuncNode}
-              onGenerateScript={this.handleGenerateScript}
-            />
-          </div>
-        </div>
-      </div>
+      </KeyboardShortcuts>
     )
+  }
+
+  private handleSubmitScript = () => {
+    this.getASTResponse(this.state.script)
   }
 
   private handleGenerateScript = (): void => {
     this.getASTResponse(this.funcsToScript)
   }
 
-  private handleChangeArg = ({funcID, key, value}: InputArg): void => {
+  private handleChangeArg = ({
+    funcID,
+    key,
+    value,
+    generate,
+  }: InputArg): void => {
     const funcs = this.state.funcs.map(f => {
       if (f.id !== funcID) {
         return f
@@ -105,7 +118,11 @@ export class IFQLPage extends PureComponent<Props, State> {
       return {...f, args}
     })
 
-    this.setState({funcs})
+    this.setState({funcs}, () => {
+      if (generate) {
+        this.handleGenerateScript()
+      }
+    })
   }
 
   private get funcsToScript(): string {
@@ -115,7 +132,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private argsToScript(args): string {
-    const withValues = args.filter(arg => arg.value)
+    const withValues = args.filter(arg => arg.value || arg.value === false)
 
     return withValues
       .map(({key, value, type}) => {

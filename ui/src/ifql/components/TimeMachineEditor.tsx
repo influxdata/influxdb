@@ -6,7 +6,7 @@ import 'src/external/codemirror'
 interface Props {
   script: string
   onChangeScript: (script: string) => void
-  onSubmitScript: (script: string) => void
+  onSubmitScript: () => void
 }
 
 class TimeMachineEditor extends PureComponent<Props> {
@@ -27,20 +27,21 @@ class TimeMachineEditor extends PureComponent<Props> {
       <div className="time-machine-editor-container">
         <div className="time-machine-editor">
           <CodeMirror
+            autoFocus={true}
+            autoCursor={true}
             value={script}
             options={options}
             onBeforeChange={this.updateCode}
           />
         </div>
-        <button className="btn btn-lg btn-primary" onClick={this.handleSubmit}>
+        <button
+          className="btn btn-lg btn-primary"
+          onClick={this.props.onSubmitScript}
+        >
           Submit Script
         </button>
       </div>
     )
-  }
-
-  private handleSubmit = (): void => {
-    this.props.onSubmitScript(this.props.script)
   }
 
   private updateCode = (

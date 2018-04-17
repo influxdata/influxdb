@@ -5,7 +5,8 @@ export type OnChangeArg = (inputArg: InputArg) => void
 export interface InputArg {
   funcID: string
   key: string
-  value: string
+  value: string | boolean
+  generate?: boolean
 }
 
 interface Props {

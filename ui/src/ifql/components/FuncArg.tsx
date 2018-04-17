@@ -1,12 +1,13 @@
 import React, {PureComponent} from 'react'
 
 import FuncArgInput, {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import FuncArgBool from 'src/ifql/components/FuncArgBool'
 import * as types from 'src/ifql/constants/argumentTypes'
 
 interface Props {
   funcID: string
   argKey: string
-  value: string
+  value: string | boolean
   type: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
@@ -35,7 +36,7 @@ class FuncArg extends PureComponent<Props> {
         return (
           <FuncArgInput
             type={type}
-            value={value}
+            value={`${value}`}
             argKey={argKey}
             funcID={funcID}
             onChangeArg={onChangeArg}
@@ -45,11 +46,14 @@ class FuncArg extends PureComponent<Props> {
       }
 
       case types.BOOL: {
-        // TODO: make boolean arg component
         return (
-          <div className="func-arg">
-            {argKey} : {value}
-          </div>
+          <FuncArgBool
+            value={this.boolValue}
+            argKey={argKey}
+            funcID={funcID}
+            onChangeArg={onChangeArg}
+            onGenerateScript={onGenerateScript}
+          />
         )
       }
       case types.FUNCTION: {
@@ -76,6 +80,10 @@ class FuncArg extends PureComponent<Props> {
         )
       }
     }
+  }
+
+  private get boolValue(): boolean {
+    return this.props.value === true
   }
 }
 
