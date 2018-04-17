@@ -180,8 +180,6 @@ const hasGroupBy = queryASTs => {
 }
 
 export const timeSeriesToTableGraph = (raw, queryASTs) => {
-  // console.log('raw', raw)
-  // console.log('queryASTs', queryASTs)
   const {sortedLabels, sortedTimeSeries} = hasGroupBy(queryASTs)
     ? groupByTimeSeriesTransform(raw, queryASTs)
     : timeSeriesTransform(raw)
@@ -190,7 +188,6 @@ export const timeSeriesToTableGraph = (raw, queryASTs) => {
 
   const tableData = map(sortedTimeSeries, ({time, values}) => [time, ...values])
   const data = tableData.length ? [labels, ...tableData] : [[]]
-  // console.log('data', data)
   return {
     data,
   }
@@ -211,7 +208,6 @@ export const filterTableColumns = (data, fieldNames) => {
 }
 
 export const orderTableColumns = (data, fieldNames) => {
-  // console.log('data[0]', data[0])
   const fieldsSortOrder = fieldNames.map(fieldName => {
     return _.findIndex(data[0], dataLabel => {
       return dataLabel === fieldName.internalName
@@ -237,13 +233,9 @@ export const processTableData = (
     data[0],
     ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
   ]
-  // console.log('sortedData', sortedData)
   const sortedTimeVals = map(sortedData, r => r[0])
-  // console.log('sortedTimeVals', sortedTimeVals)
   const filteredData = filterTableColumns(sortedData, fieldNames)
-  // console.log('filteredData', filteredData)
   const orderedData = orderTableColumns(filteredData, fieldNames)
-  // console.log('orderedData', orderedData)
   const processedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
   const {widths: columnWidths, totalWidths} = calculateColumnWidths(
     processedData,

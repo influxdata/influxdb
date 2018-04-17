@@ -2,34 +2,65 @@ import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
 
+const groupIt = (responses, responseIndex, groupBys) => {
+  const firstColumns = _.get(responses, [0, 'series', 0, 'columns'])
+  const accum = [
+    {
+      responseIndex,
+      series: [
+        {
+          columns: [firstColumns[0], ...groupBys, ...firstColumns.slice(1)],
+          name: _.get(responses, [0, 'series', 0, 'name']),
+          values: [],
+        },
+      ],
+    },
+  ]
+
+  const seriesArray = _.get(responses, [0, 'series'])
+  seriesArray.forEach(s => {
+    const prevValues = accum[0].series[0].values
+    const tagsToAdd = groupBys.map(gb => s.tags[gb])
+    const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
+    accum[0].series[0].values = [...prevValues, ...newValues]
+  })
+  return accum
+}
+
 export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
   const groupBys = queryASTs.map(queryAST => {
     return _.get(queryAST, ['groupBy', 'tags'], false)
   })
-
   const results = reduce(
     raw,
     (acc, rawResponse, responseIndex) => {
       const responses = _.get(rawResponse, 'response.results', [])
-      const indexedResponses = map(responses, response => ({
-        ...response,
-        responseIndex,
-      }))
+
+      const indexedResponses = groupBys[responseIndex]
+        ? groupIt(responses, responseIndex, groupBys[responseIndex])
+        : map(responses, response => ({
+            ...response,
+            responseIndex,
+          }))
+
       return [...acc, ...indexedResponses]
     },
     []
   )
-
-  // collect each series
   const serieses = reduce(
     results,
-    (acc, {series = [], responseIndex}, index) => {
-      return [...acc, ...map(series, item => ({...item, responseIndex, index}))]
+    (acc, {series = [], responseIndex}) => {
+      return [
+        ...acc,
+        ...map(series, (item, index) => ({
+          ...item,
+          responseIndex,
+          seriesIndex: index,
+        })),
+      ]
     },
     []
   )
-  // console.log('serieses', serieses)
-
   const size = reduce(
     serieses,
     (acc, {columns, values}) => {
@@ -40,8 +71,6 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
     },
     0
   )
-  // console.log('size', size)
-
   // convert series into cells with rows and columns
   let cellIndex = 0
   let labels = []
@@ -61,17 +90,13 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
       name: measurement,
       columns,
       values,
-      index: seriesIndex,
+      seriesIndex,
       responseIndex,
       tags = {},
     }) => {
       const rows = map(values || [], vals => ({
         vals,
       }))
-      const groupByTags = groupBys[responseIndex]
-      const groupByNotSelected = groupByTags.filter(
-        gb => !_.includes(columns, gb)
-      )
 
       const unsortedLabels = map(columns.slice(1), field => ({
         label: `${measurement}.${field}`,
@@ -79,7 +104,8 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
         seriesIndex,
       }))
       labels = concat(labels, unsortedLabels)
-      cells.groupByLabels = groupByNotSelected
+      const groupByTags = groupBys[responseIndex]
+      cells.groupByLabels = groupByTags
 
       forEach(rows, ({vals}) => {
         const [time, ...rowValues] = vals
@@ -87,10 +113,8 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
           cells.label[cellIndex] = unsortedLabels[i].label
           cells.value[cellIndex] = value
           cells.time[cellIndex] = time
-          if (!_.isEmpty(groupByNotSelected)) {
-            cells.groupByVals[cellIndex] = groupByNotSelected.map(
-              gb => tags[gb]
-            )
+          if (!_.isEmpty(groupByTags)) {
+            cells.groupByVals[cellIndex] = groupByTags.map(gb => tags[gb])
           }
           cells.seriesIndex[cellIndex] = seriesIndex
           cells.responseIndex[cellIndex] = responseIndex
@@ -99,7 +123,7 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
       })
     }
   )
-  // console.log('cells', cells)
+
   const sortedLabels = _.sortBy(labels, 'label')
   const tsMemo = {}
   const nullArray = Array(sortedLabels.length).fill(null)
@@ -113,7 +137,6 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
     },
     {}
   )
-  // console.log('labelsToValueIndex', labelsToValueIndex)
 
   const timeSeries = []
   for (let i = 0; i < size; i++) {
@@ -143,10 +166,8 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
       labelsToValueIndex[label + seriesIndex]
     ] = value
   }
-  // console.log('timeSeries', timeSeries)
   const sortedTimeSeries = _.sortBy(timeSeries, 'time')
-  // console.log('sortedLabels', sortedLabels)
-  // console.log('sortedTimeSeries', sortedTimeSeries)
+
   return {
     sortedLabels,
     sortedTimeSeries,
