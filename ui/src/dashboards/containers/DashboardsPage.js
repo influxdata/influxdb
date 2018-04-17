@@ -11,7 +11,9 @@ import {createDashboard} from 'src/dashboards/apis'
 import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
 
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DashboardsPage extends Component {
   componentDidMount() {
     this.props.handleGetDashboards()

@@ -4,8 +4,10 @@ import PropTypes from 'prop-types'
 import Dropdown from 'shared/components/Dropdown'
 import {showMeasurements} from 'shared/apis/metaQuery'
 import parsers from 'shared/parsing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 const {measurements: showMeasurementsParser} = parsers
 
+@ErrorHandling
 class MeasurementDropdown extends Component {
   constructor(props) {
     super(props)

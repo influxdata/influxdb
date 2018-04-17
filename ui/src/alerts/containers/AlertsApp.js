@@ -5,6 +5,7 @@ import SourceIndicator from 'shared/components/SourceIndicator'
 import AlertsTable from 'src/alerts/components/AlertsTable'
 import NoKapacitorError from 'shared/components/NoKapacitorError'
 import CustomTimeRangeDropdown from 'shared/components/CustomTimeRangeDropdown'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {getAlerts} from 'src/alerts/apis'
 import AJAX from 'utils/ajax'
@@ -14,6 +15,7 @@ import moment from 'moment'
 
 import {timeRanges} from 'shared/data/timeRanges'
 
+@ErrorHandling
 class AlertsApp extends Component {
   constructor(props) {
     super(props)

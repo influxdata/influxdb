@@ -17,6 +17,7 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {QueryConfig} from 'src/types/query'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Option {
   text: string
@@ -44,6 +45,7 @@ interface Props {
   onResetFocus: () => void
 }
 
+@ErrorHandling
 export class TableOptions extends PureComponent<Props, {}> {
   constructor(props) {
     super(props)

@@ -38,6 +38,7 @@ import {presentationButtonDispatcher} from 'shared/dispatchers'
 import {interval, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 import {notifyDashboardNotFound} from 'shared/copy/notifications'
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -47,6 +48,7 @@ const defaultTimeRange = {
   format: FORMAT_INFLUXQL,
 }
 
+@ErrorHandling
 class DashboardPage extends Component {
   constructor(props) {
     super(props)
