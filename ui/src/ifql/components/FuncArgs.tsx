@@ -3,9 +3,11 @@ import FuncArg from 'src/ifql/components/FuncArg'
 import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+type Value = string | boolean
+
 interface Arg {
   key: string
-  value: string
+  value: Value
   type: string
 }
 

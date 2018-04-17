@@ -20,7 +20,7 @@ interface Props {
   funcs: Func[]
   onAddNode: (name: string) => void
   onChangeScript: (script: string) => void
-  onSubmitScript: (script: string) => void
+  onSubmitScript: () => void
   onDeleteFuncNode: (id: string) => void
   onChangeArg: OnChangeArg
   onGenerateScript: () => void

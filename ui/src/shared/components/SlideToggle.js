@@ -11,7 +11,9 @@ class SlideToggle extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    this.setState({active: nextProps.active})
+    if (nextProps.active !== this.props.active) {
+      this.setState({active: nextProps.active})
+    }
   }
 
   handleClick = () => {
