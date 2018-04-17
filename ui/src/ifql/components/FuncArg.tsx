@@ -53,6 +53,14 @@ class FuncArg extends PureComponent<Props> {
           </div>
         )
       }
+      case types.NIL === type: {
+        // TODO: handle nil type
+        return (
+          <div className="func-arg">
+            {argKey} : {value}
+          </div>
+        )
+      }
       default: {
         return (
           <div className="func-arg">
@@ -70,9 +78,11 @@ class FuncArg extends PureComponent<Props> {
       type === types.STRING ||
       type === types.DURATION ||
       type === types.TIME ||
-      type === types.INT ||
       type === types.REGEXP ||
-      type === types.UINT
+      type === types.FLOAT ||
+      type === types.INT ||
+      type === types.UINT ||
+      type === types.ARRAY
     )
   }
 }
