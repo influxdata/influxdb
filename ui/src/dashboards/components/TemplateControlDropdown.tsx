@@ -19,6 +19,10 @@ interface Props {
   onSelectTemplate: (id: string) => void
 }
 
+// TODO: change Dropdown to a MultiSelectDropdown, `selected` to
+// the full array, and [item] to all `selected` values when we update
+// this component to support multiple values
+
 const TemplateControlDropdown: SFC<Props> = ({template, onSelectTemplate}) => {
   const dropdownItems = template.values.map(value => ({
     ...value,
