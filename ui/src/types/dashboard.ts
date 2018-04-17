@@ -58,3 +58,14 @@ export interface Cell {
   links: CellLinks
   legend: Legend
 }
+
+interface TemplateValue {
+  value: string
+  selected?: boolean
+}
+
+export interface Template {
+  id: string
+  tempVar: string
+  values: TemplateValue[]
+}

@@ -5,17 +5,7 @@ import uuid from 'uuid'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import TemplateControlDropdown from 'src/dashboards/components/TemplateControlDropdown'
-
-interface TemplateValue {
-  value: string
-  selected?: boolean
-}
-
-interface Template {
-  id: string
-  tempVar: string
-  values: TemplateValue[]
-}
+import {Template} from 'src/types/dashboard'
 
 interface Props {
   templates: Template[]

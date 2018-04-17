@@ -2,17 +2,7 @@ import React, {SFC} from 'react'
 
 import Dropdown from 'src/shared/components/Dropdown'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
-
-interface TemplateValue {
-  value: string
-  selected?: boolean
-}
-
-interface Template {
-  id: string
-  tempVar: string
-  values: TemplateValue[]
-}
+import {Template} from 'src/types/dashboard'
 
 interface Props {
   template: Template
