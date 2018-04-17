@@ -1,6 +1,6 @@
 /*
     Page Layout
-    ----------------------------------------------
+    ----------------------------------------------------------------------------
 */
 .chronograf-root {
   display: flex;
@@ -33,6 +33,10 @@
   display: flex;
   align-items: stretch;
 }
+.template-control-bar.show + .page-contents {
+  top: $chronograf-page-header-height * 2;
+  height: calc(100% - #{$chronograf-page-header-height * 2}) !important;
+}
 .container-fluid {
   margin: 0 auto;
   padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;
@@ -50,4 +54,28 @@
 
   .container-fluid {padding: 8px !important;}
   .template-control--manage {display: none;}
+}
+
+/*
+  Dashboard Page
+  ------------------------------------------------------------------------------
+  Using a flex based layout so that the Template Variable Control Bar can
+  have any height without disrupting the layout
+*/
+.page.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+
+  .page-header {
+    position: relative;
+  }
+  
+  .page-contents {
+    position: relative !important;
+    flex: 1 0 0;
+    height: 100% !important;
+    top: 0;
+  }
 }
