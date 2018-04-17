@@ -427,7 +427,7 @@ class DashboardPage extends Component {
           onToggleTempVarControls={this.handleToggleTempVarControls}
           handleClickPresentationButton={handleClickPresentationButton}
         />
-        {inPresentationMode ? null : (
+        {inPresentationMode || (
           <TemplateControlBar
             templates={dashboard && dashboard.templates}
             onSelectTemplate={this.handleSelectTemplate}
