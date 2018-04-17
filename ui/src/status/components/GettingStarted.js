@@ -1,7 +1,9 @@
 import React, {Component} from 'react'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class GettingStarted extends Component {
   constructor(props) {
     super(props)
