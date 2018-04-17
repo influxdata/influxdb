@@ -20,7 +20,7 @@ import {
   notifyUnableToGetApps,
 } from 'shared/copy/notifications'
 
-class HostsPage extends Component {
+export class HostsPage extends Component {
   constructor(props) {
     super(props)
 
@@ -73,8 +73,9 @@ class HostsPage extends Component {
     const {notify, autoRefresh} = this.props
 
     this.setState({hostsLoading: true}) // Only print this once
-    const {data} = await getLayouts()
-    this.layouts = data.layouts
+    const results = await getLayouts()
+    const data = _.get(results, 'data')
+    this.layouts = data && data.layouts
     if (!this.layouts) {
       const layoutError = notifyUnableToGetApps().message
       notify(notifyUnableToGetApps())
