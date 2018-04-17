@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   host: string
@@ -31,6 +32,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class SMTPConfig extends PureComponent<Props, State> {
   private host: HTMLInputElement
   private port: HTMLInputElement

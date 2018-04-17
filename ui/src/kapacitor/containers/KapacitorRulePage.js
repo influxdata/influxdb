@@ -16,7 +16,9 @@ import {
   notifyKapacitorCreateFailed,
   notifyCouldNotFindKapacitor,
 } from 'shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class KapacitorRulePage extends Component {
   constructor(props) {
     super(props)

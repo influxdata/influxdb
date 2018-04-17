@@ -15,6 +15,7 @@ import {
 
 import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
 import {Params, Location, Links, Me} from 'src/types/sideNav'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   params: Params
@@ -26,6 +27,7 @@ interface Props {
   me: Me
 }
 
+@ErrorHandling
 class SideNav extends PureComponent<Props> {
   constructor(props) {
     super(props)

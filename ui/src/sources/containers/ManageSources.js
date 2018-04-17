@@ -2,6 +2,7 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {
   removeAndLoadSources,
@@ -22,6 +23,7 @@ import {
 
 const V_NUMBER = VERSION // eslint-disable-line no-undef
 
+@ErrorHandling
 class ManageSources extends Component {
   constructor(props) {
     super(props)
