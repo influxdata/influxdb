@@ -5,7 +5,7 @@ import uuid from 'uuid'
 import _ from 'lodash'
 
 import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
-import KeyboardShortcuts from 'src/ifql/components/KeyboardShortcuts'
+import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import Walker from 'src/ifql/ast/walker'
 import {Func} from 'src/ifql/components/FuncArgs'
 import {InputArg} from 'src/ifql/components/FuncArgInput'
