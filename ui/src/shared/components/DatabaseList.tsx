@@ -12,6 +12,7 @@ import showRetentionPoliciesParser from 'src/shared/parsing/showRetentionPolicie
 
 import DatabaseListItem from 'src/shared/components/DatabaseListItem'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface DatabaseListProps {
   query: Query
@@ -26,6 +27,7 @@ interface DatabaseListState {
 
 const {shape} = PropTypes
 
+@ErrorHandling
 class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
   public static contextTypes = {
     source: shape({

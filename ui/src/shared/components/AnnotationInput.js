@@ -1,7 +1,9 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import onClickOutside from 'react-onclickoutside'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class AnnotationInput extends Component {
   state = {
     isEditing: false,

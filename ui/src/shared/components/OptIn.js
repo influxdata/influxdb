@@ -5,7 +5,9 @@ import classnames from 'classnames'
 import uuid from 'uuid'
 
 import ClickOutsideInput from 'shared/components/ClickOutsideInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class OptIn extends Component {
   constructor(props) {
     super(props)

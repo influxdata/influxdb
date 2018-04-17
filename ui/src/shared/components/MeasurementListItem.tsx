@@ -2,6 +2,7 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import React, {PureComponent, MouseEvent} from 'react'
 import TagList from 'src/shared/components/TagList'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface SourceLinks {
   proxy: string
@@ -44,6 +45,7 @@ interface State {
   isOpen: boolean
 }
 
+@ErrorHandling
 class MeasurementListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

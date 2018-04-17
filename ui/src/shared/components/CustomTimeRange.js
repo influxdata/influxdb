@@ -4,8 +4,10 @@ import rome from 'rome'
 import moment from 'moment'
 
 import shortcuts from 'shared/data/timeRangeShortcuts'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 const dateFormat = 'YYYY-MM-DD HH:mm'
 
+@ErrorHandling
 class CustomTimeRange extends Component {
   constructor(props) {
     super(props)

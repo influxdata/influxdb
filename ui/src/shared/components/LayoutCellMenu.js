@@ -16,7 +16,9 @@ import {
   editingAnnotation,
   dismissEditingAnnotation,
 } from 'src/shared/actions/annotations'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class LayoutCellMenu extends Component {
   state = {
     subMenuIsOpen: false,

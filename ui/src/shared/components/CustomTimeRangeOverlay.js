@@ -3,7 +3,9 @@ import PropTypes from 'prop-types'
 import OnClickOutside from 'react-onclickoutside'
 
 import CustomTimeRange from 'shared/components/CustomTimeRange'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class CustomTimeRangeOverlay extends Component {
   constructor(props) {
     super(props)
