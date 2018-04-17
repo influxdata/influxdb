@@ -18,6 +18,18 @@ $template-control-dropdown-max-width: 300px;
   &.show {
     display: block;
   }
+
+  &:after {
+    content: '';
+    z-index: 2;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: calc(100% - 16px);
+    height: 16px;
+    pointer-events: none;
+    @include gradient-v($g2-kevlar, fade-out($g2-kevlar, 1));
+  }
 }
 .template-control--container {
   width: 100%;
