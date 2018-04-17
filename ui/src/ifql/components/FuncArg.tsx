@@ -23,8 +23,15 @@ class FuncArg extends PureComponent<Props> {
       onGenerateScript,
     } = this.props
 
-    switch (true) {
-      case this.isInput: {
+    switch (type) {
+      case types.STRING:
+      case types.DURATION:
+      case types.TIME:
+      case types.REGEXP:
+      case types.FLOAT:
+      case types.INT:
+      case types.UINT:
+      case types.ARRAY: {
         return (
           <FuncArgInput
             type={type}
@@ -37,7 +44,7 @@ class FuncArg extends PureComponent<Props> {
         )
       }
 
-      case types.BOOL === type: {
+      case types.BOOL: {
         // TODO: make boolean arg component
         return (
           <div className="func-arg">
@@ -45,7 +52,7 @@ class FuncArg extends PureComponent<Props> {
           </div>
         )
       }
-      case types.FUNCTION === type: {
+      case types.FUNCTION: {
         // TODO: make separate function component
         return (
           <div className="func-arg">
@@ -53,7 +60,7 @@ class FuncArg extends PureComponent<Props> {
           </div>
         )
       }
-      case types.NIL === type: {
+      case types.NIL: {
         // TODO: handle nil type
         return (
           <div className="func-arg">
@@ -69,21 +76,6 @@ class FuncArg extends PureComponent<Props> {
         )
       }
     }
-  }
-
-  private get isInput() {
-    const {type} = this.props
-
-    return (
-      type === types.STRING ||
-      type === types.DURATION ||
-      type === types.TIME ||
-      type === types.REGEXP ||
-      type === types.FLOAT ||
-      type === types.INT ||
-      type === types.UINT ||
-      type === types.ARRAY
-    )
   }
 }
 
