@@ -13,13 +13,13 @@
 			"name": "System – Network Mb/s",
 			"queries": [
 				{
-					"query": "SELECT non_negative_derivative(max(\"bytes_recv\"), 1s) / 125000 as \"rx_megabits_per_second\" FROM \"net\"",
+					"query": "SELECT non_negative_derivative(max(\"bytes_recv\"), 1s) / 125000 as \"rx_megabits_per_second\" FROM \":db:\".\":rp:\".\"net\"",
 					"groupbys": [],
 					"wheres": [],
 					"label": "Mb/s"
 				},
 				{
-					"query": "SELECT non_negative_derivative(max(\"bytes_sent\"), 1s) / 125000 as \"tx_megabits_per_second\" FROM \"net\"",
+					"query": "SELECT non_negative_derivative(max(\"bytes_sent\"), 1s) / 125000 as \"tx_megabits_per_second\" FROM \":db:\".\":rp:\".\"net\"",
 					"groupbys": [],
 					"wheres": []
 				}
@@ -34,12 +34,12 @@
 			"name": "System – Network Error Rate",
 			"queries": [
 				{
-					"query": "SELECT non_negative_derivative(max(\"err_in\"), 1s) / 125000 as \"tx_errors_per_second\" FROM \"net\"",
+					"query": "SELECT non_negative_derivative(max(\"err_in\"), 1s) / 125000 as \"tx_errors_per_second\" FROM \":db:\".\":rp:\".\"net\"",
 					"groupbys": [],
 					"wheres": []
 				},
 				{
-					"query": "SELECT non_negative_derivative(max(\"err_out\"), 1s) / 125000 as \"rx_errors_per_second\" FROM \"net\"",
+					"query": "SELECT non_negative_derivative(max(\"err_out\"), 1s) / 125000 as \"rx_errors_per_second\" FROM \":db:\".\":rp:\".\"net\"",
 					"groupbys": [],
 					"wheres": []
 				}

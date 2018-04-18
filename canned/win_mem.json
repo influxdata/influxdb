@@ -13,7 +13,7 @@
       "name": "System - Available Bytes",
       "queries": [
         {
-          "query": "SELECT mean(\"Available_Bytes\") AS \"available_bytes\" FROM win_mem",
+          "query": "SELECT mean(\"Available_Bytes\") AS \"available_bytes\" FROM \":db:\".\":rp:\".\"win_mem\"",
           "groupbys": [],
           "wheres": []
         }

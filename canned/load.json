@@ -13,7 +13,7 @@
       "name": "System Load",
       "queries": [
         {
-          "query": "SELECT mean(\"load1\") AS \"load\" FROM \"system\"",
+          "query": "SELECT mean(\"load1\") AS \"load\" FROM \":db:\".\":rp:\".\"system\"",
           "groupbys": [],
           "wheres": []
         }

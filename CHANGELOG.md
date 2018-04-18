@@ -1,6 +1,7 @@
 ## v1.5.0.0 [unreleased]
 
 ### Features
+1.  [#3233](https://github.com/influxdata/chronograf/pull/3233): Add default retention policy field as option in source configuration for use in querying hosts from Host List page & Host pages
 
 ### UI Improvements
 1.  [#3204](https://github.com/influxdata/chronograf/pull/3204): Notify user when a dashboard cell is added, removed, or cloned

@@ -97,6 +97,11 @@ const AutoRefresh = ComposedComponent => {
 
       const timeSeriesPromises = queries.map(query => {
         const {host, database, rp} = query
+        // the key `database` was used upstream in HostPage.js, and since as of this writing
+        // the codebase has not been fully converted to TypeScript, it's not clear where else
+        // it may be used, but this slight modification is intended to allow for the use of
+        // `database` while moving over to `db` for consistency over time
+        const db = _.get(query, 'db', database)
 
         const templatesWithIntervalVals = templates.map(temp => {
           if (temp.tempVar === ':interval:') {
@@ -125,7 +130,7 @@ const AutoRefresh = ComposedComponent => {
         return fetchTimeSeriesAsync(
           {
             source: host,
-            db: database,
+            db,
             rp,
             query,
             tempVars,

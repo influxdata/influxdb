@@ -13,7 +13,7 @@
             "name": "Consul – Leadership Election",
             "queries": [
                 {
-                    "query": "SELECT max(\"value\") AS \"max_value\" FROM \"consul_raft_state_candidate\"",
+                    "query": "SELECT max(\"value\") AS \"max_value\" FROM \":db:\".\":rp:\".\"consul_raft_state_candidate\"",
                     "label": "count",
                     "groupbys": [],
                     "wheres": []

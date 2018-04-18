@@ -13,7 +13,7 @@
       "name": "System - CPU Usage",
       "queries": [
         {
-          "query": "SELECT mean(\"Percent_Processor_Time\") AS \"percent_processor_time\" FROM win_cpu",
+          "query": "SELECT mean(\"Percent_Processor_Time\") AS \"percent_processor_time\" FROM \":db:\".\":rp:\".\"win_cpu\"",
           "groupbys": [],
           "wheres": []
         }

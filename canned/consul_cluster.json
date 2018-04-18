@@ -13,7 +13,7 @@
 			"name": "Consul – Number of Agents",
 			"queries": [
 				{
-					"query": "SELECT min(\"value\") AS \"num_agents\" FROM \"consul_memberlist_msg_alive\"",
+					"query": "SELECT min(\"value\") AS \"num_agents\" FROM \":db:\".\":rp:\".\"consul_memberlist_msg_alive\"",
 					"label": "count",
 					"groupbys": [],
 					"wheres": []

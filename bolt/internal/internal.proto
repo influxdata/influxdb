@@ -15,6 +15,7 @@ message Source {
 	string SharedSecret       = 11; // SharedSecret signs the optional InfluxDB JWT Authorization
 	string Organization       = 12; // Organization is the organization ID that resource belongs to
 	string Role               = 13; // Role is the name of the miniumum role that a user must possess to access the resource
+	string DefaultRP          = 14; // DefaultRP is the default retention policy used in database queries to this source
 }
 
 message Dashboard {
