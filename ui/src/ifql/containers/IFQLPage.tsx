@@ -185,8 +185,9 @@ export class IFQLPage extends PureComponent<Props, State> {
     funcID: string,
     expressionID: string
   ): void => {
+    // TODO: export this and test functionality
     const script = this.state.expressions
-      .map((expression, i) => {
+      .map((expression, expressionIndex) => {
         if (expression.id !== expressionID) {
           return expression.source
         }
@@ -200,7 +201,7 @@ export class IFQLPage extends PureComponent<Props, State> {
           return `${acc}\n\t${f.source}`
         }, '')
 
-        const isLast = i === this.state.expressions.length - 1
+        const isLast = expressionIndex === this.state.expressions.length - 1
         if (isLast) {
           return `${source}`
         }
