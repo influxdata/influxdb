@@ -117,9 +117,13 @@ export class Dropdown extends Component {
   applyFilter = searchTerm => {
     const {items} = this.props
     const filterText = searchTerm.toLowerCase()
-    const matchingItems = items.filter(item =>
-      item.text.toLowerCase().includes(filterText)
-    )
+    const matchingItems = items.filter(item => {
+      if (!item) {
+        return false
+      }
+
+      return item.text.toLowerCase().includes(filterText)
+    })
 
     this.setState({
       filteredItems: matchingItems,
