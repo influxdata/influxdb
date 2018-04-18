@@ -19,6 +19,7 @@ import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {notify as notifyAction} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
+import {millisecondTimeRange} from 'src/dashboards/utils/time'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 import * as annotationActions from 'shared/actions/annotations'
@@ -81,7 +82,7 @@ class DashboardPage extends Component {
       autoRefresh,
     } = this.props
 
-    const annotationRange = this.millisecondTimeRange(timeRange)
+    const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
 
     if (autoRefresh) {
@@ -114,7 +115,7 @@ class DashboardPage extends Component {
     const {source, getAnnotationsAsync, timeRange} = this.props
     if (this.props.autoRefresh !== nextProps.autoRefresh) {
       clearInterval(this.intervalID)
-      const annotationRange = this.millisecondTimeRange(timeRange)
+      const annotationRange = millisecondTimeRange(timeRange)
       if (nextProps.autoRefresh) {
         this.intervalID = setInterval(() => {
           getAnnotationsAsync(source.links.annotations, annotationRange)
@@ -183,24 +184,8 @@ class DashboardPage extends Component {
       format: FORMAT_INFLUXQL,
     })
 
-    const annotationRange = this.millisecondTimeRange(timeRange)
+    const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
-  }
-
-  millisecondTimeRange({seconds, lower, upper}) {
-    // Is this a relative time range?
-    if (seconds) {
-      return {
-        since: Date.now() - seconds * 1000,
-        until: null,
-      }
-    }
-
-    // No, this is an absolute (custom) time range
-    return {
-      since: Date.parse(lower),
-      until: Date.parse(upper),
-    }
   }
 
   handleUpdatePosition = cells => {
