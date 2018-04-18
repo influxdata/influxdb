@@ -63,42 +63,36 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 	}
 }
 
-func Test_Influx_MakesRequestToQueryEndpoint_Params_RP(t *testing.T) {
+func Test_Influx_MakesRequestToQueryEndpointWithCustomRP(t *testing.T) {
 	t.Parallel()
-	wants := []string{"", "pineapple"}
+	crp := "pineapple"
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte(`{}`))
 
-	for _, want := range wants {
-		ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			rw.WriteHeader(http.StatusOK)
-			rw.Write([]byte(`{}`))
+		u, _ := url.Parse(r.RequestURI)
+		q := u.Query()
 
-			u, _ := url.Parse(r.RequestURI)
-			q := u.Query()
-
-			if rp := q.Get("rp"); rp != want {
-				t.Fatalf("rp query param:  want %s, got: %s", want, rp)
-			}
-
-		}))
-		defer ts.Close()
-
-		var series chronograf.TimeSeries
-		series, err := NewClient(ts.URL, log.New(log.DebugLevel))
-		if err != nil {
-			t.Fatal("Unexpected error initializing client: err:", err)
+		if rp := q.Get("rp"); rp != crp {
+			t.Fatalf("rp query param:  want %s, got: %s", crp, rp)
 		}
 
-		query := chronograf.Query{
-			Command: "SELECT mean(\"usage_user\") FROM cpu WHERE \"cpu\" = 'cpu-total' AND time > now() - 10m GROUP BY host;",
-		}
-		if want != "" {
-			query.RP = want
-		}
+	}))
+	defer ts.Close()
 
-		_, err = series.Query(context.Background(), query)
-		if err != nil {
-			t.Fatal("Expected no error but was", err)
-		}
+	var series chronograf.TimeSeries
+	series, err := NewClient(ts.URL, log.New(log.DebugLevel))
+	if err != nil {
+		t.Fatal("Unexpected error initializing client: err:", err)
+	}
+
+	query := chronograf.Query{
+		RP:      crp,
+		Command: "SELECT mean(\"usage_user\") FROM cpu WHERE \"cpu\" = 'cpu-total' AND time > now() - 10m GROUP BY host;",
+	}
+	_, err = series.Query(context.Background(), query)
+	if err != nil {
+		t.Fatal("Expected no error but was", err)
 	}
 }
 
