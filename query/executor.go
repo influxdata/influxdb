@@ -119,6 +119,9 @@ type ExecutionOptions struct {
 	// The database the query is running against.
 	Database string
 
+	// The retention policy the query is running against.
+	RetentionPolicy string
+
 	// How to determine whether the query is allowed to execute,
 	// what resources can be returned in SHOW queries, etc.
 	Authorizer Authorizer
@@ -163,7 +166,7 @@ type StatementExecutor interface {
 type StatementNormalizer interface {
 	// NormalizeStatement adds a default database and policy to the
 	// measurements in the statement.
-	NormalizeStatement(stmt influxql.Statement, database string) error
+	NormalizeStatement(stmt influxql.Statement, database, retentionPolicy string) error
 }
 
 // Executor executes every statement in an Query.
@@ -314,7 +317,7 @@ LOOP:
 
 		// Normalize each statement if possible.
 		if normalizer, ok := e.StatementExecutor.(StatementNormalizer); ok {
-			if err := normalizer.NormalizeStatement(stmt, defaultDB); err != nil {
+			if err := normalizer.NormalizeStatement(stmt, defaultDB, opt.RetentionPolicy); err != nil {
 				if err := ctx.send(&Result{Err: err}); err == ErrQueryAborted {
 					return
 				}
