@@ -35,6 +35,7 @@ export default class FuncArgs extends PureComponent<Props> {
           return (
             <FuncArg
               funcID={func.id}
+              funcName={func.name}
               key={key}
               type={type}
               argKey={key}
