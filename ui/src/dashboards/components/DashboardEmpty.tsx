@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import {addDashboardCellAsync} from 'src/dashboards/actions'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
 interface Dashboard {
@@ -20,6 +21,7 @@ const mapDispatchToProps = dispatch => ({
   addDashboardCell: bindActionCreators(addDashboardCellAsync, dispatch),
 })
 
+@ErrorHandling
 @connect(null, mapDispatchToProps)
 class DashboardEmpty extends Component<Props> {
   constructor(props) {
