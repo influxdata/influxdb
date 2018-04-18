@@ -8,7 +8,7 @@ import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import Walker from 'src/ifql/ast/walker'
 import {Func} from 'src/ifql/components/FuncArgs'
-import {InputArg} from 'src/ifql/components/FuncArgInput'
+import {InputArg} from 'src/types/ifql'
 
 import {getSuggestions, getAST} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
@@ -34,6 +34,7 @@ interface State {
 interface Expression {
   id: string
   funcs: Func[]
+  source: string
 }
 
 @ErrorHandling
@@ -100,40 +101,55 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleGenerateScript = (): void => {
-    this.getASTResponse(this.funcsToScript)
+    this.getASTResponse(this.expressionsToScript)
   }
 
   private handleChangeArg = ({
-    funcID,
     key,
     value,
     generate,
+    funcID,
+    expressionID,
   }: InputArg): void => {
-    const funcs = this.state.funcs.map(f => {
-      if (f.id !== funcID) {
-        return f
+    const expressions = this.state.expressions.map(expression => {
+      if (expression.id === expressionID) {
+        return expression
       }
 
-      const args = f.args.map(a => {
-        if (a.key === key) {
-          return {...a, value}
+      const funcs = expression.funcs.map(f => {
+        if (f.id !== funcID) {
+          return f
         }
 
-        return a
+        const args = f.args.map(a => {
+          if (a.key === key) {
+            return {...a, value}
+          }
+
+          return a
+        })
+
+        return {...f, args}
       })
 
-      return {...f, args}
+      return {...expression, funcs}
     })
 
-    this.setState({funcs}, () => {
+    this.setState({expressions}, () => {
       if (generate) {
         this.handleGenerateScript()
       }
     })
   }
 
-  private get funcsToScript(): string {
-    return this.state.funcs
+  private get expressionsToScript(): string {
+    return this.state.expressions.reduce((acc, expression) => {
+      return acc + this.funcsToScript(expression.funcs)
+    }, '')
+  }
+
+  private funcsToScript(funcs): string {
+    return funcs
       .map(func => `${func.name}(${this.argsToScript(func.args)})`)
       .join('\n\t|> ')
   }
@@ -166,21 +182,32 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleDeleteFuncNode = (
-    expressionID: string,
-    funcID: string
+    funcID: string,
+    expressionID: string
   ): void => {
-    const expression = this.state.expressions.find(
-      ({id}) => id === expressionID
-    )
+    const script = this.state.expressions
+      .map((expression, i) => {
+        if (expression.id !== expressionID) {
+          return expression.source
+        }
 
-    const funcs = expression.funcs.filter(f => f.id !== funcID)
-    const script = funcs.reduce((acc, f, i) => {
-      if (i === 0) {
-        return `${f.source}`
-      }
+        const funcs = expression.funcs.filter(f => f.id !== funcID)
+        const source = funcs.reduce((acc, f, i) => {
+          if (i === 0) {
+            return `${f.source}`
+          }
 
-      return `${acc}\n\t${f.source}`
-    }, '')
+          return `${acc}\n\t${f.source}`
+        }, '')
+
+        const isLast = i === this.state.expressions.length - 1
+        if (isLast) {
+          return `${source}`
+        }
+
+        return `${source}\n\n`
+      })
+      .join('')
 
     this.getASTResponse(script)
   }
@@ -192,13 +219,12 @@ export class IFQLPage extends PureComponent<Props, State> {
 
     const walker = new Walker(ast)
 
-    const expressions = walker.expressions.map(expression => {
-      const funcs = this.functions(expression.funcs, suggestions)
-
+    const expressions = walker.expressions.map(({funcs, source}) => {
+      const id = uuid.v4()
       return {
-        id: uuid.v4(),
-        funcs,
-        source: expression.source,
+        id,
+        funcs: this.functions(funcs, suggestions),
+        source,
       }
     })
 

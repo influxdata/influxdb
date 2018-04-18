@@ -1,12 +1,13 @@
 import React, {PureComponent} from 'react'
 import SlideToggle from 'src/shared/components/SlideToggle'
 
-import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import {OnChangeArg} from 'src/types/ifql'
 
 interface Props {
   argKey: string
   value: boolean
   funcID: string
+  expressionID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -22,8 +23,8 @@ class FuncArgBool extends PureComponent<Props> {
   }
 
   private handleToggle = (value: boolean): void => {
-    const {argKey, funcID, onChangeArg} = this.props
-    onChangeArg({funcID, key: argKey, value, generate: true})
+    const {argKey, funcID, expressionID, onChangeArg} = this.props
+    onChangeArg({funcID, key: argKey, value, generate: true, expressionID})
   }
 }
 

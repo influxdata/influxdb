@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 import FuncArg from 'src/ifql/components/FuncArg'
-import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import {OnChangeArg} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 type Value = string | boolean
@@ -20,6 +20,7 @@ export interface Func {
 
 interface Props {
   func: Func
+  expressionID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -27,20 +28,21 @@ interface Props {
 @ErrorHandling
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
-    const {func, onChangeArg, onGenerateScript} = this.props
+    const {expressionID, func, onChangeArg, onGenerateScript} = this.props
 
     return (
       <div className="func-args">
         {func.args.map(({key, value, type}) => {
           return (
             <FuncArg
-              funcID={func.id}
-              funcName={func.name}
               key={key}
               type={type}
               argKey={key}
               value={value}
+              funcID={func.id}
+              funcName={func.name}
               onChangeArg={onChangeArg}
+              expressionID={expressionID}
               onGenerateScript={onGenerateScript}
             />
           )

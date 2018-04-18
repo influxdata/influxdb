@@ -1,11 +1,12 @@
 import React, {PureComponent} from 'react'
 
-import FuncArgInput, {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import FuncArgInput from 'src/ifql/components/FuncArgInput'
 import FuncArgBool from 'src/ifql/components/FuncArgBool'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import From from 'src/ifql/components/From'
 
 import {funcNames, argTypes} from 'src/ifql/constants'
+import {OnChangeArg} from 'src/types/ifql'
 
 interface Props {
   funcName: string
@@ -13,6 +14,7 @@ interface Props {
   argKey: string
   value: string | boolean
   type: string
+  expressionID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -25,17 +27,19 @@ class FuncArg extends PureComponent<Props> {
       value,
       type,
       funcName,
-      onChangeArg,
       funcID,
+      onChangeArg,
+      expressionID,
       onGenerateScript,
     } = this.props
 
     if (funcName === funcNames.FROM) {
       return (
         <From
-          value={`${value}`}
           argKey={argKey}
           funcID={funcID}
+          value={this.value}
+          expressionID={expressionID}
           onChangeArg={onChangeArg}
         />
       )
@@ -53,9 +57,10 @@ class FuncArg extends PureComponent<Props> {
         return (
           <FuncArgInput
             type={type}
-            value={`${value}`}
+            value={this.value}
             argKey={argKey}
             funcID={funcID}
+            expressionID={expressionID}
             onChangeArg={onChangeArg}
             onGenerateScript={onGenerateScript}
           />
@@ -69,6 +74,7 @@ class FuncArg extends PureComponent<Props> {
             argKey={argKey}
             funcID={funcID}
             onChangeArg={onChangeArg}
+            expressionID={expressionID}
             onGenerateScript={onGenerateScript}
           />
         )
@@ -97,6 +103,10 @@ class FuncArg extends PureComponent<Props> {
         )
       }
     }
+  }
+
+  private get value(): string {
+    return `${this.props.value}`
   }
 
   private get boolValue(): boolean {
