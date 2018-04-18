@@ -1246,7 +1246,8 @@ func convertRowToPoints(measurementName string, row *models.Row) ([]models.Point
 }
 
 // NormalizeStatement adds a default database and policy to the measurements in statement.
-func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
+// Parameter defaultRetentionPolicy can be "".
+func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultDatabase, defaultRetentionPolicy string) (err error) {
 	influxql.WalkFunc(stmt, func(node influxql.Node) {
 		if err != nil {
 			return
@@ -1282,14 +1283,14 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 				// DB and RP not supported by these statements so don't rewrite into invalid
 				// statements
 			default:
-				err = e.normalizeMeasurement(node, defaultDatabase)
+				err = e.normalizeMeasurement(node, defaultDatabase, defaultRetentionPolicy)
 			}
 		}
 	})
 	return
 }
 
-func (e *StatementExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDatabase string) error {
+func (e *StatementExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDatabase, defaultRetentionPolicy string) error {
 	// Targets (measurements in an INTO clause) can have blank names, which means it will be
 	// the same as the measurement name it came from in the FROM clause.
 	if !m.IsTarget && m.Name == "" && m.SystemIterator == "" && m.Regex == nil {
@@ -1314,10 +1315,13 @@ func (e *StatementExecutor) normalizeMeasurement(m *influxql.Measurement, defaul
 
 	// If no retention policy was specified, use the default.
 	if m.RetentionPolicy == "" {
-		if di.DefaultRetentionPolicy == "" {
+		if defaultRetentionPolicy != "" {
+			m.RetentionPolicy = defaultRetentionPolicy
+		} else if di.DefaultRetentionPolicy != "" {
+			m.RetentionPolicy = di.DefaultRetentionPolicy
+		} else {
 			return fmt.Errorf("default retention policy not set for: %s", di.Name)
 		}
-		m.RetentionPolicy = di.DefaultRetentionPolicy
 	}
 	return nil
 }

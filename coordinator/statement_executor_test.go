@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"reflect"
@@ -129,6 +130,91 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	}
 }
 
+func TestStatementExecutor_NormalizeStatement(t *testing.T) {
+
+	testCases := []struct {
+		name       string
+		query      string
+		defaultDB  string
+		defaultRP  string
+		expectedDB string
+		expectedRP string
+	}{
+		{
+			name:       "defaults",
+			query:      "SELECT f FROM m",
+			defaultDB:  DefaultDatabase,
+			defaultRP:  "",
+			expectedDB: DefaultDatabase,
+			expectedRP: DefaultRetentionPolicy,
+		},
+		{
+			name:       "alternate database via param",
+			query:      "SELECT f FROM m",
+			defaultDB:  "dbalt",
+			defaultRP:  "",
+			expectedDB: "dbalt",
+			expectedRP: DefaultRetentionPolicy,
+		},
+		{
+			name:       "alternate database via query",
+			query:      fmt.Sprintf("SELECT f FROM dbalt.%s.m", DefaultRetentionPolicy),
+			defaultDB:  DefaultDatabase,
+			defaultRP:  "",
+			expectedDB: "dbalt",
+			expectedRP: DefaultRetentionPolicy,
+		},
+		{
+			name:       "alternate RP via param",
+			query:      "SELECT f FROM m",
+			defaultDB:  DefaultDatabase,
+			defaultRP:  "rpalt",
+			expectedDB: DefaultDatabase,
+			expectedRP: "rpalt",
+		},
+		{
+			name:       "alternate RP via query",
+			query:      fmt.Sprintf("SELECT f FROM %s.rpalt.m", DefaultDatabase),
+			defaultDB:  DefaultDatabase,
+			defaultRP:  "",
+			expectedDB: DefaultDatabase,
+			expectedRP: "rpalt",
+		},
+		{
+			name:       "alternate RP query disagrees with param and query wins",
+			query:      fmt.Sprintf("SELECT f FROM %s.rpquery.m", DefaultDatabase),
+			defaultDB:  DefaultDatabase,
+			defaultRP:  "rpparam",
+			expectedDB: DefaultDatabase,
+			expectedRP: "rpquery",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			q, err := influxql.ParseQuery(testCase.query)
+			if err != nil {
+				t.Fatalf("unexpected error parsing query: %v", err)
+			}
+
+			stmt := q.Statements[0].(*influxql.SelectStatement)
+
+			err = DefaultQueryExecutor().StatementExecutor.NormalizeStatement(stmt, testCase.defaultDB, testCase.defaultRP)
+			if err != nil {
+				t.Fatalf("unexpected error normalizing statement: %v", err)
+			}
+
+			m := stmt.Sources[0].(*influxql.Measurement)
+			if m.Database != testCase.expectedDB {
+				t.Errorf("database got %v, want %v", m.Database, testCase.expectedDB)
+			}
+			if m.RetentionPolicy != testCase.expectedRP {
+				t.Errorf("retention policy got %v, want %v", m.RetentionPolicy, testCase.expectedRP)
+			}
+		})
+	}
+}
+
 func TestStatementExecutor_NormalizeDropSeries(t *testing.T) {
 	q, err := influxql.ParseQuery("DROP SERIES FROM cpu")
 	if err != nil {
@@ -145,7 +231,7 @@ func TestStatementExecutor_NormalizeDropSeries(t *testing.T) {
 			},
 		},
 	}
-	if err := s.NormalizeStatement(stmt, "foo"); err != nil {
+	if err := s.NormalizeStatement(stmt, "foo", "bar"); err != nil {
 		t.Fatalf("unexpected error normalizing statement: %v", err)
 	}
 
@@ -154,7 +240,7 @@ func TestStatementExecutor_NormalizeDropSeries(t *testing.T) {
 		t.Fatalf("database rewritten when not supposed to: %v", m.Database)
 	}
 	if m.RetentionPolicy != "" {
-		t.Fatalf("database rewritten when not supposed to: %v", m.RetentionPolicy)
+		t.Fatalf("retention policy rewritten when not supposed to: %v", m.RetentionPolicy)
 	}
 
 	if exp, got := "DROP SERIES FROM cpu", q.String(); exp != got {
@@ -178,7 +264,7 @@ func TestStatementExecutor_NormalizeDeleteSeries(t *testing.T) {
 			},
 		},
 	}
-	if err := s.NormalizeStatement(stmt, "foo"); err != nil {
+	if err := s.NormalizeStatement(stmt, "foo", "bar"); err != nil {
 		t.Fatalf("unexpected error normalizing statement: %v", err)
 	}
 
@@ -187,7 +273,7 @@ func TestStatementExecutor_NormalizeDeleteSeries(t *testing.T) {
 		t.Fatalf("database rewritten when not supposed to: %v", m.Database)
 	}
 	if m.RetentionPolicy != "" {
-		t.Fatalf("database rewritten when not supposed to: %v", m.RetentionPolicy)
+		t.Fatalf("retention policy rewritten when not supposed to: %v", m.RetentionPolicy)
 	}
 
 	if exp, got := "DELETE FROM cpu", q.String(); exp != got {
