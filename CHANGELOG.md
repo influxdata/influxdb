@@ -39,6 +39,7 @@
 1.  [#3182](https://github.com/influxdata/chronograf/pull/3182): Send notification when rp creation returns a failure
 1.  [#3181](https://github.com/influxdata/chronograf/pull/3181): Show valid time in custom time range when now is selected
 1.  [#3179](https://github.com/influxdata/chronograf/pull/3179): Default to zero for gauges
+1.  [#3237](https://github.com/influxdata/chronograf/pull/3237): Fixes now() time parsing when requesting annotations
 
 ## v1.4.3.1 [2018-04-02]
 
