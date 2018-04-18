@@ -69,16 +69,13 @@ $empty-menu--gutter: 4px;
     left: $empty-menu--gutter / 2;
     transition: color 0.25s ease, border-color 0.25s ease,
       background-color 0.25s ease;
-
-    &:hover {
-      cursor: pointer;
-      background-color: $g4-onyx;
-      color: $g15-platinum;
-    }
   }
 }
 
 // Hover state "card"
+.dashboard-empty--menu-option:hover {
+  cursor: pointer;
+}
 .dashboard-empty--menu-option:hover > div {
   background-color: $g5-pepper;
   color: $g18-cloud;
