@@ -1,29 +1,49 @@
 import React, {PureComponent} from 'react'
+import FuncArg from 'src/ifql/components/FuncArg'
+import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
+type Value = string | boolean
 
 interface Arg {
   key: string
-  value: string
+  value: Value
   type: string
 }
 
 export interface Func {
   name: string
   args: Arg[]
+  source: string
+  id: string
 }
 
 interface Props {
   func: Func
+  onChangeArg: OnChangeArg
+  onGenerateScript: () => void
 }
 
+@ErrorHandling
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
+    const {func, onChangeArg, onGenerateScript} = this.props
+
     return (
       <div className="func-args">
-        {this.props.func.args.map(({key, value}) => (
-          <div className="func-arg" key={key}>
-            {key} : {value}
-          </div>
-        ))}
+        {func.args.map(({key, value, type}) => {
+          return (
+            <FuncArg
+              funcID={func.id}
+              key={key}
+              type={type}
+              argKey={key}
+              value={value}
+              onChangeArg={onChangeArg}
+              onGenerateScript={onGenerateScript}
+            />
+          )
+        })}
       </div>
     )
   }

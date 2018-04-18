@@ -8,7 +8,9 @@ import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'shared/constants'
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class SingleStat extends PureComponent {
   render() {
     const {

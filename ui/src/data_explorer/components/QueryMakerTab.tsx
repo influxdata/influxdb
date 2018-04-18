@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Query {
   rawText: string
@@ -14,6 +15,7 @@ interface Props {
   queryIndex: number
 }
 
+@ErrorHandling
 class QueryMakerTab extends PureComponent<Props> {
   public render() {
     return (

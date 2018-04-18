@@ -15,9 +15,11 @@ import {
   LAYOUT_MARGIN,
   DASHBOARD_LAYOUT_ROW_HEIGHT,
 } from 'shared/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const GridLayout = WidthProvider(ReactGridLayout)
 
+@ErrorHandling
 class LayoutRenderer extends Component {
   constructor(props) {
     super(props)
@@ -72,6 +74,7 @@ class LayoutRenderer extends Component {
       autoRefresh,
       manualRefresh,
       onDeleteCell,
+      onCloneCell,
       onCancelEditCell,
       onSummonOverlayTechnologies,
     } = this.props
@@ -128,6 +131,7 @@ class LayoutRenderer extends Component {
                     autoRefresh={autoRefresh}
                     resizeCoords={resizeCoords}
                     onDeleteCell={onDeleteCell}
+                    onCloneCell={onCloneCell}
                     manualRefresh={manualRefresh}
                     onCancelEditCell={onCancelEditCell}
                     onStopAddAnnotation={this.handleStopAddAnnotation}
@@ -181,6 +185,7 @@ LayoutRenderer.propTypes = {
   onPositionChange: func,
   onEditCell: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
   isStatusPage: bool,
   isEditable: bool,

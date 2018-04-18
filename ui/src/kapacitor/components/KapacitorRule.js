@@ -25,7 +25,9 @@ import {
   notifyAlertRuleRequiresConditionValue,
   notifyAlertRuleDeadmanInvalid,
 } from 'shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class KapacitorRule extends Component {
   constructor(props) {
     super(props)

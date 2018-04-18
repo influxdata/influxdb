@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 import Dropdown from 'src/shared/components/Dropdown'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 import {User, Role} from 'src/types'
@@ -25,6 +26,7 @@ interface Props {
   meID: string
 }
 
+@ErrorHandling
 class UsersTableRow extends PureComponent<Props> {
   public render() {
     const {user, onChangeUserRole} = this.props

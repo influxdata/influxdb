@@ -24,12 +24,14 @@ import {
   CHAR_PIXELS,
   barPlotter,
 } from 'src/shared/graphs/helpers'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
 const {LINEAR, LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
 import {colorsStringSchema} from 'shared/schemas'
 
+@ErrorHandling
 class Dygraph extends Component {
   constructor(props) {
     super(props)

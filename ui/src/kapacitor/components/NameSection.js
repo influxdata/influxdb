@@ -1,7 +1,9 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class NameSection extends Component {
   constructor(props) {
     super(props)

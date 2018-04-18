@@ -5,7 +5,9 @@ import Dropdown from 'shared/components/Dropdown'
 import {NULL_STRING, NUMBER} from 'shared/constants/queryFillOptions'
 
 import queryFills from 'shared/data/queryFills'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class FillQuery extends Component {
   constructor(props) {
     super(props)

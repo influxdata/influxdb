@@ -5,6 +5,7 @@
 1.  [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
 1.  [#3060](https://github.com/influxdata/chronograf/pull/3060): Add ability to set a color palette for Line, Stacked, Step-Plot, and Bar graphs
 1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
+1.  [#3184](https://github.com/influxdata/chronograf/pull/3184): Add ability to clone cells
 1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add tabular data visualization option with features
 1.  [#3120](https://github.com/influxdata/chronograf/pull/3120): Change :interval: to represent a raw influxql duration value
 1.  [#2832](https://github.com/influxdata/chronograf/pull/2832): Add paginated measurements API to server
@@ -16,6 +17,9 @@
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize delete confirmation interactions
 1.  [#3096](https://github.com/influxdata/chronograf/pull/3096): Standardize save & cancel interactions
 1.  [#3116](https://github.com/influxdata/chronograf/pull/3116): Improve cell renaming
+1.  [#3204](https://github.com/influxdata/chronograf/pull/3204): Notify user when a dashboard cell is added, removed, or cloned
+1.  [#3215](https://github.com/influxdata/chronograf/pull/3215): Fix Template Variables Control Bar to top of dashboard page
+1.  [#3214](https://github.com/influxdata/chronograf/pull/3214): Remove extra click when creating dashboard cell
 
 ### Bug Fixes
 
@@ -31,6 +35,10 @@
 1.  [#3128](https://github.com/influxdata/chronograf/pull/3128): Fix type error bug in Kapacitor Alert Config page and persist deleting of team and recipient in OpsGenieConfig
 1.  [#3149](https://github.com/influxdata/chronograf/pull/3149): Fixes errors caused by switching query tabs in CEO
 1.  [#3162](https://github.com/influxdata/chronograf/pull/3162): Only send threshold value to parent on blur
+1.  [#3168](https://github.com/influxdata/chronograf/pull/3168): Require that emails on GitHub & Generic OAuth2 principals be verified & primary, if those fields are provided
+1.  [#3182](https://github.com/influxdata/chronograf/pull/3182): Send notification when rp creation returns a failure
+1.  [#3181](https://github.com/influxdata/chronograf/pull/3181): Show valid time in custom time range when now is selected
+1.  [#3179](https://github.com/influxdata/chronograf/pull/3179): Default to zero for gauges
 
 ## v1.4.3.1 [2018-04-02]
 

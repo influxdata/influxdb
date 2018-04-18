@@ -10,7 +10,9 @@ import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'shared/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class NewAnnotation extends Component {
   state = {
     isMouseOver: false,

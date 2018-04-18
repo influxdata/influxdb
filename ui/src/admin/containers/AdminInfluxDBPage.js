@@ -28,6 +28,7 @@ import {
 import AdminTabs from 'src/admin/components/AdminTabs'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {notify as notifyAction} from 'shared/actions/notifications'
 
@@ -46,6 +47,7 @@ const isValidRole = role => {
   return role.name.length >= minLen
 }
 
+@ErrorHandling
 class AdminInfluxDBPage extends Component {
   constructor(props) {
     super(props)

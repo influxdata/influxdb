@@ -3,6 +3,7 @@ import React, {PureComponent, SFC} from 'react'
 import classnames from 'classnames'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 type Item = object | string
 
@@ -74,6 +75,7 @@ export const Cancel: SFC<CancelProps> = ({
   </button>
 )
 
+@ErrorHandling
 class ConfirmOrCancel extends PureComponent<ConfirmOrCancelProps, {}> {
   public static defaultProps: Partial<ConfirmOrCancelProps> = {
     buttonSize: 'btn-sm',

@@ -36,24 +36,26 @@ export default class Walker {
       return []
     }
 
+    const source = currentNode.location.source
     let name
     let args
     if (currentNode.call) {
       name = currentNode.call.callee.name
       args = currentNode.call.arguments
-      return [...this.walk(currentNode.argument), {name, args}]
+      return [...this.walk(currentNode.argument), {name, args, source}]
     }
 
     name = currentNode.callee.name
     args = currentNode.arguments
-    return [{name, args}]
+    return [{name, args, source}]
   }
 
   private buildFuncNodes = nodes => {
-    return nodes.map(node => {
+    return nodes.map(({name, args, source}) => {
       return {
-        name: node.name,
-        arguments: this.reduceArgs(node.args),
+        name,
+        arguments: this.reduceArgs(args),
+        source,
       }
     })
   }

@@ -25,6 +25,7 @@ import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {notify as notifyAction} from 'shared/actions/notifications'
 
 import {notifyTempVarAlreadyExists} from 'shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const compact = values => uniq(values).filter(value => /\S/.test(value))
 
@@ -124,6 +125,7 @@ const TemplateVariableRow = ({
   </form>
 )
 
+@ErrorHandling
 class RowWrapper extends Component {
   constructor(props) {
     super(props)

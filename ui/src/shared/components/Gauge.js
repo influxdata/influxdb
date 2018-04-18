@@ -11,7 +11,9 @@ import {
 } from 'shared/constants/thresholds'
 
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class Gauge extends Component {
   constructor(props) {
     super(props)

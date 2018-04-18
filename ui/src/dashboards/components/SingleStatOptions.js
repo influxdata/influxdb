@@ -8,7 +8,9 @@ import ThresholdsList from 'shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'shared/components/ThresholdsListTypeToggle'
 
 import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class SingleStatOptions extends Component {
   handleUpdatePrefix = e => {
     const {handleUpdateAxes, axes} = this.props

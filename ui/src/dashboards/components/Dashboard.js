@@ -2,7 +2,6 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
-import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -16,13 +15,11 @@ const Dashboard = ({
   autoRefresh,
   manualRefresh,
   onDeleteCell,
+  onCloneCell,
   onPositionChange,
   inPresentationMode,
-  onOpenTemplateManager,
   templatesIncludingDashTime,
   onSummonOverlayTechnologies,
-  onSelectTemplate,
-  showTemplateControlBar,
   setScrollTop,
   inView,
 }) => {
@@ -47,14 +44,6 @@ const Dashboard = ({
       setScrollTop={setScrollTop}
     >
       <div className="dashboard container-fluid full-width">
-        {inPresentationMode ? null : (
-          <TemplateControlBar
-            templates={dashboard.templates}
-            onSelectTemplate={onSelectTemplate}
-            onOpenTemplateManager={onOpenTemplateManager}
-            isOpen={showTemplateControlBar}
-          />
-        )}
         {cells.length ? (
           <LayoutRenderer
             cells={cells}
@@ -66,6 +55,7 @@ const Dashboard = ({
             autoRefresh={autoRefresh}
             manualRefresh={manualRefresh}
             onDeleteCell={onDeleteCell}
+            onCloneCell={onCloneCell}
             onPositionChange={onPositionChange}
             templates={templatesIncludingDashTime}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -111,6 +101,7 @@ Dashboard.propTypes = {
   onAddCell: func,
   onPositionChange: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
   source: shape({
     links: shape({
@@ -121,9 +112,6 @@ Dashboard.propTypes = {
   autoRefresh: number.isRequired,
   manualRefresh: number,
   timeRange: shape({}).isRequired,
-  onOpenTemplateManager: func.isRequired,
-  onSelectTemplate: func.isRequired,
-  showTemplateControlBar: bool,
   onZoom: func,
   setScrollTop: func,
   inView: func,

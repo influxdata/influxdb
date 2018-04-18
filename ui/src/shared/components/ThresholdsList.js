@@ -19,12 +19,14 @@ import {
   MAX_THRESHOLDS,
   THRESHOLD_TYPE_BASE,
 } from 'shared/constants/thresholds'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const formatColor = color => {
   const {hex, name} = color
   return {hex, name}
 }
 
+@ErrorHandling
 class ThresholdsList extends Component {
   handleAddThreshold = () => {
     const {
@@ -65,7 +67,7 @@ class ThresholdsList extends Component {
     onResetFocus()
   }
 
-  handleDeleteThreshold = threshold => () => {
+  handleDeleteThreshold = threshold => {
     const {
       handleUpdateThresholdsListColors,
       onResetFocus,

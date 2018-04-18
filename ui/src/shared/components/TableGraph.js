@@ -7,6 +7,8 @@ import {MultiGrid, ColumnSizer} from 'react-virtualized'
 import moment from 'moment'
 import {reduce} from 'fast.js'
 
+const {arrayOf, bool, shape, string, func} = PropTypes
+
 import {
   timeSeriesToTableGraph,
   processTableData,
@@ -26,7 +28,9 @@ import {
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class TableGraph extends Component {
   constructor(props) {
     super(props)
@@ -222,7 +226,7 @@ class TableGraph extends Component {
       sortField,
       sortDirection,
     } = this.state
-    const {tableOptions, colors} = this.props
+    const {tableOptions, colors} = parent.props
 
     const {
       timeFormat = TIME_FORMAT_DEFAULT,
@@ -233,16 +237,19 @@ class TableGraph extends Component {
 
     const cellData = processedData[rowIndex][columnIndex]
 
-    const timeField = fieldNames.find(
+    const timeFieldIndex = fieldNames.findIndex(
       field => field.internalName === TIME_FIELD_DEFAULT.internalName
     )
-    const visibleTime = _.get(timeField, 'visible', true)
+
+    const visibleTime = _.get(fieldNames, [timeFieldIndex, 'visible'], true)
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
     const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0
     const isTimeData =
       visibleTime &&
-      (verticalTimeAxis ? rowIndex > 0 && columnIndex === 0 : isFixedRow)
+      (verticalTimeAxis
+        ? rowIndex !== 0 && columnIndex === timeFieldIndex
+        : rowIndex === timeFieldIndex && columnIndex !== 0)
     const isFieldName = verticalTimeAxis ? rowIndex === 0 : columnIndex === 0
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
     const dataIsNumerical = _.isNumber(cellData)
@@ -255,7 +262,7 @@ class TableGraph extends Component {
 
     let cellStyle = style
 
-    if (!isFixedRow && !isFixedColumn && !isFixedCorner) {
+    if (!isFixedRow && !isFixedColumn && !isFixedCorner && !isTimeData) {
       const {bgColor, textColor} = generateThresholdsListHexs({
         colors,
         lastValue: cellData,
@@ -383,8 +390,6 @@ class TableGraph extends Component {
     )
   }
 }
-
-const {arrayOf, bool, shape, string, func} = PropTypes
 
 TableGraph.propTypes = {
   data: arrayOf(shape()),

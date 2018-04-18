@@ -15,6 +15,7 @@ import {
 
 import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
 import {Params, Location, Links, Me} from 'src/types/sideNav'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   params: Params
@@ -26,6 +27,7 @@ interface Props {
   me: Me
 }
 
+@ErrorHandling
 class SideNav extends PureComponent<Props> {
   constructor(props) {
     super(props)
@@ -68,6 +70,9 @@ class SideNav extends PureComponent<Props> {
         </NavBlock>
         <NavBlock icon="graphline" link={dataExplorerLink} location={location}>
           <NavHeader link={dataExplorerLink} title="Data Explorer" />
+          <FeatureFlag name="time-machine">
+            <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" />
+          </FeatureFlag>
         </NavBlock>
         <NavBlock
           icon="dash-h"
@@ -141,15 +146,6 @@ class SideNav extends PureComponent<Props> {
             sourcePrefix={sourcePrefix}
           />
         ) : null}
-        <FeatureFlag name="time-machine">
-          <NavBlock
-            icon="cog-thick"
-            link={`${sourcePrefix}/delorean`}
-            location={location}
-          >
-            <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" />
-          </NavBlock>
-        </FeatureFlag>
       </nav>
     )
   }

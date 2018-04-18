@@ -2,7 +2,8 @@ import React, {PureComponent} from 'react'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
-import RedactedInput from './RedactedInput'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   'chat-id': string
@@ -33,6 +34,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class TelegramConfig extends PureComponent<Props, State> {
   private parseModeHTML: HTMLInputElement
   private parseModeMarkdown: HTMLInputElement

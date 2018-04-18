@@ -8,7 +8,9 @@ import classnames from 'classnames'
 import {dismissNotification as dismissNotificationAction} from 'shared/actions/notifications'
 
 import {NOTIFICATION_TRANSITION} from 'shared/constants/index'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class Notification extends Component {
   constructor(props) {
     super(props)

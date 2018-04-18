@@ -11,6 +11,7 @@ import {Query, Source} from 'src/types'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
 import MeasurementListItem from 'src/shared/components/MeasurementListItem'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   query: Query
@@ -29,6 +30,7 @@ interface State {
 
 const {shape} = PropTypes
 
+@ErrorHandling
 class MeasurementList extends PureComponent<Props, State> {
   public static contextTypes = {
     source: shape({

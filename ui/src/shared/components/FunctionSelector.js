@@ -3,7 +3,9 @@ import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import _ from 'lodash'
 import {INFLUXQL_FUNCTIONS} from 'src/data_explorer/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class FunctionSelector extends Component {
   constructor(props) {
     super(props)

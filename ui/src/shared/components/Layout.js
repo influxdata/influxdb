@@ -9,6 +9,7 @@ import {IS_STATIC_LEGEND} from 'src/shared/constants'
 import _ from 'lodash'
 
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const getSource = (cell, source, sources, defaultSource) => {
   const s = _.get(cell, ['queries', '0', 'source'], null)
@@ -19,6 +20,7 @@ const getSource = (cell, source, sources, defaultSource) => {
   return sources.find(src => src.links.self === s) || defaultSource
 }
 
+@ErrorHandling
 class LayoutState extends Component {
   state = {
     celldata: [],
@@ -52,6 +54,7 @@ const Layout = (
     timeRange,
     isEditable,
     onEditCell,
+    onCloneCell,
     autoRefresh,
     manualRefresh,
     onDeleteCell,
@@ -68,6 +71,7 @@ const Layout = (
     celldata={celldata}
     isEditable={isEditable}
     onEditCell={onEditCell}
+    onCloneCell={onCloneCell}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -144,6 +148,7 @@ const propTypes = {
   onPositionChange: func,
   onEditCell: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
   isStatusPage: bool,
   isEditable: bool,

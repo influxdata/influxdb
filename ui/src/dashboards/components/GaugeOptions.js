@@ -21,7 +21,9 @@ import {
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
 import {colorsNumberSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class GaugeOptions extends Component {
   handleAddThreshold = () => {
     const {gaugeColors, handleUpdateGaugeColors, onResetFocus} = this.props
@@ -59,7 +61,7 @@ class GaugeOptions extends Component {
     }
   }
 
-  handleDeleteThreshold = threshold => () => {
+  handleDeleteThreshold = threshold => {
     const {handleUpdateGaugeColors, onResetFocus} = this.props
     const gaugeColors = this.props.gaugeColors.filter(
       color => color.id !== threshold.id

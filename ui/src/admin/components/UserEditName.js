@@ -2,7 +2,9 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class UserEditName extends Component {
   constructor(props) {
     super(props)

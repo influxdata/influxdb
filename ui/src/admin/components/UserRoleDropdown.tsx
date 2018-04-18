@@ -7,6 +7,7 @@ import MultiSelectDropdown from 'src/shared/components/MultiSelectDropdown'
 
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 import {User, UserRole} from 'src/types/influxAdmin'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   user: User
@@ -14,6 +15,7 @@ interface Props {
   onUpdateRoles: (user: User, roles: UserRole[]) => void
 }
 
+@ErrorHandling
 class UserRoleDropdown extends PureComponent<Props> {
   public render() {
     const {allRoles} = this.props

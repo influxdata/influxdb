@@ -2,6 +2,7 @@ import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 import {THRESHOLD_COLORS} from 'src/shared/constants/thresholds'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface SelectedColor {
   hex: string
@@ -35,6 +36,7 @@ interface State {
   valid: boolean
 }
 
+@ErrorHandling
 class Threshold extends PureComponent<Props, State> {
   private thresholdInputRef: HTMLInputElement
 

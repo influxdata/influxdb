@@ -19,7 +19,9 @@ import {
   notifyUnableToGetHosts,
   notifyUnableToGetApps,
 } from 'shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 export class HostsPage extends Component {
   constructor(props) {
     super(props)

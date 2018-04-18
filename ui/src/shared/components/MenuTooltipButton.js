@@ -2,7 +2,9 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import OnClickOutside from 'react-onclickoutside'
 import classnames from 'classnames'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class MenuTooltipButton extends Component {
   state = {
     expanded: false,

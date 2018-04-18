@@ -28,6 +28,7 @@ import {buildRawText} from 'src/utils/influxql'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
 import {Source, Query, TimeRange} from 'src/types'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   source: Source
@@ -49,6 +50,7 @@ interface State {
   showWriteForm: boolean
 }
 
+@ErrorHandling
 export class DataExplorer extends PureComponent<Props, State> {
   public static childContextTypes = {
     source: PropTypes.shape({

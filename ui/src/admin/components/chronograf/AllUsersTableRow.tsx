@@ -6,6 +6,7 @@ import SlideToggle from 'src/shared/components/SlideToggle'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 import {ALL_USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const {
   colOrganizations,
@@ -44,6 +45,7 @@ interface Props {
   organizations: Organization[]
 }
 
+@ErrorHandling
 export default class AllUsersTableRow extends PureComponent<Props> {
   public render() {
     const {

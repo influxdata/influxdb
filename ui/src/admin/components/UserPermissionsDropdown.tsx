@@ -6,6 +6,7 @@ import MultiSelectDropdown from 'src/shared/components/MultiSelectDropdown'
 
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 import {User} from 'src/types/influxAdmin'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   user: User
@@ -13,6 +14,7 @@ interface Props {
   onUpdatePermissions: (user: User, permissions: any[]) => void
 }
 
+@ErrorHandling
 class UserPermissionsDropdown extends PureComponent<Props> {
   public render() {
     return (

@@ -5,7 +5,9 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 import DropdownMenu, {DropdownMenuEmpty} from 'shared/components/DropdownMenu'
 import DropdownInput from 'shared/components/DropdownInput'
 import DropdownHead from 'shared/components/DropdownHead'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 export class Dropdown extends Component {
   constructor(props) {
     super(props)
