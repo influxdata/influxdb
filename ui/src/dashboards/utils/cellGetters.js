@@ -74,6 +74,33 @@ export const isCellUntitled = cellName => {
   )
 }
 
+const numColumns = 12
+
+const getNextAvailablePosition = (dashboard, newCell) => {
+  const farthestY = dashboard.cells
+    .map(cell => cell.y)
+    .reduce((a, b) => (a > b ? a : b))
+
+  const bottomCells = dashboard.cells.filter(cell => cell.y === farthestY)
+  const farthestX = bottomCells
+    .map(cell => cell.x)
+    .reduce((a, b) => (a > b ? a : b))
+  const lastCell = bottomCells.find(cell => cell.x === farthestX)
+
+  const availableSpace = numColumns - (lastCell.x + lastCell.w)
+  const newCellFits = availableSpace >= newCell.w
+
+  return newCellFits
+    ? {
+        x: lastCell.x + lastCell.w,
+        y: farthestY,
+      }
+    : {
+        x: 0,
+        y: lastCell.y + lastCell.h,
+      }
+}
+
 export const getNewDashboardCell = (dashboard, cellType) => {
   const type = cellType || CELL_TYPE_LINE
   const typedCell = {
@@ -86,30 +113,31 @@ export const getNewDashboardCell = (dashboard, cellType) => {
     return typedCell
   }
 
-  const newCellY = dashboard.cells
-    .map(cell => cell.y + cell.h)
-    .reduce((a, b) => (a > b ? a : b))
-
   const existingCellWidths = dashboard.cells.map(cell => cell.w)
   const existingCellHeights = dashboard.cells.map(cell => cell.h)
 
   const mostCommonCellWidth = getMostCommonValue(existingCellWidths)
   const mostCommonCellHeight = getMostCommonValue(existingCellHeights)
 
-  return {
+  const newCell = {
     ...typedCell,
-    y: newCellY,
     w: mostCommonCellWidth,
     h: mostCommonCellHeight,
+  }
+
+  const {x, y} = getNextAvailablePosition(dashboard, newCell)
+
+  return {
+    ...newCell,
+    x,
+    y,
   }
 }
 
 export const getClonedDashboardCell = (dashboard, cloneCell) => {
-  const newCellY = dashboard.cells
-    .map(cell => cell.y + cell.h)
-    .reduce((a, b) => (a > b ? a : b))
+  const {x, y} = getNextAvailablePosition(dashboard, cloneCell)
 
   const name = `${cloneCell.name} (Clone)`
 
-  return {...cloneCell, y: newCellY, name}
+  return {...cloneCell, x, y, name}
 }

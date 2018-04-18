@@ -1,9 +1,11 @@
 import {configure} from 'enzyme'
 import React from 'react'
 
-import Adapter from 'enzyme-adapter-react-15'
+import Adapter from 'enzyme-adapter-react-16'
 
-configure({adapter: new Adapter()})
+configure({
+  adapter: new Adapter(),
+})
 
 /**
  * Since React v15.5, there's a warning printed if you access `React.createClass` or `React.PropTypes`
