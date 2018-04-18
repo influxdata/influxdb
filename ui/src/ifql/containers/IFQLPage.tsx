@@ -193,19 +193,20 @@ export class IFQLPage extends PureComponent<Props, State> {
     const walker = new Walker(ast)
 
     const expressions = walker.expressions.map(expression => {
-      const funcs = this.functions(expression, suggestions)
+      const funcs = this.functions(expression.funcs, suggestions)
 
       return {
         id: uuid.v4(),
         funcs,
+        source: expression.source,
       }
     })
 
     return expressions
   }
 
-  private functions = (expression, suggestions): Func[] => {
-    const functions = expression.map(func => {
+  private functions = (funcs, suggestions): Func[] => {
+    const functions = funcs.map(func => {
       const {params, name} = suggestions.find(f => f.name === func.name)
 
       const args = Object.entries(params).map(([key, type]) => {
