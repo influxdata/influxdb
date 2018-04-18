@@ -9,7 +9,7 @@ import LayoutRenderer from 'shared/components/LayoutRenderer'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
-import {generateTempVarsForHosts} from 'src/hosts/constants'
+import {generateForHosts} from 'src/utils/tempVars'
 
 import {timeRanges} from 'shared/data/timeRanges'
 import {
@@ -134,7 +134,7 @@ class HostPage extends Component {
       return allCells.concat(layout.cells)
     }, [])
 
-    const tempVars = generateTempVarsForHosts(source)
+    const tempVars = generateForHosts(source)
 
     return (
       <LayoutRenderer

@@ -16,7 +16,7 @@ interface TempVar {
   values: Value[]
 }
 
-export const generateTempVarsForHosts = (source: Source): TempVar[] => [
+export const generateForHosts = (source: Source): TempVar[] => [
   {
     tempVar: ':db:',
     id: 'db',

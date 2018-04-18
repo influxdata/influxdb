@@ -1,7 +1,7 @@
-import {generateTempVarsForHosts} from 'src/hosts/constants'
+import {generateForHosts} from 'src/utils/tempVars'
 
-describe('hosts.constants.index', () => {
-  describe('generateTempVarsForHosts', () => {
+describe('utils.tempVars', () => {
+  describe('generateForHosts', () => {
     it('should return template variables', () => {
       const telegraf = 'bob'
       const defaultRP = '1h10m'
@@ -21,7 +21,7 @@ describe('hosts.constants.index', () => {
           values: [{value: defaultRP, type: 'constant', selected: true}],
         },
       ]
-      const actual = generateTempVarsForHosts(source)
+      const actual = generateForHosts(source)
 
       expect(actual).toEqual(expected)
     })
@@ -46,7 +46,7 @@ describe('hosts.constants.index', () => {
             values: [{value: '', type: 'constant', selected: true}],
           },
         ]
-        const actual = generateTempVarsForHosts(source)
+        const actual = generateForHosts(source)
 
         expect(actual).toEqual(expected)
       })
