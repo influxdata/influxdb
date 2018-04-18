@@ -132,8 +132,7 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
 
   const sortedLabels = _.sortBy(labels, 'label')
   const tsMemo = {}
-  const nullArray = Array(sortedLabels.length).fill('null')
-  const slashArray = Array(sortedLabels.length).fill('-')
+  const dashArray = Array(sortedLabels.length).fill('-')
 
   const labelsToValueIndex = reduce(
     sortedLabels,
@@ -150,7 +149,7 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
   forEach(serieses, s => {
     if (groupBys[s.responseIndex]) {
       forEach(s.values, vs => {
-        timeSeries.push({time: vs[0], values: clone(slashArray)})
+        timeSeries.push({time: vs[0], values: clone(dashArray)})
         existingRowIndex = timeSeries.length - 1
         forEach(vs.slice(1), (v, i) => {
           const label = s.unsortedLabels[i].label
@@ -179,7 +178,7 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
       if (existingRowIndex === undefined) {
         timeSeries.push({
           time,
-          values: clone(slashArray),
+          values: clone(dashArray),
         })
 
         existingRowIndex = timeSeries.length - 1
