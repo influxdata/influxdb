@@ -101,8 +101,7 @@ const AutoRefresh = ComposedComponent => {
         // the codebase has not been fully converted to TypeScript, it's not clear where else
         // it may be used, but this slight modification is intended to allow for the use of
         // `database` while moving over to `db` for consistency over time
-        let {db} = query
-        db = db || database
+        const db = _.get(query, 'db', database)
 
         const templatesWithIntervalVals = templates.map(temp => {
           if (temp.tempVar === ':interval:') {
