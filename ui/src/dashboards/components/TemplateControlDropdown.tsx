@@ -23,8 +23,8 @@ const TemplateControlDropdown: SFC<Props> = ({template, onSelectTemplate}) => {
     ? {minWidth: calculateDropdownWidth(template.values)}
     : null
 
-  const selectedItem =
-    dropdownItems.find(item => item.selected) || dropdownItems[0]
+  const selectedItem = dropdownItems.find(item => item.selected) ||
+    dropdownItems[0] || {text: '(No values)'}
 
   return (
     <div className="template-control--dropdown" style={dropdownStyle}>
@@ -33,7 +33,7 @@ const TemplateControlDropdown: SFC<Props> = ({template, onSelectTemplate}) => {
         buttonSize="btn-xs"
         menuClass="dropdown-astronaut"
         useAutoComplete={true}
-        selected={selectedItem.text || '(No values)'}
+        selected={selectedItem.text}
         onChoose={onSelectTemplate(template.id)}
       />
       <label className="template-control--label">{template.tempVar}</label>

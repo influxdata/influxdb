@@ -20,8 +20,8 @@ export function ErrorHandling<
       if (this.error) {
         return (
           <p className="error">
-            A Chronograf error has occurred. Please report the issue
-            <a href="https://github.com/influxdata/chronograf/issues">here</a>
+            A Chronograf error has occurred. Please report the issue&nbsp;
+            <a href="https://github.com/influxdata/chronograf/issues">here</a>.
           </p>
         )
       }
