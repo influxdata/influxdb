@@ -580,5 +580,7 @@ export const notifyTickscriptLoggingError = message => ({
   message,
 })
 
-export const notifyKapacitorNotFound = () =>
-  'We could not find a Kapacitor configuration for this source.'
+export const notifyKapacitorNotFound = () => ({
+  ...defaultErrorNotification,
+  message: 'We could not find a Kapacitor configuration for this source.',
+})

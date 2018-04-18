@@ -316,7 +316,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
       }
     } catch (error) {
       console.error(error)
-      notify(notifyTickscriptLoggingError(error))
+      notify(notifyTickscriptLoggingError('Could not collect kapacitor logs'))
       throw error
     }
   }

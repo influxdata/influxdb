@@ -26,8 +26,10 @@ class Notification extends Component {
     const {notification: {duration}} = this.props
 
     // Trigger animation in
-    const {height} = this.notificationRef.getBoundingClientRect()
-    this.setState({height})
+    if (this.notificationRef) {
+      const {height} = this.notificationRef.getBoundingClientRect()
+      this.setState({height})
+    }
 
     if (duration >= 0) {
       // Automatically dismiss notification after duration prop
@@ -50,6 +52,14 @@ class Notification extends Component {
     )
   }
 
+  onNotificationRef = ref => {
+    if (ref) {
+      const {height} = ref.getBoundingClientRect()
+      this.setState({height})
+      this.notificationRef = ref
+    }
+  }
+
   render() {
     const {notification: {type, message, icon}} = this.props
     const {height, dismissed} = this.state
@@ -60,16 +70,11 @@ class Notification extends Component {
     })
     const notificationClass = `notification notification-${type}`
     const notificationMargin = 4
+    const style = {height: height + notificationMargin}
 
     return (
-      <div
-        className={notificationContainerClass}
-        style={{height: height + notificationMargin}}
-      >
-        <div
-          className={notificationClass}
-          ref={r => (this.notificationRef = r)}
-        >
+      <div className={notificationContainerClass} style={style}>
+        <div className={notificationClass} ref={this.onNotificationRef}>
           <span className={`icon ${icon}`} />
           <div className="notification-message">{message}</div>
           <button className="notification-close" onClick={this.handleDismiss} />
