@@ -1,13 +1,20 @@
+import _ from 'lodash'
 import calculateSize from 'calculate-size'
 
 export const minDropdownWidth = 146
 export const maxDropdownWidth = 300
 export const dropdownPadding = 30
 
-export const calculateDropdownWidth = values => {
-  const longestValue = values.reduce(
-    (a, b) => (a.value.length > b.value.length ? a.value : b.value)
-  )
+const valueLength = a => {
+  if (a.value) {
+    return a.value.length
+  }
+
+  return -1
+}
+
+export const calculateDropdownWidth = (values = []) => {
+  const longestValue = _.maxBy(values, valueLength)
   const longestValuePixels =
     calculateSize(longestValue, {
       font: 'Monospace',
