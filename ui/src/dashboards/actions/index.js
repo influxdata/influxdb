@@ -289,11 +289,14 @@ export const deleteDashboardAsync = dashboard => async dispatch => {
   }
 }
 
-export const addDashboardCellAsync = dashboard => async dispatch => {
+export const addDashboardCellAsync = (
+  dashboard,
+  cellType
+) => async dispatch => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
-      getNewDashboardCell(dashboard)
+      getNewDashboardCell(dashboard, cellType)
     )
     dispatch(addDashboardCell(dashboard, data))
     dispatch(notify(notifyCellAdded()))

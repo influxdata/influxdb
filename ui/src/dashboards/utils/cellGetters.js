@@ -20,9 +20,14 @@ const getMostCommonValue = values => {
   return results.mostCommonValue
 }
 
-export const getNewDashboardCell = dashboard => {
+export const getNewDashboardCell = (dashboard, cellType) => {
+  const typedCell = {
+    ...NEW_DEFAULT_DASHBOARD_CELL,
+    type: cellType || 'line',
+  }
+
   if (dashboard.cells.length === 0) {
-    return NEW_DEFAULT_DASHBOARD_CELL
+    return typedCell
   }
 
   const newCellY = dashboard.cells
@@ -36,7 +41,7 @@ export const getNewDashboardCell = dashboard => {
   const mostCommonCellHeight = getMostCommonValue(existingCellHeights)
 
   return {
-    ...NEW_DEFAULT_DASHBOARD_CELL,
+    ...typedCell,
     y: newCellY,
     w: mostCommonCellWidth,
     h: mostCommonCellHeight,
