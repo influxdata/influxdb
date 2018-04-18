@@ -2,7 +2,6 @@ import React, {Component} from 'react'
 import {Cell} from 'src/types/dashboard'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
-import uuid from 'uuid'
 
 import {addDashboardCellAsync} from 'src/dashboards/actions'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
@@ -41,7 +40,7 @@ class DashboardEmpty extends Component<Props> {
         </p>
         <div className="dashboard-empty--menu">
           {GRAPH_TYPES.map(graphType => (
-            <div key={uuid.v4()} className="dashboard-empty--menu-option">
+            <div key={graphType.type} className="dashboard-empty--menu-option">
               <div onClick={this.handleAddCell(graphType.type)}>
                 {graphType.graphic}
                 <p>{graphType.menuOption}</p>
