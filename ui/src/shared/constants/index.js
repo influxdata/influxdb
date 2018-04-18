@@ -1,5 +1,12 @@
 import _ from 'lodash'
 
+import {
+  CELL_TYPE_LINE,
+  CELL_TYPE_STACKED,
+  CELL_TYPE_STEPPLOT,
+  CELL_TYPE_BAR,
+} from 'src/dashboards/graphics/graph'
+
 export const PERMISSIONS = {
   ViewAdmin: {
     description: 'Can view or edit admin screens',
@@ -448,11 +455,11 @@ export const linksLink = '/chronograf/v1'
 
 export const cellSupportsAnnotations = cellType => {
   const supportedTypes = [
-    'line',
-    'bar',
-    'line-plus-single-stat',
-    'line-stacked',
-    'line-stepplot',
+    CELL_TYPE_LINE,
+    CELL_TYPE_BAR,
+    CELL_TYPE_LINE,
+    CELL_TYPE_STACKED,
+    CELL_TYPE_STEPPLOT,
   ]
   return !!supportedTypes.find(type => type === cellType)
 }
