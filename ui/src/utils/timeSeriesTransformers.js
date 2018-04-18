@@ -190,6 +190,7 @@ export const timeSeriesToTableGraph = (raw, queryASTs) => {
   const data = tableData.length ? [labels, ...tableData] : [[]]
   return {
     data,
+    sortedLabels,
   }
 }
 

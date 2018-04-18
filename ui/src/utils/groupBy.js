@@ -2,7 +2,7 @@ import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
 
-const groupIt = (responses, responseIndex, groupBys) => {
+const groupByTransform = (responses, responseIndex, groupBys) => {
   const firstColumns = _.get(responses, [0, 'series', 0, 'columns'])
   const accum = [
     {
@@ -37,7 +37,7 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
       const responses = _.get(rawResponse, 'response.results', [])
 
       const indexedResponses = groupBys[responseIndex]
-        ? groupIt(responses, responseIndex, groupBys[responseIndex])
+        ? groupByTransform(responses, responseIndex, groupBys[responseIndex])
         : map(responses, response => ({
             ...response,
             responseIndex,
@@ -71,6 +71,7 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
     },
     0
   )
+  // console.log('size', size)
   // convert series into cells with rows and columns
   let cellIndex = 0
   let labels = []
@@ -84,16 +85,20 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
     seriesIndex: new Array(DEFAULT_SIZE),
     responseIndex: new Array(DEFAULT_SIZE),
   }
+
   forEach(
     serieses,
-    ({
-      name: measurement,
-      columns,
-      values,
-      seriesIndex,
-      responseIndex,
-      tags = {},
-    }) => {
+    (
+      {
+        name: measurement,
+        columns,
+        values,
+        seriesIndex,
+        responseIndex,
+        tags = {},
+      },
+      ind
+    ) => {
       const rows = map(values || [], vals => ({
         vals,
       }))
@@ -103,6 +108,7 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
         responseIndex,
         seriesIndex,
       }))
+      serieses[ind].unsortedLabels = unsortedLabels
       labels = concat(labels, unsortedLabels)
       const groupByTags = groupBys[responseIndex]
       cells.groupByLabels = groupByTags
@@ -126,7 +132,8 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
 
   const sortedLabels = _.sortBy(labels, 'label')
   const tsMemo = {}
-  const nullArray = Array(sortedLabels.length).fill(null)
+  const nullArray = Array(sortedLabels.length).fill('null')
+  const slashArray = Array(sortedLabels.length).fill('-')
 
   const labelsToValueIndex = reduce(
     sortedLabels,
@@ -139,33 +146,52 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
   )
 
   const timeSeries = []
+  let existingRowIndex
+  forEach(serieses, s => {
+    if (groupBys[s.responseIndex]) {
+      forEach(s.values, vs => {
+        timeSeries.push({time: vs[0], values: clone(slashArray)})
+        existingRowIndex = timeSeries.length - 1
+        forEach(vs.slice(1), (v, i) => {
+          const label = s.unsortedLabels[i].label
+          timeSeries[existingRowIndex].values[
+            labelsToValueIndex[label + s.seriesIndex]
+          ] = v
+        })
+      })
+    }
+  })
   for (let i = 0; i < size; i++) {
-    let time = cells.time[i]
+    let time
+    time = cells.time[i]
     const value = cells.value[i]
     const label = cells.label[i]
     const seriesIndex = cells.seriesIndex[i]
 
-    if (label.includes('_shifted__')) {
-      const [, quantity, duration] = label.split('__')
-      time = +shiftDate(time, quantity, duration).format('x')
+    if (!groupBys[cells.responseIndex[i]]) {
+      if (label.includes('_shifted__')) {
+        const [, quantity, duration] = label.split('__')
+        time = +shiftDate(time, quantity, duration).format('x')
+      }
+
+      existingRowIndex = tsMemo[time]
+
+      if (existingRowIndex === undefined) {
+        timeSeries.push({
+          time,
+          values: clone(slashArray),
+        })
+
+        existingRowIndex = timeSeries.length - 1
+        tsMemo[time] = existingRowIndex
+      }
+
+      timeSeries[existingRowIndex].values[
+        labelsToValueIndex[label + seriesIndex]
+      ] = value
     }
-
-    let existingRowIndex = tsMemo[time]
-
-    if (existingRowIndex === undefined) {
-      timeSeries.push({
-        time,
-        values: clone(nullArray),
-      })
-
-      existingRowIndex = timeSeries.length - 1
-      tsMemo[time] = existingRowIndex
-    }
-
-    timeSeries[existingRowIndex].values[
-      labelsToValueIndex[label + seriesIndex]
-    ] = value
   }
+
   const sortedTimeSeries = _.sortBy(timeSeries, 'time')
 
   return {
@@ -173,43 +199,3 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
     sortedTimeSeries,
   }
 }
-
-// export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
-//
-//   raw.forEach((r, i) => {
-//     const columnsInRaw = _.get(
-//       r,
-//       ['response', 'results', '0', 'series', '0', 'columns'],
-//       []
-//     )
-//     const unselectedGroupBys = groupBys[i].filter(
-//       gb => !_.includes(columnsInRaw, gb)
-//     )
-//     const series = _.get(r, ['response', 'results', '0', 'series'], [])
-//     const result = reduce(
-//       series,
-//       (acc, s) => {
-//         const seriesValues = s.values
-//         const unselectedGroupBysTags = unselectedGroupBys.map(gb => s.tags[gb])
-//
-//         const seriesRows = map(seriesValues, v => [
-//           v[0],
-//           ...unselectedGroupBysTags,
-//           ...v.slice(1),
-//         ])
-//         return _.concat(acc, seriesRows)
-//       },
-//       []
-//     )
-//     labels = [
-//       series[0].columns[0],
-//       ...unselectedGroupBys,
-//       ...series[0].columns.slice(1),
-//     ]
-//     finalResult = _.concat(finalResult, result)
-//   })
-//   return {
-//     sortedLabels: finalResult[0],
-//     sortedTimeSeries: finalResult.slice(1),
-//   }
-// }

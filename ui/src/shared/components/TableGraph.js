@@ -41,6 +41,7 @@ class TableGraph extends Component {
       data: [[]],
       processedData: [[]],
       sortedTimeVals: [],
+      sortedLabels: [],
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sortField,
@@ -50,16 +51,16 @@ class TableGraph extends Component {
     }
   }
 
-  shouldComponentUpdate(nextProps) {
+  componentWillReceiveProps(nextProps) {
     const updatedProps = _.keys(nextProps).filter(
       k => !_.isEqual(this.props[k], nextProps[k])
     )
-    return !!_.intersection(updatedProps, ['data', 'queryASTs', 'tableOptions'])
-      .length
-  }
 
-  componentWillReceiveProps(nextProps) {
-    const {data} = timeSeriesToTableGraph(nextProps.data, nextProps.queryASTs)
+    const {data, sortedLabels} =
+      _.includes(updatedProps, 'data') || _.includes(updatedProps, 'queryASTs')
+        ? timeSeriesToTableGraph(nextProps.data, nextProps.queryASTs)
+        : this.state
+
     if (_.isEmpty(data[0])) {
       return
     }
@@ -72,11 +73,8 @@ class TableGraph extends Component {
         timeFormat,
       },
     } = nextProps
-    const computedFieldNames = computeFieldNames(
-      fieldNames,
-      nextProps.queryASTs
-    )
-
+    const computedFieldNames = computeFieldNames(fieldNames, sortedLabels)
+    // MUST UPDATE FIELD NAMES HERE.
     let direction, sortFieldName
     if (
       _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') ===
@@ -104,6 +102,7 @@ class TableGraph extends Component {
     )
     this.setState({
       data,
+      sortedLabels,
       processedData,
       sortedTimeVals,
       sortField: sortFieldName,
