@@ -20,14 +20,37 @@ const getMostCommonValue = values => {
   return results.mostCommonValue
 }
 
+const numColumns = 12
+
+const getNextAvailablePosition = (dashboard, newCell) => {
+  const farthestY = dashboard.cells
+    .map(cell => cell.y)
+    .reduce((a, b) => (a > b ? a : b))
+
+  const bottomCells = dashboard.cells.filter(cell => cell.y === farthestY)
+  const farthestX = bottomCells
+    .map(cell => cell.x)
+    .reduce((a, b) => (a > b ? a : b))
+  const lastCell = bottomCells.find(cell => cell.x === farthestX)
+
+  const availableSpace = numColumns - (lastCell.x + lastCell.w)
+  const newCellFits = availableSpace >= newCell.w
+
+  return newCellFits
+    ? {
+        x: lastCell.x + lastCell.w,
+        y: farthestY,
+      }
+    : {
+        x: 0,
+        y: lastCell.y + lastCell.h,
+      }
+}
+
 export const getNewDashboardCell = dashboard => {
   if (dashboard.cells.length === 0) {
     return NEW_DEFAULT_DASHBOARD_CELL
   }
-
-  const newCellY = dashboard.cells
-    .map(cell => cell.y + cell.h)
-    .reduce((a, b) => (a > b ? a : b))
 
   const existingCellWidths = dashboard.cells.map(cell => cell.w)
   const existingCellHeights = dashboard.cells.map(cell => cell.h)
@@ -35,20 +58,25 @@ export const getNewDashboardCell = dashboard => {
   const mostCommonCellWidth = getMostCommonValue(existingCellWidths)
   const mostCommonCellHeight = getMostCommonValue(existingCellHeights)
 
-  return {
+  const newCell = {
     ...NEW_DEFAULT_DASHBOARD_CELL,
-    y: newCellY,
     w: mostCommonCellWidth,
     h: mostCommonCellHeight,
+  }
+
+  const {x, y} = getNextAvailablePosition(dashboard, newCell)
+
+  return {
+    ...newCell,
+    x,
+    y,
   }
 }
 
 export const getClonedDashboardCell = (dashboard, cloneCell) => {
-  const newCellY = dashboard.cells
-    .map(cell => cell.y + cell.h)
-    .reduce((a, b) => (a > b ? a : b))
+  const {x, y} = getNextAvailablePosition(dashboard, cloneCell)
 
   const name = `${cloneCell.name} (Clone)`
 
-  return {...cloneCell, y: newCellY, name}
+  return {...cloneCell, x, y, name}
 }
