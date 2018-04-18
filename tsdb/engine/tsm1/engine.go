@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
+	"github.com/influxdata/influxdb/pkg/radix"
 	intar "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query"
@@ -187,6 +188,9 @@ type Engine struct {
 
 	// provides access to the total set of series IDs
 	seriesIDSets tsdb.SeriesIDSets
+
+	// seriesTypeMap maps a series key to field type
+	seriesTypeMap *radix.Tree
 }
 
 // NewEngine returns a new instance of Engine.
@@ -236,6 +240,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		compactionLimiter:             opt.CompactionLimiter,
 		scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
 		seriesIDSets:                  opt.SeriesIDSets,
+		seriesTypeMap:                 radix.New(),
 	}
 
 	if e.traceLogging {
@@ -1187,8 +1192,12 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 // It returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []models.Point) error {
 	values := make(map[string][]Value, len(points))
-	var keyBuf []byte
-	var baseLen int
+	var (
+		keyBuf    []byte
+		baseLen   int
+		seriesErr error
+	)
+
 	for _, p := range points {
 		keyBuf = append(keyBuf[:0], p.Key()...)
 		keyBuf = append(keyBuf, keyFieldSeparator...)
@@ -1202,6 +1211,36 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			}
 
 			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
+			kstr := string(keyBuf)
+
+			// Fast-path check to see if the field for the series already exists.
+			if v, ok := e.seriesTypeMap.Get(kstr); !ok {
+				if typ, err := e.Type(keyBuf); err != nil {
+					// Field type is unknown, we can try to add it.
+				} else if typ != iter.Type() {
+					// Existing type is different from what was passed in, we need to drop
+					// this write and refresh the series type map.
+					seriesErr = tsdb.ErrFieldTypeConflict
+					e.seriesTypeMap.Insert(kstr, int(typ))
+					continue
+				}
+
+				// Doesn't exsts, so try to insert
+				vv, ok := e.seriesTypeMap.Insert(kstr, int(iter.Type()))
+
+				// We didn't insert and the type that exists isn't what we tried to insert, so
+				// we have a conflict and must drop this field/series.
+				if !ok || vv != int(iter.Type()) {
+					seriesErr = tsdb.ErrFieldTypeConflict
+					continue
+				}
+			} else if v != int(iter.Type()) {
+				// The series already exists, but with a different type.  This is also a type conflict
+				// and we need to drop this field/series.
+				seriesErr = tsdb.ErrFieldTypeConflict
+				continue
+			}
+
 			var v Value
 			switch iter.Type() {
 			case models.Float:
@@ -1233,7 +1272,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			default:
 				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
 			}
-			values[string(keyBuf)] = append(values[string(keyBuf)], v)
+			values[kstr] = append(values[kstr], v)
 		}
 	}
 
@@ -1241,15 +1280,16 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	defer e.mu.RUnlock()
 
 	// first try to write to the cache
-	err := e.Cache.WriteMulti(values)
-	if err != nil {
+	if err := e.Cache.WriteMulti(values); err != nil {
 		return err
 	}
 
 	if e.WALEnabled {
-		_, err = e.WAL.WriteMulti(values)
+		if _, err := e.WAL.WriteMulti(values); err != nil {
+			return err
+		}
 	}
-	return err
+	return seriesErr
 }
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
@@ -2841,6 +2881,32 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 		}
 	}
 	return cost, nil
+}
+
+// Type returns FieldType for a series.  If the series does not
+// exist, ErrUnkownFieldType is returned.
+func (e *Engine) Type(series []byte) (models.FieldType, error) {
+	if typ, err := e.Cache.Type(series); err == nil {
+		return typ, nil
+	}
+
+	typ, err := e.FileStore.Type(series)
+	if err != nil {
+		return 0, err
+	}
+	switch typ {
+	case BlockFloat64:
+		return models.Float, nil
+	case BlockInteger:
+		return models.Integer, nil
+	case BlockUnsigned:
+		return models.Unsigned, nil
+	case BlockString:
+		return models.String, nil
+	case BlockBoolean:
+		return models.Boolean, nil
+	}
+	return 0, tsdb.ErrUnknownFieldType
 }
 
 func (e *Engine) seriesCost(seriesKey, field string, tmin, tmax int64) query.IteratorCost {
