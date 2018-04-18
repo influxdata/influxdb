@@ -1,10 +1,8 @@
 import React from 'react'
 import PropTypes from 'prop-types'
-import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
+import {isCellUntitled} from 'src/dashboards/utils/cellGetters'
 
 const LayoutCellHeader = ({isEditable, cellName}) => {
-  const cellNameIsDefault = cellName === NEW_DEFAULT_DASHBOARD_CELL.name
-
   const headingClass = `dash-graph--heading ${
     isEditable ? 'dash-graph--draggable dash-graph--heading-draggable' : ''
   }`
@@ -13,7 +11,7 @@ const LayoutCellHeader = ({isEditable, cellName}) => {
     <div className={headingClass}>
       <span
         className={
-          cellNameIsDefault
+          isCellUntitled(cellName)
             ? 'dash-graph--name dash-graph--name__default'
             : 'dash-graph--name'
         }

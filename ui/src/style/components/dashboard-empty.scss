@@ -1,0 +1,115 @@
+/*
+    Dashboard Empty State
+    ----------------------------------------------------------------------------
+*/
+
+$empty-menu--gutter: 4px;
+
+.dashboard-empty {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+
+  p {
+    color: $g11-sidewalk;
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0 0 20px 0;
+    @include no-user-select();
+
+    strong {
+      color: $g15-platinum;
+    }
+  }
+}
+
+.dashboard-empty--menu {
+  width: 70%;
+  max-width: 800px;
+  margin-bottom: 65px;
+}
+
+.dashboard-empty--menu-option {
+  float: left;
+  width: 25%;
+  padding-bottom: 25%;
+  position: relative;
+
+  > div > p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 900;
+    position: absolute;
+    bottom: 18px;
+    left: 10px;
+    width: calc(100% - 20px);
+    text-align: center;
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Actual "card"
+  > div {
+    background-color: $g2-kevlar;
+    color: $g11-sidewalk;
+    border-radius: 4px;
+    width: calc(100% - #{$empty-menu--gutter});
+    height: calc(100% - #{$empty-menu--gutter});
+    position: absolute;
+    top: $empty-menu--gutter / 2;
+    left: $empty-menu--gutter / 2;
+    transition: color 0.25s ease, border-color 0.25s ease,
+      background-color 0.25s ease;
+  }
+}
+
+// Hover state "card"
+.dashboard-empty--menu-option:hover {
+  cursor: pointer;
+}
+.dashboard-empty--menu-option:hover > div {
+  background-color: $g5-pepper;
+  color: $g18-cloud;
+
+  .viz-type-selector--graphic {
+    .viz-type-selector--graphic-line.graphic-line-a {
+      stroke: $c-pool;
+    }
+    .viz-type-selector--graphic-line.graphic-line-b {
+      stroke: $c-dreamsicle;
+    }
+    .viz-type-selector--graphic-line.graphic-line-c {
+      stroke: $c-rainforest;
+    }
+    .viz-type-selector--graphic-line.graphic-line-d {
+      stroke: $g17-whisper;
+    }
+    .viz-type-selector--graphic-fill.graphic-fill-a {
+      fill: $c-pool;
+    }
+    .viz-type-selector--graphic-fill.graphic-fill-b {
+      fill: $c-dreamsicle;
+    }
+    .viz-type-selector--graphic-fill.graphic-fill-c {
+      fill: $c-rainforest;
+    }
+    .viz-type-selector--graphic-fill.graphic-fill-a,
+    .viz-type-selector--graphic-fill.graphic-fill-b,
+    .viz-type-selector--graphic-fill.graphic-fill-c {
+      opacity: 0.22;
+    }
+    .viz-type-selector--graphic-fill.graphic-fill-d {
+      fill: $g17-whisper;
+      opacity: 1;
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
+import {CELL_TYPE_LINE, UNTITLED_CELL_LINE} from 'src/dashboards/graphics/graph'
 
 export const EMPTY_DASHBOARD = {
   id: 0,
@@ -9,7 +10,7 @@ export const EMPTY_DASHBOARD = {
       y: 0,
       queries: [],
       name: 'Loading...',
-      type: 'single-stat',
+      type: CELL_TYPE_LINE,
     },
   ],
 }
@@ -19,8 +20,8 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   y: 0,
   w: 4,
   h: 4,
-  name: 'Untitled Cell',
-  type: 'line',
+  name: UNTITLED_CELL_LINE,
+  type: CELL_TYPE_LINE,
   queries: [],
   tableOptions: DEFAULT_TABLE_OPTIONS,
 }

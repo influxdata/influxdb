@@ -4,13 +4,13 @@ import classnames from 'classnames'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import DashboardEmpty from 'src/dashboards/components/DashboardEmpty'
 
 const Dashboard = ({
   source,
   sources,
   onZoom,
   dashboard,
-  onAddCell,
   timeRange,
   autoRefresh,
   manualRefresh,
@@ -61,12 +61,7 @@ const Dashboard = ({
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
           />
         ) : (
-          <div className="dashboard__empty">
-            <p>This Dashboard has no Cells</p>
-            <button className="btn btn-primary btn-m" onClick={onAddCell}>
-              <span className="icon plus" />Add a Cell
-            </button>
-          </div>
+          <DashboardEmpty dashboard={dashboard} />
         )}
       </div>
     </FancyScrollbar>
@@ -98,7 +93,6 @@ Dashboard.propTypes = {
   }),
   templatesIncludingDashTime: arrayOf(shape()).isRequired,
   inPresentationMode: bool,
-  onAddCell: func,
   onPositionChange: func,
   onDeleteCell: func,
   onCloneCell: func,
