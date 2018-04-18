@@ -7,17 +7,19 @@ describe('IFQL.AST.Walker', () => {
     describe('simple example', () => {
       it('returns a flattened ordered list of from and its arguments', () => {
         const walker = new Walker(From)
-        expect(walker.functions).toEqual([
-          {
-            name: 'from',
-            source: 'from(db: "telegraf")',
-            arguments: [
-              {
-                key: 'db',
-                value: 'telegraf',
-              },
-            ],
-          },
+        expect(walker.expressions).toEqual([
+          [
+            {
+              name: 'from',
+              source: 'from(db: "telegraf")',
+              arguments: [
+                {
+                  key: 'db',
+                  value: 'telegraf',
+                },
+              ],
+            },
+          ],
         ])
       })
     })
@@ -25,27 +27,29 @@ describe('IFQL.AST.Walker', () => {
     describe('complex example', () => {
       it('returns a flattened ordered list of all funcs and their arguments', () => {
         const walker = new Walker(Complex)
-        expect(walker.functions).toEqual([
-          {
-            name: 'from',
-            source: 'from(db: "telegraf")',
-            arguments: [{key: 'db', value: 'telegraf'}],
-          },
-          {
-            name: 'filter',
-            source: '|> filter(fn: (r) => r["_measurement"] == "cpu")',
-            arguments: [
-              {
-                key: 'fn',
-                value: '(r) => r["_measurement"] == "cpu"',
-              },
-            ],
-          },
-          {
-            name: 'range',
-            source: '|> range(start: -1m)',
-            arguments: [{key: 'start', value: '-1m'}],
-          },
+        expect(walker.expressions).toEqual([
+          [
+            {
+              name: 'from',
+              source: 'from(db: "telegraf")',
+              arguments: [{key: 'db', value: 'telegraf'}],
+            },
+            {
+              name: 'filter',
+              source: '|> filter(fn: (r) => r["_measurement"] == "cpu")',
+              arguments: [
+                {
+                  key: 'fn',
+                  value: '(r) => r["_measurement"] == "cpu"',
+                },
+              ],
+            },
+            {
+              name: 'range',
+              source: '|> range(start: -1m)',
+              arguments: [{key: 'start', value: '-1m'}],
+            },
+          ],
         ])
       })
     })

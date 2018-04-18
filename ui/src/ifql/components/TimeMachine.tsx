@@ -14,10 +14,15 @@ export interface Suggestion {
   }
 }
 
+interface Expression {
+  id: string
+  funcs: Func[]
+}
+
 interface Props {
   script: string
   suggestions: Suggestion[]
-  funcs: Func[]
+  expressions: Expression[]
   onAddNode: (name: string) => void
   onChangeScript: (script: string) => void
   onSubmitScript: () => void
@@ -30,9 +35,9 @@ interface Props {
 class TimeMachine extends PureComponent<Props> {
   public render() {
     const {
-      funcs,
       script,
       onAddNode,
+      expressions,
       onChangeArg,
       onChangeScript,
       onSubmitScript,
@@ -47,17 +52,23 @@ class TimeMachine extends PureComponent<Props> {
           onChangeScript={onChangeScript}
           onSubmitScript={onSubmitScript}
         />
-        <div className="func-nodes-container">
-          {funcs.map(f => (
-            <FuncNode
-              key={f.id}
-              func={f}
-              onChangeArg={onChangeArg}
-              onDelete={onDeleteFuncNode}
-              onGenerateScript={onGenerateScript}
-            />
-          ))}
-          <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
+        <div className="expression-container">
+          {expressions.map(({funcs, id}) => {
+            return (
+              <div key={id} className="func-nodes-container">
+                {funcs.map(func => (
+                  <FuncNode
+                    key={func.id}
+                    func={func}
+                    onChangeArg={onChangeArg}
+                    onDelete={onDeleteFuncNode}
+                    onGenerateScript={onGenerateScript}
+                  />
+                ))}
+                <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
+              </div>
+            )
+          })}
         </div>
       </div>
     )

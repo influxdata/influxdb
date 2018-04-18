@@ -20,6 +20,12 @@ export default class Walker {
     return this.buildFuncNodes(this.walk(this.baseExpression))
   }
 
+  public get expressions() {
+    return this.baseExpressions.map(expression => {
+      return this.buildFuncNodes(this.walk(expression))
+    })
+  }
+
   private reduceArgs = args => {
     if (!args) {
       return []
@@ -71,7 +77,11 @@ export default class Walker {
     }))
   }
 
-  private get baseExpression() {
+  private get baseExpressions() {
+    return this.ast.body.map(({expression}) => expression)
+  }
+
+  private get baseExpression(): Expression {
     return _.get(this.ast, 'body.0.expression', {})
   }
 }

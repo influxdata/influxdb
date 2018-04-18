@@ -26,9 +26,14 @@ interface Props {
 
 interface State {
   suggestions: Suggestion[]
-  funcs: Func[]
+  expressions: Expression[]
   ast: object
   script: string
+}
+
+interface Expression {
+  id: string
+  funcs: Func[]
 }
 
 @ErrorHandling
@@ -37,10 +42,10 @@ export class IFQLPage extends PureComponent<Props, State> {
     super(props)
     this.state = {
       suggestions: [],
-      funcs: [],
+      expressions: [],
       ast: null,
       script:
-        'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)',
+        'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)\n\nfrom(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)',
     }
   }
 
@@ -74,7 +79,7 @@ export class IFQLPage extends PureComponent<Props, State> {
             <div className="container-fluid">
               <TimeMachine
                 script={script}
-                funcs={this.state.funcs}
+                expressions={this.state.expressions}
                 suggestions={suggestions}
                 onAddNode={this.handleAddNode}
                 onChangeArg={this.handleChangeArg}
@@ -160,8 +165,15 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private handleDeleteFuncNode = (id: string): void => {
-    const funcs = this.state.funcs.filter(f => f.id !== id)
+  private handleDeleteFuncNode = (
+    expressionID: string,
+    funcID: string
+  ): void => {
+    const expression = this.state.expressions.find(
+      ({id}) => id === expressionID
+    )
+
+    const funcs = expression.funcs.filter(f => f.id !== funcID)
     const script = funcs.reduce((acc, f, i) => {
       if (i === 0) {
         return `${f.source}`
@@ -173,13 +185,27 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private funcs = (ast, suggestions): Func[] => {
+  private expressions = (ast, suggestions): Expression[] => {
     if (!ast) {
       return []
     }
 
     const walker = new Walker(ast)
-    const functions = walker.functions.map(func => {
+
+    const expressions = walker.expressions.map(expression => {
+      const funcs = this.functions(expression, suggestions)
+
+      return {
+        id: uuid.v4(),
+        funcs,
+      }
+    })
+
+    return expressions
+  }
+
+  private functions = (expression, suggestions): Func[] => {
+    const functions = expression.map(func => {
       const {params, name} = suggestions.find(f => f.name === func.name)
 
       const args = Object.entries(params).map(([key, type]) => {
@@ -212,8 +238,8 @@ export class IFQLPage extends PureComponent<Props, State> {
 
     try {
       const ast = await getAST({url: links.ast, body: script})
-      const funcs = this.funcs(ast, this.state.suggestions)
-      this.setState({ast, script, funcs})
+      const expressions = this.expressions(ast, this.state.suggestions)
+      this.setState({ast, script, expressions})
     } catch (error) {
       console.error('Could not parse AST', error)
     }
