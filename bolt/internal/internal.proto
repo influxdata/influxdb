@@ -39,6 +39,7 @@ message DashboardCell {
 	repeated Color colors       = 10; // Colors represent encoding data values to color
 	Legend legend               = 11; // Legend is summary information for a cell
 	TableOptions tableOptions   = 12; // TableOptions for visualization of cell with type 'table'
+	repeated RenamableField fieldOptions = 13; // Options for each of the fields returned in a cell
 }
 
 message TableOptions {
@@ -46,14 +47,14 @@ message TableOptions {
 	bool verticalTimeAxis               = 2; // time axis should be a column not row
 	RenamableField sortBy               = 3; // which column should a table be sorted by
 	string 	wrapping                    = 4; // option for text wrapping
-	repeated RenamableField fieldNames      = 5; // names and renames for column/row fields
-	bool fixFirstColumn                 = 6; // first column should be fixed/frozen
+	bool fixFirstColumn                 = 5; // first column should be fixed/frozen
 }
 
 message RenamableField {
 	string internalName     = 1; // name of column
 	string displayName      = 2; // what column is renamed to
 	bool visible			= 3; // Represents whether RenamableField is visible
+	int32 precision         = 4; // Represents how precise the values of this field should be
 }
 
 message Color {

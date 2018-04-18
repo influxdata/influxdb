@@ -273,22 +273,22 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			Visible:      c.TableOptions.SortBy.Visible,
 		}
 
-		fieldNames := make([]*RenamableField, len(c.TableOptions.FieldNames))
-		for i, field := range c.TableOptions.FieldNames {
-			fieldNames[i] = &RenamableField{
-				InternalName: field.InternalName,
-				DisplayName:  field.DisplayName,
-				Visible:      field.Visible,
-			}
-		}
-
 		tableOptions := &TableOptions{
 			TimeFormat:       c.TableOptions.TimeFormat,
 			VerticalTimeAxis: c.TableOptions.VerticalTimeAxis,
 			SortBy:           sortBy,
 			Wrapping:         c.TableOptions.Wrapping,
-			FieldNames:       fieldNames,
 			FixFirstColumn:   c.TableOptions.FixFirstColumn,
+		}
+
+		fieldOptions := make([]*RenamableField, len(c.FieldOptions))
+		for i, field := range c.FieldOptions {
+			fieldOptions[i] = &RenamableField{
+				InternalName: field.InternalName,
+				DisplayName:  field.DisplayName,
+				Visible:      field.Visible,
+				Precision:    field.Precision,
+			}
 		}
 
 		cells[i] = &DashboardCell{
@@ -307,6 +307,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 				Orientation: c.Legend.Orientation,
 			},
 			TableOptions: tableOptions,
+			FieldOptions: fieldOptions,
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -442,20 +443,19 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				sortBy.Visible = c.TableOptions.SortBy.Visible
 			}
 			tableOptions.SortBy = sortBy
-
-			fieldNames := make([]chronograf.RenamableField, len(c.TableOptions.FieldNames))
-			for i, field := range c.TableOptions.FieldNames {
-				fieldNames[i] = chronograf.RenamableField{}
-				fieldNames[i].InternalName = field.InternalName
-				fieldNames[i].DisplayName = field.DisplayName
-				fieldNames[i].Visible = field.Visible
-			}
-			tableOptions.FieldNames = fieldNames
 			tableOptions.TimeFormat = c.TableOptions.TimeFormat
 			tableOptions.VerticalTimeAxis = c.TableOptions.VerticalTimeAxis
 			tableOptions.Wrapping = c.TableOptions.Wrapping
 			tableOptions.FixFirstColumn = c.TableOptions.FixFirstColumn
+		}
 
+		fieldOptions := make([]chronograf.RenamableField, len(c.FieldOptions))
+		for i, field := range c.FieldOptions {
+			fieldOptions[i] = chronograf.RenamableField{}
+			fieldOptions[i].InternalName = field.InternalName
+			fieldOptions[i].DisplayName = field.DisplayName
+			fieldOptions[i].Visible = field.Visible
+			fieldOptions[i].Precision = field.Precision
 		}
 
 		// FIXME: this is merely for legacy cells and
@@ -478,6 +478,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			CellColors:   colors,
 			Legend:       legend,
 			TableOptions: tableOptions,
+			FieldOptions: fieldOptions,
 		}
 	}
 

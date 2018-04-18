@@ -575,6 +575,7 @@ type DashboardCell struct {
 	CellColors   []CellColor      `json:"colors"`
 	Legend       Legend           `json:"legend"`
 	TableOptions TableOptions     `json:"tableOptions,omitempty"`
+	FieldOptions []RenamableField `json:"fieldOptions"`
 }
 
 // RenamableField is a column/row field in a DashboardCell of type Table
@@ -582,16 +583,16 @@ type RenamableField struct {
 	InternalName string `json:"internalName"`
 	DisplayName  string `json:"displayName"`
 	Visible      bool   `json:"visible"`
+	Precision    int32  `json:"precision"`
 }
 
 // TableOptions is a type of options for a DashboardCell with type Table
 type TableOptions struct {
-	TimeFormat       string           `json:"timeFormat"`
-	VerticalTimeAxis bool             `json:"verticalTimeAxis"`
-	SortBy           RenamableField   `json:"sortBy"`
-	Wrapping         string           `json:"wrapping"`
-	FieldNames       []RenamableField `json:"fieldNames"`
-	FixFirstColumn   bool             `json:"fixFirstColumn"`
+	TimeFormat       string         `json:"timeFormat"`
+	VerticalTimeAxis bool           `json:"verticalTimeAxis"`
+	SortBy           RenamableField `json:"sortBy"`
+	Wrapping         string         `json:"wrapping"`
+	FixFirstColumn   bool           `json:"fixFirstColumn"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards
