@@ -196,8 +196,8 @@ func Test_MarshalDashboard(t *testing.T) {
 				},
 				TableOptions: chronograf.TableOptions{
 					TimeFormat: "",
-					FieldNames: []chronograf.RenamableField{},
 				},
+				FieldOptions: []chronograf.RenamableField{},
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -263,7 +263,8 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 				TableOptions: chronograf.TableOptions{
 					TimeFormat: "MM:DD:YYYY",
 				},
-				Type: "line",
+				FieldOptions: []chronograf.RenamableField{},
+				Type:         "line",
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -319,9 +320,9 @@ func Test_MarshalDashboard_WithLegacyBounds(t *testing.T) {
 				},
 				TableOptions: chronograf.TableOptions{
 					TimeFormat: "MM:DD:YYYY",
-					FieldNames: []chronograf.RenamableField{},
 				},
-				Type: "line",
+				FieldOptions: []chronograf.RenamableField{},
+				Type:         "line",
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -384,6 +385,7 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 				TableOptions: chronograf.TableOptions{
 					TimeFormat: "MM:DD:YYYY",
 				},
+				FieldOptions: []chronograf.RenamableField{},
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -435,9 +437,9 @@ func Test_MarshalDashboard_WithEmptyLegacyBounds(t *testing.T) {
 				},
 				TableOptions: chronograf.TableOptions{
 					TimeFormat: "MM:DD:YYYY",
-					FieldNames: []chronograf.RenamableField{},
 				},
-				Type: "line",
+				FieldOptions: []chronograf.RenamableField{},
+				Type:         "line",
 			},
 		},
 		Templates: []chronograf.Template{},
@@ -468,14 +470,13 @@ func Test_MarshalDashboard_WithEmptyCellType(t *testing.T) {
 		ID: 1,
 		Cells: []chronograf.DashboardCell{
 			{
-				ID:         "9b5367de-c552-4322-a9e8-7f384cbd235c",
-				Type:       "line",
-				Queries:    []chronograf.DashboardQuery{},
-				Axes:       map[string]chronograf.Axis{},
-				CellColors: []chronograf.CellColor{},
-				TableOptions: chronograf.TableOptions{
-					FieldNames: []chronograf.RenamableField{},
-				},
+				ID:           "9b5367de-c552-4322-a9e8-7f384cbd235c",
+				Type:         "line",
+				Queries:      []chronograf.DashboardQuery{},
+				Axes:         map[string]chronograf.Axis{},
+				CellColors:   []chronograf.CellColor{},
+				TableOptions: chronograf.TableOptions{},
+				FieldOptions: []chronograf.RenamableField{},
 			},
 		},
 		Templates: []chronograf.Template{},

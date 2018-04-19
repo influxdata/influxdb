@@ -553,12 +553,13 @@ func TestServer(t *testing.T) {
 				"sortBy":{
 					"internalName": "",
 					"displayName": "",
-					"visible": false
+					"visible": false,
+					"precision": 0
 				},
 				"wrapping": "",
-				"fieldNames": null,
 				"fixFirstColumn": false
 			},
+			"fieldOptions": null,
       "links": {
         "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
       }
@@ -804,12 +805,13 @@ func TestServer(t *testing.T) {
 						"sortBy":{
 							"internalName":"",
 							"displayName":"",
-							"visible":false
+							"visible":false,
+							"precision":0
 						},
 						"wrapping":"",
-						"fieldNames":null,
 						"fixFirstColumn":false
 					},
+					"fieldOptions":null,
           "legend":{
               "type": "static",
               "orientation": "bottom"
