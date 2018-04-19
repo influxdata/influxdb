@@ -7,6 +7,10 @@ export function ErrorHandling<
   T extends {new (...args: any[]): React.Component<P, S>}
 >(constructor: T) {
   class Wrapped extends constructor {
+    public static get displayName(): string {
+      return constructor.name
+    }
+
     private error: boolean = false
 
     public componentDidCatch(error, info) {
@@ -29,5 +33,6 @@ export function ErrorHandling<
       return super.render()
     }
   }
+
   return Wrapped
 }
