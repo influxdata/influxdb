@@ -158,6 +158,19 @@ type EngineOptions struct {
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate
 	WALEnabled                  bool
+	MonitorDisabled             bool
+
+	// DatabaseFilter is a predicate controlling which databases may be opened.
+	// If no function is set, all databases will be opened.
+	DatabaseFilter func(database string) bool
+
+	// RetentionPolicyFilter is a predicate controlling which combination of database and retention policy may be opened.
+	// nil will allow all combinations to pass.
+	RetentionPolicyFilter func(database, rp string) bool
+
+	// ShardFilter is a predicate controlling which combination of database, retention policy and shard group may be opened.
+	// nil will allow all combinations to pass.
+	ShardFilter func(database, rp string, id uint64) bool
 
 	Config       Config
 	SeriesIDSets SeriesIDSets

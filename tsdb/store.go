@@ -16,10 +16,9 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
-
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
@@ -163,7 +162,10 @@ func (s *Store) Open() error {
 
 	s.opened = true
 	s.wg.Add(1)
-	go s.monitorShards()
+
+	if !s.EngineOptions.MonitorDisabled {
+		go s.monitorShards()
+	}
 
 	return nil
 }
@@ -224,6 +226,11 @@ func (s *Store) loadShards() error {
 			continue
 		}
 
+		if s.EngineOptions.DatabaseFilter != nil && !s.EngineOptions.DatabaseFilter(db.Name()) {
+			log.Info("Skipping database dir", zap.String("name", db.Name()), zap.String("reason", "failed database filter"))
+			continue
+		}
+
 		// Load series file.
 		sfile, err := s.openSeriesFile(db.Name())
 		if err != nil {
@@ -254,6 +261,11 @@ func (s *Store) loadShards() error {
 				continue
 			}
 
+			if s.EngineOptions.RetentionPolicyFilter != nil && !s.EngineOptions.RetentionPolicyFilter(db.Name(), rp.Name()) {
+				log.Info("Skipping retention policy dir", zap.String("name", rp.Name()), zap.String("reason", "failed retention policy filter"))
+				continue
+			}
+
 			shardDirs, err := ioutil.ReadDir(rpPath)
 			if err != nil {
 				return err
@@ -274,6 +286,12 @@ func (s *Store) loadShards() error {
 					if err != nil {
 						log.Info("invalid shard ID found at path", zap.String("path", path))
 						resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
+						return
+					}
+
+					if s.EngineOptions.ShardFilter != nil && !s.EngineOptions.ShardFilter(db, rp, shardID) {
+						log.Info("skipping shard", zap.String("path", path), logger.Shard(shardID))
+						resC <- &res{}
 						return
 					}
 
@@ -314,7 +332,7 @@ func (s *Store) loadShards() error {
 	// many databases we are managing.
 	for i := 0; i < n; i++ {
 		res := <-resC
-		if res.err != nil {
+		if res.s == nil || res.err != nil {
 			continue
 		}
 		s.shards[res.s.id] = res.s
@@ -363,8 +381,11 @@ func (s *Store) Close() error {
 		}
 	}
 
-	s.shards = nil
+	s.databases = make(map[string]struct{})
 	s.sfiles = map[string]*SeriesFile{}
+	s.indexes = make(map[string]interface{})
+	s.pendingShardDeletes = make(map[uint64]struct{})
+	s.shards = nil
 	s.opened = false // Store may now be opened again.
 	s.mu.Unlock()
 	return nil
