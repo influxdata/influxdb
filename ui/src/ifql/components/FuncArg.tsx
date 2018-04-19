@@ -106,7 +106,7 @@ class FuncArg extends PureComponent<Props> {
   }
 
   private get value(): string {
-    return `${this.props.value}`
+    return this.props.value.toString()
   }
 
   private get boolValue(): boolean {
