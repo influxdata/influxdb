@@ -1,8 +1,8 @@
 import _ from 'lodash'
 import calculateSize from 'calculate-size'
 
-export const minDropdownWidth = 146
-export const maxDropdownWidth = 300
+export const minDropdownWidth = 120
+export const maxDropdownWidth = 330
 export const dropdownPadding = 30
 
 const valueLength = a => _.size(a.value)
