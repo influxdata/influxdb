@@ -25,15 +25,18 @@ class Notification extends Component {
   componentDidMount() {
     const {notification: {duration}} = this.props
 
-    // Trigger animation in
-    if (this.notificationRef) {
-      const {height} = this.notificationRef.getBoundingClientRect()
-      this.setState({height})
-    }
+    this.updateHeight()
 
     if (duration >= 0) {
       // Automatically dismiss notification after duration prop
       this.dismissTimer = setTimeout(this.handleDismiss, duration)
+    }
+  }
+
+  updateHeight() {
+    if (this.notificationRef) {
+      const {height} = this.notificationRef.getBoundingClientRect()
+      this.setState({height})
     }
   }
 
@@ -53,11 +56,8 @@ class Notification extends Component {
   }
 
   onNotificationRef = ref => {
-    if (ref) {
-      const {height} = ref.getBoundingClientRect()
-      this.setState({height})
-      this.notificationRef = ref
-    }
+    this.notificationRef = ref
+    this.updateHeight()
   }
 
   render() {
