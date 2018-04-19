@@ -1321,9 +1321,9 @@ func (a ShardGroupInfos) Less(i, j int) bool {
 	return iEnd.Before(jEnd)
 }
 
-// Contains returns true if the shard group contains data for the timestamp.
-func (sgi *ShardGroupInfo) Contains(timestamp time.Time) bool {
-	return !sgi.StartTime.After(timestamp) && sgi.EndTime.After(timestamp)
+// Contains returns true iif StartTime ≤ t < EndTime.
+func (sgi *ShardGroupInfo) Contains(t time.Time) bool {
+	return !t.Before(sgi.StartTime) && t.Before(sgi.EndTime)
 }
 
 // Overlaps returns whether the shard group contains data for the time range between min and max
