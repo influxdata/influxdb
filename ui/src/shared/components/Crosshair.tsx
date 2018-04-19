@@ -1,10 +1,8 @@
 import React, {PureComponent} from 'react'
 import Dygraph from 'dygraphs'
-import classnames from 'classnames'
 import {connect} from 'react-redux'
 
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'src/shared/constants'
-import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
 interface Props {
   hoverTime: number
@@ -17,13 +15,11 @@ class Crosshair extends PureComponent<Props> {
     return (
       <div className="crosshair-container">
         <div
-          className={classnames('crosshair', {
-            hidden: this.isHidden,
-          })}
+          className="crosshair"
           style={{
             left: this.crosshairLeft,
             height: this.crosshairHeight,
-            zIndex: 1999,
+            width: '1px',
           }}
         />
       </div>
@@ -32,19 +28,13 @@ class Crosshair extends PureComponent<Props> {
 
   private get crosshairLeft(): number {
     const {dygraph, hoverTime} = this.props
-
-    return Math.round(
-      Math.max(-1000, dygraph.toDomXCoord(hoverTime)) || -1000 + 1
-    )
+    const cursorOffset = 16
+    return dygraph.toDomXCoord(hoverTime) + cursorOffset
   }
 
   private get crosshairHeight(): string {
     return `calc(100% - ${this.props.staticLegendHeight +
       DYGRAPH_CONTAINER_XLABEL_MARGIN}px)`
-  }
-
-  private get isHidden(): boolean {
-    return this.props.hoverTime === +NULL_HOVER_TIME
   }
 }
 

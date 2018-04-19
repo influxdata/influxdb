@@ -42,10 +42,10 @@ class DygraphLegend extends Component {
     }
   }
 
-  highlightCallback = e => {
+  highlightCallback = _.throttle(e => {
     this.setState({pageX: e.pageX})
     this.props.onShow(e)
-  }
+  }, 60)
 
   legendFormatter = legend => {
     if (!legend.x) {
