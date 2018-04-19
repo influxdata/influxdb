@@ -7,6 +7,7 @@
 1.  [#3204](https://github.com/influxdata/chronograf/pull/3204): Notify user when a dashboard cell is added, removed, or cloned
 1.  [#3215](https://github.com/influxdata/chronograf/pull/3215): Fix Template Variables Control Bar to top of dashboard page
 1.  [#3214](https://github.com/influxdata/chronograf/pull/3214): Remove extra click when creating dashboard cell
+1.  [#3256](https://github.com/influxdata/chronograf/pull/3256): Reduce font sizes in dashboards for increased space efficiency
 
 ### Bug Fixes
 
