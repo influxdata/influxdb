@@ -4,7 +4,7 @@ import FuncNode from 'src/ifql/components/FuncNode'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 
 import {Func} from 'src/ifql/components/FuncArgs'
-import {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import {OnChangeArg, OnDeleteFuncNode, OnAddNode} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export interface Suggestion {
@@ -14,15 +14,20 @@ export interface Suggestion {
   }
 }
 
+interface Expression {
+  id: string
+  funcs: Func[]
+}
+
 interface Props {
   script: string
   suggestions: Suggestion[]
-  funcs: Func[]
-  onAddNode: (name: string) => void
-  onChangeScript: (script: string) => void
+  expressions: Expression[]
   onSubmitScript: () => void
-  onDeleteFuncNode: (id: string) => void
+  onChangeScript: (script: string) => void
+  onAddNode: OnAddNode
   onChangeArg: OnChangeArg
+  onDeleteFuncNode: OnDeleteFuncNode
   onGenerateScript: () => void
 }
 
@@ -30,9 +35,9 @@ interface Props {
 class TimeMachine extends PureComponent<Props> {
   public render() {
     const {
-      funcs,
       script,
       onAddNode,
+      expressions,
       onChangeArg,
       onChangeScript,
       onSubmitScript,
@@ -47,17 +52,31 @@ class TimeMachine extends PureComponent<Props> {
           onChangeScript={onChangeScript}
           onSubmitScript={onSubmitScript}
         />
-        <div className="func-nodes-container">
-          {funcs.map(f => (
-            <FuncNode
-              key={f.id}
-              func={f}
-              onChangeArg={onChangeArg}
-              onDelete={onDeleteFuncNode}
-              onGenerateScript={onGenerateScript}
-            />
-          ))}
-          <FuncSelector funcs={this.funcNames} onAddNode={onAddNode} />
+        <div className="expression-container">
+          {expressions.map(({funcs, id}, i) => {
+            return (
+              <div key={id} className="func-nodes-container">
+                <h4>
+                  Expression {i}
+                  <FuncSelector
+                    expressionID={id}
+                    funcs={this.funcNames}
+                    onAddNode={onAddNode}
+                  />
+                </h4>
+                {funcs.map(func => (
+                  <FuncNode
+                    key={func.id}
+                    func={func}
+                    expressionID={id}
+                    onChangeArg={onChangeArg}
+                    onDelete={onDeleteFuncNode}
+                    onGenerateScript={onGenerateScript}
+                  />
+                ))}
+              </div>
+            )
+          })}
         </div>
       </div>
     )

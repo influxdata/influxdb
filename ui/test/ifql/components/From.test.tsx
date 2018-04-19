@@ -1,31 +1,29 @@
 import React from 'react'
 import {shallow} from 'enzyme'
-import FuncArg from 'src/ifql/components/FuncArg'
+import From from 'src/ifql/components/From'
+
+jest.mock('src/ifql/apis', () => require('mocks/ifql/apis'))
 
 const setup = () => {
   const props = {
-    funcID: '',
-    expressionID: '',
-    funcName: '',
-    argKey: '',
-    value: '',
-    type: '',
+    funcID: '1',
+    argKey: 'db',
+    value: 'db1',
+    expressionID: '2',
     onChangeArg: () => {},
-    onGenerateScript: () => {},
   }
 
-  const wrapper = shallow(<FuncArg {...props} />)
+  const wrapper = shallow(<From {...props} />)
 
   return {
     wrapper,
   }
 }
 
-describe('IFQL.Components.FuncArg', () => {
+describe('IFQL.Components.From', () => {
   describe('rendering', () => {
     it('renders without errors', () => {
       const {wrapper} = setup()
-
       expect(wrapper.exists()).toBe(true)
     })
   })

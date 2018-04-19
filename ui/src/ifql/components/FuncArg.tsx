@@ -1,15 +1,20 @@
 import React, {PureComponent} from 'react'
 
-import FuncArgInput, {OnChangeArg} from 'src/ifql/components/FuncArgInput'
+import FuncArgInput from 'src/ifql/components/FuncArgInput'
 import FuncArgBool from 'src/ifql/components/FuncArgBool'
-import * as types from 'src/ifql/constants/argumentTypes'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import From from 'src/ifql/components/From'
+
+import {funcNames, argTypes} from 'src/ifql/constants'
+import {OnChangeArg} from 'src/types/ifql'
 
 interface Props {
+  funcName: string
   funcID: string
   argKey: string
   value: string | boolean
   type: string
+  expressionID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -21,44 +26,60 @@ class FuncArg extends PureComponent<Props> {
       argKey,
       value,
       type,
-      onChangeArg,
+      funcName,
       funcID,
+      onChangeArg,
+      expressionID,
       onGenerateScript,
     } = this.props
 
+    if (funcName === funcNames.FROM) {
+      return (
+        <From
+          argKey={argKey}
+          funcID={funcID}
+          value={this.value}
+          expressionID={expressionID}
+          onChangeArg={onChangeArg}
+        />
+      )
+    }
+
     switch (type) {
-      case types.STRING:
-      case types.DURATION:
-      case types.TIME:
-      case types.REGEXP:
-      case types.FLOAT:
-      case types.INT:
-      case types.UINT:
-      case types.ARRAY: {
+      case argTypes.STRING:
+      case argTypes.DURATION:
+      case argTypes.TIME:
+      case argTypes.REGEXP:
+      case argTypes.FLOAT:
+      case argTypes.INT:
+      case argTypes.UINT:
+      case argTypes.ARRAY: {
         return (
           <FuncArgInput
             type={type}
-            value={`${value}`}
+            value={this.value}
             argKey={argKey}
             funcID={funcID}
+            expressionID={expressionID}
             onChangeArg={onChangeArg}
             onGenerateScript={onGenerateScript}
           />
         )
       }
 
-      case types.BOOL: {
+      case argTypes.BOOL: {
         return (
           <FuncArgBool
             value={this.boolValue}
             argKey={argKey}
             funcID={funcID}
             onChangeArg={onChangeArg}
+            expressionID={expressionID}
             onGenerateScript={onGenerateScript}
           />
         )
       }
-      case types.FUNCTION: {
+      case argTypes.FUNCTION: {
         // TODO: make separate function component
         return (
           <div className="func-arg">
@@ -66,7 +87,7 @@ class FuncArg extends PureComponent<Props> {
           </div>
         )
       }
-      case types.NIL: {
+      case argTypes.NIL: {
         // TODO: handle nil type
         return (
           <div className="func-arg">
@@ -82,6 +103,10 @@ class FuncArg extends PureComponent<Props> {
         )
       }
     }
+  }
+
+  private get value(): string {
+    return this.props.value.toString()
   }
 
   private get boolValue(): boolean {

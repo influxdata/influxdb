@@ -8,7 +8,7 @@ import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import Walker from 'src/ifql/ast/walker'
 import {Func} from 'src/ifql/components/FuncArgs'
-import {InputArg} from 'src/ifql/components/FuncArgInput'
+import {InputArg} from 'src/types/ifql'
 
 import {getSuggestions, getAST} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
@@ -26,9 +26,15 @@ interface Props {
 
 interface State {
   suggestions: Suggestion[]
-  funcs: Func[]
+  expressions: Expression[]
   ast: object
   script: string
+}
+
+interface Expression {
+  id: string
+  funcs: Func[]
+  source: string
 }
 
 @ErrorHandling
@@ -37,10 +43,10 @@ export class IFQLPage extends PureComponent<Props, State> {
     super(props)
     this.state = {
       suggestions: [],
-      funcs: [],
+      expressions: [],
       ast: null,
       script:
-        'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)',
+        'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)\n\nfrom(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)',
     }
   }
 
@@ -74,7 +80,7 @@ export class IFQLPage extends PureComponent<Props, State> {
             <div className="container-fluid">
               <TimeMachine
                 script={script}
-                funcs={this.state.funcs}
+                expressions={this.state.expressions}
                 suggestions={suggestions}
                 onAddNode={this.handleAddNode}
                 onChangeArg={this.handleChangeArg}
@@ -95,40 +101,55 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleGenerateScript = (): void => {
-    this.getASTResponse(this.funcsToScript)
+    this.getASTResponse(this.expressionsToScript)
   }
 
   private handleChangeArg = ({
-    funcID,
     key,
     value,
     generate,
+    funcID,
+    expressionID,
   }: InputArg): void => {
-    const funcs = this.state.funcs.map(f => {
-      if (f.id !== funcID) {
-        return f
+    const expressions = this.state.expressions.map(expression => {
+      if (expression.id !== expressionID) {
+        return expression
       }
 
-      const args = f.args.map(a => {
-        if (a.key === key) {
-          return {...a, value}
+      const funcs = expression.funcs.map(f => {
+        if (f.id !== funcID) {
+          return f
         }
 
-        return a
+        const args = f.args.map(a => {
+          if (a.key === key) {
+            return {...a, value}
+          }
+
+          return a
+        })
+
+        return {...f, args}
       })
 
-      return {...f, args}
+      return {...expression, funcs}
     })
 
-    this.setState({funcs}, () => {
+    this.setState({expressions}, () => {
       if (generate) {
         this.handleGenerateScript()
       }
     })
   }
 
-  private get funcsToScript(): string {
-    return this.state.funcs
+  private get expressionsToScript(): string {
+    return this.state.expressions.reduce((acc, expression) => {
+      return `${acc + this.funcsToScript(expression.funcs)}\n\n`
+    }, '')
+  }
+
+  private funcsToScript(funcs): string {
+    return funcs
       .map(func => `${func.name}(${this.argsToScript(func.args)})`)
       .join('\n\t|> ')
   }
@@ -155,31 +176,72 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.setState({script})
   }
 
-  private handleAddNode = (name: string): void => {
-    const script = `${this.state.script}\n\t|> ${name}()`
-    this.getASTResponse(script)
-  }
-
-  private handleDeleteFuncNode = (id: string): void => {
-    const funcs = this.state.funcs.filter(f => f.id !== id)
-    const script = funcs.reduce((acc, f, i) => {
-      if (i === 0) {
-        return `${f.source}`
+  private handleAddNode = (name: string, expressionID: string): void => {
+    const script = this.state.expressions.reduce((acc, expression) => {
+      if (expression.id === expressionID) {
+        const {funcs} = expression
+        return `${acc}${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
       }
 
-      return `${acc}\n\t${f.source}`
+      return acc + expression.source
     }, '')
 
     this.getASTResponse(script)
   }
 
-  private funcs = (ast, suggestions): Func[] => {
+  private handleDeleteFuncNode = (
+    funcID: string,
+    expressionID: string
+  ): void => {
+    // TODO: export this and test functionality
+    const script = this.state.expressions
+      .map((expression, expressionIndex) => {
+        if (expression.id !== expressionID) {
+          return expression.source
+        }
+
+        const funcs = expression.funcs.filter(f => f.id !== funcID)
+        const source = funcs.reduce((acc, f, i) => {
+          if (i === 0) {
+            return `${f.source}`
+          }
+
+          return `${acc}\n\t${f.source}`
+        }, '')
+
+        const isLast = expressionIndex === this.state.expressions.length - 1
+        if (isLast) {
+          return `${source}`
+        }
+
+        return `${source}\n\n`
+      })
+      .join('')
+
+    this.getASTResponse(script)
+  }
+
+  private expressions = (ast, suggestions): Expression[] => {
     if (!ast) {
       return []
     }
 
     const walker = new Walker(ast)
-    const functions = walker.functions.map(func => {
+
+    const expressions = walker.expressions.map(({funcs, source}) => {
+      const id = uuid.v4()
+      return {
+        id,
+        funcs: this.functions(funcs, suggestions),
+        source,
+      }
+    })
+
+    return expressions
+  }
+
+  private functions = (funcs, suggestions): Func[] => {
+    const functions = funcs.map(func => {
       const {params, name} = suggestions.find(f => f.name === func.name)
 
       const args = Object.entries(params).map(([key, type]) => {
@@ -212,8 +274,8 @@ export class IFQLPage extends PureComponent<Props, State> {
 
     try {
       const ast = await getAST({url: links.ast, body: script})
-      const funcs = this.funcs(ast, this.state.suggestions)
-      this.setState({ast, script, funcs})
+      const expressions = this.expressions(ast, this.state.suggestions)
+      this.setState({ast, script, expressions})
     } catch (error) {
       console.error('Could not parse AST', error)
     }

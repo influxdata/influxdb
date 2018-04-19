@@ -1,20 +1,13 @@
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-export type OnChangeArg = (inputArg: InputArg) => void
-
-export interface InputArg {
-  funcID: string
-  key: string
-  value: string | boolean
-  generate?: boolean
-}
+import {OnChangeArg} from 'src/types/ifql'
 
 interface Props {
   funcID: string
   argKey: string
   value: string
   type: string
+  expressionID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -46,14 +39,19 @@ class FuncArgInput extends PureComponent<Props> {
       return
     }
 
-    this.props.onGenerateScript()
     e.preventDefault()
+    this.props.onGenerateScript()
   }
 
   private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {funcID, argKey} = this.props
+    const {funcID, argKey, expressionID} = this.props
 
-    this.props.onChangeArg({funcID, key: argKey, value: e.target.value})
+    this.props.onChangeArg({
+      funcID,
+      key: argKey,
+      value: e.target.value,
+      expressionID,
+    })
   }
 }
 

@@ -2,11 +2,35 @@
 import _ from 'lodash'
 
 interface Expression {
-  expression: object
+  argument: object
+  call: object
+  location: object
+  type: string
+}
+
+interface Location {
+  source: string
+}
+
+interface Body {
+  expression: Expression
+  location: Location
+  type: string
+}
+
+interface FlatExpression {
+  source: string
+  funcs: FuncNode[]
+}
+
+interface FuncNode {
+  name: string
+  arguments: any[]
+  source: string
 }
 
 interface AST {
-  body: Expression[]
+  body: Body[]
 }
 
 export default class Walker {
@@ -18,6 +42,19 @@ export default class Walker {
 
   public get functions() {
     return this.buildFuncNodes(this.walk(this.baseExpression))
+  }
+
+  public get expressions(): FlatExpression[] {
+    const body = _.get(this.ast, 'body', new Array<Body>())
+    return body.map(b => {
+      const {location, expression} = b
+      const funcs = this.buildFuncNodes(this.walk(expression))
+
+      return {
+        source: location.source,
+        funcs,
+      }
+    })
   }
 
   private reduceArgs = args => {
@@ -50,7 +87,7 @@ export default class Walker {
     return [{name, args, source}]
   }
 
-  private buildFuncNodes = nodes => {
+  private buildFuncNodes = (nodes): FuncNode[] => {
     return nodes.map(({name, args, source}) => {
       return {
         name,

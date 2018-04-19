@@ -8,6 +8,7 @@ import FuncList from 'src/ifql/components/FuncList'
 const setup = (override = {}) => {
   const props = {
     funcs: ['count', 'range'],
+    expressionID: '1',
     onAddNode: () => {},
     ...override,
   }
@@ -132,6 +133,7 @@ describe('IFQL.Components.FuncsButton', () => {
           const onAddNode = jest.fn()
           const {wrapper, props} = setup({onAddNode})
           const [, func2] = props.funcs
+          const {expressionID} = props
 
           const dropdownButton = wrapper.find('button')
           dropdownButton.simulate('click')
@@ -146,7 +148,7 @@ describe('IFQL.Components.FuncsButton', () => {
           input.simulate('keyDown', {key: 'ArrowDown'})
           input.simulate('keyDown', {key: 'Enter'})
 
-          expect(onAddNode).toHaveBeenCalledWith(func2)
+          expect(onAddNode).toHaveBeenCalledWith(func2, expressionID)
         })
       })
     })
