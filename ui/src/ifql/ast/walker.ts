@@ -45,7 +45,7 @@ export default class Walker {
   }
 
   public get expressions(): FlatExpression[] {
-    const body = _.get(this.ast, 'body', []) as Body[]
+    const body = _.get(this.ast, 'body', new Array<Body>())
     return body.map(b => {
       const {location, expression} = b
       const funcs = this.buildFuncNodes(this.walk(expression))
