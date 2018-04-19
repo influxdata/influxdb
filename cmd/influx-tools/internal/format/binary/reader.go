@@ -44,7 +44,7 @@ func NewReader(reader io.Reader) *Reader {
 
 func (r *Reader) ReadHeader() (*Header, error) {
 	if *r.state != readHeader {
-		return nil, fmt.Errorf("expected reader in state %v, was in state %v\n", readHeader, r.state)
+		return nil, fmt.Errorf("expected reader in state %v, was in state %v\n", readHeader, *r.state)
 	}
 
 	var magic [len(Magic)]byte
@@ -77,7 +77,7 @@ func (r *Reader) Close() error {
 
 func (r *Reader) NextBucket() (*BucketHeader, error) {
 	if *r.state != readBucket {
-		return nil, fmt.Errorf("expected reader in state %v, was in state %v", readBucket, r.state)
+		return nil, fmt.Errorf("expected reader in state %v, was in state %v", readBucket, *r.state)
 	}
 
 	t, lv, err := tlv.ReadTLV(r.r)
@@ -104,7 +104,7 @@ func (r *Reader) NextBucket() (*BucketHeader, error) {
 
 func (r *Reader) NextSeries() (*SeriesHeader, error) {
 	if *r.state != readSeries {
-		return nil, fmt.Errorf("expected reader in state %v, was in state %v", readSeries, r.state)
+		return nil, fmt.Errorf("expected reader in state %v, was in state %v", readSeries, *r.state)
 	}
 
 	t, lv, err := tlv.ReadTLV(r.r)
