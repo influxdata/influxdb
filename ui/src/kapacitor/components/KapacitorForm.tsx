@@ -95,25 +95,26 @@ const KapacitorForm: SFC<Props> = ({
                       inputType="password"
                     />
                   </div>
-                  {url.startsWith('https') && (
-                    <div className="form-group col-xs-12">
-                      <div className="form-control-static">
-                        <input
-                          type="checkbox"
-                          id="insecureSkipVerifyCheckbox"
-                          name="insecureSkipVerify"
-                          checked={insecureSkipVerify}
-                          onChange={onCheckboxChange}
-                        />
-                        <label htmlFor="insecureSkipVerifyCheckbox">
-                          Unsafe SSL
+                  {url &&
+                    url.startsWith('https') && (
+                      <div className="form-group col-xs-12">
+                        <div className="form-control-static">
+                          <input
+                            type="checkbox"
+                            id="insecureSkipVerifyCheckbox"
+                            name="insecureSkipVerify"
+                            checked={insecureSkipVerify}
+                            onChange={onCheckboxChange}
+                          />
+                          <label htmlFor="insecureSkipVerifyCheckbox">
+                            Unsafe SSL
+                          </label>
+                        </div>
+                        <label className="form-helper">
+                          {insecureSkipVerifyText}
                         </label>
                       </div>
-                      <label className="form-helper">
-                        {insecureSkipVerifyText}
-                      </label>
-                    </div>
-                  )}
+                    )}
                   <div className="form-group form-group-submit col-xs-12 text-center">
                     <button
                       className="btn btn-default"

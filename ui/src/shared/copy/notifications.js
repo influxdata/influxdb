@@ -575,10 +575,12 @@ export const notifyTickscriptLoggingUnavailable = () => ({
   message: 'Kapacitor version 1.4 required to view TICKscript logs',
 })
 
-export const notifyTickscriptLoggingError = message => ({
+export const notifyTickscriptLoggingError = () => ({
   ...defaultErrorNotification,
-  message,
+  message: 'Could not collect kapacitor logs',
 })
 
-export const notifyKapacitorNotFound = () =>
-  'We could not find a Kapacitor configuration for this source.'
+export const notifyKapacitorNotFound = () => ({
+  ...defaultErrorNotification,
+  message: 'We could not find a Kapacitor configuration for this source.',
+})

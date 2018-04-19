@@ -21,6 +21,7 @@ class TickscriptEditor extends Component {
       lineNumbers: true,
       theme: 'material',
       tabIndex: 1,
+      readonly: false,
     }
 
     return (

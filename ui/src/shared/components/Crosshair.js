@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
@@ -7,7 +7,7 @@ import {NULL_HOVER_TIME} from 'shared/constants/tableGraph'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
-class Crosshair extends PureComponent {
+class Crosshair extends Component {
   shouldComponentUpdate(nextProps) {
     return this.props.hoverTime !== nextProps.hoverTime
   }

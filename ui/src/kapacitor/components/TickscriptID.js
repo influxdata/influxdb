@@ -19,7 +19,7 @@ class TickscriptID extends Component {
         onChange={onChangeID}
         placeholder="ID your TICKscript"
         spellCheck={false}
-        autoComplete={false}
+        autoComplete="off"
       />
     )
   }

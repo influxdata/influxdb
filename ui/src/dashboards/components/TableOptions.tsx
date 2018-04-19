@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -46,7 +46,7 @@ interface Props {
 }
 
 @ErrorHandling
-export class TableOptions extends PureComponent<Props, {}> {
+export class TableOptions extends Component<Props, {}> {
   constructor(props) {
     super(props)
     this.moveField = this.moveField.bind(this)
