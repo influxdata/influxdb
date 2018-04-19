@@ -1,11 +1,13 @@
 package meta_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxql"
 
 	"github.com/influxdata/influxdb/services/meta"
@@ -325,5 +327,29 @@ func TestUserInfo_AuthorizeDatabase(t *testing.T) {
 	adminUser := &meta.UserInfo{Admin: true}
 	if !adminUser.AuthorizeDatabase(influxql.AllPrivileges, "anydb") {
 		t.Fatalf("expected admin to be authorized but it wasn't")
+	}
+}
+
+func TestShardGroupInfo_Contains(t *testing.T) {
+	sgi := &meta.ShardGroupInfo{StartTime: time.Unix(10, 0), EndTime: time.Unix(20, 0)}
+
+	tests := []struct {
+		ts  time.Time
+		exp bool
+	}{
+		{time.Unix(0, 0), false},
+		{time.Unix(9, 0), false},
+		{time.Unix(10, 0), true},
+		{time.Unix(11, 0), true},
+		{time.Unix(15, 0), true},
+		{time.Unix(19, 0), true},
+		{time.Unix(20, 0), false},
+		{time.Unix(21, 0), false},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("ts=%d", test.ts.Unix()), func(t *testing.T) {
+			got := sgi.Contains(test.ts)
+			assert.Equal(t, got, test.exp)
+		})
 	}
 }
