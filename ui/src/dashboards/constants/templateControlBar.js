@@ -8,9 +8,10 @@ export const dropdownPadding = 30
 const valueLength = a => _.size(a.value)
 
 export const calculateDropdownWidth = (values = []) => {
-  const longestValue = _.maxBy(values, valueLength)
+  const longest = _.maxBy(values, valueLength)
+
   const longestValuePixels =
-    calculateSize(longestValue, {
+    calculateSize(longest.value, {
       font: 'Monospace',
       fontSize: '12px',
     }).width + dropdownPadding
