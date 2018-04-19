@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {Component, ChangeEvent} from 'react'
 import {findDOMNode} from 'react-dom'
 import {
   DragSourceSpec,
@@ -112,7 +112,7 @@ function MyDragSource(dragv1, dragv2, dragfunc1) {
     isDragging: monitor.isDragging(),
   })
 )
-export default class GraphOptionsCustomizableField extends PureComponent<
+export default class GraphOptionsCustomizableField extends Component<
   GraphOptionsCustomizableFieldProps
 > {
   constructor(props) {
