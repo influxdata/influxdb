@@ -23,6 +23,7 @@ class TimeMachineEditor extends PureComponent<Props> {
       lineNumbers: true,
       theme: 'material',
       tabIndex: 1,
+      readonly: false,
     }
 
     return (

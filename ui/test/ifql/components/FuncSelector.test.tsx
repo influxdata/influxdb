@@ -8,6 +8,7 @@ import FuncList from 'src/ifql/components/FuncList'
 const setup = (override = {}) => {
   const props = {
     funcs: ['count', 'range'],
+    expressionID: '1',
     onAddNode: () => {},
     ...override,
   }

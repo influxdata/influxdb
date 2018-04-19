@@ -112,7 +112,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     expressionID,
   }: InputArg): void => {
     const expressions = this.state.expressions.map(expression => {
-      if (expression.id === expressionID) {
+      if (expression.id !== expressionID) {
         return expression
       }
 
@@ -144,7 +144,7 @@ export class IFQLPage extends PureComponent<Props, State> {
 
   private get expressionsToScript(): string {
     return this.state.expressions.reduce((acc, expression) => {
-      return acc + this.funcsToScript(expression.funcs)
+      return `${acc + this.funcsToScript(expression.funcs)}\n\n`
     }, '')
   }
 
@@ -176,8 +176,16 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.setState({script})
   }
 
-  private handleAddNode = (name: string): void => {
-    const script = `${this.state.script}\n\t|> ${name}()`
+  private handleAddNode = (name: string, expressionID: string): void => {
+    const script = this.state.expressions.reduce((acc, expression) => {
+      if (expression.id === expressionID) {
+        const {funcs} = expression
+        return `${acc}${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
+      }
+
+      return acc + expression.source
+    }, '')
+
     this.getASTResponse(script)
   }
 

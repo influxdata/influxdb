@@ -39,8 +39,8 @@ class FuncArgInput extends PureComponent<Props> {
       return
     }
 
-    this.props.onGenerateScript()
     e.preventDefault()
+    this.props.onGenerateScript()
   }
 
   private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
