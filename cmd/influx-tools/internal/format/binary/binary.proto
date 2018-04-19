@@ -1,0 +1,72 @@
+syntax = "proto3";
+package binary;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.goproto_getters_all) = false;
+
+message Header {
+  enum Version {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    VERSION_0 = 0 [(gogoproto.enumvalue_customname) = "Version0"];
+  }
+
+  Version version = 1;
+  string database = 2;
+  string retention_policy = 3;
+  int64 shard_duration = 4 [(gogoproto.stdduration) = true];
+}
+
+message BucketHeader {
+  sfixed64 start = 1;
+  sfixed64 end   = 2;
+}
+
+message BucketFooter {
+
+}
+
+message FloatPoints {
+  repeated sfixed64 timestamps = 1;
+  repeated double values = 2;
+}
+
+message IntegerPoints {
+  repeated sfixed64 timestamps = 1;
+  repeated int64 values = 2;
+}
+
+message UnsignedPoints {
+  repeated sfixed64 timestamps = 1;
+  repeated uint64 values = 2;
+}
+
+message BooleanPoints {
+  repeated sfixed64 timestamps = 1;
+  repeated bool values = 2;
+}
+
+message StringPoints {
+  repeated sfixed64 timestamps = 1;
+  repeated string values = 2;
+}
+
+enum FieldType {
+  option (gogoproto.goproto_enum_prefix) = false;
+
+  FLOAT = 0 [(gogoproto.enumvalue_customname) = "FloatFieldType"];
+  INTEGER = 1 [(gogoproto.enumvalue_customname) = "IntegerFieldType"];
+  UNSIGNED = 2 [(gogoproto.enumvalue_customname) = "UnsignedFieldType"];
+  BOOLEAN = 3 [(gogoproto.enumvalue_customname) = "BooleanFieldType"];
+  STRING = 4 [(gogoproto.enumvalue_customname) = "StringFieldType"];
+}
+
+message SeriesHeader {
+  FieldType field_type = 1;
+  bytes series_key = 2;
+  bytes field = 3;
+}
+
+message SeriesFooter {
+}
