@@ -36,6 +36,9 @@ type BucketWriter interface {
 	Close() error
 }
 
+// WriteBucket reads data from rs covering the time range [start, end) and streams to w.
+// The ResultSet must guarantee series+field keys are produced in ascending lexicographical order and values in
+// ascending time order.
 func WriteBucket(w Writer, start, end int64, rs *storage.ResultSet) error {
 	bw, err := w.NewBucket(start, end)
 	if err != nil {
