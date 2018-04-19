@@ -47,7 +47,8 @@ message TableOptions {
 	bool verticalTimeAxis               = 2; // time axis should be a column not row
 	RenamableField sortBy               = 3; // which column should a table be sorted by
 	string 	wrapping                    = 4; // option for text wrapping
-	bool fixFirstColumn                 = 5; // first column should be fixed/frozen
+	reserved 5
+	bool fixFirstColumn                 = 6; // first column should be fixed/frozen
 }
 
 message RenamableField {
