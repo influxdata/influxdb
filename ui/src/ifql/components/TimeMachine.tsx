@@ -56,14 +56,14 @@ class TimeMachine extends PureComponent<Props> {
           {expressions.map(({funcs, id}, i) => {
             return (
               <div key={id} className="func-nodes-container">
-                <h2>
+                <h4>
                   Expression {i}
                   <FuncSelector
                     expressionID={id}
                     funcs={this.funcNames}
                     onAddNode={onAddNode}
                   />
-                </h2>
+                </h4>
                 {funcs.map(func => (
                   <FuncNode
                     key={func.id}
