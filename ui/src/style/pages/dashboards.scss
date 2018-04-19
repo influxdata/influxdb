@@ -449,10 +449,12 @@ $dash-graph-options-arrow: 8px;
       display: block;
       position: absolute;
       height: 2px;
+      border-radius: 1px;
       background-color: $g6-smoke;
       transition: background-color 0.25s ease;
       top: 50%;
       left: 50%;
+      border: 0;
     }
     &:before {
       width: 20px;
