@@ -1,36 +1,58 @@
 import Walker from 'src/ifql/ast/walker'
 import From from 'test/ifql/ast/from'
 import Complex from 'test/ifql/ast/complex'
+import Variable from 'test/ifql/ast/variable'
 
 describe('IFQL.AST.Walker', () => {
   describe('Walker#functions', () => {
     describe('simple example', () => {
-      it('returns a flattened ordered list of from and its arguments', () => {
-        const walker = new Walker(From)
-        expect(walker.expressions).toEqual([
-          {
-            source: 'from(db: "telegraf")',
-            funcs: [
+      describe('a single expression', () => {
+        it('returns a flattened ordered list of from and its arguments', () => {
+          const walker = new Walker(From)
+          expect(walker.stuff).toEqual([
+            {
+              source: 'from(db: "telegraf")',
+              funcs: [
+                {
+                  name: 'from',
+                  source: 'from(db: "telegraf")',
+                  arguments: [
+                    {
+                      key: 'db',
+                      value: 'telegraf',
+                    },
+                  ],
+                },
+              ],
+            },
+          ])
+        })
+
+        describe('a single variable declaration', () => {
+          it('returns a variable declaration for a string literal', () => {
+            const walker = new Walker(Variable)
+            expect(walker.stuff).toEqual([
               {
-                name: 'from',
-                source: 'from(db: "telegraf")',
-                arguments: [
+                type: 'VariableDeclaration',
+                source: 'bux = "im a var"',
+                declarations: [
                   {
-                    key: 'db',
-                    value: 'telegraf',
+                    name: 'bux',
+                    type: 'StringLiteral',
+                    value: 'im a var',
                   },
                 ],
               },
-            ],
-          },
-        ])
+            ])
+          })
+        })
       })
     })
 
     describe('complex example', () => {
       it('returns a flattened ordered list of all funcs and their arguments', () => {
         const walker = new Walker(Complex)
-        expect(walker.expressions).toEqual([
+        expect(walker.stuff).toEqual([
           {
             source:
               'from(db: "telegraf") |> filter(fn: (r) => r["_measurement"] == "cpu") |> range(start: -1m)',

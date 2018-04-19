@@ -44,6 +44,33 @@ export default class Walker {
     return this.buildFuncNodes(this.walk(this.baseExpression))
   }
 
+  public get stuff() {
+    const body = _.get(this.ast, 'body', new Array<Body>())
+    return body.map(b => {
+      if (b.type.includes('Expression')) {
+        return this.expression(b)
+      } else if (b.type.includes('Variable')) {
+        return this.variable(b)
+      }
+    })
+  }
+
+  private variable({type, location, declarations}) {
+    const dec = declarations.map(({init, id}) => {
+      return {name: id.name, type: init.type, value: init.value}
+    })
+    return {source: location.source, declarations: dec, type}
+  }
+
+  private expression({location, expression}): FlatExpression {
+    const funcs = this.buildFuncNodes(this.walk(expression))
+
+    return {
+      source: location.source,
+      funcs,
+    }
+  }
+
   public get expressions(): FlatExpression[] {
     const body = _.get(this.ast, 'body', new Array<Body>())
     return body.map(b => {
