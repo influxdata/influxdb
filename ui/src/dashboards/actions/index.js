@@ -299,7 +299,7 @@ export const addDashboardCellAsync = (
       getNewDashboardCell(dashboard, cellType)
     )
     dispatch(addDashboardCell(dashboard, data))
-    dispatch(notify(notifyCellAdded()))
+    dispatch(notify(notifyCellAdded(data.name)))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
