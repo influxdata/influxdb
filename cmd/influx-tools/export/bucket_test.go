@@ -1,11 +1,10 @@
-package export_test
+package export
 
 import (
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/cmd/influx-tools/export"
 	"github.com/influxdata/influxdb/services/meta"
 )
 
@@ -54,7 +53,7 @@ func TestMakeShardGroupsForDuration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := export.MakeShardGroupsForDuration(tt.min, tt.max, tt.d); !cmp.Equal(got, tt.exp) {
+			if got := makeShardGroupsForDuration(tt.min, tt.max, tt.d); !cmp.Equal(got, tt.exp) {
 				t.Errorf("unexpected value -got/+exp\n%s", cmp.Diff(got, tt.exp))
 			}
 		})
@@ -108,7 +107,7 @@ func TestPlanShardGroups(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			min, max := tc.g[0].StartTime, tc.g[len(tc.g)-1].EndTime
-			got := export.PlanShardGroups(tc.g, min, max, tc.d)
+			got := planShardGroups(tc.g, min, max, tc.d)
 			if !cmp.Equal(got, tc.exp, cmp.Comparer(shardGroupEqual)) {
 				t.Errorf("unexpected value -got/+exp\n%s", cmp.Diff(got, tc.exp))
 			}

@@ -227,7 +227,7 @@ func (s *Store) loadShards() error {
 		}
 
 		if s.EngineOptions.DatabaseFilter != nil && !s.EngineOptions.DatabaseFilter(db.Name()) {
-			log.Info("Skipping database dir", zap.String("name", db.Name()), zap.String("reason", "failed database filter"))
+			log.Info("Skipping database dir", logger.Database(db.Name()), zap.String("reason", "failed database filter"))
 			continue
 		}
 
@@ -262,7 +262,7 @@ func (s *Store) loadShards() error {
 			}
 
 			if s.EngineOptions.RetentionPolicyFilter != nil && !s.EngineOptions.RetentionPolicyFilter(db.Name(), rp.Name()) {
-				log.Info("Skipping retention policy dir", zap.String("name", rp.Name()), zap.String("reason", "failed retention policy filter"))
+				log.Info("Skipping retention policy dir", logger.RetentionPolicy(rp.Name()), zap.String("reason", "failed retention policy filter"))
 				continue
 			}
 

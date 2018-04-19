@@ -16,14 +16,14 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-type ExporterConfig struct {
+type exporterConfig struct {
 	Database      string
 	RP            string
 	ShardDuration time.Duration
 	Min, Max      uint64
 }
 
-type Exporter struct {
+type exporter struct {
 	metaClient server.MetaClient
 	tsdbStore  *tsdb.Store
 	store      *storage.Store
@@ -39,7 +39,7 @@ type Exporter struct {
 	endDate   time.Time
 }
 
-func NewExporter(server server.Interface, cfg *ExporterConfig) (*Exporter, error) {
+func newExporter(server server.Interface, cfg *exporterConfig) (*exporter, error) {
 	client := server.MetaClient()
 
 	dbi := client.Database(cfg.Database)
@@ -53,11 +53,7 @@ func NewExporter(server server.Interface, cfg *ExporterConfig) (*Exporter, error
 	}
 
 	rpi, err := client.RetentionPolicy(cfg.Database, cfg.RP)
-	if err != nil {
-		return nil, fmt.Errorf("retention policy '%s' does not exist", cfg.RP)
-	}
-
-	if rpi == nil {
+	if rpi == nil || err != nil {
 		return nil, fmt.Errorf("retention policy '%s' does not exist", cfg.RP)
 	}
 
@@ -76,7 +72,7 @@ func NewExporter(server server.Interface, cfg *ExporterConfig) (*Exporter, error
 		return false
 	}
 
-	return &Exporter{
+	return &exporter{
 		metaClient: client,
 		tsdbStore:  store,
 		store:      &storage.Store{TSDBStore: store},
@@ -88,7 +84,7 @@ func NewExporter(server server.Interface, cfg *ExporterConfig) (*Exporter, error
 	}, nil
 }
 
-func (e *Exporter) Open() (err error) {
+func (e *exporter) Open() (err error) {
 	err = e.tsdbStore.Open()
 	if err != nil {
 		return err
@@ -99,7 +95,7 @@ func (e *Exporter) Open() (err error) {
 		return err
 	}
 
-	e.targetGroups = PlanShardGroups(e.sourceGroups, e.startDate, e.endDate, e.d)
+	e.targetGroups = planShardGroups(e.sourceGroups, e.startDate, e.endDate, e.d)
 	if e.max >= uint64(len(e.targetGroups)) {
 		e.max = uint64(len(e.targetGroups) - 1)
 	}
@@ -109,29 +105,29 @@ func (e *Exporter) Open() (err error) {
 	return nil
 }
 
-func (e *Exporter) PrintPlan(w io.Writer) {
+func (e *exporter) PrintPlan(w io.Writer) {
 	fmt.Fprintf(w, "Source data from: %s -> %s\n\n", e.startDate, e.endDate)
-	fmt.Fprintf(w, "Converting source from %d shard group(s) to %d shard groups\n\n", len(e.sourceGroups), len(e.targetGroups))
-	e.printShardGroups(w, e.sourceGroups)
+	fmt.Fprintf(w, "Converting source from %d shard group(s) to %d shard groups:\n\n", len(e.sourceGroups), len(e.targetGroups))
+	e.printShardGroups(w, 0, e.sourceGroups)
 	fmt.Fprintln(w)
-	e.printShardGroups(w, e.targetGroups)
+	e.printShardGroups(w, int(e.min), e.targetGroups)
 }
 
-func (e *Exporter) printShardGroups(w io.Writer, target []meta.ShardGroupInfo) {
+func (e *exporter) printShardGroups(w io.Writer, base int, target []meta.ShardGroupInfo) {
 	tw := tabwriter.NewWriter(w, 10, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "Seq #\tID\tStart\tEnd")
 	for i := 0; i < len(target); i++ {
 		g := target[i]
-		fmt.Fprintf(tw, "%d\t%d\t%s\t%s\n", i+int(e.min), g.ID, g.StartTime, g.EndTime)
+		fmt.Fprintf(tw, "%d\t%d\t%s\t%s\n", i+base, g.ID, g.StartTime, g.EndTime)
 	}
 	tw.Flush()
 }
 
-func (e *Exporter) SourceTimeRange() (time.Time, time.Time)  { return e.startDate, e.endDate }
-func (e *Exporter) SourceShardGroups() []meta.ShardGroupInfo { return e.sourceGroups }
-func (e *Exporter) TargetShardGroups() []meta.ShardGroupInfo { return e.targetGroups }
+func (e *exporter) SourceTimeRange() (time.Time, time.Time)  { return e.startDate, e.endDate }
+func (e *exporter) SourceShardGroups() []meta.ShardGroupInfo { return e.sourceGroups }
+func (e *exporter) TargetShardGroups() []meta.ShardGroupInfo { return e.targetGroups }
 
-func (e *Exporter) loadShardGroups() error {
+func (e *exporter) loadShardGroups() error {
 	min := time.Unix(0, models.MinNanoTime)
 	max := time.Unix(0, models.MaxNanoTime)
 
@@ -152,7 +148,7 @@ func (e *Exporter) loadShardGroups() error {
 	return nil
 }
 
-func (e *Exporter) shardsGroupsByTimeRange(min, max time.Time) []meta.ShardGroupInfo {
+func (e *exporter) shardsGroupsByTimeRange(min, max time.Time) []meta.ShardGroupInfo {
 	groups := make([]meta.ShardGroupInfo, 0, len(e.sourceGroups))
 	for _, g := range e.sourceGroups {
 		if !g.Overlaps(min, max) {
@@ -163,7 +159,7 @@ func (e *Exporter) shardsGroupsByTimeRange(min, max time.Time) []meta.ShardGroup
 	return groups
 }
 
-func (e *Exporter) WriteTo(w format.Writer) error {
+func (e *exporter) WriteTo(w format.Writer) error {
 	for _, g := range e.targetGroups {
 		min, max := g.StartTime, g.EndTime
 		rs, err := e.read(min, max.Add(-1))
@@ -178,7 +174,7 @@ func (e *Exporter) WriteTo(w format.Writer) error {
 }
 
 // Read creates a ResultSet that reads all points with a timestamp ts, such that start ≤ ts < end.
-func (e *Exporter) read(min, max time.Time) (*storage.ResultSet, error) {
+func (e *exporter) read(min, max time.Time) (*storage.ResultSet, error) {
 	shards, err := e.getShards(min, max)
 	if err != nil {
 		return nil, err
@@ -195,11 +191,11 @@ func (e *Exporter) read(min, max time.Time) (*storage.ResultSet, error) {
 	return e.store.Read(context.Background(), &req)
 }
 
-func (e *Exporter) Close() error {
+func (e *exporter) Close() error {
 	return e.tsdbStore.Close()
 }
 
-func (e *Exporter) getShards(min, max time.Time) ([]*tsdb.Shard, error) {
+func (e *exporter) getShards(min, max time.Time) ([]*tsdb.Shard, error) {
 	groups := e.shardsGroupsByTimeRange(min, max)
 	var ids []uint64
 	for _, g := range groups {
@@ -216,7 +212,7 @@ func (e *Exporter) getShards(min, max time.Time) ([]*tsdb.Shard, error) {
 	return e.openStoreWithShardsIDs(ids)
 }
 
-func (e *Exporter) openStoreWithShardsIDs(ids []uint64) ([]*tsdb.Shard, error) {
+func (e *exporter) openStoreWithShardsIDs(ids []uint64) ([]*tsdb.Shard, error) {
 	e.tsdbStore.Close()
 	e.tsdbStore.EngineOptions.ShardFilter = func(_, _ string, id uint64) bool {
 		for i := range ids {

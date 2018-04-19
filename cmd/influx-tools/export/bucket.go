@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 )
 
-func MakeShardGroupsForDuration(min, max time.Time, d time.Duration) meta.ShardGroupInfos {
+func makeShardGroupsForDuration(min, max time.Time, d time.Duration) meta.ShardGroupInfos {
 	start := min.Truncate(d).UTC()
 	end := max.Truncate(d).Add(d).UTC()
 
@@ -25,8 +25,8 @@ func MakeShardGroupsForDuration(min, max time.Time, d time.Duration) meta.ShardG
 }
 
 // PlanShardGroups creates a new ShardGroup set using a shard group duration of d, for the time spanning min to max.
-func PlanShardGroups(sourceShards []meta.ShardGroupInfo, min, max time.Time, d time.Duration) meta.ShardGroupInfos {
-	groups := MakeShardGroupsForDuration(min, max, d)
+func planShardGroups(sourceShards []meta.ShardGroupInfo, min, max time.Time, d time.Duration) meta.ShardGroupInfos {
+	groups := makeShardGroupsForDuration(min, max, d)
 	var target []meta.ShardGroupInfo
 	for i := 0; i < len(groups); i++ {
 		g := groups[i]

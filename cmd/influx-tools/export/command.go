@@ -8,8 +8,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"runtime"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -35,13 +33,9 @@ type Command struct {
 	Logger *zap.Logger
 	server server.Interface
 
-	cpu       *os.File
-	mem       *os.File
 	conflicts io.WriteCloser
 
 	configPath    string
-	cpuProfile    string
-	memProfile    string
 	database      string
 	rp            string
 	shardDuration time.Duration
@@ -52,7 +46,7 @@ type Command struct {
 	print         bool
 }
 
-// NewCommand returns a new instance of Command.
+// NewCommand returns a new instance of the export Command.
 func NewCommand(server server.Interface) *Command {
 	return &Command{
 		Stderr: os.Stderr,
@@ -61,6 +55,7 @@ func NewCommand(server server.Interface) *Command {
 	}
 }
 
+// Run executes the export command using the specified args.
 func (cmd *Command) Run(args []string) (err error) {
 	err = cmd.parseFlags(args)
 	if err != nil {
@@ -79,8 +74,9 @@ func (cmd *Command) Run(args []string) (err error) {
 	}
 	defer e.Close()
 
+	e.PrintPlan(cmd.Stderr)
+
 	if cmd.print {
-		e.PrintPlan(os.Stdout)
 		return nil
 	}
 
@@ -96,19 +92,16 @@ func (cmd *Command) Run(args []string) (err error) {
 		}
 	}
 
-	cmd.startProfile()
-	defer cmd.stopProfile()
-
 	var wr format.Writer
 	switch cmd.format {
 	case "line":
-		wr = line.NewWriter(os.Stdout)
+		wr = line.NewWriter(cmd.Stdout)
 	case "binary":
-		wr = binary.NewWriter(os.Stdout, cmd.database, cmd.rp, cmd.shardDuration)
+		wr = binary.NewWriter(cmd.Stdout, cmd.database, cmd.rp, cmd.shardDuration)
 	case "series":
-		wr = text.NewWriter(os.Stdout, text.Series)
+		wr = text.NewWriter(cmd.Stdout, text.Series)
 	case "values":
-		wr = text.NewWriter(os.Stdout, text.Values)
+		wr = text.NewWriter(cmd.Stdout, text.Values)
 	case "discard":
 		wr = format.Discard
 	}
@@ -125,9 +118,9 @@ func (cmd *Command) Run(args []string) (err error) {
 	return e.WriteTo(wr)
 }
 
-func (cmd *Command) openExporter() (*Exporter, error) {
-	cfg := &ExporterConfig{Database: cmd.database, RP: cmd.rp, ShardDuration: cmd.shardDuration, Min: cmd.r.Min(), Max: cmd.r.Max()}
-	e, err := NewExporter(cmd.server, cfg)
+func (cmd *Command) openExporter() (*exporter, error) {
+	cfg := &exporterConfig{Database: cmd.database, RP: cmd.rp, ShardDuration: cmd.shardDuration, Min: cmd.r.Min(), Max: cmd.r.Max()}
+	e, err := newExporter(cmd.server, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -138,15 +131,13 @@ func (cmd *Command) openExporter() (*Exporter, error) {
 func (cmd *Command) parseFlags(args []string) error {
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
 	fs.StringVar(&cmd.configPath, "config", "", "Config file")
-	fs.StringVar(&cmd.cpuProfile, "cpuprofile", "", "")
-	fs.StringVar(&cmd.memProfile, "memprofile", "", "")
 	fs.StringVar(&cmd.database, "database", "", "Database name")
 	fs.StringVar(&cmd.rp, "rp", "", "Retention policy name")
 	fs.StringVar(&cmd.format, "format", "line", "Output format (line, binary)")
 	fs.StringVar(&cmd.conflictPath, "conflict-path", "", "File name for writing field conflicts using line protocol and gzipped")
 	fs.BoolVar(&cmd.ignore, "no-conflict-path", false, "Disable writing field conflicts to a file")
 	fs.Var(&cmd.r, "range", "Range of target shards to export (default: all)")
-	fs.BoolVar(&cmd.print, "print", false, "Print plan to stdout")
+	fs.BoolVar(&cmd.print, "print-only", false, "Print plan to stderr and exit")
 	fs.DurationVar(&cmd.shardDuration, "duration", time.Hour*24*7, "Target shard duration")
 
 	if err := fs.Parse(args); err != nil {
@@ -157,7 +148,9 @@ func (cmd *Command) parseFlags(args []string) error {
 		return errors.New("database is required")
 	}
 
-	if cmd.format != "line" && cmd.format != "binary" && cmd.format != "series" && cmd.format != "values" && cmd.format != "discard" {
+	switch cmd.format {
+	case "line", "binary", "series", "values", "discard":
+	default:
 		return fmt.Errorf("invalid format '%s'", cmd.format)
 	}
 
@@ -166,42 +159,6 @@ func (cmd *Command) parseFlags(args []string) error {
 	}
 
 	return nil
-}
-
-// StartProfile initializes the cpu and memory profile, if specified.
-func (cmd *Command) startProfile() {
-	if cmd.cpuProfile != "" {
-		f, err := os.Create(cmd.cpuProfile)
-		if err != nil {
-			fmt.Fprintf(cmd.Stderr, "cpuprofile: %v\n", err)
-			os.Exit(1)
-		}
-		cmd.cpu = f
-		pprof.StartCPUProfile(cmd.cpu)
-	}
-
-	if cmd.memProfile != "" {
-		f, err := os.Create(cmd.memProfile)
-		if err != nil {
-			fmt.Fprintf(cmd.Stderr, "memprofile: %v\n", err)
-			os.Exit(1)
-		}
-		cmd.mem = f
-		runtime.MemProfileRate = 4096
-	}
-
-}
-
-// StopProfile closes the cpu and memory profiles if they are running.
-func (cmd *Command) stopProfile() {
-	if cmd.cpu != nil {
-		pprof.StopCPUProfile()
-		cmd.cpu.Close()
-	}
-	if cmd.mem != nil {
-		pprof.Lookup("heap").WriteTo(cmd.mem, 0)
-		cmd.mem.Close()
-	}
 }
 
 type rangeValue struct {
@@ -239,13 +196,12 @@ func (rv *rangeValue) Set(v string) (err error) {
 		if err != nil {
 			return fmt.Errorf("range error: min value %q is not a positive number", p[0])
 		}
+		rv.max = math.MaxUint64
 		if len(p[1]) > 0 {
 			rv.max, err = strconv.ParseUint(p[1], 10, 64)
 			if err != nil {
 				return fmt.Errorf("range error: max value %q is not empty or a positive number", p[1])
 			}
-		} else {
-			rv.max = math.MaxUint64
 		}
 	default:
 		return fmt.Errorf("range error: %q is not a valid range", v)

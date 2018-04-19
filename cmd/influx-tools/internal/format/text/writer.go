@@ -13,11 +13,10 @@ import (
 )
 
 type Writer struct {
-	w        *bufio.Writer
-	key      []byte
-	err      error
-	m        Mode
-	min, max int64
+	w   *bufio.Writer
+	key []byte
+	err error
+	m   Mode
 }
 
 type Mode bool
@@ -40,7 +39,6 @@ func NewWriter(w io.Writer, mode Mode) *Writer {
 }
 
 func (w *Writer) NewBucket(start, end int64) (format.BucketWriter, error) {
-	w.min, w.max = start, end
 	return w, nil
 }
 

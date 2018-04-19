@@ -36,10 +36,13 @@ func (cw *ConflictWriter) NewBucket(start, end int64) (bw BucketWriter, err erro
 }
 
 func (cw *ConflictWriter) Close() error {
-	cw.w.Close()
-	cw.c.Close()
-	// TODO(sgc): return errors
-	return nil
+	// we care if either error and prioritize the conflict writer lower.
+	cerr := cw.c.Close()
+	if err := cw.w.Close(); err != nil {
+		return err
+	}
+
+	return cerr
 }
 
 type bucketState int
@@ -65,8 +68,14 @@ type aggregateBucketWriter struct {
 }
 
 func (bw *aggregateBucketWriter) Err() error {
-	// TODO(sgc): return errors
-	return nil
+	switch {
+	case bw.w.Err() != nil:
+		return bw.w.Err()
+	case bw.c.Err() != nil:
+		return bw.c.Err()
+	default:
+		return nil
+	}
 }
 
 func (bw *aggregateBucketWriter) BeginSeries(name, field []byte, typ influxql.DataType, tags models.Tags) {
@@ -157,8 +166,11 @@ func (bw *aggregateBucketWriter) WriteStringCursor(cur tsdb.StringBatchCursor) {
 }
 
 func (bw *aggregateBucketWriter) Close() error {
-	bw.w.Close()
-	bw.c.Close()
-	// TODO(sgc): return errors
-	return nil
+	// we care if either error and prioritize the conflict writer lower.
+	cerr := bw.c.Close()
+	if err := bw.w.Close(); err != nil {
+		return err
+	}
+
+	return cerr
 }

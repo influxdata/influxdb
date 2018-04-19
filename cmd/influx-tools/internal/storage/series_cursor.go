@@ -48,16 +48,14 @@ func newIndexSeriesCursor(ctx context.Context, shards []*tsdb.Shard) (*indexSeri
 	sg := tsdb.Shards(shards)
 	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{}, nil)
 	if p.sqry != nil && err == nil {
-		var (
-			itr query.Iterator
-			fi  query.FloatIterator
-			opt = query.IteratorOptions{
-				Aux:        []influxql.VarRef{{Val: "key"}},
-				Authorizer: query.OpenAuthorizer,
-				Ascending:  true,
-				Ordered:    true,
-			}
-		)
+		var itr query.Iterator
+		var fi query.FloatIterator
+		var opt = query.IteratorOptions{
+			Aux:        []influxql.VarRef{{Val: "key"}},
+			Authorizer: query.OpenAuthorizer,
+			Ascending:  true,
+			Ordered:    true,
+		}
 
 		if itr, err = sg.CreateIterator(ctx, &influxql.Measurement{SystemIterator: "_fieldKeys"}, opt); itr != nil && err == nil {
 			if fi, err = toFloatIterator(itr); err != nil {
