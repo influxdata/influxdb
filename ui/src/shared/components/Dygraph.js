@@ -320,6 +320,7 @@ class Dygraph extends Component {
           </div>
         )}
         <div
+          onMouseEnter={this.handleShowLegend}
           ref={r => {
             this.graphRef = r
             this.props.dygraphRef(r)

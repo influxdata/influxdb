@@ -43,7 +43,6 @@ class DygraphLegend extends Component {
   }
 
   highlightCallback = e => {
-    console.log('callback firing: ', this, e, e.target)
     this.setState({pageX: e.pageX})
     this.props.onShow(e)
   }

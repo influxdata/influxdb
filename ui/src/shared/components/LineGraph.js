@@ -1,7 +1,6 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
-import shallowCompare from 'react-addons-shallow-compare'
 
 import SingleStat from 'src/shared/components/SingleStat'
 import timeSeriesToDygraph from 'utils/timeSeriesTransformers'
