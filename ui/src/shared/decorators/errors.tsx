@@ -3,9 +3,9 @@ tslint:disable no-console
 tslint:disable max-classes-per-file
 */
 
-import React, {ComponentClass, PureComponent, Component} from 'react'
+import React, {ComponentClass, Component} from 'react'
 
-class DefaultError extends PureComponent {
+class DefaultError extends Component {
   public render() {
     return (
       <p className="error">
@@ -17,7 +17,7 @@ class DefaultError extends PureComponent {
 }
 
 export function ErrorHandlingWith(
-  Error: ComponentClass,
+  Error: ComponentClass, // Must be a class based component and not an SFC
   alwaysDisplay = false
 ) {
   return <P, S, T extends {new (...args: any[]): Component<P, S>}>(
