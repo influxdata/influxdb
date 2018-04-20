@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/cmd"
 	"github.com/influxdata/influxdb/cmd/influx-tools/export"
 	"github.com/influxdata/influxdb/cmd/influx-tools/help"
+	"github.com/influxdata/influxdb/cmd/influx-tools/importer"
 	"github.com/influxdata/influxdb/cmd/influx-tools/server"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
 	"github.com/influxdata/influxdb/services/meta"
@@ -56,6 +57,11 @@ func (m *Main) Run(args ...string) error {
 		c := export.NewCommand(&ossServer{logger: zap.NewNop()})
 		if err := c.Run(args); err != nil {
 			return fmt.Errorf("export: %s", err)
+		}
+	case "import":
+		cmd := importer.NewCommand(&ossServer{logger: zap.NewNop()})
+		if err := cmd.Run(args); err != nil {
+			return fmt.Errorf("import: %s", err)
 		}
 	default:
 		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influx-tools help' for usage`+"\n\n", name)
