@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/cmd"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/buildtsi"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/deletetsm"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsm"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export"
@@ -54,6 +55,11 @@ func (m *Main) Run(args ...string) error {
 	case "", "help":
 		if err := help.NewCommand().Run(args...); err != nil {
 			return fmt.Errorf("help: %s", err)
+		}
+	case "deletetsm":
+		name := deletetsm.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("deletetsm: %s", err)
 		}
 	case "dumptsi":
 		name := dumptsi.NewCommand()
