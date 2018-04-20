@@ -62,6 +62,17 @@ func (n *node) replaceEdge(e edge) {
 
 func (n *node) getEdge(label byte) *node {
 	num := len(n.edges)
+	// Use linear search for smaller arrays
+	if num < 64 {
+		for i := 0; i < num; i++ {
+			if n.edges[i].label == label {
+				return n.edges[i].node
+			}
+		}
+
+		return nil
+	}
+
 	idx := sort.Search(num, func(i int) bool {
 		return n.edges[i].label >= label
 	})
@@ -365,7 +376,6 @@ func (n *node) mergeChild() {
 // the value and if it was found
 func (t *Tree) Get(s string) (int, bool) {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
 
 	n := t.root
 	search := s
@@ -373,6 +383,7 @@ func (t *Tree) Get(s string) (int, bool) {
 		// Check for key exhaution
 		if len(search) == 0 {
 			if n.isLeaf() {
+				t.mu.RUnlock()
 				return n.leaf.val, true
 			}
 			break
@@ -391,6 +402,7 @@ func (t *Tree) Get(s string) (int, bool) {
 			break
 		}
 	}
+	t.mu.RUnlock()
 	return 0, false
 }
 
