@@ -37,21 +37,6 @@ interface Options {
   fixFirstColumn: boolean
 }
 
-interface Sources {
-  database: string
-  retentionPolicy: string
-  name: string
-  type: string
-}
-
-interface Field {
-  column: {
-    expr: string
-    val?: string
-  }
-  alias?: string
-}
-
 interface Props {
   queryConfigs: QueryConfig[]
   handleUpdateTableOptions: (options: Options) => void
