@@ -101,11 +101,11 @@ class SideNav extends PureComponent<Props> {
           replaceWithIfNotUsingAuth={
             <NavBlock
               icon="crown2"
-              link={`${sourcePrefix}/admin-influxdb`}
+              link={`${sourcePrefix}/admin-influxdb/databases`}
               location={location}
             >
               <NavHeader
-                link={`${sourcePrefix}/admin-influxdb`}
+                link={`${sourcePrefix}/admin-influxdb/databases`}
                 title="InfluxDB Admin"
               />
             </NavBlock>
@@ -123,7 +123,7 @@ class SideNav extends PureComponent<Props> {
             <NavListItem link={`${sourcePrefix}/admin-chronograf`}>
               Chronograf
             </NavListItem>
-            <NavListItem link={`${sourcePrefix}/admin-influxdb`}>
+            <NavListItem link={`${sourcePrefix}/admin-influxdb/databases`}>
               InfluxDB
             </NavListItem>
           </NavBlock>
