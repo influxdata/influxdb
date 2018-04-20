@@ -14,6 +14,7 @@
 ### Bug Fixes
 
 1.  [#3252](https://github.com/influxdata/chronograf/pull/3252): Allows users to select tickscript editor with mouse
+1.  [#3279](https://github.com/influxdata/chronograf/pull/3279): Change color when value is equal to or greater than threshold value
 
 ## v1.4.4.1 [2018-04-16]
 
