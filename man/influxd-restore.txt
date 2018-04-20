@@ -3,73 +3,75 @@ influxd-restore(1)
 
 NAME
 ----
-influxd-restore - Uses backups from the PATH to restore the metastore, databases, retention policies, or specific
- shards.  The backward-compatible legacy mode requires the instance to be stopped before running, and will wipe all databases from the
- system (e.g., for disaster recovery).  The improved online and portable modes require the instance to be running,
- and the database name used must not already exist.
+influxd-restore - Restores the metastore, databases, retention policies, or specific 
+  shards to an InfluxDB OSS instance from the specified PATH.  The backward-compatible 
+  legacy mode requires the instance to be stopped before running, and will wipe all 
+  databases from the system (e.g., for disaster recovery).  The improved '-online' and
+  '-portable' modes require the instance to be running, and the database name used must 
+  not already exist.
 
 
 SYNOPSIS
 --------
-'influxd restore' [-portable] [flags] PATH
+'influxd restore' [-portable] [options] PATH
 
 DESCRIPTION
 -----------
-Uses backups from the PATH to restore the metastore, databases, retention policies, or specific shards. The InfluxDB process must not be running during a restore.
+Uses backups from the specified PATH to restore the metastore, databases, retention policies, or specific shards. 
+The InfluxDB process must not be running during a restore.
 
 OPTIONS
 -------
 
-The -portable restore mode consumes files in an improved format that includes a file manifest.
+Note: Restore with the '-portable' option to consume files in an improved format that includes a file manifest.
 
-Options:
 -portable::
   Required to activate portable restore mode.
 
 -host <host:port>::
-            The host to connect to where the data will be restored. Defaults to '127.0.0.1:8088'.
+  InfluxDB OSS host to connect to where the data will be restored. Defaults to '127.0.0.1:8088'.
 
--db    <name>::
-	        Identifies the database from the backup that will be restored.
+-db <db_name>::
+  Name of database to be restored from the backup (InfluxDB OSS or InfluxDB Enterprise)
 
--newdb <name>::
-	        The name of the database into which the archived data will be imported on the target system.
-	        If not given, then the value of -db is used.  The new database name must be unique to the target system.
+-newdb <newdb_name>::
+  Name of the InfluxDB OSS database into which the archived data will be imported on the target system. Optional.
+   If not given, then the value of '-db <db_name>' is used.  The new database name must be unique to the target system.
 
--rp    <name>::
-	        Identifies the retention policy from the backup that will be restored.  Requires that -db is set.
+-rp  <rp_name>::
+  Name of retention policy from the backup that will be restored. Optional. Requires that '-db <db_name>' is specified.
 
--newrp <name>::
-	        The name of the retention policy that will be created on the target system. Requires that -rp is set.
-	        If not given, the value of -rp is used.
+-newrp <newrp_name>::
+  Name of the retention policy to be created on the target system. Optional. Requires that '-rp <rp_name>' is set.
+	  If not given, the '-rp <rp_name>' value is used.
+
+-shard <shard_id>::
+  Identifier of the shard to be restored. Optional. If specified, then '-db <db_name>' and '-rp <rp_name>' are required..
+
+
+OPTIONS (legacy mode only) 
+
+Note: The legacy mode consumes the legacy InfluxDB OSS file format only. PATH is the directory containing the backup data
+
+-metadir <metadir_path>::
+  Path to the meta directory where the metastore will be restored. Required. 
+
+-datadir <datadir_path>::
+  Path to the data directory where the database will be restored. Required. 
+    
+-database <db_name>::
+  Name of the InfluxDB OSS database to be restored. Optional. Required if no '-metadir <metadir_path>' given. Will restore a single database's data.
+
+-retention <rp_name>::
+  Name of the retention policy to be used to restore data. Optional. If specified, then '-database <db_name>' is required.
 
 -shard <id>::
-	        Optional.  If given, -db and -rp are required.  Will restore the single shard's data.
-
-
-The legacy mode consumes files in an OSS only file format. PATH is a directory containing the backup data
-
--metadir <path>::
-            Optional. If set the metastore will be recovered to the given path.
-
--datadir <path>::
-            Optional. If set the restore process will recover the specified
-            destinationDatabase, retention policy or shard to the given directory.
-
--database <name>::
-            Optional. Required if no metadir given. Will restore a single database's data.
-
--retention <name>::
-            Optional. If given, -database is required. Will restore the retention policy's
-            data.
-
--shard <id>::
-            Optional. If given, -database and -retention are required. Will restore the shard's
-            data.
+  Identifier of the shard to be restored. Optional. If specified, '-database <db_name>' and '-retention <rp_name>' 
+  are required.
 
 -online::
-	        Optional. If given, the restore will be done using the new process, detailed above.  Arguments -metadir
-            and -datadir are ignored.
+  Uses the legacy backup format to restore InfluxDB OSS backup files created using the legacy backup utility. Optional. If specified, the restore will be done using the new process, 
+  detailed above, and the options '-metadir <metadir_path>' and '-datadir <datadir_path>' are ignored.
 
 
 SEE ALSO
