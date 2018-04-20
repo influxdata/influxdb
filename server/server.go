@@ -11,9 +11,9 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -346,8 +346,9 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 
-	if strings.HasPrefix(s.Basepath, "/") {
-		err := fmt.Errorf("Basepath must begin with '/'")
+	re := regexp.MustCompile(`(\/{1}\w+)+`)
+	if len(re.ReplaceAllLiteralString(s.Basepath, "")) > 0 {
+		err := fmt.Errorf("Invalid basepath, must follow format \"/mybasepath\"")
 		logger.
 			WithField("component", "server").
 			WithField("basepath", "invalid").
