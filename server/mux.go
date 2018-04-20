@@ -321,9 +321,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 		// Create middleware that redirects to the appropriate provider logout
 		router.GET("/oauth/logout", Logout("/", opts.Basepath, allRoutes.AuthRoutes))
-		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, auth))
+		out = Logger(opts.Logger, PrefixedRedirect(auth))
 	} else {
-		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, router))
+		out = Logger(opts.Logger, PrefixedRedirect(router))
 	}
 
 	return out

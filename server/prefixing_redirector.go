@@ -7,7 +7,6 @@ import (
 type interceptingResponseWriter struct {
 	http.ResponseWriter
 	Flusher http.Flusher
-	Prefix  string
 }
 
 func (i *interceptingResponseWriter) WriteHeader(status int) {
@@ -25,11 +24,10 @@ func (i *interceptingResponseWriter) Flush() {
 
 // PrefixedRedirect alters the Location header of downstream http.Handlers
 // to include a specified prefix
-func PrefixedRedirect(prefix string, next http.Handler) http.Handler {
+func PrefixedRedirect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		iw := &interceptingResponseWriter{
 			ResponseWriter: w,
-			Prefix:         prefix,
 		}
 		if flusher, ok := w.(http.Flusher); ok {
 			iw.Flusher = flusher
