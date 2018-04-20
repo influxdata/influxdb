@@ -55,6 +55,7 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
+        type={type}
         colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
@@ -71,6 +72,7 @@ const RefreshingGraph = ({
   if (type === 'gauge') {
     return (
       <RefreshingGaugeChart
+        type={type}
         colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
@@ -90,6 +92,7 @@ const RefreshingGraph = ({
   if (type === 'table') {
     return (
       <RefreshingTableGraph
+        type={type}
         cellID={cellID}
         colors={colors}
         inView={inView}
@@ -114,6 +117,7 @@ const RefreshingGraph = ({
 
   return (
     <RefreshingLineGraph
+      type={type}
       axes={axes}
       colors={colors}
       onZoom={onZoom}

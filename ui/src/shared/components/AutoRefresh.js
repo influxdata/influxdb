@@ -20,9 +20,9 @@ const AutoRefresh = ComposedComponent => {
     }
 
     async componentDidMount() {
-      const {queries, templates, autoRefresh} = this.props
+      const {queries, templates, autoRefresh, type} = this.props
       this.executeQueries(queries, templates)
-      if (true) {
+      if (type === 'table') {
         const queryASTs = await this.getQueryASTs(queries, templates)
         this.setState({queryASTs})
       }
@@ -63,7 +63,7 @@ const AutoRefresh = ComposedComponent => {
         queriesDidUpdate || tempVarsDidUpdate || inViewDidUpdate
 
       if (shouldRefetch) {
-        if (true) {
+        if (this.props.type === 'table') {
           const queryASTs = await this.getQueryASTs(
             nextProps.queries,
             nextProps.templates
@@ -191,7 +191,6 @@ const AutoRefresh = ComposedComponent => {
 
     render() {
       const {timeSeries, queryASTs} = this.state
-
       if (this.state.isFetching && this.state.lastQuerySuccessful) {
         return (
           <ComposedComponent
@@ -244,6 +243,7 @@ const AutoRefresh = ComposedComponent => {
   } = PropTypes
 
   wrapper.propTypes = {
+    type: string.isRequired,
     children: element,
     autoRefresh: number.isRequired,
     inView: bool,
