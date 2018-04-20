@@ -66,7 +66,6 @@ interface QueryAST {
 
 interface Props {
   queryConfigs: QueryConfig[]
-  queryASTs: QueryAST[]
   handleUpdateTableOptions: (options: Options) => void
   tableOptions: Options
   onResetFocus: () => void
@@ -173,17 +172,13 @@ export class TableOptions extends PureComponent<Props, {}> {
   // }
 
   private moveField(dragIndex, hoverIndex) {
-    const {handleUpdateTableOptions, tableOptions, queryASTs} = this.props
+    const {handleUpdateTableOptions, tableOptions} = this.props
     const {fieldNames} = tableOptions
-    const fields =
-      fieldNames.length > 1
-        ? fieldNames
-        : computeFieldNames(fieldNames, queryASTs)
 
-    const dragField = fields[dragIndex]
+    const dragField = fieldNames[dragIndex]
     const removedFields = _.concat(
-      _.slice(fields, 0, dragIndex),
-      _.slice(fields, dragIndex + 1)
+      _.slice(fieldNames, 0, dragIndex),
+      _.slice(fieldNames, dragIndex + 1)
     )
     const addedFields = _.concat(
       _.slice(removedFields, 0, hoverIndex),

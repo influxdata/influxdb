@@ -259,8 +259,6 @@ class CellEditorOverlay extends Component {
       timeRange,
       autoRefresh,
       editQueryStatus,
-      onNewQueryAST,
-      queryASTs,
     } = this.props
 
     const {
@@ -300,7 +298,6 @@ class CellEditorOverlay extends Component {
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
             staticLegend={staticLegend}
-            onNewQueryAST={onNewQueryAST}
           />
           <CEOBottom>
             <OverlayControls
@@ -317,7 +314,6 @@ class CellEditorOverlay extends Component {
             {isDisplayOptionsTabActive ? (
               <DisplayOptions
                 queryConfigs={queriesWorkingDraft}
-                queryASTs={queryASTs}
                 onToggleStaticLegend={this.handleToggleStaticLegend}
                 staticLegend={staticLegend}
                 onResetFocus={this.handleResetFocus}
@@ -382,8 +378,6 @@ CellEditorOverlay.propTypes = {
   thresholdsListColors: colorsNumberSchema.isRequired,
   gaugeColors: colorsNumberSchema.isRequired,
   lineColors: colorsStringSchema.isRequired,
-  onNewQueryAST: func,
-  queryASTs: arrayOf(shape()),
 }
 
 CEOBottom.propTypes = {

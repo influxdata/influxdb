@@ -20,11 +20,10 @@ const AutoRefresh = ComposedComponent => {
     }
 
     async componentDidMount() {
-      const {queries, templates, autoRefresh, onNewQueryAST} = this.props
+      const {queries, templates, autoRefresh} = this.props
       this.executeQueries(queries, templates)
-      if (onNewQueryAST) {
+      if (true) {
         const queryASTs = await this.getQueryASTs(queries, templates)
-        onNewQueryAST(queryASTs)
         this.setState({queryASTs})
       }
       if (autoRefresh) {
@@ -64,12 +63,11 @@ const AutoRefresh = ComposedComponent => {
         queriesDidUpdate || tempVarsDidUpdate || inViewDidUpdate
 
       if (shouldRefetch) {
-        if (nextProps.onNewQueryAST) {
+        if (true) {
           const queryASTs = await this.getQueryASTs(
             nextProps.queries,
             nextProps.templates
           )
-          nextProps.onNewQueryAST(queryASTs)
           this.setState({queryASTs})
         }
 
@@ -281,7 +279,6 @@ const AutoRefresh = ComposedComponent => {
     }),
     editQueryStatus: func,
     grabDataForDownload: func,
-    onNewQueryAST: func,
   }
 
   return wrapper

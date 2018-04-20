@@ -40,7 +40,6 @@ const RefreshingGraph = ({
   editQueryStatus,
   handleSetHoverTime,
   grabDataForDownload,
-  onNewQueryAST,
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
@@ -102,7 +101,6 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizeCoords={resizeCoords}
         tableOptions={tableOptions}
-        onNewQueryAST={onNewQueryAST}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
       />
@@ -161,8 +159,6 @@ RefreshingGraph.propTypes = {
   cellID: string,
   inView: bool,
   tableOptions: shape({}),
-  onNewQueryAST: func,
-  queryASTs: arrayOf(shape()),
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
 }

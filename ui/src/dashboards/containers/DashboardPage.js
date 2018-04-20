@@ -57,7 +57,6 @@ class DashboardPage extends Component {
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      queryASTs: [],
     }
   }
 
@@ -281,10 +280,6 @@ class DashboardPage extends Component {
     this.props.errorThrown(error)
   }
 
-  handleQueryAST = queryASTs => {
-    this.setState({queryASTs})
-  }
-
   handleToggleTempVarControls = () => {
     this.props.templateControlBarVisibilityToggled()
   }
@@ -298,7 +293,7 @@ class DashboardPage extends Component {
   }
 
   render() {
-    const {zoomedTimeRange, queryASTs} = this.state
+    const {zoomedTimeRange} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
     const {
       source,
@@ -376,7 +371,6 @@ class DashboardPage extends Component {
       name: d.name,
       link: `/sources/${sourceID}/dashboards/${d.id}`,
     }))
-
     return (
       <div className="page">
         {isTemplating ? (
@@ -407,8 +401,6 @@ class DashboardPage extends Component {
             thresholdsListColors={thresholdsListColors}
             gaugeColors={gaugeColors}
             lineColors={lineColors}
-            queryASTs={queryASTs}
-            onNewQueryAST={this.handleQueryAST}
           />
         ) : null}
         <DashboardHeader
@@ -454,8 +446,6 @@ class DashboardPage extends Component {
             onOpenTemplateManager={this.handleOpenTemplateManager}
             templatesIncludingDashTime={templatesIncludingDashTime}
             onSummonOverlayTechnologies={handleShowCellEditorOverlay}
-            queryASTs={queryASTs}
-            onNewQueryAST={this.handleQueryAST}
           />
         ) : null}
       </div>

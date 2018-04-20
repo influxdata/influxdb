@@ -26,8 +26,6 @@ const Dashboard = ({
   showTemplateControlBar,
   setScrollTop,
   inView,
-  queryASTs,
-  onNewQueryAST,
 }) => {
   const cells = dashboard.cells.map(cell => {
     const dashboardCell = {
@@ -73,8 +71,6 @@ const Dashboard = ({
             onPositionChange={onPositionChange}
             templates={templatesIncludingDashTime}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-            queryASTs={queryASTs}
-            onNewQueryAST={onNewQueryAST}
           />
         ) : (
           <div className="dashboard__empty">
@@ -134,8 +130,6 @@ Dashboard.propTypes = {
   onZoom: func,
   setScrollTop: func,
   inView: func,
-  onNewQueryAST: func,
-  queryASTs: arrayOf(shape()),
 }
 
 export default Dashboard
