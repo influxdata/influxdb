@@ -14,6 +14,7 @@
 ### Bug Fixes
 
 1.  [#3252](https://github.com/influxdata/chronograf/pull/3252): Allows users to select tickscript editor with mouse
+1.  [#3281](https://github.com/influxdata/chronograf/pull/3281): Fix base path for kapacitor logs
 
 ## v1.4.4.1 [2018-04-16]
 
