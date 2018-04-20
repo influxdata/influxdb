@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import Dygraph from 'dygraphs'
 
@@ -182,7 +182,9 @@ class DygraphLegend extends PureComponent<Props, State> {
     this.setState({isSnipped: !this.state.isSnipped})
   }
 
-  private handleLegendInputChange = e => {
+  private handleLegendInputChange = (
+    e: ChangeEvent<HTMLInputElement>
+  ): void => {
     const {dygraph} = this.props
     const {legend} = this.state
     const filterText = e.target.value
@@ -202,7 +204,7 @@ class DygraphLegend extends PureComponent<Props, State> {
     this.setState({sortType, isAscending: !this.state.isAscending})
   }
 
-  private highlightCallback = e => {
+  private highlightCallback = (e: MouseEvent) => {
     this.props.setActiveCell(this.props.cellID)
     this.setState({pageX: e.pageX})
     this.props.onShow(e)

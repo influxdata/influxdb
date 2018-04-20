@@ -1,5 +1,5 @@
 /* eslint-disable no-magic-numbers */
-import Dygraphs from 'src/external/dygraph'
+import {toRGB_} from 'dygraphs/src/dygraph-utils'
 
 export const LINE_COLORS = [
   '#00C9FF',
@@ -33,7 +33,7 @@ export const SINGLE_STAT_LINE_COLORS = [
 
 export const darkenColor = colorStr => {
   // Defined in dygraph-utils.js
-  const color = Dygraphs.toRGB_(colorStr)
+  const color = toRGB_(colorStr)
   color.r = Math.floor((255 + color.r) / 2)
   color.g = Math.floor((255 + color.g) / 2)
   color.b = Math.floor((255 + color.b) / 2)
