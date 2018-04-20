@@ -48,21 +48,29 @@ export default class Walker {
     const body = _.get(this.ast, 'body', new Array<Body>())
     return body.map(b => {
       if (b.type.includes('Expression')) {
-        return this.expression(b)
+        return this.expression(b.expression, b.location)
       } else if (b.type.includes('Variable')) {
         return this.variable(b)
       }
     })
   }
 
-  private variable({type, location, declarations}) {
-    const dec = declarations.map(({init, id}) => {
-      return {name: id.name, type: init.type, value: init.value}
+  private variable(variable) {
+    const {location} = variable
+    const declarations = variable.declarations.map(({init, id}) => {
+      const {type} = init
+      if (type.includes('Expression')) {
+        const {source, funcs} = this.expression(init, location)
+        return {name: id.name, type, source, funcs}
+      }
+
+      return {name: id.name, type, value: init.value}
     })
-    return {source: location.source, declarations: dec, type}
+
+    return {source: location.source, declarations, type: variable.type}
   }
 
-  private expression({location, expression}): FlatExpression {
+  private expression(expression, location): FlatExpression {
     const funcs = this.buildFuncNodes(this.walk(expression))
 
     return {

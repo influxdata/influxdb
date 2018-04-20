@@ -1,7 +1,7 @@
 import Walker from 'src/ifql/ast/walker'
 import From from 'test/ifql/ast/from'
 import Complex from 'test/ifql/ast/complex'
-import Variable from 'test/ifql/ast/variable'
+import {StringLiteral, Expression} from 'test/ifql/ast/variable'
 
 describe('IFQL.AST.Walker', () => {
   describe('Walker#functions', () => {
@@ -28,22 +28,55 @@ describe('IFQL.AST.Walker', () => {
           ])
         })
 
-        describe('a single variable declaration', () => {
-          it('returns a variable declaration for a string literal', () => {
-            const walker = new Walker(Variable)
-            expect(walker.stuff).toEqual([
-              {
-                type: 'VariableDeclaration',
-                source: 'bux = "im a var"',
-                declarations: [
-                  {
-                    name: 'bux',
-                    type: 'StringLiteral',
-                    value: 'im a var',
-                  },
-                ],
-              },
-            ])
+        describe('variables', () => {
+          describe('a single string literal variable', () => {
+            it('returns the expected list', () => {
+              const walker = new Walker(StringLiteral)
+              expect(walker.stuff).toEqual([
+                {
+                  type: 'VariableDeclaration',
+                  source: 'bux = "im a var"',
+                  declarations: [
+                    {
+                      name: 'bux',
+                      type: 'StringLiteral',
+                      value: 'im a var',
+                    },
+                  ],
+                },
+              ])
+            })
+          })
+
+          describe('a single expression variable', () => {
+            it('returns the expected list', () => {
+              const walker = new Walker(Expression)
+              expect(walker.stuff).toEqual([
+                {
+                  type: 'VariableDeclaration',
+                  source: 'tele = from(db: "telegraf")',
+                  declarations: [
+                    {
+                      name: 'tele',
+                      type: 'CallExpression',
+                      source: 'tele = from(db: "telegraf")',
+                      funcs: [
+                        {
+                          name: 'from',
+                          source: 'from(db: "telegraf")',
+                          arguments: [
+                            {
+                              key: 'db',
+                              value: 'telegraf',
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ])
+            })
           })
         })
       })
