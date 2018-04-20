@@ -548,7 +548,6 @@ func TestServer(t *testing.T) {
           "orientation": "bottom"
 			},
 			"tableOptions":{
-				"timeFormat": "",
 				"verticalTimeAxis": false,
 				"sortBy":{
 					"internalName": "",
@@ -560,6 +559,7 @@ func TestServer(t *testing.T) {
 				"fixFirstColumn": false
 			},
 			"fieldOptions": null,
+			"timeFormat": "",
       "links": {
         "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
       }
@@ -800,7 +800,6 @@ func TestServer(t *testing.T) {
             }
 					],
 					"tableOptions":{
-						"timeFormat":"",
 						"verticalTimeAxis":false,
 						"sortBy":{
 							"internalName":"",
@@ -812,6 +811,7 @@ func TestServer(t *testing.T) {
 						"fixFirstColumn":false
 					},
 					"fieldOptions":null,
+					"timeFormat":"",
           "legend":{
               "type": "static",
               "orientation": "bottom"

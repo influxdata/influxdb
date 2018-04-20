@@ -576,6 +576,7 @@ type DashboardCell struct {
 	Legend       Legend           `json:"legend"`
 	TableOptions TableOptions     `json:"tableOptions,omitempty"`
 	FieldOptions []RenamableField `json:"fieldOptions"`
+	TimeFormat   string           `json:"timeFormat"`
 }
 
 // RenamableField is a column/row field in a DashboardCell of type Table
@@ -588,7 +589,6 @@ type RenamableField struct {
 
 // TableOptions is a type of options for a DashboardCell with type Table
 type TableOptions struct {
-	TimeFormat       string         `json:"timeFormat"`
 	VerticalTimeAxis bool           `json:"verticalTimeAxis"`
 	SortBy           RenamableField `json:"sortBy"`
 	Wrapping         string         `json:"wrapping"`

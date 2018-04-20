@@ -274,7 +274,6 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 		}
 
 		tableOptions := &TableOptions{
-			TimeFormat:       c.TableOptions.TimeFormat,
 			VerticalTimeAxis: c.TableOptions.VerticalTimeAxis,
 			SortBy:           sortBy,
 			Wrapping:         c.TableOptions.Wrapping,
@@ -308,6 +307,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			},
 			TableOptions: tableOptions,
 			FieldOptions: fieldOptions,
+			TimeFormat:   c.TimeFormat,
 		}
 	}
 	templates := make([]*Template, len(d.Templates))
@@ -443,7 +443,6 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				sortBy.Visible = c.TableOptions.SortBy.Visible
 			}
 			tableOptions.SortBy = sortBy
-			tableOptions.TimeFormat = c.TableOptions.TimeFormat
 			tableOptions.VerticalTimeAxis = c.TableOptions.VerticalTimeAxis
 			tableOptions.Wrapping = c.TableOptions.Wrapping
 			tableOptions.FixFirstColumn = c.TableOptions.FixFirstColumn
@@ -479,6 +478,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 			Legend:       legend,
 			TableOptions: tableOptions,
 			FieldOptions: fieldOptions,
+			TimeFormat:   c.TimeFormat,
 		}
 	}
 
