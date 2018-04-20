@@ -1296,7 +1296,7 @@ func (a Shards) createSeriesIterator(ctx context.Context, opt query.IteratorOpti
 	}
 
 	if sfile == nil {
-		return nil, errors.New("createSeriesIterator: no series file")
+		return nil, nil
 	}
 
 	return NewSeriesPointIterator(IndexSet{Indexes: idxs, SeriesFile: sfile}, opt)
