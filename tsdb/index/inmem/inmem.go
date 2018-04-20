@@ -151,7 +151,7 @@ func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 
 // CreateSeriesListIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (i *Index) CreateSeriesListIfNotExists(shardID uint64, seriesIDSet *tsdb.SeriesIDSet, keys, names [][]byte, tagsSlice []models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
+func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, keys, names [][]byte, tagsSlice []models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
 	seriesIDs, err := i.sfile.CreateSeriesListIfNotExists(names, tagsSlice, nil)
 	if err != nil {
 		return err
@@ -1128,7 +1128,7 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 		keys, names, tagsSlice = keys[:n], names[:n], tagsSlice[:n]
 	}
 
-	if err := idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, keys, names, tagsSlice, &idx.opt, idx.opt.Config.MaxSeriesPerDatabase == 0); err != nil {
+	if err := idx.Index.CreateSeriesListIfNotExists(idx.seriesIDSet, keys, names, tagsSlice, &idx.opt, idx.opt.Config.MaxSeriesPerDatabase == 0); err != nil {
 		reason = err.Error()
 		droppedKeys = append(droppedKeys, keys...)
 	}
@@ -1157,13 +1157,13 @@ func (idx *ShardIndex) SeriesN() int64 {
 // InitializeSeries is called during start-up.
 // This works the same as CreateSeriesListIfNotExists except it ignore limit errors.
 func (idx *ShardIndex) InitializeSeries(keys, names [][]byte, tags []models.Tags) error {
-	return idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, keys, names, tags, &idx.opt, true)
+	return idx.Index.CreateSeriesListIfNotExists(idx.seriesIDSet, keys, names, tags, &idx.opt, true)
 }
 
 // CreateSeriesIfNotExists creates the provided series on the index if it is not
 // already present.
 func (idx *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, [][]byte{key}, [][]byte{name}, []models.Tags{tags}, &idx.opt, false)
+	return idx.Index.CreateSeriesListIfNotExists(idx.seriesIDSet, [][]byte{key}, [][]byte{name}, []models.Tags{tags}, &idx.opt, false)
 }
 
 // TagSets returns a list of tag sets based on series filtering.
