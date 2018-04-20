@@ -58,7 +58,7 @@ const DashVisualization = (
 const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 DashVisualization.propTypes = {
-  type: string.isRequired,
+  type: string,
   autoRefresh: number.isRequired,
   templates: arrayOf(shape()),
   timeRange: shape({
