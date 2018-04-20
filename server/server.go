@@ -29,7 +29,6 @@ import (
 
 var (
 	startTime time.Time
-	basepath  string
 )
 
 func init() {
@@ -98,8 +97,7 @@ type Server struct {
 
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"error" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
-	Basepath          string `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" env:"BASE_PATH"`
-	PrefixRoutes      bool   `long:"prefix-routes" description:"Force chronograf server to require that all requests to it are prefixed with the value set in --basepath" env:"PREFIX_ROUTES"`
+	Basepath          string `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted. (Note: PREFIX_ROUTES has been deprecated. Now, if basepath is set, all routes will be prefixed with it.)" env:"BASE_PATH"`
 	ShowVersion       bool   `short:"v" long:"version" description:"Show Chronograf version info"`
 	BuildInfo         chronograf.BuildInfo
 	Listener          net.Listener
@@ -355,12 +353,6 @@ func (s *Server) Serve(ctx context.Context) error {
 			Error(err)
 		return err
 	}
-	if s.Basepath != "" && s.PrefixRoutes == false {
-		logger.
-			WithField("component", "server").
-			Info("Note: you may want to use --prefix-routes with --basepath. Try `./chronograf --help` for more info.")
-	}
-	basepath = s.Basepath
 
 	providerFuncs := []func(func(oauth2.Provider, oauth2.Mux)){}
 
@@ -377,8 +369,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		Logger:        logger,
 		UseAuth:       s.useAuth(),
 		ProviderFuncs: providerFuncs,
-		Basepath:      basepath,
-		PrefixRoutes:  s.PrefixRoutes,
+		Basepath:      s.Basepath,
 		StatusFeedURL: s.StatusFeedURL,
 		CustomLinks:   s.CustomLinks,
 	}, service)

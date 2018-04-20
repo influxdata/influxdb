@@ -25,7 +25,6 @@ type MuxOpts struct {
 	Logger        chronograf.Logger
 	Develop       bool                 // Develop loads assets from filesystem instead of bindata
 	Basepath      string               // URL path prefix under which all chronograf routes will be mounted
-	PrefixRoutes  bool                 // Mounts all backend routes under route specified by the Basepath
 	UseAuth       bool                 // UseAuth turns on Github OAuth and JWT
 	Auth          oauth2.Authenticator // Auth is used to authenticate and authorize
 	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
@@ -44,7 +43,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	})
 
 	// Prefix any URLs found in the React assets with any configured basepath
-	prefixedAssets := NewDefaultURLPrefixer(basepath, assets, opts.Logger)
+	prefixedAssets := NewDefaultURLPrefixer(opts.Basepath, assets, opts.Logger)
 
 	// Compress the assets with gzip if an accepted encoding
 	compressed := gziphandler.GzipHandler(prefixedAssets)
@@ -57,7 +56,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	var router chronograf.Router = hr
 
 	// Set route prefix for all routes if basepath is present
-	if opts.PrefixRoutes {
+	if opts.Basepath != "" {
 		router = &MountableRouter{
 			Prefix:   opts.Basepath,
 			Delegate: hr,
@@ -313,11 +312,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	var out http.Handler
 
-	basepath := ""
-	if opts.PrefixRoutes {
-		basepath = opts.Basepath
-	}
-
 	/* Authentication */
 	if opts.UseAuth {
 		// Encapsulate the router with OAuth2
@@ -326,7 +320,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		allRoutes.LogoutLink = path.Join(opts.Basepath, "/oauth/logout")
 
 		// Create middleware that redirects to the appropriate provider logout
-		router.GET("/oauth/logout", Logout("/", basepath, allRoutes.AuthRoutes))
+		router.GET("/oauth/logout", Logout("/", opts.Basepath, allRoutes.AuthRoutes))
 		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, auth))
 	} else {
 		out = Logger(opts.Logger, PrefixedRedirect(opts.Basepath, router))
@@ -363,13 +357,8 @@ func AuthAPI(opts MuxOpts, router chronograf.Router) (http.Handler, AuthRoutes) 
 		})
 	}
 
-	rootPath := "/chronograf/v1"
-	logoutPath := "/oauth/logout"
-
-	if opts.PrefixRoutes {
-		rootPath = path.Join(opts.Basepath, rootPath)
-		logoutPath = path.Join(opts.Basepath, logoutPath)
-	}
+	rootPath := path.Join(opts.Basepath, "/chronograf/v1")
+	logoutPath := path.Join(opts.Basepath, "/oauth/logout")
 
 	tokenMiddleware := AuthorizedToken(opts.Auth, opts.Logger, router)
 	// Wrap the API with token validation middleware.
