@@ -1,7 +1,8 @@
 import React, {PureComponent} from 'react'
+import uuid from 'uuid'
 
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-import uuid from 'uuid'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   items: Item[]
@@ -17,6 +18,7 @@ interface State {
   open: boolean
 }
 
+@ErrorHandling
 class TagsAddButton extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

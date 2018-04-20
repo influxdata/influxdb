@@ -16,10 +16,12 @@ import {
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
 import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const {LINEAR, LOG, BASE_2, BASE_10} = AXES_SCALE_OPTIONS
 const getInputMin = scale => (scale === LOG ? '0' : null)
 
+@ErrorHandling
 class AxesOptions extends Component {
   handleSetPrefixSuffix = e => {
     const {handleUpdateAxes, axes} = this.props

@@ -64,7 +64,7 @@ export interface DurationRange {
   upper?: string
 }
 
-interface TimeShift {
+export interface TimeShift {
   label: string
   unit: string
   quantity: string

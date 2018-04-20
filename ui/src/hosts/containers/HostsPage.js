@@ -13,13 +13,16 @@ import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 import {getEnv} from 'src/shared/apis/env'
 import {setAutoRefresh} from 'shared/actions/app'
 import {notify as notifyAction} from 'shared/actions/notifications'
+import {generateForHosts} from 'src/utils/tempVars'
 
 import {
   notifyUnableToGetHosts,
   notifyUnableToGetApps,
 } from 'shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
-class HostsPage extends Component {
+@ErrorHandling
+export class HostsPage extends Component {
   constructor(props) {
     super(props)
 
@@ -34,11 +37,14 @@ class HostsPage extends Component {
     const {source, links, notify} = this.props
     const {telegrafSystemInterval} = await getEnv(links.environment)
     const hostsError = notifyUnableToGetHosts().message
+    const tempVars = generateForHosts(source)
+
     try {
       const hosts = await getCpuAndLoadForHosts(
         source.links.proxy,
         source.telegraf,
-        telegrafSystemInterval
+        telegrafSystemInterval,
+        tempVars
       )
       if (!hosts) {
         throw new Error(hostsError)
@@ -69,8 +75,9 @@ class HostsPage extends Component {
     const {notify, autoRefresh} = this.props
 
     this.setState({hostsLoading: true}) // Only print this once
-    const {data} = await getLayouts()
-    this.layouts = data.layouts
+    const results = await getLayouts()
+    const data = _.get(results, 'data')
+    this.layouts = data && data.layouts
     if (!this.layouts) {
       const layoutError = notifyUnableToGetApps().message
       notify(notifyUnableToGetApps())

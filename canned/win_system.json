@@ -13,7 +13,7 @@
       "name": "System - Load",
       "queries": [
         {
-          "query": "SELECT mean(\"Processor_Queue_Length\") AS \"load\" FROM win_system",
+          "query": "SELECT mean(\"Processor_Queue_Length\") AS \"load\" FROM \":db:\".\":rp:\".\"win_system\"",
           "groupbys": [],
           "wheres": []
         }

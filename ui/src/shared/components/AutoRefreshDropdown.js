@@ -4,7 +4,9 @@ import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 
 import autoRefreshItems from 'shared/data/autoRefreshes'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class AutoRefreshDropdown extends Component {
   constructor(props) {
     super(props)

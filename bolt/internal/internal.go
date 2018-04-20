@@ -46,6 +46,7 @@ func MarshalSource(s chronograf.Source) ([]byte, error) {
 		Telegraf:           s.Telegraf,
 		Organization:       s.Organization,
 		Role:               s.Role,
+		DefaultRP:          s.DefaultRP,
 	})
 }
 
@@ -69,6 +70,7 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.Telegraf = pb.Telegraf
 	s.Organization = pb.Organization
 	s.Role = pb.Role
+	s.DefaultRP = pb.DefaultRP
 	return nil
 }
 

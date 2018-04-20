@@ -12,7 +12,9 @@ import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
 import AnnotationTooltip from 'shared/components/AnnotationTooltip'
 import AnnotationWindow from 'shared/components/AnnotationWindow'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class AnnotationSpan extends React.Component {
   state = {
     isDragging: null,

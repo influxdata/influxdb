@@ -64,12 +64,12 @@ $resizer-color-kapacitor: $c-rainforest;
     top: 50%;
     left: 50%;
     transform: translate(-50%,-50%);
-    width: 130px;
+    width: 160px;
     height: $resizer-handle-width;
     line-height: $resizer-handle-width;
     background-color: $resizer-color;
     border-radius: 3px;
-    word-wrap: break-word;
+    white-space: nowrap;
     text-align: center;
     transition:
       background-color 0.25s ease;

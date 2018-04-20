@@ -1,12 +1,14 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'shared/constants'
 import {NULL_HOVER_TIME} from 'shared/constants/tableGraph'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
-class Crosshair extends PureComponent {
-  shouldCompnentUpdate(nextProps) {
+@ErrorHandling
+class Crosshair extends Component {
+  shouldComponentUpdate(nextProps) {
     return this.props.hoverTime !== nextProps.hoverTime
   }
 

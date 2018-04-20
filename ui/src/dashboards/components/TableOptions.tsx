@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -17,6 +17,7 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {QueryConfig} from 'src/types/query'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Option {
   text: string
@@ -44,7 +45,8 @@ interface Props {
   onResetFocus: () => void
 }
 
-export class TableOptions extends PureComponent<Props, {}> {
+@ErrorHandling
+export class TableOptions extends Component<Props, {}> {
   constructor(props) {
     super(props)
     this.moveField = this.moveField.bind(this)

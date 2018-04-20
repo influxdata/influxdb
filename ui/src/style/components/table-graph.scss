@@ -17,7 +17,8 @@
 .table-graph-cell {
   line-height: 28px; // Cell height - 2x border width
   padding: 0 6px;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
   color: $g12-forge;
   border: 1px solid $g5-pepper;
   overflow: hidden;

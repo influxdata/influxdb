@@ -13,7 +13,7 @@
       "name": "phpfpm – Accepted Connections",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(mean(\"accepted_conn\"),1s) FROM \"phpfpm\"",
+          "query": "SELECT non_negative_derivative(mean(\"accepted_conn\"),1s) FROM \":db:\".\":rp:\".\"phpfpm\"",
           "label": "count",
           "groupbys": [
             "\"pool\""
@@ -30,7 +30,7 @@
       "name": "phpfpm – Processes",
       "queries": [
         {
-          "query": "SELECT mean(\"active_processes\") as \"active\",mean(\"idle_processes\") as \"idle\"  FROM \"phpfpm\"",
+          "query": "SELECT mean(\"active_processes\") as \"active\",mean(\"idle_processes\") as \"idle\"  FROM \":db:\".\":rp:\".\"phpfpm\"",
           "label": "count",
           "groupbys": [
             "\"pool\""
@@ -47,7 +47,7 @@
       "name": "phpfpm – Slow Requests",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(mean(\"slow_requests\"),1s) FROM \"phpfpm\"",
+          "query": "SELECT non_negative_derivative(mean(\"slow_requests\"),1s) FROM \":db:\".\":rp:\".\"phpfpm\"",
           "label": "count",
           "groupbys": [
             "\"pool\""
@@ -64,7 +64,7 @@
       "name": "phpfpm – Max Children Reached",
       "queries": [
         {
-          "query": "SELECT mean(\"max_children_reached\") FROM \"phpfpm\"",
+          "query": "SELECT mean(\"max_children_reached\") FROM \":db:\".\":rp:\".\"phpfpm\"",
           "label": "count",
           "groupbys": [
             "\"pool\""

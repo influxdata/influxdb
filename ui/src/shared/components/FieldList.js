@@ -14,7 +14,9 @@ import {
   getFieldsWithName,
   getFuncsByFieldName,
 } from 'shared/reducers/helpers/fields'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class FieldList extends Component {
   constructor(props) {
     super(props)

@@ -36,7 +36,7 @@ module.exports = {
   },
   watch: true,
   cache: true,
-  devtool: 'inline-eval-cheap-source-map',
+  devtool: 'source-map',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.tsx'),
   },
@@ -117,6 +117,7 @@ module.exports = {
             loader: 'babel-loader',
             options: {
               presets: ['env', 'react', 'stage-0'],
+              plugins: ['transform-decorators-legacy'],
               cacheDirectory: true, // use a cache directory to speed up compilation
             },
           },

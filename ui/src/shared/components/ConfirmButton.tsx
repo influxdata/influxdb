@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   text?: string
@@ -17,6 +18,7 @@ interface State {
   expanded: boolean
 }
 
+@ErrorHandling
 class ConfirmButton extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     confirmText: 'Confirm',

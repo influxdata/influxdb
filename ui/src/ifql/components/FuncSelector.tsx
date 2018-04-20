@@ -3,6 +3,8 @@ import _ from 'lodash'
 
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FuncList from 'src/ifql/components/FuncList'
+import {OnAddNode} from 'src/types/ifql'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface State {
   isOpen: boolean
@@ -12,9 +14,11 @@ interface State {
 
 interface Props {
   funcs: string[]
-  onAddNode: (name: string) => void
+  expressionID: string
+  onAddNode: OnAddNode
 }
 
+@ErrorHandling
 export class FuncSelector extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
@@ -48,7 +52,7 @@ export class FuncSelector extends PureComponent<Props, State> {
               onClick={this.handleOpenList}
               tabIndex={0}
             >
-              <span className="icon plus" />
+              𝑓⟮𝑥⟯
             </button>
           )}
         </div>
@@ -62,7 +66,7 @@ export class FuncSelector extends PureComponent<Props, State> {
 
   private handleAddNode = (name: string) => {
     this.handleCloseList()
-    this.props.onAddNode(name)
+    this.props.onAddNode(name, this.props.expressionID)
   }
 
   private get availableFuncs() {

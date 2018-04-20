@@ -6,6 +6,7 @@ import _ from 'lodash'
 import {DEFAULT_GAUGE_COLORS} from 'src/shared/constants/thresholds'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Color {
   type: string
@@ -30,6 +31,7 @@ interface Props {
   }
 }
 
+@ErrorHandling
 class GaugeChart extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
     colors: stringifyColorValues(DEFAULT_GAUGE_COLORS),

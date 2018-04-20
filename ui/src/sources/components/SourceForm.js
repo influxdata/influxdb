@@ -8,7 +8,7 @@ import {insecureSkipVerifyText} from 'shared/copy/tooltipText'
 
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
 
-const SourceForm = ({
+export const SourceForm = ({
   source,
   editMode,
   onSubmit,
@@ -100,7 +100,7 @@ const SourceForm = ({
           />
         </div>
       ) : null}
-      <div className="form-group col-xs-12">
+      <div className="form-group col-xs-12 col-sm-6">
         <label htmlFor="telegraf">Telegraf Database</label>
         <input
           type="text"
@@ -109,6 +109,17 @@ const SourceForm = ({
           id="telegraf"
           onChange={onInputChange}
           value={source.telegraf}
+        />
+      </div>
+      <div className="form-group col-xs-12 col-sm-6">
+        <label htmlFor="defaultRP">Default Retention Policy</label>
+        <input
+          type="text"
+          name="defaultRP"
+          className="form-control"
+          id="defaultRP"
+          onChange={onInputChange}
+          value={source.defaultRP}
         />
       </div>
       <div className="form-group col-xs-12">

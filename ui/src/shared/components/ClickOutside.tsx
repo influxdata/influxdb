@@ -1,11 +1,13 @@
 import React, {PureComponent, ReactElement} from 'react'
 import ReactDOM from 'react-dom'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: ReactElement<any>
   onClickOutside: () => void
 }
 
+@ErrorHandling
 export class ClickOutside extends PureComponent<Props> {
   public componentDidMount() {
     document.addEventListener('click', this.handleClickOutside, true)

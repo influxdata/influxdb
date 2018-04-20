@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 
-import RedactedInput from './RedactedInput'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   'api-key': string
@@ -27,6 +28,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class VictorOpsConfig extends PureComponent<Props, State> {
   private apiKey: HTMLInputElement
   private routingKey: HTMLInputElement

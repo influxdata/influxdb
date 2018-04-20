@@ -2,16 +2,15 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
-import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import DashboardEmpty from 'src/dashboards/components/DashboardEmpty'
 
 const Dashboard = ({
   source,
   sources,
   onZoom,
   dashboard,
-  onAddCell,
   timeRange,
   autoRefresh,
   manualRefresh,
@@ -19,11 +18,8 @@ const Dashboard = ({
   onCloneCell,
   onPositionChange,
   inPresentationMode,
-  onOpenTemplateManager,
   templatesIncludingDashTime,
   onSummonOverlayTechnologies,
-  onSelectTemplate,
-  showTemplateControlBar,
   setScrollTop,
   inView,
 }) => {
@@ -48,14 +44,6 @@ const Dashboard = ({
       setScrollTop={setScrollTop}
     >
       <div className="dashboard container-fluid full-width">
-        {inPresentationMode ? null : (
-          <TemplateControlBar
-            templates={dashboard.templates}
-            onSelectTemplate={onSelectTemplate}
-            onOpenTemplateManager={onOpenTemplateManager}
-            isOpen={showTemplateControlBar}
-          />
-        )}
         {cells.length ? (
           <LayoutRenderer
             cells={cells}
@@ -73,12 +61,7 @@ const Dashboard = ({
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
           />
         ) : (
-          <div className="dashboard__empty">
-            <p>This Dashboard has no Cells</p>
-            <button className="btn btn-primary btn-m" onClick={onAddCell}>
-              <span className="icon plus" />Add a Cell
-            </button>
-          </div>
+          <DashboardEmpty dashboard={dashboard} />
         )}
       </div>
     </FancyScrollbar>
@@ -110,7 +93,6 @@ Dashboard.propTypes = {
   }),
   templatesIncludingDashTime: arrayOf(shape()).isRequired,
   inPresentationMode: bool,
-  onAddCell: func,
   onPositionChange: func,
   onDeleteCell: func,
   onCloneCell: func,
@@ -124,9 +106,6 @@ Dashboard.propTypes = {
   autoRefresh: number.isRequired,
   manualRefresh: number,
   timeRange: shape({}).isRequired,
-  onOpenTemplateManager: func.isRequired,
-  onSelectTemplate: func.isRequired,
-  showTemplateControlBar: bool,
   onZoom: func,
   setScrollTop: func,
   inView: func,

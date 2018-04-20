@@ -1,14 +1,16 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
-import CodeMirror from '@skidding/react-codemirror'
+import {Controlled as CodeMirror} from 'react-codemirror2'
 import 'src/external/codemirror'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class TickscriptEditor extends Component {
   constructor(props) {
     super(props)
   }
 
-  updateCode = script => {
+  updateCode = (_, __, script) => {
     this.props.onChangeScript(script)
   }
 
@@ -19,13 +21,14 @@ class TickscriptEditor extends Component {
       lineNumbers: true,
       theme: 'material',
       tabIndex: 1,
+      readonly: false,
     }
 
     return (
       <div className="tickscript-editor">
         <CodeMirror
           value={script}
-          onChange={this.updateCode}
+          onBeforeChange={this.updateCode}
           options={options}
         />
       </div>

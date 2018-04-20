@@ -13,7 +13,7 @@
       "name": "CPU Usage",
       "queries": [
         {
-          "query": "SELECT 100 - mean(\"usage_idle\") AS \"usage\" FROM \"cpu\"",
+          "query": "SELECT 100 - mean(\"usage_idle\") AS \"usage\" FROM \":db:\".\":rp:\".\"cpu\"",
           "label": "% CPU time",
           "groupbys": [],
           "wheres": []

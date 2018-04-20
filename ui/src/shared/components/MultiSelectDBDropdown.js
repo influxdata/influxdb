@@ -5,7 +5,9 @@ import {showDatabases, showRetentionPolicies} from 'shared/apis/metaQuery'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showRetentionPoliciesParser from 'shared/parsing/showRetentionPolicies'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class MultiSelectDBDropdown extends Component {
   constructor(props) {
     super(props)

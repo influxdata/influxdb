@@ -1,7 +1,8 @@
 import React, {PureComponent} from 'react'
 
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
-import RedactedInput from './RedactedInput'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {PUSHOVER_DOCS_LINK} from 'src/kapacitor/copy'
 
@@ -30,6 +31,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class PushoverConfig extends PureComponent<Props, State> {
   private token: HTMLInputElement
   private url: HTMLInputElement

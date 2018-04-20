@@ -2,6 +2,30 @@
 
 ### Features
 
+1.  [#3233](https://github.com/influxdata/chronograf/pull/3233): Add default retention policy field as option in source configuration for use in querying hosts from Host List page & Host pages
+
+### UI Improvements
+
+1.  [#3204](https://github.com/influxdata/chronograf/pull/3204): Notify user when a dashboard cell is added, removed, or cloned
+1.  [#3215](https://github.com/influxdata/chronograf/pull/3215): Fix Template Variables Control Bar to top of dashboard page
+1.  [#3214](https://github.com/influxdata/chronograf/pull/3214): Remove extra click when creating dashboard cell
+1.  [#3256](https://github.com/influxdata/chronograf/pull/3256): Reduce font sizes in dashboards for increased space efficiency
+
+### Bug Fixes
+
+1.  [#3252](https://github.com/influxdata/chronograf/pull/3252): Allows users to select tickscript editor with mouse
+1.  [#3281](https://github.com/influxdata/chronograf/pull/3281): Fix base path for kapacitor logs
+
+## v1.4.4.1 [2018-04-16]
+
+### Bug Fixes
+
+1.  [#3211](https://github.com/influxdata/chronograf/pull/3211): Snapshot all db struct types in migration files
+
+## v1.4.4.0 [2018-04-13]
+
+### Features
+
 1.  [#2526](https://github.com/influxdata/chronograf/pull/2526): Add support for RS256/JWKS verification, support for id_token parsing (as in ADFS)
 1.  [#3060](https://github.com/influxdata/chronograf/pull/3060): Add ability to set a color palette for Line, Stacked, Step-Plot, and Bar graphs
 1.  [#3103](https://github.com/influxdata/chronograf/pull/3103): Add ability to clone dashboards
@@ -20,7 +44,7 @@
 
 ### Bug Fixes
 
-1.  [#2950](https://github.com/influxdata/chronograf/pull/2094): Always save template variables on first edit
+1.  [#3094](https://github.com/influxdata/chronograf/pull/3094): Always save template variables on first edit
 1.  [#3104](https://github.com/influxdata/chronograf/pull/3104): Query annotations at auto-refresh interval
 1.  [#3109](https://github.com/influxdata/chronograf/pull/3109): Display link to configure Kapacitor on Alerts Page if no configured kapacitor.
 1.  [#3111](https://github.com/influxdata/chronograf/pull/3111): Fix saving of new TICKscripts
@@ -36,6 +60,7 @@
 1.  [#3182](https://github.com/influxdata/chronograf/pull/3182): Send notification when rp creation returns a failure
 1.  [#3181](https://github.com/influxdata/chronograf/pull/3181): Show valid time in custom time range when now is selected
 1.  [#3179](https://github.com/influxdata/chronograf/pull/3179): Default to zero for gauges
+1.  [#3237](https://github.com/influxdata/chronograf/pull/3237): Fixes now() time parsing when requesting annotations
 
 ## v1.4.3.1 [2018-04-02]
 

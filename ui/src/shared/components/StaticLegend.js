@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import _ from 'lodash'
 import uuid from 'uuid'
 import {removeMeasurement} from 'shared/graphs/helpers'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const staticLegendItemClassname = (visibilities, i, hoverEnabled) => {
   if (visibilities.length) {
@@ -15,6 +16,7 @@ const staticLegendItemClassname = (visibilities, i, hoverEnabled) => {
   return 'static-legend--item'
 }
 
+@ErrorHandling
 class StaticLegend extends Component {
   constructor(props) {
     super(props)

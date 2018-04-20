@@ -20,8 +20,11 @@ import {
 } from 'shared/constants/thresholds'
 import {validateLineColors} from 'src/shared/constants/graphColorPalettes'
 
-const defaultCellType = 'line'
-const defaultCellName = 'defaultCell'
+import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
+import {UNTITLED_CELL_LINE} from 'src/dashboards/constants'
+
+const defaultCellType = CELL_TYPE_LINE
+const defaultCellName = UNTITLED_CELL_LINE
 const defaultCellAxes = {
   y: {
     base: '10',

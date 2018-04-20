@@ -7,6 +7,12 @@ import {
   THRESHOLD_TYPE_TEXT,
 } from 'shared/constants/thresholds'
 
+import {
+  CELL_TYPE_LINE,
+  CELL_TYPE_LINE_PLUS_SINGLE_STAT,
+  CELL_TYPE_TABLE,
+} from 'src/dashboards/graphics/graph'
+
 const getLegibleTextColor = bgColorHex => {
   const darkText = '#292933'
   const lightText = '#ffffff'
@@ -34,11 +40,12 @@ export const stringifyColorValues = colors => {
 export const generateThresholdsListHexs = ({
   colors,
   lastValue,
-  cellType = 'line',
+  cellType = CELL_TYPE_LINE,
 }) => {
   const defaultColoring = {
     bgColor: null,
-    textColor: cellType === 'table' ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
+    textColor:
+      cellType === CELL_TYPE_TABLE ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
   }
   const lastValueNumber = Number(lastValue) || 0
 
@@ -56,7 +63,7 @@ export const generateThresholdsListHexs = ({
   }
 
   // If the single stat is above a line graph never have a background color
-  if (cellType === 'line-plus-single-stat') {
+  if (cellType === CELL_TYPE_LINE_PLUS_SINGLE_STAT) {
     return baseColor
       ? {bgColor: null, textColor: baseColor.hex}
       : defaultColoring

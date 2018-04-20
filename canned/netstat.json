@@ -13,12 +13,12 @@
       "name": "System - Open Sockets",
       "queries": [
         {
-          "query": "SELECT mean(\"tcp_established\") AS \"tcp_established\" FROM netstat",
+          "query": "SELECT mean(\"tcp_established\") AS \"tcp_established\" FROM \":db:\".\":rp:\".\"netstat\"",
           "groupbys": [],
           "wheres": []
         },
         {
-          "query": "SELECT mean(\"udp_socket\") AS \"udp_socket\" FROM netstat",
+          "query": "SELECT mean(\"udp_socket\") AS \"udp_socket\" FROM \":db:\".\":rp:\".\"netstat\"",
           "groupbys": [],
           "wheres": []
         }
@@ -33,12 +33,12 @@
       "name": "System - Sockets Created/Second ",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"tcp_established\")) AS \"tcp_established\" FROM netstat",
+          "query": "SELECT non_negative_derivative(max(\"tcp_established\")) AS \"tcp_established\" FROM \":db:\".\":rp:\".\"netstat\"",
           "groupbys": [],
           "wheres": []
         },
         {
-          "query": "SELECT non_negative_derivative(max(\"udp_socket\")) AS \"udp_socket\" FROM netstat",
+          "query": "SELECT non_negative_derivative(max(\"udp_socket\")) AS \"udp_socket\" FROM \":db:\".\":rp:\".\"netstat\"",
           "groupbys": [],
           "wheres": []
         }

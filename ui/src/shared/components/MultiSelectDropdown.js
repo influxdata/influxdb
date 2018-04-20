@@ -7,6 +7,7 @@ import _ from 'lodash'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const labelText = ({localSelectedItems, isOpen, label}) => {
   if (localSelectedItems.length) {
@@ -25,6 +26,7 @@ const labelText = ({localSelectedItems, isOpen, label}) => {
   return 'None'
 }
 
+@ErrorHandling
 class MultiSelectDropdown extends Component {
   constructor(props) {
     super(props)

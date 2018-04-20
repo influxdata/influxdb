@@ -18,6 +18,9 @@ import {
 import {
   notifyDashboardDeleted,
   notifyDashboardDeleteFailed,
+  notifyCellAdded,
+  notifyCellCloned,
+  notifyCellDeleted,
 } from 'shared/copy/notifications'
 
 import {
@@ -286,13 +289,17 @@ export const deleteDashboardAsync = dashboard => async dispatch => {
   }
 }
 
-export const addDashboardCellAsync = dashboard => async dispatch => {
+export const addDashboardCellAsync = (
+  dashboard,
+  cellType
+) => async dispatch => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
-      getNewDashboardCell(dashboard)
+      getNewDashboardCell(dashboard, cellType)
     )
     dispatch(addDashboardCell(dashboard, data))
+    dispatch(notify(notifyCellAdded(data.name)))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
@@ -306,6 +313,7 @@ export const cloneDashboardCellAsync = (dashboard, cell) => async dispatch => {
       getClonedDashboardCell(dashboard, cell)
     )
     dispatch(addDashboardCell(dashboard, data))
+    dispatch(notify(notifyCellCloned(cell.name)))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
@@ -316,6 +324,7 @@ export const deleteDashboardCellAsync = (dashboard, cell) => async dispatch => {
   try {
     await deleteDashboardCellAJAX(cell)
     dispatch(deleteDashboardCell(dashboard, cell))
+    dispatch(notify(notifyCellDeleted(cell.name)))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))

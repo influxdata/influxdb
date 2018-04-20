@@ -14,10 +14,12 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import Dashboard from 'src/dashboards/components/Dashboard'
 import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
+import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {notify as notifyAction} from 'shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
+import {millisecondTimeRange} from 'src/dashboards/utils/time'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
 import * as annotationActions from 'shared/actions/annotations'
@@ -37,6 +39,7 @@ import {presentationButtonDispatcher} from 'shared/dispatchers'
 import {interval, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 import {notifyDashboardNotFound} from 'shared/copy/notifications'
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -46,6 +49,7 @@ const defaultTimeRange = {
   format: FORMAT_INFLUXQL,
 }
 
+@ErrorHandling
 class DashboardPage extends Component {
   constructor(props) {
     super(props)
@@ -78,7 +82,7 @@ class DashboardPage extends Component {
       autoRefresh,
     } = this.props
 
-    const annotationRange = this.millisecondTimeRange(timeRange)
+    const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
 
     if (autoRefresh) {
@@ -111,7 +115,7 @@ class DashboardPage extends Component {
     const {source, getAnnotationsAsync, timeRange} = this.props
     if (this.props.autoRefresh !== nextProps.autoRefresh) {
       clearInterval(this.intervalID)
-      const annotationRange = this.millisecondTimeRange(timeRange)
+      const annotationRange = millisecondTimeRange(timeRange)
       if (nextProps.autoRefresh) {
         this.intervalID = setInterval(() => {
           getAnnotationsAsync(source.links.annotations, annotationRange)
@@ -180,24 +184,8 @@ class DashboardPage extends Component {
       format: FORMAT_INFLUXQL,
     })
 
-    const annotationRange = this.millisecondTimeRange(timeRange)
+    const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
-  }
-
-  millisecondTimeRange({seconds, lower, upper}) {
-    // Is this a relative time range?
-    if (seconds) {
-      return {
-        since: Date.now() - seconds * 1000,
-        until: null,
-      }
-    }
-
-    // No, this is an absolute (custom) time range
-    return {
-      since: Date.parse(lower),
-      until: Date.parse(upper),
-    }
   }
 
   handleUpdatePosition = cells => {
@@ -372,7 +360,7 @@ class DashboardPage extends Component {
       link: `/sources/${sourceID}/dashboards/${d.id}`,
     }))
     return (
-      <div className="page">
+      <div className="page dashboard-page">
         {isTemplating ? (
           <OverlayTechnologies>
             <TemplateVariableManager
@@ -425,6 +413,14 @@ class DashboardPage extends Component {
           onToggleTempVarControls={this.handleToggleTempVarControls}
           handleClickPresentationButton={handleClickPresentationButton}
         />
+        {inPresentationMode || (
+          <TemplateControlBar
+            templates={dashboard && dashboard.templates}
+            onSelectTemplate={this.handleSelectTemplate}
+            onOpenTemplateManager={this.handleOpenTemplateManager}
+            isOpen={showTemplateControlBar}
+          />
+        )}
         {dashboard ? (
           <Dashboard
             source={source}

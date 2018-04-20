@@ -196,5 +196,5 @@ export const hasherino = (str, len) =>
     .map(char => char.charCodeAt(0))
     .reduce((hash, code) => hash + code, 0) % len
 
-export const LABEL_WIDTH = 60
+export const LABEL_WIDTH = 44
 export const CHAR_PIXELS = 7

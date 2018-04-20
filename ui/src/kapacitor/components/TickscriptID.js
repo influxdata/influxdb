@@ -1,6 +1,8 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class TickscriptID extends Component {
   constructor(props) {
     super(props)
@@ -17,7 +19,7 @@ class TickscriptID extends Component {
         onChange={onChangeID}
         placeholder="ID your TICKscript"
         spellCheck={false}
-        autoComplete={false}
+        autoComplete="off"
       />
     )
   }

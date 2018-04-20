@@ -11,7 +11,9 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {meChangeOrganizationAsync} from 'shared/actions/auth'
 
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class UserNavBlock extends Component {
   handleChangeCurrentOrganization = organizationID => async () => {
     const {router, links, meChangeOrganization} = this.props

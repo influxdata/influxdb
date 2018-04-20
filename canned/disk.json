@@ -13,7 +13,7 @@
       "name": "System - Disk used %",
       "queries": [
         {
-          "query": "SELECT mean(\"used_percent\") AS \"used_percent\" FROM disk",
+          "query": "SELECT mean(\"used_percent\") AS \"used_percent\" FROM \":db:\".\":rp:\".\"disk\"",
           "label": "% used",
           "groupbys": [
             "\"path\""

@@ -4,7 +4,9 @@ import {
   DASHBOARD_NAME_MAX_LENGTH,
   NEW_DASHBOARD,
 } from 'src/dashboards/constants/index'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DashboardEditHeader extends Component {
   constructor(props) {
     super(props)

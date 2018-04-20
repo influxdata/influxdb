@@ -13,7 +13,7 @@
 			"name": "Processes – Resident Memory (MB)",
 			"queries": [
 				{
-					"query": "SELECT max(\"memory_rss\") / 1000000 AS \"max_mb_memory_rss\" FROM \"procstat\"",
+					"query": "SELECT max(\"memory_rss\") / 1000000 AS \"max_mb_memory_rss\" FROM \":db:\".\":rp:\".\"procstat\"",
 					"groupbys": ["\"exe\""],
 					"wheres": [],
 					"label": "MB"
@@ -29,7 +29,7 @@
 			"name": "Processes – CPU Usage %",
 			"queries": [
 				{
-					"query": "SELECT max(\"cpu_usage\") AS \"cpu_usage\" FROM \"procstat\"",
+					"query": "SELECT max(\"cpu_usage\") AS \"cpu_usage\" FROM \":db:\".\":rp:\".\"procstat\"",
 					"groupbys": ["\"exe\""],
 					"wheres": [],
 					"label": "%"

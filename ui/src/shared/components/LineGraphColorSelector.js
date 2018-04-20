@@ -7,7 +7,9 @@ import ColorScaleDropdown from 'shared/components/ColorScaleDropdown'
 
 import {updateLineColors} from 'src/dashboards/actions/cellEditorOverlay'
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class LineGraphColorSelector extends Component {
   handleSelectColors = colorScale => {
     const {handleUpdateLineColors} = this.props

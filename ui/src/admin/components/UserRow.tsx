@@ -8,6 +8,7 @@ import {USERS_TABLE} from 'src/admin/constants/tableSizing'
 
 import UserRowEdit from 'src/admin/components/UserRowEdit'
 import {User} from 'src/types/influxAdmin'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface UserRowProps {
   user: User
@@ -25,6 +26,7 @@ interface UserRowProps {
   onUpdatePassword: (user: User, password: string) => void
 }
 
+@ErrorHandling
 class UserRow extends PureComponent<UserRowProps> {
   public render() {
     const {

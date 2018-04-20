@@ -11,23 +11,34 @@ $template-control-dropdown-min-width: 146px;
 $template-control-dropdown-max-width: 300px;
 
 .template-control-bar {
+  position: relative;
   display: none;
-  height: auto;
-  margin-bottom: 8px;
+  background-color: $g3-castle;
 
   &.show {
     display: block;
   }
+
+  &:after {
+    content: '';
+    z-index: 2;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: calc(100% - 16px);
+    height: 16px;
+    pointer-events: none;
+    @include gradient-v($g2-kevlar, fade-out($g2-kevlar, 1));
+  }
 }
 .template-control--container {
+  width: 100%;
+  min-height: $chronograf-page-header-height;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  padding: $template-control--margin;
-  @extend .cell-shell;
-  background-color: $g0-obsidian;
-  min-height: $template-control--min-height;
+  padding: 8px 60px;
 }
 .template-control--heading {
   font-size: 16px;
@@ -38,7 +49,7 @@ $template-control-dropdown-max-width: 300px;
   white-space: nowrap;
 }
 button.btn.template-control--manage {
-  margin: 7px 8px;
+  margin: 7px 0 7px 8px;
 }
 .template-control--controls {
   display: flex;
@@ -49,7 +60,6 @@ button.btn.template-control--manage {
   color: $g11-sidewalk;
   font-size: 14px;
   font-weight: 500;
-  margin-left: 18px;
   @include no-user-select();
 }
 .template-control--dropdown {

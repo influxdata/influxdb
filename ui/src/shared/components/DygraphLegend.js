@@ -5,7 +5,9 @@ import classnames from 'classnames'
 import uuid from 'uuid'
 
 import {makeLegendStyles, removeMeasurement} from 'shared/graphs/helpers'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DygraphLegend extends Component {
   state = {
     legend: {

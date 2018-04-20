@@ -24,6 +24,7 @@ import {
   notifyKapacitorUpdateFailed,
   notifyKapacitorUpdated,
 } from 'src/shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export const defaultName = 'My Kapacitor'
 export const kapacitorPort = '9092'
@@ -64,6 +65,7 @@ interface State {
   exists: boolean
 }
 
+@ErrorHandling
 export class KapacitorPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

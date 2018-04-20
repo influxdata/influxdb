@@ -11,13 +11,15 @@ import {createDashboard} from 'src/dashboards/apis'
 import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
 
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DashboardsPage extends Component {
   componentDidMount() {
     this.props.handleGetDashboards()
   }
 
-  handleCreateDashbord = async () => {
+  handleCreateDashboard = async () => {
     const {source: {id}, router: {push}} = this.props
     const {data} = await createDashboard(NEW_DASHBOARD)
     push(`/sources/${id}/dashboards/${data.id}`)
@@ -47,7 +49,7 @@ class DashboardsPage extends Component {
           dashboardLink={dashboardLink}
           dashboards={dashboards}
           onDeleteDashboard={this.handleDeleteDashboard}
-          onCreateDashboard={this.handleCreateDashbord}
+          onCreateDashboard={this.handleCreateDashboard}
           onCloneDashboard={this.handleCloneDashboard}
         />
       </div>

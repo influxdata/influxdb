@@ -16,8 +16,10 @@ import {
   TalkHandler,
   TelegramHandler,
   VictoropsHandler,
-} from './handlers'
+} from 'src/kapacitor/components/handlers'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class HandlerOptions extends Component {
   constructor(props) {
     super(props)

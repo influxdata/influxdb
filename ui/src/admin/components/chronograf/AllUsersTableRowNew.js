@@ -5,6 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import {notify as notifyAction} from 'shared/actions/notifications'
 import Dropdown from 'shared/components/Dropdown'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {notifyChronografUserMissingNameAndProvider} from 'shared/copy/notifications'
 import {ALL_USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
@@ -19,6 +20,7 @@ const {
 const nullOrganization = {id: undefined, name: 'None'}
 const nullRole = {name: '*', organization: undefined}
 
+@ErrorHandling
 class AllUsersTableRowNew extends Component {
   constructor(props) {
     super(props)
