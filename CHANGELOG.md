@@ -29,6 +29,7 @@ v1.6.0 [unreleased]
 -	[#9665](https://github.com/influxdata/influxdb/pull/9665): Enable casting values from a subquery.
 -	[#9682](https://github.com/influxdata/influxdb/pull/9682): Avoid a panic when using show diagnostics with text/csv.
 -	[#9696](https://github.com/influxdata/influxdb/pull/9696): Properly track the response bytes written for queries in all format types.
+-	[#9615](https://github.com/influxdata/influxdb/pull/9615): Remove error for series file when no shards exist.
 
 v1.5.0 [2018-03-06]
 -------------------
