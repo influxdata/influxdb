@@ -1,11 +1,14 @@
 import React, {Component} from 'react'
+import {connect} from 'react-redux'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
 import classnames from 'classnames'
 import uuid from 'uuid'
+import * as actions from 'src/dashboards/actions'
 
 import {makeLegendStyles, removeMeasurement} from 'shared/graphs/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {NO_CELL} from 'src/shared/constants'
 
 @ErrorHandling
 class DygraphLegend extends Component {
@@ -30,6 +33,7 @@ class DygraphLegend extends Component {
       isFilterVisible: false,
       legendStyles: {},
       pageX: null,
+      cellID: null,
     }
   }
 
@@ -43,6 +47,7 @@ class DygraphLegend extends Component {
   }
 
   highlightCallback = _.throttle(e => {
+    this.props.setActiveCell(this.props.cellID)
     this.setState({pageX: e.pageX})
     this.props.onShow(e)
   }, 60)
@@ -84,8 +89,13 @@ class DygraphLegend extends Component {
     const isMouseHoveringLegend = mouseInLegendY && mouseInLegendX
 
     if (!isMouseHoveringLegend) {
-      this.props.onHide()
+      this.handleHide()
     }
+  }
+
+  handleHide = () => {
+    this.props.onHide()
+    this.props.setActiveCell(NO_CELL)
   }
 
   handleToggleFilter = () => {
@@ -120,7 +130,7 @@ class DygraphLegend extends Component {
   }
 
   render() {
-    const {dygraph, onHide, isHidden} = this.props
+    const {dygraph} = this.props
 
     const {
       pageX,
@@ -140,7 +150,6 @@ class DygraphLegend extends Component {
 
     const ordered = isAscending ? sorted : sorted.reverse()
     const filtered = ordered.filter(s => s.label.match(filterText))
-    const hidden = isHidden ? 'hidden' : ''
     const style = makeLegendStyles(dygraph.graphDiv, this.legendNodeRef, pageX)
 
     const renderSortAlpha = (
@@ -174,11 +183,12 @@ class DygraphLegend extends Component {
         <div className="sort-btn--bottom">9</div>
       </button>
     )
+
     return (
       <div
-        className={`dygraph-legend ${hidden}`}
+        className={`dygraph-legend ${this.hidden}`}
         ref={el => (this.legendNodeRef = el)}
-        onMouseLeave={onHide}
+        onMouseLeave={this.handleHide}
         style={style}
       >
         <div className="dygraph-legend--header">
@@ -233,15 +243,40 @@ class DygraphLegend extends Component {
       </div>
     )
   }
+
+  get isVisible() {
+    const {cellID, activeCellID, isDragging} = this.props
+
+    return cellID === activeCellID && !isDragging
+  }
+
+  get hidden() {
+    if (this.isVisible) {
+      return ''
+    }
+
+    return 'hidden'
+  }
 }
 
-const {bool, func, shape} = PropTypes
+const {bool, func, shape, string} = PropTypes
 
 DygraphLegend.propTypes = {
   dygraph: shape({}),
+  cellID: string.isRequired,
   onHide: func.isRequired,
   onShow: func.isRequired,
-  isHidden: bool.isRequired,
+  isDragging: bool.isRequired,
+  activeCellID: string.isRequired,
+  setActiveCell: func.isRequired,
 }
 
-export default DygraphLegend
+const mapDispatchToProps = {
+  setActiveCell: actions.setActiveCell,
+}
+
+const mapStateToProps = ({dashboardUI}) => ({
+  activeCellID: dashboardUI.activeCellID,
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(DygraphLegend)

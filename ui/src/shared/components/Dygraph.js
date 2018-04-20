@@ -35,9 +35,7 @@ class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      isHidden: true,
       staticLegendHeight: null,
-      isHoveringThisGraph: false,
     }
   }
 
@@ -214,14 +212,11 @@ class Dygraph extends Component {
 
   handleHideLegend = () => {
     this.props.handleSetHoverTime(NULL_HOVER_TIME)
-    this.setState({isHidden: true, isHoveringThisGraph: false})
   }
 
   handleShowLegend = e => {
     const newTime = this.eventToTimestamp(e)
     this.props.handleSetHoverTime(newTime)
-
-    this.setState({isHidden: false, isHoveringThisGraph: true})
   }
 
   get lineColors() {
@@ -284,8 +279,8 @@ class Dygraph extends Component {
   }
 
   render() {
-    const {isHidden, staticLegendHeight} = this.state
-    const {staticLegend, children} = this.props
+    const {staticLegendHeight} = this.state
+    const {staticLegend, children, cellID} = this.props
     const nestedGraph = (children && children.length && children[0]) || children
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
     if (staticLegend) {
@@ -308,7 +303,7 @@ class Dygraph extends Component {
               staticLegendHeight={staticLegendHeight}
             />
             <DygraphLegend
-              isHidden={isHidden}
+              cellID={cellID}
               dygraph={this.dygraph}
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
@@ -372,6 +367,7 @@ Dygraph.defaultProps = {
 }
 
 Dygraph.propTypes = {
+  cellID: string,
   handleSetHoverTime: func,
   axes: shape({
     y: shape({

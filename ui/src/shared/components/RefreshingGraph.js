@@ -115,6 +115,7 @@ const RefreshingGraph = ({
   return (
     <RefreshingLineGraph
       axes={axes}
+      cellID={cellID}
       colors={colors}
       onZoom={onZoom}
       queries={queries}

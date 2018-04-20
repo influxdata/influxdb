@@ -53,6 +53,7 @@ const Layout = (
     templates,
     timeRange,
     isEditable,
+    isDragging,
     onEditCell,
     onCloneCell,
     autoRefresh,
@@ -84,6 +85,7 @@ const Layout = (
         inView={cell.inView}
         axes={axes}
         type={type}
+        isDragging={isDragging}
         tableOptions={tableOptions}
         staticLegend={IS_STATIC_LEGEND(legend)}
         cellHeight={h}
@@ -114,6 +116,7 @@ Layout.contextTypes = {
 }
 
 const propTypes = {
+  isDragging: bool,
   autoRefresh: number.isRequired,
   manualRefresh: number,
   timeRange: shape({

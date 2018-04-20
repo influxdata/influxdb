@@ -36,9 +36,9 @@ class LineGraph extends Component {
     const {
       data,
       axes,
-      cell,
       title,
       colors,
+      cellID,
       onZoom,
       queries,
       hoverTime,
@@ -96,14 +96,14 @@ class LineGraph extends Component {
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
         {isRefreshing ? <GraphLoadingDots /> : null}
         <Dygraph
-          cell={cell}
           axes={axes}
+          cellID={cellID}
           colors={colors}
           onZoom={onZoom}
           labels={labels}
-          hoverTime={hoverTime}
           queries={queries}
           options={options}
+          hoverTime={hoverTime}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
@@ -157,6 +157,7 @@ LineGraph.defaultProps = {
 }
 
 LineGraph.propTypes = {
+  cellID: string,
   axes: shape({
     y: shape({
       bounds: array,
@@ -190,7 +191,6 @@ LineGraph.propTypes = {
   isInDataExplorer: bool,
   setResolution: func,
   cellHeight: number,
-  cell: shape(),
   onZoom: func,
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,
