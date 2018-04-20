@@ -76,7 +76,6 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
     },
     0
   )
-  // console.log('size', size)
   // convert series into cells with rows and columns
   let cellIndex = 0
   let labels = []
@@ -109,9 +108,9 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
 
       const unsortedLabels = map(columns.slice(1), (field, i) => ({
         label:
-          i > groupByColumns.length - 1
-            ? `${measurement}.${field}`
-            : `${field}`,
+          groupByColumns && i <= groupByColumns.length - 1
+            ? `${field}`
+            : `${measurement}.${field}`,
         responseIndex,
         seriesIndex,
       }))
