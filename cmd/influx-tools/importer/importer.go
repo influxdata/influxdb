@@ -18,13 +18,13 @@ import (
 
 type importer struct {
 	MetaClient server.MetaClient
-	store      *tsdb.Store
 	db         string
 	dataDir    string
 	replace    bool
 
 	rpi       *meta.RetentionPolicyInfo
 	log       *zap.Logger
+	currentSg *meta.ShardGroupInfo
 	sh        *shardWriter
 	sfile     *tsdb.SeriesFile
 	sw        *seriesWriter
@@ -37,44 +37,16 @@ const seriesBatchSize = 1000
 func newImporter(server server.Interface, db string, rp string, replace bool, buildTsi bool, log *zap.Logger) *importer {
 	i := &importer{MetaClient: server.MetaClient(), db: db, dataDir: server.TSDBConfig().Dir, replace: replace, buildTsi: buildTsi, log: log}
 
-	if replace {
-		store := tsdb.NewStore(server.TSDBConfig().Dir)
-		store.WithLogger(server.Logger())
-		store.EngineOptions.Config = server.TSDBConfig()
-		store.EngineOptions.EngineVersion = server.TSDBConfig().Engine
-		store.EngineOptions.IndexVersion = server.TSDBConfig().Index
-		store.EngineOptions.DatabaseFilter = func(database string) bool {
-			return database == db
-		}
-		store.EngineOptions.RetentionPolicyFilter = func(_, r string) bool {
-			return r == rp
-		}
-		store.EngineOptions.ShardFilter = func(_, _ string, _ uint64) bool {
-			return false
-		}
-		i.store = store
-	}
-
 	if !buildTsi {
 		i.seriesBuf = make([]byte, 0, 2048)
 	}
 	return i
 }
 
-func (i *importer) Open() error {
-	if i.replace {
-		return i.store.Open()
-	}
-	return nil
-}
-
 func (i *importer) Close() error {
 	el := errlist.NewErrorList()
 	if i.sh != nil {
 		el.Add(i.CloseShardGroup())
-	}
-	if i.replace {
-		el.Add(i.store.Close())
 	}
 	return el.Err()
 }
@@ -154,15 +126,20 @@ func (i *importer) StartShardGroup(start int64, end int64) error {
 		return err
 	}
 
-	shardPath := filepath.Join(i.dataDir, i.db, i.rpi.Name)
+	shardPath := i.shardPath()
 	if err = os.MkdirAll(filepath.Join(shardPath, strconv.Itoa(int(sgi.ID))), 0777); err != nil {
 		return err
 	}
 
 	i.sh = newShardWriter(sgi.ID, shardPath)
+	i.currentSg = sgi
 
 	i.startSeriesFile()
 	return nil
+}
+
+func (i *importer) shardPath() string {
+	return filepath.Join(i.dataDir, i.db, i.rpi.Name)
 }
 
 func (i *importer) removeShardGroup(sgi *meta.ShardGroupInfo) error {
@@ -171,18 +148,9 @@ func (i *importer) removeShardGroup(sgi *meta.ShardGroupInfo) error {
 		return err
 	}
 
-	i.store.EngineOptions.ShardFilter = func(_, _ string, id uint64) bool {
-		for _, shard := range sgi.Shards {
-			if id == shard.ID {
-				return true
-			}
-		}
-		return false
-	}
-
+	shardPath := i.shardPath()
 	for _, shard := range sgi.Shards {
-		err = i.store.DeleteShard(shard.ID)
-		if err != nil {
+		if err := os.RemoveAll(filepath.Join(shardPath, strconv.Itoa(int(shard.ID)))); err != nil {
 			return err
 		}
 	}
@@ -196,7 +164,13 @@ func (i *importer) Write(key []byte, values tsm1.Values) error {
 	}
 	i.sh.Write(key, values)
 	if i.sh.err != nil {
-		return i.sh.err
+		el := errlist.NewErrorList()
+		el.Add(i.sh.err)
+		el.Add(i.CloseShardGroup())
+		el.Add(i.removeShardGroup(i.currentSg))
+		i.sh = nil
+		i.currentSg = nil
+		return el.Err()
 	}
 	return nil
 }

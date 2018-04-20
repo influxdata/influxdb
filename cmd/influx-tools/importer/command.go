@@ -54,11 +54,6 @@ func (cmd *Command) Run(args []string) (err error) {
 	}
 
 	i := newImporter(cmd.server, cmd.database, cmd.retentionPolicy, cmd.replace, cmd.buildTSI, cmd.Logger)
-	err = i.Open()
-	if err != nil {
-		return err
-	}
-	defer i.Close()
 
 	reader := binary.NewReader(cmd.stdin)
 	_, err = reader.ReadHeader()
