@@ -3,21 +3,22 @@ influxd-backup(1)
 
 NAME
 ----
-influxd-backup - Create a backup copy of specified database(s) and save to disk.
-
+influxd-backup - Creates a backup copy of specified database(s) and saves to disk.
 
 SYNOPSIS
 --------
-'influxd backup' [options]
+'influxd backup' [options] PATH
 
 DESCRIPTION
 -----------
-Create a backup copy of specified InfluxDB OSS database(s) and save to disk.
+Creates a backup copy of specified InfluxDB OSS database(s) and saves to PATH (directory where backups are saved).  Use the newer `-portable` option unless legacy support is required.
+ Note: Without the '-portable' option, the legacy backup utility is used and only the metastore is backeup unless a database is specified.
+
 
 OPTIONS
 -------
 -portable::
-  Generate backup files in portable format that can be restored to InfluxDB OSS or InfluxDB Enterprise.
+  Generate backup files in portable format that can be restored to InfluxDB OSS or InfluxDB Enterprise. Optional. Use unless the legacy backup is required.
 
 -host <host:port>::
   InfluxDB OSS host to back up from. Optional. Defaults to 127.0.0.1:8088.
@@ -26,7 +27,7 @@ OPTIONS
   InfluxDB OSS database name to back up. Optional. If not specified, all databases backed up with '-portable'.
 
 -rp <rp_name>::
-  Retention policy to use for the backup. Optional. If not specified, all retention policies are used by default. 
+  Retention policy to use for the backup. Optional. If not specified, all retention policies are used by default.
 
 -shard <shard_id>::
   The identifier of the shard to back up. Optional. If specified, '-rp <rp_name>' is required.
