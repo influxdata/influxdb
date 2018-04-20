@@ -7,6 +7,8 @@ import {
   CELL_TYPE_BAR,
 } from 'src/dashboards/graphics/graph'
 
+export const NO_CELL = 'none'
+
 export const PERMISSIONS = {
   ViewAdmin: {
     description: 'Can view or edit admin screens',
