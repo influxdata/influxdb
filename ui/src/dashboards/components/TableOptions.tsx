@@ -52,17 +52,6 @@ interface Field {
   alias?: string
 }
 
-interface QueryAST {
-  fields: Field[]
-  limits: {limit: number}
-  sources: Sources[]
-  condition?: any
-  groupBy?: {
-    tags?: string[]
-    time: {interval: string}
-  }
-}
-
 interface Props {
   queryConfigs: QueryConfig[]
   handleUpdateTableOptions: (options: Options) => void
