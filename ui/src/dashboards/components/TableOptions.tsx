@@ -14,7 +14,10 @@ import _ from 'lodash'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
-import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
+import {
+  updateTableOptions,
+  updateDisplayOptions,
+} from 'src/dashboards/actions/cellEditorOverlay'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {QueryConfig} from 'src/types/query'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -31,17 +34,18 @@ interface RenamableField {
 }
 
 interface Options {
-  timeFormat: string
   verticalTimeAxis: boolean
   sortBy: RenamableField
-  fieldNames: RenamableField[]
   fixFirstColumn: boolean
 }
 
 interface Props {
   queryConfigs: QueryConfig[]
   handleUpdateTableOptions: (options: Options) => void
+  handleUpdateDisplayOptions: (displayOption: string | RenamableField[]) => void
   tableOptions: Options
+  fieldOptions: RenamableField[]
+  timeFormat: string
   onResetFocus: () => void
 }
 
@@ -53,10 +57,9 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   public componentWillMount() {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: this.computedFieldNames,
+    const {handleUpdateDisplayOptions, tableOptions} = this.props
+    handleUpdateDisplayOptions({
+      fieldOptions: this.computedFieldOptions,
     })
   }
 
@@ -72,12 +75,14 @@ export class TableOptions extends PureComponent<Props, {}> {
 
   public render() {
     const {
-      tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
+      tableOptions: {verticalTimeAxis, fixFirstColumn},
+      fieldOptions,
+      timeFormat,
       onResetFocus,
       tableOptions,
     } = this.props
 
-    const tableSortByOptions = fieldNames.map(field => ({
+    const tableSortByOptions = fieldOptions.map(field => ({
       key: field.internalName,
       text: field.displayName || field.internalName,
     }))
@@ -109,7 +114,7 @@ export class TableOptions extends PureComponent<Props, {}> {
             />
           </div>
           <GraphOptionsCustomizeFields
-            fields={fieldNames}
+            fields={fieldOptions}
             onFieldUpdate={this.handleFieldUpdate}
             moveField={this.moveField}
           />
@@ -122,21 +127,21 @@ export class TableOptions extends PureComponent<Props, {}> {
     )
   }
 
-  private get fieldNames() {
-    const {tableOptions: {fieldNames}} = this.props
-    return fieldNames || []
+  private get fieldOptions() {
+    return this.props.fieldOptions || []
   }
 
   private get timeField() {
     return (
-      this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
+      this.fieldOptions.find(f => f.internalName === 'time') ||
+      TIME_FIELD_DEFAULT
     )
   }
 
   private moveField(dragIndex, hoverIndex) {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const {fieldNames} = tableOptions
-    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
+    const {handleUpdateDisplayOptions, tableOptions, fieldOptions} = this.props
+    const fields =
+      fieldOptions.length > 1 ? fieldOptions : this.computedFieldOptions
 
     const dragField = fields[dragIndex]
     const removedFields = _.concat(
@@ -148,19 +153,18 @@ export class TableOptions extends PureComponent<Props, {}> {
       [dragField],
       _.slice(removedFields, hoverIndex)
     )
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: addedFields,
+    handleUpdateDisplayOptions({
+      fieldOptions: addedFields,
     })
   }
 
-  private get computedFieldNames() {
+  private get computedFieldOptions() {
     const {queryConfigs} = this.props
     const queryFields = _.flatten(
       queryConfigs.map(({measurement, fields}) => {
         return fields.map(({alias}) => {
           const internalName = `${measurement}.${alias}`
-          const existing = this.fieldNames.find(
+          const existing = this.fieldOptions.find(
             c => c.internalName === internalName
           )
           return existing || {internalName, displayName: '', visible: true}
@@ -183,8 +187,8 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   private handleTimeFormatChange = timeFormat => {
-    const {tableOptions, handleUpdateTableOptions} = this.props
-    handleUpdateTableOptions({...tableOptions, timeFormat})
+    const {handleUpdateDisplayOptions} = this.props
+    handleUpdateDisplayOptions({timeFormat})
   }
 
   private handleToggleVerticalTimeAxis = verticalTimeAxis => () => {
@@ -199,9 +203,14 @@ export class TableOptions extends PureComponent<Props, {}> {
   }
 
   private handleFieldUpdate = field => {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const {sortBy, fieldNames} = tableOptions
-    const updatedFields = fieldNames.map(
+    const {
+      handleUpdateTableOptions,
+      handleUpdateDisplayOptions,
+      tableOptions,
+      fieldOptions,
+    } = this.props
+    const {sortBy} = tableOptions
+    const updatedFields = fieldOptions.map(
       f => (f.internalName === field.internalName ? field : f)
     )
     const updatedSortBy =
@@ -211,18 +220,28 @@ export class TableOptions extends PureComponent<Props, {}> {
 
     handleUpdateTableOptions({
       ...tableOptions,
-      fieldNames: updatedFields,
       sortBy: updatedSortBy,
+    })
+    handleUpdateDisplayOptions({
+      fieldOptions: updatedFields,
     })
   }
 }
 
-const mapStateToProps = ({cellEditorOverlay: {cell: {tableOptions}}}) => ({
+const mapStateToProps = ({
+  cellEditorOverlay: {cell: {tableOptions, timeFormat, fieldOptions}},
+}) => ({
   tableOptions,
+  timeFormat,
+  fieldOptions,
 })
 
 const mapDispatchToProps = dispatch => ({
   handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
+  handleUpdateDisplayOptions: bindActionCreators(
+    updateDisplayOptions,
+    dispatch
+  ),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

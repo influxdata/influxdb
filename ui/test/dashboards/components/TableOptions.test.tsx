@@ -16,12 +16,12 @@ const defaultProps = {
   queryConfigs: [],
   tableOptions: {
     columnNames: [],
-    fieldNames: [],
     fixFirstColumn: true,
     sortBy: {displayName: '', internalName: '', visible: true},
-    timeFormat: '',
     verticalTimeAxis: true,
   },
+  fieldOptions: [],
+  timeFormat: '',
 }
 
 const setup = (override = {}) => {

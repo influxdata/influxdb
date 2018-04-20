@@ -64,3 +64,10 @@ export const updateLineColors = lineColors => ({
     lineColors,
   },
 })
+
+export const updateDisplayOptions = update => ({
+  type: 'UPDATE_DISPLAY_OPTIONS',
+  payload: {
+    update,
+  },
+})

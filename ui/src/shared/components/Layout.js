@@ -45,7 +45,16 @@ const Layout = (
   {
     host,
     cell,
-    cell: {h, axes, type, colors, legend, tableOptions},
+    cell: {
+      h,
+      axes,
+      type,
+      colors,
+      legend,
+      timeFormat,
+      fieldOptions,
+      tableOptions,
+    },
     source,
     sources,
     onZoom,
@@ -85,6 +94,8 @@ const Layout = (
         axes={axes}
         type={type}
         tableOptions={tableOptions}
+        fieldOptions={fieldOptions}
+        timeFormat={timeFormat}
         staticLegend={IS_STATIC_LEGEND(legend)}
         cellHeight={h}
         onZoom={onZoom}

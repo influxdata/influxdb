@@ -61,12 +61,9 @@ class TableGraph extends Component {
 
     const {sortField, sortDirection} = this.state
     const {
-      tableOptions: {
-        sortBy: {internalName},
-        fieldNames,
-        verticalTimeAxis,
-        timeFormat,
-      },
+      tableOptions: {sortBy: {internalName}, verticalTimeAxis},
+      timeFormat,
+      fieldOptions,
     } = nextProps
 
     let direction, sortFieldName
@@ -91,7 +88,7 @@ class TableGraph extends Component {
       sortFieldName,
       direction,
       verticalTimeAxis,
-      fieldNames,
+      fieldOptions,
       timeFormat
     )
 
@@ -166,7 +163,7 @@ class TableGraph extends Component {
     const {tableOptions} = this.props
     const {data, sortField, sortDirection} = this.state
     const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
-    const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
+    const fieldOptions = _.get(this.props, 'fieldOptions', [TIME_FIELD_DEFAULT])
 
     let direction
     if (fieldName === sortField) {
@@ -180,7 +177,7 @@ class TableGraph extends Component {
       fieldName,
       direction,
       verticalTimeAxis,
-      fieldNames
+      fieldOptions
     )
 
     this.setState({
@@ -226,22 +223,25 @@ class TableGraph extends Component {
       sortField,
       sortDirection,
     } = this.state
-    const {tableOptions, colors} = parent.props
+    const {
+      tableOptions,
+      fieldOptions = [TIME_FIELD_DEFAULT],
+      colors,
+    } = parent.props
 
     const {
       timeFormat = TIME_FORMAT_DEFAULT,
       verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
       fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
-      fieldNames = [TIME_FIELD_DEFAULT],
     } = tableOptions
 
     const cellData = processedData[rowIndex][columnIndex]
 
-    const timeFieldIndex = fieldNames.findIndex(
+    const timeFieldIndex = fieldOptions.findIndex(
       field => field.internalName === TIME_FIELD_DEFAULT.internalName
     )
 
-    const visibleTime = _.get(fieldNames, [timeFieldIndex, 'visible'], true)
+    const visibleTime = _.get(fieldOptions, [timeFieldIndex, 'visible'], true)
 
     const isFixedRow = rowIndex === 0 && columnIndex > 0
     const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0
@@ -277,7 +277,7 @@ class TableGraph extends Component {
     }
 
     const foundField =
-      isFieldName && fieldNames.find(field => field.internalName === cellData)
+      isFieldName && fieldOptions.find(field => field.internalName === cellData)
     const fieldName =
       foundField && (foundField.displayName || foundField.internalName)
 
@@ -394,7 +394,6 @@ class TableGraph extends Component {
 TableGraph.propTypes = {
   data: arrayOf(shape()),
   tableOptions: shape({
-    timeFormat: string.isRequired,
     verticalTimeAxis: bool.isRequired,
     sortBy: shape({
       internalName: string.isRequired,
@@ -402,15 +401,16 @@ TableGraph.propTypes = {
       visible: bool.isRequired,
     }).isRequired,
     wrapping: string.isRequired,
-    fieldNames: arrayOf(
-      shape({
-        internalName: string.isRequired,
-        displayName: string.isRequired,
-        visible: bool.isRequired,
-      })
-    ).isRequired,
     fixFirstColumn: bool,
   }),
+  timeFormat: string.isRequired,
+  fieldOptions: arrayOf(
+    shape({
+      internalName: string.isRequired,
+      displayName: string.isRequired,
+      visible: bool.isRequired,
+    })
+  ).isRequired,
   hoverTime: string,
   handleSetHoverTime: func,
   colors: colorsStringSchema,

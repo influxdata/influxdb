@@ -36,9 +36,7 @@ export const FORMAT_OPTIONS = [
 
 export const DEFAULT_TABLE_OPTIONS = {
   verticalTimeAxis: VERTICAL_TIME_AXIS_DEFAULT,
-  timeFormat: TIME_FORMAT_DEFAULT,
   sortBy: TIME_FIELD_DEFAULT,
   wrapping: 'truncate',
-  fieldNames: [TIME_FIELD_DEFAULT],
   fixFirstColumn: FIX_FIRST_COLUMN_DEFAULT,
 }

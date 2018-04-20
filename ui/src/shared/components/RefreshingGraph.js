@@ -33,6 +33,8 @@ const RefreshingGraph = ({
   timeRange,
   cellHeight,
   autoRefresh,
+  fieldOptions,
+  timeFormat,
   resizerTopHeight,
   staticLegend,
   manualRefresh, // when changed, re-mounts the component
@@ -101,6 +103,8 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizeCoords={resizeCoords}
         tableOptions={tableOptions}
+        fieldOptions={fieldOptions}
+        timeFormat={timeFormat}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
       />
@@ -159,6 +163,14 @@ RefreshingGraph.propTypes = {
   cellID: string,
   inView: bool,
   tableOptions: shape({}),
+  fieldOptions: arrayOf(
+    shape({
+      internalName: string.isRequired,
+      displayName: string.isRequired,
+      visible: bool.isRequired,
+    })
+  ),
+  timeFormat: string.isRequired,
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
 }

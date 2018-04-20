@@ -184,12 +184,14 @@ export const timeSeriesToTableGraph = raw => {
   }
 }
 
-export const filterTableColumns = (data, fieldNames) => {
+export const filterTableColumns = (data, fieldOptions) => {
   const visibility = {}
   const filteredData = map(data, (row, i) => {
     return filter(row, (col, j) => {
       if (i === 0) {
-        const foundField = fieldNames.find(field => field.internalName === col)
+        const foundField = fieldOptions.find(
+          field => field.internalName === col
+        )
         visibility[j] = foundField ? foundField.visible : true
       }
       return visibility[j]
@@ -198,8 +200,8 @@ export const filterTableColumns = (data, fieldNames) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
-export const orderTableColumns = (data, fieldNames) => {
-  const fieldsSortOrder = fieldNames.map(fieldName => {
+export const orderTableColumns = (data, fieldOptions) => {
+  const fieldsSortOrder = fieldOptions.map(fieldName => {
     return _.findIndex(data[0], dataLabel => {
       return dataLabel === fieldName.internalName
     })
@@ -216,7 +218,7 @@ export const processTableData = (
   sortFieldName,
   direction,
   verticalTimeAxis,
-  fieldNames,
+  fieldOptions,
   timeFormat
 ) => {
   const sortIndex = _.indexOf(data[0], sortFieldName)
@@ -225,12 +227,12 @@ export const processTableData = (
     ..._.orderBy(_.drop(data, 1), sortIndex, [direction]),
   ]
   const sortedTimeVals = map(sortedData, r => r[0])
-  const filteredData = filterTableColumns(sortedData, fieldNames)
-  const orderedData = orderTableColumns(filteredData, fieldNames)
+  const filteredData = filterTableColumns(sortedData, fieldOptions)
+  const orderedData = orderTableColumns(filteredData, fieldOptions)
   const processedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
   const {widths: columnWidths, totalWidths} = calculateColumnWidths(
     processedData,
-    fieldNames,
+    fieldOptions,
     timeFormat,
     verticalTimeAxis
   )

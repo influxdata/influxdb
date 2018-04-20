@@ -116,6 +116,12 @@ export default function cellEditorOverlay(state = initialState, action) {
 
       return {...state, lineColors}
     }
+
+    case 'UPDATE_DISPLAY_OPTIONS': {
+      const {update} = action.payload
+      const cell = {...state.cell, ...update}
+      return {...state, cell}
+    }
   }
 
   return state
