@@ -166,19 +166,19 @@ class DygraphLegend extends PureComponent<Props, State> {
     )
   }
 
-  private handleHide = () => {
+  private handleHide = (): void => {
     this.props.onHide()
     this.props.setActiveCell(NO_CELL)
   }
 
-  private handleToggleFilter = () => {
+  private handleToggleFilter = (): void => {
     this.setState({
       isFilterVisible: !this.state.isFilterVisible,
       filterText: '',
     })
   }
 
-  private handleSnipLabel = () => {
+  private handleSnipLabel = (): void => {
     this.setState({isSnipped: !this.state.isSnipped})
   }
 
@@ -244,7 +244,7 @@ class DygraphLegend extends PureComponent<Props, State> {
     }
   }
 
-  private get filtered() {
+  private get filtered(): SeriesLegendData[] {
     const {legend, sortType, isAscending, filterText} = this.state
     const withValues = legend.series.filter(s => !_.isNil(s.y))
     const sorted = _.sortBy(
@@ -264,13 +264,13 @@ class DygraphLegend extends PureComponent<Props, State> {
     return this.state.sortType === 'numeric'
   }
 
-  private get isVisible() {
+  private get isVisible(): boolean {
     const {cellID, activeCellID, isDragging} = this.props
 
     return cellID === activeCellID && !isDragging
   }
 
-  private get hidden() {
+  private get hidden(): string {
     if (this.isVisible) {
       return ''
     }
