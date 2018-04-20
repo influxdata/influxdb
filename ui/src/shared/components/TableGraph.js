@@ -2,8 +2,10 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
 import classnames from 'classnames'
+import {connect} from 'react-redux'
 
 import {MultiGrid, ColumnSizer} from 'react-virtualized'
+import {bindActionCreators} from 'redux'
 import moment from 'moment'
 import {reduce} from 'fast.js'
 
@@ -12,6 +14,7 @@ import {
   processTableData,
 } from 'src/utils/timeSeriesTransformers'
 import {computeFieldNames} from 'src/dashboards/utils/tableGraph'
+import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 
 import {
   NULL_ARRAY_INDEX,
@@ -55,26 +58,44 @@ class TableGraph extends Component {
     const updatedProps = _.keys(nextProps).filter(
       k => !_.isEqual(this.props[k], nextProps[k])
     )
+    const {sortField, sortDirection} = this.state
+    const {tableOptions, handleUpdateTableOptions} = nextProps
+    const {
+      sortBy: {internalName},
+      fieldNames,
+      verticalTimeAxis,
+      timeFormat,
+    } = tableOptions
 
-    const {data, sortedLabels} =
-      _.includes(updatedProps, 'data') || _.includes(updatedProps, 'queryASTs')
-        ? timeSeriesToTableGraph(nextProps.data, nextProps.queryASTs)
-        : this.state
+    let data
+    let sortedLabels
+    let computedFieldNames
+
+    if (
+      _.includes(updatedProps, 'data') ||
+      _.includes(updatedProps, 'queryASTs')
+    ) {
+      const returned = timeSeriesToTableGraph(
+        nextProps.data,
+        nextProps.queryASTs
+      )
+      data = returned.data
+      sortedLabels = returned.sortedLabels
+      computedFieldNames = computeFieldNames(fieldNames, sortedLabels)
+      handleUpdateTableOptions({
+        ...tableOptions,
+        fieldNames: computedFieldNames,
+      })
+    } else {
+      data = this.state.data
+      sortedLabels = this.state.sortedLabels
+      computedFieldNames = computeFieldNames(fieldNames, sortedLabels)
+    }
 
     if (_.isEmpty(data[0])) {
       return
     }
-    const {sortField, sortDirection} = this.state
-    const {
-      tableOptions: {
-        sortBy: {internalName},
-        fieldNames,
-        verticalTimeAxis,
-        timeFormat,
-      },
-    } = nextProps
-    const computedFieldNames = computeFieldNames(fieldNames, sortedLabels)
-    // MUST UPDATE FIELD NAMES HERE.
+
     let direction, sortFieldName
     if (
       _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') ===
@@ -86,30 +107,35 @@ class TableGraph extends Component {
       direction = DEFAULT_SORT
       sortFieldName = internalName
     }
+    if (
+      _.includes(updatedProps, 'data') ||
+      _.includes(updatedProps, 'tableOptions')
+    ) {
+      const {
+        processedData,
+        sortedTimeVals,
+        columnWidths,
+        totalWidths,
+      } = processTableData(
+        data,
+        sortFieldName,
+        direction,
+        verticalTimeAxis,
+        computedFieldNames,
+        timeFormat
+      )
 
-    const {
-      processedData,
-      sortedTimeVals,
-      columnWidths,
-      totalWidths,
-    } = processTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      computedFieldNames,
-      timeFormat
-    )
-    this.setState({
-      data,
-      sortedLabels,
-      processedData,
-      sortedTimeVals,
-      sortField: sortFieldName,
-      sortDirection: direction,
-      columnWidths,
-      totalColumnWidths: totalWidths,
-    })
+      this.setState({
+        data,
+        sortedLabels,
+        processedData,
+        sortedTimeVals,
+        sortField: sortFieldName,
+        sortDirection: direction,
+        columnWidths,
+        totalColumnWidths: totalWidths,
+      })
+    }
   }
 
   calcScrollToColRow = () => {
@@ -421,9 +447,18 @@ TableGraph.propTypes = {
     fixFirstColumn: bool,
   }),
   hoverTime: string,
+  handleUpdateTableOptions: func,
   handleSetHoverTime: func,
   colors: colorsStringSchema,
   queryASTs: arrayOf(shape()),
 }
 
-export default TableGraph
+const mapStateToProps = () => {
+  return {}
+}
+
+const mapDispatchToProps = dispatch => ({
+  handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(TableGraph)

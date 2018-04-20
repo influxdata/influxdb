@@ -15,7 +15,6 @@ import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
-import {computeFieldNames} from 'src/dashboards/utils/tableGraph'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {QueryConfig} from 'src/types/query'
 
@@ -77,37 +76,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     this.moveField = this.moveField.bind(this)
   }
 
-  public componentWillMount() {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: computeFieldNames([], this.props.queryASTs),
-    })
-  }
-
-  public shouldComponentUpdate(nextProps) {
-    const {tableOptions, queryASTs} = this.props
-    const tableOptionsDifferent = !_.isEqual(
-      tableOptions,
-      nextProps.tableOptions
-    )
-    const queryASTsDifferent = !_.isEqual(queryASTs, nextProps.queryASTs)
-    return tableOptionsDifferent || queryASTsDifferent
-  }
-
-  public componentWillReceiveProps(nextProps) {
-    const {queryASTs, handleUpdateTableOptions, tableOptions} = this.props
-    if (!_.isEqual(queryASTs, nextProps.queryASTs)) {
-      handleUpdateTableOptions({
-        ...tableOptions,
-        fieldNames: computeFieldNames(
-          tableOptions.fieldNames,
-          this.props.queryASTs
-        ),
-      })
-    }
-  }
-
   public render() {
     const {
       tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
@@ -160,17 +128,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     )
   }
 
-  // private get fieldNames() {
-  //   const {tableOptions: {fieldNames}} = this.props
-  //   return fieldNames || []
-  // }
-
-  // private get timeField() {
-  //   return (
-  //     this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
-  //   )
-  // }
-
   private moveField(dragIndex, hoverIndex) {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const {fieldNames} = tableOptions
@@ -190,32 +147,6 @@ export class TableOptions extends PureComponent<Props, {}> {
       fieldNames: addedFields,
     })
   }
-
-  // private get computedFieldNames() {
-  //   const {queryASTs} = this.props
-  //   const existingFieldNames = this.fieldNames
-  //   let astNames = [this.timeField]
-  //   queryASTs.forEach(q => {
-  //     const {fields, sources} = q
-  //     const {name: sourceName} = sources[0]
-  //     fields.forEach(f => {
-  //       const {alias, column: {val}} = f
-  //       const value = val || alias
-  //       const internalName = `${sourceName}.${value}`
-  //       const field = {internalName, displayName: '', visible: true}
-  //       astNames = [...astNames, field]
-  //     })
-  //   })
-  //
-  //   const intersection = existingFieldNames.filter(f => {
-  //     return astNames.find(a => a.internalName === f.internalName)
-  //   })
-  //
-  //   const newFields = astNames.filter(a => {
-  //     return !existingFieldNames.find(f => f.internalName === a.internalName)
-  //   })
-  //   return [...intersection, ...newFields]
-  // }
 
   private handleChooseSortBy = (option: Option) => {
     const {tableOptions, handleUpdateTableOptions} = this.props
