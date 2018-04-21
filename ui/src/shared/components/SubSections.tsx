@@ -2,17 +2,12 @@ import React, {Component, ReactNode} from 'react'
 import uuid from 'uuid'
 import {withRouter, InjectedRouter} from 'react-router'
 
+import SubSectionsTab from 'src/shared/components/SubSectionsTab'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Section {
-  url: string
-  name: string
-  component: ReactNode
-  enabled: boolean
-}
+import {PageSection} from 'src/types/shared'
 
 interface Props {
-  sections: Section[]
+  sections: PageSection[]
   activeSection: string
   sourceID: string
   router: InjectedRouter
@@ -20,49 +15,45 @@ interface Props {
 }
 
 @ErrorHandling
-@withRouter
 class SubSections extends Component<Props> {
   constructor(props) {
     super(props)
   }
 
   public render() {
-    const {sections} = this.props
+    const {sections, activeSection} = this.props
 
     return (
       <div className="row subsection">
-        <div className="col-md-2 subsection--nav">
+        <div className="col-md-2 subsection--nav" data-test="subsectionNav">
           <div className="subsection--tabs">
             {sections.map(
               section =>
                 section.enabled && (
-                  <div
+                  <SubSectionsTab
                     key={uuid.v4()}
-                    className={this.getTabClass(section.url)}
-                    onClick={this.handleTabClick(section.url)}
-                  >
-                    {section.name}
-                  </div>
+                    section={section}
+                    handleClick={this.handleTabClick(section.url)}
+                    activeSection={activeSection}
+                  />
                 )
             )}
           </div>
         </div>
-        <div className="col-md-10 subsection--content">
-          {this.activeSection}
+        <div
+          className="col-md-10 subsection--content"
+          data-test="subsectionContent"
+        >
+          {this.activeSectionComponent}
         </div>
       </div>
     )
   }
 
-  private get activeSection(): ReactNode {
+  private get activeSectionComponent(): ReactNode {
     const {sections, activeSection} = this.props
     const {component} = sections.find(section => section.url === activeSection)
     return component
-  }
-
-  public getTabClass(sectionName: string) {
-    const {activeSection} = this.props
-    return `subsection--tab ${sectionName === activeSection ? 'active' : ''}`
   }
 
   public handleTabClick = url => () => {
@@ -71,4 +62,4 @@ class SubSections extends Component<Props> {
   }
 }
 
-export default SubSections
+export default withRouter(SubSections)
