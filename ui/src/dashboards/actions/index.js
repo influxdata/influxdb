@@ -199,6 +199,13 @@ export const setHoverTime = hoverTime => ({
   },
 })
 
+export const setActiveCell = activeCellID => ({
+  type: 'SET_ACTIVE_CELL',
+  payload: {
+    activeCellID,
+  },
+})
+
 // Async Action Creators
 
 export const getDashboardsAsync = () => async dispatch => {
