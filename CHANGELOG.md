@@ -14,6 +14,7 @@
 ### Bug Fixes
 
 1.  [#3252](https://github.com/influxdata/chronograf/pull/3252): Allows users to select tickscript editor with mouse
+1.  [#3284](https://github.com/influxdata/chronograf/pull/3284): Fix logout when using basepath & simplify basepath usage (deprecates `PREFIX_ROUTES`)
 
 ## v1.4.4.1 [2018-04-16]
 
