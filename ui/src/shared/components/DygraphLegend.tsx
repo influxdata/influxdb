@@ -23,7 +23,6 @@ interface Props {
   cellID: string
   onHide: () => void
   onShow: (MouseEvent) => void
-  isDragging: boolean
   activeCellID: string
   setActiveCell: (cellID: string) => void
 }
@@ -267,9 +266,9 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 
   private get isVisible(): boolean {
-    const {cellID, activeCellID, isDragging} = this.props
+    const {cellID, activeCellID} = this.props
 
-    return cellID === activeCellID && !isDragging
+    return cellID === activeCellID
   }
 
   private get hidden(): string {
