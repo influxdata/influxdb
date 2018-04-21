@@ -40,6 +40,7 @@ const RefreshingGraph = ({
   editQueryStatus,
   handleSetHoverTime,
   grabDataForDownload,
+  isInCEO,
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
@@ -106,6 +107,7 @@ const RefreshingGraph = ({
         tableOptions={tableOptions}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
+        isInCEO={isInCEO}
       />
     )
   }
@@ -165,6 +167,7 @@ RefreshingGraph.propTypes = {
   tableOptions: shape({}),
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
+  isInCEO: bool,
 }
 
 RefreshingGraph.defaultProps = {

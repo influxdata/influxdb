@@ -58,22 +58,25 @@ class TableGraph extends Component {
     }
   }
 
+  handleUpdateTableOptions = (fieldNames, tableOptions) => {
+    const {isInCEO} = this.props
+    if (!isInCEO) {
+      return
+    }
+    this.props.handleUpdateTableOptions({...tableOptions, fieldNames})
+  }
+
   componentWillReceiveProps(nextProps) {
     const updatedProps = _.keys(nextProps).filter(
       k => !_.isEqual(this.props[k], nextProps[k])
     )
     const {sortField, sortDirection} = this.state
-    const {tableOptions, handleUpdateTableOptions} = nextProps
-    const {
-      sortBy: {internalName},
-      fieldNames,
-      verticalTimeAxis,
-      timeFormat,
-    } = tableOptions
+    const {tableOptions} = nextProps
+    const {sortBy: {internalName}, verticalTimeAxis, timeFormat} = tableOptions
 
     let data
     let sortedLabels
-    let computedFieldNames
+    let fieldNames
 
     if (
       _.includes(updatedProps, 'data') ||
@@ -85,15 +88,12 @@ class TableGraph extends Component {
       )
       data = returned.data
       sortedLabels = returned.sortedLabels
-      computedFieldNames = computeFieldNames(fieldNames, sortedLabels)
-      handleUpdateTableOptions({
-        ...tableOptions,
-        fieldNames: computedFieldNames,
-      })
+      fieldNames = computeFieldNames(tableOptions.fieldNames, sortedLabels)
+      this.handleUpdateTableOptions(fieldNames, tableOptions)
     } else {
       data = this.state.data
       sortedLabels = this.state.sortedLabels
-      computedFieldNames = computeFieldNames(fieldNames, sortedLabels)
+      fieldNames = computeFieldNames(tableOptions.fieldNames, sortedLabels)
     }
 
     if (_.isEmpty(data[0])) {
@@ -125,7 +125,7 @@ class TableGraph extends Component {
         sortFieldName,
         direction,
         verticalTimeAxis,
-        computedFieldNames,
+        fieldNames,
         timeFormat
       )
 
@@ -453,14 +453,11 @@ TableGraph.propTypes = {
   handleSetHoverTime: func,
   colors: colorsStringSchema,
   queryASTs: arrayOf(shape()),
-}
-
-const mapStateToProps = () => {
-  return {}
+  isInCEO: bool,
 }
 
 const mapDispatchToProps = dispatch => ({
   handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(TableGraph)
+export default connect(null, mapDispatchToProps)(TableGraph)

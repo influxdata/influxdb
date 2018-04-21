@@ -178,6 +178,7 @@ class CellEditorOverlay extends Component<Props, State> {
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
             staticLegend={isStaticLegend}
+            isInCEO={true}
           />
           <CEOBottom>
             <OverlayControls
