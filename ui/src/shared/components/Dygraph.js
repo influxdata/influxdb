@@ -295,13 +295,15 @@ class Dygraph extends Component {
 
     return (
       <div className="dygraph-child">
-        {this.areAnnotationsVisible && (
+        {this.dygraph && (
           <div className="dygraph-addons">
-            <Annotations
-              dygraph={this.dygraph}
-              dWidth={this.dygraph.width_}
-              staticLegendHeight={staticLegendHeight}
-            />
+            {this.areAnnotationsVisible && (
+              <Annotations
+                dygraph={this.dygraph}
+                dWidth={this.dygraph.width_}
+                staticLegendHeight={staticLegendHeight}
+              />
+            )}
             <DygraphLegend
               cellID={cellID}
               dygraph={this.dygraph}
