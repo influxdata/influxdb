@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 import Dygraph from 'dygraphs'
 import {connect} from 'react-redux'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {DYGRAPH_CONTAINER_XLABEL_MARGIN} from 'src/shared/constants'
 
@@ -10,6 +11,7 @@ interface Props {
   staticLegendHeight: number
 }
 
+@ErrorHandling
 class Crosshair extends PureComponent<Props> {
   public render() {
     return (
