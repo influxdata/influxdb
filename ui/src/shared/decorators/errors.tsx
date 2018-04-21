@@ -1,33 +1,53 @@
-/* tslint:disable no-console */
-import React from 'react'
+/* 
+tslint:disable no-console 
+tslint:disable max-classes-per-file
+*/
 
-export function ErrorHandling<
-  P,
-  S,
-  T extends {new (...args: any[]): React.Component<P, S>}
->(constructor: T) {
-  class Wrapped extends constructor {
-    private error: boolean = false
+import React, {ComponentClass, Component} from 'react'
 
-    public componentDidCatch(error, info) {
-      console.error(error)
-      console.warn(info)
-      this.error = true
-      this.forceUpdate()
-    }
+class DefaultError extends Component {
+  public render() {
+    return (
+      <p className="error">
+        A Chronograf error has occurred. Please report the issue&nbsp;
+        <a href="https://github.com/influxdata/chronograf/issues">here</a>.
+      </p>
+    )
+  }
+}
 
-    public render() {
-      if (this.error) {
-        return (
-          <p className="error">
-            A Chronograf error has occurred. Please report the issue&nbsp;
-            <a href="https://github.com/influxdata/chronograf/issues">here</a>.
-          </p>
-        )
+export function ErrorHandlingWith(
+  Error: ComponentClass, // Must be a class based component and not an SFC
+  alwaysDisplay = false
+) {
+  return <P, S, T extends {new (...args: any[]): Component<P, S>}>(
+    constructor: T
+  ) => {
+    class Wrapped extends constructor {
+      public static get displayName(): string {
+        return constructor.name
       }
 
-      return super.render()
+      private error: boolean = false
+
+      public componentDidCatch(err, info) {
+        console.error(err)
+        console.warn(info)
+        this.error = true
+        this.forceUpdate()
+      }
+
+      public render() {
+        if (this.error || alwaysDisplay) {
+          return <Error />
+        }
+
+        return super.render()
+      }
     }
+
+    return Wrapped
   }
-  return Wrapped
 }
+
+export const ErrorHandling = ErrorHandlingWith(DefaultError)

@@ -20,7 +20,8 @@ import {
 } from 'shared/constants/thresholds'
 import {validateLineColors} from 'src/shared/constants/graphColorPalettes'
 
-import {CELL_TYPE_LINE, UNTITLED_CELL_LINE} from 'src/dashboards/graphics/graph'
+import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
+import {UNTITLED_CELL_LINE} from 'src/dashboards/constants'
 
 const defaultCellType = CELL_TYPE_LINE
 const defaultCellName = UNTITLED_CELL_LINE
