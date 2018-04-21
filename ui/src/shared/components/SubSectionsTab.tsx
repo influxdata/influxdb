@@ -14,7 +14,7 @@ const SubSectionsTab: SFC<TabProps> = ({
 }) => (
   <div
     className={`subsection--tab ${
-      section.name === activeSection ? 'active' : ''
+      section.url === activeSection ? 'active' : ''
     }`}
     onClick={handleClick}
   >
