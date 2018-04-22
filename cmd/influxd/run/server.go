@@ -263,6 +263,8 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 	srv.Handler.BuildType = "OSS"
+	srv.Handler.Store.MetaClient = s.MetaClient
+	srv.Handler.Store.TSDBStore = s.TSDBStore
 
 	s.Services = append(s.Services, srv)
 }

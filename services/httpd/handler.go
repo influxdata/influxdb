@@ -3,6 +3,7 @@ package httpd
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -32,6 +33,7 @@ import (
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
@@ -111,6 +113,7 @@ type Handler struct {
 	Config    *Config
 	Logger    *zap.Logger
 	CLFLogger *log.Logger
+	Store     *storage.Store
 	accessLog *os.File
 	stats     *Statistics
 
@@ -125,6 +128,7 @@ func NewHandler(c Config) *Handler {
 		Config:         &c,
 		Logger:         zap.NewNop(),
 		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
+		Store:          storage.NewStore(),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
 	}
@@ -990,102 +994,84 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 
 	// Query the DB and create a ReadResponse for Prometheus
 	db := r.FormValue("db")
-	q, err := prometheus.ReadRequestToInfluxQLQuery(&req, db, r.FormValue("rp"))
+	rp := r.FormValue("rp")
+
+	readRequest, err := prometheus.ReadRequestToInfluxStorageRequest(&req, db, rp)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Check authorization.
-	if h.Config.AuthEnabled {
-		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
-			if err, ok := err.(meta.ErrAuthorize); ok {
-				h.Logger.Info("Unauthorized request",
-					zap.String("user", err.User),
-					zap.Stringer("query", err.Query),
-					logger.Database(err.Database))
-			}
-			h.httpError(w, "error authorizing query: "+err.Error(), http.StatusForbidden)
-			return
-		}
+	readRequest.PointsLimit = math.MaxUint64
+
+	ctx := context.Background()
+	rs, err := h.Store.Read(ctx, readRequest)
+	if err != nil {
+		h.Logger.Error("Store.Read failed", zap.Error(err))
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
-	opts := query.ExecutionOptions{
-		Database:  db,
-		ChunkSize: DefaultChunkSize,
-		ReadOnly:  true,
+	if rs == nil {
+		h.Logger.Error("Store.Read nil", zap.Error(errors.New("no store to read")))
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
-
-	if h.Config.AuthEnabled {
-		// The current user determines the authorized actions.
-		opts.Authorizer = user
-	} else {
-		// Auth is disabled, so allow everything.
-		opts.Authorizer = query.OpenAuthorizer
-	}
-
-	// Make sure if the client disconnects we signal the query to abort
-	closing := make(chan struct{})
-	if notifier, ok := w.(http.CloseNotifier); ok {
-		// CloseNotify() is not guaranteed to send a notification when the query
-		// is closed. Use this channel to signal that the query is finished to
-		// prevent lingering goroutines that may be stuck.
-		done := make(chan struct{})
-		defer close(done)
-
-		notify := notifier.CloseNotify()
-		go func() {
-			// Wait for either the request to finish
-			// or for the client to disconnect
-			select {
-			case <-done:
-			case <-notify:
-				close(closing)
-			}
-		}()
-		opts.AbortCh = done
-	} else {
-		defer close(closing)
-	}
-
-	// Execute query.
-	results := h.QueryExecutor.ExecuteQuery(q, opts, closing)
+	defer rs.Close()
 
 	resp := &remote.ReadResponse{
 		Results: []*remote.QueryResult{{}},
 	}
 
-	// pull all results from the channel
-	for r := range results {
-		// Ignore nil results.
-		if r == nil {
+	for rs.Next() {
+		cur := rs.Cursor()
+		if cur == nil {
+			// no data for series key + field combination
 			continue
 		}
 
-		// read the series data and convert into Prometheus samples
-		for _, s := range r.Series {
-			ts := &remote.TimeSeries{
-				Labels: prometheus.TagsToLabelPairs(s.Tags),
+		tags := prometheus.RemoveInfluxSystemTags(rs.Tags())
+
+		switch cur := cur.(type) {
+		case tsdb.IntegerBatchCursor:
+			h.Logger.Info("Prometheus can't read int64 cursors: ",
+				zap.Stringer("series", tags),
+			)
+		case tsdb.FloatBatchCursor:
+			series := &remote.TimeSeries{
+				Labels: prometheus.ModelTagsToLabelPairs(tags),
 			}
 
-			for _, v := range s.Values {
-				t, ok := v[0].(time.Time)
-				if !ok {
-					h.httpError(w, fmt.Sprintf("value %v wasn't a time", v[0]), http.StatusBadRequest)
-					return
+			for {
+				ts, vs := cur.Next()
+				if len(ts) == 0 {
+					break
 				}
-				val, ok := v[1].(float64)
-				if !ok {
-					h.httpError(w, fmt.Sprintf("value %v wasn't a float64", v[1]), http.StatusBadRequest)
-				}
-				timestamp := t.UnixNano() / int64(time.Millisecond) / int64(time.Nanosecond)
-				ts.Samples = append(ts.Samples, &remote.Sample{
-					TimestampMs: timestamp,
-					Value:       val,
-				})
-			}
 
-			resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, ts)
+				for i, ts := range ts {
+					series.Samples = append(series.Samples, &remote.Sample{
+						TimestampMs: ts / int64(time.Millisecond) / int64(time.Nanosecond),
+						Value:       vs[i],
+					})
+				}
+			}
+			cur.Close()
+
+			resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, series)
+		case tsdb.UnsignedBatchCursor:
+			h.Logger.Info("Prometheus can't read uint cursors: ",
+				zap.Stringer("series", tags),
+			)
+		case tsdb.BooleanBatchCursor:
+			h.Logger.Info("Prometheus can't read bool cursors: ",
+				zap.Stringer("series", tags),
+			)
+		case tsdb.StringBatchCursor:
+			h.Logger.Info("Prometheus can't read string cursors: ",
+				zap.Stringer("series", tags),
+			)
+		default:
+			panic(fmt.Sprintf("unreachable: %T", cur))
 		}
 	}
 
