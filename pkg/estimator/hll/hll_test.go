@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
+	"unsafe"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -23,6 +24,50 @@ func toByte(v uint64) []byte {
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], v)
 	return buf[:]
+}
+
+func TestHLLPP_Bytes(t *testing.T) {
+	testCases := []struct {
+		p      uint8
+		normal bool
+	}{
+		{4, false},
+		{5, false},
+		{4, true},
+		{5, true},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			h := NewTestPlus(testCase.p)
+
+			plusStructOverhead := int(unsafe.Sizeof(*h))
+			compressedListOverhead := int(unsafe.Sizeof(*h.sparseList))
+
+			var expectedDenseListCapacity, expectedSparseListCapacity int
+
+			if testCase.normal {
+				h.toNormal()
+				// denseList has capacity for 2^p elements, one byte each
+				expectedDenseListCapacity = int(math.Pow(2, float64(testCase.p)))
+				if expectedDenseListCapacity != cap(h.denseList) {
+					t.Errorf("denseList capacity: want %d got %d", expectedDenseListCapacity, cap(h.denseList))
+				}
+			} else {
+				// sparseList has capacity for 2^p elements, one byte each
+				expectedSparseListCapacity = int(math.Pow(2, float64(testCase.p)))
+				if expectedSparseListCapacity != cap(h.sparseList.b) {
+					t.Errorf("sparseList capacity: want %d got %d", expectedSparseListCapacity, cap(h.sparseList.b))
+				}
+				expectedSparseListCapacity += compressedListOverhead
+			}
+
+			expectedSize := plusStructOverhead + expectedDenseListCapacity + expectedSparseListCapacity
+			if expectedSize != h.Bytes() {
+				t.Errorf("Bytes(): want %d got %d", expectedSize, h.Bytes())
+			}
+		})
+	}
 }
 
 func TestHLLPP_Add_NoSparse(t *testing.T) {
