@@ -3,12 +3,16 @@
     ----------------------------------------------------------------------------
 */
 
-.overlay--mask {
-  position: absolute;
+%overlay-styles {
+  position: fixed;
   width: 100%;
   height: 100%;
   top: 0;
   left: 0;
+}
+
+.overlay--mask {
+  @extend %overlay-styles;
   z-index: 1;
   opacity: 0;
   transition: opacity 0.25s ease;
@@ -23,12 +27,10 @@
 }
 
 .overlay-tech {
-  position: fixed;
-  z-index: 9999;
-  top: 0;
-  left: 0;
+  @extend %overlay-styles;
   visibility: hidden;
   transition: all 0.25s ease;
+  z-index: 9999;;
 
   &.show {
     visibility: visible;

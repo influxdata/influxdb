@@ -5,7 +5,7 @@ interface Props {
 }
 
 const CEOBottom: SFC<Props> = ({children}) => (
-  <div className="overlay-technology--editor">{children}</div>
+  <div className="ceo--editor">{children}</div>
 )
 
 export default CEOBottom

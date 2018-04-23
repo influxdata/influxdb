@@ -1,13 +1,27 @@
 /*
-  Styles for Overlay Technology (aka Cell Edit Mode)
-  ------------------------------------------------------
+  Styles for Cell Editor Overlay
+  ------------------------------------------------------------------------------
 */
 
 $overlay-controls-height: 60px;
 $overlay-controls-bg: $g2-kevlar;
 $overlay-z: 100;
 
-.overlay-technology {
+
+// Make Overlay Technology full screen
+.ceo {
+  left: -($sidebar--width) !important;
+
+  // Hacky way to ensure proper appearance of file upload modal
+  // Needed to have a this div nested inside of itself for the
+  // Drag & drop feature to work correctly
+  .ceo {
+    left: 0 !important;
+    &:before {display: none;}
+  }
+}
+
+.ceo {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -79,13 +93,13 @@ $overlay-z: 100;
     @include no-user-select;
   }
 }
-.overlay-technology--editor {
+.ceo--editor {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   height: 100%;
 }
-.overlay-technology--editor .query-maker--empty {
+.ceo--editor .query-maker--empty {
   margin-bottom: 8px;
 }
 .overlay-controls .confirm-or-cancel {
@@ -93,18 +107,18 @@ $overlay-z: 100;
 }
 
 /* Graph editing in Dashboards is a little smaller so the dash can be seen in the background */
-.overlay-technology .graph {
+.ceo .graph {
   margin: 0 15%;
 }
-.overlay-technology .query-maker {
+.ceo .query-maker {
   flex: 1 0 0%;
   padding: 0 18px;
   margin: 0;
   background-color: $g2-kevlar;
 }
-.overlay-technology .query-maker--tabs {
+.ceo .query-maker--tabs {
   margin-top: 0;
 }
-.overlay-technology .query-maker--tab-contents {
+.ceo .query-maker--tab-contents {
   margin-bottom: 8px;
 }
