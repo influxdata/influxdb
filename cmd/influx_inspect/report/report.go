@@ -62,7 +62,7 @@ func (cmd *Command) Run(args ...string) error {
 
 	err := cmd.isShardDir(cmd.dir)
 	if cmd.detailed && err != nil {
-		return fmt.Errorf("-detailed only supported for shard dirs.")
+		return fmt.Errorf("-detailed only supported for shard dirs")
 	}
 
 	totalSeries := newCounterFn()
@@ -79,7 +79,7 @@ func (cmd *Command) Run(args ...string) error {
 
 	minTime, maxTime := int64(math.MaxInt64), int64(math.MinInt64)
 	var fileCount int
-	if err := cmd.WalkShardDirs(cmd.dir, func(db, rp, id, path string) error {
+	if err := cmd.walkShardDirs(cmd.dir, func(db, rp, id, path string) error {
 		if cmd.pattern != "" && strings.Contains(path, cmd.pattern) {
 			return nil
 		}
@@ -227,7 +227,7 @@ func (cmd *Command) isShardDir(dir string) error {
 	return nil
 }
 
-func (cmd *Command) WalkShardDirs(root string, fn func(db, rp, id, path string) error) error {
+func (cmd *Command) walkShardDirs(root string, fn func(db, rp, id, path string) error) error {
 	type location struct {
 		db, rp, id, path string
 	}
