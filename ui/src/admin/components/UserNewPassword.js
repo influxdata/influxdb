@@ -34,7 +34,7 @@ class UserNewPassword extends Component {
             onChange={this.handleEdit(user)}
             onKeyPress={this.handleKeyPress(user)}
             spellCheck={false}
-            autoComplete={false}
+            autoComplete="false"
           />
         ) : (
           '--'

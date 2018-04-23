@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@types/chai": "^4.1.2",
+    "@types/dygraphs": "^1.1.6",
     "@types/enzyme": "^3.1.9",
     "@types/jest": "^22.1.4",
     "@types/lodash": "^4.14.104",

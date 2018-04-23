@@ -25,9 +25,13 @@ import {
   filterRoles as filterRolesAction,
 } from 'src/admin/actions/influxdb'
 
-import AdminTabs from 'src/admin/components/AdminTabs'
+import UsersTable from 'src/admin/components/UsersTable'
+import RolesTable from 'src/admin/components/RolesTable'
+import QueriesPage from 'src/admin/containers/QueriesPage'
+import DatabaseManagerPage from 'src/admin/containers/DatabaseManagerPage'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import SubSections from 'shared/components/SubSections'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {notify as notifyAction} from 'shared/actions/notifications'
@@ -141,7 +145,7 @@ class AdminInfluxDBPage extends Component {
     this.props.updateUserPassword(user, password)
   }
 
-  render() {
+  getAdminSubSections = () => {
     const {
       users,
       roles,
@@ -153,6 +157,69 @@ class AdminInfluxDBPage extends Component {
     const hasRoles = !!source.links.roles
     const globalPermissions = permissions.find(p => p.scope === 'all')
     const allowed = globalPermissions ? globalPermissions.allowed : []
+
+    return [
+      {
+        url: 'databases',
+        name: 'Databases',
+        enabled: true,
+        component: <DatabaseManagerPage source={source} />,
+      },
+      {
+        url: 'users',
+        name: 'Users',
+        enabled: true,
+        component: (
+          <UsersTable
+            users={users}
+            allRoles={roles}
+            hasRoles={hasRoles}
+            permissions={allowed}
+            isEditing={users.some(u => u.isEditing)}
+            onSave={this.handleSaveUser}
+            onCancel={this.handleCancelEditUser}
+            onClickCreate={this.handleClickCreate}
+            onEdit={this.handleEditUser}
+            onDelete={this.handleDeleteUser}
+            onFilter={filterUsers}
+            onUpdatePermissions={this.handleUpdateUserPermissions}
+            onUpdateRoles={this.handleUpdateUserRoles}
+            onUpdatePassword={this.handleUpdateUserPassword}
+          />
+        ),
+      },
+      {
+        url: 'roles',
+        name: 'Roles',
+        enabled: hasRoles,
+        component: (
+          <RolesTable
+            roles={roles}
+            allUsers={users}
+            permissions={allowed}
+            isEditing={roles.some(r => r.isEditing)}
+            onClickCreate={this.handleClickCreate}
+            onEdit={this.handleEditRole}
+            onSave={this.handleSaveRole}
+            onCancel={this.handleCancelEditRole}
+            onDelete={this.handleDeleteRole}
+            onFilter={filterRoles}
+            onUpdateRoleUsers={this.handleUpdateRoleUsers}
+            onUpdateRolePermissions={this.handleUpdateRolePermissions}
+          />
+        ),
+      },
+      {
+        url: 'queries',
+        name: 'Queries',
+        enabled: true,
+        component: <QueriesPage source={source} />,
+      },
+    ]
+  }
+
+  render() {
+    const {users, source, params} = this.props
 
     return (
       <div className="page">
@@ -169,33 +236,12 @@ class AdminInfluxDBPage extends Component {
         <FancyScrollbar className="page-contents">
           {users ? (
             <div className="container-fluid">
-              <div className="row">
-                <AdminTabs
-                  users={users}
-                  roles={roles}
-                  source={source}
-                  hasRoles={hasRoles}
-                  permissions={allowed}
-                  onFilterUsers={filterUsers}
-                  onFilterRoles={filterRoles}
-                  onEditUser={this.handleEditUser}
-                  onEditRole={this.handleEditRole}
-                  onSaveUser={this.handleSaveUser}
-                  onSaveRole={this.handleSaveRole}
-                  onDeleteUser={this.handleDeleteUser}
-                  onDeleteRole={this.handleDeleteRole}
-                  onClickCreate={this.handleClickCreate}
-                  onCancelEditUser={this.handleCancelEditUser}
-                  onCancelEditRole={this.handleCancelEditRole}
-                  isEditingUsers={users.some(u => u.isEditing)}
-                  isEditingRoles={roles.some(r => r.isEditing)}
-                  onUpdateRoleUsers={this.handleUpdateRoleUsers}
-                  onUpdateUserRoles={this.handleUpdateUserRoles}
-                  onUpdateUserPassword={this.handleUpdateUserPassword}
-                  onUpdateRolePermissions={this.handleUpdateRolePermissions}
-                  onUpdateUserPermissions={this.handleUpdateUserPermissions}
-                />
-              </div>
+              <SubSections
+                parentUrl="admin-influxdb"
+                sourceID={source.id}
+                activeSection={params.tab}
+                sections={this.getAdminSubSections()}
+              />
             </div>
           ) : (
             <div className="page-spinner" />
@@ -239,6 +285,9 @@ AdminInfluxDBPage.propTypes = {
   updateUserRoles: func,
   updateUserPassword: func,
   notify: func.isRequired,
+  params: shape({
+    tab: string,
+  }).isRequired,
 }
 
 const mapStateToProps = ({adminInfluxDB: {users, roles, permissions}}) => ({

@@ -121,6 +121,7 @@ const RefreshingGraph = ({
     <RefreshingLineGraph
       type={type}
       axes={axes}
+      cellID={cellID}
       colors={colors}
       onZoom={onZoom}
       queries={queries}
@@ -129,7 +130,6 @@ const RefreshingGraph = ({
       templates={templates}
       timeRange={timeRange}
       autoRefresh={autoRefresh}
-      hoverTime={hoverTime}
       isBarGraph={type === 'bar'}
       resizeCoords={resizeCoords}
       staticLegend={staticLegend}
