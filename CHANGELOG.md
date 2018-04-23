@@ -13,6 +13,7 @@ v1.6.0 [unreleased]
 -	[#9632](https://github.com/influxdata/influxdb/pull/9632): Implement floor, ceil, and round functions.
 -	[#9399](https://github.com/influxdata/influxdb/pull/9399): Allow customizing the unix socket group and permissions created by the server.
 -	[#9620](https://github.com/influxdata/influxdb/pull/9620): Add more math functions to influxql.
+-	[#9757](https://github.com/influxdata/influxdb/pull/9757): Add suppress-write-log option to disable the write log when the log is enabled.
 
 ### Bugfixes
 
