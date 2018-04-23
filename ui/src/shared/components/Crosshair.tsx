@@ -14,6 +14,10 @@ interface Props {
 @ErrorHandling
 class Crosshair extends PureComponent<Props> {
   public render() {
+    if (!this.isVisible) {
+      return null
+    }
+
     return (
       <div className="crosshair-container">
         <div
@@ -26,6 +30,12 @@ class Crosshair extends PureComponent<Props> {
         />
       </div>
     )
+  }
+
+  private get isVisible() {
+    const {hoverTime} = this.props
+
+    return hoverTime !== 0
   }
 
   private get crosshairLeft(): number {
