@@ -20,6 +20,7 @@ import (
 	"math"
 	"math/bits"
 	"sort"
+	"unsafe"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/pkg/estimator"
@@ -99,6 +100,19 @@ func NewPlus(p uint8) (*Plus, error) {
 	}
 
 	return hll, nil
+}
+
+// Bytes returns an estimate of the memory footprint of this instance of Plus, in bytes.
+func (h *Plus) Bytes() int {
+	var b int
+	b += len(h.tmpSet) * 4
+	b += cap(h.denseList)
+	if h.sparseList != nil {
+		b += int(unsafe.Sizeof(*h.sparseList))
+		b += cap(h.sparseList.b)
+	}
+	b += int(unsafe.Sizeof(*h))
+	return b
 }
 
 // NewDefaultPlus creates a new Plus with the default precision.
