@@ -309,6 +309,22 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 	return errors.New("unimplemented")
 }
 
+// compileNestedExpr ensures that the expression is compiled as if it were
+// a nested expression.
+func (c *compiledField) compileNestedExpr(expr influxql.Expr) error {
+	// Intercept the distinct call so we can pass nested as true.
+	switch expr := expr.(type) {
+	case *influxql.Call:
+		if expr.Name == "distinct" {
+			return c.compileDistinct(expr.Args, true)
+		}
+	case *influxql.Distinct:
+		call := expr.NewCall()
+		return c.compileDistinct(call.Args, true)
+	}
+	return c.compileExpr(expr)
+}
+
 func (c *compiledField) compileSymbol(name string, field influxql.Expr) error {
 	// Must be a variable reference, wildcard, or regexp.
 	switch field.(type) {
@@ -420,7 +436,7 @@ func (c *compiledField) compileDerivative(args []influxql.Expr, isNonNegative bo
 		if c.global.Interval.IsZero() {
 			return fmt.Errorf("%s aggregate requires a GROUP BY interval", name)
 		}
-		return c.compileExpr(arg0)
+		return c.compileNestedExpr(arg0)
 	default:
 		if !c.global.Interval.IsZero() {
 			return fmt.Errorf("aggregate function required inside the call to %s", name)
@@ -453,7 +469,7 @@ func (c *compiledField) compileElapsed(args []influxql.Expr) error {
 		if c.global.Interval.IsZero() {
 			return fmt.Errorf("elapsed aggregate requires a GROUP BY interval")
 		}
-		return c.compileExpr(arg0)
+		return c.compileNestedExpr(arg0)
 	default:
 		if !c.global.Interval.IsZero() {
 			return fmt.Errorf("aggregate function required inside the call to elapsed")
@@ -479,7 +495,7 @@ func (c *compiledField) compileDifference(args []influxql.Expr, isNonNegative bo
 		if c.global.Interval.IsZero() {
 			return fmt.Errorf("%s aggregate requires a GROUP BY interval", name)
 		}
-		return c.compileExpr(arg0)
+		return c.compileNestedExpr(arg0)
 	default:
 		if !c.global.Interval.IsZero() {
 			return fmt.Errorf("aggregate function required inside the call to %s", name)
@@ -500,7 +516,7 @@ func (c *compiledField) compileCumulativeSum(args []influxql.Expr) error {
 		if c.global.Interval.IsZero() {
 			return fmt.Errorf("cumulative_sum aggregate requires a GROUP BY interval")
 		}
-		return c.compileExpr(arg0)
+		return c.compileNestedExpr(arg0)
 	default:
 		if !c.global.Interval.IsZero() {
 			return fmt.Errorf("aggregate function required inside the call to cumulative_sum")
@@ -530,7 +546,7 @@ func (c *compiledField) compileMovingAverage(args []influxql.Expr) error {
 		if c.global.Interval.IsZero() {
 			return fmt.Errorf("moving_average aggregate requires a GROUP BY interval")
 		}
-		return c.compileExpr(arg0)
+		return c.compileNestedExpr(arg0)
 	default:
 		if !c.global.Interval.IsZero() {
 			return fmt.Errorf("aggregate function required inside the call to moving_average")
@@ -591,7 +607,7 @@ func (c *compiledField) compileHoltWinters(args []influxql.Expr, withFit bool) e
 	} else if c.global.Interval.IsZero() {
 		return fmt.Errorf("%s aggregate requires a GROUP BY interval", name)
 	}
-	return c.compileExpr(call)
+	return c.compileNestedExpr(call)
 }
 
 func (c *compiledField) compileDistinct(args []influxql.Expr, nested bool) error {
