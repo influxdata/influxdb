@@ -9,6 +9,7 @@ import {IS_STATIC_LEGEND} from 'src/shared/constants'
 import _ from 'lodash'
 
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const getSource = (cell, source, sources, defaultSource) => {
   const s = _.get(cell, ['queries', '0', 'source'], null)
@@ -19,6 +20,7 @@ const getSource = (cell, source, sources, defaultSource) => {
   return sources.find(src => src.links.self === s) || defaultSource
 }
 
+@ErrorHandling
 class LayoutState extends Component {
   state = {
     celldata: [],
@@ -51,7 +53,9 @@ const Layout = (
     templates,
     timeRange,
     isEditable,
+    isDragging,
     onEditCell,
+    onCloneCell,
     autoRefresh,
     manualRefresh,
     onDeleteCell,
@@ -60,8 +64,6 @@ const Layout = (
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
-    hoverTime,
-    onSetHoverTime,
   },
   {source: defaultSource}
 ) => (
@@ -70,6 +72,7 @@ const Layout = (
     celldata={celldata}
     isEditable={isEditable}
     onEditCell={onEditCell}
+    onCloneCell={onCloneCell}
     onDeleteCell={onDeleteCell}
     onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
@@ -82,6 +85,7 @@ const Layout = (
         inView={cell.inView}
         axes={axes}
         type={type}
+        isDragging={isDragging}
         tableOptions={tableOptions}
         staticLegend={IS_STATIC_LEGEND(legend)}
         cellHeight={h}
@@ -90,8 +94,6 @@ const Layout = (
         timeRange={timeRange}
         templates={templates}
         autoRefresh={autoRefresh}
-        hoverTime={hoverTime}
-        onSetHoverTime={onSetHoverTime}
         manualRefresh={manualRefresh}
         onStopAddAnnotation={onStopAddAnnotation}
         grabDataForDownload={grabDataForDownload}
@@ -114,6 +116,7 @@ Layout.contextTypes = {
 }
 
 const propTypes = {
+  isDragging: bool,
   autoRefresh: number.isRequired,
   manualRefresh: number,
   timeRange: shape({
@@ -148,9 +151,8 @@ const propTypes = {
   onPositionChange: func,
   onEditCell: func,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
-  hoverTime: string,
-  onSetHoverTime: func,
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,

@@ -6,7 +6,9 @@ import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import DashboardsTable from 'src/dashboards/components/DashboardsTable'
 import SearchBar from 'src/hosts/components/SearchBar'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DashboardsPageContents extends Component {
   constructor(props) {
     super(props)

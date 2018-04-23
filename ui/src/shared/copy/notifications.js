@@ -15,6 +15,12 @@ const defaultSuccessNotification = {
   duration: FIVE_SECONDS,
 }
 
+const defaultDeletionNotification = {
+  type: 'primary',
+  icon: 'trash',
+  duration: FIVE_SECONDS,
+}
+
 //  Misc Notifications
 //  ----------------------------------------------------------------------------
 export const notifyGenericFail = () => 'Could not communicate with server.'
@@ -329,6 +335,11 @@ export const notifyRetentionPolicyCreated = () => ({
   message: 'Retention Policy created successfully.',
 })
 
+export const notifyRetentionPolicyCreationError = () => ({
+  ...defaultErrorNotification,
+  message: 'Failed to create Retention Policy. Please check name and duration.',
+})
+
 export const notifyRetentionPolicyCreationFailed = errorMessage =>
   `Failed to create Retention Policy: ${errorMessage}`
 
@@ -405,6 +416,27 @@ export const notifyDashboardDeleted = name => ({
 
 export const notifyDashboardDeleteFailed = (name, errorMessage) =>
   `Failed to delete Dashboard ${name}: ${errorMessage}.`
+
+export const notifyCellAdded = name => ({
+  ...defaultSuccessNotification,
+  icon: 'dash-h',
+  duration: 1900,
+  message: `Added "${name}" to dashboard.`,
+})
+
+export const notifyCellCloned = name => ({
+  ...defaultSuccessNotification,
+  icon: 'duplicate',
+  duration: 1900,
+  message: `Added "${name}" to dashboard.`,
+})
+
+export const notifyCellDeleted = name => ({
+  ...defaultDeletionNotification,
+  icon: 'dash-h',
+  duration: 1900,
+  message: `Deleted "${name}" from dashboard.`,
+})
 
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
@@ -548,10 +580,12 @@ export const notifyTickscriptLoggingUnavailable = () => ({
   message: 'Kapacitor version 1.4 required to view TICKscript logs',
 })
 
-export const notifyTickscriptLoggingError = message => ({
+export const notifyTickscriptLoggingError = () => ({
   ...defaultErrorNotification,
-  message,
+  message: 'Could not collect kapacitor logs',
 })
 
-export const notifyKapacitorNotFound = () =>
-  'We could not find a Kapacitor configuration for this source.'
+export const notifyKapacitorNotFound = () => ({
+  ...defaultErrorNotification,
+  message: 'We could not find a Kapacitor configuration for this source.',
+})

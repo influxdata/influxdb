@@ -61,7 +61,7 @@ describe('Shared.Components.MeasurementList', () => {
     })
   })
 
-  describe('user interractions', () => {
+  describe('user interactions', () => {
     it('can filter the measurement list', () => {
       const {wrapper} = setup()
       const measurements = ['foo', 'bar']

@@ -27,6 +27,7 @@
 // Layout
 @import 'layout/page';
 @import 'layout/page-header';
+@import 'layout/page-subsections';
 @import 'layout/sidebar';
 @import 'layout/overlay';
 
@@ -87,3 +88,4 @@
 
 // IFQL - Time Machine
 @import 'components/funcs-button';
+@import 'components/time-machine';

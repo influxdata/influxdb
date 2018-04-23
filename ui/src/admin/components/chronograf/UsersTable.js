@@ -2,13 +2,16 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
 import uuid from 'uuid'
+import _ from 'lodash'
 
 import UsersTableHeader from 'src/admin/components/chronograf/UsersTableHeader'
 import UsersTableRowNew from 'src/admin/components/chronograf/UsersTableRowNew'
 import UsersTableRow from 'src/admin/components/chronograf/UsersTableRow'
 
 import {USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class UsersTable extends Component {
   constructor(props) {
     super(props)
@@ -16,6 +19,12 @@ class UsersTable extends Component {
     this.state = {
       isCreatingUser: false,
     }
+  }
+
+  shouldComponentUpdate(nextProps, nextState) {
+    return (
+      !_.isEqual(this.props, nextProps) || !_.isEqual(this.state, nextState)
+    )
   }
 
   handleChangeUserRole = (user, currentRole) => newRole => {

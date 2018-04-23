@@ -1,5 +1,6 @@
 import _ from 'lodash'
 import {timeRanges} from 'shared/data/timeRanges'
+import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
@@ -8,6 +9,8 @@ const initialState = {
   timeRange: {lower, upper},
   isEditMode: false,
   cellQueryStatus: {queryID: null, status: null},
+  hoverTime: NULL_HOVER_TIME,
+  activeCellID: '',
 }
 
 import {
@@ -311,6 +314,17 @@ export default function ui(state = initialState, action) {
       })
 
       return {...state, dashboards}
+    }
+
+    case 'SET_HOVER_TIME': {
+      const {hoverTime} = action.payload
+
+      return {...state, hoverTime}
+    }
+
+    case 'SET_ACTIVE_CELL': {
+      const {activeCellID} = action.payload
+      return {...state, activeCellID}
     }
   }
 

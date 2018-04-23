@@ -7,7 +7,9 @@ import {fetchJSONFeedAsync} from 'src/status/actions'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import JSONFeedReader from 'src/status/components/JSONFeedReader'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class NewsFeed extends Component {
   constructor(props) {
     super(props)

@@ -2,7 +2,9 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
 import {ROLES_TABLE} from 'src/admin/constants/tableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class RoleEditingRow extends Component {
   constructor(props) {
     super(props)
@@ -36,7 +38,7 @@ class RoleEditingRow extends Component {
           onKeyPress={this.handleKeyPress(role)}
           autoFocus={true}
           spellCheck={false}
-          autoComplete={false}
+          autoComplete="false"
         />
       </td>
     )

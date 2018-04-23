@@ -16,6 +16,7 @@
     "interface-name": [true, "never-prefix"],
     "no-console": [true, "log", "warn"],
     "no-empty": false,
+    "prefer-for-of": false,
     "prettier": [
       true,
       {
@@ -26,5 +27,6 @@
       }
     ]
   },
-  "rulesDirectory": []
+  "rulesDirectory": [],
+  "no-unused-variable": [true, {"ignore-pattern": "^_"}]
 }

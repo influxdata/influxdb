@@ -13,7 +13,7 @@
       "name": "System - TX Bytes/Second",
       "queries": [
         {
-          "query": "SELECT mean(\"Bytes_Sent_persec\") AS \"bytes_sent\" FROM win_net",
+          "query": "SELECT mean(\"Bytes_Sent_persec\") AS \"bytes_sent\" FROM \":db:\".\":rp:\".\"win_net\"",
           "groupbys": [],
           "wheres": []
         }
@@ -28,7 +28,7 @@
       "name": "RX Bytes/Second",
       "queries": [
         {
-          "query": "SELECT mean(\"Bytes_Received_persec\") AS \"bytes_received\" FROM win_net",
+          "query": "SELECT mean(\"Bytes_Received_persec\") AS \"bytes_received\" FROM \":db:\".\":rp:\".\"win_net\"",
           "groupbys": [],
           "wheres": []
         }

@@ -1,14 +1,16 @@
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import {notify as notifyAction} from 'shared/actions/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import UsersTable from 'src/admin/components/chronograf/UsersTable'
 
-class UsersPage extends Component {
+@ErrorHandling
+class UsersPage extends PureComponent {
   constructor(props) {
     super(props)
 

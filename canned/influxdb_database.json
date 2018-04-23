@@ -13,12 +13,12 @@
       "name": "InfluxDB - Cardinality",
       "queries": [
         {
-          "query": "SELECT max(\"numMeasurements\") AS \"measurements\" FROM \"influxdb_database\"",
+          "query": "SELECT max(\"numMeasurements\") AS \"measurements\" FROM \":db:\".\":rp:\".\"influxdb_database\"",
           "groupbys": [],
           "wheres": []
         },
         {
-          "query": "SELECT max(\"numSeries\") AS \"series\" FROM \"influxdb_database\"",
+          "query": "SELECT max(\"numSeries\") AS \"series\" FROM \":db:\".\":rp:\".\"influxdb_database\"",
           "groupbys": [],
           "wheres": []
         }

@@ -1,6 +1,8 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class FilterBar extends Component {
   constructor(props) {
     super(props)

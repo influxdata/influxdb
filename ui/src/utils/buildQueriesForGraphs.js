@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import {buildQuery} from 'utils/influxql'
 import {TYPE_QUERY_CONFIG, TYPE_SHIFTED} from 'src/dashboards/constants'
 
@@ -26,10 +27,7 @@ const buildQueries = (proxy, queryConfigs, tR) => {
   const queries = statements
     .filter(s => s.text !== null)
     .map(({queryConfig, text, id}) => {
-      let queryProxy = ''
-      if (queryConfig.source) {
-        queryProxy = `${queryConfig.source.links.proxy}`
-      }
+      const queryProxy = _.get(queryConfig, 'source.links.proxy', '')
 
       const host = [queryProxy || proxy]
 

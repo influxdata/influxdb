@@ -12,6 +12,7 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 
 import {Source, Kapacitor, AlertRule} from 'src/types'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   source: Source
@@ -29,6 +30,7 @@ interface State {
   loading: boolean
 }
 
+@ErrorHandling
 export class KapacitorRulesPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

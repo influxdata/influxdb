@@ -19,12 +19,14 @@ import {
   MAX_THRESHOLDS,
   THRESHOLD_TYPE_BASE,
 } from 'shared/constants/thresholds'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const formatColor = color => {
   const {hex, name} = color
   return {hex, name}
 }
 
+@ErrorHandling
 class ThresholdsList extends Component {
   handleAddThreshold = () => {
     const {
@@ -65,7 +67,7 @@ class ThresholdsList extends Component {
     onResetFocus()
   }
 
-  handleDeleteThreshold = threshold => () => {
+  handleDeleteThreshold = threshold => {
     const {
       handleUpdateThresholdsListColors,
       onResetFocus,
@@ -113,11 +115,11 @@ class ThresholdsList extends Component {
     return !sortedColors.some(color => color.value === targetValue)
   }
 
-  handleSortColors = () => {
-    const {thresholdsListColors, handleUpdateThresholdsListColors} = this.props
-    const sortedColors = _.sortBy(thresholdsListColors, color => color.value)
+  get sortedColors() {
+    const {thresholdsListColors} = this.props
+    const sortedColors = _.sortBy(thresholdsListColors, 'value')
 
-    handleUpdateThresholdsListColors(sortedColors)
+    return sortedColors
   }
 
   render() {
@@ -138,7 +140,7 @@ class ThresholdsList extends Component {
         >
           <span className="icon plus" /> Add Threshold
         </button>
-        {thresholdsListColors.map(
+        {this.sortedColors.map(
           color =>
             color.id === THRESHOLD_TYPE_BASE ? (
               <div className="threshold-item" key={uuid.v4()}>
@@ -159,7 +161,6 @@ class ThresholdsList extends Component {
                 onValidateColorValue={this.handleValidateColorValue}
                 onUpdateColorValue={this.handleUpdateColorValue}
                 onDeleteThreshold={this.handleDeleteThreshold}
-                onSortColors={this.handleSortColors}
               />
             )
         )}

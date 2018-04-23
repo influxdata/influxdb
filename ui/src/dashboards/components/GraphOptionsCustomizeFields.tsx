@@ -1,43 +1,44 @@
 import React, {SFC} from 'react'
+import {DragDropContext} from 'react-dnd'
+import HTML5Backend from 'react-dnd-html5-backend'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import GraphOptionsCustomizableField from 'src/dashboards/components/GraphOptionsCustomizableField'
-import uuid from 'uuid'
 
-interface Field {
+interface RenamableField {
   internalName: string
   displayName: string
   visible: boolean
 }
 
-interface Props {
-  fields: Field[]
-  onFieldUpdate: (field: Field) => void
+interface GraphOptionsCustomizeFieldsProps {
+  fields: RenamableField[]
+  onFieldUpdate: (field: RenamableField) => void
+  moveField: (dragIndex: number, hoverIndex: number) => void
 }
-
-const GraphOptionsCustomizeFields: SFC<Props> = ({fields, onFieldUpdate}) => {
+const GraphOptionsCustomizeFields: SFC<GraphOptionsCustomizeFieldsProps> = ({
+  fields,
+  onFieldUpdate,
+  moveField,
+}) => {
   return (
     <div className="graph-options-group">
       <label className="form-label">Customize Fields</label>
-      <FancyScrollbar
-        className="customize-fields"
-        maxHeight={225}
-        autoHeight={true}
-      >
-        {fields.map(field => {
-          return (
-            <GraphOptionsCustomizableField
-              key={uuid.v4()}
-              internalName={field.internalName}
-              displayName={field.displayName}
-              visible={field.visible}
-              onFieldUpdate={onFieldUpdate}
-            />
-          )
-        })}
-      </FancyScrollbar>
+      <div>
+        {fields.map((field, i) => (
+          <GraphOptionsCustomizableField
+            key={field.internalName}
+            index={i}
+            id={field.internalName}
+            internalName={field.internalName}
+            displayName={field.displayName}
+            visible={field.visible}
+            onFieldUpdate={onFieldUpdate}
+            moveField={moveField}
+          />
+        ))}
+      </div>
     </div>
   )
 }
 
-export default GraphOptionsCustomizeFields
+export default DragDropContext(HTML5Backend)(GraphOptionsCustomizeFields)

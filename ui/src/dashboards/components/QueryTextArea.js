@@ -5,6 +5,7 @@ import classnames from 'classnames'
 
 import TemplateDrawer from 'shared/components/TemplateDrawer'
 import QueryStatus from 'shared/components/QueryStatus'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {
   MATCH_INCOMPLETE_TEMPLATES,
@@ -13,6 +14,7 @@ import {
   unMask,
 } from 'src/dashboards/constants'
 
+@ErrorHandling
 class QueryTextArea extends Component {
   constructor(props) {
     super(props)

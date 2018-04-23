@@ -236,6 +236,7 @@ type Source struct {
 	Telegraf           string `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 	Organization       string `json:"organization"`                 // Organization is the organization ID that resource belongs to
 	Role               string `json:"role,omitempty"`               // Not Currently Used. Role is the name of the minimum role that a user must possess to access the resource.
+	DefaultRP          string `json:"defaultRP"`                    // DefaultRP is the default retention policy used in database queries to this source
 }
 
 // SourcesStore stores connection information for a `TimeSeries`

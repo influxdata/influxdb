@@ -17,6 +17,7 @@ import {
   notifyTickscriptLoggingError,
   notifyKapacitorNotFound,
 } from 'src/shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface ErrorActions {
   errorThrown: (notify: string | object) => void
@@ -69,6 +70,7 @@ interface State {
   unsavedChanges: boolean
 }
 
+@ErrorHandling
 export class TickscriptPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
@@ -114,7 +116,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
       errorActions.errorThrown(notifyKapacitorNotFound())
     }
 
-    if (this._isEditing()) {
+    if (this.isEditing) {
       await kapacitorActions.getRule(kapacitor, ruleID)
       const {id, name, tickscript, status, dbrps, type} = this.props.rules.find(
         r => r.id === ruleID
@@ -156,7 +158,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
         consoleMessage={consoleMessage}
         onChangeID={this.handleChangeID}
         onChangeType={this.handleChangeType}
-        isNewTickscript={!this._isEditing()}
+        isNewTickscript={!this.isEditing}
         onSelectDbrps={this.handleSelectDbrps}
         onChangeScript={this.handleChangeScript}
         onToggleLogsVisibility={this.handleToggleLogsVisibility}
@@ -176,17 +178,22 @@ export class TickscriptPage extends PureComponent<Props, State> {
     let response
 
     try {
-      if (this._isEditing()) {
+      if (this.isEditing) {
         response = await updateTask(kapacitor, task, ruleID, router, sourceID)
       } else {
         response = await createTask(kapacitor, task, router, sourceID)
-        router.push(`/sources/${sourceID}/tickscript/${response.id}`)
       }
-      if (response.code) {
+
+      if (response.code === 422) {
+        this.setState({unsavedChanges: true, consoleMessage: response.message})
+        return
+      } else if (response.code) {
         this.setState({unsavedChanges: true, consoleMessage: response.message})
       } else {
         this.setState({unsavedChanges: false, consoleMessage: ''})
       }
+
+      router.push(`/sources/${sourceID}/tickscript/${response.id}`)
     } catch (error) {
       console.error(error)
       throw error
@@ -225,7 +232,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
     this.setState({areLogsVisible: !this.state.areLogsVisible})
   }
 
-  private _isEditing() {
+  private get isEditing() {
     const {params} = this.props
     return params.ruleID && params.ruleID !== 'new'
   }
@@ -309,7 +316,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
       }
     } catch (error) {
       console.error(error)
-      notify(notifyTickscriptLoggingError(error))
+      notify(notifyTickscriptLoggingError())
       throw error
     }
   }

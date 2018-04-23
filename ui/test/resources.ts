@@ -1,3 +1,6 @@
+import {Source} from 'src/types'
+import {SourceLinks} from 'src/types/sources'
+
 export const role = {
   name: '',
   organization: '',
@@ -17,7 +20,7 @@ export const me = {
   role,
 }
 
-export const links = {
+export const sourceLinks: SourceLinks = {
   self: '/chronograf/v1/sources/16',
   kapacitors: '/chronograf/v1/sources/16/kapacitors',
   proxy: '/chronograf/v1/sources/16/proxy',
@@ -26,10 +29,11 @@ export const links = {
   permissions: '/chronograf/v1/sources/16/permissions',
   users: '/chronograf/v1/sources/16/users',
   databases: '/chronograf/v1/sources/16/dbs',
+  annotations: '/chronograf/v1/sources/16/annotations',
   health: '/chronograf/v1/sources/16/health',
 }
 
-export const source = {
+export const source: Source = {
   id: '16',
   name: 'ssl',
   type: 'influx',
@@ -40,7 +44,8 @@ export const source = {
   telegraf: 'telegraf',
   organization: '0',
   role: 'viewer',
-  links,
+  defaultRP: '',
+  links: sourceLinks,
 }
 
 export const timeRange = {
@@ -449,4 +454,116 @@ export const authLinks = {
   organizations: '/chronograf/v1/organizations',
   sources: '/chronograf/v1/sources',
   users: '/chronograf/v1/organizations/default/users',
+}
+
+export const layout = {
+  id: '6dfb4d49-20dc-4157-9018-2b1b1cb75c2d',
+  app: 'apache',
+  measurement: 'apache',
+  autoflow: false,
+  cells: [
+    {
+      x: 0,
+      y: 0,
+      w: 4,
+      h: 4,
+      i: '0246e457-916b-43e3-be99-211c4cbc03e8',
+      name: 'Apache Bytes/Second',
+      queries: [
+        {
+          query:
+            'SELECT non_negative_derivative(max("BytesPerSec")) AS "bytes_per_sec" FROM ":db:".":rp:"."apache"',
+          groupbys: ['"server"'],
+          label: 'bytes/s',
+        },
+      ],
+      axes: {
+        x: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        y: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        y2: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
+      },
+      type: '',
+      colors: [],
+    },
+    {
+      x: 4,
+      y: 0,
+      w: 4,
+      h: 4,
+      i: '37f2e4bb-9fa5-4891-a424-9df5ce7458bb',
+      name: 'Apache - Requests/Second',
+      queries: [
+        {
+          query:
+            'SELECT non_negative_derivative(max("ReqPerSec")) AS "req_per_sec" FROM ":db:".":rp:"."apache"',
+          groupbys: ['"server"'],
+          label: 'requests/s',
+        },
+      ],
+      axes: {
+        x: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        y: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        y2: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
+      },
+      type: '',
+      colors: [],
+    },
+    {
+      x: 8,
+      y: 0,
+      w: 4,
+      h: 4,
+      i: 'ea9174b3-2b56-4e80-a37d-064507c6775a',
+      name: 'Apache - Total Accesses',
+      queries: [
+        {
+          query:
+            'SELECT non_negative_derivative(max("TotalAccesses")) AS "tot_access" FROM ":db:".":rp:"."apache"',
+          groupbys: ['"server"'],
+          label: 'accesses/s',
+        },
+      ],
+      axes: {
+        x: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        y: {bounds: [], label: '', prefix: '', suffix: '', base: '', scale: ''},
+        y2: {
+          bounds: [],
+          label: '',
+          prefix: '',
+          suffix: '',
+          base: '',
+          scale: '',
+        },
+      },
+      type: '',
+      colors: [],
+    },
+  ],
+  link: {
+    href: '/chronograf/v1/layouts/6dfb4d49-20dc-4157-9018-2b1b1cb75c2d',
+    rel: 'self',
+  },
+}
+
+export const hosts = {
+  'MacBook-Pro.local': {
+    name: 'MacBook-Pro.local',
+    deltaUptime: -1,
+    cpu: 0,
+    load: 0,
+  },
 }

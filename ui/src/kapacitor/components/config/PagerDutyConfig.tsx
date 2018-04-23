@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
-import RedactedInput from './RedactedInput'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   'service-key': string
@@ -24,6 +25,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class PagerDutyConfig extends PureComponent<Props, State> {
   private serviceKey: HTMLInputElement
   private url: HTMLInputElement

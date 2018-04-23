@@ -1,5 +1,14 @@
 import React from 'react'
 
+export const CELL_TYPE_LINE = 'line'
+export const CELL_TYPE_STACKED = 'line-stacked'
+export const CELL_TYPE_STEPPLOT = 'line-stepplot'
+export const CELL_TYPE_BAR = 'bar'
+export const CELL_TYPE_LINE_PLUS_SINGLE_STAT = 'line-plus-single-stat'
+export const CELL_TYPE_SINGLE_STAT = 'single-stat'
+export const CELL_TYPE_GAUGE = 'gauge'
+export const CELL_TYPE_TABLE = 'table'
+
 const GRAPH_SVGS = {
   line: (
     <div className="viz-type-selector--graphic">
@@ -511,43 +520,43 @@ const GRAPH_SVGS = {
 
 export const GRAPH_TYPES = [
   {
-    type: 'line',
+    type: CELL_TYPE_LINE,
     menuOption: 'Line Graph',
-    graphic: GRAPH_SVGS.line,
+    graphic: GRAPH_SVGS[CELL_TYPE_LINE],
   },
   {
-    type: 'line-stacked',
+    type: CELL_TYPE_STACKED,
     menuOption: 'Stacked Graph',
-    graphic: GRAPH_SVGS['line-stacked'],
+    graphic: GRAPH_SVGS[CELL_TYPE_STACKED],
   },
   {
-    type: 'line-stepplot',
+    type: CELL_TYPE_STEPPLOT,
     menuOption: 'Step-Plot Graph',
-    graphic: GRAPH_SVGS['line-stepplot'],
+    graphic: GRAPH_SVGS[CELL_TYPE_STEPPLOT],
   },
   {
-    type: 'bar',
+    type: CELL_TYPE_BAR,
     menuOption: 'Bar Graph',
-    graphic: GRAPH_SVGS.bar,
+    graphic: GRAPH_SVGS[CELL_TYPE_BAR],
   },
   {
-    type: 'line-plus-single-stat',
+    type: CELL_TYPE_LINE_PLUS_SINGLE_STAT,
     menuOption: 'Line Graph + Single Stat',
-    graphic: GRAPH_SVGS['line-plus-single-stat'],
+    graphic: GRAPH_SVGS[CELL_TYPE_LINE_PLUS_SINGLE_STAT],
   },
   {
-    type: 'single-stat',
+    type: CELL_TYPE_SINGLE_STAT,
     menuOption: 'Single Stat',
-    graphic: GRAPH_SVGS['single-stat'],
+    graphic: GRAPH_SVGS[CELL_TYPE_SINGLE_STAT],
   },
   {
-    type: 'gauge',
+    type: CELL_TYPE_GAUGE,
     menuOption: 'Gauge',
-    graphic: GRAPH_SVGS.gauge,
+    graphic: GRAPH_SVGS[CELL_TYPE_GAUGE],
   },
   {
-    type: 'table',
+    type: CELL_TYPE_TABLE,
     menuOption: 'Table',
-    graphic: GRAPH_SVGS.table,
+    graphic: GRAPH_SVGS[CELL_TYPE_TABLE],
   },
 ]

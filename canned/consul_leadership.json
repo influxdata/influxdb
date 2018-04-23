@@ -13,7 +13,7 @@
             "name": "Consul – Leadership Change",
             "queries": [
                 {
-                    "query": "SELECT max(\"value\") as \"change\" FROM \"consul_raft_state_leader\"",
+                    "query": "SELECT max(\"value\") as \"change\" FROM \":db:\".\":rp:\".\"consul_raft_state_leader\"",
                     "label": "count",
                     "groupbys": [],
                     "wheres": []

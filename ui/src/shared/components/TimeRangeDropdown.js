@@ -9,11 +9,13 @@ import CustomTimeRangeOverlay from 'shared/components/CustomTimeRangeOverlay'
 
 import {timeRanges} from 'shared/data/timeRanges'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'shared/constants/index'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const dateFormat = 'YYYY-MM-DD HH:mm'
 const emptyTime = {lower: '', upper: ''}
 const format = t => moment(t.replace(/\'/g, '')).format(dateFormat)
 
+@ErrorHandling
 class TimeRangeDropdown extends Component {
   constructor(props) {
     super(props)

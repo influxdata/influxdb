@@ -4,8 +4,10 @@ import Dropdown from 'shared/components/Dropdown'
 
 import {showDatabases} from 'shared/apis/metaQuery'
 import parsers from 'shared/parsing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 const {databases: showDatabasesParser} = parsers
 
+@ErrorHandling
 class DatabaseDropdown extends Component {
   constructor(props) {
     super(props)

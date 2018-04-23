@@ -7,9 +7,11 @@ import {Link} from 'react-router'
 import uuid from 'uuid'
 
 import InfiniteScroll from 'shared/components/InfiniteScroll'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {ALERTS_TABLE} from 'src/alerts/constants/tableSizing'
 
+@ErrorHandling
 class AlertsTable extends Component {
   constructor(props) {
     super(props)
@@ -239,6 +241,7 @@ class AlertsTable extends Component {
   }
 }
 
+@ErrorHandling
 class SearchBar extends Component {
   constructor(props) {
     super(props)

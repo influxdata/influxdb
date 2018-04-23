@@ -8,10 +8,14 @@
   ],
   "presets": ["env", "react", "stage-0"],
   "env": {
+    "development": {
+      "plugins": ["transform-decorators-legacy"]
+    },
     "production": {
       "plugins": [
-        "transform-react-remove-prop-types"
+        "transform-react-remove-prop-types",
+        "transform-decorators-legacy"
       ]
-    },
+    }
   }
 }

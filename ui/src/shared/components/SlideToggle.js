@@ -1,6 +1,8 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class SlideToggle extends Component {
   constructor(props) {
     super(props)
@@ -11,7 +13,9 @@ class SlideToggle extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    this.setState({active: nextProps.active})
+    if (nextProps.active !== this.props.active) {
+      this.setState({active: nextProps.active})
+    }
   }
 
   handleClick = () => {

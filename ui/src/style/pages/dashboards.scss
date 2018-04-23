@@ -89,20 +89,6 @@ $dash-graph-options-arrow: 8px;
     left: 0;
   }
 }
-.dashboard__empty {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-
-  p {
-    color: $g13-mist;
-    font-size: 16px;
-    font-weight: 500;
-    margin-bottom: 20px;
-  }
-}
 .dash-graph {
   position: absolute;
   width: 100%;
@@ -166,7 +152,7 @@ $dash-graph-options-arrow: 8px;
   }
 }
 .dash-graph--name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   border-radius: $radius;
   overflow: hidden;
@@ -463,10 +449,12 @@ $dash-graph-options-arrow: 8px;
       display: block;
       position: absolute;
       height: 2px;
+      border-radius: 1px;
       background-color: $g6-smoke;
       transition: background-color 0.25s ease;
       top: 50%;
       left: 50%;
+      border: 0;
     }
     &:before {
       width: 20px;
@@ -484,6 +472,12 @@ $dash-graph-options-arrow: 8px;
     }
   }
 }
+
+/*
+  Dashboard Empty State
+  ------------------------------------------------------
+*/
+@import '../components/dashboard-empty';
 
 /*
   Template Control Bar

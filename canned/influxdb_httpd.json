@@ -13,7 +13,7 @@
       "name": "InfluxDB - Write HTTP Requests",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"writeReq\")) AS \"http_requests\" FROM \"influxdb_httpd\"",
+          "query": "SELECT non_negative_derivative(max(\"writeReq\")) AS \"http_requests\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
           "label": "count/s",
           "groupbys": [],
           "wheres": []
@@ -29,7 +29,7 @@
       "name": "InfluxDB - Query Requests",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"queryReq\")) AS \"query_requests\" FROM \"influxdb_httpd\"",
+          "query": "SELECT non_negative_derivative(max(\"queryReq\")) AS \"query_requests\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
           "label": "count/s",
           "groupbys": [],
           "wheres": []
@@ -46,13 +46,13 @@
       "name": "InfluxDB - Client Failures",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"clientError\")) AS \"client_errors\" FROM \"influxdb_httpd\"",
+          "query": "SELECT non_negative_derivative(max(\"clientError\")) AS \"client_errors\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
           "label": "count/s",
           "groupbys": [],
           "wheres": []
         },
         {
-          "query": "SELECT non_negative_derivative(max(\"authFail\"), 1s) AS \"auth_fail\" FROM \"influxdb_httpd\"",
+          "query": "SELECT non_negative_derivative(max(\"authFail\"), 1s) AS \"auth_fail\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
           "groupbys": [],
           "wheres": []
         }

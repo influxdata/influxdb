@@ -1,6 +1,7 @@
 import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, filter, forEach, concat, clone} from 'fast.js'
+import {calculateColumnWidths} from 'src/dashboards/utils/tableGraph'
 
 /**
  * Accepts an array of raw influxdb responses and returns a format
@@ -179,7 +180,6 @@ export const timeSeriesToTableGraph = raw => {
   const tableData = map(sortedTimeSeries, ({time, values}) => [time, ...values])
   const data = tableData.length ? [labels, ...tableData] : [[]]
   return {
-    labels,
     data,
   }
 }
@@ -198,12 +198,26 @@ export const filterTableColumns = (data, fieldNames) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
+export const orderTableColumns = (data, fieldNames) => {
+  const fieldsSortOrder = fieldNames.map(fieldName => {
+    return _.findIndex(data[0], dataLabel => {
+      return dataLabel === fieldName.internalName
+    })
+  })
+  const filteredFieldSortOrder = filter(fieldsSortOrder, f => f !== -1)
+  const orderedData = map(data, row => {
+    return row.map((v, j, arr) => arr[filteredFieldSortOrder[j]])
+  })
+  return orderedData[0].length ? orderedData : [[]]
+}
+
 export const processTableData = (
   data,
   sortFieldName,
   direction,
   verticalTimeAxis,
-  fieldNames
+  fieldNames,
+  timeFormat
 ) => {
   const sortIndex = _.indexOf(data[0], sortFieldName)
   const sortedData = [
@@ -212,9 +226,15 @@ export const processTableData = (
   ]
   const sortedTimeVals = map(sortedData, r => r[0])
   const filteredData = filterTableColumns(sortedData, fieldNames)
-  const processedData = verticalTimeAxis ? filteredData : _.unzip(filteredData)
-
-  return {processedData, sortedTimeVals}
+  const orderedData = orderTableColumns(filteredData, fieldNames)
+  const processedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
+  const {widths: columnWidths, totalWidths} = calculateColumnWidths(
+    processedData,
+    fieldNames,
+    timeFormat,
+    verticalTimeAxis
+  )
+  return {processedData, sortedTimeVals, columnWidths, totalWidths}
 }
 
 export default timeSeriesToDygraph

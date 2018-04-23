@@ -1,20 +1,17 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
-import shallowCompare from 'react-addons-shallow-compare'
 
 import SingleStat from 'src/shared/components/SingleStat'
 import timeSeriesToDygraph from 'utils/timeSeriesTransformers'
 
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class LineGraph extends Component {
   constructor(props) {
     super(props)
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    return shallowCompare(this, nextProps, nextState)
   }
 
   componentWillMount() {
@@ -39,11 +36,12 @@ class LineGraph extends Component {
     const {
       data,
       axes,
-      cell,
       title,
       colors,
+      cellID,
       onZoom,
       queries,
+      hoverTime,
       timeRange,
       cellHeight,
       ruleValues,
@@ -58,8 +56,7 @@ class LineGraph extends Component {
       underlayCallback,
       overrideLineColors,
       isFetchingInitially,
-      hoverTime,
-      onSetHoverTime,
+      handleSetHoverTime,
     } = this.props
 
     const {labels, timeSeries, dygraphSeries} = this._timeSeries
@@ -99,22 +96,22 @@ class LineGraph extends Component {
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
         {isRefreshing ? <GraphLoadingDots /> : null}
         <Dygraph
-          cell={cell}
           axes={axes}
+          cellID={cellID}
+          colors={colors}
           onZoom={onZoom}
           labels={labels}
           queries={queries}
           options={options}
+          hoverTime={hoverTime}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
-          hoverTime={hoverTime}
-          onSetHoverTime={onSetHoverTime}
           resizeCoords={resizeCoords}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
-          colors={colors}
+          handleSetHoverTime={handleSetHoverTime}
           overrideLineColors={overrideLineColors}
           containerStyle={containerStyle}
           staticLegend={staticLegend}
@@ -160,6 +157,7 @@ LineGraph.defaultProps = {
 }
 
 LineGraph.propTypes = {
+  cellID: string,
   axes: shape({
     y: shape({
       bounds: array,
@@ -170,6 +168,8 @@ LineGraph.propTypes = {
       label: string,
     }),
   }),
+  hoverTime: string,
+  handleSetHoverTime: func,
   title: string,
   isFetchingInitially: bool,
   isRefreshing: bool,
@@ -189,11 +189,8 @@ LineGraph.propTypes = {
     lower: string.isRequired,
   }),
   isInDataExplorer: bool,
-  hoverTime: string,
-  onSetHoverTime: func,
   setResolution: func,
   cellHeight: number,
-  cell: shape(),
   onZoom: func,
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,

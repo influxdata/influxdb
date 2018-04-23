@@ -10,7 +10,9 @@ import {notify} from 'src/shared/actions/notifications'
 import {notifyCSVDownloadFailed} from 'src/shared/copy/notifications'
 import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
 import download from 'src/external/download.js'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class LayoutCell extends Component {
   handleDeleteCell = cell => () => {
     this.props.onDeleteCell(cell)
@@ -32,7 +34,7 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, celldata} = this.props
+    const {cell, children, isEditable, celldata, onCloneCell} = this.props
 
     const queries = _.get(cell, ['queries'], [])
 
@@ -51,6 +53,7 @@ class LayoutCell extends Component {
             isEditable={isEditable}
             onDelete={this.handleDeleteCell}
             onEdit={this.handleSummonOverlay}
+            onClone={onCloneCell}
             onCSVDownload={this.handleCSVDownload}
           />
         </Authorized>
@@ -65,7 +68,7 @@ class LayoutCell extends Component {
                   className="no-query--button btn btn-md btn-primary"
                   onClick={this.handleSummonOverlay(cell)}
                 >
-                  <span className="icon plus" /> Add Graph
+                  <span className="icon plus" /> Add Data
                 </button>
               </Authorized>
             </div>
@@ -89,6 +92,7 @@ LayoutCell.propTypes = {
   }).isRequired,
   children: node.isRequired,
   onDeleteCell: func,
+  onCloneCell: func,
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,

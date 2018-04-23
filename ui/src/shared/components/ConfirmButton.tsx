@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   text?: string
@@ -17,6 +18,7 @@ interface State {
   expanded: boolean
 }
 
+@ErrorHandling
 class ConfirmButton extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     confirmText: 'Confirm',
@@ -37,37 +39,18 @@ class ConfirmButton extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      text,
-      confirmText,
-      type,
-      size,
-      square,
-      icon,
-      disabled,
-      customClass,
-    } = this.props
-    const {expanded} = this.state
-
-    const customClassString = customClass ? ` ${customClass}` : ''
-    const squareString = square ? ' btn-square' : ''
-    const expandedString = expanded ? ' active' : ''
-    const disabledString = disabled ? ' disabled' : ''
-
-    const classname = `confirm-button btn ${type} ${size}${customClassString}${squareString}${expandedString}${disabledString}`
+    const {text, confirmText, icon} = this.props
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
         <div
-          className={classname}
+          className={this.className}
           onClick={this.handleButtonClick}
           ref={r => (this.buttonDiv = r)}
         >
           {icon && <span className={`icon ${icon}`} />}
           {text && text}
-          <div
-            className={`confirm-button--tooltip ${this.calculatePosition()}`}
-          >
+          <div className={`confirm-button--tooltip ${this.calculatedPosition}`}>
             <div
               className="confirm-button--confirmation"
               onClick={this.handleConfirmClick}
@@ -79,6 +62,18 @@ class ConfirmButton extends PureComponent<Props, State> {
         </div>
       </ClickOutside>
     )
+  }
+
+  private get className() {
+    const {type, size, square, disabled, customClass} = this.props
+    const {expanded} = this.state
+
+    const customClassString = customClass ? ` ${customClass}` : ''
+    const squareString = square ? ' btn-square' : ''
+    const expandedString = expanded ? ' active' : ''
+    const disabledString = disabled ? ' disabled' : ''
+
+    return `confirm-button btn ${type} ${size}${customClassString}${squareString}${expandedString}${disabledString}`
   }
 
   private handleButtonClick = () => {
@@ -97,7 +92,7 @@ class ConfirmButton extends PureComponent<Props, State> {
     this.setState({expanded: false})
   }
 
-  private calculatePosition = () => {
+  private get calculatedPosition() {
     if (!this.buttonDiv || !this.tooltipDiv) {
       return ''
     }

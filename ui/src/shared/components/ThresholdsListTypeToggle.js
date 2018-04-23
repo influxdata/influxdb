@@ -9,7 +9,9 @@ import {
   THRESHOLD_TYPE_TEXT,
   THRESHOLD_TYPE_BG,
 } from 'shared/constants/thresholds'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class ThresholdsListTypeToggle extends Component {
   handleToggleThresholdsListType = newType => () => {
     const {handleUpdateThresholdsListType} = this.props

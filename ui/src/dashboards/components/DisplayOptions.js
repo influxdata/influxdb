@@ -9,7 +9,9 @@ import AxesOptions from 'src/dashboards/components/AxesOptions'
 import TableOptions from 'src/dashboards/components/TableOptions'
 
 import {buildDefaultYLabel} from 'shared/presenters'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DisplayOptions extends Component {
   constructor(props) {
     super(props)
@@ -42,7 +44,7 @@ class DisplayOptions extends Component {
       staticLegend,
       onToggleStaticLegend,
       onResetFocus,
-      dataLabels,
+      queryConfigs,
     } = this.props
     switch (type) {
       case 'gauge':
@@ -51,7 +53,10 @@ class DisplayOptions extends Component {
         return <SingleStatOptions onResetFocus={onResetFocus} />
       case 'table':
         return (
-          <TableOptions onResetFocus={onResetFocus} dataLabels={dataLabels} />
+          <TableOptions
+            onResetFocus={onResetFocus}
+            queryConfigs={queryConfigs}
+          />
         )
       default:
         return (
@@ -90,7 +95,6 @@ DisplayOptions.propTypes = {
   onToggleStaticLegend: func.isRequired,
   staticLegend: bool,
   onResetFocus: func.isRequired,
-  dataLabels: arrayOf(string),
 }
 
 const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({

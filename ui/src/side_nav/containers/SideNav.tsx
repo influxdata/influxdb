@@ -15,6 +15,7 @@ import {
 
 import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
 import {Params, Location, Links, Me} from 'src/types/sideNav'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   params: Params
@@ -26,6 +27,7 @@ interface Props {
   me: Me
 }
 
+@ErrorHandling
 class SideNav extends PureComponent<Props> {
   constructor(props) {
     super(props)
@@ -60,16 +62,26 @@ class SideNav extends PureComponent<Props> {
           </Link>
         </div>
         <NavBlock
+          highlightWhen={['hosts']}
           icon="cubo-node"
           link={`${sourcePrefix}/hosts`}
           location={location}
         >
           <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
         </NavBlock>
-        <NavBlock icon="graphline" link={dataExplorerLink} location={location}>
+        <NavBlock
+          highlightWhen={['data-explorer', 'delorean']}
+          icon="graphline"
+          link={dataExplorerLink}
+          location={location}
+        >
           <NavHeader link={dataExplorerLink} title="Data Explorer" />
+          <FeatureFlag name="time-machine">
+            <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" />
+          </FeatureFlag>
         </NavBlock>
         <NavBlock
+          highlightWhen={['dashboards']}
           icon="dash-h"
           link={`${sourcePrefix}/dashboards`}
           location={location}
@@ -77,7 +89,7 @@ class SideNav extends PureComponent<Props> {
           <NavHeader link={`${sourcePrefix}/dashboards`} title="Dashboards" />
         </NavBlock>
         <NavBlock
-          matcher="alerts"
+          highlightWhen={['alerts', 'alert-rules', 'tickscript']}
           icon="alert-triangle"
           link={`${sourcePrefix}/alert-rules`}
           location={location}
@@ -95,18 +107,20 @@ class SideNav extends PureComponent<Props> {
           requiredRole={ADMIN_ROLE}
           replaceWithIfNotUsingAuth={
             <NavBlock
+              highlightWhen={['admin-influxdb']}
               icon="crown2"
-              link={`${sourcePrefix}/admin-influxdb`}
+              link={`${sourcePrefix}/admin-influxdb/databases`}
               location={location}
             >
               <NavHeader
-                link={`${sourcePrefix}/admin-influxdb`}
+                link={`${sourcePrefix}/admin-influxdb/databases`}
                 title="InfluxDB Admin"
               />
             </NavBlock>
           }
         >
           <NavBlock
+            highlightWhen={['admin-chronograf', 'admin-influxdb']}
             icon="crown2"
             link={`${sourcePrefix}/admin-chronograf`}
             location={location}
@@ -118,12 +132,13 @@ class SideNav extends PureComponent<Props> {
             <NavListItem link={`${sourcePrefix}/admin-chronograf`}>
               Chronograf
             </NavListItem>
-            <NavListItem link={`${sourcePrefix}/admin-influxdb`}>
+            <NavListItem link={`${sourcePrefix}/admin-influxdb/databases`}>
               InfluxDB
             </NavListItem>
           </NavBlock>
         </Authorized>
         <NavBlock
+          highlightWhen={['manage-sources', 'kapacitors']}
           icon="cog-thick"
           link={`${sourcePrefix}/manage-sources`}
           location={location}
@@ -141,15 +156,6 @@ class SideNav extends PureComponent<Props> {
             sourcePrefix={sourcePrefix}
           />
         ) : null}
-        <FeatureFlag name="time-machine">
-          <NavBlock
-            icon="cog-thick"
-            link={`${sourcePrefix}/delorean`}
-            location={location}
-          >
-            <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" />
-          </NavBlock>
-        </FeatureFlag>
       </nav>
     )
   }

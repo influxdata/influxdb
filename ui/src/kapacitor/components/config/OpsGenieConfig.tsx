@@ -1,7 +1,8 @@
 import React, {PureComponent} from 'react'
 
-import RedactedInput from './RedactedInput'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import TagInput from 'src/shared/components/TagInput'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   'api-key': string
@@ -34,6 +35,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class OpsGenieConfig extends PureComponent<Props, State> {
   private apiKey: HTMLInputElement
 

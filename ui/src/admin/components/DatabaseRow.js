@@ -11,7 +11,9 @@ import {formatRPDuration} from 'utils/formatting'
 import ConfirmButton from 'shared/components/ConfirmButton'
 import {DATABASE_TABLE} from 'src/admin/constants/tableSizing'
 import {notifyRetentionPolicyCantHaveEmptyFields} from 'shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DatabaseRow extends Component {
   constructor(props) {
     super(props)
@@ -148,7 +150,7 @@ class DatabaseRow extends Component {
                 ref={r => (this.name = r)}
                 autoFocus={true}
                 spellCheck={false}
-                autoComplete={false}
+                autoComplete="false"
               />
             ) : (
               name
@@ -165,7 +167,7 @@ class DatabaseRow extends Component {
               ref={r => (this.duration = r)}
               autoFocus={!isNew}
               spellCheck={false}
-              autoComplete={false}
+              autoComplete="false"
             />
           </td>
           {isRFDisplayed ? (
@@ -180,7 +182,7 @@ class DatabaseRow extends Component {
                 onKeyDown={this.handleKeyDown}
                 ref={r => (this.replication = r)}
                 spellCheck={false}
-                autoComplete={false}
+                autoComplete="false"
               />
             </td>
           ) : null}

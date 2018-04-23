@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import classnames from 'classnames'
 
 import ResizeHandle from 'shared/components/ResizeHandle'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const maximumNumChildren = 2
 const defaultMinTopHeight = 200
@@ -10,6 +11,7 @@ const defaultMinBottomHeight = 200
 const defaultInitialTopHeight = '50%'
 const defaultInitialBottomHeight = '50%'
 
+@ErrorHandling
 class ResizeContainer extends Component {
   constructor(props) {
     super(props)

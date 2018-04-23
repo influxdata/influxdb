@@ -1,13 +1,16 @@
 import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
-import lastValues from 'shared/parsing/lastValues'
+import getLastValues from 'shared/parsing/lastValues'
+import _ from 'lodash'
 
 import {SMALL_CELL_HEIGHT} from 'shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'shared/constants'
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 import {colorsStringSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class SingleStat extends PureComponent {
   render() {
     const {
@@ -29,8 +32,14 @@ class SingleStat extends PureComponent {
         </div>
       )
     }
+    const {lastValues, series} = getLastValues(data)
+    const firstAlphabeticalSeriesName = _.sortBy(series)[0]
 
-    const lastValue = lastValues(data)[1]
+    const firstAlphabeticalindex = _.indexOf(
+      series,
+      firstAlphabeticalSeriesName
+    )
+    const lastValue = lastValues[firstAlphabeticalindex]
     const precision = 100.0
     const roundedValue = Math.round(+lastValue * precision) / precision
 
@@ -39,9 +48,9 @@ class SingleStat extends PureComponent {
       lastValue,
       cellType: lineGraph ? 'line-plus-single-stat' : 'single-stat',
     })
-
     const backgroundColor = bgColor
     const color = textColor
+
     const height = `calc(100% - ${staticLegendHeight +
       DYGRAPH_CONTAINER_V_MARGIN * 2}px)`
 

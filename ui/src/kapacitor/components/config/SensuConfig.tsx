@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
   source: string
@@ -23,6 +24,7 @@ interface State {
   testEnabled: boolean
 }
 
+@ErrorHandling
 class SensuConfig extends PureComponent<Props, State> {
   private source: HTMLInputElement
   private addr: HTMLInputElement

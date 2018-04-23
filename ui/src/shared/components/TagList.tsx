@@ -5,13 +5,35 @@ import _ from 'lodash'
 
 import TagListItem from 'src/shared/components/TagListItem'
 
-import {Query, Source} from 'src/types'
-
 import {showTagKeys, showTagValues} from 'src/shared/apis/metaQuery'
 import showTagKeysParser from 'src/shared/parsing/showTagKeys'
 import showTagValuesParser from 'src/shared/parsing/showTagValues'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const {shape} = PropTypes
+
+interface SourceLinks {
+  proxy: string
+}
+
+interface Source {
+  links: SourceLinks
+}
+
+interface GroupBy {
+  tags?: string[]
+}
+
+interface Tags {
+  [key: string]: string[]
+}
+interface Query {
+  database: string
+  measurement: string
+  retentionPolicy: string
+  tags: Tags
+  groupBy: GroupBy
+}
 
 interface Props {
   query: Query
@@ -24,6 +46,7 @@ interface State {
   tags: {}
 }
 
+@ErrorHandling
 class TagList extends PureComponent<Props, State> {
   public static contextTypes = {
     source: shape({

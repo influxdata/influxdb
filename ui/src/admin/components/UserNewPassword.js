@@ -2,7 +2,9 @@ import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 
 import {USERS_TABLE} from 'src/admin/constants/tableSizing'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class UserNewPassword extends Component {
   handleKeyPress = user => {
     return e => {
@@ -32,7 +34,7 @@ class UserNewPassword extends Component {
             onChange={this.handleEdit(user)}
             onKeyPress={this.handleKeyPress(user)}
             spellCheck={false}
-            autoComplete={false}
+            autoComplete="false"
           />
         ) : (
           '--'

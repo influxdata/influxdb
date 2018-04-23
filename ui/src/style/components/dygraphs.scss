@@ -42,8 +42,9 @@
 /* Axis Labels */
 .dygraph-axis-label {
   color: $g11-sidewalk !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   user-select: none;
+  font-size: 11px;
 }
 .dygraph-axis-label-y {
   padding: 0 9px 0 0 !important;
@@ -66,10 +67,10 @@
   position: absolute;
   width: 100%;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   top: -12px !important;
   color: $g11-sidewalk;
-  font-weight: 500;
+  font-weight: 600;
   padding: 0 0 2px 0 !important;
   border-bottom: 2px solid $g4-onyx !important;
   overflow: hidden;
@@ -226,6 +227,8 @@
 .dygraph-legend--timestamp {
   margin-right: 8px;
   height: 30px;
+  font-size: 13px;
+  white-space: nowrap;
   line-height: 30px;
   font-weight: 600;
   color: $g13-mist;
@@ -256,12 +259,13 @@
   justify-content: space-between;
   flex-wrap: nowrap;
   opacity: 0.5;
-  font-size: 13px;
-  line-height: 13px;
+  font-size: 11px;
+  line-height: 11px;
+  font-weight: 600;
   padding: 3px 0;
 
   span {
-    font-weight: 600;
+    font-weight: 900;
     padding: 0;
     white-space: nowrap;
   }

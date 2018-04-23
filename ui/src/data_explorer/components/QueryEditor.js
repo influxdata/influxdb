@@ -4,7 +4,9 @@ import PropTypes from 'prop-types'
 import Dropdown from 'shared/components/Dropdown'
 import {QUERY_TEMPLATES} from 'src/data_explorer/constants'
 import QueryStatus from 'shared/components/QueryStatus'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class QueryEditor extends Component {
   constructor(props) {
     super(props)

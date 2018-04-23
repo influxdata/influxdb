@@ -34,7 +34,9 @@ import {
   notifyCouldNotRetrieveKapacitorServices,
 } from 'shared/copy/notifications'
 import DeprecationWarning from 'src/admin/components/DeprecationWarning'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class AlertTabs extends Component {
   constructor(props) {
     super(props)

@@ -7,7 +7,7 @@ import classnames from 'classnames'
 
 import MenuTooltipButton from 'src/shared/components/MenuTooltipButton'
 import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
-
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {EDITING} from 'src/shared/annotations/helpers'
 import {cellSupportsAnnotations} from 'src/shared/constants/index'
 
@@ -16,7 +16,9 @@ import {
   editingAnnotation,
   dismissEditingAnnotation,
 } from 'src/shared/actions/annotations'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class LayoutCellMenu extends Component {
   state = {
     subMenuIsOpen: false,
@@ -32,6 +34,7 @@ class LayoutCellMenu extends Component {
       mode,
       cell,
       onEdit,
+      onClone,
       queries,
       onDelete,
       isEditable,
@@ -41,6 +44,28 @@ class LayoutCellMenu extends Component {
       onStartEditingAnnotation,
       onDismissEditingAnnotation,
     } = this.props
+
+    const menuOptions = [
+      {
+        text: 'Configure',
+        action: onEdit(cell),
+      },
+      {
+        text: 'Add Annotation',
+        action: onStartAddingAnnotation,
+        disabled: !cellSupportsAnnotations(cell.type),
+      },
+      {
+        text: 'Edit Annotations',
+        action: onStartEditingAnnotation,
+        disabled: !cellSupportsAnnotations(cell.type),
+      },
+      {
+        text: 'Download CSV',
+        action: onCSVDownload(cell),
+        disabled: !dataExists,
+      },
+    ]
 
     return (
       <div
@@ -63,31 +88,17 @@ class LayoutCellMenu extends Component {
               {queries.length ? (
                 <MenuTooltipButton
                   icon="pencil"
-                  menuOptions={[
-                    {text: 'Configure', action: onEdit(cell)},
-                    {
-                      text: 'Add Annotation',
-                      action: onStartAddingAnnotation,
-                      disabled: !cellSupportsAnnotations(cell.type),
-                    },
-                    {
-                      text: 'Edit Annotations',
-                      action: onStartEditingAnnotation,
-                      disabled: !cellSupportsAnnotations(cell.type),
-                    },
-                  ]}
+                  menuOptions={menuOptions}
                   informParent={this.handleToggleSubMenu}
                 />
               ) : null}
-              {dataExists && (
+              <Authorized requiredRole={EDITOR_ROLE}>
                 <MenuTooltipButton
-                  icon="download"
-                  menuOptions={[
-                    {text: 'Download CSV', action: onCSVDownload(cell)},
-                  ]}
+                  icon="duplicate"
+                  menuOptions={[{text: 'Clone Cell', action: onClone(cell)}]}
                   informParent={this.handleToggleSubMenu}
                 />
-              )}
+              </Authorized>
               <MenuTooltipButton
                 icon="trash"
                 theme="danger"
@@ -117,6 +128,7 @@ const {arrayOf, bool, func, shape, string} = PropTypes
 LayoutCellMenu.propTypes = {
   mode: string,
   onEdit: func,
+  onClone: func,
   onDelete: func,
   cell: shape(),
   isEditable: bool,

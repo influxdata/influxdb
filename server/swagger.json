@@ -3860,9 +3860,13 @@
       "example": {
         "id": "4",
         "name": "Influx 1",
+        "type": "influx",
         "url": "http://localhost:8086",
         "default": false,
         "telegraf": "telegraf",
+        "defaultRP": "customRP",
+        "organization": "default",
+        "role": "viewer",
         "links": {
           "self": "/chronograf/v1/sources/4",
           "kapacitors": "/chronograf/v1/sources/4/kapacitors",
@@ -3931,6 +3935,24 @@
           "description":
             "Database where telegraf information is stored for this source",
           "default": "telegraf"
+        },
+        "defaultRP": {
+          "type": "string",
+          "description":
+            "Default retention policy used in Host-related queries proxied to InfluxDB from the Host List and Host pages.",
+          "default": ""
+        },
+        "organization": {
+          "type": "string",
+          "description":
+            "Organization that this source belongs to, when Chronograf auth is in use",
+          "default": "default"
+        },
+        "role": {
+          "type": "string",
+          "description":
+            "Not used currently. Can be used to designate a minimum role required to access this source.",
+          "default": "viewer"
         },
         "links": {
           "type": "object",

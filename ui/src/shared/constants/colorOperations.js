@@ -7,21 +7,27 @@ import {
   THRESHOLD_TYPE_TEXT,
 } from 'shared/constants/thresholds'
 
-const luminanceThreshold = 0.5
+import {
+  CELL_TYPE_LINE,
+  CELL_TYPE_LINE_PLUS_SINGLE_STAT,
+  CELL_TYPE_TABLE,
+} from 'src/dashboards/graphics/graph'
 
 const getLegibleTextColor = bgColorHex => {
   const darkText = '#292933'
   const lightText = '#ffffff'
 
-  return chroma(bgColorHex).luminance() < luminanceThreshold
-    ? darkText
-    : lightText
+  const [red, green, blue] = chroma(bgColorHex).rgb()
+  const average = (red + green + blue) / 3
+  const mediumGrey = 128
+
+  return average > mediumGrey ? darkText : lightText
 }
 
 const findNearestCrossedThreshold = (colors, lastValue) => {
   const sortedColors = _.sortBy(colors, color => Number(color.value))
   const nearestCrossedThreshold = sortedColors
-    .filter(color => lastValue > color.value)
+    .filter(color => lastValue >= color.value)
     .pop()
 
   return nearestCrossedThreshold
@@ -34,15 +40,16 @@ export const stringifyColorValues = colors => {
 export const generateThresholdsListHexs = ({
   colors,
   lastValue,
-  cellType = 'line',
+  cellType = CELL_TYPE_LINE,
 }) => {
   const defaultColoring = {
     bgColor: null,
-    textColor: cellType === 'table' ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
+    textColor:
+      cellType === CELL_TYPE_TABLE ? '#BEC2CC' : THRESHOLD_COLORS[11].hex,
   }
   const lastValueNumber = Number(lastValue) || 0
 
-  if (!colors.length || !lastValue) {
+  if (!colors.length) {
     return defaultColoring
   }
 
@@ -51,8 +58,12 @@ export const generateThresholdsListHexs = ({
     hex: defaultColoring.textColor,
   }
 
+  if (!lastValue) {
+    return {...defaultColoring, textColor: baseColor}
+  }
+
   // If the single stat is above a line graph never have a background color
-  if (cellType === 'line-plus-single-stat') {
+  if (cellType === CELL_TYPE_LINE_PLUS_SINGLE_STAT) {
     return baseColor
       ? {bgColor: null, textColor: baseColor.hex}
       : defaultColoring

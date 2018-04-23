@@ -1,6 +1,7 @@
 import React, {PureComponent, SFC} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {AlertRule, Source} from 'src/types'
 
@@ -65,6 +66,7 @@ const KapacitorRulesTable: SFC<KapacitorRulesTableProps> = ({
   </table>
 )
 
+@ErrorHandling
 export class RuleRow extends PureComponent<RuleRowProps> {
   constructor(props) {
     super(props)

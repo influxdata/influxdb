@@ -2,6 +2,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 import Tags from 'src/shared/components/Tags'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Item {
   text?: string
@@ -15,6 +16,7 @@ interface Props {
   disableTest: () => void
 }
 
+@ErrorHandling
 class TagInput extends PureComponent<Props> {
   private input: HTMLInputElement
 

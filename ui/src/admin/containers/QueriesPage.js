@@ -13,6 +13,7 @@ import showDatabasesParser from 'shared/parsing/showDatabases'
 import showQueriesParser from 'shared/parsing/showQueries'
 import {TIMES} from 'src/admin/constants'
 import {notifyQueriesError} from 'shared/copy/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {
   loadQueries as loadQueriesAction,
@@ -22,6 +23,7 @@ import {
 
 import {notify as notifyAction} from 'shared/actions/notifications'
 
+@ErrorHandling
 class QueriesPage extends Component {
   componentDidMount() {
     this.updateQueries()

@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   id: string
@@ -11,6 +12,7 @@ interface State {
   editing: boolean
 }
 
+@ErrorHandling
 class RedactedInput extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

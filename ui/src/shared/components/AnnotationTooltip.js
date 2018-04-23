@@ -7,6 +7,7 @@ import classnames from 'classnames'
 import AnnotationInput from 'src/shared/components/AnnotationInput'
 import * as schema from 'shared/schemas'
 import * as actions from 'shared/actions/annotations'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const TimeStamp = ({time}) => (
   <div className="annotation-tooltip--timestamp">
@@ -14,6 +15,7 @@ const TimeStamp = ({time}) => (
   </div>
 )
 
+@ErrorHandling
 class AnnotationTooltip extends Component {
   state = {
     annotation: this.props.annotation,

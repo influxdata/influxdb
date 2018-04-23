@@ -5,6 +5,7 @@ import {bindActionCreators} from 'redux'
 import * as adminChronografActionCreators from 'src/admin/actions/chronograf'
 import * as configActionCreators from 'src/shared/actions/config'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
 import {AuthLinks, Organization, Role, User} from 'src/types'
@@ -38,6 +39,7 @@ interface State {
   isLoading: boolean
 }
 
+@ErrorHandling
 export class AllUsersPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)

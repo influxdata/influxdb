@@ -147,7 +147,7 @@ class Root extends PureComponent<{}, State> {
                 component={KapacitorPage}
               />
               <Route path="admin-chronograf" component={AdminChronografPage} />
-              <Route path="admin-influxdb" component={AdminInfluxDBPage} />
+              <Route path="admin-influxdb/:tab" component={AdminInfluxDBPage} />
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />

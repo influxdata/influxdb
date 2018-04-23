@@ -1,4 +1,7 @@
-export const ast = {
+import * as funcNames from 'src/ifql/constants/funcNames'
+import * as argTypes from 'src/ifql/constants/argumentTypes'
+
+const ast = {
   type: 'File',
   start: 0,
   end: 22,
@@ -153,3 +156,5 @@ export const ast = {
     directives: [],
   },
 }
+
+export {ast, funcNames, argTypes}

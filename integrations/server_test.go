@@ -104,6 +104,7 @@ func TestServer(t *testing.T) {
   "default": true,
   "telegraf": "telegraf",
   "organization": "howdy",
+  "defaultRP": "",
   "links": {
     "self": "/chronograf/v1/sources/5000",
     "kapacitors": "/chronograf/v1/sources/5000/kapacitors",
@@ -291,6 +292,7 @@ func TestServer(t *testing.T) {
       "default": true,
       "telegraf": "telegraf",
       "organization": "howdy",
+			"defaultRP": "",
       "links": {
         "self": "/chronograf/v1/sources/5000",
         "kapacitors": "/chronograf/v1/sources/5000/kapacitors",

@@ -2,6 +2,7 @@ import React, {PureComponent, SFC} from 'react'
 import TagsAddButton from 'src/shared/components/TagsAddButton'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import uuid from 'uuid'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Item {
   text?: string
@@ -38,6 +39,7 @@ interface TagProps {
   onDelete: (item: Item) => void
 }
 
+@ErrorHandling
 class Tag extends PureComponent<TagProps> {
   public render() {
     const {item} = this.props

@@ -21,7 +21,9 @@ import {
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
 import {colorsNumberSchema} from 'shared/schemas'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class GaugeOptions extends Component {
   handleAddThreshold = () => {
     const {gaugeColors, handleUpdateGaugeColors, onResetFocus} = this.props
@@ -59,7 +61,7 @@ class GaugeOptions extends Component {
     }
   }
 
-  handleDeleteThreshold = threshold => () => {
+  handleDeleteThreshold = threshold => {
     const {handleUpdateGaugeColors, onResetFocus} = this.props
     const gaugeColors = this.props.gaugeColors.filter(
       color => color.id !== threshold.id
@@ -123,7 +125,7 @@ class GaugeOptions extends Component {
       )
 
       const isUnique = !colorsWithoutMinOrMax.some(
-        color => color.value === targetValue
+        color => color.value === targetValue && color.id !== threshold.id
       )
 
       allowedToUpdate = greaterThanMin && lessThanMax && isUnique
@@ -146,11 +148,11 @@ class GaugeOptions extends Component {
     handleUpdateAxes(newAxes)
   }
 
-  handleSortColors = () => {
-    const {gaugeColors, handleUpdateGaugeColors} = this.props
-    const sortedColors = _.sortBy(gaugeColors, color => color.value)
+  get sortedGaugeColors() {
+    const {gaugeColors} = this.props
+    const sortedColors = _.sortBy(gaugeColors, 'value')
 
-    handleUpdateGaugeColors(sortedColors)
+    return sortedColors
   }
 
   render() {
@@ -174,12 +176,10 @@ class GaugeOptions extends Component {
             >
               <span className="icon plus" /> Add Threshold
             </button>
-            {gaugeColors.map(color => (
+            {this.sortedGaugeColors.map((color, index) => (
               <Threshold
-                isMin={color.value === gaugeColors[0].value}
-                isMax={
-                  color.value === gaugeColors[gaugeColors.length - 1].value
-                }
+                isMin={index === 0}
+                isMax={index === gaugeColors.length - 1}
                 visualizationType="gauge"
                 threshold={color}
                 key={uuid.v4()}
@@ -188,7 +188,6 @@ class GaugeOptions extends Component {
                 onValidateColorValue={this.handleValidateColorValue}
                 onUpdateColorValue={this.handleUpdateColorValue}
                 onDeleteThreshold={this.handleDeleteThreshold}
-                onSortColors={this.handleSortColors}
               />
             ))}
           </div>

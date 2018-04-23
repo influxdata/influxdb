@@ -1,6 +1,7 @@
 import classnames from 'classnames'
 import _ from 'lodash'
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Tag {
   key: string
@@ -21,6 +22,7 @@ interface State {
   filterText: string
 }
 
+@ErrorHandling
 class TagListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
@@ -36,11 +38,13 @@ class TagListItem extends PureComponent<Props, State> {
     this.handleFilterText = this.handleFilterText.bind(this)
   }
 
-  public handleChoose(tagValue: string) {
+  public handleChoose(tagValue: string, e: MouseEvent<HTMLElement>) {
+    e.stopPropagation()
     this.props.onChooseTag({key: this.props.tagKey, value: tagValue})
   }
 
-  public handleClickKey() {
+  public handleClickKey(e: MouseEvent<HTMLElement>) {
+    e.stopPropagation()
     this.setState({isOpen: !this.state.isOpen})
   }
 
@@ -67,6 +71,10 @@ class TagListItem extends PureComponent<Props, State> {
     this.props.onGroupByTag(this.props.tagKey)
   }
 
+  public handleInputClick(e: MouseEvent<HTMLInputElement>) {
+    e.stopPropagation()
+  }
+
   public renderTagValues() {
     const {tagValues, selectedTagValues} = this.props
     if (!tagValues || !tagValues.length) {
@@ -86,6 +94,7 @@ class TagListItem extends PureComponent<Props, State> {
             value={this.state.filterText}
             onChange={this.handleFilterText}
             onKeyUp={this.handleEscape}
+            onClick={this.handleInputClick}
             spellCheck={false}
             autoComplete="false"
           />

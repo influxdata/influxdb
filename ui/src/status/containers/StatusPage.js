@@ -7,7 +7,9 @@ import FancyScrollbar from 'shared/components/FancyScrollbar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
 
 import {fixtureStatusPageCells} from 'src/status/fixtures'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class StatusPage extends Component {
   constructor(props) {
     super(props)

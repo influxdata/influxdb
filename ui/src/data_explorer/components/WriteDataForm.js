@@ -7,8 +7,10 @@ import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
 import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 
 import {OVERLAY_TECHNOLOGY} from 'shared/constants/classNames'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 let dragCounter = 0
 
+@ErrorHandling
 class WriteDataForm extends Component {
   constructor(props) {
     super(props)

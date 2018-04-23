@@ -4,7 +4,9 @@ import {Link} from 'react-router'
 import _ from 'lodash'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class DashboardSwitcher extends Component {
   constructor(props) {
     super(props)

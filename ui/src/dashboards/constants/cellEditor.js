@@ -1,5 +1,15 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
+import {
+  CELL_TYPE_LINE,
+  CELL_TYPE_STACKED,
+  CELL_TYPE_STEPPLOT,
+  CELL_TYPE_BAR,
+  CELL_TYPE_LINE_PLUS_SINGLE_STAT,
+  CELL_TYPE_SINGLE_STAT,
+  CELL_TYPE_GAUGE,
+  CELL_TYPE_TABLE,
+} from 'src/dashboards/graphics/graph'
 
 export const initializeOptions = cellType => {
   switch (cellType) {
@@ -29,20 +39,20 @@ export const getCellTypeColors = ({
   let colors = []
 
   switch (cellType) {
-    case 'gauge': {
+    case CELL_TYPE_GAUGE: {
       colors = stringifyColorValues(gaugeColors)
       break
     }
-    case 'single-stat':
-    case 'line-plus-single-stat':
-    case 'table': {
+    case CELL_TYPE_SINGLE_STAT:
+    case CELL_TYPE_TABLE: {
       colors = stringifyColorValues(thresholdsListColors)
       break
     }
-    case 'bar':
-    case 'line':
-    case 'line-stacked':
-    case 'line-stepplot': {
+    case CELL_TYPE_BAR:
+    case CELL_TYPE_LINE:
+    case CELL_TYPE_LINE_PLUS_SINGLE_STAT:
+    case CELL_TYPE_STACKED:
+    case CELL_TYPE_STEPPLOT: {
       colors = stringifyColorValues(lineColors)
     }
   }

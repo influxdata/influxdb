@@ -4,7 +4,9 @@ import PropTypes from 'prop-types'
 import uuid from 'uuid'
 import ProvidersTableRow from 'src/admin/components/chronograf/ProvidersTableRow'
 import ProvidersTableRowNew from 'src/admin/components/chronograf/ProvidersTableRowNew'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
+@ErrorHandling
 class ProvidersTable extends Component {
   constructor(props) {
     super(props)
