@@ -72,28 +72,20 @@ class TableGraph extends Component {
     )
     const {sortField, sortDirection} = this.state
     const {tableOptions} = nextProps
-    const {sortBy: {internalName}, verticalTimeAxis, timeFormat} = tableOptions
+    const {sortBy: {internalName}} = tableOptions
 
-    let data
-    let sortedLabels
-    let fieldNames
+    let result = {}
 
-    if (
-      _.includes(updatedProps, 'data') ||
-      _.includes(updatedProps, 'queryASTs')
-    ) {
-      const returned = timeSeriesToTableGraph(
-        nextProps.data,
-        nextProps.queryASTs
-      )
-      data = returned.data
-      sortedLabels = returned.sortedLabels
-      fieldNames = computeFieldNames(tableOptions.fieldNames, sortedLabels)
+    if (_.includes(updatedProps, 'data')) {
+      result = timeSeriesToTableGraph(nextProps.data, nextProps.queryASTs)
+    }
+
+    const data = _.get(result, 'data', this.state.data)
+    const sortedLabels = _.get(result, 'sortedLabels', this.state.sortedLabels)
+    const fieldNames = computeFieldNames(tableOptions.fieldNames, sortedLabels)
+
+    if (_.includes(updatedProps, 'queryASTs')) {
       this.handleUpdateTableOptions(fieldNames, tableOptions)
-    } else {
-      data = this.state.data
-      sortedLabels = this.state.sortedLabels
-      fieldNames = computeFieldNames(tableOptions.fieldNames, sortedLabels)
     }
 
     if (_.isEmpty(data[0])) {
@@ -111,6 +103,7 @@ class TableGraph extends Component {
       direction = DEFAULT_SORT
       sortFieldName = internalName
     }
+
     if (
       _.includes(updatedProps, 'data') ||
       _.includes(updatedProps, 'tableOptions')
@@ -124,9 +117,8 @@ class TableGraph extends Component {
         data,
         sortFieldName,
         direction,
-        verticalTimeAxis,
         fieldNames,
-        timeFormat
+        tableOptions
       )
 
       this.setState({

@@ -32,26 +32,19 @@ const groupByTransform = (responses, responseIndex, groupByColumns) => {
   return accum
 }
 
-export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
-  const groupBys = queryASTs.map(queryAST => {
-    return _.get(queryAST, ['groupBy', 'tags'], false)
-  })
-  const results = reduce(
-    raw,
-    (acc, rawResponse, responseIndex) => {
-      const responses = _.get(rawResponse, 'response.results', [])
+export const groupByTimeSeriesTransform = (raw = [], groupBys = []) => {
+  const results = _.flatten(
+    map(raw, (response, index) => {
+      const responses = _.get(response, 'response.results', [])
 
-      const indexedResponses = groupBys[responseIndex]
-        ? groupByTransform(responses, responseIndex, groupBys[responseIndex])
-        : map(responses, response => ({
-            ...response,
-            responseIndex,
-          }))
+      if (groupBys[index]) {
+        return groupByTransform(responses, index, groupBys[index])
+      }
 
-      return [...acc, ...indexedResponses]
-    },
-    []
+      return map(responses, r => ({...r, responseIndex: index}))
+    })
   )
+
   const serieses = reduce(
     results,
     (acc, {series = [], responseIndex}) => {
@@ -66,26 +59,15 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
     },
     []
   )
-  const size = reduce(
-    serieses,
-    (acc, {columns, values}) => {
-      if (columns.length && (values && values.length)) {
-        return acc + (columns.length - 1) * values.length
-      }
-      return acc
-    },
-    0
-  )
   // convert series into cells with rows and columns
   let cellIndex = 0
   let labels = []
-  const DEFAULT_SIZE = 0
   const cells = {
-    label: new Array(DEFAULT_SIZE),
-    value: new Array(DEFAULT_SIZE),
-    time: new Array(DEFAULT_SIZE),
-    seriesIndex: new Array(DEFAULT_SIZE),
-    responseIndex: new Array(DEFAULT_SIZE),
+    label: [],
+    value: [],
+    time: [],
+    seriesIndex: [],
+    responseIndex: [],
   }
 
   forEach(
@@ -161,35 +143,46 @@ export const groupByTimeSeriesTransform = (raw = [], queryASTs = []) => {
       })
     }
   })
+
+  const size = reduce(
+    serieses,
+    (acc, {columns, values}) => {
+      return acc + _.get(columns, 'length', 0) * _.get(values, 'length', 0)
+    },
+    0
+  )
+
   for (let i = 0; i < size; i++) {
     let time
     time = cells.time[i]
     const value = cells.value[i]
-    const label = cells.label[i]
+    const label = _.get(cells.label, i, '')
     const seriesIndex = cells.seriesIndex[i]
 
-    if (!groupBys[cells.responseIndex[i]]) {
-      if (label.includes('_shifted__')) {
-        const [, quantity, duration] = label.split('__')
-        time = +shiftDate(time, quantity, duration).format('x')
-      }
-
-      existingRowIndex = tsMemo[time]
-
-      if (existingRowIndex === undefined) {
-        timeSeries.push({
-          time,
-          values: clone(dashArray),
-        })
-
-        existingRowIndex = timeSeries.length - 1
-        tsMemo[time] = existingRowIndex
-      }
-
-      timeSeries[existingRowIndex].values[
-        labelsToValueIndex[label + seriesIndex]
-      ] = value
+    if (groupBys[cells.responseIndex[i]]) {
+      continue
     }
+
+    if (label.includes('_shifted__')) {
+      const [, quantity, duration] = label.split('__')
+      time = +shiftDate(time, quantity, duration).format('x')
+    }
+
+    existingRowIndex = tsMemo[time]
+
+    if (existingRowIndex === undefined) {
+      timeSeries.push({
+        time,
+        values: clone(dashArray),
+      })
+
+      existingRowIndex = timeSeries.length - 1
+      tsMemo[time] = existingRowIndex
+    }
+
+    timeSeries[existingRowIndex].values[
+      labelsToValueIndex[label + seriesIndex]
+    ] = value
   }
 
   const sortedTimeSeries = _.sortBy(timeSeries, 'time')

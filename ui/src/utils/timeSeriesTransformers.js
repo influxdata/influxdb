@@ -179,10 +179,17 @@ const hasGroupBy = queryASTs => {
   })
 }
 
+const computeGroupBys = queryASTs => {
+  return queryASTs.map(queryAST => {
+    return _.get(queryAST, ['groupBy', 'tags'], false)
+  })
+}
+
 export const timeSeriesToTableGraph = (raw, queryASTs) => {
-  const {sortedLabels, sortedTimeSeries} = hasGroupBy(queryASTs)
-    ? groupByTimeSeriesTransform(raw, queryASTs)
-    : timeSeriesTransform(raw)
+  const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
+    raw,
+    computeGroupBys(queryASTs)
+  )
 
   const labels = ['time', ...map(sortedLabels, ({label}) => label)]
 
@@ -225,10 +232,10 @@ export const processTableData = (
   data,
   sortFieldName,
   direction,
-  verticalTimeAxis,
   fieldNames,
-  timeFormat
+  tableOptions
 ) => {
+  const {verticalTimeAxis, timeFormat} = tableOptions
   const sortIndex = _.indexOf(data[0], sortFieldName)
   const sortedData = [
     data[0],
