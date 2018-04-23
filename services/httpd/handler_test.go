@@ -769,6 +769,32 @@ func TestHandler_Write_EntityTooLarge_ContentLength(t *testing.T) {
 	}
 }
 
+func TestHandler_Write_SuppressLog(t *testing.T) {
+	var buf bytes.Buffer
+	c := httpd.NewConfig()
+	c.SuppressWriteLog = true
+	h := NewHandlerWithConfig(c)
+	h.CLFLogger = log.New(&buf, "", log.LstdFlags)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
+		return nil
+	}
+
+	b := strings.NewReader("cpu,host=server01 value=2\n")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/write?db=foo", b))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+
+	// If the log has anything in it, this failed.
+	if buf.Len() > 0 {
+		t.Fatalf("expected no bytes to be written to the log, got %d", buf.Len())
+	}
+}
+
 // onlyReader implements io.Reader only to ensure Request.ContentLength is not set
 type onlyReader struct {
 	r io.Reader
@@ -914,7 +940,10 @@ func NewHandler(requireAuthentication bool) *Handler {
 	config := httpd.NewConfig()
 	config.AuthEnabled = requireAuthentication
 	config.SharedSecret = "super secret key"
+	return NewHandlerWithConfig(config)
+}
 
+func NewHandlerWithConfig(config httpd.Config) *Handler {
 	h := &Handler{
 		Handler: httpd.NewHandler(config),
 	}
