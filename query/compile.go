@@ -275,6 +275,12 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 			return c.compileCumulativeSum(expr.Args)
 		case "moving_average":
 			return c.compileMovingAverage(expr.Args)
+		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_average":
+			return c.compileExponentialMovingAverage(expr.Name, expr.Args)
+		case "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average":
+			return c.compileKaufmans(expr.Name, expr.Args)
+		case "chande_momentum_oscillator":
+			return c.compileChandeMomentumOscillator(expr.Args)
 		case "elapsed":
 			return c.compileElapsed(expr.Args)
 		case "integral":
@@ -547,6 +553,161 @@ func (c *compiledField) compileMovingAverage(args []influxql.Expr) error {
 			return fmt.Errorf("aggregate function required inside the call to moving_average")
 		}
 		return c.compileSymbol("moving_average", arg0)
+	}
+}
+
+func (c *compiledField) compileExponentialMovingAverage(name string, args []influxql.Expr) error {
+	if got := len(args) - 1; got < 1 || got > 3 {
+		return fmt.Errorf("invalid number of arguments for %s, expected at least 1 but no more than 3, got %d", name, got)
+	}
+
+	switch arg1 := args[1].(type) {
+	case *influxql.IntegerLiteral:
+		if arg1.Val < 1 {
+			return fmt.Errorf("%s period must be greater than or equal to 1", name)
+		}
+	default:
+		return fmt.Errorf("%s period must be an integer", name)
+	}
+
+	if len(args) >= 3 {
+		switch arg2 := args[2].(type) {
+		case *influxql.IntegerLiteral:
+			if name == "triple_exponential_average" && arg2.Val < 1 && arg2.Val != -1 {
+				return fmt.Errorf("%s hold period must be greater than or equal to 1", name)
+			}
+			if arg2.Val < 0 && arg2.Val != -1 {
+				return fmt.Errorf("%s hold period must be greater than or equal to 0", name)
+			}
+		default:
+			return fmt.Errorf("%s hold period must be an integer", name)
+		}
+	}
+
+	if len(args) >= 4 {
+		switch arg3 := args[3].(type) {
+		case *influxql.StringLiteral:
+			switch arg3.String() {
+			case "'exponential_moving_average'":
+			case "'average'":
+			default:
+				return fmt.Errorf("%s warmup type must be one of: 'exponential_moving_average' 'average'", name)
+			}
+		default:
+			return fmt.Errorf("%s warmup type must be a string", name)
+		}
+	}
+
+	c.global.OnlySelectors = false
+
+	switch arg0 := args[0].(type) {
+	case *influxql.Call:
+		if c.global.Interval.IsZero() {
+			return fmt.Errorf("%s aggregate requires a GROUP BY interval", name)
+		}
+		return c.compileExpr(arg0)
+	default:
+		if !c.global.Interval.IsZero() {
+			return fmt.Errorf("aggregate function required inside the call to %s", name)
+		}
+		return c.compileSymbol(name, arg0)
+	}
+}
+
+func (c *compiledField) compileKaufmans(name string, args []influxql.Expr) error {
+	if got := len(args) - 1; got < 1 || got > 2 {
+		return fmt.Errorf("invalid number of arguments for %s, expected at least 1 but no more than 2, got %d", name, got)
+	}
+
+	switch arg1 := args[1].(type) {
+	case *influxql.IntegerLiteral:
+		if arg1.Val < 1 {
+			return fmt.Errorf("%s period must be greater than or equal to 1", name)
+		}
+	default:
+		return fmt.Errorf("%s period must be an integer", name)
+	}
+
+	if len(args) >= 3 {
+		switch arg2 := args[2].(type) {
+		case *influxql.IntegerLiteral:
+			if arg2.Val < 0 && arg2.Val != -1 {
+				return fmt.Errorf("%s hold period must be greater than or equal to 0", name)
+			}
+		default:
+			return fmt.Errorf("%s hold period must be an integer", name)
+		}
+	}
+
+	c.global.OnlySelectors = false
+
+	switch arg0 := args[0].(type) {
+	case *influxql.Call:
+		if c.global.Interval.IsZero() {
+			return fmt.Errorf("%s aggregate requires a GROUP BY interval", name)
+		}
+		return c.compileExpr(arg0)
+	default:
+		if !c.global.Interval.IsZero() {
+			return fmt.Errorf("aggregate function required inside the call to %s", name)
+		}
+		return c.compileSymbol(name, arg0)
+	}
+}
+
+func (c *compiledField) compileChandeMomentumOscillator(args []influxql.Expr) error {
+	if got := len(args) - 1; got < 1 || got > 3 {
+		return fmt.Errorf("invalid number of arguments for chande_momentum_oscillator, expected at least 1 but no more than 3, got %d", got)
+	}
+
+	switch arg1 := args[1].(type) {
+	case *influxql.IntegerLiteral:
+		if arg1.Val < 1 {
+			return fmt.Errorf("chande_momentum_oscillator period must be greater than or equal to 1")
+		}
+	default:
+		return fmt.Errorf("chande_momentum_oscillator period must be an integer")
+	}
+
+	if len(args) >= 3 {
+		switch arg2 := args[2].(type) {
+		case *influxql.IntegerLiteral:
+			if arg2.Val < 0 && arg2.Val != -1 {
+				return fmt.Errorf("chande_momentum_oscillator hold period must be greater than or equal to 0")
+			}
+		default:
+			return fmt.Errorf("chande_momentum_oscillator hold period must be an integer")
+		}
+	}
+
+	c.global.OnlySelectors = false
+
+	if len(args) >= 4 {
+		switch arg3 := args[3].(type) {
+		case *influxql.StringLiteral:
+			switch arg3.String() {
+			case "'none'":
+			case "'exponential_moving_average'":
+			case "'average'":
+			default:
+				return fmt.Errorf("chande_momentum_oscillator warmup type must be one of: 'none' 'exponential_moving_average' 'average'")
+			}
+		default:
+			return fmt.Errorf("chande_momentum_oscillator warmup type must be a string")
+		}
+	}
+
+	switch arg0 := args[0].(type) {
+	case *influxql.Call:
+		if c.global.Interval.IsZero() {
+			return fmt.Errorf("chande_momentum_oscillator aggregate requires a GROUP BY interval")
+		}
+		return c.compileExpr(arg0)
+	default:
+		if !c.global.Interval.IsZero() {
+			return fmt.Errorf("aggregate function required inside the call to chande_momentum_oscillator")
+		}
+		return c.compileSymbol("chande_momentum_oscillator", arg0)
 	}
 }
 

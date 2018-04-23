@@ -252,7 +252,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 		opt.Interval = Interval{}
 
 		return newHoltWintersIterator(input, opt, int(h.Val), int(m.Val), includeFitData, interval)
-	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "elapsed":
+	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_average", "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average", "chande_momentum_oscillator", "elapsed":
 		if !opt.Interval.IsZero() {
 			if opt.Ascending {
 				opt.StartTime -= int64(opt.Interval.Duration)
@@ -288,6 +288,82 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				}
 			}
 			return newMovingAverageIterator(input, int(n.Val), opt)
+		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_average":
+			n := expr.Args[1].(*influxql.IntegerLiteral)
+			if n.Val > 1 && !opt.Interval.IsZero() {
+				if opt.Ascending {
+					opt.StartTime -= int64(opt.Interval.Duration) * (n.Val - 1)
+				} else {
+					opt.EndTime += int64(opt.Interval.Duration) * (n.Val - 1)
+				}
+			}
+
+			nHold := -1
+			if len(expr.Args) >= 3 {
+				nHold = int(expr.Args[2].(*influxql.IntegerLiteral).Val)
+			}
+
+			var warmupType string
+			if len(expr.Args) >= 4 {
+				warmupType = expr.Args[3].(*influxql.StringLiteral).String()
+				warmupType = warmupType[1 : len(warmupType)-1] // strip quotes
+			}
+
+			switch expr.Name {
+			case "exponential_moving_average":
+				return newExponentialMovingAverageIterator(input, int(n.Val), nHold, warmupType, opt)
+			case "double_exponential_moving_average":
+				return newDoubleExponentialMovingAverageIterator(input, int(n.Val), nHold, warmupType, opt)
+			case "triple_exponential_moving_average":
+				return newTripleExponentialMovingAverageIterator(input, int(n.Val), nHold, warmupType, opt)
+			case "relative_strength_index":
+				return newRelativeStrengthIndexIterator(input, int(n.Val), nHold, warmupType, opt)
+			case "triple_exponential_average":
+				return newTripleExponentialAverageIterator(input, int(n.Val), nHold, warmupType, opt)
+			}
+		case "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average":
+			n := expr.Args[1].(*influxql.IntegerLiteral)
+			if n.Val > 1 && !opt.Interval.IsZero() {
+				if opt.Ascending {
+					opt.StartTime -= int64(opt.Interval.Duration) * (n.Val - 1)
+				} else {
+					opt.EndTime += int64(opt.Interval.Duration) * (n.Val - 1)
+				}
+			}
+
+			nHold := -1
+			if len(expr.Args) >= 3 {
+				nHold = int(expr.Args[2].(*influxql.IntegerLiteral).Val)
+			}
+
+			switch expr.Name {
+			case "kaufmans_efficiency_ratio":
+				return newKaufmansEfficiencyRatioIterator(input, int(n.Val), nHold, opt)
+			case "kaufmans_adaptive_moving_average":
+				return newKaufmansAdaptiveMovingAverageIterator(input, int(n.Val), nHold, opt)
+			}
+		case "chande_momentum_oscillator":
+			n := expr.Args[1].(*influxql.IntegerLiteral)
+			if n.Val > 1 && !opt.Interval.IsZero() {
+				if opt.Ascending {
+					opt.StartTime -= int64(opt.Interval.Duration) * (n.Val - 1)
+				} else {
+					opt.EndTime += int64(opt.Interval.Duration) * (n.Val - 1)
+				}
+			}
+
+			nHold := -1
+			if len(expr.Args) >= 3 {
+				nHold = int(expr.Args[2].(*influxql.IntegerLiteral).Val)
+			}
+
+			var warmupType string
+			if len(expr.Args) >= 4 {
+				warmupType = expr.Args[3].(*influxql.StringLiteral).String()
+				warmupType = warmupType[1 : len(warmupType)-1] // strip quotes
+			}
+
+			return newChandeMomentumOscillatorIterator(input, int(n.Val), nHold, warmupType, opt)
 		}
 		panic(fmt.Sprintf("invalid series aggregate function: %s", expr.Name))
 	case "cumulative_sum":
