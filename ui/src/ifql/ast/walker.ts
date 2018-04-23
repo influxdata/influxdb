@@ -1,5 +1,6 @@
 // Texas Ranger
 import _ from 'lodash'
+import {FlatBody, Func} from 'src/types/ifql'
 
 interface Expression {
   argument: object
@@ -19,14 +20,9 @@ interface Body {
 }
 
 interface FlatExpression {
+  type: string
   source: string
-  funcs: FuncNode[]
-}
-
-interface FuncNode {
-  name: string
-  arguments: any[]
-  source: string
+  funcs: Func[]
 }
 
 interface AST {
@@ -44,7 +40,7 @@ export default class Walker {
     return this.buildFuncNodes(this.walk(this.baseExpression))
   }
 
-  public get stuff() {
+  public get body(): FlatBody[] {
     const body = _.get(this.ast, 'body', new Array<Body>())
     return body.map(b => {
       if (b.type.includes('Expression')) {
@@ -74,6 +70,7 @@ export default class Walker {
     const funcs = this.buildFuncNodes(this.walk(expression))
 
     return {
+      type: expression.type,
       source: location.source,
       funcs,
     }
@@ -86,6 +83,7 @@ export default class Walker {
       const funcs = this.buildFuncNodes(this.walk(expression))
 
       return {
+        type: expression.type,
         source: location.source,
         funcs,
       }
@@ -122,11 +120,11 @@ export default class Walker {
     return [{name, args, source}]
   }
 
-  private buildFuncNodes = (nodes): FuncNode[] => {
+  private buildFuncNodes = (nodes): Func[] => {
     return nodes.map(({name, args, source}) => {
       return {
         name,
-        arguments: this.reduceArgs(args),
+        args: this.reduceArgs(args),
         source,
       }
     })

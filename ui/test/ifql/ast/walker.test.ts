@@ -7,16 +7,17 @@ describe('IFQL.AST.Walker', () => {
   describe('Walker#functions', () => {
     describe('simple example', () => {
       describe('a single expression', () => {
-        it('returns a flattened ordered list of from and its arguments', () => {
+        it('returns a flattened ordered list of from and its args', () => {
           const walker = new Walker(From)
-          expect(walker.stuff).toEqual([
+          expect(walker.body).toEqual([
             {
+              type: 'CallExpression',
               source: 'from(db: "telegraf")',
               funcs: [
                 {
                   name: 'from',
                   source: 'from(db: "telegraf")',
-                  arguments: [
+                  args: [
                     {
                       key: 'db',
                       value: 'telegraf',
@@ -32,7 +33,7 @@ describe('IFQL.AST.Walker', () => {
           describe('a single string literal variable', () => {
             it('returns the expected list', () => {
               const walker = new Walker(StringLiteral)
-              expect(walker.stuff).toEqual([
+              expect(walker.body).toEqual([
                 {
                   type: 'VariableDeclaration',
                   source: 'bux = "im a var"',
@@ -51,7 +52,7 @@ describe('IFQL.AST.Walker', () => {
           describe('a single expression variable', () => {
             it('returns the expected list', () => {
               const walker = new Walker(Expression)
-              expect(walker.stuff).toEqual([
+              expect(walker.body).toEqual([
                 {
                   type: 'VariableDeclaration',
                   source: 'tele = from(db: "telegraf")',
@@ -64,7 +65,7 @@ describe('IFQL.AST.Walker', () => {
                         {
                           name: 'from',
                           source: 'from(db: "telegraf")',
-                          arguments: [
+                          args: [
                             {
                               key: 'db',
                               value: 'telegraf',
@@ -83,22 +84,23 @@ describe('IFQL.AST.Walker', () => {
     })
 
     describe('complex example', () => {
-      it('returns a flattened ordered list of all funcs and their arguments', () => {
+      it('returns a flattened ordered list of all funcs and their args', () => {
         const walker = new Walker(Complex)
-        expect(walker.stuff).toEqual([
+        expect(walker.body).toEqual([
           {
+            type: 'PipeExpression',
             source:
               'from(db: "telegraf") |> filter(fn: (r) => r["_measurement"] == "cpu") |> range(start: -1m)',
             funcs: [
               {
                 name: 'from',
                 source: 'from(db: "telegraf")',
-                arguments: [{key: 'db', value: 'telegraf'}],
+                args: [{key: 'db', value: 'telegraf'}],
               },
               {
                 name: 'filter',
                 source: '|> filter(fn: (r) => r["_measurement"] == "cpu")',
-                arguments: [
+                args: [
                   {
                     key: 'fn',
                     value: '(r) => r["_measurement"] == "cpu"',
@@ -108,7 +110,7 @@ describe('IFQL.AST.Walker', () => {
               {
                 name: 'range',
                 source: '|> range(start: -1m)',
-                arguments: [{key: 'start', value: '-1m'}],
+                args: [{key: 'start', value: '-1m'}],
               },
             ],
           },

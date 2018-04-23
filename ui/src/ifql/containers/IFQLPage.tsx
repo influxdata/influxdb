@@ -4,12 +4,13 @@ import {connect} from 'react-redux'
 import uuid from 'uuid'
 import _ from 'lodash'
 
-import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
+import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import Walker from 'src/ifql/ast/walker'
-import {Func} from 'src/ifql/components/FuncArgs'
+import {Func, Suggestion, FlatBody} from 'src/types/ifql'
 import {InputArg} from 'src/types/ifql'
 
+import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -24,17 +25,15 @@ interface Props {
   links: Links
 }
 
-interface State {
-  suggestions: Suggestion[]
-  expressions: Expression[]
-  ast: object
-  script: string
+interface Body extends FlatBody {
+  id: string
 }
 
-interface Expression {
-  id: string
-  funcs: Func[]
-  source: string
+interface State {
+  body: Body[]
+  ast: object
+  script: string
+  suggestions: Suggestion[]
 }
 
 @ErrorHandling
@@ -42,11 +41,11 @@ export class IFQLPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      suggestions: [],
-      expressions: [],
+      body: [],
       ast: null,
+      suggestions: [],
       script:
-        'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nfrom(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
+        'foo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nfrom(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
     }
   }
 
@@ -80,7 +79,7 @@ export class IFQLPage extends PureComponent<Props, State> {
             <div className="container-fluid">
               <TimeMachine
                 script={script}
-                expressions={this.state.expressions}
+                body={this.state.body}
                 suggestions={suggestions}
                 onAddNode={this.handleAddNode}
                 onChangeArg={this.handleChangeArg}
@@ -221,61 +220,13 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private expressions = (ast, suggestions): Expression[] => {
-    if (!ast) {
-      return []
-    }
-
-    const walker = new Walker(ast)
-
-    const expressions = walker.expressions.map(({funcs, source}) => {
-      const id = uuid.v4()
-      return {
-        id,
-        funcs: this.functions(funcs, suggestions),
-        source,
-      }
-    })
-
-    return expressions
-  }
-
-  private functions = (funcs, suggestions): Func[] => {
-    const functions = funcs.map(func => {
-      const {params, name} = suggestions.find(f => f.name === func.name)
-
-      const args = Object.entries(params).map(([key, type]) => {
-        const value = _.get(
-          func.arguments.find(arg => arg.key === key),
-          'value',
-          ''
-        )
-
-        return {
-          key,
-          value,
-          type,
-        }
-      })
-
-      return {
-        id: uuid.v4(),
-        source: func.source,
-        name,
-        args,
-      }
-    })
-
-    return functions
-  }
-
   private getASTResponse = async (script: string) => {
     const {links} = this.props
 
     try {
       const ast = await getAST({url: links.ast, body: script})
-      const expressions = this.expressions(ast, this.state.suggestions)
-      this.setState({ast, script, expressions})
+      const body = bodyNodes(ast, this.state.suggestions)
+      this.setState({ast, script, body})
     } catch (error) {
       console.error('Could not parse AST', error)
     }
