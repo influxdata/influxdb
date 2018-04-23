@@ -128,6 +128,12 @@ func NewHandler(c Config) *Handler {
 		requestTracker: NewRequestTracker(),
 	}
 
+	// Disable the write log if they have been suppressed.
+	writeLogEnabled := c.LogEnabled
+	if c.SuppressWriteLog {
+		writeLogEnabled = false
+	}
+
 	h.AddRoutes([]Route{
 		Route{
 			"query-options", // Satisfy CORS checks.
@@ -147,7 +153,7 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"write", // Data-ingest route.
-			"POST", "/write", true, true, h.serveWrite,
+			"POST", "/write", true, writeLogEnabled, h.serveWrite,
 		},
 		Route{
 			"prometheus-write", // Prometheus remote write

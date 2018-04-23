@@ -25,6 +25,7 @@ type Config struct {
 	BindAddress           string        `toml:"bind-address"`
 	AuthEnabled           bool          `toml:"auth-enabled"`
 	LogEnabled            bool          `toml:"log-enabled"`
+	SuppressWriteLog      bool          `toml:"suppress-write-log"`
 	WriteTracing          bool          `toml:"write-tracing"`
 	PprofEnabled          bool          `toml:"pprof-enabled"`
 	HTTPSEnabled          bool          `toml:"https-enabled"`

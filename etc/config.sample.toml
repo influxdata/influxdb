@@ -226,6 +226,9 @@
   # Determines whether HTTP request logging is enabled.
   # log-enabled = true
 
+  # Determines whether the HTTP write request logs should be suppressed when the log is enabled.
+  # suppress-write-log = false
+
   # When HTTP request logging is enabled, this option specifies the path where
   # log entries should be written. If unspecified, the default is to write to stderr, which
   # intermingles HTTP logs with internal InfluxDB logging.
