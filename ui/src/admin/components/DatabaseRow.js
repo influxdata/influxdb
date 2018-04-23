@@ -150,7 +150,7 @@ class DatabaseRow extends Component {
                 ref={r => (this.name = r)}
                 autoFocus={true}
                 spellCheck={false}
-                autoComplete={false}
+                autoComplete="false"
               />
             ) : (
               name
@@ -167,7 +167,7 @@ class DatabaseRow extends Component {
               ref={r => (this.duration = r)}
               autoFocus={!isNew}
               spellCheck={false}
-              autoComplete={false}
+              autoComplete="false"
             />
           </td>
           {isRFDisplayed ? (
@@ -182,7 +182,7 @@ class DatabaseRow extends Component {
                 onKeyDown={this.handleKeyDown}
                 ref={r => (this.replication = r)}
                 spellCheck={false}
-                autoComplete={false}
+                autoComplete="false"
               />
             </td>
           ) : null}
