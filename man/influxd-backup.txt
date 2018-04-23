@@ -3,7 +3,11 @@ influxd-backup(1)
 
 NAME
 ----
-influxd-backup - Creates a backup copy of specified database(s) and saves to disk.
+influxd-backup - Creates a backup copy of specified InfluxDB OSS database(s) and saves to disk. Use this newer `-portable` option 
+  unless legacy support is required. Complete documentation on backing up and restoring, including the deprecated
+  legacy format, see:
+    https://docs.influxdata.com/influxdb/latest/administration/backup_and_restore/
+
 
 SYNOPSIS
 --------
@@ -11,20 +15,19 @@ SYNOPSIS
 
 DESCRIPTION
 -----------
-Creates a backup copy of specified InfluxDB OSS database(s) and saves to PATH (directory where backups are saved).  Use the newer `-portable` option unless legacy support is required.
- Note: Without the '-portable' option, the legacy backup utility is used and only the metastore is backeup unless a database is specified.
-
+Creates a backup copy of specified InfluxDB OSS database(s) and saves the files in an Enterprise-compatible
+format to PATH (directory where backups are saved).  
 
 OPTIONS
 -------
 -portable::
-  Generate backup files in portable format that can be restored to InfluxDB OSS or InfluxDB Enterprise. Optional. Use unless the legacy backup is required.
+  Required to generate backup files in a portable format that can be restored to InfluxDB OSS or InfluxDB Enterprise. Use unless the legacy backup is required.
 
 -host <host:port>::
   InfluxDB OSS host to back up from. Optional. Defaults to 127.0.0.1:8088.
 
 -db <db_name>::
-  InfluxDB OSS database name to back up. Optional. If not specified, all databases backed up with '-portable'.
+  InfluxDB OSS database name to back up. Optional. If not specified, all databases are backed up when using '-portable'.
 
 -rp <rp_name>::
   Retention policy to use for the backup. Optional. If not specified, all retention policies are used by default.
@@ -36,10 +39,10 @@ OPTIONS
   Include all points starting with specified timestamp (RFC3339 format). Not compatible with '-since <timestamp>'.
 
 -end <timestamp>::
-  Exclude all points after timestamp (RFC3339 format). Not compatible with -since.
+  Exclude all points after timestamp (RFC3339 format). Not compatible with '-since <timestamp>'.
 
 -since <timestamp>::
-  Create an incremental backup after the timestamp (RFC3339 format). Optional. Recommend using '-start <timestamp>' instead.
+  Create an incremental backup of all points after the timestamp (RFC3339 format). Optional. Recommend using '-start <timestamp>' instead.
 
 SEE ALSO
 --------
