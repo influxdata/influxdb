@@ -1,13 +1,10 @@
 import React, {PureComponent} from 'react'
 
 import {connect} from 'react-redux'
-import uuid from 'uuid'
-import _ from 'lodash'
 
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import Walker from 'src/ifql/ast/walker'
-import {Func, Suggestion, FlatBody} from 'src/types/ifql'
+import {Suggestion, FlatBody} from 'src/types/ifql'
 import {InputArg} from 'src/types/ifql'
 
 import {bodyNodes} from 'src/ifql/helpers'
@@ -110,7 +107,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     funcID,
     expressionID,
   }: InputArg): void => {
-    const expressions = this.state.expressions.map(expression => {
+    const body = this.state.body.map(expression => {
       if (expression.id !== expressionID) {
         return expression
       }
@@ -134,7 +131,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       return {...expression, funcs}
     })
 
-    this.setState({expressions}, () => {
+    this.setState({body}, () => {
       if (generate) {
         this.handleGenerateScript()
       }
@@ -142,7 +139,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private get expressionsToScript(): string {
-    return this.state.expressions.reduce((acc, expression) => {
+    return this.state.body.reduce((acc, expression) => {
       return `${acc + this.funcsToScript(expression.funcs)}\n\n`
     }, '')
   }
@@ -176,7 +173,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleAddNode = (name: string, expressionID: string): void => {
-    const script = this.state.expressions.reduce((acc, expression) => {
+    const script = this.state.body.reduce((acc, expression) => {
       if (expression.id === expressionID) {
         const {funcs} = expression
         return `${acc}${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
@@ -193,7 +190,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     expressionID: string
   ): void => {
     // TODO: export this and test functionality
-    const script = this.state.expressions
+    const script = this.state.body
       .map((expression, expressionIndex) => {
         if (expression.id !== expressionID) {
           return expression.source
@@ -208,7 +205,7 @@ export class IFQLPage extends PureComponent<Props, State> {
           return `${acc}\n\t${f.source}`
         }, '')
 
-        const isLast = expressionIndex === this.state.expressions.length - 1
+        const isLast = expressionIndex === this.state.body.length - 1
         if (isLast) {
           return `${source}`
         }
