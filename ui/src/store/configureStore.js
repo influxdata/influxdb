@@ -13,6 +13,7 @@ import adminReducers from 'src/admin/reducers'
 import kapacitorReducers from 'src/kapacitor/reducers'
 import dashboardUI from 'src/dashboards/reducers/ui'
 import cellEditorOverlay from 'src/dashboards/reducers/cellEditorOverlay'
+import overlayTechnology from 'src/shared/reducers/overlayTechnology'
 import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
 import persistStateEnhancer from './persistStateEnhancer'
 
@@ -24,6 +25,7 @@ const rootReducer = combineReducers({
   ...adminReducers,
   dashboardUI,
   cellEditorOverlay,
+  overlayTechnology,
   dashTimeV1,
   routing: routerReducer,
 })
