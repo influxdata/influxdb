@@ -168,6 +168,9 @@ func (s *SeriesSegment) CloseForWrite() (err error) {
 	return err
 }
 
+// Data returns the raw data.
+func (s *SeriesSegment) Data() []byte { return s.data }
+
 // ID returns the id the segment was initialized with.
 func (s *SeriesSegment) ID() uint16 { return s.id }
 

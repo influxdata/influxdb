@@ -12,6 +12,7 @@ SYNPOSIS
 'influx_inspect export' [options]
 'influx_inspect report' [options]
 'influx_inspect verify' [options]
+'influx_inspect verify-seriesfile' [options]
 
 DESCRIPTION
 -----------
@@ -82,5 +83,16 @@ VERIFY OPTIONS
 --------------
 -dir <path>::
   Root storage path. Defaults to '~/.influxdb'.
+
+VERIFY-SERIESFILE OPTIONS
+--------------
+-dir <path>::
+  Root storage path. Defaults to '~/.influxdb'.
+
+-db <path>::
+  Path to a specific db to check. Overrides '-dir'. Optional.
+
+-file <path>::
+  Path to a specific series file to check. Overrides '-dir' and '-db'. Optional.
 
 include:footer.txt[]
