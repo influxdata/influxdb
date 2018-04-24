@@ -2,7 +2,6 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
-import shallowCompare from 'react-addons-shallow-compare'
 import _ from 'lodash'
 import NanoDate from 'nano-date'
 
@@ -36,9 +35,7 @@ class Dygraph extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      isHidden: true,
       staticLegendHeight: null,
-      isHoveringThisGraph: false,
     }
   }
 
@@ -98,24 +95,18 @@ class Dygraph extends Component {
   }
 
   shouldComponentUpdate(nextProps, nextState) {
-    const timeRangeChanged = !_.isEqual(
-      nextProps.timeRange,
-      this.props.timeRange
-    )
-
-    if (this.dygraph.isZoomed() && timeRangeChanged) {
-      this.dygraph.resetZoom()
-    }
-
-    // Will cause componentDidUpdate to fire twice, currently. This could
-    // be reduced by returning false from within the reset conditional above,
-    // though that would be based on the assumption that props for timeRange
-    // will always change before those for data.
-    return shallowCompare(this, nextProps, nextState)
+    const arePropsEqual = _.isEqual(this.props, nextProps)
+    const areStatesEqual = _.isEqual(this.state, nextState)
+    return !arePropsEqual || !areStatesEqual
   }
 
-  componentDidUpdate() {
-    const {labels, axes: {y, y2}, options, isBarGraph} = this.props
+  componentDidUpdate(prevProps) {
+    const {
+      labels,
+      axes: {y, y2},
+      options,
+      isBarGraph,
+    } = this.props
 
     const dygraph = this.dygraph
 
@@ -126,6 +117,15 @@ class Dygraph extends Component {
     }
 
     const timeSeries = this.timeSeries
+
+    const timeRangeChanged = !_.isEqual(
+      prevProps.timeRange,
+      this.props.timeRange
+    )
+
+    if (this.dygraph.isZoomed() && timeRangeChanged) {
+      this.dygraph.resetZoom()
+    }
 
     const updateOptions = {
       ...options,
@@ -159,7 +159,11 @@ class Dygraph extends Component {
   }
 
   getYRange = timeSeries => {
-    const {options, axes: {y}, ruleValues} = this.props
+    const {
+      options,
+      axes: {y},
+      ruleValues,
+    } = this.props
 
     if (options.stackedGraph) {
       return getStackedRange(y.bounds)
@@ -216,7 +220,12 @@ class Dygraph extends Component {
   }
 
   handleHideLegend = () => {
-    this.setState({isHidden: true})
+    this.props.handleSetHoverTime(NULL_HOVER_TIME)
+  }
+
+  handleShowLegend = e => {
+    const newTime = this.eventToTimestamp(e)
+    this.props.handleSetHoverTime(newTime)
   }
 
   get lineColors() {
@@ -224,7 +233,9 @@ class Dygraph extends Component {
   }
 
   get labelWidth() {
-    const {axes: {y}} = this.props
+    const {
+      axes: {y},
+    } = this.props
     return (
       LABEL_WIDTH +
       y.prefix.length * CHAR_PIXELS +
@@ -265,22 +276,6 @@ class Dygraph extends Component {
     return date.toISOString()
   }
 
-  handleMouseMove = e => {
-    const newTime = this.eventToTimestamp(e)
-    this.props.handleSetHoverTime(newTime)
-
-    this.setState({isHoveringThisGraph: true})
-  }
-
-  handleMouseLeave = () => {
-    this.props.handleSetHoverTime(NULL_HOVER_TIME)
-    this.setState({isHoveringThisGraph: false})
-  }
-
-  handleShowLegend = () => {
-    this.setState({isHidden: false})
-  }
-
   handleReceiveStaticLegendHeight = staticLegendHeight => {
     this.setState({staticLegendHeight})
   }
@@ -295,8 +290,8 @@ class Dygraph extends Component {
   }
 
   render() {
-    const {isHidden, staticLegendHeight} = this.state
-    const {staticLegend, children, hoverTime} = this.props
+    const {staticLegendHeight} = this.state
+    const {staticLegend, children, cellID} = this.props
     const nestedGraph = (children && children.length && children[0]) || children
     let dygraphStyle = {...this.props.containerStyle, zIndex: '2'}
     if (staticLegend) {
@@ -310,16 +305,18 @@ class Dygraph extends Component {
     }
 
     return (
-      <div className="dygraph-child" onMouseLeave={this.handleMouseLeave}>
-        {this.areAnnotationsVisible && (
+      <div className="dygraph-child">
+        {this.dygraph && (
           <div className="dygraph-addons">
-            <Annotations
-              dygraph={this.dygraph}
-              dWidth={this.dygraph.width_}
-              staticLegendHeight={staticLegendHeight}
-            />
+            {this.areAnnotationsVisible && (
+              <Annotations
+                dygraph={this.dygraph}
+                dWidth={this.dygraph.width_}
+                staticLegendHeight={staticLegendHeight}
+              />
+            )}
             <DygraphLegend
-              isHidden={isHidden}
+              cellID={cellID}
               dygraph={this.dygraph}
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
@@ -327,19 +324,17 @@ class Dygraph extends Component {
             <Crosshair
               dygraph={this.dygraph}
               staticLegendHeight={staticLegendHeight}
-              hoverTime={hoverTime}
             />
           </div>
         )}
         <div
+          onMouseEnter={this.handleShowLegend}
           ref={r => {
             this.graphRef = r
             this.props.dygraphRef(r)
           }}
           className="dygraph-child-container"
           style={dygraphStyle}
-          onMouseMove={_.throttle(this.handleMouseMove, 100)}
-          onMouseOut={this.handleMouseOut}
         />
         {staticLegend && (
           <StaticLegend
@@ -385,6 +380,7 @@ Dygraph.defaultProps = {
 }
 
 Dygraph.propTypes = {
+  cellID: string,
   handleSetHoverTime: func,
   axes: shape({
     y: shape({
@@ -417,7 +413,6 @@ Dygraph.propTypes = {
   timeRange: shape({
     lower: string.isRequired,
   }),
-  hoverTime: string,
   setResolution: func,
   dygraphRef: func,
   onZoom: func,

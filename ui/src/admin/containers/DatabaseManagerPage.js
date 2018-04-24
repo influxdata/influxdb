@@ -23,7 +23,12 @@ class DatabaseManagerPage extends Component {
   }
 
   componentDidMount() {
-    const {source: {links: {databases}}, actions} = this.props
+    const {
+      source: {
+        links: {databases},
+      },
+      actions,
+    } = this.props
 
     actions.loadDBsAndRPsAsync(databases)
   }
@@ -80,7 +85,10 @@ class DatabaseManagerPage extends Component {
   }
 
   handleDatabaseDeleteConfirm = database => e => {
-    const {key, target: {value}} = e
+    const {
+      key,
+      target: {value},
+    } = e
     const {actions, notify} = this.props
 
     if (key === 'Escape') {

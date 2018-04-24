@@ -27,7 +27,7 @@ const getLegibleTextColor = bgColorHex => {
 const findNearestCrossedThreshold = (colors, lastValue) => {
   const sortedColors = _.sortBy(colors, color => Number(color.value))
   const nearestCrossedThreshold = sortedColors
-    .filter(color => lastValue > color.value)
+    .filter(color => lastValue >= color.value)
     .pop()
 
   return nearestCrossedThreshold

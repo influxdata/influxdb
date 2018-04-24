@@ -239,7 +239,11 @@ class DashboardPage extends Component {
   }
 
   handleSelectTemplate = templateID => values => {
-    const {dashboardActions, dashboard, params: {dashboardID}} = this.props
+    const {
+      dashboardActions,
+      dashboard,
+      params: {dashboardID},
+    } = this.props
     dashboardActions.templateVariableSelected(dashboard.id, templateID, [
       values,
     ])
@@ -359,7 +363,6 @@ class DashboardPage extends Component {
       name: d.name,
       link: `/sources/${sourceID}/dashboards/${d.id}`,
     }))
-
     return (
       <div className="page dashboard-page">
         {isTemplating ? (
@@ -562,6 +565,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
   const dashboard = dashboards.find(
     d => d.id === idNormalizer(TYPE_ID, dashboardID)
   )
+
   const selectedCell = cell
 
   return {

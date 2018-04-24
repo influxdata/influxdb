@@ -1,9 +1,11 @@
 import React, {ReactElement, Component} from 'react'
+import _ from 'lodash'
 import PropTypes from 'prop-types'
 import {withRouter, InjectedRouter} from 'react-router'
 import {Location} from 'history'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {
   isUserAuthorized,
@@ -52,6 +54,7 @@ interface Props {
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data sources, but not every page requires them to function.
 // Routes that do require data sources can be nested under this component.
+@ErrorHandling
 export class CheckSources extends Component<Props, State> {
   public static childContextTypes = {
     source: PropTypes.shape({
@@ -81,7 +84,10 @@ export class CheckSources extends Component<Props, State> {
   }
 
   public async componentWillMount() {
-    const {router, auth: {isUsingAuth, me}} = this.props
+    const {
+      router,
+      auth: {isUsingAuth, me},
+    } = this.props
     if (!isUsingAuth || isUserAuthorized(me.role, VIEWER_ROLE)) {
       await this.props.getSources()
       this.setState({isFetching: false})
@@ -111,9 +117,11 @@ export class CheckSources extends Component<Props, State> {
       params,
       errorThrown,
       sources,
-      auth: {isUsingAuth, me, me: {organizations = [], currentOrganization}},
+      auth: {isUsingAuth, me},
       notify,
     } = nextProps
+    const organizations = _.get(me, 'organizations', [])
+    const currentOrganization = _.get(me, 'currentOrganization')
     const {isFetching} = nextState
     const source = sources.find(s => s.id === params.sourceID)
     const defaultSource = sources.find(s => s.default === true)
@@ -184,7 +192,10 @@ export class CheckSources extends Component<Props, State> {
     const {
       params,
       sources,
-      auth: {isUsingAuth, me: {currentOrganization}},
+      auth: {
+        isUsingAuth,
+        me: {currentOrganization},
+      },
     } = this.props
     const {isFetching} = this.state
     const source = sources.find(s => s.id === params.sourceID)

@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
@@ -50,27 +50,10 @@ interface Props {
 }
 
 @ErrorHandling
-export class TableOptions extends PureComponent<Props, {}> {
+export class TableOptions extends Component<Props, {}> {
   constructor(props) {
     super(props)
     this.moveField = this.moveField.bind(this)
-  }
-
-  public componentWillMount() {
-    const {handleUpdateDisplayOptions, tableOptions} = this.props
-    handleUpdateDisplayOptions({
-      fieldOptions: this.computedFieldOptions,
-    })
-  }
-
-  public shouldComponentUpdate(nextProps) {
-    const {tableOptions} = this.props
-    const tableOptionsDifferent = !_.isEqual(
-      tableOptions,
-      nextProps.tableOptions
-    )
-
-    return tableOptionsDifferent
   }
 
   public render() {
@@ -127,26 +110,13 @@ export class TableOptions extends PureComponent<Props, {}> {
     )
   }
 
-  private get fieldOptions() {
-    return this.props.fieldOptions || []
-  }
-
-  private get timeField() {
-    return (
-      this.fieldOptions.find(f => f.internalName === 'time') ||
-      TIME_FIELD_DEFAULT
-    )
-  }
-
   private moveField(dragIndex, hoverIndex) {
-    const {handleUpdateDisplayOptions, tableOptions, fieldOptions} = this.props
-    const fields =
-      fieldOptions.length > 1 ? fieldOptions : this.computedFieldOptions
-
-    const dragField = fields[dragIndex]
+    const {handleUpdateTableOptions, tableOptions} = this.props
+    const {fieldNames} = tableOptions
+    const dragField = fieldNames[dragIndex]
     const removedFields = _.concat(
-      _.slice(fields, 0, dragIndex),
-      _.slice(fields, dragIndex + 1)
+      _.slice(fieldNames, 0, dragIndex),
+      _.slice(fieldNames, dragIndex + 1)
     )
     const addedFields = _.concat(
       _.slice(removedFields, 0, hoverIndex),
@@ -156,23 +126,6 @@ export class TableOptions extends PureComponent<Props, {}> {
     handleUpdateDisplayOptions({
       fieldOptions: addedFields,
     })
-  }
-
-  private get computedFieldOptions() {
-    const {queryConfigs} = this.props
-    const queryFields = _.flatten(
-      queryConfigs.map(({measurement, fields}) => {
-        return fields.map(({alias}) => {
-          const internalName = `${measurement}.${alias}`
-          const existing = this.fieldOptions.find(
-            c => c.internalName === internalName
-          )
-          return existing || {internalName, displayName: '', visible: true}
-        })
-      })
-    )
-
-    return [this.timeField, ...queryFields]
   }
 
   private handleChooseSortBy = (option: Option) => {
@@ -229,7 +182,9 @@ export class TableOptions extends PureComponent<Props, {}> {
 }
 
 const mapStateToProps = ({
-  cellEditorOverlay: {cell: {tableOptions, timeFormat, fieldOptions}},
+  cellEditorOverlay: {
+    cell: {tableOptions},
+  },
 }) => ({
   tableOptions,
   timeFormat,

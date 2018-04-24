@@ -38,7 +38,7 @@ class RoleEditingRow extends Component {
           onKeyPress={this.handleKeyPress(role)}
           autoFocus={true}
           spellCheck={false}
-          autoComplete={false}
+          autoComplete="false"
         />
       </td>
     )

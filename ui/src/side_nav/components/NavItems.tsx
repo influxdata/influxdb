@@ -1,6 +1,7 @@
 import React, {PureComponent, SFC, ReactNode, ReactElement} from 'react'
 import {Link} from 'react-router'
 import classnames from 'classnames'
+import _ from 'lodash'
 
 interface NavListItemProps {
   link: string
@@ -62,17 +63,14 @@ interface NavBlockProps {
   icon: string
   location?: string
   className?: string
-  matcher?: string
+  highlightWhen: string[]
 }
 
 class NavBlock extends PureComponent<NavBlockProps> {
   public render() {
-    const {location, className} = this.props
-    const isActive = React.Children.toArray(this.props.children).find(
-      (child: ReactElement<any>) => {
-        return location.startsWith(child.props.link) // if location is undefined, this will fail silently
-      }
-    )
+    const {location, className, highlightWhen} = this.props
+    const {length} = _.intersection(_.split(location, '/'), highlightWhen)
+    const isActive = !!length
 
     const children = React.Children.map(
       this.props.children,

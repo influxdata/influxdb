@@ -199,11 +199,20 @@ export const setHoverTime = hoverTime => ({
   },
 })
 
+export const setActiveCell = activeCellID => ({
+  type: 'SET_ACTIVE_CELL',
+  payload: {
+    activeCellID,
+  },
+})
+
 // Async Action Creators
 
 export const getDashboardsAsync = () => async dispatch => {
   try {
-    const {data: {dashboards}} = await getDashboardsAJAX()
+    const {
+      data: {dashboards},
+    } = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
     return dashboards
   } catch (error) {
@@ -253,7 +262,9 @@ export const putDashboard = dashboard => async dispatch => {
 
 export const putDashboardByID = dashboardID => async (dispatch, getState) => {
   try {
-    const {dashboardUI: {dashboards}} = getState()
+    const {
+      dashboardUI: {dashboards},
+    } = getState()
     const dashboard = dashboards.find(d => d.id === +dashboardID)
     const templates = removeUnselectedTemplateValues(dashboard)
     await updateDashboardAJAX({...dashboard, templates})
@@ -299,7 +310,7 @@ export const addDashboardCellAsync = (
       getNewDashboardCell(dashboard, cellType)
     )
     dispatch(addDashboardCell(dashboard, data))
-    dispatch(notify(notifyCellAdded()))
+    dispatch(notify(notifyCellAdded(data.name)))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))

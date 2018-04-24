@@ -33,3 +33,16 @@ export const getAST = async (request: ASTRequest) => {
     throw error
   }
 }
+
+// TODO: replace with actual requests to IFQL daemon
+export const getDatabases = async () => {
+  try {
+    const response = {data: {dbs: ['telegraf', 'chronograf', '_internal']}}
+    const {data} = await Promise.resolve(response)
+
+    return data.dbs
+  } catch (error) {
+    console.error('Could not get databases', error)
+    throw error
+  }
+}

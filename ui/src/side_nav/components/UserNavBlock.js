@@ -24,7 +24,9 @@ class UserNavBlock extends Component {
   render() {
     const {
       logoutLink,
-      links: {external: {custom: customLinks}},
+      links: {
+        external: {custom: customLinks},
+      },
       me,
       me: {currentOrganization, organizations, roles},
       me: {role},

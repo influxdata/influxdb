@@ -42,7 +42,11 @@ class MeasurementDropdown extends Component {
   }
 
   _getMeasurements = async () => {
-    const {source: {links: {proxy}}} = this.context
+    const {
+      source: {
+        links: {proxy},
+      },
+    } = this.context
     const {
       measurement,
       database,

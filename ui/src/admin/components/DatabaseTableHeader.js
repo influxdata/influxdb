@@ -98,7 +98,7 @@ const Header = ({
         onChange={onDatabaseDeleteConfirm(database)}
         onKeyDown={onDatabaseDeleteConfirm(database)}
         autoFocus={true}
-        autoComplete={false}
+        autoComplete="false"
         spellCheck={false}
       />
       <ConfirmOrCancel
@@ -130,7 +130,7 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
       onKeyDown={onKeyDown(database)}
       autoFocus={true}
       spellCheck={false}
-      autoComplete={false}
+      autoComplete="false"
     />
     <ConfirmOrCancel
       item={database}

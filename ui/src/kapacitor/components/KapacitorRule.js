@@ -101,12 +101,18 @@ class KapacitorRule extends Component {
   }
 
   handleAddEvery = frequency => {
-    const {rule: {id: ruleID}, ruleActions: {addEvery}} = this.props
+    const {
+      rule: {id: ruleID},
+      ruleActions: {addEvery},
+    } = this.props
     addEvery(ruleID, frequency)
   }
 
   handleRemoveEvery = () => {
-    const {rule: {id: ruleID}, ruleActions: {removeEvery}} = this.props
+    const {
+      rule: {id: ruleID},
+      ruleActions: {removeEvery},
+    } = this.props
     removeEvery(ruleID)
   }
 

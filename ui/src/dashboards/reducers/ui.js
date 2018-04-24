@@ -10,6 +10,7 @@ const initialState = {
   isEditMode: false,
   cellQueryStatus: {queryID: null, status: null},
   hoverTime: NULL_HOVER_TIME,
+  activeCellID: '',
 }
 
 import {
@@ -286,7 +287,7 @@ export default function ui(state = initialState, action) {
         }
 
         const templates = dashboard.templates.map(template => {
-          if (template.id !== templateID && template.type !== 'csv') {
+          if (template.id !== templateID || template.type === 'csv') {
             return template
           }
 
@@ -319,6 +320,11 @@ export default function ui(state = initialState, action) {
       const {hoverTime} = action.payload
 
       return {...state, hoverTime}
+    }
+
+    case 'SET_ACTIVE_CELL': {
+      const {activeCellID} = action.payload
+      return {...state, activeCellID}
     }
   }
 

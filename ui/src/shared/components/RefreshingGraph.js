@@ -42,6 +42,7 @@ const RefreshingGraph = ({
   editQueryStatus,
   handleSetHoverTime,
   grabDataForDownload,
+  isInCEO,
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
@@ -57,6 +58,7 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
+        type={type}
         colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
@@ -73,6 +75,7 @@ const RefreshingGraph = ({
   if (type === 'gauge') {
     return (
       <RefreshingGaugeChart
+        type={type}
         colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
@@ -92,6 +95,7 @@ const RefreshingGraph = ({
   if (type === 'table') {
     return (
       <RefreshingTableGraph
+        type={type}
         cellID={cellID}
         colors={colors}
         inView={inView}
@@ -107,6 +111,7 @@ const RefreshingGraph = ({
         timeFormat={timeFormat}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
+        isInCEO={isInCEO}
       />
     )
   }
@@ -118,7 +123,9 @@ const RefreshingGraph = ({
 
   return (
     <RefreshingLineGraph
+      type={type}
       axes={axes}
+      cellID={cellID}
       colors={colors}
       onZoom={onZoom}
       queries={queries}
@@ -127,7 +134,6 @@ const RefreshingGraph = ({
       templates={templates}
       timeRange={timeRange}
       autoRefresh={autoRefresh}
-      hoverTime={hoverTime}
       isBarGraph={type === 'bar'}
       resizeCoords={resizeCoords}
       staticLegend={staticLegend}
@@ -173,6 +179,7 @@ RefreshingGraph.propTypes = {
   timeFormat: string.isRequired,
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
+  isInCEO: bool,
 }
 
 RefreshingGraph.defaultProps = {

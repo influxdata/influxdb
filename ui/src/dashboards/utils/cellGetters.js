@@ -9,6 +9,16 @@ import {
   CELL_TYPE_GAUGE,
   CELL_TYPE_TABLE,
 } from 'src/dashboards/graphics/graph'
+import {
+  UNTITLED_CELL_LINE,
+  UNTITLED_CELL_STACKED,
+  UNTITLED_CELL_STEPPLOT,
+  UNTITLED_CELL_BAR,
+  UNTITLED_CELL_LINE_PLUS_SINGLE_STAT,
+  UNTITLED_CELL_SINGLE_STAT,
+  UNTITLED_CELL_GAUGE,
+  UNTITLED_CELL_TABLE,
+} from 'src/dashboards/constants'
 
 const getMostCommonValue = values => {
   const results = values.reduce(
@@ -29,16 +39,6 @@ const getMostCommonValue = values => {
 
   return results.mostCommonValue
 }
-
-export const UNTITLED_CELL_LINE = 'Untitled Line Graph'
-export const UNTITLED_CELL_STACKED = 'Untitled Stacked Graph'
-export const UNTITLED_CELL_STEPPLOT = 'Untitled Step-Plot Graph'
-export const UNTITLED_CELL_BAR = 'Untitled Bar Graph'
-export const UNTITLED_CELL_LINE_PLUS_SINGLE_STAT =
-  'Untitled Line Graph + Single Stat'
-export const UNTITLED_CELL_SINGLE_STAT = 'Untitled Single Stat'
-export const UNTITLED_CELL_GAUGE = 'Untitled Gauge'
-export const UNTITLED_CELL_TABLE = 'Untitled Table'
 
 const getNewTypedCellName = type => {
   switch (type) {

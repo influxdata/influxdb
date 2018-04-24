@@ -73,7 +73,9 @@ NewsFeed.propTypes = {
 }
 
 const mapStateToProps = ({
-  links: {external: {statusFeed: statusFeedURL}},
+  links: {
+    external: {statusFeed: statusFeedURL},
+  },
   JSONFeed: {hasCompletedFetchOnce, isFetching, isFailed, data},
 }) => ({
   hasCompletedFetchOnce,

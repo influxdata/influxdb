@@ -26,8 +26,13 @@ const DashVisualization = (
     tableOptions,
     timeFormat,
     fieldOptions,
+    isInCEO,
   },
-  {source: {links: {proxy}}}
+  {
+    source: {
+      links: {proxy},
+    },
+  }
 ) => {
   const colors = getCellTypeColors({
     cellType: type,
@@ -53,6 +58,7 @@ const DashVisualization = (
           staticLegend={staticLegend}
           timeFormat={timeFormat}
           fieldOptions={fieldOptions}
+          isInCEO={isInCEO}
         />
       </div>
     </div>
@@ -90,6 +96,7 @@ DashVisualization.propTypes = {
   gaugeColors: colorsNumberSchema,
   lineColors: colorsStringSchema,
   staticLegend: bool,
+  isInCEO: bool,
 }
 
 DashVisualization.contextTypes = {

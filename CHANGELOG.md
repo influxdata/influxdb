@@ -1,14 +1,23 @@
 ## v1.5.0.0 [unreleased]
 
 ### Features
+
 1.  [#3233](https://github.com/influxdata/chronograf/pull/3233): Add default retention policy field as option in source configuration for use in querying hosts from Host List page & Host pages
+1.  [#3290](https://github.com/influxdata/chronograf/pull/3290): Add support for PagerDuty v2 in UI
 
 ### UI Improvements
+
 1.  [#3204](https://github.com/influxdata/chronograf/pull/3204): Notify user when a dashboard cell is added, removed, or cloned
 1.  [#3215](https://github.com/influxdata/chronograf/pull/3215): Fix Template Variables Control Bar to top of dashboard page
 1.  [#3214](https://github.com/influxdata/chronograf/pull/3214): Remove extra click when creating dashboard cell
+1.  [#3256](https://github.com/influxdata/chronograf/pull/3256): Reduce font sizes in dashboards for increased space efficiency
 
 ### Bug Fixes
+
+1.  [#3252](https://github.com/influxdata/chronograf/pull/3252): Allows users to select tickscript editor with mouse
+1.  [#3279](https://github.com/influxdata/chronograf/pull/3279): Change color when value is equal to or greater than threshold value
+1.  [#3281](https://github.com/influxdata/chronograf/pull/3281): Fix base path for kapacitor logs
+1.  [#3284](https://github.com/influxdata/chronograf/pull/3284): Fix logout when using basepath & simplify basepath usage (deprecates `PREFIX_ROUTES`)
 
 ## v1.4.4.1 [2018-04-16]
 

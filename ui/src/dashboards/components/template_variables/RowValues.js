@@ -20,7 +20,7 @@ const RowValues = ({
         onStartEdit={onStartEdit}
         autoFocusTarget={autoFocusTarget}
         spellCheck={false}
-        autoComplete={false}
+        autoComplete="false"
       />
     )
   }

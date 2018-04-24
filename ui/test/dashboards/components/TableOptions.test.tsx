@@ -22,6 +22,7 @@ const defaultProps = {
   },
   fieldOptions: [],
   timeFormat: '',
+  queryASTs: [],
 }
 
 const setup = (override = {}) => {

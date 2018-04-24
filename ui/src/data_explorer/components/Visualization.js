@@ -64,7 +64,11 @@ class Visualization extends Component {
       errorThrown,
     } = this.props
 
-    const {source: {links: {proxy}}} = this.context
+    const {
+      source: {
+        links: {proxy},
+      },
+    } = this.context
     const {view} = this.state
 
     const queries = buildQueries(proxy, queryConfigs, timeRange)

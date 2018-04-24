@@ -19,14 +19,20 @@ class DashboardsPage extends Component {
     this.props.handleGetDashboards()
   }
 
-  handleCreateDashbord = async () => {
-    const {source: {id}, router: {push}} = this.props
+  handleCreateDashboard = async () => {
+    const {
+      source: {id},
+      router: {push},
+    } = this.props
     const {data} = await createDashboard(NEW_DASHBOARD)
     push(`/sources/${id}/dashboards/${data.id}`)
   }
 
   handleCloneDashboard = dashboard => async () => {
-    const {source: {id}, router: {push}} = this.props
+    const {
+      source: {id},
+      router: {push},
+    } = this.props
     const {data} = await createDashboard({
       ...dashboard,
       name: `${dashboard.name} (clone)`,
@@ -49,7 +55,7 @@ class DashboardsPage extends Component {
           dashboardLink={dashboardLink}
           dashboards={dashboards}
           onDeleteDashboard={this.handleDeleteDashboard}
-          onCreateDashboard={this.handleCreateDashbord}
+          onCreateDashboard={this.handleCreateDashboard}
           onCloneDashboard={this.handleCloneDashboard}
         />
       </div>

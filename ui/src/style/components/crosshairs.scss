@@ -8,22 +8,12 @@
   cursor: pointer;
 }
 
-.crosshair-container {
-  @extend %crosshair-styles;
-  z-index: 0;
-  top: 8px;
-  width: calc(100% - 32px);
-  height: calc(100% - 16px);
-}
-
 .crosshair {
   @extend %crosshair-styles;
   top: 0;
   height: calc(100% - 20px);
   width: 0.5px;
   background-color: $g14-chromium;
-}
-
-.crosshair.hidden {
-  visibility: hidden;
+  pointer-events: none;
+  z-index: 3;
 }

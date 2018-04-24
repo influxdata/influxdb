@@ -56,6 +56,7 @@ interface AlertNodes {
   log: Log[]
   victorOps: VictorOps[]
   pagerDuty: PagerDuty[]
+  pagerDuty2?: PagerDuty[]
   pushover: Pushover[]
   sensu: Sensu[]
   slack: Slack[]
@@ -178,7 +179,7 @@ interface OpsGenie {
 }
 
 // Talk sends alerts to Jane Talk (https://jianliao.com/site)
-interface Talk {}
+interface Talk {} // tslint:disable-line
 
 // TriggerValues specifies the alerting logic for a specific trigger type
 interface TriggerValues {

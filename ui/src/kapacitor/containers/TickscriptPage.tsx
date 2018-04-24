@@ -201,7 +201,10 @@ export class TickscriptPage extends PureComponent<Props, State> {
   }
 
   private handleExit = () => {
-    const {source: {id: sourceID}, router} = this.props
+    const {
+      source: {id: sourceID},
+      router,
+    } = this.props
 
     return router.push(`/sources/${sourceID}/alert-rules`)
   }
@@ -316,7 +319,7 @@ export class TickscriptPage extends PureComponent<Props, State> {
       }
     } catch (error) {
       console.error(error)
-      notify(notifyTickscriptLoggingError(error))
+      notify(notifyTickscriptLoggingError())
       throw error
     }
   }

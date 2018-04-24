@@ -1,10 +1,9 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
-import shallowCompare from 'react-addons-shallow-compare'
 
 import SingleStat from 'src/shared/components/SingleStat'
-import timeSeriesToDygraph from 'utils/timeSeriesTransformers'
+import {timeSeriesToDygraph} from 'utils/timeSeriesTransformers'
 
 import {colorsStringSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -13,10 +12,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 class LineGraph extends Component {
   constructor(props) {
     super(props)
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    return shallowCompare(this, nextProps, nextState)
   }
 
   componentWillMount() {
@@ -41,9 +36,9 @@ class LineGraph extends Component {
     const {
       data,
       axes,
-      cell,
       title,
       colors,
+      cellID,
       onZoom,
       queries,
       hoverTime,
@@ -101,14 +96,14 @@ class LineGraph extends Component {
       <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
         {isRefreshing ? <GraphLoadingDots /> : null}
         <Dygraph
-          cell={cell}
           axes={axes}
+          cellID={cellID}
           colors={colors}
           onZoom={onZoom}
           labels={labels}
-          hoverTime={hoverTime}
           queries={queries}
           options={options}
+          hoverTime={hoverTime}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
@@ -162,6 +157,7 @@ LineGraph.defaultProps = {
 }
 
 LineGraph.propTypes = {
+  cellID: string,
   axes: shape({
     y: shape({
       bounds: array,
@@ -195,7 +191,6 @@ LineGraph.propTypes = {
   isInDataExplorer: bool,
   setResolution: func,
   cellHeight: number,
-  cell: shape(),
   onZoom: func,
   resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,

@@ -33,7 +33,9 @@ Notifications.propTypes = {
 
 const mapStateToProps = ({
   notifications,
-  app: {ephemeral: {inPresentationMode}},
+  app: {
+    ephemeral: {inPresentationMode},
+  },
 }) => ({
   notifications,
   inPresentationMode,

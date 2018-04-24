@@ -82,7 +82,10 @@ const createWorkingDraft = (source: string, query: CellQuery): Query => {
   return draft
 }
 
-const createWorkingDrafts = (source: string, queries: CellQuery[]): Query[] =>
+const createWorkingDrafts = (
+  source: string,
+  queries: CellQuery[] = []
+): Query[] =>
   _.cloneDeep(
     queries.map((query: CellQuery) => createWorkingDraft(source, query))
   )
@@ -99,8 +102,12 @@ class CellEditorOverlay extends Component<Props, State> {
   constructor(props) {
     super(props)
 
-    const {cell: {legend}} = props
-    let {cell: {queries}} = props
+    const {
+      cell: {legend},
+    } = props
+    let {
+      cell: {queries},
+    } = props
 
     // Always have at least one query
     if (_.isEmpty(queries)) {
@@ -175,6 +182,7 @@ class CellEditorOverlay extends Component<Props, State> {
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
             staticLegend={isStaticLegend}
+            isInCEO={true}
           />
           <CEOBottom>
             <OverlayControls
@@ -395,7 +403,10 @@ class CellEditorOverlay extends Component<Props, State> {
   }
 
   private get sourceLink(): string {
-    const {cell: {queries}, source: {links}} = this.props
+    const {
+      cell: {queries},
+      source: {links},
+    } = this.props
     return _.get(queries, '0.source.links.self', links.self)
   }
 

@@ -38,7 +38,7 @@ class UserEditName extends Component {
           onKeyPress={this.handleKeyPress(user)}
           autoFocus={true}
           spellCheck={false}
-          autoComplete={false}
+          autoComplete="false"
         />
       </td>
     )

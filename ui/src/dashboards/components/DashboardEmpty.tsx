@@ -7,6 +7,8 @@ import {addDashboardCellAsync} from 'src/dashboards/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+
 interface Dashboard {
   id: string
   cells: Cell[]
@@ -40,16 +42,21 @@ class DashboardEmpty extends Component<Props> {
           This Dashboard doesn't have any <strong>Cells</strong>,<br />why not
           add one?
         </p>
-        <div className="dashboard-empty--menu">
-          {GRAPH_TYPES.map(graphType => (
-            <div key={graphType.type} className="dashboard-empty--menu-option">
-              <div onClick={this.handleAddCell(graphType.type)}>
-                {graphType.graphic}
-                <p>{graphType.menuOption}</p>
+        <Authorized requiredRole={EDITOR_ROLE}>
+          <div className="dashboard-empty--menu">
+            {GRAPH_TYPES.map(graphType => (
+              <div
+                key={graphType.type}
+                className="dashboard-empty--menu-option"
+              >
+                <div onClick={this.handleAddCell(graphType.type)}>
+                  {graphType.graphic}
+                  <p>{graphType.menuOption}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </Authorized>
       </div>
     )
   }

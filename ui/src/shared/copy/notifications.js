@@ -78,6 +78,11 @@ export const notifyCouldNotRetrieveKapacitors = sourceID => ({
   mesasage: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
 })
 
+export const notifyCouldNotRetrieveKapacitorServices = kapacitor => ({
+  ...defaultErrorNotification,
+  message: `Interanl Server Error. Could not retrieve services for Kapacitor ${kapacitor}`,
+})
+
 export const notifyCouldNotDeleteKapacitor = () => ({
   ...defaultErrorNotification,
   message: 'Internal Server Error. Could not delete Kapacitor Connection.',
@@ -412,24 +417,24 @@ export const notifyDashboardDeleted = name => ({
 export const notifyDashboardDeleteFailed = (name, errorMessage) =>
   `Failed to delete Dashboard ${name}: ${errorMessage}.`
 
-export const notifyCellAdded = () => ({
+export const notifyCellAdded = name => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  duration: 2200,
-  message: 'Added "Untitled Cell" to dashboard.',
+  duration: 1900,
+  message: `Added "${name}" to dashboard.`,
 })
 
 export const notifyCellCloned = name => ({
   ...defaultSuccessNotification,
   icon: 'duplicate',
-  duration: 2200,
+  duration: 1900,
   message: `Added "${name}" to dashboard.`,
 })
 
 export const notifyCellDeleted = name => ({
   ...defaultDeletionNotification,
   icon: 'dash-h',
-  duration: 2200,
+  duration: 1900,
   message: `Deleted "${name}" from dashboard.`,
 })
 
@@ -575,10 +580,12 @@ export const notifyTickscriptLoggingUnavailable = () => ({
   message: 'Kapacitor version 1.4 required to view TICKscript logs',
 })
 
-export const notifyTickscriptLoggingError = message => ({
+export const notifyTickscriptLoggingError = () => ({
   ...defaultErrorNotification,
-  message,
+  message: 'Could not collect kapacitor logs',
 })
 
-export const notifyKapacitorNotFound = () =>
-  'We could not find a Kapacitor configuration for this source.'
+export const notifyKapacitorNotFound = () => ({
+  ...defaultErrorNotification,
+  message: 'We could not find a Kapacitor configuration for this source.',
+})

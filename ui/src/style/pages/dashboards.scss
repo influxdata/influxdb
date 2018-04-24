@@ -152,7 +152,7 @@ $dash-graph-options-arrow: 8px;
   }
 }
 .dash-graph--name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   border-radius: $radius;
   overflow: hidden;
@@ -449,10 +449,12 @@ $dash-graph-options-arrow: 8px;
       display: block;
       position: absolute;
       height: 2px;
+      border-radius: 1px;
       background-color: $g6-smoke;
       transition: background-color 0.25s ease;
       top: 50%;
       left: 50%;
+      border: 0;
     }
     &:before {
       width: 20px;

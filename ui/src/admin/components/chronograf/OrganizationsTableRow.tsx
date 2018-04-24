@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter, InjectedRouter} from 'react-router'
@@ -45,7 +45,7 @@ interface Props {
 }
 
 @ErrorHandling
-class OrganizationsTableRow extends PureComponent<Props, {}> {
+class OrganizationsTableRow extends Component<Props, {}> {
   public shouldComponentUpdate(nextProps) {
     return !_.isEqual(this.props, nextProps)
   }
