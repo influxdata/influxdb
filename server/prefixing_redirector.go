@@ -2,49 +2,32 @@ package server
 
 import (
 	"net/http"
-	"net/url"
-	"path"
-	"strings"
 )
 
-type interceptingResponseWriter struct {
+type flushingResponseWriter struct {
 	http.ResponseWriter
-	Flusher http.Flusher
-	Prefix  string
 }
 
-func (i *interceptingResponseWriter) WriteHeader(status int) {
-	if status >= 300 && status < 400 {
-		location := i.ResponseWriter.Header().Get("Location")
-		if u, err := url.Parse(location); err == nil && !u.IsAbs() {
-			hasPrefix := strings.HasPrefix(u.Path, i.Prefix)
-			if !hasPrefix || (hasPrefix && !strings.HasPrefix(u.Path[len(i.Prefix):], i.Prefix)) {
-				i.ResponseWriter.Header().Set("Location", path.Join(i.Prefix, location)+"/")
-			}
-		}
-	}
-	i.ResponseWriter.WriteHeader(status)
+func (f *flushingResponseWriter) WriteHeader(status int) {
+	f.ResponseWriter.WriteHeader(status)
 }
 
 // Flush is here because the underlying HTTP chunked transfer response writer
 // to implement http.Flusher.  Without it data is silently buffered.  This
 // was discovered when proxying kapacitor chunked logs.
-func (i *interceptingResponseWriter) Flush() {
-	if i.Flusher != nil {
-		i.Flusher.Flush()
+func (f *flushingResponseWriter) Flush() {
+	if flusher, ok := f.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
 	}
 }
 
-// PrefixedRedirect alters the Location header of downstream http.Handlers
-// to include a specified prefix
-func PrefixedRedirect(prefix string, next http.Handler) http.Handler {
+// FlushingHandler may not actually do anything, but it was ostensibly
+// implemented to flush response writers that can be flushed for the
+// purposes in the comment above.
+func FlushingHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		iw := &interceptingResponseWriter{
+		iw := &flushingResponseWriter{
 			ResponseWriter: w,
-			Prefix:         prefix,
-		}
-		if flusher, ok := w.(http.Flusher); ok {
-			iw.Flusher = flusher
 		}
 		next.ServeHTTP(iw, r)
 	})
