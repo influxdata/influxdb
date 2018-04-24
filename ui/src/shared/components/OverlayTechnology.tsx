@@ -72,7 +72,8 @@ class Overlay extends PureComponent<Props, State> {
   }
 
   public handleClickOutside = () => {
-    const {handleDismissOverlay, options: {dismissOnClickOutside}} = this.props
+    const {handleDismissOverlay, options} = this.props
+    const {dismissOnClickOutside} = options
 
     if (dismissOnClickOutside) {
       handleDismissOverlay()
