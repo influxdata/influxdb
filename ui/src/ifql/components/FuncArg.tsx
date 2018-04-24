@@ -79,6 +79,7 @@ class FuncArg extends PureComponent<Props> {
             bodyID={bodyID}
             funcID={funcID}
             onChangeArg={onChangeArg}
+            declarationID={declarationID}
             onGenerateScript={onGenerateScript}
           />
         )
