@@ -82,7 +82,7 @@ class TableGraph extends Component {
     const sortedLabels = _.get(result, 'sortedLabels', this.state.sortedLabels)
     const fieldNames = computeFieldNames(tableOptions.fieldNames, sortedLabels)
 
-    if (_.includes(updatedProps, 'queryASTs')) {
+    if (_.includes(updatedProps, 'data')) {
       this.handleUpdateTableOptions(fieldNames, tableOptions)
     }
 
