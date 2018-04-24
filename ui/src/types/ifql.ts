@@ -24,6 +24,7 @@ export interface DeleteFuncNodeArgs {
 export interface InputArg {
   funcID: string
   bodyID: string
+  declarationID?: string
   key: string
   value: string | boolean
   generate?: boolean

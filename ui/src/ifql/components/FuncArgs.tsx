@@ -8,13 +8,20 @@ interface Props {
   func: Func
   bodyID: string
   onChangeArg: OnChangeArg
+  declarationID: string
   onGenerateScript: () => void
 }
 
 @ErrorHandling
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
-    const {bodyID, func, onChangeArg, onGenerateScript} = this.props
+    const {
+      func,
+      bodyID,
+      onChangeArg,
+      declarationID,
+      onGenerateScript,
+    } = this.props
 
     return (
       <div className="func-args">
@@ -29,6 +36,7 @@ export default class FuncArgs extends PureComponent<Props> {
               funcID={func.id}
               funcName={func.name}
               onChangeArg={onChangeArg}
+              declarationID={declarationID}
               onGenerateScript={onGenerateScript}
             />
           )

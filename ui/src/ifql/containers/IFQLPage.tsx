@@ -1,11 +1,12 @@
 import React, {PureComponent} from 'react'
 
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import {Suggestion, FlatBody} from 'src/types/ifql'
-import {InputArg, Handlers, DeleteFuncNodeArgs} from 'src/types/ifql'
+import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST} from 'src/ifql/apis'
@@ -108,7 +109,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleGenerateScript = (): void => {
-    this.getASTResponse(this.expressionsToScript)
+    this.getASTResponse(this.bodyToScript)
   }
 
   private handleChangeArg = ({
@@ -116,30 +117,41 @@ export class IFQLPage extends PureComponent<Props, State> {
     value,
     generate,
     funcID,
+    declarationID = '',
     bodyID,
   }: InputArg): void => {
-    const body = this.state.body.map(expression => {
-      if (expression.id !== bodyID) {
-        return expression
+    const body = this.state.body.map(b => {
+      if (b.id !== bodyID) {
+        return b
       }
 
-      const funcs = expression.funcs.map(f => {
-        if (f.id !== funcID) {
-          return f
-        }
-
-        const args = f.args.map(a => {
-          if (a.key === key) {
-            return {...a, value}
+      if (declarationID) {
+        const declarations = b.declarations.map(d => {
+          if (d.id !== declarationID) {
+            return d
           }
 
-          return a
+          const functions = this.editFuncArgs({
+            funcs: d.funcs,
+            funcID,
+            key,
+            value,
+          })
+
+          return {...d, funcs: functions}
         })
 
-        return {...f, args}
+        return {...b, declarations}
+      }
+
+      const funcs = this.editFuncArgs({
+        funcs: b.funcs,
+        funcID,
+        key,
+        value,
       })
 
-      return {...expression, funcs}
+      return {...b, funcs}
     })
 
     this.setState({body}, () => {
@@ -149,9 +161,32 @@ export class IFQLPage extends PureComponent<Props, State> {
     })
   }
 
-  private get expressionsToScript(): string {
-    return this.state.body.reduce((acc, expression) => {
-      return `${acc + this.funcsToScript(expression.funcs)}\n\n`
+  private editFuncArgs = ({funcs, funcID, key, value}): Func[] => {
+    return funcs.map(f => {
+      if (f.id !== funcID) {
+        return f
+      }
+
+      const args = f.args.map(a => {
+        if (a.key === key) {
+          return {...a, value}
+        }
+
+        return a
+      })
+
+      return {...f, args}
+    })
+  }
+
+  private get bodyToScript(): string {
+    return this.state.body.reduce((acc, b) => {
+      if (b.declarations.length) {
+        const funcs = _.get(b, 'declarations.0.funcs', [])
+        return `${acc}${this.funcsToScript(funcs)}\n\n`
+      }
+
+      return `${acc}${this.funcsToScript(b.funcs)}\n\n`
     }, '')
   }
 
@@ -184,13 +219,13 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleAddNode = (name: string, bodyID: string): void => {
-    const script = this.state.body.reduce((acc, expression) => {
-      if (expression.id === bodyID) {
-        const {funcs} = expression
+    const script = this.state.body.reduce((acc, body) => {
+      if (body.id === bodyID) {
+        const {funcs} = body
         return `${acc}${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
       }
 
-      return acc + expression.source
+      return acc + body.source
     }, '')
 
     this.getASTResponse(script)

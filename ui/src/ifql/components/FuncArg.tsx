@@ -15,6 +15,7 @@ interface Props {
   value: string | boolean
   type: string
   bodyID: string
+  declarationID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -26,10 +27,11 @@ class FuncArg extends PureComponent<Props> {
       argKey,
       value,
       type,
-      funcName,
-      funcID,
-      onChangeArg,
       bodyID,
+      funcID,
+      funcName,
+      onChangeArg,
+      declarationID,
       onGenerateScript,
     } = this.props
 
@@ -62,6 +64,7 @@ class FuncArg extends PureComponent<Props> {
             funcID={funcID}
             bodyID={bodyID}
             onChangeArg={onChangeArg}
+            declarationID={declarationID}
             onGenerateScript={onGenerateScript}
           />
         )
@@ -72,9 +75,9 @@ class FuncArg extends PureComponent<Props> {
           <FuncArgBool
             value={this.boolValue}
             argKey={argKey}
+            bodyID={bodyID}
             funcID={funcID}
             onChangeArg={onChangeArg}
-            bodyID={bodyID}
             onGenerateScript={onGenerateScript}
           />
         )

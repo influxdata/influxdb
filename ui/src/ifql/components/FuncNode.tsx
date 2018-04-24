@@ -30,7 +30,13 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {bodyID, func, onChangeArg, onGenerateScript} = this.props
+    const {
+      func,
+      bodyID,
+      onChangeArg,
+      declarationID,
+      onGenerateScript,
+    } = this.props
     const {isOpen} = this.state
 
     return (
@@ -43,6 +49,7 @@ export default class FuncNode extends PureComponent<Props, State> {
             func={func}
             bodyID={bodyID}
             onChangeArg={onChangeArg}
+            declarationID={declarationID}
             onGenerateScript={onGenerateScript}
           />
         )}

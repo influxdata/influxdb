@@ -7,6 +7,7 @@ const setup = () => {
     funcID: '',
     bodyID: '',
     funcName: '',
+    declarationID: '',
     argKey: '',
     value: '',
     type: '',

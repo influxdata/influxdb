@@ -8,6 +8,7 @@ interface Props {
   value: string
   type: string
   bodyID: string
+  declarationID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -44,12 +45,13 @@ class FuncArgInput extends PureComponent<Props> {
   }
 
   private handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {funcID, argKey, bodyID} = this.props
+    const {funcID, argKey, bodyID, declarationID} = this.props
 
     this.props.onChangeArg({
       funcID,
       key: argKey,
       value: e.target.value,
+      declarationID,
       bodyID,
     })
   }
