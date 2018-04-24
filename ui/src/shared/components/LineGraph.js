@@ -6,9 +6,10 @@ import SingleStat from 'src/shared/components/SingleStat'
 import {timeSeriesToDygraph} from 'utils/timeSeriesTransformers'
 
 import {colorsStringSchema} from 'shared/schemas'
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import {ErrorHandlingWith} from 'src/shared/decorators/errors'
+import InvalidData from 'src/shared/components/InvalidData'
 
-@ErrorHandling
+@ErrorHandlingWith(InvalidData, true)
 class LineGraph extends Component {
   constructor(props) {
     super(props)
