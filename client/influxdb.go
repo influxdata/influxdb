@@ -38,6 +38,10 @@ type Query struct {
 	Command  string
 	Database string
 
+	// RetentionPolicy tells the server which retention policy to use by default.
+	// This option is only effective when querying a server of version 1.6.0 or later.
+	RetentionPolicy string
+
 	// Chunked tells the server to send back chunked responses. This places
 	// less load on the server by sending back chunks of the response rather
 	// than waiting for the entire response all at once.
@@ -208,6 +212,9 @@ func (c *Client) QueryContext(ctx context.Context, q Query) (*Response, error) {
 	values := u.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
+	if q.RetentionPolicy != "" {
+		values.Set("rp", q.RetentionPolicy)
+	}
 	if q.Chunked {
 		values.Set("chunked", "true")
 		if q.ChunkSize > 0 {
