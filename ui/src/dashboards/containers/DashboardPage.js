@@ -8,7 +8,6 @@ import _ from 'lodash'
 
 import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 
-import OverlayTechnologies from 'shared/components/OverlayTechnologies'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import Dashboard from 'src/dashboards/components/Dashboard'
@@ -28,6 +27,7 @@ import {
   showCellEditorOverlay,
   hideCellEditorOverlay,
 } from 'src/dashboards/actions/cellEditorOverlay'
+import {showOverlay} from 'src/shared/actions/overlayTechnology'
 
 import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
 
@@ -57,7 +57,6 @@ class DashboardPage extends Component {
     this.state = {
       isEditMode: false,
       selectedCell: null,
-      isTemplating: false,
       zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
       scrollTop: 0,
       windowHeight: window.innerHeight,
@@ -149,16 +148,21 @@ class DashboardPage extends Component {
   }
 
   handleOpenTemplateManager = () => {
-    this.setState({isTemplating: true})
-  }
-
-  handleCloseTemplateManager = isEdited => () => {
-    if (
-      !isEdited ||
-      (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
-    ) {
-      this.setState({isTemplating: false})
+    const {handleShowOverlay, dashboard, source} = this.props
+    const options = {
+      dismissOnClickOutside: false,
+      dismissOnEscape: false,
     }
+
+    handleShowOverlay(
+      <TemplateVariableManager
+        source={source}
+        templates={dashboard.templates}
+        onRunQueryFailure={this.handleRunQueryFailure}
+        onEditTemplateVariables={this.handleEditTemplateVariables}
+      />,
+      options
+    )
   }
 
   handleSaveEditedCell = newCell => {
@@ -353,7 +357,7 @@ class DashboardPage extends Component {
       templatesIncludingDashTime = []
     }
 
-    const {isEditMode, isTemplating} = this.state
+    const {isEditMode} = this.state
 
     const names = dashboards.map(d => ({
       name: d.name,
@@ -362,17 +366,6 @@ class DashboardPage extends Component {
 
     return (
       <div className="page dashboard-page">
-        {isTemplating ? (
-          <OverlayTechnologies>
-            <TemplateVariableManager
-              source={source}
-              templates={dashboard.templates}
-              onClose={this.handleCloseTemplateManager}
-              onRunQueryFailure={this.handleRunQueryFailure}
-              onEditTemplateVariables={this.handleEditTemplateVariables}
-            />
-          </OverlayTechnologies>
-        ) : null}
         {selectedCell ? (
           <CellEditorOverlay
             source={source}
@@ -531,6 +524,7 @@ DashboardPage.propTypes = {
   thresholdsListColors: colorsNumberSchema.isRequired,
   gaugeColors: colorsNumberSchema.isRequired,
   lineColors: colorsStringSchema.isRequired,
+  handleShowOverlay: func.isRequired,
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -609,6 +603,7 @@ const mapDispatchToProps = dispatch => ({
     dismissEditingAnnotation,
     dispatch
   ),
+  handleShowOverlay: bindActionCreators(showOverlay, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(

@@ -42,7 +42,7 @@ const TemplateVariableManager = ({
         >
           Save Changes
         </button>
-        <span className="page-header__dismiss" onClick={onClose(isEdited)} />
+        <span className="page-header__dismiss" onClick={onClose} />
       </div>
     </div>
     <div className="template-variable-manager--body">
@@ -175,11 +175,24 @@ class TemplateVariableManagerWrapper extends Component {
     )
   }
 
+  handleDismissManager = () => {
+    const {onDismissOverlay} = this.props
+    const {isEdited} = this.state
+
+    if (
+      !isEdited ||
+      (isEdited && confirm('Do you want to close without saving?')) // eslint-disable-line no-alert
+    ) {
+      onDismissOverlay()
+    }
+  }
+
   render() {
     const {rows, isEdited} = this.state
     return (
       <TemplateVariableManager
         {...this.props}
+        onClose={this.handleDismissManager}
         onRunQuerySuccess={this.onRunQuerySuccess}
         onSaveTemplatesSuccess={this.onSaveTemplatesSuccess}
         onAddVariable={this.onAddVariable}
@@ -204,7 +217,6 @@ TemplateVariableManager.propTypes = {
 }
 
 TemplateVariableManagerWrapper.propTypes = {
-  onClose: func.isRequired,
   onEditTemplateVariables: func.isRequired,
   source: shape({
     links: shape({
@@ -229,6 +241,7 @@ TemplateVariableManagerWrapper.propTypes = {
     })
   ),
   onRunQueryFailure: func.isRequired,
+  onDismissOverlay: func.isRequired,
 }
 
 export default TemplateVariableManagerWrapper
