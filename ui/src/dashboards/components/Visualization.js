@@ -26,7 +26,11 @@ const DashVisualization = (
     tableOptions,
     isInCEO,
   },
-  {source: {links: {proxy}}}
+  {
+    source: {
+      links: {proxy},
+    },
+  }
 ) => {
   const colors = getCellTypeColors({
     cellType: type,

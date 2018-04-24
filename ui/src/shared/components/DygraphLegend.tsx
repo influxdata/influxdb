@@ -280,7 +280,9 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 
   private get styles() {
-    const {dygraph: {graphDiv}} = this.props
+    const {
+      dygraph: {graphDiv},
+    } = this.props
     const {pageX} = this.state
     return makeLegendStyles(graphDiv, this.legendRef, pageX)
   }

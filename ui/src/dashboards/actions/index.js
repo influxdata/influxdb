@@ -210,7 +210,9 @@ export const setActiveCell = activeCellID => ({
 
 export const getDashboardsAsync = () => async dispatch => {
   try {
-    const {data: {dashboards}} = await getDashboardsAJAX()
+    const {
+      data: {dashboards},
+    } = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
     return dashboards
   } catch (error) {
@@ -260,7 +262,9 @@ export const putDashboard = dashboard => async dispatch => {
 
 export const putDashboardByID = dashboardID => async (dispatch, getState) => {
   try {
-    const {dashboardUI: {dashboards}} = getState()
+    const {
+      dashboardUI: {dashboards},
+    } = getState()
     const dashboard = dashboards.find(d => d.id === +dashboardID)
     const templates = removeUnselectedTemplateValues(dashboard)
     await updateDashboardAJAX({...dashboard, templates})

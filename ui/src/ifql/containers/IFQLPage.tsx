@@ -1,15 +1,13 @@
 import React, {PureComponent} from 'react'
 
 import {connect} from 'react-redux'
-import uuid from 'uuid'
-import _ from 'lodash'
 
-import TimeMachine, {Suggestion} from 'src/ifql/components/TimeMachine'
+import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import Walker from 'src/ifql/ast/walker'
-import {Func} from 'src/ifql/components/FuncArgs'
-import {InputArg} from 'src/types/ifql'
+import {Suggestion, FlatBody} from 'src/types/ifql'
+import {InputArg, Handlers} from 'src/types/ifql'
 
+import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -24,29 +22,29 @@ interface Props {
   links: Links
 }
 
-interface State {
-  suggestions: Suggestion[]
-  expressions: Expression[]
-  ast: object
-  script: string
+interface Body extends FlatBody {
+  id: string
 }
 
-interface Expression {
-  id: string
-  funcs: Func[]
-  source: string
+interface State {
+  body: Body[]
+  ast: object
+  script: string
+  suggestions: Suggestion[]
 }
+
+export const IFQLContext = React.createContext()
 
 @ErrorHandling
 export class IFQLPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      suggestions: [],
-      expressions: [],
+      body: [],
       ast: null,
+      suggestions: [],
       script:
-        'from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)\n\nfrom(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m) \n\t|> derivative(nonNegative: true)',
+        'foo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nfrom(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
     }
   }
 
@@ -67,33 +65,42 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {suggestions, script} = this.state
 
     return (
-      <KeyboardShortcuts onControlEnter={this.handleSubmitScript}>
-        <div className="page hosts-list-page">
-          <div className="page-header">
-            <div className="page-header__container">
-              <div className="page-header__left">
-                <h1 className="page-header__title">Time Machine</h1>
+      <IFQLContext.Provider value={this.handlers}>
+        <KeyboardShortcuts onControlEnter={this.handleSubmitScript}>
+          <div className="page hosts-list-page">
+            <div className="page-header">
+              <div className="page-header__container">
+                <div className="page-header__left">
+                  <h1 className="page-header__title">Time Machine</h1>
+                </div>
+              </div>
+            </div>
+            <div className="page-contents">
+              <div className="container-fluid">
+                <TimeMachine
+                  script={script}
+                  body={this.state.body}
+                  suggestions={suggestions}
+                  onSubmitScript={this.handleSubmitScript}
+                  onChangeScript={this.handleChangeScript}
+                />
               </div>
             </div>
           </div>
-          <div className="page-contents">
-            <div className="container-fluid">
-              <TimeMachine
-                script={script}
-                expressions={this.state.expressions}
-                suggestions={suggestions}
-                onAddNode={this.handleAddNode}
-                onChangeArg={this.handleChangeArg}
-                onSubmitScript={this.handleSubmitScript}
-                onChangeScript={this.handleChangeScript}
-                onDeleteFuncNode={this.handleDeleteFuncNode}
-                onGenerateScript={this.handleGenerateScript}
-              />
-            </div>
-          </div>
-        </div>
-      </KeyboardShortcuts>
+        </KeyboardShortcuts>
+      </IFQLContext.Provider>
     )
+  }
+
+  private get handlers(): Handlers {
+    return {
+      onAddNode: this.handleAddNode,
+      onChangeArg: this.handleChangeArg,
+      onSubmitScript: this.handleSubmitScript,
+      onChangeScript: this.handleChangeScript,
+      onDeleteFuncNode: this.handleDeleteFuncNode,
+      onGenerateScript: this.handleGenerateScript,
+    }
   }
 
   private handleSubmitScript = () => {
@@ -111,7 +118,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     funcID,
     expressionID,
   }: InputArg): void => {
-    const expressions = this.state.expressions.map(expression => {
+    const body = this.state.body.map(expression => {
       if (expression.id !== expressionID) {
         return expression
       }
@@ -135,7 +142,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       return {...expression, funcs}
     })
 
-    this.setState({expressions}, () => {
+    this.setState({body}, () => {
       if (generate) {
         this.handleGenerateScript()
       }
@@ -143,7 +150,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private get expressionsToScript(): string {
-    return this.state.expressions.reduce((acc, expression) => {
+    return this.state.body.reduce((acc, expression) => {
       return `${acc + this.funcsToScript(expression.funcs)}\n\n`
     }, '')
   }
@@ -177,7 +184,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleAddNode = (name: string, expressionID: string): void => {
-    const script = this.state.expressions.reduce((acc, expression) => {
+    const script = this.state.body.reduce((acc, expression) => {
       if (expression.id === expressionID) {
         const {funcs} = expression
         return `${acc}${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
@@ -194,7 +201,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     expressionID: string
   ): void => {
     // TODO: export this and test functionality
-    const script = this.state.expressions
+    const script = this.state.body
       .map((expression, expressionIndex) => {
         if (expression.id !== expressionID) {
           return expression.source
@@ -209,7 +216,7 @@ export class IFQLPage extends PureComponent<Props, State> {
           return `${acc}\n\t${f.source}`
         }, '')
 
-        const isLast = expressionIndex === this.state.expressions.length - 1
+        const isLast = expressionIndex === this.state.body.length - 1
         if (isLast) {
           return `${source}`
         }
@@ -221,61 +228,13 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private expressions = (ast, suggestions): Expression[] => {
-    if (!ast) {
-      return []
-    }
-
-    const walker = new Walker(ast)
-
-    const expressions = walker.expressions.map(({funcs, source}) => {
-      const id = uuid.v4()
-      return {
-        id,
-        funcs: this.functions(funcs, suggestions),
-        source,
-      }
-    })
-
-    return expressions
-  }
-
-  private functions = (funcs, suggestions): Func[] => {
-    const functions = funcs.map(func => {
-      const {params, name} = suggestions.find(f => f.name === func.name)
-
-      const args = Object.entries(params).map(([key, type]) => {
-        const value = _.get(
-          func.arguments.find(arg => arg.key === key),
-          'value',
-          ''
-        )
-
-        return {
-          key,
-          value,
-          type,
-        }
-      })
-
-      return {
-        id: uuid.v4(),
-        source: func.source,
-        name,
-        args,
-      }
-    })
-
-    return functions
-  }
-
   private getASTResponse = async (script: string) => {
     const {links} = this.props
 
     try {
       const ast = await getAST({url: links.ast, body: script})
-      const expressions = this.expressions(ast, this.state.suggestions)
-      this.setState({ast, script, expressions})
+      const body = bodyNodes(ast, this.state.suggestions)
+      this.setState({ast, script, body})
     } catch (error) {
       console.error('Could not parse AST', error)
     }

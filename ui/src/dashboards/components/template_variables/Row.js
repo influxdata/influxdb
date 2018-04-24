@@ -129,7 +129,9 @@ const TemplateVariableRow = ({
 class RowWrapper extends Component {
   constructor(props) {
     super(props)
-    const {template: {type, query, isNew}} = this.props
+    const {
+      template: {type, query, isNew},
+    } = this.props
 
     this.state = {
       isEditing: !!isNew,
@@ -218,7 +220,11 @@ class RowWrapper extends Component {
 
   handleCancelEdit = () => {
     const {
-      template: {type, query: {db, measurement, tagKey}, id},
+      template: {
+        type,
+        query: {db, measurement, tagKey},
+        id,
+      },
       onDelete,
     } = this.props
     const {hasBeenSavedToComponentStateOnce} = this.state

@@ -1,7 +1,6 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import FuncArgs from 'src/ifql/components/FuncArgs'
-import {Func} from 'src/ifql/components/FuncArgs'
-import {OnChangeArg} from 'src/types/ifql'
+import {OnChangeArg, Func} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
