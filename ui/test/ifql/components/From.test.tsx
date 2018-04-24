@@ -10,6 +10,7 @@ const setup = () => {
     argKey: 'db',
     value: 'db1',
     bodyID: '2',
+    declarationID: '1',
     onChangeArg: () => {},
   }
 
