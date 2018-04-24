@@ -52,24 +52,6 @@ export class TableOptions extends Component<Props, {}> {
     this.moveField = this.moveField.bind(this)
   }
 
-  public componentWillMount() {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: this.computedFieldNames,
-    })
-  }
-
-  public shouldComponentUpdate(nextProps) {
-    const {tableOptions} = this.props
-    const tableOptionsDifferent = !_.isEqual(
-      tableOptions,
-      nextProps.tableOptions
-    )
-
-    return tableOptionsDifferent
-  }
-
   public render() {
     const {
       tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
@@ -122,26 +104,14 @@ export class TableOptions extends Component<Props, {}> {
     )
   }
 
-  private get fieldNames() {
-    const {tableOptions: {fieldNames}} = this.props
-    return fieldNames || []
-  }
-
-  private get timeField() {
-    return (
-      this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
-    )
-  }
-
   private moveField(dragIndex, hoverIndex) {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const {fieldNames} = tableOptions
-    const fields = fieldNames.length > 1 ? fieldNames : this.computedFieldNames
 
-    const dragField = fields[dragIndex]
+    const dragField = fieldNames[dragIndex]
     const removedFields = _.concat(
-      _.slice(fields, 0, dragIndex),
-      _.slice(fields, dragIndex + 1)
+      _.slice(fieldNames, 0, dragIndex),
+      _.slice(fieldNames, dragIndex + 1)
     )
     const addedFields = _.concat(
       _.slice(removedFields, 0, hoverIndex),
@@ -152,23 +122,6 @@ export class TableOptions extends Component<Props, {}> {
       ...tableOptions,
       fieldNames: addedFields,
     })
-  }
-
-  private get computedFieldNames() {
-    const {queryConfigs} = this.props
-    const queryFields = _.flatten(
-      queryConfigs.map(({measurement, fields}) => {
-        return fields.map(({alias}) => {
-          const internalName = `${measurement}.${alias}`
-          const existing = this.fieldNames.find(
-            c => c.internalName === internalName
-          )
-          return existing || {internalName, displayName: '', visible: true}
-        })
-      })
-    )
-
-    return [this.timeField, ...queryFields]
   }
 
   private handleChooseSortBy = (option: Option) => {
@@ -217,7 +170,11 @@ export class TableOptions extends Component<Props, {}> {
   }
 }
 
-const mapStateToProps = ({cellEditorOverlay: {cell: {tableOptions}}}) => ({
+const mapStateToProps = ({
+  cellEditorOverlay: {
+    cell: {tableOptions},
+  },
+}) => ({
   tableOptions,
 })
 

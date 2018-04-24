@@ -92,7 +92,9 @@ export const loadDefaultRule = () => {
 
 export const fetchRules = kapacitor => async dispatch => {
   try {
-    const {data: {rules}} = await getRules(kapacitor)
+    const {
+      data: {rules},
+    } = await getRules(kapacitor)
     dispatch({type: 'LOAD_RULES', payload: {rules}})
   } catch (error) {
     dispatch(errorThrown(error))

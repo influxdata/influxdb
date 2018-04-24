@@ -6,7 +6,9 @@ import {
 } from 'src/kapacitor/constants'
 
 const parseHandlersFromConfig = config => {
-  const {data: {sections}} = config
+  const {
+    data: {sections},
+  } = config
 
   const allHandlers = _.map(sections, (v, k) => {
     const fromConfig = _.get(v, ['elements', '0', 'options'], {})

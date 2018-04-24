@@ -49,7 +49,11 @@ GraphTypeSelector.propTypes = {
   handleChangeCellType: func.isRequired,
 }
 
-const mapStateToProps = ({cellEditorOverlay: {cell: {type}}}) => ({
+const mapStateToProps = ({
+  cellEditorOverlay: {
+    cell: {type},
+  },
+}) => ({
   type,
 })
 

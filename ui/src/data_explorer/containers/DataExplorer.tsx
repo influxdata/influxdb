@@ -199,7 +199,9 @@ export class DataExplorer extends PureComponent<Props, State> {
 
 const mapStateToProps = state => {
   const {
-    app: {persisted: {autoRefresh}},
+    app: {
+      persisted: {autoRefresh},
+    },
     dataExplorer,
     dataExplorerQueryConfigs: queryConfigs,
     timeRange,

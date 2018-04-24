@@ -104,6 +104,7 @@ export const MAP_KEYS_FROM_CONFIG = {
   hipchat: 'hipChat',
   opsgenie: 'opsGenie',
   pagerduty: 'pagerDuty',
+  pagerduty2: 'pagerDuty2',
   smtp: 'email',
   victorops: 'victorOps',
 }
@@ -114,6 +115,7 @@ export const ALERTS_FROM_CONFIG = {
   hipChat: ['url', 'room', 'token'], // token = bool
   opsGenie: ['api-key', 'teams', 'recipients'], // api-key = bool
   pagerDuty: ['service-key'], // service-key = bool
+  pagerDuty2: ['service-key'], // service-key = bool
   pushover: ['token', 'user-key'], // token = bool, user-key = bool
   sensu: ['addr', 'source'],
   slack: ['url', 'channel'], // url = bool
@@ -137,6 +139,7 @@ export const MAP_FIELD_KEYS_FROM_CONFIG = {
   hipChat: {},
   opsGenie: {},
   pagerDuty: {'service-key': 'serviceKey'},
+  pagerDuty2: {'service-key': 'serviceKey'},
   pushover: {'user-key': 'userKey'},
   sensu: {},
   slack: {},
@@ -168,6 +171,7 @@ export const HANDLERS_TO_RULE = {
   hipChat: ['room'],
   opsGenie: ['teams', 'recipients'],
   pagerDuty: [],
+  pagerDuty2: [],
   pushover: ['device', 'title', 'sound', 'url', 'urlTitle'],
   sensu: ['source', 'handlers'],
   slack: ['channel', 'username', 'iconEmoji'],

@@ -2,21 +2,7 @@ import React, {PureComponent} from 'react'
 import FuncArg from 'src/ifql/components/FuncArg'
 import {OnChangeArg} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-type Value = string | boolean
-
-interface Arg {
-  key: string
-  value: Value
-  type: string
-}
-
-export interface Func {
-  name: string
-  args: Arg[]
-  source: string
-  id: string
-}
+import {Func} from 'src/types/ifql'
 
 interface Props {
   func: Func

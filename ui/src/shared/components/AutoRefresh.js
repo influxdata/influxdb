@@ -5,6 +5,7 @@ import _ from 'lodash'
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 import {intervalValuesPoints} from 'src/shared/constants'
+import {getQueryConfig} from 'shared/apis'
 
 const AutoRefresh = ComposedComponent => {
   class wrapper extends Component {
@@ -14,12 +15,17 @@ const AutoRefresh = ComposedComponent => {
         lastQuerySuccessful: true,
         timeSeries: [],
         resolution: null,
+        queryASTs: [],
       }
     }
 
-    componentDidMount() {
-      const {queries, templates, autoRefresh} = this.props
+    async componentDidMount() {
+      const {queries, templates, autoRefresh, type} = this.props
       this.executeQueries(queries, templates)
+      if (type === 'table') {
+        const queryASTs = await this.getQueryASTs(queries, templates)
+        this.setState({queryASTs})
+      }
       if (autoRefresh) {
         this.intervalID = setInterval(
           () => this.executeQueries(queries, templates),
@@ -28,7 +34,19 @@ const AutoRefresh = ComposedComponent => {
       }
     }
 
-    componentWillReceiveProps(nextProps) {
+    getQueryASTs = async (queries, templates) => {
+      return await Promise.all(
+        queries.map(async q => {
+          const host = _.isArray(q.host) ? q.host[0] : q.host
+          const url = host.replace('proxy', 'queries')
+          const text = q.text
+          const {data} = await getQueryConfig(url, [{query: text}], templates)
+          return data.queries[0].queryAST
+        })
+      )
+    }
+
+    async componentWillReceiveProps(nextProps) {
       const inViewDidUpdate = this.props.inView !== nextProps.inView
 
       const queriesDidUpdate = this.queryDifference(
@@ -45,6 +63,14 @@ const AutoRefresh = ComposedComponent => {
         queriesDidUpdate || tempVarsDidUpdate || inViewDidUpdate
 
       if (shouldRefetch) {
+        if (this.props.type === 'table') {
+          const queryASTs = await this.getQueryASTs(
+            nextProps.queries,
+            nextProps.templates
+          )
+          this.setState({queryASTs})
+        }
+
         this.executeQueries(
           nextProps.queries,
           nextProps.templates,
@@ -165,12 +191,13 @@ const AutoRefresh = ComposedComponent => {
     }
 
     setResolution = resolution => {
-      this.setState({resolution})
+      if (resolution !== this.state.resolution) {
+        this.setState({resolution})
+      }
     }
 
     render() {
-      const {timeSeries} = this.state
-
+      const {timeSeries, queryASTs} = this.state
       if (this.state.isFetching && this.state.lastQuerySuccessful) {
         return (
           <ComposedComponent
@@ -179,6 +206,7 @@ const AutoRefresh = ComposedComponent => {
             setResolution={this.setResolution}
             isFetchingInitially={false}
             isRefreshing={true}
+            queryASTs={queryASTs}
           />
         )
       }
@@ -188,6 +216,7 @@ const AutoRefresh = ComposedComponent => {
           {...this.props}
           data={timeSeries}
           setResolution={this.setResolution}
+          queryASTs={queryASTs}
         />
       )
     }
@@ -221,6 +250,7 @@ const AutoRefresh = ComposedComponent => {
   } = PropTypes
 
   wrapper.propTypes = {
+    type: string.isRequired,
     children: element,
     autoRefresh: number.isRequired,
     inView: bool,

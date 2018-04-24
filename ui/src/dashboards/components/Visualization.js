@@ -24,8 +24,13 @@ const DashVisualization = (
     staticLegend,
     thresholdsListColors,
     tableOptions,
+    isInCEO,
   },
-  {source: {links: {proxy}}}
+  {
+    source: {
+      links: {proxy},
+    },
+  }
 ) => {
   const colors = getCellTypeColors({
     cellType: type,
@@ -49,6 +54,7 @@ const DashVisualization = (
           editQueryStatus={editQueryStatus}
           resizerTopHeight={resizerTopHeight}
           staticLegend={staticLegend}
+          isInCEO={isInCEO}
         />
       </div>
     </div>
@@ -78,6 +84,7 @@ DashVisualization.propTypes = {
   gaugeColors: colorsNumberSchema,
   lineColors: colorsStringSchema,
   staticLegend: bool,
+  isInCEO: bool,
 }
 
 DashVisualization.contextTypes = {

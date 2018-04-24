@@ -150,7 +150,7 @@
     "tick/stateful",
     "udf/agent"
   ]
-  revision = "6de30070b39afde111fea5e041281126fe8aae31"
+  revision = "97e77198c3f4a16503110979f066bc3a4f9adc49"
 
 [[projects]]
   branch = "master"
@@ -311,6 +311,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3dee5534e81013d8f9d3b8cf80ad614dd8f0168114e63e1f1a5ba60733891e83"
+  inputs-digest = "00da66795f1ffe85f031f7fbd69e5974a72167895057a43ba4187cfa84efe3b5"
   solver-name = "gps-cdcl"
   solver-version = 1

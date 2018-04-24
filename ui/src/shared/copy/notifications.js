@@ -78,6 +78,11 @@ export const notifyCouldNotRetrieveKapacitors = sourceID => ({
   mesasage: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
 })
 
+export const notifyCouldNotRetrieveKapacitorServices = kapacitor => ({
+  ...defaultErrorNotification,
+  message: `Interanl Server Error. Could not retrieve services for Kapacitor ${kapacitor}`,
+})
+
 export const notifyCouldNotDeleteKapacitor = () => ({
   ...defaultErrorNotification,
   message: 'Internal Server Error. Could not delete Kapacitor Connection.',

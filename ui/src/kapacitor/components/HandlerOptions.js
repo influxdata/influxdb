@@ -110,6 +110,15 @@ class HandlerOptions extends Component {
             validationError={validationError}
           />
         )
+      case 'pagerDuty2':
+        return (
+          <PagerdutyHandler
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            onGoToConfig={onGoToConfig('pagerduty2')}
+            validationError={validationError}
+          />
+        )
       case 'pushover':
         return (
           <PushoverHandler

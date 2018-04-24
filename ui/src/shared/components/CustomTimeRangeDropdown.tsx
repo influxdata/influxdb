@@ -61,7 +61,9 @@ class CustomTimeRangeDropdown extends PureComponent<Props, State> {
   }
 
   private get upperTimeRange(): string {
-    const {timeRange: {upper}} = this.props
+    const {
+      timeRange: {upper},
+    } = this.props
 
     if (upper === 'now()') {
       return moment().format(this.timeFormat)
@@ -71,7 +73,9 @@ class CustomTimeRangeDropdown extends PureComponent<Props, State> {
   }
 
   private get lowerTimeRange(): string {
-    const {timeRange: {lower}} = this.props
+    const {
+      timeRange: {lower},
+    } = this.props
     return moment(lower).format(this.timeFormat)
   }
 

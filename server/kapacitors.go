@@ -433,6 +433,10 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 		res.AlertNodes.PagerDuty = []*chronograf.PagerDuty{}
 	}
 
+	if res.AlertNodes.PagerDuty2 == nil {
+		res.AlertNodes.PagerDuty2 = []*chronograf.PagerDuty{}
+	}
+
 	if res.AlertNodes.Posts == nil {
 		res.AlertNodes.Posts = []*chronograf.Post{}
 	}
