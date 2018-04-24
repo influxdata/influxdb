@@ -7,7 +7,10 @@ import {
   transformTableData,
 } from 'src/dashboards/utils/tableGraph'
 
-import {DEFAULT_SORT_DIRECTION} from 'src/shared/constants/tableGraph'
+import {
+  DEFAULT_SORT_DIRECTION,
+  TIME_FORMAT_DEFAULT,
+} from 'src/shared/constants/tableGraph'
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
@@ -379,9 +382,9 @@ describe('timeSeriesToTableGraph', () => {
     const actual = timeSeriesToTableGraph(influxResponse, qASTs)
     const expected = [
       ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2'],
-      [1000, 1, 1, null, null],
+      [1000, 1, 1, '-', '-'],
       [2000, 2, 2, 3, 3],
-      [4000, null, null, 4, 4],
+      [4000, '-', '-', 4, 4],
     ]
 
     expect(actual.data).toEqual(expected)
@@ -530,9 +533,11 @@ describe('transformTableData', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'f1'
-    const direction = DEFAULT_SORT_DIRECTION
-    const verticalTimeAxis = true
+    const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
+    const tableOptions = {
+      verticalTimeAxis: true,
+      timeFormat: TIME_FORMAT_DEFAULT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -540,13 +545,7 @@ describe('transformTableData', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
     const expected = [
       ['time', 'f1', 'f2'],
       [2000, 1000, 3000],
@@ -564,9 +563,13 @@ describe('transformTableData', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'time'
-    const direction = DEFAULT_SORT_DIRECTION
-    const verticalTimeAxis = true
+
+    const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
+
+    const tableOptions = {
+      verticalTimeAxis: true,
+      timeFormat: TIME_FORMAT_DEFAULT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -574,13 +577,8 @@ describe('transformTableData', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+
     const expected = [['time', 'f2'], [1000, 2000], [2000, 3000], [3000, 1000]]
 
     expect(actual.transformedData).toEqual(expected)
@@ -593,9 +591,13 @@ describe('transformTableData', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'f1'
-    const direction = DEFAULT_SORT_DIRECTION
-    const verticalTimeAxis = true
+
+    const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
+
+    const tableOptions = {
+      verticalTimeAxis: true,
+      timeFormat: TIME_FORMAT_DEFAULT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -603,13 +605,8 @@ describe('transformTableData', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+
     const expected = [['time', 'f2'], [2000, 3000], [3000, 1000], [1000, 2000]]
 
     expect(actual.transformedData).toEqual(expected)
@@ -624,9 +621,13 @@ describe('if verticalTimeAxis is false', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'time'
-    const direction = DEFAULT_SORT_DIRECTION
-    const verticalTimeAxis = false
+
+    const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
+
+    const tableOptions = {
+      verticalTimeAxis: false,
+      timeFormat: TIME_FORMAT_DEFAULT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -634,13 +635,8 @@ describe('if verticalTimeAxis is false', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+
     const expected = [
       ['time', 1000, 2000, 3000],
       ['f1', 3000, 1000, 2000],
@@ -657,9 +653,13 @@ describe('if verticalTimeAxis is false', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'f1'
-    const direction = DEFAULT_SORT_DIRECTION
-    const verticalTimeAxis = false
+
+    const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
+
+    const tableOptions = {
+      verticalTimeAxis: false,
+      timeFormat: TIME_FORMAT_DEFAULT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -667,13 +667,8 @@ describe('if verticalTimeAxis is false', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+
     const expected = [['time', 2000, 3000, 1000], ['f2', 3000, 1000, 2000]]
 
     expect(actual.transformedData).toEqual(expected)
