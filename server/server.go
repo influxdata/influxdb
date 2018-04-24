@@ -344,8 +344,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 
-	re := regexp.MustCompile(`(\/{1}\w+)+`)
-	if re.ReplaceAllLiteralString(s.Basepath, "") != "" {
+	if !validBasepath(s.Basepath) {
 		err := fmt.Errorf("Invalid basepath, must follow format \"/mybasepath\"")
 		logger.
 			WithField("component", "server").
@@ -538,4 +537,9 @@ func clientUsage(values client.Values) *client.Usage {
 			},
 		},
 	}
+}
+
+func validBasepath(basepath string) bool {
+	re := regexp.MustCompile(`(\/{1}\w+)+`)
+	return re.ReplaceAllLiteralString(basepath, "") == ""
 }
