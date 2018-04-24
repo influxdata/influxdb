@@ -81,12 +81,8 @@ export class IFQLPage extends PureComponent<Props, State> {
                   script={script}
                   body={this.state.body}
                   suggestions={suggestions}
-                  onAddNode={this.handleAddNode}
-                  onChangeArg={this.handleChangeArg}
                   onSubmitScript={this.handleSubmitScript}
                   onChangeScript={this.handleChangeScript}
-                  onDeleteFuncNode={this.handleDeleteFuncNode}
-                  onGenerateScript={this.handleGenerateScript}
                 />
               </div>
             </div>

@@ -1,18 +1,15 @@
 // function definitions
-type noop = () => void
-export type OnDeleteFuncNode = (
-  funcID: string,
-  expressionID: string
-) => void | noop
-export type OnChangeArg = (inputArg: InputArg) => void | noop
-export type OnAddNode = (expressionID: string, funcName: string) => void | noop
-export type OnGenerateScript = (script: string) => void | noop
-export type OnChangeScript = (script: string) => void | noop
+export type OnDeleteFuncNode = (funcID: string, expressionID: string) => void
+export type OnChangeArg = (inputArg: InputArg) => void
+export type OnAddNode = (expressionID: string, funcName: string) => void
+export type OnGenerateScript = (script: string) => void
+export type OnChangeScript = (script: string) => void
+export type OnSubmitScript = () => void
 
 export interface Handlers {
   onAddNode: OnAddNode
   onChangeArg: OnChangeArg
-  onSubmitScript: () => void
+  onSubmitScript: OnSubmitScript
   onChangeScript: OnChangeScript
   onDeleteFuncNode: OnDeleteFuncNode
   onGenerateScript: OnGenerateScript

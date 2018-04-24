@@ -3,11 +3,12 @@ import {Controlled as CodeMirror, IInstance} from 'react-codemirror2'
 import {EditorChange} from 'codemirror'
 import 'src/external/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {OnSubmitScript, OnChangeScript} from 'src/types/ifql'
 
 interface Props {
   script: string
-  onChangeScript: (script: string) => void
-  onSubmitScript: () => void
+  onChangeScript: OnChangeScript
+  onSubmitScript: OnSubmitScript
 }
 
 @ErrorHandling
@@ -35,6 +36,7 @@ class TimeMachineEditor extends PureComponent<Props> {
             value={script}
             options={options}
             onBeforeChange={this.updateCode}
+            onTouchStart={this.onTouchStart}
           />
         </div>
         <button
@@ -46,6 +48,8 @@ class TimeMachineEditor extends PureComponent<Props> {
       </div>
     )
   }
+
+  private onTouchStart = () => {}
 
   private updateCode = (
     _: IInstance,

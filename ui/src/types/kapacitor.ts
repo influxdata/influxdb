@@ -178,7 +178,7 @@ interface OpsGenie {
 }
 
 // Talk sends alerts to Jane Talk (https://jianliao.com/site)
-interface Talk {}
+interface Talk {} // tslint:disable-line
 
 // TriggerValues specifies the alerting logic for a specific trigger type
 interface TriggerValues {
