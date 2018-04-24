@@ -145,8 +145,17 @@ class AlertTabs extends Component {
     return index >= 0 ? index : 0
   }
 
+  isSupportedService = config => {
+    return (
+      config &&
+      this.state.services.find(service => {
+        return service.name === _.toLower(config.type)
+      })
+    )
+  }
+
   render() {
-    const {configSections, services} = this.state
+    const {configSections} = this.state
     const {hash} = this.props
 
     if (!configSections) {
@@ -333,10 +342,7 @@ class AlertTabs extends Component {
             {_.reduce(
               configSections,
               (acc, _cur, k) => {
-                return supportedConfigs[k] &&
-                  services.find(service => {
-                    return service.name === _.toLower(supportedConfigs[k].type)
-                  })
+                return this.isSupportedService(supportedConfigs[k])
                   ? acc.concat(
                       <Tab
                         key={supportedConfigs[k].type}
@@ -354,10 +360,7 @@ class AlertTabs extends Component {
             {_.reduce(
               configSections,
               (acc, _cur, k) =>
-                supportedConfigs[k] &&
-                services.find(service => {
-                  return service.name === _.toLower(supportedConfigs[k].type)
-                })
+                this.isSupportedService(supportedConfigs[k])
                   ? acc.concat(
                       <TabPanel key={supportedConfigs[k].type}>
                         {supportedConfigs[k].renderComponent()}

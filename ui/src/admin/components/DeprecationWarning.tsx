@@ -1,7 +1,7 @@
 import React, {SFC} from 'react'
 
 interface Props {
-  message: string | JSX.Element
+  message: JSX.Element
 }
 
 const DeprecationWarning: SFC<Props> = ({message}) => (
