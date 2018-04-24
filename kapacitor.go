@@ -13,6 +13,7 @@ type AlertNodes struct {
 	Log                []*Log       `json:"log"`              // Log  will log JSON alert data to files in JSON lines format.
 	VictorOps          []*VictorOps `json:"victorOps"`        // VictorOps  will send alert to all VictorOps
 	PagerDuty          []*PagerDuty `json:"pagerDuty"`        // PagerDuty  will send alert to all PagerDuty
+	PagerDuty2         []*PagerDuty `json:"pagerDuty2"`       // PagerDuty2  will send alert to  PagerDuty v2
 	Pushover           []*Pushover  `json:"pushover"`         // Pushover  will send alert to all Pushover
 	Sensu              []*Sensu     `json:"sensu"`            // Sensu  will send alert to all Sensu
 	Slack              []*Slack     `json:"slack"`            // Slack  will send alert to Slack

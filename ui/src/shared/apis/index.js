@@ -183,6 +183,19 @@ export const testAlertOutput = async (kapacitor, outputName) => {
   }
 }
 
+export const getAllServices = async kapacitor => {
+  try {
+    const {data: {services}} = await kapacitorProxy(
+      kapacitor,
+      'GET',
+      '/kapacitor/v1/service-tests'
+    )
+    return services
+  } catch (error) {
+    console.error(error)
+  }
+}
+
 export function createKapacitorTask(kapacitor, id, type, dbrps, script) {
   return kapacitorProxy(kapacitor, 'POST', '/kapacitor/v1/tasks', {
     id,

@@ -8,6 +8,7 @@ import {
   getKapacitorConfig,
   updateKapacitorConfigSection,
   testAlertOutput,
+  getAllServices,
 } from 'shared/apis'
 
 import {
@@ -30,7 +31,9 @@ import {
   notifyAlertEndpointSaveFailed,
   notifyTestAlertSent,
   notifyTestAlertFailed,
+  notifyCouldNotRetrieveKapacitorServices,
 } from 'shared/copy/notifications'
+import DeprecationWarning from 'src/admin/components/DeprecationWarning'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
@@ -40,11 +43,20 @@ class AlertTabs extends Component {
 
     this.state = {
       configSections: null,
+      services: [],
     }
   }
 
-  componentDidMount() {
-    this.refreshKapacitorConfig(this.props.kapacitor)
+  async componentDidMount() {
+    const {kapacitor} = this.props
+    try {
+      this.refreshKapacitorConfig(kapacitor)
+      const services = await getAllServices(kapacitor)
+      this.setState({services})
+    } catch (error) {
+      this.setState({services: null})
+      this.props.notify(notifyCouldNotRetrieveKapacitorServices(kapacitor))
+    }
   }
 
   componentWillReceiveProps(nextProps) {
@@ -137,6 +149,15 @@ class AlertTabs extends Component {
     return index >= 0 ? index : 0
   }
 
+  isSupportedService = config => {
+    return (
+      config &&
+      this.state.services.find(service => {
+        return service.name === _.toLower(config.type)
+      })
+    )
+  }
+
   render() {
     const {configSections} = this.state
     const {hash} = this.props
@@ -144,6 +165,24 @@ class AlertTabs extends Component {
     if (!configSections) {
       return null
     }
+
+    const pagerDutyV1Enabled = this.getEnabled(configSections, 'pagerduty')
+    const showDeprecation = pagerDutyV1Enabled
+    const pagerDutyDeprecationMessage = (
+      <div>
+        PagerDuty v2 is being{' '}
+        {
+          <a
+            href="https://v2.developer.pagerduty.com/docs/v1-rest-api-decommissioning-faq"
+            target="_blank"
+          >
+            deprecated
+          </a>
+        }
+        . Please update your Kapacitor and configure PagerDuty v2.
+      </div>
+    )
+
     const supportedConfigs = {
       alerta: {
         type: 'Alerta',
@@ -190,6 +229,18 @@ class AlertTabs extends Component {
             config={this.getSection(configSections, 'pagerduty')}
             onTest={this.handleTestConfig('pagerduty')}
             enabled={this.getEnabled(configSections, 'pagerduty')}
+          />
+        ),
+      },
+      pagerduty2: {
+        type: 'PagerDuty2',
+        enabled: this.getEnabled(configSections, 'pagerduty2'),
+        renderComponent: () => (
+          <PagerDutyConfig
+            onSave={this.handleSaveConfig('pagerduty2')}
+            config={this.getSection(configSections, 'pagerduty2')}
+            onTest={this.handleTestConfig('pagerduty2')}
+            enabled={this.getEnabled(configSections, 'pagerduty2')}
           />
         ),
       },
@@ -283,6 +334,9 @@ class AlertTabs extends Component {
         <div className="panel-heading">
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
+        {showDeprecation && (
+          <DeprecationWarning message={pagerDutyDeprecationMessage} />
+        )}
 
         <Tabs
           tabContentsClass="config-endpoint"
@@ -291,8 +345,8 @@ class AlertTabs extends Component {
           <TabList customClass="config-endpoint--tabs">
             {_.reduce(
               configSections,
-              (acc, _cur, k) =>
-                supportedConfigs[k]
+              (acc, _cur, k) => {
+                return this.isSupportedService(supportedConfigs[k])
                   ? acc.concat(
                       <Tab
                         key={supportedConfigs[k].type}
@@ -301,7 +355,8 @@ class AlertTabs extends Component {
                         {supportedConfigs[k].type}
                       </Tab>
                     )
-                  : acc,
+                  : acc
+              },
               []
             )}
           </TabList>
@@ -309,7 +364,7 @@ class AlertTabs extends Component {
             {_.reduce(
               configSections,
               (acc, _cur, k) =>
-                supportedConfigs[k]
+                this.isSupportedService(supportedConfigs[k])
                   ? acc.concat(
                       <TabPanel key={supportedConfigs[k].type}>
                         {supportedConfigs[k].renderComponent()}

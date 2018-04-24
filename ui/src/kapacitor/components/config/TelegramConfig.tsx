@@ -61,16 +61,18 @@ class TelegramConfig extends PureComponent<Props, State> {
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
-          <div className="alert alert-warning alert-icon no-user-select">
+          <div className="alert alert-warning">
             <span className="icon triangle" />
-            You need a{' '}
-            <a
-              href="https://docs.influxdata.com/kapacitor/latest/guides/event-handler-setup/#telegram-setup"
-              target="_blank"
-            >
-              Telegram Bot
-            </a>{' '}
-            to use this endpoint
+            <div className="alert-message">
+              You need a{' '}
+              <a
+                href="https://docs.influxdata.com/kapacitor/latest/guides/event-handler-setup/#telegram-setup"
+                target="_blank"
+              >
+                Telegram Bot
+              </a>{' '}
+              to use this endpoint
+            </div>
           </div>
         </div>
         <div className="form-group col-xs-12">
