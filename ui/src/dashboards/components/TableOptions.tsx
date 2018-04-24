@@ -104,17 +104,6 @@ export class TableOptions extends Component<Props, {}> {
     )
   }
 
-  private get fieldNames() {
-    const {tableOptions: {fieldNames}} = this.props
-    return fieldNames || []
-  }
-
-  private get timeField() {
-    return (
-      this.fieldNames.find(f => f.internalName === 'time') || TIME_FIELD_DEFAULT
-    )
-  }
-
   private moveField(dragIndex, hoverIndex) {
     const {handleUpdateTableOptions, tableOptions} = this.props
     const {fieldNames} = tableOptions
@@ -181,7 +170,11 @@ export class TableOptions extends Component<Props, {}> {
   }
 }
 
-const mapStateToProps = ({cellEditorOverlay: {cell: {tableOptions}}}) => ({
+const mapStateToProps = ({
+  cellEditorOverlay: {
+    cell: {tableOptions},
+  },
+}) => ({
   tableOptions,
 })
 
