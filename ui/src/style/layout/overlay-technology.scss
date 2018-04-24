@@ -23,7 +23,8 @@
   position: relative;
   z-index: 2;
   transform: translateY(72px);
-  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
 }
 
 .overlay-tech {
@@ -43,6 +44,7 @@
     opacity: 0.7;
   }
   .overlay--dialog {
+    opacity: 1;
     transform: translateY(0);
   }
 }
