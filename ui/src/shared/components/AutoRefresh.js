@@ -165,7 +165,9 @@ const AutoRefresh = ComposedComponent => {
     }
 
     setResolution = resolution => {
-      this.setState({resolution})
+      if (resolution !== this.state.resolution) {
+        this.setState({resolution})
+      }
     }
 
     render() {
