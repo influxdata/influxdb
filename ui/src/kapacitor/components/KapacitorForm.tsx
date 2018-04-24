@@ -162,7 +162,9 @@ class KapacitorForm extends PureComponent<Props> {
   }
 
   private get url(): string {
-    const {kapacitor: {url}} = this.props
+    const {
+      kapacitor: {url},
+    } = this.props
     if (url) {
       return url
     }

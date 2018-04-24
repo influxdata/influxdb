@@ -27,7 +27,10 @@ export const initialState = {
 export default function cellEditorOverlay(state = initialState, action) {
   switch (action.type) {
     case 'SHOW_CELL_EDITOR_OVERLAY': {
-      const {cell, cell: {colors}} = action.payload
+      const {
+        cell,
+        cell: {colors},
+      } = action.payload
 
       const thresholdsListType = getThresholdsListType(colors)
       const thresholdsListColors = validateThresholdsListColors(

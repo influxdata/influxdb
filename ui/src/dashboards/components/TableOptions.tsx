@@ -123,7 +123,9 @@ export class TableOptions extends Component<Props, {}> {
   }
 
   private get fieldNames() {
-    const {tableOptions: {fieldNames}} = this.props
+    const {
+      tableOptions: {fieldNames},
+    } = this.props
     return fieldNames || []
   }
 
@@ -217,7 +219,11 @@ export class TableOptions extends Component<Props, {}> {
   }
 }
 
-const mapStateToProps = ({cellEditorOverlay: {cell: {tableOptions}}}) => ({
+const mapStateToProps = ({
+  cellEditorOverlay: {
+    cell: {tableOptions},
+  },
+}) => ({
   tableOptions,
 })
 

@@ -54,7 +54,11 @@ class TagKeyDropdown extends Component {
       onSelectTagKey,
       onErrorThrown,
     } = this.props
-    const {source: {links: {proxy}}} = this.context
+    const {
+      source: {
+        links: {proxy},
+      },
+    } = this.context
 
     try {
       const {data} = await showTagKeys({source: proxy, database, measurement})

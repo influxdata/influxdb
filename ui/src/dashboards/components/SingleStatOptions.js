@@ -27,7 +27,12 @@ class SingleStatOptions extends Component {
   }
 
   render() {
-    const {axes: {y: {prefix, suffix}}, onResetFocus} = this.props
+    const {
+      axes: {
+        y: {prefix, suffix},
+      },
+      onResetFocus,
+    } = this.props
 
     return (
       <FancyScrollbar
@@ -74,7 +79,11 @@ SingleStatOptions.propTypes = {
   onResetFocus: func.isRequired,
 }
 
-const mapStateToProps = ({cellEditorOverlay: {cell: {axes}}}) => ({
+const mapStateToProps = ({
+  cellEditorOverlay: {
+    cell: {axes},
+  },
+}) => ({
   axes,
 })
 

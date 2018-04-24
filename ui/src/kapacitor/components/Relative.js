@@ -11,7 +11,9 @@ const operators = mapToItems(RELATIVE_OPERATORS, 'operator')
 const Relative = ({
   onRuleTypeInputChange,
   onDropdownChange,
-  rule: {values: {change, shift, operator, value}},
+  rule: {
+    values: {change, shift, operator, value},
+  },
 }) => (
   <div className="rule-section--row rule-section--row-first rule-section--border-bottom">
     <p>Send Alert when</p>

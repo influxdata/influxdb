@@ -97,7 +97,12 @@ DisplayOptions.propTypes = {
   onResetFocus: func.isRequired,
 }
 
-const mapStateToProps = ({cellEditorOverlay: {cell, cell: {axes}}}) => ({
+const mapStateToProps = ({
+  cellEditorOverlay: {
+    cell,
+    cell: {axes},
+  },
+}) => ({
   cell,
   axes,
 })

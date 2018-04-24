@@ -78,7 +78,11 @@ export class KapacitorPage extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {source, params: {id}, notify} = this.props
+    const {
+      source,
+      params: {id},
+      notify,
+    } = this.props
     if (!id) {
       return
     }
