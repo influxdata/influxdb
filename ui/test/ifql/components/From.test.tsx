@@ -9,7 +9,7 @@ const setup = () => {
     funcID: '1',
     argKey: 'db',
     value: 'db1',
-    expressionID: '2',
+    bodyID: '2',
     onChangeArg: () => {},
   }
 

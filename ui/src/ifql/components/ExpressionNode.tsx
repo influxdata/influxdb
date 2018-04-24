@@ -23,7 +23,7 @@ class ExpressionNode extends PureComponent<Props> {
             <div className="func-nodes-container">
               <h4>
                 <FuncSelector
-                  expressionID={id}
+                  bodyID={id}
                   funcs={funcNames}
                   onAddNode={onAddNode}
                 />
@@ -32,7 +32,7 @@ class ExpressionNode extends PureComponent<Props> {
                 <FuncNode
                   key={func.id}
                   func={func}
-                  expressionID={func.id}
+                  bodyID={func.id}
                   onChangeArg={onChangeArg}
                   onDelete={onDeleteFuncNode}
                   onGenerateScript={onGenerateScript}

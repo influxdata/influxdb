@@ -5,8 +5,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   func: Func
-  expressionID: string
-  onDelete: (funcID: string, expressionID: string) => void
+  bodyID: string
+  onDelete: (funcID: string, bodyID: string) => void
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -25,7 +25,7 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {expressionID, func, onChangeArg, onGenerateScript} = this.props
+    const {bodyID, func, onChangeArg, onGenerateScript} = this.props
     const {isOpen} = this.state
 
     return (
@@ -37,7 +37,7 @@ export default class FuncNode extends PureComponent<Props, State> {
           <FuncArgs
             func={func}
             onChangeArg={onChangeArg}
-            expressionID={expressionID}
+            bodyID={bodyID}
             onGenerateScript={onGenerateScript}
           />
         )}
@@ -49,7 +49,7 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   private handleDelete = (): void => {
-    this.props.onDelete(this.props.func.id, this.props.expressionID)
+    this.props.onDelete(this.props.func.id, this.props.bodyID)
   }
 
   private handleClick = (e: MouseEvent<HTMLElement>): void => {

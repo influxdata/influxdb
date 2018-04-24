@@ -6,7 +6,7 @@ import {Func} from 'src/types/ifql'
 
 interface Props {
   func: Func
-  expressionID: string
+  bodyID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -14,7 +14,7 @@ interface Props {
 @ErrorHandling
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
-    const {expressionID, func, onChangeArg, onGenerateScript} = this.props
+    const {bodyID, func, onChangeArg, onGenerateScript} = this.props
 
     return (
       <div className="func-args">
@@ -28,7 +28,7 @@ export default class FuncArgs extends PureComponent<Props> {
               funcID={func.id}
               funcName={func.name}
               onChangeArg={onChangeArg}
-              expressionID={expressionID}
+              bodyID={bodyID}
               onGenerateScript={onGenerateScript}
             />
           )

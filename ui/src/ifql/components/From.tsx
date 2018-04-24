@@ -9,7 +9,7 @@ interface Props {
   funcID: string
   argKey: string
   value: string
-  expressionID: string
+  bodyID: string
   onChangeArg: OnChangeArg
 }
 
@@ -56,12 +56,12 @@ class From extends PureComponent<Props, State> {
   }
 
   private handleChooseDatabase = (item: DropdownItem): void => {
-    const {argKey, funcID, onChangeArg, expressionID} = this.props
+    const {argKey, funcID, onChangeArg, bodyID} = this.props
     onChangeArg({
       funcID,
       key: argKey,
       value: item.text,
-      expressionID,
+      bodyID,
       generate: true,
     })
   }

@@ -116,10 +116,10 @@ export class IFQLPage extends PureComponent<Props, State> {
     value,
     generate,
     funcID,
-    expressionID,
+    bodyID,
   }: InputArg): void => {
     const body = this.state.body.map(expression => {
-      if (expression.id !== expressionID) {
+      if (expression.id !== bodyID) {
         return expression
       }
 
@@ -183,9 +183,9 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.setState({script})
   }
 
-  private handleAddNode = (name: string, expressionID: string): void => {
+  private handleAddNode = (name: string, bodyID: string): void => {
     const script = this.state.body.reduce((acc, expression) => {
-      if (expression.id === expressionID) {
+      if (expression.id === bodyID) {
         const {funcs} = expression
         return `${acc}${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
       }
@@ -196,14 +196,11 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private handleDeleteFuncNode = (
-    funcID: string,
-    expressionID: string
-  ): void => {
+  private handleDeleteFuncNode = (funcID: string, bodyID: string): void => {
     // TODO: export this and test functionality
     const script = this.state.body
       .map((expression, expressionIndex) => {
-        if (expression.id !== expressionID) {
+        if (expression.id !== bodyID) {
           return expression.source
         }
 
