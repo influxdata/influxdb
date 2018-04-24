@@ -11,11 +11,11 @@ import {reduce} from 'fast.js'
 
 const {arrayOf, bool, shape, string, func} = PropTypes
 
+import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 import {
-  timeSeriesToTableGraph,
-  processTableData,
-} from 'src/utils/timeSeriesTransformers'
-import {computeFieldNames} from 'src/dashboards/utils/tableGraph'
+  computeFieldNames,
+  transformTableData,
+} from 'src/dashboards/utils/tableGraph'
 import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 
 import {
@@ -25,7 +25,7 @@ import {
   TIME_FIELD_DEFAULT,
   ASCENDING,
   DESCENDING,
-  DEFAULT_SORT,
+  DEFAULT_SORT_DIRECTION,
   FIX_FIRST_COLUMN_DEFAULT,
   VERTICAL_TIME_AXIS_DEFAULT,
 } from 'src/shared/constants/tableGraph'
@@ -44,15 +44,15 @@ class TableGraph extends Component {
       ['tableOptions', 'sortBy', 'internalName'],
       TIME_FIELD_DEFAULT.internalName
     )
+
     this.state = {
       data: [[]],
-      processedData: [[]],
+      transformedData: [[]],
       sortedTimeVals: [],
       sortedLabels: [],
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
-      sortField,
-      sortDirection: DEFAULT_SORT,
+      sort: {field: sortField, direction: DEFAULT_SORT_DIRECTION},
       columnWidths: {},
       totalColumnWidths: 0,
     }
@@ -70,9 +70,7 @@ class TableGraph extends Component {
     const updatedProps = _.keys(nextProps).filter(
       k => !_.isEqual(this.props[k], nextProps[k])
     )
-    const {sortField, sortDirection} = this.state
     const {tableOptions} = nextProps
-    const {sortBy: {internalName}} = tableOptions
 
     let result = {}
 
@@ -92,16 +90,18 @@ class TableGraph extends Component {
       return
     }
 
-    let direction, sortFieldName
+    const {sort} = this.state
+    const internalName = _.get(
+      nextProps,
+      ['tableOptions', 'sortBy', 'internalName'],
+      ''
+    )
     if (
-      _.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') ===
+      !_.get(this.props, ['tableOptions', 'sortBy', 'internalName'], '') ===
       internalName
     ) {
-      direction = sortDirection
-      sortFieldName = sortField
-    } else {
-      direction = DEFAULT_SORT
-      sortFieldName = internalName
+      sort.direction = DEFAULT_SORT_DIRECTION
+      sort.field = internalName
     }
 
     if (
@@ -109,25 +109,18 @@ class TableGraph extends Component {
       _.includes(updatedProps, 'tableOptions')
     ) {
       const {
-        processedData,
+        transformedData,
         sortedTimeVals,
         columnWidths,
         totalWidths,
-      } = processTableData(
-        data,
-        sortFieldName,
-        direction,
-        fieldNames,
-        tableOptions
-      )
+      } = transformTableData(data, sort, fieldNames, tableOptions)
 
       this.setState({
         data,
         sortedLabels,
-        processedData,
+        transformedData,
         sortedTimeVals,
-        sortField: sortFieldName,
-        sortDirection: direction,
+        sort,
         columnWidths,
         totalColumnWidths: totalWidths,
       })
@@ -201,10 +194,10 @@ class TableGraph extends Component {
     if (fieldName === sortField) {
       direction = sortDirection === ASCENDING ? DESCENDING : ASCENDING
     } else {
-      direction = DEFAULT_SORT
+      direction = DEFAULT_SORT_DIRECTION
     }
 
-    const {processedData, sortedTimeVals} = processTableData(
+    const {transformedData, sortedTimeVals} = transformTableData(
       data,
       fieldName,
       direction,
@@ -214,7 +207,7 @@ class TableGraph extends Component {
     )
 
     this.setState({
-      processedData,
+      transformedData,
       sortedTimeVals,
       sortField: fieldName,
       sortDirection: direction,
@@ -224,9 +217,9 @@ class TableGraph extends Component {
   calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
     const {tableOptions: {fixFirstColumn}} = this.props
-    const {processedData, columnWidths, totalColumnWidths} = this.state
-    const columnCount = _.get(processedData, ['0', 'length'], 0)
-    const columnLabel = processedData[0][index]
+    const {transformedData, columnWidths, totalColumnWidths} = this.state
+    const columnCount = _.get(transformedData, ['0', 'length'], 0)
+    const columnLabel = transformedData[0][index]
 
     let adjustedColumnSizerWidth = columnWidths[columnLabel]
 
@@ -252,7 +245,7 @@ class TableGraph extends Component {
     const {
       hoveredColumnIndex,
       hoveredRowIndex,
-      processedData,
+      transformedData,
       sortField,
       sortDirection,
     } = this.state
@@ -265,7 +258,7 @@ class TableGraph extends Component {
       fieldNames = [TIME_FIELD_DEFAULT],
     } = tableOptions
 
-    const cellData = processedData[rowIndex][columnIndex]
+    const cellData = transformedData[rowIndex][columnIndex]
 
     const timeFieldIndex = fieldNames.findIndex(
       field => field.internalName === TIME_FIELD_DEFAULT.internalName
@@ -357,12 +350,12 @@ class TableGraph extends Component {
       timeColumnWidth,
       sortField,
       sortDirection,
-      processedData,
+      transformedData,
     } = this.state
     const {hoverTime, tableOptions, colors} = this.props
     const {fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT} = tableOptions
-    const columnCount = _.get(processedData, ['0', 'length'], 0)
-    const rowCount = columnCount === 0 ? 0 : processedData.length
+    const columnCount = _.get(transformedData, ['0', 'length'], 0)
+    const rowCount = columnCount === 0 ? 0 : transformedData.length
 
     const COLUMN_MIN_WIDTH = 100
     const COLUMN_MAX_WIDTH = 1000

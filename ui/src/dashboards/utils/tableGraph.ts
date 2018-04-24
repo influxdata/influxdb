@@ -1,6 +1,6 @@
 import calculateSize from 'calculate-size'
 import _ from 'lodash'
-import {reduce} from 'fast.js'
+import {map, reduce, filter} from 'fast.js'
 
 import {
   CELL_HORIZONTAL_PADDING,
@@ -123,4 +123,51 @@ export const calculateColumnWidths = (
     },
     {widths: {}, totalWidths: 0}
   )
+}
+
+export const filterTableColumns = (data, fieldNames) => {
+  const visibility = {}
+  const filteredData = map(data, (row, i) => {
+    return filter(row, (col, j) => {
+      if (i === 0) {
+        const foundField = fieldNames.find(field => field.internalName === col)
+        visibility[j] = foundField ? foundField.visible : true
+      }
+      return visibility[j]
+    })
+  })
+  return filteredData[0].length ? filteredData : [[]]
+}
+
+export const orderTableColumns = (data, fieldNames) => {
+  const fieldsSortOrder = fieldNames.map(fieldName => {
+    return _.findIndex(data[0], dataLabel => {
+      return dataLabel === fieldName.internalName
+    })
+  })
+  const filteredFieldSortOrder = filter(fieldsSortOrder, f => f !== -1)
+  const orderedData = map(data, row => {
+    return row.map((v, j, arr) => arr[filteredFieldSortOrder[j]] || v)
+  })
+  return orderedData[0].length ? orderedData : [[]]
+}
+
+export const transformTableData = (data, sort, fieldNames, tableOptions) => {
+  const {verticalTimeAxis, timeFormat} = tableOptions
+  const sortIndex = _.indexOf(data[0], sort.field)
+  const sortedData = [
+    data[0],
+    ..._.orderBy(_.drop(data, 1), sortIndex, [sort.direction]),
+  ]
+  const sortedTimeVals = map(sortedData, r => r[0])
+  const filteredData = filterTableColumns(sortedData, fieldNames)
+  const orderedData = orderTableColumns(filteredData, fieldNames)
+  const transformedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
+  const {widths: columnWidths, totalWidths} = calculateColumnWidths(
+    transformedData,
+    fieldNames,
+    timeFormat,
+    verticalTimeAxis
+  )
+  return {transformedData, sortedTimeVals, columnWidths, totalWidths}
 }
