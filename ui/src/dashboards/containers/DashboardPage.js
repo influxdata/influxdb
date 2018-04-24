@@ -562,7 +562,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
     d => d.id === idNormalizer(TYPE_ID, dashboardID)
   )
 
-  const selectedCell = _.get(cell, 'type') ? cell : null
+  const selectedCell = cell
 
   return {
     sources,
