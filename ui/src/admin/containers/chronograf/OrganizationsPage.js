@@ -12,24 +12,34 @@ import OrganizationsTable from 'src/admin/components/chronograf/OrganizationsTab
 @ErrorHandling
 class OrganizationsPage extends Component {
   componentDidMount() {
-    const {links, actionsAdmin: {loadOrganizationsAsync}} = this.props
+    const {
+      links,
+      actionsAdmin: {loadOrganizationsAsync},
+    } = this.props
     loadOrganizationsAsync(links.organizations)
   }
 
   handleCreateOrganization = async organization => {
-    const {links, actionsAdmin: {createOrganizationAsync}} = this.props
+    const {
+      links,
+      actionsAdmin: {createOrganizationAsync},
+    } = this.props
     await createOrganizationAsync(links.organizations, organization)
     this.refreshMe()
   }
 
   handleRenameOrganization = async (organization, name) => {
-    const {actionsAdmin: {updateOrganizationAsync}} = this.props
+    const {
+      actionsAdmin: {updateOrganizationAsync},
+    } = this.props
     await updateOrganizationAsync(organization, {...organization, name})
     this.refreshMe()
   }
 
   handleDeleteOrganization = organization => {
-    const {actionsAdmin: {deleteOrganizationAsync}} = this.props
+    const {
+      actionsAdmin: {deleteOrganizationAsync},
+    } = this.props
     deleteOrganizationAsync(organization)
     this.refreshMe()
   }
@@ -40,7 +50,9 @@ class OrganizationsPage extends Component {
   }
 
   handleChooseDefaultRole = (organization, defaultRole) => {
-    const {actionsAdmin: {updateOrganizationAsync}} = this.props
+    const {
+      actionsAdmin: {updateOrganizationAsync},
+    } = this.props
     updateOrganizationAsync(organization, {...organization, defaultRole})
     // refreshMe is here to update the org's defaultRole in `me.organizations`
     this.refreshMe()

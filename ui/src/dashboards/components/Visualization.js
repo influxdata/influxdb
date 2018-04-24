@@ -25,7 +25,11 @@ const DashVisualization = (
     thresholdsListColors,
     tableOptions,
   },
-  {source: {links: {proxy}}}
+  {
+    source: {
+      links: {proxy},
+    },
+  }
 ) => {
   const colors = getCellTypeColors({
     cellType: type,

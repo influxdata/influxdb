@@ -23,10 +23,17 @@ const notificationsBlackoutDuration = 5000
 let allowNotifications = true // eslint-disable-line
 
 const errorsMiddleware = store => next => action => {
-  const {auth: {me}} = store.getState()
+  const {
+    auth: {me},
+  } = store.getState()
 
   if (action.type === 'ERROR_THROWN') {
-    const {error, error: {status, auth}, altText, alertType = 'info'} = action
+    const {
+      error,
+      error: {status, auth},
+      altText,
+      alertType = 'info',
+    } = action
 
     if (status === HTTP_FORBIDDEN) {
       const message = _.get(error, 'data.message', '')

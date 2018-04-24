@@ -1,7 +1,23 @@
 // function definitions
-export type OnDeleteFuncNode = (funcID: string, expressionID: string) => void
-export type OnChangeArg = (inputArg: InputArg) => void
-export type OnAddNode = (expressionID: string, funcName: string) => void
+type noop = () => void
+export type OnDeleteFuncNode = (
+  funcID: string,
+  expressionID: string
+) => void | noop
+export type OnChangeArg = (inputArg: InputArg) => void | noop
+export type OnAddNode = (expressionID: string, funcName: string) => void | noop
+export type OnGenerateScript = (script: string) => void | noop
+export type OnChangeScript = (script: string) => void | noop
+
+export interface Handlers {
+  onAddNode: OnAddNode
+  onChangeArg: OnChangeArg
+  onSubmitScript: () => void
+  onChangeScript: OnChangeScript
+  onDeleteFuncNode: OnDeleteFuncNode
+  onGenerateScript: OnGenerateScript
+}
+
 export interface InputArg {
   funcID: string
   expressionID: string
@@ -9,7 +25,6 @@ export interface InputArg {
   value: string | boolean
   generate?: boolean
 }
-
 // Flattened AST
 export interface FlatBody {
   type: string

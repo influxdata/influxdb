@@ -17,7 +17,9 @@ const getField = ({fields}) => {
 }
 
 const Threshold = ({
-  rule: {values: {operator, value, rangeValue}},
+  rule: {
+    values: {operator, value, rangeValue},
+  },
   query,
   onDropdownChange,
   onRuleTypeInputChange,

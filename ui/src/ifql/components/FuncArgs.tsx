@@ -16,10 +16,6 @@ export default class FuncArgs extends PureComponent<Props> {
   public render() {
     const {expressionID, func, onChangeArg, onGenerateScript} = this.props
 
-    if (!func.args) {
-      debugger
-    }
-
     return (
       <div className="func-args">
         {func.args.map(({key, value, type}) => {

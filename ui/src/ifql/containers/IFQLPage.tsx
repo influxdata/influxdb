@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import {Suggestion, FlatBody} from 'src/types/ifql'
-import {InputArg} from 'src/types/ifql'
+import {InputArg, Handlers} from 'src/types/ifql'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST} from 'src/ifql/apis'
@@ -33,7 +33,7 @@ interface State {
   suggestions: Suggestion[]
 }
 
-export const IFQLContext = React.createContext(() => {})
+export const IFQLContext = React.createContext()
 
 @ErrorHandling
 export class IFQLPage extends PureComponent<Props, State> {
@@ -96,7 +96,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     )
   }
 
-  private get handlers() {
+  private get handlers(): Handlers {
     return {
       onAddNode: this.handleAddNode,
       onChangeArg: this.handleChangeArg,

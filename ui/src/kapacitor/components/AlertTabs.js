@@ -55,7 +55,9 @@ class AlertTabs extends Component {
 
   refreshKapacitorConfig = async kapacitor => {
     try {
-      const {data: {sections}} = await getKapacitorConfig(kapacitor)
+      const {
+        data: {sections},
+      } = await getKapacitorConfig(kapacitor)
       this.setState({configSections: sections})
     } catch (error) {
       this.setState({configSections: null})
@@ -91,7 +93,9 @@ class AlertTabs extends Component {
         this.refreshKapacitorConfig(this.props.kapacitor)
         this.props.notify(notifyAlertEndpointSaved(section))
         return true
-      } catch ({data: {error}}) {
+      } catch ({
+        data: {error},
+      }) {
         const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
         this.props.notify(notifyAlertEndpointSaveFailed(section, errorMsg))
         return false

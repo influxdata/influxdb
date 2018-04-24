@@ -1,7 +1,6 @@
 import React, {PureComponent} from 'react'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
-import {IFQLContext} from 'src/ifql/containers/IFQLPage'
 
 import {
   FlatBody,

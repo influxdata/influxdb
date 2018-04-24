@@ -298,7 +298,9 @@ export const loadPermissionsAsync = url => async dispatch => {
 
 export const loadDBsAndRPsAsync = url => async dispatch => {
   try {
-    const {data: {databases}} = await getDbsAndRpsAJAX(url)
+    const {
+      data: {databases},
+    } = await getDbsAndRpsAJAX(url)
     dispatch(loadDatabases(_.sortBy(databases, ({name}) => name.toLowerCase())))
   } catch (error) {
     dispatch(errorThrown(error))

@@ -11,7 +11,8 @@ interface Props {
   id: string
   funcs: Func[]
 }
-// an expression is a group of one or more functions
+
+// an Expression is a group of one or more functions
 class ExpressionNode extends PureComponent<Props> {
   public render() {
     const {id, funcNames, funcs} = this.props
