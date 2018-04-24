@@ -36,8 +36,8 @@ export default class FuncNode extends PureComponent<Props, State> {
         {isOpen && (
           <FuncArgs
             func={func}
-            onChangeArg={onChangeArg}
             bodyID={bodyID}
+            onChangeArg={onChangeArg}
             onGenerateScript={onGenerateScript}
           />
         )}

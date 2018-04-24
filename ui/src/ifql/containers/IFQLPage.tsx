@@ -199,12 +199,12 @@ export class IFQLPage extends PureComponent<Props, State> {
   private handleDeleteFuncNode = (funcID: string, bodyID: string): void => {
     // TODO: export this and test functionality
     const script = this.state.body
-      .map((expression, expressionIndex) => {
-        if (expression.id !== bodyID) {
-          return expression.source
+      .map((body, bodyIndex) => {
+        if (body.id !== bodyID) {
+          return body.source
         }
 
-        const funcs = expression.funcs.filter(f => f.id !== funcID)
+        const funcs = body.funcs.filter(f => f.id !== funcID)
         const source = funcs.reduce((acc, f, i) => {
           if (i === 0) {
             return `${f.source}`
@@ -213,7 +213,7 @@ export class IFQLPage extends PureComponent<Props, State> {
           return `${acc}\n\t${f.source}`
         }, '')
 
-        const isLast = expressionIndex === this.state.body.length - 1
+        const isLast = bodyIndex === this.state.body.length - 1
         if (isLast) {
           return `${source}`
         }

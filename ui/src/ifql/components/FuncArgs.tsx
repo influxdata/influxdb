@@ -25,10 +25,10 @@ export default class FuncArgs extends PureComponent<Props> {
               type={type}
               argKey={key}
               value={value}
+              bodyID={bodyID}
               funcID={func.id}
               funcName={func.name}
               onChangeArg={onChangeArg}
-              bodyID={bodyID}
               onGenerateScript={onGenerateScript}
             />
           )
