@@ -45,7 +45,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       ast: null,
       suggestions: [],
       script:
-        'foo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nbar = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
+        'foo = "baz"\n\nfoo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nbar = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
     }
   }
 
@@ -185,6 +185,10 @@ export class IFQLPage extends PureComponent<Props, State> {
         const declaration = _.get(b, 'declarations.0', false)
         if (!declaration) {
           return acc
+        }
+
+        if (!declaration.funcs) {
+          return `${acc}${b.source}\n\n`
         }
 
         return `${acc}${declaration.name} = ${this.funcsToScript(
