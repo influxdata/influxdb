@@ -27,6 +27,7 @@ class ExpressionNode extends PureComponent<Props> {
                   bodyID={bodyID}
                   funcs={funcNames}
                   onAddNode={onAddNode}
+                  declarationID={declarationID}
                 />
               </h4>
               {funcs.map(func => (

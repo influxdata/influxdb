@@ -45,7 +45,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       ast: null,
       suggestions: [],
       script:
-        'foo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nfrom(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
+        'foo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nbar = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
     }
   }
 
@@ -218,17 +218,32 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.setState({script})
   }
 
-  private handleAddNode = (name: string, bodyID: string): void => {
+  private handleAddNode = (
+    name: string,
+    bodyID: string,
+    declarationID: string
+  ): void => {
     const script = this.state.body.reduce((acc, body) => {
       if (body.id === bodyID) {
-        const {funcs} = body
-        return `${acc}${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
+        const declaration = body.declarations.find(d => d.id === declarationID)
+        if (declaration) {
+          return `${acc}${declaration.name} = ${this.appendFunc(
+            declaration.funcs,
+            name
+          )}`
+        }
+
+        return `${acc}${this.appendFunc(body.funcs, name)}`
       }
 
-      return acc + body.source
+      return `${acc}${body.source}`
     }, '')
 
     this.getASTResponse(script)
+  }
+
+  private appendFunc = (funcs, name): string => {
+    return `${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
   }
 
   private handleDeleteFuncNode = (ids: DeleteFuncNodeArgs): void => {

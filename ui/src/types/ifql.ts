@@ -1,7 +1,11 @@
 // function definitions
 export type OnDeleteFuncNode = (ids: DeleteFuncNodeArgs) => void
 export type OnChangeArg = (inputArg: InputArg) => void
-export type OnAddNode = (bodyID: string, funcName: string) => void
+export type OnAddNode = (
+  bodyID: string,
+  funcName: string,
+  declarationID: string
+) => void
 export type OnGenerateScript = (script: string) => void
 export type OnChangeScript = (script: string) => void
 export type OnSubmitScript = () => void
