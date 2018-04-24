@@ -182,8 +182,14 @@ export class IFQLPage extends PureComponent<Props, State> {
   private get bodyToScript(): string {
     return this.state.body.reduce((acc, b) => {
       if (b.declarations.length) {
-        const funcs = _.get(b, 'declarations.0.funcs', [])
-        return `${acc}${this.funcsToScript(funcs)}\n\n`
+        const declaration = _.get(b, 'declarations.0', false)
+        if (!declaration) {
+          return acc
+        }
+
+        return `${acc}${declaration.name} = ${this.funcsToScript(
+          declaration.funcs
+        )}\n\n`
       }
 
       return `${acc}${this.funcsToScript(b.funcs)}\n\n`

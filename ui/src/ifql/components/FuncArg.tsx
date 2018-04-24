@@ -42,6 +42,7 @@ class FuncArg extends PureComponent<Props> {
           funcID={funcID}
           value={this.value}
           bodyID={bodyID}
+          declarationID={declarationID}
           onChangeArg={onChangeArg}
         />
       )
