@@ -125,8 +125,9 @@ const insertGroupByValues = (
   groupBys,
   seriesLabels,
   labelsToValueIndex,
-  dashArray
+  sortedLabels
 ) => {
+  const dashArray = Array(sortedLabels.length).fill('-')
   const timeSeries = []
   let existingRowIndex
   forEach(serieses, (s, sind) => {
@@ -137,7 +138,7 @@ const insertGroupByValues = (
         forEach(vs.slice(1), (v, i) => {
           const label = seriesLabels[sind][i].label
           timeSeries[existingRowIndex].values[
-            labelsToValueIndex[label + s.seriesIndex]
+            labelsToValueIndex[label + s.responseIndex + s.seriesIndex]
           ] = v
         })
       })
@@ -154,13 +155,13 @@ const constructTimeSeries = (
   groupBys,
   seriesLabels
 ) => {
-  const dashArray = Array(sortedLabels.length).fill('-')
+  const nullArray = Array(sortedLabels.length).fill(null)
 
   const labelsToValueIndex = reduce(
     sortedLabels,
-    (acc, {label, seriesIndex}, i) => {
+    (acc, {label, responseIndex, seriesIndex}, i) => {
       // adding series index prevents overwriting of two distinct labels that have the same field and measurements
-      acc[label + seriesIndex] = i
+      acc[label + responseIndex + seriesIndex] = i
       return acc
     },
     {}
@@ -173,7 +174,7 @@ const constructTimeSeries = (
     groupBys,
     seriesLabels,
     labelsToValueIndex,
-    dashArray
+    sortedLabels
   )
 
   let existingRowIndex
@@ -184,6 +185,7 @@ const constructTimeSeries = (
     const value = cells.value[i]
     const label = cells.label[i]
     const seriesIndex = cells.seriesIndex[i]
+    const responseIndex = cells.responseIndex[i]
 
     if (groupBys[cells.responseIndex[i]]) {
       // we've already inserted GroupByValues
@@ -200,7 +202,7 @@ const constructTimeSeries = (
     if (existingRowIndex === undefined) {
       timeSeries.push({
         time,
-        values: clone(dashArray),
+        values: clone(nullArray),
       })
 
       existingRowIndex = timeSeries.length - 1
@@ -208,14 +210,17 @@ const constructTimeSeries = (
     }
 
     timeSeries[existingRowIndex].values[
-      labelsToValueIndex[label + seriesIndex]
+      labelsToValueIndex[label + responseIndex + seriesIndex]
     ] = value
   }
 
   return _.sortBy(timeSeries, 'time')
 }
 
-export const groupByTimeSeriesTransform = (raw, groupBys = []) => {
+export const groupByTimeSeriesTransform = (raw, groupBys) => {
+  if (!groupBys) {
+    groupBys = Array(raw.length).fill(false)
+  }
   const results = constructResults(raw, groupBys)
 
   const serieses = constructSerieses(results)

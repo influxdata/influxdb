@@ -1,4 +1,5 @@
-import timeSeriesToDygraph, {
+import {
+  timeSeriesToDygraph,
   timeSeriesToTableGraph,
 } from 'src/utils/timeSeriesTransformers'
 
@@ -185,7 +186,6 @@ describe('timeSeriesToDygraph', () => {
         },
       },
     ]
-
     const actual = timeSeriesToDygraph(influxResponse)
 
     const expected = {
@@ -382,9 +382,9 @@ describe('timeSeriesToTableGraph', () => {
     const actual = timeSeriesToTableGraph(influxResponse, qASTs)
     const expected = [
       ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2'],
-      [1000, 1, 1, '-', '-'],
+      [1000, 1, 1, null, null],
       [2000, 2, 2, 3, 3],
-      [4000, '-', '-', 4, 4],
+      [4000, null, null, 4, 4],
     ]
 
     expect(actual.data).toEqual(expected)
