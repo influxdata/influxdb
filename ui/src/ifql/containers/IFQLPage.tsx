@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import {Suggestion, FlatBody} from 'src/types/ifql'
-import {InputArg, Handlers} from 'src/types/ifql'
+import {InputArg, Handlers, DeleteFuncNodeArgs} from 'src/types/ifql'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST} from 'src/ifql/apis'
@@ -196,33 +196,58 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private handleDeleteFuncNode = (funcID: string, bodyID: string): void => {
-    // TODO: export this and test functionality
+  private handleDeleteFuncNode = (ids: DeleteFuncNodeArgs): void => {
+    const {funcID, declarationID = '', bodyID} = ids
+
     const script = this.state.body
       .map((body, bodyIndex) => {
         if (body.id !== bodyID) {
           return body.source
         }
 
-        const funcs = body.funcs.filter(f => f.id !== funcID)
-        const source = funcs.reduce((acc, f, i) => {
-          if (i === 0) {
-            return `${f.source}`
+        const isLast = bodyIndex === this.state.body.length - 1
+
+        if (declarationID) {
+          const declaration = body.declarations.find(
+            d => d.id === declarationID
+          )
+
+          if (!declaration) {
+            return
           }
 
-          return `${acc}\n\t${f.source}`
-        }, '')
-
-        const isLast = bodyIndex === this.state.body.length - 1
-        if (isLast) {
-          return `${source}`
+          const functions = declaration.funcs.filter(f => f.id !== funcID)
+          const s = this.funcsToSource(functions)
+          return `${declaration.name} = ${this.parseLastSource(s, isLast)}`
         }
 
-        return `${source}\n\n`
+        const funcs = body.funcs.filter(f => f.id !== funcID)
+        const source = this.funcsToSource(funcs)
+        return this.parseLastSource(source, isLast)
       })
       .join('')
 
     this.getASTResponse(script)
+  }
+
+  // formats the last line of a body string to include two new lines
+  private parseLastSource = (source: string, isLast: boolean): string => {
+    if (isLast) {
+      return `${source}`
+    }
+
+    return `${source}\n\n`
+  }
+
+  // funcsToSource takes a list of funtion nodes and returns an ifql script
+  private funcsToSource = (funcs): string => {
+    return funcs.reduce((acc, f, i) => {
+      if (i === 0) {
+        return `${f.source}`
+      }
+
+      return `${acc}\n\t${f.source}`
+    }, '')
   }
 
   private getASTResponse = async (script: string) => {
