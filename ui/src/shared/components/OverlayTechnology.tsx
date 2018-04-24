@@ -5,15 +5,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {dismissOverlay} from 'src/shared/actions/overlayTechnology'
 
-interface Options {
+interface Props {
+  overlayNode?: ReactElement<any>
   dismissOnClickOutside?: boolean
   dismissOnEscape?: boolean
   transitionTime?: number
-}
-
-interface Props {
-  overlayNode?: ReactElement<any>
-  options: Options
   handleDismissOverlay: () => void
 }
 
@@ -23,6 +19,12 @@ interface State {
 
 @ErrorHandling
 class Overlay extends PureComponent<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    dismissOnClickOutside: false,
+    dismissOnEscape: false,
+    transitionTime: 300,
+  }
+
   private animationTimer: number
 
   constructor(props) {
@@ -60,20 +62,8 @@ class Overlay extends PureComponent<Props, State> {
     return `overlay-tech ${visible ? 'show' : ''}`
   }
 
-  private get options(): Options {
-    const {options} = this.props
-    const defaultOptions = {
-      dismissOnClickOutside: false,
-      dismissOnEscape: false,
-      transitionTime: 300,
-    }
-
-    return {...defaultOptions, ...options}
-  }
-
   public handleClickOutside = () => {
-    const {handleDismissOverlay, options} = this.props
-    const {dismissOnClickOutside} = options
+    const {handleDismissOverlay, dismissOnClickOutside} = this.props
 
     if (dismissOnClickOutside) {
       handleDismissOverlay()
@@ -81,7 +71,7 @@ class Overlay extends PureComponent<Props, State> {
   }
 
   public handleAnimateDismiss = () => {
-    const {transitionTime} = this.options
+    const {transitionTime} = this.props
     this.setState({visible: false})
     this.animationTimer = window.setTimeout(this.handleDismiss, transitionTime)
   }
@@ -93,9 +83,16 @@ class Overlay extends PureComponent<Props, State> {
   }
 }
 
-const mapStateToProps = ({overlayTechnology: {overlayNode, options}}) => ({
+const mapStateToProps = ({
+  overlayTechnology: {
+    overlayNode,
+    options: {dismissOnClickOutside, dismissOnEscape, transitionTime},
+  },
+}) => ({
   overlayNode,
-  options,
+  dismissOnClickOutside,
+  dismissOnEscape,
+  transitionTime,
 })
 
 const mapDispatchToProps = dispatch => ({

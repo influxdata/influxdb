@@ -241,7 +241,7 @@ TemplateVariableManagerWrapper.propTypes = {
     })
   ),
   onRunQueryFailure: func.isRequired,
-  onDismissOverlay: func.isRequired,
+  onDismissOverlay: func,
 }
 
 export default TemplateVariableManagerWrapper

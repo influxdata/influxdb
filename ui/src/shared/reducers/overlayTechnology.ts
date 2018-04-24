@@ -2,6 +2,7 @@ const initialState = {
   options: {
     dismissOnClickOutside: false,
     dismissOnEscape: false,
+    transitionTime: 300,
   },
   overlayNode: null,
 }
