@@ -22,8 +22,9 @@ class BodyBuilder extends PureComponent<Props> {
           if (d.funcs) {
             return (
               <ExpressionNode
-                id={d.id}
-                key={d.id}
+                key={b.id}
+                bodyID={b.id}
+                declarationID={d.id}
                 funcNames={this.funcNames}
                 funcs={d.funcs}
               />
@@ -36,10 +37,10 @@ class BodyBuilder extends PureComponent<Props> {
 
       return (
         <ExpressionNode
-          id={b.id}
           key={b.id}
-          funcNames={this.funcNames}
+          bodyID={b.id}
           funcs={b.funcs}
+          funcNames={this.funcNames}
         />
       )
     })

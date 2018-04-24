@@ -1,12 +1,13 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import FuncArgs from 'src/ifql/components/FuncArgs'
-import {OnChangeArg, Func} from 'src/types/ifql'
+import {OnDeleteFuncNode, OnChangeArg, Func} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   func: Func
-  expressionID: string
-  onDelete: (funcID: string, expressionID: string) => void
+  bodyID: string
+  declarationID?: string
+  onDelete: OnDeleteFuncNode
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -17,6 +18,10 @@ interface State {
 
 @ErrorHandling
 export default class FuncNode extends PureComponent<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    declarationID: '',
+  }
+
   constructor(props) {
     super(props)
     this.state = {
@@ -25,7 +30,13 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {expressionID, func, onChangeArg, onGenerateScript} = this.props
+    const {
+      func,
+      bodyID,
+      onChangeArg,
+      declarationID,
+      onGenerateScript,
+    } = this.props
     const {isOpen} = this.state
 
     return (
@@ -36,8 +47,9 @@ export default class FuncNode extends PureComponent<Props, State> {
         {isOpen && (
           <FuncArgs
             func={func}
+            bodyID={bodyID}
             onChangeArg={onChangeArg}
-            expressionID={expressionID}
+            declarationID={declarationID}
             onGenerateScript={onGenerateScript}
           />
         )}
@@ -49,7 +61,9 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   private handleDelete = (): void => {
-    this.props.onDelete(this.props.func.id, this.props.expressionID)
+    const {func, bodyID, declarationID} = this.props
+
+    this.props.onDelete({funcID: func.id, bodyID, declarationID})
   }
 
   private handleClick = (e: MouseEvent<HTMLElement>): void => {
