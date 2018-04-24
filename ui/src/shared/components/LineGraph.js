@@ -9,7 +9,7 @@ import {colorsStringSchema} from 'shared/schemas'
 import {ErrorHandlingWith} from 'src/shared/decorators/errors'
 import InvalidData from 'src/shared/components/InvalidData'
 
-@ErrorHandlingWith(InvalidData, true)
+@ErrorHandlingWith(InvalidData)
 class LineGraph extends Component {
   constructor(props) {
     super(props)
