@@ -186,34 +186,29 @@ class TableGraph extends Component {
     }
   }
 
-  handleClickFieldName = fieldName => () => {
+  handleClickFieldName = clickedFieldName => () => {
     const {tableOptions} = this.props
-    const {timeFormat} = tableOptions
-    const {data, sortField, sortDirection} = this.state
-    const verticalTimeAxis = _.get(tableOptions, 'verticalTimeAxis', true)
+    const {data, sort} = this.state
     const fieldNames = _.get(tableOptions, 'fieldNames', [TIME_FIELD_DEFAULT])
 
-    let direction
-    if (fieldName === sortField) {
-      direction = sortDirection === ASCENDING ? DESCENDING : ASCENDING
+    if (clickedFieldName === sort.field) {
+      sort.direction = sort.direction === ASCENDING ? DESCENDING : ASCENDING
     } else {
-      direction = DEFAULT_SORT_DIRECTION
+      sort.field = clickedFieldName
+      sort.direction = DEFAULT_SORT_DIRECTION
     }
 
     const {transformedData, sortedTimeVals} = transformTableData(
       data,
-      fieldName,
-      direction,
-      verticalTimeAxis,
+      sort,
       fieldNames,
-      timeFormat
+      tableOptions
     )
 
     this.setState({
       transformedData,
       sortedTimeVals,
-      sortField: fieldName,
-      sortDirection: direction,
+      sort,
     })
   }
 
@@ -251,8 +246,7 @@ class TableGraph extends Component {
       hoveredColumnIndex,
       hoveredRowIndex,
       transformedData,
-      sortField,
-      sortDirection,
+      sort,
     } = this.state
     const {tableOptions, colors} = parent.props
 
@@ -318,9 +312,9 @@ class TableGraph extends Component {
       'table-graph-cell__numerical': dataIsNumerical,
       'table-graph-cell__field-name': isFieldName,
       'table-graph-cell__sort-asc':
-        isFieldName && sortField === cellData && sortDirection === ASCENDING,
+        isFieldName && sort.field === cellData && sort.direction === ASCENDING,
       'table-graph-cell__sort-desc':
-        isFieldName && sortField === cellData && sortDirection === DESCENDING,
+        isFieldName && sort.field === cellData && sort.direction === DESCENDING,
     })
 
     const cellContents = isTimeData
@@ -353,8 +347,7 @@ class TableGraph extends Component {
       hoveredColumnIndex,
       hoveredRowIndex,
       timeColumnWidth,
-      sortField,
-      sortDirection,
+      sort,
       transformedData,
     } = this.state
     const {hoverTime, tableOptions, colors} = this.props
@@ -399,8 +392,7 @@ class TableGraph extends Component {
                 enableFixedRowScroll={true}
                 scrollToRow={scrollToRow}
                 scrollToColumn={scrollToColumn}
-                sortField={sortField}
-                sortDirection={sortDirection}
+                sort={sort}
                 cellRenderer={this.cellRenderer}
                 hoveredColumnIndex={hoveredColumnIndex}
                 hoveredRowIndex={hoveredRowIndex}
