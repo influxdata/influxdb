@@ -21,7 +21,7 @@ import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
 import {
   NULL_ARRAY_INDEX,
   NULL_HOVER_TIME,
-  TIME_FORMAT_DEFAULT,
+  DEFAULT_TIME_FORMAT,
   TIME_FIELD_DEFAULT,
   ASCENDING,
   DESCENDING,
@@ -257,7 +257,7 @@ class TableGraph extends Component {
     const {tableOptions, colors} = parent.props
 
     const {
-      timeFormat = TIME_FORMAT_DEFAULT,
+      timeFormat = DEFAULT_TIME_FORMAT,
       verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
       fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
       fieldNames = [TIME_FIELD_DEFAULT],
@@ -325,7 +325,7 @@ class TableGraph extends Component {
 
     const cellContents = isTimeData
       ? `${moment(cellData).format(
-          timeFormat === '' ? TIME_FORMAT_DEFAULT : timeFormat
+          timeFormat === '' ? DEFAULT_TIME_FORMAT : timeFormat
         )}`
       : fieldName || `${cellData}`
 

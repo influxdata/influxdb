@@ -4,7 +4,7 @@ import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {
   FORMAT_OPTIONS,
   TIME_FORMAT_CUSTOM,
-  TIME_FORMAT_DEFAULT,
+  DEFAULT_TIME_FORMAT,
   TIME_FORMAT_TOOLTIP_LINK,
 } from 'src/shared/constants/tableGraph'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -29,7 +29,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     super(props)
     this.state = {
       customFormat: false,
-      format: this.props.timeFormat || TIME_FORMAT_DEFAULT,
+      format: this.props.timeFormat || DEFAULT_TIME_FORMAT,
     }
   }
 

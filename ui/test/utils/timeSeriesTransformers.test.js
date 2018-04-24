@@ -9,7 +9,7 @@ import {
 
 import {
   DEFAULT_SORT_DIRECTION,
-  TIME_FORMAT_DEFAULT,
+  DEFAULT_TIME_FORMAT,
 } from 'src/shared/constants/tableGraph'
 
 describe('timeSeriesToDygraph', () => {
@@ -536,7 +536,7 @@ describe('transformTableData', () => {
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
     const tableOptions = {
       verticalTimeAxis: true,
-      timeFormat: TIME_FORMAT_DEFAULT,
+      timeFormat: DEFAULT_TIME_FORMAT,
     }
 
     const fieldNames = [
@@ -568,7 +568,7 @@ describe('transformTableData', () => {
 
     const tableOptions = {
       verticalTimeAxis: true,
-      timeFormat: TIME_FORMAT_DEFAULT,
+      timeFormat: DEFAULT_TIME_FORMAT,
     }
 
     const fieldNames = [
@@ -596,7 +596,7 @@ describe('transformTableData', () => {
 
     const tableOptions = {
       verticalTimeAxis: true,
-      timeFormat: TIME_FORMAT_DEFAULT,
+      timeFormat: DEFAULT_TIME_FORMAT,
     }
 
     const fieldNames = [
@@ -626,7 +626,7 @@ describe('if verticalTimeAxis is false', () => {
 
     const tableOptions = {
       verticalTimeAxis: false,
-      timeFormat: TIME_FORMAT_DEFAULT,
+      timeFormat: DEFAULT_TIME_FORMAT,
     }
 
     const fieldNames = [
@@ -658,7 +658,7 @@ describe('if verticalTimeAxis is false', () => {
 
     const tableOptions = {
       verticalTimeAxis: false,
-      timeFormat: TIME_FORMAT_DEFAULT,
+      timeFormat: DEFAULT_TIME_FORMAT,
     }
 
     const fieldNames = [

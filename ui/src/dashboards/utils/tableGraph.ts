@@ -5,7 +5,7 @@ import {map, reduce, filter} from 'fast.js'
 import {
   CELL_HORIZONTAL_PADDING,
   TIME_FIELD_DEFAULT,
-  TIME_FORMAT_DEFAULT,
+  DEFAULT_TIME_FORMAT,
 } from 'src/shared/constants/tableGraph'
 
 const calculateTimeColumnWidth = timeFormat => {
@@ -106,7 +106,7 @@ export const calculateColumnWidths = (
   verticalTimeAxis
 ) => {
   const timeFormatWidth = calculateTimeColumnWidth(
-    timeFormat === '' ? TIME_FORMAT_DEFAULT : timeFormat
+    timeFormat === '' ? DEFAULT_TIME_FORMAT : timeFormat
   )
   return reduce(
     data,
