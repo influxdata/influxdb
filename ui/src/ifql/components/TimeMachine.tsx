@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
+import {IFQLContext} from 'src/ifql/containers/IFQLPage'
 
 import {
   FlatBody,
@@ -33,12 +34,8 @@ class TimeMachine extends PureComponent<Props> {
     const {
       body,
       script,
-      onAddNode,
-      onChangeArg,
       onChangeScript,
       onSubmitScript,
-      onDeleteFuncNode,
-      onGenerateScript,
       suggestions,
     } = this.props
 
@@ -50,14 +47,9 @@ class TimeMachine extends PureComponent<Props> {
           onSubmitScript={onSubmitScript}
         />
         <div className="expression-container">
-          <BodyBuilder
-            body={body}
-            onAddNode={onAddNode}
-            onChangeArg={onChangeArg}
-            onDeleteFuncNode={onDeleteFuncNode}
-            onGenerateScript={onGenerateScript}
-            suggestions={suggestions}
-          />
+          return (
+          <BodyBuilder body={body} suggestions={suggestions} />
+          ) }}
         </div>
       </div>
     )

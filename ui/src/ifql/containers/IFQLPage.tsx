@@ -33,6 +33,8 @@ interface State {
   suggestions: Suggestion[]
 }
 
+export const IFQLContext = React.createContext(() => {})
+
 @ErrorHandling
 export class IFQLPage extends PureComponent<Props, State> {
   constructor(props) {
@@ -63,33 +65,46 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {suggestions, script} = this.state
 
     return (
-      <KeyboardShortcuts onControlEnter={this.handleSubmitScript}>
-        <div className="page hosts-list-page">
-          <div className="page-header">
-            <div className="page-header__container">
-              <div className="page-header__left">
-                <h1 className="page-header__title">Time Machine</h1>
+      <IFQLContext.Provider value={this.handlers}>
+        <KeyboardShortcuts onControlEnter={this.handleSubmitScript}>
+          <div className="page hosts-list-page">
+            <div className="page-header">
+              <div className="page-header__container">
+                <div className="page-header__left">
+                  <h1 className="page-header__title">Time Machine</h1>
+                </div>
+              </div>
+            </div>
+            <div className="page-contents">
+              <div className="container-fluid">
+                <TimeMachine
+                  script={script}
+                  body={this.state.body}
+                  suggestions={suggestions}
+                  onAddNode={this.handleAddNode}
+                  onChangeArg={this.handleChangeArg}
+                  onSubmitScript={this.handleSubmitScript}
+                  onChangeScript={this.handleChangeScript}
+                  onDeleteFuncNode={this.handleDeleteFuncNode}
+                  onGenerateScript={this.handleGenerateScript}
+                />
               </div>
             </div>
           </div>
-          <div className="page-contents">
-            <div className="container-fluid">
-              <TimeMachine
-                script={script}
-                body={this.state.body}
-                suggestions={suggestions}
-                onAddNode={this.handleAddNode}
-                onChangeArg={this.handleChangeArg}
-                onSubmitScript={this.handleSubmitScript}
-                onChangeScript={this.handleChangeScript}
-                onDeleteFuncNode={this.handleDeleteFuncNode}
-                onGenerateScript={this.handleGenerateScript}
-              />
-            </div>
-          </div>
-        </div>
-      </KeyboardShortcuts>
+        </KeyboardShortcuts>
+      </IFQLContext.Provider>
     )
+  }
+
+  private get handlers() {
+    return {
+      onAddNode: this.handleAddNode,
+      onChangeArg: this.handleChangeArg,
+      onSubmitScript: this.handleSubmitScript,
+      onChangeScript: this.handleChangeScript,
+      onDeleteFuncNode: this.handleDeleteFuncNode,
+      onGenerateScript: this.handleGenerateScript,
+    }
   }
 
   private handleSubmitScript = () => {
