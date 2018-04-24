@@ -16,10 +16,11 @@ export default function overlayTechnology(state = initialState, action) {
     }
 
     case 'DISMISS_OVERLAY': {
+      const {options} = initialState
       return {
         ...state,
         overlayNode: null,
-        options: null,
+        options,
       }
     }
   }
