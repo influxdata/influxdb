@@ -24,6 +24,7 @@ const DashVisualization = (
     staticLegend,
     thresholdsListColors,
     tableOptions,
+    isInCEO,
   },
   {
     source: {
@@ -53,6 +54,7 @@ const DashVisualization = (
           editQueryStatus={editQueryStatus}
           resizerTopHeight={resizerTopHeight}
           staticLegend={staticLegend}
+          isInCEO={isInCEO}
         />
       </div>
     </div>
@@ -82,6 +84,7 @@ DashVisualization.propTypes = {
   gaugeColors: colorsNumberSchema,
   lineColors: colorsStringSchema,
   staticLegend: bool,
+  isInCEO: bool,
 }
 
 DashVisualization.contextTypes = {

@@ -1,9 +1,17 @@
-import timeSeriesToDygraph, {
+import {
+  timeSeriesToDygraph,
   timeSeriesToTableGraph,
-  filterTableColumns,
-  processTableData,
 } from 'src/utils/timeSeriesTransformers'
-import {DEFAULT_SORT} from 'src/shared/constants/tableGraph'
+
+import {
+  filterTableColumns,
+  transformTableData,
+} from 'src/dashboards/utils/tableGraph'
+
+import {
+  DEFAULT_SORT_DIRECTION,
+  DEFAULT_TIME_FORMAT,
+} from 'src/shared/constants/tableGraph'
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
@@ -178,7 +186,6 @@ describe('timeSeriesToDygraph', () => {
         },
       },
     ]
-
     const actual = timeSeriesToDygraph(influxResponse)
 
     const expected = {
@@ -341,13 +348,45 @@ describe('timeSeriesToTableGraph', () => {
       },
     ]
 
-    const actual = timeSeriesToTableGraph(influxResponse)
+    const qASTs = [
+      {
+        groupBy: {
+          time: {
+            interval: '2s',
+          },
+        },
+      },
+      {
+        groupBy: {
+          time: {
+            interval: '2s',
+          },
+        },
+      },
+      {
+        groupBy: {
+          time: {
+            interval: '2s',
+          },
+        },
+      },
+      {
+        groupBy: {
+          time: {
+            interval: '2s',
+          },
+        },
+      },
+    ]
+
+    const actual = timeSeriesToTableGraph(influxResponse, qASTs)
     const expected = [
       ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2'],
       [1000, 1, 1, null, null],
       [2000, 2, 2, 3, 3],
       [4000, null, null, 4, 4],
     ]
+
     expect(actual.data).toEqual(expected)
   })
 
@@ -397,7 +436,38 @@ describe('timeSeriesToTableGraph', () => {
       },
     ]
 
-    const actual = timeSeriesToTableGraph(influxResponse)
+    const qASTs = [
+      {
+        groupBy: {
+          time: {
+            interval: '2s',
+          },
+        },
+      },
+      {
+        groupBy: {
+          time: {
+            interval: '2s',
+          },
+        },
+      },
+      {
+        groupBy: {
+          time: {
+            interval: '2s',
+          },
+        },
+      },
+      {
+        groupBy: {
+          time: {
+            interval: '2s',
+          },
+        },
+      },
+    ]
+
+    const actual = timeSeriesToTableGraph(influxResponse, qASTs)
     const expected = ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2']
 
     expect(actual.data[0]).toEqual(expected)
@@ -406,7 +476,9 @@ describe('timeSeriesToTableGraph', () => {
   it('returns an array of an empty array if there is an empty response', () => {
     const influxResponse = []
 
-    const actual = timeSeriesToTableGraph(influxResponse)
+    const qASTs = []
+
+    const actual = timeSeriesToTableGraph(influxResponse, qASTs)
     const expected = [[]]
 
     expect(actual.data).toEqual(expected)
@@ -453,7 +525,7 @@ describe('filterTableColumns', () => {
   })
 })
 
-describe('processTableData', () => {
+describe('transformTableData', () => {
   it('sorts the data based on the provided sortFieldName', () => {
     const data = [
       ['time', 'f1', 'f2'],
@@ -461,9 +533,11 @@ describe('processTableData', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'f1'
-    const direction = DEFAULT_SORT
-    const verticalTimeAxis = true
+    const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
+    const tableOptions = {
+      verticalTimeAxis: true,
+      timeFormat: DEFAULT_TIME_FORMAT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -471,13 +545,7 @@ describe('processTableData', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = processTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
     const expected = [
       ['time', 'f1', 'f2'],
       [2000, 1000, 3000],
@@ -485,7 +553,7 @@ describe('processTableData', () => {
       [1000, 3000, 2000],
     ]
 
-    expect(actual.processedData).toEqual(expected)
+    expect(actual.transformedData).toEqual(expected)
   })
 
   it('filters out columns that should not be visible', () => {
@@ -495,9 +563,13 @@ describe('processTableData', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'time'
-    const direction = DEFAULT_SORT
-    const verticalTimeAxis = true
+
+    const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
+
+    const tableOptions = {
+      verticalTimeAxis: true,
+      timeFormat: DEFAULT_TIME_FORMAT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -505,16 +577,11 @@ describe('processTableData', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = processTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+
     const expected = [['time', 'f2'], [1000, 2000], [2000, 3000], [3000, 1000]]
 
-    expect(actual.processedData).toEqual(expected)
+    expect(actual.transformedData).toEqual(expected)
   })
 
   it('filters out invisible columns after sorting', () => {
@@ -524,9 +591,13 @@ describe('processTableData', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'f1'
-    const direction = DEFAULT_SORT
-    const verticalTimeAxis = true
+
+    const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
+
+    const tableOptions = {
+      verticalTimeAxis: true,
+      timeFormat: DEFAULT_TIME_FORMAT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -534,16 +605,11 @@ describe('processTableData', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = processTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+
     const expected = [['time', 'f2'], [2000, 3000], [3000, 1000], [1000, 2000]]
 
-    expect(actual.processedData).toEqual(expected)
+    expect(actual.transformedData).toEqual(expected)
   })
 })
 
@@ -555,9 +621,13 @@ describe('if verticalTimeAxis is false', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'time'
-    const direction = DEFAULT_SORT
-    const verticalTimeAxis = false
+
+    const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
+
+    const tableOptions = {
+      verticalTimeAxis: false,
+      timeFormat: DEFAULT_TIME_FORMAT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -565,20 +635,15 @@ describe('if verticalTimeAxis is false', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = processTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+
     const expected = [
       ['time', 1000, 2000, 3000],
       ['f1', 3000, 1000, 2000],
       ['f2', 2000, 3000, 1000],
     ]
 
-    expect(actual.processedData).toEqual(expected)
+    expect(actual.transformedData).toEqual(expected)
   })
 
   it('transforms data after filtering out invisible columns', () => {
@@ -588,9 +653,13 @@ describe('if verticalTimeAxis is false', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-    const sortFieldName = 'f1'
-    const direction = DEFAULT_SORT
-    const verticalTimeAxis = false
+
+    const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
+
+    const tableOptions = {
+      verticalTimeAxis: false,
+      timeFormat: DEFAULT_TIME_FORMAT,
+    }
 
     const fieldNames = [
       {internalName: 'time', displayName: 'Time', visible: true},
@@ -598,15 +667,10 @@ describe('if verticalTimeAxis is false', () => {
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = processTableData(
-      data,
-      sortFieldName,
-      direction,
-      verticalTimeAxis,
-      fieldNames
-    )
+    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+
     const expected = [['time', 2000, 3000, 1000], ['f2', 3000, 1000, 2000]]
 
-    expect(actual.processedData).toEqual(expected)
+    expect(actual.transformedData).toEqual(expected)
   })
 })

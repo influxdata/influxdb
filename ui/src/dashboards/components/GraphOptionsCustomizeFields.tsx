@@ -1,4 +1,4 @@
-import React, {SFC} from 'react'
+import React, {PureComponent} from 'react'
 import {DragDropContext} from 'react-dnd'
 import HTML5Backend from 'react-dnd-html5-backend'
 
@@ -10,35 +10,36 @@ interface RenamableField {
   visible: boolean
 }
 
-interface GraphOptionsCustomizeFieldsProps {
+interface Props {
   fields: RenamableField[]
   onFieldUpdate: (field: RenamableField) => void
   moveField: (dragIndex: number, hoverIndex: number) => void
 }
-const GraphOptionsCustomizeFields: SFC<GraphOptionsCustomizeFieldsProps> = ({
-  fields,
-  onFieldUpdate,
-  moveField,
-}) => {
-  return (
-    <div className="graph-options-group">
-      <label className="form-label">Customize Fields</label>
-      <div>
-        {fields.map((field, i) => (
-          <GraphOptionsCustomizableField
-            key={field.internalName}
-            index={i}
-            id={field.internalName}
-            internalName={field.internalName}
-            displayName={field.displayName}
-            visible={field.visible}
-            onFieldUpdate={onFieldUpdate}
-            moveField={moveField}
-          />
-        ))}
+
+class GraphOptionsCustomizeFields extends PureComponent<Props> {
+  public render() {
+    const {fields, onFieldUpdate, moveField} = this.props
+
+    return (
+      <div className="graph-options-group">
+        <label className="form-label">Customize Fields</label>
+        <div>
+          {fields.map((field, i) => (
+            <GraphOptionsCustomizableField
+              key={field.internalName}
+              index={i}
+              id={field.internalName}
+              internalName={field.internalName}
+              displayName={field.displayName}
+              visible={field.visible}
+              onFieldUpdate={onFieldUpdate}
+              moveField={moveField}
+            />
+          ))}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 }
 
 export default DragDropContext(HTML5Backend)(GraphOptionsCustomizeFields)

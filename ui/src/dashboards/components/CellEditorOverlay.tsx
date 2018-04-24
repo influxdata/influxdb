@@ -82,7 +82,10 @@ const createWorkingDraft = (source: string, query: CellQuery): Query => {
   return draft
 }
 
-const createWorkingDrafts = (source: string, queries: CellQuery[]): Query[] =>
+const createWorkingDrafts = (
+  source: string,
+  queries: CellQuery[] = []
+): Query[] =>
   _.cloneDeep(
     queries.map((query: CellQuery) => createWorkingDraft(source, query))
   )
@@ -179,6 +182,7 @@ class CellEditorOverlay extends Component<Props, State> {
             queryConfigs={queriesWorkingDraft}
             editQueryStatus={editQueryStatus}
             staticLegend={isStaticLegend}
+            isInCEO={true}
           />
           <CEOBottom>
             <OverlayControls

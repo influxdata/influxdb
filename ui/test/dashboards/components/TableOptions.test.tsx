@@ -22,6 +22,7 @@ const defaultProps = {
     timeFormat: '',
     verticalTimeAxis: true,
   },
+  queryASTs: [],
 }
 
 const setup = (override = {}) => {

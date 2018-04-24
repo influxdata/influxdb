@@ -40,6 +40,7 @@ const RefreshingGraph = ({
   editQueryStatus,
   handleSetHoverTime,
   grabDataForDownload,
+  isInCEO,
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
@@ -55,6 +56,7 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
+        type={type}
         colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
@@ -71,6 +73,7 @@ const RefreshingGraph = ({
   if (type === 'gauge') {
     return (
       <RefreshingGaugeChart
+        type={type}
         colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
@@ -90,6 +93,7 @@ const RefreshingGraph = ({
   if (type === 'table') {
     return (
       <RefreshingTableGraph
+        type={type}
         cellID={cellID}
         colors={colors}
         inView={inView}
@@ -103,6 +107,7 @@ const RefreshingGraph = ({
         tableOptions={tableOptions}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
+        isInCEO={isInCEO}
       />
     )
   }
@@ -114,6 +119,7 @@ const RefreshingGraph = ({
 
   return (
     <RefreshingLineGraph
+      type={type}
       axes={axes}
       cellID={cellID}
       colors={colors}
@@ -161,6 +167,7 @@ RefreshingGraph.propTypes = {
   tableOptions: shape({}),
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
+  isInCEO: bool,
 }
 
 RefreshingGraph.defaultProps = {

@@ -3,7 +3,7 @@ import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
 
 import SingleStat from 'src/shared/components/SingleStat'
-import timeSeriesToDygraph from 'utils/timeSeriesTransformers'
+import {timeSeriesToDygraph} from 'utils/timeSeriesTransformers'
 
 import {colorsStringSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
