@@ -3,8 +3,8 @@ influxd-restore(1)
 
 NAME
 ----
-influxd-restore - Restores databases or specific shards to an InfluxDB OSS instance 
-  from the specified PATH. Complete documentation 
+influxd-restore - Restores databases or specific shards to an InfluxDB OSS instance
+  from the specified PATH. Complete documentation
   for the '-portable' restore method described here, and the deprecated legacy restore format,
   is located here:
     https://docs.influxdata.com/influxdb/latest/administration/backup_and_restore/
@@ -16,13 +16,13 @@ SYNOPSIS
 
 DESCRIPTION
 -----------
-Uses backup copies from the specified PATH to restore databases or or specific shards from InfluxDB OSS
+Uses backup copies from the specified PATH to restore databases or specific shards from InfluxDB OSS
   or InfluxDB Enterprise to an InfluxDB OSS instance.
 
 OPTIONS
 -------
 
-Note: Restore using the '-portable' option consumes files in an improved Enterprise-compatible 
+Note: Restore using the '-portable' option consumes files in an improved Enterprise-compatible
   format that includes a file manifest.
 
 -portable::
@@ -43,10 +43,10 @@ Note: Restore using the '-portable' option consumes files in an improved Enterpr
 
 -newrp <newrp_name>::
   Name of the retention policy to be created on the target system. Optional. Requires that '-rp <rp_name>' is set.
-	  If not given, the '-rp <rp_name>' value is used.
+  If not given, the '-rp <rp_name>' value is used.
 
 -shard <shard_id>::
-  Identifier of the shard to be restored. Optional. If specified, then '-db <db_name>' and '-rp <rp_name>' are required..
+  Identifier of the shard to be restored. Optional. If specified, then '-db <db_name>' and '-rp <rp_name>' are required.
 
 PATH
   Path to directory containing the backup files.

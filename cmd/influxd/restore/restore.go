@@ -565,52 +565,36 @@ func (cmd *Command) unpackTar(tarFile string) error {
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stdout, `
-Uses backups from the PATH to restore the metastore, databases, retention policies, or specific shards.
-The backward-compatible legacy mode requires the instance to be stopped before running, and will wipe all 
-databases from the system (e.g., for disaster recovery).  The improved online and portable modes require 
-the instance to be running, and the database name used must not already exist.
+Uses backup copies from the specified PATH to restore databases or specific shards from InfluxDB OSS
+  or InfluxDB Enterprise to an InfluxDB OSS instance.
 
-Usage: influxd restore [-portable] [flags] PATH
+Usage: influxd restore -portable [options] PATH
 
-The -portable restore mode consumes files in an improved format that includes a file manifest.
+Note: Restore using the '-portable' option consumes files in an improved Enterprise-compatible 
+  format that includes a file manifest.
 
 Options:
     -portable 
-            Required to activate portable restore mode.  
+            Required to activate the portable restore mode. If not specified, the legacy restore mode is used.
     -host  <host:port>
-            The host to connect to where the data will be restored. Defaults to '127.0.0.1:8088'.
+            InfluxDB OSS host to connect to where the data will be restored. Defaults to '127.0.0.1:8088'.
     -db    <name>
-            Identifies the database from the backup that will be restored.
+            Name of database to be restored from the backup (InfluxDB OSS or InfluxDB Enterprise)
     -newdb <name>
-            The name of the database into which the archived data will be imported on the target system.
-            If not given, then the value of -db is used.  The new database name must be unique to the target system.
+            Name of the InfluxDB OSS database into which the archived data will be imported on the target system. 
+            Optional. If not given, then the value of '-db <db_name>' is used.  The new database name must be unique 
+            to the target system.
     -rp    <name>
-            Identifies the retention policy from the backup that will be restored.  Requires that -db is set.
+            Name of retention policy from the backup that will be restored. Optional. 
+            Requires that '-db <db_name>' is specified.
     -newrp <name>
-            The name of the retention policy that will be created on the target system. Requires that -rp is set.
-            If not given, the value of -rp is used.
+            Name of the retention policy to be created on the target system. Optional. Requires that '-rp <rp_name>' 
+            is set. If not given, the '-rp <rp_name>' value is used.
     -shard <id>
-            Optional.  If given, -db and -rp are required.  Will restore the single shard's data.
-
-The legacy mode consumes files in an OSS only file format. PATH is a directory containing the backup data
-
-Options:
-    -metadir <path>
-            Optional. If set the metastore will be recovered to the given path.
-    -datadir <path>
-            Optional. If set the restore process will recover the specified
-            database, retention policy or shard to the given directory.
-    -database <name>
-            Optional. Required if no metadir given. Will restore a single database's data.
-    -retention <name>
-            Optional. If given, -database is required. Will restore the retention policy's
-            data.
-    -shard <id>
-            Optional. If given, -database and -retention are required. Will restore the shard's
-            data.
-    -online
-            Optional. If given, the restore will be done using the new process, detailed above.  Arguments -metadir
-            and -datadir are ignored.  
+            Identifier of the shard to be restored. Optional. If specified, then '-db <db_name>' and '-rp <rp_name>' are
+            required.
+    PATH
+            Path to directory containing the backup files.
 
 `)
 }

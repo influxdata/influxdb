@@ -588,29 +588,33 @@ func (cmd *Command) requestInfo(request *snapshotter.Request) (*snapshotter.Resp
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stdout, `
-Downloads a snapshot of a data node and saves it to disk. NOTE: newer versions of influxd are 
-not compatible with older versions.  When running the backup, be sure to use the same version 
-of the influxd binary as the server that you are backing up.  
+Creates a backup copy of specified InfluxDB OSS database(s) and saves the files in an Enterprise-compatible
+format to PATH (directory where backups are saved). 
 
-Usage: influxd backup [flags] PATH
+Usage: influxd backup [options] PATH
 
     -portable
-            Generate backup files in a format that is portable between different influxdb products.
+            Required to generate backup files in a portable format that can be restored to InfluxDB OSS or InfluxDB 
+            Enterprise. Use unless the legacy backup is required.
     -host <host:port>
-            The host to connect to that will be backed up. Defaults to 127.0.0.1:8088.
+            InfluxDB OSS host to back up from. Optional. Defaults to 127.0.0.1:8088.
     -db <name>
-            The database to backup.
+            InfluxDB OSS database name to back up. Optional. If not specified, all databases are backed up when 
+            using '-portable'.
     -rp <name>
-            Optional. The retention policy to backup.
+            Retention policy to use for the backup. Optional. If not specified, all retention policies are used by 
+            default.
     -shard <id>
-            Optional. The shard id to backup. If specified, retention is required.
+            The identifier of the shard to back up. Optional. If specified, '-rp <rp_name>' is required.
     -start <2015-12-24T08:12:23Z>
-            All points earlier than this time stamp will be excluded from the export. Not compatible with -since.
+            Include all points starting with specified timestamp (RFC3339 format). 
+            Not compatible with '-since <timestamp>'.
     -end <2015-12-24T08:12:23Z>
-            All points later than this time stamp will be excluded from the export. Not compatible with -since.
+            Exclude all points after timestamp (RFC3339 format). 
+            Not compatible with '-since <timestamp>'.
     -since <2015-12-24T08:12:23Z>
-            Optional. Do an incremental backup since the passed in RFC3339
-            formatted time.  Not compatible with -start or -end.
+            Create an incremental backup of all points after the timestamp (RFC3339 format). Optional. 
+            Recommend using '-start <timestamp>' instead.
 `)
 
 }
