@@ -19,7 +19,6 @@ import (
 type Command struct {
 	Stderr io.Writer
 	Stdout io.Writer
-	Logger *zap.Logger
 }
 
 // NewCommand returns a new instance of Command.
@@ -27,7 +26,6 @@ func NewCommand() *Command {
 	return &Command{
 		Stderr: os.Stderr,
 		Stdout: os.Stdout,
-		Logger: zap.NewNop(),
 	}
 }
 
@@ -43,7 +41,6 @@ func (cmd *Command) Run(args ...string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cmd.Logger = logger.New(cmd.Stderr)
 
 	return cmd.run(*dataDir, *dbPath, *filePath)
 }
@@ -52,10 +49,12 @@ func (cmd *Command) Run(args ...string) error {
 // and then a dataDir.
 func (cmd *Command) run(dataDir, dbPath, filePath string) error {
 	if filePath != "" {
-		return cmd.runFile(filePath)
+		_, err := cmd.runFile(filePath)
+		return err
 	}
 	if dbPath != "" {
-		return cmd.runFile(filepath.Join(dbPath, "_series"))
+		_, err := cmd.runFile(filepath.Join(dbPath, "_series"))
+		return err
 	}
 
 	dbs, err := ioutil.ReadDir(filepath.Join(dataDir, "data"))
@@ -67,7 +66,7 @@ func (cmd *Command) run(dataDir, dbPath, filePath string) error {
 		if !db.IsDir() {
 			continue
 		}
-		err := cmd.runFile(filepath.Join(dataDir, "data", db.Name(), "_series"))
+		_, err := cmd.runFile(filepath.Join(dataDir, "data", db.Name(), "_series"))
 		if err != nil {
 			return err
 		}
@@ -79,24 +78,25 @@ func (cmd *Command) run(dataDir, dbPath, filePath string) error {
 // runFile performs validations on a series file. The error is only returned if
 // there was some fatal problem with operating, not if there was a problem with
 // the series file.
-func (cmd *Command) runFile(filePath string) error {
+func (cmd *Command) runFile(filePath string) (valid bool, err error) {
+	logger := logger.New(cmd.Stderr).With(zap.String("path", filePath))
+	logger.Info("starting validation")
+
 	defer func() {
 		if rec := recover(); rec != nil {
-			cmd.Logger.Error("panic validating file",
-				zap.String("path", filePath),
+			logger.Error("panic validating file",
 				zap.String("recovered", fmt.Sprint(rec)))
+			valid = false
 		}
 	}()
-	logger := cmd.Logger.With(zap.String("path", filePath))
-	logger.Info("starting validation")
 
 	partitionInfos, err := ioutil.ReadDir(filePath)
 	if os.IsNotExist(err) {
 		logger.Error("series file does not exist")
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// check every partition
@@ -107,7 +107,7 @@ func (cmd *Command) runFile(filePath string) error {
 
 		segmentInfos, err := ioutil.ReadDir(partitionPath)
 		if err != nil {
-			return err
+			return false, err
 		}
 		segments := make([]*tsdb.SeriesSegment, 0, len(segmentInfos))
 		ids := make(map[uint64]idData)
@@ -127,7 +127,7 @@ func (cmd *Command) runFile(filePath string) error {
 			segment := tsdb.NewSeriesSegment(segmentID, segmentPath)
 			if err := segment.Open(); err != nil {
 				sLogger.Error("opening segment", zap.Error(err))
-				return nil
+				return false, nil
 			}
 			defer segment.Close()
 
@@ -135,29 +135,38 @@ func (cmd *Command) runFile(filePath string) error {
 				sLogger.Error("iterating over segment",
 					zap.Int64("offset", offset),
 					zap.Error(err))
-				return nil
+				return false, nil
 			}
 
 			segments = append(segments, segment)
 		}
 
-		// validate the index
+		// validate the index if it exists
 		indexPath := filepath.Join(partitionPath, "index")
+		_, err = os.Stat(indexPath)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
 
 		pLogger.Info("validating index")
 
 		index := tsdb.NewSeriesIndex(indexPath)
 		if err := index.Open(); err != nil {
 			pLogger.Error("opening index", zap.Error(err))
-			return nil
+			return false, nil
 		}
 		defer index.Close()
 
 		if err := index.Recover(segments); err != nil {
 			pLogger.Error("recovering index", zap.Error(err))
+			return false, nil
 		}
 
-		// we check all the ids in a consistent order to get the same errors if there is a problem
+		// we check all the ids in a consistent order to get the same errors if
+		// there is a problem
 		idsList := make([]uint64, 0, len(ids))
 		for id := range ids {
 			idsList = append(idsList, id)
@@ -175,26 +184,27 @@ func (cmd *Command) runFile(filePath string) error {
 				expectedOffset, expectedID = 0, 0
 			}
 
-			// check both that the offset is right and that we get the right id for the key
+			// check both that the offset is right and that we get the right
+			// id for the key
 
 			if gotOffset := index.FindOffsetByID(id); gotOffset != expectedOffset {
 				idLogger.Error("index inconsistency",
 					zap.Int64("got_offset", gotOffset),
 					zap.Int64("expected_offset", expectedOffset))
-				return nil
+				return false, nil
 			}
 
 			if gotID := index.FindIDBySeriesKey(segments, idData.key); gotID != expectedID {
 				idLogger.Error("index inconsistency",
 					zap.Uint64("got_id", gotID),
 					zap.Uint64("expected_id", expectedID))
-				return nil
+				return false, nil
 			}
 		}
 	}
 
 	logger.Info("validation passed")
-	return nil
+	return true, nil
 }
 
 // idData keeps track of data about a series ID.
