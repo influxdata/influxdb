@@ -122,14 +122,16 @@ class SideNav extends PureComponent<Props> {
           <NavBlock
             highlightWhen={['admin-chronograf', 'admin-influxdb']}
             icon="crown2"
-            link={`${sourcePrefix}/admin-chronograf`}
+            link={`${sourcePrefix}/admin-chronograf/current-organization`}
             location={location}
           >
             <NavHeader
-              link={`${sourcePrefix}/admin-chronograf`}
+              link={`${sourcePrefix}/admin-chronograf/current-organization`}
               title="Admin"
             />
-            <NavListItem link={`${sourcePrefix}/admin-chronograf`}>
+            <NavListItem
+              link={`${sourcePrefix}/admin-chronograf/current-organization`}
+            >
               Chronograf
             </NavListItem>
             <NavListItem link={`${sourcePrefix}/admin-influxdb/databases`}>
@@ -163,9 +165,7 @@ class SideNav extends PureComponent<Props> {
 
 const mapStateToProps = ({
   auth: {isUsingAuth, logoutLink, me},
-  app: {
-    ephemeral: {inPresentationMode},
-  },
+  app: {ephemeral: {inPresentationMode}},
   links,
 }) => ({
   isHidden: inPresentationMode,
