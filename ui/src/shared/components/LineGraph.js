@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import Dygraph from 'shared/components/Dygraph'
@@ -9,15 +10,36 @@ import {colorsStringSchema} from 'shared/schemas'
 import {ErrorHandlingWith} from 'src/shared/decorators/errors'
 import InvalidData from 'src/shared/components/InvalidData'
 
+const validateTimeSeries = timeseries => {
+  return _.every(timeseries, r =>
+    _.every(r, (v, i) => {
+      if (i === 0) {
+        return true
+      }
+      return _.isNumber(v) || _.isNull(v)
+    })
+  )
+}
 @ErrorHandlingWith(InvalidData)
 class LineGraph extends Component {
   constructor(props) {
     super(props)
+    this.invalidData = false
   }
 
   componentWillMount() {
     const {data, isInDataExplorer} = this.props
+    this.parseTimeSeries(data, isInDataExplorer)
+  }
+
+  parseTimeSeries(data, isInDataExplorer) {
     this._timeSeries = timeSeriesToDygraph(data, isInDataExplorer)
+    const valid = validateTimeSeries(_.get(this._timeSeries, 'timeSeries', []))
+    if (valid) {
+      this.invalidData = false
+    } else {
+      this.invalidData = true
+    }
   }
 
   componentWillUpdate(nextProps) {
@@ -26,14 +48,15 @@ class LineGraph extends Component {
       data !== nextProps.data ||
       activeQueryIndex !== nextProps.activeQueryIndex
     ) {
-      this._timeSeries = timeSeriesToDygraph(
-        nextProps.data,
-        nextProps.isInDataExplorer
-      )
+      this.parseTimeSeries(nextProps.data, nextProps.isInDataExplorer)
     }
   }
 
   render() {
+    if (this.invalidData) {
+      return <InvalidData />
+    }
+
     const {
       data,
       axes,
