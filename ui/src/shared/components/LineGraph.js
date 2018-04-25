@@ -12,19 +12,17 @@ import InvalidData from 'src/shared/components/InvalidData'
 
 const validateTimeSeries = timeseries => {
   return _.every(timeseries, r =>
-    _.every(r, (v, i) => {
-      if (i === 0) {
-        return true
-      }
-      return _.isNumber(v) || _.isNull(v)
-    })
+    _.every(
+      r,
+      (v, i) => (i === 0 && Date.parse(v)) || _.isNumber(v) || _.isNull(v)
+    )
   )
 }
 @ErrorHandlingWith(InvalidData)
 class LineGraph extends Component {
   constructor(props) {
     super(props)
-    this.invalidData = false
+    this.isValidData = true
   }
 
   componentWillMount() {
@@ -34,12 +32,9 @@ class LineGraph extends Component {
 
   parseTimeSeries(data, isInDataExplorer) {
     this._timeSeries = timeSeriesToDygraph(data, isInDataExplorer)
-    const valid = validateTimeSeries(_.get(this._timeSeries, 'timeSeries', []))
-    if (valid) {
-      this.invalidData = false
-    } else {
-      this.invalidData = true
-    }
+    this.isValidData = validateTimeSeries(
+      _.get(this._timeSeries, 'timeSeries', [])
+    )
   }
 
   componentWillUpdate(nextProps) {
@@ -53,7 +48,7 @@ class LineGraph extends Component {
   }
 
   render() {
-    if (this.invalidData) {
+    if (!this.isValidData) {
       return <InvalidData />
     }
 
