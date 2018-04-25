@@ -45,7 +45,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       ast: null,
       suggestions: [],
       script:
-        'foo = "baz"\n\nfoo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nbar = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
+        'baz = "baz"\n\nfoo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nbar = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
     }
   }
 
@@ -234,7 +234,9 @@ export class IFQLPage extends PureComponent<Props, State> {
     declarationID: string
   ): void => {
     const script = this.state.body.reduce((acc, body) => {
-      if (body.id === bodyID) {
+      const {id, source, funcs} = body
+
+      if (id === bodyID) {
         const declaration = body.declarations.find(d => d.id === declarationID)
         if (declaration) {
           return `${acc}${declaration.name} = ${this.appendFunc(
@@ -243,10 +245,10 @@ export class IFQLPage extends PureComponent<Props, State> {
           )}`
         }
 
-        return `${acc}${this.appendFunc(body.funcs, name)}`
+        return `${acc}${this.appendFunc(funcs, name)}`
       }
 
-      return `${acc}${body.source}`
+      return `${acc}${this.formatSource(source)}`
     }, '')
 
     this.getASTResponse(script)
@@ -262,7 +264,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     const script = this.state.body
       .map((body, bodyIndex) => {
         if (body.id !== bodyID) {
-          return body.source
+          return this.formatSource(body.source)
         }
 
         const isLast = bodyIndex === this.state.body.length - 1
@@ -278,22 +280,36 @@ export class IFQLPage extends PureComponent<Props, State> {
 
           const functions = declaration.funcs.filter(f => f.id !== funcID)
           const s = this.funcsToSource(functions)
-          return `${declaration.name} = ${this.parseLastSource(s, isLast)}`
+          return `${declaration.name} = ${this.formatLastSource(s, isLast)}`
         }
 
         const funcs = body.funcs.filter(f => f.id !== funcID)
         const source = this.funcsToSource(funcs)
-        return this.parseLastSource(source, isLast)
+        return this.formatLastSource(source, isLast)
       })
       .join('')
 
     this.getASTResponse(script)
   }
 
+  private formatSource = (source: string): string => {
+    // currently a bug in the AST which does not add newlines to literal variable assignment bodies
+    if (!source.match(/\n\n/)) {
+      return `${source}\n\n`
+    }
+
+    return `${source}`
+  }
+
   // formats the last line of a body string to include two new lines
-  private parseLastSource = (source: string, isLast: boolean): string => {
+  private formatLastSource = (source: string, isLast: boolean): string => {
     if (isLast) {
       return `${source}`
+    }
+
+    // currently a bug in the AST which does not add newlines to literal variable assignment bodies
+    if (!source.match(/\n\n/)) {
+      return `${source}\n\n`
     }
 
     return `${source}\n\n`
