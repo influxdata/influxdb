@@ -165,7 +165,9 @@ class SideNav extends PureComponent<Props> {
 
 const mapStateToProps = ({
   auth: {isUsingAuth, logoutLink, me},
-  app: {ephemeral: {inPresentationMode}},
+  app: {
+    ephemeral: {inPresentationMode},
+  },
   links,
 }) => ({
   isHidden: inPresentationMode,
