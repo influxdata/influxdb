@@ -1,4 +1,4 @@
-package verify_seriesfile
+package seriesfile
 
 import (
 	"fmt"

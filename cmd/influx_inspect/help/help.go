@@ -39,7 +39,7 @@ The commands are:
     help                 display this help message
     report               displays a shard level report
     verify               verifies integrity of TSM files
-    verify-seriesfile    verifies integrity of the Series File
+    verify-seriesfile    verifies integrity of the Series file
 
 "help" is the default command.
 

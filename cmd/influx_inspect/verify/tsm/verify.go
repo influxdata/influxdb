@@ -1,5 +1,5 @@
-// Package verify verifies integrity of TSM files.
-package verify
+// Package tsm verifies integrity of TSM files.
+package tsm
 
 import (
 	"flag"
