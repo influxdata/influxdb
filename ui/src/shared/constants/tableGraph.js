@@ -5,10 +5,13 @@ export const NULL_HOVER_TIME = '0'
 export const TIME_FORMAT_TOOLTIP_LINK =
   'http://momentjs.com/docs/#/parsing/string-format/'
 
+export const DEFAULT_PRECISION = 0
+
 export const TIME_FIELD_DEFAULT = {
   internalName: 'time',
   displayName: '',
   visible: true,
+  precision: DEFAULT_PRECISION,
 }
 
 export const ASCENDING = 'asc'

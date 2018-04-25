@@ -185,7 +185,9 @@ export const testAlertOutput = async (kapacitor, outputName) => {
 
 export const getAllServices = async kapacitor => {
   try {
-    const {data: {services}} = await kapacitorProxy(kapacitor, 'GET','/kapacitor/v1/service-tests')
+    const {
+      data: {services},
+    } = await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests')
     return services
   } catch (error) {
     console.error(error)

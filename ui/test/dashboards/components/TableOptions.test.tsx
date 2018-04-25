@@ -12,12 +12,14 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 
 const defaultProps = {
   handleUpdateTableOptions: () => {},
+  handleUpdateFieldOptions: () => {},
+  handleChangeTimeFormat: () => {},
   onResetFocus: () => {},
   queryConfigs: [],
   tableOptions: {
     columnNames: [],
     fixFirstColumn: true,
-    sortBy: {displayName: '', internalName: '', visible: true},
+    sortBy: {displayName: '', internalName: '', visible: true, precision: 0},
     verticalTimeAxis: true,
   },
   fieldOptions: [],

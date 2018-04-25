@@ -65,9 +65,16 @@ export const updateLineColors = lineColors => ({
   },
 })
 
-export const updateDisplayOptions = update => ({
-  type: 'UPDATE_DISPLAY_OPTIONS',
+export const changeTimeFormat = timeFormat => ({
+  type: 'CHANGE_TIME_FORMAT',
   payload: {
-    update,
+    timeFormat,
+  },
+})
+
+export const updateFieldOptions = fieldOptions => ({
+  type: 'UPDATE_FIELD_OPTIONS',
+  payload: {
+    fieldOptions,
   },
 })

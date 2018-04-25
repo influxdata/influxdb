@@ -16,13 +16,14 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 
 import {
   updateTableOptions,
-  updateDisplayOptions,
+  updateFieldOptions,
+  changeTimeFormat,
 } from 'src/dashboards/actions/cellEditorOverlay'
 import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
 import {QueryConfig} from 'src/types/query'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Option {
+interface DropdownOption {
   text: string
   key: string
 }
@@ -31,9 +32,10 @@ interface RenamableField {
   internalName: string
   displayName: string
   visible: boolean
+  precision: number
 }
 
-interface Options {
+interface TableOptionsInterface {
   verticalTimeAxis: boolean
   sortBy: RenamableField
   fixFirstColumn: boolean
@@ -41,9 +43,10 @@ interface Options {
 
 interface Props {
   queryConfigs: QueryConfig[]
-  handleUpdateTableOptions: (options: Options) => void
-  handleUpdateDisplayOptions: (displayOption: string | RenamableField[]) => void
-  tableOptions: Options
+  handleUpdateTableOptions: (options: TableOptionsInterface) => void
+  handleUpdateFieldOptions: (fieldOptions: RenamableField[]) => void
+  handleChangeTimeFormat: (timeFormat: string) => void
+  tableOptions: TableOptionsInterface
   fieldOptions: RenamableField[]
   timeFormat: string
   onResetFocus: () => void
@@ -111,37 +114,33 @@ export class TableOptions extends Component<Props, {}> {
   }
 
   private moveField(dragIndex, hoverIndex) {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const {fieldNames} = tableOptions
-    const dragField = fieldNames[dragIndex]
-    const removedFields = _.concat(
-      _.slice(fieldNames, 0, dragIndex),
-      _.slice(fieldNames, dragIndex + 1)
+    const {handleUpdateFieldOptions, fieldOptions} = this.props
+
+    const draggedField = fieldOptions[dragIndex]
+
+    const fieldOptionsRemoved = _.concat(
+      _.slice(fieldOptions, 0, dragIndex),
+      _.slice(fieldOptions, dragIndex + 1)
     )
-    const addedFields = _.concat(
-      _.slice(removedFields, 0, hoverIndex),
-      [dragField],
-      _.slice(removedFields, hoverIndex)
+
+    const fieldOptionsAdded = _.concat(
+      _.slice(fieldOptionsRemoved, 0, hoverIndex),
+      [draggedField],
+      _.slice(fieldOptionsRemoved, hoverIndex)
     )
-    handleUpdateDisplayOptions({
-      fieldOptions: addedFields,
-    })
+
+    handleUpdateFieldOptions(fieldOptionsAdded)
   }
 
-  private handleChooseSortBy = (option: Option) => {
-    const {tableOptions, handleUpdateTableOptions} = this.props
-    const sortBy = {
-      displayName: option.text === option.key ? '' : option.text,
-      internalName: option.key,
-      visible: true,
-    }
-
+  private handleChooseSortBy = (option: DropdownOption) => {
+    const {tableOptions, handleUpdateTableOptions, fieldOptions} = this.props
+    const sortBy = fieldOptions.find(f => f.internalName === option.key)
     handleUpdateTableOptions({...tableOptions, sortBy})
   }
 
   private handleTimeFormatChange = timeFormat => {
-    const {handleUpdateDisplayOptions} = this.props
-    handleUpdateDisplayOptions({timeFormat})
+    const {handleChangeTimeFormat} = this.props
+    handleChangeTimeFormat(timeFormat)
   }
 
   private handleToggleVerticalTimeAxis = verticalTimeAxis => () => {
@@ -158,32 +157,31 @@ export class TableOptions extends Component<Props, {}> {
   private handleFieldUpdate = field => {
     const {
       handleUpdateTableOptions,
-      handleUpdateDisplayOptions,
+      handleUpdateFieldOptions,
       tableOptions,
       fieldOptions,
     } = this.props
     const {sortBy} = tableOptions
-    const updatedFields = fieldOptions.map(
+
+    const updatedFieldOptions = fieldOptions.map(
       f => (f.internalName === field.internalName ? field : f)
     )
-    const updatedSortBy =
-      sortBy.internalName === field.internalName
-        ? {...sortBy, displayName: field.displayName}
-        : sortBy
 
-    handleUpdateTableOptions({
-      ...tableOptions,
-      sortBy: updatedSortBy,
-    })
-    handleUpdateDisplayOptions({
-      fieldOptions: updatedFields,
-    })
+    if (sortBy.internalName === field.internalName) {
+      const updatedSortBy = {...sortBy, displayName: field.displayName}
+      handleUpdateTableOptions({
+        ...tableOptions,
+        sortBy: updatedSortBy,
+      })
+    }
+
+    handleUpdateFieldOptions(updatedFieldOptions)
   }
 }
 
 const mapStateToProps = ({
   cellEditorOverlay: {
-    cell: {tableOptions},
+    cell: {tableOptions, timeFormat, fieldOptions},
   },
 }) => ({
   tableOptions,
@@ -193,10 +191,8 @@ const mapStateToProps = ({
 
 const mapDispatchToProps = dispatch => ({
   handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
-  handleUpdateDisplayOptions: bindActionCreators(
-    updateDisplayOptions,
-    dispatch
-  ),
+  handleUpdateFieldOptions: bindActionCreators(updateFieldOptions, dispatch),
+  handleChangeTimeFormat: bindActionCreators(changeTimeFormat, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

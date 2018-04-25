@@ -6,6 +6,7 @@ import {
   CELL_HORIZONTAL_PADDING,
   TIME_FIELD_DEFAULT,
   DEFAULT_TIME_FORMAT,
+  DEFAULT_PRECISION,
 } from 'src/shared/constants/tableGraph'
 
 const calculateTimeColumnWidth = timeFormat => {
@@ -30,7 +31,7 @@ const updateMaxWidths = (
   maxColumnWidths,
   topRow,
   isTopRow,
-  fieldNames,
+  fieldOptions,
   timeFormatWidth,
   verticalTimeAxis
 ) => {
@@ -41,7 +42,7 @@ const updateMaxWidths = (
         (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
 
       const foundField = isLabel
-        ? fieldNames.find(field => field.internalName === col)
+        ? fieldOptions.find(field => field.internalName === col)
         : undefined
       const colValue =
         foundField && foundField.displayName ? foundField.displayName : `${col}`
@@ -77,23 +78,28 @@ const updateMaxWidths = (
   )
 }
 
-export const computeFieldNames = (existingFieldNames, sortedLabels) => {
+export const computeFieldOptions = (existingFieldOptions, sortedLabels) => {
   const timeField =
-    existingFieldNames.find(f => f.internalName === 'time') ||
+    existingFieldOptions.find(f => f.internalName === 'time') ||
     TIME_FIELD_DEFAULT
   let astNames = [timeField]
 
   sortedLabels.forEach(({label}) => {
-    const field = {internalName: label, displayName: '', visible: true}
+    const field = {
+      internalName: label,
+      displayName: '',
+      visible: true,
+      precision: DEFAULT_PRECISION,
+    }
     astNames = [...astNames, field]
   })
 
-  const intersection = existingFieldNames.filter(f => {
+  const intersection = existingFieldOptions.filter(f => {
     return astNames.find(a => a.internalName === f.internalName)
   })
 
   const newFields = astNames.filter(a => {
-    return !existingFieldNames.find(f => f.internalName === a.internalName)
+    return !existingFieldOptions.find(f => f.internalName === a.internalName)
   })
 
   return [...intersection, ...newFields]
@@ -101,7 +107,7 @@ export const computeFieldNames = (existingFieldNames, sortedLabels) => {
 
 export const calculateColumnWidths = (
   data,
-  fieldNames,
+  fieldOptions,
   timeFormat,
   verticalTimeAxis
 ) => {
@@ -116,7 +122,7 @@ export const calculateColumnWidths = (
         acc,
         data[0],
         r === 0,
-        fieldNames,
+        fieldOptions,
         timeFormatWidth,
         verticalTimeAxis
       )
@@ -125,12 +131,14 @@ export const calculateColumnWidths = (
   )
 }
 
-export const filterTableColumns = (data, fieldNames) => {
+export const filterTableColumns = (data, fieldOptions) => {
   const visibility = {}
   const filteredData = map(data, (row, i) => {
     return filter(row, (col, j) => {
       if (i === 0) {
-        const foundField = fieldNames.find(field => field.internalName === col)
+        const foundField = fieldOptions.find(
+          field => field.internalName === col
+        )
         visibility[j] = foundField ? foundField.visible : true
       }
       return visibility[j]
@@ -139,10 +147,10 @@ export const filterTableColumns = (data, fieldNames) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
-export const orderTableColumns = (data, fieldNames) => {
-  const fieldsSortOrder = fieldNames.map(fieldName => {
+export const orderTableColumns = (data, fieldOptions) => {
+  const fieldsSortOrder = fieldOptions.map(fieldOption => {
     return _.findIndex(data[0], dataLabel => {
-      return dataLabel === fieldName.internalName
+      return dataLabel === fieldOption.internalName
     })
   })
   const filteredFieldSortOrder = filter(fieldsSortOrder, f => f !== -1)
@@ -152,20 +160,26 @@ export const orderTableColumns = (data, fieldNames) => {
   return orderedData[0].length ? orderedData : [[]]
 }
 
-export const transformTableData = (data, sort, fieldNames, tableOptions) => {
-  const {verticalTimeAxis, timeFormat} = tableOptions
+export const transformTableData = (
+  data,
+  sort,
+  fieldOptions,
+  tableOptions,
+  timeFormat
+) => {
+  const {verticalTimeAxis} = tableOptions
   const sortIndex = _.indexOf(data[0], sort.field)
   const sortedData = [
     data[0],
     ..._.orderBy(_.drop(data, 1), sortIndex, [sort.direction]),
   ]
   const sortedTimeVals = map(sortedData, r => r[0])
-  const filteredData = filterTableColumns(sortedData, fieldNames)
-  const orderedData = orderTableColumns(filteredData, fieldNames)
+  const filteredData = filterTableColumns(sortedData, fieldOptions)
+  const orderedData = orderTableColumns(filteredData, fieldOptions)
   const transformedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
   const {widths: columnWidths, totalWidths} = calculateColumnWidths(
     transformedData,
-    fieldNames,
+    fieldOptions,
     timeFormat,
     verticalTimeAxis
   )

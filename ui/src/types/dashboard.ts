@@ -18,6 +18,7 @@ interface FieldName {
   internalName: string
   displayName: string
   visible: boolean
+  precision: number
 }
 
 interface TableOptions {
@@ -26,7 +27,6 @@ interface TableOptions {
   sortBy: FieldName
   wrapping: string
   fixFirstColumn: boolean
-  fieldNames: FieldName[]
 }
 
 interface CellLinks {
@@ -55,6 +55,7 @@ export interface Cell {
   axes: Axes
   colors: ColorString[]
   tableOptions: TableOptions
+  fieldOptions: FieldName[]
   links: CellLinks
   legend: Legend
 }
