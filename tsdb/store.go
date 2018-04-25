@@ -322,7 +322,7 @@ func (s *Store) loadShards() error {
 					}
 
 					resC <- &res{s: shard}
-					log.Info("Opened shard", zap.String("path", path), zap.Duration("duration", time.Since(start)))
+					log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
 				}(db.Name(), rp.Name(), sh.Name())
 			}
 		}

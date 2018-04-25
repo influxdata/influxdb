@@ -366,18 +366,21 @@ func (s *Shard) close() error {
 	return err
 }
 
+// IndexType returns the index version being used for this shard.
+//
+// IndexType returns the empty string if it is called before the shard is opened,
+// since it is only that point that the underlying index type is known.
 func (s *Shard) IndexType() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if err := s.ready(); err != nil {
+	if s._engine == nil || s.index == nil { // Shard not open yet.
 		return ""
 	}
-
 	return s.index.Type()
 }
 
 // ready determines if the Shard is ready for queries or writes.
-// It returns nil if ready, otherwise ErrShardClosed or ErrShardDiabled
+// It returns nil if ready, otherwise ErrShardClosed or ErrShardDisabled
 func (s *Shard) ready() error {
 	var err error
 	if s._engine == nil {
