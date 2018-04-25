@@ -87,10 +87,10 @@ VERIFY OPTIONS
 VERIFY-SERIESFILE OPTIONS
 --------------
 -dir <path>::
-  Root storage path. Defaults to '~/.influxdb'.
+  Root data storage path. Defaults to '~/.influxdb/data'.
 
--db <path>::
-  Path to a specific db to check. Overrides '-dir'. Optional.
+-db <name>::
+  Which db to check. Optional.
 
 -file <path>::
   Path to a specific series file to check. Overrides '-dir' and '-db'. Optional.
