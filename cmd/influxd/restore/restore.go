@@ -134,12 +134,15 @@ func (cmd *Command) parseFlags(args []string) error {
 	fs.StringVar(&cmd.host, "host", "localhost:8088", "")
 	fs.StringVar(&cmd.metadir, "metadir", "", "")
 	fs.StringVar(&cmd.datadir, "datadir", "", "")
-	fs.StringVar(&cmd.destinationDatabase, "database", "", "")
-	fs.StringVar(&cmd.restoreRetention, "retention", "", "")
+
+	fs.StringVar(&cmd.sourceDatabase, "database", "", "")
 	fs.StringVar(&cmd.sourceDatabase, "db", "", "")
 	fs.StringVar(&cmd.destinationDatabase, "newdb", "", "")
+
+	fs.StringVar(&cmd.backupRetention, "retention", "", "")
 	fs.StringVar(&cmd.backupRetention, "rp", "", "")
 	fs.StringVar(&cmd.restoreRetention, "newrp", "", "")
+
 	fs.Uint64Var(&cmd.shard, "shard", 0, "")
 	fs.BoolVar(&cmd.online, "online", false, "")
 	fs.BoolVar(&cmd.portable, "portable", false, "")
@@ -381,26 +384,6 @@ func (cmd *Command) updateMetaLegacy() error {
 	return err
 }
 
-// unpackShard will look for all backup files in the path matching this shard ID
-// and restore them to the data dir
-func (cmd *Command) unpackShard(shard uint64) error {
-	shardID := strconv.FormatUint(shard, 10)
-	// make sure the shard isn't already there so we don't clobber anything
-	restorePath := filepath.Join(cmd.datadir, cmd.destinationDatabase, cmd.restoreRetention, shardID)
-	if _, err := os.Stat(restorePath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("shard already present: %s", restorePath)
-	}
-
-	id, err := strconv.ParseUint(shardID, 10, 64)
-	if err != nil {
-		return err
-	}
-
-	// find the shard backup files
-	pat := filepath.Join(cmd.backupFilesPath, fmt.Sprintf(backup_util.BackupFilePattern, cmd.destinationDatabase, cmd.restoreRetention, id))
-	return cmd.unpackFiles(pat + ".*")
-}
-
 func (cmd *Command) uploadShardsPortable() error {
 	for _, file := range cmd.manifestFiles {
 		if cmd.sourceDatabase == "" || cmd.sourceDatabase == file.Database {
@@ -493,13 +476,13 @@ func (cmd *Command) uploadShardsLegacy() error {
 // and restore them to the data dir
 func (cmd *Command) unpackDatabase() error {
 	// make sure the shard isn't already there so we don't clobber anything
-	restorePath := filepath.Join(cmd.datadir, cmd.destinationDatabase)
+	restorePath := filepath.Join(cmd.datadir, cmd.sourceDatabase)
 	if _, err := os.Stat(restorePath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("database already present: %s", restorePath)
 	}
 
 	// find the database backup files
-	pat := filepath.Join(cmd.backupFilesPath, cmd.destinationDatabase)
+	pat := filepath.Join(cmd.backupFilesPath, cmd.sourceDatabase)
 	return cmd.unpackFiles(pat + ".*")
 }
 
@@ -507,14 +490,34 @@ func (cmd *Command) unpackDatabase() error {
 // and restore them to the data dir
 func (cmd *Command) unpackRetention() error {
 	// make sure the shard isn't already there so we don't clobber anything
-	restorePath := filepath.Join(cmd.datadir, cmd.destinationDatabase, cmd.restoreRetention)
+	restorePath := filepath.Join(cmd.datadir, cmd.sourceDatabase, cmd.backupRetention)
 	if _, err := os.Stat(restorePath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("retention already present: %s", restorePath)
 	}
 
 	// find the retention backup files
-	pat := filepath.Join(cmd.backupFilesPath, cmd.destinationDatabase)
-	return cmd.unpackFiles(fmt.Sprintf("%s.%s.*", pat, cmd.restoreRetention))
+	pat := filepath.Join(cmd.backupFilesPath, cmd.sourceDatabase)
+	return cmd.unpackFiles(fmt.Sprintf("%s.%s.*", pat, cmd.backupRetention))
+}
+
+// unpackShard will look for all backup files in the path matching this shard ID
+// and restore them to the data dir
+func (cmd *Command) unpackShard(shard uint64) error {
+	shardID := strconv.FormatUint(shard, 10)
+	// make sure the shard isn't already there so we don't clobber anything
+	restorePath := filepath.Join(cmd.datadir, cmd.sourceDatabase, cmd.backupRetention, shardID)
+	if _, err := os.Stat(restorePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("shard already present: %s", restorePath)
+	}
+
+	id, err := strconv.ParseUint(shardID, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	// find the shard backup files
+	pat := filepath.Join(cmd.backupFilesPath, fmt.Sprintf(backup_util.BackupFilePattern, cmd.sourceDatabase, cmd.backupRetention, id))
+	return cmd.unpackFiles(pat + ".*")
 }
 
 // unpackFiles will look for backup files matching the pattern and restore them to the data dir
@@ -562,49 +565,36 @@ func (cmd *Command) unpackTar(tarFile string) error {
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stdout, `
-Uses backups from the PATH to restore the metastore, databases, retention policies, or specific shards.
-Default mode requires the instance to be stopped before running, and will wipe all databases from the system
-(e.g., for disaster recovery).  The improved online and portable modes require the instance to be running,
-and the database name used must not already exist.
+Uses backup copies from the specified PATH to restore databases or specific shards from InfluxDB OSS
+  or InfluxDB Enterprise to an InfluxDB OSS instance.
 
-Usage: influxd restore [-portable] [flags] PATH
+Usage: influxd restore -portable [options] PATH
 
-The default mode consumes files in an OSS only file format. PATH is a directory containing the backup data
-
-Options:
-    -metadir <path>
-            Optional. If set the metastore will be recovered to the given path.
-    -datadir <path>
-            Optional. If set the restore process will recover the specified
-            database, retention policy or shard to the given directory.
-    -database <name>
-            Optional. Required if no metadir given. Will restore a single database's data.
-    -retention <name>
-            Optional. If given, -database is required. Will restore the retention policy's
-            data.
-    -shard <id>
-            Optional. If given, -database and -retention are required. Will restore the shard's
-            data.
-    -online
-            Optional. If given, the restore will be done using the new process, detailed below.  All other arguments
-            above should be omitted.
-
-The -portable restore mode consumes files in an improved format that includes a file manifest.
+Note: Restore using the '-portable' option consumes files in an improved Enterprise-compatible 
+  format that includes a file manifest.
 
 Options:
+    -portable 
+            Required to activate the portable restore mode. If not specified, the legacy restore mode is used.
     -host  <host:port>
-            The host to connect to and perform a snapshot of. Defaults to '127.0.0.1:8088'.
+            InfluxDB OSS host to connect to where the data will be restored. Defaults to '127.0.0.1:8088'.
     -db    <name>
-            Identifies the database from the backup that will be restored.
+            Name of database to be restored from the backup (InfluxDB OSS or InfluxDB Enterprise)
     -newdb <name>
-            The name of the database into which the archived data will be imported on the target system.
-            If not given, then the value of -db is used.  The new database name must be unique to the target system.
+            Name of the InfluxDB OSS database into which the archived data will be imported on the target system. 
+            Optional. If not given, then the value of '-db <db_name>' is used.  The new database name must be unique 
+            to the target system.
     -rp    <name>
-            Identifies the retention policy from the backup that will be restored.  Requires that -db is set.
+            Name of retention policy from the backup that will be restored. Optional. 
+            Requires that '-db <db_name>' is specified.
     -newrp <name>
-            The name of the retention policy that will be created on the target system. Requires that -rp is set.
-            If not given, the value of -rp is used.
+            Name of the retention policy to be created on the target system. Optional. Requires that '-rp <rp_name>' 
+            is set. If not given, the '-rp <rp_name>' value is used.
     -shard <id>
-            Optional.  If given, -db and -rp are required.  Will restore the single shard's data.
+            Identifier of the shard to be restored. Optional. If specified, then '-db <db_name>' and '-rp <rp_name>' are
+            required.
+    PATH
+            Path to directory containing the backup files.
+
 `)
 }
