@@ -2,8 +2,11 @@ import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
 
-const groupByMap = (responses, responseIndex, groupByColumns) => {
-  const firstColumns = _.get(responses, [0, 'series', 0, 'columns'])
+const groupByMap = (results, responseIndex, groupByColumns) => {
+  if (_.isEmpty(results)) {
+    return []
+  }
+  const firstColumns = _.get(results, [0, 'series', 0, 'columns'])
   const accum = [
     {
       responseIndex,
@@ -15,14 +18,14 @@ const groupByMap = (responses, responseIndex, groupByColumns) => {
             ...firstColumns.slice(1),
           ],
           groupByColumns,
-          name: _.get(responses, [0, 'series', 0, 'name']),
+          name: _.get(results, [0, 'series', 0, 'name']),
           values: [],
         },
       ],
     },
   ]
 
-  const seriesArray = _.get(responses, [0, 'series'])
+  const seriesArray = _.get(results, [0, 'series'])
   seriesArray.forEach(s => {
     const prevValues = accum[0].series[0].values
     const tagsToAdd = groupByColumns.map(gb => s.tags[gb])
@@ -35,13 +38,17 @@ const groupByMap = (responses, responseIndex, groupByColumns) => {
 const constructResults = (raw, groupBys) => {
   return _.flatten(
     map(raw, (response, index) => {
-      const responses = _.get(response, 'response.results', [])
+      const results = _.get(response, 'response.results', [])
+
+      const successfulResults = _.filter(
+        results,
+        r => !_.get(r, 'error', false)
+      )
 
       if (groupBys[index]) {
-        return groupByMap(responses, index, groupBys[index])
+        return groupByMap(successfulResults, index, groupBys[index])
       }
-
-      return map(responses, r => ({...r, responseIndex: index}))
+      return map(successfulResults, r => ({...r, responseIndex: index}))
     })
   )
 }
@@ -221,8 +228,8 @@ export const groupByTimeSeriesTransform = (raw, groupBys) => {
   if (!groupBys) {
     groupBys = Array(raw.length).fill(false)
   }
-  const results = constructResults(raw, groupBys)
 
+  const results = constructResults(raw, groupBys)
   const serieses = constructSerieses(results)
 
   const {cells, sortedLabels, seriesLabels} = constructCells(serieses)
