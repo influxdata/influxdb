@@ -10,6 +10,8 @@ import (
 	"github.com/influxdata/influxdb/services/subscriber"
 )
 
+const testTimeout = 10 * time.Second
+
 type MetaClient struct {
 	DatabasesFn          func() []meta.DatabaseInfo
 	WaitForDataChangedFn func() chan struct{}
@@ -79,7 +81,7 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 		expURL, _ := url.Parse(expURLStr)
 		select {
 		case u = <-urls:
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(testTimeout):
 			t.Fatal("expected urls")
 		}
 		if expURL.String() != u.String() {
@@ -154,7 +156,7 @@ func TestService_ModeALL(t *testing.T) {
 		expURL, _ := url.Parse(expURLStr)
 		select {
 		case u = <-urls:
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(testTimeout):
 			t.Fatal("expected urls")
 		}
 		if expURL.String() != u.String() {
@@ -174,7 +176,7 @@ func TestService_ModeALL(t *testing.T) {
 		var pr *coordinator.WritePointsRequest
 		select {
 		case pr = <-prs:
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(testTimeout):
 			t.Fatalf("expected points request: got %d exp 2", i)
 		}
 		if pr != expPR {
@@ -232,7 +234,7 @@ func TestService_ModeANY(t *testing.T) {
 		expURL, _ := url.Parse(expURLStr)
 		select {
 		case u = <-urls:
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(testTimeout):
 			t.Fatal("expected urls")
 		}
 		if expURL.String() != u.String() {
@@ -250,7 +252,7 @@ func TestService_ModeANY(t *testing.T) {
 	var pr *coordinator.WritePointsRequest
 	select {
 	case pr = <-prs:
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(testTimeout):
 		t.Fatal("expected points request")
 	}
 	if pr != expPR {
@@ -320,7 +322,7 @@ func TestService_Multiple(t *testing.T) {
 		expURL, _ := url.Parse(expURLStr)
 		select {
 		case u = <-urls:
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(testTimeout):
 			t.Fatal("expected urls")
 		}
 		if expURL.String() != u.String() {
@@ -349,7 +351,7 @@ func TestService_Multiple(t *testing.T) {
 	var pr *coordinator.WritePointsRequest
 	select {
 	case pr = <-prs:
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(testTimeout):
 		t.Fatal("expected points request")
 	}
 	if pr != expPR {
@@ -374,7 +376,7 @@ func TestService_Multiple(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		select {
 		case pr = <-prs:
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(testTimeout):
 			t.Fatalf("expected points request: got %d exp 2", i)
 		}
 		if pr != expPR {
@@ -404,7 +406,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	// Should be called once during open
 	select {
 	case <-calls:
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(testTimeout):
 		t.Fatal("expected call")
 	}
 
@@ -420,7 +422,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	// Should be called once more after data changed
 	select {
 	case <-calls:
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(testTimeout):
 		t.Fatal("expected call")
 	}
 
