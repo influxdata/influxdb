@@ -172,8 +172,9 @@ type EngineOptions struct {
 	// nil will allow all combinations to pass.
 	ShardFilter func(database, rp string, id uint64) bool
 
-	Config       Config
-	SeriesIDSets SeriesIDSets
+	Config         Config
+	SeriesIDSets   SeriesIDSets
+	FieldValidator FieldValidator
 }
 
 // NewEngineOptions returns the default options.

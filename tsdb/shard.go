@@ -149,6 +149,9 @@ type Shard struct {
 func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt EngineOptions) *Shard {
 	db, rp := decodeStorePath(path)
 	logger := zap.NewNop()
+	if opt.FieldValidator == nil {
+		opt.FieldValidator = defaultFieldValidator{}
+	}
 
 	s := &Shard{
 		id:      id,
@@ -522,17 +525,21 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	names := make([][]byte, len(points))
 	tagsSlice := make([]models.Tags, len(points))
 
-	// Drop any series w/ a "time" tag, these are illegal
 	var j int
 	for i, p := range points {
 		tags := p.Tags()
+
+		// Drop any series w/ a "time" tag, these are illegal
 		if v := tags.Get(timeBytes); v != nil {
 			dropped++
 			if reason == "" {
-				reason = fmt.Sprintf("invalid tag key: input tag \"%s\" on measurement \"%s\" is invalid", "time", string(p.Name()))
+				reason = fmt.Sprintf(
+					"invalid tag key: input tag \"%s\" on measurement \"%s\" is invalid",
+					"time", string(p.Name()))
 			}
 			continue
 		}
+
 		keys[j] = p.Key()
 		names[j] = p.Name()
 		tagsSlice[j] = tags
@@ -550,6 +557,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	var droppedKeys [][]byte
 	if err := engine.CreateSeriesListIfNotExists(keys, names, tagsSlice); err != nil {
 		switch err := err.(type) {
+		// TODO(jmw): why is this a *PartialWriteError when everything else is not a pointer?
+		// Maybe we can just change it to be consistent if we change it also in all
+		// the places that construct it.
 		case *PartialWriteError:
 			reason = err.Reason
 			dropped += err.Dropped
@@ -560,16 +570,13 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		}
 	}
 
-	// get the shard mutex for locally defined fields
-	n := 0
-
-	// mfCache is a local cache of MeasurementFields to reduce lock contention when validating
-	// field types.
+	// Create a MeasurementFields cache.
 	mfCache := make(map[string]*MeasurementFields, 16)
+	j = 0
 	for i, p := range points {
-		var skip bool
-		var validField bool
+		// Skip any points with only invalid fields.
 		iter := p.FieldIterator()
+		validField := false
 		for iter.Next() {
 			if bytes.Equal(iter.FieldKey(), timeBytes) {
 				continue
@@ -577,87 +584,81 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			validField = true
 			break
 		}
-
 		if !validField {
-			dropped++
 			if reason == "" {
-				reason = fmt.Sprintf("invalid field name: input field \"%s\" on measurement \"%s\" is invalid", "time", string(p.Name()))
+				reason = fmt.Sprintf(
+					"invalid field name: input field \"%s\" on measurement \"%s\" is invalid",
+					"time", string(p.Name()))
 			}
+			dropped++
 			continue
 		}
 
-		iter.Reset()
-
-		// Skip points if keys have been dropped.
-		// The drop count has already been incremented during series creation.
+		// Skip any points whos keys have been dropped. Dropped has already been incremented for them.
 		if len(droppedKeys) > 0 && bytesutil.Contains(droppedKeys, keys[i]) {
 			continue
 		}
 
+		// Grab the MeasurementFields checking the local cache to avoid lock contention.
 		name := p.Name()
-		// see if the field definitions need to be saved to the shard
 		mf := mfCache[string(name)]
 		if mf == nil {
 			mf = engine.MeasurementFields(name).Clone()
 			mfCache[string(name)] = mf
 		}
-		iter.Reset()
 
-		// validate field types and encode data
-		for iter.Next() {
-
-			// Skip fields name "time", they are illegal
-			if bytes.Equal(iter.FieldKey(), timeBytes) {
-				continue
-			}
-
-			var fieldType influxql.DataType
-			switch iter.Type() {
-			case models.Float:
-				fieldType = influxql.Float
-			case models.Integer:
-				fieldType = influxql.Integer
-			case models.Unsigned:
-				fieldType = influxql.Unsigned
-			case models.Boolean:
-				fieldType = influxql.Boolean
-			case models.String:
-				fieldType = influxql.String
-			default:
-				continue
-			}
-
-			if f := mf.FieldBytes(iter.FieldKey()); f != nil {
-				// Field present in shard metadata, make sure there is no type conflict.
-				if f.Type != fieldType {
-					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-					dropped++
-					if reason == "" {
-						reason = fmt.Sprintf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), name, fieldType, f.Type)
-					}
-					skip = true
-				} else {
-					continue // Field is present, and it's of the same type. Nothing more to do.
+		// Check with the field validator.
+		if err := s.options.FieldValidator.Validate(mf, p); err != nil {
+			switch err := err.(type) {
+			case PartialWriteError:
+				if reason == "" {
+					reason = err.Reason
 				}
+				dropped += err.Dropped
+				atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
+			default:
+				return nil, nil, err
 			}
-
-			if !skip {
-				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: string(iter.FieldKey()), Type: fieldType}})
-			}
+			continue
 		}
 
-		if !skip {
-			points[n] = points[i]
-			n++
+		points[j] = points[i]
+		j++
+
+		// Create any fields that are missing.
+		iter.Reset()
+		for iter.Next() {
+			fieldKey := iter.FieldKey()
+
+			// Skip fields named "time". They are illegal.
+			if bytes.Equal(fieldKey, timeBytes) {
+				continue
+			}
+
+			if mf.FieldBytes(fieldKey) != nil {
+				continue
+			}
+
+			dataType := dataTypeFromModelsFieldType(iter.Type())
+			if dataType == influxql.Unknown {
+				continue
+			}
+
+			fieldsToCreate = append(fieldsToCreate, &FieldCreate{
+				Measurement: name,
+				Field: &Field{
+					Name: string(fieldKey),
+					Type: dataType,
+				},
+			})
 		}
 	}
-	points = points[:n]
 
 	if dropped > 0 {
 		err = PartialWriteError{Reason: reason, Dropped: dropped}
 	}
 
-	return points, fieldsToCreate, err
+	return points[:j], fieldsToCreate, err
 }
 
 func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
