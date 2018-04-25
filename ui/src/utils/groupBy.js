@@ -99,11 +99,15 @@ const constructCells = serieses => {
         vals,
       }))
 
+      const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
+        .sort()
+        .join('')
+
       const unsortedLabels = map(columns.slice(1), (field, i) => ({
         label:
           groupByColumns && i <= groupByColumns.length - 1
             ? `${field}`
-            : `${measurement}.${field}`,
+            : `${measurement}.${field}${tagSet}`,
         responseIndex,
         seriesIndex,
       }))
