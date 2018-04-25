@@ -28,36 +28,33 @@ func TestVerifies_Invalid(t *testing.T) {
 	test := NewTest(t)
 	defer test.Close()
 
-	// mutate all the files in the first partition and make sure it fails. the
-	// reason we don't do every partition is to avoid quadratic time because
-	// the implementation checks the partitions in order.
-
-	test.AssertNoError(filepath.Walk(filepath.Join(test.Path, "00"),
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return nil
-			}
-
-			test.Backup(path)
-			defer test.Restore(path)
-
-			fh, err := os.OpenFile(path, os.O_RDWR, 0)
-			test.AssertNoError(err)
-			defer fh.Close()
-
-			_, err = fh.WriteAt([]byte("BOGUS"), 0)
-			test.AssertNoError(err)
-			test.AssertNoError(fh.Close())
-
-			passed, err := seriesfile.VerifySeriesFile(zap.NewNop(), test.Path)
-			test.AssertNoError(err)
-			test.Assert(!passed)
-
+	test.AssertNoError(filepath.Walk(test.Path, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
 			return nil
-		}))
+		}
+
+		fmt.Println(path)
+
+		test.Backup(path)
+		defer test.Restore(path)
+
+		fh, err := os.OpenFile(path, os.O_RDWR, 0)
+		test.AssertNoError(err)
+		defer fh.Close()
+
+		_, err = fh.WriteAt([]byte("BOGUS"), 0)
+		test.AssertNoError(err)
+		test.AssertNoError(fh.Close())
+
+		passed, err := seriesfile.VerifySeriesFile(zap.NewNop(), test.Path)
+		test.AssertNoError(err)
+		test.Assert(!passed)
+
+		return nil
+	}))
 }
 
 //
@@ -86,11 +83,17 @@ func NewTest(t *testing.T) *Test {
 		defer seriesFile.Close()
 		seriesFile.EnableCompactions()
 
+		const (
+			compactionThreshold = 100
+			numSeries           = 2 * tsdb.SeriesFilePartitionN * compactionThreshold
+		)
+
+		for _, partition := range seriesFile.Partitions() {
+			partition.CompactThreshold = compactionThreshold
+		}
+
 		var names [][]byte
 		var tagsSlice []models.Tags
-		const numSeries = 2 *
-			tsdb.SeriesFilePartitionN *
-			tsdb.DefaultSeriesPartitionCompactThreshold
 
 		for i := 0; i < numSeries; i++ {
 			names = append(names, []byte(fmt.Sprintf("series%d", i)))
