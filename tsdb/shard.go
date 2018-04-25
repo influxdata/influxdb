@@ -639,8 +639,8 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				continue
 			}
 
-			dataType, ok := dataTypeFromModelsFieldType(iter.Type())
-			if !ok {
+			dataType := dataTypeFromModelsFieldType(iter.Type())
+			if dataType == influxql.Unknown {
 				continue
 			}
 

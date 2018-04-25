@@ -31,8 +31,8 @@ func (defaultFieldValidator) Validate(mf *MeasurementFields, point models.Point)
 			continue
 		}
 
-		dataType, ok := dataTypeFromModelsFieldType(iter.Type())
-		if !ok {
+		dataType := dataTypeFromModelsFieldType(iter.Type())
+		if dataType == influxql.Unknown {
 			continue
 		}
 
@@ -51,20 +51,20 @@ func (defaultFieldValidator) Validate(mf *MeasurementFields, point models.Point)
 }
 
 // dataTypeFromModelsFieldType returns the influxql.DataType that corresponds to the
-// passed in field type. If there is no good match, it returns Unknown and false.
-func dataTypeFromModelsFieldType(fieldType models.FieldType) (influxql.DataType, bool) {
+// passed in field type. If there is no good match, it returns Unknown.
+func dataTypeFromModelsFieldType(fieldType models.FieldType) influxql.DataType {
 	switch fieldType {
 	case models.Float:
-		return influxql.Float, true
+		return influxql.Float
 	case models.Integer:
-		return influxql.Integer, true
+		return influxql.Integer
 	case models.Unsigned:
-		return influxql.Unsigned, true
+		return influxql.Unsigned
 	case models.Boolean:
-		return influxql.Boolean, true
+		return influxql.Boolean
 	case models.String:
-		return influxql.String, true
+		return influxql.String
 	default:
-		return influxql.Unknown, false
+		return influxql.Unknown
 	}
 }
