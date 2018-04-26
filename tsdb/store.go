@@ -23,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -322,11 +323,15 @@ func (s *Store) loadShards() error {
 					}
 
 					resC <- &res{s: shard}
-					log.Info("Opened shard", zap.String("path", path), zap.Duration("duration", time.Since(start)))
+					log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
 				}(db.Name(), rp.Name(), sh.Name())
 			}
 		}
 	}
+
+	// indexVersions tracks counts of the number of different types of index
+	// being used within each database.
+	indexVersions := make(map[string]map[string]int)
 
 	// Gather results of opening shards concurrently, keeping track of how
 	// many databases we are managing.
@@ -337,8 +342,24 @@ func (s *Store) loadShards() error {
 		}
 		s.shards[res.s.id] = res.s
 		s.databases[res.s.database] = struct{}{}
+
+		if _, ok := indexVersions[res.s.database]; !ok {
+			indexVersions[res.s.database] = make(map[string]int, 2)
+		}
+		indexVersions[res.s.database][res.s.IndexType()]++
 	}
 	close(resC)
+
+	// Check if any databases are running multiple index types.
+	for db, idxVersions := range indexVersions {
+		if len(idxVersions) > 1 {
+			var fields []zapcore.Field
+			for idx, cnt := range idxVersions {
+				fields = append(fields, zap.Int(fmt.Sprintf("%s_count", idx), cnt))
+			}
+			s.Logger.Warn("Mixed shard index types", append(fields, logger.Database(db))...)
+		}
+	}
 
 	// Enable all shards
 	for _, sh := range s.shards {
