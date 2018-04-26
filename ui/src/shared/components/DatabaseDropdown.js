@@ -39,8 +39,7 @@ class DatabaseDropdown extends Component {
   }
 
   _getDatabases = async () => {
-    const {source} = this.context
-    const {database, onSelectDatabase, onErrorThrown} = this.props
+    const {source, database, onSelectDatabase, onErrorThrown} = this.props
     const proxy = source.links.proxy
     try {
       const {data} = await showDatabases(proxy)
@@ -65,19 +64,16 @@ class DatabaseDropdown extends Component {
 
 const {func, shape, string} = PropTypes
 
-DatabaseDropdown.contextTypes = {
-  source: shape({
-    links: shape({
-      proxy: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-}
-
 DatabaseDropdown.propTypes = {
   database: string,
   onSelectDatabase: func.isRequired,
   onStartEdit: func,
   onErrorThrown: func.isRequired,
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+  }).isRequired,
 }
 
 export default DatabaseDropdown

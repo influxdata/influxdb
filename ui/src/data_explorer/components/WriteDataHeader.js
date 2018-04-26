@@ -9,11 +9,13 @@ const WriteDataHeader = ({
   toggleWriteView,
   isManual,
   onClose,
+  source,
 }) => (
   <div className="write-data-form--header">
     <div className="page-header__left">
       <h1 className="page-header__title">Write Data To</h1>
       <DatabaseDropdown
+        source={source}
         onSelectDatabase={handleSelectDatabase}
         database={selectedDatabase}
         onErrorThrown={errorThrown}
@@ -40,7 +42,7 @@ const WriteDataHeader = ({
   </div>
 )
 
-const {func, string, bool} = PropTypes
+const {func, shape, string, bool} = PropTypes
 
 WriteDataHeader.propTypes = {
   handleSelectDatabase: func.isRequired,
@@ -49,6 +51,11 @@ WriteDataHeader.propTypes = {
   errorThrown: func.isRequired,
   onClose: func.isRequired,
   isManual: bool,
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+  }).isRequired,
 }
 
 export default WriteDataHeader

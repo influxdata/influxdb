@@ -133,7 +133,7 @@ class WriteDataForm extends Component {
   handleFileInputRef = el => (this.fileInput = el)
 
   render() {
-    const {onClose, errorThrown} = this.props
+    const {onClose, errorThrown, source} = this.props
     const {dragClass} = this.state
 
     return (
@@ -148,6 +148,7 @@ class WriteDataForm extends Component {
         <div className="write-data-form">
           <WriteDataHeader
             {...this.state}
+            source={source}
             handleSelectDatabase={this.handleSelectDatabase}
             errorThrown={errorThrown}
             toggleWriteView={this.toggleWriteView}

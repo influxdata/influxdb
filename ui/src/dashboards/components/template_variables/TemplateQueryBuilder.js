@@ -14,6 +14,7 @@ const TemplateQueryBuilder = ({
   onSelectTagKey,
   onStartEdit,
   onErrorThrown,
+  source,
 }) => {
   switch (selectedType) {
     case 'csv':
@@ -25,6 +26,7 @@ const TemplateQueryBuilder = ({
         <div className="tvm-query-builder">
           <span className="tvm-query-builder--text">SHOW MEASUREMENTS ON</span>
           <DatabaseDropdown
+            source={source}
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
             onStartEdit={onStartEdit}
@@ -40,6 +42,7 @@ const TemplateQueryBuilder = ({
             SHOW {selectedType === 'fieldKeys' ? 'FIELD' : 'TAG'} KEYS ON
           </span>
           <DatabaseDropdown
+            source={source}
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
             onStartEdit={onStartEdit}
@@ -48,6 +51,7 @@ const TemplateQueryBuilder = ({
           <span className="tvm-query-builder--text">FROM</span>
           {selectedDatabase ? (
             <MeasurementDropdown
+              source={source}
               database={selectedDatabase}
               measurement={selectedMeasurement}
               onSelectMeasurement={onSelectMeasurement}
@@ -64,6 +68,7 @@ const TemplateQueryBuilder = ({
         <div className="tvm-query-builder">
           <span className="tvm-query-builder--text">SHOW TAG VALUES ON</span>
           <DatabaseDropdown
+            source={source}
             onSelectDatabase={onSelectDatabase}
             database={selectedDatabase}
             onStartEdit={onStartEdit}
@@ -72,6 +77,7 @@ const TemplateQueryBuilder = ({
           <span className="tvm-query-builder--text">FROM</span>
           {selectedDatabase ? (
             <MeasurementDropdown
+              source={source}
               database={selectedDatabase}
               measurement={selectedMeasurement}
               onSelectMeasurement={onSelectMeasurement}
@@ -105,7 +111,7 @@ const TemplateQueryBuilder = ({
   }
 }
 
-const {func, string} = PropTypes
+const {func, shape, string} = PropTypes
 
 TemplateQueryBuilder.propTypes = {
   selectedType: string.isRequired,
@@ -117,6 +123,11 @@ TemplateQueryBuilder.propTypes = {
   selectedDatabase: string,
   selectedTagKey: string,
   onErrorThrown: func.isRequired,
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+  }).isRequired,
 }
 
 export default TemplateQueryBuilder

@@ -3,12 +3,12 @@ import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import uuid from 'uuid'
 
+import {SourceContext} from 'src/CheckSources'
 import TemplateVariableTable from 'src/dashboards/components/template_variables/Table'
 
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
 const TemplateVariableManager = ({
-  source,
   onClose,
   onDelete,
   isEdited,
@@ -46,14 +46,18 @@ const TemplateVariableManager = ({
       </div>
     </div>
     <div className="template-variable-manager--body">
-      <TemplateVariableTable
-        source={source}
-        onDelete={onDelete}
-        templates={templates}
-        onRunQuerySuccess={onRunQuerySuccess}
-        onRunQueryFailure={onRunQueryFailure}
-        tempVarAlreadyExists={tempVarAlreadyExists}
-      />
+      <SourceContext.Consumer>
+        {source => (
+          <TemplateVariableTable
+            source={source}
+            onDelete={onDelete}
+            templates={templates}
+            onRunQuerySuccess={onRunQuerySuccess}
+            onRunQueryFailure={onRunQueryFailure}
+            tempVarAlreadyExists={tempVarAlreadyExists}
+          />
+        )}
+      </SourceContext.Consumer>
     </div>
   </div>
 )
@@ -218,11 +222,6 @@ TemplateVariableManager.propTypes = {
 
 TemplateVariableManagerWrapper.propTypes = {
   onEditTemplateVariables: func.isRequired,
-  source: shape({
-    links: shape({
-      proxy: string,
-    }),
-  }).isRequired,
   templates: arrayOf(
     shape({
       type: string.isRequired,

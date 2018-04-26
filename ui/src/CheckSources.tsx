@@ -51,6 +51,8 @@ interface Props {
   errorThrown: () => void
 }
 
+export const SourceContext = React.createContext()
+
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data sources, but not every page requires them to function.
 // Routes that do require data sources can be nested under this component.
@@ -207,8 +209,10 @@ export class CheckSources extends Component<Props, State> {
     // TODO: guard against invalid resource access
 
     return (
-      this.props.children &&
-      React.cloneElement(this.props.children, {...this.props, source})
+      <SourceContext.Provider value={source}>
+        {this.props.children &&
+          React.cloneElement(this.props.children, {...this.props, source})}
+      </SourceContext.Provider>
     )
   }
 }
