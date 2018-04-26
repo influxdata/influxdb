@@ -6,7 +6,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {dismissOverlay} from 'src/shared/actions/overlayTechnology'
 
 interface Props {
-  overlayNode?: ReactElement<any>
+  OverlayNode?: ReactElement<any>
   dismissOnClickOutside?: boolean
   dismissOnEscape?: boolean
   transitionTime?: number
@@ -36,19 +36,19 @@ class Overlay extends PureComponent<Props, State> {
   }
 
   public componentDidUpdate(prevProps) {
-    if (prevProps.overlayNode === null && this.props.overlayNode) {
+    if (prevProps.OverlayNode === null && this.props.OverlayNode) {
       return this.setState({visible: true})
     }
   }
 
   public render() {
-    const {overlayNode} = this.props
+    const {OverlayNode} = this.props
 
     return (
       <div className={this.overlayClass}>
         <div className="overlay--dialog">
-          {overlayNode &&
-            React.cloneElement(overlayNode, {
+          {OverlayNode &&
+            React.cloneElement(OverlayNode, {
               onDismissOverlay: this.handleAnimateDismiss,
             })}
         </div>
@@ -85,11 +85,11 @@ class Overlay extends PureComponent<Props, State> {
 
 const mapStateToProps = ({
   overlayTechnology: {
-    overlayNode,
+    OverlayNode,
     options: {dismissOnClickOutside, dismissOnEscape, transitionTime},
   },
 }) => ({
-  overlayNode,
+  OverlayNode,
   dismissOnClickOutside,
   dismissOnEscape,
   transitionTime,

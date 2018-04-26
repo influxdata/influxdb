@@ -1,6 +1,6 @@
 import {ReactElement} from 'react'
 
-type OverlayNode = ReactElement<any>
+type OverlayNodeType = ReactElement<any>
 
 interface Options {
   dismissOnClickOutside?: boolean
@@ -8,9 +8,12 @@ interface Options {
   transitionTime?: number
 }
 
-export const showOverlay = (overlayNode: OverlayNode, options: Options) => ({
+export const showOverlay = (
+  OverlayNode: OverlayNodeType,
+  options: Options
+) => ({
   type: 'SHOW_OVERLAY',
-  payload: {overlayNode, options},
+  payload: {OverlayNode, options},
 })
 
 export const dismissOverlay = () => ({

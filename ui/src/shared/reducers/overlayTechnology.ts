@@ -4,22 +4,22 @@ const initialState = {
     dismissOnEscape: false,
     transitionTime: 300,
   },
-  overlayNode: null,
+  OverlayNode: null,
 }
 
 export default function overlayTechnology(state = initialState, action) {
   switch (action.type) {
     case 'SHOW_OVERLAY': {
-      const {overlayNode, options} = action.payload
+      const {OverlayNode, options} = action.payload
 
-      return {...state, overlayNode, options}
+      return {...state, OverlayNode, options}
     }
 
     case 'DISMISS_OVERLAY': {
       const {options} = initialState
       return {
         ...state,
-        overlayNode: null,
+        OverlayNode: null,
         options,
       }
     }
