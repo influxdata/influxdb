@@ -12,14 +12,13 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/seriesfile"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
-	"go.uber.org/zap"
 )
 
 func TestVerifies_Valid(t *testing.T) {
 	test := NewTest(t)
 	defer test.Close()
 
-	passed, err := seriesfile.VerifySeriesFile(zap.NewNop(), test.Path)
+	passed, err := seriesfile.NewVerify().VerifySeriesFile(test.Path)
 	test.AssertNoError(err)
 	test.Assert(passed)
 }
@@ -36,8 +35,6 @@ func TestVerifies_Invalid(t *testing.T) {
 			return nil
 		}
 
-		fmt.Println(path)
-
 		test.Backup(path)
 		defer test.Restore(path)
 
@@ -49,7 +46,7 @@ func TestVerifies_Invalid(t *testing.T) {
 		test.AssertNoError(err)
 		test.AssertNoError(fh.Close())
 
-		passed, err := seriesfile.VerifySeriesFile(zap.NewNop(), test.Path)
+		passed, err := seriesfile.NewVerify().VerifySeriesFile(test.Path)
 		test.AssertNoError(err)
 		test.Assert(!passed)
 

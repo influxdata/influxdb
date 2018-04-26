@@ -5,40 +5,101 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"sync"
 
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
+// verifyResult contains the result of a Verify... call
+type verifyResult struct {
+	valid bool
+	err   error
+}
+
+// Verify contains configuration for running verification of series files.
+type Verify struct {
+	Parallel int
+	Logger   *zap.Logger
+
+	done chan struct{}
+}
+
+// NewVerify constructs a Verify with good defaults.
+func NewVerify() Verify {
+	return Verify{
+		Parallel: runtime.GOMAXPROCS(0),
+		Logger:   zap.NewNop(),
+	}
+}
+
 // VerifySeriesFile performs verifications on a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the series file.
-func VerifySeriesFile(logger *zap.Logger, filePath string) (valid bool, err error) {
-	logger = logger.With(zap.String("path", filePath))
-	logger.Debug("Verifying series file")
+func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
+	v.Logger = v.Logger.With(zap.String("path", filePath))
+	v.Logger.Debug("Verifying series file")
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			logger.Error("Panic verifying file", zap.String("recovered", fmt.Sprint(rec)))
+			v.Logger.Error("Panic verifying file", zap.String("recovered", fmt.Sprint(rec)))
 			valid = false
 		}
 	}()
 
 	partitionInfos, err := ioutil.ReadDir(filePath)
 	if os.IsNotExist(err) {
-		logger.Error("Series file does not exist")
+		v.Logger.Error("Series file does not exist")
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
 
-	// check every partition
+	// Check every partition in parallel.
+	parallel := v.Parallel
+	if parallel <= 0 {
+		parallel = 1
+	}
+	in := make(chan string, len(partitionInfos))
+	out := make(chan verifyResult, len(partitionInfos))
+
+	// Make sure all the workers are cleaned up when we return.
+	wg := new(sync.WaitGroup)
+	defer wg.Wait()
+
+	// Set up cancellation. Any return will cause the workers to be cancelled.
+	v.done = make(chan struct{})
+	defer close(v.done)
+
+	for i := 0; i < parallel; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for partitionPath := range in {
+				valid, err := v.VerifyPartition(partitionPath)
+				select {
+				case out <- verifyResult{valid: valid, err: err}:
+				case <-v.done:
+					return
+				}
+			}
+		}()
+	}
+
+	// send off the work and read the results.
 	for _, partitionInfo := range partitionInfos {
-		partitionPath := filepath.Join(filePath, partitionInfo.Name())
-		if valid, err := VerifyPartition(logger, partitionPath); err != nil {
+		in <- filepath.Join(filePath, partitionInfo.Name())
+	}
+	close(in)
+
+	for range partitionInfos {
+		result := <-out
+		if result.err != nil {
 			return false, err
-		} else if !valid {
+		} else if !result.valid {
 			return false, nil
 		}
 	}
@@ -48,13 +109,13 @@ func VerifySeriesFile(logger *zap.Logger, filePath string) (valid bool, err erro
 
 // VerifyPartition performs verifications on a parition of a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
-func VerifyPartition(logger *zap.Logger, partitionPath string) (valid bool, err error) {
-	logger = logger.With(zap.String("partition", filepath.Base(partitionPath)))
-	logger.Debug("Verifying partition")
+func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
+	v.Logger = v.Logger.With(zap.String("partition", filepath.Base(partitionPath)))
+	v.Logger.Debug("Verifying partition")
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			logger.Error("Panic verifying partition", zap.String("recovered", fmt.Sprint(rec)))
+			v.Logger.Error("Panic verifying partition", zap.String("recovered", fmt.Sprint(rec)))
 			valid = false
 		}
 	}()
@@ -69,13 +130,19 @@ func VerifyPartition(logger *zap.Logger, partitionPath string) (valid bool, err 
 
 	// check every segment
 	for _, segmentInfo := range segmentInfos {
+		select {
+		default:
+		case <-v.done:
+			return false, nil
+		}
+
 		segmentPath := filepath.Join(partitionPath, segmentInfo.Name())
 		segmentID, err := tsdb.ParseSeriesSegmentFilename(segmentInfo.Name())
 		if err != nil {
 			continue
 		}
 
-		if valid, err := VerifySegment(logger, segmentPath, ids); err != nil {
+		if valid, err := v.VerifySegment(segmentPath, ids); err != nil {
 			return false, err
 		} else if !valid {
 			return false, nil
@@ -94,7 +161,7 @@ func VerifyPartition(logger *zap.Logger, partitionPath string) (valid bool, err 
 
 	// check the index
 	indexPath := filepath.Join(partitionPath, "index")
-	if valid, err := VerifyIndex(logger, indexPath, segments, ids); err != nil {
+	if valid, err := v.VerifyIndex(indexPath, segments, ids); err != nil {
 		return false, err
 	} else if !valid {
 		return false, nil
@@ -113,12 +180,10 @@ type IDData struct {
 // VerifySegment performs verifications on a segment of a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map is populated with information about the ids stored in the segment.
-func VerifySegment(logger *zap.Logger, segmentPath string, ids map[uint64]IDData) (
-	valid bool, err error) {
-
+func (v Verify) VerifySegment(segmentPath string, ids map[uint64]IDData) (valid bool, err error) {
 	segmentName := filepath.Base(segmentPath)
-	logger = logger.With(zap.String("segment", segmentName))
-	logger.Debug("Verifying segment")
+	v.Logger = v.Logger.With(zap.String("segment", segmentName))
+	v.Logger.Debug("Verifying segment")
 
 	// Open up the segment and grab it's data.
 	segmentID, err := tsdb.ParseSeriesSegmentFilename(segmentName)
@@ -127,15 +192,14 @@ func VerifySegment(logger *zap.Logger, segmentPath string, ids map[uint64]IDData
 	}
 	segment := tsdb.NewSeriesSegment(segmentID, segmentPath)
 	if err := segment.Open(); err != nil {
-		logger.Error("Error opening segment", zap.Error(err))
+		v.Logger.Error("Error opening segment", zap.Error(err))
 	}
 	defer segment.Close()
 	buf := newBuffer(segment.Data())
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			logger.Error("Panic verifying segment",
-				zap.String("recovered", fmt.Sprint(rec)),
+			v.Logger.Error("Panic verifying segment", zap.String("recovered", fmt.Sprint(rec)),
 				zap.Int64("offset", buf.offset))
 			valid = false
 		}
@@ -143,7 +207,7 @@ func VerifySegment(logger *zap.Logger, segmentPath string, ids map[uint64]IDData
 
 	// Skip the header: it has already been verified by the Open call.
 	if err := buf.advance(tsdb.SeriesSegmentHeaderSize); err != nil {
-		logger.Error("Unable to advance buffer",
+		v.Logger.Error("Unable to advance buffer",
 			zap.Int64("offset", buf.offset),
 			zap.Error(err))
 		return false, nil
@@ -153,13 +217,19 @@ func VerifySegment(logger *zap.Logger, segmentPath string, ids map[uint64]IDData
 
 entries:
 	for len(buf.data) > 0 {
+		select {
+		default:
+		case <-v.done:
+			return false, nil
+		}
+
 		flag, id, key, sz := tsdb.ReadSeriesEntry(buf.data)
 
 		// Check the flag is valid and for id monotonicity.
 		switch flag {
 		case tsdb.SeriesEntryInsertFlag:
 			if !firstID && prevID > id {
-				logger.Error("ID is not monotonic",
+				v.Logger.Error("ID is not monotonic",
 					zap.Uint64("prev_id", prevID),
 					zap.Uint64("id", id),
 					zap.Int64("offset", buf.offset))
@@ -185,7 +255,7 @@ entries:
 
 		case 0: // if zero, there are no more entries
 			if err := buf.advance(sz); err != nil {
-				logger.Error("Unable to advance buffer",
+				v.Logger.Error("Unable to advance buffer",
 					zap.Int64("offset", buf.offset),
 					zap.Error(err))
 				return false, nil
@@ -193,7 +263,7 @@ entries:
 			break entries
 
 		default:
-			logger.Error("Invalid flag",
+			v.Logger.Error("Invalid flag",
 				zap.Uint8("flag", flag),
 				zap.Int64("offset", buf.offset))
 			return false, nil
@@ -205,7 +275,7 @@ entries:
 		func() {
 			defer func() {
 				if rec := recover(); rec != nil {
-					logger.Error("Panic parsing key",
+					v.Logger.Error("Panic parsing key",
 						zap.String("key", fmt.Sprintf("%x", key)),
 						zap.Int64("offset", buf.offset),
 						zap.String("recovered", fmt.Sprint(rec)))
@@ -220,7 +290,7 @@ entries:
 
 		// Advance past the entry.
 		if err := buf.advance(sz); err != nil {
-			logger.Error("Unable to advance buffer",
+			v.Logger.Error("Unable to advance buffer",
 				zap.Int64("offset", buf.offset),
 				zap.Error(err))
 			return false, nil
@@ -233,20 +303,26 @@ entries:
 // VerifyIndex performs verification on an index in a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map must be built from verifying the passed in segments.
-func VerifyIndex(logger *zap.Logger, indexPath string, segments []*tsdb.SeriesSegment,
+func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 	ids map[uint64]IDData) (valid bool, err error) {
+	v.Logger.Debug("Verifying index")
 
-	logger.Debug("Verifying index")
+	defer func() {
+		if rec := recover(); rec != nil {
+			v.Logger.Error("Panic verifying index", zap.String("recovered", fmt.Sprint(rec)))
+			valid = false
+		}
+	}()
 
 	index := tsdb.NewSeriesIndex(indexPath)
 	if err := index.Open(); err != nil {
-		logger.Error("Error opening index", zap.Error(err))
+		v.Logger.Error("Error opening index", zap.Error(err))
 		return false, nil
 	}
 	defer index.Close()
 
 	if err := index.Recover(segments); err != nil {
-		logger.Error("Error recovering index", zap.Error(err))
+		v.Logger.Error("Error recovering index", zap.Error(err))
 		return false, nil
 	}
 
@@ -261,6 +337,12 @@ func VerifyIndex(logger *zap.Logger, indexPath string, segments []*tsdb.SeriesSe
 	})
 
 	for _, id := range idsList {
+		select {
+		default:
+		case <-v.done:
+			return false, nil
+		}
+
 		IDData := ids[id]
 
 		expectedOffset, expectedID := IDData.Offset, id
@@ -272,7 +354,7 @@ func VerifyIndex(logger *zap.Logger, indexPath string, segments []*tsdb.SeriesSe
 		// id for the key
 
 		if gotOffset := index.FindOffsetByID(id); gotOffset != expectedOffset {
-			logger.Error("Index inconsistency",
+			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id),
 				zap.Int64("got_offset", gotOffset),
 				zap.Int64("expected_offset", expectedOffset))
@@ -280,7 +362,7 @@ func VerifyIndex(logger *zap.Logger, indexPath string, segments []*tsdb.SeriesSe
 		}
 
 		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != expectedID {
-			logger.Error("Index inconsistency",
+			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id),
 				zap.Uint64("got_id", gotID),
 				zap.Uint64("expected_id", expectedID))

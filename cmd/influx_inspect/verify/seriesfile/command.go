@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap/zapcore"
@@ -22,6 +23,7 @@ type Command struct {
 	db         string
 	seriesFile string
 	verbose    bool
+	parallel   int
 }
 
 // NewCommand returns a new instance of Command.
@@ -43,6 +45,8 @@ func (cmd *Command) Run(args ...string) error {
 		"Path to a series file. This overrides -db and -dir.")
 	fs.BoolVar(&cmd.verbose, "v", false,
 		"Verbose output.")
+	fs.IntVar(&cmd.parallel, "p", runtime.GOMAXPROCS(0),
+		"How many parallel workers to run.")
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = cmd.printUsage
@@ -60,13 +64,17 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
+	v := NewVerify()
+	v.Logger = logger
+	v.Parallel = cmd.parallel
+
 	if cmd.seriesFile != "" {
-		_, err := VerifySeriesFile(logger, cmd.seriesFile)
+		_, err := v.VerifySeriesFile(cmd.seriesFile)
 		return err
 	}
 
 	if cmd.db != "" {
-		_, err := VerifySeriesFile(logger, filepath.Join(cmd.dir, cmd.db, "_series"))
+		_, err := v.VerifySeriesFile(filepath.Join(cmd.dir, cmd.db, "_series"))
 		return err
 	}
 
@@ -79,7 +87,7 @@ func (cmd *Command) Run(args ...string) error {
 		if !db.IsDir() {
 			continue
 		}
-		_, err := VerifySeriesFile(logger, filepath.Join(cmd.dir, db.Name(), "_series"))
+		_, err := v.VerifySeriesFile(filepath.Join(cmd.dir, db.Name(), "_series"))
 		if err != nil {
 			return err
 		}
@@ -102,7 +110,10 @@ Usage: influx_inspect verify-seriesfile [flags]
             Path to a series file. This overrides -db and -dir.
     -v
             Enable verbose logging.
+    -p
+            How many parallel workers to run.
+            Defaults to "%[2]d"
 `
 
-	fmt.Printf(usage, os.Getenv("HOME"))
+	fmt.Printf(usage, os.Getenv("HOME"), runtime.GOMAXPROCS(0))
 }
