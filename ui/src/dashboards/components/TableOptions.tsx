@@ -19,7 +19,7 @@ import {
   updateFieldOptions,
   changeTimeFormat,
 } from 'src/dashboards/actions/cellEditorOverlay'
-import {DEFAULT_TIME_FIELD} from 'src/shared/constants/tableGraph'
+import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {QueryConfig} from 'src/types/query'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

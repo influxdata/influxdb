@@ -2,12 +2,12 @@ import calculateSize from 'calculate-size'
 import _ from 'lodash'
 import {map, reduce, filter} from 'fast.js'
 
+import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
 import {
-  CELL_HORIZONTAL_PADDING,
   DEFAULT_TIME_FIELD,
   DEFAULT_TIME_FORMAT,
   DEFAULT_PRECISION,
-} from 'src/shared/constants/tableGraph'
+} from 'src/dashboards/constants'
 
 const calculateTimeColumnWidth = timeFormat => {
   // Force usage of longest format names for ideal measurement

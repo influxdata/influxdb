@@ -8,7 +8,7 @@ import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {
   TIME_FORMAT_CUSTOM,
   TIME_FORMAT_TOOLTIP_LINK,
-} from 'src/shared/constants/tableGraph'
+} from 'src/dashboards/constants'
 
 const setup = (override = {}) => {
   const props = {

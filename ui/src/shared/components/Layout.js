@@ -151,6 +151,24 @@ const propTypes = {
     name: string.isRequired,
     type: string.isRequired,
     colors: colorsStringSchema,
+    tableOptions: shape({
+      verticalTimeAxis: bool.isRequired,
+      sortBy: shape({
+        internalName: string.isRequired,
+        displayName: string.isRequired,
+        visible: bool.isRequired,
+      }).isRequired,
+      wrapping: string.isRequired,
+      fixFirstColumn: bool.isRequired,
+    }),
+    timeFormat: string.isRequired,
+    fieldOptions: arrayOf(
+      shape({
+        internalName: string.isRequired,
+        displayName: string.isRequired,
+        visible: bool.isRequired,
+      }).isRequired
+    ),
   }).isRequired,
   templates: arrayOf(shape()),
   host: string,

@@ -8,10 +8,8 @@ import {
   transformTableData,
 } from 'src/dashboards/utils/tableGraph'
 
-import {
-  DEFAULT_SORT_DIRECTION,
-  DEFAULT_TIME_FORMAT,
-} from 'src/shared/constants/tableGraph'
+import {DEFAULT_SORT_DIRECTION} from 'src/shared/constants/tableGraph'
+import {DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {

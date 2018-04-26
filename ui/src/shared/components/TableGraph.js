@@ -17,19 +17,16 @@ import {
   transformTableData,
 } from 'src/dashboards/utils/tableGraph'
 import {updateFieldOptions} from 'src/dashboards/actions/cellEditorOverlay'
-
+import {DEFAULT_TIME_FIELD, DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
 import {
   ASCENDING,
   DESCENDING,
   NULL_HOVER_TIME,
   NULL_ARRAY_INDEX,
-  DEFAULT_TIME_FIELD,
-  DEFAULT_TIME_FORMAT,
-  DEFAULT_SORT_DIRECTION,
   DEFAULT_FIX_FIRST_COLUMN,
   DEFAULT_VERTICAL_TIME_AXIS,
+  DEFAULT_SORT_DIRECTION,
 } from 'src/shared/constants/tableGraph'
-
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
 import {colorsStringSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -441,7 +438,7 @@ TableGraph.propTypes = {
       visible: bool.isRequired,
     }).isRequired,
     wrapping: string.isRequired,
-    fixFirstColumn: bool,
+    fixFirstColumn: bool.isRequired,
   }),
   timeFormat: string.isRequired,
   fieldOptions: arrayOf(

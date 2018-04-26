@@ -6,7 +6,7 @@ import {
   TIME_FORMAT_CUSTOM,
   DEFAULT_TIME_FORMAT,
   TIME_FORMAT_TOOLTIP_LINK,
-} from 'src/shared/constants/tableGraph'
+} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface TimeFormatOptions {
