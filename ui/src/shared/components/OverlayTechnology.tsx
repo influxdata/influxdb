@@ -1,4 +1,4 @@
-import React, {PureComponent, ReactElement} from 'react'
+import React, {PureComponent, ComponentClass} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -6,7 +6,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {dismissOverlay} from 'src/shared/actions/overlayTechnology'
 
 interface Props {
-  OverlayNode?: ReactElement<any>
+  OverlayNode?: ComponentClass<any>
   dismissOnClickOutside?: boolean
   dismissOnEscape?: boolean
   transitionTime?: number
@@ -16,6 +16,8 @@ interface Props {
 interface State {
   visible: boolean
 }
+
+export const OverlayContext = React.createContext()
 
 @ErrorHandling
 class Overlay extends PureComponent<Props, State> {
@@ -45,15 +47,16 @@ class Overlay extends PureComponent<Props, State> {
     const {OverlayNode} = this.props
 
     return (
-      <div className={this.overlayClass}>
-        <div className="overlay--dialog">
-          {OverlayNode &&
-            React.cloneElement(OverlayNode, {
-              onDismissOverlay: this.handleAnimateDismiss,
-            })}
+      <OverlayContext.Provider
+        value={{
+          onDismissOverlay: this.handleAnimateDismiss,
+        }}
+      >
+        <div className={this.overlayClass}>
+          <div className="overlay--dialog">{OverlayNode}</div>
+          <div className="overlay--mask" onClick={this.handleClickOutside} />
         </div>
-        <div className="overlay--mask" onClick={this.handleClickOutside} />
-      </div>
+      </OverlayContext.Provider>
     )
   }
 

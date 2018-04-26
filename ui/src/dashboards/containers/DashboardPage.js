@@ -40,6 +40,7 @@ import {interval, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
 import {notifyDashboardNotFound} from 'shared/copy/notifications'
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 
 const FORMAT_INFLUXQL = 'influxql'
 const defaultTimeRange = {
@@ -155,12 +156,19 @@ class DashboardPage extends Component {
     }
 
     handleShowOverlay(
-      <TemplateVariableManager
-        source={source}
-        templates={dashboard.templates}
-        onRunQueryFailure={this.handleRunQueryFailure}
-        onEditTemplateVariables={this.handleEditTemplateVariables}
-      />,
+      <OverlayContext.Consumer>
+        {({onDismissOverlay}) => {
+          return (
+            <TemplateVariableManager
+              source={source}
+              templates={dashboard.templates}
+              onDismissOverlay={onDismissOverlay}
+              onRunQueryFailure={this.handleRunQueryFailure}
+              onEditTemplateVariables={this.handleEditTemplateVariables}
+            />
+          )
+        }}
+      </OverlayContext.Consumer>,
       options
     )
   }
