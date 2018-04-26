@@ -4,7 +4,7 @@ import {map, reduce, filter} from 'fast.js'
 
 import {
   CELL_HORIZONTAL_PADDING,
-  TIME_FIELD_DEFAULT,
+  DEFAULT_TIME_FIELD,
   DEFAULT_TIME_FORMAT,
   DEFAULT_PRECISION,
 } from 'src/shared/constants/tableGraph'
@@ -49,12 +49,12 @@ const updateMaxWidths = (
       const columnLabel = topRow[c]
 
       const useTimeWidth =
-        (columnLabel === TIME_FIELD_DEFAULT.internalName &&
+        (columnLabel === DEFAULT_TIME_FIELD.internalName &&
           verticalTimeAxis &&
           !isTopRow) ||
         (!verticalTimeAxis &&
           isTopRow &&
-          topRow[0] === TIME_FIELD_DEFAULT.internalName &&
+          topRow[0] === DEFAULT_TIME_FIELD.internalName &&
           c !== 0)
 
       const currentWidth = useTimeWidth
@@ -81,7 +81,7 @@ const updateMaxWidths = (
 export const computeFieldOptions = (existingFieldOptions, sortedLabels) => {
   const timeField =
     existingFieldOptions.find(f => f.internalName === 'time') ||
-    TIME_FIELD_DEFAULT
+    DEFAULT_TIME_FIELD
   let astNames = [timeField]
 
   sortedLabels.forEach(({label}) => {

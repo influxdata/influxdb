@@ -19,7 +19,7 @@ import {
   updateFieldOptions,
   changeTimeFormat,
 } from 'src/dashboards/actions/cellEditorOverlay'
-import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
+import {DEFAULT_TIME_FIELD} from 'src/shared/constants/tableGraph'
 import {QueryConfig} from 'src/types/query'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -90,7 +90,7 @@ export class TableOptions extends Component<Props, {}> {
               onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
             />
             <GraphOptionsSortBy
-              selected={tableOptions.sortBy || TIME_FIELD_DEFAULT}
+              selected={tableOptions.sortBy || DEFAULT_TIME_FIELD}
               sortByOptions={tableSortByOptions}
               onChooseSortBy={this.handleChooseSortBy}
             />

@@ -7,7 +7,7 @@ export const TIME_FORMAT_TOOLTIP_LINK =
 
 export const DEFAULT_PRECISION = 0
 
-export const TIME_FIELD_DEFAULT = {
+export const DEFAULT_TIME_FIELD = {
   internalName: 'time',
   displayName: '',
   visible: true,
@@ -18,8 +18,8 @@ export const ASCENDING = 'asc'
 export const DESCENDING = 'desc'
 export const DEFAULT_SORT_DIRECTION = ASCENDING
 
-export const FIX_FIRST_COLUMN_DEFAULT = true
-export const VERTICAL_TIME_AXIS_DEFAULT = true
+export const DEFAULT_FIX_FIRST_COLUMN = true
+export const DEFAULT_VERTICAL_TIME_AXIS = true
 
 export const CELL_HORIZONTAL_PADDING = 30
 
@@ -38,9 +38,8 @@ export const FORMAT_OPTIONS = [
 ]
 
 export const DEFAULT_TABLE_OPTIONS = {
-  verticalTimeAxis: VERTICAL_TIME_AXIS_DEFAULT,
-  timeFormat: DEFAULT_TIME_FORMAT,
-  sortBy: TIME_FIELD_DEFAULT,
+  verticalTimeAxis: DEFAULT_VERTICAL_TIME_AXIS,
+  sortBy: DEFAULT_TIME_FIELD,
   wrapping: 'truncate',
-  fixFirstColumn: FIX_FIRST_COLUMN_DEFAULT,
+  fixFirstColumn: DEFAULT_FIX_FIRST_COLUMN,
 }

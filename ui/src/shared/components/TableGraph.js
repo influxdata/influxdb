@@ -19,15 +19,15 @@ import {
 import {updateFieldOptions} from 'src/dashboards/actions/cellEditorOverlay'
 
 import {
-  NULL_ARRAY_INDEX,
-  NULL_HOVER_TIME,
-  DEFAULT_TIME_FORMAT,
-  TIME_FIELD_DEFAULT,
   ASCENDING,
   DESCENDING,
+  NULL_HOVER_TIME,
+  NULL_ARRAY_INDEX,
+  DEFAULT_TIME_FIELD,
+  DEFAULT_TIME_FORMAT,
   DEFAULT_SORT_DIRECTION,
-  FIX_FIRST_COLUMN_DEFAULT,
-  VERTICAL_TIME_AXIS_DEFAULT,
+  DEFAULT_FIX_FIRST_COLUMN,
+  DEFAULT_VERTICAL_TIME_AXIS,
 } from 'src/shared/constants/tableGraph'
 
 import {generateThresholdsListHexs} from 'shared/constants/colorOperations'
@@ -42,7 +42,7 @@ class TableGraph extends Component {
     const sortField = _.get(
       this.props,
       ['tableOptions', 'sortBy', 'internalName'],
-      TIME_FIELD_DEFAULT.internalName
+      DEFAULT_TIME_FIELD.internalName
     )
 
     this.state = {
@@ -259,21 +259,21 @@ class TableGraph extends Component {
     } = this.state
 
     const {
-      fieldOptions = [TIME_FIELD_DEFAULT],
+      fieldOptions = [DEFAULT_TIME_FIELD],
       timeFormat = DEFAULT_TIME_FORMAT,
       tableOptions,
       colors,
     } = parent.props
 
     const {
-      verticalTimeAxis = VERTICAL_TIME_AXIS_DEFAULT,
-      fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT,
+      verticalTimeAxis = DEFAULT_VERTICAL_TIME_AXIS,
+      fixFirstColumn = DEFAULT_FIX_FIRST_COLUMN,
     } = tableOptions
 
     const cellData = transformedData[rowIndex][columnIndex]
 
     const timeFieldIndex = fieldOptions.findIndex(
-      field => field.internalName === TIME_FIELD_DEFAULT.internalName
+      field => field.internalName === DEFAULT_TIME_FIELD.internalName
     )
 
     const visibleTime = _.get(fieldOptions, [timeFieldIndex, 'visible'], true)
@@ -370,7 +370,7 @@ class TableGraph extends Component {
       fieldOptions,
       timeFormat,
     } = this.props
-    const {fixFirstColumn = FIX_FIRST_COLUMN_DEFAULT} = tableOptions
+    const {fixFirstColumn = DEFAULT_FIX_FIRST_COLUMN} = tableOptions
     const columnCount = _.get(transformedData, ['0', 'length'], 0)
     const rowCount = columnCount === 0 ? 0 : transformedData.length
 
