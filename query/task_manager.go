@@ -1,7 +1,9 @@
 package query
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -21,7 +23,7 @@ type TaskStatus int
 
 const (
 	// RunningTask is set when the task is running.
-	RunningTask TaskStatus = iota
+	RunningTask TaskStatus = iota + 1
 
 	// KilledTask is set when the task is killed, but resources are still
 	// being used.
@@ -34,8 +36,27 @@ func (t TaskStatus) String() string {
 		return "running"
 	case KilledTask:
 		return "killed"
+	default:
+		return "unknown"
 	}
-	panic(fmt.Sprintf("unknown task status: %d", int(t)))
+}
+
+func (t TaskStatus) MarshalJSON() ([]byte, error) {
+	s := t.String()
+	return json.Marshal(s)
+}
+
+func (t *TaskStatus) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(data, []byte("running")) {
+		*t = RunningTask
+	} else if bytes.Equal(data, []byte("killed")) {
+		*t = KilledTask
+	} else if bytes.Equal(data, []byte("unknown")) {
+		*t = TaskStatus(0)
+	} else {
+		return fmt.Errorf("unknown task status: %s", string(data))
+	}
+	return nil
 }
 
 // TaskManager takes care of all aspects related to managing running queries.
@@ -235,6 +256,7 @@ type QueryInfo struct {
 	Query    string        `json:"query"`
 	Database string        `json:"database"`
 	Duration time.Duration `json:"duration"`
+	Status   TaskStatus    `json:"status"`
 }
 
 // Queries returns a list of all running queries with information about them.
@@ -250,6 +272,7 @@ func (t *TaskManager) Queries() []QueryInfo {
 			Query:    qi.query,
 			Database: qi.database,
 			Duration: now.Sub(qi.startTime),
+			Status:   qi.status,
 		})
 	}
 	return queries
