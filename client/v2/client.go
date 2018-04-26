@@ -363,6 +363,9 @@ func (c *client) Write(bp BatchPoints) error {
 	var b bytes.Buffer
 
 	for _, p := range bp.Points() {
+		if p == nil {
+			continue
+		}
 		if _, err := b.WriteString(p.pt.PrecisionString(bp.Precision())); err != nil {
 			return err
 		}
