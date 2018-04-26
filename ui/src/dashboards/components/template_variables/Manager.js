@@ -3,12 +3,12 @@ import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import uuid from 'uuid'
 
-import {SourceContext} from 'src/CheckSources'
 import TemplateVariableTable from 'src/dashboards/components/template_variables/Table'
 
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
 const TemplateVariableManager = ({
+  source,
   onClose,
   onDelete,
   isEdited,
@@ -46,18 +46,14 @@ const TemplateVariableManager = ({
       </div>
     </div>
     <div className="template-variable-manager--body">
-      <SourceContext.Consumer>
-        {source => (
-          <TemplateVariableTable
-            source={source}
-            onDelete={onDelete}
-            templates={templates}
-            onRunQuerySuccess={onRunQuerySuccess}
-            onRunQueryFailure={onRunQueryFailure}
-            tempVarAlreadyExists={tempVarAlreadyExists}
-          />
-        )}
-      </SourceContext.Consumer>
+      <TemplateVariableTable
+        source={source}
+        onDelete={onDelete}
+        templates={templates}
+        onRunQuerySuccess={onRunQuerySuccess}
+        onRunQueryFailure={onRunQueryFailure}
+        tempVarAlreadyExists={tempVarAlreadyExists}
+      />
     </div>
   </div>
 )
@@ -196,12 +192,12 @@ class TemplateVariableManagerWrapper extends Component {
     return (
       <TemplateVariableManager
         {...this.props}
+        templates={rows}
+        isEdited={isEdited}
         onClose={this.handleDismissManager}
         onRunQuerySuccess={this.onRunQuerySuccess}
         onSaveTemplatesSuccess={this.onSaveTemplatesSuccess}
         onAddVariable={this.onAddVariable}
-        templates={rows}
-        isEdited={isEdited}
         onDelete={this.onDeleteTemplateVariable}
         tempVarAlreadyExists={this.tempVarAlreadyExists}
       />
