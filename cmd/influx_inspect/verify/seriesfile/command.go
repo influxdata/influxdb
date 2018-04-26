@@ -23,7 +23,7 @@ type Command struct {
 	db         string
 	seriesFile string
 	verbose    bool
-	parallel   int
+	concurrent int
 }
 
 // NewCommand returns a new instance of Command.
@@ -45,8 +45,8 @@ func (cmd *Command) Run(args ...string) error {
 		"Path to a series file. This overrides -db and -dir.")
 	fs.BoolVar(&cmd.verbose, "v", false,
 		"Verbose output.")
-	fs.IntVar(&cmd.parallel, "p", runtime.GOMAXPROCS(0),
-		"How many parallel workers to run.")
+	fs.IntVar(&cmd.concurrent, "c", runtime.GOMAXPROCS(0),
+		"How many concurrent workers to run.")
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = cmd.printUsage
@@ -66,7 +66,7 @@ func (cmd *Command) Run(args ...string) error {
 
 	v := NewVerify()
 	v.Logger = logger
-	v.Parallel = cmd.parallel
+	v.Concurrent = cmd.concurrent
 
 	if cmd.seriesFile != "" {
 		_, err := v.VerifySeriesFile(cmd.seriesFile)
@@ -103,16 +103,16 @@ Usage: influx_inspect verify-seriesfile [flags]
 
     -dir <path>
             Root data path.
-            Defaults to "%[1]s/.influxdb/data"
+            Defaults to "%[1]s/.influxdb/data".
     -db <name>
-            Only use this database inside of the data directory.
+            Only verify this database inside of the data directory.
     -series-file <path>
             Path to a series file. This overrides -db and -dir.
     -v
             Enable verbose logging.
-    -p
-            How many parallel workers to run.
-            Defaults to "%[2]d"
+    -c
+            How many concurrent workers to run.
+            Defaults to "%[2]d" on this machine.
 `
 
 	fmt.Printf(usage, os.Getenv("HOME"), runtime.GOMAXPROCS(0))

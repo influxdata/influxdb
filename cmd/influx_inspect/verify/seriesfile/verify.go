@@ -21,8 +21,8 @@ type verifyResult struct {
 
 // Verify contains configuration for running verification of series files.
 type Verify struct {
-	Parallel int
-	Logger   *zap.Logger
+	Concurrent int
+	Logger     *zap.Logger
 
 	done chan struct{}
 }
@@ -30,8 +30,8 @@ type Verify struct {
 // NewVerify constructs a Verify with good defaults.
 func NewVerify() Verify {
 	return Verify{
-		Parallel: runtime.GOMAXPROCS(0),
-		Logger:   zap.NewNop(),
+		Concurrent: runtime.GOMAXPROCS(0),
+		Logger:     zap.NewNop(),
 	}
 }
 
@@ -57,23 +57,23 @@ func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 		return false, err
 	}
 
-	// Check every partition in parallel.
-	parallel := v.Parallel
-	if parallel <= 0 {
-		parallel = 1
+	// Check every partition in concurrently.
+	concurrent := v.Concurrent
+	if concurrent <= 0 {
+		concurrent = 1
 	}
 	in := make(chan string, len(partitionInfos))
 	out := make(chan verifyResult, len(partitionInfos))
 
 	// Make sure all the workers are cleaned up when we return.
-	wg := new(sync.WaitGroup)
+	var wg sync.WaitGroup
 	defer wg.Wait()
 
 	// Set up cancellation. Any return will cause the workers to be cancelled.
 	v.done = make(chan struct{})
 	defer close(v.done)
 
-	for i := 0; i < parallel; i++ {
+	for i := 0; i < concurrent; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -107,7 +107,7 @@ func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 	return true, nil
 }
 
-// VerifyPartition performs verifications on a parition of a series file. The error is only returned
+// VerifyPartition performs verifications on a partition of a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 	v.Logger = v.Logger.With(zap.String("partition", filepath.Base(partitionPath)))
@@ -193,6 +193,7 @@ func (v Verify) VerifySegment(segmentPath string, ids map[uint64]IDData) (valid 
 	segment := tsdb.NewSeriesSegment(segmentID, segmentPath)
 	if err := segment.Open(); err != nil {
 		v.Logger.Error("Error opening segment", zap.Error(err))
+		return false, nil
 	}
 	defer segment.Close()
 	buf := newBuffer(segment.Data())
@@ -229,7 +230,7 @@ entries:
 		switch flag {
 		case tsdb.SeriesEntryInsertFlag:
 			if !firstID && prevID > id {
-				v.Logger.Error("ID is not monotonic",
+				v.Logger.Error("ID is not monotonically increasing",
 					zap.Uint64("prev_id", prevID),
 					zap.Uint64("id", id),
 					zap.Int64("offset", buf.offset))
@@ -240,9 +241,12 @@ entries:
 			prevID = id
 
 			if ids != nil {
+				keyCopy := make([]byte, len(key))
+				copy(keyCopy, key)
+
 				ids[id] = IDData{
 					Offset: tsdb.JoinSeriesOffset(segment.ID(), uint32(buf.offset)),
-					Key:    append([]byte(nil), key...),
+					Key:    keyCopy,
 				}
 			}
 
