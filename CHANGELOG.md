@@ -16,6 +16,7 @@ v1.6.0 [unreleased]
 -	[#9757](https://github.com/influxdata/influxdb/pull/9757): Add suppress-write-log option to disable the write log when the log is enabled.
 -	[#9260](https://github.com/influxdata/influxdb/pull/9260): Add additional technical analysis algorithms.
 -	[#8034](https://github.com/influxdata/influxdb/pull/8034): Validate points on input.
+-	[#9777](https://github.com/influxdata/influxdb/pull/9777): Log information about index version during startup.
 
 ### Bugfixes
 
