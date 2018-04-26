@@ -56,8 +56,9 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	config := logger.NewConfig()
+	config.Level = zapcore.WarnLevel
 	if cmd.verbose {
-		config.Level = zapcore.DebugLevel
+		config.Level = zapcore.InfoLevel
 	}
 	logger, err := config.New(cmd.Stderr)
 	if err != nil {

@@ -39,7 +39,7 @@ func NewVerify() Verify {
 // if there was some fatal problem with operating, not if there was a problem with the series file.
 func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 	v.Logger = v.Logger.With(zap.String("path", filePath))
-	v.Logger.Debug("Verifying series file")
+	v.Logger.Info("Verifying series file")
 
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -111,7 +111,7 @@ func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 	v.Logger = v.Logger.With(zap.String("partition", filepath.Base(partitionPath)))
-	v.Logger.Debug("Verifying partition")
+	v.Logger.Info("Verifying partition")
 
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -183,7 +183,7 @@ type IDData struct {
 func (v Verify) VerifySegment(segmentPath string, ids map[uint64]IDData) (valid bool, err error) {
 	segmentName := filepath.Base(segmentPath)
 	v.Logger = v.Logger.With(zap.String("segment", segmentName))
-	v.Logger.Debug("Verifying segment")
+	v.Logger.Info("Verifying segment")
 
 	// Open up the segment and grab it's data.
 	segmentID, err := tsdb.ParseSeriesSegmentFilename(segmentName)
@@ -309,7 +309,7 @@ entries:
 // The ids map must be built from verifying the passed in segments.
 func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 	ids map[uint64]IDData) (valid bool, err error) {
-	v.Logger.Debug("Verifying index")
+	v.Logger.Info("Verifying index")
 
 	defer func() {
 		if rec := recover(); rec != nil {
