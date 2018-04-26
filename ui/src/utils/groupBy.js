@@ -18,7 +18,7 @@ const groupByMap = (results, responseIndex, groupByColumns) => {
             ...firstColumns.slice(1),
           ],
           groupByColumns,
-          name: _.get(results, [0, 'series', 0, 'name']),
+          name: _.get(results, [0, 'series', 0, 'name'], ''),
           values: [],
         },
       ],
@@ -40,10 +40,7 @@ const constructResults = (raw, groupBys) => {
     map(raw, (response, index) => {
       const results = _.get(response, 'response.results', [])
 
-      const successfulResults = _.filter(
-        results,
-        r => !_.get(r, 'error', false)
-      )
+      const successfulResults = _.filter(results, r => _.isNil(r.error))
 
       if (groupBys[index]) {
         return groupByMap(successfulResults, index, groupBys[index])
@@ -88,16 +85,14 @@ const constructCells = serieses => {
         name: measurement,
         columns,
         groupByColumns,
-        values,
+        values = [],
         seriesIndex,
         responseIndex,
         tags = {},
       },
       ind
     ) => {
-      const rows = map(values || [], vals => ({
-        vals,
-      }))
+      const rows = map(values, vals => ({vals}))
 
       const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
         .sort()
