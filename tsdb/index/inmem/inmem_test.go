@@ -122,12 +122,3 @@ func (f *seriesFileWrapper) Close() error {
 	defer os.RemoveAll(f.Path())
 	return f.SeriesFile.Close()
 }
-
-// reopen initialises a new series file using the existing one.
-func (f *seriesFileWrapper) reopen() error {
-	if err := f.SeriesFile.Close(); err != nil {
-		return err
-	}
-	f.SeriesFile = tsdb.NewSeriesFile(f.SeriesFile.Path())
-	return nil
-}

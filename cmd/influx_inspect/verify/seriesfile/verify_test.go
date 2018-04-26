@@ -112,11 +112,7 @@ func NewTest(t *testing.T) *Test {
 			}
 		}
 
-		if err := seriesFile.Close(); err != nil {
-			return err
-		}
-
-		return nil
+		return seriesFile.Close()
 	}()
 	if err != nil {
 		os.RemoveAll(dir)
