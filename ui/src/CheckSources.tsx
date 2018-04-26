@@ -86,7 +86,10 @@ export class CheckSources extends Component<Props, State> {
   }
 
   public async componentWillMount() {
-    const {router, auth: {isUsingAuth, me}} = this.props
+    const {
+      router,
+      auth: {isUsingAuth, me},
+    } = this.props
     if (!isUsingAuth || isUserAuthorized(me.role, VIEWER_ROLE)) {
       await this.props.getSources()
       this.setState({isFetching: false})
@@ -191,7 +194,10 @@ export class CheckSources extends Component<Props, State> {
     const {
       params,
       sources,
-      auth: {isUsingAuth, me: {currentOrganization}},
+      auth: {
+        isUsingAuth,
+        me: {currentOrganization},
+      },
     } = this.props
     const {isFetching} = this.state
     const source = sources.find(s => s.id === params.sourceID)
