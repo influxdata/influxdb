@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import Dygraph from 'dygraphs'
 import {connect} from 'react-redux'
@@ -35,7 +36,7 @@ class Crosshair extends PureComponent<Props> {
   private get isVisible() {
     const {hoverTime} = this.props
 
-    return hoverTime !== 0
+    return hoverTime !== 0 && _.isFinite(hoverTime)
   }
 
   private get crosshairLeft(): number {
