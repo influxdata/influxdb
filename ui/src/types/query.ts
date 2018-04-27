@@ -1,5 +1,5 @@
-export interface Query {
-  id: QueryID
+export interface QueryConfig {
+  id?: string
   database: string
   measurement: string
   retentionPolicy: string
@@ -7,12 +7,13 @@ export interface Query {
   tags: Tags
   groupBy: GroupBy
   areTagsAccepted: boolean
-  rawText: string | null
+  rawText: string
   range?: DurationRange | null
   source?: string
   fill?: string
   status?: Status
   shifts: TimeShift[]
+  isQuerySupportedByExplorer?: boolean // doesn't come from server -- is set in CellEditorOverlay
 }
 
 export interface Field {
@@ -21,8 +22,6 @@ export interface Field {
   alias?: string
   args?: Args[]
 }
-
-export type QueryID = string
 
 export interface Args {
   value: string
@@ -68,19 +67,4 @@ export interface TimeShift {
   label: string
   unit: string
   quantity: string
-}
-
-export interface QueryConfig {
-  id?: string
-  database: string
-  measurement: string
-  retentionPolicy: string
-  fields: Field[]
-  tags: Tags
-  groupBy: GroupBy
-  areTagsAccepted: boolean
-  fill?: string
-  rawText: string
-  range: DurationRange
-  shifts: TimeShift[]
 }

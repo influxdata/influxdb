@@ -31,7 +31,7 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
 } from 'src/shared/constants'
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
-import {TimeRange, Source, Query} from 'src/types'
+import {TimeRange, Source, QueryConfig} from 'src/types'
 import {Status} from 'src/types/query'
 import {Cell, CellQuery, Legend} from 'src/types/dashboard'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -69,15 +69,15 @@ interface Props {
 }
 
 interface State {
-  queriesWorkingDraft: Query[]
+  queriesWorkingDraft: QueryConfig[]
   activeQueryIndex: number
   isDisplayOptionsTabActive: boolean
   isStaticLegend: boolean
 }
 
-const createWorkingDraft = (source: string, query: CellQuery): Query => {
+const createWorkingDraft = (source: string, query: CellQuery): QueryConfig => {
   const {queryConfig} = query
-  const draft: Query = {
+  const draft: QueryConfig = {
     ...queryConfig,
     id: uuid.v4(),
     source,
@@ -88,8 +88,13 @@ const createWorkingDraft = (source: string, query: CellQuery): Query => {
 
 const createWorkingDrafts = (
   source: string,
+<<<<<<< HEAD
   queries: CellQuery[] = []
 ): Query[] =>
+=======
+  queries: CellQuery[]
+): QueryConfig[] =>
+>>>>>>> Add types to handleEditRawText in CEO
   _.cloneDeep(
     queries.map((query: CellQuery) => createWorkingDraft(source, query))
   )
@@ -329,21 +334,27 @@ class CellEditorOverlay extends Component<Props, State> {
   // in the query in a clear manner. If they are being used, we indicate that in
   // the query config in order to disable the fields column down stream because
   // at this point the query string is disconnected from the schema explorer.
-  private handleEditRawText = async (url, id, text) => {
-    const userDefinedTempVarsInQuery = this.props.templates.filter(temp => {
-      const isPredefinedTempVar = !!PREDEFINED_TEMP_VARS.find(
-        t => t === temp.tempVar
-      )
-      if (!isPredefinedTempVar) {
-        return text.includes(temp.tempVar)
+  private handleEditRawText = async (
+    url: string,
+    id: string,
+    text: string
+  ): Promise<void> => {
+    const userDefinedTempVarsInQuery = this.props.templates.filter(
+      (temp: Template) => {
+        const isPredefinedTempVar: boolean = !!PREDEFINED_TEMP_VARS.find(
+          t => t === temp.tempVar
+        )
+        if (!isPredefinedTempVar) {
+          return text.includes(temp.tempVar)
+        }
+        return false
       }
-      return false
-    })
+    )
 
-    const isUsingUserDefinedTempVars = !!userDefinedTempVarsInQuery.length
+    const isUsingUserDefinedTempVars: boolean = !!userDefinedTempVarsInQuery.length
 
     try {
-      const selectedTempVars = isUsingUserDefinedTempVars
+      const selectedTempVars: Template[] = isUsingUserDefinedTempVars
         ? removeUnselectedTemplateValues(userDefinedTempVarsInQuery)
         : []
 
@@ -354,23 +365,25 @@ class CellEditorOverlay extends Component<Props, State> {
       )
 
       const config = data.queries.find(q => q.id === id)
-      const nextQueries = this.state.queriesWorkingDraft.map(q => {
-        if (q.id === id) {
-          const isQuerySupportedByExplorer = !isUsingUserDefinedTempVars
+      const nextQueries: QueryConfig[] = this.state.queriesWorkingDraft.map(
+        (q: QueryConfig) => {
+          if (q.id === id) {
+            const isQuerySupportedByExplorer = !isUsingUserDefinedTempVars
 
-          if (isUsingUserDefinedTempVars) {
-            return {...q, rawText: text, isQuerySupportedByExplorer}
+            if (isUsingUserDefinedTempVars) {
+              return {...q, rawText: text, isQuerySupportedByExplorer}
+            }
+
+            return {
+              ...config.queryConfig,
+              source: q.source,
+              isQuerySupportedByExplorer,
+            }
           }
 
-          return {
-            ...config.queryConfig,
-            source: q.source,
-            isQuerySupportedByExplorer,
-          }
+          return q
         }
-
-        return q
-      })
+      )
 
       this.setState({queriesWorkingDraft: nextQueries})
     } catch (error) {
@@ -430,7 +443,7 @@ class CellEditorOverlay extends Component<Props, State> {
     const {queriesWorkingDraft} = this.state
 
     return queriesWorkingDraft.every(
-      (query: Query) =>
+      (query: QueryConfig) =>
         (!!query.measurement && !!query.database && !!query.fields.length) ||
         !!query.rawText
     )

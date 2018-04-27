@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 
 import _ from 'lodash'
 
-import {Query, Source} from 'src/types'
+import {QueryConfig, Source} from 'src/types'
 import {Namespace} from 'src/types/query'
 
 import {showDatabases, showRetentionPolicies} from 'src/shared/apis/metaQuery'
@@ -15,7 +15,7 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface DatabaseListProps {
-  query: Query
+  query: QueryConfig
   querySource: Source
   onChooseNamespace: (namespace: Namespace) => void
   source: Source
@@ -102,7 +102,7 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
     return () => this.props.onChooseNamespace(namespace)
   }
 
-  public isActive(query: Query, {database, retentionPolicy}: Namespace) {
+  public isActive(query: QueryConfig, {database, retentionPolicy}: Namespace) {
     return (
       database === query.database && retentionPolicy === query.retentionPolicy
     )

@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {showMeasurements} from 'src/shared/apis/metaQuery'
 import showMeasurementsParser from 'src/shared/parsing/showMeasurements'
 
-import {Query, Source} from 'src/types'
+import {QueryConfig, Source} from 'src/types'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
@@ -14,7 +14,7 @@ import MeasurementListItem from 'src/shared/components/MeasurementListItem'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  query: Query
+  query: QueryConfig
   querySource: Source
   onChooseTag: () => void
   onGroupByTag: () => void

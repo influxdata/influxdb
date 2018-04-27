@@ -1,4 +1,4 @@
-import {Query} from 'src/types'
+import {QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
 interface Axis {
   bounds: [string, string]
@@ -33,7 +33,7 @@ interface CellLinks {
 
 export interface CellQuery {
   query: string
-  queryConfig: Query
+  queryConfig: QueryConfig
 }
 
 export interface Legend {
