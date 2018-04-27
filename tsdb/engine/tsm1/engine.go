@@ -1024,7 +1024,13 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 	}
 
 	// Load any new series keys to the index
-	readers := make([]chan seriesKey, 0, len(newFiles))
+	tsmFiles := make([]TSMFile, 0, len(newFiles))
+	defer func() {
+		for _, r := range tsmFiles {
+			r.Close()
+		}
+	}()
+
 	ext := fmt.Sprintf(".%s", TmpTSMFileExtension)
 	for _, f := range newFiles {
 		// If asNew is true, the files created from readFileFromBackup will be new ones
@@ -1035,9 +1041,6 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			continue
 		}
 
-		ch := make(chan seriesKey, 1)
-		readers = append(readers, ch)
-
 		fd, err := os.Open(f)
 		if err != nil {
 			return err
@@ -1047,30 +1050,23 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 		if err != nil {
 			return err
 		}
-		defer r.Close()
-
-		go func(c chan seriesKey, r *TSMReader) {
-			n := r.KeyCount()
-			for i := 0; i < n; i++ {
-				key, typ := r.KeyAt(i)
-				c <- seriesKey{key, typ}
-			}
-			close(c)
-		}(ch, r)
+		tsmFiles = append(tsmFiles, r)
 	}
 
 	// Merge and dedup all the series keys across each reader to reduce
 	// lock contention on the index.
 	keys := make([][]byte, 0, 10000)
 	fieldTypes := make([]influxql.DataType, 0, 10000)
-	merged := merge(readers...)
-	for v := range merged {
-		fieldType := BlockTypeToInfluxQLDataType(v.typ)
+
+	ki := newMergeKeyIterator(tsmFiles, nil)
+	for ki.Next() {
+		key, typ := ki.Read()
+		fieldType := BlockTypeToInfluxQLDataType(typ)
 		if fieldType == influxql.Unknown {
-			return fmt.Errorf("unknown block type: %v", v.typ)
+			return fmt.Errorf("unknown block type: %v", typ)
 		}
 
-		keys = append(keys, v.key)
+		keys = append(keys, key)
 		fieldTypes = append(fieldTypes, fieldType)
 
 		if len(keys) == cap(keys) {

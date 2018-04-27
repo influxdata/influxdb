@@ -27,8 +27,14 @@ func DigestWithOptions(dir string, opts DigestOptions, w io.WriteCloser) error {
 		return err
 	}
 
-	readers := make([]*TSMReader, 0, len(files))
+	tsmFiles := make([]TSMFile, 0, len(files))
+	defer func() {
+		for _, r := range tsmFiles {
+			r.Close()
+		}
+	}()
 
+	readers := make([]*TSMReader, 0, len(files))
 	for _, fi := range files {
 		f, err := os.Open(fi)
 		if err != nil {
@@ -40,39 +46,7 @@ func DigestWithOptions(dir string, opts DigestOptions, w io.WriteCloser) error {
 			return err
 		}
 		readers = append(readers, r)
-	}
-
-	ch := make([]chan seriesKey, 0, len(files))
-	for _, fi := range files {
-		f, err := os.Open(fi)
-		if err != nil {
-			return err
-		}
-
-		r, err := NewTSMReader(f)
-		if err != nil {
-			return err
-		}
-		defer r.Close()
-
-		s := make(chan seriesKey)
-		ch = append(ch, s)
-		go func() {
-			for i := 0; i < r.KeyCount(); i++ {
-				key, typ := r.KeyAt(i)
-				if len(opts.MinKey) > 0 && bytes.Compare(key, opts.MinKey) < 0 {
-					continue
-				}
-
-				if len(opts.MaxKey) > 0 && bytes.Compare(key, opts.MaxKey) > 0 {
-					continue
-				}
-
-				s <- seriesKey{key: key, typ: typ}
-			}
-			close(s)
-		}()
-
+		tsmFiles = append(tsmFiles, r)
 	}
 
 	dw, err := NewDigestWriter(w)
@@ -82,14 +56,23 @@ func DigestWithOptions(dir string, opts DigestOptions, w io.WriteCloser) error {
 	defer dw.Close()
 
 	var n int
-	for key := range merge(ch...) {
+	ki := newMergeKeyIterator(tsmFiles, nil)
+	for ki.Next() {
+		key, _ := ki.Read()
+		if len(opts.MinKey) > 0 && bytes.Compare(key, opts.MinKey) < 0 {
+			continue
+		}
+
+		if len(opts.MaxKey) > 0 && bytes.Compare(key, opts.MaxKey) > 0 {
+			continue
+		}
 
 		ts := &DigestTimeSpan{}
 		n++
-		kstr := string(key.key)
+		kstr := string(key)
 
 		for _, r := range readers {
-			entries := r.Entries(key.key)
+			entries := r.Entries(key)
 			for _, entry := range entries {
 				crc, b, err := r.ReadBytes(&entry, nil)
 				if err != nil {
