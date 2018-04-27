@@ -22,14 +22,6 @@ class ExpressionNode extends PureComponent<Props> {
         {({onDeleteFuncNode, onAddNode, onChangeArg, onGenerateScript}) => {
           return (
             <div className="func-nodes-container">
-              <h4>
-                <FuncSelector
-                  bodyID={bodyID}
-                  funcs={funcNames}
-                  onAddNode={onAddNode}
-                  declarationID={declarationID}
-                />
-              </h4>
               {funcs.map(func => (
                 <FuncNode
                   key={func.id}
@@ -41,6 +33,12 @@ class ExpressionNode extends PureComponent<Props> {
                   onGenerateScript={onGenerateScript}
                 />
               ))}
+              <FuncSelector
+                bodyID={bodyID}
+                funcs={funcNames}
+                onAddNode={onAddNode}
+                declarationID={declarationID}
+              />
             </div>
           )
         }}
