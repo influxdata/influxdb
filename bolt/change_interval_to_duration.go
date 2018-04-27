@@ -344,7 +344,6 @@ func (m *DashboardCell) GetTableOptions() *TableOptions {
 }
 
 type TableOptions struct {
-	TimeFormat       string            `protobuf:"bytes,1,opt,name=timeFormat,proto3" json:"timeFormat,omitempty"`
 	VerticalTimeAxis bool              `protobuf:"varint,2,opt,name=verticalTimeAxis,proto3" json:"verticalTimeAxis,omitempty"`
 	SortBy           *RenamableField   `protobuf:"bytes,3,opt,name=sortBy" json:"sortBy,omitempty"`
 	Wrapping         string            `protobuf:"bytes,4,opt,name=wrapping,proto3" json:"wrapping,omitempty"`
@@ -356,13 +355,6 @@ func (m *TableOptions) Reset()                    { *m = TableOptions{} }
 func (m *TableOptions) String() string            { return proto.CompactTextString(m) }
 func (*TableOptions) ProtoMessage()               {}
 func (*TableOptions) Descriptor() ([]byte, []int) { return fileDescriptorInternal, []int{3} }
-
-func (m *TableOptions) GetTimeFormat() string {
-	if m != nil {
-		return m.TimeFormat
-	}
-	return ""
-}
 
 func (m *TableOptions) GetVerticalTimeAxis() bool {
 	if m != nil {
