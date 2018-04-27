@@ -91,12 +91,9 @@ export class DataExplorer extends PureComponent<Props, State> {
       source,
       timeRange,
       autoRefresh,
-      queryConfigs,
-      manualRefresh,
       onManualRefresh,
       errorThrownAction,
       writeLineProtocol,
-      queryConfigActions,
       handleChooseAutoRefresh,
     } = this.props
 
@@ -129,27 +126,48 @@ export class DataExplorer extends PureComponent<Props, State> {
           minBottomHeight={MINIMUM_HEIGHTS.visualization}
           initialTopHeight={INITIAL_HEIGHTS.queryMaker}
           initialBottomHeight={INITIAL_HEIGHTS.visualization}
-        >
-          <QueryMaker
-            source={source}
-            rawText={this.rawText}
-            actions={queryConfigActions}
-            activeQuery={this.activeQuery}
-            initialGroupByTime={AUTO_GROUP_BY}
-          />
-          <Visualization
-            views={VIS_VIEWS}
-            activeQueryIndex={0}
-            timeRange={timeRange}
-            templates={TEMPLATES}
-            autoRefresh={autoRefresh}
-            queryConfigs={queryConfigs}
-            manualRefresh={manualRefresh}
-            errorThrown={errorThrownAction}
-            editQueryStatus={queryConfigActions.editQueryStatus}
-          />
-        </ResizeContainer>
+          renderTop={this.renderTop}
+          renderBottom={this.renderBottom}
+        />
       </div>
+    )
+  }
+
+  private renderTop = () => {
+    const {source, queryConfigActions} = this.props
+    return (
+      <QueryMaker
+        source={source}
+        rawText={this.rawText}
+        actions={queryConfigActions}
+        activeQuery={this.activeQuery}
+        initialGroupByTime={AUTO_GROUP_BY}
+      />
+    )
+  }
+
+  private renderBottom = () => {
+    const {
+      timeRange,
+      autoRefresh,
+      queryConfigs,
+      manualRefresh,
+      errorThrownAction,
+      queryConfigActions,
+    } = this.props
+
+    return (
+      <Visualization
+        views={VIS_VIEWS}
+        activeQueryIndex={0}
+        timeRange={timeRange}
+        templates={TEMPLATES}
+        autoRefresh={autoRefresh}
+        queryConfigs={queryConfigs}
+        manualRefresh={manualRefresh}
+        errorThrown={errorThrownAction}
+        editQueryStatus={queryConfigActions.editQueryStatus}
+      />
     )
   }
 

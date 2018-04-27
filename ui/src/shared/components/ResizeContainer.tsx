@@ -4,6 +4,7 @@ import classnames from 'classnames'
 import ResizeHandle from 'src/shared/components/ResizeHandle'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+const hundred = 100
 const maximumNumChildren = 2
 const defaultMinTopHeight = 200
 const defaultMinBottomHeight = 200
@@ -19,7 +20,8 @@ interface State {
 }
 
 interface Props {
-  children: ReactNode
+  renderTop: (height: number) => ReactNode
+  renderBottom: (height: number, top: number) => ReactNode
   containerClass: string
   minTopHeight: number
   minBottomHeight: number
@@ -62,7 +64,13 @@ class ResizeContainer extends Component<Props, State> {
 
   public render() {
     const {topHeightPixels, bottomHeightPixels, isDragging} = this.state
-    const {containerClass, children, theme} = this.props
+    const {
+      containerClass,
+      children,
+      theme,
+      renderTop,
+      renderBottom,
+    } = this.props
 
     if (React.Children.count(children) > maximumNumChildren) {
       console.error(
@@ -83,43 +91,44 @@ class ResizeContainer extends Component<Props, State> {
       >
         <div
           className="resize--top"
-          style={{
-            height: this.percentageHeights.top,
-          }}
+          style={this.topStyle}
           ref={r => (this.topRef = r)}
         >
-          {React.cloneElement(children[0], {
-            resizerBottomHeight: bottomHeightPixels,
-            resizerTopHeight: topHeightPixels,
-          })}
+          {renderTop(topHeightPixels)}
         </div>
         <ResizeHandle
           theme={theme}
           isDragging={isDragging}
           onHandleStartDrag={this.handleStartDrag}
-          top={this.percentageHeights.top}
+          top={this.topHandle}
         />
         <div
           className="resize--bottom"
-          style={{
-            height: this.percentageHeights.bottom,
-            top: this.percentageHeights.top,
-          }}
+          style={this.bottomStyle}
           ref={r => (this.bottomRef = r)}
         >
-          {React.cloneElement(children[1], {
-            resizerBottomHeight: bottomHeightPixels,
-            resizerTopHeight: topHeightPixels,
-          })}
+          {renderBottom(topHeightPixels, bottomHeightPixels)}
         </div>
       </div>
     )
   }
 
-  private get percentageHeights() {
+  private get topStyle() {
+    const {topHeight} = this.state
+
+    return {height: `${topHeight}%`}
+  }
+
+  private get bottomStyle() {
     const {topHeight, bottomHeight} = this.state
 
     return {top: `${topHeight}%`, bottom: `${bottomHeight}%`}
+  }
+
+  private get topHandle() {
+    const {topHeight} = this.state
+
+    return `${topHeight}%`
   }
 
   private handleStartDrag = () => {
@@ -140,15 +149,14 @@ class ResizeContainer extends Component<Props, State> {
     }
 
     const {minTopHeight, minBottomHeight} = this.props
-    const oneHundred = 100
     const {height} = getComputedStyle(this.containerRef)
-    const containerHeight = Number(height)
+    const containerHeight = parseInt(height, 10)
     // verticalOffset moves the resize handle as many pixels as the page-heading is taking up.
     const verticalOffset = window.innerHeight - containerHeight
     const newTopPanelPercent = Math.ceil(
-      (e.pageY - verticalOffset) / containerHeight * oneHundred
+      (e.pageY - verticalOffset) / containerHeight * hundred
     )
-    const newBottomPanelPercent = oneHundred - newTopPanelPercent
+    const newBottomPanelPercent = hundred - newTopPanelPercent
 
     // Don't trigger a resize unless the change in size is greater than minResizePercentage
     const minResizePercentage = 0.5
@@ -158,9 +166,8 @@ class ResizeContainer extends Component<Props, State> {
       return
     }
 
-    const topHeightPixels = newTopPanelPercent / oneHundred * containerHeight
-    const bottomHeightPixels =
-      newBottomPanelPercent / oneHundred * containerHeight
+    const topHeightPixels = newTopPanelPercent / hundred * containerHeight
+    const bottomHeightPixels = newBottomPanelPercent / hundred * containerHeight
 
     // Don't trigger a resize if the new sizes are too small
     if (
@@ -172,9 +179,9 @@ class ResizeContainer extends Component<Props, State> {
 
     this.setState({
       topHeight: newTopPanelPercent,
+      topHeightPixels,
       bottomHeight: newBottomPanelPercent,
       bottomHeightPixels,
-      topHeightPixels,
     })
   }
 }
