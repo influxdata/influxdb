@@ -785,7 +785,7 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt64(&h.stats.PingRequests, 1)
-	h.writeHeader(w, http.StatusNoContent)
+	h.writeHeader(w, http.StatusOK)
 }
 
 // serveStatus has been deprecated.
