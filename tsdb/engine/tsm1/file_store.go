@@ -26,6 +26,9 @@ import (
 const (
 	// The extension used to describe temporary snapshot files.
 	TmpTSMFileExtension = "tmp"
+
+	// The extension used to describe corrupt snapshot files.
+	BadTSMFileExtension = "bad"
 )
 
 // TSMFile represents an on-disk TSM file.
@@ -488,9 +491,15 @@ func (f *FileStore) Open() error {
 				zap.Int("id", idx),
 				zap.Duration("duration", time.Since(start)))
 
+			// If we are unable to read a TSM file then log the error, rename
+			// the file, and continue loading the shard without it.
 			if err != nil {
-				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
-				return
+				f.logger.Error("Cannot read corrupt tsm file, renaming", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
+				if e := os.Rename(file.Name(), file.Name()+"."+BadTSMFileExtension); e != nil {
+					f.logger.Error("Cannot rename corrupt tsm file", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(e))
+					readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %v", file.Name(), e)}
+					return
+				}
 			}
 			readerC <- &res{r: df}
 		}(i, file)
@@ -500,10 +509,12 @@ func (f *FileStore) Open() error {
 	for range files {
 		res := <-readerC
 		if res.err != nil {
-
 			return res.err
+		} else if res.r == nil {
+			continue
 		}
 		f.files = append(f.files, res.r)
+
 		// Accumulate file store size stats
 		atomic.AddInt64(&f.stats.DiskBytes, int64(res.r.Size()))
 		for _, ts := range res.r.TombstoneFiles() {
