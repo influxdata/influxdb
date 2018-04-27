@@ -53,9 +53,7 @@ export default class FuncNode extends PureComponent<Props, State> {
             onGenerateScript={onGenerateScript}
           />
         )}
-        <div className="btn btn-danger btn-square" onClick={this.handleDelete}>
-          <span className="icon-trash" />
-        </div>
+        <div className="func-node--delete" onClick={this.handleDelete} />
       </div>
     )
   }

@@ -21,8 +21,8 @@ class BodyBuilder extends PureComponent<Props> {
         return b.declarations.map(d => {
           if (d.funcs) {
             return (
-              <div key={b.id}>
-                <div className="func-node--name">{d.name} =</div>
+              <div className="declaration" key={b.id}>
+                <div className="variable-name">{d.name}</div>
                 <ExpressionNode
                   key={b.id}
                   bodyID={b.id}
@@ -35,8 +35,8 @@ class BodyBuilder extends PureComponent<Props> {
           }
 
           return (
-            <div className="func-node--name" key={b.id}>
-              {b.source}
+            <div className="declaration" key={b.id}>
+              <div className="variable-name">{b.source}</div>
             </div>
           )
         })

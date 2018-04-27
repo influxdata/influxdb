@@ -1,31 +1,49 @@
-.func-nodes-container {
-  display: inline-flex;
+.declaration {
+  width: 500px;
+  margin-bottom: 30px;
+}
+
+.variable-name {
+  font-size: 13px;
+  font-family: $code-font;
+  color: $c-honeydew;
+  padding: 5px 10px;
+  background-color: $g3-castle;
+  border-radius: $radius;
+  margin-bottom: 2px;
+  width: 100%;
+}
+
+
+.expression-node {
+  width: 100%;
+  display: flex;
   flex-direction: column;
 }
 
 .func-node {
+  width: 100%;
   display: flex;
+  align-items: stretch;
+  position: relative;
+  margin-bottom: 2px;
 }
 
 .func-node--name {
-  background: #252b35;
-  border-radius: $radius-small;
-  padding: 10px;
-  width: auto;
-  display: flex;
+  background-color: $g4-onyx;
+  padding: 10px;  
   color: $ix-text-default;
-  margin-bottom: $ix-marg-a;
-  font-family: $ix-text-font;
-  font-weight: 500;
-  cursor: pointer;
+  font-size: 13px;
+  border-radius: $radius 0 0 $radius;
+  font-weight: 600;
+  width: 130px;
 }
 
 .func-args {
-  background: #252b35;
-  border-radius: $radius-small;
+  background-color: $g3-castle;
+  border-radius: 0 $radius $radius 0;
   padding: 10px;
-  margin-bottom: $ix-marg-a;
-  width: auto;
+  flex: 1 0 0;
   display: flex;
   align-items: stretch;
   flex-direction: column;
@@ -36,4 +54,25 @@
 
 .func-arg {
   display: flex;
+}
+
+.func-node--delete {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  top: 0;
+  right: -26px;
+  border-radius: 50%;
+  background-color: $c-curacao;
+  opacity: 0;
+  transition: background-color 0.25s ease, opacity 0.25s ease;
+
+  &:hover {
+    background-color: $c-dreamsicle;
+    cursor: pointer;
+  }
+
+  .func-node:hover & {
+    opacity: 1;
+  }
 }

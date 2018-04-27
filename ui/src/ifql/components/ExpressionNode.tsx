@@ -21,7 +21,7 @@ class ExpressionNode extends PureComponent<Props> {
       <IFQLContext.Consumer>
         {({onDeleteFuncNode, onAddNode, onChangeArg, onGenerateScript}) => {
           return (
-            <div className="func-nodes-container">
+            <div className="expression-node">
               {funcs.map(func => (
                 <FuncNode
                   key={func.id}
