@@ -61,13 +61,7 @@ class ResizeContainer extends Component<Props, State> {
   }
 
   public render() {
-    const {
-      topHeightPixels,
-      bottomHeightPixels,
-      topHeight,
-      bottomHeight,
-      isDragging,
-    } = this.state
+    const {topHeightPixels, bottomHeightPixels, isDragging} = this.state
     const {containerClass, children, theme} = this.props
 
     if (React.Children.count(children) > maximumNumChildren) {
@@ -90,7 +84,7 @@ class ResizeContainer extends Component<Props, State> {
         <div
           className="resize--top"
           style={{
-            height: `${topHeight}%`,
+            height: this.percentageHeights.top,
           }}
           ref={r => (this.topRef = r)}
         >
@@ -103,11 +97,14 @@ class ResizeContainer extends Component<Props, State> {
           theme={theme}
           isDragging={isDragging}
           onHandleStartDrag={this.handleStartDrag}
-          top={`${topHeight}%`}
+          top={this.percentageHeights.top}
         />
         <div
           className="resize--bottom"
-          style={{height: `${bottomHeight}%`, top: `${topHeight}%`}}
+          style={{
+            height: this.percentageHeights.bottom,
+            top: this.percentageHeights.top,
+          }}
           ref={r => (this.bottomRef = r)}
         >
           {React.cloneElement(children[1], {
@@ -117,6 +114,12 @@ class ResizeContainer extends Component<Props, State> {
         </div>
       </div>
     )
+  }
+
+  private get percentageHeights() {
+    const {topHeight, bottomHeight} = this.state
+
+    return {top: `${topHeight}%`, bottom: `${bottomHeight}%`}
   }
 
   private handleStartDrag = () => {
