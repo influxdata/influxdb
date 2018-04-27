@@ -148,6 +148,5 @@ Usage: influx_inspect deletetsm [flags] path...
     -measurement NAME
             The name of the measurement to remove.
     -v
-            Enable verbose logging.
-`)
+            Enable verbose logging.`)
 }
