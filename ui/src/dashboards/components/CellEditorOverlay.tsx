@@ -14,7 +14,7 @@ import * as queryModifiers from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'src/utils/influxql'
-import {getQueryConfig} from 'src/shared/apis'
+import {getQueryConfigAndStatus} from 'src/shared/apis'
 import {IS_STATIC_LEGEND} from 'src/shared/constants'
 import {ColorString, ColorNumber} from 'src/types/colors'
 import {nextSource} from 'src/dashboards/utils/sources'
@@ -25,7 +25,11 @@ import {
 } from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
-import {AUTO_GROUP_BY} from 'src/shared/constants'
+import {
+  AUTO_GROUP_BY,
+  PREDEFINED_TEMP_VARS,
+  TEMP_VAR_DASHBOARD_TIME,
+} from 'src/shared/constants'
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 import {TimeRange, Source, Query} from 'src/types'
 import {Status} from 'src/types/query'
@@ -270,7 +274,7 @@ class CellEditorOverlay extends Component<Props, State> {
     const {cell, thresholdsListColors, gaugeColors, lineColors} = this.props
 
     const queries = queriesWorkingDraft.map(q => {
-      const timeRange = q.range || {upper: null, lower: ':dashboardTime:'}
+      const timeRange = q.range || {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
 
       return {
         queryConfig: q,
@@ -321,16 +325,53 @@ class CellEditorOverlay extends Component<Props, State> {
     return _.get(queriesWorkingDraft, activeQueryIndex, queriesWorkingDraft[0])
   }
 
+  // The schema explorer is not built to handle user defined template variables
+  // in the query in a clear manner. If they are being used, we indicate that in
+  // the query config in order to disable the fields column down stream because
+  // at this point the query string is disconnected from the schema explorer.
   private handleEditRawText = async (url, id, text) => {
-    const templates = removeUnselectedTemplateValues(this.props.templates)
-
-    // use this as the handler passed into fetchTimeSeries to update a query status
-    try {
-      const {data} = await getQueryConfig(url, [{query: text, id}], templates)
-      const config = data.queries.find(q => q.id === id)
-      const nextQueries = this.state.queriesWorkingDraft.map(
-        q => (q.id === id ? {...config.queryConfig, source: q.source} : q)
+    const userDefinedTempVarsInQuery = this.props.templates.filter(temp => {
+      const isPredefinedTempVar = !!PREDEFINED_TEMP_VARS.find(
+        t => t === temp.tempVar
       )
+      if (!isPredefinedTempVar) {
+        return text.includes(temp.tempVar)
+      }
+      return false
+    })
+
+    const isUsingUserDefinedTempVars = !!userDefinedTempVarsInQuery.length
+
+    try {
+      const selectedTempVars = isUsingUserDefinedTempVars
+        ? removeUnselectedTemplateValues(userDefinedTempVarsInQuery)
+        : []
+
+      const {data} = await getQueryConfigAndStatus(
+        url,
+        [{query: text, id}],
+        selectedTempVars
+      )
+
+      const config = data.queries.find(q => q.id === id)
+      const nextQueries = this.state.queriesWorkingDraft.map(q => {
+        if (q.id === id) {
+          const isQuerySupportedByExplorer = !isUsingUserDefinedTempVars
+
+          if (isUsingUserDefinedTempVars) {
+            return {...q, rawText: text, isQuerySupportedByExplorer}
+          }
+
+          return {
+            ...config.queryConfig,
+            source: q.source,
+            isQuerySupportedByExplorer,
+          }
+        }
+
+        return q
+      })
+
       this.setState({queriesWorkingDraft: nextQueries})
     } catch (error) {
       console.error(error)

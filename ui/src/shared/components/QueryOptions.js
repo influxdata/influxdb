@@ -12,19 +12,24 @@ const QueryOptions = ({
   onTimeShift,
   onGroupByTime,
   isKapacitorRule,
+  isDisabled,
 }) => (
   <div className="query-builder--groupby-fill-container">
     <GroupByTimeDropdown
       selected={groupBy.time}
       onChooseGroupByTime={onGroupByTime}
+      isDisabled={isDisabled}
     />
     {isKapacitorRule ? null : (
       <TimeShiftDropdown
         selected={shift && shift.label}
         onChooseTimeShift={onTimeShift}
+        isDisabled={isDisabled}
       />
     )}
-    {isKapacitorRule ? null : <FillQuery value={fill} onChooseFill={onFill} />}
+    {isKapacitorRule ? null : (
+      <FillQuery value={fill} onChooseFill={onFill} isDisabled={isDisabled} />
+    )}
   </div>
 )
 
@@ -42,6 +47,7 @@ QueryOptions.propTypes = {
   onGroupByTime: func.isRequired,
   isKapacitorRule: bool.isRequired,
   onTimeShift: func.isRequired,
+  isDisabled: bool,
 }
 
 export default QueryOptions

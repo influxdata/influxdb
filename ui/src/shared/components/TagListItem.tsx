@@ -14,6 +14,7 @@ interface Props {
   selectedTagValues: string[]
   isUsingGroupBy?: boolean
   onChooseTag: (tag: Tag) => void
+  isQuerySupportedByExplorer: boolean
   onGroupByTag: (tagKey: string) => void
 }
 
@@ -36,10 +37,16 @@ class TagListItem extends PureComponent<Props, State> {
     this.handleGroupBy = this.handleGroupBy.bind(this)
     this.handleClickKey = this.handleClickKey.bind(this)
     this.handleFilterText = this.handleFilterText.bind(this)
+    this.handleInputClick = this.handleInputClick.bind(this)
   }
 
   public handleChoose(tagValue: string, e: MouseEvent<HTMLElement>) {
     e.stopPropagation()
+
+    const {isQuerySupportedByExplorer} = this.props
+    if (!isQuerySupportedByExplorer) {
+      return
+    }
     this.props.onChooseTag({key: this.props.tagKey, value: tagValue})
   }
 
@@ -67,7 +74,11 @@ class TagListItem extends PureComponent<Props, State> {
   }
 
   public handleGroupBy(e) {
+    const {isQuerySupportedByExplorer} = this.props
     e.stopPropagation()
+    if (!isQuerySupportedByExplorer) {
+      return
+    }
     this.props.onGroupByTag(this.props.tagKey)
   }
 

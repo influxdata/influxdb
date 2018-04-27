@@ -12,6 +12,7 @@ const SchemaExplorer = ({
   query: {id},
   source,
   initialGroupByTime,
+  isQuerySupportedByExplorer,
   actions: {
     fill,
     timeShift,
@@ -41,6 +42,7 @@ const SchemaExplorer = ({
       onGroupByTag={actionBinder(id, groupByTag)}
       onChooseMeasurement={actionBinder(id, chooseMeasurement)}
       onToggleTagAcceptance={actionBinder(id, toggleTagAcceptance)}
+      isQuerySupportedByExplorer={isQuerySupportedByExplorer}
     />
     <FieldList
       source={source}
@@ -54,11 +56,16 @@ const SchemaExplorer = ({
       onGroupByTime={actionBinder(id, groupByTime)}
       addInitialField={actionBinder(id, addInitialField)}
       applyFuncsToField={actionBinder(id, applyFuncsToField)}
+      isQuerySupportedByExplorer={isQuerySupportedByExplorer}
     />
   </div>
 )
 
-const {func, shape, string} = PropTypes
+const {bool, func, shape, string} = PropTypes
+
+SchemaExplorer.defaultProps = {
+  isQuerySupportedByExplorer: true,
+}
 
 SchemaExplorer.propTypes = {
   query: shape({
@@ -80,6 +87,7 @@ SchemaExplorer.propTypes = {
   }).isRequired,
   source: shape({}),
   initialGroupByTime: string.isRequired,
+  isQuerySupportedByExplorer: bool,
 }
 
 export default SchemaExplorer

@@ -1,4 +1,5 @@
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
+import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
 export const fixtureStatusPageCells = [
   {
@@ -13,8 +14,7 @@ export const fixtureStatusPageCells = [
     colors: DEFAULT_LINE_COLORS,
     queries: [
       {
-        query:
-          'SELECT count("value") AS "count_value" FROM "chronograf"."autogen"."alerts" WHERE time > :dashboardTime: GROUP BY time(1d)',
+        query: `SELECT count("value") AS "count_value" FROM "chronograf"."autogen"."alerts" WHERE time > ${TEMP_VAR_DASHBOARD_TIME} GROUP BY time(1d)`,
         label: 'Events',
         queryConfig: {
           database: 'chronograf',

@@ -19,6 +19,7 @@ interface Props {
   onChooseTag: () => void
   onGroupByTag: () => void
   onToggleTagAcceptance: () => void
+  isQuerySupportedByExplorer: boolean
   onChooseMeasurement: (measurement: string) => void
 }
 
@@ -117,7 +118,13 @@ class MeasurementList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {query, querySource, onChooseTag, onGroupByTag} = this.props
+    const {
+      query,
+      querySource,
+      onChooseTag,
+      onGroupByTag,
+      isQuerySupportedByExplorer,
+    } = this.props
     const {database, areTagsAccepted} = query
     const {filtered} = this.state
 
@@ -147,6 +154,7 @@ class MeasurementList extends PureComponent<Props, State> {
                   areTagsAccepted={areTagsAccepted}
                   onAcceptReject={this.handleAcceptReject}
                   isActive={measurement === query.measurement}
+                  isQuerySupportedByExplorer={isQuerySupportedByExplorer}
                   numTagsActive={Object.keys(query.tags).length}
                   onChooseMeasurement={this.handleChoosemeasurement}
                 />

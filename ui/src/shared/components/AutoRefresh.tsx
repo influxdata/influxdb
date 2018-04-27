@@ -1,7 +1,7 @@
 import React, {Component, ComponentClass} from 'react'
 import _ from 'lodash'
 
-import {getQueryConfig} from 'src/shared/apis'
+import {getQueryConfigAndStatus} from 'src/shared/apis'
 import {fetchTimeSeries} from 'src/shared/apis/query'
 import {DEFAULT_TIME_SERIES} from 'src/shared/constants/series'
 import {TimeSeriesServerResponse, TimeSeriesResponse} from 'src/types/series'
@@ -265,7 +265,11 @@ const AutoRefresh = (
           const host = _.isArray(q.host) ? q.host[0] : q.host
           const url = host.replace('proxy', 'queries')
           const text = q.text
-          const {data} = await getQueryConfig(url, [{query: text}], templates)
+          const {data} = await getQueryConfigAndStatus(
+            url,
+            [{query: text}],
+            templates
+          )
           return data.queries[0].queryAST
         })
       )

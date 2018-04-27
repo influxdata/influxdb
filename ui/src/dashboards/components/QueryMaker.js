@@ -1,5 +1,6 @@
 import React from 'react'
 import PropTypes from 'prop-types'
+import _ from 'lodash'
 
 import EmptyQuery from 'src/shared/components/EmptyQuery'
 import QueryTabList from 'src/shared/components/QueryTabList'
@@ -7,8 +8,9 @@ import QueryTextArea from 'src/dashboards/components/QueryTextArea'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
 import {buildQuery} from 'utils/influxql'
 import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
+import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
-const TEMPLATE_RANGE = {upper: null, lower: ':dashboardTime:'}
+const TEMPLATE_RANGE = {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
 const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
 const buildText = q =>
@@ -54,6 +56,11 @@ const QueryMaker = ({
           query={activeQuery}
           onAddQuery={onAddQuery}
           initialGroupByTime={initialGroupByTime}
+          isQuerySupportedByExplorer={_.get(
+            activeQuery,
+            'isQuerySupportedByExplorer',
+            true
+          )}
         />
       </div>
     ) : (

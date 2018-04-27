@@ -20,6 +20,11 @@ class FieldListItem extends Component {
     if (e) {
       e.stopPropagation()
     }
+    const {isDisabled} = this.props
+    if (isDisabled) {
+      return
+    }
+
     this.setState({isOpen: !this.state.isOpen})
   }
 
@@ -139,5 +144,6 @@ FieldListItem.propTypes = {
   onApplyFuncsToField: func.isRequired,
   isKapacitorRule: bool.isRequired,
   funcs: arrayOf(string.isRequired).isRequired,
+  isDisabled: bool,
 }
 export default FieldListItem

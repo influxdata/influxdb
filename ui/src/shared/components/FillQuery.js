@@ -86,7 +86,7 @@ class FillQuery extends Component {
   }
 
   render() {
-    const {size, theme} = this.props
+    const {size, theme, isDisabled} = this.props
     const {selected, currentNumberValue} = this.state
 
     return (
@@ -114,6 +114,7 @@ class FillQuery extends Component {
           buttonColor="btn-info"
           menuClass={`dropdown-${this.getColor(theme)}`}
           onChoose={this.handleDropdown}
+          disabled={isDisabled}
         />
         <label className="fill-query--label">Fill:</label>
       </div>
@@ -121,7 +122,7 @@ class FillQuery extends Component {
   }
 }
 
-const {func, string} = PropTypes
+const {bool, func, string} = PropTypes
 
 FillQuery.defaultProps = {
   size: 'sm',
@@ -134,6 +135,7 @@ FillQuery.propTypes = {
   value: string,
   size: string,
   theme: string,
+  isDisabled: bool,
 }
 
 export default FillQuery

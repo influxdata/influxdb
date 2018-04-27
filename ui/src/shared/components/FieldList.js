@@ -73,8 +73,12 @@ class FieldList extends Component {
       addInitialField,
       initialGroupByTime: time,
       isKapacitorRule,
+      isQuerySupportedByExplorer,
     } = this.props
     const {fields, groupBy} = query
+    if (!isQuerySupportedByExplorer) {
+      return
+    }
     const initialGroupBy = {...groupBy, time}
 
     if (!_.size(fields)) {
@@ -141,6 +145,7 @@ class FieldList extends Component {
   render() {
     const {
       query: {database, measurement, fields = [], groupBy, fill, shifts},
+      isQuerySupportedByExplorer,
       isKapacitorRule,
     } = this.props
 
@@ -160,6 +165,7 @@ class FieldList extends Component {
               isKapacitorRule={isKapacitorRule}
               onTimeShift={this.handleTimeShift}
               onGroupByTime={this.handleGroupByTime}
+              isDisabled={!isQuerySupportedByExplorer}
             />
           ) : null}
         </div>
@@ -192,6 +198,7 @@ class FieldList extends Component {
                     fieldFuncs={fieldFuncs}
                     funcs={functionNames(funcs)}
                     isKapacitorRule={isKapacitorRule}
+                    isDisabled={!isQuerySupportedByExplorer}
                   />
                 )
               })}
@@ -245,6 +252,7 @@ FieldList.propTypes = {
   removeFuncs: func.isRequired,
   addInitialField: func,
   initialGroupByTime: string,
+  isQuerySupportedByExplorer: bool,
 }
 
 export default FieldList

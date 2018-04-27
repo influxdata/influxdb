@@ -19,6 +19,7 @@ const GroupByTimeDropdown = ({
   selected,
   onChooseGroupByTime,
   location: {pathname},
+  isDisabled,
 }) => (
   <div className="group-by-time">
     <label className="group-by-time--label">Group by:</label>
@@ -32,11 +33,12 @@ const GroupByTimeDropdown = ({
       }))}
       onChoose={onChooseGroupByTime}
       selected={selected || 'Time'}
+      disabled={isDisabled}
     />
   </div>
 )
 
-const {func, string, shape} = PropTypes
+const {bool, func, string, shape} = PropTypes
 
 GroupByTimeDropdown.propTypes = {
   location: shape({
@@ -44,6 +46,7 @@ GroupByTimeDropdown.propTypes = {
   }).isRequired,
   selected: string,
   onChooseGroupByTime: func.isRequired,
+  isDisabled: bool,
 }
 
 export default withRouter(GroupByTimeDropdown)

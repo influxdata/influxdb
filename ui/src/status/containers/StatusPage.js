@@ -8,6 +8,10 @@ import LayoutRenderer from 'shared/components/LayoutRenderer'
 
 import {fixtureStatusPageCells} from 'src/status/fixtures'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {
+  TEMP_VAR_DASHBOARD_TIME,
+  TEMP_VAR_UPPER_DASHBOARD_TIME,
+} from 'src/shared/constants'
 
 @ErrorHandling
 class StatusPage extends Component {
@@ -25,7 +29,7 @@ class StatusPage extends Component {
 
     const dashboardTime = {
       id: 'dashtime',
-      tempVar: ':dashboardTime:',
+      tempVar: TEMP_VAR_DASHBOARD_TIME,
       type: 'constant',
       values: [
         {
@@ -38,7 +42,7 @@ class StatusPage extends Component {
 
     const upperDashboardTime = {
       id: 'upperdashtime',
-      tempVar: ':upperDashboardTime:',
+      tempVar: TEMP_VAR_UPPER_DASHBOARD_TIME,
       type: 'constant',
       values: [
         {

@@ -36,7 +36,12 @@ import {
   templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
 } from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
-import {interval, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'shared/constants'
+import {
+  interval,
+  DASHBOARD_LAYOUT_ROW_HEIGHT,
+  TEMP_VAR_DASHBOARD_TIME,
+  TEMP_VAR_UPPER_DASHBOARD_TIME,
+} from 'shared/constants'
 import {notifyDashboardNotFound} from 'shared/copy/notifications'
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -321,7 +326,7 @@ class DashboardPage extends Component {
 
     const dashboardTime = {
       id: 'dashtime',
-      tempVar: ':dashboardTime:',
+      tempVar: TEMP_VAR_DASHBOARD_TIME,
       type: lowerType,
       values: [
         {
@@ -334,7 +339,7 @@ class DashboardPage extends Component {
 
     const upperDashboardTime = {
       id: 'upperdashtime',
-      tempVar: ':upperDashboardTime:',
+      tempVar: TEMP_VAR_UPPER_DASHBOARD_TIME,
       type: upperType,
       values: [
         {
