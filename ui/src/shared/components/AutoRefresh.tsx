@@ -4,6 +4,7 @@ import _ from 'lodash'
 import {getQueryConfig} from 'src/shared/apis'
 import {fetchTimeSeries} from 'src/shared/apis/query'
 import {DEFAULT_TIME_SERIES} from 'src/shared/constants/series'
+import {TimeSeriesServerResponse, TimeSeriesResponse} from 'src/types/series'
 
 interface Axes {
   bounds: {
@@ -48,27 +49,6 @@ interface Props {
   axes: Axes
   editQueryStatus: () => void
   grabDataForDownload: (timeSeries: TimeSeriesServerResponse[]) => void
-}
-
-type TimeSeriesValue = string | number | Date | null
-
-interface Series {
-  name: string
-  columns: string[]
-  values: TimeSeriesValue[]
-}
-
-interface Result {
-  series: Series[]
-  statement_id: number
-}
-
-interface TimeSeriesResponse {
-  results: Result[]
-}
-
-interface TimeSeriesServerResponse {
-  response: TimeSeriesResponse
 }
 
 interface QueryAST {
@@ -162,7 +142,7 @@ const AutoRefresh = (
         const newSeries = timeSeries.map((response: TimeSeriesResponse) => ({
           response,
         }))
-        const isLastQuerySuccessful = this.resultsForQuery(newSeries)
+        const isLastQuerySuccessful = this.hasResultsForQuery(newSeries)
 
         this.setState({
           timeSeries: newSeries,
@@ -189,6 +169,21 @@ const AutoRefresh = (
         isFetching,
         isLastQuerySuccessful,
       } = this.state
+
+      const hasValues = _.some(timeSeries, s => {
+        const results = _.get(s, 'response.results', [])
+        const v = _.some(results, r => r.series)
+        console.error(results, v)
+        return v
+      })
+
+      if (!hasValues) {
+        return (
+          <div className="graph-empty">
+            <p>No Results</p>
+          </div>
+        )
+      }
 
       if (isFetching && isLastQuerySuccessful) {
         return (
@@ -277,7 +272,7 @@ const AutoRefresh = (
       )
     }
 
-    private resultsForQuery = data => {
+    private hasResultsForQuery = (data): boolean => {
       if (!data.length) {
         return false
       }
