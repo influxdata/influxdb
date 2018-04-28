@@ -1,23 +1,23 @@
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
 
-import QueryOptions from 'shared/components/QueryOptions'
+import QueryOptions from 'src/shared/components/QueryOptions'
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
-import {showFieldKeys} from 'shared/apis/metaQuery'
-import showFieldKeysParser from 'shared/parsing/showFieldKeys'
+import {showFieldKeys} from 'src/shared/apis/metaQuery'
+import showFieldKeysParser from 'src/shared/parsing/showFieldKeys'
 import {
   functionNames,
   numFunctions,
   getFieldsWithName,
   getFuncsByFieldName,
-} from 'shared/reducers/helpers/fields'
+} from 'src/shared/reducers/helpers/fields'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
-class FieldList extends Component {
+class FieldList extends PureComponent {
   constructor(props) {
     super(props)
     this.state = {
@@ -25,7 +25,7 @@ class FieldList extends Component {
     }
   }
 
-  componentDidMount() {
+  public componentDidMount() {
     const {database, measurement} = this.props.query
     if (!database || !measurement) {
       return
@@ -34,7 +34,7 @@ class FieldList extends Component {
     this._getFields()
   }
 
-  componentDidUpdate(prevProps) {
+  public componentDidUpdate(prevProps) {
     const {querySource, query} = this.props
     const {database, measurement, retentionPolicy} = query
     const {
@@ -58,15 +58,15 @@ class FieldList extends Component {
     this._getFields()
   }
 
-  handleGroupByTime = groupBy => {
+  public handleGroupByTime = groupBy => {
     this.props.onGroupByTime(groupBy.menuOption)
   }
 
-  handleFill = fill => {
+  public handleFill = fill => {
     this.props.onFill(fill)
   }
 
-  handleToggleField = field => {
+  public handleToggleField = field => {
     const {
       query,
       onToggleField,
@@ -90,7 +90,7 @@ class FieldList extends Component {
     onToggleField(field)
   }
 
-  handleApplyFuncs = fieldFunc => {
+  public handleApplyFuncs = fieldFunc => {
     const {
       query,
       removeFuncs,
@@ -113,11 +113,11 @@ class FieldList extends Component {
     applyFuncsToField(fieldFunc, groupBy)
   }
 
-  handleTimeShift = shift => {
+  public handleTimeShift = shift => {
     this.props.onTimeShift(shift)
   }
 
-  _getFields = () => {
+  public _getFields = () => {
     const {database, measurement, retentionPolicy} = this.props.query
     const {source} = this.context
     const {querySource} = this.props
@@ -142,7 +142,7 @@ class FieldList extends Component {
     })
   }
 
-  render() {
+  public render() {
     const {
       query: {database, measurement, fields = [], groupBy, fill, shifts},
       isQuerySupportedByExplorer,

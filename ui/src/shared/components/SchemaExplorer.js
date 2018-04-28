@@ -1,6 +1,9 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
+import {QueryConfig, Source} from 'src/types'
+import {CellEditorOverlayActions} from 'src/types/dashboard'
+
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
 import FieldList from 'src/shared/components/FieldList'

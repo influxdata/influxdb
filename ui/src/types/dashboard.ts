@@ -1,5 +1,6 @@
 import {QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
+
 interface Axis {
   bounds: [string, string]
   label: string
@@ -74,4 +75,20 @@ export interface Template {
   id: string
   tempVar: string
   values: TemplateValue[]
+}
+
+export interface CellEditorOverlayActions {
+  chooseNamespace: () => void
+  chooseMeasurement: () => void
+  applyFuncsToField: () => void
+  chooseTag: () => void
+  groupByTag: () => void
+  toggleField: () => void
+  groupByTime: () => void
+  toggleTagAcceptance: () => void
+  fill: () => void
+  editRawTextAsync: () => void
+  addInitialField: () => void
+  removeFuncs: () => void
+  timeShift: () => void
 }

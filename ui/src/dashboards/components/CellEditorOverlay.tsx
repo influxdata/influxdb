@@ -31,9 +31,15 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
 } from 'src/shared/constants'
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
-import {TimeRange, Source, QueryConfig} from 'src/types'
-import {Status} from 'src/types/query'
-import {Cell, CellQuery, Legend} from 'src/types/dashboard'
+import {
+  TimeRange,
+  Source,
+  QueryConfig,
+  Cell,
+  CellQuery,
+  Legend,
+  Status,
+} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const staticLegend: Legend = {

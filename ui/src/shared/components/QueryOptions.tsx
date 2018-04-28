@@ -1,10 +1,23 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
+
+import {GroupBy, TimeShift} from 'src/types'
+
 import GroupByTimeDropdown from 'src/data_explorer/components/GroupByTimeDropdown'
 import TimeShiftDropdown from 'src/shared/components/TimeShiftDropdown'
-import FillQuery from 'shared/components/FillQuery'
+import FillQuery from 'src/shared/components/FillQuery'
 
-const QueryOptions = ({
+interface Props {
+  fill: string
+  onFill: () => void
+  groupBy: GroupBy
+  shift: TimeShift
+  onGroupByTime: () => void
+  isKapacitorRule: boolean
+  onTimeShift: () => void
+  isDisabled: boolean
+}
+
+const QueryOptions: SFC<Props> = ({
   fill,
   shift,
   onFill,
@@ -32,22 +45,5 @@ const QueryOptions = ({
     )}
   </div>
 )
-
-const {bool, func, shape, string} = PropTypes
-
-QueryOptions.propTypes = {
-  fill: string,
-  onFill: func.isRequired,
-  groupBy: shape({
-    time: string,
-  }).isRequired,
-  shift: shape({
-    label: string,
-  }),
-  onGroupByTime: func.isRequired,
-  isKapacitorRule: bool.isRequired,
-  onTimeShift: func.isRequired,
-  isDisabled: bool,
-}
 
 export default QueryOptions
