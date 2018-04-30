@@ -120,7 +120,12 @@ export default function cellEditorOverlay(state = initialState, action) {
 
       return {...state, cell}
     }
+    case 'CHANGE_DECIMAL_PLACES': {
+      const {decimalPlaces} = action.payload
+      const cell = {...state.cell, decimalPlaces}
 
+      return {...state, cell}
+    }
     case 'UPDATE_FIELD_OPTIONS': {
       const {fieldOptions} = action.payload
       const cell = {...state.cell, fieldOptions}

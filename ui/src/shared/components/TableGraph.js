@@ -9,15 +9,13 @@ import {bindActionCreators} from 'redux'
 import moment from 'moment'
 import {reduce} from 'fast.js'
 
-const {arrayOf, bool, shape, string, func} = PropTypes
-
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 import {
   computeFieldOptions,
   transformTableData,
 } from 'src/dashboards/utils/tableGraph'
 import {updateFieldOptions} from 'src/dashboards/actions/cellEditorOverlay'
-import {DEFAULT_TIME_FIELD, DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
+import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {
   ASCENDING,
   DESCENDING,
@@ -247,6 +245,26 @@ class TableGraph extends Component {
     return adjustedColumnSizerWidth
   }
 
+  createCellContents = (
+    cellData,
+    fieldName,
+    isTimeData,
+    isFieldName,
+    isNumerical
+  ) => {
+    const {timeFormat, decimalPlaces} = this.props
+    if (isTimeData) {
+      return `${moment(cellData).format(timeFormat)}`
+    }
+    if (isFieldName) {
+      return fieldName
+    }
+    if (isNumerical && decimalPlaces.isEnforced) {
+      return cellData.toFixed(decimalPlaces.digits)
+    }
+    return `${cellData}`
+  }
+
   cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
     const {
       hoveredColumnIndex,
@@ -257,7 +275,6 @@ class TableGraph extends Component {
 
     const {
       fieldOptions = [DEFAULT_TIME_FIELD],
-      timeFormat = DEFAULT_TIME_FORMAT,
       tableOptions,
       colors,
     } = parent.props
@@ -284,7 +301,7 @@ class TableGraph extends Component {
         : rowIndex === timeFieldIndex && columnIndex !== 0)
     const isFieldName = verticalTimeAxis ? rowIndex === 0 : columnIndex === 0
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
-    const dataIsNumerical = _.isNumber(cellData)
+    const isNumerical = _.isNumber(cellData)
     const isHighlightedRow =
       rowIndex === parent.props.scrollToRow ||
       (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0)
@@ -319,7 +336,7 @@ class TableGraph extends Component {
       'table-graph-cell__fixed-corner': isFixedCorner,
       'table-graph-cell__highlight-row': isHighlightedRow,
       'table-graph-cell__highlight-column': isHighlightedColumn,
-      'table-graph-cell__numerical': dataIsNumerical,
+      'table-graph-cell__numerical': isNumerical,
       'table-graph-cell__field-name': isFieldName,
       'table-graph-cell__sort-asc':
         isFieldName && sort.field === cellData && sort.direction === ASCENDING,
@@ -327,11 +344,13 @@ class TableGraph extends Component {
         isFieldName && sort.field === cellData && sort.direction === DESCENDING,
     })
 
-    const cellContents = isTimeData
-      ? `${moment(cellData).format(
-          timeFormat === '' ? DEFAULT_TIME_FORMAT : timeFormat
-        )}`
-      : fieldName || `${cellData}`
+    const cellContents = this.createCellContents(
+      cellData,
+      fieldName,
+      isTimeData,
+      isFieldName,
+      isNumerical
+    )
 
     return (
       <div
@@ -366,6 +385,7 @@ class TableGraph extends Component {
       colors,
       fieldOptions,
       timeFormat,
+      decimalPlaces,
     } = this.props
     const {fixFirstColumn = DEFAULT_FIX_FIRST_COLUMN} = tableOptions
     const columnCount = _.get(transformedData, ['0', 'length'], 0)
@@ -417,6 +437,7 @@ class TableGraph extends Component {
                 fieldOptions={fieldOptions}
                 tableOptions={tableOptions}
                 timeFormat={timeFormat}
+                decimalPlaces={decimalPlaces}
                 timeColumnWidth={timeColumnWidth}
                 classNameBottomRightGrid="table-graph--scroll-window"
               />
@@ -427,6 +448,7 @@ class TableGraph extends Component {
     )
   }
 }
+const {arrayOf, bool, number, shape, string, func} = PropTypes
 
 TableGraph.propTypes = {
   data: arrayOf(shape()),
@@ -441,6 +463,10 @@ TableGraph.propTypes = {
     fixFirstColumn: bool.isRequired,
   }),
   timeFormat: string.isRequired,
+  decimalPlaces: shape({
+    isEnforced: bool.isRequired,
+    digits: number.isRequired,
+  }).isRequired,
   fieldOptions: arrayOf(
     shape({
       internalName: string.isRequired,

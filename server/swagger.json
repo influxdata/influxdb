@@ -4689,6 +4689,22 @@
             "timeFormat describes the display format for time values according to moment.js date formatting",
           "type": "string"
         },
+        "decimalPoints": {
+          "description":
+            "decimal points indicates whether and how many digits to show after decimal point",
+          "type": "object",
+          "properties": {
+            "isEnforced": {
+              "description":
+                "Indicates whether decimal point setting should be enforced",
+              "type": "bool"
+            },
+            "digits": {
+              "description": "The number of digits after decimal to display",
+              "type": "integer"
+            }
+          }
+        },
         "links": {
           "type": "object",
           "properties": {
@@ -5025,11 +5041,6 @@
           "description":
             "visible indicates whether this field should be visible on the table",
           "type": "boolean"
-        },
-        "precision": {
-          "description":
-            "precision indicates how precise each number value should be",
-          "type": "integer"
         }
       }
     },

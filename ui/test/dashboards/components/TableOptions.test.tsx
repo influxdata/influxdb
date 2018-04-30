@@ -14,17 +14,20 @@ const defaultProps = {
   handleUpdateTableOptions: () => {},
   handleUpdateFieldOptions: () => {},
   handleChangeTimeFormat: () => {},
+  handleChangeDecimalPlaces: () => {},
   onResetFocus: () => {},
   queryConfigs: [],
   tableOptions: {
-    columnNames: [],
     fixFirstColumn: true,
-    sortBy: {displayName: '', internalName: '', visible: true, precision: 0},
+    sortBy: {displayName: '', internalName: '', visible: true},
     verticalTimeAxis: true,
   },
   fieldOptions: [],
   timeFormat: '',
-  queryASTs: [],
+  decimalPlaces: {
+    isEnforced: true,
+    digits: 2,
+  },
 }
 
 const setup = (override = {}) => {

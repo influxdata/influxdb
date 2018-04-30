@@ -18,11 +18,9 @@ interface FieldName {
   internalName: string
   displayName: string
   visible: boolean
-  precision: number
 }
 
 interface TableOptions {
-  timeFormat: string
   verticalTimeAxis: boolean
   sortBy: FieldName
   wrapping: string
@@ -43,6 +41,11 @@ export interface Legend {
   orientation?: string
 }
 
+interface DecimalPlaces {
+  isEnforced: boolean
+  digits: number
+}
+
 export interface Cell {
   id: string
   x: number
@@ -56,6 +59,8 @@ export interface Cell {
   colors: ColorString[]
   tableOptions: TableOptions
   fieldOptions: FieldName[]
+  timeFormat: string
+  decimalPlaces: DecimalPlaces
   links: CellLinks
   legend: Legend
 }

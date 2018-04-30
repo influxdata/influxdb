@@ -7,6 +7,7 @@ import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFi
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import GraphOptionsDecimalPlaces from 'src/dashboards/components/GraphOptionsDecimalPlaces'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import _ from 'lodash'
@@ -18,6 +19,7 @@ import {
   updateTableOptions,
   updateFieldOptions,
   changeTimeFormat,
+  changeDecimalPlaces,
 } from 'src/dashboards/actions/cellEditorOverlay'
 import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {QueryConfig} from 'src/types/query'
@@ -32,7 +34,6 @@ interface RenamableField {
   internalName: string
   displayName: string
   visible: boolean
-  precision: number
 }
 
 interface TableOptionsInterface {
@@ -41,14 +42,21 @@ interface TableOptionsInterface {
   fixFirstColumn: boolean
 }
 
+interface DecimalPlaces {
+  isEnforced: boolean
+  digits: number
+}
+
 interface Props {
   queryConfigs: QueryConfig[]
   handleUpdateTableOptions: (options: TableOptionsInterface) => void
   handleUpdateFieldOptions: (fieldOptions: RenamableField[]) => void
   handleChangeTimeFormat: (timeFormat: string) => void
+  handleChangeDecimalPlaces: (decimalPlaces: number) => void
   tableOptions: TableOptionsInterface
   fieldOptions: RenamableField[]
   timeFormat: string
+  decimalPlaces: DecimalPlaces
   onResetFocus: () => void
 }
 
@@ -66,6 +74,7 @@ export class TableOptions extends Component<Props, {}> {
       timeFormat,
       onResetFocus,
       tableOptions,
+      decimalPlaces,
     } = this.props
 
     const tableSortByOptions = fieldOptions.map(field => ({
@@ -84,6 +93,11 @@ export class TableOptions extends Component<Props, {}> {
             <GraphOptionsTimeFormat
               timeFormat={timeFormat}
               onTimeFormatChange={this.handleTimeFormatChange}
+            />
+            <GraphOptionsDecimalPlaces
+              digits={decimalPlaces.digits}
+              isEnforced={decimalPlaces.isEnforced}
+              onDecimalPlacesChange={this.handleDecimalPlacesChange}
             />
             <GraphOptionsTimeAxis
               verticalTimeAxis={verticalTimeAxis}
@@ -143,6 +157,11 @@ export class TableOptions extends Component<Props, {}> {
     handleChangeTimeFormat(timeFormat)
   }
 
+  private handleDecimalPlacesChange = decimalPlaces => {
+    const {handleChangeDecimalPlaces} = this.props
+    handleChangeDecimalPlaces(decimalPlaces)
+  }
+
   private handleToggleVerticalTimeAxis = verticalTimeAxis => () => {
     const {tableOptions, handleUpdateTableOptions} = this.props
     handleUpdateTableOptions({...tableOptions, verticalTimeAxis})
@@ -181,18 +200,20 @@ export class TableOptions extends Component<Props, {}> {
 
 const mapStateToProps = ({
   cellEditorOverlay: {
-    cell: {tableOptions, timeFormat, fieldOptions},
+    cell: {tableOptions, timeFormat, fieldOptions, decimalPlaces},
   },
 }) => ({
   tableOptions,
   timeFormat,
   fieldOptions,
+  decimalPlaces,
 })
 
 const mapDispatchToProps = dispatch => ({
   handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
   handleUpdateFieldOptions: bindActionCreators(updateFieldOptions, dispatch),
   handleChangeTimeFormat: bindActionCreators(changeTimeFormat, dispatch),
+  handleChangeDecimalPlaces: bindActionCreators(changeDecimalPlaces, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

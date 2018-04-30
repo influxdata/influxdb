@@ -17,13 +17,15 @@ export const UNTITLED_CELL_TABLE = 'Untitled Table'
 export const TIME_FORMAT_TOOLTIP_LINK =
   'http://momentjs.com/docs/#/parsing/string-format/'
 
-export const DEFAULT_PRECISION = 0
+export const DEFAULT_DECIMAL_PLACES = {
+  isEnforced: false,
+  digits: 3,
+}
 
 export const DEFAULT_TIME_FIELD = {
   internalName: 'time',
   displayName: '',
   visible: true,
-  precision: DEFAULT_PRECISION,
 }
 
 export const DEFAULT_TABLE_OPTIONS = {
@@ -57,6 +59,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   queries: [],
   tableOptions: DEFAULT_TABLE_OPTIONS,
   timeFormat: DEFAULT_TIME_FORMAT,
+  decimalPlaces: DEFAULT_DECIMAL_PLACES,
   fieldOptions: [DEFAULT_TIME_FIELD],
 }
 

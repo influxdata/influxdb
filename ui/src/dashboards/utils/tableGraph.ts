@@ -3,11 +3,7 @@ import _ from 'lodash'
 import {map, reduce, filter} from 'fast.js'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
-import {
-  DEFAULT_TIME_FIELD,
-  DEFAULT_TIME_FORMAT,
-  DEFAULT_PRECISION,
-} from 'src/dashboards/constants'
+import {DEFAULT_TIME_FIELD, DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
 
 const calculateTimeColumnWidth = timeFormat => {
   // Force usage of longest format names for ideal measurement
@@ -44,8 +40,10 @@ const updateMaxWidths = (
       const foundField = isLabel
         ? fieldOptions.find(field => field.internalName === col)
         : undefined
+
       const colValue =
         foundField && foundField.displayName ? foundField.displayName : `${col}`
+
       const columnLabel = topRow[c]
 
       const useTimeWidth =
@@ -89,7 +87,6 @@ export const computeFieldOptions = (existingFieldOptions, sortedLabels) => {
       internalName: label,
       displayName: '',
       visible: true,
-      precision: DEFAULT_PRECISION,
     }
     astNames = [...astNames, field]
   })

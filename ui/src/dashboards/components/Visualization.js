@@ -25,6 +25,7 @@ const DashVisualization = (
     thresholdsListColors,
     tableOptions,
     timeFormat,
+    decimalPlaces,
     fieldOptions,
     isInCEO,
   },
@@ -57,6 +58,7 @@ const DashVisualization = (
           resizerTopHeight={resizerTopHeight}
           staticLegend={staticLegend}
           timeFormat={timeFormat}
+          decimalPlaces={decimalPlaces}
           fieldOptions={fieldOptions}
           isInCEO={isInCEO}
         />
@@ -84,11 +86,15 @@ DashVisualization.propTypes = {
   }),
   tableOptions: shape({}),
   timeFormat: string.isRequired,
+  decimalPlaces: shape({
+    isEnforced: bool,
+    digits: number,
+  }),
   fieldOptions: arrayOf(
     shape({
       internalName: string.isRequired,
       displayName: string.isRequired,
-      visible: string.isRequired,
+      visible: bool.isRequired,
     })
   ),
   resizerTopHeight: number,
@@ -112,7 +118,7 @@ const mapStateToProps = ({
     thresholdsListColors,
     gaugeColors,
     lineColors,
-    cell: {type, axes, tableOptions, fieldOptions, timeFormat},
+    cell: {type, axes, tableOptions, fieldOptions, timeFormat, decimalPlaces},
   },
 }) => ({
   gaugeColors,
@@ -123,6 +129,7 @@ const mapStateToProps = ({
   tableOptions,
   fieldOptions,
   timeFormat,
+  decimalPlaces,
 })
 
 export default connect(mapStateToProps, null)(DashVisualization)

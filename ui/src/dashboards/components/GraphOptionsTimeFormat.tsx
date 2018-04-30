@@ -60,7 +60,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     const showCustom = !formatOption || customFormat
 
     return (
-      <div className="form-group col-xs-12">
+      <div className="form-group col-xs-6">
         <label>
           Time Format
           {showCustom && (

@@ -72,6 +72,13 @@ export const changeTimeFormat = timeFormat => ({
   },
 })
 
+export const changeDecimalPlaces = decimalPlaces => ({
+  type: 'CHANGE_DECIMAL_PLACES',
+  payload: {
+    decimalPlaces,
+  },
+})
+
 export const updateFieldOptions = fieldOptions => ({
   type: 'UPDATE_FIELD_OPTIONS',
   payload: {

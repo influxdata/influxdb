@@ -493,9 +493,9 @@ describe('filterTableColumns', () => {
     ]
 
     const fieldOptions = [
-      {internalName: 'time', displayName: 'Time', visible: true, precision: 0},
-      {internalName: 'f1', displayName: '', visible: false, precision: 0},
-      {internalName: 'f2', displayName: 'F2', visible: false, precision: 0},
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: false},
     ]
 
     const actual = filterTableColumns(data, fieldOptions)
@@ -512,9 +512,9 @@ describe('filterTableColumns', () => {
     ]
 
     const fieldOptions = [
-      {internalName: 'time', displayName: 'Time', visible: false, precision: 0},
-      {internalName: 'f1', displayName: '', visible: false, precision: 0},
-      {internalName: 'f2', displayName: 'F2', visible: false, precision: 0},
+      {internalName: 'time', displayName: 'Time', visible: false},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: false},
     ]
 
     const actual = filterTableColumns(data, fieldOptions)
@@ -534,10 +534,11 @@ describe('transformTableData', () => {
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
     const tableOptions = {verticalTimeAxis: true}
     const timeFormat = DEFAULT_TIME_FORMAT
+
     const fieldOptions = [
-      {internalName: 'time', displayName: 'Time', visible: true, precision: 0},
-      {internalName: 'f1', displayName: '', visible: true, precision: 0},
-      {internalName: 'f2', displayName: 'F2', visible: true, precision: 0},
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: true},
+      {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
     const actual = transformTableData(
@@ -568,9 +569,9 @@ describe('transformTableData', () => {
     const tableOptions = {verticalTimeAxis: true}
     const timeFormat = DEFAULT_TIME_FORMAT
     const fieldOptions = [
-      {internalName: 'time', displayName: 'Time', visible: true, precision: 0},
-      {internalName: 'f1', displayName: '', visible: false, precision: 0},
-      {internalName: 'f2', displayName: 'F2', visible: true, precision: 0},
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
     const actual = transformTableData(
@@ -599,9 +600,9 @@ describe('transformTableData', () => {
     const timeFormat = DEFAULT_TIME_FORMAT
 
     const fieldOptions = [
-      {internalName: 'time', displayName: 'Time', visible: true, precision: 0},
-      {internalName: 'f1', displayName: '', visible: false, precision: 0},
-      {internalName: 'f2', displayName: 'F2', visible: true, precision: 0},
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
     const actual = transformTableData(
@@ -632,9 +633,9 @@ describe('if verticalTimeAxis is false', () => {
     const timeFormat = DEFAULT_TIME_FORMAT
 
     const fieldOptions = [
-      {internalName: 'time', displayName: 'Time', visible: true, precision: 0},
-      {internalName: 'f1', displayName: '', visible: true, precision: 0},
-      {internalName: 'f2', displayName: 'F2', visible: true, precision: 0},
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: true},
+      {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
     const actual = transformTableData(
@@ -667,9 +668,9 @@ describe('if verticalTimeAxis is false', () => {
     const timeFormat = DEFAULT_TIME_FORMAT
 
     const fieldOptions = [
-      {internalName: 'time', displayName: 'Time', visible: true, precision: 0},
-      {internalName: 'f1', displayName: '', visible: false, precision: 0},
-      {internalName: 'f2', displayName: 'F2', visible: true, precision: 0},
+      {internalName: 'time', displayName: 'Time', visible: true},
+      {internalName: 'f1', displayName: '', visible: false},
+      {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
     const actual = transformTableData(

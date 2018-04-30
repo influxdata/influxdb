@@ -35,6 +35,7 @@ const RefreshingGraph = ({
   autoRefresh,
   fieldOptions,
   timeFormat,
+  decimalPlaces,
   resizerTopHeight,
   staticLegend,
   manualRefresh, // when changed, re-mounts the component
@@ -46,7 +47,6 @@ const RefreshingGraph = ({
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
-
   if (!queries.length) {
     return (
       <div className="graph-empty">
@@ -109,6 +109,7 @@ const RefreshingGraph = ({
         tableOptions={tableOptions}
         fieldOptions={fieldOptions}
         timeFormat={timeFormat}
+        decimalPlaces={decimalPlaces}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
         isInCEO={isInCEO}
@@ -186,6 +187,10 @@ RefreshingGraph.propTypes = {
     }).isRequired
   ),
   timeFormat: string.isRequired,
+  decimalPlaces: shape({
+    isEnforced: bool.isRequired,
+    digits: number.isRequired,
+  }).isRequired,
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
   isInCEO: bool,

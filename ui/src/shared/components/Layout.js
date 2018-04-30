@@ -54,6 +54,7 @@ const Layout = (
       timeFormat,
       fieldOptions,
       tableOptions,
+      decimalPlaces,
     },
     source,
     sources,
@@ -98,6 +99,7 @@ const Layout = (
         tableOptions={tableOptions}
         fieldOptions={fieldOptions}
         timeFormat={timeFormat}
+        decimalPlaces={decimalPlaces}
         staticLegend={IS_STATIC_LEGEND(legend)}
         cellHeight={h}
         onZoom={onZoom}
@@ -162,6 +164,10 @@ const propTypes = {
       fixFirstColumn: bool.isRequired,
     }),
     timeFormat: string.isRequired,
+    decimalPlaces: shape({
+      isEnforced: bool.isRequired,
+      digits: number.isRequired,
+    }).isRequired,
     fieldOptions: arrayOf(
       shape({
         internalName: string.isRequired,
