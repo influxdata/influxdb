@@ -90,9 +90,10 @@ export class TableOptions extends Component<Props, {}> {
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Table Controls</h5>
           <div className="form-group-wrapper">
-            <GraphOptionsTimeFormat
-              timeFormat={timeFormat}
-              onTimeFormatChange={this.handleTimeFormatChange}
+            <GraphOptionsSortBy
+              selected={tableOptions.sortBy || DEFAULT_TIME_FIELD}
+              sortByOptions={tableSortByOptions}
+              onChooseSortBy={this.handleChooseSortBy}
             />
             <GraphOptionsDecimalPlaces
               digits={decimalPlaces.digits}
@@ -103,10 +104,9 @@ export class TableOptions extends Component<Props, {}> {
               verticalTimeAxis={verticalTimeAxis}
               onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
             />
-            <GraphOptionsSortBy
-              selected={tableOptions.sortBy || DEFAULT_TIME_FIELD}
-              sortByOptions={tableSortByOptions}
-              onChooseSortBy={this.handleChooseSortBy}
+            <GraphOptionsTimeFormat
+              timeFormat={timeFormat}
+              onTimeFormatChange={this.handleTimeFormatChange}
             />
             <GraphOptionsFixFirstColumn
               fixed={fixFirstColumn}
