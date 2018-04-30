@@ -40,7 +40,7 @@ interface Template {
   values: TemplateValue[]
 }
 
-interface Props {
+export interface Props {
   type: string
   autoRefresh: number
   inView: boolean
@@ -65,12 +65,12 @@ interface State {
   queryASTs?: QueryAST[]
 }
 
-interface OriginalProps {
+export interface OriginalProps {
   data: TimeSeriesServerResponse[]
   setResolution: (resolution: number) => void
   isFetchingInitially?: boolean
   isRefreshing?: boolean
-  queryASTs?: any[]
+  queryASTs?: QueryAST[]
 }
 
 const AutoRefresh = (
@@ -173,7 +173,6 @@ const AutoRefresh = (
       const hasValues = _.some(timeSeries, s => {
         const results = _.get(s, 'response.results', [])
         const v = _.some(results, r => r.series)
-        console.error(results, v)
         return v
       })
 
