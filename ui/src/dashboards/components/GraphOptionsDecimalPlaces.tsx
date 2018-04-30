@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OptIn from 'src/shared/components/OptIn'
 
@@ -19,7 +18,8 @@ class GraphOptionsDecimalPlaces extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
   }
-  public onSetValue = valueFromSelector => {
+
+  public onSetValue = (valueFromSelector: string): void => {
     let digits
     let isEnforced
     if (valueFromSelector === fixedValueString) {
@@ -37,6 +37,7 @@ class GraphOptionsDecimalPlaces extends PureComponent<Props> {
     }
     this.props.onDecimalPlacesChange({digits, isEnforced})
   }
+
   public render() {
     const {digits, isEnforced} = this.props
     return (

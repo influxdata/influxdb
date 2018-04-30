@@ -9,7 +9,10 @@ import {
 } from 'src/dashboards/utils/tableGraph'
 
 import {DEFAULT_SORT_DIRECTION} from 'src/shared/constants/tableGraph'
-import {DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
+import {
+  DEFAULT_TIME_FORMAT,
+  DEFAULT_DECIMAL_PLACES,
+} from 'src/dashboards/constants'
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
@@ -534,7 +537,7 @@ describe('transformTableData', () => {
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
     const tableOptions = {verticalTimeAxis: true}
     const timeFormat = DEFAULT_TIME_FORMAT
-
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: true},
@@ -546,7 +549,8 @@ describe('transformTableData', () => {
       sort,
       fieldOptions,
       tableOptions,
-      timeFormat
+      timeFormat,
+      decimalPlaces
     )
     const expected = [
       ['time', 'f1', 'f2'],
@@ -568,6 +572,7 @@ describe('transformTableData', () => {
     const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
     const tableOptions = {verticalTimeAxis: true}
     const timeFormat = DEFAULT_TIME_FORMAT
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: false},
@@ -579,7 +584,8 @@ describe('transformTableData', () => {
       sort,
       fieldOptions,
       tableOptions,
-      timeFormat
+      timeFormat,
+      decimalPlaces
     )
 
     const expected = [['time', 'f2'], [1000, 2000], [2000, 3000], [3000, 1000]]
@@ -598,7 +604,7 @@ describe('transformTableData', () => {
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
     const tableOptions = {verticalTimeAxis: true}
     const timeFormat = DEFAULT_TIME_FORMAT
-
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: false},
@@ -610,7 +616,8 @@ describe('transformTableData', () => {
       sort,
       fieldOptions,
       tableOptions,
-      timeFormat
+      timeFormat,
+      decimalPlaces
     )
 
     const expected = [['time', 'f2'], [2000, 3000], [3000, 1000], [1000, 2000]]
@@ -631,7 +638,7 @@ describe('if verticalTimeAxis is false', () => {
     const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
     const tableOptions = {verticalTimeAxis: false}
     const timeFormat = DEFAULT_TIME_FORMAT
-
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: true},
@@ -643,7 +650,8 @@ describe('if verticalTimeAxis is false', () => {
       sort,
       fieldOptions,
       tableOptions,
-      timeFormat
+      timeFormat,
+      decimalPlaces
     )
 
     const expected = [
@@ -666,7 +674,7 @@ describe('if verticalTimeAxis is false', () => {
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
     const tableOptions = {verticalTimeAxis: false}
     const timeFormat = DEFAULT_TIME_FORMAT
-
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: false},
@@ -678,7 +686,8 @@ describe('if verticalTimeAxis is false', () => {
       sort,
       fieldOptions,
       tableOptions,
-      timeFormat
+      timeFormat,
+      decimalPlaces
     )
 
     const expected = [['time', 2000, 3000, 1000], ['f2', 3000, 1000, 2000]]
