@@ -1,0 +1,11 @@
+## Installation
+pkg install influxdb
+
+## Configure service
+echo 'influxd_enable="YES"' >> /etc/rc.conf
+or 
+service influxd onestart
+
+
+## Running CLI
+>influx
