@@ -191,14 +191,14 @@ class TableGraph extends Component {
     }
   }
 
-  handleClickFieldName = fieldName => () => {
+  handleClickFieldName = clickedFieldName => () => {
+    const {tableOptions, fieldOptions, timeFormat, decimalPlaces} = this.props
     const {data, sort} = this.state
-    const {tableOptions, timeFormat, fieldOptions, decimalPlaces} = this.props
 
-    if (fieldName === sort.field) {
+    if (clickedFieldName === sort.field) {
       sort.direction = sort.direction === ASCENDING ? DESCENDING : ASCENDING
     } else {
-      sort.field = fieldName
+      sort.field = clickedFieldName
       sort.direction = DEFAULT_SORT_DIRECTION
     }
 
@@ -430,12 +430,12 @@ class TableGraph extends Component {
                 enableFixedRowScroll={true}
                 scrollToRow={scrollToRow}
                 scrollToColumn={scrollToColumn}
+                sort={sort}
                 cellRenderer={this.cellRenderer}
                 hoveredColumnIndex={hoveredColumnIndex}
                 hoveredRowIndex={hoveredRowIndex}
                 hoverTime={hoverTime}
                 colors={colors}
-                sort={sort}
                 fieldOptions={fieldOptions}
                 tableOptions={tableOptions}
                 timeFormat={timeFormat}

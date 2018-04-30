@@ -7,7 +7,8 @@ interface Props {
   argKey: string
   value: boolean
   funcID: string
-  expressionID: string
+  bodyID: string
+  declarationID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
 }
@@ -23,8 +24,15 @@ class FuncArgBool extends PureComponent<Props> {
   }
 
   private handleToggle = (value: boolean): void => {
-    const {argKey, funcID, expressionID, onChangeArg} = this.props
-    onChangeArg({funcID, key: argKey, value, generate: true, expressionID})
+    const {argKey, funcID, bodyID, onChangeArg, declarationID} = this.props
+    onChangeArg({
+      key: argKey,
+      value,
+      funcID,
+      bodyID,
+      declarationID,
+      generate: true,
+    })
   }
 }
 

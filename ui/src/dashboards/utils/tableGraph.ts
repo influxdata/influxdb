@@ -159,7 +159,7 @@ export const orderTableColumns = (data, fieldOptions) => {
   })
   const filteredFieldSortOrder = filter(fieldsSortOrder, f => f !== -1)
   const orderedData = map(data, row => {
-    return row.map((v, j, arr) => arr[filteredFieldSortOrder[j]] || v)
+    return row.map((__, j, arr) => arr[filteredFieldSortOrder[j]])
   })
   return orderedData[0].length ? orderedData : [[]]
 }

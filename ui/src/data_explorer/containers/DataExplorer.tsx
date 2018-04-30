@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter, InjectedRouter} from 'react-router'
@@ -52,15 +51,6 @@ interface State {
 
 @ErrorHandling
 export class DataExplorer extends PureComponent<Props, State> {
-  public static childContextTypes = {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
-      }).isRequired,
-    }).isRequired,
-  }
-
   constructor(props) {
     super(props)
 

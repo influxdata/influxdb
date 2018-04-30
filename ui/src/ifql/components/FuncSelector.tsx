@@ -14,7 +14,8 @@ interface State {
 
 interface Props {
   funcs: string[]
-  expressionID: string
+  bodyID: string
+  declarationID: string
   onAddNode: OnAddNode
 }
 
@@ -65,8 +66,9 @@ export class FuncSelector extends PureComponent<Props, State> {
   }
 
   private handleAddNode = (name: string) => {
+    const {bodyID, declarationID} = this.props
     this.handleCloseList()
-    this.props.onAddNode(name, this.props.expressionID)
+    this.props.onAddNode(name, bodyID, declarationID)
   }
 
   private get availableFuncs() {

@@ -1,7 +1,11 @@
 // function definitions
-export type OnDeleteFuncNode = (funcID: string, expressionID: string) => void
+export type OnDeleteFuncNode = (ids: DeleteFuncNodeArgs) => void
 export type OnChangeArg = (inputArg: InputArg) => void
-export type OnAddNode = (expressionID: string, funcName: string) => void
+export type OnAddNode = (
+  bodyID: string,
+  funcName: string,
+  declarationID: string
+) => void
 export type OnGenerateScript = (script: string) => void
 export type OnChangeScript = (script: string) => void
 export type OnSubmitScript = () => void
@@ -15,9 +19,16 @@ export interface Handlers {
   onGenerateScript: OnGenerateScript
 }
 
+export interface DeleteFuncNodeArgs {
+  funcID: string
+  bodyID: string
+  declarationID?: string
+}
+
 export interface InputArg {
   funcID: string
-  expressionID: string
+  bodyID: string
+  declarationID?: string
   key: string
   value: string | boolean
   generate?: boolean

@@ -8,36 +8,37 @@ import {Func} from 'src/types/ifql'
 
 interface Props {
   funcNames: any[]
-  id: string
+  bodyID: string
   funcs: Func[]
+  declarationID?: string
 }
 
 // an Expression is a group of one or more functions
 class ExpressionNode extends PureComponent<Props> {
   public render() {
-    const {id, funcNames, funcs} = this.props
+    const {declarationID, bodyID, funcNames, funcs} = this.props
     return (
       <IFQLContext.Consumer>
         {({onDeleteFuncNode, onAddNode, onChangeArg, onGenerateScript}) => {
           return (
             <div className="func-nodes-container">
-              <h4>
-                <FuncSelector
-                  expressionID={id}
-                  funcs={funcNames}
-                  onAddNode={onAddNode}
-                />
-              </h4>
               {funcs.map(func => (
                 <FuncNode
                   key={func.id}
                   func={func}
-                  expressionID={func.id}
+                  bodyID={bodyID}
                   onChangeArg={onChangeArg}
                   onDelete={onDeleteFuncNode}
+                  declarationID={declarationID}
                   onGenerateScript={onGenerateScript}
                 />
               ))}
+              <FuncSelector
+                bodyID={bodyID}
+                funcs={funcNames}
+                onAddNode={onAddNode}
+                declarationID={declarationID}
+              />
             </div>
           )
         }}

@@ -170,7 +170,7 @@ class AlertTabs extends Component {
     const showDeprecation = pagerDutyV1Enabled
     const pagerDutyDeprecationMessage = (
       <div>
-        PagerDuty v2 is being{' '}
+        PagerDuty v1 is being{' '}
         {
           <a
             href="https://v2.developer.pagerduty.com/docs/v1-rest-api-decommissioning-faq"

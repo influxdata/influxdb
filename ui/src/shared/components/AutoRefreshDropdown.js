@@ -41,7 +41,7 @@ class AutoRefreshDropdown extends Component {
           paused: +milliseconds === 0,
         })}
       >
-        <div className={classnames('dropdown dropdown-160', {open: isOpen})}>
+        <div className={classnames('dropdown dropdown-120', {open: isOpen})}>
           <div
             className="btn btn-sm btn-default dropdown-toggle"
             onClick={this.toggleMenu}
@@ -56,7 +56,7 @@ class AutoRefreshDropdown extends Component {
             <span className="caret" />
           </div>
           <ul className="dropdown-menu">
-            <li className="dropdown-header">AutoRefresh Interval</li>
+            <li className="dropdown-header">AutoRefresh</li>
             {autoRefreshItems.map(item => (
               <li className="dropdown-item" key={item.menuOption}>
                 <a href="#" onClick={this.handleSelection(item.milliseconds)}>
