@@ -31,6 +31,8 @@ var (
 	ErrShardNotFound = fmt.Errorf("shard not found")
 	// ErrStoreClosed is returned when trying to use a closed Store.
 	ErrStoreClosed = fmt.Errorf("store is closed")
+	// ErrShardDeletion is returned when trying to create a shard that is being deleted
+	ErrShardDeletion = errors.New("shard is being deleted")
 )
 
 // Statistics gathered by the store.
@@ -481,7 +483,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	// Shard may be undergoing a pending deletion. While the shard can be
 	// recreated, it must wait for the pending delete to finish.
 	if _, ok := s.pendingShardDeletes[shardID]; ok {
-		return fmt.Errorf("shard %d is pending deletion and cannot be created again until finished", shardID)
+		return ErrShardDeletion
 	}
 
 	// Create the db and retention policy directories if they don't exist.

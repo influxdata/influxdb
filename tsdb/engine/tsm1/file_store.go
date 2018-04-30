@@ -530,7 +530,10 @@ func (f *FileStore) Close() error {
 	defer f.mu.Unlock()
 
 	for _, file := range f.files {
-		file.Close()
+		err := file.Close()
+		if err != nil {
+			return err
+		}
 	}
 
 	f.lastFileStats = nil
