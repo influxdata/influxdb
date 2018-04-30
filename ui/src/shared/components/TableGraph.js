@@ -53,6 +53,52 @@ class TableGraph extends Component {
     }
   }
 
+  componentDidMount() {
+    const sortField = _.get(
+      this.props,
+      ['tableOptions', 'sortBy', 'internalName'],
+      DEFAULT_TIME_FIELD.internalName
+    )
+    const sort = {field: sortField, direction: DEFAULT_SORT_DIRECTION}
+    const {
+      data,
+      tableOptions,
+      queryASTs,
+      timeFormat,
+      fieldOptions,
+      decimalPlaces,
+    } = this.props
+    const result = timeSeriesToTableGraph(data, queryASTs)
+    const sortedLabels = result.sortedLabels
+
+    const computedFieldOptions = computeFieldOptions(fieldOptions, sortedLabels)
+    const {
+      transformedData,
+      sortedTimeVals,
+      columnWidths,
+      totalWidths,
+    } = transformTableData(
+      data,
+      sort,
+      computedFieldOptions,
+      tableOptions,
+      timeFormat,
+      decimalPlaces
+    )
+
+    this.setState({
+      transformedData,
+      sortedTimeVals,
+      columnWidths,
+      data: result.data,
+      sortedLabels,
+      totalColumnWidths: totalWidths,
+      hoveredColumnIndex: NULL_ARRAY_INDEX,
+      hoveredRowIndex: NULL_ARRAY_INDEX,
+      sort,
+    })
+  }
+
   handleUpdateFieldOptions = fieldOptions => {
     const {isInCEO} = this.props
     if (!isInCEO) {
@@ -161,10 +207,7 @@ class TableGraph extends Component {
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
-    const {
-      handleSetHoverTime,
-      tableOptions: {verticalTimeAxis},
-    } = this.props
+    const {handleSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
     const {sortedTimeVals} = this.state
     if (verticalTimeAxis && rowIndex === 0) {
       return
@@ -220,9 +263,7 @@ class TableGraph extends Component {
 
   calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
-    const {
-      tableOptions: {fixFirstColumn},
-    } = this.props
+    const {tableOptions: {fixFirstColumn}} = this.props
     const {transformedData, columnWidths, totalColumnWidths} = this.state
     const columnCount = _.get(transformedData, ['0', 'length'], 0)
     const columnLabel = transformedData[0][index]
