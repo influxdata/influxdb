@@ -21,6 +21,7 @@ type Command struct {
 	Stdout io.Writer
 
 	measurement string // measurement to delete
+	sanitize    bool   // remove all keys with non-printable unicode
 	verbose     bool   // verbose logging
 }
 
@@ -36,6 +37,7 @@ func NewCommand() *Command {
 func (cmd *Command) Run(args ...string) (err error) {
 	fs := flag.NewFlagSet("deletetsm", flag.ExitOnError)
 	fs.StringVar(&cmd.measurement, "measurement", "", "")
+	fs.BoolVar(&cmd.sanitize, "sanitize", false, "")
 	fs.BoolVar(&cmd.verbose, "v", false, "")
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = cmd.printUsage
@@ -51,9 +53,9 @@ func (cmd *Command) Run(args ...string) (err error) {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	// Validate measurement flag.
-	if cmd.measurement == "" {
-		return fmt.Errorf("measurement name required")
+	// Validate measurement or sanitize flag.
+	if cmd.measurement == "" && !cmd.sanitize {
+		return fmt.Errorf("-measurement or -sanitize flag required")
 	}
 
 	// Process each TSM file.
@@ -113,8 +115,8 @@ func (cmd *Command) process(path string) error {
 
 		// Skip block if this is the measurement and time range we are deleting.
 		series, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
-		measurement, _ := models.ParseKey(series)
-		if string(measurement) == cmd.measurement {
+		measurement, tags := models.ParseKey(series)
+		if string(measurement) == cmd.measurement || (cmd.sanitize && !models.ValidKeyTokens(measurement, tags)) {
 			log.Printf("deleting block: %s (%s-%s) sz=%d",
 				key,
 				time.Unix(0, minTime).UTC().Format(time.RFC3339Nano),
@@ -147,6 +149,8 @@ Usage: influx_inspect deletetsm [flags] path...
 
     -measurement NAME
             The name of the measurement to remove.
+    -sanitize
+            Remove all keys with non-printable unicode characters.
     -v
             Enable verbose logging.`)
 }
