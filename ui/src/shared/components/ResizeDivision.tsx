@@ -8,19 +8,25 @@ import {
   HUNDRED,
 } from 'src/shared/constants/'
 
+const NOOP = () => {}
+
 interface Props {
   id: string
   name?: string
   size: number
   offset: number
-  isDragging: boolean
+  activeHandleID: string
   draggable: boolean
   orientation: string
   render: () => ReactElement<any>
-  onHandleStartDrag: () => void
+  onHandleStartDrag: (activeHandleID: string) => void
 }
 
 class Division extends PureComponent<Props> {
+  public static defaultProps: Partial<Props> = {
+    name: '',
+  }
+
   public render() {
     const {render} = this.props
 
@@ -33,27 +39,30 @@ class Division extends PureComponent<Props> {
   }
 
   private get dragHandle() {
-    const {
-      name,
-      isDragging,
-      orientation,
-      onHandleStartDrag,
-      draggable,
-    } = this.props
+    const {name, activeHandleID, orientation, id, draggable} = this.props
 
-    if (name) {
-      return <div className="resizer--title">{name}</div>
+    if (!name && !draggable) {
+      return null
     }
 
-    if (draggable) {
-      return (
-        <ResizeHandle
-          onHandleStartDrag={onHandleStartDrag}
-          orientation={orientation}
-          isDragging={isDragging}
-        />
-      )
+    return (
+      <ResizeHandle
+        id={id}
+        name={name}
+        orientation={orientation}
+        activeHandleID={activeHandleID}
+        onHandleStartDrag={this.dragCallback}
+      />
+    )
+  }
+
+  private get dragCallback() {
+    const {draggable} = this.props
+    if (!draggable) {
+      return NOOP
     }
+
+    return this.props.onHandleStartDrag
   }
 
   private get style() {

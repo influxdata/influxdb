@@ -184,4 +184,15 @@ $resizer-color-kapacitor: $c-rainforest;
   font-weight: 600;
   color: $g13-mist;
   @include no-user-select();
+
+  &:hover {
+    cursor: ns-resize;
+    background-color: $g4-onyx;
+  }
+
+  &.dragging {
+    cursor: ns-resize;
+    color: $c-laser;
+    background-color: $g5-pepper;
+  }
 }

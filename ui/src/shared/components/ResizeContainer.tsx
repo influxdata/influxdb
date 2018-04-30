@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {MIN_DIVISIONS, ORIENTATION_HORIZONTAL} from 'src/shared/constants/'
 
 interface State {
-  isDragging: boolean
+  activeHandleID: string
   divisions: DivisionState[]
 }
 
@@ -40,13 +40,13 @@ class Resizer extends Component<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      isDragging: false,
+      activeHandleID: null,
       divisions: this.initialDivisions,
     }
   }
 
   public render() {
-    const {isDragging, divisions} = this.state
+    const {activeHandleID, divisions} = this.state
     const {containerClass, orientation} = this.props
 
     if (divisions.length < MIN_DIVISIONS) {
@@ -59,7 +59,7 @@ class Resizer extends Component<Props, State> {
     return (
       <div
         className={classnames(`resize--container ${containerClass}`, {
-          'resize--dragging': isDragging,
+          'resize--dragging': activeHandleID,
         })}
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleStopDrag}
@@ -76,7 +76,7 @@ class Resizer extends Component<Props, State> {
             render={d.render}
             orientation={orientation}
             draggable={i > 0}
-            isDragging={isDragging}
+            activeHandleID={activeHandleID}
             onHandleStartDrag={this.handleStartDrag}
           />
         ))}
@@ -97,20 +97,20 @@ class Resizer extends Component<Props, State> {
     }))
   }
 
-  private handleStartDrag = () => {
-    this.setState({isDragging: true})
+  private handleStartDrag = activeHandleID => {
+    this.setState({activeHandleID})
   }
 
   private handleStopDrag = () => {
-    this.setState({isDragging: false})
+    this.setState({activeHandleID: ''})
   }
 
   private handleMouseLeave = () => {
-    this.setState({isDragging: false})
+    this.setState({activeHandleID: ''})
   }
 
   private handleDrag = () => {
-    if (!this.state.isDragging) {
+    if (!this.state.activeHandleID) {
       return
     }
 
