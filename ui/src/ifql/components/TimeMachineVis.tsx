@@ -1,11 +1,8 @@
 import React, {SFC} from 'react'
 
 interface Props {
-  bottomHeight: number
-  topHeight: number
+  blob: string
 }
-const TimeMachineVis: SFC<Props> = ({bottomHeight, topHeight}) => (
-  <div style={{height: bottomHeight, fontSize: topHeight}} />
-)
+const TimeMachineVis: SFC<Props> = ({blob}) => <div>{blob}</div>
 
 export default TimeMachineVis

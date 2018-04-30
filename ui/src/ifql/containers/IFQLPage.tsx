@@ -74,13 +74,20 @@ export class IFQLPage extends PureComponent<Props, State> {
                 <div className="page-header__left">
                   <h1 className="page-header__title">Time Machine</h1>
                 </div>
+                <div className="page-header__right">
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={this.handleSubmitScript}
+                  >
+                    Submit Script
+                  </button>
+                </div>
               </div>
             </div>
             <TimeMachine
               script={script}
               body={this.state.body}
               suggestions={suggestions}
-              onSubmitScript={this.handleSubmitScript}
               onChangeScript={this.handleChangeScript}
             />
           </div>

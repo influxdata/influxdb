@@ -1,6 +1,6 @@
 /*
-    Resizable Container
-    ----------------------------------------------
+  Resizable Container
+  ------------------------------------------------------------------------------
 */
 
 $resizer-line-width: 2px;
@@ -22,11 +22,18 @@ $resizer-color-kapacitor: $c-rainforest;
     @include no-user-select();
   }
 }
-.resize--top,
-.resize--bottom {
+
+.resizer--division {
+  border: 1px solid #f00;
   position: absolute;
-  width: 100%;
-  left: 0;
+
+  &.resizer__horizontal {
+    width: 100%;
+  }
+
+  &.resizer__vertical {
+    height: 100%;
+  }
 }
 
 .resizer--full-size {
@@ -38,16 +45,10 @@ $resizer-color-kapacitor: $c-rainforest;
 }
 
 /*
-    Resizable Container Handle
-    ----------------------------------------------
+  Resizable Container Handle
+  ------------------------------------------------------------------------------
 */
 .resizer--handle {
-  top: 60%;
-  left: 0;
-  height: $resizer-click-area;
-  margin-top: -$resizer-click-area/2;
-  margin-bottom: -$resizer-click-area/2;
-  width: 100%;
   z-index: 1;
   user-select: none;
   -webkit-user-select: none;
@@ -80,11 +81,6 @@ $resizer-color-kapacitor: $c-rainforest;
     content: '';
     display: block;
     position: absolute;
-    top: 50%;
-    left: 0;
-    transform: translateY(-50%);
-    width: 100%;
-    height: $resizer-line-width;
     background-color: $resizer-color;
     box-shadow: 0 0 0 transparent;
     transition:
@@ -112,11 +108,50 @@ $resizer-color-kapacitor: $c-rainforest;
   }
 }
 
-/* Kapacitor Theme */
-.resizer--handle.resizer--malachite.dragging {
-  &:before,
+/*
+  Horizontal Handle
+  ------------------------------------------------------------------------------
+*/
+.resizer--handle.horizontal {
+  height: $resizer-click-area;
+  margin-top: -$resizer-click-area/2;
+  margin-bottom: -$resizer-click-area/2;
+  width: 100%;
+
+  // Psuedo element for handle
+  &:before {
+    transform: translate(-50%,-50%);
+  }
+  // Psuedo element for line
   &:after {
-    background-color: $resizer-color-kapacitor;
-    box-shadow: 0 0 $resizer-glow $resizer-color-kapacitor;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    width: 100%;
+    height: $resizer-line-width;
+  }
+}
+
+/*
+  Vertical Handle
+  ------------------------------------------------------------------------------
+*/
+.resizer--handle.vertical {
+  width: $resizer-click-area;
+  margin-left: -$resizer-click-area/2;
+  margin-right: -$resizer-click-area/2;
+  height: 100%;
+
+  // Psuedo element for handle
+  &:before {
+    transform: translate(-50%,-50%) rotate(90deg);
+  }
+  // Psuedo element for line
+  &:after {
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    height: 100%;
+    width: $resizer-line-width;
   }
 }

@@ -477,3 +477,8 @@ export const NOTIFICATION_TRANSITION = 250
 export const FIVE_SECONDS = 5000
 export const TEN_SECONDS = 10000
 export const INFINITE = -1
+
+export const HUNDRED = 100
+export const MIN_DIVISIONS = 2
+export const ORIENTATION_VERTICAL = 'vertical'
+export const ORIENTATION_HORIZONTAL = 'horizontal'

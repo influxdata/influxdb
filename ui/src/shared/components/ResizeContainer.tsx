@@ -1,80 +1,58 @@
-import React, {Component, ReactNode} from 'react'
+import React, {Component, ReactElement} from 'react'
 import classnames from 'classnames'
+import uuid from 'uuid'
 
 import ResizeHandle from 'src/shared/components/ResizeHandle'
+import ResizeDivision from 'src/shared/components/ResizeDivision'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-const hundred = 100
-const maximumNumChildren = 2
-const defaultMinTopHeight = 200
-const defaultMinBottomHeight = 200
-const defaultInitialTopHeight = '50%'
-const defaultInitialBottomHeight = '50%'
+import {MIN_DIVISIONS, ORIENTATION_HORIZONTAL} from 'src/shared/constants/'
 
 interface State {
   isDragging: boolean
-  topHeight: number
-  topHeightPixels: number
-  bottomHeight: number
-  bottomHeightPixels: number
+  divisions: DivisionState[]
+}
+
+interface Division {
+  name?: string
+  minSize?: number
+  render: () => ReactElement<any>
+}
+
+interface DivisionState extends Division {
+  id: string
+  size: number
+  offset: number
 }
 
 interface Props {
-  renderTop: (height: number) => ReactNode
-  renderBottom: (height: number, top: number) => ReactNode
+  divisions: Division[]
+  orientation: string
   containerClass: string
-  minTopHeight: number
-  minBottomHeight: number
-  initialTopHeight: string
-  initialBottomHeight: string
-  theme?: string
 }
 
 @ErrorHandling
-class ResizeContainer extends Component<Props, State> {
+class Resizer extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
-    minTopHeight: defaultMinTopHeight,
-    minBottomHeight: defaultMinBottomHeight,
-    initialTopHeight: defaultInitialTopHeight,
-    initialBottomHeight: defaultInitialBottomHeight,
-    theme: '',
+    orientation: ORIENTATION_HORIZONTAL,
   }
 
-  private topRef: HTMLElement
-  private bottomRef: HTMLElement
-  private containerRef: HTMLElement
+  public containerRef: HTMLElement
 
   constructor(props) {
     super(props)
     this.state = {
       isDragging: false,
-      topHeight: props.initialTopHeight,
-      topHeightPixels: 0,
-      bottomHeight: props.initialBottomHeight,
-      bottomHeightPixels: 0,
+      divisions: this.initialDivisions,
     }
   }
 
-  public componentDidMount() {
-    this.setState({
-      bottomHeightPixels: this.bottomRef.getBoundingClientRect().height,
-      topHeightPixels: this.topRef.getBoundingClientRect().height,
-    })
-  }
-
   public render() {
-    const {topHeightPixels, bottomHeightPixels, isDragging} = this.state
-    const {
-      containerClass,
-      children,
-      theme,
-      renderTop,
-      renderBottom,
-    } = this.props
+    const {isDragging, divisions} = this.state
+    const {containerClass, orientation} = this.props
 
-    if (React.Children.count(children) > maximumNumChildren) {
+    if (divisions.length < MIN_DIVISIONS) {
       console.error(
-        `There cannot be more than ${maximumNumChildren}' children in ResizeContainer`
+        `There must be at least ${MIN_DIVISIONS}' divisions in Resizer`
       )
       return
     }
@@ -89,46 +67,46 @@ class ResizeContainer extends Component<Props, State> {
         onMouseMove={this.handleDrag}
         ref={r => (this.containerRef = r)}
       >
-        <div
-          className="resize--top"
-          style={this.topStyle}
-          ref={r => (this.topRef = r)}
-        >
-          {renderTop(topHeightPixels)}
-        </div>
-        <ResizeHandle
-          theme={theme}
-          isDragging={isDragging}
-          onHandleStartDrag={this.handleStartDrag}
-          top={this.topHandle}
-        />
-        <div
-          className="resize--bottom"
-          style={this.bottomStyle}
-          ref={r => (this.bottomRef = r)}
-        >
-          {renderBottom(topHeightPixels, bottomHeightPixels)}
-        </div>
+        {divisions.map(d => (
+          <ResizeDivision
+            key={d.id}
+            id={d.id}
+            name={d.name}
+            size={d.size}
+            offset={d.offset}
+            render={d.render}
+            orientation={orientation}
+          />
+        ))}
+        {divisions.map((d, i) => {
+          if (i === 0) {
+            return null
+          }
+          return (
+            <ResizeHandle
+              key={uuid.v4()}
+              onHandleStartDrag={this.handleStartDrag}
+              orientation={orientation}
+              isDragging={isDragging}
+              offset={d.offset}
+            />
+          )
+        })}
       </div>
     )
   }
 
-  private get topStyle() {
-    const {topHeight} = this.state
+  private get initialDivisions() {
+    const {divisions} = this.props
 
-    return {height: `${topHeight}%`}
-  }
+    const size = 1 / divisions.length
 
-  private get bottomStyle() {
-    const {topHeight, bottomHeight} = this.state
-
-    return {top: `${topHeight}%`, bottom: `${bottomHeight}%`}
-  }
-
-  private get topHandle() {
-    const {topHeight} = this.state
-
-    return `${topHeight}%`
+    return divisions.map((d, i) => ({
+      ...d,
+      id: uuid.v4(),
+      size,
+      offset: size * i,
+    }))
   }
 
   private handleStartDrag = () => {
@@ -143,47 +121,46 @@ class ResizeContainer extends Component<Props, State> {
     this.setState({isDragging: false})
   }
 
-  private handleDrag = e => {
+  private handleDrag = () => {
     if (!this.state.isDragging) {
       return
     }
 
-    const {minTopHeight, minBottomHeight} = this.props
-    const {height} = getComputedStyle(this.containerRef)
-    const containerHeight = parseInt(height, 10)
-    // verticalOffset moves the resize handle as many pixels as the page-heading is taking up.
-    const verticalOffset = window.innerHeight - containerHeight
-    const newTopPanelPercent = Math.ceil(
-      (e.pageY - verticalOffset) / containerHeight * hundred
-    )
-    const newBottomPanelPercent = hundred - newTopPanelPercent
+    // const {height} = getComputedStyle(this.containerRef)
+    // const containerHeight = parseInt(height, 10)
+    // // verticalOffset moves the resize handle as many pixels as the page-heading is taking up.
+    // const verticalOffset = window.innerHeight - containerHeight
+    // const newTopPanelPercent = Math.ceil(
+    //   (e.pageY - verticalOffset) / containerHeight * HUNDRED
+    // )
+    // const newBottomPanelPercent = HUNDRED - newTopPanelPercent
 
-    // Don't trigger a resize unless the change in size is greater than minResizePercentage
-    const minResizePercentage = 0.5
-    if (
-      Math.abs(newTopPanelPercent - this.state.topHeight) < minResizePercentage
-    ) {
-      return
-    }
+    // // Don't trigger a resize unless the change in size is greater than minResizePercentage
+    // const minResizePercentage = 0.5
+    // if (
+    //   Math.abs(newTopPanelPercent - this.state.topHeight) < minResizePercentage
+    // ) {
+    //   return
+    // }
 
-    const topHeightPixels = newTopPanelPercent / hundred * containerHeight
-    const bottomHeightPixels = newBottomPanelPercent / hundred * containerHeight
+    // const topHeightPixels = newTopPanelPercent / HUNDRED * containerHeight
+    // const bottomHeightPixels = newBottomPanelPercent / HUNDRED * containerHeight
 
-    // Don't trigger a resize if the new sizes are too small
-    if (
-      topHeightPixels < minTopHeight ||
-      bottomHeightPixels < minBottomHeight
-    ) {
-      return
-    }
+    // // Don't trigger a resize if the new sizes are too small
+    // if (
+    //   topHeightPixels < minTopHeight ||
+    //   bottomHeightPixels < minBottomHeight
+    // ) {
+    //   return
+    // }
 
-    this.setState({
-      topHeight: newTopPanelPercent,
-      topHeightPixels,
-      bottomHeight: newBottomPanelPercent,
-      bottomHeightPixels,
-    })
+    // this.setState({
+    //   topHeight: newTopPanelPercent,
+    //   topHeightPixels,
+    //   bottomHeight: newBottomPanelPercent,
+    //   bottomHeightPixels,
+    // })
   }
 }
 
-export default ResizeContainer
+export default Resizer
