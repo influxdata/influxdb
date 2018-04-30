@@ -29,7 +29,8 @@ const updateMaxWidths = (
   isTopRow,
   fieldOptions,
   timeFormatWidth,
-  verticalTimeAxis
+  verticalTimeAxis,
+  decimalPlaces
 ) => {
   return reduce(
     row,
@@ -40,9 +41,14 @@ const updateMaxWidths = (
       const foundField = isLabel
         ? fieldOptions.find(field => field.internalName === col)
         : undefined
+      const isNumerical = _.isNumber(col)
 
-      const colValue =
-        foundField && foundField.displayName ? foundField.displayName : `${col}`
+      let colValue = `${col}`
+      if (foundField && foundField.displayName) {
+        colValue = foundField.displayName
+      } else if (isNumerical && decimalPlaces.isEnforced) {
+        colValue = col.toFixed(decimalPlaces.digits)
+      }
 
       const columnLabel = topRow[c]
 
@@ -54,7 +60,6 @@ const updateMaxWidths = (
           isTopRow &&
           topRow[0] === DEFAULT_TIME_FIELD.internalName &&
           c !== 0)
-
       const currentWidth = useTimeWidth
         ? timeFormatWidth
         : calculateSize(colValue, {
@@ -106,7 +111,8 @@ export const calculateColumnWidths = (
   data,
   fieldOptions,
   timeFormat,
-  verticalTimeAxis
+  verticalTimeAxis,
+  decimalPlaces
 ) => {
   const timeFormatWidth = calculateTimeColumnWidth(
     timeFormat === '' ? DEFAULT_TIME_FORMAT : timeFormat
@@ -121,7 +127,8 @@ export const calculateColumnWidths = (
         r === 0,
         fieldOptions,
         timeFormatWidth,
-        verticalTimeAxis
+        verticalTimeAxis,
+        decimalPlaces
       )
     },
     {widths: {}, totalWidths: 0}
@@ -162,7 +169,8 @@ export const transformTableData = (
   sort,
   fieldOptions,
   tableOptions,
-  timeFormat
+  timeFormat,
+  decimalPlaces
 ) => {
   const {verticalTimeAxis} = tableOptions
   const sortIndex = _.indexOf(data[0], sort.field)
@@ -178,7 +186,8 @@ export const transformTableData = (
     transformedData,
     fieldOptions,
     timeFormat,
-    verticalTimeAxis
+    verticalTimeAxis,
+    decimalPlaces
   )
   return {transformedData, sortedTimeVals, columnWidths, totalWidths}
 }

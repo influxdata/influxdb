@@ -65,7 +65,7 @@ class TableGraph extends Component {
     const updatedProps = _.keys(nextProps).filter(
       k => !_.isEqual(this.props[k], nextProps[k])
     )
-    const {tableOptions, fieldOptions, timeFormat} = nextProps
+    const {tableOptions, fieldOptions, timeFormat, decimalPlaces} = nextProps
 
     let result = {}
 
@@ -116,7 +116,8 @@ class TableGraph extends Component {
         sort,
         computedFieldOptions,
         tableOptions,
-        timeFormat
+        timeFormat,
+        decimalPlaces
       )
 
       this.setState({
@@ -192,7 +193,7 @@ class TableGraph extends Component {
 
   handleClickFieldName = fieldName => () => {
     const {data, sort} = this.state
-    const {tableOptions, timeFormat, fieldOptions} = this.props
+    const {tableOptions, timeFormat, fieldOptions, decimalPlaces} = this.props
 
     if (fieldName === sort.field) {
       sort.direction = sort.direction === ASCENDING ? DESCENDING : ASCENDING
@@ -206,7 +207,8 @@ class TableGraph extends Component {
       sort,
       fieldOptions,
       tableOptions,
-      timeFormat
+      timeFormat,
+      decimalPlaces
     )
 
     this.setState({
