@@ -4,7 +4,7 @@ pkg install influxdb
 ## Configure service
 echo 'influxd_enable="YES"' >> /etc/rc.conf
 or 
-service influxdb onestart
+service influxd onestart
 
 
 ## Running CLI
