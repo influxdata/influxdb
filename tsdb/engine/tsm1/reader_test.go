@@ -1828,10 +1828,6 @@ func TestTSMReader_References(t *testing.T) {
 
 	r.Ref()
 
-	if err := r.Close(); err != ErrFileInUse {
-		t.Fatalf("expected error closing reader: %v", err)
-	}
-
 	if err := r.Remove(); err != ErrFileInUse {
 		t.Fatalf("expected error removing reader: %v", err)
 	}
