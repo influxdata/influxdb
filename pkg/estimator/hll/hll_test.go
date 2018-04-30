@@ -26,7 +26,7 @@ func toByte(v uint64) []byte {
 	return buf[:]
 }
 
-func TestHLLPP_Bytes(t *testing.T) {
+func TestPlus_Bytes(t *testing.T) {
 	testCases := []struct {
 		p      uint8
 		normal bool
@@ -70,7 +70,7 @@ func TestHLLPP_Bytes(t *testing.T) {
 	}
 }
 
-func TestHLLPP_Add_NoSparse(t *testing.T) {
+func TestPlus_Add_NoSparse(t *testing.T) {
 	h := NewTestPlus(16)
 	h.toNormal()
 
@@ -111,7 +111,7 @@ func TestHLLPP_Add_NoSparse(t *testing.T) {
 	}
 }
 
-func TestHLLPPPrecision_NoSparse(t *testing.T) {
+func TestPlusPrecision_NoSparse(t *testing.T) {
 	h := NewTestPlus(4)
 	h.toNormal()
 
@@ -134,7 +134,7 @@ func TestHLLPPPrecision_NoSparse(t *testing.T) {
 	}
 }
 
-func TestHLLPP_toNormal(t *testing.T) {
+func TestPlus_toNormal(t *testing.T) {
 	h := NewTestPlus(16)
 	h.Add(toByte(0x00010fffffffffff))
 	h.toNormal()
@@ -176,7 +176,7 @@ func TestHLLPP_toNormal(t *testing.T) {
 	}
 }
 
-func TestHLLPPCount(t *testing.T) {
+func TestPlusCount(t *testing.T) {
 	h := NewTestPlus(16)
 
 	n := h.Count()
@@ -211,7 +211,7 @@ func TestHLLPPCount(t *testing.T) {
 	}
 }
 
-func TestHLLPP_Merge_Error(t *testing.T) {
+func TestPlus_Merge_Error(t *testing.T) {
 	h := NewTestPlus(16)
 	h2 := NewTestPlus(10)
 
@@ -311,7 +311,7 @@ func TestHLL_Merge_Normal(t *testing.T) {
 	}
 }
 
-func TestHLLPP_Merge(t *testing.T) {
+func TestPlus_Merge(t *testing.T) {
 	h := NewTestPlus(16)
 
 	k1 := uint64(0xf000017000000000)
@@ -404,7 +404,7 @@ func TestHLLPP_Merge(t *testing.T) {
 	}
 }
 
-func TestHLLPP_EncodeDecode(t *testing.T) {
+func TestPlus_EncodeDecode(t *testing.T) {
 	h := NewTestPlus(8)
 	i, r := h.decodeHash(h.encodeHash(0xffffff8000000000))
 	if i != 0xff {
@@ -447,7 +447,7 @@ func TestHLLPP_EncodeDecode(t *testing.T) {
 	}
 }
 
-func TestHLLPP_Error(t *testing.T) {
+func TestPlus_Error(t *testing.T) {
 	_, err := NewPlus(3)
 	if err == nil {
 		t.Error("precision 3 should return error")
@@ -464,7 +464,7 @@ func TestHLLPP_Error(t *testing.T) {
 	}
 }
 
-func TestHLLPP_Marshal_Unmarshal_Sparse(t *testing.T) {
+func TestPlus_Marshal_Unmarshal_Sparse(t *testing.T) {
 	h, _ := NewPlus(4)
 	h.sparse = true
 	h.tmpSet = map[uint32]struct{}{26: struct{}{}, 40: struct{}{}}
@@ -497,7 +497,7 @@ func TestHLLPP_Marshal_Unmarshal_Sparse(t *testing.T) {
 	}
 }
 
-func TestHLLPP_Marshal_Unmarshal_Dense(t *testing.T) {
+func TestPlus_Marshal_Unmarshal_Dense(t *testing.T) {
 	h, _ := NewPlus(4)
 	h.sparse = false
 
@@ -531,7 +531,7 @@ func TestHLLPP_Marshal_Unmarshal_Dense(t *testing.T) {
 
 // Tests that a sketch can be serialised / unserialised and keep an accurate
 // cardinality estimate.
-func TestHLLPP_Marshal_Unmarshal_Count(t *testing.T) {
+func TestPlus_Marshal_Unmarshal_Count(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode")
 	}
@@ -596,7 +596,10 @@ func TestHLLPP_Marshal_Unmarshal_Count(t *testing.T) {
 }
 
 func NewTestPlus(p uint8) *Plus {
-	h, _ := NewPlus(p)
+	h, err := NewPlus(p)
+	if err != nil {
+		panic(err)
+	}
 	h.hash = nopHash
 	return h
 }

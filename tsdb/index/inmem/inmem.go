@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
@@ -54,8 +55,8 @@ type Index struct {
 	measurements map[string]*measurement // measurement name to object and index
 	series       map[string]*series      // map series key to the Series object
 
-	seriesSketch, seriesTSSketch             *hll.Plus
-	measurementsSketch, measurementsTSSketch *hll.Plus
+	seriesSketch, seriesTSSketch             estimator.Sketch
+	measurementsSketch, measurementsTSSketch estimator.Sketch
 
 	// Mutex to control rebuilds of the index
 	rebuildQueue sync.Mutex
@@ -76,6 +77,36 @@ func NewIndex(database string, sfile *tsdb.SeriesFile) *Index {
 	index.measurementsTSSketch = hll.NewDefaultPlus()
 
 	return index
+}
+
+// Bytes estimates the memory footprint of this Index, in bytes.
+func (i *Index) Bytes() int {
+	var b int
+	i.mu.RLock()
+	b += 24 // mu RWMutex is 24 bytes
+	b += int(unsafe.Sizeof(i.database)) + len(i.database)
+	// Do not count SeriesFile because it belongs to the code that constructed this Index.
+	if i.fieldset != nil {
+		b += int(unsafe.Sizeof(i.fieldset)) + i.fieldset.Bytes()
+	}
+	b += int(unsafe.Sizeof(i.fieldset))
+	for k, v := range i.measurements {
+		b += int(unsafe.Sizeof(k)) + len(k)
+		b += int(unsafe.Sizeof(v)) + v.bytes()
+	}
+	b += int(unsafe.Sizeof(i.measurements))
+	for k, v := range i.series {
+		b += int(unsafe.Sizeof(k)) + len(k)
+		b += int(unsafe.Sizeof(v)) + v.bytes()
+	}
+	b += int(unsafe.Sizeof(i.series))
+	b += int(unsafe.Sizeof(i.seriesSketch)) + i.seriesSketch.Bytes()
+	b += int(unsafe.Sizeof(i.seriesTSSketch)) + i.seriesTSSketch.Bytes()
+	b += int(unsafe.Sizeof(i.measurementsSketch)) + i.measurementsSketch.Bytes()
+	b += int(unsafe.Sizeof(i.measurementsTSSketch)) + i.measurementsTSSketch.Bytes()
+	b += 8 // rebuildQueue Mutex is 8 bytes
+	i.mu.RUnlock()
+	return b
 }
 
 func (i *Index) Type() string      { return IndexName }

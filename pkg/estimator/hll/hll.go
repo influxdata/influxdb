@@ -102,7 +102,7 @@ func NewPlus(p uint8) (*Plus, error) {
 	return hll, nil
 }
 
-// Bytes returns an estimate of the memory footprint of this instance of Plus, in bytes.
+// Bytes estimates the memory footprint of this Plus, in bytes.
 func (h *Plus) Bytes() int {
 	var b int
 	b += len(h.tmpSet) * 4
@@ -124,17 +124,8 @@ func NewDefaultPlus() *Plus {
 	return p
 }
 
-// MustNewPlus returns a new Plus with precision p. Panic on error.
-func MustNewPlus(p uint8) *Plus {
-	hll, err := NewPlus(p)
-	if err != nil {
-		panic(err)
-	}
-	return hll
-}
-
 // Clone returns a deep copy of h.
-func (h *Plus) Clone() *Plus {
+func (h *Plus) Clone() estimator.Sketch {
 	var hll = &Plus{
 		hash:       h.hash,
 		p:          h.p,
