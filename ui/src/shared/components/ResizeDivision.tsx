@@ -1,10 +1,12 @@
 import React, {PureComponent, ReactElement} from 'react'
 import classnames from 'classnames'
-import ResizeHandle from 'src/shared/components/ResizeHandle'
+import ResizeHandle, {
+  OnHandleStartDrag,
+} from 'src/shared/components/ResizeHandle'
 
 import {
-  ORIENTATION_VERTICAL,
-  ORIENTATION_HORIZONTAL,
+  HANDLE_VERTICAL,
+  HANDLE_HORIZONTAL,
   HUNDRED,
 } from 'src/shared/constants/'
 
@@ -18,7 +20,7 @@ interface Props {
   draggable: boolean
   orientation: string
   render: () => ReactElement<any>
-  onHandleStartDrag: (activeHandleID: string) => void
+  onHandleStartDrag: OnHandleStartDrag
 }
 
 class Division extends PureComponent<Props> {
@@ -69,7 +71,7 @@ class Division extends PureComponent<Props> {
 
     const sizePercent = `${size * HUNDRED}%`
 
-    if (orientation === ORIENTATION_VERTICAL) {
+    if (orientation === HANDLE_VERTICAL) {
       return {
         top: '0',
         width: sizePercent,
@@ -86,8 +88,8 @@ class Division extends PureComponent<Props> {
     const {orientation} = this.props
     // todo use constants instead of "vertical" / "horizontal"
     return classnames('resizer--division', {
-      resizer__vertical: orientation === ORIENTATION_VERTICAL,
-      resizer__horizontal: orientation === ORIENTATION_HORIZONTAL,
+      resizer__vertical: orientation === HANDLE_VERTICAL,
+      resizer__horizontal: orientation === HANDLE_HORIZONTAL,
     })
   }
 }

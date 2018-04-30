@@ -480,5 +480,5 @@ export const INFINITE = -1
 
 export const HUNDRED = 100
 export const MIN_DIVISIONS = 2
-export const ORIENTATION_VERTICAL = 'vertical'
-export const ORIENTATION_HORIZONTAL = 'horizontal'
+export const HANDLE_VERTICAL = 'vertical'
+export const HANDLE_HORIZONTAL = 'horizontal'

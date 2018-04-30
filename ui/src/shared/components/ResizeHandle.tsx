@@ -1,15 +1,17 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 import classnames from 'classnames'
 
-import {
-  ORIENTATION_VERTICAL,
-  ORIENTATION_HORIZONTAL,
-} from 'src/shared/constants/'
+import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/'
+
+export type OnHandleStartDrag = (
+  activeHandleID: string,
+  e: MouseEvent<HTMLElement>
+) => void
 
 interface Props {
   name: string
   id: string
-  onHandleStartDrag: (activeHandleID: string) => void
+  onHandleStartDrag: OnHandleStartDrag
   activeHandleID: string
   orientation: string
 }
@@ -30,8 +32,8 @@ class ResizeHandle extends PureComponent<Props> {
       'resizer--handle': !name,
       'resizer--title': name,
       dragging: this.isActive,
-      vertical: orientation === ORIENTATION_VERTICAL,
-      horizontal: orientation === ORIENTATION_HORIZONTAL,
+      vertical: orientation === HANDLE_VERTICAL,
+      horizontal: orientation === HANDLE_HORIZONTAL,
     })
   }
 
@@ -41,8 +43,8 @@ class ResizeHandle extends PureComponent<Props> {
     return id === activeHandleID
   }
 
-  private handleMouseDown = (): void => {
-    this.props.onHandleStartDrag(this.props.id)
+  private handleMouseDown = (e: MouseEvent<HTMLElement>): void => {
+    this.props.onHandleStartDrag(this.props.id, e)
   }
 }
 

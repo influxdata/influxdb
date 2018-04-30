@@ -1,18 +1,28 @@
-import React, {Component, ReactElement} from 'react'
+import React, {Component, ReactElement, MouseEvent} from 'react'
 import classnames from 'classnames'
 import uuid from 'uuid'
+import _ from 'lodash'
 
 import ResizeDivision from 'src/shared/components/ResizeDivision'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   MIN_DIVISIONS,
-  ORIENTATION_HORIZONTAL,
-  ORIENTATION_VERTICAL,
+  HANDLE_HORIZONTAL,
+  HANDLE_VERTICAL,
 } from 'src/shared/constants/'
+
+const initialDragEvent = {
+  percentX: 0,
+  percentY: 0,
+  mouseX: null,
+  mouseY: null,
+}
 
 interface State {
   activeHandleID: string
   divisions: DivisionState[]
+  dragDirection: string
+  dragEvent: any
 }
 
 interface Division {
@@ -35,16 +45,58 @@ interface Props {
 @ErrorHandling
 class Resizer extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
-    orientation: ORIENTATION_HORIZONTAL,
+    orientation: HANDLE_HORIZONTAL,
   }
 
-  public containerRef: HTMLElement
+  private containerRef: HTMLElement
+  private percentChangeX: number = 0
+  private percentChangeY: number = 0
 
   constructor(props) {
     super(props)
     this.state = {
       activeHandleID: null,
       divisions: this.initialDivisions,
+      dragEvent: initialDragEvent,
+      dragDirection: '',
+    }
+  }
+
+  public componentDidUpdate(__, prevState) {
+    const {dragEvent} = this.state
+    const {orientation} = this.props
+
+    if (_.isEqual(dragEvent, prevState.dragEvent)) {
+      return
+    }
+
+    this.percentChangeX = this.pixelsToPercentX(
+      prevState.dragEvent.mouseX,
+      dragEvent.mouseX
+    )
+
+    this.percentChangeY = this.pixelsToPercentY(
+      prevState.dragEvent.mouseY,
+      dragEvent.mouseY
+    )
+
+    if (orientation === HANDLE_VERTICAL) {
+      const left = dragEvent.percentX < prevState.dragEvent.percentX
+
+      if (left) {
+        return this.move.left()
+      }
+
+      return this.move.right()
+    }
+
+    const up = dragEvent.percentY < prevState.dragEvent.percentY
+    const down = dragEvent.percentY > prevState.dragEvent.percentY
+
+    if (up) {
+      return this.move.up()
+    } else if (down) {
+      return this.move.down()
     }
   }
 
@@ -90,8 +142,8 @@ class Resizer extends Component<Props, State> {
 
     return classnames(`resize--container ${containerClass}`, {
       'resize--dragging': activeHandleID,
-      horizontal: orientation === ORIENTATION_HORIZONTAL,
-      vertical: orientation === ORIENTATION_VERTICAL,
+      horizontal: orientation === HANDLE_HORIZONTAL,
+      vertical: orientation === HANDLE_VERTICAL,
     })
   }
 
@@ -107,58 +159,151 @@ class Resizer extends Component<Props, State> {
     }))
   }
 
-  private handleStartDrag = activeHandleID => {
-    this.setState({activeHandleID})
+  private handleStartDrag = (activeHandleID, e: MouseEvent<HTMLElement>) => {
+    const dragEvent = this.mousePosWithinContainer(e)
+    this.setState({activeHandleID, dragEvent})
   }
 
   private handleStopDrag = () => {
-    this.setState({activeHandleID: ''})
+    this.setState({activeHandleID: '', dragEvent: initialDragEvent})
   }
 
   private handleMouseLeave = () => {
-    this.setState({activeHandleID: ''})
+    this.setState({activeHandleID: '', dragEvent: initialDragEvent})
   }
 
-  private handleDrag = () => {
-    // const {divisions, activeHandleID} = this.state
-    // if (!this.state.activeHandleID) {
-    //   return
-    // }
-    // const activeDivision = divisions.find(d => d.id === activeHandleID)
-    // if (!activeDivision) {
-    //   return
-    // }
-    // const {size, offset} = activeDivision
-    // const {height} = getComputedStyle(this.containerRef)
-    // const containerHeight = parseInt(height, 10)
-    // // verticalOffset moves the resize handle as many pixels as the page-heading is taking up.
-    // const verticalOffset = window.innerHeight - containerHeight
-    // const newTopPanelPercent = Math.ceil(
-    //   (e.pageY - verticalOffset) / containerHeight * HUNDRED
-    // )
-    // const newBottomPanelPercent = HUNDRED - newTopPanelPercent
-    // // Don't trigger a resize unless the change in size is greater than minResizePercentage
-    // const minResizePercentage = 0.5
-    // if (
-    //   Math.abs(newTopPanelPercent - this.state.topHeight) < minResizePercentage
-    // ) {
-    //   return
-    // }
-    // const topHeightPixels = newTopPanelPercent / HUNDRED * containerHeight
-    // const bottomHeightPixels = newBottomPanelPercent / HUNDRED * containerHeight
-    // // Don't trigger a resize if the new sizes are too small
-    // if (
-    //   topHeightPixels < minTopHeight ||
-    //   bottomHeightPixels < minBottomHeight
-    // ) {
-    //   return
-    // }
-    // this.setState({
-    //   topHeight: newTopPanelPercent,
-    //   topHeightPixels,
-    //   bottomHeight: newBottomPanelPercent,
-    //   bottomHeightPixels,
-    // })
+  private mousePosWithinContainer = (e: MouseEvent<HTMLElement>) => {
+    const {pageY, pageX} = e
+    const {top, left, width, height} = this.containerRef.getBoundingClientRect()
+
+    const mouseX = pageX - left
+    const mouseY = pageY - top
+
+    const percentX = mouseX / width
+    const percentY = mouseY / height
+
+    return {
+      mouseX,
+      mouseY,
+      percentX,
+      percentY,
+    }
+  }
+
+  private pixelsToPercentX = (startValue, endValue) => {
+    if (!startValue) {
+      return 0
+    }
+
+    const delta = startValue - endValue
+    const {width} = this.containerRef.getBoundingClientRect()
+
+    return Math.abs(delta / width)
+  }
+
+  private pixelsToPercentY = (startValue, endValue) => {
+    if (!startValue) {
+      return 0
+    }
+
+    const delta = startValue - endValue
+    const {height} = this.containerRef.getBoundingClientRect()
+
+    return Math.abs(delta / height)
+  }
+
+  private handleDrag = (e: MouseEvent<HTMLElement>) => {
+    const {activeHandleID} = this.state
+    if (!activeHandleID) {
+      return
+    }
+
+    const dragEvent = this.mousePosWithinContainer(e)
+    this.setState({dragEvent})
+  }
+
+  private get move() {
+    const {activeHandleID} = this.state
+
+    const activePosition = _.findIndex(
+      this.state.divisions,
+      d => d.id === activeHandleID
+    )
+
+    return {
+      up: this.up(activePosition),
+      down: this.down(activePosition),
+      left: this.left(activePosition),
+      right: this.right(activePosition),
+    }
+  }
+
+  private up = activePosition => () => {
+    const divisions = this.state.divisions.map((d, i) => {
+      const before = i === activePosition - 1
+      const active = i === activePosition
+
+      if (before) {
+        return {...d, size: d.size - this.percentChangeY}
+      } else if (active) {
+        return {...d, size: d.size + this.percentChangeY}
+      }
+
+      return d
+    })
+
+    this.setState({divisions})
+  }
+
+  private down = activePosition => () => {
+    const divisions = this.state.divisions.map((d, i) => {
+      const before = i === activePosition - 1
+      const active = i === activePosition
+
+      if (before) {
+        return {...d, size: d.size + this.percentChangeY}
+      } else if (active) {
+        return {...d, size: d.size - this.percentChangeY}
+      }
+
+      return d
+    })
+
+    this.setState({divisions})
+  }
+
+  private left = activePosition => () => {
+    const divisions = this.state.divisions.map((d, i) => {
+      const before = i === activePosition - 1
+      const active = i === activePosition
+
+      if (before) {
+        return {...d, size: d.size - this.percentChangeX}
+      } else if (active) {
+        return {...d, size: d.size + this.percentChangeX}
+      }
+
+      return d
+    })
+
+    this.setState({divisions})
+  }
+
+  private right = activePosition => () => {
+    const divisions = this.state.divisions.map((d, i) => {
+      const before = i === activePosition - 1
+      const active = i === activePosition
+
+      if (before) {
+        return {...d, size: d.size + this.percentChangeX}
+      } else if (active) {
+        return {...d, size: d.size - this.percentChangeX}
+      }
+
+      return d
+    })
+
+    this.setState({divisions})
   }
 }
 
