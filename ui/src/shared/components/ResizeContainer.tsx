@@ -4,7 +4,11 @@ import uuid from 'uuid'
 
 import ResizeDivision from 'src/shared/components/ResizeDivision'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {MIN_DIVISIONS, ORIENTATION_HORIZONTAL} from 'src/shared/constants/'
+import {
+  MIN_DIVISIONS,
+  ORIENTATION_HORIZONTAL,
+  ORIENTATION_VERTICAL,
+} from 'src/shared/constants/'
 
 interface State {
   activeHandleID: string
@@ -20,7 +24,6 @@ interface Division {
 interface DivisionState extends Division {
   id: string
   size: number
-  offset: number
 }
 
 interface Props {
@@ -47,7 +50,7 @@ class Resizer extends Component<Props, State> {
 
   public render() {
     const {activeHandleID, divisions} = this.state
-    const {containerClass, orientation} = this.props
+    const {orientation} = this.props
 
     if (divisions.length < MIN_DIVISIONS) {
       console.error(
@@ -58,9 +61,7 @@ class Resizer extends Component<Props, State> {
 
     return (
       <div
-        className={classnames(`resize--container ${containerClass}`, {
-          'resize--dragging': activeHandleID,
-        })}
+        className={this.className}
         onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleStopDrag}
         onMouseMove={this.handleDrag}
@@ -72,7 +73,6 @@ class Resizer extends Component<Props, State> {
             id={d.id}
             name={d.name}
             size={d.size}
-            offset={d.offset}
             render={d.render}
             orientation={orientation}
             draggable={i > 0}
@@ -84,16 +84,26 @@ class Resizer extends Component<Props, State> {
     )
   }
 
+  private get className(): string {
+    const {orientation, containerClass} = this.props
+    const {activeHandleID} = this.state
+
+    return classnames(`resize--container ${containerClass}`, {
+      'resize--dragging': activeHandleID,
+      horizontal: orientation === ORIENTATION_HORIZONTAL,
+      vertical: orientation === ORIENTATION_VERTICAL,
+    })
+  }
+
   private get initialDivisions() {
     const {divisions} = this.props
 
     const size = 1 / divisions.length
 
-    return divisions.map((d, i) => ({
+    return divisions.map(d => ({
       ...d,
       id: uuid.v4(),
       size,
-      offset: size * i,
     }))
   }
 
@@ -110,10 +120,15 @@ class Resizer extends Component<Props, State> {
   }
 
   private handleDrag = () => {
-    if (!this.state.activeHandleID) {
-      return
-    }
-
+    // const {divisions, activeHandleID} = this.state
+    // if (!this.state.activeHandleID) {
+    //   return
+    // }
+    // const activeDivision = divisions.find(d => d.id === activeHandleID)
+    // if (!activeDivision) {
+    //   return
+    // }
+    // const {size, offset} = activeDivision
     // const {height} = getComputedStyle(this.containerRef)
     // const containerHeight = parseInt(height, 10)
     // // verticalOffset moves the resize handle as many pixels as the page-heading is taking up.
@@ -122,7 +137,6 @@ class Resizer extends Component<Props, State> {
     //   (e.pageY - verticalOffset) / containerHeight * HUNDRED
     // )
     // const newBottomPanelPercent = HUNDRED - newTopPanelPercent
-
     // // Don't trigger a resize unless the change in size is greater than minResizePercentage
     // const minResizePercentage = 0.5
     // if (
@@ -130,10 +144,8 @@ class Resizer extends Component<Props, State> {
     // ) {
     //   return
     // }
-
     // const topHeightPixels = newTopPanelPercent / HUNDRED * containerHeight
     // const bottomHeightPixels = newBottomPanelPercent / HUNDRED * containerHeight
-
     // // Don't trigger a resize if the new sizes are too small
     // if (
     //   topHeightPixels < minTopHeight ||
@@ -141,7 +153,6 @@ class Resizer extends Component<Props, State> {
     // ) {
     //   return
     // }
-
     // this.setState({
     //   topHeight: newTopPanelPercent,
     //   topHeightPixels,

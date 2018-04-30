@@ -20,6 +20,18 @@ $resizer-color-kapacitor: $c-rainforest;
 
 .resize--container {
   overflow: hidden !important;
+  display: flex;
+  align-items: stretch;
+
+  &.vertical {
+    width: 100%;
+    flex-direction: row;
+  }
+
+  &.horizontal {
+    height: 100%;
+    flex-direction: column;
+  }
 
   &.resize--dragging * {
     @include no-user-select();
@@ -29,7 +41,7 @@ $resizer-color-kapacitor: $c-rainforest;
 .resizer--division {
   z-index: $resizer-division-z;
   border: 1px solid #f00;
-  position: absolute;
+  position: relative;
 
   &.resizer__horizontal {
     width: 100%;
@@ -91,8 +103,6 @@ $resizer-color-kapacitor: $c-rainforest;
       background-color 0.19s ease;
   }
   &:hover {
-    cursor: ns-resize;
-
     &:before {
       background-color: $resizer-color-hover;
     }
@@ -123,6 +133,10 @@ $resizer-color-kapacitor: $c-rainforest;
   margin-bottom: -$resizer-click-area/2;
   width: 100%;
 
+  &:hover {
+    cursor: ns-resize;
+  }
+
   // Psuedo element for handle
   &:before {
     transform: translate(-50%,-50%);
@@ -147,6 +161,10 @@ $resizer-color-kapacitor: $c-rainforest;
   margin-left: -$resizer-click-area/2;
   margin-right: -$resizer-click-area/2;
   height: 100%;
+
+  &:hover {
+    cursor: ew-resize;
+  }
 
   // Psuedo element for handle
   &:before {
@@ -186,7 +204,6 @@ $resizer-color-kapacitor: $c-rainforest;
   @include no-user-select();
 
   &:hover {
-    cursor: ns-resize;
     background-color: $g4-onyx;
   }
 
@@ -194,5 +211,17 @@ $resizer-color-kapacitor: $c-rainforest;
     cursor: ns-resize;
     color: $c-laser;
     background-color: $g5-pepper;
+  }
+}
+
+.resizer--title.horizontal {
+  &:hover {
+    cursor: ns-resize;
+  }
+}
+
+.resizer--title.vertical {
+  &:hover {
+    cursor: ew-resize;
   }
 }

@@ -14,7 +14,6 @@ interface Props {
   id: string
   name?: string
   size: number
-  offset: number
   activeHandleID: string
   draggable: boolean
   orientation: string
@@ -66,23 +65,20 @@ class Division extends PureComponent<Props> {
   }
 
   private get style() {
-    const {orientation, size, offset} = this.props
+    const {orientation, size} = this.props
 
     const sizePercent = `${size * HUNDRED}%`
-    const offsetPercent = `${offset * HUNDRED}%`
 
     if (orientation === ORIENTATION_VERTICAL) {
       return {
         top: '0',
         width: sizePercent,
-        left: offsetPercent,
       }
     }
 
     return {
       left: '0',
       height: sizePercent,
-      top: offsetPercent,
     }
   }
 
