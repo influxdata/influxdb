@@ -176,6 +176,92 @@ func (r *UnsignedMeanReducer) Emit() []FloatPoint {
 	}}
 }
 
+type FloatSpreadReducer struct {
+	min, max float64
+	count    uint32
+}
+
+func NewFloatSpreadReducer() *FloatSpreadReducer {
+	return &FloatSpreadReducer{
+		min: math.Inf(1),
+		max: math.Inf(-1),
+	}
+}
+
+func (r *FloatSpreadReducer) AggregateFloat(p *FloatPoint) {
+	r.min = math.Min(r.min, p.Value)
+	r.max = math.Max(r.max, p.Value)
+	r.count++
+}
+
+func (r *FloatSpreadReducer) Emit() []FloatPoint {
+	return []FloatPoint{{
+		Time:       ZeroTime,
+		Value:      r.max - r.min,
+		Aggregated: r.count,
+	}}
+}
+
+type IntegerSpreadReducer struct {
+	min, max int64
+	count    uint32
+}
+
+func NewIntegerSpreadReducer() *IntegerSpreadReducer {
+	return &IntegerSpreadReducer{
+		min: math.MaxInt64,
+		max: math.MinInt64,
+	}
+}
+
+func (r *IntegerSpreadReducer) AggregateInteger(p *IntegerPoint) {
+	if p.Value < r.min {
+		r.min = p.Value
+	}
+	if p.Value > r.max {
+		r.max = p.Value
+	}
+	r.count++
+}
+
+func (r *IntegerSpreadReducer) Emit() []IntegerPoint {
+	return []IntegerPoint{{
+		Time:       ZeroTime,
+		Value:      r.max - r.min,
+		Aggregated: r.count,
+	}}
+}
+
+type UnsignedSpreadReducer struct {
+	min, max uint64
+	count    uint32
+}
+
+func NewUnsignedSpreadReducer() *UnsignedSpreadReducer {
+	return &UnsignedSpreadReducer{
+		min: math.MaxUint64,
+		max: 0,
+	}
+}
+
+func (r *UnsignedSpreadReducer) AggregateUnsigned(p *UnsignedPoint) {
+	if p.Value < r.min {
+		r.min = p.Value
+	}
+	if p.Value > r.max {
+		r.max = p.Value
+	}
+	r.count++
+}
+
+func (r *UnsignedSpreadReducer) Emit() []UnsignedPoint {
+	return []UnsignedPoint{{
+		Time:       ZeroTime,
+		Value:      r.max - r.min,
+		Aggregated: r.count,
+	}}
+}
+
 // FloatDerivativeReducer calculates the derivative of the aggregated points.
 type FloatDerivativeReducer struct {
 	interval      Interval

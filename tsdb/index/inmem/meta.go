@@ -650,7 +650,10 @@ func (m *measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, influxql.Ex
 			}
 		} else if n.Op == influxql.NEQ {
 			if str.Val != "" {
-				ids = m.SeriesIDs().Reject(tagVals.Load(str.Val))
+				ids = m.SeriesIDs()
+				if vals := tagVals.Load(str.Val); len(vals) > 0 {
+					ids = ids.Reject(vals)
+				}
 			} else {
 				tagVals.RangeAll(func(_ string, a seriesIDs) {
 					ids = append(ids, a...)
