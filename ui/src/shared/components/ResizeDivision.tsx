@@ -1,5 +1,6 @@
 import React, {PureComponent, ReactElement} from 'react'
 import classnames from 'classnames'
+import ResizeHandle from 'src/shared/components/ResizeHandle'
 
 import {
   ORIENTATION_VERTICAL,
@@ -12,20 +13,47 @@ interface Props {
   name?: string
   size: number
   offset: number
+  isDragging: boolean
+  draggable: boolean
   orientation: string
   render: () => ReactElement<any>
+  onHandleStartDrag: () => void
 }
 
 class Division extends PureComponent<Props> {
   public render() {
-    const {name, render} = this.props
+    const {render} = this.props
 
     return (
       <div className={this.className} style={this.style}>
-        {name && <div>{name}</div>}
+        {this.dragHandle}
         {render()}
       </div>
     )
+  }
+
+  private get dragHandle() {
+    const {
+      name,
+      isDragging,
+      orientation,
+      onHandleStartDrag,
+      draggable,
+    } = this.props
+
+    if (name) {
+      return <div className="resizer--title">{name}</div>
+    }
+
+    if (draggable) {
+      return (
+        <ResizeHandle
+          onHandleStartDrag={onHandleStartDrag}
+          orientation={orientation}
+          isDragging={isDragging}
+        />
+      )
+    }
   }
 
   private get style() {

@@ -3,10 +3,13 @@
   ------------------------------------------------------------------------------
 */
 
+$resizer-division-z: 1;
+$resizer-clickable-z: 2;
+$resizer-line-z: 3;
+$resizer-handle-z: 4;
+
 $resizer-line-width: 2px;
-$resizer-line-z: 2;
 $resizer-handle-width: 10px;
-$resizer-handle-z: 3;
 $resizer-click-area: 28px;
 $resizer-glow: 14px;
 $resizer-dots: $g3-castle;
@@ -24,6 +27,7 @@ $resizer-color-kapacitor: $c-rainforest;
 }
 
 .resizer--division {
+  z-index: $resizer-division-z;
   border: 1px solid #f00;
   position: absolute;
 
@@ -49,7 +53,7 @@ $resizer-color-kapacitor: $c-rainforest;
   ------------------------------------------------------------------------------
 */
 .resizer--handle {
-  z-index: 1;
+  z-index: $resizer-clickable-z;
   user-select: none;
   -webkit-user-select: none;
   position: absolute;
@@ -113,6 +117,7 @@ $resizer-color-kapacitor: $c-rainforest;
   ------------------------------------------------------------------------------
 */
 .resizer--handle.horizontal {
+  top: 0;
   height: $resizer-click-area;
   margin-top: -$resizer-click-area/2;
   margin-bottom: -$resizer-click-area/2;
@@ -137,6 +142,7 @@ $resizer-color-kapacitor: $c-rainforest;
   ------------------------------------------------------------------------------
 */
 .resizer--handle.vertical {
+  left: 0;
   width: $resizer-click-area;
   margin-left: -$resizer-click-area/2;
   margin-right: -$resizer-click-area/2;
@@ -154,4 +160,28 @@ $resizer-color-kapacitor: $c-rainforest;
     height: 100%;
     width: $resizer-line-width;
   }
+}
+
+/*
+  Resizable Container Draggable Title
+  ------------------------------------------------------------------------------
+*/
+
+.resizer--title {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 30px;
+  line-height: 30px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background-color: $g3-castle;
+  padding: 0 11px;
+  z-index: $resizer-clickable-z;
+  font-size: 13px;
+  font-weight: 600;
+  color: $g13-mist;
+  @include no-user-select();
 }

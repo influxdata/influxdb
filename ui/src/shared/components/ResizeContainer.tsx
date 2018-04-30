@@ -2,7 +2,6 @@ import React, {Component, ReactElement} from 'react'
 import classnames from 'classnames'
 import uuid from 'uuid'
 
-import ResizeHandle from 'src/shared/components/ResizeHandle'
 import ResizeDivision from 'src/shared/components/ResizeDivision'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {MIN_DIVISIONS, ORIENTATION_HORIZONTAL} from 'src/shared/constants/'
@@ -67,7 +66,7 @@ class Resizer extends Component<Props, State> {
         onMouseMove={this.handleDrag}
         ref={r => (this.containerRef = r)}
       >
-        {divisions.map(d => (
+        {divisions.map((d, i) => (
           <ResizeDivision
             key={d.id}
             id={d.id}
@@ -76,22 +75,11 @@ class Resizer extends Component<Props, State> {
             offset={d.offset}
             render={d.render}
             orientation={orientation}
+            draggable={i > 0}
+            isDragging={isDragging}
+            onHandleStartDrag={this.handleStartDrag}
           />
         ))}
-        {divisions.map((d, i) => {
-          if (i === 0) {
-            return null
-          }
-          return (
-            <ResizeHandle
-              key={uuid.v4()}
-              onHandleStartDrag={this.handleStartDrag}
-              orientation={orientation}
-              isDragging={isDragging}
-              offset={d.offset}
-            />
-          )
-        })}
       </div>
     )
   }

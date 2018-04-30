@@ -64,7 +64,7 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         name: 'Schema Explorer',
-        render: () => <div>Weeeeee</div>,
+        render: () => <div>Explorin all yer schemas</div>,
       },
     ]
   }
