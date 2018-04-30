@@ -726,6 +726,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer itr.Close()
 			fitr := itr.(query.FloatIterator)
 
 			if p, err := fitr.Next(); err != nil {
@@ -783,6 +784,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer itr.Close()
 			fitr := itr.(query.FloatIterator)
 
 			if p, err := fitr.Next(); err != nil {
@@ -1406,6 +1408,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer cur.Close()
 
 			fcur := cur.(tsdb.FloatBatchCursor)
 			ts, vs := fcur.Next()
@@ -1460,6 +1463,7 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer cur.Close()
 
 			fcur := cur.(tsdb.FloatBatchCursor)
 			ts, vs := fcur.Next()
