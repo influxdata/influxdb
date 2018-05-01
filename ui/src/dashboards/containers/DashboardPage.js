@@ -293,6 +293,7 @@ class DashboardPage extends Component {
     const {zoomedTimeRange} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
     const {
+      notify,
       source,
       sources,
       timeRange,
@@ -398,6 +399,7 @@ class DashboardPage extends Component {
             thresholdsListColors={thresholdsListColors}
             gaugeColors={gaugeColors}
             lineColors={lineColors}
+            notify={notify}
           />
         ) : null}
         <DashboardHeader

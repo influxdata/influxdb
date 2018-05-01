@@ -44,8 +44,10 @@ import {
   CellQuery,
   Legend,
   Status,
+  Notification,
 } from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {notifyBuilderDisabled} from 'src/shared/copy/notifications'
 
 const staticLegend: Legend = {
   type: 'static',
@@ -77,6 +79,7 @@ interface Props {
   gaugeColors: ColorNumber[]
   lineColors: ColorString[]
   cell: Cell
+  notify: (notification: Notification) => void
 }
 
 interface State {
@@ -366,6 +369,10 @@ class CellEditorOverlay extends Component<Props, State> {
     )
 
     const isUsingUserDefinedTempVars: boolean = !!userDefinedTempVarsInQuery.length
+
+    if (isUsingUserDefinedTempVars) {
+      this.props.notify(notifyBuilderDisabled())
+    }
 
     try {
       const selectedTempVars: Template[] = isUsingUserDefinedTempVars
