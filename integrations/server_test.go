@@ -166,8 +166,8 @@ func TestServer(t *testing.T) {
   "id": "5000",
   "name": "Kapa 1",
   "url": "http://localhost:9092",
-	"active": true,
-	"insecureSkipVerify": false,
+  "active": true,
+  "insecureSkipVerify": false,
   "links": {
     "proxy": "/chronograf/v1/sources/5000/kapacitors/5000/proxy",
     "self": "/chronograf/v1/sources/5000/kapacitors/5000",
@@ -225,8 +225,8 @@ func TestServer(t *testing.T) {
       "id": "5000",
       "name": "Kapa 1",
       "url": "http://localhost:9092",
-			"active": true,
-			"insecureSkipVerify": false,
+      "active": true,
+      "insecureSkipVerify": false,
       "links": {
         "proxy": "/chronograf/v1/sources/5000/kapacitors/5000/proxy",
         "self": "/chronograf/v1/sources/5000/kapacitors/5000",
@@ -292,7 +292,7 @@ func TestServer(t *testing.T) {
       "default": true,
       "telegraf": "telegraf",
       "organization": "howdy",
-			"defaultRP": "",
+      "defaultRP": "",
       "links": {
         "self": "/chronograf/v1/sources/5000",
         "kapacitors": "/chronograf/v1/sources/5000/kapacitors",
@@ -304,7 +304,7 @@ func TestServer(t *testing.T) {
         "roles": "/chronograf/v1/sources/5000/roles",
         "databases": "/chronograf/v1/sources/5000/dbs",
         "annotations": "/chronograf/v1/sources/5000/annotations",
-    		"health": "/chronograf/v1/sources/5000/health"
+        "health": "/chronograf/v1/sources/5000/health"
       }
     }
   ]
@@ -546,20 +546,23 @@ func TestServer(t *testing.T) {
       "legend":{
           "type": "static",
           "orientation": "bottom"
-			},
-			"tableOptions":{
-				"verticalTimeAxis": false,
-				"sortBy":{
-					"internalName": "",
-					"displayName": "",
-					"visible": false,
-					"precision": 0
-				},
-				"wrapping": "",
-				"fixFirstColumn": false
-			},
-			"fieldOptions": null,
-			"timeFormat": "",
+      },
+      "tableOptions":{
+        "verticalTimeAxis": false,
+        "sortBy":{
+          "internalName": "",
+          "displayName": "",
+          "visible": false
+        },
+        "wrapping": "",
+        "fixFirstColumn": false
+      },
+      "fieldOptions": null,
+      "timeFormat": "",
+      "decimalPlaces":{
+        "isEnforced": false,
+        "digits": 0
+      },
       "links": {
         "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
       }
@@ -798,23 +801,26 @@ func TestServer(t *testing.T) {
               "name": "comet",
               "value": "100"
             }
-					],
-					"tableOptions":{
-						"verticalTimeAxis":false,
-						"sortBy":{
-							"internalName":"",
-							"displayName":"",
-							"visible":false,
-							"precision":0
-						},
-						"wrapping":"",
-						"fixFirstColumn":false
-					},
-					"fieldOptions":null,
-					"timeFormat":"",
-          "legend":{
-              "type": "static",
-              "orientation": "bottom"
+           ],
+          "legend": {
+            "type": "static",
+            "orientation": "bottom"
+          },
+          "tableOptions":{
+            "verticalTimeAxis": false,
+            "sortBy":{
+              "internalName": "",
+              "displayName": "",
+              "visible": false
+            },
+            "wrapping": "",
+            "fixFirstColumn": false
+          },
+          "fieldOptions": null,
+          "timeFormat": "",
+          "decimalPlaces":{
+            "isEnforced": false,
+            "digits": 0
           },
           "links": {
             "self": "/chronograf/v1/dashboards/1000/cells/8f61c619-dd9b-4761-8aa8-577f27247093"
@@ -2145,7 +2151,7 @@ func TestServer(t *testing.T) {
 			wants: wants{
 				statusCode: 403,
 				body: `
-				{
+        {
   "code": 403,
   "message": "user not found"
 }`,
@@ -2365,61 +2371,61 @@ func TestServer(t *testing.T) {
 				statusCode: 200,
 				body: `
 {
-	"links": {
-		"self": "/chronograf/v1/mappings"
-	},
-	"mappings": [
-		{
-			"links": {
-				"self": "/chronograf/v1/mappings/1"
-			},
-			"id": "1",
-			"organizationId": "1",
-			"provider": "*",
-			"scheme": "*",
-			"providerOrganization": "influxdata"
-		},
-		{
-			"links": {
-				"self": "/chronograf/v1/mappings/2"
-			},
-			"id": "2",
-			"organizationId": "1",
-			"provider": "*",
-			"scheme": "*",
-			"providerOrganization": "*"
-		},
-		{
-			"links": {
-				"self": "/chronograf/v1/mappings/3"
-			},
-			"id": "3",
-			"organizationId": "2",
-			"provider": "github",
-			"scheme": "*",
-			"providerOrganization": "*"
-		},
-		{
-			"links": {
-				"self": "/chronograf/v1/mappings/4"
-			},
-			"id": "4",
-			"organizationId": "3",
-			"provider": "auth0",
-			"scheme": "ldap",
-			"providerOrganization": "*"
-		},
-		{
-			"links": {
-				"self": "/chronograf/v1/mappings/default"
-			},
-			"id": "default",
-			"organizationId": "default",
-			"provider": "*",
-			"scheme": "*",
-			"providerOrganization": "*"
-		}
-	]
+  "links": {
+    "self": "/chronograf/v1/mappings"
+  },
+  "mappings": [
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/1"
+      },
+      "id": "1",
+      "organizationId": "1",
+      "provider": "*",
+      "scheme": "*",
+      "providerOrganization": "influxdata"
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/2"
+      },
+      "id": "2",
+      "organizationId": "1",
+      "provider": "*",
+      "scheme": "*",
+      "providerOrganization": "*"
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/3"
+      },
+      "id": "3",
+      "organizationId": "2",
+      "provider": "github",
+      "scheme": "*",
+      "providerOrganization": "*"
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/4"
+      },
+      "id": "4",
+      "organizationId": "3",
+      "provider": "auth0",
+      "scheme": "ldap",
+      "providerOrganization": "*"
+    },
+    {
+      "links": {
+        "self": "/chronograf/v1/mappings/default"
+      },
+      "id": "default",
+      "organizationId": "default",
+      "provider": "*",
+      "scheme": "*",
+      "providerOrganization": "*"
+    }
+  ]
 }
 `,
 			},
@@ -2695,40 +2701,40 @@ func TestServer(t *testing.T) {
 			wants: wants{
 				statusCode: 200,
 				body: `
-		{
-		  "layouts": "/chronograf/v1/layouts",
-		  "users": "/chronograf/v1/organizations/default/users",
-		  "allUsers": "/chronograf/v1/users",
-		  "organizations": "/chronograf/v1/organizations",
-		  "mappings": "/chronograf/v1/mappings",
-		  "sources": "/chronograf/v1/sources",
-		  "me": "/chronograf/v1/me",
-		  "environment": "/chronograf/v1/env",
-		  "dashboards": "/chronograf/v1/dashboards",
-		  "config": {
-		    "self": "/chronograf/v1/config",
-		    "auth": "/chronograf/v1/config/auth"
-		  },
-		  "auth": [
-		    {
-		      "name": "github",
-		      "label": "Github",
-		      "login": "/oauth/github/login",
-		      "logout": "/oauth/github/logout",
-		      "callback": "/oauth/github/callback"
-		    }
-		  ],
-		  "logout": "/oauth/logout",
-		  "external": {
-		    "statusFeed": ""
-		  },
-		  "ifql": {
-				"ast": "/chronograf/v1/ifql/ast",
-				"self": "/chronograf/v1/ifql",
-				"suggestions": "/chronograf/v1/ifql/suggestions"
-		  }
-		}
-		`,
+    {
+      "layouts": "/chronograf/v1/layouts",
+      "users": "/chronograf/v1/organizations/default/users",
+      "allUsers": "/chronograf/v1/users",
+      "organizations": "/chronograf/v1/organizations",
+      "mappings": "/chronograf/v1/mappings",
+      "sources": "/chronograf/v1/sources",
+      "me": "/chronograf/v1/me",
+      "environment": "/chronograf/v1/env",
+      "dashboards": "/chronograf/v1/dashboards",
+      "config": {
+        "self": "/chronograf/v1/config",
+        "auth": "/chronograf/v1/config/auth"
+      },
+      "auth": [
+        {
+          "name": "github",
+          "label": "Github",
+          "login": "/oauth/github/login",
+          "logout": "/oauth/github/logout",
+          "callback": "/oauth/github/callback"
+        }
+      ],
+      "logout": "/oauth/logout",
+      "external": {
+        "statusFeed": ""
+      },
+      "ifql": {
+        "ast": "/chronograf/v1/ifql/ast",
+        "self": "/chronograf/v1/ifql",
+        "suggestions": "/chronograf/v1/ifql/suggestions"
+      }
+    }
+    `,
 			},
 		},
 		{
@@ -2783,40 +2789,40 @@ func TestServer(t *testing.T) {
 			wants: wants{
 				statusCode: 200,
 				body: `
-		{
-		  "layouts": "/chronograf/v1/layouts",
-		  "users": "/chronograf/v1/organizations/1/users",
-		  "allUsers": "/chronograf/v1/users",
-		  "organizations": "/chronograf/v1/organizations",
-		  "mappings": "/chronograf/v1/mappings",
-		  "sources": "/chronograf/v1/sources",
-		  "me": "/chronograf/v1/me",
-		  "environment": "/chronograf/v1/env",
-		  "dashboards": "/chronograf/v1/dashboards",
-		  "config": {
-		    "self": "/chronograf/v1/config",
-		    "auth": "/chronograf/v1/config/auth"
-		  },
-		  "auth": [
-		    {
-		      "name": "github",
-		      "label": "Github",
-		      "login": "/oauth/github/login",
-		      "logout": "/oauth/github/logout",
-		      "callback": "/oauth/github/callback"
-		    }
-		  ],
-		  "logout": "/oauth/logout",
-		  "external": {
-		    "statusFeed": ""
-		  },
-		  "ifql": {
-				"ast": "/chronograf/v1/ifql/ast",
-				"self": "/chronograf/v1/ifql",
-				"suggestions": "/chronograf/v1/ifql/suggestions"
-		  }
-		}
-		`,
+    {
+      "layouts": "/chronograf/v1/layouts",
+      "users": "/chronograf/v1/organizations/1/users",
+      "allUsers": "/chronograf/v1/users",
+      "organizations": "/chronograf/v1/organizations",
+      "mappings": "/chronograf/v1/mappings",
+      "sources": "/chronograf/v1/sources",
+      "me": "/chronograf/v1/me",
+      "environment": "/chronograf/v1/env",
+      "dashboards": "/chronograf/v1/dashboards",
+      "config": {
+        "self": "/chronograf/v1/config",
+        "auth": "/chronograf/v1/config/auth"
+      },
+      "auth": [
+        {
+          "name": "github",
+          "label": "Github",
+          "login": "/oauth/github/login",
+          "logout": "/oauth/github/logout",
+          "callback": "/oauth/github/callback"
+        }
+      ],
+      "logout": "/oauth/logout",
+      "external": {
+        "statusFeed": ""
+      },
+      "ifql": {
+        "ast": "/chronograf/v1/ifql/ast",
+        "self": "/chronograf/v1/ifql",
+        "suggestions": "/chronograf/v1/ifql/suggestions"
+      }
+    }
+    `,
 			},
 		},
 	}
