@@ -21,12 +21,10 @@ interface FieldName {
 }
 
 interface TableOptions {
-  timeFormat: string
   verticalTimeAxis: boolean
   sortBy: FieldName
   wrapping: string
   fixFirstColumn: boolean
-  fieldNames: FieldName[]
 }
 
 interface CellLinks {
@@ -43,6 +41,11 @@ export interface Legend {
   orientation?: string
 }
 
+interface DecimalPlaces {
+  isEnforced: boolean
+  digits: number
+}
+
 export interface Cell {
   id: string
   x: number
@@ -55,6 +58,9 @@ export interface Cell {
   axes: Axes
   colors: ColorString[]
   tableOptions: TableOptions
+  fieldOptions: FieldName[]
+  timeFormat: string
+  decimalPlaces: DecimalPlaces
   links: CellLinks
   legend: Legend
 }

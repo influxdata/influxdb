@@ -5,8 +5,9 @@ import FuncArg from 'src/ifql/components/FuncArg'
 const setup = () => {
   const props = {
     funcID: '',
-    expressionID: '',
+    bodyID: '',
     funcName: '',
+    declarationID: '',
     argKey: '',
     value: '',
     type: '',

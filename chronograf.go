@@ -563,18 +563,21 @@ type Legend struct {
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	ID           string           `json:"i"`
-	X            int32            `json:"x"`
-	Y            int32            `json:"y"`
-	W            int32            `json:"w"`
-	H            int32            `json:"h"`
-	Name         string           `json:"name"`
-	Queries      []DashboardQuery `json:"queries"`
-	Axes         map[string]Axis  `json:"axes"`
-	Type         string           `json:"type"`
-	CellColors   []CellColor      `json:"colors"`
-	Legend       Legend           `json:"legend"`
-	TableOptions TableOptions     `json:"tableOptions,omitempty"`
+	ID            string           `json:"i"`
+	X             int32            `json:"x"`
+	Y             int32            `json:"y"`
+	W             int32            `json:"w"`
+	H             int32            `json:"h"`
+	Name          string           `json:"name"`
+	Queries       []DashboardQuery `json:"queries"`
+	Axes          map[string]Axis  `json:"axes"`
+	Type          string           `json:"type"`
+	CellColors    []CellColor      `json:"colors"`
+	Legend        Legend           `json:"legend"`
+	TableOptions  TableOptions     `json:"tableOptions,omitempty"`
+	FieldOptions  []RenamableField `json:"fieldOptions"`
+	TimeFormat    string           `json:"timeFormat"`
+	DecimalPlaces DecimalPlaces    `json:"decimalPlaces"`
 }
 
 // RenamableField is a column/row field in a DashboardCell of type Table
@@ -586,12 +589,16 @@ type RenamableField struct {
 
 // TableOptions is a type of options for a DashboardCell with type Table
 type TableOptions struct {
-	TimeFormat       string           `json:"timeFormat"`
-	VerticalTimeAxis bool             `json:"verticalTimeAxis"`
-	SortBy           RenamableField   `json:"sortBy"`
-	Wrapping         string           `json:"wrapping"`
-	FieldNames       []RenamableField `json:"fieldNames"`
-	FixFirstColumn   bool             `json:"fixFirstColumn"`
+	VerticalTimeAxis bool           `json:"verticalTimeAxis"`
+	SortBy           RenamableField `json:"sortBy"`
+	Wrapping         string         `json:"wrapping"`
+	FixFirstColumn   bool           `json:"fixFirstColumn"`
+}
+
+// DecimalPlaces indicates whether decimal places should be enforced, and how many digits it should show.
+type DecimalPlaces struct {
+	IsEnforced bool  `json:"isEnforced"`
+	Digits     int32 `json:"digits"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards

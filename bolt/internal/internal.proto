@@ -27,33 +27,41 @@ message Dashboard {
 }
 
 message DashboardCell {
-	int32 x                     = 1; // X-coordinate of Cell in the Dashboard
-	int32 y                     = 2; // Y-coordinate of Cell in the Dashboard
-	int32 w                     = 3; // Width of Cell in the Dashboard
-	int32 h                     = 4; // Height of Cell in the Dashboard
-	repeated Query queries      = 5; // Time-series data queries for Dashboard
-	string name                 = 6; // User-facing name for this Dashboard
-	string type                 = 7; // Dashboard visualization type
-	string ID                   = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
-	map<string, Axis> axes      = 9; // Axes represent the graphical viewport for a cell's visualizations
-	repeated Color colors       = 10; // Colors represent encoding data values to color
-	Legend legend               = 11; // Legend is summary information for a cell
-	TableOptions tableOptions   = 12; // TableOptions for visualization of cell with type 'table'
+	int32 x                              = 1; // X-coordinate of Cell in the Dashboard
+	int32 y                              = 2; // Y-coordinate of Cell in the Dashboard
+	int32 w                              = 3; // Width of Cell in the Dashboard
+	int32 h                              = 4; // Height of Cell in the Dashboard
+	repeated Query queries               = 5; // Time-series data queries for Dashboard
+	string name                          = 6; // User-facing name for this Dashboard
+	string type                          = 7; // Dashboard visualization type
+	string ID                            = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
+	map<string, Axis> axes               = 9; // Axes represent the graphical viewport for a cell's visualizations
+	repeated Color colors                = 10; // Colors represent encoding data values to color
+	Legend legend                        = 11; // Legend is summary information for a cell
+	TableOptions tableOptions            = 12; // TableOptions for visualization of cell with type 'table'
+	repeated RenamableField fieldOptions = 13; // Options for each of the fields returned in a cell
+	string timeFormat                    = 14; // format for time
+	DecimalPlaces decimalPlaces          = 15; // Represents how precise the values of this field should be
+}
+
+message DecimalPlaces {
+	bool isEnforced			= 1; // whether decimal places should be enforced
+	int32 digits				= 2; // the number of digits to display after decical point
 }
 
 message TableOptions {
-	string timeFormat                   = 1; // format for time
+	reserved 1;
 	bool verticalTimeAxis               = 2; // time axis should be a column not row
 	RenamableField sortBy               = 3; // which column should a table be sorted by
 	string 	wrapping                    = 4; // option for text wrapping
-	repeated RenamableField fieldNames      = 5; // names and renames for column/row fields
+	reserved 5;
 	bool fixFirstColumn                 = 6; // first column should be fixed/frozen
 }
 
 message RenamableField {
 	string internalName     = 1; // name of column
 	string displayName      = 2; // what column is renamed to
-	bool visible			= 3; // Represents whether RenamableField is visible
+	bool visible						= 3; // Represents whether RenamableField is visible
 }
 
 message Color {

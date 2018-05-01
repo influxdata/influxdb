@@ -13,6 +13,10 @@ import TableGraph from 'shared/components/TableGraph'
 
 import {colorsStringSchema} from 'shared/schemas'
 import {setHoverTime} from 'src/dashboards/actions'
+import {
+  DEFAULT_TIME_FORMAT,
+  DEFAULT_DECIMAL_PLACES,
+} from 'src/dashboards/constants'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
@@ -33,6 +37,9 @@ const RefreshingGraph = ({
   timeRange,
   cellHeight,
   autoRefresh,
+  fieldOptions,
+  timeFormat,
+  decimalPlaces,
   resizerTopHeight,
   staticLegend,
   manualRefresh, // when changed, re-mounts the component
@@ -44,7 +51,6 @@ const RefreshingGraph = ({
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
-
   if (!queries.length) {
     return (
       <div className="graph-empty">
@@ -63,6 +69,7 @@ const RefreshingGraph = ({
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
+        editQueryStatus={editQueryStatus}
         prefix={prefix}
         suffix={suffix}
         inView={inView}
@@ -81,6 +88,7 @@ const RefreshingGraph = ({
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
         resizerTopHeight={resizerTopHeight}
+        editQueryStatus={editQueryStatus}
         resizeCoords={resizeCoords}
         cellID={cellID}
         prefix={prefix}
@@ -105,6 +113,10 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizeCoords={resizeCoords}
         tableOptions={tableOptions}
+        fieldOptions={fieldOptions}
+        timeFormat={timeFormat}
+        decimalPlaces={decimalPlaces}
+        editQueryStatus={editQueryStatus}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
         isInCEO={isInCEO}
@@ -164,7 +176,28 @@ RefreshingGraph.propTypes = {
   colors: colorsStringSchema,
   cellID: string,
   inView: bool,
-  tableOptions: shape({}),
+  tableOptions: shape({
+    verticalTimeAxis: bool.isRequired,
+    sortBy: shape({
+      internalName: string.isRequired,
+      displayName: string.isRequired,
+      visible: bool.isRequired,
+    }).isRequired,
+    wrapping: string.isRequired,
+    fixFirstColumn: bool.isRequired,
+  }),
+  fieldOptions: arrayOf(
+    shape({
+      internalName: string.isRequired,
+      displayName: string.isRequired,
+      visible: bool.isRequired,
+    }).isRequired
+  ),
+  timeFormat: string.isRequired,
+  decimalPlaces: shape({
+    isEnforced: bool.isRequired,
+    digits: number.isRequired,
+  }).isRequired,
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
   isInCEO: bool,
@@ -174,6 +207,8 @@ RefreshingGraph.defaultProps = {
   manualRefresh: 0,
   staticLegend: false,
   inView: true,
+  timeFormat: DEFAULT_TIME_FORMAT,
+  decimalPlaces: DEFAULT_DECIMAL_PLACES,
 }
 
 const mapStateToProps = ({dashboardUI, annotations: {mode}}) => ({

@@ -6,7 +6,7 @@ import {
   TIME_FORMAT_CUSTOM,
   DEFAULT_TIME_FORMAT,
   TIME_FORMAT_TOOLTIP_LINK,
-} from 'src/shared/constants/tableGraph'
+} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface TimeFormatOptions {
@@ -60,7 +60,7 @@ class GraphOptionsTimeFormat extends PureComponent<Props, State> {
     const showCustom = !formatOption || customFormat
 
     return (
-      <div className="form-group col-xs-12">
+      <div className="form-group col-xs-6">
         <label>
           Time Format
           {showCustom && (

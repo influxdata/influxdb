@@ -1,11 +1,12 @@
 import React, {PureComponent} from 'react'
 
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import {Suggestion, FlatBody} from 'src/types/ifql'
-import {InputArg, Handlers} from 'src/types/ifql'
+import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST} from 'src/ifql/apis'
@@ -44,7 +45,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       ast: null,
       suggestions: [],
       script:
-        'foo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nfrom(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
+        'baz = "baz"\n\nfoo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nbar = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
     }
   }
 
@@ -108,7 +109,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private handleGenerateScript = (): void => {
-    this.getASTResponse(this.expressionsToScript)
+    this.getASTResponse(this.bodyToScript)
   }
 
   private handleChangeArg = ({
@@ -116,30 +117,41 @@ export class IFQLPage extends PureComponent<Props, State> {
     value,
     generate,
     funcID,
-    expressionID,
+    declarationID = '',
+    bodyID,
   }: InputArg): void => {
-    const body = this.state.body.map(expression => {
-      if (expression.id !== expressionID) {
-        return expression
+    const body = this.state.body.map(b => {
+      if (b.id !== bodyID) {
+        return b
       }
 
-      const funcs = expression.funcs.map(f => {
-        if (f.id !== funcID) {
-          return f
-        }
-
-        const args = f.args.map(a => {
-          if (a.key === key) {
-            return {...a, value}
+      if (declarationID) {
+        const declarations = b.declarations.map(d => {
+          if (d.id !== declarationID) {
+            return d
           }
 
-          return a
+          const functions = this.editFuncArgs({
+            funcs: d.funcs,
+            funcID,
+            key,
+            value,
+          })
+
+          return {...d, funcs: functions}
         })
 
-        return {...f, args}
+        return {...b, declarations}
+      }
+
+      const funcs = this.editFuncArgs({
+        funcs: b.funcs,
+        funcID,
+        key,
+        value,
       })
 
-      return {...expression, funcs}
+      return {...b, funcs}
     })
 
     this.setState({body}, () => {
@@ -149,9 +161,42 @@ export class IFQLPage extends PureComponent<Props, State> {
     })
   }
 
-  private get expressionsToScript(): string {
-    return this.state.body.reduce((acc, expression) => {
-      return `${acc + this.funcsToScript(expression.funcs)}\n\n`
+  private editFuncArgs = ({funcs, funcID, key, value}): Func[] => {
+    return funcs.map(f => {
+      if (f.id !== funcID) {
+        return f
+      }
+
+      const args = f.args.map(a => {
+        if (a.key === key) {
+          return {...a, value}
+        }
+
+        return a
+      })
+
+      return {...f, args}
+    })
+  }
+
+  private get bodyToScript(): string {
+    return this.state.body.reduce((acc, b) => {
+      if (b.declarations.length) {
+        const declaration = _.get(b, 'declarations.0', false)
+        if (!declaration) {
+          return acc
+        }
+
+        if (!declaration.funcs) {
+          return `${acc}${b.source}\n\n`
+        }
+
+        return `${acc}${declaration.name} = ${this.funcsToScript(
+          declaration.funcs
+        )}\n\n`
+      }
+
+      return `${acc}${this.funcsToScript(b.funcs)}\n\n`
     }, '')
   }
 
@@ -183,49 +228,102 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.setState({script})
   }
 
-  private handleAddNode = (name: string, expressionID: string): void => {
-    const script = this.state.body.reduce((acc, expression) => {
-      if (expression.id === expressionID) {
-        const {funcs} = expression
-        return `${acc}${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
+  private handleAddNode = (
+    name: string,
+    bodyID: string,
+    declarationID: string
+  ): void => {
+    const script = this.state.body.reduce((acc, body) => {
+      const {id, source, funcs} = body
+
+      if (id === bodyID) {
+        const declaration = body.declarations.find(d => d.id === declarationID)
+        if (declaration) {
+          return `${acc}${declaration.name} = ${this.appendFunc(
+            declaration.funcs,
+            name
+          )}`
+        }
+
+        return `${acc}${this.appendFunc(funcs, name)}`
       }
 
-      return acc + expression.source
+      return `${acc}${this.formatSource(source)}`
     }, '')
 
     this.getASTResponse(script)
   }
 
-  private handleDeleteFuncNode = (
-    funcID: string,
-    expressionID: string
-  ): void => {
-    // TODO: export this and test functionality
+  private appendFunc = (funcs, name): string => {
+    return `${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
+  }
+
+  private handleDeleteFuncNode = (ids: DeleteFuncNodeArgs): void => {
+    const {funcID, declarationID = '', bodyID} = ids
+
     const script = this.state.body
-      .map((expression, expressionIndex) => {
-        if (expression.id !== expressionID) {
-          return expression.source
+      .map((body, bodyIndex) => {
+        if (body.id !== bodyID) {
+          return this.formatSource(body.source)
         }
 
-        const funcs = expression.funcs.filter(f => f.id !== funcID)
-        const source = funcs.reduce((acc, f, i) => {
-          if (i === 0) {
-            return `${f.source}`
+        const isLast = bodyIndex === this.state.body.length - 1
+
+        if (declarationID) {
+          const declaration = body.declarations.find(
+            d => d.id === declarationID
+          )
+
+          if (!declaration) {
+            return
           }
 
-          return `${acc}\n\t${f.source}`
-        }, '')
-
-        const isLast = expressionIndex === this.state.body.length - 1
-        if (isLast) {
-          return `${source}`
+          const functions = declaration.funcs.filter(f => f.id !== funcID)
+          const s = this.funcsToSource(functions)
+          return `${declaration.name} = ${this.formatLastSource(s, isLast)}`
         }
 
-        return `${source}\n\n`
+        const funcs = body.funcs.filter(f => f.id !== funcID)
+        const source = this.funcsToSource(funcs)
+        return this.formatLastSource(source, isLast)
       })
       .join('')
 
     this.getASTResponse(script)
+  }
+
+  private formatSource = (source: string): string => {
+    // currently a bug in the AST which does not add newlines to literal variable assignment bodies
+    if (!source.match(/\n\n/)) {
+      return `${source}\n\n`
+    }
+
+    return `${source}`
+  }
+
+  // formats the last line of a body string to include two new lines
+  private formatLastSource = (source: string, isLast: boolean): string => {
+    if (isLast) {
+      return `${source}`
+    }
+
+    // currently a bug in the AST which does not add newlines to literal variable assignment bodies
+    if (!source.match(/\n\n/)) {
+      return `${source}\n\n`
+    }
+
+    return `${source}\n\n`
+  }
+
+  // funcsToSource takes a list of funtion nodes and returns an ifql script
+  private funcsToSource = (funcs): string => {
+    return funcs.reduce((acc, f, i) => {
+      if (i === 0) {
+        return `${f.source}`
+      }
+
+      return `${acc}\n\t${f.source}`
+    }, '')
   }
 
   private getASTResponse = async (script: string) => {

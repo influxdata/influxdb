@@ -8,10 +8,11 @@ import {
   transformTableData,
 } from 'src/dashboards/utils/tableGraph'
 
+import {DEFAULT_SORT_DIRECTION} from 'src/shared/constants/tableGraph'
 import {
-  DEFAULT_SORT_DIRECTION,
   DEFAULT_TIME_FORMAT,
-} from 'src/shared/constants/tableGraph'
+  DEFAULT_DECIMAL_PLACES,
+} from 'src/dashboards/constants'
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
@@ -494,18 +495,18 @@ describe('filterTableColumns', () => {
       [3000, 2000, 1000],
     ]
 
-    const fieldNames = [
+    const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: false},
       {internalName: 'f2', displayName: 'F2', visible: false},
     ]
 
-    const actual = filterTableColumns(data, fieldNames)
+    const actual = filterTableColumns(data, fieldOptions)
     const expected = [['time'], [1000], [2000], [3000]]
     expect(actual).toEqual(expected)
   })
 
-  it('returns an array of an empty array if all fieldNames are not visible', () => {
+  it('returns an array of an empty array if all fieldOptions are not visible', () => {
     const data = [
       ['time', 'f1', 'f2'],
       [1000, 3000, 2000],
@@ -513,13 +514,13 @@ describe('filterTableColumns', () => {
       [3000, 2000, 1000],
     ]
 
-    const fieldNames = [
+    const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: false},
       {internalName: 'f1', displayName: '', visible: false},
       {internalName: 'f2', displayName: 'F2', visible: false},
     ]
 
-    const actual = filterTableColumns(data, fieldNames)
+    const actual = filterTableColumns(data, fieldOptions)
     const expected = [[]]
     expect(actual).toEqual(expected)
   })
@@ -534,18 +535,23 @@ describe('transformTableData', () => {
       [3000, 2000, 1000],
     ]
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
-    const tableOptions = {
-      verticalTimeAxis: true,
-      timeFormat: DEFAULT_TIME_FORMAT,
-    }
-
-    const fieldNames = [
+    const tableOptions = {verticalTimeAxis: true}
+    const timeFormat = DEFAULT_TIME_FORMAT
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
+    const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: true},
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+    const actual = transformTableData(
+      data,
+      sort,
+      fieldOptions,
+      tableOptions,
+      timeFormat,
+      decimalPlaces
+    )
     const expected = [
       ['time', 'f1', 'f2'],
       [2000, 1000, 3000],
@@ -563,21 +569,24 @@ describe('transformTableData', () => {
       [2000, 1000, 3000],
       [3000, 2000, 1000],
     ]
-
     const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
-
-    const tableOptions = {
-      verticalTimeAxis: true,
-      timeFormat: DEFAULT_TIME_FORMAT,
-    }
-
-    const fieldNames = [
+    const tableOptions = {verticalTimeAxis: true}
+    const timeFormat = DEFAULT_TIME_FORMAT
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
+    const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: false},
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+    const actual = transformTableData(
+      data,
+      sort,
+      fieldOptions,
+      tableOptions,
+      timeFormat,
+      decimalPlaces
+    )
 
     const expected = [['time', 'f2'], [1000, 2000], [2000, 3000], [3000, 1000]]
 
@@ -593,19 +602,23 @@ describe('transformTableData', () => {
     ]
 
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
-
-    const tableOptions = {
-      verticalTimeAxis: true,
-      timeFormat: DEFAULT_TIME_FORMAT,
-    }
-
-    const fieldNames = [
+    const tableOptions = {verticalTimeAxis: true}
+    const timeFormat = DEFAULT_TIME_FORMAT
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
+    const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: false},
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+    const actual = transformTableData(
+      data,
+      sort,
+      fieldOptions,
+      tableOptions,
+      timeFormat,
+      decimalPlaces
+    )
 
     const expected = [['time', 'f2'], [2000, 3000], [3000, 1000], [1000, 2000]]
 
@@ -623,19 +636,23 @@ describe('if verticalTimeAxis is false', () => {
     ]
 
     const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
-
-    const tableOptions = {
-      verticalTimeAxis: false,
-      timeFormat: DEFAULT_TIME_FORMAT,
-    }
-
-    const fieldNames = [
+    const tableOptions = {verticalTimeAxis: false}
+    const timeFormat = DEFAULT_TIME_FORMAT
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
+    const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: true},
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+    const actual = transformTableData(
+      data,
+      sort,
+      fieldOptions,
+      tableOptions,
+      timeFormat,
+      decimalPlaces
+    )
 
     const expected = [
       ['time', 1000, 2000, 3000],
@@ -655,19 +672,23 @@ describe('if verticalTimeAxis is false', () => {
     ]
 
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
-
-    const tableOptions = {
-      verticalTimeAxis: false,
-      timeFormat: DEFAULT_TIME_FORMAT,
-    }
-
-    const fieldNames = [
+    const tableOptions = {verticalTimeAxis: false}
+    const timeFormat = DEFAULT_TIME_FORMAT
+    const decimalPlaces = DEFAULT_DECIMAL_PLACES
+    const fieldOptions = [
       {internalName: 'time', displayName: 'Time', visible: true},
       {internalName: 'f1', displayName: '', visible: false},
       {internalName: 'f2', displayName: 'F2', visible: true},
     ]
 
-    const actual = transformTableData(data, sort, fieldNames, tableOptions)
+    const actual = transformTableData(
+      data,
+      sort,
+      fieldOptions,
+      tableOptions,
+      timeFormat,
+      decimalPlaces
+    )
 
     const expected = [['time', 2000, 3000, 1000], ['f2', 3000, 1000, 2000]]
 

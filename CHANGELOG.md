@@ -12,6 +12,7 @@
 1.  [#3214](https://github.com/influxdata/chronograf/pull/3214): Remove extra click when creating dashboard cell
 1.  [#3256](https://github.com/influxdata/chronograf/pull/3256): Reduce font sizes in dashboards for increased space efficiency
 1.  [#3320](https://github.com/influxdata/chronograf/pull/3320): Add overlay animation to Template Variables Manager
+1.  [#3245](https://github.com/influxdata/chronograf/pull/3245): Display 'no results' on cells without results
 
 ### Bug Fixes
 

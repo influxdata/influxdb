@@ -64,3 +64,24 @@ export const updateLineColors = lineColors => ({
     lineColors,
   },
 })
+
+export const changeTimeFormat = timeFormat => ({
+  type: 'CHANGE_TIME_FORMAT',
+  payload: {
+    timeFormat,
+  },
+})
+
+export const changeDecimalPlaces = decimalPlaces => ({
+  type: 'CHANGE_DECIMAL_PLACES',
+  payload: {
+    decimalPlaces,
+  },
+})
+
+export const updateFieldOptions = fieldOptions => ({
+  type: 'UPDATE_FIELD_OPTIONS',
+  payload: {
+    fieldOptions,
+  },
+})

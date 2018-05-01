@@ -45,7 +45,17 @@ const Layout = (
   {
     host,
     cell,
-    cell: {h, axes, type, colors, legend, tableOptions},
+    cell: {
+      h,
+      axes,
+      type,
+      colors,
+      legend,
+      timeFormat,
+      fieldOptions,
+      tableOptions,
+      decimalPlaces,
+    },
     source,
     sources,
     onZoom,
@@ -87,6 +97,9 @@ const Layout = (
         type={type}
         isDragging={isDragging}
         tableOptions={tableOptions}
+        fieldOptions={fieldOptions}
+        timeFormat={timeFormat}
+        decimalPlaces={decimalPlaces}
         staticLegend={IS_STATIC_LEGEND(legend)}
         cellHeight={h}
         onZoom={onZoom}
@@ -140,6 +153,28 @@ const propTypes = {
     name: string.isRequired,
     type: string.isRequired,
     colors: colorsStringSchema,
+    tableOptions: shape({
+      verticalTimeAxis: bool.isRequired,
+      sortBy: shape({
+        internalName: string.isRequired,
+        displayName: string.isRequired,
+        visible: bool.isRequired,
+      }).isRequired,
+      wrapping: string.isRequired,
+      fixFirstColumn: bool.isRequired,
+    }),
+    timeFormat: string,
+    decimalPlaces: shape({
+      isEnforced: bool.isRequired,
+      digits: number.isRequired,
+    }),
+    fieldOptions: arrayOf(
+      shape({
+        internalName: string.isRequired,
+        displayName: string.isRequired,
+        visible: bool.isRequired,
+      }).isRequired
+    ),
   }).isRequired,
   templates: arrayOf(shape()),
   host: string,

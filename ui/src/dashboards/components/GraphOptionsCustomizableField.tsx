@@ -21,7 +21,7 @@ interface RenamableField {
   visible: boolean
 }
 
-interface GraphOptionsCustomizableFieldProps {
+interface Props {
   internalName: string
   displayName: string
   visible: boolean
@@ -36,7 +36,7 @@ interface GraphOptionsCustomizableFieldProps {
   moveField: (dragIndex: number, hoverIndex: number) => void
 }
 
-const fieldSource: DragSourceSpec<GraphOptionsCustomizableFieldProps> = {
+const fieldSource: DragSourceSpec<Props> = {
   beginDrag(props) {
     return {
       id: props.id,
@@ -112,9 +112,7 @@ function MyDragSource(dragv1, dragv2, dragfunc1) {
     isDragging: monitor.isDragging(),
   })
 )
-export default class GraphOptionsCustomizableField extends Component<
-  GraphOptionsCustomizableFieldProps
-> {
+export default class GraphOptionsCustomizableField extends Component<Props> {
   constructor(props) {
     super(props)
 

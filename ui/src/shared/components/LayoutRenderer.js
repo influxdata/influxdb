@@ -173,6 +173,24 @@ LayoutRenderer.propTypes = {
       i: string.isRequired,
       name: string.isRequired,
       type: string.isRequired,
+      timeFormat: string,
+      tableOptions: shape({
+        verticalTimeAxis: bool.isRequired,
+        sortBy: shape({
+          internalName: string.isRequired,
+          displayName: string.isRequired,
+          visible: bool.isRequired,
+        }).isRequired,
+        wrapping: string.isRequired,
+        fixFirstColumn: bool.isRequired,
+      }),
+      fieldOptions: arrayOf(
+        shape({
+          internalName: string.isRequired,
+          displayName: string.isRequired,
+          visible: bool.isRequired,
+        }).isRequired
+      ),
     }).isRequired
   ),
   templates: arrayOf(shape()),

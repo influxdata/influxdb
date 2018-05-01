@@ -85,7 +85,7 @@ class TimeRangeDropdown extends Component {
       <div className="time-range-dropdown">
         <div
           className={classnames('dropdown', {
-            'dropdown-160': isRelativeTimeRange,
+            'dropdown-120': isRelativeTimeRange,
             'dropdown-210': isNow,
             'dropdown-290': !isRelativeTimeRange && !isNow,
             open: isOpen,
@@ -109,7 +109,7 @@ class TimeRangeDropdown extends Component {
             >
               {preventCustomTimeRange ? null : (
                 <div>
-                  <li className="dropdown-header">Absolute Time Ranges</li>
+                  <li className="dropdown-header">Absolute Time</li>
                   <li
                     className={
                       isCustomTimeRangeOpen
@@ -118,13 +118,13 @@ class TimeRangeDropdown extends Component {
                     }
                   >
                     <a href="#" onClick={this.showCustomTimeRange}>
-                      Custom Date Picker
+                      Date Picker
                     </a>
                   </li>
                 </div>
               )}
               <li className="dropdown-header">
-                {preventCustomTimeRange ? '' : 'Relative '}Time Ranges
+                {preventCustomTimeRange ? '' : 'Relative '}Time
               </li>
               {timeRanges.map(item => {
                 return (

@@ -1,4 +1,7 @@
-import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
+import {
+  DEFAULT_VERTICAL_TIME_AXIS,
+  DEFAULT_FIX_FIRST_COLUMN,
+} from 'src/shared/constants/tableGraph'
 import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
 
 export const UNTITLED_CELL_LINE = 'Untitled Line Graph'
@@ -11,6 +14,41 @@ export const UNTITLED_CELL_SINGLE_STAT = 'Untitled Single Stat'
 export const UNTITLED_CELL_GAUGE = 'Untitled Gauge'
 export const UNTITLED_CELL_TABLE = 'Untitled Table'
 
+export const TIME_FORMAT_TOOLTIP_LINK =
+  'http://momentjs.com/docs/#/parsing/string-format/'
+
+export const DEFAULT_DECIMAL_PLACES = {
+  isEnforced: false,
+  digits: 3,
+}
+
+export const DEFAULT_TIME_FIELD = {
+  internalName: 'time',
+  displayName: '',
+  visible: true,
+}
+
+export const DEFAULT_TABLE_OPTIONS = {
+  verticalTimeAxis: DEFAULT_VERTICAL_TIME_AXIS,
+  sortBy: DEFAULT_TIME_FIELD,
+  wrapping: 'truncate',
+  fixFirstColumn: DEFAULT_FIX_FIRST_COLUMN,
+}
+
+export const DEFAULT_TIME_FORMAT = 'MM/DD/YYYY HH:mm:ss'
+export const TIME_FORMAT_CUSTOM = 'Custom'
+
+export const FORMAT_OPTIONS = [
+  {text: DEFAULT_TIME_FORMAT},
+  {text: 'MM/DD/YYYY HH:mm:ss.SSS'},
+  {text: 'YYYY-MM-DD HH:mm:ss'},
+  {text: 'HH:mm:ss'},
+  {text: 'HH:mm:ss.SSS'},
+  {text: 'MMMM D, YYYY HH:mm:ss'},
+  {text: 'dddd, MMMM D, YYYY HH:mm:ss'},
+  {text: TIME_FORMAT_CUSTOM},
+]
+
 export const NEW_DEFAULT_DASHBOARD_CELL = {
   x: 0,
   y: 0,
@@ -20,6 +58,9 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   type: CELL_TYPE_LINE,
   queries: [],
   tableOptions: DEFAULT_TABLE_OPTIONS,
+  timeFormat: DEFAULT_TIME_FORMAT,
+  decimalPlaces: DEFAULT_DECIMAL_PLACES,
+  fieldOptions: [DEFAULT_TIME_FIELD],
 }
 
 export const EMPTY_DASHBOARD = {

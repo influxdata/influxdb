@@ -7,6 +7,7 @@ import GraphOptionsFixFirstColumn from 'src/dashboards/components/GraphOptionsFi
 import GraphOptionsSortBy from 'src/dashboards/components/GraphOptionsSortBy'
 import GraphOptionsTimeAxis from 'src/dashboards/components/GraphOptionsTimeAxis'
 import GraphOptionsTimeFormat from 'src/dashboards/components/GraphOptionsTimeFormat'
+import GraphOptionsDecimalPlaces from 'src/dashboards/components/GraphOptionsDecimalPlaces'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import _ from 'lodash'
@@ -14,12 +15,17 @@ import _ from 'lodash'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
 
-import {updateTableOptions} from 'src/dashboards/actions/cellEditorOverlay'
-import {TIME_FIELD_DEFAULT} from 'src/shared/constants/tableGraph'
+import {
+  updateTableOptions,
+  updateFieldOptions,
+  changeTimeFormat,
+  changeDecimalPlaces,
+} from 'src/dashboards/actions/cellEditorOverlay'
+import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {QueryConfig} from 'src/types/query'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Option {
+interface DropdownOption {
   text: string
   key: string
 }
@@ -30,18 +36,27 @@ interface RenamableField {
   visible: boolean
 }
 
-interface Options {
-  timeFormat: string
+interface TableOptionsInterface {
   verticalTimeAxis: boolean
   sortBy: RenamableField
-  fieldNames: RenamableField[]
   fixFirstColumn: boolean
+}
+
+interface DecimalPlaces {
+  isEnforced: boolean
+  digits: number
 }
 
 interface Props {
   queryConfigs: QueryConfig[]
-  handleUpdateTableOptions: (options: Options) => void
-  tableOptions: Options
+  handleUpdateTableOptions: (options: TableOptionsInterface) => void
+  handleUpdateFieldOptions: (fieldOptions: RenamableField[]) => void
+  handleChangeTimeFormat: (timeFormat: string) => void
+  handleChangeDecimalPlaces: (decimalPlaces: number) => void
+  tableOptions: TableOptionsInterface
+  fieldOptions: RenamableField[]
+  timeFormat: string
+  decimalPlaces: DecimalPlaces
   onResetFocus: () => void
 }
 
@@ -54,12 +69,15 @@ export class TableOptions extends Component<Props, {}> {
 
   public render() {
     const {
-      tableOptions: {timeFormat, fieldNames, verticalTimeAxis, fixFirstColumn},
+      tableOptions: {verticalTimeAxis, fixFirstColumn},
+      fieldOptions,
+      timeFormat,
       onResetFocus,
       tableOptions,
+      decimalPlaces,
     } = this.props
 
-    const tableSortByOptions = fieldNames.map(field => ({
+    const tableSortByOptions = fieldOptions.map(field => ({
       key: field.internalName,
       text: field.displayName || field.internalName,
     }))
@@ -72,18 +90,23 @@ export class TableOptions extends Component<Props, {}> {
         <div className="display-options--cell-wrapper">
           <h5 className="display-options--header">Table Controls</h5>
           <div className="form-group-wrapper">
-            <GraphOptionsTimeFormat
-              timeFormat={timeFormat}
-              onTimeFormatChange={this.handleTimeFormatChange}
+            <GraphOptionsSortBy
+              selected={tableOptions.sortBy || DEFAULT_TIME_FIELD}
+              sortByOptions={tableSortByOptions}
+              onChooseSortBy={this.handleChooseSortBy}
+            />
+            <GraphOptionsDecimalPlaces
+              digits={decimalPlaces.digits}
+              isEnforced={decimalPlaces.isEnforced}
+              onDecimalPlacesChange={this.handleDecimalPlacesChange}
             />
             <GraphOptionsTimeAxis
               verticalTimeAxis={verticalTimeAxis}
               onToggleVerticalTimeAxis={this.handleToggleVerticalTimeAxis}
             />
-            <GraphOptionsSortBy
-              selected={tableOptions.sortBy || TIME_FIELD_DEFAULT}
-              sortByOptions={tableSortByOptions}
-              onChooseSortBy={this.handleChooseSortBy}
+            <GraphOptionsTimeFormat
+              timeFormat={timeFormat}
+              onTimeFormatChange={this.handleTimeFormatChange}
             />
             <GraphOptionsFixFirstColumn
               fixed={fixFirstColumn}
@@ -91,7 +114,7 @@ export class TableOptions extends Component<Props, {}> {
             />
           </div>
           <GraphOptionsCustomizeFields
-            fields={fieldNames}
+            fields={fieldOptions}
             onFieldUpdate={this.handleFieldUpdate}
             moveField={this.moveField}
           />
@@ -105,39 +128,38 @@ export class TableOptions extends Component<Props, {}> {
   }
 
   private moveField(dragIndex, hoverIndex) {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const {fieldNames} = tableOptions
+    const {handleUpdateFieldOptions, fieldOptions} = this.props
 
-    const dragField = fieldNames[dragIndex]
-    const removedFields = _.concat(
-      _.slice(fieldNames, 0, dragIndex),
-      _.slice(fieldNames, dragIndex + 1)
+    const draggedField = fieldOptions[dragIndex]
+
+    const fieldOptionsRemoved = _.concat(
+      _.slice(fieldOptions, 0, dragIndex),
+      _.slice(fieldOptions, dragIndex + 1)
     )
-    const addedFields = _.concat(
-      _.slice(removedFields, 0, hoverIndex),
-      [dragField],
-      _.slice(removedFields, hoverIndex)
+
+    const fieldOptionsAdded = _.concat(
+      _.slice(fieldOptionsRemoved, 0, hoverIndex),
+      [draggedField],
+      _.slice(fieldOptionsRemoved, hoverIndex)
     )
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: addedFields,
-    })
+
+    handleUpdateFieldOptions(fieldOptionsAdded)
   }
 
-  private handleChooseSortBy = (option: Option) => {
-    const {tableOptions, handleUpdateTableOptions} = this.props
-    const sortBy = {
-      displayName: option.text === option.key ? '' : option.text,
-      internalName: option.key,
-      visible: true,
-    }
-
+  private handleChooseSortBy = (option: DropdownOption) => {
+    const {tableOptions, handleUpdateTableOptions, fieldOptions} = this.props
+    const sortBy = fieldOptions.find(f => f.internalName === option.key)
     handleUpdateTableOptions({...tableOptions, sortBy})
   }
 
   private handleTimeFormatChange = timeFormat => {
-    const {tableOptions, handleUpdateTableOptions} = this.props
-    handleUpdateTableOptions({...tableOptions, timeFormat})
+    const {handleChangeTimeFormat} = this.props
+    handleChangeTimeFormat(timeFormat)
+  }
+
+  private handleDecimalPlacesChange = decimalPlaces => {
+    const {handleChangeDecimalPlaces} = this.props
+    handleChangeDecimalPlaces(decimalPlaces)
   }
 
   private handleToggleVerticalTimeAxis = verticalTimeAxis => () => {
@@ -152,34 +174,46 @@ export class TableOptions extends Component<Props, {}> {
   }
 
   private handleFieldUpdate = field => {
-    const {handleUpdateTableOptions, tableOptions} = this.props
-    const {sortBy, fieldNames} = tableOptions
-    const updatedFields = fieldNames.map(
+    const {
+      handleUpdateTableOptions,
+      handleUpdateFieldOptions,
+      tableOptions,
+      fieldOptions,
+    } = this.props
+    const {sortBy} = tableOptions
+
+    const updatedFieldOptions = fieldOptions.map(
       f => (f.internalName === field.internalName ? field : f)
     )
-    const updatedSortBy =
-      sortBy.internalName === field.internalName
-        ? {...sortBy, displayName: field.displayName}
-        : sortBy
 
-    handleUpdateTableOptions({
-      ...tableOptions,
-      fieldNames: updatedFields,
-      sortBy: updatedSortBy,
-    })
+    if (sortBy.internalName === field.internalName) {
+      const updatedSortBy = {...sortBy, displayName: field.displayName}
+      handleUpdateTableOptions({
+        ...tableOptions,
+        sortBy: updatedSortBy,
+      })
+    }
+
+    handleUpdateFieldOptions(updatedFieldOptions)
   }
 }
 
 const mapStateToProps = ({
   cellEditorOverlay: {
-    cell: {tableOptions},
+    cell: {tableOptions, timeFormat, fieldOptions, decimalPlaces},
   },
 }) => ({
   tableOptions,
+  timeFormat,
+  fieldOptions,
+  decimalPlaces,
 })
 
 const mapDispatchToProps = dispatch => ({
   handleUpdateTableOptions: bindActionCreators(updateTableOptions, dispatch),
+  handleUpdateFieldOptions: bindActionCreators(updateFieldOptions, dispatch),
+  handleChangeTimeFormat: bindActionCreators(changeTimeFormat, dispatch),
+  handleChangeDecimalPlaces: bindActionCreators(changeDecimalPlaces, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(TableOptions)

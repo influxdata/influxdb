@@ -11,7 +11,7 @@ import {
   updateLineColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
-import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
+import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 
 import {
   validateGaugeColors,
