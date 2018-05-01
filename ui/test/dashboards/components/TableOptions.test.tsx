@@ -12,17 +12,22 @@ import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeTo
 
 const defaultProps = {
   handleUpdateTableOptions: () => {},
+  handleUpdateFieldOptions: () => {},
+  handleChangeTimeFormat: () => {},
+  handleChangeDecimalPlaces: () => {},
   onResetFocus: () => {},
   queryConfigs: [],
   tableOptions: {
-    columnNames: [],
-    fieldNames: [],
     fixFirstColumn: true,
     sortBy: {displayName: '', internalName: '', visible: true},
-    timeFormat: '',
     verticalTimeAxis: true,
   },
-  queryASTs: [],
+  fieldOptions: [],
+  timeFormat: '',
+  decimalPlaces: {
+    isEnforced: true,
+    digits: 2,
+  },
 }
 
 const setup = (override = {}) => {

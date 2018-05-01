@@ -33,6 +33,9 @@ const RefreshingGraph = ({
   timeRange,
   cellHeight,
   autoRefresh,
+  fieldOptions,
+  timeFormat,
+  decimalPlaces,
   resizerTopHeight,
   staticLegend,
   manualRefresh, // when changed, re-mounts the component
@@ -44,7 +47,6 @@ const RefreshingGraph = ({
 }) => {
   const prefix = (axes && axes.y.prefix) || ''
   const suffix = (axes && axes.y.suffix) || ''
-
   if (!queries.length) {
     return (
       <div className="graph-empty">
@@ -107,6 +109,9 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizeCoords={resizeCoords}
         tableOptions={tableOptions}
+        fieldOptions={fieldOptions}
+        timeFormat={timeFormat}
+        decimalPlaces={decimalPlaces}
         editQueryStatus={editQueryStatus}
         resizerTopHeight={resizerTopHeight}
         handleSetHoverTime={handleSetHoverTime}
@@ -167,7 +172,28 @@ RefreshingGraph.propTypes = {
   colors: colorsStringSchema,
   cellID: string,
   inView: bool,
-  tableOptions: shape({}),
+  tableOptions: shape({
+    verticalTimeAxis: bool.isRequired,
+    sortBy: shape({
+      internalName: string.isRequired,
+      displayName: string.isRequired,
+      visible: bool.isRequired,
+    }).isRequired,
+    wrapping: string.isRequired,
+    fixFirstColumn: bool.isRequired,
+  }),
+  fieldOptions: arrayOf(
+    shape({
+      internalName: string.isRequired,
+      displayName: string.isRequired,
+      visible: bool.isRequired,
+    }).isRequired
+  ),
+  timeFormat: string.isRequired,
+  decimalPlaces: shape({
+    isEnforced: bool.isRequired,
+    digits: number.isRequired,
+  }).isRequired,
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
   isInCEO: bool,

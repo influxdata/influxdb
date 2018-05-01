@@ -4653,11 +4653,6 @@
           }
         },
         "tableOptions": {
-          "timeFormat": {
-            "description":
-              "timeFormat describes the display format for time values according to moment.js date formatting",
-            "type": "string"
-          },
           "verticalTimeAxis": {
             "description":
               "verticalTimeAxis describes the orientation of the table by indicating whether the time axis will be displayed vertically",
@@ -4675,18 +4670,39 @@
             "type": "string",
             "enum": ["truncate", "wrap", "single-line"]
           },
-          "fieldNames": {
-            "description":
-              "fieldNames represent the fields retrieved by the query with customization options",
-            "type": "array",
-            "items": {
-              "$ref": "#/definitions/RenamableField"
-            }
-          },
           "fixFirstColumn": {
             "description":
               "fixFirstColumn indicates whether the first column of the table should be locked",
             "type": "boolean"
+          }
+        },
+        "fieldOptions": {
+          "description":
+            "fieldOptions represent the fields retrieved by the query with customization options",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RenamableField"
+          }
+        },
+        "timeFormat": {
+          "description":
+            "timeFormat describes the display format for time values according to moment.js date formatting",
+          "type": "string"
+        },
+        "decimalPoints": {
+          "description":
+            "decimal points indicates whether and how many digits to show after decimal point",
+          "type": "object",
+          "properties": {
+            "isEnforced": {
+              "description":
+                "Indicates whether decimal point setting should be enforced",
+              "type": "bool"
+            },
+            "digits": {
+              "description": "The number of digits after decimal to display",
+              "type": "integer"
+            }
           }
         },
         "links": {

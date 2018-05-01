@@ -1,4 +1,4 @@
-import {DEFAULT_TABLE_OPTIONS} from 'src/shared/constants/tableGraph'
+import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 import {
   CELL_TYPE_LINE,
