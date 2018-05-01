@@ -1450,7 +1450,7 @@ func (m *MeasurementFields) bytes() int {
 	b += int(unsafe.Sizeof(m.fields))
 	for k, v := range m.fields {
 		b += int(unsafe.Sizeof(k)) + len(k)
-		b += int(unsafe.Sizeof(v) + unsafe.Sizeof(*v)) + len(v.Name)
+		b += int(unsafe.Sizeof(v)+unsafe.Sizeof(*v)) + len(v.Name)
 	}
 	m.mu.RUnlock()
 	return b
@@ -1565,6 +1565,7 @@ func (m *MeasurementFields) Clone() *MeasurementFields {
 		fields: fields,
 	}
 }
+
 // MeasurementFieldSet represents a collection of fields by measurement.
 // This safe for concurrent use.
 type MeasurementFieldSet struct {

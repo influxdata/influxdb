@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
@@ -124,6 +125,29 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 	}
 
 	return idx
+}
+
+// Bytes estimates the memory footprint of this Index, in bytes.
+func (i *Index) Bytes() int {
+	var b int
+	i.mu.RLock()
+	b += 24 // mu RWMutex is 24 bytes
+	b += int(unsafe.Sizeof(i.partitions))
+	for _, p := range i.partitions {
+		b += int(unsafe.Sizeof(p)) + p.bytes()
+	}
+	b += int(unsafe.Sizeof(i.opened))
+	b += int(unsafe.Sizeof(i.path)) + len(i.path)
+	b += int(unsafe.Sizeof(i.disableCompactions))
+	b += int(unsafe.Sizeof(i.maxLogFileSize))
+	b += int(unsafe.Sizeof(i.logger))
+	b += int(unsafe.Sizeof(i.sfile))
+	// Do not count SeriesFile because it belongs to the code that constructed this Index.
+	b += int(unsafe.Sizeof(i.database)) + len(i.database)
+	b += int(unsafe.Sizeof(i.version))
+	b += int(unsafe.Sizeof(i.PartitionN))
+	i.mu.RUnlock()
+	return b
 }
 
 // Database returns the name of the database the index was initialized with.

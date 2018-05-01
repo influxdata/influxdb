@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sync"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
@@ -29,6 +30,21 @@ func NewFileSet(database string, levels []CompactionLevel, sfile *tsdb.SeriesFil
 		files:    files,
 		database: database,
 	}, nil
+}
+
+// bytes estimates the memory footprint of this FileSet, in bytes.
+func (fs *FileSet) bytes() int {
+	var b int
+	for _, level := range fs.levels {
+		b += int(unsafe.Sizeof(level))
+	}
+	// Do not count SeriesFile because it belongs to the code that constructed this FileSet.
+	for _, file := range fs.files {
+		b += file.bytes()
+	}
+	b += len(fs.database)
+	b += int(unsafe.Sizeof(*fs))
+	return b
 }
 
 // Close closes all the files in the file set.
@@ -458,6 +474,9 @@ type File interface {
 
 	// Size of file on disk
 	Size() int64
+
+	// Estimated memory footprint
+	bytes() int
 }
 
 type Files []File
