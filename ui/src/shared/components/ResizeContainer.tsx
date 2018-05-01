@@ -126,14 +126,14 @@ class Resizer extends Component<Props, State> {
             id={d.id}
             name={d.name}
             size={d.size}
-            minPixels={d.minPixels}
-            render={d.render}
-            orientation={orientation}
             draggable={i > 0}
+            minPixels={d.minPixels}
+            orientation={orientation}
             activeHandleID={activeHandleID}
-            onHandleStartDrag={this.handleStartDrag}
             minPercent={this.minPercentY}
+            onHandleStartDrag={this.handleStartDrag}
             maxPercent={this.maximumHeightPercent}
+            render={this.props.divisions[i].render}
           />
         ))}
       </div>
@@ -217,11 +217,11 @@ class Resizer extends Component<Props, State> {
     return Math.abs(delta / height)
   }
 
-  private minPercentX = (xMinPixels: number): number => {
-    const {height} = this.containerRef.getBoundingClientRect()
+  // private minPercentX = (xMinPixels: number): number => {
+  //   const {height} = this.containerRef.getBoundingClientRect()
 
-    return xMinPixels / height
-  }
+  //   return xMinPixels / height
+  // }
 
   private minPercentY = (yMinPixels: number): number => {
     if (!this.containerRef) {
