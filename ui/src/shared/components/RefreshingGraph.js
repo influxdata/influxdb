@@ -13,6 +13,10 @@ import TableGraph from 'shared/components/TableGraph'
 
 import {colorsStringSchema} from 'shared/schemas'
 import {setHoverTime} from 'src/dashboards/actions'
+import {
+  DEFAULT_TIME_FORMAT,
+  DEFAULT_DECIMAL_PLACES,
+} from 'src/dashboards/constants'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
@@ -203,6 +207,8 @@ RefreshingGraph.defaultProps = {
   manualRefresh: 0,
   staticLegend: false,
   inView: true,
+  timeFormat: DEFAULT_TIME_FORMAT,
+  decimalPlaces: DEFAULT_DECIMAL_PLACES,
 }
 
 const mapStateToProps = ({dashboardUI, annotations: {mode}}) => ({

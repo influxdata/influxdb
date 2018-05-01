@@ -163,11 +163,11 @@ const propTypes = {
       wrapping: string.isRequired,
       fixFirstColumn: bool.isRequired,
     }),
-    timeFormat: string.isRequired,
+    timeFormat: string,
     decimalPlaces: shape({
       isEnforced: bool.isRequired,
       digits: number.isRequired,
-    }).isRequired,
+    }),
     fieldOptions: arrayOf(
       shape({
         internalName: string.isRequired,

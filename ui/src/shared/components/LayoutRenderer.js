@@ -173,7 +173,7 @@ LayoutRenderer.propTypes = {
       i: string.isRequired,
       name: string.isRequired,
       type: string.isRequired,
-      timeFormat: string.isRequired,
+      timeFormat: string,
       tableOptions: shape({
         verticalTimeAxis: bool.isRequired,
         sortBy: shape({
