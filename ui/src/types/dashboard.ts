@@ -10,7 +10,7 @@ interface Axis {
   scale: string
 }
 
-interface Axes {
+export interface Axes {
   x: Axis
   y: Axis
 }
@@ -21,7 +21,8 @@ interface FieldName {
   visible: boolean
 }
 
-interface TableOptions {
+export interface TableOptions {
+  timeFormat: string
   verticalTimeAxis: boolean
   sortBy: FieldName
   wrapping: string
