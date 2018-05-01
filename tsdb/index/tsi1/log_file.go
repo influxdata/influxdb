@@ -86,7 +86,8 @@ func (f *LogFile) bytes() int {
 	b += 16 // wg WaitGroup is 16 bytes
 	b += int(unsafe.Sizeof(f.id))
 	// Do not include f.data because it is mmap'd
-	b += int(unsafe.Sizeof(f.w)) + f.w.Size()
+	// TODO(jacobmarble): Uncomment when we are using go >= 1.10.0
+	//b += int(unsafe.Sizeof(f.w)) + f.w.Size()
 	b += int(unsafe.Sizeof(f.buf)) + cap(f.buf)
 	b += int(unsafe.Sizeof(f.keyBuf)) + cap(f.keyBuf)
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
