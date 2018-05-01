@@ -48,7 +48,7 @@ class FieldListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {isKapacitorRule, isSelected, funcs} = this.props
+    const {isKapacitorRule, isSelected, funcs, isDisabled} = this.props
     const {isOpen} = this.state
     const fieldName = this.getFieldName()
 
@@ -70,6 +70,7 @@ class FieldListItem extends PureComponent<Props, State> {
         <div
           className={classnames('query-builder--list-item', {
             active: isSelected,
+            disabled: isDisabled,
           })}
           onClick={this.handleToggleField}
           data-test={`query-builder-list-item-field-${fieldName}`}
@@ -84,6 +85,7 @@ class FieldListItem extends PureComponent<Props, State> {
                 active: isOpen,
                 'btn-default': !num,
                 'btn-primary': num,
+                disabled: isDisabled,
               })}
               onClick={this.toggleFunctionsMenu}
               data-test={`query-builder-list-item-function-${fieldName}`}

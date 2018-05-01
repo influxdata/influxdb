@@ -87,7 +87,11 @@ class TagListItem extends PureComponent<Props, State> {
   }
 
   public renderTagValues() {
-    const {tagValues, selectedTagValues} = this.props
+    const {
+      tagValues,
+      selectedTagValues,
+      isQuerySupportedByExplorer,
+    } = this.props
     if (!tagValues || !tagValues.length) {
       return <div>no tag values</div>
     }
@@ -114,6 +118,7 @@ class TagListItem extends PureComponent<Props, State> {
         {filtered.map(v => {
           const cx = classnames('query-builder--list-item', {
             active: selectedTagValues.indexOf(v) > -1,
+            disabled: !isQuerySupportedByExplorer,
           })
           return (
             <div
@@ -134,7 +139,12 @@ class TagListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {tagKey, tagValues, isUsingGroupBy} = this.props
+    const {
+      tagKey,
+      tagValues,
+      isUsingGroupBy,
+      isQuerySupportedByExplorer,
+    } = this.props
     const {isOpen} = this.state
     const tagItemLabel = `${tagKey} — ${tagValues.length}`
 
@@ -153,6 +163,7 @@ class TagListItem extends PureComponent<Props, State> {
             className={classnames('btn btn-xs group-by-tag', {
               'btn-default': !isUsingGroupBy,
               'btn-primary': isUsingGroupBy,
+              disabled: !isQuerySupportedByExplorer,
             })}
             onClick={this.handleGroupBy}
           >

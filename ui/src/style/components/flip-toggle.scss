@@ -1,8 +1,8 @@
 /*
-    Flip Toggle
-    -------------------------------------------------------------
-    Toggles between 2 options using a 3D transition
-    Aesthetic and space conservative
+  Flip Toggle
+  ------------------------------------------------------------------------------
+  Toggles between 2 options using a 3D transition
+  Aesthetic and space conservative
 */
 
 $flip-toggle-text: $g11-sidewalk;
@@ -62,4 +62,20 @@ $flip-toggle-size: 28px;
 /* Flip Animation happens on class toggle */
 .flip-toggle.flipped .flip-toggle--container {
   transform: rotateY(180deg);
+}
+
+/*
+  Disabled State
+  ------------------------------------------------------------------------------
+*/
+
+.flip-toggle.disabled,
+.flip-toggle.disabled:hover {
+  .flip-toggle--front,
+  .flip-toggle--back {
+    cursor: not-allowed;
+    background-color: $g3-castle;
+    color: $g9-mountain;
+    border-color: $g5-pepper;
+  }
 }

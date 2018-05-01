@@ -82,6 +82,7 @@ class MeasurementListItem extends PureComponent<Props, State> {
               <div
                 className={classnames('flip-toggle', {
                   flipped: areTagsAccepted,
+                  disabled: !isQuerySupportedByExplorer,
                 })}
                 onClick={this.handleAcceptReject}
               >
