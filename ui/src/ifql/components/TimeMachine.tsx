@@ -54,24 +54,24 @@ class TimeMachine extends PureComponent<Props> {
     return [
       {
         name: 'IFQL',
-        minPixels: 60,
+        minPixels: 32,
         render: () => (
           <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
         ),
       },
       {
         name: 'Builder',
-        minPixels: 60,
+        minPixels: 32,
         render: () => <BodyBuilder body={body} suggestions={suggestions} />,
       },
       {
         name: 'Schema Explorer',
-        minPixels: 60,
+        minPixels: 32,
         render: () => <div>Explorin all yer schemas</div>,
       },
       {
         name: '4th Item',
-        minPixels: 60,
+        minPixels: 32,
         render: () => <div>Oh boy!</div>,
       },
     ]

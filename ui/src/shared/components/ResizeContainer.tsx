@@ -282,10 +282,17 @@ class Resizer extends Component<Props, State> {
       const before = i === activePosition - 1
       const current = i === activePosition
       const after = i > activePosition
+      const last = i === divs.length - 1
 
       if (before) {
-        return {...d, size: d.size + this.percentChangeY}
-      } else if (current) {
+        const size = d.size + this.percentChangeY
+        return {...d, size}
+
+        // if current and all after cannot be shrunk
+        // stop resizing this one
+      }
+
+      if (current) {
         let size = d.size - this.percentChangeY
         const minSize = this.minPercentY(d.minPixels)
 
@@ -294,7 +301,9 @@ class Resizer extends Component<Props, State> {
         }
 
         return {...d, size}
-      } else if (after) {
+      }
+
+      if (after && !last) {
         const previous = divs[i - 1]
         const prevAtMinimum =
           previous.size <= this.minPercentY(previous.minPixels)
@@ -306,10 +315,21 @@ class Resizer extends Component<Props, State> {
         }
       }
 
+      if (last) {
+        const canBeShrunk = d.size > this.minPercentY(d.minPixels)
+
+        if (canBeShrunk) {
+          const size = d.size - this.percentChangeY
+          return {...d, size}
+        }
+
+        return {...d}
+      }
+
       return {...d}
     })
 
-    this.setState({divisions})
+    this.setState({divisions: this.enforceHundredTotal(divisions)})
   }
 
   private left = activePosition => () => {
@@ -344,6 +364,17 @@ class Resizer extends Component<Props, State> {
     })
 
     this.setState({divisions})
+  }
+
+  private enforceHundredTotal = divisions => {
+    const indexLast = divisions.length - 1
+    const subTotal = divisions
+      .slice(0, indexLast)
+      .reduce((acc, div) => acc + div.size, 0)
+
+    divisions[indexLast].size = 1 - subTotal
+
+    return divisions
   }
 }
 
