@@ -192,13 +192,11 @@ export class CheckSources extends Component<Props, State> {
     const {
       params,
       sources,
-      auth: {
-        isUsingAuth,
-        me: {currentOrganization},
-      },
+      auth: {isUsingAuth, me},
     } = this.props
     const {isFetching} = this.state
     const source = sources.find(s => s.id === params.sourceID)
+    const currentOrganization = _.get(me, 'currentOrganization')
 
     if (isFetching || !source || (isUsingAuth && !currentOrganization)) {
       return <div className="page-spinner" />
