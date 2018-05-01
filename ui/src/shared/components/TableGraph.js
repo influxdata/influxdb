@@ -78,7 +78,7 @@ class TableGraph extends Component {
       columnWidths,
       totalWidths,
     } = transformTableData(
-      data,
+      result.data,
       sort,
       computedFieldOptions,
       tableOptions,
