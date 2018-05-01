@@ -20,17 +20,17 @@ $resizer-color-kapacitor: $c-rainforest;
 
 .resize--container {
   overflow: hidden !important;
-  display: flex;
-  align-items: stretch;
+  // display: flex;
+  // align-items: stretch;
 
   &.vertical {
     width: 100%;
-    flex-direction: row;
+    // flex-direction: row;
   }
 
   &.horizontal {
     height: 100%;
-    flex-direction: column;
+    // flex-direction: column;
   }
 
   &.resize--dragging * {
@@ -42,6 +42,7 @@ $resizer-color-kapacitor: $c-rainforest;
   z-index: $resizer-division-z;
   border: 1px solid #f00;
   position: relative;
+  float: left;
 
   &.resizer__horizontal {
     width: 100%;
@@ -49,6 +50,10 @@ $resizer-color-kapacitor: $c-rainforest;
 
   &.resizer__vertical {
     height: 100%;
+  }
+
+  .resizer--division {
+    border-color: #0f0;
   }
 }
 

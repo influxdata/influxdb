@@ -15,6 +15,7 @@ const NOOP = () => {}
 interface Props {
   id: string
   name?: string
+  minPixels: number
   size: number
   activeHandleID: string
   draggable: boolean

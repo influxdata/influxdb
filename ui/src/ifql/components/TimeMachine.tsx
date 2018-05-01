@@ -32,7 +32,7 @@ class TimeMachine extends PureComponent<Props> {
   private get divisions() {
     return [
       {
-        minSize: 200,
+        minPixels: 200,
         render: () => (
           <Resizer
             containerClass="ifql-left-panel"
@@ -42,7 +42,7 @@ class TimeMachine extends PureComponent<Props> {
         ),
       },
       {
-        minSize: 200,
+        minPixels: 200,
         render: () => <TimeMachineVis blob="Visualizer" />,
       },
     ]
@@ -54,17 +54,25 @@ class TimeMachine extends PureComponent<Props> {
     return [
       {
         name: 'IFQL',
+        minPixels: 60,
         render: () => (
           <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
         ),
       },
       {
         name: 'Builder',
+        minPixels: 60,
         render: () => <BodyBuilder body={body} suggestions={suggestions} />,
       },
       {
         name: 'Schema Explorer',
+        minPixels: 60,
         render: () => <div>Explorin all yer schemas</div>,
+      },
+      {
+        name: '4th Item',
+        minPixels: 60,
+        render: () => <div>Oh boy!</div>,
       },
     ]
   }

@@ -27,13 +27,14 @@ interface State {
 
 interface Division {
   name?: string
-  minSize?: number
   render: () => ReactElement<any>
+  minPixels?: number
 }
 
 interface DivisionState extends Division {
   id: string
   size: number
+  minPixels?: number
 }
 
 interface Props {
@@ -125,6 +126,7 @@ class Resizer extends Component<Props, State> {
             id={d.id}
             name={d.name}
             size={d.size}
+            minPixels={d.minPixels}
             render={d.render}
             orientation={orientation}
             draggable={i > 0}
@@ -156,6 +158,7 @@ class Resizer extends Component<Props, State> {
       ...d,
       id: uuid.v4(),
       size,
+      minPixels: d.minPixels || 0,
     }))
   }
 
@@ -212,6 +215,18 @@ class Resizer extends Component<Props, State> {
     return Math.abs(delta / height)
   }
 
+  private minPercentX = (xMinPixels: number): number => {
+    const {height} = this.containerRef.getBoundingClientRect()
+
+    return xMinPixels / height
+  }
+
+  private minPercentY = (yMinPixels: number): number => {
+    const {height} = this.containerRef.getBoundingClientRect()
+
+    return yMinPixels / height
+  }
+
   private handleDrag = (e: MouseEvent<HTMLElement>) => {
     const {activeHandleID} = this.state
     if (!activeHandleID) {
@@ -241,32 +256,57 @@ class Resizer extends Component<Props, State> {
   private up = activePosition => () => {
     const divisions = this.state.divisions.map((d, i) => {
       const before = i === activePosition - 1
-      const active = i === activePosition
+      const current = i === activePosition
 
-      if (before) {
-        return {...d, size: d.size - this.percentChangeY}
-      } else if (active) {
+      if (current) {
         return {...d, size: d.size + this.percentChangeY}
+      } else if (before) {
+        let size = d.size - this.percentChangeY
+        const minSize = this.minPercentY(d.minPixels)
+
+        if (size < minSize) {
+          size = minSize
+        }
+
+        return {...d, size}
       }
 
-      return d
+      return {...d}
     })
 
     this.setState({divisions})
   }
 
   private down = activePosition => () => {
-    const divisions = this.state.divisions.map((d, i) => {
+    const divisions = this.state.divisions.map((d, i, divs) => {
       const before = i === activePosition - 1
-      const active = i === activePosition
+      const current = i === activePosition
+      const after = i > activePosition
 
       if (before) {
         return {...d, size: d.size + this.percentChangeY}
-      } else if (active) {
-        return {...d, size: d.size - this.percentChangeY}
+      } else if (current) {
+        let size = d.size - this.percentChangeY
+        const minSize = this.minPercentY(d.minPixels)
+
+        if (size < minSize) {
+          size = minSize
+        }
+
+        return {...d, size}
+      } else if (after) {
+        const previous = divs[i - 1]
+        const prevAtMinimum =
+          previous.size <= this.minPercentY(previous.minPixels)
+        const canBeShrunk = d.size > this.minPercentY(d.minPixels)
+
+        if (prevAtMinimum && canBeShrunk) {
+          const size = d.size - this.percentChangeY
+          return {...d, size}
+        }
       }
 
-      return d
+      return {...d}
     })
 
     this.setState({divisions})
