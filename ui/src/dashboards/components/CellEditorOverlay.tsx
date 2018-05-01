@@ -102,8 +102,12 @@ class CellEditorOverlay extends Component<Props, State> {
   constructor(props) {
     super(props)
 
-    const {cell: {legend}} = props
-    let {cell: {queries}} = props
+    const {
+      cell: {legend},
+    } = props
+    let {
+      cell: {queries},
+    } = props
 
     // Always have at least one query
     if (_.isEmpty(queries)) {
@@ -399,7 +403,10 @@ class CellEditorOverlay extends Component<Props, State> {
   }
 
   private get sourceLink(): string {
-    const {cell: {queries}, source: {links}} = this.props
+    const {
+      cell: {queries},
+      source: {links},
+    } = this.props
     return _.get(queries, '0.source.links.self', links.self)
   }
 

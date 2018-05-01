@@ -207,7 +207,10 @@ class TableGraph extends Component {
   }
 
   handleHover = (columnIndex, rowIndex) => () => {
-    const {handleSetHoverTime, tableOptions: {verticalTimeAxis}} = this.props
+    const {
+      handleSetHoverTime,
+      tableOptions: {verticalTimeAxis},
+    } = this.props
     const {sortedTimeVals} = this.state
     if (verticalTimeAxis && rowIndex === 0) {
       return
@@ -263,7 +266,9 @@ class TableGraph extends Component {
 
   calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
-    const {tableOptions: {fixFirstColumn}} = this.props
+    const {
+      tableOptions: {fixFirstColumn},
+    } = this.props
     const {transformedData, columnWidths, totalColumnWidths} = this.state
     const columnCount = _.get(transformedData, ['0', 'length'], 0)
     const columnLabel = transformedData[0][index]
