@@ -132,6 +132,8 @@ class Resizer extends Component<Props, State> {
             draggable={i > 0}
             activeHandleID={activeHandleID}
             onHandleStartDrag={this.handleStartDrag}
+            minPercent={this.minPercentY}
+            maxPercent={this.maximumHeightPercent}
           />
         ))}
       </div>
@@ -222,9 +224,30 @@ class Resizer extends Component<Props, State> {
   }
 
   private minPercentY = (yMinPixels: number): number => {
+    if (!this.containerRef) {
+      return 0
+    }
+
+    const {height} = this.containerRef.getBoundingClientRect()
+    return yMinPixels / height
+  }
+
+  private get maximumHeightPercent(): number {
+    if (!this.containerRef) {
+      return 1
+    }
+
+    const {divisions} = this.state
     const {height} = this.containerRef.getBoundingClientRect()
 
-    return yMinPixels / height
+    const totalMinPixels = divisions.reduce(
+      (acc, div) => acc + div.minPixels,
+      0
+    )
+
+    const maximumPixels = height - totalMinPixels
+
+    return this.minPercentY(maximumPixels)
   }
 
   private handleDrag = (e: MouseEvent<HTMLElement>) => {
@@ -261,13 +284,7 @@ class Resizer extends Component<Props, State> {
       if (current) {
         return {...d, size: d.size + this.percentChangeY}
       } else if (before) {
-        let size = d.size - this.percentChangeY
-        const minSize = this.minPercentY(d.minPixels)
-
-        if (size < minSize) {
-          size = minSize
-        }
-
+        const size = d.size - this.percentChangeY
         return {...d, size}
       }
 
@@ -282,48 +299,27 @@ class Resizer extends Component<Props, State> {
       const before = i === activePosition - 1
       const current = i === activePosition
       const after = i > activePosition
-      const last = i === divs.length - 1
 
       if (before) {
         const size = d.size + this.percentChangeY
         return {...d, size}
-
-        // if current and all after cannot be shrunk
-        // stop resizing this one
       }
 
       if (current) {
-        let size = d.size - this.percentChangeY
-        const minSize = this.minPercentY(d.minPixels)
-
-        if (size < minSize) {
-          size = minSize
-        }
+        const size = d.size - this.percentChangeY
 
         return {...d, size}
       }
 
-      if (after && !last) {
+      if (after) {
         const previous = divs[i - 1]
         const prevAtMinimum =
           previous.size <= this.minPercentY(previous.minPixels)
-        const canBeShrunk = d.size > this.minPercentY(d.minPixels)
 
-        if (prevAtMinimum && canBeShrunk) {
+        if (prevAtMinimum) {
           const size = d.size - this.percentChangeY
           return {...d, size}
         }
-      }
-
-      if (last) {
-        const canBeShrunk = d.size > this.minPercentY(d.minPixels)
-
-        if (canBeShrunk) {
-          const size = d.size - this.percentChangeY
-          return {...d, size}
-        }
-
-        return {...d}
       }
 
       return {...d}

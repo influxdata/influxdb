@@ -22,6 +22,8 @@ interface Props {
   orientation: string
   render: () => ReactElement<any>
   onHandleStartDrag: OnHandleStartDrag
+  minPercent: (pixels: number) => number
+  maxPercent: number
 }
 
 class Division extends PureComponent<Props> {
@@ -67,21 +69,33 @@ class Division extends PureComponent<Props> {
     return this.props.onHandleStartDrag
   }
 
+  private get minPercent(): number {
+    const {minPercent, minPixels} = this.props
+
+    return minPercent(minPixels)
+  }
+
   private get style() {
-    const {orientation, size} = this.props
+    const {orientation, size, maxPercent} = this.props
 
     const sizePercent = `${size * HUNDRED}%`
+    const min = `${this.minPercent * HUNDRED}%`
+    const max = `${maxPercent * HUNDRED}%`
 
     if (orientation === HANDLE_VERTICAL) {
       return {
         top: '0',
         width: sizePercent,
+        minWidth: min,
+        maxWidth: max,
       }
     }
 
     return {
       left: '0',
       height: sizePercent,
+      minHeight: min,
+      maxHeight: max,
     }
   }
 
