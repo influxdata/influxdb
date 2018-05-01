@@ -125,12 +125,8 @@ class CellEditorOverlay extends Component<Props, State> {
   constructor(props) {
     super(props)
 
-    const {
-      cell: {legend},
-    } = props
-    let {
-      cell: {queries},
-    } = props
+    const {cell: {legend}} = props
+    let {cell: {queries}} = props
 
     // Always have at least one query
     if (_.isEmpty(queries)) {
@@ -165,7 +161,9 @@ class CellEditorOverlay extends Component<Props, State> {
   }
 
   public componentDidMount() {
-    this.overlayRef.focus()
+    if (this.overlayRef) {
+      this.overlayRef.focus()
+    }
   }
 
   public render() {
@@ -343,8 +341,41 @@ class CellEditorOverlay extends Component<Props, State> {
 
   private getActiveQuery = () => {
     const {queriesWorkingDraft, activeQueryIndex} = this.state
+    const activeQuery = _.get(
+      queriesWorkingDraft,
+      activeQueryIndex,
+      queriesWorkingDraft[0]
+    )
 
-    return _.get(queriesWorkingDraft, activeQueryIndex, queriesWorkingDraft[0])
+    const queryText = _.get(activeQuery, 'rawText', '')
+    const userDefinedTempVarsInQuery = this.findUserDefinedTempVarsInQuery(
+      queryText,
+      this.props.templates
+    )
+
+    if (!!userDefinedTempVarsInQuery.length) {
+      activeQuery.isQuerySupportedByExplorer = false
+    }
+
+    return activeQuery
+  }
+
+  private findUserDefinedTempVarsInQuery = (
+    query: string,
+    templates: Template[]
+  ): Template[] => {
+    return templates.filter((temp: Template) => {
+      if (!query) {
+        return false
+      }
+      const isPredefinedTempVar: boolean = !!PREDEFINED_TEMP_VARS.find(
+        t => t === temp.tempVar
+      )
+      if (!isPredefinedTempVar) {
+        return query.includes(temp.tempVar)
+      }
+      return false
+    })
   }
 
   // The schema explorer is not built to handle user defined template variables
@@ -356,16 +387,9 @@ class CellEditorOverlay extends Component<Props, State> {
     id: string,
     text: string
   ): Promise<void> => {
-    const userDefinedTempVarsInQuery = this.props.templates.filter(
-      (temp: Template) => {
-        const isPredefinedTempVar: boolean = !!PREDEFINED_TEMP_VARS.find(
-          t => t === temp.tempVar
-        )
-        if (!isPredefinedTempVar) {
-          return text.includes(temp.tempVar)
-        }
-        return false
-      }
+    const userDefinedTempVarsInQuery = this.findUserDefinedTempVarsInQuery(
+      text,
+      this.props.templates
     )
 
     const isUsingUserDefinedTempVars: boolean = !!userDefinedTempVarsInQuery.length
@@ -493,10 +517,7 @@ class CellEditorOverlay extends Component<Props, State> {
   }
 
   private get sourceLink(): string {
-    const {
-      cell: {queries},
-      source: {links},
-    } = this.props
+    const {cell: {queries}, source: {links}} = this.props
     return _.get(queries, '0.source.links.self', links.self)
   }
 

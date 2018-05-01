@@ -244,11 +244,7 @@ class DashboardPage extends Component {
   }
 
   handleSelectTemplate = templateID => values => {
-    const {
-      dashboardActions,
-      dashboard,
-      params: {dashboardID},
-    } = this.props
+    const {dashboardActions, dashboard, params: {dashboardID}} = this.props
     dashboardActions.templateVariableSelected(dashboard.id, templateID, [
       values,
     ])
