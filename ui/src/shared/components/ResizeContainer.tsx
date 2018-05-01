@@ -130,7 +130,6 @@ class Resizer extends Component<Props, State> {
             minPixels={d.minPixels}
             orientation={orientation}
             activeHandleID={activeHandleID}
-            minPercent={this.minPercentY}
             onHandleStartDrag={this.handleStartDrag}
             maxPercent={this.maximumHeightPercent}
             render={this.props.divisions[i].render}
@@ -277,15 +276,29 @@ class Resizer extends Component<Props, State> {
   }
 
   private up = activePosition => () => {
-    const divisions = this.state.divisions.map((d, i) => {
-      const before = i === activePosition - 1
+    const divisions = this.state.divisions.map((d, i, divs) => {
+      const before = i < activePosition
       const current = i === activePosition
+      const after = i === activePosition + 1
+
+      if (before) {
+        const below = divs[i + 1]
+        const belowAtMinimum = below.size <= this.minPercentY(below.minPixels)
+
+        const aboveCurrent = i === activePosition - 1
+
+        if (belowAtMinimum || aboveCurrent) {
+          const size = d.size - this.percentChangeY
+          return {...d, size}
+        }
+      }
 
       if (current) {
         return {...d, size: d.size + this.percentChangeY}
-      } else if (before) {
-        const size = d.size - this.percentChangeY
-        return {...d, size}
+      }
+
+      if (after) {
+        return {...d}
       }
 
       return {...d}
@@ -325,7 +338,7 @@ class Resizer extends Component<Props, State> {
       return {...d}
     })
 
-    this.setState({divisions: this.enforceHundredTotal(divisions)})
+    this.setState({divisions})
   }
 
   private left = activePosition => () => {
