@@ -59,7 +59,7 @@ export const generateThresholdsListHexs = ({
   }
 
   if (!lastValue) {
-    return {...defaultColoring, textColor: baseColor}
+    return {...defaultColoring, textColor: baseColor.hex}
   }
 
   // If the single stat is above a line graph never have a background color
