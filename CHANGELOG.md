@@ -18,6 +18,7 @@ v1.6.0 [unreleased]
 -	[#8034](https://github.com/influxdata/influxdb/pull/8034): Validate points on input.
 -	[#9777](https://github.com/influxdata/influxdb/pull/9777): Log information about index version during startup.
 -	[#9793](https://github.com/influxdata/influxdb/pull/9793): Add key sanitization to deletetsm.
+-	[#9791](https://github.com/influxdata/influxdb/pull/9791): Optimize the spread function to process points iteratively instead of in batch.
 
 ### Bugfixes
 
