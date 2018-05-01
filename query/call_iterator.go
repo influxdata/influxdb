@@ -934,66 +934,25 @@ func newSpreadIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatSliceFuncReducer(FloatSpreadReduceSlice)
+			fn := NewFloatSpreadReducer()
 			return fn, fn
 		}
 		return newFloatReduceFloatIterator(input, opt, createFn), nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
-			fn := NewIntegerSliceFuncReducer(IntegerSpreadReduceSlice)
+			fn := NewIntegerSpreadReducer()
 			return fn, fn
 		}
 		return newIntegerReduceIntegerIterator(input, opt, createFn), nil
 	case UnsignedIterator:
 		createFn := func() (UnsignedPointAggregator, UnsignedPointEmitter) {
-			fn := NewUnsignedSliceFuncReducer(UnsignedSpreadReduceSlice)
+			fn := NewUnsignedSpreadReducer()
 			return fn, fn
 		}
 		return newUnsignedReduceUnsignedIterator(input, opt, createFn), nil
 	default:
 		return nil, fmt.Errorf("unsupported spread iterator type: %T", input)
 	}
-}
-
-// FloatSpreadReduceSlice returns the spread value within a window.
-func FloatSpreadReduceSlice(a []FloatPoint) []FloatPoint {
-	// Find min & max values.
-	min, max := a[0].Value, a[0].Value
-	for _, p := range a[1:] {
-		min = math.Min(min, p.Value)
-		max = math.Max(max, p.Value)
-	}
-	return []FloatPoint{{Time: ZeroTime, Value: max - min}}
-}
-
-// IntegerSpreadReduceSlice returns the spread value within a window.
-func IntegerSpreadReduceSlice(a []IntegerPoint) []IntegerPoint {
-	// Find min & max values.
-	min, max := a[0].Value, a[0].Value
-	for _, p := range a[1:] {
-		if p.Value < min {
-			min = p.Value
-		}
-		if p.Value > max {
-			max = p.Value
-		}
-	}
-	return []IntegerPoint{{Time: ZeroTime, Value: max - min}}
-}
-
-// UnsignedSpreadReduceSlice returns the spread value within a window.
-func UnsignedSpreadReduceSlice(a []UnsignedPoint) []UnsignedPoint {
-	// Find min & max values.
-	min, max := a[0].Value, a[0].Value
-	for _, p := range a[1:] {
-		if p.Value < min {
-			min = p.Value
-		}
-		if p.Value > max {
-			max = p.Value
-		}
-	}
-	return []UnsignedPoint{{Time: ZeroTime, Value: max - min}}
 }
 
 func newTopIterator(input Iterator, opt IteratorOptions, n int, keepTags bool) (Iterator, error) {
