@@ -465,6 +465,9 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 		if c.DecimalPlaces != nil {
 			decimalPlaces.IsEnforced = c.DecimalPlaces.IsEnforced
 			decimalPlaces.Digits = c.DecimalPlaces.Digits
+		} else {
+			decimalPlaces.IsEnforced = false
+			decimalPlaces.Digits = 3
 		}
 
 		// FIXME: this is merely for legacy cells and
