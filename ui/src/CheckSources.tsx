@@ -139,7 +139,7 @@ export class CheckSources extends Component<Props, State> {
     }
 
     if (
-      me.superAdmin &&
+      _.get(me, 'superAdmin', false) &&
       !organizations.find(o => o.id === currentOrganization.id)
     ) {
       notify(copy.notifyUserRemovedFromCurrentOrg())
