@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
-import PropTypes from 'prop-types'
 import _ from 'lodash'
+
+import {QueryConfig, GroupBy, Source, TimeShift} from 'src/types'
 
 import QueryOptions from 'src/shared/components/QueryOptions'
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
@@ -16,8 +17,67 @@ import {
 } from 'src/shared/reducers/helpers/fields'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface GroupByOption extends GroupBy {
+  menuOption: string
+}
+
+interface TimeShiftOption extends TimeShift {
+  text: string
+}
+interface Links {
+  proxy: string
+}
+
+interface Field {
+  type: string
+  value: string
+}
+
+interface FieldFunc extends Field {
+  args: FuncArg[]
+}
+interface FuncArg {
+  value: string
+  type: string
+}
+
+interface ApplyFuncsToFieldArgs {
+  field: Field
+  funcs: FuncArg[]
+}
+
+interface Props {
+  query: QueryConfig
+  onTimeShift: (shift: TimeShiftOption) => void
+  onToggleField: (field: Field) => void
+  onGroupByTime: (groupByOption: string) => void
+  onFill: (fill: string) => void
+  applyFuncsToField: (field: ApplyFuncsToFieldArgs, groupBy: GroupBy) => void
+  isKapacitorRule: boolean
+  querySource: {
+    links: Links
+  }
+  removeFuncs: (fields: Field[]) => void
+  addInitialField: (field: Field, groupBy: GroupBy) => void
+  initialGroupByTime: string | null
+  isQuerySupportedByExplorer: boolean
+}
+
+interface State {
+  fields: Field[]
+}
+
+interface Context {
+  source: Source
+}
 @ErrorHandling
-class FieldList extends PureComponent {
+class FieldList extends PureComponent<Props, State> {
+  public static context: Context
+  public static defaultProps: Partial<Props> = {
+    isKapacitorRule: false,
+    initialGroupByTime: null,
+  }
+
   constructor(props) {
     super(props)
     this.state = {
@@ -31,7 +91,7 @@ class FieldList extends PureComponent {
       return
     }
 
-    this._getFields()
+    this.getFields()
   }
 
   public componentDidUpdate(prevProps) {
@@ -55,91 +115,7 @@ class FieldList extends PureComponent {
       return
     }
 
-    this._getFields()
-  }
-
-  public handleGroupByTime = groupBy => {
-    this.props.onGroupByTime(groupBy.menuOption)
-  }
-
-  public handleFill = fill => {
-    this.props.onFill(fill)
-  }
-
-  public handleToggleField = field => {
-    const {
-      query,
-      onToggleField,
-      addInitialField,
-      initialGroupByTime: time,
-      isKapacitorRule,
-      isQuerySupportedByExplorer,
-    } = this.props
-    const {fields, groupBy} = query
-    if (!isQuerySupportedByExplorer) {
-      return
-    }
-    const initialGroupBy = {...groupBy, time}
-
-    if (!_.size(fields)) {
-      return isKapacitorRule
-        ? onToggleField(field)
-        : addInitialField(field, initialGroupBy)
-    }
-
-    onToggleField(field)
-  }
-
-  public handleApplyFuncs = fieldFunc => {
-    const {
-      query,
-      removeFuncs,
-      applyFuncsToField,
-      initialGroupByTime: time,
-    } = this.props
-    const {groupBy, fields} = query
-    const {funcs} = fieldFunc
-
-    // If one field has no funcs, all fields must have no funcs
-    if (!_.size(funcs)) {
-      return removeFuncs(fields)
-    }
-
-    // If there is no groupBy time, set one
-    if (!groupBy.time) {
-      return applyFuncsToField(fieldFunc, {...groupBy, time})
-    }
-
-    applyFuncsToField(fieldFunc, groupBy)
-  }
-
-  public handleTimeShift = shift => {
-    this.props.onTimeShift(shift)
-  }
-
-  public _getFields = () => {
-    const {database, measurement, retentionPolicy} = this.props.query
-    const {source} = this.context
-    const {querySource} = this.props
-
-    const proxy =
-      _.get(querySource, ['links', 'proxy'], null) || source.links.proxy
-
-    showFieldKeys(proxy, database, measurement, retentionPolicy).then(resp => {
-      const {errors, fieldSets} = showFieldKeysParser(resp.data)
-      if (errors.length) {
-        console.error('Error parsing fields keys: ', errors)
-      }
-
-      const newFields = _.get(fieldSets, measurement, []).map(f => ({
-        value: f,
-        type: 'field',
-      }))
-
-      this.setState({
-        fields: newFields,
-      })
-    })
+    this.getFields()
   }
 
   public render() {
@@ -184,7 +160,10 @@ class FieldList extends PureComponent {
                   fields
                 )
 
-                const funcs = getFuncsByFieldName(fieldFunc.value, fields)
+                const funcs: FieldFunc[] = getFuncsByFieldName(
+                  fieldFunc.value,
+                  fields
+                )
                 const fieldFuncs = selectedFields.length
                   ? selectedFields
                   : [fieldFunc]
@@ -208,51 +187,90 @@ class FieldList extends PureComponent {
       </div>
     )
   }
-}
 
-const {arrayOf, bool, func, shape, string} = PropTypes
+  private handleGroupByTime = (groupBy: GroupByOption): void => {
+    this.props.onGroupByTime(groupBy.menuOption)
+  }
 
-FieldList.defaultProps = {
-  isKapacitorRule: false,
-  initialGroupByTime: null,
-}
+  private handleFill = (fill: string): void => {
+    this.props.onFill(fill)
+  }
 
-FieldList.contextTypes = {
-  source: shape({
-    links: shape({
-      proxy: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-}
+  private handleToggleField = (field: Field) => {
+    const {
+      query,
+      onToggleField,
+      addInitialField,
+      initialGroupByTime: time,
+      isKapacitorRule,
+      isQuerySupportedByExplorer,
+    } = this.props
+    const {fields, groupBy} = query
+    if (!isQuerySupportedByExplorer) {
+      return
+    }
+    const initialGroupBy = {...groupBy, time}
 
-FieldList.propTypes = {
-  query: shape({
-    database: string,
-    retentionPolicy: string,
-    measurement: string,
-    shifts: arrayOf(
-      shape({
-        label: string,
-        unit: string,
-        quantity: string,
+    if (!_.size(fields)) {
+      return isKapacitorRule
+        ? onToggleField(field)
+        : addInitialField(field, initialGroupBy)
+    }
+
+    onToggleField(field)
+  }
+
+  private handleApplyFuncs = (fieldFunc: ApplyFuncsToFieldArgs): void => {
+    const {
+      query,
+      removeFuncs,
+      applyFuncsToField,
+      initialGroupByTime: time,
+    } = this.props
+    const {groupBy, fields} = query
+    const {funcs} = fieldFunc
+
+    // If one field has no funcs, all fields must have no funcs
+    if (!_.size(funcs)) {
+      return removeFuncs(fields)
+    }
+
+    // If there is no groupBy time, set one
+    if (!groupBy.time) {
+      return applyFuncsToField(fieldFunc, {...groupBy, time})
+    }
+
+    applyFuncsToField(fieldFunc, groupBy)
+  }
+
+  private handleTimeShift = (shift: TimeShiftOption): void => {
+    this.props.onTimeShift(shift)
+  }
+
+  private getFields = (): void => {
+    const {database, measurement, retentionPolicy} = this.props.query
+    const {source} = this.context
+    const {querySource} = this.props
+
+    const proxy =
+      _.get(querySource, ['links', 'proxy'], null) || source.links.proxy
+
+    showFieldKeys(proxy, database, measurement, retentionPolicy).then(resp => {
+      const {errors, fieldSets} = showFieldKeysParser(resp.data)
+      if (errors.length) {
+        console.error('Error parsing fields keys: ', errors)
+      }
+
+      const newFields = _.get(fieldSets, measurement, []).map(f => ({
+        value: f,
+        type: 'field',
+      }))
+
+      this.setState({
+        fields: newFields,
       })
-    ),
-  }).isRequired,
-  onTimeShift: func,
-  onToggleField: func.isRequired,
-  onGroupByTime: func.isRequired,
-  onFill: func,
-  applyFuncsToField: func.isRequired,
-  isKapacitorRule: bool,
-  querySource: shape({
-    links: shape({
-      proxy: string.isRequired,
-    }).isRequired,
-  }),
-  removeFuncs: func.isRequired,
-  addInitialField: func,
-  initialGroupByTime: string,
-  isQuerySupportedByExplorer: bool,
+    })
+  }
 }
 
 export default FieldList

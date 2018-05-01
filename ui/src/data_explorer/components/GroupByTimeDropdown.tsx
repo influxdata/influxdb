@@ -7,6 +7,7 @@ import groupByTimeOptions from 'src/data_explorer/data/groupByTimes'
 import Dropdown from 'src/shared/components/Dropdown'
 
 import {AUTO_GROUP_BY} from 'src/shared/constants'
+import {GroupBy} from 'src/types'
 
 interface GroupByTimeOption {
   defaultTimeBound: string
@@ -17,7 +18,7 @@ interface GroupByTimeOption {
 interface Props {
   location?: Location
   selected: string
-  onChooseGroupByTime: () => void
+  onChooseGroupByTime: (groupBy: GroupBy) => void
   isDisabled: boolean
 }
 

@@ -1,6 +1,13 @@
 import {AuthLinks, Organization, Role, User, Me} from './auth'
 import {Template, Cell, CellQuery, Legend} from './dashboard'
-import {GroupBy, QueryConfig, Status, TimeRange, TimeShift} from './query'
+import {
+  GroupBy,
+  QueryConfig,
+  Status,
+  TimeRange,
+  TimeShift,
+  Field,
+} from './query'
 import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem} from './shared'
@@ -18,6 +25,7 @@ export {
   Status,
   QueryConfig,
   TimeShift,
+  Field,
   GroupBy,
   AlertRule,
   Kapacitor,

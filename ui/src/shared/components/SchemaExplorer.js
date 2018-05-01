@@ -1,9 +1,6 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 
-import {QueryConfig, Source} from 'src/types'
-import {CellEditorOverlayActions} from 'src/types/dashboard'
-
 import DatabaseList from 'src/shared/components/DatabaseList'
 import MeasurementList from 'src/shared/components/MeasurementList'
 import FieldList from 'src/shared/components/FieldList'
@@ -12,10 +9,8 @@ const actionBinder = (id, action) => (...args) => action(id, ...args)
 
 const SchemaExplorer = ({
   query,
-  query: {id},
   source,
   initialGroupByTime,
-  isQuerySupportedByExplorer,
   actions: {
     fill,
     timeShift,
@@ -30,39 +25,44 @@ const SchemaExplorer = ({
     applyFuncsToField,
     toggleTagAcceptance,
   },
-}) => (
-  <div className="query-builder">
-    <DatabaseList
-      query={query}
-      querySource={source}
-      onChooseNamespace={actionBinder(id, chooseNamespace)}
-    />
-    <MeasurementList
-      source={source}
-      query={query}
-      querySource={source}
-      onChooseTag={actionBinder(id, chooseTag)}
-      onGroupByTag={actionBinder(id, groupByTag)}
-      onChooseMeasurement={actionBinder(id, chooseMeasurement)}
-      onToggleTagAcceptance={actionBinder(id, toggleTagAcceptance)}
-      isQuerySupportedByExplorer={isQuerySupportedByExplorer}
-    />
-    <FieldList
-      source={source}
-      query={query}
-      querySource={source}
-      onFill={actionBinder(id, fill)}
-      initialGroupByTime={initialGroupByTime}
-      onTimeShift={actionBinder(id, timeShift)}
-      removeFuncs={actionBinder(id, removeFuncs)}
-      onToggleField={actionBinder(id, toggleField)}
-      onGroupByTime={actionBinder(id, groupByTime)}
-      addInitialField={actionBinder(id, addInitialField)}
-      applyFuncsToField={actionBinder(id, applyFuncsToField)}
-      isQuerySupportedByExplorer={isQuerySupportedByExplorer}
-    />
-  </div>
-)
+  isQuerySupportedByExplorer = true,
+}) => {
+  const {id} = query
+
+  return (
+    <div className="query-builder">
+      <DatabaseList
+        query={query}
+        querySource={source}
+        onChooseNamespace={actionBinder(id, chooseNamespace)}
+      />
+      <MeasurementList
+        source={source}
+        query={query}
+        querySource={source}
+        onChooseTag={actionBinder(id, chooseTag)}
+        onGroupByTag={actionBinder(id, groupByTag)}
+        onChooseMeasurement={actionBinder(id, chooseMeasurement)}
+        onToggleTagAcceptance={actionBinder(id, toggleTagAcceptance)}
+        isQuerySupportedByExplorer={isQuerySupportedByExplorer}
+      />
+      <FieldList
+        source={source}
+        query={query}
+        querySource={source}
+        onFill={actionBinder(id, fill)}
+        initialGroupByTime={initialGroupByTime}
+        onTimeShift={actionBinder(id, timeShift)}
+        removeFuncs={actionBinder(id, removeFuncs)}
+        onToggleField={actionBinder(id, toggleField)}
+        onGroupByTime={actionBinder(id, groupByTime)}
+        addInitialField={actionBinder(id, addInitialField)}
+        applyFuncsToField={actionBinder(id, applyFuncsToField)}
+        isQuerySupportedByExplorer={isQuerySupportedByExplorer}
+      />
+    </div>
+  )
+}
 
 const {bool, func, shape, string} = PropTypes
 

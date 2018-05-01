@@ -42,6 +42,12 @@ export const firstFieldName = fields => _.head(fieldNamesDeep(fields))
 export const hasField = (fieldName, fields) =>
   fieldNamesDeep(fields).some(f => f === fieldName)
 
+/**
+ * getAllFields and funcs with fieldName
+ * @param {string} fieldName
+ * @param {FieldFunc[]} fields
+ * @returns {FieldFunc[]}
+ */
 // getAllFields and funcs with fieldName
 export const getFieldsWithName = (fieldName, fields) =>
   getFieldsDeep(fields).filter(f => f.value === fieldName)

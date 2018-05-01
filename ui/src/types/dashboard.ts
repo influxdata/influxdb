@@ -77,18 +77,20 @@ export interface Template {
   values: TemplateValue[]
 }
 
+export type CellEditorOverlayActionsFunc = (id: string, ...args: any[]) => any
+
 export interface CellEditorOverlayActions {
-  chooseNamespace: () => void
-  chooseMeasurement: () => void
-  applyFuncsToField: () => void
-  chooseTag: () => void
-  groupByTag: () => void
-  toggleField: () => void
-  groupByTime: () => void
-  toggleTagAcceptance: () => void
-  fill: () => void
-  editRawTextAsync: () => void
-  addInitialField: () => void
-  removeFuncs: () => void
-  timeShift: () => void
+  chooseNamespace: CellEditorOverlayActionsFunc
+  chooseMeasurement: CellEditorOverlayActionsFunc
+  applyFuncsToField: CellEditorOverlayActionsFunc
+  chooseTag: CellEditorOverlayActionsFunc
+  groupByTag: CellEditorOverlayActionsFunc
+  toggleField: CellEditorOverlayActionsFunc
+  groupByTime: CellEditorOverlayActionsFunc
+  toggleTagAcceptance: CellEditorOverlayActionsFunc
+  fill: CellEditorOverlayActionsFunc
+  editRawTextAsync: CellEditorOverlayActionsFunc
+  addInitialField: CellEditorOverlayActionsFunc
+  removeFuncs: CellEditorOverlayActionsFunc
+  timeShift: CellEditorOverlayActionsFunc
 }

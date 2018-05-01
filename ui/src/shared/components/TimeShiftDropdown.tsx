@@ -2,10 +2,11 @@ import React, {SFC} from 'react'
 
 import Dropdown from 'src/shared/components/Dropdown'
 import {TIME_SHIFTS} from 'src/shared/constants/timeShift'
+import {TimeShift} from 'src/types'
 
 interface Props {
   selected: string
-  onChooseTimeShift: () => void
+  onChooseTimeShift: (timeShift: TimeShift) => void
   isDisabled: boolean
 }
 

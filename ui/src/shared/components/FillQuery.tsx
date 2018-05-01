@@ -31,6 +31,12 @@ interface State {
 
 @ErrorHandling
 class FillQuery extends PureComponent<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    size: 'sm',
+    theme: 'blue',
+    value: NULL_STRING,
+  }
+
   private numberInput: HTMLElement
 
   constructor(props) {
@@ -49,12 +55,6 @@ class FillQuery extends PureComponent<Props, State> {
           currentNumberValue: '0',
           resetNumberValue: '0',
         }
-  }
-
-  public static defaultProps: Partial<Props> = {
-    size: 'sm',
-    theme: 'blue',
-    value: NULL_STRING,
   }
 
   public render() {

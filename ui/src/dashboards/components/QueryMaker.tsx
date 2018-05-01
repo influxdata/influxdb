@@ -29,8 +29,8 @@ interface Props {
   queries: QueryConfig[]
   timeRange: TimeRange
   actions: CellEditorOverlayActions
-  setActiveQueryIndex: () => void
-  onDeleteQuery: () => void
+  setActiveQueryIndex: (index: number) => void
+  onDeleteQuery: (index: number) => void
   activeQueryIndex: number
   activeQuery: QueryConfig
   onAddQuery: () => void
@@ -76,7 +76,6 @@ const QueryMaker: SFC<Props> = ({
           source={source}
           actions={actions}
           query={activeQuery}
-          onAddQuery={onAddQuery}
           initialGroupByTime={initialGroupByTime}
           isQuerySupportedByExplorer={_.get(
             activeQuery,

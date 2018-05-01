@@ -3,6 +3,11 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 import uuid from 'uuid'
 
+import {
+  CellEditorOverlayActions,
+  CellEditorOverlayActionsFunc,
+} from 'src/types/dashboard'
+
 import ResizeContainer from 'src/shared/components/ResizeContainer'
 import QueryMaker from 'src/dashboards/components/QueryMaker'
 import Visualization from 'src/dashboards/components/Visualization'
@@ -243,7 +248,10 @@ class CellEditorOverlay extends Component<Props, State> {
     this.overlayRef = r
   }
 
-  private queryStateReducer = queryModifier => (queryID, ...payload) => {
+  private queryStateReducer = (queryModifier): CellEditorOverlayActionsFunc => (
+    queryID: string,
+    ...payload: any[]
+  ) => {
     const {queriesWorkingDraft} = this.state
     const query = queriesWorkingDraft.find(q => q.id === queryID)
 
@@ -455,11 +463,26 @@ class CellEditorOverlay extends Component<Props, State> {
     )
   }
 
-  private get queryActions() {
-    return {
-      editRawTextAsync: this.handleEditRawText,
-      ..._.mapValues(queryModifiers, this.queryStateReducer),
+  private get queryActions(): CellEditorOverlayActions {
+    const original = {
+      editRawTextAsync: () => Promise.resolve(),
+      ...queryModifiers,
     }
+    const mapped = _.reduce<CellEditorOverlayActions, CellEditorOverlayActions>(
+      original,
+      (acc, v, k) => {
+        acc[k] = this.queryStateReducer(v)
+        return acc
+      },
+      original
+    )
+
+    const result = {
+      ...mapped,
+      editRawTextAsync: this.handleEditRawText,
+    }
+
+    return result
   }
 
   private get sourceLink(): string {
