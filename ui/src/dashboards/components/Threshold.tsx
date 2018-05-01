@@ -32,7 +32,7 @@ interface Props {
 }
 
 interface State {
-  workingValue: number
+  workingValue: number | string
   valid: boolean
 }
 
@@ -143,9 +143,9 @@ class Threshold extends PureComponent<Props, State> {
 
   private handleChangeWorkingValue = (e: ChangeEvent<HTMLInputElement>) => {
     const {threshold, onValidateColorValue} = this.props
-    const targetValue = Number(e.target.value)
+    const targetValue = e.target.value
 
-    const valid = onValidateColorValue(threshold, targetValue)
+    const valid = onValidateColorValue(threshold, Number(targetValue))
 
     this.setState({valid, workingValue: targetValue})
   }
@@ -155,7 +155,7 @@ class Threshold extends PureComponent<Props, State> {
     const {threshold, onUpdateColorValue} = this.props
 
     if (valid) {
-      onUpdateColorValue(threshold, workingValue)
+      onUpdateColorValue(threshold, Number(workingValue))
     } else {
       this.setState({workingValue: threshold.value, valid: true})
     }
