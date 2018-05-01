@@ -37,7 +37,7 @@ class Division extends PureComponent<Props> {
     return (
       <div className={this.className} style={this.style}>
         {this.dragHandle}
-        {render()}
+        <div className="resizer--contents">{render()}</div>
       </div>
     )
   }

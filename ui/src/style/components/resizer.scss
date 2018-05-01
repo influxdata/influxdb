@@ -231,8 +231,16 @@ $resizer-color-kapacitor: $c-rainforest;
   }
 }
 
-.resizer--title.horizontal + div {
+.resizer--contents {
+  width: 100%;
+  height: 100%;
+}
+
+.resizer--title + .resizer--contents {
+  width: 100%;
   height: calc(100% - 30px);
   position: absolute;
-  top: 30px;  
+  top: 30px; 
+  overflow: hidden;
 }
+
