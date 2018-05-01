@@ -69,7 +69,7 @@ class Division extends PureComponent<Props> {
   }
 
   private get style() {
-    const {orientation, size, maxPercent, minPixels} = this.props
+    const {orientation, maxPercent, minPixels, size} = this.props
 
     const sizePercent = `${size * HUNDRED}%`
     const max = `${maxPercent * HUNDRED}%`
@@ -93,7 +93,7 @@ class Division extends PureComponent<Props> {
 
   private get className(): string {
     const {orientation} = this.props
-    // todo use constants instead of "vertical" / "horizontal"
+
     return classnames('resizer--division', {
       resizer__vertical: orientation === HANDLE_VERTICAL,
       resizer__horizontal: orientation === HANDLE_HORIZONTAL,

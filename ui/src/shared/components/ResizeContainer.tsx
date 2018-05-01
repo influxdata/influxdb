@@ -139,6 +139,14 @@ class Resizer extends Component<Props, State> {
     )
   }
 
+  private minPercent = (minPixels: number): number => {
+    if (this.props.orientation === HANDLE_VERTICAL) {
+      return this.minPercentX(minPixels)
+    }
+
+    return this.minPercentY(minPixels)
+  }
+
   private get className(): string {
     const {orientation, containerClass} = this.props
     const {activeHandleID} = this.state
@@ -216,11 +224,14 @@ class Resizer extends Component<Props, State> {
     return Math.abs(delta / height)
   }
 
-  // private minPercentX = (xMinPixels: number): number => {
-  //   const {height} = this.containerRef.getBoundingClientRect()
+  private minPercentX = (xMinPixels: number): number => {
+    if (!this.containerRef) {
+      return 0
+    }
+    const {width} = this.containerRef.getBoundingClientRect()
 
-  //   return xMinPixels / height
-  // }
+    return xMinPixels / width
+  }
 
   private minPercentY = (yMinPixels: number): number => {
     if (!this.containerRef) {
@@ -259,6 +270,20 @@ class Resizer extends Component<Props, State> {
     this.setState({dragEvent})
   }
 
+  private taller = (size: number): number => {
+    const newSize = size + this.percentChangeY
+    return Number(newSize.toFixed(3))
+  }
+
+  private shorter = (size: number): number => {
+    const newSize = size - this.percentChangeY
+    return Number(newSize.toFixed(3))
+  }
+
+  private isAtMinHeight = (division: DivisionState): boolean => {
+    return division.size <= this.minPercentY(division.minPixels)
+  }
+
   private get move() {
     const {activeHandleID} = this.state
 
@@ -283,18 +308,27 @@ class Resizer extends Component<Props, State> {
 
       if (before) {
         const below = divs[i + 1]
-        const belowAtMinimum = below.size <= this.minPercentY(below.minPixels)
-
         const aboveCurrent = i === activePosition - 1
 
-        if (belowAtMinimum || aboveCurrent) {
-          const size = d.size - this.percentChangeY
-          return {...d, size}
+        if (this.isAtMinHeight(below) || aboveCurrent) {
+          return {...d, size: this.shorter(d.size)}
         }
       }
 
       if (current) {
-        return {...d, size: d.size + this.percentChangeY}
+        const stayStill = divs.every((div, idx) => {
+          if (idx >= i) {
+            return true
+          }
+
+          return this.isAtMinHeight(div)
+        })
+
+        if (stayStill) {
+          return {...d}
+        }
+
+        return {...d, size: this.taller(d.size)}
       }
 
       if (after) {
@@ -304,7 +338,7 @@ class Resizer extends Component<Props, State> {
       return {...d}
     })
 
-    this.setState({divisions})
+    this.setState({divisions: this.cleanDivisions(divisions)})
   }
 
   private down = activePosition => () => {
@@ -314,31 +348,25 @@ class Resizer extends Component<Props, State> {
       const after = i > activePosition
 
       if (before) {
-        const size = d.size + this.percentChangeY
-        return {...d, size}
+        return {...d, size: this.taller(d.size)}
       }
 
       if (current) {
-        const size = d.size - this.percentChangeY
-
-        return {...d, size}
+        return {...d, size: this.shorter(d.size)}
       }
 
       if (after) {
-        const previous = divs[i - 1]
-        const prevAtMinimum =
-          previous.size <= this.minPercentY(previous.minPixels)
+        const above = divs[i - 1]
 
-        if (prevAtMinimum) {
-          const size = d.size - this.percentChangeY
-          return {...d, size}
+        if (this.isAtMinHeight(above)) {
+          return {...d, size: this.shorter(d.size)}
         }
       }
 
       return {...d}
     })
 
-    this.setState({divisions})
+    this.setState({divisions: this.cleanDivisions(divisions)})
   }
 
   private left = activePosition => () => {
@@ -375,15 +403,22 @@ class Resizer extends Component<Props, State> {
     this.setState({divisions})
   }
 
-  private enforceHundredTotal = divisions => {
-    const indexLast = divisions.length - 1
-    const subTotal = divisions
-      .slice(0, indexLast)
-      .reduce((acc, div) => acc + div.size, 0)
+  private enforceSize = (size, minPixels): number => {
+    const minPercent = this.minPercent(minPixels)
 
-    divisions[indexLast].size = 1 - subTotal
+    let enforcedSize = size
+    if (size < minPercent) {
+      enforcedSize = minPercent
+    }
 
-    return divisions
+    return enforcedSize
+  }
+
+  private cleanDivisions = divisions => {
+    return divisions.map(d => {
+      const size = this.enforceSize(d.size, d.minPixels)
+      return {...d, size}
+    })
   }
 }
 
