@@ -106,9 +106,7 @@ class FieldListItem extends PureComponent<Props, State> {
   }
 
   private toggleFunctionsMenu = (e: MouseEvent<HTMLElement>) => {
-    if (e) {
-      e.stopPropagation()
-    }
+    e.stopPropagation()
     const {isDisabled} = this.props
     if (isDisabled) {
       return
