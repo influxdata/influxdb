@@ -200,8 +200,9 @@ export const LINE_COLOR_SCALES = [
   return {name, colors, id}
 })
 
-export const validateLineColors = colors => {
-  if (!colors || colors.length === 0) {
+export const validateLineColors = (colors, numSeries) => {
+  const multipleSeriesButOneColor = numSeries > 1 && colors.length < 2
+  if (!colors || colors.length === 0 || multipleSeriesButOneColor) {
     return DEFAULT_LINE_COLORS
   }
 
@@ -213,7 +214,7 @@ export const validateLineColors = colors => {
 }
 
 export const getLineColorsHexes = (colors, numSeries) => {
-  const validatedColors = validateLineColors(colors) // ensures safe defaults
+  const validatedColors = validateLineColors(colors, numSeries) // ensures safe defaults
   const colorsHexArray = validatedColors.map(color => color.hex)
 
   if (numSeries === 1 || numSeries === 0) {
