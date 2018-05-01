@@ -53,6 +53,52 @@ class TableGraph extends Component {
     }
   }
 
+  componentDidMount() {
+    const sortField = _.get(
+      this.props,
+      ['tableOptions', 'sortBy', 'internalName'],
+      DEFAULT_TIME_FIELD.internalName
+    )
+    const sort = {field: sortField, direction: DEFAULT_SORT_DIRECTION}
+    const {
+      data,
+      tableOptions,
+      queryASTs,
+      timeFormat,
+      fieldOptions,
+      decimalPlaces,
+    } = this.props
+    const result = timeSeriesToTableGraph(data, queryASTs)
+    const sortedLabels = result.sortedLabels
+
+    const computedFieldOptions = computeFieldOptions(fieldOptions, sortedLabels)
+    const {
+      transformedData,
+      sortedTimeVals,
+      columnWidths,
+      totalWidths,
+    } = transformTableData(
+      result.data,
+      sort,
+      computedFieldOptions,
+      tableOptions,
+      timeFormat,
+      decimalPlaces
+    )
+
+    this.setState({
+      transformedData,
+      sortedTimeVals,
+      columnWidths,
+      data: result.data,
+      sortedLabels,
+      totalColumnWidths: totalWidths,
+      hoveredColumnIndex: NULL_ARRAY_INDEX,
+      hoveredRowIndex: NULL_ARRAY_INDEX,
+      sort,
+    })
+  }
+
   handleUpdateFieldOptions = fieldOptions => {
     const {isInCEO} = this.props
     if (!isInCEO) {
