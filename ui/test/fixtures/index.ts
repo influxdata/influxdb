@@ -6,7 +6,7 @@ import {
   TimeRange,
   Template,
 } from 'src/types'
-import {Axes, TableOptions} from 'src/types/dashboard'
+import {Axes, TableOptions, FieldName, DecimalPlaces} from 'src/types/dashboard'
 import {ColorString, ColorNumber} from 'src/types/colors'
 
 export const sourceLinks: SourceLinks = {
@@ -101,8 +101,15 @@ export const axes: Axes = {
   },
 }
 
+export const fieldOptions: FieldName[] = [
+  {
+    internalName: 'time',
+    displayName: '',
+    visible: true,
+  },
+]
+
 export const tableOptions: TableOptions = {
-  timeFormat: 'MM/DD/YYYY HH:mm:ss',
   verticalTimeAxis: true,
   sortBy: {
     internalName: 'time',
@@ -110,13 +117,6 @@ export const tableOptions: TableOptions = {
     visible: true,
   },
   wrapping: 'truncate',
-  fieldNames: [
-    {
-      internalName: 'time',
-      displayName: '',
-      visible: true,
-    },
-  ],
   fixFirstColumn: true,
 }
 export const lineColors: ColorString[] = [
@@ -143,6 +143,11 @@ export const lineColors: ColorString[] = [
   },
 ]
 
+export const decimalPlaces: DecimalPlaces = {
+  isEnforced: true,
+  digits: 4,
+}
+
 export const cell: Cell = {
   id: '67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
   x: 0,
@@ -156,6 +161,9 @@ export const cell: Cell = {
   colors: lineColors,
   legend: {},
   tableOptions: tableOptions,
+  fieldOptions: fieldOptions,
+  timeFormat: 'MM/DD/YYYY HH:mm:ss',
+  decimalPlaces: decimalPlaces,
   links: {
     self:
       '/chronograf/v1/dashboards/9/cells/67435af2-17bf-4caa-a5fc-0dd1ffb40dab',

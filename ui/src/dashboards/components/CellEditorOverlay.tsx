@@ -102,13 +102,8 @@ const createWorkingDraft = (source: string, query: CellQuery): QueryConfig => {
 
 const createWorkingDrafts = (
   source: string,
-<<<<<<< HEAD
-  queries: CellQuery[] = []
-): Query[] =>
-=======
   queries: CellQuery[]
 ): QueryConfig[] =>
->>>>>>> Add types to handleEditRawText in CEO
   _.cloneDeep(
     queries.map((query: CellQuery) => createWorkingDraft(source, query))
   )

@@ -15,14 +15,13 @@ export interface Axes {
   y: Axis
 }
 
-interface FieldName {
+export interface FieldName {
   internalName: string
   displayName: string
   visible: boolean
 }
 
 export interface TableOptions {
-  timeFormat: string
   verticalTimeAxis: boolean
   sortBy: FieldName
   wrapping: string
@@ -43,7 +42,7 @@ export interface Legend {
   orientation?: string
 }
 
-interface DecimalPlaces {
+export interface DecimalPlaces {
   isEnforced: boolean
   digits: number
 }
