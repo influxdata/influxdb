@@ -1,20 +1,44 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
+import _ from 'lodash'
+
+import {QueryConfig, Source, SourceLinks, TimeRange} from 'src/types'
+import {CellEditorOverlayActions} from 'src/types/dashboard'
 
 import EmptyQuery from 'src/shared/components/EmptyQuery'
 import QueryTabList from 'src/shared/components/QueryTabList'
 import QueryTextArea from 'src/dashboards/components/QueryTextArea'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
-import {buildQuery} from 'utils/influxql'
-import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
+import {buildQuery} from 'src/utils/influxql'
+import {TYPE_QUERY_CONFIG, TEMPLATE_RANGE} from 'src/dashboards/constants'
 
-const TEMPLATE_RANGE = {upper: null, lower: ':dashboardTime:'}
-const rawTextBinder = (links, id, action) => text =>
-  action(links.queries, id, text)
-const buildText = q =>
+const rawTextBinder = (
+  links: SourceLinks,
+  id: string,
+  action: (linksQueries: string, id: string, text: string) => void
+) => (text: string) => action(links.queries, id, text)
+
+const buildText = (q: QueryConfig): string =>
   q.rawText || buildQuery(TYPE_QUERY_CONFIG, q.range || TEMPLATE_RANGE, q) || ''
 
-const QueryMaker = ({
+interface Template {
+  tempVar: string
+}
+
+interface Props {
+  source: Source
+  queries: QueryConfig[]
+  timeRange: TimeRange
+  actions: CellEditorOverlayActions
+  setActiveQueryIndex: (index: number) => void
+  onDeleteQuery: (index: number) => void
+  activeQueryIndex: number
+  activeQuery: QueryConfig
+  onAddQuery: () => void
+  templates: Template[]
+  initialGroupByTime: string
+}
+
+const QueryMaker: SFC<Props> = ({
   source,
   actions,
   queries,
@@ -52,8 +76,12 @@ const QueryMaker = ({
           source={source}
           actions={actions}
           query={activeQuery}
-          onAddQuery={onAddQuery}
           initialGroupByTime={initialGroupByTime}
+          isQuerySupportedByExplorer={_.get(
+            activeQuery,
+            'isQuerySupportedByExplorer',
+            true
+          )}
         />
       </div>
     ) : (
@@ -61,44 +89,5 @@ const QueryMaker = ({
     )}
   </div>
 )
-
-const {arrayOf, func, number, shape, string} = PropTypes
-
-QueryMaker.propTypes = {
-  source: shape({
-    links: shape({
-      queries: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  queries: arrayOf(shape({})).isRequired,
-  timeRange: shape({
-    upper: string,
-    lower: string,
-  }).isRequired,
-  actions: shape({
-    chooseNamespace: func.isRequired,
-    chooseMeasurement: func.isRequired,
-    chooseTag: func.isRequired,
-    groupByTag: func.isRequired,
-    toggleField: func.isRequired,
-    groupByTime: func.isRequired,
-    toggleTagAcceptance: func.isRequired,
-    fill: func,
-    applyFuncsToField: func.isRequired,
-    editRawTextAsync: func.isRequired,
-    addInitialField: func.isRequired,
-  }).isRequired,
-  setActiveQueryIndex: func.isRequired,
-  onDeleteQuery: func.isRequired,
-  activeQueryIndex: number,
-  activeQuery: shape({}),
-  onAddQuery: func.isRequired,
-  templates: arrayOf(
-    shape({
-      tempVar: string.isRequired,
-    })
-  ).isRequired,
-  initialGroupByTime: string.isRequired,
-}
 
 export default QueryMaker

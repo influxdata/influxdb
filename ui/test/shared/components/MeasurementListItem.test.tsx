@@ -23,6 +23,7 @@ const setup = (overrides = {}) => {
     measurement: 'test',
     numTagsActive: 3,
     areTagsAccepted: true,
+    isQuerySupportedByExplorer: true,
     onChooseTag: () => {},
     onGroupByTag: () => {},
     onAcceptReject: () => {},

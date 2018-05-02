@@ -14,6 +14,7 @@ interface Props {
   selectedTagValues: string[]
   isUsingGroupBy?: boolean
   onChooseTag: (tag: Tag) => void
+  isQuerySupportedByExplorer: boolean
   onGroupByTag: (tagKey: string) => void
 }
 
@@ -36,10 +37,16 @@ class TagListItem extends PureComponent<Props, State> {
     this.handleGroupBy = this.handleGroupBy.bind(this)
     this.handleClickKey = this.handleClickKey.bind(this)
     this.handleFilterText = this.handleFilterText.bind(this)
+    this.handleInputClick = this.handleInputClick.bind(this)
   }
 
   public handleChoose(tagValue: string, e: MouseEvent<HTMLElement>) {
     e.stopPropagation()
+
+    const {isQuerySupportedByExplorer} = this.props
+    if (!isQuerySupportedByExplorer) {
+      return
+    }
     this.props.onChooseTag({key: this.props.tagKey, value: tagValue})
   }
 
@@ -67,7 +74,11 @@ class TagListItem extends PureComponent<Props, State> {
   }
 
   public handleGroupBy(e) {
+    const {isQuerySupportedByExplorer} = this.props
     e.stopPropagation()
+    if (!isQuerySupportedByExplorer) {
+      return
+    }
     this.props.onGroupByTag(this.props.tagKey)
   }
 
@@ -76,7 +87,11 @@ class TagListItem extends PureComponent<Props, State> {
   }
 
   public renderTagValues() {
-    const {tagValues, selectedTagValues} = this.props
+    const {
+      tagValues,
+      selectedTagValues,
+      isQuerySupportedByExplorer,
+    } = this.props
     if (!tagValues || !tagValues.length) {
       return <div>no tag values</div>
     }
@@ -103,6 +118,7 @@ class TagListItem extends PureComponent<Props, State> {
         {filtered.map(v => {
           const cx = classnames('query-builder--list-item', {
             active: selectedTagValues.indexOf(v) > -1,
+            disabled: !isQuerySupportedByExplorer,
           })
           return (
             <div
@@ -123,7 +139,12 @@ class TagListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {tagKey, tagValues, isUsingGroupBy} = this.props
+    const {
+      tagKey,
+      tagValues,
+      isUsingGroupBy,
+      isQuerySupportedByExplorer,
+    } = this.props
     const {isOpen} = this.state
     const tagItemLabel = `${tagKey} — ${tagValues.length}`
 
@@ -142,6 +163,7 @@ class TagListItem extends PureComponent<Props, State> {
             className={classnames('btn btn-xs group-by-tag', {
               'btn-default': !isUsingGroupBy,
               'btn-primary': isUsingGroupBy,
+              disabled: !isQuerySupportedByExplorer,
             })}
             onClick={this.handleGroupBy}
           >

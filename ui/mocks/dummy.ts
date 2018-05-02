@@ -63,3 +63,49 @@ export const updateKapacitorBody = {
     proxy: '/chronograf/v1/sources/47/kapacitors/1/proxy',
   },
 }
+
+export const queryConfig = {
+  queries: [
+    {
+      id: '60842c85-8bc7-4180-a844-b974e47a98cd',
+      query:
+        'SELECT mean(:fields:), mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
+      queryConfig: {
+        id: '60842c85-8bc7-4180-a844-b974e47a98cd',
+        database: 'telegraf',
+        measurement: 'cpu',
+        retentionPolicy: 'autogen',
+        fields: [
+          {
+            value: 'mean',
+            type: 'func',
+            alias: '',
+            args: [{value: 'usage_idle', type: 'field', alias: ''}],
+          },
+          {
+            value: 'mean',
+            type: 'func',
+            alias: 'mean_usage_user',
+            args: [{value: 'usage_user', type: 'field', alias: ''}],
+          },
+        ],
+        tags: {},
+        groupBy: {time: 'auto', tags: []},
+        areTagsAccepted: false,
+        fill: 'null',
+        rawText:
+          'SELECT mean(:fields:), mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
+        range: null,
+        shifts: [],
+      },
+      queryTemplated:
+        'SELECT mean("usage_idle"), mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
+      tempVars: [
+        {
+          tempVar: ':fields:',
+          values: [{value: 'usage_idle', type: 'fieldKey', selected: true}],
+        },
+      ],
+    },
+  ],
+}

@@ -1,5 +1,7 @@
+import {TEMP_VAR_INTERVAL} from 'src/shared/constants'
+
 const groupByTimes = [
-  {defaultTimeBound: ':interval:', seconds: 604800, menuOption: 'auto'},
+  {defaultTimeBound: TEMP_VAR_INTERVAL, seconds: 604800, menuOption: 'auto'},
   {defaultTimeBound: 'now() - 5m', seconds: 10, menuOption: '10s'},
   {defaultTimeBound: 'now() - 15m', seconds: 60, menuOption: '1m'},
   {defaultTimeBound: 'now() - 1h', seconds: 300, menuOption: '5m'},

@@ -13,6 +13,7 @@ const setup = (override = {}) => {
     onGroupByTag: () => {},
     query,
     querySource: source,
+    isQuerySupportedByExplorer: true,
     ...override,
   }
 

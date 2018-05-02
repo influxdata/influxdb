@@ -11,6 +11,7 @@
 1.  [#3215](https://github.com/influxdata/chronograf/pull/3215): Fix Template Variables Control Bar to top of dashboard page
 1.  [#3214](https://github.com/influxdata/chronograf/pull/3214): Remove extra click when creating dashboard cell
 1.  [#3256](https://github.com/influxdata/chronograf/pull/3256): Reduce font sizes in dashboards for increased space efficiency
+1.  [#3320](https://github.com/influxdata/chronograf/pull/3320): Add overlay animation to Template Variables Manager
 1.  [#3245](https://github.com/influxdata/chronograf/pull/3245): Display 'no results' on cells without results
 
 ### Bug Fixes
@@ -20,6 +21,7 @@
 1.  [#3281](https://github.com/influxdata/chronograf/pull/3281): Fix base path for kapacitor logs
 1.  [#3284](https://github.com/influxdata/chronograf/pull/3284): Fix logout when using basepath & simplify basepath usage (deprecates `PREFIX_ROUTES`)
 1.  [#3349](https://github.com/influxdata/chronograf/pull/3349): Fix graphs in alert rule builder for queries that include groupby
+1.  [#3345](https://github.com/influxdata/chronograf/pull/3345): Fix auto not showing in the group by dropdown and explorer getting disconnected
 
 ## v1.4.4.1 [2018-04-16]
 

@@ -43,15 +43,13 @@ class MeasurementDropdown extends Component {
 
   _getMeasurements = async () => {
     const {
-      source: {
-        links: {proxy},
-      },
-    } = this.context
-    const {
       measurement,
       database,
       onSelectMeasurement,
       onErrorThrown,
+      source: {
+        links: {proxy},
+      },
     } = this.props
 
     try {
@@ -72,20 +70,17 @@ class MeasurementDropdown extends Component {
 
 const {func, shape, string} = PropTypes
 
-MeasurementDropdown.contextTypes = {
-  source: shape({
-    links: shape({
-      proxy: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-}
-
 MeasurementDropdown.propTypes = {
   database: string.isRequired,
   measurement: string,
   onSelectMeasurement: func.isRequired,
   onStartEdit: func.isRequired,
   onErrorThrown: func.isRequired,
+  source: shape({
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+  }).isRequired,
 }
 
 export default MeasurementDropdown

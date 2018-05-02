@@ -38,6 +38,7 @@ interface Props {
   onChooseTag: () => void
   onGroupByTag: () => void
   onAcceptReject: () => void
+  isQuerySupportedByExplorer: boolean
   onChooseMeasurement: (measurement: string) => () => void
 }
 
@@ -62,6 +63,7 @@ class MeasurementListItem extends PureComponent<Props, State> {
       onGroupByTag,
       numTagsActive,
       areTagsAccepted,
+      isQuerySupportedByExplorer,
     } = this.props
 
     return (
@@ -80,6 +82,7 @@ class MeasurementListItem extends PureComponent<Props, State> {
               <div
                 className={classnames('flip-toggle', {
                   flipped: areTagsAccepted,
+                  disabled: !isQuerySupportedByExplorer,
                 })}
                 onClick={this.handleAcceptReject}
               >
@@ -96,6 +99,7 @@ class MeasurementListItem extends PureComponent<Props, State> {
             querySource={querySource}
             onChooseTag={onChooseTag}
             onGroupByTag={onGroupByTag}
+            isQuerySupportedByExplorer={isQuerySupportedByExplorer}
           />
         )}
       </div>
@@ -104,6 +108,11 @@ class MeasurementListItem extends PureComponent<Props, State> {
 
   private handleAcceptReject = (e: MouseEvent<HTMLElement>) => {
     e.stopPropagation()
+
+    const {isQuerySupportedByExplorer} = this.props
+    if (!isQuerySupportedByExplorer) {
+      return
+    }
 
     const {onAcceptReject} = this.props
     onAcceptReject()

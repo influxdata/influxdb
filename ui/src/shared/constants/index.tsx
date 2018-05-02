@@ -410,6 +410,13 @@ export const VIS_VIEWS = [GRAPH, TABLE]
 
 // InfluxQL Macros
 export const TEMP_VAR_INTERVAL = ':interval:'
+export const TEMP_VAR_DASHBOARD_TIME = ':dashboardTime:'
+export const TEMP_VAR_UPPER_DASHBOARD_TIME = ':upperDashboardTime:'
+export const PREDEFINED_TEMP_VARS = [
+  TEMP_VAR_INTERVAL,
+  TEMP_VAR_DASHBOARD_TIME,
+  TEMP_VAR_UPPER_DASHBOARD_TIME,
+]
 export const INITIAL_GROUP_BY_TIME = '10s'
 export const AUTO_GROUP_BY = 'auto'
 
@@ -443,7 +450,7 @@ export const intervalValuesPoints = [
 export const interval = {
   id: 'interval',
   type: 'autoGroupBy',
-  tempVar: ':interval:',
+  tempVar: TEMP_VAR_INTERVAL,
   label: 'automatically determine the best group by time',
   values: intervalValuesPoints,
 }

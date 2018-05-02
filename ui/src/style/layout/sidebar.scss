@@ -342,3 +342,17 @@ span.icon.sidebar--icon.sidebar--icon__superadmin {
     }
   }
 }
+
+// Ensures that sidebar menus appear above the rest of the app on hover
+.page, .sidebar {
+  position: relative;
+}
+.page {
+  z-index: 2;
+}
+.sidebar {
+  z-index: 1;
+
+  &:hover {z-index: 2;}
+  &:hover + .page {z-index: 1;}
+}

@@ -1,0 +1,50 @@
+/*
+    Overlay Technology Styles
+    ----------------------------------------------------------------------------
+*/
+
+%overlay-styles {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+.overlay--mask {
+  @extend %overlay-styles;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  @include gradient-diag-down($c-pool,$c-comet);
+}
+
+.overlay--dialog {
+  position: relative;
+  z-index: 2;
+  transform: translateY(72px);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+}
+
+.overlay-tech {
+  @extend %overlay-styles;
+  visibility: hidden;
+  transition: all 0.25s ease;
+  z-index: 9999;;
+
+  &.show {
+    visibility: visible;
+  }
+}
+
+// Open State
+.overlay-tech.show {
+  .overlay--mask {
+    opacity: 0.7;
+  }
+  .overlay--dialog {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

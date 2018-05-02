@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {showMeasurements} from 'src/shared/apis/metaQuery'
 import showMeasurementsParser from 'src/shared/parsing/showMeasurements'
 
-import {Query, Source} from 'src/types'
+import {QueryConfig, Source} from 'src/types'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
@@ -14,11 +14,12 @@ import MeasurementListItem from 'src/shared/components/MeasurementListItem'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  query: Query
+  query: QueryConfig
   querySource: Source
   onChooseTag: () => void
   onGroupByTag: () => void
   onToggleTagAcceptance: () => void
+  isQuerySupportedByExplorer: boolean
   onChooseMeasurement: (measurement: string) => void
 }
 
@@ -117,7 +118,13 @@ class MeasurementList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {query, querySource, onChooseTag, onGroupByTag} = this.props
+    const {
+      query,
+      querySource,
+      onChooseTag,
+      onGroupByTag,
+      isQuerySupportedByExplorer,
+    } = this.props
     const {database, areTagsAccepted} = query
     const {filtered} = this.state
 
@@ -147,6 +154,7 @@ class MeasurementList extends PureComponent<Props, State> {
                   areTagsAccepted={areTagsAccepted}
                   onAcceptReject={this.handleAcceptReject}
                   isActive={measurement === query.measurement}
+                  isQuerySupportedByExplorer={isQuerySupportedByExplorer}
                   numTagsActive={Object.keys(query.tags).length}
                   onChooseMeasurement={this.handleChoosemeasurement}
                 />

@@ -2,7 +2,7 @@ import React, {PureComponent} from 'react'
 
 import QueryEditor from './QueryEditor'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
-import {Source, Query} from 'src/types'
+import {Source, QueryConfig} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const rawTextBinder = (links, id, action) => text =>
@@ -12,7 +12,7 @@ interface Props {
   source: Source
   rawText: string
   actions: any
-  activeQuery: Query
+  activeQuery: QueryConfig
   initialGroupByTime: string
 }
 

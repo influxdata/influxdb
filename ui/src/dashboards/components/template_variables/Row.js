@@ -46,6 +46,7 @@ const TemplateVariableRow = ({
   onSubmit,
   onErrorThrown,
   onDeleteTempVar,
+  source,
 }) => (
   <form
     className={classnames('template-variable-manager--table-row', {
@@ -78,6 +79,7 @@ const TemplateVariableRow = ({
     </div>
     <div className="tvm--col-3">
       <TemplateQueryBuilder
+        source={source}
         onSelectDatabase={onSelectDatabase}
         selectedType={selectedType}
         selectedDatabase={selectedDatabase}

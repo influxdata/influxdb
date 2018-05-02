@@ -1,1 +1,1 @@
-export const OVERLAY_TECHNOLOGY = 'overlay-technology'
+export const OVERLAY_TECHNOLOGY = 'ceo'
