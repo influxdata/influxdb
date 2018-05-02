@@ -4,6 +4,7 @@
 */
 
 $resizer-division-z: 1;
+$resizer-division-hover-z: 5;
 $resizer-clickable-z: 2;
 $resizer-line-z: 3;
 $resizer-handle-z: 4;
@@ -19,59 +20,34 @@ $resizer-color-active: $c-pool;
 $resizer-color-kapacitor: $c-rainforest;
 
 .resize--container {
-  overflow: hidden !important;
-  // display: flex;
-  // align-items: stretch;
+  position: relative;
 
-  &.vertical {
-    width: 100%;
-    // flex-direction: row;
-  }
-
-  &.horizontal {
-    height: 100%;
-    // flex-direction: column;
-  }
-
-  &.resize--dragging * {
+  &.dragging * {
     @include no-user-select();
   }
 }
 
-.resizer--division {
+.resize--half {
   z-index: $resizer-division-z;
-  border: 1px solid #f00;
-  position: relative;
-  float: left;
-
-  &.resizer__horizontal {
-    width: 100%;
-  }
-
-  &.resizer__vertical {
-    height: 100%;
-  }
-
-  .resizer--division:nth-child(1) {
-    border-color: #0f0;
-  }
-  .resizer--division:nth-child(2) {
-    border-color: #0ff;
-  }
-  .resizer--division:nth-child(3) {
-    border-color: #00f;
-  }
-  .resizer--division:nth-child(4) {
-    border-color: #f0f;
-  }
-}
-
-.resizer--full-size {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+
+  &.horizontal {
+    width: 100%;
+    left: 0;
+  }
+
+  &.vertical {
+    height: 100%;
+    top: 0;
+  }
+
+  &:hover {
+    z-index: $resizer-division-hover-z;
+  }
+
+  .dragging & {
+    pointer-events: none;
+  }
 }
 
 /*
@@ -148,7 +124,7 @@ $resizer-color-kapacitor: $c-rainforest;
   width: 100%;
 
   &:hover {
-    cursor: ns-resize;
+    cursor: row-resize;
   }
 
   // Psuedo element for handle
@@ -177,7 +153,7 @@ $resizer-color-kapacitor: $c-rainforest;
   height: 100%;
 
   &:hover {
-    cursor: ew-resize;
+    cursor: col-resize;
   }
 
   // Psuedo element for handle
@@ -193,63 +169,3 @@ $resizer-color-kapacitor: $c-rainforest;
     width: $resizer-line-width;
   }
 }
-
-/*
-  Resizable Container Draggable Title
-  ------------------------------------------------------------------------------
-*/
-
-.resizer--title {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 30px;
-  line-height: 30px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  background-color: $g3-castle;
-  padding: 0 11px;
-  z-index: $resizer-clickable-z;
-  font-size: 13px;
-  font-weight: 600;
-  color: $g13-mist;
-  @include no-user-select();
-
-  &:hover {
-    background-color: $g4-onyx;
-  }
-
-  &.dragging {
-    cursor: ns-resize;
-    color: $c-laser;
-    background-color: $g5-pepper;
-  }
-}
-
-.resizer--title.horizontal {
-  &:hover {
-    cursor: ns-resize;
-  }
-}
-
-.resizer--title.vertical {
-  &:hover {
-    cursor: ew-resize;
-  }
-}
-
-.resizer--contents {
-  width: 100%;
-  height: 100%;
-}
-
-.resizer--title + .resizer--contents {
-  width: 100%;
-  height: calc(100% - 30px);
-  position: absolute;
-  top: 30px; 
-  overflow: hidden;
-}
-

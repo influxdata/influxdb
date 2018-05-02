@@ -5,6 +5,7 @@ import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
 import Resizer from 'src/shared/components/ResizeContainer'
 import {Suggestion, OnChangeScript, FlatBody} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {HANDLE_VERTICAL} from 'src/shared/constants/index'
 
 interface Props {
   script: string
@@ -22,59 +23,31 @@ class TimeMachine extends PureComponent<Props> {
   public render() {
     return (
       <Resizer
+        topMinPixels={200}
+        bottomMinPixels={200}
+        orientation={HANDLE_VERTICAL}
         containerClass="page-contents"
-        orientation="vertical"
-        divisions={this.divisions}
-      />
+      >
+        {this.renderVisualization()}
+        {this.renderEditor()}
+      </Resizer>
     )
   }
 
-  private get divisions() {
-    return [
-      {
-        minPixels: 200,
-        render: () => (
-          <Resizer
-            containerClass="ifql-left-panel"
-            orientation="horizontal"
-            divisions={this.renderEditorDivisions}
-          />
-        ),
-      },
-      {
-        minPixels: 200,
-        render: () => <TimeMachineVis blob="Visualizer" />,
-      },
-    ]
+  private renderVisualization = () => {
+    return <TimeMachineVis blob="Visualizer" />
   }
 
-  private get renderEditorDivisions() {
+  private renderEditor = () => {
     const {script, body, suggestions, onChangeScript} = this.props
 
-    return [
-      {
-        name: 'IFQL',
-        minPixels: 32,
-        render: () => (
-          <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
-        ),
-      },
-      {
-        name: 'Builder',
-        minPixels: 32,
-        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
-      },
-      {
-        name: 'Schema Explorer',
-        minPixels: 32,
-        render: () => <div>Explorin all yer schemas</div>,
-      },
-      {
-        name: '4th Item',
-        minPixels: 32,
-        render: () => <div>Oh boy!</div>,
-      },
-    ]
+    return (
+      <div>
+        <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
+        <BodyBuilder body={body} suggestions={suggestions} />
+        <div>Explorin all yer schemas</div>
+      </div>
+    )
   }
 }
 

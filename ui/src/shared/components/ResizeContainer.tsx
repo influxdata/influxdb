@@ -1,12 +1,14 @@
-import React, {Component, ReactElement, MouseEvent} from 'react'
+import React, {Component, ReactNode, MouseEvent} from 'react'
 import classnames from 'classnames'
-import uuid from 'uuid'
-import _ from 'lodash'
 
 import ResizeHalf from 'src/shared/components/ResizeHalf'
 import ResizeHandle from 'src/shared/components/ResizeHandle'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {HANDLE_HORIZONTAL, HANDLE_VERTICAL} from 'src/shared/constants/index'
+import {
+  HANDLE_HORIZONTAL,
+  HANDLE_VERTICAL,
+  REQUIRED_HALVES,
+} from 'src/shared/constants/index'
 
 interface State {
   topPercent: number
@@ -15,9 +17,8 @@ interface State {
 }
 
 interface Props {
-  topHalf: () => ReactElement<any>
+  children: ReactNode
   topMinPixels: number
-  bottomHalf: () => ReactElement<any>
   bottomMinPixels: number
   orientation?: string
   containerClass: string
@@ -30,8 +31,6 @@ class Resizer extends Component<Props, State> {
   }
 
   private containerRef: HTMLElement
-  private percentChangeX: number = 0
-  private percentChangeY: number = 0
 
   constructor(props) {
     super(props)
@@ -42,53 +41,14 @@ class Resizer extends Component<Props, State> {
     }
   }
 
-  public componentDidUpdate(__, prevState) {
-    const {dragEvent} = this.state
-    const {orientation} = this.props
-
-    if (_.isEqual(dragEvent, prevState.dragEvent)) {
-      return
-    }
-
-    this.percentChangeX = this.pixelsToPercentX(
-      prevState.dragEvent.mouseX,
-      dragEvent.mouseX
-    )
-
-    this.percentChangeY = this.pixelsToPercentY(
-      prevState.dragEvent.mouseY,
-      dragEvent.mouseY
-    )
-
-    if (orientation === HANDLE_VERTICAL) {
-      const left = dragEvent.percentX < prevState.dragEvent.percentX
-
-      if (left) {
-        return this.move.left()
-      }
-
-      return this.move.right()
-    }
-
-    const up = dragEvent.percentY < prevState.dragEvent.percentY
-    const down = dragEvent.percentY > prevState.dragEvent.percentY
-
-    if (up) {
-      return this.move.up()
-    } else if (down) {
-      return this.move.down()
-    }
-  }
-
   public render() {
     const {isDragging, topPercent, bottomPercent} = this.state
-    const {
-      topHalf,
-      topMinPixels,
-      bottomHalf,
-      bottomMinPixels,
-      orientation,
-    } = this.props
+    const {children, topMinPixels, bottomMinPixels, orientation} = this.props
+
+    if (React.Children.count(children) !== REQUIRED_HALVES) {
+      console.error('ResizeContainer requires exactly 2 children')
+      return null
+    }
 
     return (
       <div
@@ -99,38 +59,35 @@ class Resizer extends Component<Props, State> {
         ref={r => (this.containerRef = r)}
       >
         <ResizeHalf
+          offset={0}
           percent={topPercent}
           minPixels={topMinPixels}
-          render={topHalf}
+          component={children[0]}
           orientation={orientation}
         />
         <ResizeHandle
           onStartDrag={this.handleStartDrag}
+          percent={topPercent}
           isDragging={isDragging}
           orientation={orientation}
         />
         <ResizeHalf
+          offset={topPercent}
           percent={bottomPercent}
           minPixels={bottomMinPixels}
-          render={bottomHalf}
+          component={children[1]}
           orientation={orientation}
         />
       </div>
     )
   }
 
-  private minPercent = (minPixels: number): number => {
-    if (this.props.orientation === HANDLE_VERTICAL) {
-      return this.minPercentX(minPixels)
-    }
-
-    return this.minPercentY(minPixels)
-  }
-
   private get className(): string {
     const {orientation, containerClass} = this.props
+    const {isDragging} = this.state
 
     return classnames(`resize--container ${containerClass}`, {
+      dragging: isDragging,
       horizontal: orientation === HANDLE_HORIZONTAL,
       vertical: orientation === HANDLE_VERTICAL,
     })
@@ -146,6 +103,48 @@ class Resizer extends Component<Props, State> {
 
   private handleMouseLeave = () => {
     this.setState({isDragging: false})
+  }
+
+  private handleDrag = (e: MouseEvent<HTMLElement>) => {
+    const {isDragging} = this.state
+    const {orientation} = this.props
+    if (!isDragging) {
+      return
+    }
+
+    const {percentX, percentY} = this.mousePosWithinContainer(e)
+
+    if (orientation === HANDLE_HORIZONTAL && this.dragIsWithinBounds(e)) {
+      this.setState({
+        topPercent: percentY,
+        bottomPercent: this.invertPercent(percentY),
+      })
+    }
+
+    if (orientation === HANDLE_VERTICAL && this.dragIsWithinBounds(e)) {
+      this.setState({
+        topPercent: percentX,
+        bottomPercent: this.invertPercent(percentX),
+      })
+    }
+  }
+
+  private dragIsWithinBounds = (e: MouseEvent<HTMLElement>): boolean => {
+    const {orientation, topMinPixels, bottomMinPixels} = this.props
+    const {mouseX, mouseY} = this.mousePosWithinContainer(e)
+    const {width, height} = this.containerRef.getBoundingClientRect()
+
+    if (orientation === HANDLE_HORIZONTAL) {
+      const doesNotExceedTop = mouseY > topMinPixels
+      const doesNotExceedBottom = Math.abs(mouseY - height) > bottomMinPixels
+
+      return doesNotExceedTop && doesNotExceedBottom
+    }
+
+    const doesNotExceedLeft = mouseX > topMinPixels
+    const doesNotExceedRight = Math.abs(mouseX - width) > bottomMinPixels
+
+    return doesNotExceedLeft && doesNotExceedRight
   }
 
   private mousePosWithinContainer = (e: MouseEvent<HTMLElement>) => {
@@ -166,68 +165,8 @@ class Resizer extends Component<Props, State> {
     }
   }
 
-  private pixelsToPercentX = (startValue, endValue) => {
-    if (!startValue) {
-      return 0
-    }
-
-    const delta = startValue - endValue
-    const {width} = this.containerRef.getBoundingClientRect()
-
-    return Math.abs(delta / width)
-  }
-
-  private pixelsToPercentY = (startValue, endValue) => {
-    if (!startValue) {
-      return 0
-    }
-
-    const delta = startValue - endValue
-    const {height} = this.containerRef.getBoundingClientRect()
-
-    return Math.abs(delta / height)
-  }
-
-  private minPercentX = (xMinPixels: number): number => {
-    if (!this.containerRef) {
-      return 0
-    }
-    const {width} = this.containerRef.getBoundingClientRect()
-
-    return xMinPixels / width
-  }
-
-  private minPercentY = (yMinPixels: number): number => {
-    if (!this.containerRef) {
-      return 0
-    }
-
-    const {height} = this.containerRef.getBoundingClientRect()
-    return yMinPixels / height
-  }
-
-  private handleDrag = (e: MouseEvent<HTMLElement>) => {
-    const {activeHandleID} = this.state
-    if (!activeHandleID) {
-      return
-    }
-
-    const dragEvent = this.mousePosWithinContainer(e)
-    this.setState({dragEvent})
-  }
-
-  private taller = (size: number): number => {
-    const newSize = size + this.percentChangeY
-    return Number(newSize.toFixed(3))
-  }
-
-  private shorter = (size: number): number => {
-    const newSize = size - this.percentChangeY
-    return Number(newSize.toFixed(3))
-  }
-
-  private isAtMinHeight = (division: DivisionState): boolean => {
-    return division.size <= this.minPercentY(division.minPixels)
+  private invertPercent = percent => {
+    return 1 - percent
   }
 }
 

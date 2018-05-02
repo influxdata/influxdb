@@ -166,13 +166,46 @@ class CellEditorOverlay extends Component<Props, State> {
   }
 
   public render() {
-    const {
-      onCancel,
-      templates,
-      timeRange,
-      autoRefresh,
-      editQueryStatus,
-    } = this.props
+    return (
+      <div
+        className={OVERLAY_TECHNOLOGY}
+        onKeyDown={this.handleKeyDown}
+        tabIndex={0}
+        ref={this.onRef}
+      >
+        <Resizer
+          topMinPixels={MINIMUM_HEIGHTS.visualization}
+          bottomMinPixels={MINIMUM_HEIGHTS.queryMaker}
+          orientation={HANDLE_HORIZONTAL}
+          containerClass="ceo-resizer"
+        >
+          {this.renderVisualization()}
+          {this.renderControls()}
+        </Resizer>
+      </div>
+    )
+  }
+
+  private renderVisualization = () => {
+    const {templates, timeRange, autoRefresh, editQueryStatus} = this.props
+
+    const {queriesWorkingDraft, isStaticLegend} = this.state
+
+    return (
+      <Visualization
+        timeRange={timeRange}
+        templates={templates}
+        autoRefresh={autoRefresh}
+        queryConfigs={queriesWorkingDraft}
+        editQueryStatus={editQueryStatus}
+        staticLegend={isStaticLegend}
+        isInCEO={true}
+      />
+    )
+  }
+
+  private renderControls = () => {
+    const {onCancel, templates, timeRange} = this.props
 
     const {
       activeQueryIndex,
@@ -182,65 +215,41 @@ class CellEditorOverlay extends Component<Props, State> {
     } = this.state
 
     return (
-      <div
-        className={OVERLAY_TECHNOLOGY}
-        onKeyDown={this.handleKeyDown}
-        tabIndex={0}
-        ref={this.onRef}
-      >
-        <ResizeContainer
-          containerClass="resizer--full-size"
-          minTopHeight={MINIMUM_HEIGHTS.visualization}
-          minBottomHeight={MINIMUM_HEIGHTS.queryMaker}
-          initialTopHeight={INITIAL_HEIGHTS.visualization}
-          initialBottomHeight={INITIAL_HEIGHTS.queryMaker}
-        >
-          <Visualization
-            timeRange={timeRange}
-            templates={templates}
-            autoRefresh={autoRefresh}
+      <CEOBottom>
+        <OverlayControls
+          onCancel={onCancel}
+          queries={queriesWorkingDraft}
+          sources={this.formattedSources}
+          onSave={this.handleSaveCell}
+          selected={this.findSelectedSource()}
+          onSetQuerySource={this.handleSetQuerySource}
+          isSavable={this.isSaveable}
+          isDisplayOptionsTabActive={isDisplayOptionsTabActive}
+          onClickDisplayOptions={this.handleClickDisplayOptionsTab}
+        />
+        {isDisplayOptionsTabActive ? (
+          <DisplayOptions
             queryConfigs={queriesWorkingDraft}
-            editQueryStatus={editQueryStatus}
+            onToggleStaticLegend={this.handleToggleStaticLegend}
             staticLegend={isStaticLegend}
-            isInCEO={true}
+            onResetFocus={this.handleResetFocus}
           />
-          <CEOBottom>
-            <OverlayControls
-              onCancel={onCancel}
-              queries={queriesWorkingDraft}
-              sources={this.formattedSources}
-              onSave={this.handleSaveCell}
-              selected={this.findSelectedSource()}
-              onSetQuerySource={this.handleSetQuerySource}
-              isSavable={this.isSaveable}
-              isDisplayOptionsTabActive={isDisplayOptionsTabActive}
-              onClickDisplayOptions={this.handleClickDisplayOptionsTab}
-            />
-            {isDisplayOptionsTabActive ? (
-              <DisplayOptions
-                queryConfigs={queriesWorkingDraft}
-                onToggleStaticLegend={this.handleToggleStaticLegend}
-                staticLegend={isStaticLegend}
-                onResetFocus={this.handleResetFocus}
-              />
-            ) : (
-              <QueryMaker
-                source={this.source}
-                templates={templates}
-                queries={queriesWorkingDraft}
-                actions={this.queryActions}
-                timeRange={timeRange}
-                onDeleteQuery={this.handleDeleteQuery}
-                onAddQuery={this.handleAddQuery}
-                activeQueryIndex={activeQueryIndex}
-                activeQuery={this.getActiveQuery()}
-                setActiveQueryIndex={this.handleSetActiveQueryIndex}
-                initialGroupByTime={AUTO_GROUP_BY}
-              />
-            )}
-          </CEOBottom>
-        </ResizeContainer>
-      </div>
+        ) : (
+          <QueryMaker
+            source={this.source}
+            templates={templates}
+            queries={queriesWorkingDraft}
+            actions={this.queryActions}
+            timeRange={timeRange}
+            onDeleteQuery={this.handleDeleteQuery}
+            onAddQuery={this.handleAddQuery}
+            activeQueryIndex={activeQueryIndex}
+            activeQuery={this.getActiveQuery()}
+            setActiveQueryIndex={this.handleSetActiveQueryIndex}
+            initialGroupByTime={AUTO_GROUP_BY}
+          />
+        )}
+      </CEOBottom>
     )
   }
 

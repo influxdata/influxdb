@@ -479,6 +479,6 @@ export const TEN_SECONDS = 10000
 export const INFINITE = -1
 
 export const HUNDRED = 100
-export const MIN_DIVISIONS = 2
+export const REQUIRED_HALVES = 2
 export const HANDLE_VERTICAL = 'vertical'
 export const HANDLE_HORIZONTAL = 'horizontal'

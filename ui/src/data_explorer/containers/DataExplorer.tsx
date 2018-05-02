@@ -13,12 +13,12 @@ import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import Header from 'src/data_explorer/containers/Header'
-import ResizeContainer from 'src/shared/components/ResizeContainer'
+import Resizer from 'src/shared/components/ResizeContainer'
 import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
 import {VIS_VIEWS, AUTO_GROUP_BY, TEMPLATES} from 'src/shared/constants'
-import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
+import {MINIMUM_HEIGHTS} from 'src/data_explorer/constants'
 import {errorThrown} from 'src/shared/actions/errors'
 import {setAutoRefresh} from 'src/shared/actions/app'
 import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
@@ -120,15 +120,14 @@ export class DataExplorer extends PureComponent<Props, State> {
           onChooseAutoRefresh={handleChooseAutoRefresh}
           onManualRefresh={onManualRefresh}
         />
-        <ResizeContainer
+        <Resizer
+          topMinPixels={MINIMUM_HEIGHTS.queryMaker}
+          bottomMinPixels={MINIMUM_HEIGHTS.visualization}
           containerClass="page-contents"
-          minTopHeight={MINIMUM_HEIGHTS.queryMaker}
-          minBottomHeight={MINIMUM_HEIGHTS.visualization}
-          initialTopHeight={INITIAL_HEIGHTS.queryMaker}
-          initialBottomHeight={INITIAL_HEIGHTS.visualization}
-          renderTop={this.renderTop}
-          renderBottom={this.renderBottom}
-        />
+        >
+          {this.renderTop()}
+          {this.renderBottom()}
+        </Resizer>
       </div>
     )
   }

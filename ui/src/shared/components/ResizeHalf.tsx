@@ -10,30 +10,33 @@ import {
 interface Props {
   percent: number
   minPixels: number
-  render: () => ReactElement<any>
+  component: ReactElement<any>
   orientation: string
+  offset: number
 }
 
-class ResizerHalf extends PureComponent<Props> {
+class ResizeHalf extends PureComponent<Props> {
   public render() {
-    const {render} = this.props
+    const {component} = this.props
 
     return (
       <div className={this.className} style={this.style}>
-        {render()}
+        {component}
       </div>
     )
   }
 
   private get style() {
-    const {orientation, minPixels, percent} = this.props
+    const {orientation, minPixels, percent, offset} = this.props
 
     const size = `${percent * HUNDRED}%`
+    const gap = `${offset * HUNDRED}%`
 
     if (orientation === HANDLE_VERTICAL) {
       return {
         top: '0',
         width: size,
+        left: gap,
         minWidth: minPixels,
       }
     }
@@ -41,6 +44,7 @@ class ResizerHalf extends PureComponent<Props> {
     return {
       left: '0',
       height: size,
+      top: gap,
       minHeight: minPixels,
     }
   }
@@ -48,11 +52,11 @@ class ResizerHalf extends PureComponent<Props> {
   private get className(): string {
     const {orientation} = this.props
 
-    return classnames('resizer--half', {
+    return classnames('resize--half', {
       vertical: orientation === HANDLE_VERTICAL,
       horizontal: orientation === HANDLE_HORIZONTAL,
     })
   }
 }
 
-export default ResizerHalf
+export default ResizeHalf

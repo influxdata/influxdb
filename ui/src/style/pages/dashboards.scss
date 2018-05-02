@@ -489,7 +489,18 @@ $dash-graph-options-arrow: 8px;
   Cell Editor Overlay
   ------------------------------------------------------
 */
+<<<<<<< HEAD
 @import 'cell-editor-overlay';
+=======
+.ceo-resizer {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+@import 'overlay-technology';
+>>>>>>> Rebuild resizer component
 
 /*
   Template Variables Manager
