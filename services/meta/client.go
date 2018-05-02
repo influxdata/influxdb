@@ -539,13 +539,6 @@ func (c *Client) UserPrivilege(username, database string) (*influxql.Privilege, 
 	return p, nil
 }
 
-// AdminUserExists returns true if any user has admin privilege.
-func (c *Client) AdminUserExists() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.cacheData.AdminUserExists()
-}
-
 // Authenticate returns a UserInfo if the username and password match an existing entry.
 func (c *Client) Authenticate(username, password string) (User, error) {
 	// Find user.

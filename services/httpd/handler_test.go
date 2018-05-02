@@ -94,9 +94,6 @@ func TestHandler_Query_Auth(t *testing.T) {
 	// Create the handler to be tested.
 	h := NewHandler(true)
 
-	// Set mock meta client functions for the handler to use.
-	h.MetaClient.AdminUserExistsFn = func() bool { return true }
-
 	h.MetaClient.UserFn = func(username string) (meta.User, error) {
 		if username != "user1" {
 			return nil, meta.ErrUserNotFound
@@ -376,7 +373,6 @@ func TestHandler_Query_ErrAuthorize(t *testing.T) {
 	h.QueryAuthorizer.AuthorizeQueryFn = func(u meta.User, q *influxql.Query, db string) error {
 		return errors.New("marker")
 	}
-	h.MetaClient.AdminUserExistsFn = func() bool { return true }
 	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
 
 		users := []meta.UserInfo{
