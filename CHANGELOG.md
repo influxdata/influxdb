@@ -13,6 +13,7 @@
 1.  [#3256](https://github.com/influxdata/chronograf/pull/3256): Reduce font sizes in dashboards for increased space efficiency
 1.  [#3320](https://github.com/influxdata/chronograf/pull/3320): Add overlay animation to Template Variables Manager
 1.  [#3245](https://github.com/influxdata/chronograf/pull/3245): Display 'no results' on cells without results
+1.  [#3354](https://github.com/influxdata/chronograf/pull/3354): Disable template variables for non editing users
 
 ### Bug Fixes
 
