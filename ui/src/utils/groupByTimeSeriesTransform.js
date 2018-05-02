@@ -124,13 +124,14 @@ const constructCells = serieses => {
       forEach(rows, ({vals}) => {
         const [time, ...rowValues] = vals
         forEach(rowValues, (value, i) => {
-          cells.label[cellIndex] = unsortedLabels[i].label
-          cells.value[cellIndex] = value
-          cells.time[cellIndex] = time
-          cells.seriesIndex[cellIndex] = seriesIndex
-          cells.responseIndex[cellIndex] = responseIndex
-          cells.isGroupBy[cellIndex] = isGroupBy
-          cellIndex++ // eslint-disable-line no-plusplus
+          if (!isGroupBy) {
+            cells.label[cellIndex] = unsortedLabels[i].label
+            cells.value[cellIndex] = value
+            cells.time[cellIndex] = time
+            cells.seriesIndex[cellIndex] = seriesIndex
+            cells.responseIndex[cellIndex] = responseIndex
+            cellIndex++ // eslint-disable-line no-plusplus
+          }
         })
       })
     }
@@ -196,11 +197,6 @@ const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
     const label = cells.label[i]
     const seriesIndex = cells.seriesIndex[i]
     const responseIndex = cells.responseIndex[i]
-
-    if (cells.isGroupBy[i]) {
-      // we've already inserted GroupByValues
-      continue
-    }
 
     if (label.includes('_shifted__')) {
       const [, quantity, duration] = label.split('__')
