@@ -30,7 +30,7 @@ export const timeSeriesToDygraph = (raw = [], isInDataExplorer) => {
 
 const computeGroupBys = queryASTs => {
   return queryASTs.map(queryAST => {
-    return _.get(queryAST, ['groupBy', 'tags'], false)
+    return _.get(queryAST, ['groupBy', 'tags'], [])
   })
 }
 

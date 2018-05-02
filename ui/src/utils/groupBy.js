@@ -42,7 +42,7 @@ const constructResults = (raw, groupBys) => {
 
       const successfulResults = _.filter(results, r => _.isNil(r.error))
 
-      if (groupBys[index]) {
+      if (!_.isEmpty(groupBys[index])) {
         return groupByMap(successfulResults, index, groupBys[index])
       }
       return map(successfulResults, r => ({...r, responseIndex: index}))
@@ -137,7 +137,7 @@ const insertGroupByValues = (
   const timeSeries = []
   let existingRowIndex
   forEach(serieses, (s, sind) => {
-    if (groupBys[s.responseIndex]) {
+    if (!_.isEmpty(groupBys[s.responseIndex])) {
       forEach(s.values, vs => {
         timeSeries.push({time: vs[0], values: clone(dashArray)})
         existingRowIndex = timeSeries.length - 1
@@ -193,7 +193,7 @@ const constructTimeSeries = (
     const seriesIndex = cells.seriesIndex[i]
     const responseIndex = cells.responseIndex[i]
 
-    if (groupBys[cells.responseIndex[i]]) {
+    if (!_.isEmpty(groupBys[cells.responseIndex[i]])) {
       // we've already inserted GroupByValues
       continue
     }
@@ -225,7 +225,7 @@ const constructTimeSeries = (
 
 export const groupByTimeSeriesTransform = (raw, groupBys) => {
   if (!groupBys) {
-    groupBys = Array(raw.length).fill(false)
+    groupBys = Array(raw.length).fill([])
   }
 
   const results = constructResults(raw, groupBys)
