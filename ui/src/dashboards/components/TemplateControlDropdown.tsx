@@ -4,8 +4,11 @@ import Dropdown from 'src/shared/components/Dropdown'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 import {Template} from 'src/types/dashboard'
 
+export const VIEWER_ROLE = 'viewer'
 interface Props {
   template: Template
+  meRole: string
+  isUsingAuth: boolean
   onSelectTemplate: (id: string) => void
 }
 
@@ -13,7 +16,12 @@ interface Props {
 // the full array, and [item] to all `selected` values when we update
 // this component to support multiple values
 
-const TemplateControlDropdown: SFC<Props> = ({template, onSelectTemplate}) => {
+const TemplateControlDropdown: SFC<Props> = ({
+  template,
+  onSelectTemplate,
+  isUsingAuth,
+  meRole,
+}) => {
   const dropdownItems = template.values.map(value => ({
     ...value,
     text: value.value,
@@ -34,6 +42,7 @@ const TemplateControlDropdown: SFC<Props> = ({template, onSelectTemplate}) => {
         menuClass="dropdown-astronaut"
         useAutoComplete={true}
         selected={selectedItem.text}
+        disabled={isUsingAuth && (!meRole || meRole === VIEWER_ROLE)}
         onChoose={onSelectTemplate(template.id)}
       />
       <label className="template-control--label">{template.tempVar}</label>

@@ -12,6 +12,8 @@ interface Props {
   isOpen: boolean
   onOpenTemplateManager: () => void
   onSelectTemplate: (id: string) => void
+  meRole: string
+  isUsingAuth: boolean
 }
 
 const TemplateControlBar: SFC<Props> = ({
@@ -19,6 +21,8 @@ const TemplateControlBar: SFC<Props> = ({
   templates,
   onSelectTemplate,
   onOpenTemplateManager,
+  meRole,
+  isUsingAuth,
 }) => (
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
@@ -27,6 +31,8 @@ const TemplateControlBar: SFC<Props> = ({
           templates.map(template => (
             <TemplateControlDropdown
               key={uuid.v4()}
+              meRole={meRole}
+              isUsingAuth={isUsingAuth}
               template={template}
               onSelectTemplate={onSelectTemplate}
             />

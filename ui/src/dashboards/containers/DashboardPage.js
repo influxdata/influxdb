@@ -305,6 +305,8 @@ class DashboardPage extends Component {
     const {zoomedTimeRange} = this.state
     const {zoomedLower, zoomedUpper} = zoomedTimeRange
     const {
+      isUsingAuth,
+      meRole,
       source,
       sources,
       timeRange,
@@ -426,6 +428,8 @@ class DashboardPage extends Component {
         {inPresentationMode || (
           <TemplateControlBar
             templates={dashboard && dashboard.templates}
+            meRole={meRole}
+            isUsingAuth={isUsingAuth}
             onSelectTemplate={this.handleSelectTemplate}
             onOpenTemplateManager={this.handleOpenTemplateManager}
             isOpen={showTemplateControlBar}
