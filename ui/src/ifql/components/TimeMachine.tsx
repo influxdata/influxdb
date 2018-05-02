@@ -30,13 +30,29 @@ class TimeMachine extends PureComponent<Props> {
         containerClass="page-contents"
       >
         {this.renderEditor}
-        {this.renderVisualization}
+        {this.renderRightSide}
       </Resizer>
     )
   }
 
-  private get renderVisualization() {
-    return <TimeMachineVis blob="Visualizer" />
+  private get renderRightSide() {
+    return (
+      <Threesizer divisions={this.visPlusBuilder} orientation={HANDLE_HORIZONTAL} />
+    )
+  }
+
+  private get visPlusBuilder() {
+    const {body, suggestions} = this.props
+    return [
+      {
+        name: 'Builder',
+        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
+      },
+      {
+        name: 'Visualization',
+        render: () => <TimeMachineVis blob="Visualizer" />,
+
+      },
   }
 
   private get renderEditor() {
@@ -46,17 +62,13 @@ class TimeMachine extends PureComponent<Props> {
   }
 
   private get divisions() {
-    const {script, body, suggestions, onChangeScript} = this.props
+    const {script, onChangeScript} = this.props
     return [
       {
         name: 'Editor',
         render: () => (
           <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
         ),
-      },
-      {
-        name: 'Builder',
-        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
       },
       {
         name: 'Schema',
