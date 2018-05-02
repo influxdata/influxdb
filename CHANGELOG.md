@@ -19,6 +19,7 @@ v1.6.0 [unreleased]
 -	[#9777](https://github.com/influxdata/influxdb/pull/9777): Log information about index version during startup.
 -	[#9793](https://github.com/influxdata/influxdb/pull/9793): Add key sanitization to deletetsm.
 -	[#9791](https://github.com/influxdata/influxdb/pull/9791): Optimize the spread function to process points iteratively instead of in batch.
+-	[#9649](https://github.com/influxdata/influxdb/pull/9649): Allow math functions to be used in the condition.
 
 ### Bugfixes
 
