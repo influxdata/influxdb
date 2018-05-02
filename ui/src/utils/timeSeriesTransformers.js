@@ -1,9 +1,13 @@
 import _ from 'lodash'
 import {map, reduce} from 'fast.js'
-import {groupByTimeSeriesTransform} from 'src/utils/groupBy.js'
+import {groupByTimeSeriesTransform} from 'src/utils/groupByTimeSeriesTransform'
 
 export const timeSeriesToDygraph = (raw = [], isInDataExplorer) => {
-  const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(raw)
+  const emptyGroupBys = Array(raw.length).fill([])
+  const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
+    raw,
+    emptyGroupBys
+  )
 
   const dygraphSeries = reduce(
     sortedLabels,
