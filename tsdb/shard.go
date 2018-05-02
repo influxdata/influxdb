@@ -528,6 +528,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	names := make([][]byte, len(points))
 	tagsSlice := make([]models.Tags, len(points))
 
+	// Check if keys should be unicode validated.
+	validateKeys := s.options.Config.ValidateKeys
+
 	var j int
 	for i, p := range points {
 		tags := p.Tags()
@@ -539,6 +542,15 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				reason = fmt.Sprintf(
 					"invalid tag key: input tag \"%s\" on measurement \"%s\" is invalid",
 					"time", string(p.Name()))
+			}
+			continue
+		}
+
+		// Drop any series with invalid unicode characters in the key.
+		if validateKeys && !models.ValidKeyTokens(string(p.Name()), tags) {
+			dropped++
+			if reason == "" {
+				reason = fmt.Sprintf("key contains invalid unicode: \"%s\"", string(p.Key()))
 			}
 			continue
 		}

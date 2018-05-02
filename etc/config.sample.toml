@@ -67,6 +67,10 @@
   # log any sensitive data contained within a query.
   # query-log-enabled = true
 
+  # Validates incoming writes to ensure keys only have valid unicode characters.
+  # This setting will incur a small overhead because every key must be checked.
+  # validate-keys = false
+
   # Settings for the TSM engine
 
   # CacheMaxMemorySize is the maximum size a shard's cache can
