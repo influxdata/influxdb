@@ -1,0 +1,57 @@
+/*
+  Resizable Container with 3 divisions
+  ------------------------------------------------------------------------------
+*/
+
+.threesizer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+
+  &.dragging * {
+    @include no-user-select();
+  }
+}
+
+/*
+  Draggable Handle With Title
+  ------------------------------------------------------------------------------
+*/
+.threesizer--handle {
+  height: 30px;
+  background-color: $g4-onyx;
+  padding: 0 12px;
+  line-height: 30px;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: $g11-sidewalk;
+  transition: background-color 0.25s ease, color 0.25s ease;
+
+  &:hover {
+    cursor: row-resize;
+    color: $g16-pearl;
+    background-color: $g5-pepper;
+  }
+
+  &.dragging {
+    cursor: row-resize;
+    color: $c-laser;
+    background-color: $g5-pepper;
+  }
+}
+
+.threesizer--division {
+  position: relative;
+  border: 2px solid $g4-onyx;
+  border-top: 0;
+  transition: border-color 0.25s ease;
+}
+.threesizer--handle.dragging + .threesizer--division {
+  border-color: $g5-pepper;
+}
