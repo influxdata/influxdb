@@ -3,7 +3,7 @@ import classnames from 'classnames'
 
 import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
-import {Query} from 'src/types/query'
+import {QueryConfig} from 'src/types/query'
 
 interface Props {
   onCancel: () => void
@@ -16,7 +16,7 @@ interface Props {
   sources: any[]
   onSetQuerySource: (source: any) => void
   selected: string
-  queries: Query[]
+  queries: QueryConfig[]
 }
 
 const OverlayControls: SFC<Props> = ({

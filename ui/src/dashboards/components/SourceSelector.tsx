@@ -1,6 +1,6 @@
 import React, {SFC} from 'react'
 import Dropdown from 'src/shared/components/Dropdown'
-import {Query} from 'src/types/query'
+import {QueryConfig} from 'src/types/query'
 
 interface Options {
   text: string
@@ -10,7 +10,7 @@ interface Props {
   sources: Options[]
   selected: string
   onSetQuerySource: (source: any) => void
-  queries: Query[]
+  queries: QueryConfig[]
 }
 
 const SourceSelector: SFC<Props> = ({
