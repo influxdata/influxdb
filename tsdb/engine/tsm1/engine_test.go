@@ -1893,7 +1893,8 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 }
 
 func TestEngine_WritePoints_TypeConflict(t *testing.T) {
-	t.Parallel()
+	os.Setenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED", "1")
+	defer os.Unsetenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED")
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
@@ -1929,7 +1930,7 @@ func TestEngine_WritePoints_TypeConflict(t *testing.T) {
 }
 
 func TestEngine_WritePoints_Reload(t *testing.T) {
-	t.Parallel()
+	t.Skip("Disabled until INFLUXDB_SERIES_TYPE_CHECK_ENABLED is enabled by default")
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
@@ -1957,7 +1958,6 @@ func TestEngine_WritePoints_Reload(t *testing.T) {
 				t.Fatalf("unexpected error writing snapshot: %v", err)
 			}
 
-			println("repopen")
 			if err := e.Reopen(); err != nil {
 				t.Fatalf("unexpected error reopning engine: %v", err)
 			}
