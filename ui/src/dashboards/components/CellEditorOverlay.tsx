@@ -86,23 +86,26 @@ interface State {
   isStaticLegend: boolean
 }
 
-const createWorkingDraft = (source: string, query: CellQuery): QueryConfig => {
+const createWorkingDraft = (
+  sourceLink: string,
+  query: CellQuery
+): QueryConfig => {
   const {queryConfig} = query
   const draft: QueryConfig = {
     ...queryConfig,
     id: uuid.v4(),
-    source,
+    sourceLink,
   }
 
   return draft
 }
 
 const createWorkingDrafts = (
-  source: string,
+  sourceLink: string,
   queries: CellQuery[]
 ): QueryConfig[] =>
   _.cloneDeep(
-    queries.map((query: CellQuery) => createWorkingDraft(source, query))
+    queries.map((query: CellQuery) => createWorkingDraft(sourceLink, query))
   )
 
 @ErrorHandling
@@ -272,7 +275,7 @@ class CellEditorOverlay extends Component<Props, State> {
     this.setState({
       queriesWorkingDraft: [
         ...queriesWorkingDraft,
-        {...defaultQueryConfig({id: uuid.v4()}), source: null},
+        {...defaultQueryConfig({id: uuid.v4()}), sourceLink: null},
       ],
     })
     this.handleSetActiveQueryIndex(newIndex)
@@ -295,7 +298,7 @@ class CellEditorOverlay extends Component<Props, State> {
       return {
         queryConfig: q,
         query: q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q),
-        source: q.source,
+        sourceLink: q.sourceLink,
       }
     })
 
@@ -326,11 +329,13 @@ class CellEditorOverlay extends Component<Props, State> {
     this.setState({isStaticLegend})
   }
 
-  private handleSetQuerySource = source => {
-    const queriesWorkingDraft = this.state.queriesWorkingDraft.map(q => ({
-      ..._.cloneDeep(q),
-      source,
-    }))
+  private handleSetQuerySource = (source: Source): void => {
+    const queriesWorkingDraft: QueryConfig[] = this.state.queriesWorkingDraft.map(
+      q => ({
+        ..._.cloneDeep(q),
+        sourceLink: source.links.self,
+      })
+    )
 
     this.setState({queriesWorkingDraft})
   }
@@ -413,7 +418,7 @@ class CellEditorOverlay extends Component<Props, State> {
 
             return {
               ...config.queryConfig,
-              source: q.source,
+              sourceLink: q.sourceLink,
               isQuerySupportedByExplorer,
             }
           }
@@ -428,10 +433,10 @@ class CellEditorOverlay extends Component<Props, State> {
     }
   }
 
-  private findSelectedSource = () => {
+  private findSelectedSource = (): string => {
     const {source} = this.props
     const sources = this.formattedSources
-    const currentSource = _.get(this.state.queriesWorkingDraft, '0.source')
+    const currentSource = _.get(this.state.queriesWorkingDraft, '0.sourceLink')
 
     if (!currentSource) {
       const defaultSource = sources.find(s => s.id === source.id)
@@ -518,13 +523,13 @@ class CellEditorOverlay extends Component<Props, State> {
 
   private get source(): Source {
     const {source, sources} = this.props
-    const query = _.get(this.state.queriesWorkingDraft, 0, {source: null})
+    const query = _.get(this.state.queriesWorkingDraft, 0, {sourceLink: null})
 
-    if (!query.source) {
+    if (!query.sourceLink) {
       return source
     }
 
-    return sources.find(s => s.links.self === query.source) || source
+    return sources.find(s => s.links.self === query.sourceLink) || source
   }
 }
 
