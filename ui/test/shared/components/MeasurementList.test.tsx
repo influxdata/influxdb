@@ -13,6 +13,7 @@ const setup = (override = {}) => {
     onToggleTagAcceptance: () => {},
     query,
     querySource: source,
+    isQuerySupportedByExplorer: true,
     ...override,
   }
 

@@ -438,6 +438,13 @@ export const notifyCellDeleted = name => ({
   message: `Deleted "${name}" from dashboard.`,
 })
 
+export const notifyBuilderDisabled = () => ({
+  type: 'info',
+  icon: 'graphline',
+  duration: 7500,
+  message: `Your query contains a user-defined Template Variable. The Schema Explorer cannot render the query and is disabled.`,
+})
+
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
 export const notifyAlertRuleCreated = () => ({

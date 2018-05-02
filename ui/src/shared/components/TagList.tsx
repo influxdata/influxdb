@@ -40,6 +40,7 @@ interface Props {
   querySource: Source
   onChooseTag: () => void
   onGroupByTag: () => void
+  isQuerySupportedByExplorer: boolean
 }
 
 interface State {
@@ -129,7 +130,12 @@ class TagList extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {query, onChooseTag, onGroupByTag} = this.props
+    const {
+      query,
+      onChooseTag,
+      onGroupByTag,
+      isQuerySupportedByExplorer,
+    } = this.props
 
     return (
       <div className="query-builder--sub-list">
@@ -142,6 +148,7 @@ class TagList extends PureComponent<Props, State> {
             onGroupByTag={onGroupByTag}
             selectedTagValues={query.tags[tagKey] || []}
             isUsingGroupBy={query.groupBy.tags.indexOf(tagKey) > -1}
+            isQuerySupportedByExplorer={isQuerySupportedByExplorer}
           />
         ))}
       </div>

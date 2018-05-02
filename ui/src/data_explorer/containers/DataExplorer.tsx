@@ -26,12 +26,12 @@ import {writeLineProtocolAsync} from 'src/data_explorer/actions/view/write'
 import {buildRawText} from 'src/utils/influxql'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
-import {Source, Query, TimeRange} from 'src/types'
+import {Source, QueryConfig, TimeRange} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   source: Source
-  queryConfigs: Query[]
+  queryConfigs: QueryConfig[]
   queryConfigActions: any // TODO: actually type these
   autoRefresh: number
   handleChooseAutoRefresh: () => void
@@ -169,7 +169,7 @@ export class DataExplorer extends PureComponent<Props, State> {
     return _.get(this.props.queryConfigs, ['0', 'database'], null)
   }
 
-  private get activeQuery(): Query {
+  private get activeQuery(): QueryConfig {
     const {queryConfigs} = this.props
 
     if (queryConfigs.length === 0) {

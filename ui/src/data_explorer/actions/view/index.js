@@ -1,6 +1,6 @@
 import uuid from 'uuid'
 
-import {getQueryConfig} from 'shared/apis'
+import {getQueryConfigAndStatus} from 'shared/apis'
 
 import {errorThrown} from 'shared/actions/errors'
 
@@ -158,7 +158,7 @@ export const timeShift = (queryID, shift) => ({
 // Async actions
 export const editRawTextAsync = (url, id, text) => async dispatch => {
   try {
-    const {data} = await getQueryConfig(url, [{query: text, id}])
+    const {data} = await getQueryConfigAndStatus(url, [{query: text, id}])
     const config = data.queries.find(q => q.id === id)
     dispatch(updateQueryConfig(config.queryConfig))
   } catch (error) {

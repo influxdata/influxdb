@@ -1,5 +1,9 @@
 import {buildQuery} from 'utils/influxql'
 import {TYPE_SHIFTED, TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
+import {
+  TEMP_VAR_DASHBOARD_TIME,
+  TEMP_VAR_UPPER_DASHBOARD_TIME,
+} from 'src/shared/constants'
 import {timeRanges} from 'shared/data/timeRanges'
 
 const buildCannedDashboardQuery = (query, {lower, upper}, host) => {
@@ -48,8 +52,8 @@ export const buildQueriesForLayouts = (cell, source, timeRange, host) => {
         queryConfig: {database, measurement, fields, shifts, rawText, range},
       } = query
       const tR = range || {
-        upper: ':upperDashboardTime:',
-        lower: ':dashboardTime:',
+        upper: TEMP_VAR_UPPER_DASHBOARD_TIME,
+        lower: TEMP_VAR_DASHBOARD_TIME,
       }
 
       queryText =

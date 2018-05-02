@@ -2,8 +2,10 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import _ from 'lodash'
 
+import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
+
 const CustomTimeIndicator = ({queries}) => {
-  const q = queries.find(({query}) => !query.includes(':dashboardTime:'))
+  const q = queries.find(({query}) => !query.includes(TEMP_VAR_DASHBOARD_TIME))
   const customLower = _.get(q, ['queryConfig', 'range', 'lower'], null)
   const customUpper = _.get(q, ['queryConfig', 'range', 'upper'], null)
 

@@ -98,6 +98,20 @@
     white-space: nowrap;
     margin-right: 8px;
   }
+  /* Disabled State */
+  &.disabled {
+    font-style: italic;
+    color: $query-builder--list-item-text-disabled;
+
+    &:hover {
+      cursor: default;
+      background-color: $query-builder--list-item-bg;
+    }
+    
+    &.active {
+      background-color: $query-builder--list-item-bg-active;
+    }
+  }
 }
 /* Filter Element */
 .query-builder--filter {
@@ -155,6 +169,10 @@
     background-color: $c-pool;
     border-radius: 50%;
     transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+
+  .disabled &:after {
+    background-color: $g5-pepper;
   }
 }
 .query-builder--list-item.active .query-builder--checkbox:after {
