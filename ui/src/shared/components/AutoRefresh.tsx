@@ -1,7 +1,6 @@
 import React, {Component, ComponentClass} from 'react'
 import _ from 'lodash'
 
-import {getQueryConfigAndStatus} from 'src/shared/apis'
 import {fetchTimeSeries} from 'src/shared/apis/query'
 import {DEFAULT_TIME_SERIES} from 'src/shared/constants/series'
 import {TimeSeriesServerResponse, TimeSeriesResponse} from 'src/types/series'
@@ -51,18 +50,11 @@ export interface Props {
   grabDataForDownload: (timeSeries: TimeSeriesServerResponse[]) => void
 }
 
-interface QueryAST {
-  groupBy?: {
-    tags: string[]
-  }
-}
-
 interface State {
   isFetching: boolean
   isLastQuerySuccessful: boolean
   timeSeries: TimeSeriesServerResponse[]
   resolution: number | null
-  queryASTs?: QueryAST[]
 }
 
 export interface OriginalProps {
@@ -70,7 +62,6 @@ export interface OriginalProps {
   setResolution: (resolution: number) => void
   isFetchingInitially?: boolean
   isRefreshing?: boolean
-  queryASTs?: QueryAST[]
 }
 
 const AutoRefresh = (
@@ -90,16 +81,10 @@ const AutoRefresh = (
         isLastQuerySuccessful: true,
         timeSeries: DEFAULT_TIME_SERIES,
         resolution: null,
-        queryASTs: [],
       }
     }
 
     public async componentDidMount() {
-      if (this.isTable) {
-        const queryASTs = await this.getQueryASTs()
-        this.setState({queryASTs})
-      }
-
       this.startNewPolling()
     }
 
@@ -107,12 +92,6 @@ const AutoRefresh = (
       if (!this.isPropsDifferent(prevProps)) {
         return
       }
-
-      if (this.isTable) {
-        const queryASTs = await this.getQueryASTs()
-        this.setState({queryASTs})
-      }
-
       this.startNewPolling()
     }
 
@@ -163,12 +142,7 @@ const AutoRefresh = (
     }
 
     public render() {
-      const {
-        timeSeries,
-        queryASTs,
-        isFetching,
-        isLastQuerySuccessful,
-      } = this.state
+      const {timeSeries, isFetching, isLastQuerySuccessful} = this.state
 
       const hasValues = _.some(timeSeries, s => {
         const results = _.get(s, 'response.results', [])
@@ -192,7 +166,6 @@ const AutoRefresh = (
             setResolution={this.setResolution}
             isFetchingInitially={false}
             isRefreshing={true}
-            queryASTs={queryASTs}
           />
         )
       }
@@ -202,7 +175,6 @@ const AutoRefresh = (
           {...this.props}
           data={timeSeries}
           setResolution={this.setResolution}
-          queryASTs={queryASTs}
         />
       )
     }
@@ -250,28 +222,6 @@ const AutoRefresh = (
       return _.difference(
         _.union(leftStrs, rightStrs),
         _.intersection(leftStrs, rightStrs)
-      )
-    }
-
-    private get isTable(): boolean {
-      return this.props.type === 'table'
-    }
-
-    private getQueryASTs = async (): Promise<QueryAST[]> => {
-      const {queries, templates} = this.props
-
-      return await Promise.all(
-        queries.map(async q => {
-          const host = _.isArray(q.host) ? q.host[0] : q.host
-          const url = host.replace('proxy', 'queries')
-          const text = q.text
-          const {data} = await getQueryConfigAndStatus(
-            url,
-            [{query: text}],
-            templates
-          )
-          return data.queries[0].queryAST
-        })
       )
     }
 

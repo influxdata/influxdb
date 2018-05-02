@@ -63,12 +63,11 @@ class TableGraph extends Component {
     const {
       data,
       tableOptions,
-      queryASTs,
       timeFormat,
       fieldOptions,
       decimalPlaces,
     } = this.props
-    const result = timeSeriesToTableGraph(data, queryASTs)
+    const result = timeSeriesToTableGraph(data)
     const sortedLabels = result.sortedLabels
 
     const computedFieldOptions = computeFieldOptions(fieldOptions, sortedLabels)
@@ -116,7 +115,7 @@ class TableGraph extends Component {
     let result = {}
 
     if (_.includes(updatedProps, 'data')) {
-      result = timeSeriesToTableGraph(nextProps.data, nextProps.queryASTs)
+      result = timeSeriesToTableGraph(nextProps.data)
     }
 
     const data = _.get(result, 'data', this.state.data)
@@ -526,7 +525,6 @@ TableGraph.propTypes = {
   handleUpdateFieldOptions: func,
   handleSetHoverTime: func,
   colors: colorsStringSchema,
-  queryASTs: arrayOf(shape()),
   isInCEO: bool,
 }
 
