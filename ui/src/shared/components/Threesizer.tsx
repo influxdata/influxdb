@@ -123,6 +123,7 @@ class Threesizer extends Component<Props, State> {
             minPixels={d.minPixels}
             orientation={orientation}
             activeHandleID={activeHandleID}
+            onDoubleClick={this.handleDoubleClick}
             onHandleStartDrag={this.handleStartDrag}
             render={this.props.divisions[i].render}
           />
@@ -155,13 +156,24 @@ class Threesizer extends Component<Props, State> {
     }))
   }
 
+  private handleDoubleClick = (id: string): void => {
+    const divisions = this.state.divisions.map(d => {
+      if (d.id !== id) {
+        return {...d, size: 0}
+      }
+
+      return {...d, size: 1}
+    })
+
+    this.setState({divisions})
+  }
+
   private handleStartDrag = (activeHandleID, e: MouseEvent<HTMLElement>) => {
     const dragEvent = this.mousePosWithinContainer(e)
     this.setState({activeHandleID, dragEvent})
   }
 
   private handleStopDrag = () => {
-    console.log('handleStopDrag')
     this.setState({activeHandleID: '', dragEvent: initialDragEvent})
   }
 
@@ -209,42 +221,6 @@ class Threesizer extends Component<Props, State> {
     return Math.abs(delta / height)
   }
 
-  private minPercentX = (xMinPixels: number): number => {
-    if (!this.containerRef) {
-      return 0
-    }
-    const {width} = this.containerRef.getBoundingClientRect()
-
-    return xMinPixels / width
-  }
-
-  private minPercentY = (yMinPixels: number): number => {
-    if (!this.containerRef) {
-      return 0
-    }
-
-    const {height} = this.containerRef.getBoundingClientRect()
-    return yMinPixels / height
-  }
-
-  private get maximumHeightPercent(): number {
-    if (!this.containerRef) {
-      return 1
-    }
-
-    const {divisions} = this.state
-    const {height} = this.containerRef.getBoundingClientRect()
-
-    const totalMinPixels = divisions.reduce(
-      (acc, div) => acc + div.minPixels,
-      0
-    )
-
-    const maximumPixels = height - totalMinPixels
-
-    return this.minPercentY(maximumPixels)
-  }
-
   private handleDrag = (e: MouseEvent<HTMLElement>) => {
     const {activeHandleID} = this.state
     if (!activeHandleID) {
@@ -253,16 +229,6 @@ class Threesizer extends Component<Props, State> {
 
     const dragEvent = this.mousePosWithinContainer(e)
     this.setState({dragEvent})
-  }
-
-  private taller = (size: number): number => {
-    const newSize = size + this.percentChangeY
-    return newSize > 1 ? 1 : newSize
-  }
-
-  private shorter = (size: number): number => {
-    const newSize = size - this.percentChangeY
-    return newSize < 0 ? 0 : newSize
   }
 
   private get move() {
@@ -375,6 +341,16 @@ class Threesizer extends Component<Props, State> {
     })
 
     this.setState({divisions})
+  }
+
+  private taller = (size: number): number => {
+    const newSize = size + this.percentChangeY
+    return newSize > 1 ? 1 : newSize
+  }
+
+  private shorter = (size: number): number => {
+    const newSize = size - this.percentChangeY
+    return newSize < 0 ? 0 : newSize
   }
 }
 

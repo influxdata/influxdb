@@ -11,7 +11,8 @@ interface Props {
   draggable: boolean
   orientation: string
   render: () => ReactElement<any>
-  onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => any
+  onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => void
+  onDoubleClick: (id: string) => void
 }
 
 class Division extends PureComponent<Props> {
@@ -24,7 +25,11 @@ class Division extends PureComponent<Props> {
     return (
       <>
         <div className="threesizer--division" style={this.style}>
-          <div className="threesizer--handle" onMouseDown={this.dragCallback}>
+          <div
+            className={`threesizer--handle ${this.disabled}`}
+            onMouseDown={this.dragCallback}
+            onDoubleClick={this.handleDoubleClick}
+          >
             {name}
           </div>
           {render()}
@@ -33,10 +38,24 @@ class Division extends PureComponent<Props> {
     )
   }
 
+  private get disabled(): string {
+    const {draggable} = this.props
+    if (draggable) {
+      return ''
+    }
+
+    return 'disabled'
+  }
+
   private get style() {
     return {
       height: `calc((100% - 90px) * ${this.props.size} + 30px)`,
     }
+  }
+
+  private handleDoubleClick = () => {
+    const {id, onDoubleClick} = this.props
+    return onDoubleClick(id)
   }
 
   private dragCallback = e => {
