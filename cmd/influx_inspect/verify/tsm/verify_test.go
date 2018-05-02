@@ -1,3 +1,3 @@
-package verify_test
+package tsm_test
 
 // TODO: write some tests

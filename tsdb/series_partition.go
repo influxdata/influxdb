@@ -282,6 +282,13 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	return nil
 }
 
+// Compacting returns if the SeriesPartition is currently compacting.
+func (p *SeriesPartition) Compacting() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.compacting
+}
+
 // DeleteSeriesID flags a series as permanently deleted.
 // If the series is reintroduced later then it must create a new id.
 func (p *SeriesPartition) DeleteSeriesID(id uint64) error {
