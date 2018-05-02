@@ -52,7 +52,7 @@ class BodyBuilder extends PureComponent<Props> {
       )
     })
 
-    return _.flatten(bodybuilder)
+    return <div className="body-builder">{_.flatten(bodybuilder)}</div>
   }
 
   private get funcNames() {

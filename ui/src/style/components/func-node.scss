@@ -1,6 +1,17 @@
+.body-builder {
+  padding: 12px;
+  min-width: 440px;
+  overflow: hidden;
+  background-color: $g2-kevlar;
+}
+
 .declaration {
-  width: 500px;
-  margin-bottom: 30px;
+  width: 100%;
+  margin-bottom: 12px;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
 }
 
 .variable-name {
@@ -12,6 +23,7 @@
   border-radius: $radius;
   margin-bottom: 2px;
   width: 100%;
+  @include no-user-select();
 }
 
 
@@ -37,6 +49,13 @@
   border-radius: $radius 0 0 $radius;
   font-weight: 600;
   width: 130px;
+  @include no-user-select();
+  display: flex;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  align-items: center;
+  align-content: center;
 }
 
 .func-args {
@@ -50,10 +69,6 @@
   color: $ix-text-default;
   font-family: $ix-text-font;
   font-weight: 500;
-}
-
-.func-arg {
-  display: flex;
 }
 
 .func-node--delete {
@@ -75,4 +90,26 @@
   .func-node:hover & {
     opacity: 1;
   }
+}
+
+.func-arg {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  margin-bottom: 4px;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+.func-arg--label {
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: $g10-wolf;
+  min-width: 40px;
+  @include no-user-select();
+}
+.func-arg--value {
+  flex: 1 0 0;
 }

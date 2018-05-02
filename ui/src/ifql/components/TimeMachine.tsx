@@ -24,7 +24,7 @@ class TimeMachine extends PureComponent<Props> {
   public render() {
     return (
       <Resizer
-        topMinPixels={200}
+        topMinPixels={440}
         bottomMinPixels={200}
         orientation={HANDLE_VERTICAL}
         containerClass="page-contents"

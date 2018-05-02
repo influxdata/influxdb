@@ -41,12 +41,13 @@ class From extends PureComponent<Props, State> {
 
   public render() {
     const {value, argKey} = this.props
+
     return (
-      <div className="from">
-        <label className="from--label">{argKey}: </label>
+      <div className="func-arg">
+        <label className="func-arg--label">{argKey}</label>
         <Dropdown
           selected={value}
-          className="from--dropdown dropdown-160"
+          className="from--dropdown dropdown-160 func-arg--value"
           menuClass="dropdown-astronaut"
           buttonColor="btn-default"
           items={this.items}
