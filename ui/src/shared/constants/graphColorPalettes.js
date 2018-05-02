@@ -175,9 +175,16 @@ export const LINE_COLORS_G = [
 export const LINE_COLORS_RULE_GRAPH = [
   {
     type: COLOR_TYPE_SCALE,
-    hex: '#4ED8A0',
+    hex: '#7CE490',
     id: uuid.v4(),
-    name: 'Rainforest',
+    name: 'Honeydew',
+    value: '0',
+  },
+  {
+    type: COLOR_TYPE_SCALE,
+    hex: '#22ADF6',
+    id: uuid.v4(),
+    name: 'Pool',
     value: '0',
   },
 ]
