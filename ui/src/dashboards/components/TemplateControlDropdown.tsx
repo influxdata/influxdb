@@ -2,9 +2,9 @@ import React, {SFC} from 'react'
 
 import Dropdown from 'src/shared/components/Dropdown'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
+import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 import {Template} from 'src/types/dashboard'
 
-export const VIEWER_ROLE = 'viewer'
 interface Props {
   template: Template
   meRole: string
@@ -42,7 +42,7 @@ const TemplateControlDropdown: SFC<Props> = ({
         menuClass="dropdown-astronaut"
         useAutoComplete={true}
         selected={selectedItem.text}
-        disabled={isUsingAuth && (!meRole || meRole === VIEWER_ROLE)}
+        disabled={!isUsingAuth || !isUserAuthorized(meRole, EDITOR_ROLE)}
         onChoose={onSelectTemplate(template.id)}
       />
       <label className="template-control--label">{template.tempVar}</label>

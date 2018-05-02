@@ -13,6 +13,8 @@ const defaultProps = {
       values: [{value: 'firstValue'}, {value: 'secondValue'}],
     },
   ],
+  meRole: 'EDITOR',
+  isUsingAuth: true,
   onOpenTemplateManager: () => {},
   onSelectTemplate: () => {},
 }
