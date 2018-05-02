@@ -1,11 +1,25 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC, MouseEvent} from 'react'
 import classnames from 'classnames'
 
-import ConfirmOrCancel from 'shared/components/ConfirmOrCancel'
+import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
+import {Query} from 'src/types/query'
 
-const OverlayControls = ({
+interface Props {
+  onCancel: () => void
+  onSave: () => void
+  isDisplayOptionsTabActive: boolean
+  onClickDisplayOptions: (
+    displayOptions: boolean
+  ) => (event: MouseEvent<HTMLLIElement>) => void
+  isSavable?: boolean
+  sources: any[]
+  onSetQuerySource: (source: any) => void
+  selected: string
+  queries: Query[]
+}
+
+const OverlayControls: SFC<Props> = ({
   onSave,
   sources,
   queries,
@@ -52,19 +66,5 @@ const OverlayControls = ({
     </div>
   </div>
 )
-
-const {arrayOf, bool, func, shape, string} = PropTypes
-
-OverlayControls.propTypes = {
-  onCancel: func.isRequired,
-  onSave: func.isRequired,
-  isDisplayOptionsTabActive: bool.isRequired,
-  onClickDisplayOptions: func.isRequired,
-  isSavable: bool,
-  sources: arrayOf(shape()),
-  onSetQuerySource: func,
-  selected: string,
-  queries: arrayOf(shape()),
-}
 
 export default OverlayControls
