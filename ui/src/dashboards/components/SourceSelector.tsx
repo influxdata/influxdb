@@ -1,10 +1,7 @@
 import React, {SFC} from 'react'
 import Dropdown from 'src/shared/components/Dropdown'
-import {QueryConfig, Source} from 'src/types'
-
-interface SourceOption extends Source {
-  text: string
-}
+import {QueryConfig} from 'src/types'
+import {SourceOption} from 'src/dashboards/components/OverlayControls'
 
 interface Props {
   sources: SourceOption[]

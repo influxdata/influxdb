@@ -5,7 +5,7 @@ import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
 import {QueryConfig, Source} from 'src/types'
 
-interface SourceOption extends Source {
+export interface SourceOption extends Source {
   text: string
 }
 
