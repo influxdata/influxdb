@@ -77,6 +77,10 @@ class Resizer extends Component<Props, State> {
       dragEvent.mouseY
     )
 
+    if (!this.state.activeHandleID) {
+      return
+    }
+
     if (orientation === HANDLE_VERTICAL) {
       const left = dragEvent.percentX < prevState.dragEvent.percentX
 
@@ -166,6 +170,7 @@ class Resizer extends Component<Props, State> {
   }
 
   private handleStopDrag = () => {
+    console.log('handleStopDrag')
     this.setState({activeHandleID: '', dragEvent: initialDragEvent})
   }
 
@@ -290,18 +295,13 @@ class Resizer extends Component<Props, State> {
   }
 
   private up = activePosition => () => {
-    const divisions = this.state.divisions.map((d, i, divs) => {
+    const divisions = this.state.divisions.map((d, i) => {
       const first = i === 0
       const before = i === activePosition - 1
       const current = i === activePosition
 
-      if (first) {
-        const below = divs[i + 1]
-        if (below.size === 0) {
-          return {...d, size: this.shorter(d.size)}
-        }
-
-        return {...d}
+      if (first && activePosition) {
+        return {...d, size: this.shorter(d.size)}
       }
 
       if (before) {
