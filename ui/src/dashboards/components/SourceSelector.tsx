@@ -1,8 +1,24 @@
-import React from 'react'
-import PropTypes from 'prop-types'
-import Dropdown from 'shared/components/Dropdown'
+import React, {SFC} from 'react'
+import Dropdown from 'src/shared/components/Dropdown'
+import {QueryConfig} from 'src/types/query'
 
-const SourceSelector = ({sources = [], selected, onSetQuerySource, queries}) =>
+interface Options {
+  text: string
+}
+
+interface Props {
+  sources: Options[]
+  selected: string
+  onSetQuerySource: () => void
+  queries: QueryConfig[]
+}
+
+const SourceSelector: SFC<Props> = ({
+  sources = [],
+  selected,
+  onSetQuerySource,
+  queries,
+}) =>
   sources.length > 1 && queries.length ? (
     <div className="source-selector">
       <h3>Source:</h3>
@@ -19,14 +35,5 @@ const SourceSelector = ({sources = [], selected, onSetQuerySource, queries}) =>
   ) : (
     <div className="source-selector" />
   )
-
-const {array, arrayOf, func, shape, string} = PropTypes
-
-SourceSelector.propTypes = {
-  sources: arrayOf(shape()).isRequired,
-  onSetQuerySource: func.isRequired,
-  selected: string,
-  queries: array,
-}
 
 export default SourceSelector
