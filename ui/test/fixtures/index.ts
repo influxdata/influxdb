@@ -5,6 +5,7 @@ import {
   Cell,
   TimeRange,
   Template,
+  QueryConfig,
 } from 'src/types'
 import {Axes, TableOptions, FieldName, DecimalPlaces} from 'src/types/dashboard'
 import {ColorString, ColorNumber} from 'src/types/colors'
@@ -36,50 +37,52 @@ export const source: Source = {
   insecureSkipVerify: false,
 }
 
+export const queryConfig: QueryConfig = {
+  database: 'telegraf',
+  measurement: 'cpu',
+  retentionPolicy: 'autogen',
+  fields: [
+    {
+      value: 'mean',
+      type: 'func',
+      alias: 'mean_usage_idle',
+      args: [
+        {
+          value: 'usage_idle',
+          type: 'field',
+          alias: '',
+        },
+      ],
+    },
+    {
+      value: 'mean',
+      type: 'func',
+      alias: 'mean_usage_user',
+      args: [
+        {
+          value: 'usage_user',
+          type: 'field',
+          alias: '',
+        },
+      ],
+    },
+  ],
+  tags: {},
+  groupBy: {
+    time: 'auto',
+    tags: [],
+  },
+  areTagsAccepted: false,
+  fill: 'null',
+  rawText: null,
+  range: null,
+  shifts: null,
+}
+
 export const query: CellQuery = {
   query:
     'SELECT mean("usage_idle") AS "mean_usage_idle", mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
-  queryConfig: {
-    database: 'telegraf',
-    measurement: 'cpu',
-    retentionPolicy: 'autogen',
-    fields: [
-      {
-        value: 'mean',
-        type: 'func',
-        alias: 'mean_usage_idle',
-        args: [
-          {
-            value: 'usage_idle',
-            type: 'field',
-            alias: '',
-          },
-        ],
-      },
-      {
-        value: 'mean',
-        type: 'func',
-        alias: 'mean_usage_user',
-        args: [
-          {
-            value: 'usage_user',
-            type: 'field',
-            alias: '',
-          },
-        ],
-      },
-    ],
-    tags: {},
-    groupBy: {
-      time: 'auto',
-      tags: [],
-    },
-    areTagsAccepted: false,
-    fill: 'null',
-    rawText: null,
-    range: null,
-    shifts: null,
-  },
+  queryConfig: queryConfig,
 }
 
 export const axes: Axes = {
