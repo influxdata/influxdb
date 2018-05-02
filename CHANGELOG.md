@@ -16,6 +16,7 @@
 1.  [#3354](https://github.com/influxdata/chronograf/pull/3354): Disable template variables for non editing users
 1.  [#3353](https://github.com/influxdata/chronograf/pull/3353): YAxisLabels in Dashboard Graph Builder not showing until graph is redrawn
 
+
 ### Bug Fixes
 
 1.  [#3252](https://github.com/influxdata/chronograf/pull/3252): Allows users to select tickscript editor with mouse
@@ -24,6 +25,7 @@
 1.  [#3284](https://github.com/influxdata/chronograf/pull/3284): Fix logout when using basepath & simplify basepath usage (deprecates `PREFIX_ROUTES`)
 1.  [#3349](https://github.com/influxdata/chronograf/pull/3349): Fix graphs in alert rule builder for queries that include groupby
 1.  [#3345](https://github.com/influxdata/chronograf/pull/3345): Fix auto not showing in the group by dropdown and explorer getting disconnected
+1.  [#3353](https://github.com/influxdata/chronograf/pull/3353): Display y-axis label on initial graph load.
 
 ## v1.4.4.1 [2018-04-16]
 
