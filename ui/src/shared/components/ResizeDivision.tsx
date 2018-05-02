@@ -72,7 +72,8 @@ class Division extends PureComponent<Props> {
     const {orientation, maxPercent, minPixels, size} = this.props
 
     const sizePercent = `${size * HUNDRED}%`
-    const max = `${maxPercent * HUNDRED}%`
+    // const max = `${maxPercent * HUNDRED}%`
+    const max = '100%'
 
     if (orientation === HANDLE_VERTICAL) {
       return {
