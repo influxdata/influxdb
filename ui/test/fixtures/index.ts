@@ -82,7 +82,7 @@ export const queryConfig: QueryConfig = {
 export const query: CellQuery = {
   query:
     'SELECT mean("usage_idle") AS "mean_usage_idle", mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
-  queryConfig: queryConfig,
+  queryConfig,
 }
 
 export const axes: Axes = {
