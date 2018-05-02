@@ -4,7 +4,6 @@
 */
 
 $resizer-division-z: 1;
-$resizer-division-hover-z: 5;
 $resizer-clickable-z: 2;
 $resizer-line-z: 3;
 $resizer-handle-z: 4;
@@ -39,10 +38,6 @@ $resizer-color-kapacitor: $c-rainforest;
   &.vertical {
     height: 100%;
     top: 0;
-  }
-
-  &:hover {
-    z-index: $resizer-division-hover-z;
   }
 
   .dragging & {
