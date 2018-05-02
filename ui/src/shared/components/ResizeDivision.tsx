@@ -31,32 +31,28 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {render} = this.props
-
-    return (
-      <div className={this.className} style={this.style}>
-        {this.dragHandle}
-        <div className="resizer--contents">{render()}</div>
-      </div>
-    )
-  }
-
-  private get dragHandle() {
-    const {name, activeHandleID, orientation, id, draggable} = this.props
+    const {render, draggable} = this.props
 
     if (!name && !draggable) {
       return null
     }
 
     return (
-      <ResizeHandle
-        id={id}
-        name={name}
-        orientation={orientation}
-        activeHandleID={activeHandleID}
-        onHandleStartDrag={this.dragCallback}
-      />
+      <>
+        <div className="threesizer--handle" onMouseDown={this.dragCallback}>
+          {name}
+        </div>
+        <div className="threesizer--division" style={this.style}>
+          {render()}
+        </div>
+      </>
     )
+  }
+
+  private get style() {
+    return {
+      height: `calc(${this.props.size}% - 30px)`,
+    }
   }
 
   private get dragCallback() {
@@ -66,39 +62,6 @@ class Division extends PureComponent<Props> {
     }
 
     return this.props.onHandleStartDrag
-  }
-
-  private get style() {
-    const {orientation, maxPercent, minPixels, size} = this.props
-
-    const sizePercent = `${size * HUNDRED}%`
-    // const max = `${maxPercent * HUNDRED}%`
-    const max = '100%'
-
-    if (orientation === HANDLE_VERTICAL) {
-      return {
-        top: '0',
-        width: sizePercent,
-        minWidth: minPixels,
-        maxWidth: max,
-      }
-    }
-
-    return {
-      left: '0',
-      height: sizePercent,
-      minHeight: minPixels,
-      maxHeight: max,
-    }
-  }
-
-  private get className(): string {
-    const {orientation} = this.props
-
-    return classnames('resizer--division', {
-      resizer__vertical: orientation === HANDLE_VERTICAL,
-      resizer__horizontal: orientation === HANDLE_HORIZONTAL,
-    })
   }
 }
 
