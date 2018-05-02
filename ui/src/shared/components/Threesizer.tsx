@@ -5,11 +5,7 @@ import _ from 'lodash'
 
 import ResizeDivision from 'src/shared/components/ResizeDivision'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  MIN_DIVISIONS,
-  HANDLE_HORIZONTAL,
-  HANDLE_VERTICAL,
-} from 'src/shared/constants/'
+import {HANDLE_HORIZONTAL, HANDLE_VERTICAL} from 'src/shared/constants/'
 
 const initialDragEvent = {
   percentX: 0,
@@ -40,7 +36,7 @@ interface DivisionState extends Division {
 interface Props {
   divisions: Division[]
   orientation: string
-  containerClass: string
+  containerClass?: string
 }
 
 @ErrorHandling
@@ -104,13 +100,6 @@ class Resizer extends Component<Props, State> {
   public render() {
     const {activeHandleID, divisions} = this.state
     const {orientation} = this.props
-
-    if (divisions.length < MIN_DIVISIONS) {
-      console.error(
-        `There must be at least ${MIN_DIVISIONS}' divisions in Resizer`
-      )
-      return
-    }
 
     return (
       <div

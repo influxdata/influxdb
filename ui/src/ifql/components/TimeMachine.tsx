@@ -3,9 +3,10 @@ import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
 import Resizer from 'src/shared/components/ResizeContainer'
+import Threesizer from 'src/shared/components/Threesizer'
 import {Suggestion, OnChangeScript, FlatBody} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {HANDLE_VERTICAL} from 'src/shared/constants/index'
+import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
 
 interface Props {
   script: string
@@ -28,26 +29,40 @@ class TimeMachine extends PureComponent<Props> {
         orientation={HANDLE_VERTICAL}
         containerClass="page-contents"
       >
-        {this.renderVisualization()}
-        {this.renderEditor()}
+        {this.renderEditor}
+        {this.renderVisualization}
       </Resizer>
     )
   }
 
-  private renderVisualization = () => {
+  private get renderVisualization() {
     return <TimeMachineVis blob="Visualizer" />
   }
 
-  private renderEditor = () => {
-    const {script, body, suggestions, onChangeScript} = this.props
-
+  private get renderEditor() {
     return (
-      <div>
-        <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
-        <BodyBuilder body={body} suggestions={suggestions} />
-        <div>Explorin all yer schemas</div>
-      </div>
+      <Threesizer divisions={this.divisions} orientation={HANDLE_HORIZONTAL} />
     )
+  }
+
+  private get divisions() {
+    const {script, body, suggestions, onChangeScript} = this.props
+    return [
+      {
+        name: 'Editor',
+        render: () => (
+          <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
+        ),
+      },
+      {
+        name: 'Builder',
+        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
+      },
+      {
+        name: 'Schema',
+        render: () => <div>Explorin all yer schemas</div>,
+      },
+    ]
   }
 }
 
