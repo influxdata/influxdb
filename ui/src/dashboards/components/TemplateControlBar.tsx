@@ -8,6 +8,8 @@ import TemplateControlDropdown from 'src/dashboards/components/TemplateControlDr
 import {Template} from 'src/types/dashboard'
 
 interface Props {
+  meRole: string
+  isUsingAuth: boolean
   templates: Template[]
   isOpen: boolean
   onOpenTemplateManager: () => void
@@ -19,6 +21,8 @@ const TemplateControlBar: SFC<Props> = ({
   templates,
   onSelectTemplate,
   onOpenTemplateManager,
+  meRole,
+  isUsingAuth,
 }) => (
   <div className={classnames('template-control-bar', {show: isOpen})}>
     <div className="template-control--container">
@@ -27,6 +31,8 @@ const TemplateControlBar: SFC<Props> = ({
           templates.map(template => (
             <TemplateControlDropdown
               key={uuid.v4()}
+              meRole={meRole}
+              isUsingAuth={isUsingAuth}
               template={template}
               onSelectTemplate={onSelectTemplate}
             />
