@@ -19,14 +19,16 @@ import (
 // Command represents the program execution for "store query".
 type Command struct {
 	// Standard input/output, overridden for testing.
-	stderr io.Writer
-	stdin  io.Reader
+	Stderr io.Writer
+	Stdin  io.Reader
 	Logger *zap.Logger
 	server server.Interface
 
 	configPath      string
 	database        string
 	retentionPolicy string
+	replication     int
+	duration        time.Duration
 	shardDuration   time.Duration
 	buildTSI        bool
 	replace         bool
@@ -35,8 +37,8 @@ type Command struct {
 // NewCommand returns a new instance of Command.
 func NewCommand(server server.Interface) *Command {
 	return &Command{
-		stderr: os.Stderr,
-		stdin:  os.Stdin,
+		Stderr: os.Stderr,
+		Stdin:  os.Stdin,
 		server: server,
 	}
 }
@@ -55,13 +57,20 @@ func (cmd *Command) Run(args []string) (err error) {
 
 	i := newImporter(cmd.server, cmd.database, cmd.retentionPolicy, cmd.replace, cmd.buildTSI, cmd.Logger)
 
-	reader := binary.NewReader(cmd.stdin)
+	reader := binary.NewReader(cmd.Stdin)
 	_, err = reader.ReadHeader()
 	if err != nil {
 		return err
 	}
 
-	err = i.CreateDatabase(&meta.RetentionPolicySpec{Name: cmd.retentionPolicy, ShardGroupDuration: cmd.shardDuration})
+	rp := &meta.RetentionPolicySpec{Name: cmd.retentionPolicy, ShardGroupDuration: cmd.shardDuration}
+	if cmd.duration >= time.Hour {
+		rp.Duration = &cmd.duration
+	}
+	if cmd.replication > 0 {
+		rp.ReplicaN = &cmd.replication
+	}
+	err = i.CreateDatabase(rp)
 	if err != nil {
 		return err
 	}
@@ -74,11 +83,7 @@ func (cmd *Command) Run(args []string) (err error) {
 		}
 	}
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func importShard(reader *binary.Reader, i *importer, start int64, end int64) error {
@@ -117,6 +122,8 @@ func (cmd *Command) parseFlags(args []string) error {
 	fs.StringVar(&cmd.configPath, "config", "", "Config file")
 	fs.StringVar(&cmd.database, "database", "", "Database name")
 	fs.StringVar(&cmd.retentionPolicy, "rp", "", "Retention policy")
+	fs.IntVar(&cmd.replication, "replication", 0, "Retention policy replication")
+	fs.DurationVar(&cmd.duration, "duration", time.Hour*0, "Retention policy duration")
 	fs.DurationVar(&cmd.shardDuration, "shard-duration", time.Hour*24*7, "Retention policy shard duration")
 	fs.BoolVar(&cmd.buildTSI, "build-tsi", false, "Build the on disk TSI")
 	fs.BoolVar(&cmd.replace, "replace", false, "Enables replacing an existing retention policy")

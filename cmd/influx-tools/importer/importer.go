@@ -22,20 +22,21 @@ type importer struct {
 	dataDir    string
 	replace    bool
 
-	rpi       *meta.RetentionPolicyInfo
-	log       *zap.Logger
-	currentSg *meta.ShardGroupInfo
-	sh        *shardWriter
-	sfile     *tsdb.SeriesFile
-	sw        *seriesWriter
-	buildTsi  bool
-	seriesBuf []byte
+	rpi          *meta.RetentionPolicyInfo
+	log          *zap.Logger
+	skipShard    bool
+	currentShard uint64
+	sh           *shardWriter
+	sfile        *tsdb.SeriesFile
+	sw           *seriesWriter
+	buildTsi     bool
+	seriesBuf    []byte
 }
 
 const seriesBatchSize = 1000
 
 func newImporter(server server.Interface, db string, rp string, replace bool, buildTsi bool, log *zap.Logger) *importer {
-	i := &importer{MetaClient: server.MetaClient(), db: db, dataDir: server.TSDBConfig().Dir, replace: replace, buildTsi: buildTsi, log: log}
+	i := &importer{MetaClient: server.MetaClient(), db: db, dataDir: server.TSDBConfig().Dir, replace: replace, buildTsi: buildTsi, log: log, skipShard: false}
 
 	if !buildTsi {
 		i.seriesBuf = make([]byte, 0, 2048)
@@ -63,34 +64,20 @@ func (i *importer) CreateDatabase(rp *meta.RetentionPolicySpec) error {
 		return err
 	}
 
-	updateRp := (rpi != nil) && i.replace &&
-		((rp.Duration != nil && rpi.Duration != *rp.Duration) || (rpi.ShardGroupDuration != rp.ShardGroupDuration))
-	if updateRp {
-		err = i.updateRetentionPolicy(rpi, rp)
-		if err != nil {
-			return err
-		}
+	nonmatchingRp := (rpi != nil) && ((rp.Duration != nil && rpi.Duration != *rp.Duration) ||
+		(rp.ReplicaN != nil && rpi.ReplicaN != *rp.ReplicaN) ||
+		(rpi.ShardGroupDuration != rp.ShardGroupDuration))
+	if nonmatchingRp {
+		return fmt.Errorf("retention policy %v already exists with different parameters", rp.Name)
 	} else {
-		_, err = i.MetaClient.CreateRetentionPolicy(i.db, rp, false)
+		rpi, err = i.MetaClient.CreateRetentionPolicy(i.db, rp, false)
 		if err != nil {
 			return err
 		}
 	}
 
-	return i.createDatabaseWithRetentionPolicy(rp)
-}
-
-func (i *importer) updateRetentionPolicy(oldRpi *meta.RetentionPolicyInfo, newRp *meta.RetentionPolicySpec) error {
-	for _, shardGroup := range oldRpi.ShardGroups {
-		err := i.removeShardGroup(&shardGroup)
-		if err != nil {
-			return err
-		}
-	}
-
-	rpu := &meta.RetentionPolicyUpdate{Name: &newRp.Name, Duration: newRp.Duration, ShardGroupDuration: &newRp.ShardGroupDuration}
-
-	return i.MetaClient.UpdateRetentionPolicy(i.db, newRp.Name, rpu, false)
+	i.rpi, err = i.MetaClient.RetentionPolicy(i.db, rp.Name)
+	return err
 }
 
 func (i *importer) createDatabaseWithRetentionPolicy(rp *meta.RetentionPolicySpec) error {
@@ -109,56 +96,78 @@ func (i *importer) createDatabaseWithRetentionPolicy(rp *meta.RetentionPolicySpe
 }
 
 func (i *importer) StartShardGroup(start int64, end int64) error {
-	sgi := i.rpi.ShardGroupByTimestamp(time.Unix(0, start))
-	if sgi != nil {
-		if i.replace {
-			err := i.removeShardGroup(sgi)
-			if err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("shard already exists for start time %v", start)
-		}
-	}
-
-	sgi, err := i.MetaClient.CreateShardGroup(i.db, i.rpi.Name, time.Unix(0, start))
+	existingSg, err := i.MetaClient.ShardGroupsByTimeRange(i.db, i.rpi.Name, time.Unix(0, start), time.Unix(0, end))
 	if err != nil {
 		return err
 	}
 
-	shardPath := i.shardPath()
-	if err = os.MkdirAll(filepath.Join(shardPath, strconv.Itoa(int(sgi.ID))), 0777); err != nil {
+	var sgi *meta.ShardGroupInfo
+	var shardID uint64
+
+	shardsPath := i.shardPath(i.rpi.Name)
+	var shardPath string
+	if len(existingSg) > 0 {
+		sgi = &existingSg[0]
+		if len(sgi.Shards) > 1 {
+			return fmt.Errorf("multiple shards for the same owner %v and time range %v to %v", sgi.Shards[0].Owners, start, end)
+		}
+
+		shardID = sgi.Shards[0].ID
+
+		shardPath = filepath.Join(shardsPath, strconv.Itoa(int(shardID)))
+		_, err = os.Stat(shardPath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			if i.replace {
+				if err := os.RemoveAll(shardPath); err != nil {
+					return err
+				}
+			} else {
+				if i.log != nil {
+					i.log.Error(fmt.Sprintf("shard %d already exists, skipping over new shard data", sgi.ID))
+				}
+				i.skipShard = true
+				return nil
+			}
+		}
+	} else {
+		sgi, err = i.MetaClient.CreateShardGroup(i.db, i.rpi.Name, time.Unix(0, start))
+		if err != nil {
+			return err
+		}
+		shardID = sgi.Shards[0].ID
+	}
+
+	shardPath = filepath.Join(shardsPath, strconv.Itoa(int(shardID)))
+	if err = os.MkdirAll(shardPath, 0777); err != nil {
 		return err
 	}
 
-	i.sh = newShardWriter(sgi.ID, shardPath)
-	i.currentSg = sgi
+	i.skipShard = false
+	i.sh = newShardWriter(shardID, shardsPath)
+	i.currentShard = shardID
 
 	i.startSeriesFile()
 	return nil
 }
 
-func (i *importer) shardPath() string {
-	return filepath.Join(i.dataDir, i.db, i.rpi.Name)
+func (i *importer) shardPath(rp string) string {
+	return filepath.Join(i.dataDir, i.db, rp)
 }
 
-func (i *importer) removeShardGroup(sgi *meta.ShardGroupInfo) error {
-	err := i.MetaClient.DeleteShardGroup(i.db, i.rpi.Name, sgi.ID)
-	if err != nil {
-		return err
-	}
-
-	shardPath := i.shardPath()
-	for _, shard := range sgi.Shards {
-		if err := os.RemoveAll(filepath.Join(shardPath, strconv.Itoa(int(shard.ID)))); err != nil {
-			return err
-		}
-	}
-
-	return nil
+func (i *importer) removeShardGroup(rp string, shardID uint64) error {
+	shardPath := i.shardPath(rp)
+	err := os.RemoveAll(filepath.Join(shardPath, strconv.Itoa(int(shardID))))
+	return err
 }
 
 func (i *importer) Write(key []byte, values tsm1.Values) error {
+	if i.skipShard {
+		return nil
+	}
 	if i.sh == nil {
 		return errors.New("importer not currently writing a shard")
 	}
@@ -167,15 +176,19 @@ func (i *importer) Write(key []byte, values tsm1.Values) error {
 		el := errlist.NewErrorList()
 		el.Add(i.sh.err)
 		el.Add(i.CloseShardGroup())
-		el.Add(i.removeShardGroup(i.currentSg))
+		el.Add(i.removeShardGroup(i.rpi.Name, i.currentShard))
 		i.sh = nil
-		i.currentSg = nil
+		i.currentShard = 0
 		return el.Err()
 	}
 	return nil
 }
 
 func (i *importer) CloseShardGroup() error {
+	if i.skipShard {
+		i.skipShard = false
+		return nil
+	}
 	el := errlist.NewErrorList()
 	el.Add(i.closeSeriesFile())
 	i.sh.Close()
@@ -209,6 +222,9 @@ func (i *importer) startSeriesFile() error {
 }
 
 func (i *importer) AddSeries(seriesKey []byte) error {
+	if i.skipShard {
+		return nil
+	}
 	return i.sw.AddSeries(seriesKey)
 }
 

@@ -58,7 +58,9 @@ func newExporter(server server.Interface, cfg *exporterConfig) (*exporter, error
 	}
 
 	store := tsdb.NewStore(server.TSDBConfig().Dir)
-	store.WithLogger(server.Logger())
+	if server.Logger() != nil {
+		store.WithLogger(server.Logger())
+	}
 	store.EngineOptions.Config = server.TSDBConfig()
 	store.EngineOptions.EngineVersion = server.TSDBConfig().Engine
 	store.EngineOptions.IndexVersion = server.TSDBConfig().Index
@@ -98,6 +100,9 @@ func (e *exporter) Open() (err error) {
 	e.targetGroups = planShardGroups(e.sourceGroups, e.startDate, e.endDate, e.d)
 	if e.max >= uint64(len(e.targetGroups)) {
 		e.max = uint64(len(e.targetGroups) - 1)
+	}
+	if e.min > e.max {
+		return fmt.Errorf("invalid shard group range %d to %d", e.min, e.max)
 	}
 
 	e.targetGroups = e.targetGroups[e.min : e.max+1]
