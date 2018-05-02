@@ -2,22 +2,20 @@ import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
 
-const groupByMap = (results, responseIndex, groupByColumns) => {
+const groupByMap = (results, responseIndex, groupByTagsObject) => {
   if (_.isEmpty(results)) {
     return []
   }
+
+  const groupByKeys = _.keys(groupByTagsObject)
   const firstColumns = _.get(results, [0, 'series', 0, 'columns'])
-  const accum = [
+  const accumulatedSeries = [
     {
       responseIndex,
       series: [
         {
-          columns: [
-            firstColumns[0],
-            ...groupByColumns,
-            ...firstColumns.slice(1),
-          ],
-          groupByColumns,
+          columns: [firstColumns[0], ...groupByKeys, ...firstColumns.slice(1)],
+          groupByKeys,
           name: _.get(results, [0, 'series', 0, 'name'], ''),
           values: [],
         },
@@ -27,12 +25,12 @@ const groupByMap = (results, responseIndex, groupByColumns) => {
 
   const seriesArray = _.get(results, [0, 'series'])
   seriesArray.forEach(s => {
-    const prevValues = accum[0].series[0].values
-    const tagsToAdd = groupByColumns.map(gb => s.tags[gb])
+    const prevValues = accumulatedSeries[0].series[0].values
+    const tagsToAdd = groupByKeys.map(gb => s.tags[gb])
     const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
-    accum[0].series[0].values = [...prevValues, ...newValues]
+    accumulatedSeries[0].series[0].values = [...prevValues, ...newValues]
   })
-  return accum
+  return accumulatedSeries
 }
 
 const constructResults = (raw, groupBys) => {
@@ -41,9 +39,13 @@ const constructResults = (raw, groupBys) => {
       const results = _.get(response, 'response.results', [])
 
       const successfulResults = _.filter(results, r => _.isNil(r.error))
-
-      if (!_.isEmpty(groupBys[index])) {
-        return groupByMap(successfulResults, index, groupBys[index])
+      const resultsHaveGroupBys = _.get(
+        results,
+        ['0', 'series', '0', 'tags'],
+        false
+      )
+      if (resultsHaveGroupBys) {
+        return groupByMap(successfulResults, index, resultsHaveGroupBys)
       }
       return map(successfulResults, r => ({...r, responseIndex: index}))
     })
@@ -84,7 +86,7 @@ const constructCells = serieses => {
       {
         name: measurement,
         columns,
-        groupByColumns,
+        groupByKeys,
         values = [],
         seriesIndex,
         responseIndex,
@@ -100,7 +102,7 @@ const constructCells = serieses => {
 
       const unsortedLabels = map(columns.slice(1), (field, i) => ({
         label:
-          groupByColumns && i <= groupByColumns.length - 1
+          groupByKeys && i <= groupByKeys.length - 1
             ? `${field}`
             : `${measurement}.${field}${tagSet}`,
         responseIndex,
