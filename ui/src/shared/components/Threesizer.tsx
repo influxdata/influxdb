@@ -137,7 +137,7 @@ class Threesizer extends Component<Props, State> {
     const {activeHandleID} = this.state
 
     return classnames(`threesizer`, {
-      'resize--dragging': activeHandleID,
+      dragging: activeHandleID,
       horizontal: orientation === HANDLE_HORIZONTAL,
       vertical: orientation === HANDLE_VERTICAL,
     })

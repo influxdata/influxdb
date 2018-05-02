@@ -3,6 +3,10 @@
   ------------------------------------------------------------------------------
 */
 
+$threesizer-handle: 30px;
+$threesizer-handle-z: 2;
+$threesizer-contents-z: 1;
+
 .threesizer {
   position: relative;
   width: 100%;
@@ -11,20 +15,26 @@
   flex-direction: column;
   align-items: stretch;
 
-  &.dragging * {
+  &.dragging .threesizer--division {
     @include no-user-select();
+    pointer-events: none;
   }
 }
 
-/*
-  Draggable Handle With Title
-  ------------------------------------------------------------------------------
-*/
+.threesizer--division {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Draggable Handle With Title */
 .threesizer--handle {
-  height: 30px;
+  position: relative;
+  z-index: $threesizer-handle-z;
+  @include no-user-select();
+  height: $threesizer-handle;
   background-color: $g4-onyx;
   padding: 0 12px;
-  line-height: 30px;
+  line-height: $threesizer-handle;
   font-size: 13px;
   font-weight: 500;
   overflow: hidden;
@@ -46,13 +56,11 @@
   }
 }
 
-.threesizer--division {
-  position: relative;
-  border: 2px solid $g4-onyx;
-  border-top: 0;
-  transition: border-color 0.25s ease;
-  overflow: hidden;
-}
-.threesizer--handle.dragging + .threesizer--division {
-  border-color: $g5-pepper;
+/* Division Contents */
+.threesizer--contents {
+  position: absolute !important;
+  top: $threesizer-handle;
+  z-index: $threesizer-contents-z;
+  width: 100%;
+  height: calc(100% - #{$threesizer-handle}) !important;
 }

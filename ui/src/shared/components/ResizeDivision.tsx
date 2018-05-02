@@ -1,4 +1,7 @@
 import React, {PureComponent, ReactElement, MouseEvent} from 'react'
+import classnames from 'classnames'
+
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const NOOP = () => {}
 
@@ -24,33 +27,35 @@ class Division extends PureComponent<Props> {
     const {name, render} = this.props
     return (
       <>
-        <div className="threesizer--division" style={this.style}>
+        <div className="threesizer--division" style={this.containerStyle}>
           <div
-            className={`threesizer--handle ${this.disabled}`}
+            className={this.className}
             onMouseDown={this.dragCallback}
             onDoubleClick={this.handleDoubleClick}
           >
             {name}
           </div>
-          {render()}
+          <FancyScrollbar className="threesizer--contents" autoHide={true}>
+            {render()}
+          </FancyScrollbar>
         </div>
       </>
     )
   }
 
-  private get disabled(): string {
-    const {draggable} = this.props
-    if (draggable) {
-      return ''
-    }
-
-    return 'disabled'
-  }
-
-  private get style() {
+  private get containerStyle() {
     return {
       height: `calc((100% - 90px) * ${this.props.size} + 30px)`,
     }
+  }
+
+  private get className(): string {
+    const {draggable, id, activeHandleID} = this.props
+
+    return classnames('threesizer--handle', {
+      disabled: !draggable,
+      dragging: id === activeHandleID,
+    })
   }
 
   private handleDoubleClick = () => {
