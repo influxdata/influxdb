@@ -326,11 +326,13 @@ class CellEditorOverlay extends Component<Props, State> {
     this.setState({isStaticLegend})
   }
 
-  private handleSetQuerySource = source => {
-    const queriesWorkingDraft = this.state.queriesWorkingDraft.map(q => ({
-      ..._.cloneDeep(q),
-      source,
-    }))
+  private handleSetQuerySource = (source: Source): void => {
+    const queriesWorkingDraft: QueryConfig[] = this.state.queriesWorkingDraft.map(
+      q => ({
+        ..._.cloneDeep(q),
+        source: source.links.self,
+      })
+    )
 
     this.setState({queriesWorkingDraft})
   }

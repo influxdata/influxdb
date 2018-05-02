@@ -3,7 +3,11 @@ import classnames from 'classnames'
 
 import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
-import {QueryConfig} from 'src/types/query'
+import {QueryConfig, Source} from 'src/types'
+
+interface SourceOption extends Source {
+  text: string
+}
 
 interface Props {
   onCancel: () => void
@@ -12,8 +16,8 @@ interface Props {
   onClickDisplayOptions: (
     displayOptions: boolean
   ) => (event: MouseEvent<HTMLLIElement>) => void
-  isSavable?: boolean
-  sources: any[]
+  isSavable: boolean
+  sources: SourceOption[]
   onSetQuerySource: (source: any) => void
   selected: string
   queries: QueryConfig[]

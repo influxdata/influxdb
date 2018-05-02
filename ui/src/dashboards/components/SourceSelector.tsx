@@ -1,15 +1,15 @@
 import React, {SFC} from 'react'
 import Dropdown from 'src/shared/components/Dropdown'
-import {QueryConfig} from 'src/types/query'
+import {QueryConfig, Source} from 'src/types'
 
-interface Options {
+interface SourceOption extends Source {
   text: string
 }
 
 interface Props {
-  sources: Options[]
+  sources: SourceOption[]
   selected: string
-  onSetQuerySource: (source: any) => void
+  onSetQuerySource: (source: SourceOption) => void
   queries: QueryConfig[]
 }
 
