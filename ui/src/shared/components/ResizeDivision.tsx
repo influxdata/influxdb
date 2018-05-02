@@ -1,14 +1,4 @@
-import React, {PureComponent, ReactElement} from 'react'
-import classnames from 'classnames'
-import ResizeHandle, {
-  OnHandleStartDrag,
-} from 'src/shared/components/ResizeHandle'
-
-import {
-  HANDLE_VERTICAL,
-  HANDLE_HORIZONTAL,
-  HUNDRED,
-} from 'src/shared/constants/'
+import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 
 const NOOP = () => {}
 
@@ -21,7 +11,7 @@ interface Props {
   draggable: boolean
   orientation: string
   render: () => ReactElement<any>
-  onHandleStartDrag: OnHandleStartDrag
+  onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => any
   maxPercent: number
 }
 
@@ -31,18 +21,13 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {render, draggable} = this.props
-
-    if (!name && !draggable) {
-      return null
-    }
-
+    const {name, render} = this.props
     return (
       <>
-        <div className="threesizer--handle" onMouseDown={this.dragCallback}>
-          {name}
-        </div>
         <div className="threesizer--division" style={this.style}>
+          <div className="threesizer--handle" onMouseDown={this.dragCallback}>
+            {name}
+          </div>
           {render()}
         </div>
       </>
@@ -51,17 +36,17 @@ class Division extends PureComponent<Props> {
 
   private get style() {
     return {
-      height: `calc(${this.props.size}% - 30px)`,
+      height: `calc((100% - 90px) * ${this.props.size} + 30px)`,
     }
   }
 
-  private get dragCallback() {
-    const {draggable} = this.props
+  private dragCallback = e => {
+    const {draggable, id} = this.props
     if (!draggable) {
       return NOOP
     }
 
-    return this.props.onHandleStartDrag
+    return this.props.onHandleStartDrag(id, e)
   }
 }
 

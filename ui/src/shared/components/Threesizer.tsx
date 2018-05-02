@@ -137,10 +137,10 @@ class Resizer extends Component<Props, State> {
   }
 
   private get className(): string {
-    const {orientation, containerClass} = this.props
+    const {orientation} = this.props
     const {activeHandleID} = this.state
 
-    return classnames(`resize--container ${containerClass}`, {
+    return classnames(`threesizer`, {
       'resize--dragging': activeHandleID,
       horizontal: orientation === HANDLE_HORIZONTAL,
       vertical: orientation === HANDLE_VERTICAL,
@@ -261,12 +261,12 @@ class Resizer extends Component<Props, State> {
 
   private taller = (size: number): number => {
     const newSize = size + this.percentChangeY
-    return Number(newSize.toFixed(3))
+    return newSize > 1 ? 1 : newSize
   }
 
   private shorter = (size: number): number => {
     const newSize = size - this.percentChangeY
-    return Number(newSize.toFixed(3))
+    return newSize < 0 ? 0 : newSize
   }
 
   private isAtMinHeight = (division: DivisionState): boolean => {
@@ -291,42 +291,24 @@ class Resizer extends Component<Props, State> {
 
   private up = activePosition => () => {
     const divisions = this.state.divisions.map((d, i, divs) => {
-      const before = i < activePosition
+      const first = i === 0
+      const before = i === activePosition - 1
       const current = i === activePosition
 
-      if (before) {
+      if (first) {
         const below = divs[i + 1]
-        const aboveCurrent = i === activePosition - 1
-
-        const belowIsCurrent = below.id === divs[activePosition].id
-
-        if (belowIsCurrent) {
-          return {...d}
+        if (below.size === 0) {
+          return {...d, size: this.shorter(d.size)}
         }
 
-        if (this.isAtMinHeight(below) || aboveCurrent) {
-          const size = this.shorter(d.size)
-          if (size < 0) {
-            debugger
-          }
+        return {...d}
+      }
 
-          return {...d, size}
-        }
+      if (before) {
+        return {...d, size: this.shorter(d.size)}
       }
 
       if (current) {
-        const stayStill = divs.every((div, idx) => {
-          if (idx >= i) {
-            return true
-          }
-
-          return this.isAtMinHeight(div)
-        })
-
-        if (stayStill) {
-          return {...d}
-        }
-
         return {...d, size: this.taller(d.size)}
       }
 
@@ -340,7 +322,7 @@ class Resizer extends Component<Props, State> {
     const divisions = this.state.divisions.map((d, i, divs) => {
       const before = i === activePosition - 1
       const current = i === activePosition
-      const after = i > activePosition
+      const after = i === activePosition + 1
 
       if (before) {
         return {...d, size: this.taller(d.size)}
@@ -352,14 +334,11 @@ class Resizer extends Component<Props, State> {
 
       if (after) {
         const above = divs[i - 1]
-
-        if (this.isAtMinHeight(d)) {
-          return {...d}
-        }
-
-        if (this.isAtMinHeight(above)) {
+        if (above.size === 0) {
           return {...d, size: this.shorter(d.size)}
         }
+
+        return {...d}
       }
 
       return {...d}
