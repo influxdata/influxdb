@@ -45,13 +45,18 @@ class Dygraph extends Component {
       isGraphFilled: fillGraph,
       isBarGraph,
       options,
+      labels,
     } = this.props
 
     const timeSeries = this.timeSeries
     const graphRef = this.graphRef
 
     let defaultOptions = {
+      ...options,
+      labels,
       fillGraph,
+      file: this.timeSeries,
+      ylabel: this.getLabel('y'),
       logscale: y.scale === LOG,
       colors: this.lineColors,
       series: this.colorDygraphSeries,
