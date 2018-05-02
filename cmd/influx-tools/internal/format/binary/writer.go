@@ -215,8 +215,10 @@ func (bw *bucketWriter) EndSeries() {
 	if bw.w.state != writePoints && bw.w.state != writeSeriesHeader {
 		panic(fmt.Sprintf("writer state: got=%v, exp=%v,%v", bw.w.state, writeSeriesHeader, writePoints))
 	}
+	if bw.w.state == writePoints {
+		bw.w.writeSeriesFooter(IntegerFieldType, bw.n)
+	}
 	bw.w.state = writeSeries
-	bw.w.writeSeriesFooter(IntegerFieldType, bw.n)
 }
 
 func (bw *bucketWriter) WriteIntegerCursor(cur tsdb.IntegerBatchCursor) {
