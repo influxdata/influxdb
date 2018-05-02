@@ -51,6 +51,7 @@
   border: 2px solid $g4-onyx;
   border-top: 0;
   transition: border-color 0.25s ease;
+  overflow: hidden;
 }
 .threesizer--handle.dragging + .threesizer--division {
   border-color: $g5-pepper;
