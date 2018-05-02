@@ -157,12 +157,32 @@ class Threesizer extends Component<Props, State> {
   }
 
   private handleDoubleClick = (id: string): void => {
+    const clickedDiv = this.state.divisions.find(d => d.id === id)
+
+    if (!clickedDiv) {
+      return
+    }
+
+    const isFullSized = clickedDiv.size === 1
+
+    if (isFullSized) {
+      return this.expandAll()
+    }
+
     const divisions = this.state.divisions.map(d => {
       if (d.id !== id) {
         return {...d, size: 0}
       }
 
       return {...d, size: 1}
+    })
+
+    this.setState({divisions})
+  }
+
+  private expandAll = () => {
+    const divisions = this.state.divisions.map(d => {
+      return {...d, size: 1 / this.state.divisions.length}
     })
 
     this.setState({divisions})
