@@ -20,6 +20,7 @@
 1.  [#3279](https://github.com/influxdata/chronograf/pull/3279): Change color when value is equal to or greater than threshold value
 1.  [#3281](https://github.com/influxdata/chronograf/pull/3281): Fix base path for kapacitor logs
 1.  [#3284](https://github.com/influxdata/chronograf/pull/3284): Fix logout when using basepath & simplify basepath usage (deprecates `PREFIX_ROUTES`)
+1.  [#3349](https://github.com/influxdata/chronograf/pull/3349): Fix graphs in alert rule builder for queries that include groupby
 1.  [#3345](https://github.com/influxdata/chronograf/pull/3345): Fix auto not showing in the group by dropdown and explorer getting disconnected
 
 ## v1.4.4.1 [2018-04-16]
