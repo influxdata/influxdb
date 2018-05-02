@@ -40,7 +40,7 @@ interface Props {
 }
 
 @ErrorHandling
-class Resizer extends Component<Props, State> {
+class Threesizer extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
     orientation: HANDLE_HORIZONTAL,
   }
@@ -124,20 +124,11 @@ class Resizer extends Component<Props, State> {
             orientation={orientation}
             activeHandleID={activeHandleID}
             onHandleStartDrag={this.handleStartDrag}
-            maxPercent={this.maximumHeightPercent}
             render={this.props.divisions[i].render}
           />
         ))}
       </div>
     )
-  }
-
-  private minPercent = (minPixels: number): number => {
-    if (this.props.orientation === HANDLE_VERTICAL) {
-      return this.minPercentX(minPixels)
-    }
-
-    return this.minPercentY(minPixels)
   }
 
   private get className(): string {
@@ -274,10 +265,6 @@ class Resizer extends Component<Props, State> {
     return newSize < 0 ? 0 : newSize
   }
 
-  private isAtMinHeight = (division: DivisionState): boolean => {
-    return division.size <= this.minPercentY(division.minPixels)
-  }
-
   private get move() {
     const {activeHandleID} = this.state
 
@@ -296,12 +283,21 @@ class Resizer extends Component<Props, State> {
 
   private up = activePosition => () => {
     const divisions = this.state.divisions.map((d, i) => {
+      if (!activePosition) {
+        return d
+      }
+
       const first = i === 0
       const before = i === activePosition - 1
       const current = i === activePosition
 
-      if (first && activePosition) {
-        return {...d, size: this.shorter(d.size)}
+      if (first && !before) {
+        const second = this.state.divisions[1]
+        if (second.size === 0) {
+          return {...d, size: this.shorter(d.size)}
+        }
+
+        return {...d}
       }
 
       if (before) {
@@ -380,45 +376,6 @@ class Resizer extends Component<Props, State> {
 
     this.setState({divisions})
   }
-
-  private enforceSize = (size, minPixels): number => {
-    const minPercent = this.minPercent(minPixels)
-
-    let enforcedSize = size
-    if (size < minPercent) {
-      enforcedSize = minPercent
-    }
-
-    return enforcedSize
-  }
-
-  private cleanDivisions = divisions => {
-    const minSizes = divisions.map(d => {
-      const size = this.enforceSize(d.size, d.minPixels)
-      return {...d, size}
-    })
-
-    const sumSizes = minSizes.reduce((acc, div, i) => {
-      if (i <= divisions.length - 1) {
-        return acc + div.size
-      }
-
-      return acc
-    }, 0)
-
-    const under100percent = 1 - sumSizes > 0
-    const over100percent = 1 - sumSizes < 0
-
-    if (under100percent) {
-      minSizes[divisions.length - 1].size += Math.abs(1 - sumSizes)
-    }
-
-    if (over100percent) {
-      minSizes[divisions.length - 1].size -= Math.abs(1 - sumSizes)
-    }
-
-    return minSizes
-  }
 }
 
-export default Resizer
+export default Threesizer

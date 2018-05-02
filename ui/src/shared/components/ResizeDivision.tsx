@@ -12,7 +12,6 @@ interface Props {
   orientation: string
   render: () => ReactElement<any>
   onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => any
-  maxPercent: number
 }
 
 class Division extends PureComponent<Props> {
