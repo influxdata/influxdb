@@ -1,12 +1,11 @@
-import _ from 'lodash'
 import {map, reduce} from 'fast.js'
 import {groupByTimeSeriesTransform} from 'src/utils/groupByTimeSeriesTransform'
 
 export const timeSeriesToDygraph = (raw = [], isInDataExplorer) => {
-  const emptyGroupBys = Array(raw.length).fill([])
+  const isTable = false
   const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
     raw,
-    emptyGroupBys
+    isTable
   )
 
   const dygraphSeries = reduce(
@@ -32,16 +31,11 @@ export const timeSeriesToDygraph = (raw = [], isInDataExplorer) => {
   }
 }
 
-const computeGroupBys = queryASTs => {
-  return queryASTs.map(queryAST => {
-    return _.get(queryAST, ['groupBy', 'tags'], [])
-  })
-}
-
-export const timeSeriesToTableGraph = (raw, queryASTs) => {
+export const timeSeriesToTableGraph = raw => {
+  const isTable = true
   const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
     raw,
-    computeGroupBys(queryASTs)
+    isTable
   )
 
   const labels = ['time', ...map(sortedLabels, ({label}) => label)]

@@ -2,52 +2,60 @@ import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
 
-const groupByMap = (results, responseIndex, groupByTagsObject) => {
+const flattenGroupBySeries = (results, responseIndex, tags) => {
   if (_.isEmpty(results)) {
     return []
   }
 
-  const groupByKeys = _.keys(groupByTagsObject)
+  const tagsKeys = _.keys(tags)
+
+  const seriesArray = _.get(results, [0, 'series'])
+  let valuesAcc
+  valuesAcc = []
+
+  seriesArray.forEach(s => {
+    const tagsToAdd = tagsKeys.map(tk => s.tags[tk])
+    const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
+    valuesAcc = [...valuesAcc, ...newValues]
+  })
   const firstColumns = _.get(results, [0, 'series', 0, 'columns'])
-  const accumulatedSeries = [
+
+  const flattenedSeries = [
     {
-      responseIndex,
       series: [
         {
-          columns: [firstColumns[0], ...groupByKeys, ...firstColumns.slice(1)],
-          groupByKeys,
+          columns: [firstColumns[0], ...tagsKeys, ...firstColumns.slice(1)],
+          tagsKeys,
+          isGroupBy: true,
+          tags: _.get(results, [0, 'series', 0, 'tags'], {}),
           name: _.get(results, [0, 'series', 0, 'name'], ''),
-          values: [],
+          values: [...valuesAcc],
         },
       ],
+      responseIndex,
     },
   ]
 
-  const seriesArray = _.get(results, [0, 'series'])
-  seriesArray.forEach(s => {
-    const prevValues = accumulatedSeries[0].series[0].values
-    const tagsToAdd = groupByKeys.map(gb => s.tags[gb])
-    const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
-    accumulatedSeries[0].series[0].values = [...prevValues, ...newValues]
-  })
-  return accumulatedSeries
+  return flattenedSeries
 }
 
-const constructResults = (raw, groupBys) => {
+const constructResults = (raw, isTable) => {
   return _.flatten(
     map(raw, (response, index) => {
       const results = _.get(response, 'response.results', [])
 
       const successfulResults = _.filter(results, r => _.isNil(r.error))
-      const resultsHaveGroupBys = _.get(
-        results,
-        ['0', 'series', '0', 'tags'],
-        false
-      )
-      if (resultsHaveGroupBys) {
-        return groupByMap(successfulResults, index, resultsHaveGroupBys)
+
+      const tagsFromResults = _.get(results, ['0', 'series', '0', 'tags'], {})
+
+      if (isTable && !_.isEmpty(tagsFromResults)) {
+        return flattenGroupBySeries(successfulResults, index, tagsFromResults)
       }
-      return map(successfulResults, r => ({...r, responseIndex: index}))
+      return map(successfulResults, r => ({
+        ...r,
+        responseIndex: index,
+        isGroupBy: false,
+      }))
     })
   )
 }
@@ -77,6 +85,7 @@ const constructCells = serieses => {
     label: [],
     value: [],
     time: [],
+    isGroupBy: [],
     seriesIndex: [],
     responseIndex: [],
   }
@@ -86,10 +95,11 @@ const constructCells = serieses => {
       {
         name: measurement,
         columns,
-        groupByKeys,
+        tagsKeys,
         values = [],
         seriesIndex,
         responseIndex,
+        isGroupBy,
         tags = {},
       },
       ind
@@ -102,7 +112,7 @@ const constructCells = serieses => {
 
       const unsortedLabels = map(columns.slice(1), (field, i) => ({
         label:
-          groupByKeys && i <= groupByKeys.length - 1
+          tagsKeys && i <= tagsKeys.length - 1
             ? `${field}`
             : `${measurement}.${field}${tagSet}`,
         responseIndex,
@@ -119,6 +129,7 @@ const constructCells = serieses => {
           cells.time[cellIndex] = time
           cells.seriesIndex[cellIndex] = seriesIndex
           cells.responseIndex[cellIndex] = responseIndex
+          cells.isGroupBy[cellIndex] = isGroupBy
           cellIndex++ // eslint-disable-line no-plusplus
         })
       })
@@ -130,25 +141,23 @@ const constructCells = serieses => {
 
 const insertGroupByValues = (
   serieses,
-  groupBys,
   seriesLabels,
   labelsToValueIndex,
   sortedLabels
 ) => {
   const dashArray = Array(sortedLabels.length).fill('-')
   const timeSeries = []
-  let existingRowIndex
   forEach(serieses, (s, sind) => {
-    if (!_.isEmpty(groupBys[s.responseIndex])) {
+    if (s.isGroupBy) {
       forEach(s.values, vs => {
-        timeSeries.push({time: vs[0], values: clone(dashArray)})
-        existingRowIndex = timeSeries.length - 1
+        const tsRow = {time: vs[0], values: clone(dashArray)}
         forEach(vs.slice(1), (v, i) => {
           const label = seriesLabels[sind][i].label
-          timeSeries[existingRowIndex].values[
+          tsRow.values[
             labelsToValueIndex[label + s.responseIndex + s.seriesIndex]
           ] = v
         })
+        timeSeries.push(tsRow)
       })
     }
   })
@@ -156,13 +165,7 @@ const insertGroupByValues = (
   return timeSeries
 }
 
-const constructTimeSeries = (
-  serieses,
-  cells,
-  sortedLabels,
-  groupBys,
-  seriesLabels
-) => {
+const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
   const nullArray = Array(sortedLabels.length).fill(null)
 
   const labelsToValueIndex = reduce(
@@ -179,7 +182,6 @@ const constructTimeSeries = (
 
   const timeSeries = insertGroupByValues(
     serieses,
-    groupBys,
     seriesLabels,
     labelsToValueIndex,
     sortedLabels
@@ -195,7 +197,7 @@ const constructTimeSeries = (
     const seriesIndex = cells.seriesIndex[i]
     const responseIndex = cells.responseIndex[i]
 
-    if (!_.isEmpty(groupBys[cells.responseIndex[i]])) {
+    if (cells.isGroupBy[i]) {
       // we've already inserted GroupByValues
       continue
     }
@@ -225,12 +227,8 @@ const constructTimeSeries = (
   return _.sortBy(timeSeries, 'time')
 }
 
-export const groupByTimeSeriesTransform = (raw, groupBys) => {
-  if (!groupBys) {
-    groupBys = Array(raw.length).fill([])
-  }
-
-  const results = constructResults(raw, groupBys)
+export const groupByTimeSeriesTransform = (raw, isTable) => {
+  const results = constructResults(raw, isTable)
   const serieses = constructSerieses(results)
 
   const {cells, sortedLabels, seriesLabels} = constructCells(serieses)
@@ -239,7 +237,6 @@ export const groupByTimeSeriesTransform = (raw, groupBys) => {
     serieses,
     cells,
     sortedLabels,
-    groupBys,
     seriesLabels
   )
 
