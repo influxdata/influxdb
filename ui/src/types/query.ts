@@ -9,7 +9,7 @@ export interface QueryConfig {
   areTagsAccepted: boolean
   rawText: string
   range?: DurationRange | null
-  source?: string
+  sourceLink?: string
   fill?: string
   status?: Status
   shifts: TimeShift[]

@@ -4,9 +4,9 @@ export const nextSource = (
   prevQuery: QueryConfig,
   nextQuery: QueryConfig
 ): string => {
-  if (nextQuery.source) {
-    return nextQuery.source
+  if (nextQuery.sourceLink) {
+    return nextQuery.sourceLink
   }
 
-  return prevQuery.source
+  return prevQuery.sourceLink
 }
