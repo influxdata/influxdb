@@ -18,7 +18,7 @@ interface Props {
   ) => (event: MouseEvent<HTMLLIElement>) => void
   isSavable: boolean
   sources: SourceOption[]
-  onSetQuerySource: (source: any) => void
+  onSetQuerySource: (source: Source) => void
   selected: string
   queries: QueryConfig[]
 }
