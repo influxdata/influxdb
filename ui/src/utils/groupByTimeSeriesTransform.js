@@ -24,7 +24,7 @@ const flattenGroupBySeries = (results, responseIndex, tags) => {
     {
       series: [
         {
-          columns: [firstColumns[0], ...tagsKeys, ...firstColumns.slice(1)],
+          columns: firstColumns,
           tagsKeys,
           isGroupBy: true,
           tags: _.get(results, [0, 'series', 0, 'tags'], {}),
@@ -89,6 +89,7 @@ const constructCells = serieses => {
     seriesIndex: [],
     responseIndex: [],
   }
+
   forEach(
     serieses,
     (
@@ -104,36 +105,49 @@ const constructCells = serieses => {
       },
       ind
     ) => {
-      const rows = map(values, vals => ({vals}))
+      let unsortedLabels
+      if (isGroupBy) {
+        const tagsKeysLabels = map(tagsKeys, field => ({
+          label: `${field}`,
+          responseIndex,
+          seriesIndex,
+        }))
 
-      const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
-        .sort()
-        .join('')
+        const columnsLabels = map(columns.slice(1), field => ({
+          label: `${measurement}.${field}`,
+          responseIndex,
+          seriesIndex,
+        }))
 
-      const unsortedLabels = map(columns.slice(1), (field, i) => ({
-        label:
-          tagsKeys && i <= tagsKeys.length - 1
-            ? `${field}`
-            : `${measurement}.${field}${tagSet}`,
-        responseIndex,
-        seriesIndex,
-      }))
-      seriesLabels[ind] = unsortedLabels
-      labels = concat(labels, unsortedLabels)
+        unsortedLabels = _.concat(tagsKeysLabels, columnsLabels)
 
-      forEach(rows, ({vals}) => {
-        const [time, ...rowValues] = vals
-        forEach(rowValues, (value, i) => {
-          if (!isGroupBy) {
+        seriesLabels[ind] = unsortedLabels
+        labels = concat(labels, unsortedLabels)
+      } else {
+        const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
+          .sort()
+          .join('')
+        unsortedLabels = map(columns.slice(1), field => ({
+          label: `${measurement}.${field}${tagSet}`,
+          responseIndex,
+          seriesIndex,
+        }))
+        seriesLabels[ind] = unsortedLabels
+        labels = concat(labels, unsortedLabels)
+
+        const rows = map(values, vals => ({vals}))
+        forEach(rows, ({vals}) => {
+          const [time, ...rowValues] = vals
+          forEach(rowValues, (value, i) => {
             cells.label[cellIndex] = unsortedLabels[i].label
             cells.value[cellIndex] = value
             cells.time[cellIndex] = time
             cells.seriesIndex[cellIndex] = seriesIndex
             cells.responseIndex[cellIndex] = responseIndex
             cellIndex++ // eslint-disable-line no-plusplus
-          }
+          })
         })
-      })
+      }
     }
   )
   const sortedLabels = _.sortBy(labels, 'label')
