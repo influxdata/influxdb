@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import SchemaExplorer from 'src/ifql/components/SchemaExplorer'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
@@ -45,11 +46,11 @@ class TimeMachine extends PureComponent<Props> {
     const {body, suggestions} = this.props
     return [
       {
-        name: 'Builder',
+        name: 'Build',
         render: () => <BodyBuilder body={body} suggestions={suggestions} />,
       },
       {
-        name: 'Visualization',
+        name: 'Visualize',
         render: () => <TimeMachineVis blob="Visualizer" />,
 
       },
@@ -65,14 +66,14 @@ class TimeMachine extends PureComponent<Props> {
     const {script, onChangeScript} = this.props
     return [
       {
-        name: 'Editor',
+        name: 'Script',
         render: () => (
           <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
         ),
       },
       {
-        name: 'Schema',
-        render: () => <div>Explorin all yer schemas</div>,
+        name: 'Explore',
+        render: () => (<SchemaExplorer />),
       },
     ]
   }
