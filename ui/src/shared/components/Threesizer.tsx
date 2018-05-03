@@ -31,6 +31,7 @@ interface State {
 interface Division {
   name?: string
   handleDisplay?: string
+  handlePixels?: number
   render: () => ReactElement<any>
 }
 
@@ -135,6 +136,7 @@ class Threesizer extends Component<Props, State> {
             offset={this.offset}
             draggable={i > 0}
             orientation={orientation}
+            handlePixels={d.handlePixels}
             handleDisplay={d.handleDisplay}
             activeHandleID={activeHandleID}
             onDoubleClick={this.handleDoubleClick}
@@ -147,15 +149,15 @@ class Threesizer extends Component<Props, State> {
   }
 
   private get offset(): number {
-    const numHandles = this.props.divisions.reduce((acc, d) => {
+    const handlesPixelCount = this.state.divisions.reduce((acc, d) => {
       if (d.handleDisplay === HANDLE_NONE) {
         return acc
       }
 
-      return acc + 1
+      return acc + d.handlePixels
     }, 0)
 
-    return HANDLE_PIXELS * numHandles
+    return handlesPixelCount
   }
 
   private get className(): string {
@@ -178,6 +180,7 @@ class Threesizer extends Component<Props, State> {
       ...d,
       id: uuid.v4(),
       size,
+      handlePixels: d.handlePixels || HANDLE_PIXELS,
     }))
   }
 

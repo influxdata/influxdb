@@ -43,6 +43,7 @@ class TimeMachine extends PureComponent<Props> {
         ),
       },
       {
+        handlePixels: 8,
         render: () => <TimeMachineVis blob="Visualizer" />,
       },
     ]
@@ -58,12 +59,12 @@ class TimeMachine extends PureComponent<Props> {
         ),
       },
       {
-        name: 'Explore',
-        render: () => <SchemaExplorer />,
-      },
-      {
         name: 'Build',
         render: () => <BodyBuilder body={body} suggestions={suggestions} />,
+      },
+      {
+        name: 'Explore',
+        render: () => <SchemaExplorer />,
       },
     ]
   }

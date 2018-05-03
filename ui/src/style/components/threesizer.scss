@@ -52,12 +52,10 @@ $threesizer-handle: 30px;
   transition: background-color 0.25s ease, color 0.25s ease;
 
   &.vertical {
-    width: $threesizer-handle;
     padding: 12px 0;
   }
 
   &.horizontal {
-    height: $threesizer-handle;
     padding: 0 12px;
   }
 

@@ -1,17 +1,14 @@
 import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import classnames from 'classnames'
 
-import {
-  HANDLE_PIXELS,
-  HANDLE_VERTICAL,
-  HANDLE_HORIZONTAL,
-} from 'src/shared/constants/index'
+import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
 
 const NOOP = () => {}
 
 interface Props {
   name?: string
   handleDisplay?: string
+  handlePixels: number
   id: string
   size: number
   offset: number
@@ -72,10 +69,18 @@ class Division extends PureComponent<Props> {
   }
 
   private get handleStyle() {
-    const {handleDisplay: display} = this.props
+    const {handleDisplay: display, orientation, handlePixels} = this.props
+
+    if (orientation === HANDLE_HORIZONTAL) {
+      return {
+        display,
+        height: `${handlePixels}px`,
+      }
+    }
 
     return {
       display,
+      width: `${handlePixels}px`,
     }
   }
 
@@ -101,7 +106,7 @@ class Division extends PureComponent<Props> {
       return 0
     }
 
-    return HANDLE_PIXELS
+    return this.props.handlePixels
   }
 
   private get containerClass(): string {
