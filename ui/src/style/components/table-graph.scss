@@ -15,6 +15,10 @@
 }
 
 .table-graph-cell {
+  user-select: text !important;
+  -o-user-select: text !important;
+  -moz-user-select: text !important;
+  -webkit-user-select: text !important;
   line-height: 28px; // Cell height - 2x border width
   padding: 0 6px;
   font-size: 12px;
