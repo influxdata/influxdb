@@ -47,10 +47,6 @@ $ifql-arg-min-width: 120px;
   @include no-user-select();
 }
 
-.expression-node {
-  display: flex;
-}
-
 .func-node {
   @extend %ifql-node;
   display: flex;
