@@ -9,15 +9,18 @@ const flattenGroupBySeries = (results, responseIndex, tags) => {
 
   const tagsKeys = _.keys(tags)
 
-  const seriesArray = _.get(results, [0, 'series'])
-  let valuesAcc
-  valuesAcc = []
+  const seriesArray = _.get(results, [0, 'series'], [])
 
-  seriesArray.forEach(s => {
-    const tagsToAdd = tagsKeys.map(tk => s.tags[tk])
-    const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
-    valuesAcc = [...valuesAcc, ...newValues]
-  })
+  const accumulatedValues = reduce(
+    seriesArray,
+    (acc, s) => {
+      const tagsToAdd = tagsKeys.map(tk => s.tags[tk])
+      const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
+      return [...acc, ...newValues]
+    },
+    []
+  )
+
   const firstColumns = _.get(results, [0, 'series', 0, 'columns'])
 
   const flattenedSeries = [
@@ -29,7 +32,7 @@ const flattenGroupBySeries = (results, responseIndex, tags) => {
           isGroupBy: true,
           tags: _.get(results, [0, 'series', 0, 'tags'], {}),
           name: _.get(results, [0, 'series', 0, 'name'], ''),
-          values: [...valuesAcc],
+          values: [...accumulatedValues],
         },
       ],
       responseIndex,
@@ -48,7 +51,9 @@ const constructResults = (raw, isTable) => {
 
       const tagsFromResults = _.get(results, ['0', 'series', '0', 'tags'], {})
 
-      if (isTable && !_.isEmpty(tagsFromResults)) {
+      const hasGroupBy = !_.isEmpty(tagsFromResults)
+
+      if (isTable && hasGroupBy) {
         return flattenGroupBySeries(successfulResults, index, tagsFromResults)
       }
       return map(successfulResults, r => ({
@@ -161,7 +166,7 @@ const insertGroupByValues = (
   sortedLabels
 ) => {
   const dashArray = Array(sortedLabels.length).fill('-')
-  const timeSeries = []
+  let timeSeries = []
   forEach(serieses, (s, sind) => {
     if (s.isGroupBy) {
       forEach(s.values, vs => {
@@ -172,7 +177,7 @@ const insertGroupByValues = (
             labelsToValueIndex[label + s.responseIndex + s.seriesIndex]
           ] = v
         })
-        timeSeries.push(tsRow)
+        timeSeries = [...timeSeries, tsRow]
       })
     }
   })
