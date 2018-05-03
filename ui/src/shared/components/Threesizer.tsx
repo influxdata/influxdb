@@ -9,6 +9,8 @@ import {
   HANDLE_PIXELS,
   HANDLE_HORIZONTAL,
   HANDLE_VERTICAL,
+  MIN_SIZE,
+  MAX_SIZE,
 } from 'src/shared/constants/'
 
 const initialDragEvent = {
@@ -81,8 +83,11 @@ class Threesizer extends Component<Props, State> {
       dragEvent.mouseY
     )
 
+    const {percentX, percentY} = dragEvent
+    const {dragEvent: prevDrag} = prevState
+
     if (orientation === HANDLE_VERTICAL) {
-      const left = dragEvent.percentX < prevState.dragEvent.percentX
+      const left = percentX < prevDrag.percentX
 
       if (left) {
         return this.move.left()
@@ -91,14 +96,13 @@ class Threesizer extends Component<Props, State> {
       return this.move.right()
     }
 
-    const up = dragEvent.percentY < prevState.dragEvent.percentY
-    const down = dragEvent.percentY > prevState.dragEvent.percentY
+    const up = percentY < prevDrag.percentY
 
     if (up) {
       return this.move.up()
-    } else if (down) {
-      return this.move.down()
     }
+
+    return this.move.down()
   }
 
   public render() {
@@ -226,18 +230,18 @@ class Threesizer extends Component<Props, State> {
   }
 
   private pixelsToPercentX = (startValue, endValue) => {
-    if (!startValue) {
+    if (!startValue || !endValue) {
       return 0
     }
 
-    const delta = startValue - endValue
+    const delta = Math.abs(startValue - endValue)
     const {width} = this.containerRef.getBoundingClientRect()
 
-    return Math.abs(delta / width)
+    return delta / width
   }
 
   private pixelsToPercentY = (startValue, endValue) => {
-    if (!startValue) {
+    if (!startValue || !endValue) {
       return 0
     }
 
@@ -306,6 +310,70 @@ class Threesizer extends Component<Props, State> {
     this.setState({divisions})
   }
 
+  private left = activePosition => () => {
+    const divisions = this.state.divisions.map((d, i) => {
+      if (!activePosition) {
+        return d
+      }
+
+      const first = i === 0
+      const before = i === activePosition - 1
+      const active = i === activePosition
+
+      if (first && !before) {
+        const second = this.state.divisions[1]
+        if (second.size === 0) {
+          return {...d, size: this.thinner(d.size)}
+        }
+
+        return {...d}
+      }
+
+      if (before) {
+        return {...d, size: this.thinner(d.size)}
+      }
+
+      if (active) {
+        return {...d, size: this.fatter(d.size)}
+      }
+
+      return {...d}
+    })
+
+    this.setState({divisions})
+  }
+
+  private right = activePosition => () => {
+    const divisions = this.state.divisions.map((d, i, divs) => {
+      const before = i === activePosition - 1
+      const active = i === activePosition
+      const after = i === activePosition + 1
+
+      if (before) {
+        return {...d, size: this.fatter(d.size)}
+      }
+
+      if (active) {
+        return {...d, size: this.thinner(d.size)}
+      }
+
+      if (after) {
+        const leftIndex = i - 1
+        const left = _.get(divs, leftIndex, {size: 'none'})
+
+        if (left.size === 0) {
+          return {...d, size: this.thinner(d.size)}
+        }
+
+        return {...d}
+      }
+
+      return {...d}
+    })
+
+    this.setState({divisions})
+  }
+
   private down = activePosition => () => {
     const divisions = this.state.divisions.map((d, i, divs) => {
       const before = i === activePosition - 1
@@ -335,48 +403,32 @@ class Threesizer extends Component<Props, State> {
     this.setState({divisions})
   }
 
-  private left = activePosition => () => {
-    const divisions = this.state.divisions.map((d, i) => {
-      const before = i === activePosition - 1
-      const active = i === activePosition
-
-      if (before) {
-        return {...d, size: d.size - this.percentChangeX}
-      } else if (active) {
-        return {...d, size: d.size + this.percentChangeX}
-      }
-
-      return d
-    })
-
-    this.setState({divisions})
-  }
-
-  private right = activePosition => () => {
-    const divisions = this.state.divisions.map((d, i) => {
-      const before = i === activePosition - 1
-      const active = i === activePosition
-
-      if (before) {
-        return {...d, size: d.size + this.percentChangeX}
-      } else if (active) {
-        return {...d, size: d.size - this.percentChangeX}
-      }
-
-      return d
-    })
-
-    this.setState({divisions})
-  }
-
   private taller = (size: number): number => {
     const newSize = size + this.percentChangeY
-    return newSize > 1 ? 1 : newSize
+    return this.enforceMax(newSize)
+  }
+
+  private fatter = (size: number): number => {
+    const newSize = size + this.percentChangeX
+    return this.enforceMax(newSize)
   }
 
   private shorter = (size: number): number => {
     const newSize = size - this.percentChangeY
-    return newSize < 0 ? 0 : newSize
+    return this.enforceMin(newSize)
+  }
+
+  private thinner = (size: number): number => {
+    const newSize = size - this.percentChangeX
+    return this.enforceMin(newSize)
+  }
+
+  private enforceMax = (size: number): number => {
+    return size > MAX_SIZE ? MAX_SIZE : size
+  }
+
+  private enforceMin = (size: number): number => {
+    return size < MIN_SIZE ? MIN_SIZE : size
   }
 }
 

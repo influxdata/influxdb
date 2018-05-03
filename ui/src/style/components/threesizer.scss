@@ -62,13 +62,23 @@ $threesizer-handle: 30px;
   }
 
   &:hover {
-    cursor: row-resize;
+    &.vertical {
+      cursor: col-resize;
+    }
+    &.horizontal {
+      cursor: row-resize;
+    }
     color: $g16-pearl;
     background-color: $g5-pepper;
   }
 
   &.dragging {
-    cursor: row-resize;
+    &.vertical {
+      cursor: col-resize;
+    }
+    &.horizontal {
+      cursor: row-resize;
+    }
     color: $c-laser;
     background-color: $g5-pepper;
   }

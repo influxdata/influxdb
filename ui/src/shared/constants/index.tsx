@@ -484,3 +484,5 @@ export const REQUIRED_HALVES = 2
 export const HANDLE_VERTICAL = 'vertical'
 export const HANDLE_HORIZONTAL = 'horizontal'
 export const HANDLE_PIXELS = 30
+export const MAX_SIZE = 1
+export const MIN_SIZE = 0
