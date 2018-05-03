@@ -9,7 +9,6 @@ const NOOP = () => {}
 interface Props {
   id: string
   name?: string
-  minPixels: number
   size: number
   offset: number
   activeHandleID: string
@@ -26,25 +25,22 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {name, render, orientation} = this.props
+    const {name, render, orientation, draggable} = this.props
     return (
       <>
         <div className={this.containerClass} style={this.containerStyle}>
           <div
-            draggable={true}
-            className={this.className}
-            onDragStart={this.drag}
-            onDoubleClick={this.handleDoubleClick}
             title={this.title}
+            draggable={draggable}
+            onDragStart={this.drag}
+            className={this.className}
+            onDoubleClick={this.handleDoubleClick}
           >
             <div className="threesizer--title">{name}</div>
           </div>
-          <FancyScrollbar
-            className={`threesizer--contents ${orientation}`}
-            autoHide={true}
-          >
+          <div className={`threesizer--contents ${orientation}`}>
             {render()}
-          </FancyScrollbar>
+          </div>
         </div>
       </>
     )

@@ -68,6 +68,10 @@ $threesizer-handle: 30px;
     &.horizontal {
       cursor: row-resize;
     }
+    &.disabled {
+      cursor: pointer;
+    }
+
     color: $g16-pearl;
     background-color: $g5-pepper;
   }

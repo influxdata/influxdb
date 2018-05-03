@@ -30,13 +30,11 @@ interface State {
 interface Division {
   name?: string
   render: () => ReactElement<any>
-  minPixels?: number
 }
 
 interface DivisionState extends Division {
   id: string
   size: number
-  minPixels?: number
 }
 
 interface Props {
@@ -134,7 +132,6 @@ class Threesizer extends Component<Props, State> {
             size={d.size}
             offset={this.offset}
             draggable={i > 0}
-            minPixels={d.minPixels}
             orientation={orientation}
             activeHandleID={activeHandleID}
             onDoubleClick={this.handleDoubleClick}
@@ -170,7 +167,6 @@ class Threesizer extends Component<Props, State> {
       ...d,
       id: uuid.v4(),
       size,
-      minPixels: d.minPixels || 0,
     }))
   }
 
