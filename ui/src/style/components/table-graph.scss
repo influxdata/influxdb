@@ -34,7 +34,7 @@
     width: 100%;
     height: 100%;
     z-index: 5;
-    background-color: rgba(255,255,255,0.2);
+    background-color: rgba(255, 255, 255, 0.2);
     visibility: hidden;
     box-sizing: border-box;
   }
@@ -68,14 +68,16 @@
   }
   &__highlight-row.table-graph-cell__highlight-column {
     border-color: $g20-white;
-    &:after {visibility: hidden;}
+    &:after {
+      visibility: hidden;
+    }
   }
   &__field-name {
     padding-right: 17px;
 
     &:before {
       font-family: 'icomoon';
-      content: "\e902";
+      content: '\e902';
       font-size: 17px;
       position: absolute;
       top: 50%;
@@ -83,10 +85,7 @@
       transform: translateY(-50%);
       font-size: 13px;
       opacity: 0;
-      transition:
-        opacity 0.25s ease,
-        color 0.25s ease,
-        transform 0.25s ease;
+      transition: opacity 0.25s ease, color 0.25s ease, transform 0.25s ease;
     }
     &:hover {
       cursor: pointer;
