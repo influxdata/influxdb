@@ -10,6 +10,7 @@ interface Props {
   name?: string
   minPixels: number
   size: number
+  offset: number
   activeHandleID: string
   draggable: boolean
   orientation: string
@@ -50,8 +51,10 @@ class Division extends PureComponent<Props> {
   }
 
   private get containerStyle() {
+    const {size, offset} = this.props
+
     return {
-      height: `calc((100% - 90px) * ${this.props.size} + 30px)`,
+      height: `calc((100% - ${offset}px) * ${size} + 30px)`,
     }
   }
 

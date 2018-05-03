@@ -478,7 +478,9 @@ export const FIVE_SECONDS = 5000
 export const TEN_SECONDS = 10000
 export const INFINITE = -1
 
+// Resizer && Threesizer
 export const HUNDRED = 100
 export const REQUIRED_HALVES = 2
 export const HANDLE_VERTICAL = 'vertical'
 export const HANDLE_HORIZONTAL = 'horizontal'
+export const HANDLE_PIXELS = 30

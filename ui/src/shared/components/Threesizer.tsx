@@ -5,7 +5,11 @@ import _ from 'lodash'
 
 import ResizeDivision from 'src/shared/components/ResizeDivision'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {HANDLE_HORIZONTAL, HANDLE_VERTICAL} from 'src/shared/constants/'
+import {
+  HANDLE_PIXELS,
+  HANDLE_HORIZONTAL,
+  HANDLE_VERTICAL,
+} from 'src/shared/constants/'
 
 const initialDragEvent = {
   percentX: 0,
@@ -115,6 +119,7 @@ class Threesizer extends Component<Props, State> {
             id={d.id}
             name={d.name}
             size={d.size}
+            offset={this.offset}
             draggable={i > 0}
             minPixels={d.minPixels}
             orientation={orientation}
@@ -126,6 +131,10 @@ class Threesizer extends Component<Props, State> {
         ))}
       </div>
     )
+  }
+
+  private get offset(): number {
+    return HANDLE_PIXELS * this.state.divisions.length
   }
 
   private get className(): string {

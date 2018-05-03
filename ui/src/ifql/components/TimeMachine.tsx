@@ -78,6 +78,10 @@ class TimeMachine extends PureComponent<Props> {
         name: 'Explore',
         render: () => <SchemaExplorer />,
       },
+      {
+        name: 'Test',
+        render: () => <div>im a test</div>,
+      },
     ]
   }
 }
