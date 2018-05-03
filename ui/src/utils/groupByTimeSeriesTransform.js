@@ -2,50 +2,65 @@ import _ from 'lodash'
 import {shiftDate} from 'shared/query/helpers'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
 
-const groupByMap = (results, responseIndex, groupByColumns) => {
+const flattenGroupBySeries = (results, responseIndex, tags) => {
   if (_.isEmpty(results)) {
     return []
   }
+
+  const tagsKeys = _.keys(tags)
+
+  const seriesArray = _.get(results, [0, 'series'], [])
+
+  const accumulatedValues = reduce(
+    seriesArray,
+    (acc, s) => {
+      const tagsToAdd = tagsKeys.map(tk => s.tags[tk])
+      const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
+      return [...acc, ...newValues]
+    },
+    []
+  )
+
   const firstColumns = _.get(results, [0, 'series', 0, 'columns'])
-  const accum = [
+
+  const flattenedSeries = [
     {
-      responseIndex,
       series: [
         {
-          columns: [
-            firstColumns[0],
-            ...groupByColumns,
-            ...firstColumns.slice(1),
-          ],
-          groupByColumns,
+          columns: firstColumns,
+          tagsKeys,
+          isGroupBy: true,
+          tags: _.get(results, [0, 'series', 0, 'tags'], {}),
           name: _.get(results, [0, 'series', 0, 'name'], ''),
-          values: [],
+          values: [...accumulatedValues],
         },
       ],
+      responseIndex,
     },
   ]
 
-  const seriesArray = _.get(results, [0, 'series'])
-  seriesArray.forEach(s => {
-    const prevValues = accum[0].series[0].values
-    const tagsToAdd = groupByColumns.map(gb => s.tags[gb])
-    const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
-    accum[0].series[0].values = [...prevValues, ...newValues]
-  })
-  return accum
+  return flattenedSeries
 }
 
-const constructResults = (raw, groupBys) => {
+const constructResults = (raw, isTable) => {
   return _.flatten(
     map(raw, (response, index) => {
       const results = _.get(response, 'response.results', [])
 
       const successfulResults = _.filter(results, r => _.isNil(r.error))
 
-      if (groupBys[index]) {
-        return groupByMap(successfulResults, index, groupBys[index])
+      const tagsFromResults = _.get(results, ['0', 'series', '0', 'tags'], {})
+
+      const hasGroupBy = !_.isEmpty(tagsFromResults)
+
+      if (isTable && hasGroupBy) {
+        return flattenGroupBySeries(successfulResults, index, tagsFromResults)
       }
-      return map(successfulResults, r => ({...r, responseIndex: index}))
+      return map(successfulResults, r => ({
+        ...r,
+        responseIndex: index,
+        isGroupBy: false,
+      }))
     })
   )
 }
@@ -75,51 +90,69 @@ const constructCells = serieses => {
     label: [],
     value: [],
     time: [],
+    isGroupBy: [],
     seriesIndex: [],
     responseIndex: [],
   }
+
   forEach(
     serieses,
     (
       {
         name: measurement,
         columns,
-        groupByColumns,
+        tagsKeys,
         values = [],
         seriesIndex,
         responseIndex,
+        isGroupBy,
         tags = {},
       },
       ind
     ) => {
-      const rows = map(values, vals => ({vals}))
+      let unsortedLabels
+      if (isGroupBy) {
+        const tagsKeysLabels = map(tagsKeys, field => ({
+          label: `${field}`,
+          responseIndex,
+          seriesIndex,
+        }))
 
-      const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
-        .sort()
-        .join('')
+        const columnsLabels = map(columns.slice(1), field => ({
+          label: `${measurement}.${field}`,
+          responseIndex,
+          seriesIndex,
+        }))
 
-      const unsortedLabels = map(columns.slice(1), (field, i) => ({
-        label:
-          groupByColumns && i <= groupByColumns.length - 1
-            ? `${field}`
-            : `${measurement}.${field}${tagSet}`,
-        responseIndex,
-        seriesIndex,
-      }))
-      seriesLabels[ind] = unsortedLabels
-      labels = concat(labels, unsortedLabels)
+        unsortedLabels = _.concat(tagsKeysLabels, columnsLabels)
 
-      forEach(rows, ({vals}) => {
-        const [time, ...rowValues] = vals
-        forEach(rowValues, (value, i) => {
-          cells.label[cellIndex] = unsortedLabels[i].label
-          cells.value[cellIndex] = value
-          cells.time[cellIndex] = time
-          cells.seriesIndex[cellIndex] = seriesIndex
-          cells.responseIndex[cellIndex] = responseIndex
-          cellIndex++ // eslint-disable-line no-plusplus
+        seriesLabels[ind] = unsortedLabels
+        labels = concat(labels, unsortedLabels)
+      } else {
+        const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
+          .sort()
+          .join('')
+        unsortedLabels = map(columns.slice(1), field => ({
+          label: `${measurement}.${field}${tagSet}`,
+          responseIndex,
+          seriesIndex,
+        }))
+        seriesLabels[ind] = unsortedLabels
+        labels = concat(labels, unsortedLabels)
+
+        const rows = map(values, vals => ({vals}))
+        forEach(rows, ({vals}) => {
+          const [time, ...rowValues] = vals
+          forEach(rowValues, (value, i) => {
+            cells.label[cellIndex] = unsortedLabels[i].label
+            cells.value[cellIndex] = value
+            cells.time[cellIndex] = time
+            cells.seriesIndex[cellIndex] = seriesIndex
+            cells.responseIndex[cellIndex] = responseIndex
+            cellIndex++ // eslint-disable-line no-plusplus
+          })
         })
-      })
+      }
     }
   )
   const sortedLabels = _.sortBy(labels, 'label')
@@ -128,25 +161,23 @@ const constructCells = serieses => {
 
 const insertGroupByValues = (
   serieses,
-  groupBys,
   seriesLabels,
   labelsToValueIndex,
   sortedLabels
 ) => {
   const dashArray = Array(sortedLabels.length).fill('-')
-  const timeSeries = []
-  let existingRowIndex
+  let timeSeries = []
   forEach(serieses, (s, sind) => {
-    if (groupBys[s.responseIndex]) {
+    if (s.isGroupBy) {
       forEach(s.values, vs => {
-        timeSeries.push({time: vs[0], values: clone(dashArray)})
-        existingRowIndex = timeSeries.length - 1
+        const tsRow = {time: vs[0], values: clone(dashArray)}
         forEach(vs.slice(1), (v, i) => {
           const label = seriesLabels[sind][i].label
-          timeSeries[existingRowIndex].values[
+          tsRow.values[
             labelsToValueIndex[label + s.responseIndex + s.seriesIndex]
           ] = v
         })
+        timeSeries = [...timeSeries, tsRow]
       })
     }
   })
@@ -154,13 +185,7 @@ const insertGroupByValues = (
   return timeSeries
 }
 
-const constructTimeSeries = (
-  serieses,
-  cells,
-  sortedLabels,
-  groupBys,
-  seriesLabels
-) => {
+const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
   const nullArray = Array(sortedLabels.length).fill(null)
 
   const labelsToValueIndex = reduce(
@@ -177,7 +202,6 @@ const constructTimeSeries = (
 
   const timeSeries = insertGroupByValues(
     serieses,
-    groupBys,
     seriesLabels,
     labelsToValueIndex,
     sortedLabels
@@ -192,11 +216,6 @@ const constructTimeSeries = (
     const label = cells.label[i]
     const seriesIndex = cells.seriesIndex[i]
     const responseIndex = cells.responseIndex[i]
-
-    if (groupBys[cells.responseIndex[i]]) {
-      // we've already inserted GroupByValues
-      continue
-    }
 
     if (label.includes('_shifted__')) {
       const [, quantity, duration] = label.split('__')
@@ -223,12 +242,8 @@ const constructTimeSeries = (
   return _.sortBy(timeSeries, 'time')
 }
 
-export const groupByTimeSeriesTransform = (raw, groupBys) => {
-  if (!groupBys) {
-    groupBys = Array(raw.length).fill(false)
-  }
-
-  const results = constructResults(raw, groupBys)
+export const groupByTimeSeriesTransform = (raw, isTable) => {
+  const results = constructResults(raw, isTable)
   const serieses = constructSerieses(results)
 
   const {cells, sortedLabels, seriesLabels} = constructCells(serieses)
@@ -237,7 +252,6 @@ export const groupByTimeSeriesTransform = (raw, groupBys) => {
     serieses,
     cells,
     sortedLabels,
-    groupBys,
     seriesLabels
   )
 
