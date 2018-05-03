@@ -24,7 +24,7 @@ $threesizer-contents-z: 1;
 .threesizer--division {
   position: relative;
   overflow: hidden;
-  transition: all 0.25s ease-in-out;
+  transition: height 0.25s ease-in-out, width 0.25s ease-in-out;
   &.dragging {
     transition: none;
   }
