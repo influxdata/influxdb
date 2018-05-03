@@ -1,7 +1,6 @@
 import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import classnames from 'classnames'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
 
 const NOOP = () => {}
