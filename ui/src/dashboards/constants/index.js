@@ -5,8 +5,9 @@ import {
 import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
+export const UNTITLED_CELL = 'Untitled Graph'
 export const UNTITLED_CELL_LINE = 'Untitled Line Graph'
-export const UNTITLED_CELL_STACKED = 'Untitled Stacked Gracph'
+export const UNTITLED_CELL_STACKED = 'Untitled Stacked Graph'
 export const UNTITLED_CELL_STEPPLOT = 'Untitled Step-Plot Graph'
 export const UNTITLED_CELL_BAR = 'Untitled Bar Graph'
 export const UNTITLED_CELL_LINE_PLUS_SINGLE_STAT =
@@ -55,7 +56,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   y: 0,
   w: 4,
   h: 4,
-  name: UNTITLED_CELL_LINE,
+  name: UNTITLED_CELL,
   type: CELL_TYPE_LINE,
   queries: [],
   tableOptions: DEFAULT_TABLE_OPTIONS,
