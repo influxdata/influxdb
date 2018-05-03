@@ -57,6 +57,7 @@ class TelegramConfig extends PureComponent<Props, State> {
     const disableNotification = options['disable-notification']
     const disableWebPagePreview = options['disable-web-page-preview']
     const parseMode = options['parse-mode']
+    const {testEnabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -88,6 +89,7 @@ class TelegramConfig extends PureComponent<Props, State> {
             id="token"
             refFunc={this.handleTokenRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 

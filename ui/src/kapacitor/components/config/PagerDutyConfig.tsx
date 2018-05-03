@@ -41,6 +41,8 @@ class PagerDutyConfig extends PureComponent<Props, State> {
     const {options} = this.props.config
     const {url} = options
     const serviceKey = options['service-key']
+    const {testEnabled} = this.state
+
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
@@ -50,6 +52,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
             id="service-key"
             refFunc={this.handleServiceKeyRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 

@@ -39,6 +39,7 @@ class SlackConfig extends PureComponent<Props, State> {
 
   public render() {
     const {url, channel} = this.props.config.options
+    const {testEnabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -55,6 +56,7 @@ class SlackConfig extends PureComponent<Props, State> {
             id="url"
             refFunc={this.handleUrlRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 

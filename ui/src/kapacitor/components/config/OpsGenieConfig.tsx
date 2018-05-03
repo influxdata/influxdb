@@ -54,6 +54,7 @@ class OpsGenieConfig extends PureComponent<Props, State> {
   public render() {
     const {options} = this.props.config
     const apiKey = options['api-key']
+    const {testEnabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -64,6 +65,7 @@ class OpsGenieConfig extends PureComponent<Props, State> {
             id="api-key"
             refFunc={this.handleApiKeyRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 

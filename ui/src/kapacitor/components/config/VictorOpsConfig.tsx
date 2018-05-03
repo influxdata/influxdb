@@ -46,6 +46,7 @@ class VictorOpsConfig extends PureComponent<Props, State> {
     const apiKey = options['api-key']
     const routingKey = options['routing-key']
     const {url} = options
+    const {testEnabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -56,6 +57,7 @@ class VictorOpsConfig extends PureComponent<Props, State> {
             id="api-key"
             refFunc={this.handleApiRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 
