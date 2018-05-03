@@ -32,7 +32,8 @@ $ifql-func-selector--height: 30px;
   }
 }
 
-.ifql-func--button {
+.btn.btn-sm.ifql-func--button {
+  border-radius: 50%;
   float: left;
   &:focus {
     box-shadow: 0 0 8px 3px $c-amethyst;
@@ -58,9 +59,6 @@ $ifql-func-selector--height: 30px;
   margin: 0;
   @extend %no-user-select;
   @include gradient-h($c-star, $c-pool);
-}
-
-.ifql-func--input {
 }
 
 .ifql-func--item {

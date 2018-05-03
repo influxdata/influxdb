@@ -39,7 +39,6 @@ $ifql-arg-min-width: 120px;
 
 .variable-name {
   @extend %ifql-node;
-  // font-family: $code-font;
   color: $c-laser;
   line-height: $ifql-node-height;
   white-space: nowrap;

@@ -55,7 +55,7 @@ export class FuncSelector extends PureComponent<Props, State> {
               onClick={this.handleOpenList}
               tabIndex={0}
             >
-              𝑓⟮𝑥⟯
+              <span className="icon function" />
             </button>
           )}
         </div>
