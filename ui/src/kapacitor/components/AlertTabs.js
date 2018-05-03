@@ -167,7 +167,8 @@ class AlertTabs extends Component {
     }
 
     const pagerDutyV1Enabled = this.getEnabled(configSections, 'pagerduty')
-    const showDeprecation = pagerDutyV1Enabled
+    const opsGenieV1Enabled = this.getEnabled(configSections, 'opsgenie')
+
     const pagerDutyDeprecationMessage = (
       <div>
         PagerDuty v1 is being{' '}
@@ -180,6 +181,13 @@ class AlertTabs extends Component {
           </a>
         }
         . Please update your Kapacitor and configure PagerDuty v2.
+      </div>
+    )
+
+    const opsGenieDeprecationMessage = (
+      <div>
+        OpsGenie v1 is being deprecated. Please update your Kapacitor and
+        configure OpsGenie v2.
       </div>
     )
 
@@ -346,8 +354,11 @@ class AlertTabs extends Component {
         <div className="panel-heading">
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
-        {showDeprecation && (
+        {pagerDutyV1Enabled && (
           <DeprecationWarning message={pagerDutyDeprecationMessage} />
+        )}
+        {opsGenieV1Enabled && (
+          <DeprecationWarning message={opsGenieDeprecationMessage} />
         )}
 
         <Tabs
