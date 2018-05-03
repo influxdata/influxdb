@@ -13,7 +13,7 @@ interface Props {
 }
 
 interface State {
-  isOpen: boolean
+  isExpanded: boolean
 }
 
 @ErrorHandling
@@ -25,7 +25,7 @@ export default class FuncNode extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      isOpen: true,
+      isExpanded: false,
     }
   }
 
@@ -37,25 +37,48 @@ export default class FuncNode extends PureComponent<Props, State> {
       declarationID,
       onGenerateScript,
     } = this.props
-    const {isOpen} = this.state
+    const {isExpanded} = this.state
 
     return (
-      <div className="func-node">
-        <div className="func-node--name" onClick={this.handleClick}>
-          <div>{func.name}</div>
-        </div>
-        {isOpen && (
+      <div
+        className="func-node"
+        onMouseEnter={this.handleMouseEnter}
+        onMouseLeave={this.handleMouseLeave}
+      >
+        <div className="func-node--name">{func.name}</div>
+        <div className="func-node--preview">{this.stringifyArgs}</div>
+        {isExpanded && (
           <FuncArgs
             func={func}
             bodyID={bodyID}
             onChangeArg={onChangeArg}
             declarationID={declarationID}
             onGenerateScript={onGenerateScript}
+            onDeleteFunc={this.handleDelete}
           />
         )}
-        <div className="func-node--delete" onClick={this.handleDelete} />
       </div>
     )
+  }
+
+  private get stringifyArgs(): string {
+    const {
+      func: {args},
+    } = this.props
+
+    if (!args) {
+      return
+    }
+
+    return args.reduce((acc, arg, i) => {
+      if (!arg.value) {
+        return acc
+      }
+
+      const separator = i === 0 ? '' : ', '
+
+      return `${acc}${separator}${arg.key}: ${arg.value}`
+    }, '')
   }
 
   private handleDelete = (): void => {
@@ -64,10 +87,15 @@ export default class FuncNode extends PureComponent<Props, State> {
     this.props.onDelete({funcID: func.id, bodyID, declarationID})
   }
 
-  private handleClick = (e: MouseEvent<HTMLElement>): void => {
+  private handleMouseEnter = (e: MouseEvent<HTMLElement>): void => {
     e.stopPropagation()
 
-    const {isOpen} = this.state
-    this.setState({isOpen: !isOpen})
+    this.setState({isExpanded: true})
+  }
+
+  private handleMouseLeave = (e: MouseEvent<HTMLElement>): void => {
+    e.stopPropagation()
+
+    this.setState({isExpanded: false})
   }
 }

@@ -1,13 +1,36 @@
+$ifql-node-height: 30px;
+$ifql-node-tooltip-gap: $ifql-node-height + 4px;
+$ifql-node-gap: 5px;
+$ifql-node-padding: 10px;
+$ifql-arg-min-width: 120px;
+
+/*
+  Shared Node styles
+  ------------------
+*/
+%ifql-node {
+  height: $ifql-node-height;
+  border-radius: $radius;
+  padding: 0 $ifql-node-padding;
+  font-size: 13px;
+  font-weight: 600;
+  position: relative;
+}
+
 .body-builder {
-  padding: 12px;
+  padding: 12px 30px;
   min-width: 440px;
   overflow: hidden;
-  background-color: $g2-kevlar;
+  height: 100%;
+  width: 100%;
+  background-color: $g1-raven;
 }
 
 .declaration {
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-wrap: wrap;
 
   &:last-of-type {
     margin-bottom: 0;
@@ -15,84 +38,114 @@
 }
 
 .variable-name {
-  font-size: 13px;
-  font-family: $code-font;
-  color: $c-honeydew;
-  padding: 5px 10px;
+  @extend %ifql-node;
+  // font-family: $code-font;
+  color: $c-laser;
+  line-height: $ifql-node-height;
+  white-space: nowrap;
   background-color: $g3-castle;
-  border-radius: $radius;
-  margin-bottom: 2px;
-  width: 100%;
   @include no-user-select();
 }
 
-
 .expression-node {
-  width: 100%;
   display: flex;
-  flex-direction: column;
 }
 
 .func-node {
-  width: 100%;
+  @extend %ifql-node;
   display: flex;
-  align-items: stretch;
-  position: relative;
-  margin-bottom: 2px;
+  align-items: center;
+  background-color: $g4-onyx;
+  margin-left: $ifql-node-gap;
+  transition: background-color 0.25s ease;
+
+  // Connection Line
+  &:after {
+    content: '';
+    height: 4px;
+    width: $ifql-node-gap;
+    background-color: $g4-onyx;
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translate(-100%, -50%);
+  }
+
+  &:hover {
+    background-color: $g6-smoke;
+  }
+}
+.func-node--name,
+.func-node--preview {
+  font-size: 13px;
+  @include no-user-select();
+  white-space: nowrap;
+  transition: color 0.25s ease;
+  font-weight: 600;
 }
 
 .func-node--name {
-  background-color: $g4-onyx;
-  padding: 10px;  
-  color: $ix-text-default;
-  font-size: 13px;
-  border-radius: $radius 0 0 $radius;
-  font-weight: 600;
-  width: 130px;
-  @include no-user-select();
-  display: flex;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  align-items: center;
-  align-content: center;
+  color: $c-comet;
+
+  .func-node:hover & {
+    color: $c-potassium;
+  }
 }
 
-.func-args {
+.func-node--preview {
+  color: $g13-mist;
+  margin-left: 4px;
+
+  .func-node:hover & {
+    color: $g17-whisper;
+  }
+}
+ 
+
+.func-node--tooltip {
   background-color: $g3-castle;
-  border-radius: 0 $radius $radius 0;
+  border-radius: $radius;
   padding: 10px;
-  flex: 1 0 0;
   display: flex;
   align-items: stretch;
   flex-direction: column;
-  color: $ix-text-default;
-  font-family: $ix-text-font;
-  font-weight: 500;
+  position: absolute;
+  top: $ifql-node-tooltip-gap;
+  left: 0;
+  z-index: 9999;
+  box-shadow: 0 0 10px 2px $g2-kevlar;
+
+  // Caret
+  &:before {
+    content: '';
+    border-width: 9px;
+    border-style: solid;
+    border-color: transparent;
+    border-bottom-color: $g3-castle;
+    position: absolute;
+    top: 0;
+    left: $ifql-node-padding + 3px;
+    transform: translate(-50%, -100%);
+  }
+
+  // Invisible block to continue hovering
+  &:after {
+    content: '';
+    width: 80%;
+    height: 7px;
+    position: absolute;
+    top: -7px;
+    left: 0;
+  }
 }
 
 .func-node--delete {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  top: 0;
-  right: -26px;
-  border-radius: 50%;
-  background-color: $c-curacao;
-  opacity: 0;
-  transition: background-color 0.25s ease, opacity 0.25s ease;
-
-  &:hover {
-    background-color: $c-dreamsicle;
-    cursor: pointer;
-  }
-
-  .func-node:hover & {
-    opacity: 1;
-  }
+  margin-top: 12px;
+  width: 60px;
 }
 
 .func-arg {
+  min-width: $ifql-arg-min-width;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -104,10 +157,10 @@
 }
 .func-arg--label {
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: $g10-wolf;
-  min-width: 40px;
+  padding-right: 8px;
   @include no-user-select();
 }
 .func-arg--value {

@@ -3,11 +3,37 @@
     ----------------------------------------------------------------------------
 */
 
+$ifql-func-selector--gap: 10px;
+$ifql-func-selector--height: 30px;
+
 .ifql-func--selector {
+  display: flex;
+  align-items: center;
   position: relative;
+
+  &.open {
+    z-index: 9999;
+  }
+}
+
+.func-selector--connector {
+  width: $ifql-func-selector--gap;
+  height: $ifql-func-selector--height;
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 100%;
+    height: 4px;
+    transform: translateY(-50%);
+    @include gradient-h($g4-onyx, $c-pool);
+  }
 }
 
 .ifql-func--button {
+  float: left;
   &:focus {
     box-shadow: 0 0 8px 3px $c-amethyst;
   }
@@ -16,17 +42,18 @@
 .ifql-func--autocomplete,
 .ifql-func--list {
   position: absolute;
-  left: 0;
   width: 166px;
 }
 
 .ifql-func--autocomplete {
+  left: $ifql-func-selector--gap;
   top: 0;
 }
 
 .ifql-func--list {
-  border-radius: 4px;
-  top: 30px;
+  left: 0;
+  border-radius: $radius;
+  top: $ifql-func-selector--height;
   padding: 0;
   margin: 0;
   @extend %no-user-select;
