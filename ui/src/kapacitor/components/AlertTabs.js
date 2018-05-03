@@ -220,6 +220,18 @@ class AlertTabs extends Component {
           />
         ),
       },
+      opsgenie2: {
+        type: 'OpsGenie2',
+        enabled: this.getEnabled(configSections, 'opsgenie2'),
+        renderComponent: () => (
+          <OpsGenieConfig
+            onSave={this.handleSaveConfig('opsgenie2')}
+            config={this.getSection(configSections, 'opsgenie2')}
+            onTest={this.handleTestConfig('opsgenie2')}
+            enabled={this.getEnabled(configSections, 'opsgenie2')}
+          />
+        ),
+      },
       pagerduty: {
         type: 'PagerDuty',
         enabled: this.getEnabled(configSections, 'pagerduty'),
