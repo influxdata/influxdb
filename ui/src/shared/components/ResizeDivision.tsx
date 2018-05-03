@@ -72,9 +72,12 @@ class Division extends PureComponent<Props> {
   }
 
   private get containerClass(): string {
+    const {orientation} = this.props
     const isAnyHandleBeingDragged = !!this.props.activeHandleID
     return classnames('threesizer--division', {
       dragging: isAnyHandleBeingDragged,
+      vertical: orientation === HANDLE_VERTICAL,
+      horizontal: orientation === HANDLE_HORIZONTAL,
     })
   }
 
@@ -85,7 +88,7 @@ class Division extends PureComponent<Props> {
       disabled: !draggable,
       dragging: this.isDragging,
       vertical: orientation === HANDLE_VERTICAL,
-      horizonatl: orientation === HANDLE_HORIZONTAL,
+      horizontal: orientation === HANDLE_HORIZONTAL,
     })
   }
 

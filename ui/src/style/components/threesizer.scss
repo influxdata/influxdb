@@ -36,12 +36,12 @@ $threesizer-handle: 30px;
     transition: none;
   }
 
-  .vertical & {
-    flex-direction: column;
+  &.vertical {
+    flex-direction: row;
   }
 
-  .horizontal & {
-    flex-direction: row;
+  &.horizontal {
+    flex-direction: column;
   }
 }
 

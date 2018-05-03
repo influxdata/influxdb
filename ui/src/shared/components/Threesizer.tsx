@@ -138,10 +138,10 @@ class Threesizer extends Component<Props, State> {
   }
 
   private get className(): string {
-    const {orientation} = this.props
+    const {orientation, containerClass} = this.props
     const {activeHandleID} = this.state
 
-    return classnames(`threesizer`, {
+    return classnames(`threesizer ${containerClass}`, {
       dragging: activeHandleID,
       horizontal: orientation === HANDLE_HORIZONTAL,
       vertical: orientation === HANDLE_VERTICAL,

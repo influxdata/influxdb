@@ -3,7 +3,6 @@ import SchemaExplorer from 'src/ifql/components/SchemaExplorer'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
-import Resizer from 'src/shared/components/ResizeContainer'
 import Threesizer from 'src/shared/components/Threesizer'
 import {Suggestion, OnChangeScript, FlatBody} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -24,49 +23,32 @@ interface Body extends FlatBody {
 class TimeMachine extends PureComponent<Props> {
   public render() {
     return (
-      <Resizer
-        topMinPixels={440}
-        bottomMinPixels={200}
-        orientation={HANDLE_HORIZONTAL}
-        containerClass="page-contents"
-      >
-        {this.renderEditor}
-        {this.renderRightSide}
-      </Resizer>
-    )
-  }
-
-  private get renderRightSide() {
-    return (
       <Threesizer
-        divisions={this.visPlusBuilder}
-        orientation={HANDLE_VERTICAL}
+        orientation={HANDLE_HORIZONTAL}
+        divisions={this.mainSplit}
+        containerClass="page-contents"
       />
     )
   }
 
-  private get visPlusBuilder() {
-    const {body, suggestions} = this.props
+  private get mainSplit() {
     return [
       {
-        name: 'Build',
-        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
+        render: () => (
+          <Threesizer
+            divisions={this.divisions}
+            orientation={HANDLE_VERTICAL}
+          />
+        ),
       },
       {
-        name: 'Visualize',
-        render: () => <TimeMachineVis blob="Incredulous" />,
+        render: () => <TimeMachineVis blob="Visualizer" />,
       },
     ]
   }
 
-  private get renderEditor() {
-    return (
-      <Threesizer divisions={this.divisions} orientation={HANDLE_VERTICAL} />
-    )
-  }
-
   private get divisions() {
-    const {script, onChangeScript} = this.props
+    const {body, suggestions, script, onChangeScript} = this.props
     return [
       {
         name: 'Script',
@@ -79,8 +61,8 @@ class TimeMachine extends PureComponent<Props> {
         render: () => <SchemaExplorer />,
       },
       {
-        name: 'Test',
-        render: () => <div>im a test</div>,
+        name: 'Build',
+        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
       },
     ]
   }
