@@ -65,6 +65,16 @@ class Threesizer extends Component<Props, State> {
     }
   }
 
+  public componentDidMount() {
+    document.addEventListener('mouseup', this.handleStopDrag)
+    document.addEventListener('mouseleave', this.handleStopDrag)
+  }
+
+  public componentWillUnmount() {
+    document.removeEventListener('mouseup', this.handleStopDrag)
+    document.removeEventListener('mouseleave', this.handleStopDrag)
+  }
+
   public componentDidUpdate(__, prevState) {
     const {dragEvent} = this.state
     const {orientation} = this.props
@@ -112,7 +122,6 @@ class Threesizer extends Component<Props, State> {
     return (
       <div
         className={this.className}
-        onMouseLeave={this.handleMouseLeave}
         onMouseUp={this.handleStopDrag}
         onMouseMove={this.handleDrag}
         ref={r => (this.containerRef = r)}
@@ -204,10 +213,6 @@ class Threesizer extends Component<Props, State> {
   }
 
   private handleStopDrag = () => {
-    this.setState({activeHandleID: '', dragEvent: initialDragEvent})
-  }
-
-  private handleMouseLeave = () => {
     this.setState({activeHandleID: '', dragEvent: initialDragEvent})
   }
 
