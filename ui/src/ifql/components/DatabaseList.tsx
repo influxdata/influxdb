@@ -1,7 +1,9 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import uuid from 'uuid'
 
 import DatabaseListItem from 'src/ifql/components/DatabaseListItem'
+import MeasurementList from 'src/ifql/components/MeasurementList'
 
 import {Source} from 'src/types'
 
@@ -18,6 +20,7 @@ interface DatabaseListProps {
 
 interface DatabaseListState {
   databases: string[]
+  measurement: string
 }
 
 @ErrorHandling
@@ -26,6 +29,7 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
     super(props)
     this.state = {
       databases: [],
+      measurement: '',
     }
   }
 
@@ -39,15 +43,7 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
     try {
       const {data} = await showDatabases(source.links.proxy)
       const {databases} = showDatabasesParser(data)
-      const dbs = databases.map(database => {
-        if (database === '_internal') {
-          return `${database}.monitor`
-        }
-
-        return `${database}.autogen`
-      })
-
-      const sorted = dbs.sort()
+      const sorted = databases.sort()
 
       this.setState({databases: sorted})
       const db = _.get(sorted, '0', '')
@@ -65,12 +61,21 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
         <div className="query-builder--list">
           {this.state.databases.map(db => {
             return (
-              <DatabaseListItem
-                key={db}
-                db={db}
-                isActive={this.props.db === db}
-                onChooseDatabase={onChooseDatabase}
-              />
+              <>
+                <DatabaseListItem
+                  key={uuid.v4()}
+                  db={db}
+                  isActive={this.props.db === db}
+                  onChooseDatabase={onChooseDatabase}
+                />
+                {this.props.db === db && (
+                  <MeasurementList
+                    key={uuid.v4()}
+                    db={db}
+                    onChooseMeasurement={this.handleChooseMeasurement}
+                  />
+                )}
+              </>
             )
           })}
         </div>

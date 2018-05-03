@@ -9,10 +9,19 @@ export interface Props {
 }
 
 class DatabaseListItem extends PureComponent<Props> {
+  constructor(props) {
+    super(props)
+    this.state = {
+      measurement: '',
+    }
+  }
+
   public render() {
+    const {db} = this.props
+
     return (
       <div className={this.className} onClick={this.handleChooseDatabase}>
-        {this.props.db}
+        {db}
       </div>
     )
   }
