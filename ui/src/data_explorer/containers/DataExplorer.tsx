@@ -13,12 +13,16 @@ import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import Header from 'src/data_explorer/containers/Header'
-import Resizer from 'src/shared/components/ResizeContainer'
+import Threesizer from 'src/shared/components/Threesizer'
 import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
-import {VIS_VIEWS, AUTO_GROUP_BY, TEMPLATES} from 'src/shared/constants'
-import {MINIMUM_HEIGHTS} from 'src/data_explorer/constants'
+import {
+  VIS_VIEWS,
+  AUTO_GROUP_BY,
+  TEMPLATES,
+  HANDLE_HORIZONTAL,
+} from 'src/shared/constants'
 import {errorThrown} from 'src/shared/actions/errors'
 import {setAutoRefresh} from 'src/shared/actions/app'
 import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
@@ -120,33 +124,18 @@ export class DataExplorer extends PureComponent<Props, State> {
           onChooseAutoRefresh={handleChooseAutoRefresh}
           onManualRefresh={onManualRefresh}
         />
-        <Resizer
-          topMinPixels={MINIMUM_HEIGHTS.queryMaker}
-          bottomMinPixels={MINIMUM_HEIGHTS.visualization}
+        <Threesizer
+          orientation={HANDLE_HORIZONTAL}
           containerClass="page-contents"
-        >
-          {this.renderTop()}
-          {this.renderBottom()}
-        </Resizer>
+          divisions={this.divisions}
+        />
       </div>
     )
   }
 
-  private renderTop = () => {
-    const {source, queryConfigActions} = this.props
-    return (
-      <QueryMaker
-        source={source}
-        rawText={this.rawText}
-        actions={queryConfigActions}
-        activeQuery={this.activeQuery}
-        initialGroupByTime={AUTO_GROUP_BY}
-      />
-    )
-  }
-
-  private renderBottom = () => {
+  private get divisions() {
     const {
+      source,
       timeRange,
       autoRefresh,
       queryConfigs,
@@ -155,19 +144,36 @@ export class DataExplorer extends PureComponent<Props, State> {
       queryConfigActions,
     } = this.props
 
-    return (
-      <Visualization
-        views={VIS_VIEWS}
-        activeQueryIndex={0}
-        timeRange={timeRange}
-        templates={TEMPLATES}
-        autoRefresh={autoRefresh}
-        queryConfigs={queryConfigs}
-        manualRefresh={manualRefresh}
-        errorThrown={errorThrownAction}
-        editQueryStatus={queryConfigActions.editQueryStatus}
-      />
-    )
+    return [
+      {
+        name: 'Query Builder',
+        render: () => (
+          <QueryMaker
+            source={source}
+            rawText={this.rawText}
+            actions={queryConfigActions}
+            activeQuery={this.activeQuery}
+            initialGroupByTime={AUTO_GROUP_BY}
+          />
+        ),
+      },
+      {
+        name: 'Visualization',
+        render: () => (
+          <Visualization
+            views={VIS_VIEWS}
+            activeQueryIndex={0}
+            timeRange={timeRange}
+            templates={TEMPLATES}
+            autoRefresh={autoRefresh}
+            queryConfigs={queryConfigs}
+            manualRefresh={manualRefresh}
+            errorThrown={errorThrownAction}
+            editQueryStatus={queryConfigActions.editQueryStatus}
+          />
+        ),
+      },
+    ]
   }
 
   private handleCloseWriteData = (): void => {
