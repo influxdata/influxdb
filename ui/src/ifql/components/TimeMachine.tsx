@@ -38,7 +38,10 @@ class TimeMachine extends PureComponent<Props> {
 
   private get renderRightSide() {
     return (
-      <Threesizer divisions={this.visPlusBuilder} orientation={HANDLE_HORIZONTAL} />
+      <Threesizer
+        divisions={this.visPlusBuilder}
+        orientation={HANDLE_HORIZONTAL}
+      />
     )
   }
 
@@ -52,8 +55,8 @@ class TimeMachine extends PureComponent<Props> {
       {
         name: 'Visualize',
         render: () => <TimeMachineVis blob="Visualizer" />,
-
       },
+    ]
   }
 
   private get renderEditor() {
@@ -73,7 +76,7 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         name: 'Explore',
-        render: () => (<SchemaExplorer />),
+        render: () => <SchemaExplorer />,
       },
     ]
   }

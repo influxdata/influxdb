@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import uuid from 'uuid'
 
 import DatabaseListItem from 'src/ifql/components/DatabaseListItem'
 import MeasurementList from 'src/ifql/components/MeasurementList'
@@ -61,21 +60,14 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
         <div className="query-builder--list">
           {this.state.databases.map(db => {
             return (
-              <>
+              <React.Fragment key={db}>
                 <DatabaseListItem
-                  key={uuid.v4()}
                   db={db}
                   isActive={this.props.db === db}
                   onChooseDatabase={onChooseDatabase}
                 />
-                {this.props.db === db && (
-                  <MeasurementList
-                    key={uuid.v4()}
-                    db={db}
-                    onChooseMeasurement={this.handleChooseMeasurement}
-                  />
-                )}
-              </>
+                {this.props.db === db && <MeasurementList db={db} />}
+              </React.Fragment>
             )
           })}
         </div>

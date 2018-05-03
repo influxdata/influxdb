@@ -1,10 +1,11 @@
 import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import TagList from 'src/ifql/components/TagList'
 
 interface Props {
+  db: string
   selected: string
   measurement: string
-  onChooseTag: () => void
   onChooseMeasurement: (measurement: string) => void
 }
 
@@ -17,11 +18,11 @@ class MeasurementListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
-    this.state = {isOpen: this.isCurrentMeasurement}
+    this.state = {isOpen: false}
   }
 
   public render() {
-    const {measurement} = this.props
+    const {measurement, db} = this.props
 
     return (
       <div key={measurement} onClick={this.handleClick}>
@@ -31,25 +32,18 @@ class MeasurementListItem extends PureComponent<Props, State> {
             {measurement}
           </span>
         </div>
+        {this.shouldShow && <TagList db={db} measurement={measurement} />}
       </div>
     )
   }
 
   private handleClick = () => {
     const {measurement, onChooseMeasurement} = this.props
-
-    if (!this.isCurrentMeasurement) {
-      this.setState({isOpen: true}, () => {
-        onChooseMeasurement(measurement)
-      })
-    } else {
-      this.setState({isOpen: !this.state.isOpen})
-    }
+    onChooseMeasurement(measurement)
   }
 
-  private get isCurrentMeasurement(): boolean {
-    const {selected, measurement} = this.props
-    return selected === measurement
+  private get shouldShow(): boolean {
+    return this.state.isOpen
   }
 }
 

@@ -21,7 +21,10 @@ class DatabaseListItem extends PureComponent<Props> {
 
     return (
       <div className={this.className} onClick={this.handleChooseDatabase}>
-        {db}
+        <span>
+          <div className="query-builder--caret icon caret-right" />
+          {db}
+        </span>
       </div>
     )
   }

@@ -4,13 +4,11 @@ import PropTypes from 'prop-types'
 import {showMeasurements} from 'src/shared/apis/metaQuery'
 import showMeasurementsParser from 'src/shared/parsing/showMeasurements'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import MeasurementListFilter from 'src/shared/components/MeasurementListFilter'
-import MeasurementListItem from 'src/shared/components/MeasurementListItem'
+import MeasurementListItem from 'src/ifql/components/MeasurementListItem'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  onChooseMeasurement: (measurement: string) => void
   db: string
 }
 
@@ -62,23 +60,19 @@ class MeasurementList extends PureComponent<Props, State> {
             filterText={this.state.filterText}
           />
         </div>
-        <div className="query-builder--list">
+        <div className="query-builder--sub-list">
           {filtered.map(measurement => (
             <MeasurementListItem
               key={measurement}
+              db={this.props.db}
               measurement={measurement}
               selected={this.state.selected}
-              onChooseTag={this.handleChooseTag}
               onChooseMeasurement={this.handleChooseMeasurement}
             />
           ))}
         </div>
       </div>
     )
-  }
-
-  private handleChooseTag = () => {
-    console.log('Choose a tag')
   }
 
   private async getMeasurements() {

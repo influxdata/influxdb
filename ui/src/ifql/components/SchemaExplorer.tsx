@@ -1,11 +1,6 @@
 import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 import DatabaseList from 'src/ifql/components/DatabaseList'
-import {Source} from 'src/types'
-
-interface Props {
-  source: Source
-}
 
 interface State {
   db: string
@@ -13,7 +8,7 @@ interface State {
 
 const {shape} = PropTypes
 
-class SchemaExplorer extends PureComponent<Props, State> {
+class SchemaExplorer extends PureComponent<{}, State> {
   public static contextTypes = {
     source: shape({
       links: shape({}).isRequired,
