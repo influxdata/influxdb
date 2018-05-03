@@ -429,6 +429,22 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 		}
 	}
 
+	if res.AlertNodes.OpsGenie2 == nil {
+		res.AlertNodes.OpsGenie2 = []*chronograf.OpsGenie{}
+	}
+
+	for i, a := range res.AlertNodes.OpsGenie2 {
+		if a.Teams == nil {
+			a.Teams = []string{}
+			res.AlertNodes.OpsGenie2[i] = a
+		}
+
+		if a.Recipients == nil {
+			a.Recipients = []string{}
+			res.AlertNodes.OpsGenie2[i] = a
+		}
+	}
+
 	if res.AlertNodes.PagerDuty == nil {
 		res.AlertNodes.PagerDuty = []*chronograf.PagerDuty{}
 	}
