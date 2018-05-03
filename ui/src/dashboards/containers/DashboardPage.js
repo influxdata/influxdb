@@ -111,8 +111,8 @@ class DashboardPage extends Component {
     // If using auth and role is Viewer, temp vars will be stale until dashboard
     // is refactored so as not to require a write operation (a PUT in this case)
     if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
-      await updateTempVarValues(source, dashboard)
       await putDashboardByID(dashboardID)
+      await updateTempVarValues(source, dashboard)
     }
   }
 
