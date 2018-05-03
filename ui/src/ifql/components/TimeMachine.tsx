@@ -54,7 +54,7 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         name: 'Visualize',
-        render: () => <TimeMachineVis blob="Visualizer" />,
+        render: () => <TimeMachineVis blob="Incredulous" />,
       },
     ]
   }
