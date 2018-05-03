@@ -77,10 +77,6 @@ class Threesizer extends Component<Props, State> {
       dragEvent.mouseY
     )
 
-    if (!this.state.activeHandleID) {
-      return
-    }
-
     if (orientation === HANDLE_VERTICAL) {
       const left = dragEvent.percentX < prevState.dragEvent.percentX
 
@@ -166,7 +162,7 @@ class Threesizer extends Component<Props, State> {
     const isMaxed = clickedDiv.size === 1
 
     if (isMaxed) {
-      this.equalize()
+      return this.equalize()
     }
 
     const divisions = this.state.divisions.map(d => {
@@ -181,8 +177,8 @@ class Threesizer extends Component<Props, State> {
   }
 
   private equalize = () => {
+    const denominator = this.state.divisions.length
     const divisions = this.state.divisions.map(d => {
-      const denominator = this.state.divisions.length
       return {...d, size: 1 / denominator}
     })
 

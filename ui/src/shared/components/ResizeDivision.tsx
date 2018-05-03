@@ -27,7 +27,11 @@ class Division extends PureComponent<Props> {
     const {name, render} = this.props
     return (
       <>
-        <div className="threesizer--division" style={this.containerStyle}>
+        <div
+          className={this.containerClass}
+          style={this.containerStyle}
+          title={this.title}
+        >
           <div
             draggable={true}
             className={this.className}
@@ -44,19 +48,35 @@ class Division extends PureComponent<Props> {
     )
   }
 
+  private get title() {
+    return 'Drag to resize.\nDouble click to expand.'
+  }
+
   private get containerStyle() {
     return {
       height: `calc((100% - 90px) * ${this.props.size} + 30px)`,
     }
   }
 
+  private get containerClass(): string {
+    const isAnyHandleBeingDragged = !!this.props.activeHandleID
+    return classnames('threesizer--division', {
+      dragging: isAnyHandleBeingDragged,
+    })
+  }
+
   private get className(): string {
-    const {draggable, id, activeHandleID} = this.props
+    const {draggable} = this.props
 
     return classnames('threesizer--handle', {
       disabled: !draggable,
-      dragging: id === activeHandleID,
+      dragging: this.isDragging,
     })
+  }
+
+  private get isDragging(): boolean {
+    const {id, activeHandleID} = this.props
+    return id === activeHandleID
   }
 
   private drag = e => {

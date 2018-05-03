@@ -24,6 +24,10 @@ $threesizer-contents-z: 1;
 .threesizer--division {
   position: relative;
   overflow: hidden;
+  transition: all 0.25s ease-in-out;
+  &.dragging {
+    transition: none;
+  }
 }
 
 /* Draggable Handle With Title */
