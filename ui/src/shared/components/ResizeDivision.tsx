@@ -27,16 +27,13 @@ class Division extends PureComponent<Props> {
     const {name, render} = this.props
     return (
       <>
-        <div
-          className={this.containerClass}
-          style={this.containerStyle}
-          title={this.title}
-        >
+        <div className={this.containerClass} style={this.containerStyle}>
           <div
             draggable={true}
             className={this.className}
             onDragStart={this.drag}
             onDoubleClick={this.handleDoubleClick}
+            title={this.title}
           >
             {name}
           </div>
