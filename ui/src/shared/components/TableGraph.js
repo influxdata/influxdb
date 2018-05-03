@@ -71,6 +71,11 @@ class TableGraph extends Component {
     const sortedLabels = result.sortedLabels
 
     const computedFieldOptions = computeFieldOptions(fieldOptions, sortedLabels)
+
+    if (!_.isEqual(computedFieldOptions, fieldOptions)) {
+      this.handleUpdateFieldOptions(computedFieldOptions)
+    }
+
     const {
       transformedData,
       sortedTimeVals,
