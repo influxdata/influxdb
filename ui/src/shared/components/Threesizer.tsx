@@ -163,10 +163,10 @@ class Threesizer extends Component<Props, State> {
       return
     }
 
-    const isFullSized = clickedDiv.size === 1
+    const isMaxed = clickedDiv.size === 1
 
-    if (isFullSized) {
-      return this.expandAll()
+    if (isMaxed) {
+      this.equalize()
     }
 
     const divisions = this.state.divisions.map(d => {
@@ -180,9 +180,10 @@ class Threesizer extends Component<Props, State> {
     this.setState({divisions})
   }
 
-  private expandAll = () => {
+  private equalize = () => {
     const divisions = this.state.divisions.map(d => {
-      return {...d, size: 1 / this.state.divisions.length}
+      const denominator = this.state.divisions.length
+      return {...d, size: 1 / denominator}
     })
 
     this.setState({divisions})

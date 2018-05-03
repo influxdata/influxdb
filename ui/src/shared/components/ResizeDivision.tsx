@@ -29,8 +29,9 @@ class Division extends PureComponent<Props> {
       <>
         <div className="threesizer--division" style={this.containerStyle}>
           <div
+            draggable={true}
             className={this.className}
-            onMouseDown={this.dragCallback}
+            onDragStart={this.drag}
             onDoubleClick={this.handleDoubleClick}
           >
             {name}
@@ -58,18 +59,20 @@ class Division extends PureComponent<Props> {
     })
   }
 
-  private handleDoubleClick = () => {
-    const {id, onDoubleClick} = this.props
-    return onDoubleClick(id)
-  }
-
-  private dragCallback = e => {
+  private drag = e => {
     const {draggable, id} = this.props
+
     if (!draggable) {
       return NOOP
     }
 
-    return this.props.onHandleStartDrag(id, e)
+    this.props.onHandleStartDrag(id, e)
+  }
+
+  private handleDoubleClick = () => {
+    const {onDoubleClick, id} = this.props
+
+    onDoubleClick(id)
   }
 }
 
