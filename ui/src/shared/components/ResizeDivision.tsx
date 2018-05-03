@@ -1,18 +1,23 @@
 import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import classnames from 'classnames'
 
-import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
+import {
+  HANDLE_PIXELS,
+  HANDLE_VERTICAL,
+  HANDLE_HORIZONTAL,
+} from 'src/shared/constants/index'
 
 const NOOP = () => {}
 
 interface Props {
-  id: string
   name?: string
+  handleDisplay?: string
+  id: string
   size: number
   offset: number
-  activeHandleID: string
   draggable: boolean
   orientation: string
+  activeHandleID: string
   render: () => ReactElement<any>
   onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => void
   onDoubleClick: (id: string) => void
@@ -21,6 +26,7 @@ interface Props {
 class Division extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
     name: '',
+    handleDisplay: 'visible',
   }
 
   public render() {
@@ -29,15 +35,19 @@ class Division extends PureComponent<Props> {
       <>
         <div className={this.containerClass} style={this.containerStyle}>
           <div
+            style={this.handleStyle}
             title={this.title}
             draggable={draggable}
             onDragStart={this.drag}
-            className={this.className}
+            className={this.handleClass}
             onDoubleClick={this.handleDoubleClick}
           >
             <div className="threesizer--title">{name}</div>
           </div>
-          <div className={`threesizer--contents ${orientation}`}>
+          <div
+            className={`threesizer--contents ${orientation}`}
+            style={this.contentStyle}
+          >
             {render()}
           </div>
         </div>
@@ -47,6 +57,26 @@ class Division extends PureComponent<Props> {
 
   private get title() {
     return 'Drag to resize.\nDouble click to expand.'
+  }
+
+  private get contentStyle() {
+    if (this.props.orientation === HANDLE_HORIZONTAL) {
+      return {
+        height: `calc(100% - ${this.handlePixels}px)`,
+      }
+    }
+
+    return {
+      width: `calc(100% - ${this.handlePixels}px)`,
+    }
+  }
+
+  private get handleStyle() {
+    const {handleDisplay: display} = this.props
+
+    return {
+      display,
+    }
   }
 
   private get containerStyle() {
@@ -63,7 +93,15 @@ class Division extends PureComponent<Props> {
 
   private get size(): string {
     const {size, offset} = this.props
-    return `calc((100% - ${offset}px) * ${size} + 30px)`
+    return `calc((100% - ${offset}px) * ${size} + ${this.handlePixels}px)`
+  }
+
+  private get handlePixels(): number {
+    if (this.props.handleDisplay === 'none') {
+      return 0
+    }
+
+    return HANDLE_PIXELS
   }
 
   private get containerClass(): string {
@@ -76,7 +114,7 @@ class Division extends PureComponent<Props> {
     })
   }
 
-  private get className(): string {
+  private get handleClass(): string {
     const {draggable, orientation} = this.props
 
     return classnames('threesizer--handle', {

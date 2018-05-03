@@ -34,6 +34,7 @@ class TimeMachine extends PureComponent<Props> {
   private get mainSplit() {
     return [
       {
+        handleDisplay: 'none',
         render: () => (
           <Threesizer
             divisions={this.divisions}

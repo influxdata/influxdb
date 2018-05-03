@@ -98,13 +98,3 @@ $threesizer-handle: 30px;
     transform: rotate(90deg) translateX(8px);
   }
 }
-
-/* Division Contents */
-.threesizer--contents {
-  &.horizontal {
-    height: calc(100% - #{$threesizer-handle}) !important;
-  }
-  &.vertical {
-    width: calc(100% - #{$threesizer-handle}) !important;
-  }
-}

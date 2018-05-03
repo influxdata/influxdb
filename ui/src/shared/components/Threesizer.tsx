@@ -6,6 +6,7 @@ import _ from 'lodash'
 import ResizeDivision from 'src/shared/components/ResizeDivision'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
+  HANDLE_NONE,
   HANDLE_PIXELS,
   HANDLE_HORIZONTAL,
   HANDLE_VERTICAL,
@@ -29,6 +30,7 @@ interface State {
 
 interface Division {
   name?: string
+  handleDisplay?: string
   render: () => ReactElement<any>
 }
 
@@ -133,6 +135,7 @@ class Threesizer extends Component<Props, State> {
             offset={this.offset}
             draggable={i > 0}
             orientation={orientation}
+            handleDisplay={d.handleDisplay}
             activeHandleID={activeHandleID}
             onDoubleClick={this.handleDoubleClick}
             onHandleStartDrag={this.handleStartDrag}
@@ -144,7 +147,15 @@ class Threesizer extends Component<Props, State> {
   }
 
   private get offset(): number {
-    return HANDLE_PIXELS * this.state.divisions.length
+    const numHandles = this.props.divisions.reduce((acc, d) => {
+      if (d.handleDisplay === HANDLE_NONE) {
+        return acc
+      }
+
+      return acc + 1
+    }, 0)
+
+    return HANDLE_PIXELS * numHandles
   }
 
   private get className(): string {
