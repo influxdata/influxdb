@@ -358,7 +358,13 @@ class TableGraph extends Component {
 
     let cellStyle = style
 
-    if (!isFixedRow && !isFixedColumn && !isFixedCorner && !isTimeData) {
+    if (
+      !isFixedRow &&
+      !isFixedColumn &&
+      !isFixedCorner &&
+      !isTimeData &&
+      isNumerical
+    ) {
       const {bgColor, textColor} = generateThresholdsListHexs({
         colors,
         lastValue: cellData,
