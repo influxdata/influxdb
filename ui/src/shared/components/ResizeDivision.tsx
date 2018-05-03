@@ -2,6 +2,7 @@ import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import classnames from 'classnames'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
 
 const NOOP = () => {}
 
@@ -25,7 +26,7 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {name, render} = this.props
+    const {name, render, orientation} = this.props
     return (
       <>
         <div className={this.containerClass} style={this.containerStyle}>
@@ -36,9 +37,12 @@ class Division extends PureComponent<Props> {
             onDoubleClick={this.handleDoubleClick}
             title={this.title}
           >
-            {name}
+            <div className="threesizer--title">{name}</div>
           </div>
-          <FancyScrollbar className="threesizer--contents" autoHide={true}>
+          <FancyScrollbar
+            className={`threesizer--contents ${orientation}`}
+            autoHide={true}
+          >
             {render()}
           </FancyScrollbar>
         </div>
@@ -51,11 +55,20 @@ class Division extends PureComponent<Props> {
   }
 
   private get containerStyle() {
-    const {size, offset} = this.props
+    if (this.props.orientation === HANDLE_HORIZONTAL) {
+      return {
+        height: this.size,
+      }
+    }
 
     return {
-      height: `calc((100% - ${offset}px) * ${size} + 30px)`,
+      width: this.size,
     }
+  }
+
+  private get size(): string {
+    const {size, offset} = this.props
+    return `calc((100% - ${offset}px) * ${size} + 30px)`
   }
 
   private get containerClass(): string {
@@ -66,11 +79,13 @@ class Division extends PureComponent<Props> {
   }
 
   private get className(): string {
-    const {draggable} = this.props
+    const {draggable, orientation} = this.props
 
     return classnames('threesizer--handle', {
       disabled: !draggable,
       dragging: this.isDragging,
+      vertical: orientation === HANDLE_VERTICAL,
+      horizonatl: orientation === HANDLE_HORIZONTAL,
     })
   }
 

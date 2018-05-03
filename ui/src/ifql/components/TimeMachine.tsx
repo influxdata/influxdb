@@ -27,7 +27,7 @@ class TimeMachine extends PureComponent<Props> {
       <Resizer
         topMinPixels={440}
         bottomMinPixels={200}
-        orientation={HANDLE_VERTICAL}
+        orientation={HANDLE_HORIZONTAL}
         containerClass="page-contents"
       >
         {this.renderEditor}
@@ -40,7 +40,7 @@ class TimeMachine extends PureComponent<Props> {
     return (
       <Threesizer
         divisions={this.visPlusBuilder}
-        orientation={HANDLE_HORIZONTAL}
+        orientation={HANDLE_VERTICAL}
       />
     )
   }
@@ -61,7 +61,7 @@ class TimeMachine extends PureComponent<Props> {
 
   private get renderEditor() {
     return (
-      <Threesizer divisions={this.divisions} orientation={HANDLE_HORIZONTAL} />
+      <Threesizer divisions={this.divisions} orientation={HANDLE_VERTICAL} />
     )
   }
 
