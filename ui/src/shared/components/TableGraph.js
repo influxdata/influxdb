@@ -50,6 +50,7 @@ class TableGraph extends Component {
       sort: {field: sortField, direction: DEFAULT_SORT_DIRECTION},
       columnWidths: {},
       totalColumnWidths: 0,
+      isTimeVisible: true,
     }
   }
 
@@ -90,6 +91,12 @@ class TableGraph extends Component {
       decimalPlaces
     )
 
+    const timeField = _.find(
+      fieldOptions,
+      f => f.internalName === DEFAULT_TIME_FIELD.internalName
+    )
+    const isTimeVisible = _.get(timeField, 'visible', this.state.isTimeVisible)
+
     this.setState({
       transformedData,
       sortedTimeVals,
@@ -100,6 +107,7 @@ class TableGraph extends Component {
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sort,
+      isTimeVisible,
     })
   }
 
@@ -170,6 +178,15 @@ class TableGraph extends Component {
         decimalPlaces
       )
 
+      let isTimeVisible = this.state.isTimeVisible
+      if (_.includes(updatedProps, 'fieldOptions')) {
+        const timeField = _.find(
+          nextProps.fieldOptions,
+          f => f.internalName === DEFAULT_TIME_FIELD.internalName
+        )
+        isTimeVisible = _.get(timeField, 'visible', this.state.isTimeVisible)
+      }
+
       this.setState({
         data,
         sortedLabels,
@@ -178,16 +195,22 @@ class TableGraph extends Component {
         sort,
         columnWidths,
         totalColumnWidths: totalWidths,
+        isTimeVisible,
       })
     }
   }
 
   calcScrollToColRow = () => {
-    const {data, sortedTimeVals, hoveredColumnIndex} = this.state
+    const {data, sortedTimeVals, hoveredColumnIndex, isTimeVisible} = this.state
     const {hoverTime, tableOptions} = this.props
     const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
     const notHovering = hoverTime === NULL_HOVER_TIME
-    if (_.isEmpty(data[0]) || notHovering || hoveringThisTable) {
+    if (
+      _.isEmpty(data[0]) ||
+      notHovering ||
+      hoveringThisTable ||
+      !isTimeVisible
+    ) {
       return {scrollToColumn: undefined, scrollToRow: undefined}
     }
 
@@ -215,11 +238,11 @@ class TableGraph extends Component {
       handleSetHoverTime,
       tableOptions: {verticalTimeAxis},
     } = this.props
-    const {sortedTimeVals} = this.state
+    const {sortedTimeVals, isTimeVisible} = this.state
     if (verticalTimeAxis && rowIndex === 0) {
       return
     }
-    if (handleSetHoverTime) {
+    if (handleSetHoverTime && isTimeVisible) {
       const hoverTime = verticalTimeAxis
         ? sortedTimeVals[rowIndex]
         : sortedTimeVals[columnIndex]
@@ -323,6 +346,7 @@ class TableGraph extends Component {
       hoveredRowIndex,
       transformedData,
       sort,
+      isTimeVisible,
     } = this.state
 
     const {
@@ -342,18 +366,17 @@ class TableGraph extends Component {
       field => field.internalName === DEFAULT_TIME_FIELD.internalName
     )
 
-    const visibleTime = _.get(fieldOptions, [timeFieldIndex, 'visible'], true)
-
     const isFixedRow = rowIndex === 0 && columnIndex > 0
     const isFixedColumn = fixFirstColumn && rowIndex > 0 && columnIndex === 0
     const isTimeData =
-      visibleTime &&
+      isTimeVisible &&
       (verticalTimeAxis
         ? rowIndex !== 0 && columnIndex === timeFieldIndex
         : rowIndex === timeFieldIndex && columnIndex !== 0)
     const isFieldName = verticalTimeAxis ? rowIndex === 0 : columnIndex === 0
     const isFixedCorner = rowIndex === 0 && columnIndex === 0
     const isNumerical = _.isNumber(cellData)
+
     const isHighlightedRow =
       rowIndex === parent.props.scrollToRow ||
       (rowIndex === hoveredRowIndex && hoveredRowIndex !== 0)
@@ -363,7 +386,13 @@ class TableGraph extends Component {
 
     let cellStyle = style
 
-    if (!isFixedRow && !isFixedColumn && !isFixedCorner && !isTimeData) {
+    if (
+      !isFixedRow &&
+      !isFixedColumn &&
+      !isFixedCorner &&
+      !isTimeData &&
+      isNumerical
+    ) {
       const {bgColor, textColor} = generateThresholdsListHexs({
         colors,
         lastValue: cellData,
@@ -442,7 +471,6 @@ class TableGraph extends Component {
     const {fixFirstColumn = DEFAULT_FIX_FIRST_COLUMN} = tableOptions
     const columnCount = _.get(transformedData, ['0', 'length'], 0)
     const rowCount = columnCount === 0 ? 0 : transformedData.length
-
     const COLUMN_MIN_WIDTH = 100
     const COLUMN_MAX_WIDTH = 1000
     const ROW_HEIGHT = 30
