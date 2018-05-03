@@ -36,6 +36,7 @@ class Dygraph extends Component {
     super(props)
     this.state = {
       staticLegendHeight: null,
+      isMounted: false,
     }
   }
 
@@ -92,6 +93,7 @@ class Dygraph extends Component {
 
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
+    this.setState({isMounted: true})
   }
 
   componentWillUnmount() {
