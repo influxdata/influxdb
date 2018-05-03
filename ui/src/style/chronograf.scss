@@ -71,7 +71,6 @@
 @import 'components/threesizer';
 @import 'components/threshold-controls';
 @import 'components/kapacitor-logs-table';
-@import 'components/func-node.scss';
 
 // Pages
 @import 'pages/config-endpoints';
@@ -82,11 +81,8 @@
 @import 'pages/admin';
 @import 'pages/users';
 @import 'pages/tickscript-editor';
+@import 'pages/time-machine';
 @import 'pages/manage-providers';
 
 // TODO
 @import 'unsorted';
-
-// IFQL - Time Machine
-@import 'components/funcs-button';
-@import 'components/time-machine';
