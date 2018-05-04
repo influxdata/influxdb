@@ -42,7 +42,7 @@ const TemplateControlDropdown: SFC<Props> = ({
         menuClass="dropdown-astronaut"
         useAutoComplete={true}
         selected={selectedItem.text}
-        disabled={!isUsingAuth || !isUserAuthorized(meRole, EDITOR_ROLE)}
+        disabled={isUsingAuth && !isUserAuthorized(meRole, EDITOR_ROLE)}
         onChoose={onSelectTemplate(template.id)}
       />
       <label className="template-control--label">{template.tempVar}</label>
