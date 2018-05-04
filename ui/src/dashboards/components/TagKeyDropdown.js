@@ -53,12 +53,10 @@ class TagKeyDropdown extends Component {
       tagKey,
       onSelectTagKey,
       onErrorThrown,
-    } = this.props
-    const {
       source: {
         links: {proxy},
       },
-    } = this.context
+    } = this.props
 
     try {
       const {data} = await showTagKeys({source: proxy, database, measurement})
@@ -78,15 +76,12 @@ class TagKeyDropdown extends Component {
 
 const {func, shape, string} = PropTypes
 
-TagKeyDropdown.contextTypes = {
+TagKeyDropdown.propTypes = {
   source: shape({
     links: shape({
       proxy: string.isRequired,
     }).isRequired,
   }).isRequired,
-}
-
-TagKeyDropdown.propTypes = {
   database: string.isRequired,
   measurement: string.isRequired,
   tagKey: string,
