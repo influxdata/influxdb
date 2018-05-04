@@ -310,7 +310,6 @@ export class TickscriptPage extends PureComponent<Props, State> {
             failStr,
           })
         } catch (err) {
-          console.warn(err, failStr) // tslint:disable-line
           this.setState({
             logs: [...logs, ...this.state.logs],
             failStr,
