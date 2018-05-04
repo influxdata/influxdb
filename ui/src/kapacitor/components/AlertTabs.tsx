@@ -451,7 +451,7 @@ class AlertTabs extends PureComponent<Props, State> {
       } catch ({
         data: {error},
       }) {
-        const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
+        const errorMsg = error.split(': ').pop()
         this.props.notify(notifyAlertEndpointSaveFailed(section, errorMsg))
         return false
       }
