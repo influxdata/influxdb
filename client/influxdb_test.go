@@ -170,6 +170,38 @@ func TestClient_Query(t *testing.T) {
 	}
 }
 
+func TestClient_Query_RP(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		params := r.URL.Query()
+		if got, exp := params.Get("db"), "db0"; got != exp {
+			t.Errorf("unexpected db query parameter: %s != %s", exp, got)
+		}
+		if got, exp := params.Get("rp"), "rp0"; got != exp {
+			t.Errorf("unexpected rp query parameter: %s != %s", exp, got)
+		}
+		var data client.Response
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := client.Query{
+		Database:        "db0",
+		RetentionPolicy: "rp0",
+	}
+	_, err = c.Query(query)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
 func TestClient_ChunkedQuery(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data client.Response

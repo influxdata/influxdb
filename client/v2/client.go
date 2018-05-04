@@ -416,12 +416,13 @@ func (c *client) Write(bp BatchPoints) error {
 
 // Query defines a query to send to the server.
 type Query struct {
-	Command    string
-	Database   string
-	Precision  string
-	Chunked    bool
-	ChunkSize  int
-	Parameters map[string]interface{}
+	Command         string
+	Database        string
+	RetentionPolicy string
+	Precision       string
+	Chunked         bool
+	ChunkSize       int
+	Parameters      map[string]interface{}
 }
 
 // NewQuery returns a query object.
@@ -432,6 +433,19 @@ func NewQuery(command, database, precision string) Query {
 		Database:   database,
 		Precision:  precision,
 		Parameters: make(map[string]interface{}),
+	}
+}
+
+// NewQueryWithRP returns a query object.
+// The database, retention policy, and precision arguments can be empty strings if they are not needed
+// for the query. Setting the retention policy only works on InfluxDB versions 1.6 or greater.
+func NewQueryWithRP(command, database, retentionPolicy, precision string) Query {
+	return Query{
+		Command:         command,
+		Database:        database,
+		RetentionPolicy: retentionPolicy,
+		Precision:       precision,
+		Parameters:      make(map[string]interface{}),
 	}
 }
 
@@ -506,6 +520,9 @@ func (c *client) Query(q Query) (*Response, error) {
 	params := req.URL.Query()
 	params.Set("q", q.Command)
 	params.Set("db", q.Database)
+	if q.RetentionPolicy != "" {
+		params.Set("rp", q.RetentionPolicy)
+	}
 	params.Set("params", string(jsonParameters))
 	if q.Chunked {
 		params.Set("chunked", "true")
