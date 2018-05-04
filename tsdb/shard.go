@@ -16,6 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
@@ -1441,6 +1442,20 @@ func (m *MeasurementFields) FieldKeys() []string {
 	return a
 }
 
+// bytes estimates the memory footprint of this MeasurementFields, in bytes.
+func (m *MeasurementFields) bytes() int {
+	var b int
+	m.mu.RLock()
+	b += 24 // mu RWMutex is 24 bytes
+	b += int(unsafe.Sizeof(m.fields))
+	for k, v := range m.fields {
+		b += int(unsafe.Sizeof(k)) + len(k)
+		b += int(unsafe.Sizeof(v)+unsafe.Sizeof(*v)) + len(v.Name)
+	}
+	m.mu.RUnlock()
+	return b
+}
+
 // CreateFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
@@ -1571,6 +1586,21 @@ func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 	// If there is a load error, return the error and an empty set so
 	// it can be rebuild manually.
 	return fs, fs.load()
+}
+
+// Bytes estimates the memory footprint of this MeasurementFieldSet, in bytes.
+func (fs *MeasurementFieldSet) Bytes() int {
+	var b int
+	fs.mu.RLock()
+	b += 24 // mu RWMutex is 24 bytes
+	for k, v := range fs.fields {
+		b += int(unsafe.Sizeof(k)) + len(k)
+		b += int(unsafe.Sizeof(v)) + v.bytes()
+	}
+	b += int(unsafe.Sizeof(fs.fields))
+	b += int(unsafe.Sizeof(fs.path)) + len(fs.path)
+	fs.mu.RUnlock()
+	return b
 }
 
 // Fields returns fields for a measurement by name.

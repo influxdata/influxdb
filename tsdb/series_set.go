@@ -3,6 +3,7 @@ package tsdb
 import (
 	"io"
 	"sync"
+	"unsafe"
 
 	"github.com/RoaringBitmap/roaring"
 )
@@ -18,6 +19,16 @@ func NewSeriesIDSet() *SeriesIDSet {
 	return &SeriesIDSet{
 		bitmap: roaring.NewBitmap(),
 	}
+}
+
+// Bytes estimates the memory footprint of this SeriesIDSet, in bytes.
+func (s *SeriesIDSet) Bytes() int {
+	var b int
+	s.RLock()
+	b += 24 // mu RWMutex is 24 bytes
+	b += int(unsafe.Sizeof(s.bitmap)) + int(s.bitmap.GetSizeInBytes())
+	s.RUnlock()
+	return b
 }
 
 // Add adds the series id to the set.

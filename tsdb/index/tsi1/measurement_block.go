@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
@@ -59,6 +60,16 @@ type MeasurementBlock struct {
 	sketch, tSketch estimator.Sketch
 
 	version int // block version
+}
+
+// bytes estimates the memory footprint of this MeasurementBlock, in bytes.
+func (blk *MeasurementBlock) bytes() int {
+	var b int
+	// Do not count contents of blk.data or blk.hashData because they reference into an external []byte
+	b += blk.sketch.Bytes()
+	b += blk.tSketch.Bytes()
+	b += int(unsafe.Sizeof(*blk))
+	return b
 }
 
 // Version returns the encoding version parsed from the data.

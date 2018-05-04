@@ -13,6 +13,12 @@ type Sketch interface {
 	// Merge merges another sketch into this one.
 	Merge(s Sketch) error
 
+	// Bytes estimates the memory footprint of the sketch, in bytes.
+	Bytes() int
+
+	// Clone returns a deep copy of the sketch.
+	Clone() Sketch
+
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 }
