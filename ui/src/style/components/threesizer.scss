@@ -53,19 +53,25 @@ $threesizer-handle: 30px;
 
   &.vertical {
     padding: 12px 0;
+    border-right: solid 2px $g3-castle;
+
+    &:hover,
+    &.dragging {
+      cursor: col-resize;
+    }
   }
 
   &.horizontal {
     padding: 0 12px;
+    border-bottom: solid 2px $g3-castle;
+
+    &:hover,
+    &.dragging {
+      cursor: row-resize;
+    }
   }
 
   &:hover {
-    &.vertical {
-      cursor: col-resize;
-    }
-    &.horizontal {
-      cursor: row-resize;
-    }
     &.disabled {
       cursor: pointer;
     }
@@ -75,16 +81,15 @@ $threesizer-handle: 30px;
   }
 
   &.dragging {
-    &.vertical {
-      cursor: col-resize;
-    }
-    &.horizontal {
-      cursor: row-resize;
-    }
     color: $c-laser;
     background-color: $g5-pepper;
   }
 }
+// First Handle should not have a outside facing border
+// .threesizer:first-child .threesizer--division .threesizer--handle {
+//   border-top: 0;
+//   border-left: 0;
+// }
 
 .threesizer--title {
   font-size: 13px;
@@ -95,4 +100,43 @@ $threesizer-handle: 30px;
   .vertical & {
     transform: rotate(90deg) translateX(8px);
   }
+}
+
+$threesizer-shadow-size: 9px;
+$threesizer-z-index: 2;
+$threesizer-shadow-start: fade-out($g0-obsidian, 0.82);
+$threesizer-shadow-stop: fade-out($g0-obsidian, 1);
+
+.threesizer--contents {
+  position: relative;
+
+  // Bottom Shadow
+  &.horizontal:after,
+  &.vertical:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    z-index: $threesizer-z-index;
+  }
+
+  &.horizontal:after {
+    width: 100%;
+    height: $threesizer-shadow-size;
+    @include gradient-v($threesizer-shadow-stop, $threesizer-shadow-start);
+  }
+
+  &.vertical:after {
+    height: 100%;
+    width: $threesizer-shadow-size;
+    @include gradient-h($threesizer-shadow-stop, $threesizer-shadow-start);
+  }
+}
+
+// Hide bottom shadow on last division
+.threesizer--contents.no-shadows:before,
+.threesizer--contents.no-shadows:after,
+.threesizer--division:last-child .threesizer--contents:after {
+  content: none;
+  display: none;
 }

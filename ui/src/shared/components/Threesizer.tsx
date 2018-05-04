@@ -50,6 +50,7 @@ interface Props {
 class Threesizer extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
     orientation: HANDLE_HORIZONTAL,
+    containerClass: '',
   }
 
   private containerRef: HTMLElement

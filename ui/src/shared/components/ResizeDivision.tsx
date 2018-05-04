@@ -27,7 +27,7 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {name, render, orientation, draggable} = this.props
+    const {name, render, draggable} = this.props
     return (
       <>
         <div className={this.containerClass} style={this.containerStyle}>
@@ -41,10 +41,7 @@ class Division extends PureComponent<Props> {
           >
             <div className="threesizer--title">{name}</div>
           </div>
-          <div
-            className={`threesizer--contents ${orientation}`}
-            style={this.contentStyle}
-          >
+          <div className={this.contentsClass} style={this.contentStyle}>
             {render()}
           </div>
         </div>
@@ -127,6 +124,13 @@ class Division extends PureComponent<Props> {
       dragging: this.isDragging,
       vertical: orientation === HANDLE_VERTICAL,
       horizontal: orientation === HANDLE_HORIZONTAL,
+    })
+  }
+
+  private get contentsClass(): string {
+    const {orientation, size} = this.props
+    return classnames(`threesizer--contents ${orientation}`, {
+      'no-shadows': !size,
     })
   }
 
