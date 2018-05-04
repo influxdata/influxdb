@@ -5,6 +5,27 @@ class SchemaExplorer extends PureComponent {
   public render() {
     return (
       <div className="ifql-schema-explorer">
+        <div className="ifql-schema--controls">
+          <div className="ifql-schema--filter">
+            <input
+              className="form-control input-sm"
+              placeholder="Filter YO schema dawg..."
+              type="text"
+              // onChange={this.handleFilterText}
+              // onKeyUp={this.handleEscape}
+              // onClick={this.handleInputClick}
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </div>
+          <button
+            className="btn btn-sm btn-default btn-square"
+            disabled={true}
+            title="Collapse YO tree"
+          >
+            <span className="icon zap" />
+          </button>
+        </div>
         <DatabaseList />
       </div>
     )

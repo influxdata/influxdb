@@ -9,7 +9,6 @@ interface Props {
 
 interface State {
   isOpen: boolean
-  filterText: string
 }
 
 @ErrorHandling
@@ -17,102 +16,52 @@ class TagListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      filterText: '',
       isOpen: false,
     }
-
-    this.handleEscape = this.handleEscape.bind(this)
-    this.handleClickKey = this.handleClickKey.bind(this)
-    this.handleFilterText = this.handleFilterText.bind(this)
   }
 
-  public handleClickKey(e: MouseEvent<HTMLElement>) {
+  public render() {
+    const {isOpen} = this.state
+
+    return (
+      <div className={this.className}>
+        <div className="ifql-schema-item" onClick={this.handleClick}>
+          <span className="icon caret-right" />
+          {this.tagItemLabel}
+        </div>
+        {isOpen && this.renderTagValues}
+      </div>
+    )
+  }
+
+  private handleClick = (e: MouseEvent<HTMLElement>): void => {
     e.stopPropagation()
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  public handleFilterText(e) {
-    e.stopPropagation()
-    this.setState({
-      filterText: e.target.value,
-    })
+  private get tagItemLabel(): string {
+    const {tagKey, tagValues} = this.props
+    return `${tagKey} — ${tagValues.length}`
   }
 
-  public handleEscape(e) {
-    if (e.key !== 'Escape') {
-      return
-    }
-
-    e.stopPropagation()
-    this.setState({
-      filterText: '',
-    })
-  }
-
-  public handleInputClick(e: MouseEvent<HTMLInputElement>) {
-    e.stopPropagation()
-  }
-
-  public renderTagValues() {
+  private get renderTagValues(): JSX.Element[] | JSX.Element {
     const {tagValues} = this.props
     if (!tagValues || !tagValues.length) {
-      return <div>no tag values</div>
+      return <div className="ifql-schema-tree__empty">No tag values</div>
     }
 
-    const filterText = this.state.filterText.toLowerCase()
-    const filtered = tagValues.filter(v => v.toLowerCase().includes(filterText))
-
-    return (
-      <div className="query-builder--sub-list">
-        <div className="query-builder--filter">
-          <input
-            className="form-control input-sm"
-            placeholder={`Filter within ${this.props.tagKey}`}
-            type="text"
-            value={this.state.filterText}
-            onChange={this.handleFilterText}
-            onKeyUp={this.handleEscape}
-            onClick={this.handleInputClick}
-            spellCheck={false}
-            autoComplete="false"
-          />
-          <span className="icon search" />
+    return tagValues.map(v => {
+      return (
+        <div key={v} className="ifql-schema-item readonly">
+          {v}
         </div>
-        {filtered.map(v => {
-          return (
-            <div
-              key={v}
-              className={'query-builder--list-item'}
-              data-test={`query-builder-list-item-tag-value-${v}`}
-            >
-              {v}
-            </div>
-          )
-        })}
-      </div>
-    )
+      )
+    })
   }
 
-  public render() {
-    const {tagKey, tagValues} = this.props
+  private get className(): string {
     const {isOpen} = this.state
-    const tagItemLabel = `${tagKey} — ${tagValues.length}`
-
-    return (
-      <div>
-        <div
-          className={classnames('query-builder--list-item', {active: isOpen})}
-          onClick={this.handleClickKey}
-          data-test={`query-builder-list-item-tag-${tagKey}`}
-        >
-          <span>
-            <div className="query-builder--caret icon caret-right" />
-            {tagItemLabel}
-          </span>
-        </div>
-        {isOpen ? this.renderTagValues() : null}
-      </div>
-    )
+    return classnames('ifql-schema-tree', {expanded: isOpen})
   }
 }
 

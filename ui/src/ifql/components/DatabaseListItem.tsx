@@ -6,7 +6,6 @@ import TagList from 'src/ifql/components/TagList'
 
 interface Props {
   db: string
-  onChooseDatabase: (db: string) => void
 }
 
 interface State {
@@ -27,7 +26,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
     return (
       <div className={this.className} onClick={this.handleChooseDatabase}>
         <div className="ifql-schema-item">
-          <div className="icon caret-right" />
+          <span className="icon caret-right" />
           {db}
         </div>
         {this.state.isOpen && <TagList db={db} />}

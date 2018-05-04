@@ -48,21 +48,17 @@ class TagList extends PureComponent<Props, State> {
     const keys = await getTags()
     const values = await getTagValues()
 
-    const tags = keys.map(k => {
-      return (this.state.tags[k] = values)
-    })
+    const tags = keys.reduce((acc, k) => {
+      return {...acc, [k]: values}
+    }, {})
 
     this.setState({tags})
   }
 
   public render() {
-    return (
-      <div className="query-builder--sub-list">
-        {_.map(this.state.tags, (tagValues: string[], tagKey: string) => (
-          <TagListItem key={tagKey} tagKey={tagKey} tagValues={tagValues} />
-        ))}
-      </div>
-    )
+    return _.map(this.state.tags, (tagValues: string[], tagKey: string) => (
+      <TagListItem key={tagKey} tagKey={tagKey} tagValues={tagValues} />
+    ))
   }
 }
 

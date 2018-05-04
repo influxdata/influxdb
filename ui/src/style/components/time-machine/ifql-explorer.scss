@@ -3,47 +3,92 @@
     ----------------------------------------------------------------------------
 */
 
-$ifql-tree-indent: 30px;
+$ifql-tree-indent: 28px;
 
 .ifql-schema-explorer {
   width: 100%;
   height: 100%;
+  background-color: $g2-kevlar;
 }
 
 .ifql-schema-tree {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  padding-left: 0;
 
-  & > .ifql-schema-tree {
+  > .ifql-schema-tree {
     padding-left: $ifql-tree-indent;
-  }
-
-  .ifql-schema-item + & {
-    display: none;
-  }
-
-  .expanded .ifql-schema-item + & {
-    display: flex;
   }
 }
 
-.ifql-schema-item {
-  position: relative;
-  height: 30px;
+.ifql-schema-tree__empty {
+  height: $ifql-tree-indent;
   display: flex;
   align-items: center;
   padding: 0 11px;
-  padding-left: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  color: $g8-storm;
+  font-style: italic;
+}
 
-  > span {
+.ifql-schema-item {
+  @include no-user-select();
+  position: relative;
+  height: $ifql-tree-indent;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  padding-left: $ifql-tree-indent;
+  font-size: 12px;
+  font-weight: 600;
+  color: $g11-sidewalk;
+  transition: color 0.25s ease, background-color 0.25s ease;
+
+  > span.icon {
     position: absolute;
     top: 50%;
-    left: 14px;
+    left: $ifql-tree-indent / 2;
     transform: translate(-50%, -50%);
     transition: transform 0.25s ease;
   }
-  
+
+  &:hover {
+    color: $g15-platinum;
+    cursor: pointer;
+    background-color: $g4-onyx;
+  }
+
+  .expanded > & {
+    color: $c-pool;
+    background-color: $g3-castle;
+
+    > span.icon {
+      transform: translate(-50%, -50%) rotate(90deg);
+    }
+  }
+
+  &.readonly,
+  &.readonly:hover {
+    background-color: transparent;
+    color: $g11-sidewalk;
+    cursor: default;
+  }
 }
 
+/*
+    Controls
+    ----------------------------------------------------------------------------
+*/
+.ifql-schema--controls {
+  padding: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 
+.ifql-schema--filter {
+  flex: 1 0 0;
+  margin-right: 4px;
+}
