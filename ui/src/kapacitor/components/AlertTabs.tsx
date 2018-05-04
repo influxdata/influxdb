@@ -19,6 +19,7 @@ import {
 import {
   AlertaConfig,
   HipChatConfig,
+  KafkaConfig,
   OpsGenieConfig,
   PagerDutyConfig,
   PushoverConfig,
@@ -219,6 +220,19 @@ class AlertTabs extends PureComponent<Props, State> {
             config={this.getSection(configSections, 'hipchat')}
             onTest={this.handleTestConfig('hipchat')}
             enabled={this.getEnabled(configSections, 'hipchat')}
+          />
+        ),
+      },
+      kafka: {
+        type: 'Kafka',
+        enabled: this.getEnabled(configSections, 'kafka'),
+        renderComponent: () => (
+          <KafkaConfig
+            onSave={this.handleSaveConfig('kafka')}
+            config={this.getSection(configSections, 'kafka')}
+            onTest={this.handleTestConfig('kafka')}
+            enabled={this.getEnabled(configSections, 'kafka')}
+            notify={this.props.notify}
           />
         ),
       },
