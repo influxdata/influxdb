@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
@@ -16,8 +17,30 @@ class FancyScrollbar extends Component {
     setScrollTop: () => {},
   }
 
+  updateScroll() {
+    if (this.ref && _.isNumber(this.props.scrollTop)) {
+      this.ref.scrollTop(this.props.scrollTop)
+    }
+
+    if (this.ref && _.isNumber(this.props.scrollLeft)) {
+      this.ref.scrollLeft(this.props.scrollLeft)
+    }
+  }
+
+  componentDidMount() {
+    this.updateScroll()
+  }
+
+  componentDidUpdate() {
+    this.updateScroll()
+  }
+
   handleMakeDiv = className => props => {
     return <div {...props} className={`fancy-scroll--${className}`} />
+  }
+
+  onRef = ref => {
+    this.ref = ref
   }
 
   render() {
@@ -28,6 +51,7 @@ class FancyScrollbar extends Component {
       className,
       maxHeight,
       setScrollTop,
+      style,
     } = this.props
 
     return (
@@ -35,6 +59,8 @@ class FancyScrollbar extends Component {
         className={classnames('fancy-scroll--container', {
           [className]: className,
         })}
+        ref={this.onRef}
+        style={style}
         onScroll={setScrollTop}
         autoHide={autoHide}
         autoHideTimeout={1000}
@@ -53,7 +79,7 @@ class FancyScrollbar extends Component {
   }
 }
 
-const {bool, func, node, number, string} = PropTypes
+const {bool, func, node, number, string, object} = PropTypes
 
 FancyScrollbar.propTypes = {
   children: node.isRequired,
@@ -62,6 +88,9 @@ FancyScrollbar.propTypes = {
   autoHeight: bool,
   maxHeight: number,
   setScrollTop: func,
+  style: object,
+  scrollTop: number,
+  scrollLeft: number,
 }
 
 export default FancyScrollbar
