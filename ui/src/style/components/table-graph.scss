@@ -31,7 +31,7 @@
 
   // Highlight
   &:after {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;
@@ -80,8 +80,8 @@
     padding-right: 17px;
 
     &:before {
-      font-family: 'icomoon';
-      content: '\e902';
+      font-family: "icomoon";
+      content: "\e902";
       font-size: 17px;
       position: absolute;
       top: 50%;
