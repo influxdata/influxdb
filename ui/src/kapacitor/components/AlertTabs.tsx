@@ -162,8 +162,6 @@ class AlertTabs extends PureComponent<Props, State> {
     const {configSections} = this.state
     const {hash} = this.props
 
-    // console.log(configSections)
-
     if (!configSections) {
       return null
     }
