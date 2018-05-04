@@ -26,8 +26,9 @@ class TagListItem extends PureComponent<Props, State> {
     return (
       <div className={this.className}>
         <div className="ifql-schema-item" onClick={this.handleClick}>
-          <span className="icon caret-right" />
+          <div className="ifql-schema-item-toggle" />
           {this.tagItemLabel}
+          <span className="ifql-schema-type">Tag Key</span>
         </div>
         {isOpen && this.renderTagValues}
       </div>
@@ -40,8 +41,8 @@ class TagListItem extends PureComponent<Props, State> {
   }
 
   private get tagItemLabel(): string {
-    const {tagKey, tagValues} = this.props
-    return `${tagKey} — ${tagValues.length}`
+    const {tagKey} = this.props
+    return `${tagKey}`
   }
 
   private get renderTagValues(): JSX.Element[] | JSX.Element {
@@ -52,7 +53,7 @@ class TagListItem extends PureComponent<Props, State> {
 
     return tagValues.map(v => {
       return (
-        <div key={v} className="ifql-schema-item readonly">
+        <div key={v} className="ifql-schema-item readonly ifql-tree-node">
           {v}
         </div>
       )
@@ -61,7 +62,7 @@ class TagListItem extends PureComponent<Props, State> {
 
   private get className(): string {
     const {isOpen} = this.state
-    return classnames('ifql-schema-tree', {expanded: isOpen})
+    return classnames('ifql-schema-tree ifql-tree-node', {expanded: isOpen})
   }
 }
 
