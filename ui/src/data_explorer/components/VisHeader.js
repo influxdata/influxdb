@@ -4,23 +4,21 @@ import classnames from 'classnames'
 import _ from 'lodash'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
-import {resultsToCSV} from 'src/shared/parsing/resultsToCSV.js'
+import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
+import {dataToCSV} from 'src/shared/parsing/resultsToCSV'
 import download from 'src/external/download.js'
 import {TEMPLATES} from 'src/shared/constants'
 
-const getCSV = (query, errorThrown) => async () => {
+const getDataForCSV = (query, errorThrown) => async () => {
   try {
-    const {results} = await fetchTimeSeriesAsync({
+    const response = await fetchTimeSeriesAsync({
       source: query.host,
       query,
       tempVars: TEMPLATES,
     })
-    const {flag, name, CSVString} = resultsToCSV(results)
-    if (flag === 'no_data') {
-      errorThrown('no data', 'There are no data to download.')
-      return
-    }
-    download(CSVString, `${name}.csv`, 'text/plain')
+    const {data} = timeSeriesToTableGraph([{response}])
+
+    download(dataToCSV(data), `${''}.csv`, 'text/plain')
   } catch (error) {
     errorThrown(error, 'Unable to download .csv file')
     console.error(error)
@@ -46,7 +44,7 @@ const VisHeader = ({views, view, onToggleView, query, errorThrown}) => (
     {query ? (
       <div
         className="btn btn-sm btn-default dlcsv"
-        onClick={getCSV(query, errorThrown)}
+        onClick={getDataForCSV(query, errorThrown)}
       >
         <span className="icon download dlcsv" />
         .csv
