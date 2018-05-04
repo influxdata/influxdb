@@ -130,8 +130,8 @@ const AutoRefresh = (
           isFetching: false,
         })
 
-        const {data} = timeSeriesToTableGraph(newSeries)
         if (grabDataForDownload) {
+          const {data} = timeSeriesToTableGraph(newSeries)
           grabDataForDownload(data)
         }
       } catch (err) {
