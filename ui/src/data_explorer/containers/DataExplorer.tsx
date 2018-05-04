@@ -13,16 +13,12 @@ import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import Header from 'src/data_explorer/containers/Header'
-import Threesizer from 'src/shared/components/Threesizer'
+import ResizeContainer from 'src/shared/components/ResizeContainer'
 import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 
-import {
-  VIS_VIEWS,
-  AUTO_GROUP_BY,
-  TEMPLATES,
-  HANDLE_HORIZONTAL,
-} from 'src/shared/constants'
+import {VIS_VIEWS, AUTO_GROUP_BY, TEMPLATES} from 'src/shared/constants'
+import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {errorThrown} from 'src/shared/actions/errors'
 import {setAutoRefresh} from 'src/shared/actions/app'
 import * as dataExplorerActionCreators from 'src/data_explorer/actions/view'
@@ -95,9 +91,12 @@ export class DataExplorer extends PureComponent<Props, State> {
       source,
       timeRange,
       autoRefresh,
+      queryConfigs,
+      manualRefresh,
       onManualRefresh,
       errorThrownAction,
       writeLineProtocol,
+      queryConfigActions,
       handleChooseAutoRefresh,
     } = this.props
 
@@ -124,30 +123,13 @@ export class DataExplorer extends PureComponent<Props, State> {
           onChooseAutoRefresh={handleChooseAutoRefresh}
           onManualRefresh={onManualRefresh}
         />
-        <Threesizer
-          orientation={HANDLE_HORIZONTAL}
+        <ResizeContainer
           containerClass="page-contents"
-          divisions={this.divisions}
-        />
-      </div>
-    )
-  }
-
-  private get divisions() {
-    const {
-      source,
-      timeRange,
-      autoRefresh,
-      queryConfigs,
-      manualRefresh,
-      errorThrownAction,
-      queryConfigActions,
-    } = this.props
-
-    return [
-      {
-        name: 'Query Builder',
-        render: () => (
+          minTopHeight={MINIMUM_HEIGHTS.queryMaker}
+          minBottomHeight={MINIMUM_HEIGHTS.visualization}
+          initialTopHeight={INITIAL_HEIGHTS.queryMaker}
+          initialBottomHeight={INITIAL_HEIGHTS.visualization}
+        >
           <QueryMaker
             source={source}
             rawText={this.rawText}
@@ -155,11 +137,6 @@ export class DataExplorer extends PureComponent<Props, State> {
             activeQuery={this.activeQuery}
             initialGroupByTime={AUTO_GROUP_BY}
           />
-        ),
-      },
-      {
-        name: 'Visualization',
-        render: () => (
           <Visualization
             views={VIS_VIEWS}
             activeQueryIndex={0}
@@ -171,9 +148,9 @@ export class DataExplorer extends PureComponent<Props, State> {
             errorThrown={errorThrownAction}
             editQueryStatus={queryConfigActions.editQueryStatus}
           />
-        ),
-      },
-    ]
+        </ResizeContainer>
+      </div>
+    )
   }
 
   private handleCloseWriteData = (): void => {
