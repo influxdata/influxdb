@@ -97,7 +97,7 @@ func NewTest(t *testing.T) *Test {
 			tagsSlice = append(tagsSlice, nil)
 		}
 
-		_, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice, nil)
+		_, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
 		if err != nil {
 			return err
 		}

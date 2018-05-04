@@ -22,7 +22,7 @@ func TestSeriesFile_Series(t *testing.T) {
 		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
 	}
 	for _, s := range series {
-		if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte(s.Name)}, []models.Tags{s.Tags}, nil); err != nil {
+		if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte(s.Name)}, []models.Tags{s.Tags}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -61,7 +61,7 @@ func TestSeriesFileCompactor(t *testing.T) {
 		names = append(names, []byte(fmt.Sprintf("m%d", i)))
 		tagsSlice = append(tagsSlice, models.NewTags(map[string]string{"foo": "bar"}))
 	}
-	if _, err := sfile.CreateSeriesListIfNotExists(names, tagsSlice, nil); err != nil {
+	if _, err := sfile.CreateSeriesListIfNotExists(names, tagsSlice); err != nil {
 		t.Fatal(err)
 	}
 
