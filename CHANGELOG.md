@@ -4,6 +4,7 @@
 
 1.  [#3233](https://github.com/influxdata/chronograf/pull/3233): Add default retention policy field as option in source configuration for use in querying hosts from Host List page & Host pages
 1.  [#3290](https://github.com/influxdata/chronograf/pull/3290): Add support for PagerDuty v2 in UI
+1.  [#3369](https://github.com/influxdata/chronograf/pull/3369): Add support for OpsGenie v2 in UI
 
 ### UI Improvements
 
@@ -15,7 +16,6 @@
 1.  [#3245](https://github.com/influxdata/chronograf/pull/3245): Display 'no results' on cells without results
 1.  [#3354](https://github.com/influxdata/chronograf/pull/3354): Disable template variables for non editing users
 1.  [#3353](https://github.com/influxdata/chronograf/pull/3353): YAxisLabels in Dashboard Graph Builder not showing until graph is redrawn
-
 
 ### Bug Fixes
 
