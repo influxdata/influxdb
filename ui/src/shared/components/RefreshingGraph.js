@@ -118,6 +118,7 @@ const RefreshingGraph = ({
         decimalPlaces={decimalPlaces}
         editQueryStatus={editQueryStatus}
         resizerTopHeight={resizerTopHeight}
+        grabDataForDownload={grabDataForDownload}
         handleSetHoverTime={handleSetHoverTime}
         isInCEO={isInCEO}
       />
