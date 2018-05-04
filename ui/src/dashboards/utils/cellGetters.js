@@ -22,38 +22,8 @@ const getMostCommonValue = values => {
   return results.mostCommonValue
 }
 
-// const getNewTypedCellName = type => {
-//   switch (type) {
-//     case CELL_TYPE_LINE:
-//       return UNTITLED_CELL_LINE
-//     case CELL_TYPE_STACKED:
-//       return UNTITLED_CELL_STACKED
-//     case CELL_TYPE_STEPPLOT:
-//       return UNTITLED_CELL_STEPPLOT
-//     case CELL_TYPE_BAR:
-//       return UNTITLED_CELL_BAR
-//     case CELL_TYPE_LINE_PLUS_SINGLE_STAT:
-//       return UNTITLED_CELL_LINE_PLUS_SINGLE_STAT
-//     case CELL_TYPE_SINGLE_STAT:
-//       return UNTITLED_CELL_SINGLE_STAT
-//     case CELL_TYPE_GAUGE:
-//       return UNTITLED_CELL_GAUGE
-//     case CELL_TYPE_TABLE:
-//       return UNTITLED_CELL_TABLE
-//   }
-// }
-
 export const isCellUntitled = cellName => {
-  return (
-    cellName === UNTITLED_CELL
-    // cellName === UNTITLED_CELL_STACKED ||
-    // cellName === UNTITLED_CELL_STEPPLOT ||
-    // cellName === UNTITLED_CELL_BAR ||
-    // cellName === UNTITLED_CELL_LINE_PLUS_SINGLE_STAT ||
-    // cellName === UNTITLED_CELL_SINGLE_STAT ||
-    // cellName === UNTITLED_CELL_GAUGE ||
-    // cellName === UNTITLED_CELL_TABLE
-  )
+  return cellName === UNTITLED_CELL
 }
 
 const numColumns = 12
