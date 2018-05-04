@@ -16,6 +16,11 @@ export const MINIMUM_HEIGHTS = {
   visualization: 200,
 }
 
+export const INITIAL_HEIGHTS = {
+  queryMaker: '66.666%',
+  visualization: '33.334%',
+}
+
 const SEPARATOR = 'SEPARATOR'
 
 export const QUERY_TEMPLATES = [
