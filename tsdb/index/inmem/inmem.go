@@ -183,7 +183,7 @@ func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 // CreateSeriesListIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
 func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, keys, names [][]byte, tagsSlice []models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
-	seriesIDs, err := i.sfile.CreateSeriesListIfNotExists(names, tagsSlice, nil)
+	seriesIDs, err := i.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
 	if err != nil {
 		return err
 	}
