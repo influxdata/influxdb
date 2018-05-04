@@ -1,0 +1,49 @@
+/*
+    IFQL Schema Explorer -- Tree View
+    ----------------------------------------------------------------------------
+*/
+
+$ifql-tree-indent: 30px;
+
+.ifql-schema-explorer {
+  width: 100%;
+  height: 100%;
+}
+
+.ifql-schema-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+
+  & > .ifql-schema-tree {
+    padding-left: $ifql-tree-indent;
+  }
+
+  .ifql-schema-item + & {
+    display: none;
+  }
+
+  .expanded .ifql-schema-item + & {
+    display: flex;
+  }
+}
+
+.ifql-schema-item {
+  position: relative;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 11px;
+  padding-left: 32px;
+
+  > span {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    transform: translate(-50%, -50%);
+    transition: transform 0.25s ease;
+  }
+  
+}
+
+
