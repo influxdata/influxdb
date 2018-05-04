@@ -10,7 +10,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {notifyCSVDownloadFailed} from 'src/shared/copy/notifications'
 import download from 'src/external/download.js'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {dataToCSV} from 'src/shared/parsing/resultsToCSV'
+import {dataToCSV} from 'src/shared/parsing/dataToCSV'
 
 @ErrorHandling
 class LayoutCell extends Component {

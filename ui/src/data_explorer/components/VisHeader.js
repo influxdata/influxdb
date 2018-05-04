@@ -5,7 +5,7 @@ import _ from 'lodash'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
-import {dataToCSV} from 'src/shared/parsing/resultsToCSV'
+import {dataToCSV} from 'src/shared/parsing/dataToCSV'
 import download from 'src/external/download.js'
 import {TEMPLATES} from 'src/shared/constants'
 
