@@ -90,6 +90,7 @@ const TemplateQueryBuilder = ({
           <span className="tvm-query-builder--text">WITH KEY =</span>
           {selectedMeasurement ? (
             <TagKeyDropdown
+              source={source}
               database={selectedDatabase}
               measurement={selectedMeasurement}
               tagKey={selectedTagKey}
