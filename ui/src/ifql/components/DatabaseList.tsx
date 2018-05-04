@@ -1,34 +1,36 @@
 import React, {PureComponent} from 'react'
+import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 import DatabaseListItem from 'src/ifql/components/DatabaseListItem'
-import MeasurementList from 'src/ifql/components/MeasurementList'
-
-import {Source} from 'src/types'
 
 import {showDatabases} from 'src/shared/apis/metaQuery'
 import showDatabasesParser from 'src/shared/parsing/showDatabases'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface DatabaseListProps {
-  db: string
-  source: Source
-  onChooseDatabase: (database: string) => void
-}
-
 interface DatabaseListState {
   databases: string[]
   measurement: string
+  db: string
 }
 
+const {shape} = PropTypes
+
 @ErrorHandling
-class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
+class DatabaseList extends PureComponent<{}, DatabaseListState> {
+  public static contextTypes = {
+    source: shape({
+      links: shape({}).isRequired,
+    }).isRequired,
+  }
+
   constructor(props) {
     super(props)
     this.state = {
       databases: [],
       measurement: '',
+      db: '',
     }
   }
 
@@ -37,7 +39,7 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
   }
 
   public async getDatabases() {
-    const {source} = this.props
+    const {source} = this.context
 
     try {
       const {data} = await showDatabases(source.links.proxy)
@@ -46,33 +48,30 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
 
       this.setState({databases: sorted})
       const db = _.get(sorted, '0', '')
-      this.props.onChooseDatabase(db)
+      this.handleChooseDatabase(db)
     } catch (err) {
       console.error(err)
     }
   }
 
   public render() {
-    const {onChooseDatabase} = this.props
-
     return (
-      <div className="query-builder--column query-builder--column-db">
-        <div className="query-builder--list">
-          {this.state.databases.map(db => {
-            return (
-              <React.Fragment key={db}>
-                <DatabaseListItem
-                  db={db}
-                  isActive={this.props.db === db}
-                  onChooseDatabase={onChooseDatabase}
-                />
-                {this.props.db === db && <MeasurementList db={db} />}
-              </React.Fragment>
-            )
-          })}
-        </div>
+      <div className="ifql-schema-tree">
+        {this.state.databases.map(db => {
+          return (
+            <DatabaseListItem
+              db={db}
+              key={db}
+              onChooseDatabase={this.handleChooseDatabase}
+            />
+          )
+        })}
       </div>
     )
+  }
+
+  private handleChooseDatabase = (db: string): void => {
+    this.setState({db})
   }
 }
 

@@ -2,17 +2,22 @@ import React, {PureComponent} from 'react'
 
 import classnames from 'classnames'
 
-export interface Props {
-  isActive: boolean
+import TagList from 'src/ifql/components/TagList'
+
+interface Props {
   db: string
   onChooseDatabase: (db: string) => void
 }
 
-class DatabaseListItem extends PureComponent<Props> {
+interface State {
+  isOpen: boolean
+}
+
+class DatabaseListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      measurement: '',
+      isOpen: false,
     }
   }
 
@@ -21,23 +26,23 @@ class DatabaseListItem extends PureComponent<Props> {
 
     return (
       <div className={this.className} onClick={this.handleChooseDatabase}>
-        <span>
-          <div className="query-builder--caret icon caret-right" />
+        <div className="ifql-schema-item">
+          <div className="icon caret-right" />
           {db}
-        </span>
+        </div>
+        {this.state.isOpen && <TagList db={db} />}
       </div>
     )
   }
 
   private get className(): string {
-    return classnames('query-builder--list-item', {
-      active: this.props.isActive,
+    return classnames('ifql-schema-tree', {
+      expanded: this.state.isOpen,
     })
   }
 
   private handleChooseDatabase = () => {
-    const {onChooseDatabase, db} = this.props
-    onChooseDatabase(db)
+    this.setState({isOpen: !this.state.isOpen})
   }
 }
 

@@ -5,16 +5,13 @@ import _ from 'lodash'
 
 import TagListItem from 'src/ifql/components/TagListItem'
 
-import {showTagKeys, showTagValues} from 'src/shared/apis/metaQuery'
-import showTagKeysParser from 'src/shared/parsing/showTagKeys'
-import showTagValuesParser from 'src/shared/parsing/showTagValues'
+import {getTags, getTagValues} from 'src/ifql/apis'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 const {shape} = PropTypes
 
 interface Props {
   db: string
-  measurement: string
 }
 
 interface State {
@@ -39,24 +36,8 @@ class TagList extends PureComponent<Props, State> {
   }
 
   public componentDidMount() {
-    const {db, measurement} = this.props
-    if (!db || !measurement) {
-      return
-    }
-
-    this.getTags()
-  }
-
-  public componentDidUpdate(prevProps) {
-    const {db, measurement} = this.props
-
-    const {db: prevDB, measurement: prevMeas} = prevProps
-
-    if (!db || !measurement) {
-      return
-    }
-
-    if (db === prevDB && measurement === prevMeas) {
+    const {db} = this.props
+    if (!db) {
       return
     }
 
@@ -64,29 +45,14 @@ class TagList extends PureComponent<Props, State> {
   }
 
   public async getTags() {
-    const {db, measurement} = this.props
-    const {source} = this.context
+    const keys = await getTags()
+    const values = await getTagValues()
 
-    const {data} = await showTagKeys({
-      database: db,
-      measurement,
-      retentionPolicy: 'autogen',
-      source: source.links.proxy,
-    })
-    const {tagKeys} = showTagKeysParser(data)
-
-    const response = await showTagValues({
-      database: db,
-      measurement,
-      retentionPolicy: 'autogen',
-      source: source.links.proxy,
-      tagKeys,
+    const tags = keys.map(k => {
+      return (this.state.tags[k] = values)
     })
 
-    const {tags} = showTagValuesParser(response.data)
-
-    const selected = Object.keys(tags)
-    this.setState({tags, selectedTag: selected[0]})
+    this.setState({tags})
   }
 
   public render() {
