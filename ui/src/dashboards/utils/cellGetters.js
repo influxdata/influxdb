@@ -1,6 +1,6 @@
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
-import {UNTITLED_CELL} from 'src/dashboards/constants'
+import {UNTITLED_GRAPH} from 'src/dashboards/constants'
 
 const getMostCommonValue = values => {
   const results = values.reduce(
@@ -23,7 +23,7 @@ const getMostCommonValue = values => {
 }
 
 export const isCellUntitled = cellName => {
-  return cellName === UNTITLED_CELL
+  return cellName === UNTITLED_GRAPH
 }
 
 const numColumns = 12
@@ -58,7 +58,7 @@ export const getNewDashboardCell = (dashboard, cellType) => {
   const typedCell = {
     ...NEW_DEFAULT_DASHBOARD_CELL,
     type,
-    name: UNTITLED_CELL,
+    name: UNTITLED_GRAPH,
   }
 
   if (dashboard.cells.length === 0) {

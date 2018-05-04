@@ -5,16 +5,7 @@ import {
 import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
-export const UNTITLED_CELL = 'Untitled Graph'
-export const UNTITLED_CELL_LINE = 'Untitled Line Graph'
-export const UNTITLED_CELL_STACKED = 'Untitled Stacked Graph'
-export const UNTITLED_CELL_STEPPLOT = 'Untitled Step-Plot Graph'
-export const UNTITLED_CELL_BAR = 'Untitled Bar Graph'
-export const UNTITLED_CELL_LINE_PLUS_SINGLE_STAT =
-  'Untitled Line Graph + Single Stat'
-export const UNTITLED_CELL_SINGLE_STAT = 'Untitled Single Stat'
-export const UNTITLED_CELL_GAUGE = 'Untitled Gauge'
-export const UNTITLED_CELL_TABLE = 'Untitled Table'
+export const UNTITLED_GRAPH = 'Untitled Graph'
 
 export const TIME_FORMAT_TOOLTIP_LINK =
   'http://momentjs.com/docs/#/parsing/string-format/'
@@ -56,7 +47,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   y: 0,
   w: 4,
   h: 4,
-  name: UNTITLED_CELL,
+  name: UNTITLED_GRAPH,
   type: CELL_TYPE_LINE,
   queries: [],
   tableOptions: DEFAULT_TABLE_OPTIONS,
