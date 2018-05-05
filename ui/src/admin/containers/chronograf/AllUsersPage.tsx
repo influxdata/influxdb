@@ -8,10 +8,17 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
-import {AuthLinks, Organization, Role, User} from 'src/types'
+import {
+  AuthLinks,
+  Organization,
+  Role,
+  User,
+  Notification,
+  NotificationFunc,
+} from 'src/types'
 
 interface Props {
-  notify: () => void
+  notify: (message: Notification | NotificationFunc) => void
   links: AuthLinks
   meID: string
   users: User[]

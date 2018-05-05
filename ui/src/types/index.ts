@@ -11,7 +11,7 @@ import {
 import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem} from './shared'
-import {Notification} from 'src/kapacitor/components/AlertOutputs'
+import {Notification, NotificationFunc} from './notifications'
 
 export {
   Me,
@@ -37,4 +37,5 @@ export {
   TimeRange,
   Task,
   Notification,
+  NotificationFunc,
 }

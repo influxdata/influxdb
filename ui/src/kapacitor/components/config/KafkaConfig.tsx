@@ -3,6 +3,8 @@ import React, {PureComponent} from 'react'
 import TagInput from 'src/shared/components/TagInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {Notification, NotificationFunc} from 'src/types'
+
 interface Properties {
   brokers: string[]
   timeout: string
@@ -30,6 +32,7 @@ interface Props {
   onSave: (properties: Properties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
+  notify: (message: Notification | NotificationFunc) => void
 }
 
 interface State {
