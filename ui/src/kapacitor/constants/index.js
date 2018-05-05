@@ -114,6 +114,7 @@ export const MAP_KEYS_FROM_CONFIG = {
 export const ALERTS_FROM_CONFIG = {
   alerta: ['environment', 'origin', 'token'], // token = bool
   hipChat: ['url', 'room', 'token'], // token = bool
+  kafka: [],
   opsGenie: ['api-key', 'teams', 'recipients'], // api-key = bool
   opsGenie2: ['api-key', 'teams', 'recipients'], // api-key = bool
   pagerDuty: ['service-key'], // service-key = bool
@@ -172,6 +173,7 @@ export const HANDLERS_TO_RULE = {
     'service',
   ],
   hipChat: ['room'],
+  kafka: ['cluster', 'topic', 'template'],
   opsGenie: ['teams', 'recipients'],
   opsGenie2: ['teams', 'recipients'],
   pagerDuty: [],
