@@ -94,6 +94,26 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxSeriesExceeded(b *testin
 	}
 }
 
+func TestIndex_Bytes(t *testing.T) {
+	sfile := mustOpenSeriesFile()
+	defer sfile.Close()
+	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
+	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt).(*inmem.ShardIndex)
+
+	indexBaseBytes := si.Bytes()
+
+	name := []byte("name")
+	err := si.CreateSeriesIfNotExists(name, name, models.Tags{})
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	if indexBaseBytes >= si.Bytes() {
+		t.Errorf("index Bytes(): want >%d, got %d", indexBaseBytes, si.Bytes())
+	}
+}
+
 // seriesFileWrapper is a test wrapper for tsdb.seriesFileWrapper.
 type seriesFileWrapper struct {
 	*tsdb.SeriesFile

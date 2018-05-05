@@ -158,6 +158,33 @@ func TestClient_Query(t *testing.T) {
 	}
 }
 
+func TestClient_QueryWithRP(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		params := r.URL.Query()
+		if got, exp := params.Get("db"), "db0"; got != exp {
+			t.Errorf("unexpected db query parameter: %s != %s", exp, got)
+		}
+		if got, exp := params.Get("rp"), "rp0"; got != exp {
+			t.Errorf("unexpected rp query parameter: %s != %s", exp, got)
+		}
+		var data Response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	config := HTTPConfig{Addr: ts.URL}
+	c, _ := NewHTTPClient(config)
+	defer c.Close()
+
+	query := NewQueryWithRP("SELECT * FROM m0", "db0", "rp0", "")
+	_, err := c.Query(query)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
 func TestClientDownstream500WithBody_Query(t *testing.T) {
 	const err500page = `<html>
 	<head>

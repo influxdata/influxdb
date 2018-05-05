@@ -133,7 +133,7 @@ func (f *SeriesFile) Wait() {
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The returned ids list returns values for new series and zero for existing series.
-func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []uint64, err error) {
+func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) (ids []uint64, err error) {
 	keys := GenerateSeriesKeys(names, tagsSlice)
 	keyPartitionIDs := f.SeriesKeysPartitionIDs(keys)
 	ids = make([]uint64, len(keys))

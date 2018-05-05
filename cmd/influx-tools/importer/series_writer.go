@@ -75,7 +75,7 @@ type seriesFileAdapter struct {
 }
 
 func (s *seriesFileAdapter) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) (err error) {
-	_, err = s.sf.CreateSeriesListIfNotExists(names, tagsSlice, s.buf[:0])
+	_, err = s.sf.CreateSeriesListIfNotExists(names, tagsSlice)
 	return err
 }
 

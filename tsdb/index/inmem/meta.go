@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
@@ -49,6 +50,40 @@ func newMeasurement(database, name string) *measurement {
 		seriesByID:          make(map[uint64]*series),
 		seriesByTagKeyValue: make(map[string]*tagKeyValue),
 	}
+}
+
+// bytes estimates the memory footprint of this measurement, in bytes.
+func (m *measurement) bytes() int {
+	var b int
+	m.mu.RLock()
+	b += int(unsafe.Sizeof(m.Database)) + len(m.Database)
+	b += int(unsafe.Sizeof(m.Name)) + len(m.Name)
+	if m.NameBytes != nil {
+		b += int(unsafe.Sizeof(m.NameBytes)) + cap(m.NameBytes)
+	}
+	b += 24 // 24 bytes for m.mu RWMutex
+	b += int(unsafe.Sizeof(m.fieldNames))
+	for fieldName := range m.fieldNames {
+		b += int(unsafe.Sizeof(fieldName)) + len(fieldName)
+	}
+	b += int(unsafe.Sizeof(m.seriesByID))
+	for k, v := range m.seriesByID {
+		b += int(unsafe.Sizeof(k))
+		b += int(unsafe.Sizeof(v))
+		// Do not count footprint of each series, to avoid double-counting in Index.bytes().
+	}
+	b += int(unsafe.Sizeof(m.seriesByTagKeyValue))
+	for k, v := range m.seriesByTagKeyValue {
+		b += int(unsafe.Sizeof(k)) + len(k)
+		b += int(unsafe.Sizeof(v)) + v.bytes()
+	}
+	b += int(unsafe.Sizeof(m.sortedSeriesIDs))
+	for _, seriesID := range m.sortedSeriesIDs {
+		b += int(unsafe.Sizeof(seriesID))
+	}
+	b += int(unsafe.Sizeof(m.dirty))
+	m.mu.RUnlock()
+	return b
 }
 
 // Authorized determines if this Measurement is authorized to be read, according
@@ -990,6 +1025,22 @@ func newSeries(id uint64, m *measurement, key string, tags models.Tags) *series 
 	}
 }
 
+// bytes estimates the memory footprint of this series, in bytes.
+func (s *series) bytes() int {
+	var b int
+	s.mu.RLock()
+	b += 24 // RWMutex uses 24 bytes
+	b += int(unsafe.Sizeof(s.deleted) + unsafe.Sizeof(s.ID))
+	// Do not count s.Measurement to prevent double-counting in Index.Bytes.
+	b += int(unsafe.Sizeof(s.Key)) + len(s.Key)
+	for _, tag := range s.Tags {
+		b += int(unsafe.Sizeof(tag)) + cap(tag.Key) + cap(tag.Value)
+	}
+	b += int(unsafe.Sizeof(s.Tags))
+	s.mu.RUnlock()
+	return b
+}
+
 // Delete marks this series as deleted.  A deleted series should not be returned for queries.
 func (s *series) Delete() {
 	s.mu.Lock()
@@ -1007,11 +1058,25 @@ func (s *series) Deleted() bool {
 
 // TagKeyValue provides goroutine-safe concurrent access to the set of series
 // ids mapping to a set of tag values.
-//
-// TODO(edd): This could possibly be replaced by a sync.Map once we use Go 1.9.
 type tagKeyValue struct {
 	mu      sync.RWMutex
 	entries map[string]*tagKeyValueEntry
+}
+
+// bytes estimates the memory footprint of this tagKeyValue, in bytes.
+func (t *tagKeyValue) bytes() int {
+	var b int
+	t.mu.RLock()
+	b += 24 // RWMutex is 24 bytes
+	b += int(unsafe.Sizeof(t.entries))
+	for k, v := range t.entries {
+		b += int(unsafe.Sizeof(k)) + len(k)
+		b += len(v.m) * 8 // uint64
+		b += cap(v.a) * 8 // uint64
+		b += int(unsafe.Sizeof(v) + unsafe.Sizeof(*v))
+	}
+	t.mu.RUnlock()
+	return b
 }
 
 // NewTagKeyValue initialises a new TagKeyValue.

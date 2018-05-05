@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
@@ -78,6 +79,34 @@ func NewIndexFile(sfile *tsdb.SeriesFile) *IndexFile {
 		sketch:  hll.NewDefaultPlus(),
 		tSketch: hll.NewDefaultPlus(),
 	}
+}
+
+// bytes estimates the memory footprint of this IndexFile, in bytes.
+func (f *IndexFile) bytes() int {
+	var b int
+	f.wg.Add(1)
+	b += 16 // wg WaitGroup is 16 bytes
+	b += int(unsafe.Sizeof(f.data))
+	// Do not count f.data contents because it is mmap'd
+	b += int(unsafe.Sizeof(f.sfile))
+	// Do not count SeriesFile because it belongs to the code that constructed this IndexFile.
+	b += int(unsafe.Sizeof(f.tblks))
+	for k, v := range f.tblks {
+		// Do not count TagBlock contents, they all reference f.data
+		b += int(unsafe.Sizeof(k)) + len(k)
+		b += int(unsafe.Sizeof(*v))
+	}
+	b += int(unsafe.Sizeof(f.mblk)) + f.mblk.bytes()
+	b += int(unsafe.Sizeof(f.seriesIDSetData) + unsafe.Sizeof(f.tombstoneSeriesIDSetData))
+	// Do not count contents of seriesIDSetData or tombstoneSeriesIDSetData: references f.data
+	b += int(unsafe.Sizeof(f.sketch)) + f.sketch.Bytes()
+	b += int(unsafe.Sizeof(f.tSketch)) + f.tSketch.Bytes()
+	b += int(unsafe.Sizeof(f.level) + unsafe.Sizeof(f.id))
+	b += 24 // mu RWMutex is 24 bytes
+	b += int(unsafe.Sizeof(f.compacting))
+	b += int(unsafe.Sizeof(f.path)) + len(f.path)
+	f.wg.Done()
+	return b
 }
 
 // Open memory maps the data file at the file's path.

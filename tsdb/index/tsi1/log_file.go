@@ -12,6 +12,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
@@ -76,6 +77,31 @@ func NewLogFile(sfile *tsdb.SeriesFile, path string) *LogFile {
 		seriesIDSet:          tsdb.NewSeriesIDSet(),
 		tombstoneSeriesIDSet: tsdb.NewSeriesIDSet(),
 	}
+}
+
+// bytes estimates the memory footprint of this LogFile, in bytes.
+func (f *LogFile) bytes() int {
+	var b int
+	b += 24 // mu RWMutex is 24 bytes
+	b += 16 // wg WaitGroup is 16 bytes
+	b += int(unsafe.Sizeof(f.id))
+	// Do not include f.data because it is mmap'd
+	// TODO(jacobmarble): Uncomment when we are using go >= 1.10.0
+	//b += int(unsafe.Sizeof(f.w)) + f.w.Size()
+	b += int(unsafe.Sizeof(f.buf)) + cap(f.buf)
+	b += int(unsafe.Sizeof(f.keyBuf)) + cap(f.keyBuf)
+	// Do not count SeriesFile because it belongs to the code that constructed this Index.
+	b += int(unsafe.Sizeof(f.size))
+	b += int(unsafe.Sizeof(f.modTime))
+	b += int(unsafe.Sizeof(f.mSketch)) + f.mSketch.Bytes()
+	b += int(unsafe.Sizeof(f.mTSketch)) + f.mTSketch.Bytes()
+	b += int(unsafe.Sizeof(f.sSketch)) + f.sSketch.Bytes()
+	b += int(unsafe.Sizeof(f.sTSketch)) + f.sTSketch.Bytes()
+	b += int(unsafe.Sizeof(f.seriesIDSet)) + f.seriesIDSet.Bytes()
+	b += int(unsafe.Sizeof(f.tombstoneSeriesIDSet)) + f.tombstoneSeriesIDSet.Bytes()
+	b += int(unsafe.Sizeof(f.mms)) + f.mms.bytes()
+	b += int(unsafe.Sizeof(f.path)) + len(f.path)
+	return b
 }
 
 // Open reads the log from a file and validates all the checksums.
@@ -460,9 +486,7 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 
 // AddSeriesList adds a list of series to the log file in bulk.
 func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) error {
-	buf := make([]byte, 2048)
-
-	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice, buf[:0])
+	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
 	if err != nil {
 		return err
 	}
@@ -1138,11 +1162,35 @@ func appendLogEntry(dst []byte, e *LogEntry) []byte {
 // logMeasurements represents a map of measurement names to measurements.
 type logMeasurements map[string]*logMeasurement
 
+// bytes estimates the memory footprint of this logMeasurements, in bytes.
+func (mms *logMeasurements) bytes() int {
+	var b int
+	for k, v := range *mms {
+		b += len(k)
+		b += v.bytes()
+	}
+	b += int(unsafe.Sizeof(*mms))
+	return b
+}
+
 type logMeasurement struct {
 	name    []byte
 	tagSet  map[string]logTagKey
 	deleted bool
 	series  map[uint64]struct{}
+}
+
+// bytes estimates the memory footprint of this logMeasurement, in bytes.
+func (mm *logMeasurement) bytes() int {
+	var b int
+	b += cap(mm.name)
+	for k, v := range mm.tagSet {
+		b += len(k)
+		b += v.bytes()
+	}
+	b += len(mm.series) * 8
+	b += int(unsafe.Sizeof(*mm))
+	return b
 }
 
 func (mm *logMeasurement) seriesIDs() []uint64 {
@@ -1202,6 +1250,18 @@ type logTagKey struct {
 	tagValues map[string]logTagValue
 }
 
+// bytes estimates the memory footprint of this logTagKey, in bytes.
+func (tk *logTagKey) bytes() int {
+	var b int
+	b += cap(tk.name)
+	for k, v := range tk.tagValues {
+		b += len(k)
+		b += v.bytes()
+	}
+	b += int(unsafe.Sizeof(*tk))
+	return b
+}
+
 func (tk *logTagKey) Key() []byte   { return tk.name }
 func (tk *logTagKey) Deleted() bool { return tk.deleted }
 
@@ -1232,6 +1292,15 @@ type logTagValue struct {
 	name    []byte
 	deleted bool
 	series  map[uint64]struct{}
+}
+
+// bytes estimates the memory footprint of this logTagValue, in bytes.
+func (tv *logTagValue) bytes() int {
+	var b int
+	b += cap(tv.name)
+	b += len(tv.series) * 8
+	b += int(unsafe.Sizeof(*tv))
+	return b
 }
 
 func (tv *logTagValue) seriesIDs() []uint64 {
