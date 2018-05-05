@@ -7,6 +7,8 @@ import FieldList from 'src/shared/components/FieldList'
 
 import {defaultEveryFrequency} from 'src/kapacitor/constants'
 
+import {SourceContext} from 'src/CheckSources'
+
 const makeQueryHandlers = (actions, query) => ({
   handleChooseNamespace: namespace => {
     actions.chooseNamespace(query.id, namespace)
@@ -66,28 +68,36 @@ const DataSection = ({
   } = makeQueryHandlers(actions, query)
 
   return (
-    <div className="rule-section">
-      <div className="query-builder">
-        <DatabaseList query={query} onChooseNamespace={handleChooseNamespace} />
-        <MeasurementList
-          query={query}
-          onChooseMeasurement={handleChooseMeasurement}
-          onChooseTag={handleChooseTag}
-          onGroupByTag={handleGroupByTag}
-          onToggleTagAcceptance={handleToggleTagAcceptance}
-        />
-        {isDeadman ? null : (
-          <FieldList
-            query={query}
-            onToggleField={handleToggleField}
-            isKapacitorRule={isKapacitorRule}
-            onGroupByTime={handleGroupByTime}
-            removeFuncs={handleRemoveFuncs}
-            applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
-          />
-        )}
-      </div>
-    </div>
+    <SourceContext.Consumer>
+      {source => (
+        <div className="rule-section">
+          <div className="query-builder">
+            <DatabaseList
+              query={query}
+              onChooseNamespace={handleChooseNamespace}
+            />
+            <MeasurementList
+              query={query}
+              onChooseMeasurement={handleChooseMeasurement}
+              onChooseTag={handleChooseTag}
+              onGroupByTag={handleGroupByTag}
+              onToggleTagAcceptance={handleToggleTagAcceptance}
+            />
+            {isDeadman ? null : (
+              <FieldList
+                query={query}
+                onToggleField={handleToggleField}
+                isKapacitorRule={isKapacitorRule}
+                onGroupByTime={handleGroupByTime}
+                removeFuncs={handleRemoveFuncs}
+                applyFuncsToField={handleApplyFuncsToField(onAddEvery)}
+                source={source}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </SourceContext.Consumer>
   )
 }
 

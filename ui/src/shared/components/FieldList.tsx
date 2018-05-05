@@ -61,18 +61,15 @@ interface Props {
   addInitialField: (field: Field, groupBy: GroupBy) => void
   initialGroupByTime: string | null
   isQuerySupportedByExplorer: boolean
+  source: Source
 }
 
 interface State {
   fields: Field[]
 }
 
-interface Context {
-  source: Source
-}
 @ErrorHandling
 class FieldList extends PureComponent<Props, State> {
-  public static context: Context
   public static defaultProps: Partial<Props> = {
     isKapacitorRule: false,
     initialGroupByTime: null,
@@ -249,8 +246,7 @@ class FieldList extends PureComponent<Props, State> {
 
   private getFields = (): void => {
     const {database, measurement, retentionPolicy} = this.props.query
-    const {source} = this.context
-    const {querySource} = this.props
+    const {querySource, source} = this.props
 
     const proxy =
       _.get(querySource, ['links', 'proxy'], null) || source.links.proxy
