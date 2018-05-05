@@ -5,6 +5,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Notification, NotificationFunc} from 'src/types'
 
+import {notifyInvalidBatchSizeValue} from 'src/shared/copy/notifications'
+
 interface Properties {
   brokers: string[]
   timeout: string
@@ -216,10 +218,16 @@ class KafkaConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
+    const batchSize = parseInt(this.batchSize.value, 10)
+    if (isNaN(batchSize)) {
+      this.props.notify(notifyInvalidBatchSizeValue())
+      return
+    }
+
     const properties = {
       brokers: this.state.currentBrokers,
       timeout: this.timeout.value,
-      'batch-size': parseInt(this.batchSize.value, 10),
+      'batch-size': batchSize,
       'batch-timeout': this.batchTimeout.value,
       'use-ssl': this.useSSL.checked,
       'ssl-ca': this.sslCA.value,
