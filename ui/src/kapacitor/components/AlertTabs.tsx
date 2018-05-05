@@ -73,6 +73,7 @@ interface Sections {
   hipchat: Section
   httppost: Section
   influxdb: Section
+  kafka: Section
   mqtt: Section
   opsgenie: Section
   opsgenie2: Section
@@ -97,6 +98,7 @@ interface Config {
 interface SupportedConfig {
   alerta: Config
   hipchat: Config
+  kafka: Config
   opsgenie: Config
   opsgenie2: Config
   pagerduty: Config
