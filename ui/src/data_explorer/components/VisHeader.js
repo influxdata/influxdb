@@ -2,6 +2,7 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import _ from 'lodash'
+import moment from 'moment'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
@@ -17,8 +18,13 @@ const getDataForCSV = (query, errorThrown) => async () => {
       tempVars: TEMPLATES,
     })
     const {data} = timeSeriesToTableGraph([{response}])
+    const db = _.get(query, ['queryConfig', 'database'], '')
+    const rp = _.get(query, ['queryConfig', 'retentionPolicy'], '')
+    const measurement = _.get(query, ['queryConfig', 'measurement'], '')
 
-    download(dataToCSV(data), `${''}.csv`, 'text/plain')
+    const timestring = moment().format('YYYY-MM-DD-HH-mm')
+    const name = `${db}.${rp}.${measurement}.${timestring}`
+    download(dataToCSV(data), `${name}.csv`, 'text/plain')
   } catch (error) {
     errorThrown(error, 'Unable to download .csv file')
     console.error(error)
