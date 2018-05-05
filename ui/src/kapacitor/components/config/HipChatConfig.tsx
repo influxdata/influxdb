@@ -46,6 +46,7 @@ class HipchatConfig extends PureComponent<Props, State> {
   public render() {
     const {options} = this.props.config
     const {url, room, token} = options
+    const {testEnabled} = this.state
 
     const subdomain = url
       .replace('https://', '')
@@ -89,6 +90,7 @@ class HipchatConfig extends PureComponent<Props, State> {
             id="token"
             refFunc={this.handleTokenRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 

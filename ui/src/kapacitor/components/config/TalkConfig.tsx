@@ -40,6 +40,7 @@ class TalkConfig extends PureComponent<Props, State> {
 
   public render() {
     const {url, author_name: author} = this.props.config.options
+    const {testEnabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -50,6 +51,7 @@ class TalkConfig extends PureComponent<Props, State> {
             id="url"
             refFunc={this.handleUrlRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 

@@ -101,6 +101,15 @@ class HandlerOptions extends Component {
             validationError={validationError}
           />
         )
+      case 'opsGenie2':
+        return (
+          <OpsgenieHandler
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            onGoToConfig={onGoToConfig('opsgenie2')}
+            validationError={validationError}
+          />
+        )
       case 'pagerDuty':
         return (
           <PagerdutyHandler

@@ -103,6 +103,7 @@ export const DEFAULT_HANDLERS = [
 export const MAP_KEYS_FROM_CONFIG = {
   hipchat: 'hipChat',
   opsgenie: 'opsGenie',
+  opsgenie2: 'opsGenie2',
   pagerduty: 'pagerDuty',
   pagerduty2: 'pagerDuty2',
   smtp: 'email',
@@ -114,6 +115,7 @@ export const ALERTS_FROM_CONFIG = {
   alerta: ['environment', 'origin', 'token'], // token = bool
   hipChat: ['url', 'room', 'token'], // token = bool
   opsGenie: ['api-key', 'teams', 'recipients'], // api-key = bool
+  opsGenie2: ['api-key', 'teams', 'recipients'], // api-key = bool
   pagerDuty: ['service-key'], // service-key = bool
   pagerDuty2: ['service-key'], // service-key = bool
   pushover: ['token', 'user-key'], // token = bool, user-key = bool
@@ -138,6 +140,7 @@ export const MAP_FIELD_KEYS_FROM_CONFIG = {
   alerta: {},
   hipChat: {},
   opsGenie: {},
+  opsGenie2: {},
   pagerDuty: {'service-key': 'serviceKey'},
   pagerDuty2: {'service-key': 'serviceKey'},
   pushover: {'user-key': 'userKey'},
@@ -170,6 +173,7 @@ export const HANDLERS_TO_RULE = {
   ],
   hipChat: ['room'],
   opsGenie: ['teams', 'recipients'],
+  opsGenie2: ['teams', 'recipients'],
   pagerDuty: [],
   pagerDuty2: [],
   pushover: ['device', 'title', 'sound', 'url', 'urlTitle'],

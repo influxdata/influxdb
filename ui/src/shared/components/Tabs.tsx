@@ -96,7 +96,7 @@ TabList.defaultProps = {
 
 interface TabPanelsProps {
   children: JSX.Element[] | JSX.Element
-  activeIndex: number
+  activeIndex?: number
   customClass: string
 }
 

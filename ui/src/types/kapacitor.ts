@@ -64,6 +64,7 @@ interface AlertNodes {
   hipChat: HipChat[]
   alerta: Alerta[]
   opsGenie: OpsGenie[]
+  opsGenie2?: OpsGenie[]
   talk: Talk[]
 }
 

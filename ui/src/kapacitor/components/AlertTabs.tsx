@@ -1,15 +1,20 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent, MouseEvent} from 'react'
 
 import _ from 'lodash'
 
-import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'shared/components/Tabs'
+import {
+  Tab,
+  Tabs,
+  TabPanel,
+  TabPanels,
+  TabList,
+} from 'src/shared/components/Tabs'
 import {
   getKapacitorConfig,
   updateKapacitorConfigSection,
   testAlertOutput,
   getAllServices,
-} from 'shared/apis'
+} from 'src/shared/apis'
 
 import {
   AlertaConfig,
@@ -32,12 +37,100 @@ import {
   notifyTestAlertSent,
   notifyTestAlertFailed,
   notifyCouldNotRetrieveKapacitorServices,
-} from 'shared/copy/notifications'
+} from 'src/shared/copy/notifications'
 import DeprecationWarning from 'src/admin/components/DeprecationWarning'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {Source, Kapacitor} from 'src/types'
+
+interface Service {
+  link: Link
+  name: string
+  options: {
+    id: string
+  }
+}
+
+interface Link {
+  rel: string
+  href: string
+}
+
+interface Element {
+  link: Link
+  options: any
+  redacted: string[]
+}
+
+interface Section {
+  link: string
+  elements: Element[]
+}
+
+interface Sections {
+  alerta: Section
+  hipchat: Section
+  httppost: Section
+  influxdb: Section
+  mqtt: Section
+  opsgenie: Section
+  opsgenie2: Section
+  pagerduty: Section
+  pagerduty2: Section
+  pushover: Section
+  sensu: Section
+  slack: Section
+  smtp: Section
+  snmptrap: Section
+  talk: Section
+  telegram: Section
+  victorops: Section
+}
+
+interface Config {
+  type: string
+  enabled: boolean
+  renderComponent: () => JSX.Element
+}
+
+interface SupportedConfig {
+  alerta: Config
+  hipchat: Config
+  opsgenie: Config
+  opsgenie2: Config
+  pagerduty: Config
+  pagerduty2: Config
+  pushover: Config
+  sensu: Config
+  slack: Config
+  smtp: Config
+  talk: Config
+  telegram: Config
+  victorops: Config
+}
+
+interface Notification {
+  id?: string
+  type: string
+  icon: string
+  duration: number
+  message: string
+}
+
+interface Props {
+  source: Source
+  kapacitor: Kapacitor
+  notify: (message: Notification) => void
+  hash: string
+}
+
+interface State {
+  configSections: Sections
+  services: Service[]
+}
+
 @ErrorHandling
-class AlertTabs extends Component {
+class AlertTabs extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -47,11 +140,11 @@ class AlertTabs extends Component {
     }
   }
 
-  async componentDidMount() {
+  public async componentDidMount() {
     const {kapacitor} = this.props
     try {
       this.refreshKapacitorConfig(kapacitor)
-      const services = await getAllServices(kapacitor)
+      const services: Service[] = await getAllServices(kapacitor)
       this.setState({services})
     } catch (error) {
       this.setState({services: null})
@@ -59,106 +152,13 @@ class AlertTabs extends Component {
     }
   }
 
-  componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps) {
     if (this.props.kapacitor.url !== nextProps.kapacitor.url) {
       this.refreshKapacitorConfig(nextProps.kapacitor)
     }
   }
 
-  refreshKapacitorConfig = async kapacitor => {
-    try {
-      const {
-        data: {sections},
-      } = await getKapacitorConfig(kapacitor)
-      this.setState({configSections: sections})
-    } catch (error) {
-      this.setState({configSections: null})
-      this.props.notify(notifyRefreshKapacitorFailed())
-    }
-  }
-
-  getSection = (sections, section) => {
-    return _.get(sections, [section, 'elements', '0'], null)
-  }
-
-  getEnabled = (sections, section) => {
-    return _.get(
-      sections,
-      [section, 'elements', '0', 'options', 'enabled'],
-      null
-    )
-  }
-
-  handleGetSection = (sections, section) => () => {
-    return this.getSection(sections, section)
-  }
-
-  handleSaveConfig = section => async properties => {
-    if (section !== '') {
-      const propsToSend = this.sanitizeProperties(section, properties)
-      try {
-        await updateKapacitorConfigSection(
-          this.props.kapacitor,
-          section,
-          propsToSend
-        )
-        this.refreshKapacitorConfig(this.props.kapacitor)
-        this.props.notify(notifyAlertEndpointSaved(section))
-        return true
-      } catch ({
-        data: {error},
-      }) {
-        const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
-        this.props.notify(notifyAlertEndpointSaveFailed(section, errorMsg))
-        return false
-      }
-    }
-  }
-
-  handleTestConfig = section => async e => {
-    e.preventDefault()
-
-    try {
-      const {data} = await testAlertOutput(this.props.kapacitor, section)
-      if (data.success) {
-        this.props.notify(notifyTestAlertSent(section))
-      } else {
-        this.props.notify(notifyTestAlertFailed(section, data.message))
-      }
-    } catch (error) {
-      this.props.notify(notifyTestAlertFailed(section))
-    }
-  }
-
-  sanitizeProperties = (section, properties) => {
-    const cleanProps = {...properties, enabled: true}
-    const {redacted} = this.getSection(this.state.configSections, section)
-    if (redacted && redacted.length) {
-      redacted.forEach(badProp => {
-        if (properties[badProp] === 'true') {
-          delete cleanProps[badProp]
-        }
-      })
-    }
-
-    return cleanProps
-  }
-
-  getInitialIndex = (supportedConfigs, hash) => {
-    const index = _.indexOf(_.keys(supportedConfigs), _.replace(hash, '#', ''))
-    return index >= 0 ? index : 0
-  }
-
-  isSupportedService = config => {
-    return (
-      config &&
-      this.state.services.find(service => {
-        return service.name === _.toLower(config.type)
-      })
-    )
-  }
-
-  render() {
+  public render() {
     const {configSections} = this.state
     const {hash} = this.props
 
@@ -166,9 +166,16 @@ class AlertTabs extends Component {
       return null
     }
 
-    const pagerDutyV1Enabled = this.getEnabled(configSections, 'pagerduty')
-    const showDeprecation = pagerDutyV1Enabled
-    const pagerDutyDeprecationMessage = (
+    const pagerDutyV1Enabled: boolean = this.getEnabled(
+      configSections,
+      'pagerduty'
+    )
+    const opsGenieV1Enabled: boolean = this.getEnabled(
+      configSections,
+      'opsgenie'
+    )
+
+    const pagerDutyDeprecationMessage: JSX.Element = (
       <div>
         PagerDuty v1 is being{' '}
         {
@@ -183,7 +190,14 @@ class AlertTabs extends Component {
       </div>
     )
 
-    const supportedConfigs = {
+    const opsGenieDeprecationMessage: JSX.Element = (
+      <div>
+        OpsGenie v1 is being deprecated. Please update your Kapacitor and
+        configure OpsGenie v2.
+      </div>
+    )
+
+    const supportedConfigs: SupportedConfig = {
       alerta: {
         type: 'Alerta',
         enabled: this.getEnabled(configSections, 'alerta'),
@@ -217,6 +231,18 @@ class AlertTabs extends Component {
             config={this.getSection(configSections, 'opsgenie')}
             onTest={this.handleTestConfig('opsgenie')}
             enabled={this.getEnabled(configSections, 'opsgenie')}
+          />
+        ),
+      },
+      opsgenie2: {
+        type: 'OpsGenie2',
+        enabled: this.getEnabled(configSections, 'opsgenie2'),
+        renderComponent: () => (
+          <OpsGenieConfig
+            onSave={this.handleSaveConfig('opsgenie2')}
+            config={this.getSection(configSections, 'opsgenie2')}
+            onTest={this.handleTestConfig('opsgenie2')}
+            enabled={this.getEnabled(configSections, 'opsgenie2')}
           />
         ),
       },
@@ -334,8 +360,11 @@ class AlertTabs extends Component {
         <div className="panel-heading">
           <h2 className="panel-title">Configure Alert Endpoints</h2>
         </div>
-        {showDeprecation && (
+        {pagerDutyV1Enabled && (
           <DeprecationWarning message={pagerDutyDeprecationMessage} />
+        )}
+        {opsGenieV1Enabled && (
+          <DeprecationWarning message={opsGenieDeprecationMessage} />
         )}
 
         <Tabs
@@ -345,7 +374,7 @@ class AlertTabs extends Component {
           <TabList customClass="config-endpoint--tabs">
             {_.reduce(
               configSections,
-              (acc, _cur, k) => {
+              (acc, __, k) => {
                 return this.isSupportedService(supportedConfigs[k])
                   ? acc.concat(
                       <Tab
@@ -363,7 +392,7 @@ class AlertTabs extends Component {
           <TabPanels customClass="config-endpoint--tab-contents">
             {_.reduce(
               configSections,
-              (acc, _cur, k) =>
+              (acc, __, k) =>
                 this.isSupportedService(supportedConfigs[k])
                   ? acc.concat(
                       <TabPanel key={supportedConfigs[k].type}>
@@ -378,22 +407,103 @@ class AlertTabs extends Component {
       </div>
     )
   }
-}
 
-const {func, shape, string} = PropTypes
+  private refreshKapacitorConfig = async (
+    kapacitor: Kapacitor
+  ): Promise<void> => {
+    try {
+      const {
+        data: {sections},
+      } = await getKapacitorConfig(kapacitor)
+      this.setState({configSections: sections})
+    } catch (error) {
+      this.setState({configSections: null})
+      this.props.notify(notifyRefreshKapacitorFailed())
+    }
+  }
 
-AlertTabs.propTypes = {
-  source: shape({
-    id: string.isRequired,
-  }).isRequired,
-  kapacitor: shape({
-    url: string.isRequired,
-    links: shape({
-      proxy: string.isRequired,
-    }).isRequired,
-  }),
-  notify: func.isRequired,
-  hash: string.isRequired,
+  private getSection = (sections: Sections, section: string): Element => {
+    return _.get(sections, [section, 'elements', '0'], null)
+  }
+
+  private getEnabled = (sections: Sections, section: string): boolean => {
+    return _.get(
+      sections,
+      [section, 'elements', '0', 'options', 'enabled'],
+      null
+    )
+  }
+
+  private handleSaveConfig = (section: string) => async (
+    properties
+  ): Promise<boolean> => {
+    if (section !== '') {
+      const propsToSend = this.sanitizeProperties(section, properties)
+      try {
+        await updateKapacitorConfigSection(
+          this.props.kapacitor,
+          section,
+          propsToSend
+        )
+        this.refreshKapacitorConfig(this.props.kapacitor)
+        this.props.notify(notifyAlertEndpointSaved(section))
+        return true
+      } catch ({
+        data: {error},
+      }) {
+        const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
+        this.props.notify(notifyAlertEndpointSaveFailed(section, errorMsg))
+        return false
+      }
+    }
+  }
+  private handleTestConfig = (section: string) => async (
+    e: MouseEvent<HTMLButtonElement>
+  ): Promise<void> => {
+    e.preventDefault()
+
+    try {
+      const {data} = await testAlertOutput(this.props.kapacitor, section)
+      if (data.success) {
+        this.props.notify(notifyTestAlertSent(section))
+      } else {
+        this.props.notify(notifyTestAlertFailed(section, data.message))
+      }
+    } catch (error) {
+      this.props.notify(notifyTestAlertFailed(section))
+    }
+  }
+
+  private sanitizeProperties = (section: string, properties: Props): Props => {
+    const cleanProps = {...properties, enabled: true}
+    const {redacted} = this.getSection(this.state.configSections, section)
+    if (redacted && redacted.length) {
+      redacted.forEach(badProp => {
+        if (properties[badProp] === 'true') {
+          delete cleanProps[badProp]
+        }
+      })
+    }
+
+    return cleanProps
+  }
+
+  private getInitialIndex = (
+    supportedConfigs: SupportedConfig,
+    hash: string
+  ): number => {
+    const index = _.indexOf(_.keys(supportedConfigs), _.replace(hash, '#', ''))
+    return index >= 0 ? index : 0
+  }
+
+  private isSupportedService = config => {
+    return (
+      config &&
+      this.state.services.find(service => {
+        return service.name === _.toLower(config.type)
+      })
+    )
+  }
 }
 
 export default AlertTabs

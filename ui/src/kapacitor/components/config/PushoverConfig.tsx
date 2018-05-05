@@ -48,6 +48,7 @@ class PushoverConfig extends PureComponent<Props, State> {
     const {options} = this.props.config
     const {token, url} = options
     const userKey = options['user-key']
+    const {testEnabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -64,6 +65,7 @@ class PushoverConfig extends PureComponent<Props, State> {
             id="user-key"
             refFunc={this.handleUserKeyRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 
@@ -80,6 +82,7 @@ class PushoverConfig extends PureComponent<Props, State> {
             id="token"
             refFunc={this.handleTokenRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 

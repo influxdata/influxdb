@@ -6,6 +6,7 @@ interface Props {
   defaultValue?: boolean
   refFunc: (r: any) => void
   disableTest?: () => void
+  isFormEditing: boolean
 }
 
 interface State {
@@ -21,6 +22,12 @@ class RedactedInput extends PureComponent<Props, State> {
     }
   }
 
+  public componentWillReceiveProps(nextProps) {
+    if (!nextProps.isFormEditing) {
+      this.setState({editing: false})
+    }
+  }
+
   public render() {
     const {defaultValue, id, refFunc, disableTest} = this.props
     const {editing} = this.state
@@ -31,9 +38,9 @@ class RedactedInput extends PureComponent<Props, State> {
           <span className="alert-value-set">
             <span className="icon checkmark" /> Value set
           </span>
-          <button className="btn btn-xs btn-link" onClick={this.handleClick}>
+          <div className="btn btn-xs btn-link" onClick={this.handleClick}>
             Change
-          </button>
+          </div>
           <input
             className="form-control"
             id={id}

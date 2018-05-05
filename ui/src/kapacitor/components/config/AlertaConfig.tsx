@@ -46,6 +46,7 @@ class AlertaConfig extends PureComponent<Props, State> {
 
   public render() {
     const {environment, origin, token, url} = this.props.config.options
+    const {testEnabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -80,6 +81,7 @@ class AlertaConfig extends PureComponent<Props, State> {
             id="token"
             refFunc={this.handleTokenRef}
             disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 

@@ -21,6 +21,7 @@ type AlertNodes struct {
 	HipChat            []*HipChat   `json:"hipChat"`          // HipChat  will send alert to all HipChat
 	Alerta             []*Alerta    `json:"alerta"`           // Alerta  will send alert to all Alerta
 	OpsGenie           []*OpsGenie  `json:"opsGenie"`         // OpsGenie  will send alert to all OpsGenie
+	OpsGenie2          []*OpsGenie  `json:"opsGenie2"`        // OpsGenie2  will send alert to all OpsGenie v2
 	Talk               []*Talk      `json:"talk"`             // Talk  will send alert to all Talk
 }
 
