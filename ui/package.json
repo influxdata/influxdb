@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@types/chai": "^4.1.2",
+    "@types/codemirror": "^0.0.56",
     "@types/dygraphs": "^1.1.6",
     "@types/enzyme": "^3.1.9",
     "@types/jest": "^22.1.4",
@@ -49,7 +50,6 @@
     "@types/react-dnd-html5-backend": "^2.1.9",
     "@types/react-router": "^3.0.15",
     "@types/text-encoding": "^0.0.32",
-    "@types/codemirror": "^0.0.56",
     "autoprefixer": "^6.3.1",
     "babel-core": "^6.5.1",
     "babel-eslint": "6.1.2",

@@ -17,20 +17,25 @@ interface Props {
 class FuncArgInput extends PureComponent<Props> {
   public render() {
     const {argKey, value, type} = this.props
+
     return (
-      <div>
-        <label htmlFor={argKey}>{argKey}: </label>
-        <input
-          name={argKey}
-          value={value}
-          placeholder={type}
-          onChange={this.handleChange}
-          onKeyDown={this.handleKeyDown}
-          type="text"
-          className="form-control input-xs"
-          spellCheck={false}
-          autoComplete="off"
-        />
+      <div className="func-arg">
+        <label className="func-arg--label" htmlFor={argKey}>
+          {argKey}
+        </label>
+        <div className="func-arg--value">
+          <input
+            name={argKey}
+            value={value}
+            placeholder={type}
+            onChange={this.handleChange}
+            onKeyDown={this.handleKeyDown}
+            type="text"
+            className="form-control input-sm"
+            spellCheck={false}
+            autoComplete="off"
+          />
+        </div>
       </div>
     )
   }

@@ -88,7 +88,8 @@ class FuncArg extends PureComponent<Props> {
         // TODO: make separate function component
         return (
           <div className="func-arg">
-            {argKey} : {value}
+            <label className="func-arg--label">{argKey}</label>
+            <div className="func-arg--value">{value}</div>
           </div>
         )
       }
@@ -96,14 +97,16 @@ class FuncArg extends PureComponent<Props> {
         // TODO: handle nil type
         return (
           <div className="func-arg">
-            {argKey} : {value}
+            <label className="func-arg--label">{argKey}</label>
+            <div className="func-arg--value">{value}</div>
           </div>
         )
       }
       default: {
         return (
           <div className="func-arg">
-            {argKey} : {value}
+            <label className="func-arg--label">{argKey}</label>
+            <div className="func-arg--value">{value}</div>
           </div>
         )
       }

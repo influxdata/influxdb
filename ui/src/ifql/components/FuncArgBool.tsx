@@ -16,9 +16,11 @@ interface Props {
 class FuncArgBool extends PureComponent<Props> {
   public render() {
     return (
-      <div>
-        {this.props.argKey}:
-        <SlideToggle active={this.props.value} onToggle={this.handleToggle} />
+      <div className="func-arg">
+        <label className="func-arg--label">{this.props.argKey}</label>
+        <div className="func-arg--value">
+          <SlideToggle active={this.props.value} onToggle={this.handleToggle} />
+        </div>
       </div>
     )
   }

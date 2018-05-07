@@ -46,3 +46,25 @@ export const getDatabases = async () => {
     throw error
   }
 }
+
+export const getTags = async () => {
+  try {
+    const response = {data: {tags: ['tk1', 'tk2', 'tk3']}}
+    const {data} = await Promise.resolve(response)
+    return data.tags
+  } catch (error) {
+    console.error('Could not get tags', error)
+    throw error
+  }
+}
+
+export const getTagValues = async () => {
+  try {
+    const response = {data: {values: ['tv1', 'tv2', 'tv3']}}
+    const {data} = await Promise.resolve(response)
+    return data.values
+  } catch (error) {
+    console.error('Could not get tag values', error)
+    throw error
+  }
+}

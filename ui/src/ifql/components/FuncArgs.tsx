@@ -10,6 +10,7 @@ interface Props {
   onChangeArg: OnChangeArg
   declarationID: string
   onGenerateScript: () => void
+  onDeleteFunc: () => void
 }
 
 @ErrorHandling
@@ -19,12 +20,13 @@ export default class FuncArgs extends PureComponent<Props> {
       func,
       bodyID,
       onChangeArg,
+      onDeleteFunc,
       declarationID,
       onGenerateScript,
     } = this.props
 
     return (
-      <div className="func-args">
+      <div className="func-node--tooltip">
         {func.args.map(({key, value, type}) => {
           return (
             <FuncArg
@@ -41,6 +43,12 @@ export default class FuncArgs extends PureComponent<Props> {
             />
           )
         })}
+        <div
+          className="btn btn-sm btn-danger func-node--delete"
+          onClick={onDeleteFunc}
+        >
+          Delete
+        </div>
       </div>
     )
   }

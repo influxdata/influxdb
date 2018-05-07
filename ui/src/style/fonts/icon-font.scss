@@ -30,6 +30,8 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
+  &.collapse:before {content: "\e90f";}
+  &.okta:before {content: "\e912";}
   &.user-remove:before {content: "\e904";}
   &.user-add:before {content: "\e907";}
   &.group:before {content: "\e908";}

@@ -1,5 +1,6 @@
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import _ from 'lodash'
+import classnames from 'classnames'
 
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FuncList from 'src/ifql/components/FuncList'
@@ -36,7 +37,8 @@ export class FuncSelector extends PureComponent<Props, State> {
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
-        <div className="ifql-func--selector">
+        <div className={this.className}>
+          <div className="func-selector--connector" />
           {isOpen ? (
             <FuncList
               inputText={inputText}
@@ -53,12 +55,18 @@ export class FuncSelector extends PureComponent<Props, State> {
               onClick={this.handleOpenList}
               tabIndex={0}
             >
-              𝑓⟮𝑥⟯
+              <span className="icon plus" />
             </button>
           )}
         </div>
       </ClickOutside>
     )
+  }
+
+  private get className(): string {
+    const {isOpen} = this.state
+
+    return classnames('ifql-func--selector', {open: isOpen})
   }
 
   private handleCloseList = () => {

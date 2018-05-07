@@ -21,8 +21,10 @@ class BodyBuilder extends PureComponent<Props> {
         return b.declarations.map(d => {
           if (d.funcs) {
             return (
-              <div key={b.id}>
-                <div className="func-node--name">{d.name} =</div>
+              <div className="declaration" key={b.id}>
+                <div className="variable-string">
+                  <span className="variable-name">{d.name}</span>
+                </div>
                 <ExpressionNode
                   key={b.id}
                   bodyID={b.id}
@@ -35,8 +37,10 @@ class BodyBuilder extends PureComponent<Props> {
           }
 
           return (
-            <div className="func-node--name" key={b.id}>
-              {b.source}
+            <div className="declaration" key={b.id}>
+              <div className="variable-string">
+                {this.colorVariableSyntax(b.source)}
+              </div>
             </div>
           )
         })
@@ -52,7 +56,29 @@ class BodyBuilder extends PureComponent<Props> {
       )
     })
 
-    return _.flatten(bodybuilder)
+    return <div className="body-builder">{_.flatten(bodybuilder)}</div>
+  }
+
+  private colorVariableSyntax = (varString: string) => {
+    const split = varString.split('=')
+    const varName = split[0].substring(0, split[0].length - 1)
+    const varValue = split[1].substring(1)
+
+    const valueIsString = varValue.endsWith('"')
+
+    return (
+      <>
+        <span className="variable-name">{varName}</span>
+        {' = '}
+        <span
+          className={
+            valueIsString ? 'variable-value--string' : 'variable-value--number'
+          }
+        >
+          {varValue}
+        </span>
+      </>
+    )
   }
 
   private get funcNames() {
