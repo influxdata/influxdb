@@ -23,11 +23,11 @@ const getSource = (cell, source, sources, defaultSource) => {
 @ErrorHandling
 class LayoutState extends Component {
   state = {
-    celldata: [[]],
+    cellData: [],
   }
 
-  grabDataForDownload = celldata => {
-    this.setState({celldata})
+  grabDataForDownload = cellData => {
+    this.setState({cellData})
   }
 
   render() {
@@ -59,7 +59,7 @@ const Layout = (
     source,
     sources,
     onZoom,
-    celldata,
+    cellData,
     templates,
     timeRange,
     isEditable,
@@ -79,7 +79,7 @@ const Layout = (
 ) => (
   <LayoutCell
     cell={cell}
-    celldata={celldata}
+    cellData={cellData}
     isEditable={isEditable}
     onEditCell={onEditCell}
     onCloneCell={onCloneCell}
@@ -122,7 +122,7 @@ const Layout = (
   </LayoutCell>
 )
 
-const {array, arrayOf, bool, func, number, shape, string} = PropTypes
+const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 Layout.contextTypes = {
   source: shape(),
@@ -200,7 +200,7 @@ LayoutState.propTypes = {...propTypes}
 Layout.propTypes = {
   ...propTypes,
   grabDataForDownload: func,
-  celldata: arrayOf(array),
+  cellData: arrayOf(shape({})),
 }
 
 export default LayoutState
