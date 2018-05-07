@@ -30,8 +30,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  &.fn:before {content: "\e913";}
-  &.curvy-f:before {content: "\e90f";}
+  &.collapse:before {content: "\e90f";}
   &.okta:before {content: "\e912";}
   &.user-remove:before {content: "\e904";}
   &.user-add:before {content: "\e907";}

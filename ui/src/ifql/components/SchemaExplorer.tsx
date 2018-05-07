@@ -23,7 +23,7 @@ class SchemaExplorer extends PureComponent {
             disabled={true}
             title="Collapse YO tree"
           >
-            <span className="icon zap" />
+            <span className="icon collapse" />
           </button>
         </div>
         <DatabaseList />
