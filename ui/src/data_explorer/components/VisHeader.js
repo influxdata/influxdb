@@ -2,25 +2,29 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import _ from 'lodash'
+import moment from 'moment'
 
 import {fetchTimeSeriesAsync} from 'shared/actions/timeSeries'
-import {resultsToCSV} from 'src/shared/parsing/resultsToCSV.js'
+import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
+import {dataToCSV} from 'src/shared/parsing/dataToCSV'
 import download from 'src/external/download.js'
 import {TEMPLATES} from 'src/shared/constants'
 
-const getCSV = (query, errorThrown) => async () => {
+const getDataForCSV = (query, errorThrown) => async () => {
   try {
-    const {results} = await fetchTimeSeriesAsync({
+    const response = await fetchTimeSeriesAsync({
       source: query.host,
       query,
       tempVars: TEMPLATES,
     })
-    const {flag, name, CSVString} = resultsToCSV(results)
-    if (flag === 'no_data') {
-      errorThrown('no data', 'There are no data to download.')
-      return
-    }
-    download(CSVString, `${name}.csv`, 'text/plain')
+    const {data} = timeSeriesToTableGraph([{response}])
+    const db = _.get(query, ['queryConfig', 'database'], '')
+    const rp = _.get(query, ['queryConfig', 'retentionPolicy'], '')
+    const measurement = _.get(query, ['queryConfig', 'measurement'], '')
+
+    const timestring = moment().format('YYYY-MM-DD-HH-mm')
+    const name = `${db}.${rp}.${measurement}.${timestring}`
+    download(dataToCSV(data), `${name}.csv`, 'text/plain')
   } catch (error) {
     errorThrown(error, 'Unable to download .csv file')
     console.error(error)
@@ -46,7 +50,7 @@ const VisHeader = ({views, view, onToggleView, query, errorThrown}) => (
     {query ? (
       <div
         className="btn btn-sm btn-default dlcsv"
-        onClick={getCSV(query, errorThrown)}
+        onClick={getDataForCSV(query, errorThrown)}
       >
         <span className="icon download dlcsv" />
         .csv

@@ -23,7 +23,7 @@ const getSource = (cell, source, sources, defaultSource) => {
 @ErrorHandling
 class LayoutState extends Component {
   state = {
-    celldata: [],
+    celldata: [[]],
   }
 
   grabDataForDownload = celldata => {
@@ -122,7 +122,7 @@ const Layout = (
   </LayoutCell>
 )
 
-const {arrayOf, bool, func, number, shape, string} = PropTypes
+const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 
 Layout.contextTypes = {
   source: shape(),
@@ -200,7 +200,7 @@ LayoutState.propTypes = {...propTypes}
 Layout.propTypes = {
   ...propTypes,
   grabDataForDownload: func,
-  celldata: arrayOf(shape()),
+  celldata: arrayOf(array),
 }
 
 export default LayoutState

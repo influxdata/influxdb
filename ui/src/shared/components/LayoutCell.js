@@ -8,9 +8,9 @@ import LayoutCellMenu from 'shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'shared/components/LayoutCellHeader'
 import {notify} from 'src/shared/actions/notifications'
 import {notifyCSVDownloadFailed} from 'src/shared/copy/notifications'
-import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
 import download from 'src/external/download.js'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {dataToCSV} from 'src/shared/parsing/dataToCSV'
 
 @ErrorHandling
 class LayoutCell extends Component {
@@ -26,7 +26,7 @@ class LayoutCell extends Component {
     const joinedName = cell.name.split(' ').join('_')
     const {celldata} = this.props
     try {
-      download(dashboardtoCSV(celldata), `${joinedName}.csv`, 'text/plain')
+      download(dataToCSV(celldata), `${joinedName}.csv`, 'text/plain')
     } catch (error) {
       notify(notifyCSVDownloadFailed())
       console.error(error)
@@ -79,7 +79,7 @@ class LayoutCell extends Component {
   }
 }
 
-const {arrayOf, bool, func, node, number, shape, string} = PropTypes
+const {array, arrayOf, bool, func, node, number, shape, string} = PropTypes
 
 LayoutCell.propTypes = {
   cell: shape({
@@ -96,7 +96,7 @@ LayoutCell.propTypes = {
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,
-  celldata: arrayOf(shape()),
+  celldata: arrayOf(array),
 }
 
 export default LayoutCell
