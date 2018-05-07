@@ -11,9 +11,6 @@ class SchemaExplorer extends PureComponent {
               className="form-control input-sm"
               placeholder="Filter YO schema dawg..."
               type="text"
-              // onChange={this.handleFilterText}
-              // onKeyUp={this.handleEscape}
-              // onClick={this.handleInputClick}
               spellCheck={false}
               autoComplete="off"
             />
