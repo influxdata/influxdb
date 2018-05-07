@@ -37,13 +37,28 @@ $ifql-arg-min-width: 120px;
   }
 }
 
-.variable-name {
+.variable-string {
   @extend %ifql-node;
-  color: $c-laser;
+  color: $g11-sidewalk;
   line-height: $ifql-node-height;
   white-space: nowrap;
   background-color: $g3-castle;
   @include no-user-select();
+}
+.variable-name {
+  color: $c-pool;
+}
+.variable-value--string {
+  color: $c-honeydew
+}
+.variable-value--boolean {
+  color: $c-viridian
+}
+.variable-value--number {
+  color: $c-neutrino;
+}
+.variable-value--invalid {
+  color: $c-dreamsicle;
 }
 
 .func-node {
@@ -88,7 +103,7 @@ $ifql-arg-min-width: 120px;
 }
 
 .func-node--preview {
-  color: $g13-mist;
+  color: $g11-sidewalk;
   margin-left: 4px;
 
   .func-node:hover & {

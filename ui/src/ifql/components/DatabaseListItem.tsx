@@ -26,8 +26,9 @@ class DatabaseListItem extends PureComponent<Props, State> {
     return (
       <div className={this.className} onClick={this.handleChooseDatabase}>
         <div className="ifql-schema-item">
-          <span className="icon caret-right" />
+          <div className="ifql-schema-item-toggle" />
           {db}
+          <span className="ifql-schema-type">Bucket</span>
         </div>
         {this.state.isOpen && <TagList db={db} />}
       </div>
