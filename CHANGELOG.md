@@ -16,6 +16,7 @@
 1.  [#3245](https://github.com/influxdata/chronograf/pull/3245): Display 'no results' on cells without results
 1.  [#3354](https://github.com/influxdata/chronograf/pull/3354): Disable template variables for non editing users
 1.  [#3353](https://github.com/influxdata/chronograf/pull/3353): YAxisLabels in Dashboard Graph Builder not showing until graph is redrawn
+1.  [#3378](https://github.com/influxdata/chronograf/pull/3378): Ensure table graphs have a consistent ux between chrome and firefox
 
 ### Bug Fixes
 
