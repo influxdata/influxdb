@@ -28,6 +28,7 @@
 1.  [#3353](https://github.com/influxdata/chronograf/pull/3353): Display y-axis label on initial graph load
 1.  [#3352](https://github.com/influxdata/chronograf/pull/3352): Fix not being able to change the source in the CEO display
 1.  [#3357](https://github.com/influxdata/chronograf/pull/3357): Fix only the selected template variable value getting loaded
+1.  [#3389](https://github.com/influxdata/chronograf/pull/3389): Fix Generic OAuth bug for GitHub Enterprise where the principal was incorrectly being checked for email being Primary and Verified
 
 ## v1.4.4.1 [2018-04-16]
 
