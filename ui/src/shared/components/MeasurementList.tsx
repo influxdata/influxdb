@@ -21,6 +21,7 @@ interface Props {
   onToggleTagAcceptance: () => void
   isQuerySupportedByExplorer: boolean
   onChooseMeasurement: (measurement: string) => void
+  isKapacitorRule?: boolean
 }
 
 interface State {
@@ -124,6 +125,7 @@ class MeasurementList extends PureComponent<Props, State> {
       onChooseTag,
       onGroupByTag,
       isQuerySupportedByExplorer,
+      isKapacitorRule,
     } = this.props
     const {database, areTagsAccepted} = query
     const {filtered} = this.state
@@ -154,7 +156,9 @@ class MeasurementList extends PureComponent<Props, State> {
                   areTagsAccepted={areTagsAccepted}
                   onAcceptReject={this.handleAcceptReject}
                   isActive={measurement === query.measurement}
-                  isQuerySupportedByExplorer={isQuerySupportedByExplorer}
+                  isQuerySupportedByExplorer={
+                    isKapacitorRule || isQuerySupportedByExplorer
+                  }
                   numTagsActive={Object.keys(query.tags).length}
                   onChooseMeasurement={this.handleChoosemeasurement}
                 />

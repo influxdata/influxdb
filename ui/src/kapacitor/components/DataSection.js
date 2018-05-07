@@ -82,6 +82,7 @@ const DataSection = ({
               onChooseTag={handleChooseTag}
               onGroupByTag={handleGroupByTag}
               onToggleTagAcceptance={handleToggleTagAcceptance}
+              isKapacitorRule={isKapacitorRule}
             />
             {isDeadman ? null : (
               <FieldList

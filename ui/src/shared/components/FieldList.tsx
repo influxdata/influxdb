@@ -60,7 +60,7 @@ interface Props {
   removeFuncs: (fields: Field[]) => void
   addInitialField: (field: Field, groupBy: GroupBy) => void
   initialGroupByTime: string | null
-  isQuerySupportedByExplorer: boolean
+  isQuerySupportedByExplorer?: boolean
   source: Source
 }
 
@@ -124,6 +124,7 @@ class FieldList extends PureComponent<Props, State> {
 
     const hasAggregates = numFunctions(fields) > 0
     const noDBorMeas = !database || !measurement
+    const isDisabled = !isKapacitorRule && !isQuerySupportedByExplorer
 
     return (
       <div className="query-builder--column">
@@ -138,7 +139,7 @@ class FieldList extends PureComponent<Props, State> {
               isKapacitorRule={isKapacitorRule}
               onTimeShift={this.handleTimeShift}
               onGroupByTime={this.handleGroupByTime}
-              isDisabled={!isQuerySupportedByExplorer}
+              isDisabled={isDisabled}
             />
           ) : null}
         </div>
@@ -174,7 +175,7 @@ class FieldList extends PureComponent<Props, State> {
                     fieldFuncs={fieldFuncs}
                     funcs={functionNames(funcs)}
                     isKapacitorRule={isKapacitorRule}
-                    isDisabled={!isQuerySupportedByExplorer}
+                    isDisabled={isDisabled}
                   />
                 )
               })}
@@ -203,7 +204,9 @@ class FieldList extends PureComponent<Props, State> {
       isQuerySupportedByExplorer,
     } = this.props
     const {fields, groupBy} = query
-    if (!isQuerySupportedByExplorer) {
+    const isDisabled = !isKapacitorRule && !isQuerySupportedByExplorer
+
+    if (isDisabled) {
       return
     }
     const initialGroupBy = {...groupBy, time}
