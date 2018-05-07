@@ -15,10 +15,16 @@ $ifql-arg-min-width: 120px;
   font-size: 13px;
   font-weight: 600;
   position: relative;
+  background-color: $g4-onyx;
+  transition: background-color 0.25s ease;
+
+  &:hover {
+    background-color: $g6-smoke;
+  }
 }
 
 .body-builder {
-  padding: 12px 30px;
+  padding: 30px;
   min-width: 440px;
   overflow: hidden;
   height: 100%;
@@ -30,7 +36,7 @@ $ifql-arg-min-width: 120px;
   width: 100%;
   margin-bottom: 24px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 
   &:last-of-type {
     margin-bottom: 0;
@@ -42,8 +48,10 @@ $ifql-arg-min-width: 120px;
   color: $g11-sidewalk;
   line-height: $ifql-node-height;
   white-space: nowrap;
-  background-color: $g3-castle;
   @include no-user-select();
+}
+.variable-blank {
+  font-style: italic;
 }
 .variable-name {
   color: $c-pool;
@@ -65,9 +73,7 @@ $ifql-arg-min-width: 120px;
   @extend %ifql-node;
   display: flex;
   align-items: center;
-  background-color: $g4-onyx;
   margin-left: $ifql-node-gap;
-  transition: background-color 0.25s ease;
 
   // Connection Line
   &:after {
@@ -81,8 +87,9 @@ $ifql-arg-min-width: 120px;
     transform: translate(-100%, -50%);
   }
 
-  &:hover {
-    background-color: $g6-smoke;
+  &:first-child:after {
+    content: none;
+    margin-left: 0;
   }
 }
 .func-node--name,
@@ -112,7 +119,8 @@ $ifql-arg-min-width: 120px;
 }
  
 
-.func-node--tooltip {
+.func-node--tooltip,
+.variable-name--tooltip {
   background-color: $g3-castle;
   border-radius: $radius;
   padding: 10px;
@@ -175,4 +183,25 @@ $ifql-arg-min-width: 120px;
 }
 .func-arg--value {
   flex: 1 0 0;
+}
+
+
+.variable-name--tooltip {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+
+.variable-name--input {
+  width: 140px;
+}
+
+.variable-name--operator {
+  width: 20px;
+  height: 30px;
+  text-align: center;
+  line-height: 30px;
+  font-weight: 600;
+  @include no-user-select();
 }
