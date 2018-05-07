@@ -8,6 +8,7 @@ export const EXCLUDED_KEYS = [
   'Enter',
   'Shift',
   'Ctrl',
+  'Control',
   'Alt',
   'Pause',
   'Capslock',
@@ -51,5 +52,6 @@ export const EXCLUDED_KEYS = [
   'Graveaccent',
   'Backslash',
   'Quote',
+  'Meta',
   ' ',
 ]
