@@ -53,7 +53,7 @@ export const getTags = async () => {
     const {data} = await Promise.resolve(response)
     return data.tags
   } catch (error) {
-    console.error('Could not get tagKeys', error)
+    console.error('Could not get tags', error)
     throw error
   }
 }
@@ -64,7 +64,7 @@ export const getTagValues = async () => {
     const {data} = await Promise.resolve(response)
     return data.values
   } catch (error) {
-    console.error('Could not get tagKeys', error)
+    console.error('Could not get tag values', error)
     throw error
   }
 }
