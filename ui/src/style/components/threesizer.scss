@@ -169,5 +169,15 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
 }
 
 .threesizer--body {
-  flex: 1 0 0;
+  .horizontal > &:only-child {
+    width: 100%;
+  }
+
+  .vertical > &:only-child {
+    height: 100%;
+  }
+  
+  .threesizer--header + & {
+    flex: 1 0 0;
+  }
 }
