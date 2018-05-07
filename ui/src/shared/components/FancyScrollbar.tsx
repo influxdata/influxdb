@@ -1,49 +1,59 @@
 import _ from 'lodash'
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
 import classnames from 'classnames'
 import {Scrollbars} from 'react-custom-scrollbars'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-@ErrorHandling
-class FancyScrollbar extends Component {
-  constructor(props) {
-    super(props)
-  }
+interface Props {
+  autoHide?: boolean
+  autoHeight?: boolean
+  maxHeight?: number
+  className?: string
+  setScrollTop?: (value: React.MouseEvent<JSX.Element>) => void
+  style?: React.CSSProperties
+  scrollTop?: number
+  scrollLeft?: number
+}
 
-  static defaultProps = {
+@ErrorHandling
+class FancyScrollbar extends Component<Props> {
+  public static defaultProps = {
     autoHide: true,
     autoHeight: false,
     setScrollTop: () => {},
   }
 
-  updateScroll() {
-    if (this.ref && _.isNumber(this.props.scrollTop)) {
-      this.ref.scrollTop(this.props.scrollTop)
+  private ref: React.RefObject<Scrollbars>
+
+  constructor(props) {
+    super(props)
+    this.ref = React.createRef<Scrollbars>()
+  }
+
+  public updateScroll() {
+    const ref = this.ref.current
+    if (ref && _.isNumber(this.props.scrollTop)) {
+      ref.scrollTop(this.props.scrollTop)
     }
 
-    if (this.ref && _.isNumber(this.props.scrollLeft)) {
-      this.ref.scrollLeft(this.props.scrollLeft)
+    if (ref && _.isNumber(this.props.scrollLeft)) {
+      ref.scrollLeft(this.props.scrollLeft)
     }
   }
 
-  componentDidMount() {
+  public componentDidMount() {
     this.updateScroll()
   }
 
-  componentDidUpdate() {
+  public componentDidUpdate() {
     this.updateScroll()
   }
 
-  handleMakeDiv = className => props => {
+  public handleMakeDiv = (className: string) => (props): JSX.Element => {
     return <div {...props} className={`fancy-scroll--${className}`} />
   }
 
-  onRef = ref => {
-    this.ref = ref
-  }
-
-  render() {
+  public render() {
     const {
       autoHide,
       autoHeight,
@@ -59,7 +69,7 @@ class FancyScrollbar extends Component {
         className={classnames('fancy-scroll--container', {
           [className]: className,
         })}
-        ref={this.onRef}
+        ref={this.ref}
         style={style}
         onScroll={setScrollTop}
         autoHide={autoHide}
@@ -77,20 +87,6 @@ class FancyScrollbar extends Component {
       </Scrollbars>
     )
   }
-}
-
-const {bool, func, node, number, string, object} = PropTypes
-
-FancyScrollbar.propTypes = {
-  children: node.isRequired,
-  className: string,
-  autoHide: bool,
-  autoHeight: bool,
-  maxHeight: number,
-  setScrollTop: func,
-  style: object,
-  scrollTop: number,
-  scrollLeft: number,
 }
 
 export default FancyScrollbar
