@@ -144,7 +144,7 @@ class KafkaConfig extends PureComponent<Props, State> {
           </div>
         </div>
         <div className="form-group col-xs-12">
-          <label htmlFor="sslCA">SSL Cert</label>
+          <label htmlFor="sslCA">SSL CA</label>
           <input
             className="form-control"
             id="sslCA"
