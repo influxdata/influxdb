@@ -52,7 +52,6 @@ $threesizer-handle: 30px;
   transition: background-color 0.25s ease, color 0.25s ease;
 
   &.vertical {
-    padding: 12px 0;
     border-right: solid 2px $g3-castle;
 
     &:hover,
@@ -62,7 +61,6 @@ $threesizer-handle: 30px;
   }
 
   &.horizontal {
-    padding: 0 12px;
     border-bottom: solid 2px $g3-castle;
 
     &:hover,
@@ -85,20 +83,23 @@ $threesizer-handle: 30px;
     background-color: $g5-pepper;
   }
 }
-// First Handle should not have a outside facing border
-// .threesizer:first-child .threesizer--division .threesizer--handle {
-//   border-top: 0;
-//   border-left: 0;
-// }
 
 .threesizer--title {
-  font-size: 13px;
+  padding-left: 14px;
+  position: relative;
+  font-size: 16px;
   font-weight: 500;
   white-space: nowrap;
   color: $g11-sidewalk;
+  z-index: 1;
+  transition: transform 0.25s ease;
 
-  .vertical & {
-    transform: rotate(90deg) translateX(8px);
+  &.vertical {
+    transform: translate(28px, 14px);
+
+    &.threesizer--collapsed {
+      transform: translate(0, 3px) rotate(90deg);
+    }
   }
 }
 
@@ -108,7 +109,18 @@ $threesizer-shadow-start: fade-out($g0-obsidian, 0.82);
 $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
 
 .threesizer--contents {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
   position: relative;
+
+  &.horizontal {
+    flex-direction: row;
+  }
+
+  &.vertical {
+    flex-direction: column;
+  }
 
   // Bottom Shadow
   &.horizontal:after,
@@ -139,4 +151,23 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
 .threesizer--division:last-child .threesizer--contents:after {
   content: none;
   display: none;
+}
+
+// Header
+.threesizer--header {
+  background-color: $g2-kevlar;
+  
+  .horizontal > & {
+    width: 50px;
+    border-right: 2px solid $g4-onyx;
+  }
+
+  .vertical > & {
+    height: 50px;
+    border-bottom: 2px solid $g4-onyx;
+  }
+}
+
+.threesizer--body {
+  flex: 1 0 0;
 }
