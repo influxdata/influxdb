@@ -232,7 +232,9 @@ class AlertTabs extends PureComponent<Props, State> {
           <KafkaConfig
             onSave={this.handleSaveConfig('kafka')}
             config={this.getSection(configSections, 'kafka')}
-            onTest={this.handleTestConfig('kafka')}
+            onTest={this.handleTestConfig('kafka', {
+              cluster: this.getProperty(configSections, 'kafka', 'id'),
+            })}
             enabled={this.getEnabled(configSections, 'kafka')}
             notify={this.props.notify}
           />
@@ -450,6 +452,18 @@ class AlertTabs extends PureComponent<Props, State> {
     )
   }
 
+  private getProperty = (
+    sections: Sections,
+    section: string,
+    property: string
+  ): boolean => {
+    return _.get(
+      sections,
+      [section, 'elements', '0', 'options', property],
+      null
+    )
+  }
+
   private handleSaveConfig = (section: string) => async (
     properties
   ): Promise<boolean> => {
@@ -473,13 +487,17 @@ class AlertTabs extends PureComponent<Props, State> {
       }
     }
   }
-  private handleTestConfig = (section: string) => async (
+  private handleTestConfig = (section: string, options?: object) => async (
     e: MouseEvent<HTMLButtonElement>
   ): Promise<void> => {
     e.preventDefault()
 
     try {
-      const {data} = await testAlertOutput(this.props.kapacitor, section)
+      const {data} = await testAlertOutput(
+        this.props.kapacitor,
+        section,
+        options
+      )
       if (data.success) {
         this.props.notify(notifyTestAlertSent(section))
       } else {
