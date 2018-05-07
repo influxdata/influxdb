@@ -166,21 +166,31 @@ const insertGroupByValues = (
   sortedLabels
 ) => {
   const dashArray = Array(sortedLabels.length).fill('-')
-  let timeSeries = []
-  forEach(serieses, (s, sind) => {
-    if (s.isGroupBy) {
-      forEach(s.values, vs => {
-        const tsRow = {time: vs[0], values: clone(dashArray)}
-        forEach(vs.slice(1), (v, i) => {
-          const label = seriesLabels[sind][i].label
-          tsRow.values[
-            labelsToValueIndex[label + s.responseIndex + s.seriesIndex]
-          ] = v
-        })
-        timeSeries = [...timeSeries, tsRow]
-      })
+  const timeSeries = []
+
+  for (let x = 0; x < serieses.length; x++) {
+    const s = serieses[x]
+    if (!s.isGroupBy) {
+      continue
     }
-  })
+
+    for (let i = 0; i < s.values.length; i++) {
+      const vs = s.values[i]
+      const tsRow = {time: vs[0], values: clone(dashArray)}
+
+      const vss = vs.slice(1)
+      for (let j = 0; j < vss.length; j++) {
+        const v = vss[j]
+        const label = seriesLabels[x][j].label
+
+        tsRow.values[
+          labelsToValueIndex[label + s.responseIndex + s.seriesIndex]
+        ] = v
+      }
+
+      timeSeries.push(tsRow)
+    }
+  }
 
   return timeSeries
 }
@@ -245,7 +255,6 @@ const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
 export const groupByTimeSeriesTransform = (raw, isTable) => {
   const results = constructResults(raw, isTable)
   const serieses = constructSerieses(results)
-
   const {cells, sortedLabels, seriesLabels} = constructCells(serieses)
 
   const sortedTimeSeries = constructTimeSeries(
