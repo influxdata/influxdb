@@ -1,6 +1,7 @@
 import React, {PureComponent, MouseEvent} from 'react'
-import uuid from 'uuid'
+
 import FuncArgs from 'src/ifql/components/FuncArgs'
+import FuncArgsPreview from 'src/ifql/components/FuncArgsPreview'
 import {OnDeleteFuncNode, OnChangeArg, Func} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -33,6 +34,7 @@ export default class FuncNode extends PureComponent<Props, State> {
   public render() {
     const {
       func,
+      func: {args},
       bodyID,
       onChangeArg,
       declarationID,
@@ -47,7 +49,7 @@ export default class FuncNode extends PureComponent<Props, State> {
         onMouseLeave={this.handleMouseLeave}
       >
         <div className="func-node--name">{func.name}</div>
-        {this.coloredSyntaxArgs}
+        <FuncArgsPreview args={args} />
         {isExpanded && (
           <FuncArgs
             func={func}
@@ -60,57 +62,6 @@ export default class FuncNode extends PureComponent<Props, State> {
         )}
       </div>
     )
-  }
-
-  private get coloredSyntaxArgs(): JSX.Element {
-    const {
-      func: {args},
-    } = this.props
-
-    if (!args) {
-      return
-    }
-
-    const coloredSyntax = args.map((arg, i): JSX.Element => {
-      if (!arg.value) {
-        return
-      }
-
-      const separator = i === 0 ? null : ', '
-
-      return (
-        <React.Fragment key={uuid.v4()}>
-          {separator}
-          {arg.key}: {this.colorArgType(`${arg.value}`, arg.type)}
-        </React.Fragment>
-      )
-    })
-
-    return <div className="func-node--preview">{coloredSyntax}</div>
-  }
-
-  private colorArgType = (argument: string, type: string): JSX.Element => {
-    switch (type) {
-      case 'time':
-      case 'number':
-      case 'period':
-      case 'duration':
-      case 'array': {
-        return <span className="variable-value--number">{argument}</span>
-      }
-      case 'bool': {
-        return <span className="variable-value--boolean">{argument}</span>
-      }
-      case 'string': {
-        return <span className="variable-value--string">"{argument}"</span>
-      }
-      case 'invalid': {
-        return <span className="variable-value--invalid">{argument}</span>
-      }
-      default: {
-        return <span>{argument}</span>
-      }
-    }
   }
 
   private handleDelete = (): void => {
