@@ -89,11 +89,15 @@ describe('IFQL.AST.Walker', () => {
                   source: 'addOne = (n) => n + 1',
                   declarations: [
                     {
-                      name: 'foo',
+                      name: 'addOne',
                       type: 'ArrowFunctionExpression',
-                      source: 'addOne = (n) => n + 1',
-                      params: [],
-                      body: {},
+                      source: '(n) => n + 1',
+                      params: [{type: 'Property', source: 'n'}],
+                      body: [
+                        {type: 'Identifier', source: 'n'},
+                        {type: 'Operator', source: '+'},
+                        {type: 'IntegerLiteral', source: '1'},
+                      ],
                     },
                   ],
                 },

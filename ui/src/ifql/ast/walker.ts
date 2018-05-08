@@ -62,8 +62,9 @@ export default class Walker {
         return {
           name,
           type,
-          params: init.params,
-          body: this.inOrder(init.body),
+          params: this.params(init.params),
+          body: this.binaryExpressionInOrder(init.body),
+          source: init.location.source,
         }
       }
 
@@ -78,28 +79,51 @@ export default class Walker {
     return {source: location.source, declarations, type: variable.type}
   }
 
+  private params = params => {
+    return params.map(p => {
+      return {source: p.key.location.source, type: p.type}
+    })
+  }
+
   // returns an in order flattening of a binary expression
-  private inOrder = (node, callback) => {
+  private inOrder = (node, result) => {
     if (node) {
-      this.inOrder(node.left)
+      this.inOrder(node.left, result)
+
       if (node.type === 'MemberExpression') {
-        console.log(node.location.source)
+        const {location, object, property} = node
+        const {name} = object
+        const {value, type} = property
+        const {source} = location.source
+
+        result.push({
+          source,
+          object: {name, type: object.type},
+          property: {value, type},
+          type: node.type,
+        })
       }
 
       if (node.operator) {
-        console.log(node.operator)
+        result.push({type: 'Operator', source: node.operator})
       }
 
       if (node.name) {
-        console.log(node.name)
+        result.push({type: node.type, source: node.location.source})
       }
 
       if (node.value) {
-        console.log(node.value)
+        result.push({type: node.type, source: node.location.source})
       }
 
-      this.inOrder(node.right)
+      this.inOrder(node.right, result)
     }
+  }
+
+  private binaryExpressionInOrder = tree => {
+    const result = []
+    this.inOrder(tree, result)
+    return result
   }
 
   private expression(expression, location): FlatExpression {
