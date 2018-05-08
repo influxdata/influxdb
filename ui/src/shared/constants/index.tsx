@@ -402,7 +402,7 @@ export const HTTP_UNAUTHORIZED = 401
 export const HTTP_FORBIDDEN = 403
 export const HTTP_NOT_FOUND = 404
 
-export const AUTOREFRESH_DEFAULT = 15000 // in milliseconds
+export const AUTOREFRESH_DEFAULT = 0 // in milliseconds
 
 export const GRAPH = 'graph'
 export const TABLE = 'table'
