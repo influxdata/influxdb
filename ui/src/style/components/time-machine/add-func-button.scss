@@ -47,8 +47,12 @@ $ifql-func-selector--height: 30px;
 }
 
 .ifql-func--autocomplete {
-  left: $ifql-func-selector--gap;
+  left: 0;
   top: 0;
+
+  .func-selector--connector + & {
+    left: $ifql-func-selector--gap;
+  }
 }
 
 .ifql-func--list {
