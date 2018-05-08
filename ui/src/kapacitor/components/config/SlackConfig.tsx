@@ -48,6 +48,18 @@ class SlackConfig extends PureComponent<Props, State> {
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
+          <label htmlFor="nickname">Nickname this Configuration</label>
+          <input
+            className="form-control"
+            id="nickname"
+            type="text"
+            placeholder="Optional unless multiple Slack configurations exist"
+            // ref={r => (this.channel = r)}
+            defaultValue={channel || ''}
+            onChange={this.disableTest}
+          />
+        </div>
+        <div className="form-group col-xs-12">
           <label htmlFor="slack-url">
             Slack Webhook URL (
             <a href="https://api.slack.com/incoming-webhooks" target="_">
