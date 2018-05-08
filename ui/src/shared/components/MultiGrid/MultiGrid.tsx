@@ -31,7 +31,7 @@ interface Props {
   scrollToRow?: () => {}
   onSectionRendered?: () => {}
   scrollToColumn?: () => {}
-  cellRenderer?: (arg: object) => {}
+  cellRenderer?: (arg: object) => JSX.Element
 }
 
 interface State {
@@ -321,7 +321,10 @@ class MultiGrid extends React.PureComponent<Props, State> {
     )
   }
 
-  public cellRendererBottomLeftGrid = ({rowIndex, ...rest}) => {
+  public cellRendererBottomLeftGrid = ({
+    rowIndex,
+    ...rest
+  }: Partial<Props> & {rowIndex: number; key: string}): JSX.Element => {
     const {cellRenderer, fixedRowCount, rowCount} = this.props
 
     if (rowIndex === rowCount - fixedRowCount) {

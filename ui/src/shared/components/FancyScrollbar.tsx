@@ -4,22 +4,27 @@ import classnames from 'classnames'
 import {Scrollbars} from 'react-custom-scrollbars'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface DefaultProps {
+  autoHide: boolean
+  autoHeight: boolean
+  maxHeight: number
+  setScrollTop: (value: React.MouseEvent<JSX.Element>) => void
+  style: React.CSSProperties
+}
+
 interface Props {
-  autoHide?: boolean
-  autoHeight?: boolean
-  maxHeight?: number
   className?: string
-  setScrollTop?: (value: React.MouseEvent<JSX.Element>) => void
-  style?: React.CSSProperties
   scrollTop?: number
   scrollLeft?: number
 }
 
 @ErrorHandling
-class FancyScrollbar extends Component<Props> {
+class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
   public static defaultProps = {
     autoHide: true,
     autoHeight: false,
+    maxHeight: null,
+    style: {},
     setScrollTop: () => {},
   }
 
@@ -32,11 +37,11 @@ class FancyScrollbar extends Component<Props> {
 
   public updateScroll() {
     const ref = this.ref.current
-    if (ref && _.isNumber(this.props.scrollTop)) {
+    if (ref && !_.isNil(this.props.scrollTop)) {
       ref.scrollTop(this.props.scrollTop)
     }
 
-    if (ref && _.isNumber(this.props.scrollLeft)) {
+    if (ref && !_.isNil(this.props.scrollLeft)) {
       ref.scrollLeft(this.props.scrollLeft)
     }
   }
