@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"regexp"
 
 	"github.com/influxdata/chronograf"
 )
@@ -79,6 +80,12 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if !ok {
 		up.Logger.Info(ErrNotFlusher)
+		up.Next.ServeHTTP(rw, r)
+		return
+	}
+
+	isSVG, _ := regexp.Match(".svg$", []byte(r.URL.String()))
+	if isSVG {
 		up.Next.ServeHTTP(rw, r)
 		return
 	}
