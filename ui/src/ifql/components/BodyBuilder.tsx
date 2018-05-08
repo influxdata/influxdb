@@ -78,7 +78,10 @@ class BodyBuilder extends PureComponent<Props> {
   }
 
   private createNewDeclaration = (bodyID, name, declarationID) => {
-    console.log(bodyID, name, declarationID)
+    // Returning a string here so linter stops yelling
+    // TODO: write a real function
+
+    return `${bodyID} / ${name} / ${declarationID}`
   }
 
   private get funcNames() {
