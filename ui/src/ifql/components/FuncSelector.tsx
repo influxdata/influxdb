@@ -18,10 +18,15 @@ interface Props {
   bodyID: string
   declarationID: string
   onAddNode: OnAddNode
+  connectorVisible?: boolean
 }
 
 @ErrorHandling
 export class FuncSelector extends PureComponent<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    connectorVisible: true,
+  }
+
   constructor(props) {
     super(props)
 
@@ -34,11 +39,12 @@ export class FuncSelector extends PureComponent<Props, State> {
 
   public render() {
     const {isOpen, inputText, selectedFunc} = this.state
+    const {connectorVisible} = this.props
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
         <div className={this.className}>
-          <div className="func-selector--connector" />
+          {connectorVisible && <div className="func-selector--connector" />}
           {isOpen ? (
             <FuncList
               inputText={inputText}

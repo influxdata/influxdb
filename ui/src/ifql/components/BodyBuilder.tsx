@@ -3,6 +3,7 @@ import _ from 'lodash'
 
 import ExpressionNode from 'src/ifql/components/ExpressionNode'
 import VariableName from 'src/ifql/components/VariableName'
+import FuncSelector from 'src/ifql/components/FuncSelector'
 
 import {FlatBody, Suggestion} from 'src/types/ifql'
 
@@ -55,7 +56,29 @@ class BodyBuilder extends PureComponent<Props> {
       )
     })
 
-    return <div className="body-builder">{_.flatten(bodybuilder)}</div>
+    return (
+      <div className="body-builder">
+        {_.flatten(bodybuilder)}
+        <div className="declaration">
+          <FuncSelector
+            bodyID="fake-body-id"
+            declarationID="fake-declaration-id"
+            onAddNode={this.createNewDeclaration}
+            funcs={this.newDeclarationFuncs}
+            connectorVisible={false}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  private get newDeclarationFuncs(): string[] {
+    // 'JOIN' only available if there are at least 2 named declarations
+    return ['from', 'join', 'variable']
+  }
+
+  private createNewDeclaration = (bodyID, name, declarationID) => {
+    console.log(bodyID, name, declarationID)
   }
 
   private get funcNames() {
