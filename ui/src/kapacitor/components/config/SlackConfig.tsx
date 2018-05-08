@@ -13,6 +13,7 @@ interface Config {
     url: boolean
     channel: string
     enabled: boolean
+    workspace: string
   }
 }
 
@@ -42,7 +43,7 @@ class SlackConfig extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {url, channel} = this.props.config.options
+    const {url, channel, workspace} = this.props.config.options
     const {testEnabled, enabled} = this.state
 
     return (
@@ -55,7 +56,7 @@ class SlackConfig extends PureComponent<Props, State> {
             type="text"
             placeholder="Optional unless multiple Slack configurations exist"
             // ref={r => (this.channel = r)}
-            defaultValue={channel || ''}
+            defaultValue={workspace}
             onChange={this.disableTest}
           />
         </div>
