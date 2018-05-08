@@ -19,7 +19,6 @@ import {
   notifyDashboardDeleted,
   notifyDashboardDeleteFailed,
   notifyCellAdded,
-  notifyCellCloned,
   notifyCellDeleted,
 } from 'shared/copy/notifications'
 
@@ -319,12 +318,10 @@ export const addDashboardCellAsync = (
 
 export const cloneDashboardCellAsync = (dashboard, cell) => async dispatch => {
   try {
-    const {data} = await addDashboardCellAJAX(
-      dashboard,
-      getClonedDashboardCell(dashboard, cell)
-    )
+    const clonedCell = getClonedDashboardCell(dashboard, cell)
+    const {data} = await addDashboardCellAJAX(dashboard, clonedCell)
     dispatch(addDashboardCell(dashboard, data))
-    dispatch(notify(notifyCellCloned(cell.name)))
+    dispatch(notify(notifyCellAdded(clonedCell.name)))
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
