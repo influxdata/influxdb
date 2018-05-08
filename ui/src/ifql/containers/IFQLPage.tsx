@@ -5,19 +5,13 @@ import _ from 'lodash'
 
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import {Suggestion, FlatBody} from 'src/types/ifql'
+import {Suggestion, FlatBody, Links} from 'src/types/ifql'
 import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Links {
-  self: string
-  suggestions: string
-  ast: string
-}
 
 interface Props {
   links: Links
@@ -44,7 +38,10 @@ export class IFQLPage extends PureComponent<Props, State> {
       body: [],
       ast: null,
       suggestions: [],
-      script: 'addOne = (n) => n + 1\n\n',
+      script: `from(db:"foo")
+                |> filter(fn: (r) => r["_measurement"]=="cpu" AND
+                  r["_field"] == "usage_system" AND
+                  r["service"] == "app-server")`,
     }
   }
 

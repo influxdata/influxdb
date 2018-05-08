@@ -1,6 +1,11 @@
 // Texas Ranger
 import _ from 'lodash'
-import {FlatBody, Func} from 'src/types/ifql'
+import {
+  Func,
+  FlatBody,
+  BinaryExpressionNode,
+  MemberExpressionNode,
+} from 'src/types/ifql'
 
 interface Expression {
   argument: object
@@ -29,6 +34,8 @@ interface AST {
   body: Body[]
 }
 
+type InOrderNode = BinaryExpressionNode | MemberExpressionNode
+
 export default class Walker {
   private ast: AST
 
@@ -51,6 +58,51 @@ export default class Walker {
     })
   }
 
+  public get inOrderExpression(): InOrderNode[] {
+    const tree = _.get(this.ast, 'body.0.expression.body', new Array<Body>())
+    return this.inOrder(tree)
+  }
+
+  private inOrder = (node): InOrderNode[] => {
+    let results = []
+    if (node) {
+      results = [...results, ...this.inOrder(node.left)]
+
+      if (node.type === 'MemberExpression') {
+        const {location, object, property} = node
+        const {name} = object
+        const {value, type} = property
+        const {source} = location
+
+        results = [
+          ...results,
+          {
+            source,
+            object: {name, type: object.type},
+            property: {value, type},
+            type: node.type,
+          },
+        ]
+      }
+
+      if (node.operator) {
+        results = [...results, {type: 'Operator', source: node.operator}]
+      }
+
+      if (node.name) {
+        results = [...results, {type: node.type, source: node.location.source}]
+      }
+
+      if (node.value) {
+        results = [...results, {type: node.type, source: node.location.source}]
+      }
+
+      results = [...results, ...this.inOrder(node.right)]
+    }
+
+    return results
+  }
+
   private variable(variable) {
     const {location} = variable
     const declarations = variable.declarations.map(d => {
@@ -63,7 +115,7 @@ export default class Walker {
           name,
           type,
           params: this.params(init.params),
-          body: this.binaryExpressionInOrder(init.body),
+          body: this.inOrder(init.body),
           source: init.location.source,
         }
       }
@@ -86,46 +138,6 @@ export default class Walker {
   }
 
   // returns an in order flattening of a binary expression
-  private inOrder = (node, result) => {
-    if (node) {
-      this.inOrder(node.left, result)
-
-      if (node.type === 'MemberExpression') {
-        const {location, object, property} = node
-        const {name} = object
-        const {value, type} = property
-        const {source} = location.source
-
-        result.push({
-          source,
-          object: {name, type: object.type},
-          property: {value, type},
-          type: node.type,
-        })
-      }
-
-      if (node.operator) {
-        result.push({type: 'Operator', source: node.operator})
-      }
-
-      if (node.name) {
-        result.push({type: node.type, source: node.location.source})
-      }
-
-      if (node.value) {
-        result.push({type: node.type, source: node.location.source})
-      }
-
-      this.inOrder(node.right, result)
-    }
-  }
-
-  private binaryExpressionInOrder = tree => {
-    const result = []
-    this.inOrder(tree, result)
-    return result
-  }
-
   private expression(expression, location): FlatExpression {
     const funcs = this.buildFuncNodes(this.walk(expression))
 

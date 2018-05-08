@@ -33,7 +33,29 @@ export interface InputArg {
   value: string | boolean
   generate?: boolean
 }
+
 // Flattened AST
+export interface BinaryExpressionNode {
+  source: string
+  type: string
+}
+
+interface ObjectNode {
+  name: string
+  type: string
+}
+
+interface PropertyNode {
+  value: string
+  type: string
+}
+
+export interface MemberExpressionNode {
+  source: string
+  object: ObjectNode
+  property: PropertyNode
+}
+
 export interface FlatBody {
   type: string
   source: string
@@ -74,4 +96,10 @@ export interface Suggestion {
   params: {
     [key: string]: string
   }
+}
+
+export interface Links {
+  self: string
+  suggestions: string
+  ast: string
 }

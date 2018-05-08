@@ -4,6 +4,7 @@ import FuncArgInput from 'src/ifql/components/FuncArgInput'
 import FuncArgBool from 'src/ifql/components/FuncArgBool'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import From from 'src/ifql/components/From'
+import Filter from 'src/ifql/components/Filter'
 
 import {funcNames, argTypes} from 'src/ifql/constants'
 import {OnChangeArg} from 'src/types/ifql'
@@ -42,6 +43,19 @@ class FuncArg extends PureComponent<Props> {
           funcID={funcID}
           value={this.value}
           bodyID={bodyID}
+          declarationID={declarationID}
+          onChangeArg={onChangeArg}
+        />
+      )
+    }
+
+    if (funcName === funcNames.FILTER) {
+      return (
+        <Filter
+          argKey={argKey}
+          funcID={funcID}
+          bodyID={bodyID}
+          value={this.value}
           declarationID={declarationID}
           onChangeArg={onChangeArg}
         />
