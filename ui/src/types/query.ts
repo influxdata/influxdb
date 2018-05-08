@@ -30,6 +30,24 @@ export interface Args {
   args?: Args[]
 }
 
+export interface FieldFunc extends Field {
+  args: FuncArg[]
+}
+export interface FuncArg {
+  type: string
+  value: string
+}
+
+export interface ApplyFuncsToFieldArgs {
+  field: Field
+  funcs: FuncArg[]
+}
+
+export interface Tag {
+  key: string
+  value: string
+}
+
 export type TagValues = string[]
 
 export interface Tags {
@@ -37,7 +55,7 @@ export interface Tags {
 }
 
 export interface GroupBy {
-  time?: string
+  time?: string | null
   tags?: string[]
 }
 

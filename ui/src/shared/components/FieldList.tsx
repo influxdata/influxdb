@@ -1,7 +1,15 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
-import {QueryConfig, GroupBy, Source, TimeShift} from 'src/types'
+import {
+  ApplyFuncsToFieldArgs,
+  Field,
+  FieldFunc,
+  GroupBy,
+  QueryConfig,
+  Source,
+  TimeShift,
+} from 'src/types'
 
 import QueryOptions from 'src/shared/components/QueryOptions'
 import FieldListItem from 'src/data_explorer/components/FieldListItem'
@@ -28,38 +36,20 @@ interface Links {
   proxy: string
 }
 
-interface Field {
-  type: string
-  value: string
-}
-
-interface FieldFunc extends Field {
-  args: FuncArg[]
-}
-interface FuncArg {
-  value: string
-  type: string
-}
-
-interface ApplyFuncsToFieldArgs {
-  field: Field
-  funcs: FuncArg[]
-}
-
 interface Props {
   query: QueryConfig
-  onTimeShift: (shift: TimeShiftOption) => void
-  onToggleField: (field: Field) => void
+  addInitialField?: (field: Field, groupBy: GroupBy) => void
+  applyFuncsToField: (field: ApplyFuncsToFieldArgs, groupBy?: GroupBy) => void
+  onFill?: (fill: string) => void
   onGroupByTime: (groupByOption: string) => void
-  onFill: (fill: string) => void
-  applyFuncsToField: (field: ApplyFuncsToFieldArgs, groupBy: GroupBy) => void
+  onTimeShift?: (shift: TimeShiftOption) => void
+  onToggleField: (field: Field) => void
+  removeFuncs: (fields: Field[]) => void
   isKapacitorRule: boolean
-  querySource: {
+  querySource?: {
     links: Links
   }
-  removeFuncs: (fields: Field[]) => void
-  addInitialField: (field: Field, groupBy: GroupBy) => void
-  initialGroupByTime: string | null
+  initialGroupByTime?: string | null
   isQuerySupportedByExplorer?: boolean
   source: Source
 }

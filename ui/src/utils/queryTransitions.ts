@@ -1,11 +1,13 @@
 import _ from 'lodash'
-import defaultQueryConfig from 'utils/defaultQueryConfig'
+import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
   hasField,
   removeField,
   getFieldsDeep,
   getFuncsByFieldName,
-} from 'shared/reducers/helpers/fields'
+} from 'src/shared/reducers/helpers/fields'
+
+import {QueryConfig, Tag, TagValues} from 'src/types'
 
 export function editRawText(query, rawText) {
   return Object.assign({}, query, {rawText})
@@ -209,7 +211,7 @@ export const groupByTag = (query, tagKey) => {
   })
 }
 
-export const chooseTag = (query, tag) => {
+export const chooseTag = (query: QueryConfig, tag: Tag): QueryConfig => {
   const tagValues = query.tags[tag.key]
   const shouldRemoveTag =
     tagValues && tagValues.length === 1 && tagValues[0] === tag.value
@@ -219,7 +221,7 @@ export const chooseTag = (query, tag) => {
     return Object.assign({}, query, {tags: newTags})
   }
 
-  const updateTagValues = newTagValues => {
+  const updateTagValues = (newTagValues: TagValues): QueryConfig => {
     return Object.assign({}, query, {
       tags: Object.assign({}, query.tags, {
         [tag.key]: newTagValues,

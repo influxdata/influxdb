@@ -1,5 +1,5 @@
 import PropTypes from 'prop-types'
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 
 import _ from 'lodash'
 
@@ -16,9 +16,9 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface DatabaseListProps {
   query: QueryConfig
-  querySource: Source
+  querySource?: Source
   onChooseNamespace: (namespace: Namespace) => void
-  source: Source
+  source?: Source
 }
 
 interface DatabaseListState {
@@ -28,7 +28,7 @@ interface DatabaseListState {
 const {shape} = PropTypes
 
 @ErrorHandling
-class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
+class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
   public static contextTypes = {
     source: shape({
       links: shape({}).isRequired,
@@ -52,7 +52,13 @@ class DatabaseList extends PureComponent<DatabaseListProps, DatabaseListState> {
     this.getDbRp()
   }
 
-  public componentDidUpdate({querySource: prevSource, query: prevQuery}) {
+  public componentDidUpdate({
+    querySource: prevSource,
+    query: prevQuery,
+  }: {
+    querySource?: Source
+    query: QueryConfig
+  }) {
     const {querySource: nextSource, query: nextQuery} = this.props
     const differentSource = !_.isEqual(prevSource, nextSource)
 
