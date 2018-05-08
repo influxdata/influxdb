@@ -4,7 +4,6 @@ import _ from 'lodash'
 import {fetchTimeSeries} from 'src/shared/apis/query'
 import {DEFAULT_TIME_SERIES} from 'src/shared/constants/series'
 import {TimeSeriesServerResponse, TimeSeriesResponse} from 'src/types/series'
-import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 
 interface Axes {
   bounds: {
@@ -131,8 +130,7 @@ const AutoRefresh = (
         })
 
         if (grabDataForDownload) {
-          const {data} = timeSeriesToTableGraph(newSeries)
-          grabDataForDownload(data)
+          grabDataForDownload(newSeries)
         }
       } catch (err) {
         console.error(err)

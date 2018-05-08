@@ -11,6 +11,7 @@ import {notifyCSVDownloadFailed} from 'src/shared/copy/notifications'
 import download from 'src/external/download.js'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {dataToCSV} from 'src/shared/parsing/dataToCSV'
+import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 
 @ErrorHandling
 class LayoutCell extends Component {
@@ -24,9 +25,11 @@ class LayoutCell extends Component {
 
   handleCSVDownload = cell => () => {
     const joinedName = cell.name.split(' ').join('_')
-    const {celldata} = this.props
+    const {cellData} = this.props
+    const {data} = timeSeriesToTableGraph(cellData)
+
     try {
-      download(dataToCSV(celldata), `${joinedName}.csv`, 'text/plain')
+      download(dataToCSV(data), `${joinedName}.csv`, 'text/plain')
     } catch (error) {
       notify(notifyCSVDownloadFailed())
       console.error(error)
@@ -34,7 +37,7 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, celldata, onCloneCell} = this.props
+    const {cell, children, isEditable, cellData, onCloneCell} = this.props
 
     const queries = _.get(cell, ['queries'], [])
 
@@ -49,7 +52,7 @@ class LayoutCell extends Component {
           <LayoutCellMenu
             cell={cell}
             queries={queries}
-            dataExists={!!celldata.length}
+            dataExists={!!cellData.length}
             isEditable={isEditable}
             onDelete={this.handleDeleteCell}
             onEdit={this.handleSummonOverlay}
@@ -79,7 +82,7 @@ class LayoutCell extends Component {
   }
 }
 
-const {array, arrayOf, bool, func, node, number, shape, string} = PropTypes
+const {arrayOf, bool, func, node, number, shape, string} = PropTypes
 
 LayoutCell.propTypes = {
   cell: shape({
@@ -96,7 +99,7 @@ LayoutCell.propTypes = {
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,
-  celldata: arrayOf(array),
+  cellData: arrayOf(shape({})),
 }
 
 export default LayoutCell
