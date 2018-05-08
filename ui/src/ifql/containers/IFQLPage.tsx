@@ -44,8 +44,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       body: [],
       ast: null,
       suggestions: [],
-      script:
-        'baz = "baz"\n\nfoo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nbar = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
+      script: 'addOne = (n) => n + 1\n\n',
     }
   }
 

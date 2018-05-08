@@ -53,17 +53,53 @@ export default class Walker {
 
   private variable(variable) {
     const {location} = variable
-    const declarations = variable.declarations.map(({init, id}) => {
-      const {type} = init
-      if (type.includes('Expression')) {
-        const {source, funcs} = this.expression(init, location)
-        return {name: id.name, type, source, funcs}
+    const declarations = variable.declarations.map(d => {
+      const {init} = d
+      const {name} = d.id
+      const {type, value} = init
+
+      if (type === 'ArrowFunctionExpression') {
+        return {
+          name,
+          type,
+          params: init.params,
+          body: this.inOrder(init.body),
+        }
       }
 
-      return {name: id.name, type, value: init.value}
+      if (type.includes('Expression')) {
+        const {source, funcs} = this.expression(d.init, location)
+        return {name, type, source, funcs}
+      }
+
+      return {name, type, value}
     })
 
     return {source: location.source, declarations, type: variable.type}
+  }
+
+  // returns an in order flattening of a binary expression
+  private inOrder = (node, callback) => {
+    if (node) {
+      this.inOrder(node.left)
+      if (node.type === 'MemberExpression') {
+        console.log(node.location.source)
+      }
+
+      if (node.operator) {
+        console.log(node.operator)
+      }
+
+      if (node.name) {
+        console.log(node.name)
+      }
+
+      if (node.value) {
+        console.log(node.value)
+      }
+
+      this.inOrder(node.right)
+    }
   }
 
   private expression(expression, location): FlatExpression {
@@ -113,6 +149,12 @@ export default class Walker {
       name = currentNode.call.callee.name
       args = currentNode.call.arguments
       return [...this.walk(currentNode.argument), {name, args, source}]
+    }
+
+    if (currentNode.type === 'ArrowFunctionExpression') {
+      const params = currentNode.params
+      const body = currentNode.body
+      return [{name, params, body}]
     }
 
     name = currentNode.callee.name
