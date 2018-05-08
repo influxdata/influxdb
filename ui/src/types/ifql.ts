@@ -51,7 +51,7 @@ export interface Func {
 
 type Value = string | boolean
 
-interface Arg {
+export interface Arg {
   key: string
   value: Value
   type: string

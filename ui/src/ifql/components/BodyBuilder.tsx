@@ -2,6 +2,8 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 import ExpressionNode from 'src/ifql/components/ExpressionNode'
+import VariableName from 'src/ifql/components/VariableName'
+import FuncSelector from 'src/ifql/components/FuncSelector'
 
 import {FlatBody, Suggestion} from 'src/types/ifql'
 
@@ -22,9 +24,7 @@ class BodyBuilder extends PureComponent<Props> {
           if (d.funcs) {
             return (
               <div className="declaration" key={b.id}>
-                <div className="variable-string">
-                  <span className="variable-name">{d.name}</span>
-                </div>
+                <VariableName name={d.name} />
                 <ExpressionNode
                   key={b.id}
                   bodyID={b.id}
@@ -38,47 +38,50 @@ class BodyBuilder extends PureComponent<Props> {
 
           return (
             <div className="declaration" key={b.id}>
-              <div className="variable-string">
-                {this.colorVariableSyntax(b.source)}
-              </div>
+              <VariableName name={b.source} />
             </div>
           )
         })
       }
 
       return (
-        <ExpressionNode
-          key={b.id}
-          bodyID={b.id}
-          funcs={b.funcs}
-          funcNames={this.funcNames}
-        />
+        <div className="declaration" key={b.id}>
+          <VariableName />
+          <ExpressionNode
+            bodyID={b.id}
+            funcs={b.funcs}
+            funcNames={this.funcNames}
+          />
+        </div>
       )
     })
 
-    return <div className="body-builder">{_.flatten(bodybuilder)}</div>
+    return (
+      <div className="body-builder">
+        {_.flatten(bodybuilder)}
+        <div className="declaration">
+          <FuncSelector
+            bodyID="fake-body-id"
+            declarationID="fake-declaration-id"
+            onAddNode={this.createNewDeclaration}
+            funcs={this.newDeclarationFuncs}
+            connectorVisible={false}
+          />
+        </div>
+      </div>
+    )
   }
 
-  private colorVariableSyntax = (varString: string) => {
-    const split = varString.split('=')
-    const varName = split[0].substring(0, split[0].length - 1)
-    const varValue = split[1].substring(1)
+  private get newDeclarationFuncs(): string[] {
+    // 'JOIN' only available if there are at least 2 named declarations
+    return ['from', 'join', 'variable']
+  }
 
-    const valueIsString = varValue.endsWith('"')
+  private createNewDeclaration = (bodyID, name, declarationID) => {
+    // Returning a string here so linter stops yelling
+    // TODO: write a real function
 
-    return (
-      <>
-        <span className="variable-name">{varName}</span>
-        {' = '}
-        <span
-          className={
-            valueIsString ? 'variable-value--string' : 'variable-value--number'
-          }
-        >
-          {varValue}
-        </span>
-      </>
-    )
+    return `${bodyID} / ${name} / ${declarationID}`
   }
 
   private get funcNames() {
