@@ -61,7 +61,7 @@ export default class AllUsersTableRow extends PureComponent<Props> {
         <td style={{width: colOrganizations}}>
           <Tags
             tags={this.userOrganizationTags}
-            confirmText="Remove user from organization"
+            confirmText="Remove user from organization?"
             onDeleteTag={onRemoveFromOrganization(user)}
             addMenuItems={this.dropdownOrganizationsItems}
             addMenuChoose={onAddToOrganization(user)}
