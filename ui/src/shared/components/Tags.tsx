@@ -51,11 +51,20 @@ class Tag extends PureComponent<TagProps> {
           size="btn-xs"
           customClass="input-tag--remove"
           square={true}
-          confirmText="Remove user from organization?"
+          confirmText={this.confirmText}
           confirmAction={this.handleClickDelete(item)}
         />
       </span>
     )
+  }
+
+  private get confirmText(): string {
+    const {item} = this.props
+    if (item.name || item.text) {
+      return `Delete ${item.name || item.text}?`
+    }
+
+    return 'Delete?'
   }
 
   private handleClickDelete = item => () => {
