@@ -10,7 +10,7 @@ interface IndexParam {
   index: number
 }
 
-export default class CellMeasurerCacheDecorator {
+class CellMeasurerCacheDecorator {
   private cellMeasurerCache: CellMeasurerCache
   private columnIndexOffset: number
   private rowIndexOffset: number
@@ -101,3 +101,5 @@ export default class CellMeasurerCacheDecorator {
     )
   }
 }
+
+export default CellMeasurerCacheDecorator
