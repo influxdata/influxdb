@@ -7,12 +7,14 @@ import SlackConfig from 'src/kapacitor/components/config/SlackConfig'
 interface Properties {
   channel: string
   url: string
+  workspace?: string
 }
 
 interface Config {
   options: {
     url: boolean
     channel: string
+    workspace: string
   }
 }
 
@@ -40,19 +42,28 @@ class SlackConfigs extends PureComponent<Props, State> {
   public render() {
     const {slackConfigs} = this.state
     const {onSave, onTest, enabled} = this.props
+    const configNums = slackConfigs.length
 
     return (
       <div>
-        {slackConfigs.map(config => (
-          <SlackConfig
-            key={_.get(config, ['options', 'workspace'], 'default')}
-            onSave={onSave}
-            config={config}
-            onTest={onTest}
-            enabled={enabled}
-            isNewConfig={_.get(config, 'isNewConfig', false)}
-          />
-        ))}
+        {slackConfigs.map(config => {
+          const key = _.get(config, ['options', 'workspace'], 'default')
+          const configEnabled = _.get(config, ['options', 'enabled'], false)
+          const isFirstConfigNew = configNums === 1 && !configEnabled
+          const isNewConfig =
+            isFirstConfigNew || _.get(config, 'isNewConfig', false)
+
+          return (
+            <SlackConfig
+              key={key}
+              onSave={onSave}
+              config={config}
+              onTest={onTest}
+              enabled={enabled}
+              isNewConfig={isNewConfig}
+            />
+          )
+        })}
         <button className="btn btn-md btn-default" onClick={this.addConfig}>
           <span className="icon plus" /> Add Another Config
         </button>

@@ -47,7 +47,12 @@ class SlackConfig extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {url, channel, workspace} = this.props.config.options
+    const {
+      config: {
+        options: {url, channel, workspace},
+      },
+      isNewConfig,
+    } = this.props
     const {testEnabled, enabled} = this.state
     const workspaceID = workspace || 'default'
 
@@ -65,6 +70,7 @@ class SlackConfig extends PureComponent<Props, State> {
             ref={r => (this.workspace = r)}
             defaultValue={workspace || ''}
             onChange={this.disableTest}
+            disabled={!isNewConfig}
           />
         </div>
         <div className="form-group col-xs-12">
