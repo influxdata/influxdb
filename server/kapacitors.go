@@ -409,6 +409,10 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 		res.AlertNodes.HipChat = []*chronograf.HipChat{}
 	}
 
+	if res.AlertNodes.Kafka == nil {
+		res.AlertNodes.Kafka = []*chronograf.Kafka{}
+	}
+
 	if res.AlertNodes.Log == nil {
 		res.AlertNodes.Log = []*chronograf.Log{}
 	}

@@ -22,7 +22,8 @@ type AlertNodes struct {
 	Alerta             []*Alerta    `json:"alerta"`           // Alerta  will send alert to all Alerta
 	OpsGenie           []*OpsGenie  `json:"opsGenie"`         // OpsGenie  will send alert to all OpsGenie
 	OpsGenie2          []*OpsGenie  `json:"opsGenie2"`        // OpsGenie2  will send alert to all OpsGenie v2
-	Talk               []*Talk      `json:"talk"`             // Talk  will send alert to all Talk
+	Talk               []*Talk      `json:"talk"`             // Talk will send alert to all Talk
+	Kafka              []*Kafka     `json:"kafka"`            // Kafka will send alert to all Kafka
 }
 
 // Post will POST alerts to a destination URL
@@ -134,6 +135,13 @@ type OpsGenie struct {
 
 // Talk sends alerts to Jane Talk (https://jianliao.com/site)
 type Talk struct{}
+
+// Kafka sends alerts to any Kafka brokers specified in the handler config
+type Kafka struct {
+	Cluster    string `json:"cluster"`
+	KafkaTopic string `json:"kafka-topic"`
+	Template   string `json:"template"`
+}
 
 // MarshalJSON converts AlertNodes to JSON
 func (n *AlertNodes) MarshalJSON() ([]byte, error) {
