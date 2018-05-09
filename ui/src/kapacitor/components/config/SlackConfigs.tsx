@@ -21,7 +21,11 @@ interface Config {
 interface Props {
   slackConfigs: any[]
   config: Config
-  onSave: (properties: Properties, isNewConfigInSection: boolean) => void
+  onSave: (
+    properties: Properties,
+    isNewConfigInSection: boolean,
+    specificConfig: string
+  ) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }

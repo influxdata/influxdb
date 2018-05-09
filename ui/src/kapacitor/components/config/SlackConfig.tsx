@@ -21,7 +21,11 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties, isNewConfigInSection: boolean) => void
+  onSave: (
+    properties: Properties,
+    isNewConfigInSection: boolean,
+    specificConfig: string
+  ) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
   isNewConfig: boolean
@@ -159,7 +163,11 @@ class SlackConfig extends PureComponent<Props, State> {
     if (isNewConfig) {
       properties.workspace = this.workspace.value
     }
-    const success = await this.props.onSave(properties, isNewConfig)
+    const success = await this.props.onSave(
+      properties,
+      isNewConfig,
+      this.workspace.value
+    )
     if (success) {
       this.setState({testEnabled: true})
     }

@@ -480,7 +480,8 @@ class AlertTabs extends PureComponent<Props, State> {
 
   private handleSaveConfig = (section: string) => async (
     properties,
-    isNewConfigInSection?: boolean
+    isNewConfigInSection?: boolean,
+    specificConfig?: string
   ): Promise<boolean> => {
     if (section !== '') {
       const propsToSend = this.sanitizeProperties(section, properties)
@@ -495,7 +496,8 @@ class AlertTabs extends PureComponent<Props, State> {
           await updateKapacitorConfigSection(
             this.props.kapacitor,
             section,
-            propsToSend
+            propsToSend,
+            specificConfig
           )
         }
         this.refreshKapacitorConfig(this.props.kapacitor)
