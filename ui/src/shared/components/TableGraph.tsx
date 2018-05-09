@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import _ from 'lodash'
 import classnames from 'classnames'
 import {connect} from 'react-redux'
@@ -84,10 +84,9 @@ interface State {
 }
 
 @ErrorHandling
-class TableGraph extends PureComponent<Props, State> {
+class TableGraph extends Component<Props, State> {
   private multiGridRef: React.Ref<MultiGrid>
-  private gridContainer: React.Ref<HTMLDivElement>
-
+  private gridContainer: HTMLDivElement
   constructor(props) {
     super(props)
 
@@ -96,8 +95,6 @@ class TableGraph extends PureComponent<Props, State> {
       ['tableOptions', 'sortBy', 'internalName'],
       DEFAULT_TIME_FIELD.internalName
     )
-    this.multiGridRef = React.createRef<MultiGrid>()
-
     this.state = {
       data: [[]],
       transformedData: [[]],
@@ -108,10 +105,88 @@ class TableGraph extends PureComponent<Props, State> {
       sort: {field: sortField, direction: DEFAULT_SORT_DIRECTION},
       columnWidths: {},
       totalColumnWidths: 0,
-      timeColumnWidth: 0,
       isTimeVisible: true,
+      timeColumnWidth: 0,
     }
   }
+
+  public render() {
+    const {
+      hoveredColumnIndex,
+      hoveredRowIndex,
+      timeColumnWidth,
+      sort,
+      transformedData,
+    } = this.state
+
+    const {
+      hoverTime,
+      tableOptions,
+      colors,
+      fieldOptions,
+      timeFormat,
+      decimalPlaces,
+    } = this.props
+    const {fixFirstColumn = DEFAULT_FIX_FIRST_COLUMN} = tableOptions
+    const columnCount = _.get(transformedData, ['0', 'length'], 0)
+    const rowCount = columnCount === 0 ? 0 : transformedData.length
+    const COLUMN_MIN_WIDTH = 100
+    const COLUMN_MAX_WIDTH = 1000
+    const ROW_HEIGHT = 30
+
+    const fixedColumnCount = fixFirstColumn && columnCount > 1 ? 1 : undefined
+
+    const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
+    const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
+    const {scrollToColumn, scrollToRow} = this.calcScrollToColRow()
+    return (
+      <div
+        className="table-graph-container"
+        ref={gridContainer => (this.gridContainer = gridContainer)}
+        onMouseLeave={this.handleMouseLeave}
+      >
+        {rowCount > 0 && (
+          <ColumnSizer
+            columnCount={columnCount}
+            columnMaxWidth={COLUMN_MAX_WIDTH}
+            columnMinWidth={COLUMN_MIN_WIDTH}
+            width={tableWidth}
+          >
+            {({columnWidth, registerChild}) => (
+              <MultiGrid
+                ref={r => this.getMultiGridRef(r, registerChild)}
+                columnCount={columnCount}
+                columnWidth={this.calculateColumnWidth(columnWidth)}
+                rowCount={rowCount}
+                rowHeight={ROW_HEIGHT}
+                height={tableHeight}
+                width={tableWidth}
+                fixedColumnCount={fixedColumnCount}
+                fixedRowCount={1}
+                enableFixedColumnScroll={true}
+                enableFixedRowScroll={true}
+                scrollToRow={scrollToRow}
+                scrollToColumn={scrollToColumn}
+                sort={sort}
+                cellRenderer={this.cellRenderer}
+                hoveredColumnIndex={hoveredColumnIndex}
+                hoveredRowIndex={hoveredRowIndex}
+                hoverTime={hoverTime}
+                colors={colors}
+                fieldOptions={fieldOptions}
+                tableOptions={tableOptions}
+                timeFormat={timeFormat}
+                decimalPlaces={decimalPlaces}
+                timeColumnWidth={timeColumnWidth}
+                classNameBottomRightGrid="table-graph--scroll-window"
+              />
+            )}
+          </ColumnSizer>
+        )}
+      </div>
+    )
+  }
+
   public componentDidMount() {
     const sortField = _.get(
       this.props,
@@ -167,14 +242,6 @@ class TableGraph extends PureComponent<Props, State> {
       sort,
       isTimeVisible,
     })
-  }
-
-  public handleUpdateFieldOptions = fieldOptions => {
-    const {isInCEO} = this.props
-    if (!isInCEO) {
-      return
-    }
-    this.props.handleUpdateFieldOptions(fieldOptions)
   }
 
   public componentWillReceiveProps(nextProps) {
@@ -258,7 +325,15 @@ class TableGraph extends PureComponent<Props, State> {
     }
   }
 
-  public calcScrollToColRow = () => {
+  private handleUpdateFieldOptions = fieldOptions => {
+    const {isInCEO} = this.props
+    if (!isInCEO) {
+      return
+    }
+    this.props.handleUpdateFieldOptions(fieldOptions)
+  }
+
+  private calcScrollToColRow = () => {
     const {data, sortedTimeVals, hoveredColumnIndex, isTimeVisible} = this.state
     const {hoverTime, tableOptions} = this.props
     const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
@@ -291,7 +366,7 @@ class TableGraph extends PureComponent<Props, State> {
     return {scrollToRow, scrollToColumn}
   }
 
-  public handleHover = (columnIndex, rowIndex) => () => {
+  private handleHover = (columnIndex, rowIndex) => () => {
     const {
       handleSetHoverTime,
       tableOptions: {verticalTimeAxis},
@@ -312,7 +387,7 @@ class TableGraph extends PureComponent<Props, State> {
     })
   }
 
-  public handleMouseLeave = () => {
+  private handleMouseLeave = () => {
     if (this.props.handleSetHoverTime) {
       this.props.handleSetHoverTime(NULL_HOVER_TIME)
       this.setState({
@@ -322,7 +397,7 @@ class TableGraph extends PureComponent<Props, State> {
     }
   }
 
-  public handleClickFieldName = clickedFieldName => () => {
+  private handleClickFieldName = clickedFieldName => () => {
     const {tableOptions, fieldOptions, timeFormat, decimalPlaces} = this.props
     const {data, sort} = this.state
 
@@ -349,7 +424,7 @@ class TableGraph extends PureComponent<Props, State> {
     })
   }
 
-  public calculateColumnWidth = columnSizerWidth => column => {
+  private calculateColumnWidth = columnSizerWidth => column => {
     const {index} = column
     const {
       tableOptions: {fixFirstColumn},
@@ -378,7 +453,7 @@ class TableGraph extends PureComponent<Props, State> {
     return adjustedColumnSizerWidth
   }
 
-  public createCellContents = (
+  private createCellContents = (
     cellData,
     fieldName,
     isTimeData,
@@ -398,7 +473,7 @@ class TableGraph extends PureComponent<Props, State> {
     return `${cellData}`
   }
 
-  public cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
+  private cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
     const {
       hoveredColumnIndex,
       hoveredRowIndex,
@@ -501,82 +576,6 @@ class TableGraph extends PureComponent<Props, State> {
         title={cellContents}
       >
         {cellContents}
-      </div>
-    )
-  }
-
-  public render() {
-    const {
-      hoveredColumnIndex,
-      hoveredRowIndex,
-      timeColumnWidth,
-      sort,
-      transformedData,
-    } = this.state
-    const {
-      hoverTime,
-      tableOptions,
-      colors,
-      fieldOptions,
-      timeFormat,
-      decimalPlaces,
-    } = this.props
-    const {fixFirstColumn = DEFAULT_FIX_FIRST_COLUMN} = tableOptions
-    const columnCount = _.get(transformedData, ['0', 'length'], 0)
-    const rowCount = columnCount === 0 ? 0 : transformedData.length
-    const COLUMN_MIN_WIDTH = 100
-    const COLUMN_MAX_WIDTH = 1000
-    const ROW_HEIGHT = 30
-
-    const fixedColumnCount = fixFirstColumn && columnCount > 1 ? 1 : undefined
-
-    const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
-    const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
-    const {scrollToColumn, scrollToRow} = this.calcScrollToColRow()
-    return (
-      <div
-        className="table-graph-container"
-        ref={this.gridContainer}
-        onMouseLeave={this.handleMouseLeave}
-      >
-        {rowCount > 0 && (
-          <ColumnSizer
-            columnCount={columnCount}
-            columnMaxWidth={COLUMN_MAX_WIDTH}
-            columnMinWidth={COLUMN_MIN_WIDTH}
-            width={tableWidth}
-          >
-            {({columnWidth, registerChild}) => (
-              <MultiGrid
-                ref={r => this.getMultiGridRef(r, registerChild)}
-                columnCount={columnCount}
-                columnWidth={this.calculateColumnWidth(columnWidth)}
-                rowCount={rowCount}
-                rowHeight={ROW_HEIGHT}
-                height={tableHeight}
-                width={tableWidth}
-                fixedColumnCount={fixedColumnCount}
-                fixedRowCount={1}
-                enableFixedColumnScroll={true}
-                enableFixedRowScroll={true}
-                scrollToRow={scrollToRow}
-                scrollToColumn={scrollToColumn}
-                cellRenderer={this.cellRenderer}
-                sort={sort}
-                hoveredColumnIndex={hoveredColumnIndex}
-                hoveredRowIndex={hoveredRowIndex}
-                hoverTime={hoverTime}
-                colors={colors}
-                fieldOptions={fieldOptions}
-                tableOptions={tableOptions}
-                timeFormat={timeFormat}
-                decimalPlaces={decimalPlaces}
-                timeColumnWidth={timeColumnWidth}
-                classNameBottomRightGrid="table-graph--scroll-window"
-              />
-            )}
-          </ColumnSizer>
-        )}
       </div>
     )
   }
