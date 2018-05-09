@@ -1,7 +1,12 @@
 import {map, reduce} from 'fast.js'
 import {groupByTimeSeriesTransform} from 'src/utils/groupByTimeSeriesTransform'
 
-export const timeSeriesToDygraph = (raw = [], isInDataExplorer) => {
+import {TimeSeriesServerResponse} from 'src/types/series'
+
+export const timeSeriesToDygraph = (
+  raw: TimeSeriesServerResponse,
+  isInDataExplorer: boolean
+) => {
   const isTable = false
   const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
     raw,
@@ -31,7 +36,7 @@ export const timeSeriesToDygraph = (raw = [], isInDataExplorer) => {
   }
 }
 
-export const timeSeriesToTableGraph = raw => {
+export const timeSeriesToTableGraph = (raw: TimeSeriesServerResponse) => {
   const isTable = true
   const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
     raw,

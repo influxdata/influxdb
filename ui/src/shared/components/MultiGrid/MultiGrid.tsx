@@ -4,8 +4,11 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {Grid} from 'react-virtualized'
 
 const SCROLLBAR_SIZE_BUFFER = 20
+type HeightWidthFunction = (arg: {index: number}) => {} | number
 
 interface Props {
+  width: number
+  height: number
   columnCount?: number
   classNameBottomLeftGrid?: string
   classNameBottomRightGrid?: string
@@ -23,15 +26,12 @@ interface Props {
   scrollTop?: number
   scrollLeft?: number
   rowCount?: number
-  rowHeight?: (arg: {index: number}) => {} | number
-  columnWidth?: (arg: object) => {} | number
+  rowHeight?: number | HeightWidthFunction
+  columnWidth?: number | HeightWidthFunction
   onScroll?: (arg: object) => {}
-  width: number
-  height: number
-  scrollToRow?: () => {}
   onSectionRendered?: () => {}
-  scrollToColumn?: () => {}
   cellRenderer?: (arg: object) => JSX.Element
+  [key: string]: any // MultiGrid can accept any prop, and will rerender if they change
 }
 
 interface State {
@@ -99,10 +99,10 @@ class MultiGrid extends React.PureComponent<Props, State> {
   private deferredMeasurementCacheTopRightGrid: CellMeasurerCacheDecorator
   private leftGridWidth: number | null = 0
   private topGridHeight: number | null = 0
-  private lastRenderedColumnWidth: (arg: object) => {} | number
+  private lastRenderedColumnWidth: number | HeightWidthFunction
   private lastRenderedFixedColumnCount: number = 0
   private lastRenderedFixedRowCount: number = 0
-  private lastRenderedRowHeight: (arg: {index: number}) => {} | number
+  private lastRenderedRowHeight: number | HeightWidthFunction
   private bottomRightGridStyle: object | null
   private topRightGridStyle: object | null
   private lastRenderedStyle: object | null
