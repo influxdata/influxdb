@@ -88,8 +88,8 @@ func (f *LogFile) bytes() int {
 	// Do not include f.data because it is mmap'd
 	// TODO(jacobmarble): Uncomment when we are using go >= 1.10.0
 	//b += int(unsafe.Sizeof(f.w)) + f.w.Size()
-	b += int(unsafe.Sizeof(f.buf)) + cap(f.buf)
-	b += int(unsafe.Sizeof(f.keyBuf)) + cap(f.keyBuf)
+	b += int(unsafe.Sizeof(f.buf)) + len(f.buf)
+	b += int(unsafe.Sizeof(f.keyBuf)) + len(f.keyBuf)
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
 	b += int(unsafe.Sizeof(f.size))
 	b += int(unsafe.Sizeof(f.modTime))
@@ -1183,7 +1183,7 @@ type logMeasurement struct {
 // bytes estimates the memory footprint of this logMeasurement, in bytes.
 func (mm *logMeasurement) bytes() int {
 	var b int
-	b += cap(mm.name)
+	b += len(mm.name)
 	for k, v := range mm.tagSet {
 		b += len(k)
 		b += v.bytes()
@@ -1253,7 +1253,7 @@ type logTagKey struct {
 // bytes estimates the memory footprint of this logTagKey, in bytes.
 func (tk *logTagKey) bytes() int {
 	var b int
-	b += cap(tk.name)
+	b += len(tk.name)
 	for k, v := range tk.tagValues {
 		b += len(k)
 		b += v.bytes()
@@ -1297,7 +1297,7 @@ type logTagValue struct {
 // bytes estimates the memory footprint of this logTagValue, in bytes.
 func (tv *logTagValue) bytes() int {
 	var b int
-	b += cap(tv.name)
+	b += len(tv.name)
 	b += len(tv.series) * 8
 	b += int(unsafe.Sizeof(*tv))
 	return b
