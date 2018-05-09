@@ -1,4 +1,6 @@
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SlackConfig from 'src/kapacitor/components/config/SlackConfig'
 
@@ -17,7 +19,7 @@ interface Config {
 interface Props {
   slackConfigs: any[]
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: Properties, isNewConfigInSection: boolean) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -47,6 +49,7 @@ class SlackConfigs extends PureComponent<Props, State> {
             config={config}
             onTest={onTest}
             enabled={enabled}
+            isNewConfig={_.get(config, 'isNewConfig', false)}
           />
         ))}
         <button className="btn btn-md btn-default" onClick={this.addConfig}>
@@ -67,6 +70,7 @@ class SlackConfigs extends PureComponent<Props, State> {
         url: false,
         channel: '',
       },
+      isNewConfig: true,
     }
     this.setState({slackConfigs: [...configs, newConfig]})
   }

@@ -19,9 +19,10 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: Properties, isNewConfigInSection: boolean) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
+  isNewConfig: boolean
 }
 
 interface State {
@@ -33,6 +34,7 @@ interface State {
 class SlackConfig extends PureComponent<Props, State> {
   private url: HTMLInputElement
   private channel: HTMLInputElement
+  private workspace: HTMLInputElement
 
   constructor(props) {
     super(props)
@@ -55,7 +57,7 @@ class SlackConfig extends PureComponent<Props, State> {
             id="nickname"
             type="text"
             placeholder="Optional unless multiple Slack configurations exist"
-            // ref={r => (this.channel = r)}
+            ref={r => (this.workspace = r)}
             defaultValue={workspace}
             onChange={this.disableTest}
           />
@@ -132,13 +134,15 @@ class SlackConfig extends PureComponent<Props, State> {
   }
 
   private handleSubmit = async e => {
+    const {isNewConfig} = this.props
     e.preventDefault()
     const properties = {
       url: this.url.value,
       channel: this.channel.value,
       enabled: this.state.enabled,
+      workspace: this.workspace.value,
     }
-    const success = await this.props.onSave(properties)
+    const success = await this.props.onSave(properties, isNewConfig)
     if (success) {
       this.setState({testEnabled: true})
     }

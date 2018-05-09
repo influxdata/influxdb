@@ -233,7 +233,7 @@ class AlertTabs extends PureComponent<Props, State> {
         renderComponent: () => (
           <KafkaConfig
             onSave={this.handleSaveConfig('kafka')}
-            config={this.getSection(configSections, 'kafka')}
+            config={this.getSectionElement(configSections, 'kafka')}
             onTest={this.handleTestConfig('kafka', {
               cluster: this.getProperty(configSections, 'kafka', 'id'),
             })}
@@ -327,18 +327,6 @@ class AlertTabs extends PureComponent<Props, State> {
           />
         ),
       },
-      // slack: {
-      //   type: 'Slack',
-      //   enabled: this.getEnabled(configSections, 'slack'),
-      //   renderComponent: () => (
-      //     <SlackConfig
-      //       onSave={this.handleSaveConfig('slack')}
-      //       config={this.getSectionElement(configSections, 'slack')}
-      //       onTest={this.handleTestConfig('slack')}
-      //       enabled={this.getEnabled(configSections, 'slack')}
-      //     />
-      //   ),
-      // },
       smtp: {
         type: 'SMTP',
         enabled: this.getEnabled(configSections, 'smtp'),
@@ -491,16 +479,25 @@ class AlertTabs extends PureComponent<Props, State> {
   }
 
   private handleSaveConfig = (section: string) => async (
-    properties
+    properties,
+    isNewConfigInSection?: boolean
   ): Promise<boolean> => {
     if (section !== '') {
       const propsToSend = this.sanitizeProperties(section, properties)
       try {
-        await updateKapacitorConfigSection(
-          this.props.kapacitor,
-          section,
-          propsToSend
-        )
+        if (isNewConfigInSection) {
+          await addKapacitorConfigInSection(
+            this.props.kapacitor,
+            section,
+            propsToSend
+          )
+        } else {
+          await updateKapacitorConfigSection(
+            this.props.kapacitor,
+            section,
+            propsToSend
+          )
+        }
         this.refreshKapacitorConfig(this.props.kapacitor)
         this.props.notify(notifyAlertEndpointSaved(section))
         return true
