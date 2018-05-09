@@ -40,11 +40,12 @@ class SlackConfigs extends PureComponent<Props, State> {
   public render() {
     const {slackConfigs} = this.state
     const {onSave, onTest, enabled} = this.props
+
     return (
       <div>
-        {slackConfigs.map((config, i) => (
+        {slackConfigs.map(config => (
           <SlackConfig
-            key={i}
+            key={_.get(config, ['options', 'workspace'], 'default')}
             onSave={onSave}
             config={config}
             onTest={onTest}
