@@ -18,8 +18,6 @@ import {
   ApplyFuncsToFieldArgs,
 } from 'src/types'
 
-// export const editRawTextAsync = () => Promise.resolve()
-
 export const chooseNamespace = (
   query: QueryConfig,
   namespace: Namespace,

@@ -164,7 +164,6 @@ export const removeFuncs = (
   },
 })
 
-// TODO: shift may not be string
 interface TimeShiftAction {
   type: 'KAPA_TIME_SHIFT'
   payload: {
@@ -172,7 +171,6 @@ interface TimeShiftAction {
     shift: TimeShift
   }
 }
-// TODO: shift may not be string
 export const timeShift = (
   queryID: string,
   shift: TimeShift
