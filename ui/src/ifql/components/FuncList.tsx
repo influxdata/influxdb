@@ -48,7 +48,7 @@ const FuncList: SFC<Props> = ({
               />
             ))
           ) : (
-            <div className="ifql-func--item empty">No results</div>
+            <div className="ifql-func--item empty">No matches</div>
           )}
         </FancyScrollbar>
       </ul>

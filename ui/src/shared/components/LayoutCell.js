@@ -8,9 +8,10 @@ import LayoutCellMenu from 'shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'shared/components/LayoutCellHeader'
 import {notify} from 'src/shared/actions/notifications'
 import {notifyCSVDownloadFailed} from 'src/shared/copy/notifications'
-import {dashboardtoCSV} from 'shared/parsing/resultsToCSV'
 import download from 'src/external/download.js'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {dataToCSV} from 'src/shared/parsing/dataToCSV'
+import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 
 @ErrorHandling
 class LayoutCell extends Component {
@@ -24,9 +25,11 @@ class LayoutCell extends Component {
 
   handleCSVDownload = cell => () => {
     const joinedName = cell.name.split(' ').join('_')
-    const {celldata} = this.props
+    const {cellData} = this.props
+    const {data} = timeSeriesToTableGraph(cellData)
+
     try {
-      download(dashboardtoCSV(celldata), `${joinedName}.csv`, 'text/plain')
+      download(dataToCSV(data), `${joinedName}.csv`, 'text/plain')
     } catch (error) {
       notify(notifyCSVDownloadFailed())
       console.error(error)
@@ -34,7 +37,7 @@ class LayoutCell extends Component {
   }
 
   render() {
-    const {cell, children, isEditable, celldata, onCloneCell} = this.props
+    const {cell, children, isEditable, cellData, onCloneCell} = this.props
 
     const queries = _.get(cell, ['queries'], [])
 
@@ -49,7 +52,7 @@ class LayoutCell extends Component {
           <LayoutCellMenu
             cell={cell}
             queries={queries}
-            dataExists={!!celldata.length}
+            dataExists={!!cellData.length}
             isEditable={isEditable}
             onDelete={this.handleDeleteCell}
             onEdit={this.handleSummonOverlay}
@@ -96,7 +99,7 @@ LayoutCell.propTypes = {
   onSummonOverlayTechnologies: func,
   isEditable: bool,
   onCancelEditCell: func,
-  celldata: arrayOf(shape()),
+  cellData: arrayOf(shape({})),
 }
 
 export default LayoutCell

@@ -1,20 +1,17 @@
 import React, {PureComponent} from 'react'
+import SchemaExplorer from 'src/ifql/components/SchemaExplorer'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
-
-import {
-  Suggestion,
-  OnChangeScript,
-  OnSubmitScript,
-  FlatBody,
-} from 'src/types/ifql'
+import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
+import Threesizer from 'src/shared/components/Threesizer'
+import {Suggestion, OnChangeScript, FlatBody} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
 
 interface Props {
   script: string
   suggestions: Suggestion[]
   body: Body[]
-  onSubmitScript: OnSubmitScript
   onChangeScript: OnChangeScript
 }
 
@@ -25,26 +22,51 @@ interface Body extends FlatBody {
 @ErrorHandling
 class TimeMachine extends PureComponent<Props> {
   public render() {
-    const {
-      body,
-      script,
-      onChangeScript,
-      onSubmitScript,
-      suggestions,
-    } = this.props
-
     return (
-      <div className="time-machine-container">
-        <TimeMachineEditor
-          script={script}
-          onChangeScript={onChangeScript}
-          onSubmitScript={onSubmitScript}
-        />
-        <div className="expression-container">
-          <BodyBuilder body={body} suggestions={suggestions} />
-        </div>
-      </div>
+      <Threesizer
+        orientation={HANDLE_HORIZONTAL}
+        divisions={this.mainSplit}
+        containerClass="page-contents"
+      />
     )
+  }
+
+  private get mainSplit() {
+    return [
+      {
+        handleDisplay: 'none',
+        render: () => (
+          <Threesizer
+            divisions={this.divisions}
+            orientation={HANDLE_VERTICAL}
+          />
+        ),
+      },
+      {
+        handlePixels: 8,
+        render: () => <TimeMachineVis blob="Visualizer" />,
+      },
+    ]
+  }
+
+  private get divisions() {
+    const {body, suggestions, script, onChangeScript} = this.props
+    return [
+      {
+        name: 'Script',
+        render: () => (
+          <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
+        ),
+      },
+      {
+        name: 'Build',
+        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
+      },
+      {
+        name: 'Explore',
+        render: () => <SchemaExplorer />,
+      },
+    ]
   }
 }
 

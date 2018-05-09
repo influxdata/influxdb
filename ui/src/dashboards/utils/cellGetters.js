@@ -89,7 +89,7 @@ export const getNewDashboardCell = (dashboard, cellType) => {
 export const getClonedDashboardCell = (dashboard, cloneCell) => {
   const {x, y} = getNextAvailablePosition(dashboard, cloneCell)
 
-  const name = `${cloneCell.name} (Clone)`
+  const name = `${cloneCell.name} (clone)`
 
   return {...cloneCell, x, y, name}
 }

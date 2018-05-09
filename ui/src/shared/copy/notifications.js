@@ -424,13 +424,6 @@ export const notifyCellAdded = name => ({
   message: `Added "${name}" to dashboard.`,
 })
 
-export const notifyCellCloned = name => ({
-  ...defaultSuccessNotification,
-  icon: 'duplicate',
-  duration: 1900,
-  message: `Added "${name}" to dashboard.`,
-})
-
 export const notifyCellDeleted = name => ({
   ...defaultDeletionNotification,
   icon: 'dash-h',

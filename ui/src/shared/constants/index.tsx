@@ -402,7 +402,7 @@ export const HTTP_UNAUTHORIZED = 401
 export const HTTP_FORBIDDEN = 403
 export const HTTP_NOT_FOUND = 404
 
-export const AUTOREFRESH_DEFAULT = 15000 // in milliseconds
+export const AUTOREFRESH_DEFAULT = 0 // in milliseconds
 
 export const GRAPH = 'graph'
 export const TABLE = 'table'
@@ -477,3 +477,13 @@ export const NOTIFICATION_TRANSITION = 250
 export const FIVE_SECONDS = 5000
 export const TEN_SECONDS = 10000
 export const INFINITE = -1
+
+// Resizer && Threesizer
+export const HUNDRED = 100
+export const REQUIRED_HALVES = 2
+export const HANDLE_VERTICAL = 'vertical'
+export const HANDLE_HORIZONTAL = 'horizontal'
+export const HANDLE_NONE = 'none'
+export const HANDLE_PIXELS = 30
+export const MAX_SIZE = 1
+export const MIN_SIZE = 0

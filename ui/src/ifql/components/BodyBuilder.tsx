@@ -2,6 +2,8 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 import ExpressionNode from 'src/ifql/components/ExpressionNode'
+import VariableName from 'src/ifql/components/VariableName'
+import FuncSelector from 'src/ifql/components/FuncSelector'
 
 import {FlatBody, Suggestion} from 'src/types/ifql'
 
@@ -21,8 +23,8 @@ class BodyBuilder extends PureComponent<Props> {
         return b.declarations.map(d => {
           if (d.funcs) {
             return (
-              <div key={b.id}>
-                <div className="func-node--name">{d.name} =</div>
+              <div className="declaration" key={b.id}>
+                <VariableName name={d.name} />
                 <ExpressionNode
                   key={b.id}
                   bodyID={b.id}
@@ -35,24 +37,51 @@ class BodyBuilder extends PureComponent<Props> {
           }
 
           return (
-            <div className="func-node--name" key={b.id}>
-              {b.source}
+            <div className="declaration" key={b.id}>
+              <VariableName name={b.source} />
             </div>
           )
         })
       }
 
       return (
-        <ExpressionNode
-          key={b.id}
-          bodyID={b.id}
-          funcs={b.funcs}
-          funcNames={this.funcNames}
-        />
+        <div className="declaration" key={b.id}>
+          <VariableName />
+          <ExpressionNode
+            bodyID={b.id}
+            funcs={b.funcs}
+            funcNames={this.funcNames}
+          />
+        </div>
       )
     })
 
-    return _.flatten(bodybuilder)
+    return (
+      <div className="body-builder">
+        {_.flatten(bodybuilder)}
+        <div className="declaration">
+          <FuncSelector
+            bodyID="fake-body-id"
+            declarationID="fake-declaration-id"
+            onAddNode={this.createNewDeclaration}
+            funcs={this.newDeclarationFuncs}
+            connectorVisible={false}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  private get newDeclarationFuncs(): string[] {
+    // 'JOIN' only available if there are at least 2 named declarations
+    return ['from', 'join', 'variable']
+  }
+
+  private createNewDeclaration = (bodyID, name, declarationID) => {
+    // Returning a string here so linter stops yelling
+    // TODO: write a real function
+
+    return `${bodyID} / ${name} / ${declarationID}`
   }
 
   private get funcNames() {

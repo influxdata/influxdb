@@ -15,6 +15,7 @@ export const MINIMUM_HEIGHTS = {
   queryMaker: 350,
   visualization: 200,
 }
+
 export const INITIAL_HEIGHTS = {
   queryMaker: '66.666%',
   visualization: '33.334%',
