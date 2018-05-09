@@ -30,7 +30,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {TimeSeriesServerResponse} from 'src/types/series'
 import {ColorString} from 'src/types/colors'
-type dbData = string | number | null
+
+type dbData = string | number | null | undefined
 
 interface TableOptions {
   verticalTimeAxis: boolean
@@ -84,7 +85,7 @@ interface State {
 
 @ErrorHandling
 class TableGraph extends PureComponent<Props, State> {
-  private multiGridRef: React.RefObject<MultiGrid>
+  private multiGridRef: React.Ref<MultiGrid>
   private gridContainer: React.Ref<HTMLDivElement>
 
   constructor(props) {
@@ -545,42 +546,44 @@ class TableGraph extends PureComponent<Props, State> {
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
           >
-            {({columnWidth, registerChild}) => {
-              registerChild(this.multiGridRef)
-              return (
-                <MultiGrid
-                  ref={this.multiGridRef}
-                  columnCount={columnCount}
-                  columnWidth={this.calculateColumnWidth(columnWidth)}
-                  rowCount={rowCount}
-                  rowHeight={ROW_HEIGHT}
-                  height={tableHeight}
-                  width={tableWidth}
-                  fixedColumnCount={fixedColumnCount}
-                  fixedRowCount={1}
-                  enableFixedColumnScroll={true}
-                  enableFixedRowScroll={true}
-                  scrollToRow={scrollToRow}
-                  scrollToColumn={scrollToColumn}
-                  cellRenderer={this.cellRenderer}
-                  sort={sort}
-                  hoveredColumnIndex={hoveredColumnIndex}
-                  hoveredRowIndex={hoveredRowIndex}
-                  hoverTime={hoverTime}
-                  colors={colors}
-                  fieldOptions={fieldOptions}
-                  tableOptions={tableOptions}
-                  timeFormat={timeFormat}
-                  decimalPlaces={decimalPlaces}
-                  timeColumnWidth={timeColumnWidth}
-                  classNameBottomRightGrid="table-graph--scroll-window"
-                />
-              )
-            }}
+            {({columnWidth, registerChild}) => (
+              <MultiGrid
+                ref={r => this.getMultiGridRef(r, registerChild)}
+                columnCount={columnCount}
+                columnWidth={this.calculateColumnWidth(columnWidth)}
+                rowCount={rowCount}
+                rowHeight={ROW_HEIGHT}
+                height={tableHeight}
+                width={tableWidth}
+                fixedColumnCount={fixedColumnCount}
+                fixedRowCount={1}
+                enableFixedColumnScroll={true}
+                enableFixedRowScroll={true}
+                scrollToRow={scrollToRow}
+                scrollToColumn={scrollToColumn}
+                cellRenderer={this.cellRenderer}
+                sort={sort}
+                hoveredColumnIndex={hoveredColumnIndex}
+                hoveredRowIndex={hoveredRowIndex}
+                hoverTime={hoverTime}
+                colors={colors}
+                fieldOptions={fieldOptions}
+                tableOptions={tableOptions}
+                timeFormat={timeFormat}
+                decimalPlaces={decimalPlaces}
+                timeColumnWidth={timeColumnWidth}
+                classNameBottomRightGrid="table-graph--scroll-window"
+              />
+            )}
           </ColumnSizer>
         )}
       </div>
     )
+  }
+
+  private getMultiGridRef = (r, registerChild) => {
+    this.multiGridRef = r
+    return registerChild(r)
   }
 }
 
