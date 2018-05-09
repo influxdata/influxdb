@@ -868,25 +868,39 @@ func (e *StatementExecutor) executeShowShardGroupsStatement(stmt *influxql.ShowS
 }
 
 func (e *StatementExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsStatement) (models.Rows, error) {
-	stats, err := e.Monitor.Statistics(nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var rows []*models.Row
-	for _, stat := range stats {
-		if stmt.Module != "" && stat.Name != stmt.Module {
-			continue
-		}
-		row := &models.Row{Name: stat.Name, Tags: stat.Tags}
 
-		values := make([]interface{}, 0, len(stat.Values))
-		for _, k := range stat.ValueNames() {
-			row.Columns = append(row.Columns, k)
-			values = append(values, stat.Values[k])
+	if _, ok := e.TSDBStore.(*tsdb.Store); stmt.Module == "indexes" && ok {
+		// The cost of collecting indexes metrics grows with the size of the indexes, so only collect this
+		// stat when explicitly requested.
+		b := e.TSDBStore.(*tsdb.Store).IndexBytes()
+		row := &models.Row{
+			Name:    "indexes",
+			Columns: []string{"memoryBytes"},
+			Values:  [][]interface{}{{b}},
 		}
-		row.Values = [][]interface{}{values}
 		rows = append(rows, row)
+
+	} else {
+		stats, err := e.Monitor.Statistics(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, stat := range stats {
+			if stmt.Module != "" && stat.Name != stmt.Module {
+				continue
+			}
+			row := &models.Row{Name: stat.Name, Tags: stat.Tags}
+
+			values := make([]interface{}, 0, len(stat.Values))
+			for _, k := range stat.ValueNames() {
+				row.Columns = append(row.Columns, k)
+				values = append(values, stat.Values[k])
+			}
+			row.Values = [][]interface{}{values}
+			rows = append(rows, row)
+		}
 	}
 	return rows, nil
 }
