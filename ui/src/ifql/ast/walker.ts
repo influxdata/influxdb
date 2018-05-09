@@ -63,27 +63,50 @@ export default class Walker {
     return this.inOrder(tree)
   }
 
-  private inOrder = (node): InOrderNode[] => {
+  private hasParen = (parent, child): boolean => {
+    if (parent.operator && parent.operator.toLowerCase() === 'and') {
+      // for mathematical operations:
+      // if parent and child have operators
+      //   // return child precedence < parent precedence
+      // return false
+      if (
+        child.type === 'LogicalExpression' &&
+        child.operator.toLowerCase() === 'or'
+      ) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  private inOrder = (node, paren = false): InOrderNode[] => {
     let results = []
     if (node) {
-      results = [...results, ...this.inOrder(node.left)]
+      if (paren) {
+        results = [...results, {source: '(', type: 'OpenParen'}]
+      }
+
+      const isLeftParen = this.hasParen(node, node.left)
+
+      results = [...results, ...this.inOrder(node.left, isLeftParen)]
 
       if (
         node.type === 'MemberExpression' ||
         node.type === 'ObjectExpression'
       ) {
         const {location, object, property} = node
-        const {name} = object
-        const {value, type} = property
+        const {name, type} = property
         const {source} = location
 
         results = [
           ...results,
           {
             source,
-            object: {name, type: object.type},
-            property: {value, type},
+            object: {name: object.name, type: object.type},
+            property: {name, type},
             type: node.type,
+            paren,
           },
         ]
       }
@@ -93,14 +116,26 @@ export default class Walker {
       }
 
       if (node.name) {
-        results = [...results, {type: node.type, source: node.location.source}]
+        results = [
+          ...results,
+          {type: node.type, source: node.location.source, paren},
+        ]
       }
 
       if (node.value) {
-        results = [...results, {type: node.type, source: node.location.source}]
+        results = [
+          ...results,
+          {type: node.type, source: node.location.source, paren},
+        ]
       }
 
-      results = [...results, ...this.inOrder(node.right)]
+      const isRightParen = this.hasParen(node, node.right)
+
+      results = [...results, ...this.inOrder(node.right, isRightParen)]
+
+      if (paren) {
+        results = [...results, {source: ')', type: 'CloseParen'}]
+      }
     }
 
     return results
