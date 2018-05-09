@@ -3,11 +3,6 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 import uuid from 'uuid'
 
-import {
-  CellEditorOverlayActions,
-  CellEditorOverlayActionsFunc,
-} from 'src/types/dashboard'
-
 import ResizeContainer from 'src/shared/components/ResizeContainer'
 import QueryMaker from 'src/dashboards/components/QueryMaker'
 import Visualization from 'src/dashboards/components/Visualization'
@@ -15,7 +10,7 @@ import OverlayControls from 'src/dashboards/components/OverlayControls'
 import DisplayOptions from 'src/dashboards/components/DisplayOptions'
 import CEOBottom from 'src/dashboards/components/CEOBottom'
 
-import * as queryModifiers from 'src/utils/queryTransitions'
+import * as queryTransitions from 'src/utils/queryTransitions'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'src/utils/influxql'
@@ -36,6 +31,9 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
 } from 'src/shared/constants'
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
+
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 import {
   TimeRange,
   Source,
@@ -45,7 +43,19 @@ import {
   Legend,
   Status,
 } from 'src/types'
-import {ErrorHandling} from 'src/shared/decorators/errors'
+type QueryTransitions = typeof queryTransitions
+type EditRawTextAsyncFunc = (
+  url: string,
+  id: string,
+  text: string
+) => Promise<void>
+type CellEditorOverlayActionsFunc = (queryID: string, ...args: any[]) => void
+type QueryActions = {
+  [K in keyof QueryTransitions]: CellEditorOverlayActionsFunc
+}
+export type CellEditorOverlayActions = QueryActions & {
+  editRawTextAsync: EditRawTextAsyncFunc
+}
 
 const staticLegend: Legend = {
   type: 'static',
@@ -248,17 +258,16 @@ class CellEditorOverlay extends Component<Props, State> {
     this.overlayRef = r
   }
 
-  private queryStateReducer = (queryModifier): CellEditorOverlayActionsFunc => (
-    queryID: string,
-    ...payload: any[]
-  ) => {
+  private queryStateReducer = (
+    queryTransition
+  ): CellEditorOverlayActionsFunc => (queryID: string, ...payload: any[]) => {
     const {queriesWorkingDraft} = this.state
-    const query = queriesWorkingDraft.find(q => q.id === queryID)
+    const queryWorkingDraft = queriesWorkingDraft.find(q => q.id === queryID)
 
-    const nextQuery = queryModifier(query, ...payload)
+    const nextQuery = queryTransition(queryWorkingDraft, ...payload)
 
     const nextQueries = queriesWorkingDraft.map(q => {
-      if (q.id === query.id) {
+      if (q.id === queryWorkingDraft.id) {
         return {...nextQuery, source: nextSource(q, nextQuery)}
       }
 
@@ -492,20 +501,12 @@ class CellEditorOverlay extends Component<Props, State> {
   }
 
   private get queryActions(): CellEditorOverlayActions {
-    const original = {
-      editRawTextAsync: () => Promise.resolve(),
-      ...queryModifiers,
-    }
-    const mapped = _.reduce<CellEditorOverlayActions, CellEditorOverlayActions>(
-      original,
-      (acc, v, k) => {
-        acc[k] = this.queryStateReducer(v)
-        return acc
-      },
-      original
-    )
+    const mapped: QueryActions = _.mapValues<
+      QueryActions,
+      CellEditorOverlayActionsFunc
+    >(queryTransitions, v => this.queryStateReducer(v)) as QueryActions
 
-    const result = {
+    const result: CellEditorOverlayActions = {
       ...mapped,
       editRawTextAsync: this.handleEditRawText,
     }

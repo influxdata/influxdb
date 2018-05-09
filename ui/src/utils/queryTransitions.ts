@@ -7,29 +7,40 @@ import {
   getFuncsByFieldName,
 } from 'src/shared/reducers/helpers/fields'
 
-import {QueryConfig, Tag, TagValues} from 'src/types'
+import {
+  Field,
+  GroupBy,
+  Namespace,
+  QueryConfig,
+  Tag,
+  TagValues,
+  TimeShift,
+  ApplyFuncsToFieldArgs,
+} from 'src/types'
 
-export function editRawText(query, rawText) {
-  return Object.assign({}, query, {rawText})
-}
+// export const editRawTextAsync = () => Promise.resolve()
 
-export const chooseNamespace = (query, namespace, isKapacitorRule = false) => ({
+export const chooseNamespace = (
+  query: QueryConfig,
+  namespace: Namespace,
+  isKapacitorRule: boolean = false
+): QueryConfig => ({
   ...defaultQueryConfig({id: query.id, isKapacitorRule}),
   ...namespace,
 })
 
 export const chooseMeasurement = (
-  query,
-  measurement,
-  isKapacitorRule = false
-) => ({
+  query: QueryConfig,
+  measurement: string,
+  isKapacitorRule: boolean = false
+): QueryConfig => ({
   ...defaultQueryConfig({id: query.id, isKapacitorRule}),
   database: query.database,
   retentionPolicy: query.retentionPolicy,
   measurement,
 })
 
-export const toggleKapaField = (query, field) => {
+export const toggleKapaField = (query: QueryConfig, field: Field) => {
   if (field.type === 'field') {
     return {
       ...query,
@@ -47,24 +58,29 @@ export const toggleKapaField = (query, field) => {
   }
 }
 
-export const buildInitialField = value => [
-  {
-    type: 'func',
-    alias: `mean_${value}`,
-    args: [{value, type: 'field'}],
-    value: 'mean',
-  },
-]
+export const buildInitialField = (value: string): Field => ({
+  type: 'func',
+  alias: `mean_${value}`,
+  args: [{value, type: 'field'}],
+  value: 'mean',
+})
 
-export const addInitialField = (query, field, groupBy) => {
+export const addInitialField = (
+  query: QueryConfig,
+  field,
+  groupBy
+): QueryConfig => {
   return {
     ...query,
-    fields: buildInitialField(field.value),
+    fields: [buildInitialField(field.value)],
     groupBy,
   }
 }
 
-export const toggleField = (query, {value}) => {
+export const toggleField = (
+  query: QueryConfig,
+  {value}: Field
+): QueryConfig => {
   const {fields = [], groupBy} = query
   const isSelected = hasField(value, fields)
   const newFuncs = fields.filter(f => f.type === 'func')
@@ -110,29 +126,35 @@ export const toggleField = (query, {value}) => {
   }
 }
 
-export const groupByTime = (query, time) => {
-  return Object.assign({}, query, {
-    groupBy: Object.assign({}, query.groupBy, {
-      time,
-    }),
-  })
-}
+export const groupByTime = (query: QueryConfig, time: string): QueryConfig => ({
+  ...query,
+  groupBy: {...query.groupBy, time},
+})
 
-export const fill = (query, value) => ({...query, fill: value})
+export const fill = (query: QueryConfig, value: string): QueryConfig => ({
+  ...query,
+  fill: value,
+})
 
-export const toggleTagAcceptance = query => {
-  return Object.assign({}, query, {
-    areTagsAccepted: !query.areTagsAccepted,
-  })
-}
+export const toggleTagAcceptance = (query: QueryConfig): QueryConfig => ({
+  ...query,
+  areTagsAccepted: !query.areTagsAccepted,
+})
 
-export const removeFuncs = (query, fields) => ({
+export const removeFuncs = (
+  query: QueryConfig,
+  fields: Field[]
+): QueryConfig => ({
   ...query,
   fields: getFieldsDeep(fields),
   groupBy: {...query.groupBy, time: null},
 })
 
-export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
+export const applyFuncsToField = (
+  query: QueryConfig,
+  {field, funcs = []}: ApplyFuncsToFieldArgs,
+  groupBy: GroupBy
+): QueryConfig => {
   const nextFields = query.fields.reduce((acc, f) => {
     // If there is a func applied to only one field, add it to the other fields
     if (f.type === 'field') {
@@ -187,13 +209,12 @@ export const applyFuncsToField = (query, {field, funcs = []}, groupBy) => {
   }
 }
 
-export const updateRawQuery = (query, rawText) => {
-  return Object.assign({}, query, {
-    rawText,
-  })
-}
+export const updateRawQuery = (query: QueryConfig, rawText): QueryConfig => ({
+  ...query,
+  rawText,
+})
 
-export const groupByTag = (query, tagKey) => {
+export const groupByTag = (query: QueryConfig, tagKey: string): QueryConfig => {
   const oldTags = query.groupBy.tags
   let newTags
 
@@ -206,9 +227,10 @@ export const groupByTag = (query, tagKey) => {
     newTags = oldTags.concat(tagKey)
   }
 
-  return Object.assign({}, query, {
-    groupBy: Object.assign({}, query.groupBy, {tags: newTags}),
-  })
+  return {
+    ...query,
+    groupBy: {...query.groupBy, tags: newTags},
+  }
 }
 
 export const chooseTag = (query: QueryConfig, tag: Tag): QueryConfig => {
@@ -216,17 +238,19 @@ export const chooseTag = (query: QueryConfig, tag: Tag): QueryConfig => {
   const shouldRemoveTag =
     tagValues && tagValues.length === 1 && tagValues[0] === tag.value
   if (shouldRemoveTag) {
-    const newTags = Object.assign({}, query.tags)
+    const newTags = {...query.tags}
     delete newTags[tag.key]
-    return Object.assign({}, query, {tags: newTags})
+    return {...query, tags: newTags}
   }
 
   const updateTagValues = (newTagValues: TagValues): QueryConfig => {
-    return Object.assign({}, query, {
-      tags: Object.assign({}, query.tags, {
+    return {
+      ...query,
+      tags: {
+        ...query.tags,
         [tag.key]: newTagValues,
-      }),
-    })
+      },
+    }
   }
 
   const oldTagValues = query.tags[tag.key]
@@ -245,4 +269,7 @@ export const chooseTag = (query: QueryConfig, tag: Tag): QueryConfig => {
   return updateTagValues(query.tags[tag.key].concat(tag.value))
 }
 
-export const timeShift = (query, shift) => ({...query, shifts: [shift]})
+export const timeShift = (query: QueryConfig, shift: TimeShift) => ({
+  ...query,
+  shifts: [shift],
+})

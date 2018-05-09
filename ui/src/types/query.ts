@@ -20,14 +20,14 @@ export interface Field {
   value: string
   type: string
   alias?: string
-  args?: Args[]
+  args?: FieldArg[]
 }
 
-export interface Args {
+export interface FieldArg {
   value: string
   type: string
   alias?: string
-  args?: Args[]
+  args?: FieldArg[]
 }
 
 export interface FieldFunc extends Field {
@@ -36,6 +36,7 @@ export interface FieldFunc extends Field {
 export interface FuncArg {
   type: string
   value: string
+  alias?: string
 }
 
 export interface ApplyFuncsToFieldArgs {

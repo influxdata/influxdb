@@ -17,21 +17,10 @@ import {
   TimeRange,
   Tag,
 } from 'src/types'
-
-interface Actions {
-  chooseNamespace: (id: string, namespace: Namespace) => void
-  chooseMeasurement: (id: string, measurement: string) => void
-  toggleField: (id: string, field: Field) => void
-  groupByTime: (id: string, time: string | null) => void
-  applyFuncsToField: (id: string, fieldFunc: ApplyFuncsToFieldArgs) => void
-  chooseTag: (id: string, tag: Tag) => void
-  toggleTagAcceptance: (id: string) => void
-  groupByTag: (id: string, tagKey: string) => void
-  removeFuncs: (id: string, fields: Field[]) => void
-}
+import {KapacitorQueryConfigActions} from 'src/types/actions'
 
 interface Props {
-  actions: Actions
+  actions: KapacitorQueryConfigActions
   query: QueryConfig
   isDeadman: boolean
   isKapacitorRule: boolean

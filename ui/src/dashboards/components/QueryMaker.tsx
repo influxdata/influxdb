@@ -1,15 +1,15 @@
 import React, {SFC} from 'react'
 import _ from 'lodash'
 
-import {QueryConfig, Source, SourceLinks, TimeRange} from 'src/types'
-import {CellEditorOverlayActions} from 'src/types/dashboard'
-
 import EmptyQuery from 'src/shared/components/EmptyQuery'
 import QueryTabList from 'src/shared/components/QueryTabList'
 import QueryTextArea from 'src/dashboards/components/QueryTextArea'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
 import {buildQuery} from 'src/utils/influxql'
 import {TYPE_QUERY_CONFIG, TEMPLATE_RANGE} from 'src/dashboards/constants'
+
+import {QueryConfig, Source, SourceLinks, TimeRange} from 'src/types'
+import {CellEditorOverlayActions} from 'src/dashboards/components/CellEditorOverlay'
 
 const rawTextBinder = (
   links: SourceLinks,

@@ -2,8 +2,9 @@ import React, {PureComponent} from 'react'
 
 import QueryEditor from './QueryEditor'
 import SchemaExplorer from 'src/shared/components/SchemaExplorer'
-import {Source, QueryConfig} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+import {Source, QueryConfig} from 'src/types'
 
 const rawTextBinder = (links, id, action) => text =>
   action(links.queries, id, text)
