@@ -1,5 +1,5 @@
 $ifql-node-height: 30px;
-$ifql-node-tooltip-gap: $ifql-node-height + 4px;
+$ifql-node-tooltip-gap: 4px;
 $ifql-node-gap: 5px;
 $ifql-node-padding: 10px;
 $ifql-arg-min-width: 120px;
@@ -9,7 +9,7 @@ $ifql-arg-min-width: 120px;
   ------------------
 */
 %ifql-node {
-  height: $ifql-node-height;
+  min-height: $ifql-node-height;
   border-radius: $radius;
   padding: 0 $ifql-node-padding;
   font-size: 13px;
@@ -37,6 +37,7 @@ $ifql-arg-min-width: 120px;
   margin-bottom: 24px;
   display: flex;
   flex-wrap: nowrap;
+  align-items: center;
 
   &:last-of-type {
     margin-bottom: 0;
@@ -102,6 +103,8 @@ $ifql-arg-min-width: 120px;
 }
 
 .func-node--name {
+  height: $ifql-node-height;
+  line-height: $ifql-node-height;
   color: $c-comet;
 
   .func-node:hover & {
@@ -112,6 +115,9 @@ $ifql-arg-min-width: 120px;
 .func-node--preview {
   color: $g11-sidewalk;
   margin-left: 4px;
+  padding: 5px 0;
+  display: flex;
+  align-items: center;
 
   .func-node:hover & {
     color: $g17-whisper;
@@ -128,7 +134,7 @@ $ifql-arg-min-width: 120px;
   align-items: stretch;
   flex-direction: column;
   position: absolute;
-  top: $ifql-node-tooltip-gap;
+  top: calc(100% + #{$ifql-node-tooltip-gap});
   left: 0;
   z-index: 9999;
   box-shadow: 0 0 10px 2px $g2-kevlar;
@@ -204,4 +210,35 @@ $ifql-arg-min-width: 120px;
   line-height: 30px;
   font-weight: 600;
   @include no-user-select();
+}
+
+/*
+  Filter Preview Styles
+  ------------------------------------------------------------------------------
+*/
+.ifql-filter--expression {
+  min-height: 26px;
+  padding: 5px;
+  background-color: $g2-kevlar;
+  display: flex;
+  align-items: center;
+  border-radius: $radius - 1px;
+  transition: background-color 0.25s ease;
+
+  > .ifql-filter--expression {
+    background-color: $g4-onyx;
+    border-radius: $radius - 2px;
+  }
+}
+.ifql-filter--operator {
+  padding: 0 5px;
+}
+.func-node:hover {
+  .ifql-filter--expression {
+    background-color: $g4-onyx;
+
+    > .ifql-filter--expression {
+      background-color: $g6-smoke;
+    }
+  }
 }
