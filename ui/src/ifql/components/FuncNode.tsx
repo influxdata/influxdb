@@ -34,7 +34,6 @@ export default class FuncNode extends PureComponent<Props, State> {
   public render() {
     const {
       func,
-      func: {args},
       bodyID,
       onChangeArg,
       declarationID,
@@ -49,7 +48,7 @@ export default class FuncNode extends PureComponent<Props, State> {
         onMouseLeave={this.handleMouseLeave}
       >
         <div className="func-node--name">{func.name}</div>
-        <FuncArgsPreview args={args} />
+        <FuncArgsPreview func={func} />
         {isExpanded && (
           <FuncArgs
             func={func}

@@ -53,6 +53,10 @@ class TimeMachine extends PureComponent<Props> {
     const {body, suggestions, script, onChangeScript} = this.props
     return [
       {
+        name: 'Explore',
+        render: () => <SchemaExplorer />,
+      },
+      {
         name: 'Script',
         render: () => (
           <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
@@ -61,10 +65,6 @@ class TimeMachine extends PureComponent<Props> {
       {
         name: 'Build',
         render: () => <BodyBuilder body={body} suggestions={suggestions} />,
-      },
-      {
-        name: 'Explore',
-        render: () => <SchemaExplorer />,
       },
     ]
   }

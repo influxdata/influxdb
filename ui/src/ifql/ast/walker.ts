@@ -68,7 +68,10 @@ export default class Walker {
     if (node) {
       results = [...results, ...this.inOrder(node.left)]
 
-      if (node.type === 'MemberExpression') {
+      if (
+        node.type === 'MemberExpression' ||
+        node.type === 'ObjectExpression'
+      ) {
         const {location, object, property} = node
         const {name} = object
         const {value, type} = property

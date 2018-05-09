@@ -39,9 +39,9 @@ export class IFQLPage extends PureComponent<Props, State> {
       ast: null,
       suggestions: [],
       script: `from(db:"foo")
-                |> filter(fn: (r) => r["_measurement"]=="cpu" AND
-                  r["_field"] == "usage_system" AND
-                  r["service"] == "app-server")`,
+        |> filter(fn: (r) => r._measurement =="cpu" AND
+        r["_field"] == "usage_system" AND
+        r["service"] == "app-server")`,
     }
   }
 

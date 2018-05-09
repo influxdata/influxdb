@@ -1,22 +1,13 @@
-import React, {PureComponent} from 'react'
+import {PureComponent, ReactNode} from 'react'
 import {connect} from 'react-redux'
 import {getAST} from 'src/ifql/apis'
-import {
-  Links,
-  OnChangeArg,
-  BinaryExpressionNode,
-  MemberExpressionNode,
-} from 'src/types/ifql'
+import {Links, BinaryExpressionNode, MemberExpressionNode} from 'src/types/ifql'
 import Walker from 'src/ifql/ast/walker'
 
 interface Props {
-  argKey: string
-  funcID: string
-  bodyID: string
-  declarationID: string
   value: string
-  onChangeArg: OnChangeArg
   links: Links
+  render: (nodes: FilterNode[]) => ReactNode
 }
 
 type FilterNode = BinaryExpressionNode | MemberExpressionNode
@@ -45,17 +36,7 @@ export class Filter extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {argKey} = this.props
-    const {nodes} = this.state
-
-    return (
-      <div className="func-arg">
-        <label className="func-arg--label">{argKey}</label>
-        {nodes.map((n, i) => {
-          return <div key={i}>{n.source}</div>
-        })}
-      </div>
-    )
+    return this.props.render(this.state.nodes)
   }
 }
 

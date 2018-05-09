@@ -50,16 +50,7 @@ class FuncArg extends PureComponent<Props> {
     }
 
     if (funcName === funcNames.FILTER) {
-      return (
-        <Filter
-          argKey={argKey}
-          funcID={funcID}
-          bodyID={bodyID}
-          value={this.value}
-          declarationID={declarationID}
-          onChangeArg={onChangeArg}
-        />
-      )
+      return <Filter value={this.value} render={this.filter} />
     }
 
     switch (type) {
@@ -125,6 +116,11 @@ class FuncArg extends PureComponent<Props> {
         )
       }
     }
+  }
+
+  private filter = nodes => {
+    console.log(nodes)
+    return null
   }
 
   private get value(): string {
