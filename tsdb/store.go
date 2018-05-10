@@ -135,6 +135,22 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	return statistics
 }
 
+func (s *Store) IndexBytes() int {
+	// Get bytes per index.
+	// inmem indexes are shared among shards in a database, so keep individual values mapped per index.
+	indexes := map[uintptr]int{}
+	for _, sh := range s.shards {
+		b, indexRefID := sh.IndexBytes()
+		indexes[indexRefID] = b
+	}
+
+	var bytesSum int
+	for _, b := range indexes {
+		bytesSum += b
+	}
+	return bytesSum
+}
+
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
 

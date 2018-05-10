@@ -60,8 +60,9 @@ type Index interface {
 	// Size of the index on disk, if applicable.
 	DiskSizeBytes() int64
 
-	// Bytes estimates the memory footprint of this Index, in bytes.
-	Bytes() int
+	// Bytes estimates the memory footprint of this Index, in bytes,
+	// and a unique reference ID to the Index instance.
+	Bytes() (int, uintptr)
 
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string)
