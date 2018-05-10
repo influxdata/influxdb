@@ -69,6 +69,9 @@ var (
 	// the file's magic number.
 	ErrUnknownFieldsFormat = errors.New("unknown field index format")
 
+	// ErrUnknownFieldType is returned when the type of a field cannot be determined.
+	ErrUnknownFieldType = errors.New("unknown field type")
+
 	// ErrShardNotIdle is returned when an operation requring the shard to be idle/cold is
 	// attempted on a hot shard.
 	ErrShardNotIdle = errors.New("shard not idle")
