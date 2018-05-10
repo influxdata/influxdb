@@ -85,7 +85,6 @@ interface State {
 
 @ErrorHandling
 class TableGraph extends Component<Props, State> {
-  private multiGridRef: React.Ref<MultiGrid>
   private gridContainer: HTMLDivElement
   constructor(props) {
     super(props)
@@ -581,7 +580,6 @@ class TableGraph extends Component<Props, State> {
   }
 
   private getMultiGridRef = (r, registerChild) => {
-    this.multiGridRef = r
     return registerChild(r)
   }
 }
