@@ -106,7 +106,6 @@ export default class Walker {
             object: {name: object.name, type: object.type},
             property: {name: name || value, type},
             type: node.type,
-            paren,
           },
         ]
       }
@@ -116,17 +115,11 @@ export default class Walker {
       }
 
       if (node.name) {
-        results = [
-          ...results,
-          {type: node.type, source: node.location.source, paren},
-        ]
+        results = [...results, {type: node.type, source: node.location.source}]
       }
 
       if (node.value) {
-        results = [
-          ...results,
-          {type: node.type, source: node.location.source, paren},
-        ]
+        results = [...results, {type: node.type, source: node.location.source}]
       }
 
       const isRightParen = this.hasParen(node, node.right)

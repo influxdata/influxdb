@@ -46,7 +46,8 @@ interface ObjectNode {
 }
 
 interface PropertyNode {
-  value: string
+  name?: string
+  value?: string
   type: string
 }
 

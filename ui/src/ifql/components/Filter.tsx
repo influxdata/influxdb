@@ -29,7 +29,7 @@ export class Filter extends PureComponent<Props, State> {
     try {
       const ast = await getAST({url: links.ast, body: value})
       const nodes = new Walker(ast).inOrderExpression
-      this.setState({nodes}, () => console.log(this.state.nodes))
+      this.setState({nodes})
     } catch (error) {
       console.error('Could not parse AST', error)
     }

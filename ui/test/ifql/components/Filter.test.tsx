@@ -2,6 +2,8 @@ import React from 'react'
 import {shallow} from 'enzyme'
 import {Filter} from 'src/ifql/components/Filter'
 
+jest.mock('src/ifql/apis', () => require('mocks/ifql/apis'))
+
 const setup = (override = {}) => {
   const props = {
     argKey: 'fn',
@@ -10,6 +12,7 @@ const setup = (override = {}) => {
     declarationID: 'd1',
     value: '(r) => r["measurement"] === "m1"',
     onChangeArg: () => {},
+    render: () => <div className="test-element" />,
     links: {
       self: '',
       ast: '',

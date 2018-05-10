@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
-import {BinaryExpressionNode, MemberExpressionNode} from 'src/types/ifql'
+import {MemberExpressionNode} from 'src/types/ifql'
 
-type FilterNode = BinaryExpressionNode | MemberExpressionNode
+type FilterNode = MemberExpressionNode
 
 interface Props {
   nodes: FilterNode[]
