@@ -1,4 +1,5 @@
-import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import TagInput from 'src/shared/components/TagInput'
@@ -15,6 +16,7 @@ interface Config {
     'api-key': boolean
     teams: string[]
     recipients: string[]
+    enabled: boolean
   }
 }
 
@@ -33,6 +35,7 @@ interface State {
   currentTeams: string[]
   currentRecipients: string[]
   testEnabled: boolean
+  enabled: boolean
 }
 
 @ErrorHandling
@@ -48,13 +51,14 @@ class OpsGenieConfig extends PureComponent<Props, State> {
       currentTeams: teams || [],
       currentRecipients: recipients || [],
       testEnabled: this.props.enabled,
+      enabled: _.get(this.props, 'config.options.enabled', false),
     }
   }
 
   public render() {
     const {options} = this.props.config
     const apiKey = options['api-key']
-    const {testEnabled} = this.state
+    const {testEnabled, enabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -84,6 +88,18 @@ class OpsGenieConfig extends PureComponent<Props, State> {
           disableTest={this.disableTest}
         />
 
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id="disabled"
+              checked={enabled}
+              onChange={this.handleEnabledChange}
+            />
+            <label htmlFor="disabled">Enable configuration</label>
+          </div>
+        </div>
+
         <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
@@ -106,6 +122,11 @@ class OpsGenieConfig extends PureComponent<Props, State> {
     )
   }
 
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({enabled: e.target.checked})
+    this.disableTest()
+  }
+
   private get currentTeamsForTags(): Item[] {
     const {currentTeams} = this.state
     return currentTeams.map(team => ({name: team}))
@@ -123,6 +144,7 @@ class OpsGenieConfig extends PureComponent<Props, State> {
       'api-key': this.apiKey.value,
       teams: this.state.currentTeams,
       recipients: this.state.currentRecipients,
+      enabled: this.state.enabled,
     }
 
     const success = await this.props.onSave(properties)

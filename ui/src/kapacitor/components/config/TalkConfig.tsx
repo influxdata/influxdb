@@ -1,4 +1,5 @@
-import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -12,11 +13,13 @@ interface Config {
   options: {
     url: boolean
     author_name: string
+    enabled: boolean
   }
 }
 
 interface State {
   testEnabled: boolean
+  enabled: boolean
 }
 
 interface Props {
@@ -35,12 +38,13 @@ class TalkConfig extends PureComponent<Props, State> {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
+      enabled: _.get(this.props, 'config.options.enabled', false),
     }
   }
 
   public render() {
     const {url, author_name: author} = this.props.config.options
-    const {testEnabled} = this.state
+    const {testEnabled, enabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -67,6 +71,18 @@ class TalkConfig extends PureComponent<Props, State> {
           />
         </div>
 
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id="disabled"
+              checked={enabled}
+              onChange={this.handleEnabledChange}
+            />
+            <label htmlFor="disabled">Enable configuration</label>
+          </div>
+        </div>
+
         <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
@@ -89,12 +105,18 @@ class TalkConfig extends PureComponent<Props, State> {
     )
   }
 
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({enabled: e.target.checked})
+    this.disableTest()
+  }
+
   private handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
       url: this.url.value,
       author_name: this.author.value,
+      enabled: this.state.enabled,
     }
 
     const success = await this.props.onSave(properties)

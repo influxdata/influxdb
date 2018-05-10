@@ -1,4 +1,5 @@
-import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
@@ -17,6 +18,7 @@ interface Config {
     token: boolean
     'user-key': boolean
     url: string
+    enabled: boolean
   }
 }
 
@@ -29,6 +31,7 @@ interface Props {
 
 interface State {
   testEnabled: boolean
+  enabled: boolean
 }
 
 @ErrorHandling
@@ -41,6 +44,7 @@ class PushoverConfig extends PureComponent<Props, State> {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
+      enabled: _.get(this.props, 'config.options.enabled', false),
     }
   }
 
@@ -48,7 +52,7 @@ class PushoverConfig extends PureComponent<Props, State> {
     const {options} = this.props.config
     const {token, url} = options
     const userKey = options['user-key']
-    const {testEnabled} = this.state
+    const {testEnabled, enabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -98,6 +102,18 @@ class PushoverConfig extends PureComponent<Props, State> {
           />
         </div>
 
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id="disabled"
+              checked={enabled}
+              onChange={this.handleEnabledChange}
+            />
+            <label htmlFor="disabled">Enable configuration</label>
+          </div>
+        </div>
+
         <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
@@ -120,6 +136,11 @@ class PushoverConfig extends PureComponent<Props, State> {
     )
   }
 
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({enabled: e.target.checked})
+    this.disableTest()
+  }
+
   private handleSubmit = async e => {
     e.preventDefault()
 
@@ -127,6 +148,7 @@ class PushoverConfig extends PureComponent<Props, State> {
       token: this.token.value,
       url: this.url.value,
       'user-key': this.userKey.value,
+      enabled: this.state.enabled,
     }
 
     const success = await this.props.onSave(properties)
