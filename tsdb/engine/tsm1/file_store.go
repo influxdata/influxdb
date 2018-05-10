@@ -475,7 +475,7 @@ func (f *FileStore) Open() error {
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
-		generation, _, err := ParseTSMFileName(fn)
+		generation, _, err := ParseFileName(fn)
 		if err != nil {
 			return err
 		}
@@ -984,8 +984,20 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	return tmpPath, nil
 }
 
-// ParseTSMFileName parses the generation and sequence from a TSM file name.
-func ParseTSMFileName(name string) (int, int, error) {
+// FormatFileNameFunc is executed when generating a new TSM filename.
+// Source filenames are provided via src.
+type FormatFileNameFunc func(generation, sequence int) string
+
+// DefaultFormatFileName is the default implementation to format TSM filenames.
+func DefaultFormatFileName(generation, sequence int) string {
+	return fmt.Sprintf("%09d-%09d", generation, sequence)
+}
+
+// ParseFileNameFunc is executed when parsing a TSM filename into generation & sequence.
+type ParseFileNameFunc func(name string) (generation, sequence int, err error)
+
+// ParseFileName is used to parse the filenames of TSM files.
+var ParseFileName ParseFileNameFunc = func(name string) (int, int, error) {
 	base := filepath.Base(name)
 	idx := strings.Index(base, ".")
 	if idx == -1 {

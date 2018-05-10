@@ -2771,7 +2771,7 @@ func newFileDir(dir string, values ...keyValues) ([]string, error) {
 		if err := w.Close(); err != nil {
 			return nil, err
 		}
-		newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(id))
+		newName := filepath.Join(filepath.Dir(f.Name()), tsm1.DefaultFormatFileName(id, 1)+".tsm")
 		if err := os.Rename(f.Name(), newName); err != nil {
 			return nil, err
 		}
@@ -2806,7 +2806,7 @@ func newFiles(dir string, values ...keyValues) ([]string, error) {
 			return nil, err
 		}
 
-		newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(id))
+		newName := filepath.Join(filepath.Dir(f.Name()), tsm1.DefaultFormatFileName(id, 1)+".tsm")
 		if err := os.Rename(f.Name(), newName); err != nil {
 			return nil, err
 		}
@@ -2840,10 +2840,6 @@ func MustTempFile(dir string) *os.File {
 
 func fatal(t *testing.T, msg string, err error) {
 	t.Fatalf("unexpected error %v: %v", msg, err)
-}
-
-func tsmFileName(id int) string {
-	return fmt.Sprintf("%09d-%09d.tsm", id, 1)
 }
 
 var fsResult []tsm1.FileStat
