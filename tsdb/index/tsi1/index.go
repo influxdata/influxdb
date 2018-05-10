@@ -206,7 +206,6 @@ func (i *Index) Open() error {
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
-		p.Database = i.database
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
 	}
@@ -892,7 +891,7 @@ func (i *Index) RetainFileSet() (*FileSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	fs, _ := NewFileSet(i.database, nil, i.sfile, nil)
+	fs, _ := NewFileSet(nil, i.sfile, nil)
 	for _, p := range i.partitions {
 		pfs, err := p.RetainFileSet()
 		if err != nil {
