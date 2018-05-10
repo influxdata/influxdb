@@ -79,6 +79,10 @@ func NewIndex(database string, sfile *tsdb.SeriesFile) *Index {
 	return index
 }
 
+func (i *Index) UniqueReferenceID() uintptr {
+	return uintptr(unsafe.Pointer(i))
+}
+
 // Bytes estimates the memory footprint of this Index, in bytes.
 func (i *Index) Bytes() (int, uintptr) {
 	var b int

@@ -109,6 +109,10 @@ type Index struct {
 	PartitionN uint64
 }
 
+func (i *Index) UniqueReferenceID() uintptr {
+	return uintptr(unsafe.Pointer(i))
+}
+
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{

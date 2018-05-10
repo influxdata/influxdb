@@ -133,6 +133,59 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 	}
 }
 
+func TestIndexSet_DedupeInmemIndexes(t *testing.T) {
+	testCases := []struct {
+		tsiN    int // Quantity of TSI indexes
+		inmem1N int // Quantity of ShardIndexes proxying the first inmem Index
+		inmem2N int // Quantity of ShardIndexes proxying the second inmem Index
+		uniqueN int // Quantity of total, deduplicated indexes
+	}{
+		{tsiN: 1, inmem1N: 0, uniqueN: 1},
+		{tsiN: 2, inmem1N: 0, uniqueN: 2},
+		{tsiN: 0, inmem1N: 1, uniqueN: 1},
+		{tsiN: 0, inmem1N: 2, uniqueN: 1},
+		{tsiN: 0, inmem1N: 1, inmem2N: 1, uniqueN: 2},
+		{tsiN: 0, inmem1N: 2, inmem2N: 2, uniqueN: 2},
+		{tsiN: 2, inmem1N: 2, inmem2N: 2, uniqueN: 4},
+	}
+
+	for _, testCase := range testCases {
+		name := fmt.Sprintf("%d/%d/%d -> %d", testCase.tsiN, testCase.inmem1N, testCase.inmem2N, testCase.uniqueN)
+		t.Run(name, func(t *testing.T) {
+
+			var indexes []tsdb.Index
+			for i := 0; i < testCase.tsiN; i++ {
+				indexes = append(indexes, MustOpenNewIndex(tsi1.IndexName))
+			}
+			if testCase.inmem1N > 0 {
+				sfile := MustOpenSeriesFile()
+				opts := tsdb.NewEngineOptions()
+				opts.IndexVersion = inmem.IndexName
+				opts.InmemIndex = inmem.NewIndex("db", sfile.SeriesFile)
+
+				for i := 0; i < testCase.inmem1N; i++ {
+					indexes = append(indexes, inmem.NewShardIndex(uint64(i), "", "", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opts))
+				}
+			}
+			if testCase.inmem2N > 0 {
+				sfile := MustOpenSeriesFile()
+				opts := tsdb.NewEngineOptions()
+				opts.IndexVersion = inmem.IndexName
+				opts.InmemIndex = inmem.NewIndex("db", sfile.SeriesFile)
+
+				for i := 0; i < testCase.inmem2N; i++ {
+					indexes = append(indexes, inmem.NewShardIndex(uint64(i), "", "", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opts))
+				}
+			}
+
+			is := tsdb.IndexSet{Indexes: indexes}.DedupeInmemIndexes()
+			if len(is.Indexes) != testCase.uniqueN {
+				t.Errorf("expected %d indexes, got %d", testCase.uniqueN, len(is.Indexes))
+			}
+		})
+	}
+}
+
 func TestIndex_Sketches(t *testing.T) {
 	checkCardinalities := func(t *testing.T, index *Index, state string, series, tseries, measurements, tmeasurements int) {
 		// Get sketches and check cardinality...
