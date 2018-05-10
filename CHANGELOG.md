@@ -33,6 +33,7 @@
 1.  [#3357](https://github.com/influxdata/chronograf/pull/3357): Fix only the selected template variable value getting loaded
 1.  [#3389](https://github.com/influxdata/chronograf/pull/3389): Fix Generic OAuth bug for GitHub Enterprise where the principal was incorrectly being checked for email being Primary and Verified
 1.  [#3402](https://github.com/influxdata/chronograf/pull/3402): Fix missing icons when using basepath
+1.  [#3412](https://github.com/influxdata/chronograf/pull/3412): Limit max-width of TICKScript editor.
 
 ## v1.4.4.1 [2018-04-16]
 
