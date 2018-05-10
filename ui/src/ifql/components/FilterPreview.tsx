@@ -10,9 +10,9 @@ interface Props {
 class FilterPreview extends PureComponent<Props> {
   public render() {
     return (
-      <div style={{display: 'flex'}}>
+      <>
         {this.props.nodes.map((n, i) => <FilterPreviewNode node={n} key={i} />)}
-      </div>
+      </>
     )
   }
 }
@@ -24,33 +24,37 @@ interface FilterPreviewNodeProps {
 /* tslint:disable */
 class FilterPreviewNode extends PureComponent<FilterPreviewNodeProps> {
   public render() {
-    const {node} = this.props
-    return <div className={this.className}>{node.source}</div>
+    return this.className
   }
 
-  private get className(): string {
-    const {type} = this.props.node
+  private get className(): JSX.Element {
+    const {node} = this.props
 
-    switch (type) {
-      case 'ObjectExpression':
+    switch (node.type) {
+      case 'ObjectExpression': {
+        return <div className="ifql-filter--key">{node.source}</div>
+      }
       case 'MemberExpression': {
-        return 'ifql-filter--expression'
+        return <div className="ifql-filter--key">{node.property.name}</div>
       }
-      case 'OpenParen':
+      case 'OpenParen': {
+        return <div className="ifql-filter--paren-open" />
+      }
       case 'CloseParen': {
-        return 'ifql-filter--paren'
+        return <div className="ifql-filter--paren-close" />
       }
-      case 'NumberLiteral': {
-        return 'variable-value--number'
+      case 'NumberLiteral':
+      case 'IntegerLiteral': {
+        return <div className="ifql-filter--value number">{node.source}</div>
       }
       case 'BooleanLiteral': {
-        return 'variable-value--boolean'
+        return <div className="ifql-filter--value boolean">{node.source}</div>
       }
       case 'StringLiteral': {
-        return 'variable-value--string'
+        return <div className="ifql-filter--value string">{node.source}</div>
       }
       case 'Operator': {
-        return 'ifql-filter--operator'
+        return <div className="ifql-filter--operator">{node.source}</div>
       }
       default: {
         return ''

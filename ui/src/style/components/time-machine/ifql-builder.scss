@@ -3,6 +3,16 @@ $ifql-node-tooltip-gap: 4px;
 $ifql-node-gap: 5px;
 $ifql-node-padding: 10px;
 $ifql-arg-min-width: 120px;
+<<<<<<< Updated upstream
+=======
+
+$ifql-number-color: $c-neutrino;
+$ifql-string-color: $c-honeydew;
+$ifql-boolean-color: $c-viridian;
+$ifql-invalid-color: $c-viridian;
+
+
+>>>>>>> Stashed changes
 /*
   Shared Node styles
   ------------------
@@ -59,19 +69,19 @@ $ifql-arg-min-width: 120px;
 }
 
 .variable-value--string {
-  color: $c-honeydew
+  color: $ifql-string-color;
 }
 
 .variable-value--boolean {
-  color: $c-viridian
+  color: $ifql-boolean-color;
 }
 
 .variable-value--number {
-  color: $c-neutrino;
+  color: $ifql-number-color;
 }
 
 .variable-value--invalid {
-  color: $c-dreamsicle;
+  color: $ifql-invalid-color;
 }
 
 .func-node {
@@ -222,6 +232,7 @@ $ifql-arg-min-width: 120px;
   ------------------------------------------------------------------------------
 */
 
+<<<<<<< Updated upstream
 .ifql-filter--expression {
   min-height: 26px;
   padding: 5px;
@@ -234,17 +245,124 @@ $ifql-arg-min-width: 120px;
     background-color: $g4-onyx;
     border-radius: $radius - 2px;
   }
+=======
+$ifql-filter-gap: 6px;
+$ifql-filter-unit: 26px;
+$ifql-filter-unit-wrapped: 34px;
+$ifql-filter-expression: $g3-castle;
+$ifql-filter-parens: $g5-pepper;
+
+%ifql-filter-style {
+  height: $ifql-filter-unit;
+  line-height: $ifql-filter-unit;
+  border-style: solid;
+  border-width: 0;
+}
+
+.ifql-filter--key {
+  @extend %ifql-filter-style;
+  background-color: $ifql-filter-expression;
+  border-radius: 3px 0 0 3px;
+  padding-left: $ifql-filter-gap;
+>>>>>>> Stashed changes
 }
 
 .ifql-filter--operator {
-  padding: 0 5px;
+  @extend %ifql-filter-style;
+  text-transform: uppercase;
+  padding: 0 ($ifql-filter-gap / 2);
 }
 
+<<<<<<< Updated upstream
 .func-node:hover {
   .ifql-filter--expression {
     background-color: $g4-onyx;
     >.ifql-filter--expression {
       background-color: $g6-smoke;
     }
+=======
+.ifql-filter--value + .ifql-filter--operator,
+.ifql-filter--paren-close + .ifql-filter--operator {
+  padding: 0 $ifql-filter-gap;
+}
+
+.ifql-filter--key + .ifql-filter--operator {
+  background-color: $ifql-filter-expression;
+}
+
+.ifql-filter--key + .ifql-filter--operator + .ifql-filter--value {
+  background-color: $ifql-filter-expression;
+  border-radius: 0 3px 3px 0;  
+}
+
+.ifql-filter--value {
+  @extend %ifql-filter-style;
+  padding-right: $ifql-filter-gap;
+
+  &.number {
+    color: $ifql-number-color;
   }
+  &.string {
+    color: $ifql-string-color;
+  }
+  &.boolean {
+    color: $ifql-boolean-color;
+  }
+}
+
+.ifql-filter--paren-open,
+.ifql-filter--paren-close {
+  @extend %ifql-filter-style;
+  height: $ifql-filter-unit-wrapped;
+  width: ($ifql-filter-unit-wrapped - $ifql-filter-unit) / 2;
+  background-color: $ifql-filter-parens;
+  border: (($ifql-filter-unit-wrapped - $ifql-filter-unit) / 2) solid $ifql-filter-expression;
+}
+.ifql-filter--paren-open {
+  border-right: 0;
+  border-radius: 3px 0 0 3px;
+}
+.ifql-filter--paren-close {
+  border-left: 0;
+  border-radius: 0 3px 3px 0;
+}
+
+%ifql-filter-wrapped {
+  position: relative;
+  z-index: 2;
+  background-color: $ifql-filter-parens;
+
+  &:before {
+    content: '';
+    width: 100%;
+    height: $ifql-filter-unit-wrapped;
+    position: absolute;
+    top: ($ifql-filter-unit - $ifql-filter-unit-wrapped) / 2;
+    left: 0;
+    border-style: solid;
+    border-width: (($ifql-filter-unit-wrapped - $ifql-filter-unit) / 2) 0;
+    border-color: $ifql-filter-expression;
+    z-index: -1;
+    box-sizing: border-box;
+>>>>>>> Stashed changes
+  }
+}
+
+.ifql-filter--paren-open + .ifql-filter--key,
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator,
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value,
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key,
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key + .ifql-filter--operator,
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value,
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key,
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key + .ifql-filter--operator, 
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value {
+  @extend %ifql-filter-wrapped;
+}
+
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator,
+.ifql-filter--paren-open + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator + .ifql-filter--key + .ifql-filter--operator + .ifql-filter--value + .ifql-filter--operator {
+  background-color: $ifql-filter-expression;
+  height: $ifql-filter-unit-wrapped;
+  line-height: $ifql-filter-unit-wrapped;
 }
