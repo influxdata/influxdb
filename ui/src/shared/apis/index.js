@@ -155,10 +155,6 @@ export const getKapacitorConfigSection = (kapacitor, section) => {
   return kapacitorProxy(kapacitor, 'GET', `/kapacitor/v1/config/${section}`, '')
 }
 
-<<<<<<< HEAD
-export function updateKapacitorConfigSection(kapacitor, section, properties) {
-  const params = {
-=======
 export function updateKapacitorConfigSection(
   kapacitor,
   section,
@@ -168,8 +164,7 @@ export function updateKapacitorConfigSection(
   const config = specificConfig || ''
   const path = `/kapacitor/v1/config/${section}/${config}`
 
-  return AJAX({
->>>>>>> Change updateKapacitorConfigSection function so that if a specific config is passed, it updates that specific config and not just the default
+  const params = {
     method: 'POST',
     url: kapacitor.links.proxy,
     params: {
@@ -195,6 +190,28 @@ export function addKapacitorConfigInSection(kapacitor, section, properties) {
     },
     data: {
       add: properties,
+    },
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+export function deleteKapacitorConfigInSection(
+  kapacitor,
+  section,
+  specificConfig
+) {
+  const path = `/kapacitor/v1/config/${section}`
+
+  return AJAX({
+    method: 'POST',
+    url: kapacitor.links.proxy,
+    params: {
+      path,
+    },
+    data: {
+      remove: [specificConfig],
     },
     headers: {
       'Content-Type': 'application/json',

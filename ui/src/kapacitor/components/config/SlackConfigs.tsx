@@ -19,19 +19,19 @@ interface Config {
 }
 
 interface Props {
-  slackConfigs: any[]
-  config: Config
+  configs: Config[]
   onSave: (
     properties: Properties,
     isNewConfigInSection: boolean,
     specificConfig: string
   ) => void
+  onDelete: (specificConfig: string) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
-  enabled: boolean
+  onEnabled: (specificConfig: string) => boolean
 }
 
 interface State {
-  slackConfigs: any[]
+  configs: any[]
 }
 
 @ErrorHandling
@@ -39,30 +39,32 @@ class SlackConfigs extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      slackConfigs: this.props.slackConfigs,
+      configs: this.props.configs,
     }
   }
 
+  public componentWillReceiveProps(nextProps) {
+    this.setState({configs: nextProps.configs})
+  }
+
   public render() {
-    const {slackConfigs} = this.state
-    const {onSave, onTest, enabled} = this.props
-    const configNums = slackConfigs.length
+    const {configs} = this.state
+    const {onSave, onTest, onDelete, onEnabled} = this.props
 
     return (
       <div>
-        {slackConfigs.map(config => {
-          const key = _.get(config, ['options', 'workspace'], 'default')
-          const configEnabled = _.get(config, ['options', 'enabled'], false)
-          const isFirstConfigNew = configNums === 1 && !configEnabled
-          const isNewConfig =
-            isFirstConfigNew || _.get(config, 'isNewConfig', false)
+        {configs.map(config => {
+          const workspace = _.get(config, ['options', 'workspace'], 'new')
+          const isNewConfig = _.get(config, 'isNewConfig', false)
+          const enabled = onEnabled(workspace)
 
           return (
             <SlackConfig
-              key={key}
+              key={workspace}
               onSave={onSave}
               config={config}
               onTest={onTest}
+              onDelete={onDelete}
               enabled={enabled}
               isNewConfig={isNewConfig}
             />
@@ -75,12 +77,12 @@ class SlackConfigs extends PureComponent<Props, State> {
     )
   }
 
-  private get slackConfigs() {
-    return this.state.slackConfigs
+  private get configs() {
+    return this.state.configs
   }
 
   private addConfig = () => {
-    const configs = this.slackConfigs
+    const configs = this.configs
     const newConfig = {
       options: {
         url: false,
@@ -88,7 +90,7 @@ class SlackConfigs extends PureComponent<Props, State> {
       },
       isNewConfig: true,
     }
-    this.setState({slackConfigs: [...configs, newConfig]})
+    this.setState({configs: [...configs, newConfig]})
   }
 }
 
