@@ -1235,23 +1235,22 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			}
 
 			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
-			kstr := string(keyBuf)
 
 			if e.seriesTypeMap != nil {
 				// Fast-path check to see if the field for the series already exists.
-				if v, ok := e.seriesTypeMap.Get(kstr); !ok {
+				if v, ok := e.seriesTypeMap.Get(keyBuf); !ok {
 					if typ, err := e.Type(keyBuf); err != nil {
 						// Field type is unknown, we can try to add it.
 					} else if typ != iter.Type() {
 						// Existing type is different from what was passed in, we need to drop
 						// this write and refresh the series type map.
 						seriesErr = tsdb.ErrFieldTypeConflict
-						e.seriesTypeMap.Insert(kstr, int(typ))
+						e.seriesTypeMap.Insert(keyBuf, int(typ))
 						continue
 					}
 
 					// Doesn't exsts, so try to insert
-					vv, ok := e.seriesTypeMap.Insert(kstr, int(iter.Type()))
+					vv, ok := e.seriesTypeMap.Insert(keyBuf, int(iter.Type()))
 
 					// We didn't insert and the type that exists isn't what we tried to insert, so
 					// we have a conflict and must drop this field/series.
@@ -1298,7 +1297,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			default:
 				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
 			}
-			values[kstr] = append(values[kstr], v)
+			values[string(keyBuf)] = append(values[string(keyBuf)], v)
 		}
 	}
 
