@@ -1,4 +1,5 @@
-import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
@@ -16,6 +17,7 @@ interface Config {
     room: string
     token: boolean
     url: string
+    enabled: boolean
   }
 }
 
@@ -28,6 +30,7 @@ interface Props {
 
 interface State {
   testEnabled: boolean
+  enabled: boolean
 }
 
 @ErrorHandling
@@ -40,13 +43,14 @@ class HipchatConfig extends PureComponent<Props, State> {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
+      enabled: _.get(this.props, 'config.options.enabled', false),
     }
   }
 
   public render() {
     const {options} = this.props.config
     const {url, room, token} = options
-    const {testEnabled} = this.state
+    const {testEnabled, enabled} = this.state
 
     const subdomain = url
       .replace('https://', '')
@@ -94,6 +98,18 @@ class HipchatConfig extends PureComponent<Props, State> {
           />
         </div>
 
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id="disabled"
+              checked={enabled}
+              onChange={this.handleEnabledChange}
+            />
+            <label htmlFor="disabled">Configuration Enabled</label>
+          </div>
+        </div>
+
         <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
@@ -105,7 +121,7 @@ class HipchatConfig extends PureComponent<Props, State> {
           </button>
           <button
             className="btn btn-primary"
-            disabled={!this.state.testEnabled}
+            disabled={!this.state.testEnabled || !enabled}
             onClick={this.props.onTest}
           >
             <span className="icon pulse-c" />
@@ -116,6 +132,11 @@ class HipchatConfig extends PureComponent<Props, State> {
     )
   }
 
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({enabled: e.target.checked})
+    this.disableTest()
+  }
+
   private handleSubmit = async e => {
     e.preventDefault()
 
@@ -123,6 +144,7 @@ class HipchatConfig extends PureComponent<Props, State> {
       room: this.room.value,
       url: `https://${this.url.value}.hipchat.com/v2/room`,
       token: this.token.value,
+      enabled: this.state.enabled,
     }
 
     const success = await this.props.onSave(properties)
