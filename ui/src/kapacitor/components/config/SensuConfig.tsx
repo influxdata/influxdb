@@ -1,4 +1,5 @@
-import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Properties {
@@ -10,6 +11,7 @@ interface Config {
   options: {
     source: string
     addr: string
+    enabled: boolean
   }
 }
 
@@ -22,6 +24,7 @@ interface Props {
 
 interface State {
   testEnabled: boolean
+  enabled: boolean
 }
 
 @ErrorHandling
@@ -33,11 +36,13 @@ class SensuConfig extends PureComponent<Props, State> {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
+      enabled: _.get(this.props, 'config.options.enabled', false),
     }
   }
 
   public render() {
     const {source, addr} = this.props.config.options
+    const {enabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -65,6 +70,18 @@ class SensuConfig extends PureComponent<Props, State> {
           />
         </div>
 
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id="disabled"
+              checked={enabled}
+              onChange={this.handleEnabledChange}
+            />
+            <label htmlFor="disabled">Configuration Enabled</label>
+          </div>
+        </div>
+
         <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
@@ -76,7 +93,7 @@ class SensuConfig extends PureComponent<Props, State> {
           </button>
           <button
             className="btn btn-primary"
-            disabled={!this.state.testEnabled}
+            disabled={!this.state.testEnabled || !enabled}
             onClick={this.props.onTest}
           >
             <span className="icon pulse-c" />
@@ -87,12 +104,18 @@ class SensuConfig extends PureComponent<Props, State> {
     )
   }
 
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({enabled: e.target.checked})
+    this.disableTest()
+  }
+
   private handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
       source: this.source.value,
       addr: this.addr.value,
+      enabled: this.state.enabled,
     }
 
     const success = await this.props.onSave(properties)

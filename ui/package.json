@@ -119,7 +119,7 @@
     "webpack-dev-server": "^2.11.1"
   },
   "dependencies": {
-    "axios": "^0.13.1",
+    "axios": "^0.18.0",
     "bignumber.js": "^4.0.2",
     "calculate-size": "^1.1.1",
     "chroma-js": "^1.3.6",

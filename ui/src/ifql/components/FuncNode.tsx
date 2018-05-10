@@ -34,6 +34,7 @@ export default class FuncNode extends PureComponent<Props, State> {
   public render() {
     const {
       func,
+      func: {args},
       bodyID,
       onChangeArg,
       declarationID,

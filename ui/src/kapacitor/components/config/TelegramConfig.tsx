@@ -1,4 +1,5 @@
-import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import React, {PureComponent, ChangeEvent} from 'react'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
@@ -20,6 +21,7 @@ interface Config {
     'disable-web-page-preview': boolean
     'parse-mode': string
     token: boolean
+    enabled: boolean
   }
 }
 
@@ -32,6 +34,7 @@ interface Props {
 
 interface State {
   testEnabled: boolean
+  enabled: boolean
 }
 
 @ErrorHandling
@@ -47,6 +50,7 @@ class TelegramConfig extends PureComponent<Props, State> {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
+      enabled: _.get(this.props, 'config.options.enabled', false),
     }
   }
 
@@ -57,7 +61,7 @@ class TelegramConfig extends PureComponent<Props, State> {
     const disableNotification = options['disable-notification']
     const disableWebPagePreview = options['disable-web-page-preview']
     const parseMode = options['parse-mode']
-    const {testEnabled} = this.state
+    const {testEnabled, enabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -177,6 +181,18 @@ class TelegramConfig extends PureComponent<Props, State> {
           </div>
         </div>
 
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id="disabled"
+              checked={enabled}
+              onChange={this.handleEnabledChange}
+            />
+            <label htmlFor="disabled">Configuration Enabled</label>
+          </div>
+        </div>
+
         <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
@@ -188,7 +204,7 @@ class TelegramConfig extends PureComponent<Props, State> {
           </button>
           <button
             className="btn btn-primary"
-            disabled={!this.state.testEnabled}
+            disabled={!this.state.testEnabled || !enabled}
             onClick={this.props.onTest}
           >
             <span className="icon pulse-c" />
@@ -197,6 +213,11 @@ class TelegramConfig extends PureComponent<Props, State> {
         </div>
       </form>
     )
+  }
+
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({enabled: e.target.checked})
+    this.disableTest()
   }
 
   private handleSubmit = async e => {
@@ -216,6 +237,7 @@ class TelegramConfig extends PureComponent<Props, State> {
       'disable-web-page-preview': this.disableWebPagePreview.checked,
       'parse-mode': parseMode,
       token: this.token.value,
+      enabled: this.state.enabled,
     }
 
     const success = await this.props.onSave(properties)

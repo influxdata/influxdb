@@ -21,6 +21,7 @@ $ifql-invalid-color: $c-viridian;
   position: relative;
   background-color: $g4-onyx;
   transition: background-color 0.25s ease;
+
   &:hover {
     background-color: $g6-smoke;
   }
@@ -41,6 +42,7 @@ $ifql-invalid-color: $c-viridian;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
+
   &:last-of-type {
     margin-bottom: 0;
   }
@@ -82,7 +84,10 @@ $ifql-invalid-color: $c-viridian;
   @extend %ifql-node;
   display: flex;
   align-items: center;
-  margin-left: $ifql-node-gap; // Connection Line
+
+  margin-left: $ifql-node-gap;
+
+  // Connection Line
   &:after {
     content: '';
     height: 4px;
@@ -93,6 +98,7 @@ $ifql-invalid-color: $c-viridian;
     left: 0;
     transform: translate(-100%, -50%);
   }
+
   &:first-child:after {
     content: none;
     margin-left: 0;

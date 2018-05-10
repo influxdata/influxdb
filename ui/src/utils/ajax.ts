@@ -1,19 +1,47 @@
-import axios from 'axios'
+import axios, {AxiosResponse} from 'axios'
 
 let links
-
-export const setAJAXLinks = ({updatedLinks}) => {
+export const setAJAXLinks = ({updatedLinks}): void => {
   links = updatedLinks
 }
 
 // do not prefix route with basepath, ex. for external links
-const addBasepath = (url, excludeBasepath) => {
+const addBasepath = (url, excludeBasepath): string => {
   const basepath = window.basepath || ''
 
   return excludeBasepath ? url : `${basepath}${url}`
 }
 
-const generateResponseWithLinks = (response, newLinks) => {
+interface Links {
+  auth: object
+  logoutLink: object
+  external: object
+  users: object
+  allUsers: object
+  organizations: object
+  meLink: object
+  config: object
+  environment: object
+  ifql: object
+}
+
+interface LinksInputs {
+  auth: object
+  logout: object
+  external: object
+  users: object
+  allUsers: object
+  organizations: object
+  me: object
+  config: object
+  environment: object
+  ifql: object
+}
+
+function generateResponseWithLinks<T extends object>(
+  response: T,
+  newLinks: LinksInputs
+): T & Links {
   const {
     auth,
     logout,
@@ -27,8 +55,7 @@ const generateResponseWithLinks = (response, newLinks) => {
     ifql,
   } = newLinks
 
-  return {
-    ...response,
+  const linksObj = {
     auth: {links: auth},
     logoutLink: logout,
     external,
@@ -40,6 +67,8 @@ const generateResponseWithLinks = (response, newLinks) => {
     environment,
     ifql,
   }
+
+  return Object.assign({}, response, linksObj)
 }
 
 interface RequestParams {
@@ -52,7 +81,7 @@ interface RequestParams {
   headers?: object
 }
 
-const AJAX = async (
+async function AJAX<T = any>(
   {
     url,
     resource = null,
@@ -63,7 +92,7 @@ const AJAX = async (
     headers = {},
   }: RequestParams,
   excludeBasepath = false
-) => {
+): Promise<(T | T & {links: object}) | AxiosResponse<T>> {
   try {
     if (!links) {
       console.error(
@@ -79,7 +108,7 @@ const AJAX = async (
         : addBasepath(`${links[resource]}`, excludeBasepath)
     }
 
-    const response = await axios({
+    const response = await axios.request<T>({
       url,
       method,
       data,
@@ -97,12 +126,9 @@ const AJAX = async (
   }
 }
 
-export const getAJAX = async url => {
+export async function getAJAX<T = any>(url: string): Promise<AxiosResponse<T>> {
   try {
-    return await axios({
-      method: 'GET',
-      url: addBasepath(url, false),
-    })
+    return await axios.request<T>({method: 'GET', url: addBasepath(url, false)})
   } catch (error) {
     console.error(error)
     throw error
