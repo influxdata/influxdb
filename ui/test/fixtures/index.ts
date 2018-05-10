@@ -1,5 +1,4 @@
 import {
-  Field,
   Source,
   CellQuery,
   SourceLinks,
@@ -38,38 +37,36 @@ export const source: Source = {
   insecureSkipVerify: false,
 }
 
-export const fields: Field[] = [
-  {
-    value: 'mean',
-    type: 'func',
-    alias: 'mean_usage_idle',
-    args: [
-      {
-        value: 'usage_idle',
-        type: 'field',
-        alias: '',
-      },
-    ],
-  },
-  {
-    value: 'mean',
-    type: 'func',
-    alias: 'mean_usage_user',
-    args: [
-      {
-        value: 'usage_user',
-        type: 'field',
-        alias: '',
-      },
-    ],
-  },
-]
-
 export const queryConfig: QueryConfig = {
   database: 'telegraf',
   measurement: 'cpu',
   retentionPolicy: 'autogen',
-  fields,
+  fields: [
+    {
+      value: 'mean',
+      type: 'func',
+      alias: 'mean_usage_idle',
+      args: [
+        {
+          value: 'usage_idle',
+          type: 'field',
+          alias: '',
+        },
+      ],
+    },
+    {
+      value: 'mean',
+      type: 'func',
+      alias: 'mean_usage_user',
+      args: [
+        {
+          value: 'usage_user',
+          type: 'field',
+          alias: '',
+        },
+      ],
+    },
+  ],
   tags: {},
   groupBy: {
     time: 'auto',
