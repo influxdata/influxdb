@@ -147,7 +147,6 @@ class FieldList extends PureComponent<Props, State> {
                   fieldFunc.value,
                   fields
                 )
-
                 const funcs: FieldFunc[] = getFuncsByFieldName(
                   fieldFunc.value,
                   fields

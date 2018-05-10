@@ -49,6 +49,7 @@ class FieldListItem extends PureComponent<Props, State> {
         fieldFuncsLabel = `${num} Functions`
         break
     }
+
     return (
       <div>
         <div
