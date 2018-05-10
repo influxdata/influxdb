@@ -100,7 +100,7 @@ func TestIndex_Bytes(t *testing.T) {
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
 	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt).(*inmem.ShardIndex)
 
-	indexBaseBytes, _ := si.Bytes()
+	indexBaseBytes := si.Bytes()
 
 	name := []byte("name")
 	err := si.CreateSeriesIfNotExists(name, name, models.Tags{})
@@ -109,7 +109,7 @@ func TestIndex_Bytes(t *testing.T) {
 		t.FailNow()
 	}
 
-	indexNewBytes, _ := si.Bytes()
+	indexNewBytes := si.Bytes()
 	if indexBaseBytes >= indexNewBytes {
 		t.Errorf("index Bytes(): want >%d, got %d", indexBaseBytes, indexNewBytes)
 	}

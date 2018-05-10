@@ -84,7 +84,7 @@ func (i *Index) UniqueReferenceID() uintptr {
 }
 
 // Bytes estimates the memory footprint of this Index, in bytes.
-func (i *Index) Bytes() (int, uintptr) {
+func (i *Index) Bytes() int {
 	var b int
 	i.mu.RLock()
 	b += 24 // mu RWMutex is 24 bytes
@@ -110,7 +110,7 @@ func (i *Index) Bytes() (int, uintptr) {
 	b += int(unsafe.Sizeof(i.measurementsTSSketch)) + i.measurementsTSSketch.Bytes()
 	b += 8 // rebuildQueue Mutex is 8 bytes
 	i.mu.RUnlock()
-	return b, uintptr(unsafe.Pointer(i))
+	return b
 }
 
 func (i *Index) Type() string      { return IndexName }

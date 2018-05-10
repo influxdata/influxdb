@@ -261,10 +261,6 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	return e
 }
 
-func (e *Engine) IndexBytes() (int, uintptr) {
-	return e.index.Bytes()
-}
-
 // Digest returns a reader for the shard's digest.
 func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 	digestPath := filepath.Join(e.path, "digest.tsd")
