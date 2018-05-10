@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import {BinaryExpressionNode, MemberExpressionNode} from 'src/types/ifql'
 
-type FilterNode = BinaryExpressionNode | MemberExpressionNode
+type FilterNode = BinaryExpressionNode & MemberExpressionNode
 
 interface Props {
   nodes: FilterNode[]
@@ -57,7 +57,7 @@ class FilterPreviewNode extends PureComponent<FilterPreviewNodeProps> {
         return <div className="ifql-filter--operator">{node.source}</div>
       }
       default: {
-        return ''
+        return <div />
       }
     }
   }

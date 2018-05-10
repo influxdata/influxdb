@@ -30,7 +30,7 @@ class TimeMachineEditor extends PureComponent<Props> {
     }
 
     if (this.props.visibility === 'visible') {
-      this.editor.refresh()
+      setTimeout(() => this.editor.refresh(), 60)
     }
   }
 
@@ -54,9 +54,9 @@ class TimeMachineEditor extends PureComponent<Props> {
           autoCursor={true}
           value={script}
           options={options}
+          onKeyUp={this.handleKeyUp}
           onBeforeChange={this.updateCode}
           onTouchStart={this.onTouchStart}
-          onKeyUp={this.handleKeyUp}
           editorDidMount={this.handleMount}
         />
       </div>
