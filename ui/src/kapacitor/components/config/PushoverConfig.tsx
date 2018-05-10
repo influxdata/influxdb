@@ -110,7 +110,7 @@ class PushoverConfig extends PureComponent<Props, State> {
               checked={enabled}
               onChange={this.handleEnabledChange}
             />
-            <label htmlFor="disabled">Enable configuration</label>
+            <label htmlFor="disabled">Configuration Enabled</label>
           </div>
         </div>
 

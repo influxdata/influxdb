@@ -80,7 +80,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
               checked={enabled}
               onChange={this.handleEnabledChange}
             />
-            <label htmlFor="disabled">Enable configuration</label>
+            <label htmlFor="disabled">Configuration Enabled</label>
           </div>
         </div>
 
@@ -88,14 +88,14 @@ class PagerDutyConfig extends PureComponent<Props, State> {
           <button
             className="btn btn-primary"
             type="submit"
-            disabled={this.state.testEnabled || !enabled}
+            disabled={this.state.testEnabled}
           >
             <span className="icon checkmark" />
             Save Changes
           </button>
           <button
             className="btn btn-primary"
-            disabled={!this.state.testEnabled}
+            disabled={!this.state.testEnabled || !enabled}
             onClick={this.props.onTest}
           >
             <span className="icon pulse-c" />
