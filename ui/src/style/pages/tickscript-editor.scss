@@ -8,6 +8,7 @@ $tickscript-controls-height: 60px;
 .tickscript {
   flex: 1 0 0;
   position: relative;
+  max-width: 100%;
 }
 .tickscript-controls,
 .tickscript-console,
