@@ -88,7 +88,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
           <button
             className="btn btn-primary"
             type="submit"
-            disabled={this.state.testEnabled}
+            disabled={this.state.testEnabled || !enabled}
           >
             <span className="icon checkmark" />
             Save Changes
