@@ -1,11 +1,10 @@
 import React, {PureComponent} from 'react'
 
 import FuncArgInput from 'src/ifql/components/FuncArgInput'
+import FuncArgTextArea from 'src/ifql/components/FuncArgTextArea'
 import FuncArgBool from 'src/ifql/components/FuncArgBool'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import From from 'src/ifql/components/From'
-import Filter from 'src/ifql/components/Filter'
-import FilterBuilder from 'src/ifql/components/FilterBuilder'
 
 import {funcNames, argTypes} from 'src/ifql/constants'
 import {OnChangeArg} from 'src/types/ifql'
@@ -50,10 +49,6 @@ class FuncArg extends PureComponent<Props> {
       )
     }
 
-    if (funcName === funcNames.FILTER) {
-      return <Filter value={this.value} render={this.filter} />
-    }
-
     switch (type) {
       case argTypes.STRING:
       case argTypes.DURATION:
@@ -91,12 +86,17 @@ class FuncArg extends PureComponent<Props> {
         )
       }
       case argTypes.FUNCTION: {
-        // TODO: make separate function component
         return (
-          <div className="func-arg">
-            <label className="func-arg--label">{argKey}</label>
-            <div className="func-arg--value">{value}</div>
-          </div>
+          <FuncArgTextArea
+            type={type}
+            value={this.value}
+            argKey={argKey}
+            funcID={funcID}
+            bodyID={bodyID}
+            onChangeArg={onChangeArg}
+            declarationID={declarationID}
+            onGenerateScript={onGenerateScript}
+          />
         )
       }
       case argTypes.NIL: {
@@ -117,10 +117,6 @@ class FuncArg extends PureComponent<Props> {
         )
       }
     }
-  }
-
-  private filter = nodes => {
-    return <FilterBuilder nodes={nodes} />
   }
 
   private get value(): string {

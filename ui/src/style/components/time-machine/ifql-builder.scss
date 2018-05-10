@@ -3,11 +3,11 @@ $ifql-node-tooltip-gap: 4px;
 $ifql-node-gap: 5px;
 $ifql-node-padding: 10px;
 $ifql-arg-min-width: 120px;
-
 /*
   Shared Node styles
   ------------------
 */
+
 %ifql-node {
   min-height: $ifql-node-height;
   border-radius: $radius;
@@ -17,7 +17,6 @@ $ifql-arg-min-width: 120px;
   position: relative;
   background-color: $g4-onyx;
   transition: background-color 0.25s ease;
-
   &:hover {
     background-color: $g6-smoke;
   }
@@ -38,7 +37,6 @@ $ifql-arg-min-width: 120px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-
   &:last-of-type {
     margin-bottom: 0;
   }
@@ -51,21 +49,27 @@ $ifql-arg-min-width: 120px;
   white-space: nowrap;
   @include no-user-select();
 }
+
 .variable-blank {
   font-style: italic;
 }
+
 .variable-name {
   color: $c-pool;
 }
+
 .variable-value--string {
   color: $c-honeydew
 }
+
 .variable-value--boolean {
   color: $c-viridian
 }
+
 .variable-value--number {
   color: $c-neutrino;
 }
+
 .variable-value--invalid {
   color: $c-dreamsicle;
 }
@@ -74,9 +78,7 @@ $ifql-arg-min-width: 120px;
   @extend %ifql-node;
   display: flex;
   align-items: center;
-  margin-left: $ifql-node-gap;
-
-  // Connection Line
+  margin-left: $ifql-node-gap; // Connection Line
   &:after {
     content: '';
     height: 4px;
@@ -87,12 +89,12 @@ $ifql-arg-min-width: 120px;
     left: 0;
     transform: translate(-100%, -50%);
   }
-
   &:first-child:after {
     content: none;
     margin-left: 0;
   }
 }
+
 .func-node--name,
 .func-node--preview {
   font-size: 13px;
@@ -106,7 +108,6 @@ $ifql-arg-min-width: 120px;
   height: $ifql-node-height;
   line-height: $ifql-node-height;
   color: $c-comet;
-
   .func-node:hover & {
     color: $c-potassium;
   }
@@ -118,12 +119,10 @@ $ifql-arg-min-width: 120px;
   padding: 5px 0;
   display: flex;
   align-items: center;
-
   .func-node:hover & {
     color: $g17-whisper;
   }
 }
- 
 
 .func-node--tooltip,
 .variable-name--tooltip {
@@ -137,9 +136,7 @@ $ifql-arg-min-width: 120px;
   top: calc(100% + #{$ifql-node-tooltip-gap});
   left: 0;
   z-index: 9999;
-  box-shadow: 0 0 10px 2px $g2-kevlar;
-
-  // Caret
+  box-shadow: 0 0 10px 2px $g2-kevlar; // Caret
   &:before {
     content: '';
     border-width: 9px;
@@ -150,9 +147,7 @@ $ifql-arg-min-width: 120px;
     top: 0;
     left: $ifql-node-padding + 3px;
     transform: translate(-50%, -100%);
-  }
-
-  // Invisible block to continue hovering
+  } // Invisible block to continue hovering
   &:after {
     content: '';
     width: 80%;
@@ -163,22 +158,27 @@ $ifql-arg-min-width: 120px;
   }
 }
 
-.func-node--delete {
+.func-node--buttons {
+  display: flex;
   margin-top: 12px;
+}
+
+.func-node--delete,
+.func-node--build {
   width: 60px;
 }
 
-.func-arg {
+.func-node--sub .func-arg {
   min-width: $ifql-arg-min-width;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   margin-bottom: 4px;
-
   &:last-of-type {
     margin-bottom: 0;
   }
 }
+
 .func-arg--label {
   white-space: nowrap;
   font-size: 13px;
@@ -187,10 +187,15 @@ $ifql-arg-min-width: 120px;
   padding-right: 8px;
   @include no-user-select();
 }
+
 .func-arg--value {
   flex: 1 0 0;
 }
 
+.func-arg--textarea {
+  overflow: hidden;
+  width: 300px;
+}
 
 .variable-name--tooltip {
   flex-direction: row;
@@ -216,6 +221,7 @@ $ifql-arg-min-width: 120px;
   Filter Preview Styles
   ------------------------------------------------------------------------------
 */
+
 .ifql-filter--expression {
   min-height: 26px;
   padding: 5px;
@@ -224,20 +230,20 @@ $ifql-arg-min-width: 120px;
   align-items: center;
   border-radius: $radius - 1px;
   transition: background-color 0.25s ease;
-
-  > .ifql-filter--expression {
+  >.ifql-filter--expression {
     background-color: $g4-onyx;
     border-radius: $radius - 2px;
   }
 }
+
 .ifql-filter--operator {
   padding: 0 5px;
 }
+
 .func-node:hover {
   .ifql-filter--expression {
     background-color: $g4-onyx;
-
-    > .ifql-filter--expression {
+    >.ifql-filter--expression {
       background-color: $g6-smoke;
     }
   }
