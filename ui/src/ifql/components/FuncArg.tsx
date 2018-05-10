@@ -57,6 +57,7 @@ class FuncArg extends PureComponent<Props> {
       case argTypes.FLOAT:
       case argTypes.INT:
       case argTypes.UINT:
+      case argTypes.INVALID:
       case argTypes.ARRAY: {
         return (
           <FuncArgInput
