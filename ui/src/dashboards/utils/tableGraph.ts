@@ -4,8 +4,15 @@ import {map, reduce, filter} from 'fast.js'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
 import {DEFAULT_TIME_FIELD, DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
+import {
+  DbData,
+  Sort,
+  FieldOption,
+  TableOptions,
+  DecimalPlaces,
+} from 'src/types/dashboard'
 
-const calculateTimeColumnWidth = timeFormat => {
+const calculateTimeColumnWidth = (timeFormat: string): number => {
   // Force usage of longest format names for ideal measurement
   timeFormat = _.replace(timeFormat, 'MMMM', 'September')
   timeFormat = _.replace(timeFormat, 'dddd', 'Wednesday')
@@ -22,17 +29,21 @@ const calculateTimeColumnWidth = timeFormat => {
   return width + CELL_HORIZONTAL_PADDING
 }
 
+interface ColumnWidths {
+  totalWidths: number
+  widths: {[x: string]: number}
+}
 const updateMaxWidths = (
-  row,
-  maxColumnWidths,
-  topRow,
-  isTopRow,
-  fieldOptions,
-  timeFormatWidth,
-  verticalTimeAxis,
-  decimalPlaces
-) => {
-  return reduce(
+  row: DbData[],
+  maxColumnWidths: ColumnWidths,
+  topRow: DbData[],
+  isTopRow: boolean,
+  fieldOptions: FieldOption[],
+  timeFormatWidth: number,
+  verticalTimeAxis: boolean,
+  decimalPlaces: DecimalPlaces
+): ColumnWidths => {
+  const maxWidths = reduce(
     row,
     (acc, col, c) => {
       const isLabel =
@@ -79,14 +90,22 @@ const updateMaxWidths = (
     },
     {...maxColumnWidths}
   )
+  return maxWidths
 }
 
-export const computeFieldOptions = (existingFieldOptions, sortedLabels) => {
+interface SortedLabel {
+  label: string
+  responseIndex: number
+  seriesIndex: number
+}
+export const computeFieldOptions = (
+  existingFieldOptions: FieldOption[],
+  sortedLabels: SortedLabel[]
+): FieldOption[] => {
   const timeField =
     existingFieldOptions.find(f => f.internalName === 'time') ||
     DEFAULT_TIME_FIELD
   let astNames = [timeField]
-
   sortedLabels.forEach(({label}) => {
     const field = {
       internalName: label,
@@ -108,12 +127,12 @@ export const computeFieldOptions = (existingFieldOptions, sortedLabels) => {
 }
 
 export const calculateColumnWidths = (
-  data,
-  fieldOptions,
-  timeFormat,
-  verticalTimeAxis,
-  decimalPlaces
-) => {
+  data: DbData[][],
+  fieldOptions: FieldOption[],
+  timeFormat: string,
+  verticalTimeAxis: boolean,
+  decimalPlaces: DecimalPlaces
+): ColumnWidths => {
   const timeFormatWidth = calculateTimeColumnWidth(
     timeFormat === '' ? DEFAULT_TIME_FORMAT : timeFormat
   )
@@ -135,7 +154,10 @@ export const calculateColumnWidths = (
   )
 }
 
-export const filterTableColumns = (data, fieldOptions) => {
+export const filterTableColumns = (
+  data: DbData[][],
+  fieldOptions: FieldOption[]
+): DbData[][] => {
   const visibility = {}
   const filteredData = map(data, (row, i) => {
     return filter(row, (col, j) => {
@@ -151,7 +173,10 @@ export const filterTableColumns = (data, fieldOptions) => {
   return filteredData[0].length ? filteredData : [[]]
 }
 
-export const orderTableColumns = (data, fieldOptions) => {
+export const orderTableColumns = (
+  data: DbData[][],
+  fieldOptions: FieldOption[]
+): DbData[][] => {
   const fieldsSortOrder = fieldOptions.map(fieldOption => {
     return _.findIndex(data[0], dataLabel => {
       return dataLabel === fieldOption.internalName
@@ -164,14 +189,20 @@ export const orderTableColumns = (data, fieldOptions) => {
   return orderedData[0].length ? orderedData : [[]]
 }
 
+interface TransformTableDataReturnType {
+  transformedData: DbData[][]
+  sortedTimeVals: number[]
+  columnWidths: ColumnWidths
+  totalWidths: number
+}
 export const transformTableData = (
-  data,
-  sort,
-  fieldOptions,
-  tableOptions,
-  timeFormat,
-  decimalPlaces
-) => {
+  data: DbData[][],
+  sort: Sort,
+  fieldOptions: FieldOption[],
+  tableOptions: TableOptions,
+  timeFormat: string,
+  decimalPlaces: DecimalPlaces
+): TransformTableDataReturnType => {
   const {verticalTimeAxis} = tableOptions
   const sortIndex = _.indexOf(data[0], sort.field)
   const sortedData = [

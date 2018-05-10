@@ -10,7 +10,7 @@ interface Axis {
   scale: string
 }
 
-export type dbData = string | number | null | undefined
+export type DbData = string | number | null | undefined
 
 export interface FieldOption {
   internalName: string

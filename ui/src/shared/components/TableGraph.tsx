@@ -35,7 +35,7 @@ import {
   FieldOption,
   DecimalPlaces,
   Sort,
-  dbData,
+  DbData,
 } from 'src/types/dashboard'
 
 interface Props {
@@ -52,17 +52,22 @@ interface Props {
 }
 
 interface State {
-  data: dbData[][]
-  transformedData: dbData[][]
+  data: DbData[][]
+  transformedData: DbData[][]
   sortedTimeVals: number[]
   sortedLabels: string[]
   hoveredColumnIndex: number
   hoveredRowIndex: number
   timeColumnWidth: number
   sort: Sort
-  columnWidths: {}
+  columnWidths: ColumnWidths
   totalColumnWidths: number
   isTimeVisible: boolean
+}
+
+interface ColumnWidths {
+  totalWidths: number
+  widths: {[x: string]: number}
 }
 
 @ErrorHandling
@@ -84,7 +89,7 @@ class TableGraph extends Component<Props, State> {
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sort: {field: sortField, direction: DEFAULT_SORT_DIRECTION},
-      columnWidths: {},
+      columnWidths: {totalWidths: 0, widths: {}},
       totalColumnWidths: 0,
       isTimeVisible: true,
       timeColumnWidth: 0,
@@ -119,7 +124,7 @@ class TableGraph extends Component<Props, State> {
 
     const tableWidth = _.get(this, ['gridContainer', 'clientWidth'], 0)
     const tableHeight = _.get(this, ['gridContainer', 'clientHeight'], 0)
-    const {scrollToColumn, scrollToRow} = this.calcScrollToColRow()
+    const {scrollToColumn, scrollToRow} = this.scrollToColRow
     return (
       <div
         className="table-graph-container"
@@ -306,7 +311,7 @@ class TableGraph extends Component<Props, State> {
     }
   }
 
-  private handleUpdateFieldOptions = fieldOptions => {
+  private handleUpdateFieldOptions = (fieldOptions: FieldOption[]): void => {
     const {isInCEO} = this.props
     if (!isInCEO) {
       return
@@ -314,7 +319,10 @@ class TableGraph extends Component<Props, State> {
     this.props.handleUpdateFieldOptions(fieldOptions)
   }
 
-  private calcScrollToColRow = () => {
+  private get scrollToColRow(): {
+    scrollToRow: number | null
+    scrollToColumn: number | null
+  } {
     const {data, sortedTimeVals, hoveredColumnIndex, isTimeVisible} = this.state
     const {hoverTime, tableOptions} = this.props
     const hoveringThisTable = hoveredColumnIndex !== NULL_ARRAY_INDEX
@@ -325,7 +333,7 @@ class TableGraph extends Component<Props, State> {
       hoveringThisTable ||
       !isTimeVisible
     ) {
-      return {scrollToColumn: undefined, scrollToRow: undefined}
+      return {scrollToColumn: null, scrollToRow: null}
     }
 
     const firstDiff = Math.abs(Number(hoverTime) - sortedTimeVals[1]) // sortedTimeVals[0] is "time"
@@ -342,12 +350,15 @@ class TableGraph extends Component<Props, State> {
     )
 
     const {verticalTimeAxis} = tableOptions
-    const scrollToColumn = verticalTimeAxis ? undefined : hoverTimeFound.index
-    const scrollToRow = verticalTimeAxis ? hoverTimeFound.index : undefined
+    const scrollToColumn = verticalTimeAxis ? null : hoverTimeFound.index
+    const scrollToRow = verticalTimeAxis ? hoverTimeFound.index : null
     return {scrollToRow, scrollToColumn}
   }
 
-  private handleHover = (columnIndex, rowIndex) => () => {
+  private handleHover = (
+    columnIndex: number,
+    rowIndex: number
+  ): (() => void) => (): void => {
     const {
       handleSetHoverTime,
       tableOptions: {verticalTimeAxis},
@@ -368,7 +379,7 @@ class TableGraph extends Component<Props, State> {
     })
   }
 
-  private handleMouseLeave = () => {
+  private handleMouseLeave = (): void => {
     if (this.props.handleSetHoverTime) {
       this.props.handleSetHoverTime(NULL_HOVER_TIME)
       this.setState({
@@ -378,7 +389,7 @@ class TableGraph extends Component<Props, State> {
     }
   }
 
-  private handleClickFieldName = clickedFieldName => () => {
+  private handleClickFieldName = (clickedFieldName: string) => (): void => {
     const {tableOptions, fieldOptions, timeFormat, decimalPlaces} = this.props
     const {data, sort} = this.state
 
@@ -405,7 +416,9 @@ class TableGraph extends Component<Props, State> {
     })
   }
 
-  private calculateColumnWidth = columnSizerWidth => column => {
+  private calculateColumnWidth = (columnSizerWidth: number) => (column: {
+    index: number
+  }): number => {
     const {index} = column
     const {
       tableOptions: {fixFirstColumn},
@@ -435,20 +448,19 @@ class TableGraph extends Component<Props, State> {
   }
 
   private createCellContents = (
-    cellData,
-    fieldName,
-    isTimeData,
-    isFieldName,
-    isNumerical
-  ) => {
+    cellData: DbData,
+    fieldName: DbData,
+    isTimeData: boolean,
+    isFieldName: boolean
+  ): string => {
     const {timeFormat, decimalPlaces} = this.props
     if (isTimeData) {
       return `${moment(cellData).format(timeFormat)}`
     }
-    if (isFieldName) {
-      return fieldName
+    if (typeof cellData === 'string' && isFieldName) {
+      return `${fieldName}`
     }
-    if (isNumerical && decimalPlaces.isEnforced) {
+    if (typeof cellData === 'number' && decimalPlaces.isEnforced) {
       return cellData.toFixed(decimalPlaces.digits)
     }
     return `${cellData}`
@@ -543,8 +555,7 @@ class TableGraph extends Component<Props, State> {
       cellData,
       fieldName,
       isTimeData,
-      isFieldName,
-      isNumerical
+      isFieldName
     )
 
     return (
@@ -552,7 +563,11 @@ class TableGraph extends Component<Props, State> {
         key={key}
         style={cellStyle}
         className={cellClass}
-        onClick={isFieldName ? this.handleClickFieldName(cellData) : null}
+        onClick={
+          isFieldName && typeof cellData === 'string'
+            ? this.handleClickFieldName(cellData)
+            : null
+        }
         onMouseOver={_.throttle(this.handleHover(columnIndex, rowIndex), 100)}
         title={cellContents}
       >
