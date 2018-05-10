@@ -51,6 +51,7 @@ interface PropertyNode {
 }
 
 export interface MemberExpressionNode {
+  type: string
   source: string
   object: ObjectNode
   property: PropertyNode

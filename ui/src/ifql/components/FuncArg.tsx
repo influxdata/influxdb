@@ -5,6 +5,7 @@ import FuncArgBool from 'src/ifql/components/FuncArgBool'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import From from 'src/ifql/components/From'
 import Filter from 'src/ifql/components/Filter'
+import FilterBuilder from 'src/ifql/components/FilterBuilder'
 
 import {funcNames, argTypes} from 'src/ifql/constants'
 import {OnChangeArg} from 'src/types/ifql'
@@ -119,8 +120,7 @@ class FuncArg extends PureComponent<Props> {
   }
 
   private filter = nodes => {
-    console.log(nodes)
-    return null
+    return <FilterBuilder nodes={nodes} />
   }
 
   private get value(): string {

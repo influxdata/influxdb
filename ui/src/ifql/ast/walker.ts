@@ -96,7 +96,7 @@ export default class Walker {
         node.type === 'ObjectExpression'
       ) {
         const {location, object, property} = node
-        const {name, type} = property
+        const {name, type, value} = property
         const {source} = location
 
         results = [
@@ -104,7 +104,7 @@ export default class Walker {
           {
             source,
             object: {name: object.name, type: object.type},
-            property: {name, type},
+            property: {name: name || value, type},
             type: node.type,
             paren,
           },

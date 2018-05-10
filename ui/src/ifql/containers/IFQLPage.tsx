@@ -40,8 +40,8 @@ export class IFQLPage extends PureComponent<Props, State> {
       suggestions: [],
       script: `from(db:"foo")
         |> filter(fn: (r) => 
-        (r.a == "one" OR r.b == "two") AND 
-        (r.c == "three" OR r.d == "four"))`,
+        (r["a"] == 1 OR r.b == "two") AND 
+        (r["b"] == true OR r.d == "four"))`,
     }
   }
 
