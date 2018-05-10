@@ -180,7 +180,7 @@ export const HANDLERS_TO_RULE = {
   pagerDuty2: [],
   pushover: ['device', 'title', 'sound', 'url', 'urlTitle'],
   sensu: ['source', 'handlers'],
-  slack: ['channel', 'username', 'iconEmoji'],
+  slack: ['channel', 'username', 'iconEmoji', 'workspace'],
   email: ['to'],
   talk: [],
   telegram: [

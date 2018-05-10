@@ -126,6 +126,32 @@ class RuleHandlers extends Component {
     )
   }
 
+  getNickname = handler => {
+    const configType = handler.type
+    if (configType === 'slack') {
+      const workspace = _.get(handler, 'workspace')
+
+      if (workspace === '') {
+        return 'default'
+      }
+
+      return workspace
+    }
+
+    return undefined
+  }
+
+  mapWithNicknames = handlers => {
+    return _.map(handlers, h => {
+      const nickname = this.getNickname(h)
+      if (nickname) {
+        return {...h, text: `${h.type} (${nickname})`}
+      }
+
+      return {...h, text: h.type}
+    })
+  }
+
   render() {
     const {
       rule,
@@ -136,17 +162,17 @@ class RuleHandlers extends Component {
     } = this.props
     const {handlersOnThisAlert, selectedHandler} = this.state
 
-    const mappedhandlers = _.map(
-      [...DEFAULT_HANDLERS, ...handlersFromConfig],
-      h => {
-        return {...h, text: h.type}
-      }
-    )
+    const mappedHandlers = this.mapWithNicknames([
+      ...DEFAULT_HANDLERS,
+      ...handlersFromConfig,
+    ])
+
+    const mappedHandlersOnThisAlert = this.mapWithNicknames(handlersOnThisAlert)
 
     const handlers = _.flatten([
-      _.filter(mappedhandlers, ['enabled', true]),
+      _.filter(mappedHandlers, ['enabled', true]),
       {text: 'SEPARATOR'},
-      _.filter(mappedhandlers, ['enabled', false]),
+      _.filter(mappedHandlers, ['enabled', false]),
     ])
 
     const dropdownLabel = handlersOnThisAlert.length
@@ -171,10 +197,10 @@ class RuleHandlers extends Component {
               className="dropdown-170 rule-message--add-endpoint"
             />
           </div>
-          {handlersOnThisAlert.length ? (
+          {mappedHandlersOnThisAlert.length ? (
             <div className="rule-message--endpoints">
               <HandlerTabs
-                handlersOnThisAlert={handlersOnThisAlert}
+                handlersOnThisAlert={mappedHandlersOnThisAlert}
                 selectedHandler={selectedHandler}
                 handleChooseHandler={this.handleChooseHandler}
                 handleRemoveHandler={this.handleRemoveHandler}

@@ -20,19 +20,11 @@ const parseHandlersFromConfig = config => {
     data: {sections},
   } = config
 
-  const multiConfigSections = {}
-
   const allHandlers = _.reduce(
     sections,
     (acc, v, k) => {
       const options = getElementOptions(v)
       const type = _.get(MAP_KEYS_FROM_CONFIG, k, k)
-
-      // keep track of sections with multiple configs
-      const numberOfThisConfigType = _.get(options, 'length', 0)
-      if (numberOfThisConfigType > 1) {
-        multiConfigSections[type] = true
-      }
 
       _.forEach(options, option => {
         acc.push({
