@@ -39,7 +39,7 @@ class ThresholdsList extends PureComponent<Props> {
     showListHeading: false,
   }
 
-  get sortedColors() {
+  private get sortedColors() {
     const {thresholdsListColors} = this.props
     const sortedColors = _.sortBy(thresholdsListColors, 'value')
 
