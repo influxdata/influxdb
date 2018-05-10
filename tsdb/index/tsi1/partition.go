@@ -63,9 +63,6 @@ type Partition struct {
 	// Fieldset shared with engine.
 	fieldset *tsdb.MeasurementFieldSet
 
-	// Name of database.
-	Database string
-
 	// Directory of the Partition's index files.
 	path string
 	id   string // id portion of path.
@@ -127,7 +124,6 @@ func (i *Partition) bytes() int {
 	b += int(unsafe.Sizeof(i.closing))
 	b += 16 // wg sync.WaitGroup is 16 bytes
 	b += int(unsafe.Sizeof(i.fieldset)) + i.fieldset.Bytes()
-	b += int(unsafe.Sizeof(i.Database)) + len(i.Database)
 	b += int(unsafe.Sizeof(i.path)) + len(i.path)
 	b += int(unsafe.Sizeof(i.id)) + len(i.id)
 	b += int(unsafe.Sizeof(i.MaxLogFileSize))
@@ -213,7 +209,7 @@ func (i *Partition) Open() error {
 			files = append(files, f)
 		}
 	}
-	fs, err := NewFileSet(i.Database, i.levels, i.sfile, files)
+	fs, err := NewFileSet(i.levels, i.sfile, files)
 	if err != nil {
 		return err
 	}

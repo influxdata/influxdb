@@ -312,7 +312,7 @@ func (s *Shard) Open() error {
 		idx.WithLogger(s.baseLogger)
 
 		// Initialize underlying engine.
-		e, err := NewEngine(s.id, idx, s.database, s.path, s.walPath, s.sfile, s.options)
+		e, err := NewEngine(s.id, idx, s.path, s.walPath, s.sfile, s.options)
 		if err != nil {
 			return err
 		}
