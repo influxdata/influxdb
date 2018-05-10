@@ -430,7 +430,7 @@ class AlertTabs extends PureComponent<Props, State> {
     return _.get(
       sections,
       [section, 'elements', '0', 'options', 'enabled'],
-      null
+      false
     )
   }
 
@@ -475,7 +475,7 @@ class AlertTabs extends PureComponent<Props, State> {
   }
 
   private sanitizeProperties = (section: string, properties: Props): Props => {
-    const cleanProps = {...properties, enabled: true}
+    const cleanProps = {enabled: true, ...properties}
     const {redacted} = this.getSection(this.state.configSections, section)
     if (redacted && redacted.length) {
       redacted.forEach(badProp => {
