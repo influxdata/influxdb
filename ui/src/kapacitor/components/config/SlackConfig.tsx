@@ -62,6 +62,7 @@ class SlackConfig extends PureComponent<Props, State> {
     const workspaceID = workspace || 'default'
 
     const isNickNameEnabled = isNewConfig && !testEnabled
+    const isDefaultConfig = workspace === ''
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -143,10 +144,12 @@ class SlackConfig extends PureComponent<Props, State> {
             <span className="icon pulse-c" />
             Send Test Alert
           </button>
-          <button className="btn btn-danger" onClick={this.handleDelete}>
-            <span className="icon trash" />
-            Delete
-          </button>
+          {!isDefaultConfig && (
+            <button className="btn btn-danger" onClick={this.handleDelete}>
+              <span className="icon trash" />
+              Delete
+            </button>
+          )}
         </div>
         <br />
         <br />

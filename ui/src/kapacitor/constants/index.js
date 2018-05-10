@@ -121,7 +121,7 @@ export const ALERTS_FROM_CONFIG = {
   pagerDuty2: ['routing-key'], // routing-key = bool
   pushover: ['token', 'user-key'], // token = bool, user-key = bool
   sensu: ['addr', 'source'],
-  slack: ['url', 'channel'], // url = bool
+  slack: ['url', 'channel', 'workspace'], // url = bool
   email: ['from', 'host', 'password', 'port', 'username'], // password = bool
   talk: ['url', 'author_name'], // url = bool
   telegram: [
