@@ -58,8 +58,12 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         name: 'Script',
-        render: () => (
-          <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
+        render: visibility => (
+          <TimeMachineEditor
+            script={script}
+            onChangeScript={onChangeScript}
+            visibility={visibility}
+          />
         ),
       },
       {
