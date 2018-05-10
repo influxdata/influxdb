@@ -37,7 +37,7 @@ func init() {
 	tsdb.NewInmemIndex = func(name string, sfile *tsdb.SeriesFile) (interface{}, error) { return NewIndex(name, sfile), nil }
 
 	tsdb.RegisterIndex(IndexName, func(id uint64, database, path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
-		return NewShardIndex(id, database, path, seriesIDSet, sfile, opt)
+		return NewShardIndex(id, seriesIDSet, opt)
 	})
 }
 
@@ -1208,7 +1208,7 @@ func (idx *ShardIndex) SeriesIDSet() *tsdb.SeriesIDSet {
 }
 
 // NewShardIndex returns a new index for a shard.
-func NewShardIndex(id uint64, database, path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
+func NewShardIndex(id uint64, seriesIDSet *tsdb.SeriesIDSet, opt tsdb.EngineOptions) tsdb.Index {
 	return &ShardIndex{
 		Index:       opt.InmemIndex.(*Index),
 		id:          id,

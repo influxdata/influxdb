@@ -27,7 +27,7 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesExceeded(b *testin
 	defer sfile.Close()
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
 	opt.Config.MaxValuesPerTag = 10
-	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
+	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
 	si.CreateSeriesListIfNotExists(keys, names, tags)
@@ -45,7 +45,7 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesNotExceeded(b *tes
 	defer sfile.Close()
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
 	opt.Config.MaxValuesPerTag = 100000
-	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
+	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
 	si.CreateSeriesListIfNotExists(keys, names, tags)
@@ -62,7 +62,7 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_NoMaxValues(b *testing.B) {
 	sfile := mustOpenSeriesFile()
 	defer sfile.Close()
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
-	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
+	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
 	si.CreateSeriesListIfNotExists(keys, names, tags)
@@ -81,7 +81,7 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxSeriesExceeded(b *testin
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
 	opt.Config.MaxValuesPerTag = 0
 	opt.Config.MaxSeriesPerDatabase = 10
-	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
+	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
 	si.CreateSeriesListIfNotExists(keys, names, tags)
@@ -98,7 +98,7 @@ func TestIndex_Bytes(t *testing.T) {
 	sfile := mustOpenSeriesFile()
 	defer sfile.Close()
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
-	si := inmem.NewShardIndex(1, "foo", "bar", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt).(*inmem.ShardIndex)
+	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt).(*inmem.ShardIndex)
 
 	indexBaseBytes, _ := si.Bytes()
 
