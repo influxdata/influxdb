@@ -156,7 +156,7 @@ export const getKapacitorConfigSection = (kapacitor, section) => {
 }
 
 export function updateKapacitorConfigSection(kapacitor, section, properties) {
-  return AJAX({
+  const params = {
     method: 'POST',
     url: kapacitor.links.proxy,
     params: {
@@ -168,7 +168,9 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
     headers: {
       'Content-Type': 'application/json',
     },
-  })
+  }
+
+  return AJAX(params)
 }
 
 export const testAlertOutput = async (kapacitor, outputName, options) => {

@@ -6,6 +6,7 @@
 1.  [#3290](https://github.com/influxdata/chronograf/pull/3290): Add support for PagerDuty v2 in UI
 1.  [#3369](https://github.com/influxdata/chronograf/pull/3369): Add support for OpsGenie v2 in UI
 1.  [#3386](https://github.com/influxdata/chronograf/pull/3386): Add support for Kafka in UI to configure and create alert handlers
+1.  [#3416](https://github.com/influxdata/chronograf/pull/3416): Allow kapacitor services to be disabled
 
 ### UI Improvements
 

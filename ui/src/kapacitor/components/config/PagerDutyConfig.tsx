@@ -1,4 +1,5 @@
-import React, {PureComponent} from 'react'
+import _ from 'lodash'
+import React, {PureComponent, ChangeEvent} from 'react'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -11,6 +12,7 @@ interface Config {
   options: {
     'service-key': boolean
     url: string
+    enabled: boolean
   }
 }
 
@@ -23,6 +25,7 @@ interface Props {
 
 interface State {
   testEnabled: boolean
+  enabled: boolean
 }
 
 @ErrorHandling
@@ -34,6 +37,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
+      enabled: _.get(this.props, 'config.options.enabled', false),
     }
   }
 
@@ -41,7 +45,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
     const {options} = this.props.config
     const {url} = options
     const serviceKey = options['service-key']
-    const {testEnabled} = this.state
+    const {testEnabled, enabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -68,6 +72,18 @@ class PagerDutyConfig extends PureComponent<Props, State> {
           />
         </div>
 
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id="disabled"
+              checked={enabled}
+              onChange={this.handleEnabledChange}
+            />
+            <label htmlFor="disabled">Configuration Enabled</label>
+          </div>
+        </div>
+
         <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
@@ -79,7 +95,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
           </button>
           <button
             className="btn btn-primary"
-            disabled={!this.state.testEnabled}
+            disabled={!this.state.testEnabled || !enabled}
             onClick={this.props.onTest}
           >
             <span className="icon pulse-c" />
@@ -92,12 +108,18 @@ class PagerDutyConfig extends PureComponent<Props, State> {
 
   private handleServiceKeyRef = r => (this.serviceKey = r)
 
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({enabled: e.target.checked})
+    this.disableTest()
+  }
+
   private handleSubmit = async e => {
     e.preventDefault()
 
     const properties = {
       'service-key': this.serviceKey.value,
       url: this.url.value,
+      enabled: this.state.enabled,
     }
 
     const success = await this.props.onSave(properties)
