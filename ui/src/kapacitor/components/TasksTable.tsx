@@ -93,7 +93,7 @@ export class TaskRow extends PureComponent<TaskRowProps> {
               checked={task.status === 'enabled'}
               onChange={this.handleClickRuleStatusEnabled(task)}
             />
-            <label htmlFor={`kapacitor-task-row-task-enabled ${task.id}`} />
+            <label htmlFor={`kapacitor-task-row-task-enabled ${task.name}`} />
           </div>
         </td>
         <td style={{width: colActions}} className="text-right">
