@@ -30,31 +30,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {TimeSeriesServerResponse} from 'src/types/series'
 import {ColorString} from 'src/types/colors'
-
-type dbData = string | number | null | undefined
-
-interface TableOptions {
-  verticalTimeAxis: boolean
-  sortBy: FieldOption
-  wrapping?: string
-  fixFirstColumn: boolean
-}
-
-interface DecimalPlaces {
-  isEnforced: boolean
-  digits: number
-}
-
-interface FieldOption {
-  internalName: string
-  displayName: string
-  visible: boolean
-}
-
-interface Sort {
-  field: string
-  direction: string
-}
+import {
+  TableOptions,
+  FieldOption,
+  DecimalPlaces,
+  Sort,
+  dbData,
+} from 'src/types/dashboard'
 
 interface Props {
   data: TimeSeriesServerResponse

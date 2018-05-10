@@ -10,9 +10,12 @@ interface Axis {
   scale: string
 }
 
-export interface Axes {
-  x: Axis
-  y: Axis
+export type dbData = string | number | null | undefined
+
+export interface FieldOption {
+  internalName: string
+  displayName: string
+  visible: boolean
 }
 
 export interface FieldName {
@@ -24,8 +27,18 @@ export interface FieldName {
 export interface TableOptions {
   verticalTimeAxis: boolean
   sortBy: FieldName
-  wrapping: string
+  wrapping?: string
   fixFirstColumn: boolean
+}
+
+export interface Sort {
+  field: string
+  direction: string
+}
+
+export interface Axes {
+  x: Axis
+  y: Axis
 }
 
 interface CellLinks {
