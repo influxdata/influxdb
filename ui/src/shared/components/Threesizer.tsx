@@ -32,7 +32,7 @@ interface Division {
   name?: string
   handleDisplay?: string
   handlePixels?: number
-  render: () => ReactElement<any>
+  render: (visibility?: string) => ReactElement<any>
 }
 
 interface DivisionState extends Division {

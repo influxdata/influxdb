@@ -19,6 +19,12 @@ import {
 } from 'src/shared/copy/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface TaskResponse {
+  id: number
+  code: number
+  message: string
+}
+
 interface ErrorActions {
   errorThrown: (notify: string | object) => void
 }
@@ -34,13 +40,13 @@ interface KapacitorActions {
     ruleID: string,
     router: Router,
     sourceID: string
-  ) => void
+  ) => Promise<TaskResponse>
   createTask: (
     kapacitor: Kapacitor,
     task: Task,
     router: Router,
     sourceID: string
-  ) => void
+  ) => Promise<TaskResponse>
   getRule: (kapacitor: Kapacitor, ruleID: string) => void
 }
 
@@ -166,28 +172,53 @@ export class TickscriptPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleSave = async () => {
+  private async updateTask(): Promise<TaskResponse> {
     const {kapacitor, task} = this.state
     const {
       source: {id: sourceID},
       router,
-      kapacitorActions: {createTask, updateTask},
+      kapacitorActions: {updateTask},
       params: {ruleID},
     } = this.props
 
-    let response
+    return await updateTask(kapacitor, task, ruleID, router, sourceID)
+  }
+
+  private async createTask(): Promise<TaskResponse> {
+    const {kapacitor, task} = this.state
+
+    const {
+      source: {id: sourceID},
+      router,
+      kapacitorActions: {createTask},
+    } = this.props
+
+    return await createTask(kapacitor, task, router, sourceID)
+  }
+
+  private async persist(): Promise<TaskResponse> {
+    if (this.isEditing) {
+      return await this.updateTask()
+    } else {
+      return await this.createTask()
+    }
+  }
+
+  private handleSave = async () => {
+    const {
+      source: {id: sourceID},
+      router,
+    } = this.props
 
     try {
-      if (this.isEditing) {
-        response = await updateTask(kapacitor, task, ruleID, router, sourceID)
-      } else {
-        response = await createTask(kapacitor, task, router, sourceID)
-      }
+      const response = await this.persist()
 
       if (response.code === 422) {
         this.setState({unsavedChanges: true, consoleMessage: response.message})
         return
-      } else if (response.code) {
+      }
+
+      if (response.code) {
         this.setState({unsavedChanges: true, consoleMessage: response.message})
       } else {
         this.setState({unsavedChanges: false, consoleMessage: ''})
