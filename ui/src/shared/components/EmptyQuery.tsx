@@ -1,7 +1,10 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-const EmptyQueryState = ({onAddQuery}) => (
+interface Props {
+  onAddQuery: () => void
+}
+
+const EmptyQueryState: SFC<Props> = ({onAddQuery}) => (
   <div className="query-maker--empty">
     <h5>This Graph has no Queries</h5>
     <br />
@@ -10,11 +13,5 @@ const EmptyQueryState = ({onAddQuery}) => (
     </div>
   </div>
 )
-
-const {func} = PropTypes
-
-EmptyQueryState.propTypes = {
-  onAddQuery: func.isRequired,
-}
 
 export default EmptyQueryState

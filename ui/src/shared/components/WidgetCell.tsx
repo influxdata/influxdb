@@ -1,13 +1,25 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
 import AlertsApp from 'src/alerts/containers/AlertsApp'
 import NewsFeed from 'src/status/components/NewsFeed'
 import GettingStarted from 'src/status/components/GettingStarted'
 
+import {Cell} from 'src/types/dashboard'
+import {Source} from 'src/types/sources'
 import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
-const WidgetCell = ({cell, source, timeRange}) => {
+interface TimeRange {
+  lower: string
+  upper: string
+}
+
+interface Props {
+  timeRange: TimeRange
+  cell: Cell
+  source: Source
+}
+
+const WidgetCell: SFC<Props> = ({cell, source, timeRange}) => {
   switch (cell.type) {
     case 'alerts': {
       return (
@@ -33,17 +45,6 @@ const WidgetCell = ({cell, source, timeRange}) => {
       )
     }
   }
-}
-
-const {shape, string} = PropTypes
-
-WidgetCell.propTypes = {
-  timeRange: shape({
-    lower: string,
-    upper: string,
-  }),
-  source: shape({}),
-  cell: shape({}),
 }
 
 export default WidgetCell
