@@ -1,8 +1,9 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ReactElement} from 'react'
 import FuncArg from 'src/ifql/components/FuncArg'
 import {OnChangeArg} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Func} from 'src/types/ifql'
+import {funcNames} from 'src/ifql/constants'
 
 interface Props {
   func: Func
@@ -43,13 +44,32 @@ export default class FuncArgs extends PureComponent<Props> {
             />
           )
         })}
-        <div
-          className="btn btn-sm btn-danger func-node--delete"
-          onClick={onDeleteFunc}
-        >
-          Delete
+        <div className="func-node--buttons">
+          <div
+            className="btn btn-sm btn-danger func-node--delete"
+            onClick={onDeleteFunc}
+          >
+            Delete
+          </div>
+          {this.build}
         </div>
       </div>
     )
+  }
+
+  get build(): ReactElement<HTMLDivElement> {
+    const {func, onGenerateScript} = this.props
+    if (func.name === funcNames.FILTER) {
+      return (
+        <div
+          className="btn btn-sm btn-primary func-node--build"
+          onClick={onGenerateScript}
+        >
+          Build
+        </div>
+      )
+    }
+
+    return null
   }
 }

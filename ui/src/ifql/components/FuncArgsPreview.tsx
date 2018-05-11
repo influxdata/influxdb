@@ -1,9 +1,15 @@
 import React, {PureComponent} from 'react'
-import {Arg} from 'src/types/ifql'
+import _ from 'lodash'
+
+import {Func} from 'src/types/ifql'
+import {funcNames} from 'src/ifql/constants'
+import Filter from 'src/ifql/components/Filter'
+import FilterPreview from 'src/ifql/components/FilterPreview'
+
 import uuid from 'uuid'
 
 interface Props {
-  args: Arg[]
+  func: Func
 }
 
 export default class FuncArgsPreview extends PureComponent<Props> {
@@ -12,17 +18,32 @@ export default class FuncArgsPreview extends PureComponent<Props> {
   }
 
   private get summarizeArguments(): JSX.Element | JSX.Element[] {
-    const {args} = this.props
+    const {func} = this.props
+    const {args} = func
 
     if (!args) {
       return
     }
 
+    if (func.name === funcNames.FILTER) {
+      const value = _.get(args, '0.value', '')
+      if (!value) {
+        return this.colorizedArguments
+      }
+
+      return <Filter value={value} render={this.filterPreview} />
+    }
+
     return this.colorizedArguments
   }
 
+  private filterPreview = nodes => {
+    return <FilterPreview nodes={nodes} />
+  }
+
   private get colorizedArguments(): JSX.Element | JSX.Element[] {
-    const {args} = this.props
+    const {func} = this.props
+    const {args} = func
 
     return args.map((arg, i): JSX.Element => {
       if (!arg.value) {

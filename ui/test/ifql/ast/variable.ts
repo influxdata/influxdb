@@ -127,3 +127,91 @@ export const Expression = {
     },
   ],
 }
+
+export const ArrowFunction = {
+  type: 'Program',
+  location: {
+    start: {line: 1, column: 1},
+    end: {line: 1, column: 22},
+    source: 'addOne = (n) =\u003e n + 1',
+  },
+  body: [
+    {
+      type: 'VariableDeclaration',
+      location: {
+        start: {line: 1, column: 1},
+        end: {line: 1, column: 22},
+        source: 'addOne = (n) =\u003e n + 1',
+      },
+      declarations: [
+        {
+          type: 'VariableDeclarator',
+          id: {
+            type: 'Identifier',
+            location: {
+              start: {line: 1, column: 1},
+              end: {line: 1, column: 7},
+              source: 'addOne',
+            },
+            name: 'addOne',
+          },
+          init: {
+            type: 'ArrowFunctionExpression',
+            location: {
+              start: {line: 1, column: 10},
+              end: {line: 1, column: 22},
+              source: '(n) =\u003e n + 1',
+            },
+            params: [
+              {
+                type: 'Property',
+                location: {
+                  start: {line: 1, column: 11},
+                  end: {line: 1, column: 12},
+                  source: 'n',
+                },
+                key: {
+                  type: 'Identifier',
+                  location: {
+                    start: {line: 1, column: 11},
+                    end: {line: 1, column: 12},
+                    source: 'n',
+                  },
+                  name: 'n',
+                },
+                value: null,
+              },
+            ],
+            body: {
+              type: 'BinaryExpression',
+              location: {
+                start: {line: 1, column: 17},
+                end: {line: 1, column: 22},
+                source: 'n + 1',
+              },
+              operator: '+',
+              left: {
+                type: 'Identifier',
+                location: {
+                  start: {line: 1, column: 17},
+                  end: {line: 1, column: 18},
+                  source: 'n',
+                },
+                name: 'n',
+              },
+              right: {
+                type: 'IntegerLiteral',
+                location: {
+                  start: {line: 1, column: 21},
+                  end: {line: 1, column: 22},
+                  source: '1',
+                },
+                value: '1',
+              },
+            },
+          },
+        },
+      ],
+    },
+  ],
+}

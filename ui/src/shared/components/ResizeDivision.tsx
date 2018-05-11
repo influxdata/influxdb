@@ -16,9 +16,15 @@ interface Props {
   draggable: boolean
   orientation: string
   activeHandleID: string
-  render: () => ReactElement<any>
+  render: (visibility: string) => ReactElement<any>
   onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => void
   onDoubleClick: (id: string) => void
+}
+
+interface Style {
+  width?: string
+  height?: string
+  display?: string
 }
 
 class Division extends PureComponent<Props> {
@@ -28,7 +34,12 @@ class Division extends PureComponent<Props> {
   }
 
   private collapseThreshold: number = 0
-  private containerRef: HTMLElement
+  private ref: React.RefObject<HTMLDivElement>
+
+  constructor(props) {
+    super(props)
+    this.ref = React.createRef<HTMLDivElement>()
+  }
 
   public componentDidMount() {
     const {name} = this.props
@@ -53,7 +64,7 @@ class Division extends PureComponent<Props> {
       <div
         className={this.containerClass}
         style={this.containerStyle}
-        ref={r => (this.containerRef = r)}
+        ref={this.ref}
       >
         <div
           style={this.handleStyle}
@@ -67,17 +78,25 @@ class Division extends PureComponent<Props> {
         </div>
         <div className={this.contentsClass} style={this.contentStyle}>
           {name && <div className="threesizer--header" />}
-          <div className="threesizer--body">{render()}</div>
+          <div className="threesizer--body">{render(this.visibility)}</div>
         </div>
       </div>
     )
   }
 
-  private get title() {
+  private get visibility(): string {
+    if (this.props.size === 0) {
+      return 'hidden'
+    }
+
+    return 'visible'
+  }
+
+  private get title(): string {
     return 'Drag to resize.\nDouble click to expand.'
   }
 
-  private get contentStyle() {
+  private get contentStyle(): Style {
     if (this.props.orientation === HANDLE_HORIZONTAL) {
       return {
         height: `calc(100% - ${this.handlePixels}px)`,
@@ -89,7 +108,7 @@ class Division extends PureComponent<Props> {
     }
   }
 
-  private get handleStyle() {
+  private get handleStyle(): Style {
     const {handleDisplay: display, orientation, handlePixels} = this.props
 
     if (orientation === HANDLE_HORIZONTAL) {
@@ -105,7 +124,7 @@ class Division extends PureComponent<Props> {
     }
   }
 
-  private get containerStyle() {
+  private get containerStyle(): Style {
     if (this.props.orientation === HANDLE_HORIZONTAL) {
       return {
         height: this.size,
@@ -175,11 +194,11 @@ class Division extends PureComponent<Props> {
       return true
     }
 
-    if (!this.containerRef || this.props.size >= 0.33) {
+    if (!this.ref || this.props.size >= 0.33) {
       return false
     }
 
-    const {width} = this.containerRef.getBoundingClientRect()
+    const {width} = this.ref.current.getBoundingClientRect()
 
     return width <= this.collapseThreshold
   }
@@ -199,7 +218,7 @@ class Division extends PureComponent<Props> {
     this.props.onHandleStartDrag(id, e)
   }
 
-  private handleDoubleClick = () => {
+  private handleDoubleClick = (): void => {
     const {onDoubleClick, id} = this.props
 
     onDoubleClick(id)
