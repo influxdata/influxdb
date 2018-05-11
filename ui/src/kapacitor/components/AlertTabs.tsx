@@ -530,8 +530,10 @@ class AlertTabs extends PureComponent<Props, State> {
       }
     }
   }
+
   private handleTestConfig = (section: string, options?: object) => async (
-    e: MouseEvent<HTMLButtonElement>
+    e: MouseEvent<HTMLButtonElement>,
+    specificConfig?: string
   ): Promise<void> => {
     e.preventDefault()
 
@@ -539,7 +541,8 @@ class AlertTabs extends PureComponent<Props, State> {
       const {data} = await testAlertOutput(
         this.props.kapacitor,
         section,
-        options
+        options,
+        specificConfig
       )
       if (data.success) {
         this.props.notify(notifyTestAlertSent(section))

@@ -219,13 +219,24 @@ export function deleteKapacitorConfigInSection(
   })
 }
 
-export const testAlertOutput = async (kapacitor, outputName, options) => {
+export const testAlertOutput = async (
+  kapacitor,
+  outputName,
+  options,
+  specificConfig
+) => {
   try {
     const {
       data: {services},
     } = await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests')
     const service = services.find(s => s.name === outputName)
-    return kapacitorProxy(kapacitor, 'POST', service.link.href, options)
+
+    let body = options
+    if (outputName === 'slack') {
+      body = {workspace: specificConfig}
+    }
+
+    return kapacitorProxy(kapacitor, 'POST', service.link.href, body)
   } catch (error) {
     console.error(error)
   }

@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -26,7 +26,7 @@ interface Props {
     isNewConfigInSection: boolean,
     specificConfig: string
   ) => void
-  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  onTest: (e: MouseEvent<HTMLButtonElement>, specificConfig: string) => void
   onDelete: (specificConfig: string) => void
   enabled: boolean
   isNewConfig: boolean
@@ -57,7 +57,6 @@ class SlackConfig extends PureComponent<Props, State> {
         options: {url, channel, workspace},
       },
       isNewConfig,
-      onTest,
     } = this.props
     const {testEnabled, enabled} = this.state
 
@@ -138,7 +137,7 @@ class SlackConfig extends PureComponent<Props, State> {
           <button
             className="btn btn-primary"
             disabled={!testEnabled || !enabled}
-            onClick={onTest}
+            onClick={this.handleTest}
           >
             <span className="icon pulse-c" />
             Send Test Alert
@@ -189,6 +188,16 @@ class SlackConfig extends PureComponent<Props, State> {
     }
 
     return workspace
+  }
+
+  private handleTest = (e: MouseEvent<HTMLButtonElement>) => {
+    const {
+      onTest,
+      config: {
+        options: {workspace},
+      },
+    } = this.props
+    onTest(e, workspace)
   }
 
   private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {

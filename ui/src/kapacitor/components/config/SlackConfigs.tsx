@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -26,7 +26,7 @@ interface Props {
     specificConfig: string
   ) => void
   onDelete: (specificConfig: string) => void
-  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  onTest: (e: MouseEvent<HTMLButtonElement>, specificConfig: string) => void
   onEnabled: (specificConfig: string) => boolean
 }
 
