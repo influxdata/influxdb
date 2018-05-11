@@ -1,8 +1,15 @@
+interface DataExplorerState {
+  queryIDs: ReadonlyArray<string>
+}
+
 const initialState = {
   queryIDs: [],
 }
 
-export default function ui(state = initialState, action) {
+const ui = (
+  state: DataExplorerState = initialState,
+  action
+): DataExplorerState => {
   switch (action.type) {
     // there is an additional reducer for this same action in the queryConfig reducer
     case 'DE_ADD_QUERY': {
@@ -27,3 +34,5 @@ export default function ui(state = initialState, action) {
 
   return state
 }
+
+export default ui

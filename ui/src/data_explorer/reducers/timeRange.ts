@@ -1,4 +1,4 @@
-import {timeRanges} from 'shared/data/timeRanges'
+import {timeRanges} from 'src/shared/data/timeRanges'
 
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
