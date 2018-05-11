@@ -62,7 +62,6 @@ class SlackConfig extends PureComponent<Props, State> {
     const workspaceID = workspace || 'default'
 
     const isNickNameEnabled = isNewConfig && !testEnabled
-    const isDefaultConfig = workspace === ''
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -74,7 +73,7 @@ class SlackConfig extends PureComponent<Props, State> {
             className="form-control"
             id={`${workspaceID}-nickname`}
             type="text"
-            placeholder="Only for additional Configurations"
+            placeholder={this.nicknamePlaceholder}
             ref={r => (this.workspace = r)}
             defaultValue={workspace || ''}
             onChange={this.disableTest}
@@ -144,7 +143,7 @@ class SlackConfig extends PureComponent<Props, State> {
             <span className="icon pulse-c" />
             Send Test Alert
           </button>
-          {!isDefaultConfig && (
+          {!this.isDefaultConfig && (
             <button className="btn btn-danger" onClick={this.handleDelete}>
               <span className="icon trash" />
               Delete
@@ -155,6 +154,23 @@ class SlackConfig extends PureComponent<Props, State> {
         <br />
       </form>
     )
+  }
+
+  private get nicknamePlaceholder(): string {
+    if (this.isDefaultConfig) {
+      return 'Only for additional Configurations'
+    }
+    return 'Must be different from previous Configurations'
+  }
+
+  private get isDefaultConfig(): boolean {
+    const {
+      config: {
+        options: {workspace},
+      },
+      isNewConfig,
+    } = this.props
+    return workspace === '' && !isNewConfig
   }
 
   private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
