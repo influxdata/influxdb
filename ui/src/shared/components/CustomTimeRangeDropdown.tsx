@@ -5,17 +5,15 @@ import classnames from 'classnames'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import CustomTimeRange from 'src/shared/components/CustomTimeRange'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {TimeRange} from 'src/types'
 
 interface State {
   expanded: boolean
 }
 
 interface Props {
-  timeRange: {
-    upper?: string
-    lower: string
-  }
-  onApplyTimeRange: () => void
+  timeRange: TimeRange
+  onApplyTimeRange: (tr: TimeRange) => void
 }
 
 @ErrorHandling
