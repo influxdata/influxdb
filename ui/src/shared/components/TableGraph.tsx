@@ -38,6 +38,12 @@ import {
   DbData,
 } from 'src/types/dashboard'
 
+interface Label {
+  label: string
+  seriesIndex: number
+  responseIndex: number
+}
+
 interface Props {
   data: TimeSeriesServerResponse
   tableOptions: TableOptions
@@ -54,8 +60,8 @@ interface Props {
 interface State {
   data: DbData[][]
   transformedData: DbData[][]
-  sortedTimeVals: number[]
-  sortedLabels: string[]
+  sortedTimeVals: DbData[]
+  sortedLabels: Label[]
   hoveredColumnIndex: number
   hoveredRowIndex: number
   timeColumnWidth: number
@@ -76,9 +82,9 @@ class TableGraph extends Component<Props, State> {
   constructor(props) {
     super(props)
 
-    const sortField = _.get(
+    const sortField: string = _.get(
       this.props,
-      ['tableOptions', 'sortBy', 'internalName'],
+      'tableOptions.sortBy.internalName',
       DEFAULT_TIME_FIELD.internalName
     )
     this.state = {
@@ -174,12 +180,13 @@ class TableGraph extends Component<Props, State> {
   }
 
   public componentDidMount() {
-    const sortField = _.get(
+    const sortField: string = _.get(
       this.props,
       ['tableOptions', 'sortBy', 'internalName'],
       DEFAULT_TIME_FIELD.internalName
     )
-    const sort = {field: sortField, direction: DEFAULT_SORT_DIRECTION}
+
+    const sort: Sort = {field: sortField, direction: DEFAULT_SORT_DIRECTION}
     const {
       data,
       tableOptions,
@@ -195,13 +202,7 @@ class TableGraph extends Component<Props, State> {
     if (!_.isEqual(computedFieldOptions, fieldOptions)) {
       this.handleUpdateFieldOptions(computedFieldOptions)
     }
-
-    const {
-      transformedData,
-      sortedTimeVals,
-      columnWidths,
-      totalWidths,
-    } = transformTableData(
+    const {transformedData, sortedTimeVals, columnWidths} = transformTableData(
       result.data,
       sort,
       computedFieldOptions,
@@ -219,7 +220,7 @@ class TableGraph extends Component<Props, State> {
     this.setState({
       transformedData,
       sortedTimeVals,
-      columnWidths,
+      columnWidths: columnWidths.widths,
       data: result.data,
       sortedLabels,
       totalColumnWidths: totalWidths,

@@ -4,11 +4,36 @@ import {map, reduce, forEach, concat, clone} from 'fast.js'
 import {TimeSeriesServerResponse} from 'src/types/series'
 import {DbData} from '../types/dashboard'
 
-// interface Results {}
-// interface Serieses {}
-// interface Cells {}
-// interface sortedLabels {}
-// interface seriesLabels {}
+interface Result {
+  statement_id: number
+  series: Series[]
+  responseIndex: number
+  isGroupBy: boolean
+}
+
+interface Series {
+  name: string
+  columns: string[]
+  values: DbData[][]
+  isGroupBy: boolean
+  responseIndex: number
+  seriesIndex: number
+}
+
+interface Cells {
+  isGroupBy: boolean[]
+  seriesIndex: number[]
+  responseIndex: number[]
+  label: string[]
+  value: DbData[]
+  time: DbData[]
+}
+
+interface Label {
+  label: string
+  seriesIndex: number
+  responseIndex: number
+}
 
 const flattenGroupBySeries = (results, responseIndex, tags) => {
   if (_.isEmpty(results)) {
@@ -50,7 +75,10 @@ const flattenGroupBySeries = (results, responseIndex, tags) => {
   return flattenedSeries
 }
 
-const constructResults = (raw: TimeSeriesServerResponse, isTable: boolean) => {
+const constructResults = (
+  raw: TimeSeriesServerResponse,
+  isTable: boolean
+): Result[] => {
   return _.flatten(
     map(raw, (response, index) => {
       const results = _.get(response, 'response.results', [])
@@ -73,7 +101,7 @@ const constructResults = (raw: TimeSeriesServerResponse, isTable: boolean) => {
   )
 }
 
-const constructSerieses = results => {
+const constructSerieses = (results: Result[]): Series[] => {
   return reduce(
     results,
     (acc, {series = [], responseIndex}) => {
@@ -90,7 +118,9 @@ const constructSerieses = results => {
   )
 }
 
-const constructCells = serieses => {
+const constructCells = (
+  serieses: Series[]
+): {cells: Cells; sortedLabels: Label[]; seriesLabels: Label[]} => {
   let cellIndex = 0
   let labels = []
   const seriesLabels = []
@@ -168,10 +198,10 @@ const constructCells = serieses => {
 }
 
 const insertGroupByValues = (
-  serieses,
-  seriesLabels,
-  labelsToValueIndex,
-  sortedLabels
+  serieses: Series[],
+  seriesLabels: Label[],
+  labelsToValueIndex: {[x: string]: number},
+  sortedLabels: Label[]
 ) => {
   const dashArray = Array(sortedLabels.length).fill('-')
   const timeSeries = []
@@ -263,11 +293,10 @@ const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
 export const groupByTimeSeriesTransform = (
   raw: TimeSeriesServerResponse,
   isTable: boolean
-): {sortedLabels: string[]; sortedTimeSeries: DbData[][]} => {
+): {sortedLabels: Label[]; sortedTimeSeries: DbData[][]} => {
   const results = constructResults(raw, isTable)
   const serieses = constructSerieses(results)
   const {cells, sortedLabels, seriesLabels} = constructCells(serieses)
-
   const sortedTimeSeries = constructTimeSeries(
     serieses,
     cells,

@@ -26,8 +26,7 @@ interface SortedLabel {
 interface TransformTableDataReturnType {
   transformedData: DbData[][]
   sortedTimeVals: DbData[]
-  columnWidths: {[x: string]: number}
-  totalWidths: number
+  columnWidths: ColumnWidths
 }
 
 const calculateTimeColumnWidth = (timeFormat: string): number => {
@@ -225,7 +224,7 @@ export const transformTableData = (
   const filteredData = filterTableColumns(sortedData, fieldOptions)
   const orderedData = orderTableColumns(filteredData, fieldOptions)
   const transformedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
-  const {widths: columnWidths, totalWidths} = calculateColumnWidths(
+  const columnWidths = calculateColumnWidths(
     transformedData,
     fieldOptions,
     timeFormat,
@@ -233,5 +232,5 @@ export const transformTableData = (
     decimalPlaces
   )
 
-  return {transformedData, sortedTimeVals, columnWidths, totalWidths}
+  return {transformedData, sortedTimeVals, columnWidths}
 }
