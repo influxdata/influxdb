@@ -2,13 +2,29 @@ interface DataExplorerState {
   queryIDs: ReadonlyArray<string>
 }
 
+interface ActionAddQuery {
+  type: 'DE_ADD_QUERY'
+  payload: {
+    queryID: string
+  }
+}
+
+interface ActionDeleteQuery {
+  type: 'DE_DELETE_QUERY'
+  payload: {
+    queryID: string
+  }
+}
+
+type Action = ActionAddQuery | ActionDeleteQuery
+
 const initialState = {
   queryIDs: [],
 }
 
 const ui = (
   state: DataExplorerState = initialState,
-  action
+  action: Action
 ): DataExplorerState => {
   switch (action.type) {
     // there is an additional reducer for this same action in the queryConfig reducer
