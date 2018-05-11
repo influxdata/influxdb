@@ -5,6 +5,7 @@ import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 
 @ErrorHandling
 class ColorDropdown extends Component {
@@ -63,7 +64,11 @@ class ColorDropdown extends Component {
         </div>
         {visible ? (
           <div className="color-dropdown--menu">
-            <FancyScrollbar autoHide={false} autoHeight={true}>
+            <FancyScrollbar
+              autoHide={false}
+              autoHeight={true}
+              maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+            >
               {colors.map((color, i) => (
                 <div
                   className={
