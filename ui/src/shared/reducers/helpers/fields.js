@@ -26,6 +26,11 @@ export const numFunctions = fields => _.size(getFunctions(fields))
 // functionNames returns the value of all top-level functions
 export const functionNames = fields => getFunctions(fields).map(f => f.value)
 
+/**
+ * getAllFields and funcs with fieldName
+ * @param {Field[]} fields
+ * @returns {Field[]}
+ */
 // returns a flattened list of all fieldNames in a queryConfig
 export const getFieldsDeep = fields =>
   _.uniqBy(

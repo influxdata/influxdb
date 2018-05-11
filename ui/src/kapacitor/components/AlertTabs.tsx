@@ -19,6 +19,7 @@ import {
 import {
   AlertaConfig,
   HipChatConfig,
+  KafkaConfig,
   OpsGenieConfig,
   PagerDutyConfig,
   PushoverConfig,
@@ -72,6 +73,7 @@ interface Sections {
   hipchat: Section
   httppost: Section
   influxdb: Section
+  kafka: Section
   mqtt: Section
   opsgenie: Section
   opsgenie2: Section
@@ -96,6 +98,7 @@ interface Config {
 interface SupportedConfig {
   alerta: Config
   hipchat: Config
+  kafka: Config
   opsgenie: Config
   opsgenie2: Config
   pagerduty: Config
@@ -219,6 +222,21 @@ class AlertTabs extends PureComponent<Props, State> {
             config={this.getSection(configSections, 'hipchat')}
             onTest={this.handleTestConfig('hipchat')}
             enabled={this.getEnabled(configSections, 'hipchat')}
+          />
+        ),
+      },
+      kafka: {
+        type: 'Kafka',
+        enabled: this.getEnabled(configSections, 'kafka'),
+        renderComponent: () => (
+          <KafkaConfig
+            onSave={this.handleSaveConfig('kafka')}
+            config={this.getSection(configSections, 'kafka')}
+            onTest={this.handleTestConfig('kafka', {
+              cluster: this.getProperty(configSections, 'kafka', 'id'),
+            })}
+            enabled={this.getEnabled(configSections, 'kafka')}
+            notify={this.props.notify}
           />
         ),
       },
@@ -434,6 +452,18 @@ class AlertTabs extends PureComponent<Props, State> {
     )
   }
 
+  private getProperty = (
+    sections: Sections,
+    section: string,
+    property: string
+  ): boolean => {
+    return _.get(
+      sections,
+      [section, 'elements', '0', 'options', property],
+      null
+    )
+  }
+
   private handleSaveConfig = (section: string) => async (
     properties
   ): Promise<boolean> => {
@@ -451,19 +481,23 @@ class AlertTabs extends PureComponent<Props, State> {
       } catch ({
         data: {error},
       }) {
-        const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
+        const errorMsg = error.split(': ').pop()
         this.props.notify(notifyAlertEndpointSaveFailed(section, errorMsg))
         return false
       }
     }
   }
-  private handleTestConfig = (section: string) => async (
+  private handleTestConfig = (section: string, options?: object) => async (
     e: MouseEvent<HTMLButtonElement>
   ): Promise<void> => {
     e.preventDefault()
 
     try {
-      const {data} = await testAlertOutput(this.props.kapacitor, section)
+      const {data} = await testAlertOutput(
+        this.props.kapacitor,
+        section,
+        options
+      )
       if (data.success) {
         this.props.notify(notifyTestAlertSent(section))
       } else {

@@ -6,12 +6,19 @@ import {
   Status,
   TimeRange,
   TimeShift,
+  ApplyFuncsToFieldArgs,
   Field,
+  FieldFunc,
+  FuncArg,
+  Namespace,
+  Tag,
+  Tags,
+  TagValues,
 } from './query'
 import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem} from './shared'
-import {Notification} from 'src/kapacitor/components/AlertOutputs'
+import {Notification, NotificationFunc} from './notifications'
 
 export {
   Me,
@@ -26,8 +33,15 @@ export {
   Status,
   QueryConfig,
   TimeShift,
+  ApplyFuncsToFieldArgs,
   Field,
+  FieldFunc,
+  FuncArg,
   GroupBy,
+  Namespace,
+  Tag,
+  Tags,
+  TagValues,
   AlertRule,
   Kapacitor,
   Source,
@@ -37,4 +51,5 @@ export {
   TimeRange,
   Task,
   Notification,
+  NotificationFunc,
 }

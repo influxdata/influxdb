@@ -20,14 +20,33 @@ export interface Field {
   value: string
   type: string
   alias?: string
-  args?: Args[]
+  args?: FieldArg[]
 }
 
-export interface Args {
+export interface FieldArg {
   value: string
   type: string
   alias?: string
-  args?: Args[]
+  args?: FieldArg[]
+}
+
+export interface FieldFunc extends Field {
+  args: FuncArg[]
+}
+export interface FuncArg {
+  type: string
+  value: string
+  alias?: string
+}
+
+export interface ApplyFuncsToFieldArgs {
+  field: Field
+  funcs: FuncArg[]
+}
+
+export interface Tag {
+  key: string
+  value: string
 }
 
 export type TagValues = string[]
@@ -37,7 +56,7 @@ export interface Tags {
 }
 
 export interface GroupBy {
-  time?: string
+  time?: string | null
   tags?: string[]
 }
 

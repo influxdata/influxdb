@@ -3,19 +3,9 @@ import React, {ChangeEvent, MouseEvent, PureComponent} from 'react'
 import AlertOutputs from 'src/kapacitor/components/AlertOutputs'
 import Input from 'src/kapacitor/components/KapacitorFormInput'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-
-import {Kapacitor, Source} from 'src/types'
 import KapacitorFormSkipVerify from 'src/kapacitor/components/KapacitorFormSkipVerify'
 
-export interface Notification {
-  id?: string
-  type: string
-  icon: string
-  duration: number
-  message: string
-}
-
-type NotificationFunc = () => Notification
+import {Kapacitor, Source, Notification, NotificationFunc} from 'src/types'
 
 interface Props {
   kapacitor: Kapacitor
