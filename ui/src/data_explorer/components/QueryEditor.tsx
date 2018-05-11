@@ -61,7 +61,7 @@ class QueryEditor extends PureComponent<Props, State> {
               <QueryStatus status={status}>
                 <Dropdown
                   items={QUERY_TEMPLATES}
-                  selected={'Query Templates'}
+                  selected="Query Templates"
                   onChoose={this.handleChooseMetaQuery}
                   className="dropdown-140 query-editor--templates"
                   buttonSize="btn-xs"
