@@ -2,7 +2,7 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/dashboards/graphics/graph'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
 export const UNTITLED_GRAPH = 'Untitled Graph'
@@ -48,7 +48,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   w: 4,
   h: 4,
   name: UNTITLED_GRAPH,
-  type: CELL_TYPE_LINE,
+  type: CellType.Line,
   queries: [],
   tableOptions: DEFAULT_TABLE_OPTIONS,
   timeFormat: DEFAULT_TIME_FORMAT,
@@ -65,7 +65,7 @@ export const EMPTY_DASHBOARD = {
       y: 0,
       queries: [],
       name: 'Loading...',
-      type: CELL_TYPE_LINE,
+      type: CellType.Line,
     },
   ],
 }

@@ -1,13 +1,15 @@
 import React from 'react'
 
-export const CELL_TYPE_LINE = 'line'
-export const CELL_TYPE_STACKED = 'line-stacked'
-export const CELL_TYPE_STEPPLOT = 'line-stepplot'
-export const CELL_TYPE_BAR = 'bar'
-export const CELL_TYPE_LINE_PLUS_SINGLE_STAT = 'line-plus-single-stat'
-export const CELL_TYPE_SINGLE_STAT = 'single-stat'
-export const CELL_TYPE_GAUGE = 'gauge'
-export const CELL_TYPE_TABLE = 'table'
+export enum CellType {
+  Line = 'line',
+  Stacked = 'line-stacked',
+  StepPlot = 'line-stepplot',
+  Bar = 'bar',
+  LinePlusSingleStat = 'line-plus-single-stat',
+  SingleStat = 'single-stat',
+  Gauge = 'gauge',
+  Table = 'table',
+}
 
 const GRAPH_SVGS = {
   line: (
@@ -520,43 +522,43 @@ const GRAPH_SVGS = {
 
 export const GRAPH_TYPES = [
   {
-    type: CELL_TYPE_LINE,
+    type: CellType.Line,
     menuOption: 'Line Graph',
-    graphic: GRAPH_SVGS[CELL_TYPE_LINE],
+    graphic: GRAPH_SVGS[CellType.Line],
   },
   {
-    type: CELL_TYPE_STACKED,
+    type: CellType.Stacked,
     menuOption: 'Stacked Graph',
-    graphic: GRAPH_SVGS[CELL_TYPE_STACKED],
+    graphic: GRAPH_SVGS[CellType.Stacked],
   },
   {
-    type: CELL_TYPE_STEPPLOT,
+    type: CellType.StepPlot,
     menuOption: 'Step-Plot Graph',
-    graphic: GRAPH_SVGS[CELL_TYPE_STEPPLOT],
+    graphic: GRAPH_SVGS[CellType.StepPlot],
   },
   {
-    type: CELL_TYPE_BAR,
+    type: CellType.Bar,
     menuOption: 'Bar Graph',
-    graphic: GRAPH_SVGS[CELL_TYPE_BAR],
+    graphic: GRAPH_SVGS[CellType.Bar],
   },
   {
-    type: CELL_TYPE_LINE_PLUS_SINGLE_STAT,
+    type: CellType.LinePlusSingleStat,
     menuOption: 'Line Graph + Single Stat',
-    graphic: GRAPH_SVGS[CELL_TYPE_LINE_PLUS_SINGLE_STAT],
+    graphic: GRAPH_SVGS[CellType.LinePlusSingleStat],
   },
   {
-    type: CELL_TYPE_SINGLE_STAT,
+    type: CellType.SingleStat,
     menuOption: 'Single Stat',
-    graphic: GRAPH_SVGS[CELL_TYPE_SINGLE_STAT],
+    graphic: GRAPH_SVGS[CellType.SingleStat],
   },
   {
-    type: CELL_TYPE_GAUGE,
+    type: CellType.Gauge,
     menuOption: 'Gauge',
-    graphic: GRAPH_SVGS[CELL_TYPE_GAUGE],
+    graphic: GRAPH_SVGS[CellType.Gauge],
   },
   {
-    type: CELL_TYPE_TABLE,
+    type: CellType.Table,
     menuOption: 'Table',
-    graphic: GRAPH_SVGS[CELL_TYPE_TABLE],
+    graphic: GRAPH_SVGS[CellType.Table],
   },
 ]

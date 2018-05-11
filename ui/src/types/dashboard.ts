@@ -1,5 +1,6 @@
 import {QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
+import {CellType} from 'src/dashboards/graphics/graph'
 
 interface Axis {
   bounds: [string, string]
@@ -55,7 +56,7 @@ export interface Cell {
   h: number
   name: string
   queries: CellQuery[]
-  type: string
+  type: CellType
   axes: Axes
   colors: ColorString[]
   tableOptions: TableOptions

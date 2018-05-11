@@ -9,6 +9,7 @@ import {
 } from 'src/types'
 import {Axes, TableOptions, FieldName, DecimalPlaces} from 'src/types/dashboard'
 import {ColorString, ColorNumber} from 'src/types/colors'
+import {CellType} from 'src/dashboards/graphics/graph'
 
 export const sourceLinks: SourceLinks = {
   self: '/chronograf/v1/sources/4',
@@ -160,7 +161,7 @@ export const cell: Cell = {
   name: 'Untitled Graph',
   queries: [query],
   axes,
-  type: 'line',
+  type: CellType.Line,
   colors: lineColors,
   legend: {},
   tableOptions,

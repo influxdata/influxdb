@@ -1,11 +1,6 @@
 import _ from 'lodash'
 
-import {
-  CELL_TYPE_LINE,
-  CELL_TYPE_STACKED,
-  CELL_TYPE_STEPPLOT,
-  CELL_TYPE_BAR,
-} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/dashboards/graphics/graph'
 
 export const NO_CELL = 'none'
 
@@ -464,11 +459,11 @@ export const linksLink = '/chronograf/v1'
 
 export const cellSupportsAnnotations = cellType => {
   const supportedTypes = [
-    CELL_TYPE_LINE,
-    CELL_TYPE_BAR,
-    CELL_TYPE_LINE,
-    CELL_TYPE_STACKED,
-    CELL_TYPE_STEPPLOT,
+    CellType.Line,
+    CellType.Bar,
+    CellType.Line,
+    CellType.Stacked,
+    CellType.StepPlot,
   ]
   return !!supportedTypes.find(type => type === cellType)
 }

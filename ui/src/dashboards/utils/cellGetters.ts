@@ -1,5 +1,5 @@
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
-import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/dashboards/graphics/graph'
 import {UNTITLED_GRAPH} from 'src/dashboards/constants'
 
 const getMostCommonValue = values => {
@@ -54,7 +54,7 @@ const getNextAvailablePosition = (dashboard, newCell) => {
 }
 
 export const getNewDashboardCell = (dashboard, cellType) => {
-  const type = cellType || CELL_TYPE_LINE
+  const type = cellType || CellType.Line
   const typedCell = {
     ...NEW_DEFAULT_DASHBOARD_CELL,
     type,
