@@ -1,6 +1,6 @@
 import reducer from 'src/data_explorer/reducers/queryConfigs'
 
-import defaultQueryConfig from 'utils/defaultQueryConfig'
+import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {
   fill,
   timeShift,
@@ -20,9 +20,9 @@ import {
   toggleTagAcceptance,
 } from 'src/data_explorer/actions/view'
 
-import {LINEAR, NULL_STRING} from 'shared/constants/queryFillOptions'
+import {LINEAR, NULL_STRING} from 'src/shared/constants/queryFillOptions'
 
-const fakeAddQueryAction = (panelID, queryID) => {
+const fakeAddQueryAction = (panelID: string, queryID: string) => {
   return {
     type: 'DE_ADD_QUERY',
     payload: {
@@ -32,18 +32,17 @@ const fakeAddQueryAction = (panelID, queryID) => {
   }
 }
 
-function buildInitialState(queryID, params) {
-  return Object.assign(
-    {},
-    defaultQueryConfig({
+function buildInitialState(queryID, params?) {
+  return {
+    ...defaultQueryConfig({
       id: queryID,
     }),
-    params
-  )
+    params,
+  }
 }
 
 describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
-  const queryID = 123
+  const queryID = '123'
 
   it('can add a query', () => {
     const state = reducer({}, fakeAddQueryAction('blah', queryID))
@@ -93,14 +92,13 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         })
       )
       const three = reducer(two, chooseMeasurement(queryID, 'disk'))
+      const field = {
+        value: 'a great field',
+        type: 'field',
+      }
+      const groupBy = {}
 
-      state = reducer(
-        three,
-        addInitialField(queryID, {
-          value: 'a great field',
-          type: 'field',
-        })
-      )
+      state = reducer(three, addInitialField(queryID, field, groupBy))
     })
 
     describe('choosing a new namespace', () => {
@@ -252,12 +250,10 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           {
             value: 'fn3',
             type: 'func',
-            args: [],
           },
           {
             value: 'fn4',
             type: 'func',
-            args: [],
           },
         ],
       })
@@ -482,14 +478,8 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     const initialState = {
       [queryID]: buildInitialState(queryID),
     }
-    const expected = defaultQueryConfig(
-      {
-        id: queryID,
-      },
-      {
-        rawText: 'hello',
-      }
-    )
+    const id = {id: queryID}
+    const expected = defaultQueryConfig(id)
     const action = updateQueryConfig(expected)
 
     const nextState = reducer(initialState, action)
@@ -513,12 +503,12 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     const initialState = {
       [queryID]: buildInitialState(queryID),
     }
-    const status = 'your query was sweet'
+    const status = {success: 'Your query was very nice'}
     const action = editQueryStatus(queryID, status)
 
     const nextState = reducer(initialState, action)
 
-    expect(nextState[queryID].status).toBe(status)
+    expect(nextState[queryID].status).toEqual(status)
   })
 
   describe('DE_FILL', () => {
@@ -577,10 +567,12 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       }
 
       const shift = {
-        quantity: 1,
+        quantity: '1',
         unit: 'd',
         duration: '1d',
+        label: 'label',
       }
+
       const action = timeShift(queryID, shift)
       const nextState = reducer(initialState, action)
 
