@@ -12,6 +12,24 @@ import {
   DecimalPlaces,
 } from 'src/types/dashboard'
 
+interface ColumnWidths {
+  totalWidths: number
+  widths: {[x: string]: number}
+}
+
+interface SortedLabel {
+  label: string
+  responseIndex: number
+  seriesIndex: number
+}
+
+interface TransformTableDataReturnType {
+  transformedData: DbData[][]
+  sortedTimeVals: DbData[]
+  columnWidths: {[x: string]: number}
+  totalWidths: number
+}
+
 const calculateTimeColumnWidth = (timeFormat: string): number => {
   // Force usage of longest format names for ideal measurement
   timeFormat = _.replace(timeFormat, 'MMMM', 'September')
@@ -29,10 +47,6 @@ const calculateTimeColumnWidth = (timeFormat: string): number => {
   return width + CELL_HORIZONTAL_PADDING
 }
 
-interface ColumnWidths {
-  totalWidths: number
-  widths: {[x: string]: number}
-}
 const updateMaxWidths = (
   row: DbData[],
   maxColumnWidths: ColumnWidths,
@@ -79,7 +93,6 @@ const updateMaxWidths = (
             fontWeight: 'bold',
           }).width + CELL_HORIZONTAL_PADDING
 
-      const {widths: maxWidths} = maxColumnWidths
       const maxWidth = _.get(maxWidths, `${columnLabel}`, 0)
 
       if (isTopRow || currentWidth > maxWidth) {
@@ -93,11 +106,6 @@ const updateMaxWidths = (
   return maxWidths
 }
 
-interface SortedLabel {
-  label: string
-  responseIndex: number
-  seriesIndex: number
-}
 export const computeFieldOptions = (
   existingFieldOptions: FieldOption[],
   sortedLabels: SortedLabel[]
@@ -189,12 +197,20 @@ export const orderTableColumns = (
   return orderedData[0].length ? orderedData : [[]]
 }
 
-interface TransformTableDataReturnType {
-  transformedData: DbData[][]
-  sortedTimeVals: number[]
-  columnWidths: ColumnWidths
-  totalWidths: number
+export const sortTableData = (
+  data: DbData[][],
+  sort: Sort
+): {sortedData: DbData[][]; sortedTimeVals: DbData[]} => {
+  const sortIndex = _.indexOf(data[0], sort.field)
+  const dataValues = _.drop(data, 1)
+  const sortedData = [
+    data[0],
+    ..._.orderBy<DbData[]>(dataValues, sortIndex, [sort.direction]),
+  ]
+  const sortedTimeVals = map(sortedData, r => r[0])
+  return {sortedData, sortedTimeVals}
 }
+
 export const transformTableData = (
   data: DbData[][],
   sort: Sort,
@@ -204,12 +220,8 @@ export const transformTableData = (
   decimalPlaces: DecimalPlaces
 ): TransformTableDataReturnType => {
   const {verticalTimeAxis} = tableOptions
-  const sortIndex = _.indexOf(data[0], sort.field)
-  const sortedData = [
-    data[0],
-    ..._.orderBy(_.drop(data, 1), sortIndex, [sort.direction]),
-  ]
-  const sortedTimeVals = map(sortedData, r => r[0])
+
+  const {sortedData, sortedTimeVals} = sortTableData(data, sort)
   const filteredData = filterTableColumns(sortedData, fieldOptions)
   const orderedData = orderTableColumns(filteredData, fieldOptions)
   const transformedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
@@ -220,5 +232,6 @@ export const transformTableData = (
     verticalTimeAxis,
     decimalPlaces
   )
+
   return {transformedData, sortedTimeVals, columnWidths, totalWidths}
 }

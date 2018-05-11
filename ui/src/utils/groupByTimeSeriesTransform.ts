@@ -1,6 +1,14 @@
 import _ from 'lodash'
-import {shiftDate} from 'shared/query/helpers'
+import {shiftDate} from 'src/shared/query/helpers'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
+import {TimeSeriesServerResponse} from 'src/types/series'
+import {DbData} from '../types/dashboard'
+
+// interface Results {}
+// interface Serieses {}
+// interface Cells {}
+// interface sortedLabels {}
+// interface seriesLabels {}
 
 const flattenGroupBySeries = (results, responseIndex, tags) => {
   if (_.isEmpty(results)) {
@@ -42,7 +50,7 @@ const flattenGroupBySeries = (results, responseIndex, tags) => {
   return flattenedSeries
 }
 
-const constructResults = (raw, isTable) => {
+const constructResults = (raw: TimeSeriesServerResponse, isTable: boolean) => {
   return _.flatten(
     map(raw, (response, index) => {
       const results = _.get(response, 'response.results', [])
@@ -252,7 +260,10 @@ const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
   return _.sortBy(timeSeries, 'time')
 }
 
-export const groupByTimeSeriesTransform = (raw, isTable) => {
+export const groupByTimeSeriesTransform = (
+  raw: TimeSeriesServerResponse,
+  isTable: boolean
+): {sortedLabels: string[]; sortedTimeSeries: DbData[][]} => {
   const results = constructResults(raw, isTable)
   const serieses = constructSerieses(results)
   const {cells, sortedLabels, seriesLabels} = constructCells(serieses)
