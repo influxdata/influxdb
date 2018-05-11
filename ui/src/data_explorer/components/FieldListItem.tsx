@@ -6,24 +6,8 @@ import FunctionSelector from 'src/shared/components/FunctionSelector'
 import {firstFieldName} from 'src/shared/reducers/helpers/fields'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Field {
-  type: string
-  value: string
-}
+import {ApplyFuncsToFieldArgs, Field, FieldFunc, FuncArg} from 'src/types'
 
-interface FuncArg {
-  value: string
-  type: string
-}
-
-interface FieldFunc extends Field {
-  args: FuncArg[]
-}
-
-interface ApplyFuncsToFieldArgs {
-  field: Field
-  funcs: FuncArg[]
-}
 interface Props {
   fieldFuncs: FieldFunc[]
   isSelected: boolean

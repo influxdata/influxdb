@@ -8,6 +8,7 @@ import {
   EmailHandler,
   AlertaHandler,
   HipchatHandler,
+  KafkaHandler,
   OpsgenieHandler,
   PagerdutyHandler,
   PushoverHandler,
@@ -89,6 +90,15 @@ class HandlerOptions extends Component {
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             onGoToConfig={onGoToConfig('hipchat')}
+            validationError={validationError}
+          />
+        )
+      case 'kafka':
+        return (
+          <KafkaHandler
+            selectedHandler={selectedHandler}
+            handleModifyHandler={handleModifyHandler}
+            onGoToConfig={onGoToConfig('kafka')}
             validationError={validationError}
           />
         )

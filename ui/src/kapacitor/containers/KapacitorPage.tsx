@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import {Source} from 'src/types'
+import {Source, Notification, NotificationFunc} from 'src/types'
 
 import {
   createKapacitor,
@@ -28,16 +28,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export const defaultName = 'My Kapacitor'
 export const kapacitorPort = '9092'
-
-export interface Notification {
-  id?: string
-  type: string
-  icon: string
-  duration: number
-  message: string
-}
-
-export type NotificationFunc = () => Notification
 
 interface Kapacitor {
   url: string

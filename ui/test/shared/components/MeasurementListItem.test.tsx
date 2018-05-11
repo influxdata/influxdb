@@ -3,13 +3,7 @@ import React from 'react'
 import MeasurementListItem from 'src/shared/components/MeasurementListItem'
 import TagList from 'src/shared/components/TagList'
 
-const defaultQuery = {
-  database: '',
-  measurement: 'test',
-  retentionPolicy: '',
-  tags: {},
-  groupBy: {},
-}
+import {query as defaultQuery} from 'test/resources'
 
 const setup = (overrides = {}) => {
   const props = {
@@ -20,7 +14,7 @@ const setup = (overrides = {}) => {
       },
     },
     isActive: true,
-    measurement: 'test',
+    measurement: defaultQuery.measurement,
     numTagsActive: 3,
     areTagsAccepted: true,
     isQuerySupportedByExplorer: true,
@@ -75,7 +69,7 @@ describe('MeasurementListItem', () => {
 
       wrapper.simulate('click')
       wrapper.setProps({query: {...defaultQuery, measurement}})
-      expect(factory).toHaveBeenCalledWith('test')
+      expect(factory).toHaveBeenCalledWith(defaultQuery.measurement)
       expect(trigger).toHaveBeenCalled()
 
       expect(wrapper.find(TagList).exists()).toBe(true)

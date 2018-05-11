@@ -10,7 +10,14 @@ import {getActiveKapacitor} from 'src/shared/apis'
 import {getLogStreamByRuleID, pingKapacitorVersion} from 'src/kapacitor/apis'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import {Source, Kapacitor, Task, AlertRule} from 'src/types'
+import {
+  Source,
+  Kapacitor,
+  Task,
+  AlertRule,
+  Notification,
+  NotificationFunc,
+} from 'src/types'
 
 import {
   notifyTickscriptLoggingUnavailable,
@@ -61,7 +68,7 @@ interface Props {
   router: Router
   params: Params
   rules: AlertRule[]
-  notify: any
+  notify: (message: Notification | NotificationFunc) => void
 }
 
 interface State {

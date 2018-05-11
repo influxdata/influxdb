@@ -4,6 +4,8 @@ import React, {PureComponent, MouseEvent} from 'react'
 import TagList from 'src/shared/components/TagList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {QueryConfig, Tag} from 'src/types'
+
 interface SourceLinks {
   proxy: string
 }
@@ -12,31 +14,15 @@ interface Source {
   links: SourceLinks
 }
 
-interface GroupBy {
-  tags?: string[]
-}
-
-interface Tags {
-  [key: string]: string[]
-}
-
-interface Query {
-  database: string
-  measurement: string
-  retentionPolicy: string
-  tags: Tags
-  groupBy: GroupBy
-}
-
 interface Props {
-  query: Query
+  query: QueryConfig
   querySource: Source
   isActive: boolean
   measurement: string
   numTagsActive: number
   areTagsAccepted: boolean
-  onChooseTag: () => void
-  onGroupByTag: () => void
+  onChooseTag: (tag: Tag) => void
+  onGroupByTag: (tagKey: string) => void
   onAcceptReject: () => void
   isQuerySupportedByExplorer: boolean
   onChooseMeasurement: (measurement: string) => () => void

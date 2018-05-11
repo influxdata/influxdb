@@ -24,7 +24,7 @@ import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
 
 import * as copy from 'src/shared/copy/notifications'
 
-import {Source, Me} from 'src/types'
+import {Source, Me, Notification, NotificationFunc} from 'src/types'
 
 interface Auth {
   isUsingAuth: boolean
@@ -47,7 +47,7 @@ interface Props {
   router: InjectedRouter
   location: Location
   auth: Auth
-  notify: () => void
+  notify: (message: Notification | NotificationFunc) => void
   errorThrown: () => void
 }
 
