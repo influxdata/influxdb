@@ -66,17 +66,6 @@ export interface Cell {
   legend: Legend
 }
 
-interface TemplateValue {
-  value: string
-  selected?: boolean
-}
-
-export interface Template {
-  id: string
-  tempVar: string
-  values: TemplateValue[]
-}
-
 export enum CellType {
   Line = 'line',
   Stacked = 'line-stacked',
@@ -86,4 +75,49 @@ export enum CellType {
   SingleStat = 'single-stat',
   Gauge = 'gauge',
   Table = 'table',
+}
+
+interface TemplateValue {
+  value: string
+  type: string
+  selected: boolean
+}
+
+interface TemplateQuery {
+  command: string
+  db?: string
+  rp?: string
+  measurement: string
+  tagKey: string
+  fieldKey: string
+}
+
+export interface Template {
+  id: string
+  tempVar: string
+  values: TemplateValue[]
+  type: string
+  label: string
+  query?: TemplateQuery
+}
+
+// interface TemplateLinks {
+//   self: string
+// }
+
+// type TemplateResponse = Template & TemplateLinks
+
+interface DashboardLinks {
+  self: string
+  cells: string
+  templates: string
+}
+
+export interface Dashboard {
+  id: number
+  cells: Cell[]
+  templates: Template[]
+  name: string
+  organization: string
+  links?: DashboardLinks
 }
