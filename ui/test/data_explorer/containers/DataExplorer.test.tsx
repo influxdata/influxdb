@@ -16,6 +16,14 @@ const queryConfigActions = {
   editRawTextAsync: () => {},
   addInitialField: () => {},
   editQueryStatus: () => {},
+  deleteQuery: () => {},
+  fill: () => {},
+  removeFuncs: () => {},
+  editRawText: () => {},
+  setTimeRange: () => {},
+  updateRawQuery: () => {},
+  updateQueryConfig: () => {},
+  timeShift: () => {},
 }
 
 const setup = () => {

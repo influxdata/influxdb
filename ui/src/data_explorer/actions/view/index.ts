@@ -32,8 +32,13 @@ export type Action =
   | ActionUpdateRawQuery
   | ActionQueryConfig
   | ActionTimeShift
+  | ActionToggleTagAcceptance
+  | ActionToggleField
+  | ActionGroupByTag
+  | ActionEditQueryStatus
+  | ActionAddInitialField
 
-interface ActionAddQuery {
+export interface ActionAddQuery {
   type: 'DE_ADD_QUERY'
   payload: {
     queryID: string
@@ -62,13 +67,17 @@ export const deleteQuery = (queryID: string): ActionDeleteQuery => ({
 })
 
 interface ActionToggleField {
-  type: 'DE_DELETE_QUERY'
+  type: 'DE_TOGGLE_FIELD'
   payload: {
     queryID: string
+    fieldFunc: Field
   }
 }
 
-export const toggleField = (queryID, fieldFunc) => ({
+export const toggleField = (
+  queryID: string,
+  fieldFunc: Field
+): ActionToggleField => ({
   type: 'DE_TOGGLE_FIELD',
   payload: {
     queryID,

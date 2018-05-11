@@ -18,15 +18,15 @@ import {
   addInitialField,
   updateQueryConfig,
   toggleTagAcceptance,
+  ActionAddQuery,
 } from 'src/data_explorer/actions/view'
 
 import {LINEAR, NULL_STRING} from 'src/shared/constants/queryFillOptions'
 
-const fakeAddQueryAction = (panelID: string, queryID: string) => {
+const fakeAddQueryAction = (queryID: string): ActionAddQuery => {
   return {
     type: 'DE_ADD_QUERY',
     payload: {
-      panelID,
       queryID,
     },
   }
@@ -37,7 +37,7 @@ function buildInitialState(queryID, params?) {
     ...defaultQueryConfig({
       id: queryID,
     }),
-    params,
+    ...params,
   }
 }
 
@@ -45,7 +45,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
   const queryID = '123'
 
   it('can add a query', () => {
-    const state = reducer({}, fakeAddQueryAction('blah', queryID))
+    const state = reducer({}, fakeAddQueryAction(queryID))
 
     const actual = state[queryID]
     const expected = defaultQueryConfig({
@@ -57,7 +57,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
   describe('choosing db, rp, and measurement', () => {
     let state
     beforeEach(() => {
-      state = reducer({}, fakeAddQueryAction('any', queryID))
+      state = reducer({}, fakeAddQueryAction(queryID))
     })
 
     it('sets the db and rp', () => {
@@ -83,7 +83,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
   describe('a query has measurements and fields', () => {
     let state
     beforeEach(() => {
-      const one = reducer({}, fakeAddQueryAction('any', queryID))
+      const one = reducer({}, fakeAddQueryAction(queryID))
       const two = reducer(
         one,
         chooseNamespace(queryID, {
@@ -214,8 +214,8 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       }
 
       const initialState = {
-        [queryID]: {
-          id: 123,
+        [queryID]: buildInitialState(queryID, {
+          id: '123',
           database: 'db1',
           measurement: 'm1',
           fields: [
@@ -238,7 +238,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
               alias: `fn2_${f1.value}`,
             },
           ],
-        },
+        }),
       }
 
       const action = applyFuncsToField(queryID, {
@@ -313,13 +313,13 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
       }
 
       const initialState = {
-        [queryID]: {
-          id: 123,
+        [queryID]: buildInitialState(queryID, {
+          id: '123',
           database: 'db1',
           measurement: 'm1',
           fields,
           groupBy,
-        },
+        }),
       }
 
       const action = removeFuncs(queryID, fields, groupBy)
@@ -343,6 +343,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           },
         }),
       }
+
       const action = chooseTag(queryID, {
         key: 'k1',
         value: 'v1',
@@ -397,8 +398,8 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
   describe('DE_GROUP_BY_TAG', () => {
     it('adds a tag key/value to the query', () => {
       const initialState = {
-        [queryID]: {
-          id: 123,
+        [queryID]: buildInitialState(queryID, {
+          id: '123',
           database: 'db1',
           measurement: 'm1',
           fields: [],
@@ -407,7 +408,7 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
             tags: [],
             time: null,
           },
-        },
+        }),
       }
       const action = groupByTag(queryID, 'k1')
 
@@ -420,18 +421,20 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     })
 
     it('removes a tag if the given tag key is already in the GROUP BY list', () => {
-      const initialState = {
-        [queryID]: {
-          id: 123,
-          database: 'db1',
-          measurement: 'm1',
-          fields: [],
-          tags: {},
-          groupBy: {
-            tags: ['k1'],
-            time: null,
-          },
+      const query = {
+        id: '123',
+        database: 'db1',
+        measurement: 'm1',
+        fields: [],
+        tags: {},
+        groupBy: {
+          tags: ['k1'],
+          time: null,
         },
+      }
+
+      const initialState = {
+        [queryID]: buildInitialState(queryID, query),
       }
       const action = groupByTag(queryID, 'k1')
 

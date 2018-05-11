@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
@@ -7,13 +6,12 @@ import SourceIndicator from 'src/shared/components/SourceIndicator'
 import GraphTips from 'src/shared/components/GraphTips'
 import {TimeRange} from 'src/types'
 
-// TODO: replace with actual queryTransitionFuncs
-interface Props extends WithRouterProps {
+interface Props {
   onChooseAutoRefresh: () => void
-  onChooseTimeRange: () => void
   onManualRefresh: () => void
-  autoRefresh: () => void
+  onChooseTimeRange: (timeRange: TimeRange) => void
   showWriteForm: () => void
+  autoRefresh: number
   timeRange: TimeRange
 }
 
@@ -62,4 +60,4 @@ class Header extends PureComponent<Props> {
   }
 }
 
-export default withRouter(Header)
+export default Header

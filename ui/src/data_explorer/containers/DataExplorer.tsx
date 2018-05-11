@@ -32,7 +32,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   source: Source
   queryConfigs: QueryConfig[]
-  queryConfigActions: any // TODO: actually type these
+  queryConfigActions: any
   autoRefresh: number
   handleChooseAutoRefresh: () => void
   router?: InjectedRouter
@@ -161,8 +161,8 @@ export class DataExplorer extends PureComponent<Props, State> {
     this.setState({showWriteForm: true})
   }
 
-  private handleChooseTimeRange = (bounds: TimeRange): void => {
-    this.props.setTimeRange(bounds)
+  private handleChooseTimeRange = (timeRange: TimeRange): void => {
+    this.props.setTimeRange(timeRange)
   }
 
   private get selectedDatabase(): string {
