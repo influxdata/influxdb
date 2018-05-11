@@ -9,6 +9,7 @@ import {
   groupByTime,
   toggleField,
   removeFuncs,
+  editRawText,
   updateRawQuery,
   editQueryStatus,
   chooseNamespace,
@@ -24,12 +25,21 @@ import {LINEAR, NULL_STRING} from 'shared/constants/queryFillOptions'
 const fakeAddQueryAction = (panelID, queryID) => {
   return {
     type: 'DE_ADD_QUERY',
-    payload: {panelID, queryID},
+    payload: {
+      panelID,
+      queryID,
+    },
   }
 }
 
 function buildInitialState(queryID, params) {
-  return Object.assign({}, defaultQueryConfig({id: queryID}), params)
+  return Object.assign(
+    {},
+    defaultQueryConfig({
+      id: queryID,
+    }),
+    params
+  )
 }
 
 describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
@@ -39,7 +49,9 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     const state = reducer({}, fakeAddQueryAction('blah', queryID))
 
     const actual = state[queryID]
-    const expected = defaultQueryConfig({id: queryID})
+    const expected = defaultQueryConfig({
+      id: queryID,
+    })
     expect(actual).toEqual(expected)
   })
 
@@ -143,7 +155,10 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         expect(newState[queryID].fields.length).toBe(2)
         expect(newState[queryID].fields[1].alias).toEqual('mean_f2')
         expect(newState[queryID].fields[1].args).toEqual([
-          {value: 'f2', type: 'field'},
+          {
+            value: 'f2',
+            type: 'field',
+          },
         ])
         expect(newState[queryID].fields[1].value).toEqual('mean')
       })
@@ -164,7 +179,10 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         expect(newState[queryID].fields[1].value).toBe('mean')
         expect(newState[queryID].fields[1].alias).toBe('mean_f2')
         expect(newState[queryID].fields[1].args).toEqual([
-          {value: 'f2', type: 'field'},
+          {
+            value: 'f2',
+            type: 'field',
+          },
         ])
         expect(newState[queryID].fields[1].type).toBe('func')
       })
@@ -175,7 +193,10 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
         const newState = reducer(
           state,
-          toggleField(queryID, {value: 'fk1', type: 'field'})
+          toggleField(queryID, {
+            value: 'fk1',
+            type: 'field',
+          })
         )
 
         expect(newState[queryID].fields.length).toBe(1)
@@ -185,8 +206,14 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
 
   describe('DE_APPLY_FUNCS_TO_FIELD', () => {
     it('applies new functions to a field', () => {
-      const f1 = {value: 'f1', type: 'field'}
-      const f2 = {value: 'f2', type: 'field'}
+      const f1 = {
+        value: 'f1',
+        type: 'field',
+      }
+      const f2 = {
+        value: 'f2',
+        type: 'field',
+      }
 
       const initialState = {
         [queryID]: {
@@ -194,40 +221,100 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           database: 'db1',
           measurement: 'm1',
           fields: [
-            {value: 'fn1', type: 'func', args: [f1], alias: `fn1_${f1.value}`},
-            {value: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.value}`},
-            {value: 'fn2', type: 'func', args: [f1], alias: `fn2_${f1.value}`},
+            {
+              value: 'fn1',
+              type: 'func',
+              args: [f1],
+              alias: `fn1_${f1.value}`,
+            },
+            {
+              value: 'fn1',
+              type: 'func',
+              args: [f2],
+              alias: `fn1_${f2.value}`,
+            },
+            {
+              value: 'fn2',
+              type: 'func',
+              args: [f1],
+              alias: `fn2_${f1.value}`,
+            },
           ],
         },
       }
 
       const action = applyFuncsToField(queryID, {
-        field: {value: 'f1', type: 'field'},
+        field: {
+          value: 'f1',
+          type: 'field',
+        },
         funcs: [
-          {value: 'fn3', type: 'func', args: []},
-          {value: 'fn4', type: 'func', args: []},
+          {
+            value: 'fn3',
+            type: 'func',
+            args: [],
+          },
+          {
+            value: 'fn4',
+            type: 'func',
+            args: [],
+          },
         ],
       })
 
       const nextState = reducer(initialState, action)
 
       expect(nextState[queryID].fields).toEqual([
-        {value: 'fn3', type: 'func', args: [f1], alias: `fn3_${f1.value}`},
-        {value: 'fn4', type: 'func', args: [f1], alias: `fn4_${f1.value}`},
-        {value: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.value}`},
+        {
+          value: 'fn3',
+          type: 'func',
+          args: [f1],
+          alias: `fn3_${f1.value}`,
+        },
+        {
+          value: 'fn4',
+          type: 'func',
+          args: [f1],
+          alias: `fn4_${f1.value}`,
+        },
+        {
+          value: 'fn1',
+          type: 'func',
+          args: [f2],
+          alias: `fn1_${f2.value}`,
+        },
       ])
     })
   })
 
   describe('DE_REMOVE_FUNCS', () => {
     it('removes all functions and group by time when one field has no funcs applied', () => {
-      const f1 = {value: 'f1', type: 'field'}
-      const f2 = {value: 'f2', type: 'field'}
+      const f1 = {
+        value: 'f1',
+        type: 'field',
+      }
+      const f2 = {
+        value: 'f2',
+        type: 'field',
+      }
       const fields = [
-        {value: 'fn1', type: 'func', args: [f1], alias: `fn1_${f1.value}`},
-        {value: 'fn1', type: 'func', args: [f2], alias: `fn1_${f2.value}`},
+        {
+          value: 'fn1',
+          type: 'func',
+          args: [f1],
+          alias: `fn1_${f1.value}`,
+        },
+        {
+          value: 'fn1',
+          type: 'func',
+          args: [f2],
+          alias: `fn1_${f2.value}`,
+        },
       ]
-      const groupBy = {time: '1m', tags: []}
+      const groupBy = {
+        time: '1m',
+        tags: [],
+      }
 
       const initialState = {
         [queryID]: {
@@ -320,7 +407,10 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           measurement: 'm1',
           fields: [],
           tags: {},
-          groupBy: {tags: [], time: null},
+          groupBy: {
+            tags: [],
+            time: null,
+          },
         },
       }
       const action = groupByTag(queryID, 'k1')
@@ -341,7 +431,10 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
           measurement: 'm1',
           fields: [],
           tags: {},
-          groupBy: {tags: ['k1'], time: null},
+          groupBy: {
+            tags: ['k1'],
+            time: null,
+          },
         },
       }
       const action = groupByTag(queryID, 'k1')
@@ -389,7 +482,14 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
     const initialState = {
       [queryID]: buildInitialState(queryID),
     }
-    const expected = defaultQueryConfig({id: queryID}, {rawText: 'hello'})
+    const expected = defaultQueryConfig(
+      {
+        id: queryID,
+      },
+      {
+        rawText: 'hello',
+      }
+    )
     const action = updateQueryConfig(expected)
 
     const nextState = reducer(initialState, action)
@@ -476,11 +576,29 @@ describe('Chronograf.Reducers.DataExplorer.queryConfigs', () => {
         [queryID]: buildInitialState(queryID),
       }
 
-      const shift = {quantity: 1, unit: 'd', duration: '1d'}
+      const shift = {
+        quantity: 1,
+        unit: 'd',
+        duration: '1d',
+      }
       const action = timeShift(queryID, shift)
       const nextState = reducer(initialState, action)
 
       expect(nextState[queryID].shifts).toEqual([shift])
+    })
+  })
+
+  describe('DE_EDIT_RAW_TEXT', () => {
+    it('can edit the raw text', () => {
+      const initialState = {
+        [queryID]: buildInitialState(queryID),
+      }
+
+      const rawText = 'im the raw text'
+      const action = editRawText(queryID, rawText)
+      const nextState = reducer(initialState, action)
+
+      expect(nextState[queryID].rawText).toEqual(rawText)
     })
   })
 })
