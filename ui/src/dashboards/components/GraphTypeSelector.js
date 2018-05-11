@@ -6,7 +6,7 @@ import classnames from 'classnames'
 
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
-import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
+import {GRAPH_TYPES} from 'src/types/dashboard'
 
 import {changeCellType} from 'src/dashboards/actions/cellEditorOverlay'
 

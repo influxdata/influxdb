@@ -1,6 +1,6 @@
 import _ from 'lodash'
 
-import {CellType} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/types/dashboard'
 
 export const NO_CELL = 'none'
 

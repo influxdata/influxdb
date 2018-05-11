@@ -1,6 +1,6 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
-import {CellType} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/types/dashboard'
 
 export const initializeOptions = (cellType: CellType) => {
   switch (cellType) {

@@ -1,5 +1,5 @@
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
-import {CellType} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/types/dashboard'
 import {UNTITLED_GRAPH} from 'src/dashboards/constants'
 
 const getMostCommonValue = values => {

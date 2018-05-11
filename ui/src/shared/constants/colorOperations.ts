@@ -7,7 +7,7 @@ import {
   THRESHOLD_TYPE_TEXT,
 } from 'src/shared/constants/thresholds'
 
-import {CellType} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/types/dashboard'
 
 const getLegibleTextColor = bgColorHex => {
   const darkText = '#292933'

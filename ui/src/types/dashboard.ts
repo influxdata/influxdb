@@ -1,6 +1,5 @@
 import {QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
-import {CellType} from 'src/dashboards/graphics/graph'
 
 interface Axis {
   bounds: [string, string]
@@ -76,4 +75,15 @@ export interface Template {
   id: string
   tempVar: string
   values: TemplateValue[]
+}
+
+export enum CellType {
+  Line = 'line',
+  Stacked = 'line-stacked',
+  StepPlot = 'line-stepplot',
+  Bar = 'bar',
+  LinePlusSingleStat = 'line-plus-single-stat',
+  SingleStat = 'single-stat',
+  Gauge = 'gauge',
+  Table = 'table',
 }

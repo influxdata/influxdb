@@ -2,7 +2,7 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {CellType} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/types/dashboard'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
 export const UNTITLED_GRAPH = 'Untitled Graph'

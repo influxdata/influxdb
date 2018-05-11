@@ -13,7 +13,7 @@ import {
   AXES_SCALE_OPTIONS,
   TOOLTIP_Y_VALUE_FORMAT,
 } from 'src/dashboards/constants/cellEditor'
-import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
+import {GRAPH_TYPES} from 'src/types/dashboard'
 
 import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
 import {ErrorHandling} from 'src/shared/decorators/errors'

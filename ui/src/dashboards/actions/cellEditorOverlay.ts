@@ -1,5 +1,5 @@
 import {Cell} from 'src/types'
-import {CellType} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/types/dashboard'
 import {ColorNumber, ColorString} from 'src/types/colors'
 import {Axes, DecimalPlaces, FieldName, TableOptions} from 'src/types/dashboard'
 

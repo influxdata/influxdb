@@ -1,17 +1,20 @@
-import React from 'react'
+import React, {ReactElement} from 'react'
 
-export enum CellType {
-  Line = 'line',
-  Stacked = 'line-stacked',
-  StepPlot = 'line-stepplot',
-  Bar = 'bar',
-  LinePlusSingleStat = 'line-plus-single-stat',
-  SingleStat = 'single-stat',
-  Gauge = 'gauge',
-  Table = 'table',
+import {CellType} from 'src/types/dashboard'
+
+type Graphic = ReactElement<HTMLDivElement>
+
+interface GraphSVGs {
+  [CellType.Line]: Graphic
+  [CellType.Stacked]: Graphic
+  [CellType.StepPlot]: Graphic
+  [CellType.Bar]: Graphic
+  [CellType.LinePlusSingleStat]: Graphic
+  [CellType.SingleStat]: Graphic
+  [CellType.Gauge]: Graphic
+  [CellType.Table]: Graphic
 }
-
-const GRAPH_SVGS = {
+const GRAPH_SVGS: GraphSVGs = {
   line: (
     <div className="viz-type-selector--graphic">
       <svg
@@ -520,7 +523,12 @@ const GRAPH_SVGS = {
   ),
 }
 
-export const GRAPH_TYPES = [
+interface GraphType {
+  type: CellType
+  menuOption: string
+  graphic: Graphic
+}
+export const GRAPH_TYPES: GraphType[] = [
   {
     type: CellType.Line,
     menuOption: 'Line Graph',

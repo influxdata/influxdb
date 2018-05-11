@@ -9,7 +9,7 @@ import {
 } from 'src/types'
 import {Axes, TableOptions, FieldName, DecimalPlaces} from 'src/types/dashboard'
 import {ColorString, ColorNumber} from 'src/types/colors'
-import {CellType} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/types/dashboard'
 
 export const sourceLinks: SourceLinks = {
   self: '/chronograf/v1/sources/4',
