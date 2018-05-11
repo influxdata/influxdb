@@ -1,10 +1,17 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 import _ from 'lodash'
 
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
-const CustomTimeIndicator = ({queries}) => {
+interface Query {
+  query: string
+}
+
+interface Props {
+  queries: Query[]
+}
+
+const CustomTimeIndicator: SFC<Props> = ({queries}) => {
   const q = queries.find(({query}) => !query.includes(TEMP_VAR_DASHBOARD_TIME))
   const customLower = _.get(q, ['queryConfig', 'range', 'lower'], null)
   const customUpper = _.get(q, ['queryConfig', 'range', 'upper'], null)
@@ -18,12 +25,6 @@ const CustomTimeIndicator = ({queries}) => {
     : customLower
 
   return <span className="custom-indicator">{customTimeRange}</span>
-}
-
-const {arrayOf, shape} = PropTypes
-
-CustomTimeIndicator.propTypes = {
-  queries: arrayOf(shape()),
 }
 
 export default CustomTimeIndicator

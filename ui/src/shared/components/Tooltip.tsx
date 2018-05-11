@@ -1,8 +1,11 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC, ReactElement} from 'react'
 import ReactTooltip from 'react-tooltip'
 
-const Tooltip = ({tip, children}) => (
+interface Props {
+  tip: string
+  children: ReactElement<any>
+}
+const Tooltip: SFC<Props> = ({tip, children}) => (
   <div>
     <div data-tip={tip}>{children}</div>
     <ReactTooltip
@@ -13,12 +16,5 @@ const Tooltip = ({tip, children}) => (
     />
   </div>
 )
-
-const {shape, string} = PropTypes
-
-Tooltip.propTypes = {
-  tip: string,
-  children: shape({}),
-}
 
 export default Tooltip

@@ -1,7 +1,10 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC, ReactElement} from 'react'
 
-const SplashPage = ({children}) => (
+interface Props {
+  children: ReactElement<any>
+}
+
+const SplashPage: SFC<Props> = ({children}) => (
   <div className="auth-page">
     <div className="auth-box">
       <div className="auth-logo" />
@@ -13,10 +16,5 @@ const SplashPage = ({children}) => (
     <div className="auth-image" />
   </div>
 )
-
-const {node} = PropTypes
-SplashPage.propTypes = {
-  children: node,
-}
 
 export default SplashPage
