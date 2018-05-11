@@ -1,4 +1,4 @@
-import React, {Component} from 'react'
+import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 
 import SourceIndicator from 'shared/components/SourceIndicator'
@@ -16,7 +16,7 @@ import moment from 'moment'
 import {timeRanges} from 'shared/data/timeRanges'
 
 @ErrorHandling
-class AlertsApp extends Component {
+class AlertsApp extends PureComponent {
   constructor(props) {
     super(props)
 
