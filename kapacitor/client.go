@@ -160,7 +160,7 @@ func (c *Client) createFromTick(rule chronograf.AlertRule) (*client.CreateTaskOp
 	}
 
 	return &client.CreateTaskOptions{
-		ID:         rule.ID,
+		ID:         rule.Name,
 		Type:       taskType,
 		DBRPs:      dbrps,
 		TICKscript: string(rule.TICKScript),
