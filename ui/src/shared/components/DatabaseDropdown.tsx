@@ -1,26 +1,43 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
-import Dropdown from 'shared/components/Dropdown'
+import Dropdown from 'src/shared/components/Dropdown'
 
-import {showDatabases} from 'shared/apis/metaQuery'
-import parsers from 'shared/parsing'
+import {showDatabases} from 'src/shared/apis/metaQuery'
+import parsers from 'src/shared/parsing'
+import {Source} from 'src/types/sources'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 const {databases: showDatabasesParser} = parsers
 
+interface Database {
+  text: string
+}
+
+interface Props {
+  database: string
+  onSelectDatabase: (database: Database) => void
+  onStartEdit: () => void
+  onErrorThrown: (error: string) => void
+  source: Source
+}
+
+interface State {
+  databases: Database[]
+}
+
 @ErrorHandling
-class DatabaseDropdown extends Component {
+class DatabaseDropdown extends Component<Props, State> {
   constructor(props) {
     super(props)
+
     this.state = {
       databases: [],
     }
   }
 
-  componentDidMount() {
-    this._getDatabases()
+  public componentDidMount() {
+    this.getDatabasesAsync()
   }
 
-  render() {
+  public render() {
     const {databases} = this.state
     const {database, onSelectDatabase, onStartEdit} = this.props
 
@@ -38,7 +55,7 @@ class DatabaseDropdown extends Component {
     )
   }
 
-  _getDatabases = async () => {
+  private getDatabasesAsync = async () => {
     const {source, database, onSelectDatabase, onErrorThrown} = this.props
     const proxy = source.links.proxy
     try {
@@ -60,20 +77,6 @@ class DatabaseDropdown extends Component {
       onErrorThrown(error)
     }
   }
-}
-
-const {func, shape, string} = PropTypes
-
-DatabaseDropdown.propTypes = {
-  database: string,
-  onSelectDatabase: func.isRequired,
-  onStartEdit: func,
-  onErrorThrown: func.isRequired,
-  source: shape({
-    links: shape({
-      proxy: string.isRequired,
-    }).isRequired,
-  }).isRequired,
 }
 
 export default DatabaseDropdown
