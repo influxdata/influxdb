@@ -70,9 +70,11 @@ class SlackConfigs extends PureComponent<Props, State> {
             />
           )
         })}
-        <button className="btn btn-md btn-default" onClick={this.addConfig}>
-          <span className="icon plus" /> Add Another Config
-        </button>
+        <div className="form-group col-xs-12 text-center">
+          <button className="btn btn-md btn-default" onClick={this.addConfig}>
+            <span className="icon plus" /> Add Another Config
+          </button>
+        </div>
       </div>
     )
   }

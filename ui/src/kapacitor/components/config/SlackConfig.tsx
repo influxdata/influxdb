@@ -149,9 +149,8 @@ class SlackConfig extends PureComponent<Props, State> {
               Delete
             </button>
           )}
+          <hr />
         </div>
-        <br />
-        <br />
       </form>
     )
   }
