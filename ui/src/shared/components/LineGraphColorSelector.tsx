@@ -1,24 +1,21 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import ColorScaleDropdown from 'shared/components/ColorScaleDropdown'
+import ColorScaleDropdown from 'src/shared/components/ColorScaleDropdown'
 
 import {updateLineColors} from 'src/dashboards/actions/cellEditorOverlay'
-import {colorsStringSchema} from 'shared/schemas'
+import {ColorNumber} from 'src/types/colors'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  lineColors: ColorNumber[]
+  handleUpdateLineColors: (colors: ColorNumber[]) => void
+}
+
 @ErrorHandling
-class LineGraphColorSelector extends Component {
-  handleSelectColors = colorScale => {
-    const {handleUpdateLineColors} = this.props
-    const {colors} = colorScale
-
-    handleUpdateLineColors(colors)
-  }
-
-  render() {
+class LineGraphColorSelector extends Component<Props> {
+  public render() {
     const {lineColors} = this.props
 
     return (
@@ -32,13 +29,13 @@ class LineGraphColorSelector extends Component {
       </div>
     )
   }
-}
 
-const {func} = PropTypes
+  public handleSelectColors = colorScale => {
+    const {handleUpdateLineColors} = this.props
+    const {colors} = colorScale
 
-LineGraphColorSelector.propTypes = {
-  lineColors: colorsStringSchema.isRequired,
-  handleUpdateLineColors: func.isRequired,
+    handleUpdateLineColors(colors)
+  }
 }
 
 const mapStateToProps = ({cellEditorOverlay: {lineColors}}) => ({
