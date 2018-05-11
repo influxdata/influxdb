@@ -1,34 +1,95 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 
 import _ from 'lodash'
 import classnames from 'classnames'
 import {Link} from 'react-router'
 import uuid from 'uuid'
 
-import InfiniteScroll from 'shared/components/InfiniteScroll'
+import InfiniteScroll from 'src/shared/components/InfiniteScroll'
+import SearchBar from 'src/alerts/components/SearchBar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {ALERTS_TABLE} from 'src/alerts/constants/tableSizing'
+import {Alert} from 'src/types/alerts'
+import {Source} from 'src/types'
+
+enum Direction {
+  ASC = 'asc',
+  DESC = 'desc',
+  NONE = 'none',
+}
+interface Props {
+  alerts: Alert[]
+  source: Source
+  shouldNotBeFilterable: boolean
+  limit: number
+  isAlertsMaxedOut: boolean
+  alertsCount: number
+  onGetMoreAlerts: () => void
+}
+interface State {
+  searchTerm: string
+  filteredAlerts: Alert[]
+  sortDirection: Direction
+  sortKey: string
+}
 
 @ErrorHandling
-class AlertsTable extends Component {
+class AlertsTable extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
     this.state = {
       searchTerm: '',
       filteredAlerts: this.props.alerts,
-      sortDirection: null,
-      sortKey: null,
+      sortDirection: Direction.NONE,
+      sortKey: '',
     }
   }
 
-  componentWillReceiveProps(newProps) {
+  public componentWillReceiveProps(newProps) {
     this.filterAlerts(this.state.searchTerm, newProps.alerts)
   }
 
-  filterAlerts = (searchTerm, newAlerts) => {
+  public render() {
+    const {
+      shouldNotBeFilterable,
+      limit,
+      onGetMoreAlerts,
+      isAlertsMaxedOut,
+      alertsCount,
+    } = this.props
+
+    return shouldNotBeFilterable ? (
+      <div className="alerts-widget">
+        {this.renderTable()}
+        {limit && alertsCount ? (
+          <button
+            className="btn btn-sm btn-default btn-block"
+            onClick={onGetMoreAlerts}
+            disabled={isAlertsMaxedOut}
+            style={{marginBottom: '20px'}}
+          >
+            {isAlertsMaxedOut
+              ? `All ${alertsCount} Alerts displayed`
+              : 'Load next 30 Alerts'}
+          </button>
+        ) : null}
+      </div>
+    ) : (
+      <div className="panel">
+        <div className="panel-heading">
+          <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
+          {this.props.alerts.length ? (
+            <SearchBar onSearch={this.filterAlerts} />
+          ) : null}
+        </div>
+        <div className="panel-body">{this.renderTable()}</div>
+      </div>
+    )
+  }
+
+  private filterAlerts = (searchTerm: string, newAlerts?: Alert[]): void => {
     const alerts = newAlerts || this.props.alerts
     const filterText = searchTerm.toLowerCase()
     const filteredAlerts = alerts.filter(({name, host, level}) => {
@@ -41,20 +102,22 @@ class AlertsTable extends Component {
     this.setState({searchTerm, filteredAlerts})
   }
 
-  changeSort = key => () => {
+  private changeSort = (key: string): (() => void) => (): void => {
     // if we're using the key, reverse order; otherwise, set it with ascending
     if (this.state.sortKey === key) {
-      const reverseDirection =
-        this.state.sortDirection === 'asc' ? 'desc' : 'asc'
+      const reverseDirection: Direction =
+        this.state.sortDirection === Direction.ASC
+          ? Direction.DESC
+          : Direction.ASC
       this.setState({sortDirection: reverseDirection})
     } else {
-      this.setState({sortKey: key, sortDirection: 'asc'})
+      this.setState({sortKey: key, sortDirection: Direction.ASC})
     }
   }
 
-  sortableClasses = key => {
+  private sortableClasses = (key: string): string => {
     if (this.state.sortKey === key) {
-      if (this.state.sortDirection === 'asc') {
+      if (this.state.sortDirection === Direction.ASC) {
         return 'alert-history-table--th sortable-header sorting-ascending'
       }
       return 'alert-history-table--th sortable-header sorting-descending'
@@ -62,18 +125,22 @@ class AlertsTable extends Component {
     return 'alert-history-table--th sortable-header'
   }
 
-  sort = (alerts, key, direction) => {
+  private sort = (
+    alerts: Alert[],
+    key: string,
+    direction: Direction
+  ): Alert[] => {
     switch (direction) {
-      case 'asc':
-        return _.sortBy(alerts, e => e[key])
-      case 'desc':
-        return _.sortBy(alerts, e => e[key]).reverse()
+      case Direction.ASC:
+        return _.sortBy<Alert>(alerts, e => e[key])
+      case Direction.DESC:
+        return _.sortBy<Alert>(alerts, e => e[key]).reverse()
       default:
         return alerts
     }
   }
 
-  renderTable() {
+  private renderTable(): JSX.Element {
     const {
       source: {id},
     } = this.props
@@ -176,7 +243,7 @@ class AlertsTable extends Component {
     )
   }
 
-  renderTableEmpty() {
+  private renderTableEmpty(): JSX.Element {
     const {
       source: {id},
       shouldNotBeFilterable,
@@ -206,110 +273,6 @@ class AlertsTable extends Component {
       </div>
     )
   }
-
-  render() {
-    const {
-      shouldNotBeFilterable,
-      limit,
-      onGetMoreAlerts,
-      isAlertsMaxedOut,
-      alertsCount,
-    } = this.props
-
-    return shouldNotBeFilterable ? (
-      <div className="alerts-widget">
-        {this.renderTable()}
-        {limit && alertsCount ? (
-          <button
-            className="btn btn-sm btn-default btn-block"
-            onClick={onGetMoreAlerts}
-            disabled={isAlertsMaxedOut}
-            style={{marginBottom: '20px'}}
-          >
-            {isAlertsMaxedOut
-              ? `All ${alertsCount} Alerts displayed`
-              : 'Load next 30 Alerts'}
-          </button>
-        ) : null}
-      </div>
-    ) : (
-      <div className="panel">
-        <div className="panel-heading">
-          <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
-          {this.props.alerts.length ? (
-            <SearchBar onSearch={this.filterAlerts} />
-          ) : null}
-        </div>
-        <div className="panel-body">{this.renderTable()}</div>
-      </div>
-    )
-  }
-}
-
-@ErrorHandling
-class SearchBar extends Component {
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      searchTerm: '',
-    }
-  }
-
-  componentWillMount() {
-    const waitPeriod = 300
-    this.handleSearch = _.debounce(this.handleSearch, waitPeriod)
-  }
-
-  handleSearch = () => {
-    this.props.onSearch(this.state.searchTerm)
-  }
-
-  handleChange = e => {
-    this.setState({searchTerm: e.target.value}, this.handleSearch)
-  }
-
-  render() {
-    return (
-      <div className="search-widget" style={{width: '260px'}}>
-        <input
-          type="text"
-          className="form-control input-sm"
-          placeholder="Filter Alerts..."
-          onChange={this.handleChange}
-          value={this.state.searchTerm}
-        />
-        <span className="icon search" />
-      </div>
-    )
-  }
-}
-
-const {arrayOf, bool, func, number, shape, string} = PropTypes
-
-AlertsTable.propTypes = {
-  alerts: arrayOf(
-    shape({
-      name: string,
-      time: string,
-      value: string,
-      host: string,
-      level: string,
-    })
-  ),
-  source: shape({
-    id: string.isRequired,
-    name: string.isRequired,
-  }).isRequired,
-  shouldNotBeFilterable: bool,
-  limit: number,
-  onGetMoreAlerts: func,
-  isAlertsMaxedOut: bool,
-  alertsCount: number,
-}
-
-SearchBar.propTypes = {
-  onSearch: func.isRequired,
 }
 
 export default AlertsTable
