@@ -1,20 +1,28 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {Component, MouseEvent, ChangeEvent} from 'react'
 
-import onClickOutside from 'shared/components/OnClickOutside'
+import onClickOutside from 'src/shared/components/OnClickOutside'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  min: string
+  id: string
+  type: string
+  customPlaceholder: string
+  customValue: string
+  onGetRef: (el: HTMLInputElement) => void
+  onFocus: () => void
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onKeyDown: () => void
+  handleClickOutsideInput: (e: MouseEvent<HTMLElement>) => void
+}
+
 @ErrorHandling
-class ClickOutsideInput extends Component {
+class ClickOutsideInput extends Component<Props> {
   constructor(props) {
     super(props)
   }
 
-  handleClickOutside = e => {
-    this.props.handleClickOutsideInput(e)
-  }
-
-  render() {
+  public render() {
     const {
       id,
       min,
@@ -43,21 +51,10 @@ class ClickOutsideInput extends Component {
       />
     )
   }
-}
 
-const {func, string} = PropTypes
-
-ClickOutsideInput.propTypes = {
-  min: string,
-  id: string.isRequired,
-  type: string.isRequired,
-  customPlaceholder: string.isRequired,
-  customValue: string.isRequired,
-  onGetRef: func.isRequired,
-  onFocus: func.isRequired,
-  onChange: func.isRequired,
-  onKeyDown: func.isRequired,
-  handleClickOutsideInput: func.isRequired,
+  public handleClickOutside = (e): void => {
+    this.props.handleClickOutsideInput(e)
+  }
 }
 
 export default onClickOutside(ClickOutsideInput)
