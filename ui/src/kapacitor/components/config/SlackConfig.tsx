@@ -57,21 +57,21 @@ class SlackConfig extends PureComponent<Props, State> {
         options: {url, channel, workspace},
       },
       isNewConfig,
+      onTest,
     } = this.props
     const {testEnabled, enabled} = this.state
-    const workspaceID = workspace || 'default'
 
     const isNickNameEnabled = isNewConfig && !testEnabled
 
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
-          <label htmlFor={`${workspaceID}-nickname`}>
+          <label htmlFor={`${this.workspaceID}-nickname`}>
             Nickname this Configuration
           </label>
           <input
             className="form-control"
-            id={`${workspaceID}-nickname`}
+            id={`${this.workspaceID}-nickname`}
             type="text"
             placeholder={this.nicknamePlaceholder}
             ref={r => (this.workspace = r)}
@@ -81,7 +81,7 @@ class SlackConfig extends PureComponent<Props, State> {
           />
         </div>
         <div className="form-group col-xs-12">
-          <label htmlFor={`${workspaceID}-url`}>
+          <label htmlFor={`${this.workspaceID}-url`}>
             Slack Webhook URL (
             <a href="https://api.slack.com/incoming-webhooks" target="_">
               see more on Slack webhooks
@@ -90,7 +90,7 @@ class SlackConfig extends PureComponent<Props, State> {
           </label>
           <RedactedInput
             defaultValue={url}
-            id={`${workspaceID}-url`}
+            id={`${this.workspaceID}-url`}
             refFunc={this.handleUrlRef}
             disableTest={this.disableTest}
             isFormEditing={!testEnabled}
@@ -98,12 +98,12 @@ class SlackConfig extends PureComponent<Props, State> {
         </div>
 
         <div className="form-group col-xs-12">
-          <label htmlFor={`${workspaceID}-slack-channel`}>
+          <label htmlFor={`${this.workspaceID}-slack-channel`}>
             Slack Channel (optional)
           </label>
           <input
             className="form-control"
-            id={`${workspaceID}-slack-channel`}
+            id={`${this.workspaceID}-slack-channel`}
             type="text"
             placeholder="#alerts"
             ref={r => (this.channel = r)}
@@ -116,11 +116,11 @@ class SlackConfig extends PureComponent<Props, State> {
           <div className="form-control-static">
             <input
               type="checkbox"
-              id={`${workspaceID}-disabled`}
+              id={`${this.workspaceID}-disabled`}
               checked={enabled}
               onChange={this.handleEnabledChange}
             />
-            <label htmlFor={`${workspaceID}-disabled`}>
+            <label htmlFor={`${this.workspaceID}-disabled`}>
               Configuration Enabled
             </label>
           </div>
@@ -130,15 +130,15 @@ class SlackConfig extends PureComponent<Props, State> {
           <button
             className="btn btn-primary"
             type="submit"
-            disabled={this.state.testEnabled}
+            disabled={testEnabled}
           >
             <span className="icon checkmark" />
             Save Changes
           </button>
           <button
             className="btn btn-primary"
-            disabled={!this.state.testEnabled || !enabled}
-            onClick={this.props.onTest}
+            disabled={!testEnabled || !enabled}
+            onClick={onTest}
           >
             <span className="icon pulse-c" />
             Send Test Alert
@@ -171,6 +171,25 @@ class SlackConfig extends PureComponent<Props, State> {
       isNewConfig,
     } = this.props
     return workspace === '' && !isNewConfig
+  }
+
+  private get workspaceID(): string {
+    const {
+      config: {
+        options: {workspace},
+      },
+      isNewConfig,
+    } = this.props
+
+    if (this.isDefaultConfig) {
+      return 'default'
+    }
+
+    if (isNewConfig) {
+      return 'new'
+    }
+
+    return workspace
   }
 
   private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
