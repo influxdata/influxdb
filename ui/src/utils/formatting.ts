@@ -152,7 +152,7 @@ export const formatRPDuration = (duration: string | null): string => {
   const seconds = _.get<string, string>(result, 4, '0')
 
   const hoursInDay = 24
-  if (days) {
+  if (+days) {
     adjustedTime = `${days}d`
     adjustedTime += +hours === 0 ? '' : `${hours}h`
     adjustedTime += +minutes === 0 ? '' : `${minutes}m`

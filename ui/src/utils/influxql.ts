@@ -1,16 +1,22 @@
 import _ from 'lodash'
 
-import {TEMP_VAR_INTERVAL, AUTO_GROUP_BY} from 'shared/constants'
-import {NULL_STRING} from 'shared/constants/queryFillOptions'
+import {TEMP_VAR_INTERVAL, AUTO_GROUP_BY} from 'src/shared/constants'
+import {NULL_STRING} from 'src/shared/constants/queryFillOptions'
 import {
   TYPE_QUERY_CONFIG,
   TYPE_SHIFTED,
   TYPE_IFQL,
 } from 'src/dashboards/constants'
-import {shiftTimeRange} from 'shared/query/helpers'
+import {shiftTimeRange} from 'src/shared/query/helpers'
+import {QueryConfig, Field, GroupBy, TimeShift} from 'src/types'
 
-/* eslint-disable quotes */
-export const quoteIfTimestamp = ({lower, upper}) => {
+export const quoteIfTimestamp = ({
+  lower,
+  upper,
+}: {
+  lower: string
+  upper: string
+}): {lower: string; upper: string} => {
   if (lower && lower.includes('Z') && !lower.includes("'")) {
     lower = `'${lower}'`
   }
@@ -21,43 +27,53 @@ export const quoteIfTimestamp = ({lower, upper}) => {
 
   return {lower, upper}
 }
-/* eslint-enable quotes */
 
-export default function buildInfluxQLQuery(timeRange, config, shift) {
+export default function buildInfluxQLQuery(
+  timeRange,
+  config: QueryConfig,
+  shift: string = ''
+): string {
   const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
   const {upper, lower} = quoteIfTimestamp(timeRange)
 
-  const select = _buildSelect(config, shift)
+  const select = buildSelect(config, shift)
   if (select === null) {
     return null
   }
 
-  const condition = _buildWhereClause({lower, upper, tags, areTagsAccepted})
-  const dimensions = _buildGroupBy(groupBy)
-  const fillClause = groupBy.time ? _buildFill(fill) : ''
+  const condition = buildWhereClause({lower, upper, tags, areTagsAccepted})
+  const dimensions = buildGroupBy(groupBy)
+  const fillClause = groupBy.time ? buildFill(fill) : ''
 
   return `${select}${condition}${dimensions}${fillClause}`
 }
 
-function _buildSelect({fields, database, retentionPolicy, measurement}, shift) {
-  if (!database || !measurement || !fields || !fields.length) {
+function buildSelect(
+  {fields, database, retentionPolicy, measurement}: QueryConfig,
+  shift: string | null = null
+): string {
+  if (!database || !measurement || _.isEmpty(fields)) {
     return null
   }
 
   const rpSegment = retentionPolicy ? `"${retentionPolicy}"` : ''
-  const fieldsClause = _buildFields(fields, shift)
+  const fieldsClause = buildFields(fields, shift)
   const fullyQualifiedMeasurement = `"${database}".${rpSegment}."${measurement}"`
   const statement = `SELECT ${fieldsClause} FROM ${fullyQualifiedMeasurement}`
   return statement
 }
 
 // type arg will reason about new query types i.e. IFQL, GraphQL, or queryConfig
-export const buildQuery = (type, timeRange, config, shift) => {
+export const buildQuery = (
+  type: string,
+  timeRange: object,
+  config: QueryConfig,
+  shift: TimeShift | null = null
+): string => {
   switch (type) {
     case TYPE_QUERY_CONFIG: {
       return buildInfluxQLQuery(timeRange, config)
     }
-
     case TYPE_SHIFTED: {
       const {quantity, unit} = shift
       return buildInfluxQLQuery(
@@ -75,11 +91,11 @@ export const buildQuery = (type, timeRange, config, shift) => {
   return buildInfluxQLQuery(timeRange, config)
 }
 
-export function buildSelectStatement(config) {
-  return _buildSelect(config)
+export function buildSelectStatement(config: QueryConfig): string {
+  return buildSelect(config)
 }
 
-function _buildFields(fieldFuncs, shift = '') {
+function buildFields(fieldFuncs: Field[], shift = ''): string {
   if (!fieldFuncs) {
     return ''
   }
@@ -103,7 +119,7 @@ function _buildFields(fieldFuncs, shift = '') {
           return `${f.value}`
         }
         case 'func': {
-          const args = _buildFields(f.args)
+          const args = buildFields(f.args)
           const alias = f.alias ? ` AS "${f.alias}${shift}"` : ''
           return `${f.value}(${args})${alias}`
         }
@@ -112,7 +128,12 @@ function _buildFields(fieldFuncs, shift = '') {
     .join(', ')
 }
 
-function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
+function buildWhereClause({
+  lower,
+  upper,
+  tags,
+  areTagsAccepted,
+}: QueryConfig): string {
   const timeClauses = []
 
   const timeClause = quoteIfTimestamp({lower, upper})
@@ -148,11 +169,11 @@ function _buildWhereClause({lower, upper, tags, areTagsAccepted}) {
   return ` WHERE ${subClauses.join(' AND ')}`
 }
 
-function _buildGroupBy(groupBy) {
-  return `${_buildGroupByTime(groupBy)}${_buildGroupByTags(groupBy)}`
+function buildGroupBy(groupBy: GroupBy): string {
+  return `${buildGroupByTime(groupBy)}${buildGroupByTags(groupBy)}`
 }
 
-function _buildGroupByTime(groupBy) {
+function buildGroupByTime(groupBy: GroupBy): string {
   if (!groupBy || !groupBy.time) {
     return ''
   }
@@ -162,7 +183,7 @@ function _buildGroupByTime(groupBy) {
   })`
 }
 
-function _buildGroupByTags(groupBy) {
+function buildGroupByTags(groupBy: GroupBy): string {
   if (!groupBy || !groupBy.tags.length) {
     return ''
   }
@@ -176,9 +197,9 @@ function _buildGroupByTags(groupBy) {
   return ` GROUP BY ${tags}`
 }
 
-function _buildFill(fill) {
+function buildFill(fill: string): string {
   return ` FILL(${fill})`
 }
 
-export const buildRawText = (q, timeRange) =>
-  q.rawText || buildInfluxQLQuery(timeRange, q) || ''
+export const buildRawText = (config: QueryConfig, timeRange: object): string =>
+  config.rawText || buildInfluxQLQuery(timeRange, config) || ''
