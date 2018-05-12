@@ -1,14 +1,17 @@
-import AJAX from 'utils/ajax'
+import AJAX from 'src/utils/ajax'
 import {AlertTypes} from 'src/kapacitor/constants'
+import {Kapacitor} from 'src/types'
 
 export function getSources() {
   return AJAX({
+    url: null,
     resource: 'sources',
   })
 }
 
 export function getSource(id) {
   return AJAX({
+    url: null,
     resource: 'sources',
     id,
   })
@@ -16,6 +19,7 @@ export function getSource(id) {
 
 export function createSource(attributes) {
   return AJAX({
+    url: null,
     resource: 'sources',
     method: 'POST',
     data: attributes,
@@ -123,12 +127,12 @@ export function createKapacitor(
 export function updateKapacitor({
   links,
   url,
-  name = 'My Kapacitor',
+  name = 'My Kaacitor',
   username,
   password,
   active,
   insecureSkipVerify,
-}) {
+}: Kapacitor) {
   return AJAX({
     url: links.self,
     method: 'PATCH',
@@ -282,7 +286,7 @@ export function deleteKapacitorTask(kapacitor, id) {
   return kapacitorProxy(kapacitor, 'DELETE', `/kapacitor/v1/tasks/${id}`, '')
 }
 
-export function kapacitorProxy(kapacitor, method, path, body) {
+export function kapacitorProxy(kapacitor, method, path, body?) {
   return AJAX({
     method,
     url: kapacitor.links.proxy,
@@ -293,7 +297,7 @@ export function kapacitorProxy(kapacitor, method, path, body) {
   })
 }
 
-export const getQueryConfigAndStatus = (url, queries, tempVars) =>
+export const getQueryConfigAndStatus = (url, queries, tempVars = []) =>
   AJAX({
     url,
     method: 'POST',
