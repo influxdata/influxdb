@@ -40,7 +40,7 @@ class SearchBar extends PureComponent<Props, State> {
     )
   }
 
-  private handleSearch = () => {
+  private handleSearch = (): void => {
     this.props.onSearch(this.state.searchTerm)
   }
 

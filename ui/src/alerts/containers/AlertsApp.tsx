@@ -192,7 +192,7 @@ class AlertsApp extends PureComponent<Props, State> {
     )
   }
 
-  private handleApplyTime = (timeRange: TimeRange) => {
+  private handleApplyTime = (timeRange: TimeRange): void => {
     this.setState({timeRange})
   }
 }
