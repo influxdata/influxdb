@@ -113,11 +113,11 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
     return activeQuery || defaultQuery
   }
 
-  private handleToggleView = view => () => {
+  private handleToggleView = (view: string): void => {
     this.setState({view})
   }
 
-  private getQueryText(queryConfigs, index) {
+  private getQueryText(queryConfigs, index): string {
     // rawText can be null
     return _.get(queryConfigs, [`${index}`, 'rawText'], '') || ''
   }

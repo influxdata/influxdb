@@ -3,7 +3,7 @@ import AJAX from 'src/utils/ajax'
 interface ProxyQuery {
   source: string
   query: string
-  db: string
+  db?: string
   rp?: string
   tempVars?: string
   resolution?: string

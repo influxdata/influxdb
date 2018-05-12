@@ -5,7 +5,9 @@ import _ from 'lodash'
 import {errorThrown} from 'shared/actions/errors'
 
 export const handleLoading = (query, editQueryStatus) => {
-  editQueryStatus(query.id, {loading: true})
+  editQueryStatus(query.id, {
+    loading: true,
+  })
 }
 // {results: [{}]}
 export const handleSuccess = (data, query, editQueryStatus) => {
@@ -22,12 +24,16 @@ export const handleSuccess = (data, query, editQueryStatus) => {
 
   // 200 from chrono server but influx returns an "error" = warning
   if (error) {
-    editQueryStatus(query.id, {warn: error})
+    editQueryStatus(query.id, {
+      warn: error,
+    })
     return data
   }
 
   // 200 from server and results contains data = success
-  editQueryStatus(query.id, {success: 'Success!'})
+  editQueryStatus(query.id, {
+    success: 'Success!',
+  })
   return data
 }
 
@@ -39,7 +45,9 @@ export const handleError = (error, query, editQueryStatus) => {
   )
 
   // 400 from chrono server = fail
-  editQueryStatus(query.id, {error: message})
+  editQueryStatus(query.id, {
+    error: message,
+  })
 }
 
 export const fetchTimeSeriesAsync = async (
