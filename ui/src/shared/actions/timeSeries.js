@@ -51,7 +51,7 @@ export const handleError = (error, query, editQueryStatus) => {
 }
 
 export const fetchTimeSeriesAsync = async (
-  {source, db, rp, query, tempVars, resolution},
+  {source, db = null, rp = null, query, tempVars, resolution = null},
   editQueryStatus = noop
 ) => {
   handleLoading(query, editQueryStatus)
