@@ -1,10 +1,10 @@
 import React, {PureComponent} from 'react'
 import DatabaseDropdown from 'src/shared/components/DatabaseDropdown'
-import {Source} from 'src/types'
+import {Source, DropdownItem} from 'src/types'
 
 interface Props {
-  handleSelectDatabase: () => void
-  selectedDatabase: () => void
+  handleSelectDatabase: (item: DropdownItem) => void
+  selectedDatabase: string
   toggleWriteView: (isWriteViewToggled: boolean) => void
   errorThrown: () => void
   onClose: () => void
