@@ -4,6 +4,7 @@ import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import NanoDate from 'nano-date'
+import ReactResizeDetector from 'react-resize-detector'
 
 import Dygraphs from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
@@ -353,6 +354,11 @@ class Dygraph extends Component {
           />
         )}
         {nestedGraph && React.cloneElement(nestedGraph, {staticLegendHeight})}
+        <ReactResizeDetector
+          handleWidth={true}
+          handleHeight={true}
+          onResize={this.resize}
+        />
       </div>
     )
   }

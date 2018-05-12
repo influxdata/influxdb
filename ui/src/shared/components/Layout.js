@@ -69,7 +69,6 @@ const Layout = (
     autoRefresh,
     manualRefresh,
     onDeleteCell,
-    resizeCoords,
     onCancelEditCell,
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
@@ -110,7 +109,6 @@ const Layout = (
         manualRefresh={manualRefresh}
         onStopAddAnnotation={onStopAddAnnotation}
         grabDataForDownload={grabDataForDownload}
-        resizeCoords={resizeCoords}
         queries={buildQueriesForLayouts(
           cell,
           getSource(cell, source, sources, defaultSource),
@@ -191,7 +189,6 @@ const propTypes = {
   isStatusPage: bool,
   isEditable: bool,
   onCancelEditCell: func,
-  resizeCoords: shape(),
   onZoom: func,
   sources: arrayOf(shape()),
 }
