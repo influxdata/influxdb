@@ -138,6 +138,7 @@ export class DataExplorer extends PureComponent<Props, State> {
             initialGroupByTime={AUTO_GROUP_BY}
           />
           <Visualization
+            source={source}
             views={VIS_VIEWS}
             activeQueryIndex={0}
             timeRange={timeRange}
