@@ -1,12 +1,12 @@
 import AJAX from 'src/utils/ajax'
 
 interface ProxyQuery {
-  source: string
+  source: string | string[]
   query: string
   db?: string
   rp?: string
-  tempVars?: string
-  resolution?: string
+  tempVars?: any[]
+  resolution?: number
 }
 
 export async function proxy<T = any>({

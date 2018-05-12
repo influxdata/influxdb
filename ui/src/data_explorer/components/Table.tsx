@@ -209,6 +209,10 @@ class ChronoTable extends PureComponent<Props, State> {
     return _.get(series, `${activeSeriesIndex}`, emptySeries)
   }
 
+  private get source(): string {
+    return _.get(this.props.query, 'host.0', '')
+  }
+
   private fetchCellData = async (query: DataExplorerTableQuery) => {
     if (!query || !query.text) {
       return
@@ -220,8 +224,8 @@ class ChronoTable extends PureComponent<Props, State> {
 
     try {
       const {results} = await fetchTimeSeriesAsync({
-        source: query.host,
-        query,
+        source: this.source,
+        query: query.text,
         tempVars: TEMPLATES,
       })
 
@@ -267,7 +271,7 @@ class ChronoTable extends PureComponent<Props, State> {
     })
   }
 
-  private handleClickTab = activeSeriesIndex => () => {
+  private handleClickTab = activeSeriesIndex => {
     this.setState({
       activeSeriesIndex,
     })

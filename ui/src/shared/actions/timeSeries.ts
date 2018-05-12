@@ -1,14 +1,15 @@
-import {proxy} from 'utils/queryUrlGenerator'
-import {noop} from 'shared/actions/app'
+import {proxy} from 'src/utils/queryUrlGenerator'
+import {noop} from 'src/shared/actions/app'
 import _ from 'lodash'
 
-import {errorThrown} from 'shared/actions/errors'
+import {errorThrown} from 'src/shared/actions/errors'
 
 export const handleLoading = (query, editQueryStatus) => {
   editQueryStatus(query.id, {
     loading: true,
   })
 }
+
 // {results: [{}]}
 export const handleSuccess = (data, query, editQueryStatus) => {
   const {results} = data
@@ -50,8 +51,16 @@ export const handleError = (error, query, editQueryStatus) => {
   })
 }
 
+interface Payload {
+  source: string
+  query: string
+  tempVars: any[]
+  db?: string
+  rp?: string
+  resolution?: number
+}
 export const fetchTimeSeriesAsync = async (
-  {source, db = null, rp = null, query, tempVars, resolution = null},
+  {source, db, rp, query, tempVars, resolution}: Payload,
   editQueryStatus = noop
 ) => {
   handleLoading(query, editQueryStatus)
@@ -60,7 +69,7 @@ export const fetchTimeSeriesAsync = async (
       source,
       db,
       rp,
-      query: query.text,
+      query,
       tempVars,
       resolution,
     })
