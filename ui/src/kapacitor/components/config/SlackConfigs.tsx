@@ -31,7 +31,7 @@ interface Props {
 }
 
 interface State {
-  configs: any[]
+  configs: Config[]
 }
 
 @ErrorHandling
@@ -89,6 +89,7 @@ class SlackConfigs extends PureComponent<Props, State> {
       options: {
         url: false,
         channel: '',
+        workspace: '',
       },
       isNewConfig: true,
     }

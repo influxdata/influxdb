@@ -1,4 +1,5 @@
 import {QueryConfig} from './'
+import {AlertTypes} from 'src/kapacitor/constants'
 
 export interface Kapacitor {
   id?: string
@@ -202,3 +203,88 @@ export interface DBRP {
   db: string
   rp: string
 }
+
+// Alert Handler used in the Alert Builder
+
+interface HandlerBasics {
+  type: AlertTypes
+  enabled: boolean
+}
+
+export type Handler = HandlerBasics & {[k: string]: any}
+
+export interface RuleMessageTemplate {
+  id: RuleMessage
+  name: RuleMessage
+  taskName: RuleMessage
+  group: RuleMessage
+  tags: RuleMessage
+  level: RuleMessage
+  fields: RuleMessage
+  time: RuleMessage
+}
+
+interface RuleMessage {
+  label: string
+  text: string
+}
+
+export interface KeyMappings {
+  hipchat: string
+  opsgenie: string
+  opsgenie2: string
+  pagerduty: string
+  pagerduty2: string
+  smtp: string
+  victorops: string
+}
+
+export interface FieldsFromConfigAlerts {
+  alerta: string[]
+  hipChat: string[]
+  kafka: string[]
+  opsGenie: string[]
+  opsGenie2: string[]
+  pagerDuty: string[]
+  pagerDuty2: string[]
+  pushover: string[]
+  sensu: string[]
+  slack: string[]
+  email: string[]
+  talk: string[]
+  telegram: string[]
+  victorOps: string[]
+}
+
+export interface FieldsFromAllAlerts extends FieldsFromConfigAlerts {
+  post: string[]
+  tcp: string[]
+  exec: string[]
+  log: string[]
+}
+
+interface pagerDutyConfigKeyMap {
+  'service-key': string
+}
+
+interface pushoverConfigKeyMap {
+  'user-key': String
+}
+
+interface telegramConfigKeyMap {
+  'chat-id': string
+  'parse-mode': string
+  'disable-web-page-preview': string
+  'disable-notification': string
+}
+
+interface victorOpsConfigKeyMap {
+  'routing-key': string
+}
+
+export type ConfigKeyMaps =
+  | pagerDutyConfigKeyMap
+  | pushoverConfigKeyMap
+  | telegramConfigKeyMap
+  | victorOpsConfigKeyMap
+  | {}

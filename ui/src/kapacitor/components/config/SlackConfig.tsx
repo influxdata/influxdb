@@ -14,7 +14,6 @@ interface Config {
   options: {
     url: boolean
     channel: string
-    enabled: boolean
     workspace: string
   }
 }
