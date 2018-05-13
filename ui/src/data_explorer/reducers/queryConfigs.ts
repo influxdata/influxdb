@@ -1,6 +1,9 @@
 import _ from 'lodash'
 
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
+import {QueryConfig} from 'src/types'
+import {Action} from 'src/data_explorer/actions/view'
+
 import {
   fill,
   timeShift,
@@ -18,7 +21,11 @@ import {
   toggleTagAcceptance,
 } from 'src/utils/queryTransitions'
 
-const queryConfigs = (state = {}, action) => {
+interface State {
+  [queryID: string]: Readonly<QueryConfig>
+}
+
+const queryConfigs = (state: State = {}, action: Action): State => {
   switch (action.type) {
     case 'DE_CHOOSE_NAMESPACE': {
       const {queryID, database, retentionPolicy} = action.payload
@@ -27,9 +34,7 @@ const queryConfigs = (state = {}, action) => {
         retentionPolicy,
       })
 
-      return Object.assign({}, state, {
-        [queryID]: Object.assign(nextQueryConfig, {rawText: null}),
-      })
+      return {...state, [queryID]: {...nextQueryConfig, rawText: null}}
     }
 
     case 'DE_CHOOSE_MEASUREMENT': {
@@ -71,36 +76,31 @@ const queryConfigs = (state = {}, action) => {
       const {queryID, rawText} = action.payload
       const nextQueryConfig = editRawText(state[queryID], rawText)
 
-      return Object.assign({}, state, {
+      return {
+        ...state,
         [queryID]: nextQueryConfig,
-      })
+      }
     }
 
     case 'DE_GROUP_BY_TIME': {
       const {queryID, time} = action.payload
       const nextQueryConfig = groupByTime(state[queryID], time)
 
-      return Object.assign({}, state, {
-        [queryID]: nextQueryConfig,
-      })
+      return {...state, [queryID]: nextQueryConfig}
     }
 
     case 'DE_TOGGLE_TAG_ACCEPTANCE': {
       const {queryID} = action.payload
       const nextQueryConfig = toggleTagAcceptance(state[queryID])
 
-      return Object.assign({}, state, {
-        [queryID]: nextQueryConfig,
-      })
+      return {...state, [queryID]: nextQueryConfig}
     }
 
     case 'DE_TOGGLE_FIELD': {
       const {queryID, fieldFunc} = action.payload
       const nextQueryConfig = toggleField(state[queryID], fieldFunc)
 
-      return Object.assign({}, state, {
-        [queryID]: {...nextQueryConfig, rawText: null},
-      })
+      return {...state, [queryID]: {...nextQueryConfig, rawText: null}}
     }
 
     case 'DE_APPLY_FUNCS_TO_FIELD': {
@@ -111,26 +111,20 @@ const queryConfigs = (state = {}, action) => {
         groupBy
       )
 
-      return Object.assign({}, state, {
-        [queryID]: nextQueryConfig,
-      })
+      return {...state, [queryID]: nextQueryConfig}
     }
 
     case 'DE_CHOOSE_TAG': {
       const {queryID, tag} = action.payload
       const nextQueryConfig = chooseTag(state[queryID], tag)
 
-      return Object.assign({}, state, {
-        [queryID]: nextQueryConfig,
-      })
+      return {...state, [queryID]: nextQueryConfig}
     }
 
     case 'DE_GROUP_BY_TAG': {
       const {queryID, tagKey} = action.payload
       const nextQueryConfig = groupByTag(state[queryID], tagKey)
-      return Object.assign({}, state, {
-        [queryID]: nextQueryConfig,
-      })
+      return {...state, [queryID]: nextQueryConfig}
     }
 
     case 'DE_FILL': {

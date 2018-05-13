@@ -43,7 +43,6 @@ const RefreshingGraph = ({
   resizerTopHeight,
   staticLegend,
   manualRefresh, // when changed, re-mounts the component
-  resizeCoords,
   editQueryStatus,
   handleSetHoverTime,
   grabDataForDownload,
@@ -89,7 +88,6 @@ const RefreshingGraph = ({
         cellHeight={cellHeight}
         resizerTopHeight={resizerTopHeight}
         editQueryStatus={editQueryStatus}
-        resizeCoords={resizeCoords}
         cellID={cellID}
         prefix={prefix}
         suffix={suffix}
@@ -111,7 +109,6 @@ const RefreshingGraph = ({
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
-        resizeCoords={resizeCoords}
         tableOptions={tableOptions}
         fieldOptions={fieldOptions}
         timeFormat={timeFormat}
@@ -144,7 +141,6 @@ const RefreshingGraph = ({
       timeRange={timeRange}
       autoRefresh={autoRefresh}
       isBarGraph={type === 'bar'}
-      resizeCoords={resizeCoords}
       staticLegend={staticLegend}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}
@@ -172,7 +168,6 @@ RefreshingGraph.propTypes = {
   editQueryStatus: func,
   staticLegend: bool,
   onZoom: func,
-  resizeCoords: shape(),
   grabDataForDownload: func,
   colors: colorsStringSchema,
   cellID: string,

@@ -1,12 +1,15 @@
-import {proxy} from 'utils/queryUrlGenerator'
-import {noop} from 'shared/actions/app'
+import {proxy} from 'src/utils/queryUrlGenerator'
+import {noop} from 'src/shared/actions/app'
 import _ from 'lodash'
 
-import {errorThrown} from 'shared/actions/errors'
+import {errorThrown} from 'src/shared/actions/errors'
 
 export const handleLoading = (query, editQueryStatus) => {
-  editQueryStatus(query.id, {loading: true})
+  editQueryStatus(query.id, {
+    loading: true,
+  })
 }
+
 // {results: [{}]}
 export const handleSuccess = (data, query, editQueryStatus) => {
   const {results} = data
@@ -22,12 +25,16 @@ export const handleSuccess = (data, query, editQueryStatus) => {
 
   // 200 from chrono server but influx returns an "error" = warning
   if (error) {
-    editQueryStatus(query.id, {warn: error})
+    editQueryStatus(query.id, {
+      warn: error,
+    })
     return data
   }
 
   // 200 from server and results contains data = success
-  editQueryStatus(query.id, {success: 'Success!'})
+  editQueryStatus(query.id, {
+    success: 'Success!',
+  })
   return data
 }
 
@@ -39,11 +46,21 @@ export const handleError = (error, query, editQueryStatus) => {
   )
 
   // 400 from chrono server = fail
-  editQueryStatus(query.id, {error: message})
+  editQueryStatus(query.id, {
+    error: message,
+  })
 }
 
+interface Payload {
+  source: string
+  query: string
+  tempVars: any[]
+  db?: string
+  rp?: string
+  resolution?: number
+}
 export const fetchTimeSeriesAsync = async (
-  {source, db, rp, query, tempVars, resolution},
+  {source, db, rp, query, tempVars, resolution}: Payload,
   editQueryStatus = noop
 ) => {
   handleLoading(query, editQueryStatus)
@@ -52,7 +69,7 @@ export const fetchTimeSeriesAsync = async (
       source,
       db,
       rp,
-      query: query.text,
+      query,
       tempVars,
       resolution,
     })

@@ -1,8 +1,31 @@
+interface DataExplorerState {
+  queryIDs: ReadonlyArray<string>
+}
+
+interface ActionAddQuery {
+  type: 'DE_ADD_QUERY'
+  payload: {
+    queryID: string
+  }
+}
+
+interface ActionDeleteQuery {
+  type: 'DE_DELETE_QUERY'
+  payload: {
+    queryID: string
+  }
+}
+
+type Action = ActionAddQuery | ActionDeleteQuery
+
 const initialState = {
   queryIDs: [],
 }
 
-export default function ui(state = initialState, action) {
+const ui = (
+  state: DataExplorerState = initialState,
+  action: Action
+): DataExplorerState => {
   switch (action.type) {
     // there is an additional reducer for this same action in the queryConfig reducer
     case 'DE_ADD_QUERY': {
@@ -27,3 +50,5 @@ export default function ui(state = initialState, action) {
 
   return state
 }
+
+export default ui

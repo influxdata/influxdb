@@ -1,13 +1,18 @@
 import {writeLineProtocol as writeLineProtocolAJAX} from 'src/data_explorer/apis'
 
-import {notify} from 'shared/actions/notifications'
+import {notify} from 'src/shared/actions/notifications'
+import {Source} from 'src/types'
 
 import {
   notifyDataWritten,
   notifyDataWriteFailed,
-} from 'shared/copy/notifications'
+} from 'src/shared/copy/notifications'
 
-export const writeLineProtocolAsync = (source, db, data) => async dispatch => {
+export const writeLineProtocolAsync = (
+  source: Source,
+  db: string,
+  data: string
+) => async (dispatch): Promise<void> => {
   try {
     await writeLineProtocolAJAX(source, db, data)
     dispatch(notify(notifyDataWritten()))
