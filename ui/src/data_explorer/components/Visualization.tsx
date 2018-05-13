@@ -37,7 +37,7 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
     this.state = this.initialState
   }
 
-  public componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps: Props) {
     const {activeQueryIndex, queryConfigs} = nextProps
     const nextQueryText = this.getQueryText(queryConfigs, activeQueryIndex)
     const queryText = this.getQueryText(
@@ -117,7 +117,7 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
     this.setState({view})
   }
 
-  private getQueryText(queryConfigs, index): string {
+  private getQueryText(queryConfigs: QueryConfig[], index: number): string {
     // rawText can be null
     return _.get(queryConfigs, [`${index}`, 'rawText'], '') || ''
   }

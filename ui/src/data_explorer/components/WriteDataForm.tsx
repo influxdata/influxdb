@@ -159,7 +159,7 @@ class WriteDataForm extends PureComponent<Props, State> {
     this.fileInput.value = ''
   }
 
-  private handleDragOver = e => {
+  private handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
   }
@@ -185,7 +185,7 @@ class WriteDataForm extends PureComponent<Props, State> {
     }
   }
 
-  private handleFileInputRef = r => (this.fileInput = r)
+  private handleFileInputRef = (r: HTMLInputElement) => (this.fileInput = r)
 }
 
 export default OnClickOutside(WriteDataForm)

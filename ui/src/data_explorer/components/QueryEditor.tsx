@@ -29,7 +29,7 @@ class QueryEditor extends PureComponent<Props, State> {
     this.editor = React.createRef<HTMLTextAreaElement>()
   }
 
-  public componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps: Props) {
     if (this.props.query !== nextProps.query) {
       this.setState({value: nextProps.query})
     }
