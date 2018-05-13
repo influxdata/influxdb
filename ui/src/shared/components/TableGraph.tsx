@@ -3,7 +3,7 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import {connect} from 'react-redux'
 
-import {ColumnSizer} from 'react-virtualized'
+import {ColumnSizer, SizedColumnProps, CellRenderer} from 'react-virtualized'
 import {MultiGrid} from 'src/shared/components/MultiGrid'
 import {bindActionCreators} from 'redux'
 import moment from 'moment'
@@ -66,20 +66,15 @@ interface State {
   hoveredRowIndex: number
   timeColumnWidth: number
   sort: Sort
-  columnWidths: ColumnWidths
+  columnWidths: {[x: string]: number}
   totalColumnWidths: number
   isTimeVisible: boolean
-}
-
-interface ColumnWidths {
-  totalWidths: number
-  widths: {[x: string]: number}
 }
 
 @ErrorHandling
 class TableGraph extends Component<Props, State> {
   private gridContainer: HTMLDivElement
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
 
     const sortField: string = _.get(
@@ -95,7 +90,7 @@ class TableGraph extends Component<Props, State> {
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sort: {field: sortField, direction: DEFAULT_SORT_DIRECTION},
-      columnWidths: {totalWidths: 0, widths: {}},
+      columnWidths: {},
       totalColumnWidths: 0,
       isTimeVisible: true,
       timeColumnWidth: 0,
@@ -144,9 +139,9 @@ class TableGraph extends Component<Props, State> {
             columnMinWidth={COLUMN_MIN_WIDTH}
             width={tableWidth}
           >
-            {({columnWidth, registerChild}) => (
+            {({columnWidth, registerChild}: SizedColumnProps) => (
               <MultiGrid
-                ref={r => this.getMultiGridRef(r, registerChild)}
+                ref={registerChild}
                 columnCount={columnCount}
                 columnWidth={this.calculateColumnWidth(columnWidth)}
                 rowCount={rowCount}
@@ -223,7 +218,7 @@ class TableGraph extends Component<Props, State> {
       columnWidths: columnWidths.widths,
       data: result.data,
       sortedLabels,
-      totalColumnWidths: totalWidths,
+      totalColumnWidths: columnWidths.totalWidths,
       hoveredColumnIndex: NULL_ARRAY_INDEX,
       hoveredRowIndex: NULL_ARRAY_INDEX,
       sort,
@@ -231,7 +226,7 @@ class TableGraph extends Component<Props, State> {
     })
   }
 
-  public componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps: Props) {
     const updatedProps = _.keys(nextProps).filter(
       k => !_.isEqual(this.props[k], nextProps[k])
     )
@@ -280,7 +275,6 @@ class TableGraph extends Component<Props, State> {
         transformedData,
         sortedTimeVals,
         columnWidths,
-        totalWidths,
       } = transformTableData(
         data,
         sort,
@@ -305,8 +299,8 @@ class TableGraph extends Component<Props, State> {
         transformedData,
         sortedTimeVals,
         sort,
-        columnWidths,
-        totalColumnWidths: totalWidths,
+        columnWidths: columnWidths.widths,
+        totalColumnWidths: columnWidths.totalWidths,
         isTimeVisible,
       })
     }
@@ -337,7 +331,7 @@ class TableGraph extends Component<Props, State> {
       return {scrollToColumn: null, scrollToRow: null}
     }
 
-    const firstDiff = Math.abs(Number(hoverTime) - sortedTimeVals[1]) // sortedTimeVals[0] is "time"
+    const firstDiff = Math.abs(Number(hoverTime) - Number(sortedTimeVals[1])) // sortedTimeVals[0] is "time"
     const hoverTimeFound = reduce(
       sortedTimeVals,
       (acc, currentTime, index) => {
@@ -467,7 +461,13 @@ class TableGraph extends Component<Props, State> {
     return `${cellData}`
   }
 
-  private cellRenderer = ({columnIndex, rowIndex, key, parent, style}) => {
+  private cellRenderer: CellRenderer = ({
+    columnIndex,
+    rowIndex,
+    key,
+    parent,
+    style,
+  }) => {
     const {
       hoveredColumnIndex,
       hoveredRowIndex,
@@ -480,7 +480,7 @@ class TableGraph extends Component<Props, State> {
       fieldOptions = [DEFAULT_TIME_FIELD],
       tableOptions,
       colors,
-    } = parent.props
+    } = this.props
 
     const {
       verticalTimeAxis = DEFAULT_VERTICAL_TIME_AXIS,
@@ -577,9 +577,9 @@ class TableGraph extends Component<Props, State> {
     )
   }
 
-  private getMultiGridRef = (r, registerChild) => {
-    return registerChild(r)
-  }
+  // private getMultiGridRef = (r: MultiGrid, registerChild) => {
+  //   return registerChild(r)
+  // }
 }
 
 const mapDispatchToProps = dispatch => ({
