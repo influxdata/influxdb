@@ -387,7 +387,11 @@ export const timeShift = (
 })
 
 // Async actions
-export const editRawTextAsync = (url, id, text) => async dispatch => {
+export const editRawTextAsync = (
+  url: string,
+  id: string,
+  text: string
+) => async (dispatch): Promise<void> => {
   try {
     const {data} = await getQueryConfigAndStatus(url, [
       {
