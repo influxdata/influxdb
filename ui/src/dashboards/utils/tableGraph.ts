@@ -1,6 +1,6 @@
 import calculateSize from 'calculate-size'
 import _ from 'lodash'
-import {map, reduce, filter} from 'fast.js'
+import {fastMap, fastReduce, fastFilter} from 'src/utils/fast'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
 import {DEFAULT_TIME_FIELD, DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
@@ -56,21 +56,21 @@ const updateMaxWidths = (
   verticalTimeAxis: boolean,
   decimalPlaces: DecimalPlaces
 ): ColumnWidths => {
-  const maxWidths = reduce(
+  const maxWidths = fastReduce<DbData>(
     row,
-    (acc, col, c) => {
+    (acc: ColumnWidths, col: DbData, c: number) => {
       const isLabel =
         (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
 
-      const foundField = isLabel
-        ? fieldOptions.find(field => field.internalName === col)
-        : undefined
-      const isNumerical = _.isNumber(col)
+      const foundField =
+        isLabel && _.isString(col)
+          ? fieldOptions.find(field => field.internalName === col)
+          : null
 
       let colValue = `${col}`
       if (foundField && foundField.displayName) {
         colValue = foundField.displayName
-      } else if (isNumerical && decimalPlaces.isEnforced) {
+      } else if (_.isNumber(col) && decimalPlaces.isEnforced) {
         colValue = col.toFixed(decimalPlaces.digits)
       }
 
@@ -84,6 +84,7 @@ const updateMaxWidths = (
           isTopRow &&
           topRow[0] === DEFAULT_TIME_FIELD.internalName &&
           c !== 0)
+
       const currentWidth = useTimeWidth
         ? timeFormatWidth
         : calculateSize(colValue, {
@@ -92,7 +93,8 @@ const updateMaxWidths = (
             fontWeight: 'bold',
           }).width + CELL_HORIZONTAL_PADDING
 
-      const maxWidth = _.get(maxWidths, `${columnLabel}`, 0)
+      const {widths: Widths} = maxColumnWidths
+      const maxWidth = _.get(Widths, `${columnLabel}`, 0)
 
       if (isTopRow || currentWidth > maxWidth) {
         acc.widths[columnLabel] = currentWidth
@@ -143,9 +145,9 @@ export const calculateColumnWidths = (
   const timeFormatWidth = calculateTimeColumnWidth(
     timeFormat === '' ? DEFAULT_TIME_FORMAT : timeFormat
   )
-  return reduce(
+  return fastReduce<DbData[], ColumnWidths>(
     data,
-    (acc, row, r) => {
+    (acc: ColumnWidths, row: DbData[], r: number) => {
       return updateMaxWidths(
         row,
         acc,
@@ -166,8 +168,8 @@ export const filterTableColumns = (
   fieldOptions: FieldOption[]
 ): DbData[][] => {
   const visibility = {}
-  const filteredData = map(data, (row, i) => {
-    return filter(row, (col, j) => {
+  const filteredData = fastMap<DbData[], DbData[]>(data, (row, i) => {
+    return fastFilter<DbData>(row, (col, j) => {
       if (i === 0) {
         const foundField = fieldOptions.find(
           field => field.internalName === col
@@ -189,10 +191,15 @@ export const orderTableColumns = (
       return dataLabel === fieldOption.internalName
     })
   })
-  const filteredFieldSortOrder = filter(fieldsSortOrder, f => f !== -1)
-  const orderedData = map(data, row => {
-    return row.map((__, j, arr) => arr[filteredFieldSortOrder[j]])
-  })
+
+  const filteredFieldSortOrder = fieldsSortOrder.filter(f => f !== -1)
+
+  const orderedData = fastMap<DbData[], DbData[]>(
+    data,
+    (row: DbData[]): DbData[] => {
+      return row.map((__, j, arr) => arr[filteredFieldSortOrder[j]])
+    }
+  )
   return orderedData[0].length ? orderedData : [[]]
 }
 
@@ -206,7 +213,10 @@ export const sortTableData = (
     data[0],
     ..._.orderBy<DbData[]>(dataValues, sortIndex, [sort.direction]),
   ]
-  const sortedTimeVals = map(sortedData, r => r[0])
+  const sortedTimeVals = fastMap<DbData[], DbData>(
+    sortedData,
+    (r: DbData[]): DbData => r[0]
+  )
   return {sortedData, sortedTimeVals}
 }
 
