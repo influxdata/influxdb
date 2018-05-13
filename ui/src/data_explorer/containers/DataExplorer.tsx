@@ -72,7 +72,7 @@ export class DataExplorer extends PureComponent<Props, State> {
     }
   }
 
-  public componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps: Props) {
     const {router} = this.props
     const {queryConfigs, timeRange} = nextProps
 
