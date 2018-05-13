@@ -12,8 +12,7 @@
     "build": "yarn run clean && webpack --config ./webpack/prod.config.js",
     "build:dev": "webpack --config ./webpack/dev.config.js",
     "build:vendor": "webpack --config webpack/vendor.config.js",
-    "start":
-      "yarn run clean && yarn run build:vendor && webpack --watch --config ./webpack/dev.config.js --progress",
+    "start": "yarn run clean && yarn run build:vendor && webpack --watch --config ./webpack/dev.config.js --progress",
     "start:fast": "webpack --watch --config ./webpack/dev.config.js",
     "start:hmr": "webpack-dev-server --open --config ./webpack/dev.config.js",
     "lint": "esw src/",
@@ -23,12 +22,9 @@
     "clean": "rm -rf ./build/*",
     "eslint:fix": "eslint src --fix",
     "tslint:fix": "tslint --fix -c ./tslint.json '{src,test}/**/*.ts?(x)'",
-    "prettier":
-      "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"",
-    "lint:fix":
-      "yarn run prettier && yarn run eslint:fix && yarn run tslint:fix",
-    "eslint-check":
-      "eslint --print-config .eslintrc | eslint-config-prettier-check"
+    "prettier": "prettier --single-quote --trailing-comma es5 --bracket-spacing false --semi false --write \"{src,spec}/**/*.js\"",
+    "lint:fix": "yarn run prettier && yarn run eslint:fix && yarn run tslint:fix",
+    "eslint-check": "eslint --print-config .eslintrc | eslint-config-prettier-check"
   },
   "author": "",
   "eslintConfig": {
