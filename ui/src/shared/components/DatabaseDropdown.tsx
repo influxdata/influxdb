@@ -14,7 +14,7 @@ interface Database {
 interface Props {
   database: string
   onSelectDatabase: (database: Database) => void
-  onStartEdit: () => void
+  onStartEdit?: () => void
   onErrorThrown: (error: string) => void
   source: Source
 }
