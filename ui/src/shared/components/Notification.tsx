@@ -1,4 +1,4 @@
-import React, {Component} from 'react'
+import React, {Component, CSSProperties} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {Notification as NotificationType} from 'src/types/notifications'
@@ -57,27 +57,46 @@ class Notification extends Component<Props, State> {
 
   public render() {
     const {
-      notification: {type, message, icon},
+      notification: {message, icon},
     } = this.props
-    const {height, dismissed} = this.state
-
-    const notificationContainerClass = classnames('notification-container', {
-      show: !!height,
-      'notification-dismissed': dismissed,
-    })
-    const notificationClass = `notification notification-${type}`
-    const notificationMargin = 4
-    const style = {height: height + notificationMargin}
 
     return (
-      <div className={notificationContainerClass} style={style}>
-        <div className={notificationClass} ref={this.handleNotificationRef}>
+      <div className={this.containerClassname} style={this.notificationStyle}>
+        <div
+          className={this.notificationClassname}
+          ref={this.handleNotificationRef}
+        >
           <span className={`icon ${icon}`} />
           <div className="notification-message">{message}</div>
           <button className="notification-close" onClick={this.handleDismiss} />
         </div>
       </div>
     )
+  }
+
+  private get notificationClassname(): string {
+    const {
+      notification: {type},
+    } = this.props
+
+    return `notification notification-${type}`
+  }
+
+  private get containerClassname(): string {
+    const {height, dismissed} = this.state
+
+    return classnames('notification-container', {
+      show: !!height,
+      'notification-dismissed': dismissed,
+    })
+  }
+
+  private get notificationStyle(): CSSProperties {
+    const {height} = this.state
+
+    const NOTIFICATION_MARGIN = 4
+
+    return {height: height + NOTIFICATION_MARGIN}
   }
 
   private updateHeight = (): void => {
