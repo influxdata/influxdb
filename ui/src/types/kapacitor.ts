@@ -120,7 +120,7 @@ interface PagerDuty {
   serviceKey: string
 }
 
-// PagerDuty sends alerts to the pagerduty.com service
+// PagerDuty2 sends alerts to the pagerduty.com service
 interface PagerDuty2 {
   routingKey: string
 }
