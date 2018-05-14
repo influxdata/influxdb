@@ -3,12 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Properties {
-  'api-key': string
-  'routing-key': string
-  url: string
-}
+import {VictorOpsProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -21,7 +16,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: VictorOpsProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -131,7 +126,7 @@ class VictorOpsConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: VictorOpsProperties = {
       'api-key': this.apiKey.value,
       'routing-key': this.routingKey.value,
       url: this.url.value,

@@ -33,6 +33,40 @@ export enum AlertTypes {
   log = 'log',
 }
 
+export enum AlertDisplayText {
+  alerta = 'Alerta',
+  hipchat = 'HipChat',
+  kafka = 'Kafka',
+  opsgenie = 'OpsGenie',
+  opsgenie2 = 'OpsGenie2',
+  pagerduty = 'PagerDuty',
+  pagerduty2 = 'PagerDuty2',
+  pushover = 'Pushover',
+  sensu = 'Sensu',
+  slack = 'Slack',
+  smtp = 'SMTP',
+  talk = 'Talk',
+  telegram = 'Telegram',
+  victorops = 'VictorOps',
+}
+
+export const SupportedServices: string[] = [
+  'alerta',
+  'hipchat',
+  'kafka',
+  'opsgenie',
+  'opsgenie2',
+  'pagerduty',
+  'pagerduty2',
+  'pushover',
+  'sensu',
+  'slack',
+  'smtp',
+  'talk',
+  'telegram',
+  'victorops',
+]
+
 export const defaultRuleConfigs = {
   deadman: {
     period: '10m',

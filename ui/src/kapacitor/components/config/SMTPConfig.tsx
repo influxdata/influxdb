@@ -1,15 +1,7 @@
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Properties {
-  host: string
-  port: string
-  from: string
-  to: string[]
-  username: string
-  password: string
-}
+import {SMTPProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -25,7 +17,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: SMTPProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -178,7 +170,7 @@ class SMTPConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: SMTPProperties = {
       host: this.host.value,
       port: this.port.value,
       from: this.from.value,

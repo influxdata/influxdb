@@ -3,12 +3,7 @@ import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SlackConfig from 'src/kapacitor/components/config/SlackConfig'
-
-interface Properties {
-  channel: string
-  url: string
-  workspace?: string
-}
+import {SlackProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -21,7 +16,7 @@ interface Config {
 interface Props {
   configs: Config[]
   onSave: (
-    properties: Properties,
+    properties: SlackProperties,
     isNewConfigInSection: boolean,
     specificConfig: string
   ) => void

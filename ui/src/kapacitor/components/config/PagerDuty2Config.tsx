@@ -3,11 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Properties {
-  'routing-key': string
-  url: string
-  enabled: boolean
-}
+import {PagerDuty2Properties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -19,7 +15,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: PagerDuty2Properties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -120,7 +116,7 @@ class PagerDuty2Config extends PureComponent<Props, State> {
   ): Promise<void> => {
     e.preventDefault()
 
-    const properties: Properties = {
+    const properties: PagerDuty2Properties = {
       'routing-key': this.routingKey.value,
       url: this.url.value,
       enabled: this.state.enabled,

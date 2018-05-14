@@ -1,11 +1,7 @@
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Properties {
-  source: string
-  addr: string
-}
+import {SensuProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -17,7 +13,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: SensuProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -112,7 +108,7 @@ class SensuConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: SensuProperties = {
       source: this.source.value,
       addr: this.addr.value,
       enabled: this.state.enabled,

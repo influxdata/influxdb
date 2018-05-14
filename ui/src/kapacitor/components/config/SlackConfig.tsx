@@ -2,13 +2,7 @@ import _ from 'lodash'
 import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Properties {
-  channel: string
-  url: string
-  workspace?: string
-  enabled: boolean
-}
+import {SlackProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -21,7 +15,7 @@ interface Config {
 interface Props {
   config: Config
   onSave: (
-    properties: Properties,
+    properties: SlackProperties,
     isNewConfigInSection: boolean,
     specificConfig: string
   ) => void
@@ -207,7 +201,7 @@ class SlackConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     const {isNewConfig} = this.props
     e.preventDefault()
-    const properties: Properties = {
+    const properties: SlackProperties = {
       url: this.url.value,
       channel: this.channel.value,
       enabled: this.state.enabled,

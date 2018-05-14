@@ -288,3 +288,116 @@ export type ConfigKeyMaps =
   | telegramConfigKeyMap
   | victorOpsConfigKeyMap
   | {}
+
+export interface AlertaProperties {
+  environment: string
+  origin: string
+  token: string
+  url: string
+  enabled: boolean
+}
+
+export interface HipChatProperties {
+  room: string
+  url: string
+  token: string
+  enabled: boolean
+}
+
+export interface KafkaProperties {
+  brokers: string[]
+  timeout: string
+  'batch-size': number
+  'batch-timeout': string
+  'use-ssl': boolean
+  'ssl-ca': string
+  'ssl-cert': string
+  'ssl-key': string
+  'insecure-skip-verify': boolean
+}
+
+export interface OpsGenieProperties {
+  'api-key': string
+  teams: string[]
+  recipients: string[]
+  enabled: boolean
+}
+
+export interface PagerDutyProperties {
+  'service-key': string
+  url: string
+  enabled: boolean
+}
+
+export interface PagerDuty2Properties {
+  'routing-key': string
+  url: string
+  enabled: boolean
+}
+
+export interface PushoverProperties {
+  token: string
+  url: string
+  'user-key': string
+  enabled: boolean
+}
+
+export interface SensuProperties {
+  source: string
+  addr: string
+  enabled: boolean
+}
+
+export interface SlackProperties {
+  channel: string
+  url: string
+  workspace?: string
+  enabled: boolean
+}
+
+export interface SMTPProperties {
+  host: string
+  port: string
+  from: string
+  to: string[]
+  username: string
+  password: string
+  enabled: boolean
+}
+
+export interface TalkProperties {
+  url: string
+  author_name: string
+  enabled: boolean
+}
+
+export interface TelegramProperties {
+  'chat-id': string
+  'disable-notification': boolean
+  'disable-web-page-preview': boolean
+  'parse-mode': string
+  token: string
+  enabled: boolean
+}
+
+export interface VictorOpsProperties {
+  'api-key': string
+  'routing-key': string
+  url: string
+  enabled: boolean
+}
+
+export type ServiceProperties =
+  | AlertaProperties
+  | HipChatProperties
+  | KafkaProperties
+  | OpsGenieProperties
+  | PagerDutyProperties
+  | PagerDuty2Properties
+  | PushoverProperties
+  | SensuProperties
+  | SlackProperties
+  | SMTPProperties
+  | TalkProperties
+  | TelegramProperties
+  | VictorOpsProperties

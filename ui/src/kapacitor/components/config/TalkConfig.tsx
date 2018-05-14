@@ -4,10 +4,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Properties {
-  url: string
-  author_name: string
-}
+import {TalkProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -24,7 +21,7 @@ interface State {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: TalkProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -113,7 +110,7 @@ class TalkConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: TalkProperties = {
       url: this.url.value,
       author_name: this.author.value,
       enabled: this.state.enabled,
