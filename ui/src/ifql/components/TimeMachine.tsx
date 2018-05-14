@@ -6,7 +6,7 @@ import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
 import Threesizer from 'src/shared/components/Threesizer'
 import {Suggestion, OnChangeScript, FlatBody} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
+import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
   script: string

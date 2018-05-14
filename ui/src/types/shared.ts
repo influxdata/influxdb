@@ -1,10 +1,8 @@
 import {ReactNode} from 'react'
 
-export type DropdownItem =
-  | {
-      text: string
-    }
-  | string
+export interface DropdownItem {
+  text: string
+}
 
 export interface DropdownAction {
   icon: string

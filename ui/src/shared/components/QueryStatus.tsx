@@ -1,69 +1,48 @@
-import React, {Component, ReactElement} from 'react'
+import React, {SFC, ReactNode} from 'react'
 import LoadingDots from 'src/shared/components/LoadingDots'
 import classnames from 'classnames'
-
-interface Status {
-  error: string
-  success: string
-  warn: string
-  loading: boolean
-}
+import {Status} from 'src/types'
 
 interface Props {
-  children: ReactElement<any>
   status: Status
+  children: ReactNode
 }
 
-class QueryStatus extends Component<Props> {
-  public render() {
-    const {status, children} = this.props
+const QueryStatus: SFC<Props> = ({status, children}) => {
+  if (!status) {
+    return <div className="query-editor--status">{children}</div>
+  }
 
-    if (!status) {
-      return <div className="query-editor--status">{children}</div>
-    }
-
-    if (!!status.loading) {
-      return (
-        <div className="query-editor--status">
-          <LoadingDots />
-          {children}
-        </div>
-      )
-    }
-
+  if (status.loading) {
     return (
       <div className="query-editor--status">
-        <span className={this.className}>
-          {this.icon}
-          {status.error || status.warn || status.success}
-        </span>
+        <LoadingDots className="query-editor--loading" />
         {children}
       </div>
     )
   }
 
-  private get className(): string {
-    const {status} = this.props
-
-    return classnames('query-status-output', {
-      'query-status-output--error': status.error,
-      'query-status-output--success': status.success,
-      'query-status-output--warning': status.warn,
-    })
-  }
-
-  private get icon(): JSX.Element {
-    const {status} = this.props
-    return (
+  return (
+    <div className="query-editor--status">
       <span
-        className={classnames('icon', {
-          stop: status.error,
-          checkmark: status.success,
-          'alert-triangle': status.warn,
+        className={classnames('query-status-output', {
+          'query-status-output--error': status.error,
+          'query-status-output--success': status.success,
+          'query-status-output--warning': status.warn,
         })}
-      />
-    )
-  }
+      >
+        <span
+          className={classnames('icon', {
+            stop: status.error,
+            checkmark: status.success,
+            'alert-triangle': status.warn,
+          })}
+        />
+        {status.error || status.warn || status.success}
+      </span>
+      {children}
+    </div>
+  )
 }
 
 export default QueryStatus

@@ -47,7 +47,9 @@ class DatabaseDropdown extends Component<Props, State> {
 
     return (
       <Dropdown
-        items={databases.map(text => ({text}))}
+        items={databases.map(text => ({
+          text,
+        }))}
         selected={database || 'Loading...'}
         onChoose={onSelectDatabase}
         onClick={onStartEdit ? onStartEdit : null}
@@ -67,11 +69,15 @@ class DatabaseDropdown extends Component<Props, State> {
 
       const nonSystemDatabases = databases.filter(name => name !== '_internal')
 
-      this.setState({databases: nonSystemDatabases})
+      this.setState({
+        databases: nonSystemDatabases,
+      })
       const selectedDatabaseText = nonSystemDatabases.includes(database)
         ? database
         : nonSystemDatabases[0] || 'No databases'
-      onSelectDatabase({text: selectedDatabaseText})
+      onSelectDatabase({
+        text: selectedDatabaseText,
+      })
     } catch (error) {
       console.error(error)
       onErrorThrown(error)

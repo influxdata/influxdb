@@ -8,15 +8,22 @@ import {
 } from 'src/shared/reducers/helpers/fields'
 
 import {
+  Tag,
   Field,
   GroupBy,
   Namespace,
-  QueryConfig,
-  Tag,
   TagValues,
   TimeShift,
+  QueryConfig,
   ApplyFuncsToFieldArgs,
 } from 'src/types'
+
+export const editRawText = (
+  query: QueryConfig,
+  rawText: string
+): QueryConfig => {
+  return {...query, rawText}
+}
 
 export const chooseNamespace = (
   query: QueryConfig,

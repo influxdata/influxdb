@@ -1,18 +1,20 @@
 export interface QueryConfig {
   id?: string
-  database: string
-  measurement: string
-  retentionPolicy: string
-  fields: Field[]
+  database?: string
+  measurement?: string
+  retentionPolicy?: string
+  fields?: Field[]
   tags: Tags
-  groupBy: GroupBy
+  groupBy?: GroupBy
   areTagsAccepted: boolean
-  rawText: string
+  rawText?: string
   range?: DurationRange | null
   sourceLink?: string
   fill?: string
   status?: Status
-  shifts: TimeShift[]
+  shifts?: TimeShift[]
+  lower?: string
+  upper?: string
   isQuerySupportedByExplorer?: boolean // doesn't come from server -- is set in CellEditorOverlay
 }
 
