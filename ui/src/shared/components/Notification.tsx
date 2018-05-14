@@ -1,17 +1,32 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
+import {Notification as NotificationType} from 'src/types/notifications'
 
 import classnames from 'classnames'
 
-import {dismissNotification as dismissNotificationAction} from 'shared/actions/notifications'
+import {dismissNotification as dismissNotificationAction} from 'src/shared/actions/notifications'
 
-import {NOTIFICATION_TRANSITION} from 'shared/constants/index'
+import {NOTIFICATION_TRANSITION} from 'src/shared/constants/index'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  notification: NotificationType
+  dismissNotification: (id: string) => void
+}
+
+interface State {
+  opacity: number
+  height: number
+  dismissed: boolean
+}
+
 @ErrorHandling
-class Notification extends Component {
+class Notification extends Component<Props, State> {
+  private notificationRef: HTMLElement
+  private dismissalTimer: number
+  private deletionTimer: number
+
   constructor(props) {
     super(props)
 
@@ -22,7 +37,7 @@ class Notification extends Component {
     }
   }
 
-  componentDidMount() {
+  public componentDidMount() {
     const {
       notification: {duration},
     } = this.props
@@ -31,41 +46,16 @@ class Notification extends Component {
 
     if (duration >= 0) {
       // Automatically dismiss notification after duration prop
-      this.dismissTimer = setTimeout(this.handleDismiss, duration)
+      this.dismissalTimer = window.setTimeout(this.handleDismiss, duration)
     }
   }
 
-  updateHeight() {
-    if (this.notificationRef) {
-      const {height} = this.notificationRef.getBoundingClientRect()
-      this.setState({height})
-    }
+  public componentWillUnmount() {
+    clearTimeout(this.dismissalTimer)
+    clearTimeout(this.deletionTimer)
   }
 
-  componentWillUnmount() {
-    clearTimeout(this.dismissTimer)
-    clearTimeout(this.deleteTimer)
-  }
-
-  handleDismiss = () => {
-    const {
-      notification: {id},
-      dismissNotification,
-    } = this.props
-
-    this.setState({dismissed: true})
-    this.deleteTimer = setTimeout(
-      () => dismissNotification(id),
-      NOTIFICATION_TRANSITION
-    )
-  }
-
-  onNotificationRef = ref => {
-    this.notificationRef = ref
-    this.updateHeight()
-  }
-
-  render() {
+  public render() {
     const {
       notification: {type, message, icon},
     } = this.props
@@ -81,7 +71,7 @@ class Notification extends Component {
 
     return (
       <div className={notificationContainerClass} style={style}>
-        <div className={notificationClass} ref={this.onNotificationRef}>
+        <div className={notificationClass} ref={this.handleNotificationRef}>
           <span className={`icon ${icon}`} />
           <div className="notification-message">{message}</div>
           <button className="notification-close" onClick={this.handleDismiss} />
@@ -89,19 +79,31 @@ class Notification extends Component {
       </div>
     )
   }
-}
 
-const {func, number, shape, string} = PropTypes
+  private updateHeight = (): void => {
+    if (this.notificationRef) {
+      const {height} = this.notificationRef.getBoundingClientRect()
+      this.setState({height})
+    }
+  }
 
-Notification.propTypes = {
-  notification: shape({
-    id: string.isRequired,
-    type: string.isRequired,
-    message: string.isRequired,
-    duration: number.isRequired,
-    icon: string.isRequired,
-  }).isRequired,
-  dismissNotification: func.isRequired,
+  private handleDismiss = (): void => {
+    const {
+      notification: {id},
+      dismissNotification,
+    } = this.props
+
+    this.setState({dismissed: true})
+    this.deletionTimer = window.setTimeout(
+      () => dismissNotification(id),
+      NOTIFICATION_TRANSITION
+    )
+  }
+
+  private handleNotificationRef = (ref: HTMLElement): void => {
+    this.notificationRef = ref
+    this.updateHeight()
+  }
 }
 
 const mapDispatchToProps = dispatch => ({
