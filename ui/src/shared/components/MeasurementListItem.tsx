@@ -3,7 +3,6 @@ import classnames from 'classnames'
 import React, {PureComponent, MouseEvent} from 'react'
 import TagList from 'src/shared/components/TagList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
 import {QueryConfig, Tag} from 'src/types'
 
 interface SourceLinks {

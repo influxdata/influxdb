@@ -1,8 +1,9 @@
-const KMB_LABELS = ['K', 'M', 'B', 'T', 'Q']
-const KMG2_BIG_LABELS = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
-const KMG2_SMALL_LABELS = ['m', 'u', 'n', 'p', 'f', 'a', 'z', 'y']
+import _ from 'lodash'
+const KMB_LABELS: string[] = ['K', 'M', 'B', 'T', 'Q']
+const KMG2_BIG_LABELS: string[] = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
+const KMG2_SMALL_LABELS: string[] = ['m', 'u', 'n', 'p', 'f', 'a', 'z', 'y']
 
-const pow = (base, exp) => {
+const pow = (base: number, exp: number): number => {
   if (exp < 0) {
     return 1.0 / Math.pow(base, -exp)
   }
@@ -10,12 +11,12 @@ const pow = (base, exp) => {
   return Math.pow(base, exp)
 }
 
-const round_ = (num, places) => {
+const roundNum = (num, places): number => {
   const shift = Math.pow(10, places)
   return Math.round(num * shift) / shift
 }
 
-const floatFormat = (x, optPrecision) => {
+const floatFormat = (x: number, optPrecision: number): string => {
   // Avoid invalid precision values; [1, 21] is the valid range.
   const p = Math.min(Math.max(1, optPrecision || 2), 21)
 
@@ -41,7 +42,12 @@ const floatFormat = (x, optPrecision) => {
 }
 
 // taken from https://github.com/danvk/dygraphs/blob/aaec6de56dba8ed712fd7b9d949de47b46a76ccd/src/dygraph-utils.js#L1103
-export const numberValueFormatter = (x, opts, prefix, suffix) => {
+export const numberValueFormatter = (
+  x: number,
+  opts: (name: string) => number,
+  prefix: string,
+  suffix: string
+): string => {
   const sigFigs = opts('sigFigs')
 
   if (sigFigs !== null) {
@@ -65,7 +71,7 @@ export const numberValueFormatter = (x, opts, prefix, suffix) => {
   ) {
     label = x.toExponential(digits)
   } else {
-    label = `${round_(x, digits)}`
+    label = `${roundNum(x, digits)}`
   }
 
   if (kmb || kmg2) {
@@ -89,15 +95,17 @@ export const numberValueFormatter = (x, opts, prefix, suffix) => {
     let n = pow(k, kLabels.length)
     for (let j = kLabels.length - 1; j >= 0; j -= 1, n /= k) {
       if (absx >= n) {
-        label = round_(x / n, digits) + kLabels[j]
+        label = roundNum(x / n, digits) + kLabels[j]
         break
       }
     }
     if (kmg2) {
-      const xParts = String(x.toExponential()).split('e-')
+      const xParts = String(x.toExponential())
+        .split('e-')
+        .map(Number)
       if (xParts.length === 2 && xParts[1] >= 3 && xParts[1] <= 24) {
         if (xParts[1] % 3 > 0) {
-          label = round_(xParts[0] / pow(10, xParts[1] % 3), digits)
+          label = roundNum(xParts[0] / pow(10, xParts[1] % 3), digits)
         } else {
           label = Number(xParts[0]).toFixed(2)
         }
@@ -109,7 +117,7 @@ export const numberValueFormatter = (x, opts, prefix, suffix) => {
   return `${prefix}${label}${suffix}`
 }
 
-export const formatBytes = bytes => {
+export const formatBytes = (bytes: number) => {
   if (bytes === 0) {
     return '0 Bytes'
   }
@@ -126,7 +134,7 @@ export const formatBytes = bytes => {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
 }
 
-export const formatRPDuration = duration => {
+export const formatRPDuration = (duration: string | null): string => {
   if (!duration) {
     return
   }
@@ -137,23 +145,21 @@ export const formatRPDuration = duration => {
 
   let adjustedTime = duration
   const durationMatcher = /(?:(\d*)d)?(?:(\d*)h)?(?:(\d*)m)?(?:(\d*)s)?/
-  const [
-    _match, // eslint-disable-line no-unused-vars
-    days = 0,
-    hours = 0,
-    minutes = 0,
-    seconds = 0,
-  ] = duration.match(durationMatcher)
+  const result = duration.match(durationMatcher)
+  const days = _.get<string, string>(result, 1, '0')
+  const hours = _.get<string, string>(result, 2, '0')
+  const minutes = _.get<string, string>(result, 3, '0')
+  const seconds = _.get<string, string>(result, 4, '0')
 
   const hoursInDay = 24
-  if (days) {
+  if (+days) {
     adjustedTime = `${days}d`
     adjustedTime += +hours === 0 ? '' : `${hours}h`
     adjustedTime += +minutes === 0 ? '' : `${minutes}m`
     adjustedTime += +seconds === 0 ? '' : `${seconds}s`
-  } else if (hours > hoursInDay) {
-    const hoursRemainder = hours % hoursInDay
-    const daysQuotient = (hours - hoursRemainder) / hoursInDay
+  } else if (+hours > hoursInDay) {
+    const hoursRemainder = +hours % hoursInDay
+    const daysQuotient = (+hours - hoursRemainder) / hoursInDay
     adjustedTime = `${daysQuotient}d`
     adjustedTime += +hoursRemainder === 0 ? '' : `${hoursRemainder}h`
     adjustedTime += +minutes === 0 ? '' : `${minutes}m`
