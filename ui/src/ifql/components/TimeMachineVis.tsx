@@ -29,6 +29,11 @@ class TimeMachineVis extends PureComponent<Props> {
   }
 
   private get data(): string[] {
+    const {data} = this.props
+    if (!data) {
+      return ['Your query was syntactically correct but returned no data']
+    }
+
     return this.props.data.split('\n')
   }
 }

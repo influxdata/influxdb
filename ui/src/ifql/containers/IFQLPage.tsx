@@ -43,7 +43,8 @@ export class IFQLPage extends PureComponent<Props, State> {
       script: `from(db:"telegraf")
     |> filter(fn: (r) => r["_measurement"] == "cpu" AND r["_field"] == "usage_user")
     |> range(start:-170h)
-    |> sum()`,
+    |> sum()
+    |> limit(n: 100)`,
     }
   }
 
@@ -344,6 +345,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       const {data} = await getTimeSeries(script)
       this.setState({data})
     } catch (error) {
+      this.setState({data: 'Error fetching data'})
       console.error('Could not get timeSeries', error)
     }
   }
