@@ -6,6 +6,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Properties {
   'routing-key': string
   url: string
+  enabled: boolean
 }
 
 interface Config {
@@ -33,7 +34,7 @@ class PagerDuty2Config extends PureComponent<Props, State> {
   private routingKey: HTMLInputElement
   private url: HTMLInputElement
 
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
@@ -106,17 +107,20 @@ class PagerDuty2Config extends PureComponent<Props, State> {
     )
   }
 
-  private handleRoutingKeyRef = r => (this.routingKey = r)
+  private handleRoutingKeyRef = (r: HTMLInputElement): HTMLInputElement =>
+    (this.routingKey = r)
 
-  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>): void => {
     this.setState({enabled: e.target.checked})
     this.disableTest()
   }
 
-  private handleSubmit = async e => {
+  private handleSubmit = async (
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
     e.preventDefault()
 
-    const properties = {
+    const properties: Properties = {
       'routing-key': this.routingKey.value,
       url: this.url.value,
       enabled: this.state.enabled,
@@ -128,7 +132,7 @@ class PagerDuty2Config extends PureComponent<Props, State> {
     }
   }
 
-  private disableTest = () => {
+  private disableTest = (): void => {
     this.setState({testEnabled: false})
   }
 }
