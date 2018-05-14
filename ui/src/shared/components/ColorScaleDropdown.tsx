@@ -1,4 +1,4 @@
-import React, {Component} from 'react'
+import React, {Component, CSSProperties} from 'react'
 import uuid from 'uuid'
 import classnames from 'classnames'
 
@@ -122,7 +122,7 @@ export default class ColorScaleDropdown extends Component<Props, State> {
     this.setState({expanded: false})
   }
 
-  private generateGradientStyle = colors => ({
+  private generateGradientStyle = (colors): CSSProperties => ({
     background: `linear-gradient(to right, ${colors[0].hex} 0%,${
       colors[1].hex
     } 50%,${colors[2].hex} 100%)`,
