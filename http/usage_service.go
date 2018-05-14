@@ -1,0 +1,126 @@
+package http
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/kit/errors"
+	"github.com/julienschmidt/httprouter"
+)
+
+// UsageHandler represents an HTTP API handler for usages.
+type UsageHandler struct {
+	*httprouter.Router
+
+	UsageService platform.UsageService
+}
+
+// NewUsageHandler returns a new instance of UsageHandler.
+func NewUsageHandler() *UsageHandler {
+	h := &UsageHandler{
+		Router: httprouter.New(),
+	}
+
+	h.HandlerFunc("GET", "/v1/usage", h.handleGetUsage)
+	return h
+}
+
+// handleGetUsage is the HTTP handler for the GET /v1/usage route.
+func (h *UsageHandler) handleGetUsage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetUsageRequest(ctx, r)
+	if err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	b, err := h.UsageService.GetUsage(ctx, req.filter)
+	if err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+}
+
+type getUsageRequest struct {
+	filter platform.UsageFilter
+}
+
+func decodeGetUsageRequest(ctx context.Context, r *http.Request) (*getUsageRequest, error) {
+	req := &getUsageRequest{}
+	qp := r.URL.Query()
+
+	orgID := qp.Get("orgID")
+	if orgID != "" {
+		var id platform.ID
+		if err := (&id).DecodeFromString(orgID); err != nil {
+			return nil, err
+		}
+		req.filter.OrgID = &id
+	}
+
+	bucketID := qp.Get("bucketID")
+	if bucketID != "" {
+		var id platform.ID
+		if err := (&id).DecodeFromString(bucketID); err != nil {
+			return nil, err
+		}
+		req.filter.BucketID = &id
+	}
+
+	start := qp.Get("start")
+	stop := qp.Get("stop")
+
+	if start == "" && stop != "" {
+		return nil, fmt.Errorf("start query param required")
+	}
+	if start == "" && stop != "" {
+		return nil, fmt.Errorf("stop query param required")
+	}
+
+	if start == "" && stop == "" {
+		now := time.Now()
+		month := roundToMonth(now)
+
+		req.filter.Range = &platform.Timespan{
+			Start: month,
+			Stop:  now,
+		}
+	}
+
+	if start != "" && stop != "" {
+		startTime, err := time.Parse(time.RFC3339, start)
+		if err != nil {
+			return nil, err
+		}
+
+		stopTime, err := time.Parse(time.RFC3339, start)
+		if err != nil {
+			return nil, err
+		}
+
+		req.filter.Range = &platform.Timespan{
+			Start: startTime,
+			Stop:  stopTime,
+		}
+	}
+
+	return req, nil
+}
+
+func roundToMonth(t time.Time) time.Time {
+	h, m, s := t.Clock()
+	d := t.Day()
+
+	delta := (time.Duration(d) * 24 * time.Hour) + time.Duration(h)*time.Hour + time.Duration(m)*time.Minute + time.Duration(s)*time.Second
+
+	return t.Add(-1 * delta).Round(time.Minute)
+}
