@@ -1,12 +1,31 @@
 import _ from 'lodash'
 import {shiftDate} from 'src/shared/query/helpers'
-import {map, reduce, forEach, concat, clone} from 'fast.js'
-import {TimeSeriesServerResponse} from 'src/types/series'
-import {DbData} from '../types/dashboard'
+import {
+  fastMap,
+  fastReduce,
+  fastForEach,
+  fastConcat,
+  fastCloneArray,
+} from 'src/utils/fast'
 
-interface Result {
+import {
+  TimeSeriesServerResponse,
+  TimeSeriesResult,
+  TimeSeriesSeries,
+  TimeSeriesSuccessfulResult,
+} from 'src/types/series'
+import {TimeSeriesValue} from 'src/types/series'
+import {get} from 'src/utils/wrappers'
+
+interface ResultA {
   statement_id: number
-  series: Series[]
+  series: TimeSeriesSeries[]
+  responseIndex: number
+  isGroupBy: boolean
+}
+interface ResultB {
+  statement_id: number
+  series: TimeSeriesSeries[]
   responseIndex: number
   isGroupBy: boolean
 }
@@ -14,10 +33,12 @@ interface Result {
 interface Series {
   name: string
   columns: string[]
-  values: DbData[][]
-  isGroupBy: boolean
+  values: TimeSeriesValue[][]
   responseIndex: number
   seriesIndex: number
+  isGroupBy?: boolean
+  tags?: [{[x: string]: string}]
+  tagsKeys?: string[]
 }
 
 interface Cells {
@@ -25,8 +46,8 @@ interface Cells {
   seriesIndex: number[]
   responseIndex: number[]
   label: string[]
-  value: DbData[]
-  time: DbData[]
+  value: TimeSeriesValue[]
+  time: TimeSeriesValue[]
 }
 
 interface Label {
@@ -35,28 +56,36 @@ interface Label {
   responseIndex: number
 }
 
-const flattenGroupBySeries = (results, responseIndex, tags) => {
+interface TimeSeries {
+  time: TimeSeriesValue[]
+  values: TimeSeriesValue[]
+}
+
+const flattenGroupBySeries = (
+  results: TimeSeriesSuccessfulResult[],
+  responseIndex: number,
+  tags: {[x: string]: string}
+): Result[] => {
   if (_.isEmpty(results)) {
     return []
   }
 
   const tagsKeys = _.keys(tags)
+  const seriesArray = get<TimeSeriesSeries[]>(results, '[0].series', [])
 
-  const seriesArray = _.get(results, [0, 'series'], [])
-
-  const accumulatedValues = reduce(
+  const accumulatedValues = fastReduce<TimeSeriesSeries, TimeSeriesValue[][]>(
     seriesArray,
     (acc, s) => {
-      const tagsToAdd = tagsKeys.map(tk => s.tags[tk])
-      const newValues = s.values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
+      const tagsToAdd: string[] = tagsKeys.map(tk => s.tags[tk])
+      const values = s.values
+      const newValues = values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
       return [...acc, ...newValues]
     },
     []
   )
+  const firstColumns = get<string[]>(results, '[0].series[0]columns', [])
 
-  const firstColumns = _.get(results, [0, 'series', 0, 'columns'])
-
-  const flattenedSeries = [
+  const flattenedSeries: Result = [
     {
       series: [
         {
@@ -76,38 +105,58 @@ const flattenGroupBySeries = (results, responseIndex, tags) => {
 }
 
 const constructResults = (
-  raw: TimeSeriesServerResponse,
+  raw: TimeSeriesServerResponse[],
   isTable: boolean
 ): Result[] => {
   return _.flatten(
-    map(raw, (response, index) => {
-      const results = _.get(response, 'response.results', [])
+    fastMap<TimeSeriesServerResponse, Result[]>(raw, (response, index) => {
+      const results: TimeSeriesResult[] = _.get(
+        response,
+        'response.results',
+        []
+      )
 
-      const successfulResults = _.filter(results, r => _.isNil(r.error))
+      const successfulResults = results.filter(
+        r => 'series' in r && !('error' in r)
+      ) as TimeSeriesSuccessfulResult[]
 
-      const tagsFromResults = _.get(results, ['0', 'series', '0', 'tags'], {})
+      const tagsFromResults: {[x: string]: string} = _.get(
+        results,
+        ['0', 'series', '0', 'tags'],
+        {}
+      )
 
       const hasGroupBy = !_.isEmpty(tagsFromResults)
 
       if (isTable && hasGroupBy) {
-        return flattenGroupBySeries(successfulResults, index, tagsFromResults)
+        const groupBySeries = flattenGroupBySeries(
+          successfulResults,
+          index,
+          tagsFromResults
+        )
+        return groupBySeries
       }
-      return map(successfulResults, r => ({
-        ...r,
-        responseIndex: index,
-        isGroupBy: false,
-      }))
+
+      const noGroupBySeries = fastMap<TimeSeriesSuccessfulResult, Result>(
+        successfulResults,
+        r => ({
+          ...r,
+          responseIndex: index,
+          isGroupBy: false,
+        })
+      )
+      return noGroupBySeries
     })
   )
 }
 
 const constructSerieses = (results: Result[]): Series[] => {
-  return reduce(
+  return fastReduce(
     results,
     (acc, {series = [], responseIndex}) => {
       return [
         ...acc,
-        ...map(series, (item, index) => ({
+        ...fastMap<Series>(series, (item, index) => ({
           ...item,
           responseIndex,
           seriesIndex: index,
@@ -133,7 +182,7 @@ const constructCells = (
     responseIndex: [],
   }
 
-  forEach(
+  fastForEach(
     serieses,
     (
       {
@@ -150,13 +199,13 @@ const constructCells = (
     ) => {
       let unsortedLabels
       if (isGroupBy) {
-        const tagsKeysLabels = map(tagsKeys, field => ({
+        const tagsKeysLabels = fastMap(tagsKeys, field => ({
           label: `${field}`,
           responseIndex,
           seriesIndex,
         }))
 
-        const columnsLabels = map(columns.slice(1), field => ({
+        const columnsLabels = fastMap(columns.slice(1), field => ({
           label: `${measurement}.${field}`,
           responseIndex,
           seriesIndex,
@@ -165,23 +214,26 @@ const constructCells = (
         unsortedLabels = _.concat(tagsKeysLabels, columnsLabels)
 
         seriesLabels[ind] = unsortedLabels
-        labels = concat(labels, unsortedLabels)
+        labels = fastConcat(labels, unsortedLabels)
       } else {
-        const tagSet = map(Object.keys(tags), tag => `[${tag}=${tags[tag]}]`)
+        const tagSet = fastMap(
+          Object.keys(tags),
+          tag => `[${tag}=${tags[tag]}]`
+        )
           .sort()
           .join('')
-        unsortedLabels = map(columns.slice(1), field => ({
+        unsortedLabels = fastMap(columns.slice(1), field => ({
           label: `${measurement}.${field}${tagSet}`,
           responseIndex,
           seriesIndex,
         }))
         seriesLabels[ind] = unsortedLabels
-        labels = concat(labels, unsortedLabels)
+        labels = fastConcat(labels, unsortedLabels)
 
-        const rows = map(values, vals => ({vals}))
-        forEach(rows, ({vals}) => {
+        const rows = fastMap(values, vals => ({vals}))
+        fastForEach(rows, ({vals}) => {
           const [time, ...rowValues] = vals
-          forEach(rowValues, (value, i) => {
+          fastForEach(rowValues, (value, i) => {
             cells.label[cellIndex] = unsortedLabels[i].label
             cells.value[cellIndex] = value
             cells.time[cellIndex] = time
@@ -202,7 +254,7 @@ const insertGroupByValues = (
   seriesLabels: Label[],
   labelsToValueIndex: {[x: string]: number},
   sortedLabels: Label[]
-) => {
+): TimeSeries => {
   const dashArray = Array(sortedLabels.length).fill('-')
   const timeSeries = []
 
@@ -214,7 +266,7 @@ const insertGroupByValues = (
 
     for (let i = 0; i < s.values.length; i++) {
       const vs = s.values[i]
-      const tsRow = {time: vs[0], values: clone(dashArray)}
+      const tsRow = {time: vs[0], values: fastCloneArray(dashArray)}
 
       const vss = vs.slice(1)
       for (let j = 0; j < vss.length; j++) {
@@ -233,10 +285,15 @@ const insertGroupByValues = (
   return timeSeries
 }
 
-const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
-  const nullArray = Array(sortedLabels.length).fill(null)
+const constructTimeSeries = (
+  serieses: Series[],
+  cells: Cells,
+  sortedLabels: Label[],
+  seriesLabels: Label[]
+): TimeSeries[] => {
+  const nullArray: TimeSeriesValue[] = Array(sortedLabels.length).fill(null)
 
-  const labelsToValueIndex = reduce(
+  const labelsToValueIndex = fastReduce<Label, {[x: string]: number}>(
     sortedLabels,
     (acc, {label, responseIndex, seriesIndex}, i) => {
       // adding series index prevents overwriting of two distinct labels that have the same field and measurements
@@ -275,7 +332,7 @@ const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
     if (existingRowIndex === undefined) {
       timeSeries.push({
         time,
-        values: clone(nullArray),
+        values: fastCloneArray(nullArray),
       })
 
       existingRowIndex = timeSeries.length - 1
@@ -291,9 +348,9 @@ const constructTimeSeries = (serieses, cells, sortedLabels, seriesLabels) => {
 }
 
 export const groupByTimeSeriesTransform = (
-  raw: TimeSeriesServerResponse,
+  raw: TimeSeriesServerResponse[],
   isTable: boolean
-): {sortedLabels: Label[]; sortedTimeSeries: DbData[][]} => {
+): {sortedLabels: Label[]; sortedTimeSeries: TimeSeries[]} => {
   const results = constructResults(raw, isTable)
   const serieses = constructSerieses(results)
   const {cells, sortedLabels, seriesLabels} = constructCells(serieses)
@@ -303,7 +360,6 @@ export const groupByTimeSeriesTransform = (
     sortedLabels,
     seriesLabels
   )
-
   return {
     sortedLabels,
     sortedTimeSeries,

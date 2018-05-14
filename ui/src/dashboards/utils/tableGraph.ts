@@ -5,12 +5,12 @@ import {fastMap, fastReduce, fastFilter} from 'src/utils/fast'
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
 import {DEFAULT_TIME_FIELD, DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
 import {
-  DbData,
   Sort,
   FieldOption,
   TableOptions,
   DecimalPlaces,
 } from 'src/types/dashboard'
+import {TimeSeriesValue} from 'src/types/series'
 
 interface ColumnWidths {
   totalWidths: number
@@ -24,8 +24,8 @@ interface SortedLabel {
 }
 
 interface TransformTableDataReturnType {
-  transformedData: DbData[][]
-  sortedTimeVals: DbData[]
+  transformedData: TimeSeriesValue[][]
+  sortedTimeVals: TimeSeriesValue[]
   columnWidths: ColumnWidths
 }
 
@@ -47,18 +47,18 @@ const calculateTimeColumnWidth = (timeFormat: string): number => {
 }
 
 const updateMaxWidths = (
-  row: DbData[],
+  row: TimeSeriesValue[],
   maxColumnWidths: ColumnWidths,
-  topRow: DbData[],
+  topRow: TimeSeriesValue[],
   isTopRow: boolean,
   fieldOptions: FieldOption[],
   timeFormatWidth: number,
   verticalTimeAxis: boolean,
   decimalPlaces: DecimalPlaces
 ): ColumnWidths => {
-  const maxWidths = fastReduce<DbData>(
+  const maxWidths = fastReduce<TimeSeriesValue>(
     row,
-    (acc: ColumnWidths, col: DbData, c: number) => {
+    (acc: ColumnWidths, col: TimeSeriesValue, c: number) => {
       const isLabel =
         (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
 
@@ -136,7 +136,7 @@ export const computeFieldOptions = (
 }
 
 export const calculateColumnWidths = (
-  data: DbData[][],
+  data: TimeSeriesValue[][],
   fieldOptions: FieldOption[],
   timeFormat: string,
   verticalTimeAxis: boolean,
@@ -145,9 +145,9 @@ export const calculateColumnWidths = (
   const timeFormatWidth = calculateTimeColumnWidth(
     timeFormat === '' ? DEFAULT_TIME_FORMAT : timeFormat
   )
-  return fastReduce<DbData[], ColumnWidths>(
+  return fastReduce<TimeSeriesValue[], ColumnWidths>(
     data,
-    (acc: ColumnWidths, row: DbData[], r: number) => {
+    (acc: ColumnWidths, row: TimeSeriesValue[], r: number) => {
       return updateMaxWidths(
         row,
         acc,
@@ -164,28 +164,31 @@ export const calculateColumnWidths = (
 }
 
 export const filterTableColumns = (
-  data: DbData[][],
+  data: TimeSeriesValue[][],
   fieldOptions: FieldOption[]
-): DbData[][] => {
+): TimeSeriesValue[][] => {
   const visibility = {}
-  const filteredData = fastMap<DbData[], DbData[]>(data, (row, i) => {
-    return fastFilter<DbData>(row, (col, j) => {
-      if (i === 0) {
-        const foundField = fieldOptions.find(
-          field => field.internalName === col
-        )
-        visibility[j] = foundField ? foundField.visible : true
-      }
-      return visibility[j]
-    })
-  })
+  const filteredData = fastMap<TimeSeriesValue[], TimeSeriesValue[]>(
+    data,
+    (row, i) => {
+      return fastFilter<TimeSeriesValue>(row, (col, j) => {
+        if (i === 0) {
+          const foundField = fieldOptions.find(
+            field => field.internalName === col
+          )
+          visibility[j] = foundField ? foundField.visible : true
+        }
+        return visibility[j]
+      })
+    }
+  )
   return filteredData[0].length ? filteredData : [[]]
 }
 
 export const orderTableColumns = (
-  data: DbData[][],
+  data: TimeSeriesValue[][],
   fieldOptions: FieldOption[]
-): DbData[][] => {
+): TimeSeriesValue[][] => {
   const fieldsSortOrder = fieldOptions.map(fieldOption => {
     return _.findIndex(data[0], dataLabel => {
       return dataLabel === fieldOption.internalName
@@ -194,9 +197,9 @@ export const orderTableColumns = (
 
   const filteredFieldSortOrder = fieldsSortOrder.filter(f => f !== -1)
 
-  const orderedData = fastMap<DbData[], DbData[]>(
+  const orderedData = fastMap<TimeSeriesValue[], TimeSeriesValue[]>(
     data,
-    (row: DbData[]): DbData[] => {
+    (row: TimeSeriesValue[]): TimeSeriesValue[] => {
       return row.map((__, j, arr) => arr[filteredFieldSortOrder[j]])
     }
   )
@@ -204,24 +207,24 @@ export const orderTableColumns = (
 }
 
 export const sortTableData = (
-  data: DbData[][],
+  data: TimeSeriesValue[][],
   sort: Sort
-): {sortedData: DbData[][]; sortedTimeVals: DbData[]} => {
+): {sortedData: TimeSeriesValue[][]; sortedTimeVals: TimeSeriesValue[]} => {
   const sortIndex = _.indexOf(data[0], sort.field)
   const dataValues = _.drop(data, 1)
   const sortedData = [
     data[0],
-    ..._.orderBy<DbData[]>(dataValues, sortIndex, [sort.direction]),
+    ..._.orderBy<TimeSeriesValue[]>(dataValues, sortIndex, [sort.direction]),
   ]
-  const sortedTimeVals = fastMap<DbData[], DbData>(
+  const sortedTimeVals = fastMap<TimeSeriesValue[], TimeSeriesValue>(
     sortedData,
-    (r: DbData[]): DbData => r[0]
+    (r: TimeSeriesValue[]): TimeSeriesValue => r[0]
   )
   return {sortedData, sortedTimeVals}
 }
 
 export const transformTableData = (
-  data: DbData[][],
+  data: TimeSeriesValue[][],
   sort: Sort,
   fieldOptions: FieldOption[],
   tableOptions: TableOptions,

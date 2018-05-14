@@ -1,18 +1,13 @@
-import {map, reduce} from 'fast.js'
+import {fastMap, fastReduce} from 'src/utils/fast'
 import {groupByTimeSeriesTransform} from 'src/utils/groupByTimeSeriesTransform'
 
-import {TimeSeriesServerResponse} from 'src/types/series'
-import {DbData} from '../types/dashboard'
+import {TimeSeriesServerResponse, TimeSeries} from 'src/types/series'
+import {TimeSeriesValue} from 'src/types/series'
 
 interface Label {
   label: string
   seriesIndex: number
   responseIndex: number
-}
-
-interface TimeSeries {
-  time: DbData[]
-  values: DbData[]
 }
 
 interface TimeSeriesToDyGraphReturnType {
@@ -22,7 +17,7 @@ interface TimeSeriesToDyGraphReturnType {
 }
 
 interface TimeSeriesToTableGraphReturnType {
-  data: DbData[][]
+  data: TimeSeriesValue[][]
   sortedLabels: Label[]
 }
 
@@ -33,7 +28,7 @@ interface DygraphSeries {
 }
 
 export const timeSeriesToDygraph = (
-  raw: TimeSeriesServerResponse,
+  raw: TimeSeriesServerResponse[],
   isInDataExplorer: boolean
 ): TimeSeriesToDyGraphReturnType => {
   const isTable = false
@@ -42,7 +37,7 @@ export const timeSeriesToDygraph = (
     isTable
   )
 
-  const dygraphSeries = reduce(
+  const dygraphSeries = fastReduce<Label, DygraphSeries>(
     sortedLabels,
     (acc, {label, responseIndex}) => {
       if (!isInDataExplorer) {
@@ -55,17 +50,20 @@ export const timeSeriesToDygraph = (
     {}
   )
   return {
-    labels: ['time', ...map(sortedLabels, ({label}) => label)],
-    timeSeries: map(sortedTimeSeries, ({time, values}) => [
-      new Date(time),
-      ...values,
-    ]),
+    labels: [
+      'time',
+      ...fastMap<Label, string>(sortedLabels, ({label}) => label),
+    ],
+    timeSeries: fastMap<TimeSeries, TimeSeries>(
+      sortedTimeSeries,
+      ({time, values}) => [new Date(time), ...values]
+    ),
     dygraphSeries,
   }
 }
 
 export const timeSeriesToTableGraph = (
-  raw: TimeSeriesServerResponse
+  raw: TimeSeriesServerResponse[]
 ): TimeSeriesToTableGraphReturnType => {
   const isTable = true
   const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
@@ -73,9 +71,15 @@ export const timeSeriesToTableGraph = (
     isTable
   )
 
-  const labels = ['time', ...map(sortedLabels, ({label}) => label)]
+  const labels = [
+    'time',
+    ...fastMap<Label, string>(sortedLabels, ({label}) => label),
+  ]
 
-  const tableData = map(sortedTimeSeries, ({time, values}) => [time, ...values])
+  const tableData = fastMap<TimeSeries, TimeSeriesValue[]>(
+    sortedTimeSeries,
+    ({time, values}) => [time, ...values]
+  )
   const data = tableData.length ? [labels, ...tableData] : [[]]
   return {
     data,

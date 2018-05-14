@@ -47,3 +47,42 @@ export function fastFilter<T = any>(
   }
   return result
 }
+
+export function fastForEach<T = any>(
+  subject: T[],
+  iterator: (t: T, i: number, s: T[]) => void
+): void {
+  const length = subject.length
+  for (let i = 0; i < length; i++) {
+    iterator(subject[i], i, subject)
+  }
+}
+
+export function fastConcat<T = any>(...args: T[][]): T[] {
+  const length = args.length
+  const arr: T[] = []
+  let item: T[] = []
+  let childLength = 0
+
+  for (let i = 0; i < length; i++) {
+    item = arguments[i]
+    if (Array.isArray(item)) {
+      childLength = item.length
+      for (let j = 0; j < childLength; j++) {
+        arr.push(item[j])
+      }
+    } else {
+      arr.push(item)
+    }
+  }
+  return arr
+}
+
+export function fastCloneArray<T = any>(input: T[]): T[] {
+  const length = input.length
+  const cloned: T[] = new Array(length)
+  for (let i = 0; i < length; i++) {
+    cloned[i] = input[i]
+  }
+  return cloned
+}

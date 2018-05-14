@@ -1,20 +1,35 @@
 export type TimeSeriesValue = string | number | Date | null
 
-export interface Series {
+export interface TimeSeriesSeries {
   name: string
   columns: string[]
-  values: TimeSeriesValue[]
+  values: TimeSeriesValue[][]
+  tags?: [{[x: string]: string}]
 }
 
-export interface Result {
-  series: Series[]
+export type TimeSeriesResult =
+  | TimeSeriesSuccessfulResult
+  | TimeSeriesErrorResult
+
+export interface TimeSeriesSuccessfulResult {
   statement_id: number
+  series: TimeSeriesSeries[]
+}
+
+export interface TimeSeriesErrorResult {
+  statement_id: number
+  error: string
 }
 
 export interface TimeSeriesResponse {
-  results: Result[]
+  results: TimeSeriesResult[]
 }
 
 export interface TimeSeriesServerResponse {
   response: TimeSeriesResponse
+}
+
+export interface TimeSeries {
+  time: TimeSeriesValue[]
+  values: TimeSeriesValue[][]
 }

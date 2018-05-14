@@ -28,14 +28,13 @@ import {
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {TimeSeriesServerResponse} from 'src/types/series'
+import {TimeSeriesServerResponse, TimeSeriesValue} from 'src/types/series'
 import {ColorString} from 'src/types/colors'
 import {
   TableOptions,
   FieldOption,
   DecimalPlaces,
   Sort,
-  DbData,
 } from 'src/types/dashboard'
 
 interface Label {
@@ -45,7 +44,7 @@ interface Label {
 }
 
 interface Props {
-  data: TimeSeriesServerResponse
+  data: TimeSeriesServerResponse[]
   tableOptions: TableOptions
   timeFormat: string
   decimalPlaces: DecimalPlaces
@@ -58,9 +57,9 @@ interface Props {
 }
 
 interface State {
-  data: DbData[][]
-  transformedData: DbData[][]
-  sortedTimeVals: DbData[]
+  data: TimeSeriesValue[][]
+  transformedData: TimeSeriesValue[][]
+  sortedTimeVals: TimeSeriesValue[]
   sortedLabels: Label[]
   hoveredColumnIndex: number
   hoveredRowIndex: number
@@ -443,8 +442,8 @@ class TableGraph extends Component<Props, State> {
   }
 
   private createCellContents = (
-    cellData: DbData,
-    fieldName: DbData,
+    cellData: TimeSeriesValue,
+    fieldName: TimeSeriesValue,
     isTimeData: boolean,
     isFieldName: boolean
   ): string => {
