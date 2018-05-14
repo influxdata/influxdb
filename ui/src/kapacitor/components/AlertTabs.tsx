@@ -43,6 +43,7 @@ import DeprecationWarning from 'src/admin/components/DeprecationWarning'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Source, Kapacitor} from 'src/types'
+import {Notification} from 'src/types/notifications'
 
 interface Service {
   link: Link
@@ -110,14 +111,6 @@ interface SupportedConfig {
   talk: Config
   telegram: Config
   victorops: Config
-}
-
-interface Notification {
-  id?: string
-  type: string
-  icon: string
-  duration: number
-  message: string
 }
 
 interface Props {
