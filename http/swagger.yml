@@ -1,0 +1,348 @@
+openapi: "3.0.0"
+info:
+  title: Gateway Service
+  version: 0.1.0
+servers:
+  - url: /v1
+paths:
+  /buckets:
+    get:
+      tags:
+        - Buckets
+      summary: List all buckets
+      responses:
+        '200':
+          description: a list of buckets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Buckets"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Buckets
+      summary: Create a bucket
+      requestBody:
+        description: bucket to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Bucket"
+      responses:
+        '201':
+          description: Bucket created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bucket"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/buckets/{bucketId}':
+    get:
+      tags:
+        - Buckets
+      summary: Retrieve a bucket
+      parameters:
+        - in: path
+          name: bucketId
+          schema:
+            type: string
+          required: true
+          description: ID of bucket to get
+      responses:
+        '200':
+          description: bucket details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bucket"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Buckets
+      summary: Update a bucket
+      requestBody:
+        description: bucket update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Bucket"
+      parameters:
+        - in: path
+          name: bucketId
+          schema:
+            type: string
+          required: true
+          description: ID of bucket to update
+      responses:
+        '200':
+          description: An updated bucket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bucket"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /orgs:
+    get:
+      tags:
+        - Organizations
+      summary: List all organizations
+      responses:
+        '200':
+          description: A list of organizations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organizations"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Organizations
+      summary: Create an organization
+      requestBody:
+        description: organization to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Organization"
+      responses:
+        '201':
+          description: organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/orgs/{orgId}':
+    get:
+      tags:
+        - Organizations
+      summary: Retrieve an organization
+      parameters:
+        - in: path
+          name: orgId
+          schema:
+            type: string
+          required: true
+          description: ID of organization to get
+      responses:
+        '200':
+          description: organization details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Organizations
+      summary: Update an organization
+      requestBody:
+        description: organization update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Organization"
+      parameters:
+        - in: path
+          name: orgId
+          schema:
+            type: string
+          required: true
+          description: ID of organization to get
+      responses:
+        '200':
+          description: organization updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List all users
+      responses:
+        '200':
+          description: a list of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Users"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Users
+      summary: Create a user
+      requestBody:
+        description: user to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      responses:
+        '201':
+          description: user created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/users/{userId}':
+    get:
+      tags:
+        - Users
+      summary: Retrieve a user
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID of user to get
+      responses:
+        '200':
+          description: user details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Users
+      summary: Update a user
+      requestBody:
+        description: user update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+          required: true
+          description: ID of user to update
+      responses:
+        '200':
+          description: user updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Bucket:
+      properties:
+        id:
+          type: string
+        organizationId:
+          type: string
+        name:
+          type: string
+        retentionPeriod:
+          type: integer
+          format: int64
+    Buckets:
+      type: array
+      items:
+        $ref: "#/components/schemas/Bucket"
+    Organization:
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    Organizations:
+      type: array
+      items:
+        $ref: "#/components/schemas/Organization"
+    User:
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    Users:
+      type: array
+      items:
+        $ref: "#/components/schemas/User"
+    Error:
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
