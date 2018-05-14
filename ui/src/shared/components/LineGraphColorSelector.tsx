@@ -30,7 +30,7 @@ class LineGraphColorSelector extends Component<Props> {
     )
   }
 
-  public handleSelectColors = colorScale => {
+  public handleSelectColors = (colorScale): void => {
     const {handleUpdateLineColors} = this.props
     const {colors} = colorScale
 
