@@ -9,7 +9,7 @@ import {Suggestion, FlatBody, Links} from 'src/types/ifql'
 import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
 
 import {bodyNodes} from 'src/ifql/helpers'
-import {getSuggestions, getAST} from 'src/ifql/apis'
+import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -25,6 +25,7 @@ interface State {
   body: Body[]
   ast: object
   script: string
+  data: string
   suggestions: Suggestion[]
 }
 
@@ -37,11 +38,12 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       body: [],
       ast: null,
+      data: 'fetching data...',
       suggestions: [],
-      script: `from(db:"foo")
-        |> filter(fn: (r) => 
-        (r["a"] == 1 OR r.b == "two") AND 
-        (r["b"] == true OR r.d == "four"))`,
+      script: `from(db:"telegraf")
+    |> filter(fn: (r) => r["_measurement"] == "cpu" AND r["_field"] == "usage_user")
+    |> range(start:-170h)
+    |> sum()`,
     }
   }
 
@@ -59,7 +61,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {suggestions, script} = this.state
+    const {suggestions, script, data, body} = this.state
 
     return (
       <IFQLContext.Provider value={this.handlers}>
@@ -81,8 +83,9 @@ export class IFQLPage extends PureComponent<Props, State> {
               </div>
             </div>
             <TimeMachine
+              data={data}
+              body={body}
               script={script}
-              body={this.state.body}
               suggestions={suggestions}
               onChangeScript={this.handleChangeScript}
             />
@@ -327,13 +330,21 @@ export class IFQLPage extends PureComponent<Props, State> {
 
   private getASTResponse = async (script: string) => {
     const {links} = this.props
+    this.setState({data: 'fetching data...'})
 
     try {
       const ast = await getAST({url: links.ast, body: script})
       const body = bodyNodes(ast, this.state.suggestions)
       this.setState({ast, script, body})
     } catch (error) {
-      console.error('Could not parse AST', error)
+      return console.error('Could not parse AST', error)
+    }
+
+    try {
+      const {data} = await getTimeSeries(script)
+      this.setState({data})
+    } catch (error) {
+      console.error('Could not get timeSeries', error)
     }
   }
 }

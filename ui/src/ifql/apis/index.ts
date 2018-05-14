@@ -34,6 +34,20 @@ export const getAST = async (request: ASTRequest) => {
   }
 }
 
+export const getTimeSeries = async (script: string) => {
+  try {
+    const data = await AJAX({
+      method: 'POST',
+      url: `http://localhost:8093/query?q=${script}`,
+    })
+
+    return data
+  } catch (error) {
+    console.error('Problem fetching data', error)
+    throw error
+  }
+}
+
 // TODO: replace with actual requests to IFQL daemon
 export const getDatabases = async () => {
   try {

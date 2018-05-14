@@ -9,9 +9,10 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
+  data: string
   script: string
-  suggestions: Suggestion[]
   body: Body[]
+  suggestions: Suggestion[]
   onChangeScript: OnChangeScript
 }
 
@@ -32,6 +33,7 @@ class TimeMachine extends PureComponent<Props> {
   }
 
   private get mainSplit() {
+    const {data} = this.props
     return [
       {
         handleDisplay: 'none',
@@ -44,7 +46,7 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         handlePixels: 8,
-        render: () => <TimeMachineVis blob="Visualizer" />,
+        render: () => <TimeMachineVis data={data} />,
       },
     ]
   }
