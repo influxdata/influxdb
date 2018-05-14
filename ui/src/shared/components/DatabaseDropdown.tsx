@@ -55,7 +55,7 @@ class DatabaseDropdown extends Component<Props, State> {
     )
   }
 
-  private getDatabasesAsync = async () => {
+  private getDatabasesAsync = async (): Promise<void> => {
     const {source, database, onSelectDatabase, onErrorThrown} = this.props
     const proxy = source.links.proxy
     try {
