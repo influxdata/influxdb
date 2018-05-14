@@ -9,6 +9,7 @@ import {showTagKeys, showTagValues} from 'src/shared/apis/metaQuery'
 import showTagKeysParser from 'src/shared/parsing/showTagKeys'
 import showTagValuesParser from 'src/shared/parsing/showTagValues'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {QueryConfig, Tag} from 'src/types'
 
 const {shape} = PropTypes
 
@@ -20,26 +21,11 @@ interface Source {
   links: SourceLinks
 }
 
-interface GroupBy {
-  tags?: string[]
-}
-
-interface Tags {
-  [key: string]: string[]
-}
-interface Query {
-  database: string
-  measurement: string
-  retentionPolicy: string
-  tags: Tags
-  groupBy: GroupBy
-}
-
 interface Props {
-  query: Query
+  query: QueryConfig
   querySource: Source
-  onChooseTag: () => void
-  onGroupByTag: () => void
+  onChooseTag: (tag: Tag) => void
+  onGroupByTag: (tagKey: string) => void
   isQuerySupportedByExplorer: boolean
 }
 

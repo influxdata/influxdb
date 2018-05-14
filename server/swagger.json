@@ -3677,6 +3677,7 @@
               "post",
               "http",
               "hipchat",
+              "kafka",
               "opsgenie",
               "opsgenie2",
               "pagerduty",

@@ -9,6 +9,7 @@ import {editor} from 'src/ifql/constants'
 interface Props {
   script: string
   onChangeScript: OnChangeScript
+  visibility: string
 }
 
 interface EditorInstance extends IInstance {
@@ -17,8 +18,20 @@ interface EditorInstance extends IInstance {
 
 @ErrorHandling
 class TimeMachineEditor extends PureComponent<Props> {
+  private editor: EditorInstance
+
   constructor(props) {
     super(props)
+  }
+
+  public componentDidUpdate(prevProps) {
+    if (prevProps.visibility === this.props.visibility) {
+      return
+    }
+
+    if (this.props.visibility === 'visible') {
+      setTimeout(() => this.editor.refresh(), 60)
+    }
   }
 
   public render() {
@@ -31,6 +44,7 @@ class TimeMachineEditor extends PureComponent<Props> {
       readonly: false,
       extraKeys: {'Ctrl-Space': 'autocomplete'},
       completeSingle: false,
+      autoRefresh: true,
     }
 
     return (
@@ -40,12 +54,17 @@ class TimeMachineEditor extends PureComponent<Props> {
           autoCursor={true}
           value={script}
           options={options}
+          onKeyUp={this.handleKeyUp}
           onBeforeChange={this.updateCode}
           onTouchStart={this.onTouchStart}
-          onKeyUp={this.handleKeyUp}
+          editorDidMount={this.handleMount}
         />
       </div>
     )
+  }
+
+  private handleMount = (instance: EditorInstance) => {
+    this.editor = instance
   }
 
   private handleKeyUp = (instance: EditorInstance, e: KeyboardEvent) => {

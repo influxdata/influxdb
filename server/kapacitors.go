@@ -339,6 +339,10 @@ func (s *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 		}
 	*/
 
+	if req.Name == "" {
+		req.Name = req.ID
+	}
+
 	req.ID = ""
 	task, err := c.Create(ctx, req)
 	if err != nil {
@@ -407,6 +411,10 @@ func newAlertResponse(task *kapa.Task, srcID, kapaID int) *alertResponse {
 
 	if res.AlertNodes.HipChat == nil {
 		res.AlertNodes.HipChat = []*chronograf.HipChat{}
+	}
+
+	if res.AlertNodes.Kafka == nil {
+		res.AlertNodes.Kafka = []*chronograf.Kafka{}
 	}
 
 	if res.AlertNodes.Log == nil {

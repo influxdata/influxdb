@@ -1,7 +1,7 @@
 import Walker from 'src/ifql/ast/walker'
 import From from 'test/ifql/ast/from'
 import Complex from 'test/ifql/ast/complex'
-import {StringLiteral, Expression} from 'test/ifql/ast/variable'
+import {StringLiteral, Expression, ArrowFunction} from 'test/ifql/ast/variable'
 
 describe('IFQL.AST.Walker', () => {
   describe('Walker#functions', () => {
@@ -72,6 +72,31 @@ describe('IFQL.AST.Walker', () => {
                             },
                           ],
                         },
+                      ],
+                    },
+                  ],
+                },
+              ])
+            })
+          })
+
+          describe.only('a single ArrowFunction variable', () => {
+            it('returns the expected list', () => {
+              const walker = new Walker(ArrowFunction)
+              expect(walker.body).toEqual([
+                {
+                  type: 'VariableDeclaration',
+                  source: 'addOne = (n) => n + 1',
+                  declarations: [
+                    {
+                      name: 'addOne',
+                      type: 'ArrowFunctionExpression',
+                      source: '(n) => n + 1',
+                      params: [{type: 'Property', source: 'n'}],
+                      body: [
+                        {type: 'Identifier', source: 'n'},
+                        {type: 'Operator', source: '+'},
+                        {type: 'IntegerLiteral', source: '1'},
                       ],
                     },
                   ],

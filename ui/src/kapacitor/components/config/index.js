@@ -1,5 +1,6 @@
 import AlertaConfig from './AlertaConfig'
 import HipChatConfig from './HipChatConfig'
+import KafkaConfig from './KafkaConfig'
 import OpsGenieConfig from './OpsGenieConfig'
 import PagerDutyConfig from './PagerDutyConfig'
 import PushoverConfig from './PushoverConfig'
@@ -13,6 +14,7 @@ import VictorOpsConfig from './VictorOpsConfig'
 export {
   AlertaConfig,
   HipChatConfig,
+  KafkaConfig,
   OpsGenieConfig,
   PagerDutyConfig,
   PushoverConfig,

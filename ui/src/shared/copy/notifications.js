@@ -529,6 +529,11 @@ export const notifyTestAlertFailed = (endpoint, errorMessage) => ({
   }`,
 })
 
+export const notifyInvalidBatchSizeValue = () => ({
+  ...defaultErrorNotification,
+  message: 'Batch Size cannot be empty.',
+})
+
 export const notifyKapacitorConnectionFailed = () => ({
   ...defaultErrorNotification,
   message:

@@ -65,7 +65,6 @@ class LineGraph extends Component {
       cellHeight,
       ruleValues,
       isBarGraph,
-      resizeCoords,
       isRefreshing,
       setResolution,
       isGraphFilled,
@@ -127,7 +126,6 @@ class LineGraph extends Component {
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
-          resizeCoords={resizeCoords}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
           handleSetHoverTime={handleSetHoverTime}
@@ -211,7 +209,6 @@ LineGraph.propTypes = {
   setResolution: func,
   cellHeight: number,
   onZoom: func,
-  resizeCoords: shape(),
   queries: arrayOf(shape({}).isRequired).isRequired,
   data: arrayOf(shape({}).isRequired).isRequired,
   colors: colorsStringSchema,

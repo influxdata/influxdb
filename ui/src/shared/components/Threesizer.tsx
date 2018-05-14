@@ -32,7 +32,7 @@ interface Division {
   name?: string
   handleDisplay?: string
   handlePixels?: number
-  render: () => ReactElement<any>
+  render: (visibility?: string) => ReactElement<any>
 }
 
 interface DivisionState extends Division {
@@ -305,7 +305,7 @@ class Threesizer extends Component<Props, State> {
 
       if (first && !before) {
         const second = this.state.divisions[1]
-        if (second.size === 0) {
+        if (second && second.size === 0) {
           return {...d, size: this.shorter(d.size)}
         }
 
@@ -338,7 +338,7 @@ class Threesizer extends Component<Props, State> {
 
       if (first && !before) {
         const second = this.state.divisions[1]
-        if (second.size === 0) {
+        if (second && second.size === 0) {
           return {...d, size: this.thinner(d.size)}
         }
 
@@ -377,7 +377,7 @@ class Threesizer extends Component<Props, State> {
         const leftIndex = i - 1
         const left = _.get(divs, leftIndex, {size: 'none'})
 
-        if (left.size === 0) {
+        if (left && left.size === 0) {
           return {...d, size: this.thinner(d.size)}
         }
 
@@ -406,7 +406,7 @@ class Threesizer extends Component<Props, State> {
 
       if (after) {
         const above = divs[i - 1]
-        if (above.size === 0) {
+        if (above && above.size === 0) {
           return {...d, size: this.shorter(d.size)}
         }
 

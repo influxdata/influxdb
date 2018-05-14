@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 
 import FuncArgInput from 'src/ifql/components/FuncArgInput'
+import FuncArgTextArea from 'src/ifql/components/FuncArgTextArea'
 import FuncArgBool from 'src/ifql/components/FuncArgBool'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import From from 'src/ifql/components/From'
@@ -56,6 +57,7 @@ class FuncArg extends PureComponent<Props> {
       case argTypes.FLOAT:
       case argTypes.INT:
       case argTypes.UINT:
+      case argTypes.INVALID:
       case argTypes.ARRAY: {
         return (
           <FuncArgInput
@@ -85,12 +87,17 @@ class FuncArg extends PureComponent<Props> {
         )
       }
       case argTypes.FUNCTION: {
-        // TODO: make separate function component
         return (
-          <div className="func-arg">
-            <label className="func-arg--label">{argKey}</label>
-            <div className="func-arg--value">{value}</div>
-          </div>
+          <FuncArgTextArea
+            type={type}
+            value={this.value}
+            argKey={argKey}
+            funcID={funcID}
+            bodyID={bodyID}
+            onChangeArg={onChangeArg}
+            declarationID={declarationID}
+            onGenerateScript={onGenerateScript}
+          />
         )
       }
       case argTypes.NIL: {

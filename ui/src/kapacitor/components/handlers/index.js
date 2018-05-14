@@ -4,6 +4,7 @@ import ExecHandler from './ExecHandler'
 import LogHandler from './LogHandler'
 import AlertaHandler from './AlertaHandler'
 import HipchatHandler from './HipchatHandler'
+import KafkaHandler from './KafkaHandler'
 import OpsgenieHandler from './OpsgenieHandler'
 import PagerdutyHandler from './PagerdutyHandler'
 import PushoverHandler from './PushoverHandler'
@@ -22,6 +23,7 @@ export {
   EmailHandler,
   AlertaHandler,
   HipchatHandler,
+  KafkaHandler,
   OpsgenieHandler,
   PagerdutyHandler,
   PushoverHandler,

@@ -6,7 +6,7 @@ import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
 import Threesizer from 'src/shared/components/Threesizer'
 import {Suggestion, OnChangeScript, FlatBody} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
+import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
   script: string
@@ -53,18 +53,22 @@ class TimeMachine extends PureComponent<Props> {
     const {body, suggestions, script, onChangeScript} = this.props
     return [
       {
+        name: 'Explore',
+        render: () => <SchemaExplorer />,
+      },
+      {
         name: 'Script',
-        render: () => (
-          <TimeMachineEditor script={script} onChangeScript={onChangeScript} />
+        render: visibility => (
+          <TimeMachineEditor
+            script={script}
+            onChangeScript={onChangeScript}
+            visibility={visibility}
+          />
         ),
       },
       {
         name: 'Build',
         render: () => <BodyBuilder body={body} suggestions={suggestions} />,
-      },
-      {
-        name: 'Explore',
-        render: () => <SchemaExplorer />,
       },
     ]
   }

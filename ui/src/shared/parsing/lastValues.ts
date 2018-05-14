@@ -1,4 +1,5 @@
 import _ from 'lodash'
+import {Data} from 'src/types/dygraphs'
 
 interface Result {
   lastValues: number[]
@@ -24,7 +25,7 @@ export interface TimeSeriesResponse {
 }
 
 export default function(
-  timeSeriesResponse: TimeSeriesResponse[] | null
+  timeSeriesResponse: TimeSeriesResponse[] | Data | null
 ): Result {
   const values = _.get(
     timeSeriesResponse,

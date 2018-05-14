@@ -5,19 +5,13 @@ import _ from 'lodash'
 
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import {Suggestion, FlatBody} from 'src/types/ifql'
+import {Suggestion, FlatBody, Links} from 'src/types/ifql'
 import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Links {
-  self: string
-  suggestions: string
-  ast: string
-}
 
 interface Props {
   links: Links
@@ -44,8 +38,10 @@ export class IFQLPage extends PureComponent<Props, State> {
       body: [],
       ast: null,
       suggestions: [],
-      script:
-        'baz = "baz"\n\nfoo = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\nbar = from(db: "telegraf")\n\t|> filter() \n\t|> range(start: -15m)\n\n',
+      script: `from(db:"foo")
+        |> filter(fn: (r) => 
+        (r["a"] == 1 OR r.b == "two") AND 
+        (r["b"] == true OR r.d == "four"))`,
     }
   }
 

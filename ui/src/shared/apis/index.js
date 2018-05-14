@@ -173,13 +173,13 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
   return AJAX(params)
 }
 
-export const testAlertOutput = async (kapacitor, outputName) => {
+export const testAlertOutput = async (kapacitor, outputName, options) => {
   try {
     const {
       data: {services},
     } = await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests')
     const service = services.find(s => s.name === outputName)
-    return kapacitorProxy(kapacitor, 'POST', service.link.href, {})
+    return kapacitorProxy(kapacitor, 'POST', service.link.href, options)
   } catch (error) {
     console.error(error)
   }

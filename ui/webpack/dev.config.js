@@ -15,7 +15,16 @@ const babelLoader = {
   loader: 'babel-loader',
   options: {
     cacheDirectory: true,
-    presets: [['env', {modules: false}], 'react', 'stage-0'],
+    presets: [
+      [
+        'env',
+        {
+          modules: false,
+        },
+      ],
+      'react',
+      'stage-0',
+    ],
   },
 }
 
@@ -112,7 +121,9 @@ module.exports = {
         include: path.resolve(__dirname, '..', 'src'),
         exclude: /node_modules/,
         use: [
-          {loader: 'thread-loader'},
+          {
+            loader: 'thread-loader',
+          },
           {
             loader: 'babel-loader',
             options: {

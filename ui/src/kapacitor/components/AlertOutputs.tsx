@@ -2,17 +2,7 @@ import React, {SFC} from 'react'
 
 import AlertTabs from 'src/kapacitor/components/AlertTabs'
 
-import {Kapacitor, Source} from 'src/types'
-
-export interface Notification {
-  id?: string
-  type: string
-  icon: string
-  duration: number
-  message: string
-}
-
-type NotificationFunc = () => Notification
+import {Kapacitor, Source, Notification, NotificationFunc} from 'src/types'
 
 interface AlertOutputProps {
   exists: boolean
