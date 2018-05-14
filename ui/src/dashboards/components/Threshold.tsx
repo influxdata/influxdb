@@ -3,30 +3,16 @@ import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 import {THRESHOLD_COLORS} from 'src/shared/constants/thresholds'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface SelectedColor {
-  hex: string
-  name: string
-}
-interface ThresholdProps {
-  type: string
-  hex: string
-  id: string
-  name: string
-  value: number
-}
+import {ColorNumber, ThresholdColor} from 'src/types/colors'
 
 interface Props {
   visualizationType: string
-  threshold: ThresholdProps
+  threshold: ColorNumber
   disableMaxColor: boolean
-  onChooseColor: (threshold: ThresholdProps) => void
-  onValidateColorValue: (
-    threshold: ThresholdProps,
-    targetValue: number
-  ) => boolean
-  onUpdateColorValue: (threshold: ThresholdProps, targetValue: number) => void
-  onDeleteThreshold: (threshold: ThresholdProps) => void
+  onChooseColor: (threshold: ColorNumber) => void
+  onValidateColorValue: (threshold: ColorNumber, targetValue: number) => boolean
+  onUpdateColorValue: (threshold: ColorNumber, targetValue: number) => void
+  onDeleteThreshold: (threshold: ColorNumber) => void
   isMin: boolean
   isMax: boolean
 }
@@ -50,7 +36,7 @@ class Threshold extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {threshold, disableMaxColor, onChooseColor, isMax} = this.props
+    const {disableMaxColor, isMax} = this.props
     const {workingValue} = this.state
 
     return (
@@ -76,18 +62,25 @@ class Threshold extends PureComponent<Props, State> {
         <ColorDropdown
           colors={THRESHOLD_COLORS}
           selected={this.selectedColor}
-          onChoose={onChooseColor(threshold)}
+          onChoose={this.handleChooseColor}
           disabled={isMax && disableMaxColor}
         />
       </div>
     )
   }
 
-  private get selectedColor(): SelectedColor {
+  private handleChooseColor = (color: ThresholdColor): void => {
+    const {onChooseColor, threshold} = this.props
+    const {hex, name} = color
+
+    onChooseColor({...threshold, hex, name})
+  }
+
+  private get selectedColor(): ColorNumber {
     const {
-      threshold: {hex, name},
+      threshold: {hex, name, type, value, id},
     } = this.props
-    return {hex, name}
+    return {hex, name, type, value, id}
   }
 
   private get inputClass(): string {

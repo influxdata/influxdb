@@ -21,11 +21,6 @@ import {
 } from 'shared/constants/thresholds'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-const formatColor = color => {
-  const {hex, name} = color
-  return {hex, name}
-}
-
 @ErrorHandling
 class ThresholdsList extends Component {
   handleAddThreshold = () => {
@@ -85,14 +80,23 @@ class ThresholdsList extends Component {
     onResetFocus()
   }
 
-  handleChooseColor = threshold => chosenColor => {
+  handleChangeBaseColor = updatedColor => {
     const {handleUpdateThresholdsListColors} = this.props
+    const {hex, name} = updatedColor
 
     const thresholdsListColors = this.props.thresholdsListColors.map(
       color =>
-        color.id === threshold.id
-          ? {...color, hex: chosenColor.hex, name: chosenColor.name}
-          : color
+        color.id === THRESHOLD_TYPE_BASE ? {...color, hex, name} : color
+    )
+
+    handleUpdateThresholdsListColors(thresholdsListColors)
+  }
+
+  handleChooseColor = updatedColor => {
+    const {handleUpdateThresholdsListColors} = this.props
+
+    const thresholdsListColors = this.props.thresholdsListColors.map(
+      color => (color.id === updatedColor.id ? updatedColor : color)
     )
 
     handleUpdateThresholdsListColors(thresholdsListColors)
@@ -147,8 +151,8 @@ class ThresholdsList extends Component {
                 <div className="threshold-item--label">Base Color</div>
                 <ColorDropdown
                   colors={THRESHOLD_COLORS}
-                  selected={formatColor(color)}
-                  onChoose={this.handleChooseColor(color)}
+                  selected={color}
+                  onChoose={this.handleChangeBaseColor}
                   stretchToFit={true}
                 />
               </div>

@@ -4,15 +4,15 @@ import classnames from 'classnames'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {ColorNumber} from 'src/types/colors'
+import {ColorNumber, ThresholdColor} from 'src/types/colors'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 
 interface Props {
   selected: ColorNumber
-  disabled: boolean
-  stretchToFit: boolean
-  colors: ColorNumber[]
-  onChoose: (colors: ColorNumber[]) => void
+  disabled?: boolean
+  stretchToFit?: boolean
+  colors: ThresholdColor[]
+  onChoose: (colors: ThresholdColor) => void
 }
 
 interface State {
@@ -21,6 +21,11 @@ interface State {
 
 @ErrorHandling
 export default class ColorDropdown extends Component<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    stretchToFit: false,
+    disabled: false,
+  }
+
   constructor(props) {
     super(props)
 
