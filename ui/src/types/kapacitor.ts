@@ -56,7 +56,7 @@ interface AlertNodes {
   log: Log[]
   victorOps: VictorOps[]
   pagerDuty: PagerDuty[]
-  pagerDuty2?: PagerDuty[]
+  pagerDuty2?: PagerDuty2[]
   pushover: Pushover[]
   sensu: Sensu[]
   slack: Slack[]
@@ -118,6 +118,11 @@ interface VictorOps {
 // PagerDuty sends alerts to the pagerduty.com service
 interface PagerDuty {
   serviceKey: string
+}
+
+// PagerDuty sends alerts to the pagerduty.com service
+interface PagerDuty2 {
+  routingKey: string
 }
 
 // HipChat sends alerts to stride.com
