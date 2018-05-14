@@ -18,15 +18,14 @@ interface Body extends FlatBody {
 
 class BodyBuilder extends PureComponent<Props> {
   public render() {
-    const bodybuilder = this.props.body.map(b => {
+    const bodybuilder = this.props.body.map((b, i) => {
       if (b.declarations.length) {
         return b.declarations.map(d => {
           if (d.funcs) {
             return (
-              <div className="declaration" key={b.id}>
+              <div className="declaration" key={i}>
                 <VariableName name={d.name} />
                 <ExpressionNode
-                  key={b.id}
                   bodyID={b.id}
                   declarationID={d.id}
                   funcNames={this.funcNames}
@@ -37,7 +36,7 @@ class BodyBuilder extends PureComponent<Props> {
           }
 
           return (
-            <div className="declaration" key={b.id}>
+            <div className="declaration" key={i}>
               <VariableName name={b.source} />
             </div>
           )
@@ -45,7 +44,7 @@ class BodyBuilder extends PureComponent<Props> {
       }
 
       return (
-        <div className="declaration" key={b.id}>
+        <div className="declaration" key={i}>
           <VariableName />
           <ExpressionNode
             bodyID={b.id}
