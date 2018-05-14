@@ -1,7 +1,6 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
-import {ResizableBox} from 'react-resizable'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -26,7 +25,6 @@ class LayoutRenderer extends Component {
 
     this.state = {
       rowHeight: this.calculateRowHeight(),
-      resizeCoords: null,
     }
   }
 
@@ -36,8 +34,16 @@ class LayoutRenderer extends Component {
     }
     const newCells = this.props.cells.map(cell => {
       const l = layout.find(ly => ly.i === cell.i)
-      const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
-      return {...cell, ...newLayout}
+      const newLayout = {
+        x: l.x,
+        y: l.y,
+        h: l.h,
+        w: l.w,
+      }
+      return {
+        ...cell,
+        ...newLayout,
+      }
     })
     this.props.onPositionChange(newCells)
   }
@@ -54,10 +60,6 @@ class LayoutRenderer extends Component {
           PAGE_CONTAINER_MARGIN) /
           STATUS_PAGE_ROW_COUNT
       : DASHBOARD_LAYOUT_ROW_HEIGHT
-  }
-
-  handleCellResize = () => {
-    this.resizeCoords = this.setState({resizeCoords: new Date()})
   }
 
   render() {
@@ -79,70 +81,63 @@ class LayoutRenderer extends Component {
       onSummonOverlayTechnologies,
     } = this.props
 
-    const {rowHeight, resizeCoords} = this.state
+    const {rowHeight} = this.state
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <ResizableBox
-        height={Infinity}
-        width={Infinity}
-        onResize={this.handleCellResize}
+      <Authorized
+        requiredRole={EDITOR_ROLE}
+        propsOverride={{
+          isDraggable: false,
+          isResizable: false,
+          draggableHandle: null,
+        }}
       >
-        <Authorized
-          requiredRole={EDITOR_ROLE}
-          propsOverride={{
-            isDraggable: false,
-            isResizable: false,
-            draggableHandle: null,
-          }}
+        <GridLayout
+          layout={cells}
+          cols={12}
+          rowHeight={rowHeight}
+          margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
+          containerPadding={[0, 0]}
+          useCSSTransforms={false}
+          onResize={this.handleCellResize}
+          onLayoutChange={this.handleLayoutChange}
+          draggableHandle={'.dash-graph--draggable'}
+          isDraggable={isDashboard}
+          isResizable={isDashboard}
         >
-          <GridLayout
-            layout={cells}
-            cols={12}
-            rowHeight={rowHeight}
-            margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
-            containerPadding={[0, 0]}
-            useCSSTransforms={false}
-            onResize={this.handleCellResize}
-            onLayoutChange={this.handleLayoutChange}
-            draggableHandle={'.dash-graph--draggable'}
-            isDraggable={isDashboard}
-            isResizable={isDashboard}
-          >
-            {cells.map(cell => (
-              <div key={cell.i}>
-                <Authorized
-                  requiredRole={EDITOR_ROLE}
-                  propsOverride={{
-                    isEditable: false,
-                  }}
-                >
-                  <Layout
-                    key={cell.i}
-                    cell={cell}
-                    host={host}
-                    source={source}
-                    onZoom={onZoom}
-                    sources={sources}
-                    templates={templates}
-                    timeRange={timeRange}
-                    isEditable={isEditable}
-                    onEditCell={onEditCell}
-                    autoRefresh={autoRefresh}
-                    resizeCoords={resizeCoords}
-                    onDeleteCell={onDeleteCell}
-                    onCloneCell={onCloneCell}
-                    manualRefresh={manualRefresh}
-                    onCancelEditCell={onCancelEditCell}
-                    onStopAddAnnotation={this.handleStopAddAnnotation}
-                    onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-                  />
-                </Authorized>
-              </div>
-            ))}
-          </GridLayout>
-        </Authorized>
-      </ResizableBox>
+          {cells.map(cell => (
+            <div key={cell.i}>
+              <Authorized
+                requiredRole={EDITOR_ROLE}
+                propsOverride={{
+                  isEditable: false,
+                }}
+              >
+                <Layout
+                  key={cell.i}
+                  cell={cell}
+                  host={host}
+                  source={source}
+                  onZoom={onZoom}
+                  sources={sources}
+                  templates={templates}
+                  timeRange={timeRange}
+                  isEditable={isEditable}
+                  onEditCell={onEditCell}
+                  autoRefresh={autoRefresh}
+                  onDeleteCell={onDeleteCell}
+                  onCloneCell={onCloneCell}
+                  manualRefresh={manualRefresh}
+                  onCancelEditCell={onCancelEditCell}
+                  onStopAddAnnotation={this.handleStopAddAnnotation}
+                  onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+                />
+              </Authorized>
+            </div>
+          ))}
+        </GridLayout>
+      </Authorized>
     )
   }
 }

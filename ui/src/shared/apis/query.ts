@@ -31,14 +31,22 @@ interface Query {
   rp: string
 }
 
+const parseSource = source => {
+  if (Array.isArray(source)) {
+    return _.get(source, '0', '')
+  }
+
+  return source
+}
+
 export const fetchTimeSeries = async (
   queries: Query[],
   resolution: number,
   templates: Template[],
-  editQueryStatus: () => void
+  editQueryStatus: () => any
 ) => {
   const timeSeriesPromises = queries.map(query => {
-    const {host, database, rp} = query
+    const {host, database, rp, text} = query
     // the key `database` was used upstream in HostPage.js, and since as of this writing
     // the codebase has not been fully converted to TypeScript, it's not clear where else
     // it may be used, but this slight modification is intended to allow for the use of
@@ -63,11 +71,9 @@ export const fetchTimeSeries = async (
 
     const tempVars = removeUnselectedTemplateValues(templatesWithIntervalVals)
 
-    const source = host
-    return fetchTimeSeriesAsync(
-      {source, db, rp, query, tempVars, resolution},
-      editQueryStatus
-    )
+    const source = parseSource(host)
+    const payload = {source, db, rp, query: text, tempVars, resolution}
+    return fetchTimeSeriesAsync(payload, editQueryStatus)
   })
 
   return Promise.all(timeSeriesPromises)

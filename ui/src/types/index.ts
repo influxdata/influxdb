@@ -1,5 +1,5 @@
 import {AuthLinks, Organization, Role, User, Me} from './auth'
-import {Template, Cell, CellQuery, Legend} from './dashboard'
+import {Template, Cell, CellQuery, Legend, Axes} from './dashboard'
 import {
   GroupBy,
   QueryConfig,
@@ -52,4 +52,5 @@ export {
   Task,
   Notification,
   NotificationFunc,
+  Axes,
 }

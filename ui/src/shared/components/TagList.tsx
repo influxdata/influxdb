@@ -9,7 +9,6 @@ import {showTagKeys, showTagValues} from 'src/shared/apis/metaQuery'
 import showTagKeysParser from 'src/shared/parsing/showTagKeys'
 import showTagValuesParser from 'src/shared/parsing/showTagValues'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
 import {QueryConfig, Tag} from 'src/types'
 
 const {shape} = PropTypes

@@ -339,7 +339,10 @@ func (s *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 		}
 	*/
 
-	req.Name = req.ID
+	if req.Name == "" {
+		req.Name = req.ID
+	}
+
 	req.ID = ""
 	task, err := c.Create(ctx, req)
 	if err != nil {
