@@ -12,18 +12,12 @@ import {
   TimeSeriesServerResponse,
   TimeSeriesResult,
   TimeSeriesSeries,
+  TimeSeriesValue,
   TimeSeriesSuccessfulResult,
 } from 'src/types/series'
-import {TimeSeriesValue} from 'src/types/series'
 import {get} from 'src/utils/wrappers'
 
-interface ResultA {
-  statement_id: number
-  series: TimeSeriesSeries[]
-  responseIndex: number
-  isGroupBy: boolean
-}
-interface ResultB {
+interface Result {
   statement_id: number
   series: TimeSeriesSeries[]
   responseIndex: number
@@ -108,13 +102,10 @@ const constructResults = (
   raw: TimeSeriesServerResponse[],
   isTable: boolean
 ): Result[] => {
-  return _.flatten(
-    fastMap<TimeSeriesServerResponse, Result[]>(raw, (response, index) => {
-      const results: TimeSeriesResult[] = _.get(
-        response,
-        'response.results',
-        []
-      )
+  const MappedResponse = fastMap<TimeSeriesServerResponse, Result[]>(
+    raw,
+    (response, index) => {
+      const results = get<TimeSeriesResult[]>(response, 'response.results', [])
 
       const successfulResults = results.filter(
         r => 'series' in r && !('error' in r)
@@ -125,9 +116,7 @@ const constructResults = (
         ['0', 'series', '0', 'tags'],
         {}
       )
-
       const hasGroupBy = !_.isEmpty(tagsFromResults)
-
       if (isTable && hasGroupBy) {
         const groupBySeries = flattenGroupBySeries(
           successfulResults,
@@ -146,8 +135,9 @@ const constructResults = (
         })
       )
       return noGroupBySeries
-    })
+    }
   )
+  return _.flatten(MappedResponse)
 }
 
 const constructSerieses = (results: Result[]): Series[] => {
