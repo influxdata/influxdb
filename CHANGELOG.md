@@ -37,7 +37,7 @@
 1.  [#3402](https://github.com/influxdata/chronograf/pull/3402): Fix missing icons when using basepath
 1.  [#3412](https://github.com/influxdata/chronograf/pull/3412): Limit max-width of TICKScript editor.
 1.  [#3166](https://github.com/influxdata/chronograf/pull/3166): Fixes naming of new TICKScripts
-
+1.  [#3449](https://github.com/influxdata/chronograf/pull/3449): Fixes data explorer query error reporting regression
 
 ## v1.4.4.1 [2018-04-16]
 
