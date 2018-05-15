@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -386,11 +387,11 @@ func (t *Tombstoner) commit() error {
 		return err
 	}
 
-	if err := renameFile(tmpFilename, t.tombstonePath()); err != nil {
+	if err := file.RenameFile(tmpFilename, t.tombstonePath()); err != nil {
 		return err
 	}
 
-	if err := syncDir(filepath.Dir(t.tombstonePath())); err != nil {
+	if err := file.SyncDir(filepath.Dir(t.tombstonePath())); err != nil {
 		return err
 	}
 

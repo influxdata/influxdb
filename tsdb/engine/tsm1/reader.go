@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -1446,7 +1447,7 @@ func (m *mmapAccessor) rename(path string) error {
 		return err
 	}
 
-	if err := renameFile(m.f.Name(), path); err != nil {
+	if err := file.RenameFile(m.f.Name(), path); err != nil {
 		return err
 	}
 
