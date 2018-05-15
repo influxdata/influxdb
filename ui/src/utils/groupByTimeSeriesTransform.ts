@@ -18,10 +18,9 @@ import {
 import {get} from 'src/utils/wrappers'
 
 interface Result {
-  statement_id: number
   series: TimeSeriesSeries[]
   responseIndex: number
-  isGroupBy: boolean
+  isGroupBy?: boolean
 }
 
 interface Series {
@@ -79,13 +78,11 @@ const flattenGroupBySeries = (
   )
   const firstColumns = get<string[]>(results, '[0].series[0]columns', [])
 
-  const flattenedSeries: Result = [
+  const flattenedSeries: Result[] = [
     {
       series: [
         {
           columns: firstColumns,
-          tagsKeys,
-          isGroupBy: true,
           tags: _.get(results, [0, 'series', 0, 'tags'], {}),
           name: _.get(results, [0, 'series', 0, 'name'], ''),
           values: [...accumulatedValues],
@@ -131,7 +128,6 @@ const constructResults = (
         r => ({
           ...r,
           responseIndex: index,
-          isGroupBy: false,
         })
       )
       return noGroupBySeries
@@ -178,7 +174,6 @@ const constructCells = (
       {
         name: measurement,
         columns,
-        tagsKeys,
         values = [],
         seriesIndex,
         responseIndex,
