@@ -224,7 +224,7 @@ export const testAlertOutput = async (
   kapacitor,
   outputName,
   options,
-  specificConfig
+  specificConfigOptions
 ) => {
   try {
     const {
@@ -232,9 +232,11 @@ export const testAlertOutput = async (
     } = await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests')
     const service = services.find(s => s.name === outputName)
 
-    let body = options
-    if (outputName === AlertTypes.slack) {
-      body = {workspace: specificConfig}
+    let body = {}
+    if (options) {
+      body = options
+    } else if (outputName === AlertTypes.slack) {
+      body = specificConfigOptions
     }
 
     return kapacitorProxy(kapacitor, 'POST', service.link.href, body)

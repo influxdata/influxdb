@@ -21,7 +21,10 @@ interface Props {
     specificConfig: string
   ) => void
   onDelete: (specificConfig: string) => void
-  onTest: (e: MouseEvent<HTMLButtonElement>, specificConfig: string) => void
+  onTest: (
+    e: MouseEvent<HTMLButtonElement>,
+    specificConfigOptions: Partial<SlackProperties>
+  ) => void
   onEnabled: (specificConfig: string) => boolean
 }
 

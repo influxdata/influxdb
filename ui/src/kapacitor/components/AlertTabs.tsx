@@ -48,7 +48,7 @@ import DeprecationWarning from 'src/admin/components/DeprecationWarning'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Source, Kapacitor} from 'src/types'
-import {ServiceProperties} from 'src/types/kapacitor'
+import {ServiceProperties, SpecificConfigOptions} from 'src/types/kapacitor'
 import SlackConfigs from 'src/kapacitor/components/config/SlackConfigs'
 import {
   AlertDisplayText,
@@ -513,7 +513,7 @@ class AlertTabs extends PureComponent<Props, State> {
 
   private handleTestConfig = (section: string, options?: object) => async (
     e: MouseEvent<HTMLButtonElement>,
-    specificConfig?: string
+    specificConfigOptions?: SpecificConfigOptions
   ): Promise<void> => {
     e.preventDefault()
 
@@ -522,7 +522,7 @@ class AlertTabs extends PureComponent<Props, State> {
         this.props.kapacitor,
         section,
         options,
-        specificConfig
+        specificConfigOptions
       )
       if (data.success) {
         this.props.notify(notifyTestAlertSent(section))

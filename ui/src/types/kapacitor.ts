@@ -401,3 +401,5 @@ export type ServiceProperties =
   | TalkProperties
   | TelegramProperties
   | VictorOpsProperties
+
+export type SpecificConfigOptions = Partial<SlackProperties>

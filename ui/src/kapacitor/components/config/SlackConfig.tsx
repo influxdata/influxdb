@@ -19,7 +19,10 @@ interface Props {
     isNewConfigInSection: boolean,
     specificConfig: string
   ) => void
-  onTest: (e: MouseEvent<HTMLButtonElement>, specificConfig: string) => void
+  onTest: (
+    e: MouseEvent<HTMLButtonElement>,
+    specificConfigOptions: Partial<SlackProperties>
+  ) => void
   onDelete: (specificConfig: string, workspaceID: string) => void
   enabled: boolean
   isNewConfig: boolean
@@ -168,10 +171,10 @@ class SlackConfig extends PureComponent<Props, State> {
     const {
       onTest,
       config: {
-        options: {workspace},
+        options: {workspace, channel},
       },
     } = this.props
-    onTest(e, workspace)
+    onTest(e, {workspace, channel})
   }
 
   private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
