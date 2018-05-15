@@ -1,6 +1,9 @@
 vendor
 .netrc
 
+# binary databases
+idpdb.bolt
+
 # Project binaries.
 /idp
 /transpilerd
