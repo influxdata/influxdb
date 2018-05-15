@@ -107,7 +107,6 @@ const kapacitorLogHeaders = {
 }
 
 export const getLogStream = kapacitor =>
-  // fetch required for kapacitors log querying
   fetch(`${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs`, {
     method: 'GET',
     headers: kapacitorLogHeaders,
@@ -115,7 +114,6 @@ export const getLogStream = kapacitor =>
   })
 
 export const getLogStreamByRuleID = (kapacitor, ruleID) =>
-  // fetch required for kapacitors log querying
   fetch(
     `${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs?task=${ruleID}`,
     {
