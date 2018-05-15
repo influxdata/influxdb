@@ -2404,9 +2404,7 @@ func (e *Engine) Reopen() error {
 // index. It will panic if the underlying index does not have a SeriesIDSet
 // method.
 func (e *Engine) SeriesIDSet() *tsdb.SeriesIDSet {
-	return e.index.(interface {
-		SeriesIDSet() *tsdb.SeriesIDSet
-	}).SeriesIDSet()
+	return e.index.SeriesIDSet()
 }
 
 // AddSeries adds the provided series data to the index and writes a point to
