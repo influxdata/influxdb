@@ -136,19 +136,29 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 }
 
 func (s *Store) IndexBytes() int {
-	// Get bytes per index.
-	// inmem indexes are shared among shards in a database, so keep individual values mapped per index.
-	indexes := map[uintptr]int{}
-	for _, sh := range s.shards {
-		b, indexRefID := sh.IndexBytes()
-		indexes[indexRefID] = b
+	// Build index set to work on.
+	is := IndexSet{Indexes: make([]Index, 0, len(s.shardIDs()))}
+	s.mu.RLock()
+	for _, sid := range s.shardIDs() {
+		shard, ok := s.shards[sid]
+		if !ok {
+			continue
+		}
+
+		if is.SeriesFile == nil {
+			is.SeriesFile = shard.sfile
+		}
+		is.Indexes = append(is.Indexes, shard.index)
+	}
+	s.mu.RUnlock()
+	is = is.DedupeInmemIndexes()
+
+	var b int
+	for _, idx := range is.Indexes {
+		b += idx.Bytes()
 	}
 
-	var bytesSum int
-	for _, b := range indexes {
-		bytesSum += b
-	}
-	return bytesSum
+	return b
 }
 
 // Path returns the store's root path.

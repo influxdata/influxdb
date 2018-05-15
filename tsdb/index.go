@@ -60,14 +60,16 @@ type Index interface {
 	// Size of the index on disk, if applicable.
 	DiskSizeBytes() int64
 
-	// Bytes estimates the memory footprint of this Index, in bytes,
-	// and a unique reference ID to the Index instance.
-	Bytes() (int, uintptr)
+	// Bytes estimates the memory footprint of this Index, in bytes.
+	Bytes() int
 
 	// To be removed w/ tsi1.
 	SetFieldName(measurement []byte, name string)
 
 	Type() string
+	// Returns a unique reference ID to the index instance.
+	// For inmem, returns a reference to the backing Index, not ShardIndex.
+	UniqueReferenceID() uintptr
 
 	Rebuild()
 }
@@ -1101,7 +1103,7 @@ func (itr *tagValueMergeIterator) Next() (_ []byte, err error) {
 	return value, nil
 }
 
-// IndexSet represents a list of indexes.
+// IndexSet represents a list of indexes, all belonging to one database.
 type IndexSet struct {
 	Indexes    []Index                // The set of indexes comprising this IndexSet.
 	SeriesFile *SeriesFile            // The Series File associated with the db for this set.
@@ -1139,7 +1141,8 @@ func (is IndexSet) HasField(measurement []byte, field string) bool {
 	return false
 }
 
-// DedupeInmemIndexes returns an index set which removes duplicate in-memory indexes.
+// DedupeInmemIndexes returns an index set which removes duplicate indexes.
+// Useful because inmem indexes are shared by shards per database.
 func (is IndexSet) DedupeInmemIndexes() IndexSet {
 	other := IndexSet{
 		Indexes:    make([]Index, 0, len(is.Indexes)),
@@ -1147,18 +1150,16 @@ func (is IndexSet) DedupeInmemIndexes() IndexSet {
 		fieldSets:  make([]*MeasurementFieldSet, 0, len(is.Indexes)),
 	}
 
-	var hasInmem bool
+	uniqueIndexes := make(map[uintptr]Index)
 	for _, idx := range is.Indexes {
-		other.fieldSets = append(other.fieldSets, idx.FieldSet())
-		if idx.Type() == "inmem" {
-			if !hasInmem {
-				other.Indexes = append(other.Indexes, idx)
-				hasInmem = true
-			}
-			continue
-		}
-		other.Indexes = append(other.Indexes, idx)
+		uniqueIndexes[idx.UniqueReferenceID()] = idx
 	}
+
+	for _, idx := range uniqueIndexes {
+		other.Indexes = append(other.Indexes, idx)
+		other.fieldSets = append(other.fieldSets, idx.FieldSet())
+	}
+
 	return other
 }
 

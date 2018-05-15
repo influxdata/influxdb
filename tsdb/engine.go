@@ -79,7 +79,6 @@ type Engine interface {
 	DiskSize() int64
 	IsIdle() bool
 	Free() error
-	IndexBytes() (int, uintptr)
 
 	io.WriterTo
 }

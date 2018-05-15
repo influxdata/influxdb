@@ -457,10 +457,6 @@ func (s *Shard) SetCompactionsEnabled(enabled bool) {
 	engine.SetCompactionsEnabled(enabled)
 }
 
-func (s *Shard) IndexBytes() (int, uintptr) {
-	return s._engine.IndexBytes()
-}
-
 // DiskSize returns the size on disk of this shard.
 func (s *Shard) DiskSize() (int64, error) {
 	s.mu.RLock()

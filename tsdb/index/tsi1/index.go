@@ -109,6 +109,10 @@ type Index struct {
 	PartitionN uint64
 }
 
+func (i *Index) UniqueReferenceID() uintptr {
+	return uintptr(unsafe.Pointer(i))
+}
+
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
@@ -128,7 +132,7 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 }
 
 // Bytes estimates the memory footprint of this Index, in bytes.
-func (i *Index) Bytes() (int, uintptr) {
+func (i *Index) Bytes() int {
 	var b int
 	i.mu.RLock()
 	b += 24 // mu RWMutex is 24 bytes
@@ -147,7 +151,7 @@ func (i *Index) Bytes() (int, uintptr) {
 	b += int(unsafe.Sizeof(i.version))
 	b += int(unsafe.Sizeof(i.PartitionN))
 	i.mu.RUnlock()
-	return b, uintptr(unsafe.Pointer(i))
+	return b
 }
 
 // Database returns the name of the database the index was initialized with.
