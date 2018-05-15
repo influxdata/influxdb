@@ -3,6 +3,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/andreyvit/diff"
+  packages = ["."]
+  revision = "c7f18ee00883bfd3b00e0a2bf7607827e0148ad4"
+
+[[projects]]
+  branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
@@ -20,6 +26,12 @@
   version = "v1.4.7"
 
 [[projects]]
+  name = "github.com/gogo/protobuf"
+  packages = ["proto"]
+  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/golang/protobuf"
   packages = ["proto"]
   revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
@@ -29,6 +41,7 @@
   name = "github.com/google/go-cmp"
   packages = [
     "cmp",
+    "cmp/cmpopts",
     "cmp/internal/diff",
     "cmp/internal/function",
     "cmp/internal/value"
@@ -61,12 +74,50 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/influxdata/ifql"
+  packages = [
+    ".",
+    "ast",
+    "compiler",
+    "complete",
+    "functions",
+    "functions/storage",
+    "id",
+    "interpreter",
+    "parser",
+    "query",
+    "query/control",
+    "query/execute",
+    "query/execute/executetest",
+    "query/plan",
+    "semantic",
+    "values"
+  ]
+  revision = "a0ab4a8a48d0b4043930e5e9c0e76c1e647962d0"
+
+[[projects]]
+  branch = "master"
   name = "github.com/influxdata/influxdb"
   packages = [
     "logger",
     "pkg/snowflake"
   ]
   revision = "200fda999f915dfc13c2b4030a2db6e0b08c689f"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/influxdata/influxql"
+  packages = [
+    ".",
+    "internal"
+  ]
+  revision = "145e0677ff6418fa00ee7e5dd434305631ab44ea"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/influxdata/tdigest"
+  packages = ["."]
+  revision = "617b83f940fd9acd207f712561a8a0590277fb38"
 
 [[projects]]
   name = "github.com/jsternberg/zap-logfmt"
@@ -104,10 +155,25 @@
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
 
 [[projects]]
+  name = "github.com/opentracing/opentracing-go"
+  packages = [
+    ".",
+    "log"
+  ]
+  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
+  version = "v1.0.2"
+
+[[projects]]
   name = "github.com/pelletier/go-toml"
   packages = ["."]
   revision = "acdc4509485b587f5e675510c4f2c63e90ff68a8"
   version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   name = "github.com/prometheus/client_golang"
@@ -143,6 +209,18 @@
     "xfs"
   ]
   revision = "8b1c2da0d56deffdbb9e48d4414b4e674bd8083e"
+
+[[projects]]
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
+
+[[projects]]
+  name = "github.com/sergi/go-diff"
+  packages = ["diffmatchpatch"]
+  revision = "1744e2970ca51c86172c8190fadad617561ed6e7"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/spf13/afero"
@@ -210,6 +288,12 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context"]
+  revision = "2491c5de3490fced2f6cff376127c667efeed857"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
   revision = "7c87d13f8e835d2fb3a70a2912c811ed0c1d241b"
@@ -236,6 +320,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6cd13a6e1af35a40f1e1ed0f2a3c5929ec54f41f0b9da941bfaaaecf2da7f840"
+  inputs-digest = "df0270bef0a7df16d7ead444091275f949a085533e9d02720e3627ffcdf4462b"
   solver-name = "gps-cdcl"
   solver-version = 1
