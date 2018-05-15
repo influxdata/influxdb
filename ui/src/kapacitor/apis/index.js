@@ -107,22 +107,23 @@ const kapacitorLogHeaders = {
 }
 
 export const getLogStream = kapacitor =>
-  AJAX({
-    url: `${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs`,
+  // fetch required for kapacitors log querying
+  fetch(`${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs`, {
     method: 'GET',
     headers: kapacitorLogHeaders,
     credentials: 'include',
   })
 
 export const getLogStreamByRuleID = (kapacitor, ruleID) =>
-  AJAX({
-    url: `${
-      kapacitor.links.proxy
-    }?path=/kapacitor/v1preview/logs?task=${ruleID}`,
-    method: 'GET',
-    headers: kapacitorLogHeaders,
-    credentials: 'include',
-  })
+  // fetch required for kapacitors log querying
+  fetch(
+    `${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs?task=${ruleID}`,
+    {
+      method: 'GET',
+      headers: kapacitorLogHeaders,
+      credentials: 'include',
+    }
+  )
 
 export const pingKapacitorVersion = async kapacitor => {
   try {
