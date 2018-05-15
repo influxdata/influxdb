@@ -3,7 +3,7 @@ import classnames from 'classnames'
 import uuid from 'uuid'
 import _ from 'lodash'
 
-import Division from 'src/shared/components/ThreeSizer/Division'
+import Division from 'src/shared/components/threesizer/Division'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   HANDLE_NONE,
@@ -140,6 +140,8 @@ class Threesizer extends Component<Props, State> {
             handlePixels={d.handlePixels}
             handleDisplay={d.handleDisplay}
             activeHandleID={activeHandleID}
+            onMaximize={this.handleMaximize}
+            onMinimize={this.handleMinimize}
             onDoubleClick={this.handleDoubleClick}
             onHandleStartDrag={this.handleStartDrag}
             render={this.props.divisions[i].render}
@@ -204,6 +206,50 @@ class Threesizer extends Component<Props, State> {
       }
 
       return {...d, size: 1}
+    })
+
+    this.setState({divisions})
+  }
+
+  private handleMaximize = (id: string): void => {
+    const maxDiv = this.state.divisions.find(d => d.id === id)
+
+    if (!maxDiv) {
+      return
+    }
+
+    const divisions = this.state.divisions.map(d => {
+      if (d.id !== id) {
+        return {...d, size: 0}
+      }
+
+      return {...d, size: 1}
+    })
+
+    this.setState({divisions})
+  }
+
+  private handleMinimize = (id: string): void => {
+    const minDiv = this.state.divisions.find(d => d.id === id)
+    const numDivisions = this.state.divisions.length
+
+    if (!minDiv) {
+      return
+    }
+
+    let size
+    if (numDivisions <= 1) {
+      size = 1
+    } else {
+      size = 1 / (this.state.divisions.length - 1)
+    }
+
+    const divisions = this.state.divisions.map(d => {
+      if (d.id !== id) {
+        return {...d, size}
+      }
+
+      return {...d, size: 0}
     })
 
     this.setState({divisions})

@@ -2,7 +2,7 @@ import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import classnames from 'classnames'
 import calculateSize from 'calculate-size'
 
-import Header from 'src/shared/components/Threesizer/DivisionHeader'
+import DivisionHeader from 'src/shared/components/threesizer/DivisionHeader'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
 
 const NOOP = () => {}
@@ -20,6 +20,8 @@ interface Props {
   render: (visibility: string) => ReactElement<any>
   onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => void
   onDoubleClick: (id: string) => void
+  onMaximize: (id: string) => void
+  onMinimize: (id: string) => void
 }
 
 interface Style {
@@ -78,7 +80,12 @@ class Division extends PureComponent<Props> {
           <div className={this.titleClass}>{name}</div>
         </div>
         <div className={this.contentsClass} style={this.contentStyle}>
-          {name && <Header />}
+          {name && (
+            <DivisionHeader
+              onMinimize={this.handleMinimize}
+              onMaximize={this.handleMaximize}
+            />
+          )}
           <div className="threesizer--body">{render(this.visibility)}</div>
         </div>
       </div>
@@ -223,6 +230,16 @@ class Division extends PureComponent<Props> {
     const {onDoubleClick, id} = this.props
 
     onDoubleClick(id)
+  }
+
+  private handleMinimize = (): void => {
+    const {id, onMinimize} = this.props
+    onMinimize(id)
+  }
+
+  private handleMaximize = (): void => {
+    const {id, onMaximize} = this.props
+    onMaximize(id)
   }
 }
 

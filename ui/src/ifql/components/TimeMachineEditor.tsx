@@ -64,6 +64,7 @@ class TimeMachineEditor extends PureComponent<Props> {
   }
 
   private handleMount = (instance: EditorInstance) => {
+    instance.refresh() // required to for proper line height on mount
     this.editor = instance
   }
 

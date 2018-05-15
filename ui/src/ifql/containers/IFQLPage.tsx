@@ -63,7 +63,7 @@ export class IFQLPage extends PureComponent<Props, State> {
 
     return (
       <IFQLContext.Provider value={this.handlers}>
-        <KeyboardShortcuts onControlEnter={this.handleSubmitScript}>
+        <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
           <div className="page hosts-list-page">
             <div className="page-header full-width">
               <div className="page-header__container">

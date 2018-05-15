@@ -3,7 +3,12 @@ import DivisionMenu, {
   MenuItem,
 } from 'src/shared/components/Threesizer/DivisionMenu'
 
-class DivisionHeader extends PureComponent {
+interface Props {
+  onMinimize: () => void
+  onMaximize: () => void
+}
+
+class DivisionHeader extends PureComponent<Props> {
   public render() {
     return (
       <div className="threesizer--header">
@@ -13,13 +18,14 @@ class DivisionHeader extends PureComponent {
   }
 
   private get menuItems(): MenuItem[] {
+    const {onMaximize, onMinimize} = this.props
     return [
       {
-        action: () => {},
+        action: onMaximize,
         text: 'Maximize',
       },
       {
-        action: () => {},
+        action: onMinimize,
         text: 'Minimize',
       },
     ]
