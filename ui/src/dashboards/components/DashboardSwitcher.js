@@ -5,6 +5,8 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import OnClickOutside from 'shared/components/OnClickOutside'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 
 @ErrorHandling
 class DashboardSwitcher extends Component {
@@ -29,9 +31,8 @@ class DashboardSwitcher extends Component {
   }
 
   render() {
-    const {activeDashboard, names} = this.props
+    const {activeDashboard} = this.props
     const {isOpen} = this.state
-    const sorted = _.sortBy(names, ({name}) => name.toLowerCase())
 
     return (
       <div
@@ -44,18 +45,28 @@ class DashboardSwitcher extends Component {
           <span className="icon dash-f" />
         </button>
         <ul className="dropdown-menu">
-          {sorted.map(({name, link}) => (
-            <NameLink
-              key={link}
-              name={name}
-              link={link}
-              activeName={activeDashboard}
-              onClose={this.handleCloseMenu}
-            />
-          ))}
+          <FancyScrollbar
+            autoHeight={true}
+            maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+          >
+            {this.sortedList.map(({name, link}) => (
+              <NameLink
+                key={link}
+                name={name}
+                link={link}
+                activeName={activeDashboard}
+                onClose={this.handleCloseMenu}
+              />
+            ))}
+          </FancyScrollbar>
         </ul>
       </div>
     )
+  }
+
+  get sortedList() {
+    const {names} = this.props
+    return _.sortBy(names, ({name}) => name.toLowerCase())
   }
 }
 

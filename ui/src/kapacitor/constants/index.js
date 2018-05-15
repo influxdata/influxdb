@@ -118,7 +118,7 @@ export const ALERTS_FROM_CONFIG = {
   opsGenie: ['api-key', 'teams', 'recipients'], // api-key = bool
   opsGenie2: ['api-key', 'teams', 'recipients'], // api-key = bool
   pagerDuty: ['service-key'], // service-key = bool
-  pagerDuty2: ['service-key'], // service-key = bool
+  pagerDuty2: ['routing-key'], // routing-key = bool
   pushover: ['token', 'user-key'], // token = bool, user-key = bool
   sensu: ['addr', 'source'],
   slack: ['url', 'channel'], // url = bool
@@ -143,7 +143,7 @@ export const MAP_FIELD_KEYS_FROM_CONFIG = {
   opsGenie: {},
   opsGenie2: {},
   pagerDuty: {'service-key': 'serviceKey'},
-  pagerDuty2: {'service-key': 'serviceKey'},
+  pagerDuty2: {'routing-key': 'routingKey'},
   pushover: {'user-key': 'userKey'},
   sensu: {},
   slack: {},

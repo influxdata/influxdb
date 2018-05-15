@@ -22,6 +22,7 @@ import {
   KafkaConfig,
   OpsGenieConfig,
   PagerDutyConfig,
+  PagerDuty2Config,
   PushoverConfig,
   SensuConfig,
   SlackConfig,
@@ -280,7 +281,7 @@ class AlertTabs extends PureComponent<Props, State> {
         type: 'PagerDuty2',
         enabled: this.getEnabled(configSections, 'pagerduty2'),
         renderComponent: () => (
-          <PagerDutyConfig
+          <PagerDuty2Config
             onSave={this.handleSaveConfig('pagerduty2')}
             config={this.getSection(configSections, 'pagerduty2')}
             onTest={this.handleTestConfig('pagerduty2')}

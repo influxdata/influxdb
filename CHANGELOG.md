@@ -38,6 +38,7 @@
 1.  [#3412](https://github.com/influxdata/chronograf/pull/3412): Limit max-width of TICKScript editor.
 1.  [#3166](https://github.com/influxdata/chronograf/pull/3166): Fixes naming of new TICKScripts
 1.  [#3449](https://github.com/influxdata/chronograf/pull/3449): Fixes data explorer query error reporting regression
+1.  [#3453](https://github.com/influxdata/chronograf/pull/3453): Fix Kapacitor Logs fetch regression
 
 ## v1.4.4.1 [2018-04-16]
 
