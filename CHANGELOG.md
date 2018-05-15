@@ -21,6 +21,7 @@
 1.  [#3378](https://github.com/influxdata/chronograf/pull/3378): Ensure table graphs have a consistent ux between chrome and firefox
 1.  [#3401](https://github.com/influxdata/chronograf/pull/3401): Change AutoRefresh interval to paused.
 1.  [#3404](https://github.com/influxdata/chronograf/pull/3404): Get cloned cell name for notification from cloned cell generator function
+1.  [#3461](https://github.com/influxdata/chronograf/pull/3461): Improve load time for host pages
 
 ### Bug Fixes
 
