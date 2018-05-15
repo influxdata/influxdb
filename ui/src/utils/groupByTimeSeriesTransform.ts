@@ -150,11 +150,11 @@ const constructSerieses = (results: Result[]): Series[] => {
 
 const constructCells = (
   serieses: Series[]
-): {cells: Cells; sortedLabels: Label[]; seriesLabels: Label[]} => {
+): {cells: Cells; sortedLabels: Label[]; seriesLabels: Label[][]} => {
   let cellIndex = 0
-  let labels = []
-  const seriesLabels = []
-  const cells = {
+  let labels: Label[] = []
+  const seriesLabels: Label[][] = []
+  const cells: Cells = {
     label: [],
     value: [],
     time: [],
@@ -163,7 +163,7 @@ const constructCells = (
     responseIndex: [],
   }
 
-  fastForEach(
+  fastForEach<Series>(
     serieses,
     (
       {
@@ -177,41 +177,43 @@ const constructCells = (
       },
       ind
     ) => {
-      let unsortedLabels
+      let unsortedLabels: Label[]
       if (isGroupBy) {
-        const tagsKeysLabels = fastMap(tagsKeys, field => ({
+        const labelsFromTags = fastMap<string, Label>(_.keys(tags), field => ({
           label: `${field}`,
           responseIndex,
           seriesIndex,
         }))
 
-        const columnsLabels = fastMap(columns.slice(1), field => ({
-          label: `${measurement}.${field}`,
-          responseIndex,
-          seriesIndex,
-        }))
+        const labelsFromColumns = fastMap<string, Label>(
+          columns.slice(1),
+          field => ({
+            label: `${measurement}.${field}`,
+            responseIndex,
+            seriesIndex,
+          })
+        )
 
-        unsortedLabels = _.concat(tagsKeysLabels, columnsLabels)
+        unsortedLabels = _.concat(labelsFromTags, labelsFromColumns)
 
         seriesLabels[ind] = unsortedLabels
-        labels = fastConcat(labels, unsortedLabels)
+        labels = _.concat(labels, unsortedLabels)
       } else {
-        const tagSet = fastMap(
-          Object.keys(tags),
+        const tagSet = fastMap<string, string>(
+          _.keys(tags),
           tag => `[${tag}=${tags[tag]}]`
         )
           .sort()
           .join('')
-        unsortedLabels = fastMap(columns.slice(1), field => ({
+        unsortedLabels = fastMap<string, Label>(columns.slice(1), field => ({
           label: `${measurement}.${field}${tagSet}`,
           responseIndex,
           seriesIndex,
         }))
         seriesLabels[ind] = unsortedLabels
-        labels = fastConcat(labels, unsortedLabels)
+        labels = _.concat(labels, unsortedLabels)
 
-        const rows = fastMap(values, vals => ({vals}))
-        fastForEach(rows, ({vals}) => {
+        fastForEach(values, vals => {
           const [time, ...rowValues] = vals
           fastForEach(rowValues, (value, i) => {
             cells.label[cellIndex] = unsortedLabels[i].label
