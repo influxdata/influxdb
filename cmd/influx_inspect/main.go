@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/deletetsm"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsm"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/dumptsmwal"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/help"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/report"
@@ -74,6 +75,11 @@ func (m *Main) Run(args ...string) error {
 		name := dumptsm.NewCommand()
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("dumptsm: %s", err)
+		}
+	case "dumptsmwal":
+		name := dumptsmwal.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("dumptsmwal: %s", err)
 		}
 	case "export":
 		name := export.NewCommand()
