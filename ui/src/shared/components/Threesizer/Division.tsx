@@ -2,6 +2,7 @@ import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import classnames from 'classnames'
 import calculateSize from 'calculate-size'
 
+import Header from 'src/shared/components/Threesizer/DivisionHeader'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
 
 const NOOP = () => {}
@@ -77,7 +78,7 @@ class Division extends PureComponent<Props> {
           <div className={this.titleClass}>{name}</div>
         </div>
         <div className={this.contentsClass} style={this.contentStyle}>
-          {name && <div className="threesizer--header" />}
+          {name && <Header />}
           <div className="threesizer--body">{render(this.visibility)}</div>
         </div>
       </div>
