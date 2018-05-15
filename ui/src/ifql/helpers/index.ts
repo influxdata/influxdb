@@ -50,6 +50,15 @@ export const bodyNodes = (ast, suggestions): Body[] => {
 const functions = (funcs, suggestions): Func[] => {
   const funcList = funcs.map(func => {
     const suggestion = suggestions.find(f => f.name === func.name)
+    if (!suggestion) {
+      return {
+        id: uuid.v4(),
+        source: func.source,
+        name: func.name,
+        args: func.args,
+      }
+    }
+
     const {params, name} = suggestion
     const args = Object.entries(params).map(([key, type]) => {
       const value = _.get(func.args.find(arg => arg.key === key), 'value', '')
