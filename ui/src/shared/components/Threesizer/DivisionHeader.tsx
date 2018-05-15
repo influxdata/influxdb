@@ -1,24 +1,18 @@
 import React, {PureComponent} from 'react'
-import MenuTooltipButton from 'src/shared/components/MenuTooltipButton'
-
-const noop = () => {}
+import DivisionMenu, {
+  MenuItem,
+} from 'src/shared/components/Threesizer/DivisionMenu'
 
 class DivisionHeader extends PureComponent {
   public render() {
     return (
       <div className="threesizer--header">
-        <div className="threesizer-context--buttons">
-          <MenuTooltipButton
-            icon="pencil"
-            informParent={noop}
-            menuOptions={this.options}
-          />
-        </div>
+        <DivisionMenu menuItems={this.menuItems} />
       </div>
     )
   }
 
-  private get options() {
+  private get menuItems(): MenuItem[] {
     return [
       {
         action: () => {},

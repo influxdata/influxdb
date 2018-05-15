@@ -4,6 +4,7 @@
 */
 
 $threesizer-handle: 30px;
+
 .threesizer {
   width: 100%;
   height: 100%;
@@ -132,25 +133,30 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
 
 // Header
 .threesizer--header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 11px;
   background-color: $g2-kevlar;
-  .horizontal>& {
+
+  .horizontal > & {
     width: 50px;
     border-right: 2px solid $g4-onyx;
   }
-  .vertical>& {
+  .vertical > & {
     height: 50px;
     border-bottom: 2px solid $g4-onyx;
   }
 }
 
 .threesizer--body {
-  .horizontal>&:only-child {
+  .horizontal > &:only-child {
     width: 100%;
   }
-  .vertical>&:only-child {
+  .vertical > &:only-child {
     height: 100%;
   }
-  .threesizer--header+& {
+  .threesizer--header + & {
     flex: 1 0 0;
   }
 }
@@ -284,5 +290,12 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
   }
   .dash-graph-context--menu-item:hover {
     background-color: $c-dreamsicle;
+  }
+}
+
+// Header Dropdown Menu
+.threesizer--menu {
+  .dropdown-menu {
+    right: 0;
   }
 }
