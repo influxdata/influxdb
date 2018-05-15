@@ -20,9 +20,11 @@ interface Props {
     specificConfig: string
   ) => void
   onTest: (e: MouseEvent<HTMLButtonElement>, specificConfig: string) => void
-  onDelete: (specificConfig: string) => void
+  onDelete: (specificConfig: string, workspaceID: string) => void
   enabled: boolean
   isNewConfig: boolean
+  workspaceID: string
+  isDefaultConfig: boolean
 }
 
 interface State {
@@ -155,32 +157,11 @@ class SlackConfig extends PureComponent<Props, State> {
   }
 
   private get isDefaultConfig(): boolean {
-    const {
-      config: {
-        options: {workspace},
-      },
-      isNewConfig,
-    } = this.props
-    return workspace === '' && !isNewConfig
+    return this.props.isDefaultConfig
   }
 
   private get workspaceID(): string {
-    const {
-      config: {
-        options: {workspace},
-      },
-      isNewConfig,
-    } = this.props
-
-    if (this.isDefaultConfig) {
-      return 'default'
-    }
-
-    if (isNewConfig) {
-      return 'new'
-    }
-
-    return workspace
+    return this.props.workspaceID
   }
 
   private handleTest = (e: MouseEvent<HTMLButtonElement>) => {
@@ -221,7 +202,7 @@ class SlackConfig extends PureComponent<Props, State> {
 
   private handleDelete = async e => {
     e.preventDefault()
-    await this.props.onDelete(this.workspace.value)
+    await this.props.onDelete(this.workspace.value, this.workspaceID)
   }
 
   private disableTest = () => {

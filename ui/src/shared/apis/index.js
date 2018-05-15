@@ -1,4 +1,5 @@
 import AJAX from 'utils/ajax'
+import {AlertTypes} from 'src/kapacitor/constants'
 
 export function getSources() {
   return AJAX({
@@ -232,7 +233,7 @@ export const testAlertOutput = async (
     const service = services.find(s => s.name === outputName)
 
     let body = options
-    if (outputName === 'slack') {
+    if (outputName === AlertTypes.slack) {
       body = {workspace: specificConfig}
     }
 

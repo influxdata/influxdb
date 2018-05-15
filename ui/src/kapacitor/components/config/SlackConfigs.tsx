@@ -1,5 +1,5 @@
 import React, {PureComponent, MouseEvent} from 'react'
-import _ from 'lodash'
+import {get} from 'src/utils/wrappers'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SlackConfig from 'src/kapacitor/components/config/SlackConfig'
@@ -44,14 +44,16 @@ class SlackConfigs extends PureComponent<Props, State> {
 
   public render() {
     const {configs} = this.state
-    const {onSave, onTest, onDelete, onEnabled} = this.props
+    const {onSave, onTest, onEnabled} = this.props
 
     return (
       <div>
         {configs.map(config => {
-          const workspace = _.get(config, ['options', 'workspace'], 'new')
-          const isNewConfig = _.get(config, 'isNewConfig', false)
+          const workspace = this.getWorkspace(config)
+          const isNewConfig = this.isNewConfig(config)
           const enabled = onEnabled(workspace)
+          const isDefaultConfig = this.isDefaultConfig(config)
+          const workspaceID = this.getWorkspaceID(config)
 
           return (
             <SlackConfig
@@ -59,9 +61,11 @@ class SlackConfigs extends PureComponent<Props, State> {
               onSave={onSave}
               config={config}
               onTest={onTest}
-              onDelete={onDelete}
+              onDelete={this.deleteConfig}
               enabled={enabled}
               isNewConfig={isNewConfig}
+              isDefaultConfig={isDefaultConfig}
+              workspaceID={workspaceID}
             />
           )
         })}
@@ -78,17 +82,55 @@ class SlackConfigs extends PureComponent<Props, State> {
     return this.state.configs
   }
 
+  private isNewConfig = (config: Config): boolean => {
+    return get(config, 'isNewConfig', false)
+  }
+
+  private isDefaultConfig = (config: Config): boolean => {
+    return this.getWorkspace(config) === '' && !this.isNewConfig(config)
+  }
+
+  private getWorkspace = (config: Config): string => {
+    return get(config, 'options.workspace', 'new')
+  }
+
+  private getWorkspaceID = (config: Config): string => {
+    if (this.isDefaultConfig(config)) {
+      return 'default'
+    }
+
+    if (this.isNewConfig(config)) {
+      return 'new'
+    }
+
+    return this.getWorkspace(config)
+  }
+
   private addConfig = () => {
     const configs = this.configs
     const newConfig = {
       options: {
         url: false,
         channel: '',
-        workspace: '',
+        workspace: null,
       },
       isNewConfig: true,
     }
     this.setState({configs: [...configs, newConfig]})
+  }
+
+  private deleteConfig = (
+    specificConfig: string,
+    workspaceID: string
+  ): void => {
+    if (workspaceID === 'new') {
+      const configs = this.configs.filter(
+        c => this.getWorkspaceID(c) !== workspaceID
+      )
+      this.setState({configs})
+    } else {
+      this.props.onDelete(specificConfig)
+    }
   }
 }
 
