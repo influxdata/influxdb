@@ -171,7 +171,7 @@
   display: block !important;
   position: absolute;
   padding: 11px;
-  z-index: 500;
+  z-index: $dygraph-legend-z;
   border-radius: 3px;
   min-width: 350px;
   user-select: text;

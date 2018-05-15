@@ -5,7 +5,6 @@
 
 $overlay-controls-height: 60px;
 $overlay-controls-bg: $g2-kevlar;
-$overlay-z: 100;
 
 
 // Make Overlay Technology full screen
@@ -26,7 +25,7 @@ $overlay-z: 100;
   top: 0;
   bottom: 0;
   right: 0;
-  z-index: $overlay-z;
+  z-index: $dash-ceo-z;
   padding: 0 30px;
 
   /*
