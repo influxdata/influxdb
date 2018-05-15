@@ -45,7 +45,6 @@ class BodyBuilder extends PureComponent<Props> {
 
       return (
         <div className="declaration" key={i}>
-          <VariableName />
           <ExpressionNode
             bodyID={b.id}
             funcs={b.funcs}
