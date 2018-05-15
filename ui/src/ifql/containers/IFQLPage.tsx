@@ -38,7 +38,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       body: [],
       ast: null,
-      data: 'fetching data...',
+      data: 'Hit "Get Data!" or Ctrl + Enter to run your script',
       suggestions: [],
       script: `from(db:"telegraf")
     |> filter(fn: (r) => r["_measurement"] == "cpu" AND r["_field"] == "usage_user")
@@ -78,7 +78,13 @@ export class IFQLPage extends PureComponent<Props, State> {
                     className="btn btn-sm btn-primary"
                     onClick={this.handleSubmitScript}
                   >
-                    Submit Script
+                    Analyze Script
+                  </button>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={this.getTimeSeries}
+                  >
+                    Get Data!
                   </button>
                 </div>
               </div>
@@ -331,7 +337,6 @@ export class IFQLPage extends PureComponent<Props, State> {
 
   private getASTResponse = async (script: string) => {
     const {links} = this.props
-    this.setState({data: 'fetching data...'})
 
     try {
       const ast = await getAST({url: links.ast, body: script})
@@ -340,9 +345,13 @@ export class IFQLPage extends PureComponent<Props, State> {
     } catch (error) {
       return console.error('Could not parse AST', error)
     }
+  }
+
+  private getTimeSeries = async () => {
+    this.setState({data: 'fetching data...'})
 
     try {
-      const {data} = await getTimeSeries(script)
+      const {data} = await getTimeSeries(this.state.script)
       this.setState({data})
     } catch (error) {
       this.setState({data: 'Error fetching data'})
