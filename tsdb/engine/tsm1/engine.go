@@ -205,6 +205,9 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	}
 
 	fs := NewFileStore(path)
+	if opt.FileStoreObserver != nil {
+		fs.WithObserver(opt.FileStoreObserver)
+	}
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
 
 	c := NewCompactor()

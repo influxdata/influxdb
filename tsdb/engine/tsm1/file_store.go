@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -179,6 +180,8 @@ type FileStore struct {
 	purger *purger
 
 	currentTempDirID int
+
+	obs tsdb.FileStoreObserver
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -222,6 +225,11 @@ func NewFileStore(dir string) *FileStore {
 	}
 	fs.purger.fileStore = fs
 	return fs
+}
+
+// WithObserver sets the observer for the file store.
+func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
+	f.obs = obs
 }
 
 // enableTraceLogging must be called before the FileStore is opened.
@@ -668,6 +676,18 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 	// Rename all the new files to make them live on restart
 	for _, file := range newFiles {
+		if !strings.HasSuffix(file, tsmTmpExt) && !strings.HasSuffix(file, TSMFileExtension) {
+			// This isn't a .tsm or .tsm.tmp file.
+			continue
+		}
+
+		// give the observer a chance to process the file first.
+		if f.obs != nil {
+			if err := f.obs.FileFinishing(file); err != nil {
+				return err
+			}
+		}
+
 		var newName = file
 		if strings.HasSuffix(file, tsmTmpExt) {
 			// The new TSM files have a tmp extension.  First rename them.
@@ -675,9 +695,6 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			if err := os.Rename(file, newName); err != nil {
 				return err
 			}
-		} else if !strings.HasSuffix(file, TSMFileExtension) {
-			// This isn't a .tsm or .tsm.tmp file.
-			continue
 		}
 
 		fd, err := os.Open(newName)
@@ -721,6 +738,13 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			if remove == file.Path() {
 				keep = false
 
+				// give the observer a chance to process the file first.
+				if f.obs != nil {
+					if err := f.obs.FileUnlinking(file.Path()); err != nil {
+						return err
+					}
+				}
+
 				// If queries are running against this file, then we need to move it out of the
 				// way and let them complete.  We'll then delete the original file to avoid
 				// blocking callers upstream.  If the process crashes, the temp file is
@@ -731,7 +755,6 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 					for _, t := range file.TombstoneFiles() {
 						deletes = append(deletes, t.Path)
 					}
-					deletes = append(deletes, file.Path())
 
 					// Rename the TSM file used by this reader
 					tempPath := fmt.Sprintf("%s.%s", file.Path(), TmpTSMFileExtension)
@@ -742,7 +765,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 					// Remove the old file and tombstones.  We can't use the normal TSMReader.Remove()
 					// because it now refers to our temp file which we can't remove.
 					for _, f := range deletes {
-						if err := os.RemoveAll(f); err != nil {
+						if err := os.Remove(f); err != nil {
 							return err
 						}
 					}
