@@ -126,7 +126,11 @@ func RegisteredEngines() []string {
 func NewEngine(id uint64, i Index, database, path string, walPath string, sfile *SeriesFile, options EngineOptions) (Engine, error) {
 	// Create a new engine
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return newEngineFuncs[options.EngineVersion](id, i, database, path, walPath, sfile, options), nil
+		engine := newEngineFuncs[options.EngineVersion](id, i, database, path, walPath, sfile, options)
+		if options.OnNewEngine != nil {
+			options.OnNewEngine(engine)
+		}
+		return engine, nil
 	}
 
 	// If it's a dir then it's a tsm1 engine
@@ -145,7 +149,11 @@ func NewEngine(id uint64, i Index, database, path string, walPath string, sfile 
 		return nil, fmt.Errorf("invalid engine format: %q", format)
 	}
 
-	return fn(id, i, database, path, walPath, sfile, options), nil
+	engine := fn(id, i, database, path, walPath, sfile, options)
+	if options.OnNewEngine != nil {
+		options.OnNewEngine(engine)
+	}
+	return engine, nil
 }
 
 // EngineOptions represents the options used to initialize the engine.
@@ -176,6 +184,8 @@ type EngineOptions struct {
 	Config         Config
 	SeriesIDSets   SeriesIDSets
 	FieldValidator FieldValidator
+
+	OnNewEngine func(Engine)
 }
 
 // NewEngineOptions returns the default options.
