@@ -164,7 +164,7 @@ func TestIndexSet_DedupeInmemIndexes(t *testing.T) {
 				opts.InmemIndex = inmem.NewIndex("db", sfile.SeriesFile)
 
 				for i := 0; i < testCase.inmem1N; i++ {
-					indexes = append(indexes, inmem.NewShardIndex(uint64(i), "", "", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opts))
+					indexes = append(indexes, inmem.NewShardIndex(uint64(i), tsdb.NewSeriesIDSet(), opts))
 				}
 			}
 			if testCase.inmem2N > 0 {
@@ -174,7 +174,7 @@ func TestIndexSet_DedupeInmemIndexes(t *testing.T) {
 				opts.InmemIndex = inmem.NewIndex("db", sfile.SeriesFile)
 
 				for i := 0; i < testCase.inmem2N; i++ {
-					indexes = append(indexes, inmem.NewShardIndex(uint64(i), "", "", tsdb.NewSeriesIDSet(), sfile.SeriesFile, opts))
+					indexes = append(indexes, inmem.NewShardIndex(uint64(i), tsdb.NewSeriesIDSet(), opts))
 				}
 			}
 
