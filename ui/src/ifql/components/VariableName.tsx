@@ -39,7 +39,7 @@ export default class VariableName extends PureComponent<Props, State> {
     const {name} = this.props
     const split = name.split('=')
     const varName = split[0].substring(0, split[0].length - 1)
-    const varValue = split[1].substring(1)
+    const varValue = this.props.name.replace(/^[^=]+=/, '')
 
     const valueIsString = varValue.endsWith('"')
 

@@ -40,8 +40,8 @@ export class IFQLPage extends PureComponent<Props, State> {
       ast: null,
       data: 'Hit "Get Data!" or Ctrl + Enter to run your script',
       suggestions: [],
-      script: `tele = from(db: "telegraf")
-    tele |> sum()`,
+      script: `fil = (r) => r._measurement == "cpu"
+      tele = from(db: "telegraf") |> filter(fn: fil) |> range(start: -1m) |> sum()`,
     }
   }
 
