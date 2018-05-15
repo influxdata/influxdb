@@ -5,11 +5,7 @@ import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import TagInput from 'src/shared/components/TagInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Properties {
-  'api-key': string
-  teams: string[]
-  recipients: string[]
-}
+import {OpsGenieProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -26,7 +22,7 @@ interface Item {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: OpsGenieProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -140,7 +136,7 @@ class OpsGenieConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: OpsGenieProperties = {
       'api-key': this.apiKey.value,
       teams: this.state.currentTeams,
       recipients: this.state.currentRecipients,

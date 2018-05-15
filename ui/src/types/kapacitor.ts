@@ -1,4 +1,5 @@
 import {QueryConfig} from './'
+import {AlertTypes} from 'src/kapacitor/constants'
 
 export interface Kapacitor {
   id?: string
@@ -202,3 +203,203 @@ export interface DBRP {
   db: string
   rp: string
 }
+
+// Alert Handler used in the Alert Builder
+
+interface HandlerBasics {
+  type: AlertTypes
+  enabled: boolean
+}
+
+export type Handler = HandlerBasics & {[k: string]: any}
+
+export interface RuleMessageTemplate {
+  id: RuleMessage
+  name: RuleMessage
+  taskName: RuleMessage
+  group: RuleMessage
+  tags: RuleMessage
+  level: RuleMessage
+  fields: RuleMessage
+  time: RuleMessage
+}
+
+interface RuleMessage {
+  label: string
+  text: string
+}
+
+export interface KeyMappings {
+  hipchat: string
+  opsgenie: string
+  opsgenie2: string
+  pagerduty: string
+  pagerduty2: string
+  smtp: string
+  victorops: string
+}
+
+export interface FieldsFromConfigAlerts {
+  alerta: string[]
+  hipChat: string[]
+  kafka: string[]
+  opsGenie: string[]
+  opsGenie2: string[]
+  pagerDuty: string[]
+  pagerDuty2: string[]
+  pushover: string[]
+  sensu: string[]
+  slack: string[]
+  email: string[]
+  talk: string[]
+  telegram: string[]
+  victorOps: string[]
+}
+
+export interface FieldsFromAllAlerts extends FieldsFromConfigAlerts {
+  post: string[]
+  tcp: string[]
+  exec: string[]
+  log: string[]
+}
+
+interface pagerDutyConfigKeyMap {
+  'service-key': string
+}
+
+interface pushoverConfigKeyMap {
+  'user-key': String
+}
+
+interface telegramConfigKeyMap {
+  'chat-id': string
+  'parse-mode': string
+  'disable-web-page-preview': string
+  'disable-notification': string
+}
+
+interface victorOpsConfigKeyMap {
+  'routing-key': string
+}
+
+export type ConfigKeyMaps =
+  | pagerDutyConfigKeyMap
+  | pushoverConfigKeyMap
+  | telegramConfigKeyMap
+  | victorOpsConfigKeyMap
+  | {}
+
+export interface AlertaProperties {
+  environment: string
+  origin: string
+  token: string
+  url: string
+  enabled: boolean
+}
+
+export interface HipChatProperties {
+  room: string
+  url: string
+  token: string
+  enabled: boolean
+}
+
+export interface KafkaProperties {
+  brokers: string[]
+  timeout: string
+  'batch-size': number
+  'batch-timeout': string
+  'use-ssl': boolean
+  'ssl-ca': string
+  'ssl-cert': string
+  'ssl-key': string
+  'insecure-skip-verify': boolean
+}
+
+export interface OpsGenieProperties {
+  'api-key': string
+  teams: string[]
+  recipients: string[]
+  enabled: boolean
+}
+
+export interface PagerDutyProperties {
+  'service-key': string
+  url: string
+  enabled: boolean
+}
+
+export interface PagerDuty2Properties {
+  'routing-key': string
+  url: string
+  enabled: boolean
+}
+
+export interface PushoverProperties {
+  token: string
+  url: string
+  'user-key': string
+  enabled: boolean
+}
+
+export interface SensuProperties {
+  source: string
+  addr: string
+  enabled: boolean
+}
+
+export interface SlackProperties {
+  channel: string
+  url: string
+  workspace?: string
+  enabled: boolean
+}
+
+export interface SMTPProperties {
+  host: string
+  port: string
+  from: string
+  to: string[]
+  username: string
+  password: string
+  enabled: boolean
+}
+
+export interface TalkProperties {
+  url: string
+  author_name: string
+  enabled: boolean
+}
+
+export interface TelegramProperties {
+  'chat-id': string
+  'disable-notification': boolean
+  'disable-web-page-preview': boolean
+  'parse-mode': string
+  token: string
+  enabled: boolean
+}
+
+export interface VictorOpsProperties {
+  'api-key': string
+  'routing-key': string
+  url: string
+  enabled: boolean
+}
+
+export type ServiceProperties =
+  | AlertaProperties
+  | HipChatProperties
+  | KafkaProperties
+  | OpsGenieProperties
+  | PagerDutyProperties
+  | PagerDuty2Properties
+  | PushoverProperties
+  | SensuProperties
+  | SlackProperties
+  | SMTPProperties
+  | TalkProperties
+  | TelegramProperties
+  | VictorOpsProperties
+
+export type SpecificConfigOptions = Partial<SlackProperties>

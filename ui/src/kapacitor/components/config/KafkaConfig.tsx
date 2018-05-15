@@ -5,22 +5,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Notification, NotificationFunc} from 'src/types'
 
+import {KafkaProperties} from 'src/types/kapacitor'
 import {notifyInvalidBatchSizeValue} from 'src/shared/copy/notifications'
 
-interface Properties {
-  brokers: string[]
-  timeout: string
-  'batch-size': number
-  'batch-timeout': string
-  'use-ssl': boolean
-  'ssl-ca': string
-  'ssl-cert': string
-  'ssl-key': string
-  'insecure-skip-verify': boolean
-}
-
 interface Config {
-  options: Properties & {
+  options: KafkaProperties & {
     id: string
   }
 }
@@ -31,7 +20,7 @@ interface Item {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: KafkaProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
   notify: (message: Notification | NotificationFunc) => void

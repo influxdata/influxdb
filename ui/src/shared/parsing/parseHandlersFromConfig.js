@@ -5,19 +5,38 @@ import {
   MAP_KEYS_FROM_CONFIG,
 } from 'src/kapacitor/constants'
 
+const getElementOptions = section => {
+  const elements = _.get(section, 'elements', [])
+
+  if (elements.length === 0) {
+    return {}
+  }
+
+  return _.map(elements, element => _.get(element, 'options', {}))
+}
+
 const parseHandlersFromConfig = config => {
   const {
     data: {sections},
   } = config
 
-  const allHandlers = _.map(sections, (v, k) => {
-    const fromConfig = _.get(v, ['elements', '0', 'options'], {})
-    return {
-      // fill type with handler names in rule
-      type: _.get(MAP_KEYS_FROM_CONFIG, k, k),
-      ...fromConfig,
-    }
-  })
+  const allHandlers = _.reduce(
+    sections,
+    (acc, v, k) => {
+      const options = getElementOptions(v)
+      const type = _.get(MAP_KEYS_FROM_CONFIG, k, k)
+
+      _.forEach(options, option => {
+        acc.push({
+          // fill type with handler names in rule
+          type,
+          ...option,
+        })
+      })
+      return acc
+    },
+    []
+  )
 
   // map handler names from config to handler names in rule
   const mappedHandlers = _.mapKeys(allHandlers, (v, k) => {

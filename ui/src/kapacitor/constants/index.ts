@@ -1,3 +1,72 @@
+import {
+  Handler,
+  KeyMappings,
+  FieldsFromConfigAlerts,
+  FieldsFromAllAlerts,
+  RuleMessageTemplate,
+  ConfigKeyMaps,
+} from 'src/types/kapacitor'
+
+export enum AlertTypes {
+  seperator = '',
+  alerta = 'alerta',
+  hipchat = 'hipchat',
+  httppost = 'httppost',
+  influxdb = 'influxdb',
+  kafka = 'kafka',
+  mqtt = 'mqtt',
+  opsgenie = 'opsgenie',
+  opsgenie2 = 'opsgenie2',
+  pagerduty = 'pagerduty',
+  pagerduty2 = 'pagerduty2',
+  pushover = 'pushover',
+  sensu = 'sensu',
+  slack = 'slack',
+  smtp = 'smtp',
+  snmptrap = 'snmptrap',
+  talk = 'talk',
+  telegram = 'telegram',
+  victorops = 'victorops',
+  post = 'post',
+  tcp = 'tcp',
+  exec = 'exec',
+  log = 'log',
+}
+
+export enum AlertDisplayText {
+  alerta = 'Alerta',
+  hipchat = 'HipChat',
+  kafka = 'Kafka',
+  opsgenie = 'OpsGenie',
+  opsgenie2 = 'OpsGenie2',
+  pagerduty = 'PagerDuty',
+  pagerduty2 = 'PagerDuty2',
+  pushover = 'Pushover',
+  sensu = 'Sensu',
+  slack = 'Slack',
+  smtp = 'SMTP',
+  talk = 'Talk',
+  telegram = 'Telegram',
+  victorops = 'VictorOps',
+}
+
+export const SupportedServices: string[] = [
+  'alerta',
+  'hipchat',
+  'kafka',
+  'opsgenie',
+  'opsgenie2',
+  'pagerduty',
+  'pagerduty2',
+  'pushover',
+  'sensu',
+  'slack',
+  'smtp',
+  'talk',
+  'telegram',
+  'victorops',
+]
+
 export const defaultRuleConfigs = {
   deadman: {
     period: '10m',
@@ -17,19 +86,19 @@ export const defaultRuleConfigs = {
   },
 }
 
-export const defaultEveryFrequency = '30s'
+export const defaultEveryFrequency: string = '30s'
 
 // constants taken from https://github.com/influxdata/chronograf/blob/870dbc72d1a8b784eaacad5eeea79fc54968b656/kapacitor/operators.go#L13
-export const EQUAL_TO = 'equal to'
-export const LESS_THAN = 'less than'
-export const GREATER_THAN = 'greater than'
-export const NOT_EQUAL_TO = 'not equal to'
-export const INSIDE_RANGE = 'inside range'
-export const OUTSIDE_RANGE = 'outside range'
-export const EQUAL_TO_OR_GREATER_THAN = 'equal to or greater'
-export const EQUAL_TO_OR_LESS_THAN = 'equal to or less than'
+export const EQUAL_TO: string = 'equal to'
+export const LESS_THAN: string = 'less than'
+export const GREATER_THAN: string = 'greater than'
+export const NOT_EQUAL_TO: string = 'not equal to'
+export const INSIDE_RANGE: string = 'inside range'
+export const OUTSIDE_RANGE: string = 'outside range'
+export const EQUAL_TO_OR_GREATER_THAN: string = 'equal to or greater'
+export const EQUAL_TO_OR_LESS_THAN: string = 'equal to or less than'
 
-export const THRESHOLD_OPERATORS = [
+export const THRESHOLD_OPERATORS: string[] = [
   GREATER_THAN,
   EQUAL_TO_OR_GREATER_THAN,
   EQUAL_TO_OR_LESS_THAN,
@@ -40,7 +109,7 @@ export const THRESHOLD_OPERATORS = [
   OUTSIDE_RANGE,
 ]
 
-export const RELATIVE_OPERATORS = [
+export const RELATIVE_OPERATORS: string[] = [
   GREATER_THAN,
   EQUAL_TO_OR_GREATER_THAN,
   EQUAL_TO_OR_LESS_THAN,
@@ -50,13 +119,13 @@ export const RELATIVE_OPERATORS = [
 ]
 
 // export const RELATIONS = ['once', 'more than ', 'less than'];
-export const PERIODS = ['1m', '5m', '10m', '30m', '1h', '2h', '24h']
-export const CHANGES = ['change', '% change']
-export const SHIFTS = ['1m', '5m', '10m', '30m', '1h', '2h', '24h']
+export const PERIODS: string[] = ['1m', '5m', '10m', '30m', '1h', '2h', '24h']
+export const CHANGES: string[] = ['change', '% change']
+export const SHIFTS: string[] = ['1m', '5m', '10m', '30m', '1h', '2h', '24h']
 
-export const DEFAULT_RULE_ID = 'DEFAULT_RULE_ID'
+export const DEFAULT_RULE_ID: string = 'DEFAULT_RULE_ID'
 
-export const RULE_MESSAGE_TEMPLATES = {
+export const RULE_MESSAGE_TEMPLATES: RuleMessageTemplate = {
   id: {label: '{{.ID}}', text: 'The ID of the alert'},
   name: {label: '{{.Name}}', text: 'Measurement name'},
   taskName: {label: '{{.TaskName}}', text: 'The name of the task'},
@@ -86,21 +155,21 @@ export const RULE_MESSAGE_TEMPLATES = {
   },
 }
 // DEFAULT_HANDLERS are empty alert templates for handlers that don't exist in the kapacitor config
-export const DEFAULT_HANDLERS = [
+export const DEFAULT_HANDLERS: Handler[] = [
   {
-    type: 'post',
+    type: AlertTypes.post,
     enabled: true,
     url: '',
     headers: {},
     headerKey: '',
     headerValue: '',
   },
-  {type: 'tcp', enabled: true, address: ''},
-  {type: 'exec', enabled: true, command: []},
-  {type: 'log', enabled: true, filePath: ''},
+  {type: AlertTypes.tcp, enabled: true, address: ''},
+  {type: AlertTypes.exec, enabled: true, command: []},
+  {type: AlertTypes.log, enabled: true, filePath: ''},
 ]
 
-export const MAP_KEYS_FROM_CONFIG = {
+export const MAP_KEYS_FROM_CONFIG: KeyMappings = {
   hipchat: 'hipChat',
   opsgenie: 'opsGenie',
   opsgenie2: 'opsGenie2',
@@ -111,7 +180,7 @@ export const MAP_KEYS_FROM_CONFIG = {
 }
 
 // ALERTS_FROM_CONFIG the array of fields to accept from Kapacitor Config
-export const ALERTS_FROM_CONFIG = {
+export const ALERTS_FROM_CONFIG: FieldsFromConfigAlerts = {
   alerta: ['environment', 'origin', 'token'], // token = bool
   hipChat: ['url', 'room', 'token'], // token = bool
   kafka: [],
@@ -121,7 +190,7 @@ export const ALERTS_FROM_CONFIG = {
   pagerDuty2: ['routing-key'], // routing-key = bool
   pushover: ['token', 'user-key'], // token = bool, user-key = bool
   sensu: ['addr', 'source'],
-  slack: ['url', 'channel'], // url = bool
+  slack: ['url', 'channel', 'workspace'], // url = bool
   email: ['from', 'host', 'password', 'port', 'username'], // password = bool
   talk: ['url', 'author_name'], // url = bool
   telegram: [
@@ -137,7 +206,7 @@ export const ALERTS_FROM_CONFIG = {
   // mqtt:[]
 }
 
-export const MAP_FIELD_KEYS_FROM_CONFIG = {
+export const MAP_FIELD_KEYS_FROM_CONFIG: ConfigKeyMaps = {
   alerta: {},
   hipChat: {},
   opsGenie: {},
@@ -162,7 +231,7 @@ export const MAP_FIELD_KEYS_FROM_CONFIG = {
 }
 
 // HANDLERS_TO_RULE returns array of fields that may be updated for each alert on rule.
-export const HANDLERS_TO_RULE = {
+export const HANDLERS_TO_RULE: FieldsFromAllAlerts = {
   alerta: [
     'resource',
     'event',
@@ -180,7 +249,7 @@ export const HANDLERS_TO_RULE = {
   pagerDuty2: [],
   pushover: ['device', 'title', 'sound', 'url', 'urlTitle'],
   sensu: ['source', 'handlers'],
-  slack: ['channel', 'username', 'iconEmoji'],
+  slack: ['channel', 'username', 'iconEmoji', 'workspace'],
   email: ['to'],
   talk: [],
   telegram: [

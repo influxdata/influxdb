@@ -3,7 +3,7 @@ import React, {PureComponent, ReactElement, SFC} from 'react'
 import classnames from 'classnames'
 
 interface TabProps {
-  children: JSX.Element[] | JSX.Element
+  children: JSX.Element[] | JSX.Element | string
   onClick?: () => void
   isDisabled?: boolean
   isActive?: boolean
