@@ -3,7 +3,7 @@ import classnames from 'classnames'
 import uuid from 'uuid'
 import _ from 'lodash'
 
-import ResizeDivision from 'src/shared/components/ResizeDivision'
+import Division from 'src/shared/components/ThreeSizer/Division'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   HANDLE_NONE,
@@ -28,20 +28,20 @@ interface State {
   dragEvent: any
 }
 
-interface Division {
+interface DivisionProps {
   name?: string
   handleDisplay?: string
   handlePixels?: number
   render: (visibility?: string) => ReactElement<any>
 }
 
-interface DivisionState extends Division {
+interface DivisionState extends DivisionProps {
   id: string
   size: number
 }
 
 interface Props {
-  divisions: Division[]
+  divisions: DivisionProps[]
   orientation: string
   containerClass?: string
 }
@@ -129,7 +129,7 @@ class Threesizer extends Component<Props, State> {
         ref={r => (this.containerRef = r)}
       >
         {divisions.map((d, i) => (
-          <ResizeDivision
+          <Division
             key={d.id}
             id={d.id}
             name={d.name}
