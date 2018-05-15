@@ -1,6 +1,7 @@
 import React, {PureComponent, MouseEvent} from 'react'
 
 import _ from 'lodash'
+import {get} from 'src/utils/wrappers'
 
 import {
   Tab,
@@ -434,6 +435,14 @@ class AlertTabs extends PureComponent<Props, State> {
   }
 
   private getConfigEnabled = (sections: Sections, section: string): boolean => {
+    if (section === AlertTypes.slack) {
+      const configElements: Section[] = get(sections, `${section}.elements`, [])
+      const enabledConfigElements = configElements.filter(e => {
+        const enabled: boolean = get(e, 'options.enabled', false)
+        return enabled
+      })
+      return enabledConfigElements.length > 0
+    }
     return _.get(
       sections,
       [section, 'elements', '0', 'options', 'enabled'],
