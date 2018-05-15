@@ -137,19 +137,14 @@ const constructResults = (
 }
 
 const constructSerieses = (results: Result[]): Series[] => {
-  return fastReduce(
-    results,
-    (acc, {series = [], responseIndex}) => {
-      return [
-        ...acc,
-        ...fastMap<Series>(series, (item, index) => ({
-          ...item,
-          responseIndex,
-          seriesIndex: index,
-        })),
-      ]
-    },
-    []
+  return _.flatten(
+    fastMap<Result, Series[]>(results, ({series, responseIndex}) =>
+      fastMap<TimeSeriesSeries, Series>(series, (s, index) => ({
+        ...s,
+        responseIndex,
+        seriesIndex: index,
+      }))
+    )
   )
 }
 
