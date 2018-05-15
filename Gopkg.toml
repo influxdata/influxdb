@@ -78,4 +78,4 @@ required = ["github.com/kevinburke/go-bindata","github.com/gogo/protobuf/proto",
 
 [[constraint]]
   name = "github.com/influxdata/kapacitor"
-  revision = "761f380db46c20bb24f9bf3dbdd89c2661dc0c2b"
+  revision = "18e4ce743b7953f5601c021d7595892a2c7e0a66"
