@@ -46,7 +46,7 @@ interface Props {
 @ErrorHandling
 export default class LayoutCell extends Component<Props> {
   public render() {
-    const {cell, isEditable, cellData, onCloneCell} = this.props
+    const {cell, isEditable, cellData, onDeleteCell, onCloneCell} = this.props
 
     return (
       <div className="dash-graph">
@@ -56,7 +56,7 @@ export default class LayoutCell extends Component<Props> {
             queries={this.queries}
             dataExists={!!cellData.length}
             isEditable={isEditable}
-            onDelete={this.handleDeleteCell}
+            onDelete={onDeleteCell}
             onEdit={this.handleSummonOverlay}
             onClone={onCloneCell}
             onCSVDownload={this.handleCSVDownload}
@@ -85,14 +85,12 @@ export default class LayoutCell extends Component<Props> {
   }
 
   private get emptyGraph(): JSX.Element {
-    const {cell} = this.props
-
     return (
       <div className="graph-empty">
         <Authorized requiredRole={EDITOR_ROLE}>
           <button
             className="no-query--button btn btn-md btn-primary"
-            onClick={this.handleSummonOverlay(cell)}
+            onClick={this.handleSummonOverlay}
           >
             <span className="icon plus" /> Add Data
           </button>
@@ -101,16 +99,13 @@ export default class LayoutCell extends Component<Props> {
     )
   }
 
-  private handleDeleteCell = (cell: Cell) => (): void => {
-    this.props.onDeleteCell(cell)
+  private handleSummonOverlay = (): void => {
+    const {cell, onSummonOverlayTechnologies} = this.props
+    onSummonOverlayTechnologies(cell)
   }
 
-  private handleSummonOverlay = (cell: Cell) => (): void => {
-    this.props.onSummonOverlayTechnologies(cell)
-  }
-
-  private handleCSVDownload = (cell: Cell) => (): void => {
-    const {cellData} = this.props
+  private handleCSVDownload = (): void => {
+    const {cellData, cell} = this.props
     const joinedName = cell.name.split(' ').join('_')
     const {data} = timeSeriesToTableGraph(cellData)
 

@@ -223,7 +223,7 @@ class DashboardPage extends Component {
     dashboardActions.addDashboardCellAsync(dashboard)
   }
 
-  handleCloneCell = cell => () => {
+  handleCloneCell = cell => {
     const {dashboardActions, dashboard} = this.props
     dashboardActions.cloneDashboardCellAsync(dashboard, cell)
   }

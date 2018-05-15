@@ -3,7 +3,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface MenuOption {
+export interface MenuOption {
   text: string
   action: () => void
   disabled?: boolean
