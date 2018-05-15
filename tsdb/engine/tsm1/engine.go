@@ -176,6 +176,9 @@ type Engine struct {
 	// writes will only exist in the cache and can be lost if a snapshot has not occurred.
 	WALEnabled bool
 
+	// Invoked when creating a backup file "as new".
+	GenerateFormatFileNameFunc func() FormatFileNameFunc
+
 	// Controls whether to enabled compactions when the engine is open
 	enableCompactionsOnOpen bool
 
@@ -204,11 +207,10 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	fs := NewFileStore(path)
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
 
-	c := &Compactor{
-		Dir:       path,
-		FileStore: fs,
-		RateLimit: opt.CompactionThroughputLimiter,
-	}
+	c := NewCompactor()
+	c.Dir = path
+	c.FileStore = fs
+	c.RateLimit = opt.CompactionThroughputLimiter
 
 	var planner CompactionPlanner = NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration))
 	if opt.CompactionPlannerCreator != nil {
@@ -239,10 +241,11 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
 		WALEnabled:                    opt.WALEnabled,
-		stats:                         stats,
-		compactionLimiter:             opt.CompactionLimiter,
-		scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
-		seriesIDSets:                  opt.SeriesIDSets,
+		GenerateFormatFileNameFunc:    func() FormatFileNameFunc { return DefaultFormatFileName },
+		stats:             stats,
+		compactionLimiter: opt.CompactionLimiter,
+		scheduler:         newScheduler(stats, opt.CompactionLimiter.Capacity()),
+		seriesIDSets:      opt.SeriesIDSets,
 	}
 
 	// Feature flag to enable per-series type checking, by default this is off and
@@ -1153,7 +1156,8 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 	}
 
 	if asNew {
-		filename = fmt.Sprintf("%09d-%09d.%s", e.FileStore.NextGeneration(), 1, TSMFileExtension)
+		formatFileName := e.GenerateFormatFileNameFunc()
+		filename = formatFileName(e.FileStore.NextGeneration(), 1) + "." + TSMFileExtension
 	}
 
 	tmp := fmt.Sprintf("%s.%s", filepath.Join(e.path, filename), TmpTSMFileExtension)
@@ -1755,6 +1759,7 @@ func (e *Engine) WriteSnapshot() error {
 		logEnd()
 	}()
 
+	var formatFileName FormatFileNameFunc
 	closedFiles, snapshot, err := func() (segments []string, snapshot *Cache, err error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -1774,6 +1779,9 @@ func (e *Engine) WriteSnapshot() error {
 		if err != nil {
 			return
 		}
+
+		// Determine filename generation function under lock.
+		formatFileName = e.GenerateFormatFileNameFunc()
 
 		return
 	}()
@@ -1796,7 +1804,7 @@ func (e *Engine) WriteSnapshot() error {
 		zap.String("path", e.path),
 		zap.Duration("duration", time.Since(dedup)))
 
-	return e.writeSnapshotAndCommit(log, closedFiles, snapshot)
+	return e.writeSnapshotAndCommit(log, closedFiles, snapshot, formatFileName)
 }
 
 // CreateSnapshot will create a temp directory that holds
@@ -1818,7 +1826,7 @@ func (e *Engine) CreateSnapshot() (string, error) {
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.
-func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, snapshot *Cache) (err error) {
+func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, snapshot *Cache, formatFileName FormatFileNameFunc) (err error) {
 	defer func() {
 		if err != nil {
 			e.Cache.ClearSnapshot(false)
@@ -1826,7 +1834,7 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, s
 	}()
 
 	// write the new snapshot files
-	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
+	newFiles, err := e.Compactor.WriteSnapshot(snapshot, formatFileName)
 	if err != nil {
 		log.Info("Error writing snapshot from compactor", zap.Error(err))
 		return err

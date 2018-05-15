@@ -34,12 +34,11 @@ func TestCompactor_Snapshot(t *testing.T) {
 		}
 	}
 
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: &fakeFileStore{},
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = &fakeFileStore{}
 
-	files, err := compactor.WriteSnapshot(c)
+	files, err := compactor.WriteSnapshot(c, tsm1.DefaultFormatFileName)
 	if err == nil {
 		t.Fatalf("expected error writing snapshot: %v", err)
 	}
@@ -50,7 +49,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 
 	compactor.Open()
 
-	files, err = compactor.WriteSnapshot(c)
+	files, err = compactor.WriteSnapshot(c, tsm1.DefaultFormatFileName)
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -119,10 +118,9 @@ func TestCompactor_CompactFull(t *testing.T) {
 
 	fs := &fakeFileStore{}
 	defer fs.Close()
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: fs,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
 	if err == nil {
@@ -144,13 +142,13 @@ func TestCompactor_CompactFull(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseTSMFileName(f3)
+	expGen, expSeq, err := tsm1.ParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseTSMFileName(files[0])
+	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -220,11 +218,10 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 
 	fs := &fakeFileStore{}
 	defer fs.Close()
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: fs,
-		Size:      2,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+	compactor.Size = 2
 
 	compactor.Open()
 
@@ -301,11 +298,10 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 
 	fs := &fakeFileStore{}
 	defer fs.Close()
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: fs,
-		Size:      2,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+	compactor.Size = 2
 
 	compactor.Open()
 
@@ -370,11 +366,10 @@ func TestCompactor_Compact_UnsortedBlocks(t *testing.T) {
 	}
 	f2 := MustWriteTSM(dir, 2, writes)
 
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: &fakeFileStore{},
-		Size:      2,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = &fakeFileStore{}
+	compactor.Size = 2
 
 	compactor.Open()
 
@@ -445,11 +440,10 @@ func TestCompactor_Compact_UnsortedBlocksOverlapping(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: &fakeFileStore{},
-		Size:      2,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = &fakeFileStore{}
+	compactor.Size = 2
 
 	compactor.Open()
 
@@ -518,11 +512,10 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 
 	fs := &fakeFileStore{}
 	defer fs.Close()
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: fs,
-		Size:      2,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+	compactor.Size = 2
 	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
@@ -534,13 +527,13 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseTSMFileName(f3)
+	expGen, expSeq, err := tsm1.ParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseTSMFileName(files[0])
+	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -623,11 +616,10 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 
 	fs := &fakeFileStore{}
 	defer fs.Close()
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: fs,
-		Size:      2,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+	compactor.Size = 2
 	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
@@ -639,13 +631,13 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseTSMFileName(f3)
+	expGen, expSeq, err := tsm1.ParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseTSMFileName(files[0])
+	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -729,11 +721,10 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 
 	fs := &fakeFileStore{}
 	defer fs.Close()
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: fs,
-		Size:      2,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+	compactor.Size = 2
 	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
@@ -745,13 +736,13 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseTSMFileName(f3)
+	expGen, expSeq, err := tsm1.ParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseTSMFileName(files[0])
+	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -840,11 +831,10 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 
 	fs := &fakeFileStore{}
 	defer fs.Close()
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: fs,
-		Size:      2,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+	compactor.Size = 2
 	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
@@ -856,13 +846,13 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseTSMFileName(f3)
+	expGen, expSeq, err := tsm1.ParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseTSMFileName(files[0])
+	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -957,10 +947,9 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 
 	fs := &fakeFileStore{}
 	defer fs.Close()
-	compactor := &tsm1.Compactor{
-		Dir:       dir,
-		FileStore: fs,
-	}
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
 	compactor.Open()
 
 	// Compact both files, should get 2 files back
@@ -973,13 +962,13 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseTSMFileName(f2Name)
+	expGen, expSeq, err := tsm1.ParseFileName(f2Name)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseTSMFileName(files[0])
+	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -2804,7 +2793,7 @@ func MustTSMWriter(dir string, gen int) (tsm1.TSMWriter, string) {
 		panic(fmt.Sprintf("close temp file: %v", err))
 	}
 
-	newName := filepath.Join(filepath.Dir(oldName), tsmFileName(gen))
+	newName := filepath.Join(filepath.Dir(oldName), tsm1.DefaultFormatFileName(gen, 1)+".tsm")
 	if err := os.Rename(oldName, newName); err != nil {
 		panic(fmt.Sprintf("create tsm file: %v", err))
 	}
