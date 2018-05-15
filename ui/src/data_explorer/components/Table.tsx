@@ -225,7 +225,7 @@ class ChronoTable extends PureComponent<Props, State> {
     try {
       const {results} = await fetchTimeSeriesAsync({
         source: this.source,
-        query: query.text,
+        query,
         tempVars: TEMPLATES,
       })
 

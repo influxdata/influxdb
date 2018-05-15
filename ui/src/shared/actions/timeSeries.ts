@@ -51,14 +51,24 @@ export const handleError = (error, query, editQueryStatus) => {
   })
 }
 
+interface Query {
+  host: string | string[]
+  text: string
+  id: string
+  database?: string
+  db?: string
+  rp?: string
+}
+
 interface Payload {
   source: string
-  query: string
+  query: Query
   tempVars: any[]
   db?: string
   rp?: string
   resolution?: number
 }
+
 export const fetchTimeSeriesAsync = async (
   {source, db, rp, query, tempVars, resolution}: Payload,
   editQueryStatus = noop
@@ -69,7 +79,7 @@ export const fetchTimeSeriesAsync = async (
       source,
       db,
       rp,
-      query,
+      query: query.text,
       tempVars,
       resolution,
     })
