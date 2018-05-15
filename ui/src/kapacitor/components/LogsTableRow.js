@@ -19,6 +19,9 @@ const LogsTableRow = ({logItem}) => {
   if (logItem.service === 'kapacitor' && logItem.msg === 'point') {
     return <LogItemKapacitorPoint logItem={logItem} />
   }
+  if (logItem.service === 'kapacitor' && logItem.msg === 'batch point') {
+    return <LogItemKapacitorPoint logItem={logItem} />
+  }
   if (logItem.service === 'httpd_server_errors' && logItem.lvl === 'error') {
     return <LogItemHTTPError logItem={logItem} />
   }
