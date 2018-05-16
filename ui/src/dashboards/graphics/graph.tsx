@@ -1,15 +1,20 @@
-import React from 'react'
+import React, {ReactElement} from 'react'
 
-export const CELL_TYPE_LINE = 'line'
-export const CELL_TYPE_STACKED = 'line-stacked'
-export const CELL_TYPE_STEPPLOT = 'line-stepplot'
-export const CELL_TYPE_BAR = 'bar'
-export const CELL_TYPE_LINE_PLUS_SINGLE_STAT = 'line-plus-single-stat'
-export const CELL_TYPE_SINGLE_STAT = 'single-stat'
-export const CELL_TYPE_GAUGE = 'gauge'
-export const CELL_TYPE_TABLE = 'table'
+import {CellType} from 'src/types/dashboard'
 
-const GRAPH_SVGS = {
+type Graphic = ReactElement<HTMLDivElement>
+
+interface GraphSVGs {
+  [CellType.Line]: Graphic
+  [CellType.Stacked]: Graphic
+  [CellType.StepPlot]: Graphic
+  [CellType.Bar]: Graphic
+  [CellType.LinePlusSingleStat]: Graphic
+  [CellType.SingleStat]: Graphic
+  [CellType.Gauge]: Graphic
+  [CellType.Table]: Graphic
+}
+const GRAPH_SVGS: GraphSVGs = {
   line: (
     <div className="viz-type-selector--graphic">
       <svg
@@ -518,45 +523,50 @@ const GRAPH_SVGS = {
   ),
 }
 
-export const GRAPH_TYPES = [
+interface GraphType {
+  type: CellType
+  menuOption: string
+  graphic: Graphic
+}
+export const GRAPH_TYPES: GraphType[] = [
   {
-    type: CELL_TYPE_LINE,
+    type: CellType.Line,
     menuOption: 'Line Graph',
-    graphic: GRAPH_SVGS[CELL_TYPE_LINE],
+    graphic: GRAPH_SVGS[CellType.Line],
   },
   {
-    type: CELL_TYPE_STACKED,
+    type: CellType.Stacked,
     menuOption: 'Stacked Graph',
-    graphic: GRAPH_SVGS[CELL_TYPE_STACKED],
+    graphic: GRAPH_SVGS[CellType.Stacked],
   },
   {
-    type: CELL_TYPE_STEPPLOT,
+    type: CellType.StepPlot,
     menuOption: 'Step-Plot Graph',
-    graphic: GRAPH_SVGS[CELL_TYPE_STEPPLOT],
+    graphic: GRAPH_SVGS[CellType.StepPlot],
   },
   {
-    type: CELL_TYPE_BAR,
+    type: CellType.Bar,
     menuOption: 'Bar Graph',
-    graphic: GRAPH_SVGS[CELL_TYPE_BAR],
+    graphic: GRAPH_SVGS[CellType.Bar],
   },
   {
-    type: CELL_TYPE_LINE_PLUS_SINGLE_STAT,
+    type: CellType.LinePlusSingleStat,
     menuOption: 'Line Graph + Single Stat',
-    graphic: GRAPH_SVGS[CELL_TYPE_LINE_PLUS_SINGLE_STAT],
+    graphic: GRAPH_SVGS[CellType.LinePlusSingleStat],
   },
   {
-    type: CELL_TYPE_SINGLE_STAT,
+    type: CellType.SingleStat,
     menuOption: 'Single Stat',
-    graphic: GRAPH_SVGS[CELL_TYPE_SINGLE_STAT],
+    graphic: GRAPH_SVGS[CellType.SingleStat],
   },
   {
-    type: CELL_TYPE_GAUGE,
+    type: CellType.Gauge,
     menuOption: 'Gauge',
-    graphic: GRAPH_SVGS[CELL_TYPE_GAUGE],
+    graphic: GRAPH_SVGS[CellType.Gauge],
   },
   {
-    type: CELL_TYPE_TABLE,
+    type: CellType.Table,
     menuOption: 'Table',
-    graphic: GRAPH_SVGS[CELL_TYPE_TABLE],
+    graphic: GRAPH_SVGS[CellType.Table],
   },
 ]

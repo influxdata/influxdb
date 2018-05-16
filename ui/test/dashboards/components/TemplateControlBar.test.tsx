@@ -10,7 +10,20 @@ const defaultProps = {
     {
       id: '000',
       tempVar: ':alpha:',
-      values: [{value: 'firstValue'}, {value: 'secondValue'}],
+      label: '',
+      type: 'constant',
+      values: [
+        {
+          value: 'firstValue',
+          type: 'constant',
+          selected: false,
+        },
+        {
+          value: 'secondValue',
+          type: 'constant',
+          selected: false,
+        },
+      ],
     },
   ],
   meRole: 'EDITOR',

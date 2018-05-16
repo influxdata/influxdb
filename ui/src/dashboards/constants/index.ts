@@ -2,15 +2,16 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
+import {Cell, QueryConfig} from 'src/types'
+import {CellType, Dashboard, DecimalPlaces} from 'src/types/dashboard'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
-export const UNTITLED_GRAPH = 'Untitled Graph'
+export const UNTITLED_GRAPH: string = 'Untitled Graph'
 
-export const TIME_FORMAT_TOOLTIP_LINK =
+export const TIME_FORMAT_TOOLTIP_LINK: string =
   'http://momentjs.com/docs/#/parsing/string-format/'
 
-export const DEFAULT_DECIMAL_PLACES = {
+export const DEFAULT_DECIMAL_PLACES: DecimalPlaces = {
   isEnforced: false,
   digits: 3,
 }
@@ -42,13 +43,17 @@ export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_CUSTOM},
 ]
 
-export const NEW_DEFAULT_DASHBOARD_CELL = {
+export type NewDefaultCell = Pick<
+  Cell,
+  Exclude<keyof Cell, 'id' | 'axes' | 'colors' | 'links' | 'legend'>
+>
+export const NEW_DEFAULT_DASHBOARD_CELL: NewDefaultCell = {
   x: 0,
   y: 0,
   w: 4,
   h: 4,
   name: UNTITLED_GRAPH,
-  type: CELL_TYPE_LINE,
+  type: CellType.Line,
   queries: [],
   tableOptions: DEFAULT_TABLE_OPTIONS,
   timeFormat: DEFAULT_TIME_FORMAT,
@@ -56,7 +61,20 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   fieldOptions: [DEFAULT_TIME_FIELD],
 }
 
-export const EMPTY_DASHBOARD = {
+interface EmptyDefaultDashboardCell {
+  x: number
+  y: number
+  queries: QueryConfig[]
+  name: string
+  type: CellType
+}
+type EmptyDefaultDashboard = Pick<
+  Dashboard,
+  Exclude<keyof Dashboard, 'templates' | 'links' | 'organization' | 'cells'>
+> & {
+  cells: EmptyDefaultDashboardCell[]
+}
+export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: 0,
   name: '',
   cells: [
@@ -65,7 +83,7 @@ export const EMPTY_DASHBOARD = {
       y: 0,
       queries: [],
       name: 'Loading...',
-      type: CELL_TYPE_LINE,
+      type: CellType.Line,
     },
   ],
 }
