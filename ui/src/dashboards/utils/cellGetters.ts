@@ -1,8 +1,8 @@
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
-import {CellType} from 'src/types/dashboard'
-import {UNTITLED_GRAPH} from 'src/dashboards/constants'
+import {Cell, CellType, Dashboard} from 'src/types/dashboard'
+import {NewDefaultCell, UNTITLED_GRAPH} from 'src/dashboards/constants'
 
-const getMostCommonValue = values => {
+const getMostCommonValue = (values: number[]): number => {
   const results = values.reduce(
     (acc, value) => {
       const {distribution, mostCommonCount} = acc
@@ -16,13 +16,13 @@ const getMostCommonValue = values => {
       }
       return acc
     },
-    {distribution: {}, mostCommonCount: 0}
+    {distribution: {}, mostCommonCount: 0, mostCommonValue: null}
   )
 
   return results.mostCommonValue
 }
 
-export const isCellUntitled = cellName => {
+export const isCellUntitled = (cellName: string): boolean => {
   return cellName === UNTITLED_GRAPH
 }
 
@@ -53,7 +53,10 @@ const getNextAvailablePosition = (dashboard, newCell) => {
       }
 }
 
-export const getNewDashboardCell = (dashboard, cellType) => {
+export const getNewDashboardCell = (
+  dashboard: Dashboard,
+  cellType: CellType
+): NewDefaultCell => {
   const type = cellType || CellType.Line
   const typedCell = {
     ...NEW_DEFAULT_DASHBOARD_CELL,
@@ -86,7 +89,10 @@ export const getNewDashboardCell = (dashboard, cellType) => {
   }
 }
 
-export const getClonedDashboardCell = (dashboard, cloneCell) => {
+export const getClonedDashboardCell = (
+  dashboard: Dashboard,
+  cloneCell: Cell
+): Cell => {
   const {x, y} = getNextAvailablePosition(dashboard, cloneCell)
 
   const name = `${cloneCell.name} (clone)`

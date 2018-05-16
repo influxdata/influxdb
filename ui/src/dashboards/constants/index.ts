@@ -43,7 +43,7 @@ export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_CUSTOM},
 ]
 
-type NewDefaultCell = Pick<
+export type NewDefaultCell = Pick<
   Cell,
   Exclude<keyof Cell, 'id' | 'axes' | 'colors' | 'links' | 'legend'>
 >
