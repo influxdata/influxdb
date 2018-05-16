@@ -5,9 +5,11 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/influxdata/platform"
 	"github.com/influxdata/influxdb/pkg/snowflake"
+	"github.com/influxdata/platform"
 )
+
+// TODO: rename to id.go
 
 func init() {
 	rand.Seed(time.Now().UnixNano())

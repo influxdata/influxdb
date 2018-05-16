@@ -7,6 +7,8 @@ import (
 	"github.com/influxdata/platform"
 )
 
+// TODO: rename to token.go
+
 // TokenGenerator implements platform.TokenGenerator.
 type TokenGenerator struct {
 	size int
