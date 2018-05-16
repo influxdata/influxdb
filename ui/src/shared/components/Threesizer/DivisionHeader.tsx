@@ -6,6 +6,7 @@ import DivisionMenu, {
 interface Props {
   onMinimize: () => void
   onMaximize: () => void
+  buttons: JSX.Element[]
   menuOptions?: MenuItem[]
 }
 
@@ -13,6 +14,7 @@ class DivisionHeader extends PureComponent<Props> {
   public render() {
     return (
       <div className="threesizer--header">
+        {this.props.buttons.map(b => b)}
         <DivisionMenu menuItems={this.menuItems} />
       </div>
     )

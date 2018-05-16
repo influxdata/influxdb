@@ -34,6 +34,7 @@ interface DivisionProps {
   name?: string
   handleDisplay?: string
   handlePixels?: number
+  headerButtons?: JSX.Element[]
   menuOptions: MenuItem[]
   render: (visibility?: string) => ReactElement<any>
 }
@@ -149,6 +150,7 @@ class Threesizer extends Component<Props, State> {
             render={this.props.divisions[i].render}
             onHandleStartDrag={this.handleStartDrag}
             menuOptions={this.props.divisions[i].menuOptions}
+            headerButtons={this.props.divisions[i].headerButtons}
           />
         ))}
       </div>

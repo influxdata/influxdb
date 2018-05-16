@@ -11,6 +11,7 @@ const NOOP = () => {}
 interface Props {
   name?: string
   handleDisplay?: string
+  menuOptions?: MenuItem[]
   handlePixels: number
   id: string
   size: number
@@ -23,7 +24,7 @@ interface Props {
   onDoubleClick: (id: string) => void
   onMaximize: (id: string) => void
   onMinimize: (id: string) => void
-  menuOptions?: MenuItem[]
+  headerButtons: JSX.Element[]
 }
 
 interface Style {
@@ -64,7 +65,7 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {name, render, draggable, menuOptions} = this.props
+    const {name, render, draggable, menuOptions, headerButtons} = this.props
     return (
       <div
         className={this.containerClass}
@@ -84,6 +85,7 @@ class Division extends PureComponent<Props> {
         <div className={this.contentsClass} style={this.contentStyle}>
           {name && (
             <DivisionHeader
+              buttons={headerButtons}
               menuOptions={menuOptions}
               onMinimize={this.handleMinimize}
               onMaximize={this.handleMaximize}

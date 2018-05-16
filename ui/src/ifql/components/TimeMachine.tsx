@@ -46,6 +46,7 @@ class TimeMachine extends PureComponent<Props> {
       {
         handleDisplay: 'none',
         menuOptions: [],
+        headerButtons: [],
         render: () => (
           <Threesizer
             divisions={this.divisions}
@@ -56,6 +57,7 @@ class TimeMachine extends PureComponent<Props> {
       {
         handlePixels: 8,
         menuOptions: [],
+        headerButtons: [],
         render: () => <TimeMachineVis data={data} />,
       },
     ]
@@ -74,12 +76,22 @@ class TimeMachine extends PureComponent<Props> {
     return [
       {
         name: 'Explore',
+        headerButtons: [
+          <div key="analyze" className="btn btn-primary btn-xs">
+            Analyze
+          </div>,
+        ],
         menuOptions: [],
         render: () => <SchemaExplorer />,
       },
       {
         name: 'Script',
-        menuOptions: [{action: onSubmitScript, text: 'Analyze'}],
+        headerButtons: [
+          <div key="analyze" className="btn btn-default btn-sm analyze--button">
+            Analyze
+          </div>,
+        ],
+        menuOptions: [],
         render: visibility => (
           <TimeMachineEditor
             status={status}
@@ -92,6 +104,7 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         name: 'Build',
+        headerButtons: [],
         menuOptions: [],
         render: () => <BodyBuilder body={body} suggestions={suggestions} />,
       },
