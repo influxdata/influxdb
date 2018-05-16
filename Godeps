@@ -19,6 +19,7 @@ github.com/influxdata/yamux 1f58ded512de5feabbe30b60c7d33a7a896c5f16
 github.com/influxdata/yarpc f0da2db138cad2fb425541938fc28dd5a5bc6918
 github.com/jsternberg/zap-logfmt ac4bd917e18a4548ce6e0e765b29a4e7f397b0b6
 github.com/jwilder/encoding b4e1701a28efcc637d9afcca7d38e495fe909a09
+github.com/klauspost/pgzip 0bf5dcad4ada2814c3c00f996a982270bb81a506
 github.com/mattn/go-isatty 6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c
 github.com/matttproud/golang_protobuf_extensions 3247c84500bff8d9fb6d579d800f20b3e091582c
 github.com/mschoch/smat 90eadee771aeab36e8bf796039b8c261bebebe4f

@@ -23,6 +23,7 @@
 - github.com/influxdata/yarpc [MIT LICENSE](https://github.com/influxdata/yarpc/blob/master/LICENSE)
 - github.com/jsternberg/zap-logfmt [MIT LICENSE](https://github.com/jsternberg/zap-logfmt/blob/master/LICENSE)
 - github.com/jwilder/encoding [MIT LICENSE](https://github.com/jwilder/encoding/blob/master/LICENSE)
+- github.com/klauspost/pgzip [MIT LICENSE](https://github.com/klauspost/pgzip/blob/master/LICENSE)
 - github.com/mattn/go-isatty [MIT LICENSE](https://github.com/mattn/go-isatty/blob/master/LICENSE)
 - github.com/matttproud/golang_protobuf_extensions [APACHE LICENSE](https://github.com/matttproud/golang_protobuf_extensions/blob/master/LICENSE)
 - github.com/opentracing/opentracing-go [MIT LICENSE](https://github.com/opentracing/opentracing-go/blob/master/LICENSE)
