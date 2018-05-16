@@ -6,10 +6,16 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OnChangeScript} from 'src/types/ifql'
 import {editor} from 'src/ifql/constants'
 
+interface Status {
+  type: string
+  text: string
+}
+
 interface Props {
   script: string
-  onChangeScript: OnChangeScript
   visibility: string
+  status: Status
+  onChangeScript: OnChangeScript
 }
 
 interface EditorInstance extends IInstance {
@@ -19,12 +25,21 @@ interface EditorInstance extends IInstance {
 @ErrorHandling
 class TimeMachineEditor extends PureComponent<Props> {
   private editor: EditorInstance
+  private prevKey: string
 
   constructor(props) {
     super(props)
   }
 
   public componentDidUpdate(prevProps) {
+    if (this.props.status.type === 'error') {
+      this.makeError()
+    }
+
+    if (this.props.status.type !== 'error') {
+      this.editor.clearGutter('error-gutter')
+    }
+
     if (prevProps.visibility === this.props.visibility) {
       return
     }
@@ -45,6 +60,7 @@ class TimeMachineEditor extends PureComponent<Props> {
       extraKeys: {'Ctrl-Space': 'autocomplete'},
       completeSingle: false,
       autoRefresh: true,
+      gutters: ['error-gutter'],
     }
 
     return (
@@ -61,6 +77,25 @@ class TimeMachineEditor extends PureComponent<Props> {
         />
       </div>
     )
+  }
+
+  private makeError(): void {
+    const {status} = this.props
+    this.editor.clearGutter('error-gutter')
+    const span = document.createElement('span')
+    span.className = 'icon stop error-warning'
+    span.title = status.text
+    const lineNumber = this.statusLine
+    this.editor.setGutterMarker(lineNumber - 1, 'error-gutter', span)
+    this.editor.refresh()
+  }
+
+  private get statusLine(): number {
+    const {status} = this.props
+    const numbers = status.text.split(' ')[0]
+    const [lineNumber] = numbers.split(':')
+
+    return Number(lineNumber)
   }
 
   private handleMount = (instance: EditorInstance) => {

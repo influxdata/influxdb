@@ -13,6 +13,11 @@ import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Status {
+  type: string
+  text: string
+}
+
 interface Props {
   links: Links
 }
@@ -27,6 +32,7 @@ interface State {
   script: string
   data: string
   suggestions: Suggestion[]
+  status: Status
 }
 
 export const IFQLContext = React.createContext()
@@ -42,6 +48,10 @@ export class IFQLPage extends PureComponent<Props, State> {
       suggestions: [],
       script: `fil = (r) => r._measurement == "cpu"
       tele = from(db: "telegraf") |> filter(fn: fil) |> range(start: -1m) |> sum()`,
+      status: {
+        type: 'none',
+        text: '',
+      },
     }
   }
 
@@ -59,7 +69,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {suggestions, script, data, body} = this.state
+    const {suggestions, script, data, body, status} = this.state
 
     return (
       <IFQLContext.Provider value={this.handlers}>
@@ -84,6 +94,7 @@ export class IFQLPage extends PureComponent<Props, State> {
               data={data}
               body={body}
               script={script}
+              status={status}
               suggestions={suggestions}
               onChangeScript={this.handleChangeScript}
               onSubmitScript={this.handleSubmitScript}
@@ -333,8 +344,13 @@ export class IFQLPage extends PureComponent<Props, State> {
     try {
       const ast = await getAST({url: links.ast, body: script})
       const body = bodyNodes(ast, this.state.suggestions)
-      this.setState({ast, script, body})
+      const status = {type: 'success', text: ''}
+      this.setState({ast, script, body, status})
     } catch (error) {
+      const s = error.data.slice(0, -5) // There is a null newline at the end of these responses
+      const data = JSON.parse(s)
+      const status = {type: 'error', text: `${data.message}`}
+      this.setState({status})
       return console.error('Could not parse AST', error)
     }
   }

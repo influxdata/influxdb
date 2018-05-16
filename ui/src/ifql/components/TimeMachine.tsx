@@ -9,6 +9,7 @@ import {
   OnChangeScript,
   OnSubmitScript,
   FlatBody,
+  Status,
 } from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
@@ -17,6 +18,7 @@ interface Props {
   data: string
   script: string
   body: Body[]
+  status: Status
   suggestions: Suggestion[]
   onChangeScript: OnChangeScript
   onSubmitScript: OnSubmitScript
@@ -63,6 +65,7 @@ class TimeMachine extends PureComponent<Props> {
     const {
       body,
       script,
+      status,
       suggestions,
       onChangeScript,
       onSubmitScript,
@@ -78,6 +81,7 @@ class TimeMachine extends PureComponent<Props> {
         menuOptions: [{action: onSubmitScript, text: 'Analyze'}],
         render: visibility => (
           <TimeMachineEditor
+            status={status}
             script={script}
             onChangeScript={onChangeScript}
             visibility={visibility}
