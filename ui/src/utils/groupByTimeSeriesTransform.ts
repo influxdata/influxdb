@@ -71,7 +71,11 @@ const flattenGroupBySeries = (
     (acc, s) => {
       const tagsToAdd: string[] = tagsKeys.map(tk => s.tags[tk])
       const values = s.values
-      const newValues = values.map(v => [v[0], ...tagsToAdd, ...v.slice(1)])
+      const newValues = values.map(([first, ...rest]) => [
+        first,
+        ...tagsToAdd,
+        ...rest,
+      ])
       return [...acc, ...newValues]
     },
     []
@@ -184,15 +188,13 @@ const constructCells = (
           responseIndex,
           seriesIndex,
         }))
-
-        const labelsFromColumns = fastMap<string, Label>(
-          columns.slice(1),
-          field => ({
-            label: `${measurement}.${field}`,
-            responseIndex,
-            seriesIndex,
-          })
-        )
+        // tslint:disable-next-line:no-unused-vars
+        const [__, ...rest] = columns
+        const labelsFromColumns = fastMap<string, Label>(rest, field => ({
+          label: `${measurement}.${field}`,
+          responseIndex,
+          seriesIndex,
+        }))
 
         unsortedLabels = _.concat(labelsFromTags, labelsFromColumns)
 
@@ -205,7 +207,9 @@ const constructCells = (
         )
           .sort()
           .join('')
-        unsortedLabels = fastMap<string, Label>(columns.slice(1), field => ({
+        // tslint:disable-next-line:no-unused-vars
+        const [__, ...rest] = columns
+        unsortedLabels = fastMap<string, Label>(rest, field => ({
           label: `${measurement}.${field}${tagSet}`,
           responseIndex,
           seriesIndex,
@@ -247,10 +251,9 @@ const insertGroupByValues = (
     }
 
     for (let i = 0; i < s.values.length; i++) {
-      const vs = s.values[i]
-      const tsRow = {time: vs[0], values: fastCloneArray(dashArray)}
+      const [time, ...vss] = s.values[i]
+      const tsRow = {time, values: fastCloneArray(dashArray)}
 
-      const vss = vs.slice(1)
       for (let j = 0; j < vss.length; j++) {
         const v = vss[j]
         const label = seriesLabels[x][j].label
