@@ -40,7 +40,7 @@ const TasksTable: SFC<TasksTableProps> = ({
       </tr>
     </thead>
     <tbody>
-      {_.sortBy(tasks, t => t.id.toLowerCase()).map(task => {
+      {_.sortBy(tasks, t => t.name.toLowerCase()).map(task => {
         return (
           <TaskRow
             key={task.id}
