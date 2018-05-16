@@ -117,9 +117,9 @@ class RuleHandlers extends PureComponent<Props, State> {
       ? 'rule-section--row rule-section--row-first rule-section--border-bottom'
       : 'rule-section--row rule-section--row-first rule-section--row-last'
 
-    const selectedHandlerWithText: HandlerWithText = this.mapWithNicknames([
-      selectedHandler,
-    ])[0]
+    const selectedHandlerWithText: HandlerWithText = this.addNicknameText(
+      selectedHandler
+    )
 
     return (
       <div className="rule-section">
@@ -261,7 +261,7 @@ class RuleHandlers extends PureComponent<Props, State> {
   }
 
   private getNickname = (handler: Handler): string => {
-    const configType: AlertTypes = handler.type
+    const configType: AlertTypes = _.get(handler, 'type')
     if (configType === 'slack') {
       const workspace: string = _.get<Handler, string>(handler, 'workspace')
 
@@ -275,14 +275,22 @@ class RuleHandlers extends PureComponent<Props, State> {
     return undefined
   }
 
-  private mapWithNicknames = (handlers: Handler[]): HandlerWithText[] => {
-    return _.map(handlers, h => {
-      const nickname: string = this.getNickname(h)
+  private addNicknameText = (handler: Handler): HandlerWithText => {
+    if (handler) {
+      const nickname: string = this.getNickname(handler)
       if (nickname) {
-        return {...h, text: `${h.type} (${nickname})`}
+        return {...handler, text: `${handler.type} (${nickname})`}
       }
 
-      return {...h, text: h.type}
+      return {...handler, text: handler.type}
+    }
+
+    return null
+  }
+
+  private mapWithNicknames = (handlers: Handler[]): HandlerWithText[] => {
+    return _.map(handlers, h => {
+      return this.addNicknameText(h)
     })
   }
 }
