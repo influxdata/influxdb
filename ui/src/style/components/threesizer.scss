@@ -299,3 +299,8 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
     right: 0;
   }
 }
+
+// Hide Header children when collapsed
+.threesizer--handle.vertical.threesizer--collapsed + .threesizer--contents > .threesizer--header > * {
+  display: none;
+}

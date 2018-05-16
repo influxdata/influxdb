@@ -170,7 +170,10 @@ class Division extends PureComponent<Props> {
   private get handleClass(): string {
     const {draggable, orientation} = this.props
 
+    const collapsed = orientation === HANDLE_VERTICAL && this.isTitleObscured
+
     return classnames('threesizer--handle', {
+      'threesizer--collapsed': collapsed,
       disabled: !draggable,
       dragging: this.isDragging,
       vertical: orientation === HANDLE_VERTICAL,
