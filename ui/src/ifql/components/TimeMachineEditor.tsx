@@ -6,6 +6,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OnChangeScript, OnSubmitScript} from 'src/types/ifql'
 import {editor} from 'src/ifql/constants'
 
+interface Gutter {
+  line: number
+  text: string
+}
+
 interface Status {
   type: string
   text: string
@@ -86,22 +91,36 @@ class TimeMachineEditor extends PureComponent<Props> {
   }
 
   private makeError(): void {
-    const {status} = this.props
     this.editor.clearGutter('error-gutter')
-    const span = document.createElement('span')
-    span.className = 'icon stop error-warning'
-    span.title = status.text
-    const lineNumber = this.statusLine
-    this.editor.setGutterMarker(lineNumber - 1, 'error-gutter', span)
+    const lineNumbers = this.statusLine
+    lineNumbers.forEach(({line, text}) => {
+      this.editor.setGutterMarker(
+        line - 1,
+        'error-gutter',
+        this.errorMarker(text)
+      )
+    })
+
     this.editor.refresh()
   }
 
-  private get statusLine(): number {
-    const {status} = this.props
-    const numbers = status.text.split(' ')[0]
-    const [lineNumber] = numbers.split(':')
+  private errorMarker(message: string): HTMLElement {
+    const span = document.createElement('span')
+    span.className = 'icon stop error-warning'
+    span.title = message
+    return span
+  }
 
-    return Number(lineNumber)
+  private get statusLine(): Gutter[] {
+    const {status} = this.props
+    const messages = status.text.split('\n')
+    const lineNumbers = messages.map(text => {
+      const [numbers] = text.split(' ')
+      const [lineNumber] = numbers.split(':')
+      return {line: Number(lineNumber), text}
+    })
+
+    return lineNumbers
   }
 
   private handleMount = (instance: EditorInstance) => {
@@ -113,7 +132,11 @@ class TimeMachineEditor extends PureComponent<Props> {
     const {key} = e
     const prevKey = this.prevKey
 
-    if (prevKey === 'Control' || prevKey === 'Meta') {
+    if (
+      prevKey === 'Control' ||
+      prevKey === 'Meta' ||
+      (prevKey === 'Shift' && key === '.')
+    ) {
       return (this.prevKey = key)
     }
 
