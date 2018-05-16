@@ -1,0 +1,16 @@
+version: 2
+jobs:
+  build:
+    docker:
+      # specify the version
+      - image: circleci/golang:1.10.2
+      
+    working_directory: /go/src/github.com/influxdata/platform
+    steps:
+      - checkout
+
+      - run: go get -v -t -d ./...
+      - run: go get honnef.co/go/tools/cmd/megacheck
+      - run: go vet -v ./...
+      - run: go test -v ./...
+      - run: megacheck ./...
