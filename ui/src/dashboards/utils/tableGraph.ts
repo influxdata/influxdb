@@ -5,6 +5,8 @@ import {map, reduce, filter} from 'fast.js'
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
 import {DEFAULT_TIME_FIELD, DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
 
+import {TimeField} from 'src/dashboards/constants'
+
 const calculateTimeColumnWidth = timeFormat => {
   // Force usage of longest format names for ideal measurement
   timeFormat = _.replace(timeFormat, 'MMMM', 'September')
@@ -82,13 +84,13 @@ const updateMaxWidths = (
 }
 
 export const computeFieldOptions = (existingFieldOptions, sortedLabels) => {
-  const timeField =
+  const timeField: TimeField =
     existingFieldOptions.find(f => f.internalName === 'time') ||
     DEFAULT_TIME_FIELD
-  let astNames = [timeField]
+  let astNames: TimeField[] = [timeField]
 
   sortedLabels.forEach(({label}) => {
-    const field = {
+    const field: TimeField = {
       internalName: label,
       displayName: '',
       visible: true,

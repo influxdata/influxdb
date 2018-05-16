@@ -76,7 +76,7 @@ export interface Status {
 
 export interface TimeRange {
   lower: string
-  upper?: string
+  upper?: string | null
 }
 
 export interface DurationRange {
