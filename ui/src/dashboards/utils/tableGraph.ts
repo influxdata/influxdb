@@ -96,7 +96,7 @@ const updateMaxWidths = (
       const {widths: Widths} = maxColumnWidths
       const maxWidth = _.get(Widths, `${columnLabel}`, 0)
 
-      if (isTopRow || currentWidth > maxWidth) {
+      if ((isTopRow || currentWidth > maxWidth) && _.isString(columnLabel)) {
         acc.widths[columnLabel] = currentWidth
         acc.totalWidths += currentWidth - maxWidth
       }
