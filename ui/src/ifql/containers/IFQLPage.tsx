@@ -1,16 +1,19 @@
 import React, {PureComponent} from 'react'
-
+import {bindActionCreators} from 'redux'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import {Suggestion, FlatBody, Links} from 'src/types/ifql'
 import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {analyzeSuccess} from 'src/shared/copy/notifications'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
+import {Suggestion, FlatBody, Links} from 'src/types/ifql'
+import {Notification} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Status {
@@ -20,6 +23,7 @@ interface Status {
 
 interface Props {
   links: Links
+  notify: (message: Notification) => void
 }
 
 interface Body extends FlatBody {
@@ -46,7 +50,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       ast: null,
       data: 'Hit "Get Data!" or Ctrl + Enter to run your script',
       suggestions: [],
-      script: `"fil = (r) => r._measurement == \"cpu\"\ntele = from(db: \"telegraf\") \n\t\t|> filter(fn: fil)\n        |> range(start: -1m)\n        |> sum()"`,
+      script: `fil = (r) => r._measurement == \"cpu\"\ntele = from(db: \"telegraf\") \n\t\t|> filter(fn: fil)\n        |> range(start: -1m)\n        |> sum()`,
       status: {
         type: 'none',
         text: '',
@@ -95,6 +99,7 @@ export class IFQLPage extends PureComponent<Props, State> {
               script={script}
               status={status}
               suggestions={suggestions}
+              onAnalyze={this.handleAnalyze}
               onChangeScript={this.handleChangeScript}
               onSubmitScript={this.handleSubmitScript}
             />
@@ -337,6 +342,22 @@ export class IFQLPage extends PureComponent<Props, State> {
     }, '')
   }
 
+  private handleAnalyze = async () => {
+    const {links, notify} = this.props
+
+    try {
+      const ast = await getAST({url: links.ast, body: this.state.script})
+      const body = bodyNodes(ast, this.state.suggestions)
+      const status = {type: 'success', text: ''}
+      notify(analyzeSuccess)
+
+      this.setState({ast, body, status})
+    } catch (error) {
+      this.setState({status: this.parseError(error)})
+      return console.error('Could not parse AST', error)
+    }
+  }
+
   private getASTResponse = async (script: string) => {
     const {links} = this.props
 
@@ -346,10 +367,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       const status = {type: 'success', text: ''}
       this.setState({ast, script, body, status})
     } catch (error) {
-      const s = error.data.slice(0, -5) // There is a null newline at the end of these responses
-      const data = JSON.parse(s)
-      const status = {type: 'error', text: `${data.message}`}
-      this.setState({status})
+      this.setState({status: this.parseError(error)})
       return console.error('Could not parse AST', error)
     }
   }
@@ -368,10 +386,20 @@ export class IFQLPage extends PureComponent<Props, State> {
 
     this.getASTResponse(script)
   }
+
+  private parseError = (error): Status => {
+    const s = error.data.slice(0, -5) // There is a 'null\n' at the end of these responses
+    const data = JSON.parse(s)
+    return {type: 'error', text: `${data.message}`}
+  }
 }
 
 const mapStateToProps = ({links}) => {
   return {links: links.ifql}
 }
 
-export default connect(mapStateToProps, null)(IFQLPage)
+const mapDispatchToProps = dispatch => ({
+  notify: bindActionCreators(notifyAction, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(IFQLPage)

@@ -608,3 +608,9 @@ export const notifyKapacitorNotFound = () => ({
   ...defaultErrorNotification,
   message: 'We could not find a Kapacitor configuration for this source.',
 })
+
+// IFQL notifications
+export const analyzeSuccess = {
+  ...defaultSuccessNotification,
+  message: 'No errors found. Happy Happy Joy Joy!',
+}

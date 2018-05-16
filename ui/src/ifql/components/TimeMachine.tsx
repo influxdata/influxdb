@@ -22,6 +22,7 @@ interface Props {
   suggestions: Suggestion[]
   onChangeScript: OnChangeScript
   onSubmitScript: OnSubmitScript
+  onAnalyze: () => void
 }
 
 interface Body extends FlatBody {
@@ -68,6 +69,7 @@ class TimeMachine extends PureComponent<Props> {
       body,
       script,
       status,
+      onAnalyze,
       suggestions,
       onChangeScript,
       onSubmitScript,
@@ -87,7 +89,11 @@ class TimeMachine extends PureComponent<Props> {
       {
         name: 'Script',
         headerButtons: [
-          <div key="analyze" className="btn btn-default btn-sm analyze--button">
+          <div
+            key="analyze"
+            className="btn btn-default btn-sm analyze--button"
+            onClick={onAnalyze}
+          >
             Analyze
           </div>,
         ],
