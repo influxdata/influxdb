@@ -3,7 +3,7 @@ import {Controlled as CodeMirror, IInstance} from 'react-codemirror2'
 import {EditorChange} from 'codemirror'
 import 'src/external/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {OnChangeScript} from 'src/types/ifql'
+import {OnChangeScript, OnSubmitScript} from 'src/types/ifql'
 import {editor} from 'src/ifql/constants'
 
 interface Status {
@@ -16,6 +16,7 @@ interface Props {
   visibility: string
   status: Status
   onChangeScript: OnChangeScript
+  onSubmitScript: OnSubmitScript
 }
 
 interface EditorInstance extends IInstance {
@@ -74,9 +75,14 @@ class TimeMachineEditor extends PureComponent<Props> {
           onBeforeChange={this.updateCode}
           onTouchStart={this.onTouchStart}
           editorDidMount={this.handleMount}
+          onBlur={this.handleBlur}
         />
       </div>
     )
+  }
+
+  private handleBlur = (): void => {
+    this.props.onSubmitScript()
   }
 
   private makeError(): void {
@@ -111,11 +117,11 @@ class TimeMachineEditor extends PureComponent<Props> {
       return (this.prevKey = key)
     }
 
-    if (editor.EXCLUDED_KEYS.includes(key)) {
-      return (this.prevKey = key)
-    }
-
     this.prevKey = key
+
+    if (editor.EXCLUDED_KEYS.includes(key)) {
+      return
+    }
 
     if (editor.EXCLUDED_KEYS.includes(key)) {
       return

@@ -70,6 +70,7 @@ class TimeMachine extends PureComponent<Props> {
       onChangeScript,
       onSubmitScript,
     } = this.props
+
     return [
       {
         name: 'Explore',
@@ -83,8 +84,9 @@ class TimeMachine extends PureComponent<Props> {
           <TimeMachineEditor
             status={status}
             script={script}
-            onChangeScript={onChangeScript}
             visibility={visibility}
+            onChangeScript={onChangeScript}
+            onSubmitScript={onSubmitScript}
           />
         ),
       },
