@@ -4,6 +4,7 @@
 
 ### UI Improvements
 
+1.  [#3474](https://github.com/influxdata/chronograf/pull/3474): Sort task table on Manage Alert page alphabetically
 ### Bug Fixes
 
 ## v1.5.0.0 [2018-05-15-RC]
