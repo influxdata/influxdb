@@ -1,12 +1,21 @@
-## v1.5.0.0 [unreleased]
+## v1.5.1.0 [unreleased]
 
 ### Features
 
+### UI Improvements
+
+### Bug Fixes
+
+## v1.5.0.0 [2018-05-15-RC]
+
+### Features
+
+1.  [#3080](https://github.com/influxdata/chronograf/pull/3080): Add table graph as a visualization option
 1.  [#3233](https://github.com/influxdata/chronograf/pull/3233): Add default retention policy field as option in source configuration for use in querying hosts from Host List page & Host pages
 1.  [#3290](https://github.com/influxdata/chronograf/pull/3290): Add support for PagerDuty v2 in UI
 1.  [#3369](https://github.com/influxdata/chronograf/pull/3369): Add support for OpsGenie v2 in UI
 1.  [#3386](https://github.com/influxdata/chronograf/pull/3386): Add support for Kafka in UI to configure and create alert handlers
-1.  [#3416](https://github.com/influxdata/chronograf/pull/3416): Allow kapacitor services to be disabled
+1.  [#3416](https://github.com/influxdata/chronograf/pull/3416): Add support for disabling kapacitor services
 1.  [#3465](https://github.com/influxdata/chronograf/pull/3465): Add support for multiple slack configurations in the UI
 
 ### UI Improvements
@@ -20,14 +29,14 @@
 1.  [#3354](https://github.com/influxdata/chronograf/pull/3354): Disable template variables for non editing users
 1.  [#3353](https://github.com/influxdata/chronograf/pull/3353): YAxisLabels in Dashboard Graph Builder not showing until graph is redrawn
 1.  [#3378](https://github.com/influxdata/chronograf/pull/3378): Ensure table graphs have a consistent ux between chrome and firefox
-1.  [#3401](https://github.com/influxdata/chronograf/pull/3401): Change AutoRefresh interval to paused.
+1.  [#3401](https://github.com/influxdata/chronograf/pull/3401): Change AutoRefresh interval to paused
 1.  [#3404](https://github.com/influxdata/chronograf/pull/3404): Get cloned cell name for notification from cloned cell generator function
 1.  [#3461](https://github.com/influxdata/chronograf/pull/3461): Improve load time for host pages
 1.  [#3423](https://github.com/influxdata/chronograf/pull/3423): Show kapacitor batch point info in log panel
 
 ### Bug Fixes
 
-1.  [#3252](https://github.com/influxdata/chronograf/pull/3252): Allows users to select tickscript editor with mouse
+1.  [#3252](https://github.com/influxdata/chronograf/pull/3252): Allow user to select tickscript editor with mouseclick
 1.  [#3279](https://github.com/influxdata/chronograf/pull/3279): Change color when value is equal to or greater than threshold value
 1.  [#3281](https://github.com/influxdata/chronograf/pull/3281): Fix base path for kapacitor logs
 1.  [#3284](https://github.com/influxdata/chronograf/pull/3284): Fix logout when using basepath & simplify basepath usage (deprecates `PREFIX_ROUTES`)
@@ -38,9 +47,9 @@
 1.  [#3357](https://github.com/influxdata/chronograf/pull/3357): Fix only the selected template variable value getting loaded
 1.  [#3389](https://github.com/influxdata/chronograf/pull/3389): Fix Generic OAuth bug for GitHub Enterprise where the principal was incorrectly being checked for email being Primary and Verified
 1.  [#3402](https://github.com/influxdata/chronograf/pull/3402): Fix missing icons when using basepath
-1.  [#3412](https://github.com/influxdata/chronograf/pull/3412): Limit max-width of TICKScript editor.
-1.  [#3166](https://github.com/influxdata/chronograf/pull/3166): Fixes naming of new TICKScripts
-1.  [#3449](https://github.com/influxdata/chronograf/pull/3449): Fixes data explorer query error reporting regression
+1.  [#3412](https://github.com/influxdata/chronograf/pull/3412): Limit max-width of TICKScript editor
+1.  [#3166](https://github.com/influxdata/chronograf/pull/3166): Fix naming of new TICKScripts
+1.  [#3449](https://github.com/influxdata/chronograf/pull/3449): Fix data explorer query error reporting regression
 1.  [#3453](https://github.com/influxdata/chronograf/pull/3453): Fix Kapacitor Logs fetch regression
 
 ## v1.4.4.1 [2018-04-16]
