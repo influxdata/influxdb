@@ -40,7 +40,9 @@ export const changeCellType = (cellType: CellType): ChangeCellTypeAction => ({
 
 interface RenameCellAction {
   type: 'RENAME_CELL'
-  payload: {}
+  payload: {
+    cellName: string
+  }
 }
 export const renameCell = (cellName: string): RenameCellAction => ({
   type: 'RENAME_CELL',
