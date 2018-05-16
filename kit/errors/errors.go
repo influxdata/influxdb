@@ -5,6 +5,8 @@ import (
 	"net/http"
 )
 
+// TODO: move to base directory
+
 const (
 	// InternalError indicates an unexpected error condition.
 	InternalError = 1

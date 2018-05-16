@@ -6,6 +6,8 @@ import (
 	"net/http"
 )
 
+// TODO: move to http directory
+
 // EncodeHTTP encodes err with the appropriate status code and format,
 // sets the X-Influx-Error and X-Influx-Reference headers on the response,
 // and sets the response status to the corresponding status code.
