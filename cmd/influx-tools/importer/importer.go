@@ -70,8 +70,7 @@ func (i *importer) CreateDatabase(rp *meta.RetentionPolicySpec) error {
 	if nonmatchingRp {
 		return fmt.Errorf("retention policy %v already exists with different parameters", rp.Name)
 	} else {
-		rpi, err = i.MetaClient.CreateRetentionPolicy(i.db, rp, false)
-		if err != nil {
+		if _, err := i.MetaClient.CreateRetentionPolicy(i.db, rp, false); err != nil {
 			return err
 		}
 	}
