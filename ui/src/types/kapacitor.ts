@@ -263,30 +263,30 @@ export interface FieldsFromAllAlerts extends FieldsFromConfigAlerts {
   log: string[]
 }
 
-interface pagerDutyConfigKeyMap {
+interface PagerDutyConfigKeyMap {
   'service-key': string
 }
 
-interface pushoverConfigKeyMap {
-  'user-key': String
+interface PushoverConfigKeyMap {
+  'user-key': string
 }
 
-interface telegramConfigKeyMap {
+interface TelegramConfigKeyMap {
   'chat-id': string
   'parse-mode': string
   'disable-web-page-preview': string
   'disable-notification': string
 }
 
-interface victorOpsConfigKeyMap {
+interface VictorOpsConfigKeyMap {
   'routing-key': string
 }
 
 export type ConfigKeyMaps =
-  | pagerDutyConfigKeyMap
-  | pushoverConfigKeyMap
-  | telegramConfigKeyMap
-  | victorOpsConfigKeyMap
+  | PagerDutyConfigKeyMap
+  | PushoverConfigKeyMap
+  | TelegramConfigKeyMap
+  | VictorOpsConfigKeyMap
   | {}
 
 export interface AlertaProperties {

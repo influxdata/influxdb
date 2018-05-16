@@ -27,21 +27,24 @@ const HandlerTabs: SFC<Props> = ({
 }) =>
   handlersOnThisAlert.length ? (
     <ul className="endpoint-tabs">
-      {handlersOnThisAlert.map(ep => (
-        <li
-          key={uuid.v4()}
-          className={classnames('endpoint-tab', {
-            active: ep.alias === (selectedHandler && selectedHandler.alias),
-          })}
-          onClick={handleChooseHandler(ep)}
-        >
-          {ep.text}
-          <button
-            className="endpoint-tab--delete"
-            onClick={handleRemoveHandler(ep)}
-          />
-        </li>
-      ))}
+      {handlersOnThisAlert.map(endpoint => {
+        return (
+          <li
+            key={uuid.v4()}
+            className={classnames('endpoint-tab', {
+              active:
+                endpoint.alias === (selectedHandler && selectedHandler.alias),
+            })}
+            onClick={handleChooseHandler(endpoint)}
+          >
+            {endpoint.text}
+            <button
+              className="endpoint-tab--delete"
+              onClick={handleRemoveHandler(endpoint)}
+            />
+          </li>
+        )
+      })}
     </ul>
   ) : null
 

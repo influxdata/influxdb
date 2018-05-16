@@ -1,4 +1,5 @@
 import React, {PureComponent, MouseEvent} from 'react'
+import _ from 'lodash'
 import {get} from 'src/utils/wrappers'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -48,7 +49,7 @@ class SlackConfigs extends PureComponent<Props, State> {
 
   public render() {
     const {configs} = this.state
-    const {onSave, onTest, onEnabled, isMultipleConfigsSupported} = this.props
+    const {onSave, onTest, onEnabled} = this.props
 
     return (
       <div>
@@ -73,7 +74,7 @@ class SlackConfigs extends PureComponent<Props, State> {
             />
           )
         })}
-        {isMultipleConfigsSupported && (
+        {this.isAddingConfigsAllowed && (
           <div className="form-group col-xs-12 text-center">
             <button className="btn btn-md btn-default" onClick={this.addConfig}>
               <span className="icon plus" /> Add Another Config
@@ -88,6 +89,14 @@ class SlackConfigs extends PureComponent<Props, State> {
     return this.state.configs
   }
 
+  private get isAddingConfigsAllowed(): boolean {
+    const {isMultipleConfigsSupported} = this.props
+    const {configs} = this.state
+    const isAllConfigsPersisted = _.every(configs, c => !this.isNewConfig(c))
+
+    return isMultipleConfigsSupported && isAllConfigsPersisted
+  }
+
   private isNewConfig = (config: Config): boolean => {
     return get(config, 'isNewConfig', false)
   }
@@ -99,7 +108,13 @@ class SlackConfigs extends PureComponent<Props, State> {
   private getWorkspace = (config: Config): string => {
     const {isMultipleConfigsSupported} = this.props
     if (isMultipleConfigsSupported) {
-      return get(config, 'options.workspace', 'new')
+      const workspace = _.get(config, 'options', {workspace: null}).workspace
+
+      if (workspace !== null) {
+        return workspace
+      }
+
+      return 'new'
     }
     return ''
   }

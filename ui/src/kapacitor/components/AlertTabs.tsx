@@ -516,9 +516,16 @@ class AlertTabs extends PureComponent<Props, State> {
         this.refreshKapacitorConfig(this.props.kapacitor)
         this.props.notify(notifyAlertEndpointSaved(section))
         return true
-      } catch ({
-        data: {error},
-      }) {
+      } catch (err) {
+        const {data} = err
+        const {error} = data
+        if (!error) {
+          this.props.notify(
+            notifyAlertEndpointSaveFailed(section, 'Cannot save configuration')
+          )
+
+          return false
+        }
         const errorMsg = error.split(': ').pop()
         this.props.notify(notifyAlertEndpointSaveFailed(section, errorMsg))
         return false
