@@ -1,4 +1,4 @@
-export type TimeSeriesValue = string | number | Date | null
+export type TimeSeriesValue = string | number | null
 
 export interface TimeSeriesSeries {
   name: string
@@ -30,6 +30,6 @@ export interface TimeSeriesServerResponse {
 }
 
 export interface TimeSeries {
-  time: TimeSeriesValue[]
-  values: TimeSeriesValue[][]
+  time: TimeSeriesValue
+  values: TimeSeriesValue[]
 }

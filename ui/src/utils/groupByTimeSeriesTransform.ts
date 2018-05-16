@@ -14,6 +14,7 @@ import {
   TimeSeriesSeries,
   TimeSeriesValue,
   TimeSeriesSuccessfulResult,
+  TimeSeries,
 } from 'src/types/series'
 import {get} from 'src/utils/wrappers'
 
@@ -47,11 +48,6 @@ interface Label {
   label: string
   seriesIndex: number
   responseIndex: number
-}
-
-interface TimeSeries {
-  time: TimeSeriesValue
-  values: TimeSeriesValue[]
 }
 
 const flattenGroupBySeries = (
