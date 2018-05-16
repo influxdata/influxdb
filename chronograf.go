@@ -368,6 +368,7 @@ type Server struct {
 	InsecureSkipVerify bool   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the server is accepted.
 	Active             bool   `json:"active"`             // Is this the active server for the source?
 	Organization       string `json:"organization"`       // Organization is the organization ID that resource belongs to
+	Type               string `json:"type"`               // Type is the kind of service (e.g. kapacitor or ifql)
 }
 
 // ServersStore stores connection information for a `Server`

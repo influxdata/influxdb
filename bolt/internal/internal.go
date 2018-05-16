@@ -86,6 +86,7 @@ func MarshalServer(s chronograf.Server) ([]byte, error) {
 		Active:             s.Active,
 		Organization:       s.Organization,
 		InsecureSkipVerify: s.InsecureSkipVerify,
+		Type:               s.Type,
 	})
 }
 
@@ -105,6 +106,7 @@ func UnmarshalServer(data []byte, s *chronograf.Server) error {
 	s.Active = pb.Active
 	s.Organization = pb.Organization
 	s.InsecureSkipVerify = pb.InsecureSkipVerify
+	s.Type = pb.Type
 	return nil
 }
 
