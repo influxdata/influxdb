@@ -2,7 +2,7 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {Cell} from 'src/types'
+import {Cell, QueryConfig} from 'src/types'
 import {CellType, Dashboard, DecimalPlaces} from 'src/types/dashboard'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
@@ -64,7 +64,7 @@ export const NEW_DEFAULT_DASHBOARD_CELL: NewDefaultCell = {
 interface EmptyDefaultDashboardCell {
   x: number
   y: number
-  queries: any[]
+  queries: QueryConfig[]
   name: string
   type: CellType
 }
