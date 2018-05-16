@@ -105,6 +105,17 @@ class TimeMachineEditor extends PureComponent<Props> {
 
   private handleKeyUp = (instance: EditorInstance, e: KeyboardEvent) => {
     const {key} = e
+    const prevKey = this.prevKey
+
+    if (prevKey === 'Control' || prevKey === 'Meta') {
+      return (this.prevKey = key)
+    }
+
+    if (editor.EXCLUDED_KEYS.includes(key)) {
+      return (this.prevKey = key)
+    }
+
+    this.prevKey = key
 
     if (editor.EXCLUDED_KEYS.includes(key)) {
       return
