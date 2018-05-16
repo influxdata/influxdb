@@ -101,12 +101,6 @@ export interface Template {
   query?: TemplateQuery
 }
 
-// interface TemplateLinks {
-//   self: string
-// }
-
-// type TemplateResponse = Template & TemplateLinks
-
 interface DashboardLinks {
   self: string
   cells: string
