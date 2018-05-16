@@ -20,11 +20,6 @@ import {
 } from 'src/shared/constants/thresholds'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-const formatColor = color => {
-  const {hex, name} = color
-  return {hex, name}
-}
-
 interface Props {
   onResetFocus: () => void
   showListHeading: boolean
@@ -71,8 +66,8 @@ class ThresholdsList extends PureComponent<Props> {
                 <div className="threshold-item--label">Base Color</div>
                 <ColorDropdown
                   colors={THRESHOLD_COLORS}
-                  selected={formatColor(color)}
-                  onChoose={this.handleChooseColor(color)}
+                  selected={color}
+                  onChoose={this.handleChangeBaseColor}
                   stretchToFit={true}
                 />
               </div>
@@ -94,7 +89,6 @@ class ThresholdsList extends PureComponent<Props> {
       </div>
     )
   }
-
   private handleAddThreshold = () => {
     const {
       thresholdsListColors,
@@ -132,6 +126,28 @@ class ThresholdsList extends PureComponent<Props> {
 
     handleUpdateThresholdsListColors(updatedColors)
     onResetFocus()
+  }
+
+  private handleChangeBaseColor = updatedColor => {
+    const {handleUpdateThresholdsListColors} = this.props
+    const {hex, name} = updatedColor
+
+    const thresholdsListColors = this.props.thresholdsListColors.map(
+      color =>
+        color.id === THRESHOLD_TYPE_BASE ? {...color, hex, name} : color
+    )
+
+    handleUpdateThresholdsListColors(thresholdsListColors)
+  }
+
+  private handleChooseColor = updatedColor => {
+    const {handleUpdateThresholdsListColors} = this.props
+
+    const thresholdsListColors = this.props.thresholdsListColors.map(
+      color => (color.id === updatedColor.id ? updatedColor : color)
+    )
+
+    handleUpdateThresholdsListColors(thresholdsListColors)
   }
 
   private handleDeleteThreshold = threshold => {
