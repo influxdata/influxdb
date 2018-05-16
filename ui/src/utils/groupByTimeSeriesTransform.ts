@@ -50,7 +50,7 @@ interface Label {
 }
 
 interface TimeSeries {
-  time: TimeSeriesValue[]
+  time: TimeSeriesValue
   values: TimeSeriesValue[]
 }
 
@@ -196,8 +196,7 @@ const constructCells = (
           seriesIndex,
         }))
 
-        unsortedLabels = _.concat(labelsFromTags, labelsFromColumns)
-
+        unsortedLabels = fastConcat<Label>(labelsFromTags, labelsFromColumns)
         seriesLabels[ind] = unsortedLabels
         labels = _.concat(labels, unsortedLabels)
       } else {
@@ -237,12 +236,12 @@ const constructCells = (
 
 const insertGroupByValues = (
   serieses: Series[],
-  seriesLabels: Label[],
+  seriesLabels: Label[][],
   labelsToValueIndex: {[x: string]: number},
   sortedLabels: Label[]
-): TimeSeries => {
-  const dashArray = Array(sortedLabels.length).fill('-')
-  const timeSeries = []
+): TimeSeries[] => {
+  const dashArray: TimeSeriesValue[] = Array(sortedLabels.length).fill('-')
+  const timeSeries: TimeSeries[] = []
 
   for (let x = 0; x < serieses.length; x++) {
     const s = serieses[x]
@@ -252,7 +251,10 @@ const insertGroupByValues = (
 
     for (let i = 0; i < s.values.length; i++) {
       const [time, ...vss] = s.values[i]
-      const tsRow = {time, values: fastCloneArray(dashArray)}
+      const tsRow: TimeSeries = {
+        time,
+        values: fastCloneArray(dashArray),
+      }
 
       for (let j = 0; j < vss.length; j++) {
         const v = vss[j]
@@ -266,7 +268,6 @@ const insertGroupByValues = (
       timeSeries.push(tsRow)
     }
   }
-
   return timeSeries
 }
 
@@ -274,7 +275,7 @@ const constructTimeSeries = (
   serieses: Series[],
   cells: Cells,
   sortedLabels: Label[],
-  seriesLabels: Label[]
+  seriesLabels: Label[][]
 ): TimeSeries[] => {
   const nullArray: TimeSeriesValue[] = Array(sortedLabels.length).fill(null)
 
