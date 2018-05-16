@@ -26,6 +26,7 @@ interface Props {
     specificConfigOptions: Partial<SlackProperties>
   ) => void
   onEnabled: (specificConfig: string) => boolean
+  isMultipleConfigsSupported: boolean
 }
 
 interface State {
@@ -47,7 +48,7 @@ class SlackConfigs extends PureComponent<Props, State> {
 
   public render() {
     const {configs} = this.state
-    const {onSave, onTest, onEnabled} = this.props
+    const {onSave, onTest, onEnabled, isMultipleConfigsSupported} = this.props
 
     return (
       <div>
@@ -72,11 +73,13 @@ class SlackConfigs extends PureComponent<Props, State> {
             />
           )
         })}
-        <div className="form-group col-xs-12 text-center">
-          <button className="btn btn-md btn-default" onClick={this.addConfig}>
-            <span className="icon plus" /> Add Another Config
-          </button>
-        </div>
+        {isMultipleConfigsSupported && (
+          <div className="form-group col-xs-12 text-center">
+            <button className="btn btn-md btn-default" onClick={this.addConfig}>
+              <span className="icon plus" /> Add Another Config
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -94,7 +97,11 @@ class SlackConfigs extends PureComponent<Props, State> {
   }
 
   private getWorkspace = (config: Config): string => {
-    return get(config, 'options.workspace', 'new')
+    const {isMultipleConfigsSupported} = this.props
+    if (isMultipleConfigsSupported) {
+      return get(config, 'options.workspace', 'new')
+    }
+    return ''
   }
 
   private getWorkspaceID = (config: Config): string => {
