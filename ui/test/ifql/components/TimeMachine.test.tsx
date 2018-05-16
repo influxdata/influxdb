@@ -7,9 +7,11 @@ const setup = () => {
     script: '',
     body: [],
     data: '',
+    status: {type: '', text: ''},
     suggestions: [],
     onSubmitScript: () => {},
     onChangeScript: () => {},
+    onAnalyze: () => {},
   }
 
   const wrapper = shallow(<TimeMachine {...props} />)

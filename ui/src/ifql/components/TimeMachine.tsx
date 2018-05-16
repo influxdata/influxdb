@@ -3,7 +3,7 @@ import SchemaExplorer from 'src/ifql/components/SchemaExplorer'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
-import Threesizer from 'src/shared/components/threesizer/Threesizer'
+import Threesizer from 'src/shared/components/Threesizer/Threesizer'
 import {
   Suggestion,
   OnChangeScript,
