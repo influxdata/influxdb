@@ -905,6 +905,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 			// doesn't exist.
 			return nil, errCompactionAborted{fmt.Errorf("bad plan: %s", file)}
 		}
+		defer tr.Unref() // inform that we're done with this reader when this method returns.
 		trs = append(trs, tr)
 	}
 

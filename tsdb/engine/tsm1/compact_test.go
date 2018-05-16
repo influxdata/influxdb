@@ -2881,6 +2881,7 @@ func (w *fakeFileStore) BlockCount(path string, idx int) int {
 func (w *fakeFileStore) TSMReader(path string) *tsm1.TSMReader {
 	r := MustOpenTSMReader(path)
 	w.readers = append(w.readers, r)
+	r.Ref()
 	return r
 }
 
