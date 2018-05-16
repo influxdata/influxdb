@@ -46,6 +46,19 @@ func NewAuthorizationService() *AuthorizationService {
 	return s
 }
 
+// FindAuthorizationByID returns an authorization given a id, records function call latency, and counts function calls.
+func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
+	defer func(start time.Time) {
+		labels := prometheus.Labels{
+			"method": "FindAuthorizationsByID",
+			"error":  fmt.Sprint(err != nil),
+		}
+		s.requestCount.With(labels).Add(1)
+		s.requestDuration.With(labels).Observe(time.Since(start).Seconds())
+	}(time.Now())
+	return s.AuthorizationService.FindAuthorizationByID(ctx, id)
+}
+
 // FindAuthorizationByToken returns an authorization given a token, records function call latency, and counts function calls.
 func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, t string) (a *platform.Authorization, err error) {
 	defer func(start time.Time) {
@@ -88,7 +101,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 }
 
 // DeleteAuthorization deletes an authorization, records function call latency, and counts function calls.
-func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, t string) (err error) {
+func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) (err error) {
 	defer func(start time.Time) {
 		labels := prometheus.Labels{
 			"method": "DeleteAuthorization",
@@ -98,5 +111,5 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, t string
 		s.requestDuration.With(labels).Observe(time.Since(start).Seconds())
 	}(time.Now())
 
-	return s.AuthorizationService.DeleteAuthorization(ctx, t)
+	return s.AuthorizationService.DeleteAuthorization(ctx, id)
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
@@ -29,6 +30,7 @@ func NewUserHandler() *UserHandler {
 	h.HandlerFunc("GET", "/v1/users", h.handleGetUsers)
 	h.HandlerFunc("GET", "/v1/users/:id", h.handleGetUser)
 	h.HandlerFunc("PATCH", "/v1/users/:id", h.handlePatchUser)
+	h.HandlerFunc("DELETE", "/v1/users/:id", h.handleDeleteUser)
 	return h
 }
 
@@ -102,7 +104,7 @@ func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest
 	}
 
 	var i platform.ID
-	if err := (&i).Decode([]byte(id)); err != nil {
+	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
@@ -113,12 +115,56 @@ func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest
 	return req, nil
 }
 
+// handleDeleteUser is the HTTP handler for the DELETE /v1/users/:id route.
+func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeDeleteUserRequest(ctx, r)
+	if err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := h.UserService.DeleteUser(ctx, req.UserID); err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+type deleteUserRequest struct {
+	UserID platform.ID
+}
+
+func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	return &deleteUserRequest{
+		UserID: i,
+	}, nil
+}
+
 // handleGetUsers is the HTTP handler for the GET /v1/users route.
 func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	f := platform.UserFilter{}
-	users, _, err := h.UserService.FindUsers(ctx, f)
+	req, err := decodeGetUsersRequest(ctx, r)
+	if err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	users, _, err := h.UserService.FindUsers(ctx, req.filter)
 	if err != nil {
 		errors.EncodeHTTP(ctx, err, w)
 		return
@@ -130,7 +176,29 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handlePatchUser is the HTTP handler for the PATH /v1/users route.
+type getUsersRequest struct {
+	filter platform.UserFilter
+}
+
+func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersRequest, error) {
+	qp := r.URL.Query()
+	req := &getUsersRequest{}
+
+	if id := qp.Get("id"); id != "" {
+		req.filter.ID = &platform.ID{}
+		if err := req.filter.ID.DecodeFromString(id); err != nil {
+			return nil, err
+		}
+	}
+
+	if name := qp.Get("name"); name != "" {
+		req.filter.Name = &name
+	}
+
+	return req, nil
+}
+
+// handlePatchUser is the HTTP handler for the PATCH /v1/users/:id route.
 func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -165,7 +233,7 @@ func decodePatchUserRequest(ctx context.Context, r *http.Request) (*patchUserReq
 	}
 
 	var i platform.ID
-	if err := (&i).Decode([]byte(id)); err != nil {
+	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
@@ -206,20 +274,15 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-	dec := json.NewDecoder(resp.Body)
-	if resp.StatusCode != http.StatusNoContent {
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, err
-		}
-		return nil, reqErr
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var b platform.User
-	if err := dec.Decode(&b); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	return &b, nil
 }
@@ -252,6 +315,12 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 	if err != nil {
 		return nil, 0, err
 	}
+	if filter.ID != nil {
+		query.Add("id", filter.ID.String())
+	}
+	if filter.Name != nil {
+		query.Add("name", *filter.Name)
+	}
 
 	req.URL.RawQuery = query.Encode()
 	req.Header.Set("Authorization", s.Token)
@@ -262,18 +331,12 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 		return nil, 0, err
 	}
 
-	defer resp.Body.Close()
-	dec := json.NewDecoder(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, 0, err
-		}
-		return nil, 0, reqErr
+		return nil, 0, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var bs []*platform.User
-	if err := dec.Decode(&bs); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
 		return nil, 0, err
 	}
 
@@ -311,15 +374,8 @@ func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
 		return err
 	}
 
-	// TODO: this should really check the error from the headers
 	if resp.StatusCode != http.StatusCreated {
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return err
-		}
-		return reqErr
+		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(u); err != nil {
@@ -357,21 +413,15 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-	dec := json.NewDecoder(resp.Body)
-
-	if resp.StatusCode != http.StatusCreated {
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, err
-		}
-		return nil, reqErr
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var u platform.User
-	if err := dec.Decode(&u); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	return &u, nil
 }
@@ -395,19 +445,13 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 		return err
 	}
 
-	if resp.StatusCode != http.StatusNoContent {
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return err
-		}
-		return reqErr
+	if resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	return nil
 }
 
 func userIDPath(id platform.ID) string {
-	return userPath + "/" + id.String()
+	return path.Join(userPath, id.String())
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"go.uber.org/zap"
 
@@ -30,10 +31,8 @@ func NewAuthorizationHandler() *AuthorizationHandler {
 
 	h.HandlerFunc("POST", "/v1/authorizations", h.handlePostAuthorization)
 	h.HandlerFunc("GET", "/v1/authorizations", h.handleGetAuthorizations)
-
-	// TODO(desa): Remove this when we get the all clear
-	h.HandlerFunc("POST", "/influx/v1/authorizations", h.handlePostAuthorization)
-	h.HandlerFunc("GET", "/influx/v1/authorizations", h.handleGetAuthorizations)
+	h.HandlerFunc("GET", "/v1/authorizations/:id", h.handleGetAuthorization)
+	h.HandlerFunc("DELETE", "/v1/authorizations/:id", h.handleDeleteAuthorization)
 	return h
 }
 
@@ -109,20 +108,118 @@ type getAuthorizationsRequest struct {
 
 func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getAuthorizationsRequest, error) {
 	qp := r.URL.Query()
-	userID := qp.Get("userID")
 
 	req := &getAuthorizationsRequest{}
 
+	userID := qp.Get("userID")
 	if userID != "" {
-		var id platform.ID
-		if err := (&id).Decode([]byte(userID)); err != nil {
+		req.filter.UserID = &platform.ID{}
+		if err := req.filter.UserID.DecodeFromString(userID); err != nil {
 			return nil, err
 		}
+	}
 
-		req.filter.UserID = &id
+	user := qp.Get("user")
+	if user != "" {
+		req.filter.User = &user
+	}
+
+	authID := qp.Get("id")
+	if authID != "" {
+		req.filter.ID = &platform.ID{}
+		if err := req.filter.ID.DecodeFromString(authID); err != nil {
+			return nil, err
+		}
 	}
 
 	return req, nil
+}
+
+// handleGetAuthorization is the HTTP handler for the GET /v1/authorizations/:id route.
+func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetAuthorizationRequest(ctx, r)
+	if err != nil {
+		h.Logger.Info("failed to decode request", zap.String("handler", "getAuthorization"), zap.Error(err))
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
+	if err != nil {
+		// Don't log here, it should already be handled by the service
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
+		h.Logger.Info("failed to encode response", zap.String("handler", "getAuthorization"), zap.Error(err))
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+}
+
+type getAuthorizationRequest struct {
+	ID platform.ID
+}
+
+func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAuthorizationRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	return &getAuthorizationRequest{
+		ID: i,
+	}, nil
+}
+
+// handleDeleteAuthorization is the HTTP handler for the DELETE /v1/authorizations/:id route.
+func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeDeleteAuthorizationRequest(ctx, r)
+	if err != nil {
+		h.Logger.Info("failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := h.AuthorizationService.DeleteAuthorization(ctx, req.ID); err != nil {
+		// Don't log here, it should already be handled by the service
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+type deleteAuthorizationRequest struct {
+	ID platform.ID
+}
+
+func decodeDeleteAuthorizationRequest(ctx context.Context, r *http.Request) (*deleteAuthorizationRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	return &deleteAuthorizationRequest{
+		ID: i,
+	}, nil
 }
 
 // AuthorizationService connects to Influx via HTTP using tokens to manage authorizations
@@ -134,9 +231,8 @@ type AuthorizationService struct {
 
 var _ platform.AuthorizationService = (*AuthorizationService)(nil)
 
-// FindAuthorizationByToken returns a single authorization by Token.
-func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, token string) (*platform.Authorization, error) {
-	u, err := newURL(s.Addr, authorizationTokenPath(token))
+func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
+	u, err := newURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -153,36 +249,22 @@ func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, tok
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-	dec := json.NewDecoder(resp.Body)
-	if resp.StatusCode != http.StatusNoContent {
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, err
-		}
-		return nil, reqErr
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var b platform.Authorization
-	if err := dec.Decode(&b); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	return &b, nil
 }
 
-// FindAuthorization returns the first authorization that matches filter.
-func (s *AuthorizationService) FindAuthorization(ctx context.Context, filter platform.AuthorizationFilter) (*platform.Authorization, error) {
-	authorizations, n, err := s.FindAuthorizations(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	if n == 0 {
-		return nil, fmt.Errorf("found no matching authorization")
-	}
-
-	return authorizations[0], nil
+// FindAuthorizationByToken returns a single authorization by Token.
+func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, token string) (*platform.Authorization, error) {
+	return nil, fmt.Errorf("not supported in HTTP authorization service")
 }
 
 // FindAuthorizations returns a list of authorizations that match filter and the total count of matching authorizations.
@@ -200,6 +282,18 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 		return nil, 0, err
 	}
 
+	if filter.ID != nil {
+		query.Add("id", filter.ID.String())
+	}
+
+	if filter.UserID != nil {
+		query.Add("userID", filter.UserID.String())
+	}
+
+	if filter.User != nil {
+		query.Add("user", *filter.User)
+	}
+
 	req.URL.RawQuery = query.Encode()
 	req.Header.Set("Authorization", s.Token)
 
@@ -209,20 +303,15 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 		return nil, 0, err
 	}
 
-	defer resp.Body.Close()
-	dec := json.NewDecoder(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, 0, err
-		}
-		return nil, 0, reqErr
+		return nil, 0, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var bs []*platform.Authorization
-	if err := dec.Decode(&bs); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
 		return nil, 0, err
 	}
+	defer resp.Body.Close()
 
 	return bs, len(bs), nil
 }
@@ -232,13 +321,13 @@ const (
 )
 
 // CreateAuthorization creates a new authorization and sets b.ID with the new identifier.
-func (s *AuthorizationService) CreateAuthorization(ctx context.Context, b *platform.Authorization) error {
+func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
 	u, err := newURL(s.Addr, authorizationPath)
 	if err != nil {
 		return err
 	}
 
-	octets, err := json.Marshal(b)
+	octets, err := json.Marshal(a)
 	if err != nil {
 		return err
 	}
@@ -260,25 +349,19 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, b *platf
 
 	// TODO: this should really check the error from the headers
 	if resp.StatusCode != http.StatusCreated {
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return err
-		}
-		return reqErr
+		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(b); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(a); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// DeleteAuthorization removes a authorization by token.
-func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, token string) error {
-	u, err := newURL(s.Addr, authorizationTokenPath(token))
+// DeleteAuthorization removes a authorization by id.
+func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
+	u, err := newURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
 		return err
 	}
@@ -295,19 +378,14 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, token st
 		return err
 	}
 
-	if resp.StatusCode != http.StatusNoContent {
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return err
-		}
-		return reqErr
+	switch resp.StatusCode {
+	case http.StatusNoContent, http.StatusAccepted:
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 }
 
-func authorizationTokenPath(token string) string {
-	return authorizationPath + "/" + token
+func authorizationIDPath(id platform.ID) string {
+	return path.Join(authorizationPath, id.String())
 }

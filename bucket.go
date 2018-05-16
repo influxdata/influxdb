@@ -8,7 +8,8 @@ import (
 // Bucket is a bucket. 🎉
 type Bucket struct {
 	ID              ID            `json:"id"`
-	OrganizationID  ID            `json:"organizationID"`
+	OrganizationID  ID            `json:"organizationID,omitempty"`
+	Organization    string        `json:"organization,omitempty"`
 	Name            string        `json:"name"`
 	RetentionPeriod time.Duration `json:"retentionPeriod"`
 }
@@ -46,8 +47,9 @@ type BucketUpdate struct {
 // BucketFilter represents a set of filter that restrict the returned results.
 type BucketFilter struct {
 	ID             *ID
-	OrganizationID *ID
 	Name           *string
+	OrganizationID *ID
+	Organization   *string
 }
 
 // FindOptions represents options passed to all find methods with multiple results.

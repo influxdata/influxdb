@@ -8,6 +8,7 @@ import (
 
 	"github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/rand"
 	"github.com/influxdata/platform/snowflake"
 )
 
@@ -27,13 +28,15 @@ type Client struct {
 	Path string
 	db   *bolt.DB
 
-	IDGenerator platform.IDGenerator
+	IDGenerator    platform.IDGenerator
+	TokenGenerator platform.TokenGenerator
 }
 
 // NewClient returns an instance of a Client.
 func NewClient() *Client {
 	return &Client{
-		IDGenerator: snowflake.NewIDGenerator(),
+		IDGenerator:    snowflake.NewIDGenerator(),
+		TokenGenerator: rand.NewTokenGenerator(64),
 	}
 }
 
@@ -58,6 +61,21 @@ func (c *Client) initialize(ctx context.Context) error {
 	if err := c.db.Update(func(tx *bolt.Tx) error {
 		// Always create Buckets bucket.
 		if err := c.initializeBuckets(ctx, tx); err != nil {
+			return err
+		}
+
+		// Always create Organizations bucket.
+		if err := c.initializeOrganizations(ctx, tx); err != nil {
+			return err
+		}
+
+		// Always create User bucket.
+		if err := c.initializeUsers(ctx, tx); err != nil {
+			return err
+		}
+
+		// Always create Authorization bucket.
+		if err := c.initializeAuthorizations(ctx, tx); err != nil {
 			return err
 		}
 		return nil

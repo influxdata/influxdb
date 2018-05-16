@@ -25,6 +25,15 @@ func (c *Client) initializeBuckets(ctx context.Context, tx *bolt.Tx) error {
 	return nil
 }
 
+func (c *Client) setOrganizationOnBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) error {
+	o, err := c.findOrganizationByID(ctx, tx, b.OrganizationID)
+	if err != nil {
+		return err
+	}
+	b.Organization = o.Name
+	return nil
+}
+
 // FindBucketByID retrieves a bucket by id.
 func (c *Client) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
 	var b *platform.Bucket
@@ -59,6 +68,10 @@ func (c *Client) findBucketByID(ctx context.Context, tx *bolt.Tx, id platform.ID
 		return nil, err
 	}
 
+	if err := c.setOrganizationOnBucket(ctx, tx, &b); err != nil {
+		return nil, err
+	}
+
 	return &b, nil
 }
 
@@ -85,17 +98,7 @@ func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platfo
 		Name:           n,
 	}
 	id := tx.Bucket(bucketIndex).Get(bucketIndexKey(b))
-	v := tx.Bucket(bucketBucket).Get(id)
-
-	if len(v) == 0 {
-		return nil, fmt.Errorf("bucket not found")
-	}
-
-	if err := json.Unmarshal(v, b); err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return c.findBucketByID(ctx, tx, platform.ID(id))
 }
 
 // FindBucket retrives a bucket using an arbitrary bucket filter.
@@ -110,11 +113,18 @@ func (c *Client) FindBucket(ctx context.Context, filter platform.BucketFilter) (
 		return c.FindBucketByName(ctx, *filter.OrganizationID, *filter.Name)
 	}
 
-	filterFn := filterBucketsFn(filter)
-
 	var b *platform.Bucket
 	err := c.db.View(func(tx *bolt.Tx) error {
-		return forEachBucket(ctx, tx, func(bkt *platform.Bucket) bool {
+		if filter.Organization != nil {
+			o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
+			if err != nil {
+				return err
+			}
+			filter.OrganizationID = &o.ID
+		}
+
+		filterFn := filterBucketsFn(filter)
+		return c.forEachBucket(ctx, tx, func(bkt *platform.Bucket) bool {
 			if filterFn(bkt) {
 				b = bkt
 				return false
@@ -155,7 +165,7 @@ func filterBucketsFn(filter platform.BucketFilter) func(b *platform.Bucket) bool
 
 	if filter.OrganizationID != nil {
 		return func(b *platform.Bucket) bool {
-			return b.Name == *filter.Name
+			return bytes.Equal(b.OrganizationID, *filter.OrganizationID)
 		}
 	}
 
@@ -185,14 +195,13 @@ func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, 
 	}
 
 	bs := []*platform.Bucket{}
-	filterFn := filterBucketsFn(filter)
 	err := c.db.View(func(tx *bolt.Tx) error {
-		return forEachBucket(ctx, tx, func(b *platform.Bucket) bool {
-			if filterFn(b) {
-				bs = append(bs, b)
-			}
-			return true
-		})
+		bkts, err := c.findBuckets(ctx, tx, filter)
+		if err != nil {
+			return err
+		}
+		bs = bkts
+		return nil
 	})
 
 	if err != nil {
@@ -202,9 +211,42 @@ func (c *Client) FindBuckets(ctx context.Context, filter platform.BucketFilter, 
 	return bs, len(bs), nil
 }
 
+func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.BucketFilter) ([]*platform.Bucket, error) {
+	bs := []*platform.Bucket{}
+	if filter.Organization != nil {
+		o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
+		if err != nil {
+			return nil, err
+		}
+		filter.OrganizationID = &o.ID
+	}
+
+	filterFn := filterBucketsFn(filter)
+	err := c.forEachBucket(ctx, tx, func(b *platform.Bucket) bool {
+		if filterFn(b) {
+			bs = append(bs, b)
+		}
+		return true
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return bs, nil
+}
+
 // CreateBucket creates a platform bucket and sets b.ID.
 func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
+		if len(b.OrganizationID) == 0 {
+			o, err := c.findOrganizationByName(ctx, tx, b.Organization)
+			if err != nil {
+				return err
+			}
+			b.OrganizationID = o.ID
+		}
+
 		unique := c.uniqueBucketName(ctx, tx, b)
 
 		if !unique {
@@ -226,6 +268,7 @@ func (c *Client) PutBucket(ctx context.Context, b *platform.Bucket) error {
 }
 
 func (c *Client) putBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) error {
+	b.Organization = ""
 	v, err := json.Marshal(b)
 	if err != nil {
 		return err
@@ -234,7 +277,10 @@ func (c *Client) putBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket)
 	if err := tx.Bucket(bucketIndex).Put(bucketIndexKey(b), b.ID); err != nil {
 		return err
 	}
-	return tx.Bucket(bucketBucket).Put(b.ID, v)
+	if err := tx.Bucket(bucketBucket).Put(b.ID, v); err != nil {
+		return err
+	}
+	return c.setOrganizationOnBucket(ctx, tx, b)
 }
 
 func bucketIndexKey(b *platform.Bucket) []byte {
@@ -245,11 +291,14 @@ func bucketIndexKey(b *platform.Bucket) []byte {
 }
 
 // forEachBucket will iterate through all buckets while fn returns true.
-func forEachBucket(ctx context.Context, tx *bolt.Tx, fn func(*platform.Bucket) bool) error {
+func (c *Client) forEachBucket(ctx context.Context, tx *bolt.Tx, fn func(*platform.Bucket) bool) error {
 	cur := tx.Bucket(bucketBucket).Cursor()
 	for k, v := cur.First(); k != nil; k, v = cur.Next() {
 		b := &platform.Bucket{}
 		if err := json.Unmarshal(v, b); err != nil {
+			return err
+		}
+		if err := c.setOrganizationOnBucket(ctx, tx, b); err != nil {
 			return err
 		}
 		if !fn(b) {
@@ -300,6 +349,10 @@ func (c *Client) updateBucket(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 	}
 
 	if err := c.putBucket(ctx, tx, b); err != nil {
+		return nil, err
+	}
+
+	if err := c.setOrganizationOnBucket(ctx, tx, b); err != nil {
 		return nil, err
 	}
 

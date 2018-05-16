@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
@@ -29,6 +30,7 @@ func NewBucketHandler() *BucketHandler {
 	h.HandlerFunc("GET", "/v1/buckets", h.handleGetBuckets)
 	h.HandlerFunc("GET", "/v1/buckets/:id", h.handleGetBucket)
 	h.HandlerFunc("PATCH", "/v1/buckets/:id", h.handlePatchBucket)
+	h.HandlerFunc("DELETE", "/v1/buckets/:id", h.handleDeleteBucket)
 	return h
 }
 
@@ -102,10 +104,50 @@ func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketReq
 	}
 
 	var i platform.ID
-	if err := (&i).Decode([]byte(id)); err != nil {
+	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 	req := &getBucketRequest{
+		BucketID: i,
+	}
+
+	return req, nil
+}
+
+// handleDeleteBucket is the HTTP handler for the DELETE /v1/buckets/:id route.
+func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeDeleteBucketRequest(ctx, r)
+	if err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := h.BucketService.DeleteBucket(ctx, req.BucketID); err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+type deleteBucketRequest struct {
+	BucketID platform.ID
+}
+
+func decodeDeleteBucketRequest(ctx context.Context, r *http.Request) (*deleteBucketRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req := &deleteBucketRequest{
 		BucketID: i,
 	}
 
@@ -149,14 +191,18 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 		}
 	}
 
-	if id := qp.Get("bucketID"); id != "" {
+	if org := qp.Get("org"); org != "" {
+		req.filter.Organization = &org
+	}
+
+	if id := qp.Get("id"); id != "" {
 		req.filter.ID = &platform.ID{}
 		if err := req.filter.ID.DecodeFromString(id); err != nil {
 			return nil, err
 		}
 	}
 
-	if name := qp.Get("bucketName"); name != "" {
+	if name := qp.Get("name"); name != "" {
 		req.filter.Name = &name
 	}
 
@@ -198,7 +244,7 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 	}
 
 	var i platform.ID
-	if err := (&i).Decode([]byte(id)); err != nil {
+	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
@@ -226,7 +272,7 @@ type BucketService struct {
 
 // FindBucketByID returns a single bucket by ID.
 func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-	u, err := newURL(s.Addr, bucketplatformath(id))
+	u, err := newURL(s.Addr, bucketIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -243,20 +289,15 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-	dec := json.NewDecoder(resp.Body)
-	if resp.StatusCode != http.StatusNoContent {
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, err
-		}
-		return nil, reqErr
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var b platform.Bucket
-	if err := dec.Decode(&b); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	return &b, nil
 }
@@ -287,11 +328,14 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 	if filter.OrganizationID != nil {
 		query.Add("orgID", filter.OrganizationID.String())
 	}
+	if filter.Organization != nil {
+		query.Add("org", *filter.Organization)
+	}
 	if filter.ID != nil {
-		query.Add("bucketID", filter.ID.String())
+		query.Add("id", filter.ID.String())
 	}
 	if filter.Name != nil {
-		query.Add("bucketName", *filter.Name)
+		query.Add("name", *filter.Name)
 	}
 
 	req, err := http.NewRequest("GET", u.String(), nil)
@@ -308,20 +352,15 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 		return nil, 0, err
 	}
 
-	defer resp.Body.Close()
-	dec := json.NewDecoder(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, 0, err
-		}
-		return nil, 0, reqErr
+		return nil, 0, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var bs []*platform.Bucket
-	if err := dec.Decode(&bs); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&bs); err != nil {
 		return nil, 0, err
 	}
+	defer resp.Body.Close()
 
 	return bs, len(bs), nil
 }
@@ -353,15 +392,8 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 		return err
 	}
 
-	// TODO: this should really check the error from the headers
 	if resp.StatusCode != http.StatusCreated {
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return err
-		}
-		return reqErr
+		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(b); err != nil {
@@ -374,7 +406,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 // UpdateBucket updates a single bucket with changeset.
 // Returns the new bucket state after update.
 func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
-	u, err := newURL(s.Addr, bucketplatformath(id))
+	u, err := newURL(s.Addr, bucketIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -399,28 +431,22 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-	dec := json.NewDecoder(resp.Body)
-
-	if resp.StatusCode != http.StatusCreated {
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, err
-		}
-		return nil, reqErr
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var b platform.Bucket
-	if err := dec.Decode(&b); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	return &b, nil
 }
 
 // DeleteBucket removes a bucket by ID.
 func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
-	u, err := newURL(s.Addr, bucketplatformath(id))
+	u, err := newURL(s.Addr, bucketIDPath(id))
 	if err != nil {
 		return err
 	}
@@ -437,19 +463,14 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 		return err
 	}
 
-	if resp.StatusCode != http.StatusNoContent {
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return err
-		}
-		return reqErr
+	switch resp.StatusCode {
+	case http.StatusNoContent, http.StatusAccepted:
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 }
 
-func bucketplatformath(id platform.ID) string {
-	return bucketPath + "/" + id.String()
+func bucketIDPath(id platform.ID) string {
+	return path.Join(bucketPath, id.String())
 }

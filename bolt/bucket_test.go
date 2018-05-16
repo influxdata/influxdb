@@ -15,16 +15,26 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 	}
 	c.IDGenerator = f.IDGenerator
 	ctx := context.TODO()
-	for _, u := range f.Buckets {
-		if err := c.PutBucket(ctx, u); err != nil {
+	for _, o := range f.Organizations {
+		if err := c.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate organizations")
+		}
+	}
+	for _, b := range f.Buckets {
+		if err := c.PutBucket(ctx, b); err != nil {
 			t.Fatalf("failed to populate buckets")
 		}
 	}
 	return c, func() {
 		defer closeFn()
-		for _, u := range f.Buckets {
-			if err := c.DeleteBucket(ctx, u.ID); err != nil {
-				t.Logf("failed to remove buckets: %v", err)
+		for _, o := range f.Organizations {
+			if err := c.DeleteOrganization(ctx, o.ID); err != nil {
+				t.Logf("failed to remove organization: %v", err)
+			}
+		}
+		for _, b := range f.Buckets {
+			if err := c.DeleteBucket(ctx, b.ID); err != nil {
+				t.Logf("failed to remove bucket: %v", err)
 			}
 		}
 	}
