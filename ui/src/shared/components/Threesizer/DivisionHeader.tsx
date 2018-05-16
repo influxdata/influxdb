@@ -1,11 +1,12 @@
 import React, {PureComponent} from 'react'
 import DivisionMenu, {
   MenuItem,
-} from 'src/shared/components/Threesizer/DivisionMenu'
+} from 'src/shared/components/threesizer/DivisionMenu'
 
 interface Props {
   onMinimize: () => void
   onMaximize: () => void
+  menuOptions?: MenuItem[]
 }
 
 class DivisionHeader extends PureComponent<Props> {
@@ -18,8 +19,9 @@ class DivisionHeader extends PureComponent<Props> {
   }
 
   private get menuItems(): MenuItem[] {
-    const {onMaximize, onMinimize} = this.props
+    const {onMaximize, onMinimize, menuOptions} = this.props
     return [
+      ...menuOptions,
       {
         action: onMaximize,
         text: 'Maximize',

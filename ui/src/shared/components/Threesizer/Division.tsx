@@ -4,6 +4,7 @@ import calculateSize from 'calculate-size'
 
 import DivisionHeader from 'src/shared/components/threesizer/DivisionHeader'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
+import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
 
 const NOOP = () => {}
 
@@ -22,6 +23,7 @@ interface Props {
   onDoubleClick: (id: string) => void
   onMaximize: (id: string) => void
   onMinimize: (id: string) => void
+  menuOptions?: MenuItem[]
 }
 
 interface Style {
@@ -62,7 +64,7 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {name, render, draggable} = this.props
+    const {name, render, draggable, menuOptions} = this.props
     return (
       <div
         className={this.containerClass}
@@ -82,6 +84,7 @@ class Division extends PureComponent<Props> {
         <div className={this.contentsClass} style={this.contentStyle}>
           {name && (
             <DivisionHeader
+              menuOptions={menuOptions}
               onMinimize={this.handleMinimize}
               onMaximize={this.handleMaximize}
             />

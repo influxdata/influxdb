@@ -5,6 +5,8 @@ import _ from 'lodash'
 
 import Division from 'src/shared/components/threesizer/Division'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
+
 import {
   HANDLE_NONE,
   HANDLE_PIXELS,
@@ -32,6 +34,7 @@ interface DivisionProps {
   name?: string
   handleDisplay?: string
   handlePixels?: number
+  menuOptions: MenuItem[]
   render: (visibility?: string) => ReactElement<any>
 }
 
@@ -143,8 +146,9 @@ class Threesizer extends Component<Props, State> {
             onMaximize={this.handleMaximize}
             onMinimize={this.handleMinimize}
             onDoubleClick={this.handleDoubleClick}
-            onHandleStartDrag={this.handleStartDrag}
             render={this.props.divisions[i].render}
+            onHandleStartDrag={this.handleStartDrag}
+            menuOptions={this.props.divisions[i].menuOptions}
           />
         ))}
       </div>

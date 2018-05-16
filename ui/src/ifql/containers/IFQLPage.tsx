@@ -73,12 +73,6 @@ export class IFQLPage extends PureComponent<Props, State> {
                 <div className="page-header__right">
                   <button
                     className="btn btn-sm btn-primary"
-                    onClick={this.handleSubmitScript}
-                  >
-                    Analyze Script
-                  </button>
-                  <button
-                    className="btn btn-sm btn-primary"
                     onClick={this.getTimeSeries}
                   >
                     Get Data!
@@ -92,6 +86,7 @@ export class IFQLPage extends PureComponent<Props, State> {
               script={script}
               suggestions={suggestions}
               onChangeScript={this.handleChangeScript}
+              onSubmitScript={this.handleSubmitScript}
             />
           </div>
         </KeyboardShortcuts>
@@ -345,15 +340,18 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private getTimeSeries = async () => {
+    const {script} = this.state
     this.setState({data: 'fetching data...'})
 
     try {
-      const {data} = await getTimeSeries(this.state.script)
+      const {data} = await getTimeSeries(script)
       this.setState({data})
     } catch (error) {
       this.setState({data: 'Error fetching data'})
       console.error('Could not get timeSeries', error)
     }
+
+    this.getASTResponse(script)
   }
 }
 
