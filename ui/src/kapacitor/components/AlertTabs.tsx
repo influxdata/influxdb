@@ -349,6 +349,19 @@ class AlertTabs extends PureComponent<Props, State> {
           />
         )
       case AlertTypes.slack:
+        const hasPagerDuty2: Section = get(
+          configSections,
+          AlertTypes.pagerduty2,
+          undefined
+        )
+        const hasOpsGenie2: Section = get(
+          configSections,
+          AlertTypes.opsgenie2,
+          undefined
+        )
+        // if kapacitor supports pagerduty2 and opsgenie2, its at least v1.5
+        const isMultipleConfigsSupported: boolean =
+          !_.isUndefined(hasPagerDuty2) && !_.isUndefined(hasOpsGenie2)
         return (
           <SlackConfigs
             configs={this.getSectionElements(configSections, AlertTypes.slack)}
@@ -359,8 +372,10 @@ class AlertTabs extends PureComponent<Props, State> {
               configSections,
               AlertTypes.slack
             )}
+            isMultipleConfigsSupported={isMultipleConfigsSupported}
           />
         )
+
       case AlertTypes.smtp:
         return (
           <SMTPConfig
