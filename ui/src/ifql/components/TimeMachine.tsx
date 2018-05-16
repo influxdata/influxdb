@@ -22,6 +22,7 @@ interface Props {
   suggestions: Suggestion[]
   onChangeScript: OnChangeScript
   onSubmitScript: OnSubmitScript
+  onAppendFrom: () => void
   onAnalyze: () => void
 }
 
@@ -71,6 +72,7 @@ class TimeMachine extends PureComponent<Props> {
       status,
       onAnalyze,
       suggestions,
+      onAppendFrom,
       onChangeScript,
       onSubmitScript,
     } = this.props
@@ -112,7 +114,13 @@ class TimeMachine extends PureComponent<Props> {
         name: 'Build',
         headerButtons: [],
         menuOptions: [],
-        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
+        render: () => (
+          <BodyBuilder
+            body={body}
+            suggestions={suggestions}
+            onAppendFrom={onAppendFrom}
+          />
+        ),
       },
     ]
   }

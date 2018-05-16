@@ -4,12 +4,14 @@ import _ from 'lodash'
 import ExpressionNode from 'src/ifql/components/ExpressionNode'
 import VariableName from 'src/ifql/components/VariableName'
 import FuncSelector from 'src/ifql/components/FuncSelector'
+import {funcNames} from 'src/ifql/constants'
 
 import {FlatBody, Suggestion} from 'src/types/ifql'
 
 interface Props {
   body: Body[]
   suggestions: Suggestion[]
+  onAppendFrom: () => void
 }
 
 interface Body extends FlatBody {
@@ -61,7 +63,7 @@ class BodyBuilder extends PureComponent<Props> {
           <FuncSelector
             bodyID="fake-body-id"
             declarationID="fake-declaration-id"
-            onAddNode={this.createNewDeclaration}
+            onAddNode={this.createNewBody}
             funcs={this.newDeclarationFuncs}
             connectorVisible={false}
           />
@@ -72,14 +74,13 @@ class BodyBuilder extends PureComponent<Props> {
 
   private get newDeclarationFuncs(): string[] {
     // 'JOIN' only available if there are at least 2 named declarations
-    return ['from', 'join', 'variable']
+    return ['from']
   }
 
-  private createNewDeclaration = (bodyID, name, declarationID) => {
-    // Returning a string here so linter stops yelling
-    // TODO: write a real function
-
-    return `${bodyID} / ${name} / ${declarationID}`
+  private createNewBody = name => {
+    if (name === funcNames.FROM) {
+      this.props.onAppendFrom()
+    }
   }
 
   private get funcNames() {

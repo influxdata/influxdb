@@ -12,6 +12,7 @@ const setup = () => {
     onSubmitScript: () => {},
     onChangeScript: () => {},
     onAnalyze: () => {},
+    onAppendFrom: () => {},
   }
 
   const wrapper = shallow(<TimeMachine {...props} />)

@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 import TimeMachine from 'src/ifql/components/TimeMachine'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -11,10 +12,10 @@ import {analyzeSuccess} from 'src/shared/copy/notifications'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
-import * as argTypes from 'src/ifql/constants/argumentTypes'
-import {Suggestion, FlatBody, Links} from 'src/types/ifql'
+import {builder, argTypes} from 'src/ifql/constants'
+
 import {Notification} from 'src/types'
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Suggestion, FlatBody, Links} from 'src/types/ifql'
 
 interface Status {
   type: string
@@ -50,7 +51,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       ast: null,
       data: 'Hit "Get Data!" or Ctrl + Enter to run your script',
       suggestions: [],
-      script: `fil = (r) => r._measurement == \"cpu\"\ntele = from(db: \"telegraf\") \n\t\t|> filter(fn: fil)\n        |> range(start: -1m)\n        |> sum()`,
+      script: `fil = (r) => r._measurement == \"cpu\"\ntele = from(db: \"telegraf\") \n\t\t|> filter(fn: fil)\n        |> range(start: -1m)\n        |> sum()\n\n`,
       status: {
         type: 'none',
         text: '',
@@ -100,6 +101,7 @@ export class IFQLPage extends PureComponent<Props, State> {
               status={status}
               suggestions={suggestions}
               onAnalyze={this.handleAnalyze}
+              onAppendFrom={this.handleAppendFrom}
               onChangeScript={this.handleChangeScript}
               onSubmitScript={this.handleSubmitScript}
             />
@@ -238,6 +240,13 @@ export class IFQLPage extends PureComponent<Props, State> {
         return `${key}: ${value}`
       })
       .join(', ')
+  }
+
+  private handleAppendFrom = (): void => {
+    const {script} = this.state
+    const newScript = `${script.trim()}\n\n${builder.NEW_FROM}\n\n`
+
+    this.getASTResponse(newScript)
   }
 
   private handleChangeScript = (script: string): void => {
