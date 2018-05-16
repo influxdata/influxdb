@@ -4,6 +4,8 @@ import {groupByTimeSeriesTransform} from 'src/utils/groupByTimeSeriesTransform'
 import {TimeSeriesServerResponse, TimeSeries} from 'src/types/series'
 import {TimeSeriesValue} from 'src/types/series'
 
+type DygraphValue = string | number | Date | null
+
 interface Label {
   label: string
   seriesIndex: number
@@ -12,7 +14,7 @@ interface Label {
 
 interface TimeSeriesToDyGraphReturnType {
   labels: string[]
-  timeSeries: TimeSeries[]
+  timeSeries: DygraphValue[][]
   dygraphSeries: DygraphSeries
 }
 
@@ -37,6 +39,16 @@ export const timeSeriesToDygraph = (
     isTable
   )
 
+  const labels = [
+    'time',
+    ...fastMap<Label, string>(sortedLabels, ({label}) => label),
+  ]
+
+  const timeSeries = fastMap<TimeSeries, DygraphValue[]>(
+    sortedTimeSeries,
+    ({time, values}) => [new Date(time), ...values]
+  )
+
   const dygraphSeries = fastReduce<Label, DygraphSeries>(
     sortedLabels,
     (acc, {label, responseIndex}) => {
@@ -49,17 +61,8 @@ export const timeSeriesToDygraph = (
     },
     {}
   )
-  return {
-    labels: [
-      'time',
-      ...fastMap<Label, string>(sortedLabels, ({label}) => label),
-    ],
-    timeSeries: fastMap<TimeSeries, TimeSeries>(
-      sortedTimeSeries,
-      ({time, values}) => [new Date(time), ...values]
-    ),
-    dygraphSeries,
-  }
+
+  return {labels, timeSeries, dygraphSeries}
 }
 
 export const timeSeriesToTableGraph = (
