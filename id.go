@@ -8,6 +8,12 @@ import (
 // ID is a unique identifier.
 type ID []byte
 
+// IDGenerator represents a generator for IDs.
+type IDGenerator interface {
+	// ID creates unique byte slice ID.
+	ID() ID
+}
+
 // Decode parses b as a hex-encoded byte-slice-string.
 func (i *ID) Decode(b []byte) error {
 	dst := make([]byte, hex.DecodedLen(len(b)))
@@ -34,12 +40,6 @@ func (i ID) Encode() []byte {
 // String returns the ID as a hex encoded string
 func (i ID) String() string {
 	return string(i.Encode())
-}
-
-// IDGenerator represents a generator for IDs.
-type IDGenerator interface {
-	// ID creates unique byte slice ID.
-	ID() ID
 }
 
 // UnmarshalJSON implements JSON unmarshaller for IDs.
