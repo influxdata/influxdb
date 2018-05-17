@@ -275,7 +275,7 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 			return c.compileCumulativeSum(expr.Args)
 		case "moving_average":
 			return c.compileMovingAverage(expr.Args)
-		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_average":
+		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_derivative":
 			return c.compileExponentialMovingAverage(expr.Name, expr.Args)
 		case "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average":
 			return c.compileKaufmans(expr.Name, expr.Args)
@@ -589,7 +589,7 @@ func (c *compiledField) compileExponentialMovingAverage(name string, args []infl
 	if len(args) >= 3 {
 		switch arg2 := args[2].(type) {
 		case *influxql.IntegerLiteral:
-			if name == "triple_exponential_average" && arg2.Val < 1 && arg2.Val != -1 {
+			if name == "triple_exponential_derivative" && arg2.Val < 1 && arg2.Val != -1 {
 				return fmt.Errorf("%s hold period must be greater than or equal to 1", name)
 			}
 			if arg2.Val < 0 && arg2.Val != -1 {

@@ -1311,29 +1311,29 @@ func newRelativeStrengthIndexIterator(input Iterator, n int, nHold int, warmupTy
 	}
 }
 
-// newTripleExponentialAverageIterator returns an iterator for operating on a triple_exponential_moving_average() call.
-func newTripleExponentialAverageIterator(input Iterator, n int, nHold int, warmupType gota.WarmupType, opt IteratorOptions) (Iterator, error) {
+// newTripleExponentialDerivativeIterator returns an iterator for operating on a triple_exponential_moving_average() call.
+func newTripleExponentialDerivativeIterator(input Iterator, n int, nHold int, warmupType gota.WarmupType, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewTripleExponentialAverageReducer(n, nHold, warmupType)
+			fn := NewTripleExponentialDerivativeReducer(n, nHold, warmupType)
 			return fn, fn
 		}
 		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
-			fn := NewTripleExponentialAverageReducer(n, nHold, warmupType)
+			fn := NewTripleExponentialDerivativeReducer(n, nHold, warmupType)
 			return fn, fn
 		}
 		return newIntegerStreamFloatIterator(input, createFn, opt), nil
 	case UnsignedIterator:
 		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
-			fn := NewTripleExponentialAverageReducer(n, nHold, warmupType)
+			fn := NewTripleExponentialDerivativeReducer(n, nHold, warmupType)
 			return fn, fn
 		}
 		return newUnsignedStreamFloatIterator(input, createFn, opt), nil
 	default:
-		return nil, fmt.Errorf("unsupported triple exponential average iterator type: %T", input)
+		return nil, fmt.Errorf("unsupported triple exponential derivative iterator type: %T", input)
 	}
 }
 
