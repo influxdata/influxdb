@@ -54,7 +54,7 @@ $panel-gutter: 30px;
 .panel-footer {
   padding: 14px $panel-gutter;
   border-radius: 0 0 4px 4px;
-  @include gradient-v($g2-kevlar,$g3-castle);
+  @include gradient-v($g2-kevlar, $g3-castle);
   color: $g9-mountain;
 }
 
@@ -90,4 +90,10 @@ $panel-gutter: 30px;
   .panel-body {
     background-color: transparent;
   }
+}
+
+//  Horizontal Rules directly inside Panels
+//  ----------------------------------------------------------------------------
+.panel-body hr {
+  margin: 16px 0;
 }

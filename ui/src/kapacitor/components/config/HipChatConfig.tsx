@@ -6,11 +6,7 @@ import {HIPCHAT_TOKEN_TIP} from 'src/kapacitor/copy'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Properties {
-  room: string
-  url: string
-  token: string
-}
+import {HipChatProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -23,7 +19,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: HipChatProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -140,7 +136,7 @@ class HipchatConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: HipChatProperties = {
       room: this.room.value,
       url: `https://${this.url.value}.hipchat.com/v2/room`,
       token: this.token.value,

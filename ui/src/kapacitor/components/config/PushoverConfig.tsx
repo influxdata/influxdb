@@ -6,12 +6,7 @@ import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {PUSHOVER_DOCS_LINK} from 'src/kapacitor/copy'
-
-interface Properties {
-  token: string
-  url: string
-  'user-key': string
-}
+import {PushoverProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -24,7 +19,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: PushoverProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -144,7 +139,7 @@ class PushoverConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: PushoverProperties = {
       token: this.token.value,
       url: this.url.value,
       'user-key': this.userKey.value,

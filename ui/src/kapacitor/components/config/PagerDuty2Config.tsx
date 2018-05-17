@@ -1,19 +1,21 @@
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
+import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {SensuProperties} from 'src/types/kapacitor'
+
+import {PagerDuty2Properties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
-    source: string
-    addr: string
+    'routing-key': boolean
+    url: string
     enabled: boolean
   }
 }
 
 interface Props {
   config: Config
-  onSave: (properties: SensuProperties) => void
+  onSave: (properties: PagerDuty2Properties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -24,11 +26,11 @@ interface State {
 }
 
 @ErrorHandling
-class SensuConfig extends PureComponent<Props, State> {
-  private source: HTMLInputElement
-  private addr: HTMLInputElement
+class PagerDuty2Config extends PureComponent<Props, State> {
+  private routingKey: HTMLInputElement
+  private url: HTMLInputElement
 
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
@@ -37,31 +39,32 @@ class SensuConfig extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {source, addr} = this.props.config.options
-    const {enabled} = this.state
+    const {options} = this.props.config
+    const {url} = options
+    const routingKey = options['routing-key']
+    const {testEnabled, enabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
-        <div className="form-group col-xs-12 col-md-6">
-          <label htmlFor="source">Source</label>
-          <input
-            className="form-control"
-            id="source"
-            type="text"
-            ref={r => (this.source = r)}
-            defaultValue={source || ''}
-            onChange={this.disableTest}
+        <div className="form-group col-xs-12">
+          <label htmlFor="routing-key">Routing Key</label>
+          <RedactedInput
+            defaultValue={routingKey}
+            id="routing-key"
+            refFunc={this.handleRoutingKeyRef}
+            disableTest={this.disableTest}
+            isFormEditing={!testEnabled}
           />
         </div>
 
-        <div className="form-group col-xs-12 col-md-6">
-          <label htmlFor="address">Address</label>
+        <div className="form-group col-xs-12">
+          <label htmlFor="url">PagerDuty URL</label>
           <input
             className="form-control"
-            id="address"
+            id="url"
             type="text"
-            ref={r => (this.addr = r)}
-            defaultValue={addr || ''}
+            ref={r => (this.url = r)}
+            defaultValue={url || ''}
             onChange={this.disableTest}
           />
         </div>
@@ -100,17 +103,22 @@ class SensuConfig extends PureComponent<Props, State> {
     )
   }
 
-  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+  private handleRoutingKeyRef = (r: HTMLInputElement): HTMLInputElement =>
+    (this.routingKey = r)
+
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>): void => {
     this.setState({enabled: e.target.checked})
     this.disableTest()
   }
 
-  private handleSubmit = async e => {
+  private handleSubmit = async (
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
     e.preventDefault()
 
-    const properties: SensuProperties = {
-      source: this.source.value,
-      addr: this.addr.value,
+    const properties: PagerDuty2Properties = {
+      'routing-key': this.routingKey.value,
+      url: this.url.value,
       enabled: this.state.enabled,
     }
 
@@ -120,9 +128,9 @@ class SensuConfig extends PureComponent<Props, State> {
     }
   }
 
-  private disableTest = () => {
+  private disableTest = (): void => {
     this.setState({testEnabled: false})
   }
 }
 
-export default SensuConfig
+export default PagerDuty2Config

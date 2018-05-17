@@ -18,6 +18,7 @@ interface Query {
   database: string
   db: string
   rp: string
+  id: string
 }
 
 interface TemplateQuery {

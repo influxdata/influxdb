@@ -1,6 +1,7 @@
 import React, {PureComponent, MouseEvent} from 'react'
 
 import _ from 'lodash'
+import {get} from 'src/utils/wrappers'
 
 import {
   Tab,
@@ -12,6 +13,8 @@ import {
 import {
   getKapacitorConfig,
   updateKapacitorConfigSection,
+  addKapacitorConfigInSection,
+  deleteKapacitorConfigInSection,
   testAlertOutput,
   getAllServices,
 } from 'src/shared/apis'
@@ -22,9 +25,9 @@ import {
   KafkaConfig,
   OpsGenieConfig,
   PagerDutyConfig,
+  PagerDuty2Config,
   PushoverConfig,
   SensuConfig,
-  SlackConfig,
   SMTPConfig,
   TalkConfig,
   TelegramConfig,
@@ -35,6 +38,8 @@ import {
   notifyRefreshKapacitorFailed,
   notifyAlertEndpointSaved,
   notifyAlertEndpointSaveFailed,
+  notifyAlertEndpointDeleteFailed,
+  notifyAlertEndpointDeleted,
   notifyTestAlertSent,
   notifyTestAlertFailed,
   notifyCouldNotRetrieveKapacitorServices,
@@ -44,6 +49,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Source, Kapacitor} from 'src/types'
 import {Notification} from 'src/types/notifications'
+import {ServiceProperties, SpecificConfigOptions} from 'src/types/kapacitor'
+import SlackConfigs from 'src/kapacitor/components/config/SlackConfigs'
+import {
+  AlertDisplayText,
+  SupportedServices,
+  AlertTypes,
+} from 'src/kapacitor/constants'
 
 interface Service {
   link: Link
@@ -88,29 +100,6 @@ interface Sections {
   talk: Section
   telegram: Section
   victorops: Section
-}
-
-interface Config {
-  type: string
-  enabled: boolean
-  renderComponent: () => JSX.Element
-}
-
-interface SupportedConfig {
-  alerta: Config
-  hipchat: Config
-  kafka: Config
-  opsgenie: Config
-  opsgenie2: Config
-  pagerduty: Config
-  pagerduty2: Config
-  pushover: Config
-  sensu: Config
-  slack: Config
-  smtp: Config
-  talk: Config
-  telegram: Config
-  victorops: Config
 }
 
 interface Props {
@@ -162,13 +151,13 @@ class AlertTabs extends PureComponent<Props, State> {
       return null
     }
 
-    const pagerDutyV1Enabled: boolean = this.getEnabled(
+    const pagerDutyV1Enabled: boolean = this.getConfigEnabled(
       configSections,
-      'pagerduty'
+      AlertTypes.pagerduty
     )
-    const opsGenieV1Enabled: boolean = this.getEnabled(
+    const opsGenieV1Enabled: boolean = this.getConfigEnabled(
       configSections,
-      'opsgenie'
+      AlertTypes.opsgenie
     )
 
     const pagerDutyDeprecationMessage: JSX.Element = (
@@ -193,179 +182,6 @@ class AlertTabs extends PureComponent<Props, State> {
       </div>
     )
 
-    const supportedConfigs: SupportedConfig = {
-      alerta: {
-        type: 'Alerta',
-        enabled: this.getEnabled(configSections, 'alerta'),
-        renderComponent: () => (
-          <AlertaConfig
-            onSave={this.handleSaveConfig('alerta')}
-            config={this.getSection(configSections, 'alerta')}
-            onTest={this.handleTestConfig('alerta')}
-            enabled={this.getEnabled(configSections, 'alerta')}
-          />
-        ),
-      },
-      hipchat: {
-        type: 'HipChat',
-        enabled: this.getEnabled(configSections, 'hipchat'),
-        renderComponent: () => (
-          <HipChatConfig
-            onSave={this.handleSaveConfig('hipchat')}
-            config={this.getSection(configSections, 'hipchat')}
-            onTest={this.handleTestConfig('hipchat')}
-            enabled={this.getEnabled(configSections, 'hipchat')}
-          />
-        ),
-      },
-      kafka: {
-        type: 'Kafka',
-        enabled: this.getEnabled(configSections, 'kafka'),
-        renderComponent: () => (
-          <KafkaConfig
-            onSave={this.handleSaveConfig('kafka')}
-            config={this.getSection(configSections, 'kafka')}
-            onTest={this.handleTestConfig('kafka', {
-              cluster: this.getProperty(configSections, 'kafka', 'id'),
-            })}
-            enabled={this.getEnabled(configSections, 'kafka')}
-            notify={this.props.notify}
-          />
-        ),
-      },
-      opsgenie: {
-        type: 'OpsGenie',
-        enabled: this.getEnabled(configSections, 'opsgenie'),
-        renderComponent: () => (
-          <OpsGenieConfig
-            onSave={this.handleSaveConfig('opsgenie')}
-            config={this.getSection(configSections, 'opsgenie')}
-            onTest={this.handleTestConfig('opsgenie')}
-            enabled={this.getEnabled(configSections, 'opsgenie')}
-          />
-        ),
-      },
-      opsgenie2: {
-        type: 'OpsGenie2',
-        enabled: this.getEnabled(configSections, 'opsgenie2'),
-        renderComponent: () => (
-          <OpsGenieConfig
-            onSave={this.handleSaveConfig('opsgenie2')}
-            config={this.getSection(configSections, 'opsgenie2')}
-            onTest={this.handleTestConfig('opsgenie2')}
-            enabled={this.getEnabled(configSections, 'opsgenie2')}
-          />
-        ),
-      },
-      pagerduty: {
-        type: 'PagerDuty',
-        enabled: this.getEnabled(configSections, 'pagerduty'),
-        renderComponent: () => (
-          <PagerDutyConfig
-            onSave={this.handleSaveConfig('pagerduty')}
-            config={this.getSection(configSections, 'pagerduty')}
-            onTest={this.handleTestConfig('pagerduty')}
-            enabled={this.getEnabled(configSections, 'pagerduty')}
-          />
-        ),
-      },
-      pagerduty2: {
-        type: 'PagerDuty2',
-        enabled: this.getEnabled(configSections, 'pagerduty2'),
-        renderComponent: () => (
-          <PagerDutyConfig
-            onSave={this.handleSaveConfig('pagerduty2')}
-            config={this.getSection(configSections, 'pagerduty2')}
-            onTest={this.handleTestConfig('pagerduty2')}
-            enabled={this.getEnabled(configSections, 'pagerduty2')}
-          />
-        ),
-      },
-      pushover: {
-        type: 'Pushover',
-        enabled: this.getEnabled(configSections, 'pushover'),
-        renderComponent: () => (
-          <PushoverConfig
-            onSave={this.handleSaveConfig('pushover')}
-            config={this.getSection(configSections, 'pushover')}
-            onTest={this.handleTestConfig('pushover')}
-            enabled={this.getEnabled(configSections, 'pushover')}
-          />
-        ),
-      },
-      sensu: {
-        type: 'Sensu',
-        enabled: this.getEnabled(configSections, 'sensu'),
-        renderComponent: () => (
-          <SensuConfig
-            onSave={this.handleSaveConfig('sensu')}
-            config={this.getSection(configSections, 'sensu')}
-            onTest={this.handleTestConfig('sensu')}
-            enabled={this.getEnabled(configSections, 'sensu')}
-          />
-        ),
-      },
-      slack: {
-        type: 'Slack',
-        enabled: this.getEnabled(configSections, 'slack'),
-        renderComponent: () => (
-          <SlackConfig
-            onSave={this.handleSaveConfig('slack')}
-            config={this.getSection(configSections, 'slack')}
-            onTest={this.handleTestConfig('slack')}
-            enabled={this.getEnabled(configSections, 'slack')}
-          />
-        ),
-      },
-      smtp: {
-        type: 'SMTP',
-        enabled: this.getEnabled(configSections, 'smtp'),
-        renderComponent: () => (
-          <SMTPConfig
-            onSave={this.handleSaveConfig('smtp')}
-            config={this.getSection(configSections, 'smtp')}
-            onTest={this.handleTestConfig('smtp')}
-            enabled={this.getEnabled(configSections, 'smtp')}
-          />
-        ),
-      },
-      talk: {
-        type: 'Talk',
-        enabled: this.getEnabled(configSections, 'talk'),
-        renderComponent: () => (
-          <TalkConfig
-            onSave={this.handleSaveConfig('talk')}
-            config={this.getSection(configSections, 'talk')}
-            onTest={this.handleTestConfig('talk')}
-            enabled={this.getEnabled(configSections, 'talk')}
-          />
-        ),
-      },
-      telegram: {
-        type: 'Telegram',
-        enabled: this.getEnabled(configSections, 'telegram'),
-        renderComponent: () => (
-          <TelegramConfig
-            onSave={this.handleSaveConfig('telegram')}
-            config={this.getSection(configSections, 'telegram')}
-            onTest={this.handleTestConfig('telegram')}
-            enabled={this.getEnabled(configSections, 'telegram')}
-          />
-        ),
-      },
-      victorops: {
-        type: 'VictorOps',
-        enabled: this.getEnabled(configSections, 'victorops'),
-        renderComponent: () => (
-          <VictorOpsConfig
-            onSave={this.handleSaveConfig('victorops')}
-            config={this.getSection(configSections, 'victorops')}
-            onTest={this.handleTestConfig('victorops')}
-            enabled={this.getEnabled(configSections, 'victorops')}
-          />
-        ),
-      },
-    }
     return (
       <div className="panel">
         <div className="panel-heading">
@@ -380,22 +196,23 @@ class AlertTabs extends PureComponent<Props, State> {
 
         <Tabs
           tabContentsClass="config-endpoint"
-          initialIndex={this.getInitialIndex(supportedConfigs, hash)}
+          initialIndex={this.getInitialIndex(hash)}
         >
           <TabList customClass="config-endpoint--tabs">
             {_.reduce(
               configSections,
               (acc, __, k) => {
-                return this.isSupportedService(supportedConfigs[k])
-                  ? acc.concat(
-                      <Tab
-                        key={supportedConfigs[k].type}
-                        isConfigured={supportedConfigs[k].enabled}
-                      >
-                        {supportedConfigs[k].type}
-                      </Tab>
-                    )
-                  : acc
+                if (this.isSupportedService(k)) {
+                  return acc.concat(
+                    <Tab
+                      key={k}
+                      isConfigured={this.getConfigEnabled(configSections, k)}
+                    >
+                      {AlertDisplayText[k]}
+                    </Tab>
+                  )
+                }
+                return acc
               },
               []
             )}
@@ -403,20 +220,198 @@ class AlertTabs extends PureComponent<Props, State> {
           <TabPanels customClass="config-endpoint--tab-contents">
             {_.reduce(
               configSections,
-              (acc, __, k) =>
-                this.isSupportedService(supportedConfigs[k])
-                  ? acc.concat(
-                      <TabPanel key={supportedConfigs[k].type}>
-                        {supportedConfigs[k].renderComponent()}
-                      </TabPanel>
-                    )
-                  : acc,
+              (acc, __, k) => {
+                if (this.isSupportedService(k)) {
+                  return acc.concat(
+                    <TabPanel key={k}>{this.getConfig(k)}</TabPanel>
+                  )
+                }
+                return acc
+              },
               []
             )}
           </TabPanels>
         </Tabs>
       </div>
     )
+  }
+
+  private getConfig(config: string): JSX.Element {
+    const {configSections} = this.state
+    switch (config) {
+      case AlertTypes.alerta:
+        return (
+          <AlertaConfig
+            onSave={this.handleSaveConfig(AlertTypes.alerta)}
+            config={this.getSectionElement(configSections, AlertTypes.alerta)}
+            onTest={this.handleTestConfig(AlertTypes.alerta)}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.alerta)}
+          />
+        )
+      case AlertTypes.hipchat:
+        return (
+          <HipChatConfig
+            onSave={this.handleSaveConfig(AlertTypes.hipchat)}
+            config={this.getSectionElement(configSections, AlertTypes.hipchat)}
+            onTest={this.handleTestConfig(AlertTypes.hipchat)}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.hipchat)}
+          />
+        )
+      case AlertTypes.kafka:
+        return (
+          <KafkaConfig
+            onSave={this.handleSaveConfig(AlertTypes.kafka)}
+            config={this.getSectionElement(configSections, AlertTypes.kafka)}
+            onTest={this.handleTestConfig(AlertTypes.kafka, {
+              cluster: this.getProperty(configSections, AlertTypes.kafka, 'id'),
+            })}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.kafka)}
+            notify={this.props.notify}
+          />
+        )
+      case AlertTypes.opsgenie:
+        return (
+          <OpsGenieConfig
+            onSave={this.handleSaveConfig(AlertTypes.opsgenie)}
+            config={this.getSectionElement(configSections, AlertTypes.opsgenie)}
+            onTest={this.handleTestConfig(AlertTypes.opsgenie)}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.opsgenie)}
+          />
+        )
+      case AlertTypes.opsgenie2:
+        return (
+          <OpsGenieConfig
+            onSave={this.handleSaveConfig(AlertTypes.opsgenie2)}
+            config={this.getSectionElement(
+              configSections,
+              AlertTypes.opsgenie2
+            )}
+            onTest={this.handleTestConfig(AlertTypes.opsgenie2)}
+            enabled={this.getConfigEnabled(
+              configSections,
+              AlertTypes.opsgenie2
+            )}
+          />
+        )
+      case AlertTypes.pagerduty:
+        return (
+          <PagerDutyConfig
+            onSave={this.handleSaveConfig(AlertTypes.pagerduty)}
+            config={this.getSectionElement(
+              configSections,
+              AlertTypes.pagerduty
+            )}
+            onTest={this.handleTestConfig(AlertTypes.pagerduty)}
+            enabled={this.getConfigEnabled(
+              configSections,
+              AlertTypes.pagerduty
+            )}
+          />
+        )
+      case AlertTypes.pagerduty2:
+        return (
+          <PagerDuty2Config
+            onSave={this.handleSaveConfig(AlertTypes.pagerduty2)}
+            config={this.getSectionElement(
+              configSections,
+              AlertTypes.pagerduty2
+            )}
+            onTest={this.handleTestConfig(AlertTypes.pagerduty2)}
+            enabled={this.getConfigEnabled(
+              configSections,
+              AlertTypes.pagerduty2
+            )}
+          />
+        )
+      case AlertTypes.pushover:
+        return (
+          <PushoverConfig
+            onSave={this.handleSaveConfig(AlertTypes.pushover)}
+            config={this.getSectionElement(configSections, AlertTypes.pushover)}
+            onTest={this.handleTestConfig(AlertTypes.pushover)}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.pushover)}
+          />
+        )
+      case AlertTypes.sensu:
+        return (
+          <SensuConfig
+            onSave={this.handleSaveConfig(AlertTypes.sensu)}
+            config={this.getSectionElement(configSections, AlertTypes.sensu)}
+            onTest={this.handleTestConfig(AlertTypes.sensu)}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.sensu)}
+          />
+        )
+      case AlertTypes.slack:
+        const hasPagerDuty2: Section = get(
+          configSections,
+          AlertTypes.pagerduty2,
+          undefined
+        )
+        const hasOpsGenie2: Section = get(
+          configSections,
+          AlertTypes.opsgenie2,
+          undefined
+        )
+        // if kapacitor supports pagerduty2 and opsgenie2, its at least v1.5
+        const isMultipleConfigsSupported: boolean =
+          !_.isUndefined(hasPagerDuty2) && !_.isUndefined(hasOpsGenie2)
+        return (
+          <SlackConfigs
+            configs={this.getSectionElements(configSections, AlertTypes.slack)}
+            onSave={this.handleSaveConfig(AlertTypes.slack)}
+            onTest={this.handleTestConfig(AlertTypes.slack)}
+            onDelete={this.handleDeleteConfig(AlertTypes.slack)}
+            onEnabled={this.getSpecificConfigEnabled(
+              configSections,
+              AlertTypes.slack
+            )}
+            isMultipleConfigsSupported={isMultipleConfigsSupported}
+          />
+        )
+
+      case AlertTypes.smtp:
+        return (
+          <SMTPConfig
+            onSave={this.handleSaveConfig(AlertTypes.smtp)}
+            config={this.getSectionElement(configSections, AlertTypes.smtp)}
+            onTest={this.handleTestConfig(AlertTypes.smtp)}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.smtp)}
+          />
+        )
+      case AlertTypes.talk:
+        return (
+          <TalkConfig
+            onSave={this.handleSaveConfig(AlertTypes.talk)}
+            config={this.getSectionElement(configSections, AlertTypes.talk)}
+            onTest={this.handleTestConfig(AlertTypes.talk)}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.talk)}
+          />
+        )
+      case AlertTypes.telegram:
+        return (
+          <TelegramConfig
+            onSave={this.handleSaveConfig(AlertTypes.telegram)}
+            config={this.getSectionElement(configSections, AlertTypes.telegram)}
+            onTest={this.handleTestConfig(AlertTypes.telegram)}
+            enabled={this.getConfigEnabled(configSections, AlertTypes.telegram)}
+          />
+        )
+      case AlertTypes.victorops:
+        return (
+          <VictorOpsConfig
+            onSave={this.handleSaveConfig(AlertTypes.victorops)}
+            config={this.getSectionElement(
+              configSections,
+              AlertTypes.victorops
+            )}
+            onTest={this.handleTestConfig(AlertTypes.victorops)}
+            enabled={this.getConfigEnabled(
+              configSections,
+              AlertTypes.victorops
+            )}
+          />
+        )
+    }
   }
 
   private refreshKapacitorConfig = async (
@@ -433,11 +428,29 @@ class AlertTabs extends PureComponent<Props, State> {
     }
   }
 
-  private getSection = (sections: Sections, section: string): Element => {
+  private getSectionElement = (
+    sections: Sections,
+    section: string
+  ): Element => {
     return _.get(sections, [section, 'elements', '0'], null)
   }
 
-  private getEnabled = (sections: Sections, section: string): boolean => {
+  private getSectionElements = (
+    sections: Sections,
+    section: string
+  ): Element[] => {
+    return _.get(sections, [section, 'elements'], null)
+  }
+
+  private getConfigEnabled = (sections: Sections, section: string): boolean => {
+    if (section === AlertTypes.slack) {
+      const configElements: Section[] = get(sections, `${section}.elements`, [])
+      const enabledConfigElements = configElements.filter(e => {
+        const enabled: boolean = get(e, 'options.enabled', false)
+        return enabled
+      })
+      return enabledConfigElements.length > 0
+    }
     return _.get(
       sections,
       [section, 'elements', '0', 'options', 'enabled'],
@@ -457,17 +470,42 @@ class AlertTabs extends PureComponent<Props, State> {
     )
   }
 
+  private getSpecificConfigEnabled = (sections: Sections, section: string) => (
+    specificConfig: string
+  ): boolean => {
+    const elements: Element[] = this.getSectionElements(sections, section)
+    const elementIndex = elements.findIndex(
+      element => _.get(element, ['options', 'workspace']) === specificConfig
+    )
+    return _.get(
+      sections,
+      [section, 'elements', elementIndex.toString(), 'options', 'enabled'],
+      false
+    )
+  }
+
   private handleSaveConfig = (section: string) => async (
-    properties
+    properties: ServiceProperties,
+    isNewConfigInSection?: boolean,
+    specificConfig?: string
   ): Promise<boolean> => {
     if (section !== '') {
       const propsToSend = this.sanitizeProperties(section, properties)
       try {
-        await updateKapacitorConfigSection(
-          this.props.kapacitor,
-          section,
-          propsToSend
-        )
+        if (isNewConfigInSection) {
+          await addKapacitorConfigInSection(
+            this.props.kapacitor,
+            section,
+            propsToSend
+          )
+        } else {
+          await updateKapacitorConfigSection(
+            this.props.kapacitor,
+            section,
+            propsToSend,
+            specificConfig
+          )
+        }
         this.refreshKapacitorConfig(this.props.kapacitor)
         this.props.notify(notifyAlertEndpointSaved(section))
         return true
@@ -480,8 +518,10 @@ class AlertTabs extends PureComponent<Props, State> {
       }
     }
   }
+
   private handleTestConfig = (section: string, options?: object) => async (
-    e: MouseEvent<HTMLButtonElement>
+    e: MouseEvent<HTMLButtonElement>,
+    specificConfigOptions?: SpecificConfigOptions
   ): Promise<void> => {
     e.preventDefault()
 
@@ -489,7 +529,8 @@ class AlertTabs extends PureComponent<Props, State> {
       const {data} = await testAlertOutput(
         this.props.kapacitor,
         section,
-        options
+        options,
+        specificConfigOptions
       )
       if (data.success) {
         this.props.notify(notifyTestAlertSent(section))
@@ -501,9 +542,36 @@ class AlertTabs extends PureComponent<Props, State> {
     }
   }
 
-  private sanitizeProperties = (section: string, properties: Props): Props => {
+  private handleDeleteConfig = (section: string) => async (
+    specificConfig: string
+  ): Promise<void> => {
+    try {
+      await deleteKapacitorConfigInSection(
+        this.props.kapacitor,
+        section,
+        specificConfig
+      )
+
+      await this.refreshKapacitorConfig(this.props.kapacitor)
+
+      this.props.notify(notifyAlertEndpointDeleted(section, specificConfig))
+    } catch (error) {
+      const errorMsg = _.join(_.drop(_.split(error, ': '), 2), ': ')
+      this.props.notify(
+        notifyAlertEndpointDeleteFailed(section, specificConfig, errorMsg)
+      )
+    }
+  }
+
+  private sanitizeProperties = (
+    section: string,
+    properties: ServiceProperties
+  ): ServiceProperties => {
     const cleanProps = {enabled: true, ...properties}
-    const {redacted} = this.getSection(this.state.configSections, section)
+    const {redacted} = this.getSectionElement(
+      this.state.configSections,
+      section
+    )
     if (redacted && redacted.length) {
       redacted.forEach(badProp => {
         if (properties[badProp] === 'true') {
@@ -515,21 +583,29 @@ class AlertTabs extends PureComponent<Props, State> {
     return cleanProps
   }
 
-  private getInitialIndex = (
-    supportedConfigs: SupportedConfig,
-    hash: string
-  ): number => {
-    const index = _.indexOf(_.keys(supportedConfigs), _.replace(hash, '#', ''))
+  private getInitialIndex = (hash: string): number => {
+    const index = _.indexOf(_.keys(SupportedServices), _.replace(hash, '#', ''))
     return index >= 0 ? index : 0
   }
 
-  private isSupportedService = config => {
-    return (
-      config &&
-      this.state.services.find(service => {
-        return service.name === _.toLower(config.type)
-      })
+  private isSupportedService = (serviceType: string): boolean => {
+    const {services, configSections} = this.state
+    const foundKapacitorService: Service = services.find(service => {
+      return service.name === serviceType
+    })
+
+    const foundSupportedService: string = SupportedServices.find(
+      service => service === serviceType
     )
+
+    const foundSection: Section = _.get(configSections, serviceType, undefined)
+
+    const isSupported: boolean =
+      !_.isUndefined(foundKapacitorService) &&
+      !_.isUndefined(foundSupportedService) &&
+      !_.isUndefined(foundSection)
+
+    return isSupported
   }
 }
 

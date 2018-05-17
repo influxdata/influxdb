@@ -516,6 +516,20 @@ export const notifyAlertEndpointSaveFailed = (endpoint, errorMessage) => ({
   message: `There was an error saving the alert configuration for ${endpoint}: ${errorMessage}`,
 })
 
+export const notifyAlertEndpointDeleteFailed = (
+  endpoint,
+  config,
+  errorMessage
+) => ({
+  ...defaultErrorNotification,
+  message: `There was an error deleting the alert configuration for ${endpoint}/${config}: ${errorMessage}`,
+})
+
+export const notifyAlertEndpointDeleted = (endpoint, config) => ({
+  ...defaultSuccessNotification,
+  message: `Alert configuration for ${endpoint}/${config} deleted successfully.`,
+})
+
 export const notifyTestAlertSent = endpoint => ({
   ...defaultSuccessNotification,
   duration: TEN_SECONDS,

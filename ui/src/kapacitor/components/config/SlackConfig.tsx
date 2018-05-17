@@ -1,26 +1,33 @@
 import _ from 'lodash'
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Properties {
-  channel: string
-  url: string
-}
+import {SlackProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
     url: boolean
     channel: string
-    enabled: boolean
+    workspace: string
   }
 }
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
-  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  onSave: (
+    properties: SlackProperties,
+    isNewConfigInSection: boolean,
+    specificConfig: string
+  ) => void
+  onTest: (
+    e: MouseEvent<HTMLButtonElement>,
+    specificConfigOptions: Partial<SlackProperties>
+  ) => void
+  onDelete: (specificConfig: string, workspaceID: string) => void
   enabled: boolean
+  isNewConfig: boolean
+  workspaceID: string
+  isDefaultConfig: boolean
 }
 
 interface State {
@@ -32,6 +39,7 @@ interface State {
 class SlackConfig extends PureComponent<Props, State> {
   private url: HTMLInputElement
   private channel: HTMLInputElement
+  private workspace: HTMLInputElement
 
   constructor(props) {
     super(props)
@@ -42,13 +50,35 @@ class SlackConfig extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {url, channel} = this.props.config.options
+    const {
+      config: {
+        options: {url, channel, workspace},
+      },
+      isNewConfig,
+    } = this.props
     const {testEnabled, enabled} = this.state
+
+    const isNickNameEnabled = isNewConfig && !testEnabled
 
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
-          <label htmlFor="slack-url">
+          <label htmlFor={`${this.workspaceID}-nickname`}>
+            Nickname this Configuration
+          </label>
+          <input
+            className="form-control"
+            id={`${this.workspaceID}-nickname`}
+            type="text"
+            placeholder={this.nicknamePlaceholder}
+            ref={r => (this.workspace = r)}
+            defaultValue={workspace || ''}
+            onChange={this.disableTest}
+            disabled={!isNickNameEnabled}
+          />
+        </div>
+        <div className="form-group col-xs-12">
+          <label htmlFor={`${this.workspaceID}-url`}>
             Slack Webhook URL (
             <a href="https://api.slack.com/incoming-webhooks" target="_">
               see more on Slack webhooks
@@ -57,7 +87,7 @@ class SlackConfig extends PureComponent<Props, State> {
           </label>
           <RedactedInput
             defaultValue={url}
-            id="url"
+            id={`${this.workspaceID}-url`}
             refFunc={this.handleUrlRef}
             disableTest={this.disableTest}
             isFormEditing={!testEnabled}
@@ -65,10 +95,12 @@ class SlackConfig extends PureComponent<Props, State> {
         </div>
 
         <div className="form-group col-xs-12">
-          <label htmlFor="slack-channel">Slack Channel (optional)</label>
+          <label htmlFor={`${this.workspaceID}-slack-channel`}>
+            Slack Channel (optional)
+          </label>
           <input
             className="form-control"
-            id="slack-channel"
+            id={`${this.workspaceID}-slack-channel`}
             type="text"
             placeholder="#alerts"
             ref={r => (this.channel = r)}
@@ -81,11 +113,13 @@ class SlackConfig extends PureComponent<Props, State> {
           <div className="form-control-static">
             <input
               type="checkbox"
-              id="disabled"
+              id={`${this.workspaceID}-disabled`}
               checked={enabled}
               onChange={this.handleEnabledChange}
             />
-            <label htmlFor="disabled">Configuration Enabled</label>
+            <label htmlFor={`${this.workspaceID}-disabled`}>
+              Configuration Enabled
+            </label>
           </div>
         </div>
 
@@ -93,24 +127,54 @@ class SlackConfig extends PureComponent<Props, State> {
           <button
             className="btn btn-primary"
             type="submit"
-            disabled={this.state.testEnabled}
+            disabled={testEnabled}
           >
             <span className="icon checkmark" />
             Save Changes
           </button>
           <button
             className="btn btn-primary"
-            disabled={!this.state.testEnabled || !enabled}
-            onClick={this.props.onTest}
+            disabled={!testEnabled || !enabled}
+            onClick={this.handleTest}
           >
             <span className="icon pulse-c" />
             Send Test Alert
           </button>
+          {!this.isDefaultConfig && (
+            <button className="btn btn-danger" onClick={this.handleDelete}>
+              <span className="icon trash" />
+              Delete
+            </button>
+          )}
+          <hr />
         </div>
-        <br />
-        <br />
       </form>
     )
+  }
+
+  private get nicknamePlaceholder(): string {
+    if (this.isDefaultConfig) {
+      return 'Only for additional Configurations'
+    }
+    return 'Must be different from previous Configurations'
+  }
+
+  private get isDefaultConfig(): boolean {
+    return this.props.isDefaultConfig
+  }
+
+  private get workspaceID(): string {
+    return this.props.workspaceID
+  }
+
+  private handleTest = (e: MouseEvent<HTMLButtonElement>) => {
+    const {
+      onTest,
+      config: {
+        options: {workspace, channel},
+      },
+    } = this.props
+    onTest(e, {workspace, channel})
   }
 
   private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -119,16 +183,29 @@ class SlackConfig extends PureComponent<Props, State> {
   }
 
   private handleSubmit = async e => {
+    const {isNewConfig} = this.props
     e.preventDefault()
-    const properties = {
+    const properties: SlackProperties = {
       url: this.url.value,
       channel: this.channel.value,
       enabled: this.state.enabled,
     }
-    const success = await this.props.onSave(properties)
+    if (isNewConfig) {
+      properties.workspace = this.workspace.value
+    }
+    const success = await this.props.onSave(
+      properties,
+      isNewConfig,
+      this.workspace.value
+    )
     if (success) {
       this.setState({testEnabled: true})
     }
+  }
+
+  private handleDelete = async e => {
+    e.preventDefault()
+    await this.props.onDelete(this.workspace.value, this.workspaceID)
   }
 
   private disableTest = () => {

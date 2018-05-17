@@ -1,3 +1,4 @@
+import {interval} from 'src/shared/constants'
 import {
   Source,
   CellQuery,
@@ -9,6 +10,7 @@ import {
 } from 'src/types'
 import {Axes, TableOptions, FieldName, DecimalPlaces} from 'src/types/dashboard'
 import {ColorString, ColorNumber} from 'src/types/colors'
+import {CellType} from 'src/types/dashboard'
 
 export const sourceLinks: SourceLinks = {
   self: '/chronograf/v1/sources/4',
@@ -160,7 +162,7 @@ export const cell: Cell = {
   name: 'Untitled Graph',
   queries: [query],
   axes,
-  type: 'line',
+  type: CellType.Line,
   colors: lineColors,
   legend: {},
   tableOptions,
@@ -192,45 +194,57 @@ export const timeRange: TimeRange = {
 export const userDefinedTemplateVariables: Template[] = [
   {
     tempVar: ':fields:',
+    type: 'fieldKeys',
+    label: '',
     values: [
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_guest',
       },
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_guest_nice',
       },
       {
         selected: true,
+        type: 'fieldKey',
         value: 'usage_idle',
       },
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_iowait',
       },
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_irq',
       },
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_nice',
       },
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_softirq',
       },
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_steal',
       },
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_system',
       },
       {
         selected: false,
+        type: 'fieldKey',
         value: 'usage_user',
       },
     ],
@@ -238,33 +252,42 @@ export const userDefinedTemplateVariables: Template[] = [
   },
   {
     tempVar: ':measurements:',
+    type: 'measurements',
+    label: '',
     values: [
       {
         selected: true,
+        type: 'measurement',
         value: 'cpu',
       },
       {
         selected: false,
+        type: 'measurement',
         value: 'disk',
       },
       {
         selected: false,
+        type: 'measurement',
         value: 'diskio',
       },
       {
         selected: false,
+        type: 'measurement',
         value: 'mem',
       },
       {
         selected: false,
+        type: 'measurement',
         value: 'processes',
       },
       {
         selected: false,
+        type: 'measurement',
         value: 'swap',
       },
       {
         selected: false,
+        type: 'measurement',
         value: 'system',
       },
     ],
@@ -272,37 +295,36 @@ export const userDefinedTemplateVariables: Template[] = [
   },
 ]
 
+const dashtimeTempVar: Template = {
+  id: 'dashtime',
+  tempVar: ':dashboardTime:',
+  type: 'constant',
+  values: [
+    {
+      value: 'now() - 5m',
+      type: 'constant',
+      selected: true,
+    },
+  ],
+  label: '',
+}
+const upperdashtimeTempVar: Template = {
+  id: 'upperdashtime',
+  tempVar: ':upperDashboardTime:',
+  type: 'constant',
+  values: [
+    {
+      value: 'now()',
+      type: 'constant',
+      selected: true,
+    },
+  ],
+  label: '',
+}
 export const predefinedTemplateVariables: Template[] = [
-  {
-    id: 'dashtime',
-    tempVar: ':dashboardTime:',
-    values: [
-      {
-        value: 'now() - 5m',
-        selected: true,
-      },
-    ],
-  },
-  {
-    id: 'upperdashtime',
-    tempVar: ':upperDashboardTime:',
-    values: [
-      {
-        value: 'now()',
-        selected: true,
-      },
-    ],
-  },
-  {
-    id: 'interval',
-    tempVar: ':interval:',
-    values: [
-      {
-        value: '333',
-        selected: true,
-      },
-    ],
-  },
+  {...dashtimeTempVar},
+  {...upperdashtimeTempVar},
+  {...interval},
 ]
 
 export const thresholdsListColors: ColorNumber[] = [

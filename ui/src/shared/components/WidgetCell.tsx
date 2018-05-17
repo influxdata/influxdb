@@ -6,12 +6,8 @@ import GettingStarted from 'src/status/components/GettingStarted'
 
 import {Cell} from 'src/types/dashboard'
 import {Source} from 'src/types/sources'
+import {TimeRange} from 'src/types/query'
 import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
-
-interface TimeRange {
-  lower: string
-  upper: string
-}
 
 interface Props {
   timeRange: TimeRange

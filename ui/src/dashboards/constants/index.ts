@@ -2,20 +2,27 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
+import {Cell, QueryConfig} from 'src/types'
+import {CellType, Dashboard, DecimalPlaces} from 'src/types/dashboard'
+import {TimeRange} from 'src/types/query'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
-export const UNTITLED_GRAPH = 'Untitled Graph'
+export const UNTITLED_GRAPH: string = 'Untitled Graph'
 
-export const TIME_FORMAT_TOOLTIP_LINK =
+export const TIME_FORMAT_TOOLTIP_LINK: string =
   'http://momentjs.com/docs/#/parsing/string-format/'
 
-export const DEFAULT_DECIMAL_PLACES = {
+export const DEFAULT_DECIMAL_PLACES: DecimalPlaces = {
   isEnforced: false,
   digits: 3,
 }
 
-export const DEFAULT_TIME_FIELD = {
+export interface TimeField {
+  internalName: string
+  displayName: string
+  visible: boolean
+}
+export const DEFAULT_TIME_FIELD: TimeField = {
   internalName: 'time',
   displayName: '',
   visible: true,
@@ -28,10 +35,10 @@ export const DEFAULT_TABLE_OPTIONS = {
   fixFirstColumn: DEFAULT_FIX_FIRST_COLUMN,
 }
 
-export const DEFAULT_TIME_FORMAT = 'MM/DD/YYYY HH:mm:ss'
-export const TIME_FORMAT_CUSTOM = 'Custom'
+export const DEFAULT_TIME_FORMAT: string = 'MM/DD/YYYY HH:mm:ss'
+export const TIME_FORMAT_CUSTOM: string = 'Custom'
 
-export const FORMAT_OPTIONS = [
+export const FORMAT_OPTIONS: Array<{text: string}> = [
   {text: DEFAULT_TIME_FORMAT},
   {text: 'MM/DD/YYYY HH:mm:ss.SSS'},
   {text: 'YYYY-MM-DD HH:mm:ss'},
@@ -42,13 +49,17 @@ export const FORMAT_OPTIONS = [
   {text: TIME_FORMAT_CUSTOM},
 ]
 
-export const NEW_DEFAULT_DASHBOARD_CELL = {
+export type NewDefaultCell = Pick<
+  Cell,
+  Exclude<keyof Cell, 'id' | 'axes' | 'colors' | 'links' | 'legend'>
+>
+export const NEW_DEFAULT_DASHBOARD_CELL: NewDefaultCell = {
   x: 0,
   y: 0,
   w: 4,
   h: 4,
   name: UNTITLED_GRAPH,
-  type: CELL_TYPE_LINE,
+  type: CellType.Line,
   queries: [],
   tableOptions: DEFAULT_TABLE_OPTIONS,
   timeFormat: DEFAULT_TIME_FORMAT,
@@ -56,7 +67,20 @@ export const NEW_DEFAULT_DASHBOARD_CELL = {
   fieldOptions: [DEFAULT_TIME_FIELD],
 }
 
-export const EMPTY_DASHBOARD = {
+interface EmptyDefaultDashboardCell {
+  x: number
+  y: number
+  queries: QueryConfig[]
+  name: string
+  type: CellType
+}
+type EmptyDefaultDashboard = Pick<
+  Dashboard,
+  Exclude<keyof Dashboard, 'templates' | 'links' | 'organization' | 'cells'>
+> & {
+  cells: EmptyDefaultDashboardCell[]
+}
+export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   id: 0,
   name: '',
   cells: [
@@ -65,12 +89,18 @@ export const EMPTY_DASHBOARD = {
       y: 0,
       queries: [],
       name: 'Loading...',
-      type: CELL_TYPE_LINE,
+      type: CellType.Line,
     },
   ],
 }
 
-export const NEW_DASHBOARD = {
+type NewDefaultDashboard = Pick<
+  Dashboard,
+  Exclude<keyof Dashboard, 'id' | 'templates' | 'organization' | 'cells'> & {
+    cells: NewDefaultCell[]
+  }
+>
+export const NEW_DASHBOARD: NewDefaultDashboard = {
   name: 'Name This Dashboard',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
@@ -140,8 +170,11 @@ export const removeUnselectedTemplateValues = templates => {
   })
 }
 
-export const TYPE_QUERY_CONFIG = 'queryConfig'
-export const TYPE_SHIFTED = 'shifted queryConfig'
-export const TYPE_IFQL = 'ifql'
-export const DASHBOARD_NAME_MAX_LENGTH = 50
-export const TEMPLATE_RANGE = {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
+export const TYPE_QUERY_CONFIG: string = 'queryConfig'
+export const TYPE_SHIFTED: string = 'shifted queryConfig'
+export const TYPE_IFQL: string = 'ifql'
+export const DASHBOARD_NAME_MAX_LENGTH: number = 50
+export const TEMPLATE_RANGE: TimeRange = {
+  upper: null,
+  lower: TEMP_VAR_DASHBOARD_TIME,
+}

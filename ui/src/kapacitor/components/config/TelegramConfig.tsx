@@ -5,14 +5,7 @@ import {TELEGRAM_CHAT_ID_TIP, TELEGRAM_TOKEN_TIP} from 'src/kapacitor/copy'
 
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Properties {
-  'chat-id': string
-  'disable-notification': boolean
-  'disable-web-page-preview': boolean
-  'parse-mode': string
-  token: string
-}
+import {TelegramProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -27,7 +20,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: TelegramProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -231,7 +224,7 @@ class TelegramConfig extends PureComponent<Props, State> {
       parseMode = 'Markdown'
     }
 
-    const properties = {
+    const properties: TelegramProperties = {
       'chat-id': this.chatID.value,
       'disable-notification': this.disableNotification.checked,
       'disable-web-page-preview': this.disableWebPagePreview.checked,

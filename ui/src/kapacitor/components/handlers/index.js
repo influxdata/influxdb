@@ -7,6 +7,7 @@ import HipchatHandler from './HipchatHandler'
 import KafkaHandler from './KafkaHandler'
 import OpsgenieHandler from './OpsgenieHandler'
 import PagerdutyHandler from './PagerdutyHandler'
+import Pagerduty2Handler from './Pagerduty2Handler'
 import PushoverHandler from './PushoverHandler'
 import SensuHandler from './SensuHandler'
 import SlackHandler from './SlackHandler'
@@ -26,6 +27,7 @@ export {
   KafkaHandler,
   OpsgenieHandler,
   PagerdutyHandler,
+  Pagerduty2Handler,
   PushoverHandler,
   SensuHandler,
   SlackHandler,

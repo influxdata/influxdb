@@ -11,6 +11,7 @@ import {
   KafkaHandler,
   OpsgenieHandler,
   PagerdutyHandler,
+  Pagerduty2Handler,
   PushoverHandler,
   SensuHandler,
   SlackHandler,
@@ -131,7 +132,7 @@ class HandlerOptions extends Component {
         )
       case 'pagerDuty2':
         return (
-          <PagerdutyHandler
+          <Pagerduty2Handler
             selectedHandler={selectedHandler}
             handleModifyHandler={handleModifyHandler}
             onGoToConfig={onGoToConfig('pagerduty2')}

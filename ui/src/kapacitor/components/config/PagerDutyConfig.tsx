@@ -3,10 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Properties {
-  'service-key': string
-  url: string
-}
+import {PagerDutyProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -18,7 +15,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: PagerDutyProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -116,7 +113,7 @@ class PagerDutyConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: PagerDutyProperties = {
       'service-key': this.serviceKey.value,
       url: this.url.value,
       enabled: this.state.enabled,

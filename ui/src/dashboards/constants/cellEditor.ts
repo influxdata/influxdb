@@ -1,17 +1,8 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
-import {
-  CELL_TYPE_LINE,
-  CELL_TYPE_STACKED,
-  CELL_TYPE_STEPPLOT,
-  CELL_TYPE_BAR,
-  CELL_TYPE_LINE_PLUS_SINGLE_STAT,
-  CELL_TYPE_SINGLE_STAT,
-  CELL_TYPE_GAUGE,
-  CELL_TYPE_TABLE,
-} from 'src/dashboards/graphics/graph'
+import {CellType} from 'src/types/dashboard'
 
-export const initializeOptions = cellType => {
+export const initializeOptions = (cellType: CellType) => {
   switch (cellType) {
     case 'table':
       return DEFAULT_TABLE_OPTIONS
@@ -35,24 +26,29 @@ export const getCellTypeColors = ({
   gaugeColors,
   thresholdsListColors,
   lineColors,
+}: {
+  cellType: CellType
+  gaugeColors
+  thresholdsListColors
+  lineColors
 }) => {
   let colors = []
 
   switch (cellType) {
-    case CELL_TYPE_GAUGE: {
+    case CellType.Gauge: {
       colors = stringifyColorValues(gaugeColors)
       break
     }
-    case CELL_TYPE_SINGLE_STAT:
-    case CELL_TYPE_TABLE: {
+    case CellType.SingleStat:
+    case CellType.Table: {
       colors = stringifyColorValues(thresholdsListColors)
       break
     }
-    case CELL_TYPE_BAR:
-    case CELL_TYPE_LINE:
-    case CELL_TYPE_LINE_PLUS_SINGLE_STAT:
-    case CELL_TYPE_STACKED:
-    case CELL_TYPE_STEPPLOT: {
+    case CellType.Bar:
+    case CellType.Line:
+    case CellType.LinePlusSingleStat:
+    case CellType.Stacked:
+    case CellType.StepPlot: {
       colors = stringifyColorValues(lineColors)
     }
   }

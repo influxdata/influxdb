@@ -4,12 +4,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Properties {
-  environment: string
-  origin: string
-  token: string
-  url: string
-}
+import {AlertaProperties} from 'src/types/kapacitor'
 
 interface Config {
   options: {
@@ -23,7 +18,7 @@ interface Config {
 
 interface Props {
   config: Config
-  onSave: (properties: Properties) => void
+  onSave: (properties: AlertaProperties) => void
   onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
   enabled: boolean
 }
@@ -143,7 +138,7 @@ class AlertaConfig extends PureComponent<Props, State> {
   private handleSubmit = async e => {
     e.preventDefault()
 
-    const properties = {
+    const properties: AlertaProperties = {
       environment: this.environment.value,
       origin: this.origin.value,
       token: this.token.value,

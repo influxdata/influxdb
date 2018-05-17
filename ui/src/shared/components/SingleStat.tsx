@@ -7,6 +7,7 @@ import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'src/shared/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {ColorNumber} from 'src/types/colors'
+import {CellType} from 'src/types/dashboard'
 import {Data} from 'src/types/dygraphs'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -92,7 +93,7 @@ class SingleStat extends PureComponent<Props> {
     const {bgColor, textColor} = generateThresholdsListHexs({
       colors,
       lastValue,
-      cellType: lineGraph ? 'line-plus-single-stat' : 'single-stat',
+      cellType: lineGraph ? CellType.LinePlusSingleStat : CellType.SingleStat,
     })
 
     const backgroundColor = bgColor

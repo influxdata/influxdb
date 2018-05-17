@@ -136,7 +136,7 @@ option.
 ## Versions
 
 The most recent version of Chronograf is
-[v1.4.3.1](https://www.influxdata.com/downloads/).
+[v1.5.0.0](https://www.influxdata.com/downloads/).
 
 Spotted a bug or have a feature request? Please open
 [an issue](https://github.com/influxdata/chronograf/issues/new)!
@@ -178,7 +178,7 @@ By default, chronograf runs on port `8888`.
 To get started right away with Docker, you can pull down our latest release:
 
 ```sh
-docker pull chronograf:1.4.3.1
+docker pull chronograf:1.5.0.0
 ```
 
 ### From Source
