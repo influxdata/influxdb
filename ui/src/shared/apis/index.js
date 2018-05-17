@@ -1,4 +1,5 @@
 import AJAX from 'utils/ajax'
+import {AlertTypes} from 'src/kapacitor/constants'
 
 export function getSources() {
   return AJAX({
@@ -155,12 +156,20 @@ export const getKapacitorConfigSection = (kapacitor, section) => {
   return kapacitorProxy(kapacitor, 'GET', `/kapacitor/v1/config/${section}`, '')
 }
 
-export function updateKapacitorConfigSection(kapacitor, section, properties) {
+export function updateKapacitorConfigSection(
+  kapacitor,
+  section,
+  properties,
+  specificConfig
+) {
+  const config = specificConfig || ''
+  const path = `/kapacitor/v1/config/${section}/${config}`
+
   const params = {
     method: 'POST',
     url: kapacitor.links.proxy,
     params: {
-      path: `/kapacitor/v1/config/${section}/`,
+      path,
     },
     data: {
       set: properties,
@@ -173,13 +182,64 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
   return AJAX(params)
 }
 
-export const testAlertOutput = async (kapacitor, outputName, options) => {
+export function addKapacitorConfigInSection(kapacitor, section, properties) {
+  return AJAX({
+    method: 'POST',
+    url: kapacitor.links.proxy,
+    params: {
+      path: `/kapacitor/v1/config/${section}/`,
+    },
+    data: {
+      add: properties,
+    },
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+export function deleteKapacitorConfigInSection(
+  kapacitor,
+  section,
+  specificConfig
+) {
+  const path = `/kapacitor/v1/config/${section}`
+
+  return AJAX({
+    method: 'POST',
+    url: kapacitor.links.proxy,
+    params: {
+      path,
+    },
+    data: {
+      remove: [specificConfig],
+    },
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+export const testAlertOutput = async (
+  kapacitor,
+  outputName,
+  options,
+  specificConfigOptions
+) => {
   try {
     const {
       data: {services},
     } = await kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests')
     const service = services.find(s => s.name === outputName)
-    return kapacitorProxy(kapacitor, 'POST', service.link.href, options)
+
+    let body = {}
+    if (options) {
+      body = options
+    } else if (outputName === AlertTypes.slack) {
+      body = specificConfigOptions
+    }
+
+    return kapacitorProxy(kapacitor, 'POST', service.link.href, body)
   } catch (error) {
     console.error(error)
   }

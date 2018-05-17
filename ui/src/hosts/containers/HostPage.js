@@ -14,7 +14,7 @@ import {generateForHosts} from 'src/utils/tempVars'
 import {timeRanges} from 'shared/data/timeRanges'
 import {
   getLayouts,
-  getAppsForHosts,
+  getAppsForHost,
   getMeasurementsForHost,
   getAllHosts,
 } from 'src/hosts/apis'
@@ -35,24 +35,33 @@ class HostPage extends Component {
     }
   }
 
-  async componentDidMount() {
-    const {source, params, location} = this.props
+  async fetchHostsAndMeasurements(layouts) {
+    const {source, params} = this.props
 
-    // fetching layouts and mappings can be done at the same time
-    const {
-      data: {layouts},
-    } = await getLayouts()
     const hosts = await getAllHosts(source.links.proxy, source.telegraf)
-    const newHosts = await getAppsForHosts(
+    const host = await getAppsForHost(
       source.links.proxy,
-      hosts,
+      params.hostID,
       layouts,
       source.telegraf
     )
 
     const measurements = await getMeasurementsForHost(source, params.hostID)
 
-    const host = newHosts[this.props.params.hostID]
+    return {host, hosts, measurements}
+  }
+
+  async componentDidMount() {
+    const {
+      data: {layouts},
+    } = await getLayouts()
+    const {location} = this.props
+
+    // fetching layouts and mappings can be done at the same time
+    const {hosts, host, measurements} = await this.fetchHostsAndMeasurements(
+      layouts
+    )
+
     const focusedApp = location.query.app
 
     const filteredLayouts = layouts.filter(layout => {
@@ -87,8 +96,13 @@ class HostPage extends Component {
     }
   }
 
-  renderLayouts = layouts => {
-    const {timeRange} = this.state
+  get layouts() {
+    const {timeRange, layouts} = this.state
+
+    if (layouts.length === 0) {
+      return ''
+    }
+
     const {source, autoRefresh, manualRefresh} = this.props
 
     const autoflowLayouts = layouts.filter(layout => !!layout.autoflow)
@@ -161,7 +175,7 @@ class HostPage extends Component {
       handleChooseAutoRefresh,
       handleClickPresentationButton,
     } = this.props
-    const {layouts, timeRange, hosts} = this.state
+    const {timeRange, hosts} = this.state
     const names = _.map(hosts, ({name}) => ({
       name,
       link: `/sources/${sourceID}/hosts/${name}`,
@@ -187,7 +201,7 @@ class HostPage extends Component {
           })}
         >
           <div className="container-fluid full-width dashboard">
-            {layouts.length > 0 ? this.renderLayouts(layouts) : ''}
+            {this.layouts}
           </div>
         </FancyScrollbar>
       </div>

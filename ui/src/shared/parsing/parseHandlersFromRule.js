@@ -47,7 +47,23 @@ export const parseAlertNodeList = rule => {
     rule.alertNodes,
     (acc, v, k) => {
       if (k in HANDLERS_TO_RULE && v.length > 0) {
-        acc.push(k)
+        if (k === 'slack') {
+          _.reduce(
+            v,
+            (alerts, alert) => {
+              const nickname = _.get(alert, 'workspace') || 'default'
+              if (!alerts[nickname]) {
+                const fullHandler = `${k} (${nickname})`
+                alerts[nickname] = fullHandler
+                acc.push(fullHandler)
+              }
+              return alerts
+            },
+            {}
+          )
+        } else {
+          acc.push(k)
+        }
       }
     },
     []

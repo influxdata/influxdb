@@ -62,7 +62,7 @@ class AlertsApp extends PureComponent<Props, State> {
   }
 
   // TODO: show a loading screen until we figure out if there is a kapacitor and fetch the alerts
-  public omponentDidMount() {
+  public componentDidMount() {
     const {source} = this.props
     AJAX({
       url: source.links.kapacitors,

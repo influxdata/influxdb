@@ -3,7 +3,7 @@ import React, {PureComponent, CSSProperties} from 'react'
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
 
-import {Table, Column, Cell} from 'fixed-data-table'
+import {Table, Column, Cell} from 'fixed-data-table-2'
 import Dropdown from 'src/shared/components/Dropdown'
 import CustomCell from 'src/data_explorer/components/CustomCell'
 import TabItem from 'src/data_explorer/components/TableTabItem'
@@ -225,7 +225,7 @@ class ChronoTable extends PureComponent<Props, State> {
     try {
       const {results} = await fetchTimeSeriesAsync({
         source: this.source,
-        query: query.text,
+        query,
         tempVars: TEMPLATES,
       })
 

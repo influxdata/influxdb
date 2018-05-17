@@ -22,8 +22,10 @@ import {
   changeDecimalPlaces,
 } from 'src/dashboards/actions/cellEditorOverlay'
 import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
-import {QueryConfig} from 'src/types/query'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+import {DecimalPlaces} from 'src/types/dashboard'
+import {QueryConfig} from 'src/types/query'
 
 interface DropdownOption {
   text: string
@@ -40,11 +42,6 @@ interface TableOptionsInterface {
   verticalTimeAxis: boolean
   sortBy: RenamableField
   fixFirstColumn: boolean
-}
-
-interface DecimalPlaces {
-  isEnforced: boolean
-  digits: number
 }
 
 interface Props {

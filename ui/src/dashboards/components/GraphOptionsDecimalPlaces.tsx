@@ -2,10 +2,7 @@ import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OptIn from 'src/shared/components/OptIn'
 
-interface DecimalPlaces {
-  isEnforced: boolean
-  digits: number
-}
+import {DecimalPlaces} from 'src/types/dashboard'
 
 interface Props extends DecimalPlaces {
   onDecimalPlacesChange: (decimalPlaces: DecimalPlaces) => void

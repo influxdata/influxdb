@@ -3,7 +3,11 @@ import _ from 'lodash'
 import {fastMap, fastReduce, fastFilter} from 'src/utils/fast'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
-import {DEFAULT_TIME_FIELD, DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
+import {
+  DEFAULT_TIME_FIELD,
+  DEFAULT_TIME_FORMAT,
+  TimeField,
+} from 'src/dashboards/constants'
 import {
   Sort,
   FieldOption,
@@ -116,7 +120,7 @@ export const computeFieldOptions = (
     DEFAULT_TIME_FIELD
   let astNames = [timeField]
   sortedLabels.forEach(({label}) => {
-    const field = {
+    const field: TimeField = {
       internalName: label,
       displayName: '',
       visible: true,

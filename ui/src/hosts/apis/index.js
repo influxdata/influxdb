@@ -122,6 +122,33 @@ export const getLayouts = () =>
     resource: 'layouts',
   })
 
+export const getAppsForHost = (proxyLink, host, appLayouts, telegrafDB) => {
+  const measurements = appLayouts.map(m => `^${m.measurement}$`).join('|')
+  const measurementsToApps = _.zipObject(
+    appLayouts.map(m => m.measurement),
+    appLayouts.map(({app}) => app)
+  )
+
+  return proxy({
+    source: proxyLink,
+    query: `show series from /${measurements}/ where host = '${host}'`,
+    db: telegrafDB,
+  }).then(resp => {
+    const result = {apps: [], tags: {}}
+    const allSeries = _.get(resp, 'data.results.0.series.0.values', [])
+
+    allSeries.forEach(([series]) => {
+      const seriesObj = parseSeries(series)
+      const measurement = seriesObj.measurement
+
+      result.apps = _.uniq(result.apps.concat(measurementsToApps[measurement]))
+      _.assign(result.tags, seriesObj.tags)
+    })
+
+    return result
+  })
+}
+
 export const getAppsForHosts = (proxyLink, hosts, appLayouts, telegrafDB) => {
   const measurements = appLayouts.map(m => `^${m.measurement}$`).join('|')
   const measurementsToApps = _.zipObject(

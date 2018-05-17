@@ -40,7 +40,7 @@ const TasksTable: SFC<TasksTableProps> = ({
       </tr>
     </thead>
     <tbody>
-      {_.sortBy(tasks, t => t.id.toLowerCase()).map(task => {
+      {_.sortBy(tasks, t => t.name.toLowerCase()).map(task => {
         return (
           <TaskRow
             key={task.id}
@@ -56,18 +56,6 @@ const TasksTable: SFC<TasksTableProps> = ({
 )
 
 export class TaskRow extends PureComponent<TaskRowProps> {
-  public handleClickRuleStatusEnabled(task: AlertRule) {
-    return () => {
-      this.props.onChangeRuleStatus(task)
-    }
-  }
-
-  public handleDelete(task: AlertRule) {
-    return () => {
-      this.props.onDelete(task)
-    }
-  }
-
   public render() {
     const {task, source} = this.props
 
@@ -91,7 +79,7 @@ export class TaskRow extends PureComponent<TaskRowProps> {
               className="form-control-static"
               type="checkbox"
               checked={task.status === 'enabled'}
-              onChange={this.handleClickRuleStatusEnabled(task)}
+              onChange={this.handleClickRuleStatusEnabled}
             />
             <label htmlFor={`kapacitor-task-row-task-enabled ${task.name}`} />
           </div>
@@ -102,11 +90,23 @@ export class TaskRow extends PureComponent<TaskRowProps> {
             type="btn-danger"
             size="btn-xs"
             customClass="table--show-on-row-hover"
-            confirmAction={this.handleDelete(task)}
+            confirmAction={this.handleDelete}
           />
         </td>
       </tr>
     )
+  }
+
+  private handleDelete = () => {
+    const {onDelete, task} = this.props
+
+    onDelete(task)
+  }
+
+  private handleClickRuleStatusEnabled = () => {
+    const {onChangeRuleStatus, task} = this.props
+
+    onChangeRuleStatus(task)
   }
 }
 

@@ -2168,7 +2168,7 @@ create-jest-runner@^0.3.0:
     throat "4.1.0"
     worker-farm "1.5.0"
 
-create-react-class@^15.5.1, create-react-class@^15.5.x, create-react-class@^15.6.2:
+create-react-class@^15.5.1, create-react-class@^15.5.2, create-react-class@^15.5.x:
   version "15.6.3"
   resolved "https://registry.yarnpkg.com/create-react-class/-/create-react-class-15.6.3.tgz#2d73237fb3f970ae6ebe011a9e66f46dbca80036"
   dependencies:
@@ -3476,12 +3476,12 @@ find-up@^2.0.0, find-up@^2.1.0:
   dependencies:
     locate-path "^2.0.0"
 
-fixed-data-table@^0.6.1:
-  version "0.6.5"
-  resolved "https://registry.yarnpkg.com/fixed-data-table/-/fixed-data-table-0.6.5.tgz#10f83adcf29f5fcf3f465b22ff297aba34c17b26"
+fixed-data-table-2@^0.8.13:
+  version "0.8.13"
+  resolved "https://registry.yarnpkg.com/fixed-data-table-2/-/fixed-data-table-2-0.8.13.tgz#d08bbb19917d9f6c819f9d020fd23d1263272cb6"
   dependencies:
-    create-react-class "^15.6.2"
-    prop-types "^15.5.0"
+    create-react-class "^15.5.2"
+    prop-types "^15.5.8"
 
 flat-cache@^1.2.1:
   version "1.3.0"
@@ -6972,7 +6972,7 @@ prop-types@15.5.8:
   dependencies:
     fbjs "^0.8.9"
 
-prop-types@15.x, prop-types@^15.5.0, prop-types@^15.5.10, prop-types@^15.5.4, prop-types@^15.5.6, prop-types@^15.6.0, prop-types@^15.6.1:
+prop-types@15.x, prop-types@^15.5.10, prop-types@^15.5.4, prop-types@^15.5.6, prop-types@^15.5.8, prop-types@^15.6.0, prop-types@^15.6.1:
   version "15.6.1"
   resolved "https://registry.yarnpkg.com/prop-types/-/prop-types-15.6.1.tgz#36644453564255ddda391191fb3a125cbdf654ca"
   dependencies:

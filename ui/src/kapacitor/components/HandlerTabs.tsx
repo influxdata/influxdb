@@ -1,9 +1,25 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC, MouseEvent} from 'react'
 import classnames from 'classnames'
 import uuid from 'uuid'
 
-const HandlerTabs = ({
+import {Handler} from 'src/types/kapacitor'
+
+interface HandlerWithText extends Handler {
+  text: string
+}
+
+interface Props {
+  handlersOnThisAlert: HandlerWithText[]
+  selectedHandler: HandlerWithText
+  handleChooseHandler: (
+    ep: HandlerWithText
+  ) => (event: MouseEvent<HTMLLIElement>) => void
+  handleRemoveHandler: (
+    ep: HandlerWithText
+  ) => (event: MouseEvent<HTMLButtonElement>) => void
+}
+
+const HandlerTabs: SFC<Props> = ({
   handlersOnThisAlert,
   selectedHandler,
   handleChooseHandler,
@@ -19,7 +35,7 @@ const HandlerTabs = ({
           })}
           onClick={handleChooseHandler(ep)}
         >
-          {ep.type}
+          {ep.text}
           <button
             className="endpoint-tab--delete"
             onClick={handleRemoveHandler(ep)}
@@ -28,14 +44,5 @@ const HandlerTabs = ({
       ))}
     </ul>
   ) : null
-
-const {shape, func, array} = PropTypes
-
-HandlerTabs.propTypes = {
-  handlersOnThisAlert: array,
-  selectedHandler: shape({}),
-  handleChooseHandler: func.isRequired,
-  handleRemoveHandler: func.isRequired,
-}
 
 export default HandlerTabs

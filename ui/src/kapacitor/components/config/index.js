@@ -3,6 +3,7 @@ import HipChatConfig from './HipChatConfig'
 import KafkaConfig from './KafkaConfig'
 import OpsGenieConfig from './OpsGenieConfig'
 import PagerDutyConfig from './PagerDutyConfig'
+import PagerDuty2Config from './PagerDuty2Config'
 import PushoverConfig from './PushoverConfig'
 import SensuConfig from './SensuConfig'
 import SlackConfig from './SlackConfig'
@@ -17,6 +18,7 @@ export {
   KafkaConfig,
   OpsGenieConfig,
   PagerDutyConfig,
+  PagerDuty2Config,
   PushoverConfig,
   SensuConfig,
   SlackConfig,

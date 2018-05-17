@@ -17,31 +17,13 @@ import {
   validateGaugeColors,
   validateThresholdsListColors,
   getThresholdsListType,
-} from 'shared/constants/thresholds'
+} from 'src/shared/constants/thresholds'
 import {validateLineColors} from 'src/shared/constants/graphColorPalettes'
 
-import {CELL_TYPE_LINE} from 'src/dashboards/graphics/graph'
-import {UNTITLED_GRAPH} from 'src/dashboards/constants'
-
-const defaultCellType = CELL_TYPE_LINE
-const defaultCellName = UNTITLED_GRAPH
-const defaultCellAxes = {
-  y: {
-    base: '10',
-    bounds: ['0', ''],
-    label: '',
-    prefix: '',
-    scale: 'linear',
-    suffix: '',
-  },
-}
+import {cell, axes} from 'test/fixtures'
 
 const defaultCell = {
-  axes: defaultCellAxes,
-  colors: [],
-  name: defaultCellName,
-  type: defaultCellType,
-  tableOptions: DEFAULT_TABLE_OPTIONS,
+  ...cell,
 }
 
 const defaultThresholdsListType = getThresholdsListType(defaultCell.colors)
@@ -77,15 +59,15 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
   })
 
   it('should change the cell editor visualization type', () => {
-    const actual = reducer(initialState, changeCellType(defaultCellType))
-    const expected = defaultCellType
+    const actual = reducer(initialState, changeCellType(defaultCell.type))
+    const expected = defaultCell.type
 
     expect(actual.cell.type).toBe(expected)
   })
 
   it('should change the name of the cell', () => {
-    const actual = reducer(initialState, renameCell(defaultCellName))
-    const expected = defaultCellName
+    const actual = reducer(initialState, renameCell(defaultCell.name))
+    const expected = defaultCell.name
 
     expect(actual.cell.name).toBe(expected)
   })
@@ -118,8 +100,8 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
   })
 
   it('should update the cell axes', () => {
-    const actual = reducer(initialState, updateAxes(defaultCellAxes))
-    const expected = defaultCellAxes
+    const actual = reducer(initialState, updateAxes(axes))
+    const expected = axes
 
     expect(actual.cell.axes).toBe(expected)
   })
