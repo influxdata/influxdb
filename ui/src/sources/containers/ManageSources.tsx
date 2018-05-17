@@ -65,8 +65,8 @@ class ManageSources extends PureComponent<Props> {
             <InfluxTable
               source={source}
               sources={sources}
-              handleDeleteKapacitor={deleteKapacitor}
-              handleDeleteSource={this.handleDeleteSource}
+              deleteKapacitor={deleteKapacitor}
+              onDeleteSource={this.handleDeleteSource}
               setActiveKapacitor={this.handleSetActiveKapacitor}
             />
             <p className="version-number">Chronograf Version: {VERSION}</p>
