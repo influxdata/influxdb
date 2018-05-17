@@ -56,11 +56,11 @@ func init() {
 	viper.BindEnv("STORAGE_HOSTS")
 	viper.BindPFlag("STORAGE_HOSTS", ifqlCmd.PersistentFlags().Lookup("storage-hosts"))
 
-	ifqlCmd.PersistentFlags().String("bucket-name", "", "The bucket to access. ")
+	ifqlCmd.PersistentFlags().String("bucket-name", "defaultbucket", "The bucket to access. ")
 	viper.BindEnv("BUCKET_NAME")
 	viper.BindPFlag("BUCKET_NAME", ifqlCmd.PersistentFlags().Lookup("bucket-name"))
 
-	ifqlCmd.PersistentFlags().String("organization-name", "", "The organization name to use.")
+	ifqlCmd.PersistentFlags().String("organization-name", "defaultorgname", "The organization name to use.")
 	viper.BindEnv("ORGANIZATION_NAME")
 	viper.BindPFlag("ORGANIZATION_NAME", ifqlCmd.PersistentFlags().Lookup("organization-name"))
 
@@ -133,7 +133,11 @@ func injectDeps(deps execute.Dependencies) error {
 	if err != nil {
 		return err
 	}
-	bucketSvc := StaticBucketService{Name: bucketName[0]}
+	orgName, err := getStrList("ORGANIZATION_NAME")
+	if err != nil {
+		return err
+	}
+	bucketSvc := StaticBucketService{BucketName: bucketName[0], OrgName: orgName}
 
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:       sr,
@@ -204,8 +208,10 @@ func (s *StaticOrganizationService) FindOrganization(ctx context.Context, filter
 }
 
 func (s *StaticOrganizationService) FindOrganizations(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
+	var id platform.ID
+	id.DecodeFromString(s.Name)
 	po := platform.Organization{
-		ID:   platform.ID("staticorgid"),
+		ID:   id,
 		Name: "staticorganization",
 	}
 
@@ -228,7 +234,8 @@ func (s *StaticOrganizationService) DeleteOrganization(ctx context.Context, id p
 
 // StaticBucketService connects to Influx via HTTP using tokens to manage buckets
 type StaticBucketService struct {
-	Name string
+	BucketName string
+	OrgName    string
 }
 
 // FindBucketByID returns a single bucket by ID.
@@ -253,6 +260,11 @@ func (s *StaticBucketService) FindBucket(ctx context.Context, filter platform.Bu
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *StaticBucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+	var bucketid platform.ID
+	bucketid.DecodeFromString(s.BucketName)
+
+	var orgid platform.ID
+	orgid.DecodeFromString(s.OrgName)
 	bo := platform.Bucket{
 		ID:              platform.ID("staticbucketid"),
 		OrganizationID:  platform.ID("staticorgid"),
