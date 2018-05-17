@@ -1520,6 +1520,7 @@ type FloatIterator struct {
 	Closed  bool
 	Delay   time.Duration
 	stats   query.IteratorStats
+	point   query.FloatPoint
 }
 
 func (itr *FloatIterator) Stats() query.IteratorStats { return itr.stats }
@@ -1549,7 +1550,20 @@ func (itr *FloatIterator) Next() (*query.FloatPoint, error) {
 	}
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
-	return v, nil
+
+	// Copy the returned point into a static point that we return.
+	// This actual storage engine returns a point from the same memory location
+	// so we need to test that the query engine does not misuse this memory.
+	itr.point.Name = v.Name
+	itr.point.Tags = v.Tags
+	itr.point.Time = v.Time
+	itr.point.Value = v.Value
+	itr.point.Nil = v.Nil
+	if len(itr.point.Aux) != len(v.Aux) {
+		itr.point.Aux = make([]interface{}, len(v.Aux))
+	}
+	copy(itr.point.Aux, v.Aux)
+	return &itr.point, nil
 }
 
 func FloatIterators(inputs []*FloatIterator) []query.Iterator {
@@ -1565,6 +1579,7 @@ type IntegerIterator struct {
 	Points []query.IntegerPoint
 	Closed bool
 	stats  query.IteratorStats
+	point  query.IntegerPoint
 }
 
 func (itr *IntegerIterator) Stats() query.IteratorStats { return itr.stats }
@@ -1578,7 +1593,20 @@ func (itr *IntegerIterator) Next() (*query.IntegerPoint, error) {
 
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
-	return v, nil
+
+	// Copy the returned point into a static point that we return.
+	// This actual storage engine returns a point from the same memory location
+	// so we need to test that the query engine does not misuse this memory.
+	itr.point.Name = v.Name
+	itr.point.Tags = v.Tags
+	itr.point.Time = v.Time
+	itr.point.Value = v.Value
+	itr.point.Nil = v.Nil
+	if len(itr.point.Aux) != len(v.Aux) {
+		itr.point.Aux = make([]interface{}, len(v.Aux))
+	}
+	copy(itr.point.Aux, v.Aux)
+	return &itr.point, nil
 }
 
 func IntegerIterators(inputs []*IntegerIterator) []query.Iterator {
@@ -1594,6 +1622,7 @@ type UnsignedIterator struct {
 	Points []query.UnsignedPoint
 	Closed bool
 	stats  query.IteratorStats
+	point  query.UnsignedPoint
 }
 
 func (itr *UnsignedIterator) Stats() query.IteratorStats { return itr.stats }
@@ -1607,7 +1636,20 @@ func (itr *UnsignedIterator) Next() (*query.UnsignedPoint, error) {
 
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
-	return v, nil
+
+	// Copy the returned point into a static point that we return.
+	// This actual storage engine returns a point from the same memory location
+	// so we need to test that the query engine does not misuse this memory.
+	itr.point.Name = v.Name
+	itr.point.Tags = v.Tags
+	itr.point.Time = v.Time
+	itr.point.Value = v.Value
+	itr.point.Nil = v.Nil
+	if len(itr.point.Aux) != len(v.Aux) {
+		itr.point.Aux = make([]interface{}, len(v.Aux))
+	}
+	copy(itr.point.Aux, v.Aux)
+	return &itr.point, nil
 }
 
 func UnsignedIterators(inputs []*UnsignedIterator) []query.Iterator {
@@ -1623,6 +1665,7 @@ type StringIterator struct {
 	Points []query.StringPoint
 	Closed bool
 	stats  query.IteratorStats
+	point  query.StringPoint
 }
 
 func (itr *StringIterator) Stats() query.IteratorStats { return itr.stats }
@@ -1636,7 +1679,20 @@ func (itr *StringIterator) Next() (*query.StringPoint, error) {
 
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
-	return v, nil
+
+	// Copy the returned point into a static point that we return.
+	// This actual storage engine returns a point from the same memory location
+	// so we need to test that the query engine does not misuse this memory.
+	itr.point.Name = v.Name
+	itr.point.Tags = v.Tags
+	itr.point.Time = v.Time
+	itr.point.Value = v.Value
+	itr.point.Nil = v.Nil
+	if len(itr.point.Aux) != len(v.Aux) {
+		itr.point.Aux = make([]interface{}, len(v.Aux))
+	}
+	copy(itr.point.Aux, v.Aux)
+	return &itr.point, nil
 }
 
 func StringIterators(inputs []*StringIterator) []query.Iterator {
@@ -1652,6 +1708,7 @@ type BooleanIterator struct {
 	Points []query.BooleanPoint
 	Closed bool
 	stats  query.IteratorStats
+	point  query.BooleanPoint
 }
 
 func (itr *BooleanIterator) Stats() query.IteratorStats { return itr.stats }
@@ -1665,7 +1722,20 @@ func (itr *BooleanIterator) Next() (*query.BooleanPoint, error) {
 
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
-	return v, nil
+
+	// Copy the returned point into a static point that we return.
+	// This actual storage engine returns a point from the same memory location
+	// so we need to test that the query engine does not misuse this memory.
+	itr.point.Name = v.Name
+	itr.point.Tags = v.Tags
+	itr.point.Time = v.Time
+	itr.point.Value = v.Value
+	itr.point.Nil = v.Nil
+	if len(itr.point.Aux) != len(v.Aux) {
+		itr.point.Aux = make([]interface{}, len(v.Aux))
+	}
+	copy(itr.point.Aux, v.Aux)
+	return &itr.point, nil
 }
 
 func BooleanIterators(inputs []*BooleanIterator) []query.Iterator {
