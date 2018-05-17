@@ -3,9 +3,11 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-export interface MenuOption {
+type MenuItemAction = () => void
+
+export interface MenuItem {
   text: string
-  action: () => void
+  action: MenuItemAction
   disabled?: boolean
 }
 
@@ -13,7 +15,7 @@ interface Props {
   theme?: string
   icon: string
   informParent: () => void
-  menuOptions: MenuOption[]
+  menuItems: MenuItem[]
 }
 
 interface State {
@@ -54,11 +56,11 @@ export default class MenuTooltipButton extends Component<Props, State> {
     informParent()
   }
 
-  private handleMenuItemClick = menuItemAction => (): void => {
+  private handleMenuItemClick = (action: MenuItemAction) => (): void => {
     const {informParent} = this.props
 
     this.setState({expanded: false})
-    menuItemAction()
+    action()
     informParent()
   }
 
@@ -87,7 +89,7 @@ export default class MenuTooltipButton extends Component<Props, State> {
   }
 
   private get renderMenu(): JSX.Element {
-    const {menuOptions, theme} = this.props
+    const {menuItems, theme} = this.props
     const {expanded} = this.state
 
     if (expanded === false) {
@@ -96,7 +98,7 @@ export default class MenuTooltipButton extends Component<Props, State> {
 
     return (
       <div className={`dash-graph-context--menu ${theme}`}>
-        {menuOptions.map((option, i) => (
+        {menuItems.map((option, i) => (
           <div
             key={i}
             className={`dash-graph-context--menu-item${

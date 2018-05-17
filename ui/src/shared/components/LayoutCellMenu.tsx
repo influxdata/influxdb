@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 import classnames from 'classnames'
 
 import MenuTooltipButton, {
-  MenuOption,
+  MenuItem,
 } from 'src/shared/components/MenuTooltipButton'
 import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
@@ -96,21 +96,21 @@ class LayoutCellMenu extends Component<Props, State> {
           {queries.length ? (
             <MenuTooltipButton
               icon="pencil"
-              menuOptions={this.editMenuOptions}
+              menuItems={this.editMenuItems}
               informParent={this.handleToggleSubMenu}
             />
           ) : null}
           <Authorized requiredRole={EDITOR_ROLE}>
             <MenuTooltipButton
               icon="duplicate"
-              menuOptions={this.cloneMenuOptions}
+              menuItems={this.cloneMenuItems}
               informParent={this.handleToggleSubMenu}
             />
           </Authorized>
           <MenuTooltipButton
             icon="trash"
             theme="danger"
-            menuOptions={this.deleteMenuOptions}
+            menuItems={this.deleteMenuItems}
             informParent={this.handleToggleSubMenu}
           />
         </div>
@@ -133,7 +133,7 @@ class LayoutCellMenu extends Component<Props, State> {
     })
   }
 
-  private get editMenuOptions(): MenuOption[] {
+  private get editMenuItems(): MenuItem[] {
     const {
       cell,
       dataExists,
@@ -166,11 +166,11 @@ class LayoutCellMenu extends Component<Props, State> {
     ]
   }
 
-  private get cloneMenuOptions(): MenuOption[] {
+  private get cloneMenuItems(): MenuItem[] {
     return [{text: 'Clone Cell', action: this.handleCloneCell, disabled: false}]
   }
 
-  private get deleteMenuOptions(): MenuOption[] {
+  private get deleteMenuItems(): MenuItem[] {
     return [{text: 'Confirm', action: this.handleDeleteCell, disabled: false}]
   }
 
