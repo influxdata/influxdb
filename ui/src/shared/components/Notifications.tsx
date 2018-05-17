@@ -39,7 +39,7 @@ const mapStateToProps = ({
   app: {
     ephemeral: {inPresentationMode},
   },
-}) => ({
+}): Props => ({
   notifications,
   inPresentationMode,
 })
