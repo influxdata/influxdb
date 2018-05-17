@@ -2,9 +2,11 @@ import React, {SFC} from 'react'
 import _ from 'lodash'
 
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
+import {QueryConfig} from 'src/types/query'
 
 interface Query {
-  query: string
+  config: QueryConfig
+  text: string
 }
 
 interface Props {
@@ -12,7 +14,9 @@ interface Props {
 }
 
 const CustomTimeIndicator: SFC<Props> = ({queries}) => {
-  const q = queries.find(({query}) => !query.includes(TEMP_VAR_DASHBOARD_TIME))
+  const q = queries.find(
+    query => query.text.includes(TEMP_VAR_DASHBOARD_TIME) === false
+  )
   const customLower = _.get(q, ['queryConfig', 'range', 'lower'], null)
   const customUpper = _.get(q, ['queryConfig', 'range', 'upper'], null)
 

@@ -1,14 +1,11 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-
-interface Query {
-  rawText: string
-}
+import {QueryConfig} from 'src/types/query'
 
 interface Props {
   isActive: boolean
-  query: Query
+  query: QueryConfig
   onSelect: (index: number) => void
   onDelete: (index: number) => void
   queryTabText: string

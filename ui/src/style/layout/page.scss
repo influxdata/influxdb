@@ -2,6 +2,10 @@
     Page Layout
     ----------------------------------------------------------------------------
 */
+
+$dygraph-legend-z: 500;
+$dash-ceo-z: $dygraph-legend-z + 10;
+
 .chronograf-root {
   display: flex;
   align-items: stretch;

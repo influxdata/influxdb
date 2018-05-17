@@ -48,6 +48,7 @@ import DeprecationWarning from 'src/admin/components/DeprecationWarning'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Source, Kapacitor} from 'src/types'
+import {Notification} from 'src/types/notifications'
 import {ServiceProperties, SpecificConfigOptions} from 'src/types/kapacitor'
 import SlackConfigs from 'src/kapacitor/components/config/SlackConfigs'
 import {
@@ -99,14 +100,6 @@ interface Sections {
   talk: Section
   telegram: Section
   victorops: Section
-}
-
-interface Notification {
-  id?: string
-  type: string
-  icon: string
-  duration: number
-  message: string
 }
 
 interface Props {
