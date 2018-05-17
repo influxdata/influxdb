@@ -1,0 +1,5 @@
+from(db:"test")
+  |> range(start:-5m)
+  |> group(by:["_measurement"])
+  |> max(useRowTime:true)
+  |> map(fn: (r) => {max:r._value})
