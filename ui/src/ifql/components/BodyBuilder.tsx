@@ -74,9 +74,9 @@ class BodyBuilder extends PureComponent<Props> {
 
   private get newDeclarationFuncs(): string[] {
     const {body} = this.props
-    const declarationFunctions = ['from']
+    const declarationFunctions = [funcNames.FROM]
     if (body.length > 1) {
-      declarationFunctions.push('join')
+      declarationFunctions.push(funcNames.JOIN)
     }
     return declarationFunctions
   }
@@ -84,6 +84,9 @@ class BodyBuilder extends PureComponent<Props> {
   private createNewBody = name => {
     if (name === funcNames.FROM) {
       this.props.onAppendFrom()
+    }
+    if (name === funcNames.JOIN) {
+      this.props.onAppendJoin()
     }
   }
 
