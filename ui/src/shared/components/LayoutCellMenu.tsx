@@ -69,13 +69,7 @@ class LayoutCellMenu extends Component<Props, State> {
   }
 
   private get renderMenu(): JSX.Element {
-    const {
-      isEditable,
-      mode,
-      cell,
-      onDismissEditingAnnotation,
-      queries,
-    } = this.props
+    const {isEditable, mode, cell, onDismissEditingAnnotation} = this.props
 
     if (mode === EDITING && cellSupportsAnnotations(cell.type)) {
       return (
@@ -93,13 +87,7 @@ class LayoutCellMenu extends Component<Props, State> {
     if (isEditable && mode !== EDITING) {
       return (
         <div className="dash-graph-context--buttons">
-          {queries.length ? (
-            <MenuTooltipButton
-              icon="pencil"
-              menuItems={this.editMenuItems}
-              informParent={this.handleToggleSubMenu}
-            />
-          ) : null}
+          {this.pencilMenu}
           <Authorized requiredRole={EDITOR_ROLE}>
             <MenuTooltipButton
               icon="duplicate"
@@ -116,6 +104,22 @@ class LayoutCellMenu extends Component<Props, State> {
         </div>
       )
     }
+  }
+
+  private get pencilMenu(): JSX.Element {
+    const {queries} = this.props
+
+    if (!queries.length) {
+      return
+    }
+
+    return (
+      <MenuTooltipButton
+        icon="pencil"
+        menuItems={this.editMenuItems}
+        informParent={this.handleToggleSubMenu}
+      />
+    )
   }
 
   private get contextMenuClassname(): string {
