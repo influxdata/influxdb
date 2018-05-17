@@ -41,6 +41,7 @@ v1.6.0 [unreleased]
 -	[#9615](https://github.com/influxdata/influxdb/pull/9615): Remove error for series file when no shards exist.
 -	[#9751](https://github.com/influxdata/influxdb/pull/9751): Fix the validation for multiple nested distinct calls.
 -	[#9792](https://github.com/influxdata/influxdb/pull/9792): TSM: TSMReader.Close blocks until reads complete
+-	[#9858](https://github.com/influxdata/influxdb/pull/9858): Return the correct auxiliary values for top/bottom.
 
 v1.5.0 [2018-03-06]
 -------------------
