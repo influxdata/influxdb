@@ -6,7 +6,7 @@ import {Grid} from 'react-virtualized'
 const SCROLLBAR_SIZE_BUFFER = 20
 type HeightWidthFunction = (arg: {index: number}) => {} | number
 
-interface Props {
+export interface PropsMultiGrid {
   width: number
   height: number
   columnCount?: number
@@ -49,7 +49,7 @@ interface State {
  * If no sticky columns, only 1 sticky header Grid will be rendered.
  * If sticky columns, 2 sticky header Grids will be rendered.
  */
-class MultiGrid extends React.PureComponent<Props, State> {
+class MultiGrid extends React.PureComponent<PropsMultiGrid, State> {
   public static defaultProps = {
     classNameBottomLeftGrid: '',
     classNameBottomRightGrid: '',

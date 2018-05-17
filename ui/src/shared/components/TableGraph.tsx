@@ -3,8 +3,8 @@ import _ from 'lodash'
 import classnames from 'classnames'
 import {connect} from 'react-redux'
 
-import {ColumnSizer, SizedColumnProps, CellRenderer} from 'react-virtualized'
-import {MultiGrid} from 'src/shared/components/MultiGrid'
+import {ColumnSizer, SizedColumnProps} from 'react-virtualized'
+import {MultiGrid, PropsMultiGrid} from 'src/shared/components/MultiGrid'
 import {bindActionCreators} from 'redux'
 import moment from 'moment'
 import {reduce} from 'fast.js'
@@ -41,6 +41,14 @@ interface Label {
   label: string
   seriesIndex: number
   responseIndex: number
+}
+
+interface CellRendererProps {
+  columnIndex: number
+  rowIndex: number
+  key: string
+  parent: React.Component<PropsMultiGrid>
+  style: {[x: string]: any}
 }
 
 interface Props {
@@ -460,13 +468,13 @@ class TableGraph extends Component<Props, State> {
     return `${cellData}`
   }
 
-  private cellRenderer: CellRenderer = ({
+  private cellRenderer = ({
     columnIndex,
     rowIndex,
     key,
     parent,
     style,
-  }) => {
+  }: CellRendererProps) => {
     const {
       hoveredColumnIndex,
       hoveredRowIndex,

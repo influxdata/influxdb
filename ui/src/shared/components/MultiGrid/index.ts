@@ -1,2 +1,2 @@
-import MultiGrid from './MultiGrid'
-export {MultiGrid}
+import MultiGrid, {PropsMultiGrid} from './MultiGrid'
+export {MultiGrid, PropsMultiGrid}
