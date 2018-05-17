@@ -380,6 +380,11 @@ export class IFQLPage extends PureComponent<Props, State> {
 
     try {
       const ast = await getAST({url: links.ast, body: script})
+      const suggs = this.state.suggestions
+      suggs[17] = {
+        name: 'join',
+        params: {tables: 'array', on: 'string', fn: 'function'},
+      }
       const body = bodyNodes(ast, this.state.suggestions)
       const status = {type: 'success', text: ''}
       this.setState({ast, script, body, status})
