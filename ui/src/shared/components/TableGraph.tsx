@@ -587,10 +587,6 @@ class TableGraph extends Component<Props, State> {
       </div>
     )
   }
-
-  // private getMultiGridRef = (r: MultiGrid, registerChild) => {
-  //   return registerChild(r)
-  // }
 }
 
 const mapDispatchToProps = dispatch => ({
