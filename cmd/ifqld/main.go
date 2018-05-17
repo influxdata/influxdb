@@ -56,13 +56,13 @@ func init() {
 	viper.BindEnv("STORAGE_HOSTS")
 	viper.BindPFlag("STORAGE_HOSTS", ifqlCmd.PersistentFlags().Lookup("storage-hosts"))
 
-	ifqlCmd.PersistentFlags().String("bucket-host", "", "The bucket service host. ")
-	viper.BindEnv("BUCKET_HOSTS")
-	viper.BindPFlag("BUCKET_HOSTS", ifqlCmd.PersistentFlags().Lookup("bucket-hosts"))
+	ifqlCmd.PersistentFlags().String("bucket-name", "", "The bucket to access. ")
+	viper.BindEnv("BUCKET_NAME")
+	viper.BindPFlag("BUCKET_NAME", ifqlCmd.PersistentFlags().Lookup("bucket-name"))
 
-	ifqlCmd.PersistentFlags().String("organization-hosts", "", "The organization service host.")
-	viper.BindEnv("ORGANIZATION_HOSTS")
-	viper.BindPFlag("ORGANIZATION_HOSTS", ifqlCmd.PersistentFlags().Lookup("organization-hosts"))
+	ifqlCmd.PersistentFlags().String("organization-name", "", "The organization name to use.")
+	viper.BindEnv("ORGANIZATION_NAME")
+	viper.BindPFlag("ORGANIZATION_NAME", ifqlCmd.PersistentFlags().Lookup("organization-name"))
 
 }
 
@@ -87,12 +87,11 @@ func ifqlF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// TODO(adam): figure out what orgSvc we need to create here.
-	orgHost, err := getHosts("ORGANIZATION_HOSTS")
+	orgName, err := getStrList("ORGANIZATION_NAME")
 	if err != nil {
 		return
 	}
-	orgSvc := http.OrganizationService{Addr: orgHost[0]}
+	orgSvc := StaticOrganizationService{Name: orgName[0]}
 
 	queryHandler := http.NewQueryHandler()
 	queryHandler.QueryService = platform.QueryServiceBridge{
@@ -110,20 +109,18 @@ func ifqlF(cmd *cobra.Command, args []string) {
 	}
 }
 
-func getHosts(key string) ([]string, error) {
+func getStrList(key string) ([]string, error) {
 	v := viper.GetViper()
-	hostStr := v.GetString(key)
-	if hostStr == "" {
+	valStr := v.GetString(key)
+	if valStr == "" {
 		return nil, errors.New("empty organization host string")
 	}
 
-	return strings.Split(hostStr, ","), nil
+	return strings.Split(valStr, ","), nil
 }
 
 func injectDeps(deps execute.Dependencies) error {
-
-	// TODO(adam): figure out the correct read service
-	storageHosts, err := getHosts("STORAGE_HOSTS")
+	storageHosts, err := getStrList("STORAGE_HOSTS")
 	if err != nil {
 		return err
 	}
@@ -132,11 +129,11 @@ func injectDeps(deps execute.Dependencies) error {
 		return err
 	}
 
-	bucketHosts, err := getHosts("BUCKET_HOSTS")
+	bucketName, err := getStrList("BUCKET_NAME")
 	if err != nil {
 		return err
 	}
-	bucketSvc := http.BucketService{Addr: bucketHosts[0]}
+	bucketSvc := StaticBucketService{Name: bucketName[0]}
 
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:       sr,
@@ -182,4 +179,102 @@ func (b bucketLookup) Lookup(orgID id.ID, name string) (id.ID, bool) {
 		return nil, false
 	}
 	return id.ID(bucket.ID), true
+}
+
+// StaticOrganizationService connects to Influx via HTTP using tokens to manage organizations.
+type StaticOrganizationService struct {
+	Name string
+}
+
+func (s *StaticOrganizationService) FindOrganizationByID(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+	return s.FindOrganization(ctx, platform.OrganizationFilter{})
+}
+
+func (s *StaticOrganizationService) FindOrganization(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+	os, n, err := s.FindOrganizations(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if n < 1 {
+		return nil, fmt.Errorf("expected at least one organization")
+	}
+
+	return os[0], nil
+}
+
+func (s *StaticOrganizationService) FindOrganizations(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
+	po := platform.Organization{
+		ID:   platform.ID("staticorgid"),
+		Name: "staticorganization",
+	}
+
+	return []*platform.Organization{&po}, 1, nil
+
+}
+
+// CreateOrganization creates an organization.
+func (s *StaticOrganizationService) CreateOrganization(ctx context.Context, o *platform.Organization) error {
+	panic("not implemented")
+}
+
+func (s *StaticOrganizationService) UpdateOrganization(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error) {
+	panic("not implemented")
+}
+
+func (s *StaticOrganizationService) DeleteOrganization(ctx context.Context, id platform.ID) error {
+	panic("not implemented")
+}
+
+// StaticBucketService connects to Influx via HTTP using tokens to manage buckets
+type StaticBucketService struct {
+	Name string
+}
+
+// FindBucketByID returns a single bucket by ID.
+func (s *StaticBucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+	return s.FindBucket(ctx, platform.BucketFilter{})
+}
+
+// FindBucket returns the first bucket that matches filter.
+func (s *StaticBucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+	bs, n, err := s.FindBuckets(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if n == 0 {
+		return nil, fmt.Errorf("found no matching buckets")
+	}
+
+	return bs[0], nil
+}
+
+// FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
+// Additional options provide pagination & sorting.
+func (s *StaticBucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+	bo := platform.Bucket{
+		ID:              platform.ID("staticbucketid"),
+		OrganizationID:  platform.ID("staticorgid"),
+		Name:            "staticbucket",
+		RetentionPeriod: 7,
+	}
+
+	return []*platform.Bucket{&bo}, 1, nil
+}
+
+// CreateBucket creates a new bucket and sets b.ID with the new identifier.
+func (s *StaticBucketService) CreateBucket(ctx context.Context, b *platform.Bucket) error {
+	panic("not implemented")
+}
+
+// UpdateBucket updates a single bucket with changeset.
+// Returns the new bucket state after update.
+func (s *StaticBucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+	panic("not implemented")
+}
+
+// DeleteBucket removes a bucket by ID.
+func (s *StaticBucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
+	panic("not implemented")
 }
