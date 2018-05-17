@@ -22,6 +22,7 @@ func TestSelect(t *testing.T) {
 		name   string
 		q      string
 		typ    influxql.DataType
+		fields map[string]influxql.DataType
 		expr   string
 		itrs   []query.Iterator
 		points [][]query.Point
@@ -891,6 +892,93 @@ func TestSelect(t *testing.T) {
 			},
 		},
 		{
+			name: "Top_AuxFields_Float",
+			q:    `SELECT top(p1, 2), p2, p3 FROM cpu`,
+			fields: map[string]influxql.DataType{
+				"p1": influxql.Float,
+				"p2": influxql.Float,
+				"p3": influxql.String,
+			},
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{float64(2), "aaa"}},
+					{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{float64(3), "bbb"}},
+					{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{float64(4), "ccc"}},
+					{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{float64(5), "ddd"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.FloatPoint{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{float64(4), "ccc"}},
+					&query.FloatPoint{Name: "cpu", Time: 2 * Second, Value: 4},
+					&query.StringPoint{Name: "cpu", Time: 2 * Second, Value: "ccc"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{float64(5), "ddd"}},
+					&query.FloatPoint{Name: "cpu", Time: 3 * Second, Value: 5},
+					&query.StringPoint{Name: "cpu", Time: 3 * Second, Value: "ddd"},
+				},
+			},
+		},
+		{
+			name: "Top_AuxFields_Integer",
+			q:    `SELECT top(p1, 2), p2, p3 FROM cpu`,
+			fields: map[string]influxql.DataType{
+				"p1": influxql.Integer,
+				"p2": influxql.Integer,
+				"p3": influxql.String,
+			},
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{int64(2), "aaa"}},
+					{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{int64(3), "bbb"}},
+					{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{int64(4), "ccc"}},
+					{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{int64(5), "ddd"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{int64(4), "ccc"}},
+					&query.IntegerPoint{Name: "cpu", Time: 2 * Second, Value: 4},
+					&query.StringPoint{Name: "cpu", Time: 2 * Second, Value: "ccc"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{int64(5), "ddd"}},
+					&query.IntegerPoint{Name: "cpu", Time: 3 * Second, Value: 5},
+					&query.StringPoint{Name: "cpu", Time: 3 * Second, Value: "ddd"},
+				},
+			},
+		},
+		{
+			name: "Top_AuxFields_Unsigned",
+			q:    `SELECT top(p1, 2), p2, p3 FROM cpu`,
+			fields: map[string]influxql.DataType{
+				"p1": influxql.Unsigned,
+				"p2": influxql.Unsigned,
+				"p3": influxql.String,
+			},
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{uint64(2), "aaa"}},
+					{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{uint64(3), "bbb"}},
+					{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{uint64(4), "ccc"}},
+					{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{uint64(5), "ddd"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{uint64(4), "ccc"}},
+					&query.UnsignedPoint{Name: "cpu", Time: 2 * Second, Value: 4},
+					&query.StringPoint{Name: "cpu", Time: 2 * Second, Value: "ccc"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{uint64(5), "ddd"}},
+					&query.UnsignedPoint{Name: "cpu", Time: 3 * Second, Value: 5},
+					&query.StringPoint{Name: "cpu", Time: 3 * Second, Value: "ddd"},
+				},
+			},
+		},
+		{
 			name: "Bottom_NoTags_Float",
 			q:    `SELECT bottom(value::float, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`,
 			typ:  influxql.Float,
@@ -1227,6 +1315,93 @@ func TestSelect(t *testing.T) {
 				{
 					&query.UnsignedPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: 1, Aux: []interface{}{"B"}},
 					&query.StringPoint{Name: "cpu", Tags: ParseTags("region=west"), Time: 50 * Second, Value: "B"},
+				},
+			},
+		},
+		{
+			name: "Bottom_AuxFields_Float",
+			q:    `SELECT bottom(p1, 2), p2, p3 FROM cpu`,
+			fields: map[string]influxql.DataType{
+				"p1": influxql.Float,
+				"p2": influxql.Float,
+				"p3": influxql.String,
+			},
+			itrs: []query.Iterator{
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{float64(2), "aaa"}},
+					{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{float64(3), "bbb"}},
+					{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{float64(4), "ccc"}},
+					{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{float64(5), "ddd"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{float64(2), "aaa"}},
+					&query.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2},
+					&query.StringPoint{Name: "cpu", Time: 0 * Second, Value: "aaa"},
+				},
+				{
+					&query.FloatPoint{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{float64(3), "bbb"}},
+					&query.FloatPoint{Name: "cpu", Time: 1 * Second, Value: 3},
+					&query.StringPoint{Name: "cpu", Time: 1 * Second, Value: "bbb"},
+				},
+			},
+		},
+		{
+			name: "Bottom_AuxFields_Integer",
+			q:    `SELECT bottom(p1, 2), p2, p3 FROM cpu`,
+			fields: map[string]influxql.DataType{
+				"p1": influxql.Integer,
+				"p2": influxql.Integer,
+				"p3": influxql.String,
+			},
+			itrs: []query.Iterator{
+				&IntegerIterator{Points: []query.IntegerPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{int64(2), "aaa"}},
+					{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{int64(3), "bbb"}},
+					{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{int64(4), "ccc"}},
+					{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{int64(5), "ddd"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{int64(2), "aaa"}},
+					&query.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 2},
+					&query.StringPoint{Name: "cpu", Time: 0 * Second, Value: "aaa"},
+				},
+				{
+					&query.IntegerPoint{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{int64(3), "bbb"}},
+					&query.IntegerPoint{Name: "cpu", Time: 1 * Second, Value: 3},
+					&query.StringPoint{Name: "cpu", Time: 1 * Second, Value: "bbb"},
+				},
+			},
+		},
+		{
+			name: "Bottom_AuxFields_Unsigned",
+			q:    `SELECT bottom(p1, 2), p2, p3 FROM cpu`,
+			fields: map[string]influxql.DataType{
+				"p1": influxql.Unsigned,
+				"p2": influxql.Unsigned,
+				"p3": influxql.String,
+			},
+			itrs: []query.Iterator{
+				&UnsignedIterator{Points: []query.UnsignedPoint{
+					{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{uint64(2), "aaa"}},
+					{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{uint64(3), "bbb"}},
+					{Name: "cpu", Time: 2 * Second, Value: 3, Aux: []interface{}{uint64(4), "ccc"}},
+					{Name: "cpu", Time: 3 * Second, Value: 4, Aux: []interface{}{uint64(5), "ddd"}},
+				}},
+			},
+			points: [][]query.Point{
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 1, Aux: []interface{}{uint64(2), "aaa"}},
+					&query.UnsignedPoint{Name: "cpu", Time: 0 * Second, Value: 2},
+					&query.StringPoint{Name: "cpu", Time: 0 * Second, Value: "aaa"},
+				},
+				{
+					&query.UnsignedPoint{Name: "cpu", Time: 1 * Second, Value: 2, Aux: []interface{}{uint64(3), "bbb"}},
+					&query.UnsignedPoint{Name: "cpu", Time: 1 * Second, Value: 3},
+					&query.StringPoint{Name: "cpu", Time: 1 * Second, Value: "bbb"},
 				},
 			},
 		},
@@ -2783,10 +2958,14 @@ func TestSelect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shardMapper := ShardMapper{
 				MapShardsFn: func(sources influxql.Sources, _ influxql.TimeRange) query.ShardGroup {
+					var fields map[string]influxql.DataType
+					if tt.typ != influxql.Unknown {
+						fields = map[string]influxql.DataType{"value": tt.typ}
+					} else {
+						fields = tt.fields
+					}
 					return &ShardGroup{
-						Fields: map[string]influxql.DataType{
-							"value": tt.typ,
-						},
+						Fields:     fields,
 						Dimensions: []string{"host", "region"},
 						CreateIteratorFn: func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
 							if m.Name != "cpu" {
