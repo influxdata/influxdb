@@ -544,19 +544,25 @@ func (f *FileStore) Open() error {
 
 // Close closes the file store.
 func (f *FileStore) Close() error {
+	// Make the object appear closed to other method calls.
 	f.mu.Lock()
-	defer f.mu.Unlock()
 
-	for _, file := range f.files {
+	files := f.files
+
+	f.lastFileStats = nil
+	f.files = nil
+	atomic.StoreInt64(&f.stats.FileCount, 0)
+
+	// Let other methods access this closed object while we do the actual closing.
+	f.mu.Unlock()
+
+	for _, file := range files {
 		err := file.Close()
 		if err != nil {
 			return err
 		}
 	}
 
-	f.lastFileStats = nil
-	f.files = nil
-	atomic.StoreInt64(&f.stats.FileCount, 0)
 	return nil
 }
 
