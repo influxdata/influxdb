@@ -184,13 +184,14 @@ const constructCells = (
           responseIndex,
           seriesIndex,
         }))
-        // tslint:disable-next-line:no-unused-vars
-        const [__, ...rest] = columns
-        const labelsFromColumns = fastMap<string, Label>(rest, field => ({
-          label: `${measurement}.${field}`,
-          responseIndex,
-          seriesIndex,
-        }))
+        const labelsFromColumns = fastMap<string, Label>(
+          columns.slice(1),
+          field => ({
+            label: `${measurement}.${field}`,
+            responseIndex,
+            seriesIndex,
+          })
+        )
 
         unsortedLabels = fastConcat<Label>(labelsFromTags, labelsFromColumns)
         seriesLabels[ind] = unsortedLabels
@@ -202,9 +203,7 @@ const constructCells = (
         )
           .sort()
           .join('')
-        // tslint:disable-next-line:no-unused-vars
-        const [__, ...rest] = columns
-        unsortedLabels = fastMap<string, Label>(rest, field => ({
+        unsortedLabels = fastMap<string, Label>(columns.slice(1), field => ({
           label: `${measurement}.${field}${tagSet}`,
           responseIndex,
           seriesIndex,
