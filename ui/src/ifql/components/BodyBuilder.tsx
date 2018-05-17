@@ -73,8 +73,12 @@ class BodyBuilder extends PureComponent<Props> {
   }
 
   private get newDeclarationFuncs(): string[] {
-    // 'JOIN' only available if there are at least 2 named declarations
-    return ['from']
+    const {body} = this.props
+    const declarationFunctions = ['from']
+    if (body.length > 1) {
+      declarationFunctions.push('join')
+    }
+    return declarationFunctions
   }
 
   private createNewBody = name => {
