@@ -7,7 +7,8 @@ import {ColumnSizer, SizedColumnProps} from 'react-virtualized'
 import {MultiGrid, PropsMultiGrid} from 'src/shared/components/MultiGrid'
 import {bindActionCreators} from 'redux'
 import moment from 'moment'
-import {reduce} from 'fast.js'
+
+import {fastReduce} from 'src/utils/fast'
 
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 import {
@@ -339,10 +340,13 @@ class TableGraph extends Component<Props, State> {
     }
 
     const firstDiff = Math.abs(Number(hoverTime) - Number(sortedTimeVals[1])) // sortedTimeVals[0] is "time"
-    const hoverTimeFound = reduce(
+    const hoverTimeFound = fastReduce<
+      TimeSeriesValue,
+      {index: number; diff: number}
+    >(
       sortedTimeVals,
       (acc, currentTime, index) => {
-        const thisDiff = Math.abs(Number(hoverTime) - currentTime)
+        const thisDiff = Math.abs(Number(hoverTime) - Number(currentTime))
         if (thisDiff < acc.diff) {
           return {index, diff: thisDiff}
         }
