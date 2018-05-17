@@ -23,6 +23,7 @@ interface Props {
   onChangeScript: OnChangeScript
   onSubmitScript: OnSubmitScript
   onAppendFrom: () => void
+  onAppendJoin: () => void
   onAnalyze: () => void
 }
 
@@ -73,6 +74,7 @@ class TimeMachine extends PureComponent<Props> {
       onAnalyze,
       suggestions,
       onAppendFrom,
+      onAppendJoin,
       onChangeScript,
       onSubmitScript,
     } = this.props
@@ -119,6 +121,7 @@ class TimeMachine extends PureComponent<Props> {
             body={body}
             suggestions={suggestions}
             onAppendFrom={onAppendFrom}
+            onAppendJoin={onAppendJoin}
           />
         ),
       },

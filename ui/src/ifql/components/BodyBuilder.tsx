@@ -12,6 +12,7 @@ interface Props {
   body: Body[]
   suggestions: Suggestion[]
   onAppendFrom: () => void
+  onAppendJoin: () => void
 }
 
 interface Body extends FlatBody {

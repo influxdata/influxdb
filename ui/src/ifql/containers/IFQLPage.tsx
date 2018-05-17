@@ -102,6 +102,7 @@ export class IFQLPage extends PureComponent<Props, State> {
               suggestions={suggestions}
               onAnalyze={this.handleAnalyze}
               onAppendFrom={this.handleAppendFrom}
+              onAppendJoin={this.handleAppendJoin}
               onChangeScript={this.handleChangeScript}
               onSubmitScript={this.handleSubmitScript}
             />
@@ -245,6 +246,13 @@ export class IFQLPage extends PureComponent<Props, State> {
   private handleAppendFrom = (): void => {
     const {script} = this.state
     const newScript = `${script.trim()}\n\n${builder.NEW_FROM}\n\n`
+
+    this.getASTResponse(newScript)
+  }
+
+  private handleAppendJoin = (): void => {
+    const {script} = this.state
+    const newScript = `${script.trim()}\n\n${builder.NEW_JOIN}\n\n`
 
     this.getASTResponse(newScript)
   }
