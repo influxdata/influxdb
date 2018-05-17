@@ -6,10 +6,12 @@ import (
 	nethttp "net/http"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/influxdata/ifql"
 	"github.com/influxdata/ifql/functions"
 	"github.com/influxdata/ifql/functions/storage"
+	"github.com/influxdata/ifql/functions/storage/pb"
 	"github.com/influxdata/ifql/id"
 	"github.com/influxdata/ifql/query"
 	"github.com/influxdata/ifql/query/execute"
@@ -17,6 +19,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	platformquery "github.com/influxdata/platform/query"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -54,8 +57,8 @@ func init() {
 	viper.BindPFlag("STORAGE_HOSTS", ifqlCmd.PersistentFlags().Lookup("storage-hosts"))
 
 	ifqlCmd.PersistentFlags().String("bucket-host", "", "The bucket service host. ")
-	viper.BindEnv("BUCKET_HOST")
-	viper.BindPFlag("BUCKET_HOST", ifqlCmd.PersistentFlags().Lookup("bucket-hosts"))
+	viper.BindEnv("BUCKET_HOSTS")
+	viper.BindPFlag("BUCKET_HOSTS", ifqlCmd.PersistentFlags().Lookup("bucket-hosts"))
 
 	ifqlCmd.PersistentFlags().String("organization-hosts", "", "The organization service host.")
 	viper.BindEnv("ORGANIZATION_HOSTS")
@@ -84,14 +87,18 @@ func ifqlF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var orgSvc platform.OrganizationService
 	// TODO(adam): figure out what orgSvc we need to create here.
+	orgHost, err := getHosts("ORGANIZATION_HOSTS")
+	if err != nil {
+		return
+	}
+	orgSvc := http.OrganizationService{Addr: orgHost[0]}
 
 	queryHandler := http.NewQueryHandler()
 	queryHandler.QueryService = platform.QueryServiceBridge{
 		AsyncQueryService: wrapController{Controller: c},
 	}
-	queryHandler.OrganizationService = orgSvc
+	queryHandler.OrganizationService = &orgSvc
 
 	handler := http.NewHandler("query")
 	handler.Handler = queryHandler
@@ -103,16 +110,37 @@ func ifqlF(cmd *cobra.Command, args []string) {
 	}
 }
 
+func getHosts(key string) ([]string, error) {
+	v := viper.GetViper()
+	hostStr := v.GetString(key)
+	if hostStr == "" {
+		return nil, errors.New("empty organization host string")
+	}
+
+	return strings.Split(hostStr, ","), nil
+}
+
 func injectDeps(deps execute.Dependencies) error {
 
 	// TODO(adam): figure out the correct read service
-	var sr storage.Reader
-	// TODO(adam): figure correct bucket service
-	var bucketSvc platform.BucketService
+	storageHosts, err := getHosts("STORAGE_HOSTS")
+	if err != nil {
+		return err
+	}
+	sr, err := pb.NewReader(storage.NewStaticLookup(storageHosts))
+	if err != nil {
+		return err
+	}
+
+	bucketHosts, err := getHosts("BUCKET_HOSTS")
+	if err != nil {
+		return err
+	}
+	bucketSvc := http.BucketService{Addr: bucketHosts[0]}
 
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:       sr,
-		BucketLookup: platformquery.FromBucketService(bucketSvc),
+		BucketLookup: platformquery.FromBucketService(&bucketSvc),
 	})
 }
 
