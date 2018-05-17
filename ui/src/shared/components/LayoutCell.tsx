@@ -11,7 +11,7 @@ import download from 'src/external/download.js'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {dataToCSV} from 'src/shared/parsing/dataToCSV'
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
-import {Cell} from 'src/types/dashboard'
+import {Cell, CellQuery} from 'src/types/dashboard'
 
 interface Series {
   columns: string[]
@@ -68,7 +68,7 @@ export default class LayoutCell extends Component<Props> {
     )
   }
 
-  private get queries() {
+  private get queries(): CellQuery[] {
     const {cell} = this.props
     return _.get(cell, ['queries'], [])
   }
