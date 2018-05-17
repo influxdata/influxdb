@@ -15,9 +15,7 @@ export const loadLocalStorage = (errorsQueue: any[]): LocalStorage | {} => {
 
     const state = JSON.parse(serializedState) || {}
 
-    // eslint-disable-next-line no-undef
     if (state.VERSION && state.VERSION !== VERSION) {
-      // eslint-disable-next-line no-undef
       const version = VERSION ? ` (${VERSION})` : ''
 
       console.log(notifyNewVersion(version).message) // tslint:disable-line no-console
@@ -45,7 +43,7 @@ export const loadLocalStorage = (errorsQueue: any[]): LocalStorage | {} => {
 
     return state
   } catch (error) {
-    console.error(notifyLoadLocalSettingsFailed(error).message) // eslint-disable-line no-console
+    console.error(notifyLoadLocalSettingsFailed(error).message)
     errorsQueue.push(notifyLoadLocalSettingsFailed(error))
 
     return {}
