@@ -5,18 +5,20 @@ import {
   notifyLoadLocalSettingsFailed,
 } from 'src/shared/copy/notifications'
 
-export const loadLocalStorage = errorsQueue => {
+import {LocalStorage} from 'src/types/localStorage'
+
+declare var VERSION: string
+
+export const loadLocalStorage = (errorsQueue: any[]): LocalStorage | {} => {
   try {
     const serializedState = localStorage.getItem('state')
 
     const state = JSON.parse(serializedState) || {}
 
-    // eslint-disable-next-line no-undef
     if (state.VERSION && state.VERSION !== VERSION) {
-      // eslint-disable-next-line no-undef
       const version = VERSION ? ` (${VERSION})` : ''
 
-      console.log(notifyNewVersion(version).message) // eslint-disable-line no-console
+      console.log(notifyNewVersion(version).message) // tslint:disable-line no-console
       errorsQueue.push(notifyNewVersion(version))
 
       if (!state.dashTimeV1) {
@@ -41,7 +43,7 @@ export const loadLocalStorage = errorsQueue => {
 
     return state
   } catch (error) {
-    console.error(notifyLoadLocalSettingsFailed(error).message) // eslint-disable-line no-console
+    console.error(notifyLoadLocalSettingsFailed(error).message)
     errorsQueue.push(notifyLoadLocalSettingsFailed(error))
 
     return {}
@@ -54,23 +56,23 @@ export const saveToLocalStorage = ({
   timeRange,
   dataExplorer,
   dashTimeV1: {ranges},
-}) => {
+}: LocalStorage): void => {
   try {
-    const appPersisted = Object.assign({}, {app: {persisted}})
+    const appPersisted = {app: {persisted}}
     const dashTimeV1 = {ranges: normalizer(ranges)}
 
     window.localStorage.setItem(
       'state',
       JSON.stringify({
         ...appPersisted,
-        dataExplorerQueryConfigs,
+        VERSION,
         timeRange,
-        dataExplorer,
-        VERSION, // eslint-disable-line no-undef
         dashTimeV1,
+        dataExplorer,
+        dataExplorerQueryConfigs,
       })
     )
   } catch (err) {
-    console.error('Unable to save data explorer: ', JSON.parse(err)) // eslint-disable-line no-console
+    console.error('Unable to save data explorer: ', JSON.parse(err))
   }
 }
