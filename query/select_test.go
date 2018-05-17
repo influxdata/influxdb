@@ -834,7 +834,7 @@ func TestSelect(t *testing.T) {
 			fields: map[string]influxql.DataType{
 				"p1": influxql.Float,
 				"p2": influxql.Float,
-				"p3": influxql.Float,
+				"p3": influxql.String,
 			},
 			itrs: []query.Iterator{
 				&FloatIterator{Points: []query.FloatPoint{
@@ -855,7 +855,7 @@ func TestSelect(t *testing.T) {
 			fields: map[string]influxql.DataType{
 				"p1": influxql.Integer,
 				"p2": influxql.Integer,
-				"p3": influxql.Integer,
+				"p3": influxql.String,
 			},
 			itrs: []query.Iterator{
 				&IntegerIterator{Points: []query.IntegerPoint{
@@ -876,7 +876,7 @@ func TestSelect(t *testing.T) {
 			fields: map[string]influxql.DataType{
 				"p1": influxql.Unsigned,
 				"p2": influxql.Unsigned,
-				"p3": influxql.Unsigned,
+				"p3": influxql.String,
 			},
 			itrs: []query.Iterator{
 				&UnsignedIterator{Points: []query.UnsignedPoint{
@@ -1174,7 +1174,7 @@ func TestSelect(t *testing.T) {
 			fields: map[string]influxql.DataType{
 				"p1": influxql.Float,
 				"p2": influxql.Float,
-				"p3": influxql.Float,
+				"p3": influxql.String,
 			},
 			itrs: []query.Iterator{
 				&FloatIterator{Points: []query.FloatPoint{
@@ -1195,7 +1195,7 @@ func TestSelect(t *testing.T) {
 			fields: map[string]influxql.DataType{
 				"p1": influxql.Integer,
 				"p2": influxql.Integer,
-				"p3": influxql.Integer,
+				"p3": influxql.String,
 			},
 			itrs: []query.Iterator{
 				&IntegerIterator{Points: []query.IntegerPoint{
@@ -1216,7 +1216,7 @@ func TestSelect(t *testing.T) {
 			fields: map[string]influxql.DataType{
 				"p1": influxql.Unsigned,
 				"p2": influxql.Unsigned,
-				"p3": influxql.Unsigned,
+				"p3": influxql.String,
 			},
 			itrs: []query.Iterator{
 				&UnsignedIterator{Points: []query.UnsignedPoint{
