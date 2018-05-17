@@ -4,6 +4,7 @@ import {
 } from 'src/shared/constants/tableGraph'
 import {Cell, QueryConfig} from 'src/types'
 import {CellType, Dashboard, DecimalPlaces} from 'src/types/dashboard'
+import {TimeRange} from 'src/types/query'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 
 export const UNTITLED_GRAPH: string = 'Untitled Graph'
@@ -16,7 +17,12 @@ export const DEFAULT_DECIMAL_PLACES: DecimalPlaces = {
   digits: 3,
 }
 
-export const DEFAULT_TIME_FIELD = {
+export interface TimeField {
+  internalName: string
+  displayName: string
+  visible: boolean
+}
+export const DEFAULT_TIME_FIELD: TimeField = {
   internalName: 'time',
   displayName: '',
   visible: true,
@@ -29,10 +35,10 @@ export const DEFAULT_TABLE_OPTIONS = {
   fixFirstColumn: DEFAULT_FIX_FIRST_COLUMN,
 }
 
-export const DEFAULT_TIME_FORMAT = 'MM/DD/YYYY HH:mm:ss'
-export const TIME_FORMAT_CUSTOM = 'Custom'
+export const DEFAULT_TIME_FORMAT: string = 'MM/DD/YYYY HH:mm:ss'
+export const TIME_FORMAT_CUSTOM: string = 'Custom'
 
-export const FORMAT_OPTIONS = [
+export const FORMAT_OPTIONS: Array<{text: string}> = [
   {text: DEFAULT_TIME_FORMAT},
   {text: 'MM/DD/YYYY HH:mm:ss.SSS'},
   {text: 'YYYY-MM-DD HH:mm:ss'},
@@ -88,7 +94,13 @@ export const EMPTY_DASHBOARD: EmptyDefaultDashboard = {
   ],
 }
 
-export const NEW_DASHBOARD = {
+type NewDefaultDashboard = Pick<
+  Dashboard,
+  Exclude<keyof Dashboard, 'id' | 'templates' | 'organization' | 'cells'> & {
+    cells: NewDefaultCell[]
+  }
+>
+export const NEW_DASHBOARD: NewDefaultDashboard = {
   name: 'Name This Dashboard',
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
@@ -158,8 +170,11 @@ export const removeUnselectedTemplateValues = templates => {
   })
 }
 
-export const TYPE_QUERY_CONFIG = 'queryConfig'
-export const TYPE_SHIFTED = 'shifted queryConfig'
-export const TYPE_IFQL = 'ifql'
-export const DASHBOARD_NAME_MAX_LENGTH = 50
-export const TEMPLATE_RANGE = {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
+export const TYPE_QUERY_CONFIG: string = 'queryConfig'
+export const TYPE_SHIFTED: string = 'shifted queryConfig'
+export const TYPE_IFQL: string = 'ifql'
+export const DASHBOARD_NAME_MAX_LENGTH: number = 50
+export const TEMPLATE_RANGE: TimeRange = {
+  upper: null,
+  lower: TEMP_VAR_DASHBOARD_TIME,
+}

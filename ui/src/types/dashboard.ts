@@ -75,6 +75,9 @@ export enum CellType {
   SingleStat = 'single-stat',
   Gauge = 'gauge',
   Table = 'table',
+  Alerts = 'alerts',
+  News = 'news',
+  Guide = 'guide',
 }
 
 interface TemplateValue {
