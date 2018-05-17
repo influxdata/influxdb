@@ -4,6 +4,7 @@ v1.5.3 [unreleased]
 ### Bugfixes
 
 -	[#9765](https://github.com/influxdata/influxdb/pull/9765): Fix the validation for multiple nested distinct calls.
+-	[#9869](https://github.com/influxdata/influxdb/pull/9869): Return the correct auxiliary values for top/bottom.
 
 v1.5.2 [2018-04-12]
 -------------------
