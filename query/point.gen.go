@@ -61,9 +61,13 @@ func (v *FloatPoint) Clone() *FloatPoint {
 
 // CopyTo makes a deep copy into the point.
 func (v *FloatPoint) CopyTo(other *FloatPoint) {
-	*other = *v
+	other.Name, other.Tags = v.Name, v.Tags
+	other.Time = v.Time
+	other.Value, other.Nil = v.Value, v.Nil
 	if v.Aux != nil {
-		other.Aux = make([]interface{}, len(v.Aux))
+		if len(other.Aux) != len(v.Aux) {
+			other.Aux = make([]interface{}, len(v.Aux))
+		}
 		copy(other.Aux, v.Aux)
 	}
 }
@@ -282,9 +286,13 @@ func (v *IntegerPoint) Clone() *IntegerPoint {
 
 // CopyTo makes a deep copy into the point.
 func (v *IntegerPoint) CopyTo(other *IntegerPoint) {
-	*other = *v
+	other.Name, other.Tags = v.Name, v.Tags
+	other.Time = v.Time
+	other.Value, other.Nil = v.Value, v.Nil
 	if v.Aux != nil {
-		other.Aux = make([]interface{}, len(v.Aux))
+		if len(other.Aux) != len(v.Aux) {
+			other.Aux = make([]interface{}, len(v.Aux))
+		}
 		copy(other.Aux, v.Aux)
 	}
 }
@@ -503,9 +511,13 @@ func (v *UnsignedPoint) Clone() *UnsignedPoint {
 
 // CopyTo makes a deep copy into the point.
 func (v *UnsignedPoint) CopyTo(other *UnsignedPoint) {
-	*other = *v
+	other.Name, other.Tags = v.Name, v.Tags
+	other.Time = v.Time
+	other.Value, other.Nil = v.Value, v.Nil
 	if v.Aux != nil {
-		other.Aux = make([]interface{}, len(v.Aux))
+		if len(other.Aux) != len(v.Aux) {
+			other.Aux = make([]interface{}, len(v.Aux))
+		}
 		copy(other.Aux, v.Aux)
 	}
 }
@@ -722,9 +734,13 @@ func (v *StringPoint) Clone() *StringPoint {
 
 // CopyTo makes a deep copy into the point.
 func (v *StringPoint) CopyTo(other *StringPoint) {
-	*other = *v
+	other.Name, other.Tags = v.Name, v.Tags
+	other.Time = v.Time
+	other.Value, other.Nil = v.Value, v.Nil
 	if v.Aux != nil {
-		other.Aux = make([]interface{}, len(v.Aux))
+		if len(other.Aux) != len(v.Aux) {
+			other.Aux = make([]interface{}, len(v.Aux))
+		}
 		copy(other.Aux, v.Aux)
 	}
 }
@@ -943,9 +959,13 @@ func (v *BooleanPoint) Clone() *BooleanPoint {
 
 // CopyTo makes a deep copy into the point.
 func (v *BooleanPoint) CopyTo(other *BooleanPoint) {
-	*other = *v
+	other.Name, other.Tags = v.Name, v.Tags
+	other.Time = v.Time
+	other.Value, other.Nil = v.Value, v.Nil
 	if v.Aux != nil {
-		other.Aux = make([]interface{}, len(v.Aux))
+		if len(other.Aux) != len(v.Aux) {
+			other.Aux = make([]interface{}, len(v.Aux))
+		}
 		copy(other.Aux, v.Aux)
 	}
 }
