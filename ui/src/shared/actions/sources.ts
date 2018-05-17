@@ -17,8 +17,41 @@ import {
 
 import {Source, Kapacitor} from 'src/types'
 
-export type Action = ActionLoadSources | ActionUpdateSource
+export type Action =
+  | ActionLoadSources
+  | ActionUpdateSource
+  | ActionAddSource
+  | ActionFetchKapacitors
+  | ActionSetActiveKapacitor
+  | ActionDeleteKapacitor
+  | ActionLoadServices
 
+// Load Services
+export type LoadServices = (
+  source: Source,
+  services: Service[]
+) => ActionLoadServices
+
+export interface ActionLoadServices {
+  type: 'LOAD_SERVICES'
+  payload: {
+    source: Source
+    services: Service[]
+  }
+}
+
+export const loadServices = (
+  source: Source,
+  services: Service[]
+): ActionLoadServices => ({
+  type: 'LOAD_SERVICES',
+  payload: {
+    source,
+    services,
+  },
+})
+
+// Load Sources
 export type LoadSources = (sources: Source[]) => ActionLoadSources
 export interface ActionLoadSources {
   type: 'LOAD_SOURCES'

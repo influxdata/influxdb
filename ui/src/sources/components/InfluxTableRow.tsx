@@ -45,6 +45,7 @@ class InfluxTableRow extends PureComponent<Props> {
             />
           </Authorized>
         </td>
+        <td>Services Connection</td>
         <td className="source-table--kapacitor">
           <KapacitorDropdown
             source={source}

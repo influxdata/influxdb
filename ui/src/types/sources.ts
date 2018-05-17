@@ -17,6 +17,7 @@ export interface Source {
   defaultRP: string
   links: SourceLinks
   kapacitors?: Kapacitor[] // this field does not exist on the server type for Source and is added in the client in the reducer for loading kapacitors.
+  services?: Service[]
 }
 
 export interface SourceLinks {

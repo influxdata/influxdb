@@ -93,6 +93,20 @@ export const kapacitor = {
   },
 }
 
+export const service = {
+  url: 'localhost:8082',
+  type: 'ifql',
+  name: 'IFQL',
+  username: '',
+  password: '',
+  active: false,
+  insecureSkipVerify: false,
+  links: {
+    proxy: '/chronograf/v1/sources/1/services/2/proxy',
+    self: '/chronograf/v1/sources/1/services/2',
+  },
+}
+
 export const kapacitorRules = [
   {
     id: '1',
