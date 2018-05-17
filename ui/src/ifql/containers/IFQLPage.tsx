@@ -385,7 +385,7 @@ export class IFQLPage extends PureComponent<Props, State> {
         name: 'join',
         params: {tables: 'array', on: 'string', fn: 'function'},
       }
-      const body = bodyNodes(ast, this.state.suggestions)
+      const body = bodyNodes(ast, suggs)
       const status = {type: 'success', text: ''}
       this.setState({ast, script, body, status})
     } catch (error) {
