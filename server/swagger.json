@@ -3438,7 +3438,7 @@
         "name": {
           "type": "string",
           "description":
-            "Name of the kapacitor property e.g. channel for a slack ndoe"
+            "Name of the kapacitor property e.g. channel for a slack node"
         },
         "args": {
           "type": "array",

@@ -4,12 +4,14 @@ import RedactedInput from 'src/kapacitor/components/config/RedactedInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SlackProperties} from 'src/types/kapacitor'
 
+interface Options {
+  url: boolean
+  channel: string
+  workspace: string
+}
+
 interface Config {
-  options: {
-    url: boolean
-    channel: string
-    workspace: string
-  }
+  options: Options
 }
 
 interface Props {
@@ -33,32 +35,26 @@ interface Props {
 interface State {
   testEnabled: boolean
   enabled: boolean
+  workspace: string
 }
 
 @ErrorHandling
 class SlackConfig extends PureComponent<Props, State> {
   private url: HTMLInputElement
   private channel: HTMLInputElement
-  private workspace: HTMLInputElement
 
   constructor(props) {
     super(props)
     this.state = {
       testEnabled: this.props.enabled,
       enabled: _.get(this.props, 'config.options.enabled', false),
+      workspace: _.get(this.props, 'config.options.workspace') || '',
     }
   }
 
   public render() {
-    const {
-      config: {
-        options: {url, channel, workspace},
-      },
-      isNewConfig,
-    } = this.props
-    const {testEnabled, enabled} = this.state
-
-    const isNickNameEnabled = isNewConfig && !testEnabled
+    const {url, channel} = this.options
+    const {testEnabled, enabled, workspace} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -71,10 +67,9 @@ class SlackConfig extends PureComponent<Props, State> {
             id={`${this.workspaceID}-nickname`}
             type="text"
             placeholder={this.nicknamePlaceholder}
-            ref={r => (this.workspace = r)}
-            defaultValue={workspace || ''}
-            onChange={this.disableTest}
-            disabled={!isNickNameEnabled}
+            value={workspace}
+            onChange={this.handleWorkspaceChange}
+            disabled={!this.isNewConfig && !testEnabled}
           />
         </div>
         <div className="form-group col-xs-12">
@@ -127,28 +122,54 @@ class SlackConfig extends PureComponent<Props, State> {
           <button
             className="btn btn-primary"
             type="submit"
-            disabled={testEnabled}
+            disabled={testEnabled || this.isWorkspaceEmpty}
           >
             <span className="icon checkmark" />
             Save Changes
           </button>
           <button
             className="btn btn-primary"
-            disabled={!testEnabled || !enabled}
+            disabled={this.isTestDisabled}
             onClick={this.handleTest}
           >
             <span className="icon pulse-c" />
             Send Test Alert
           </button>
-          {!this.isDefaultConfig && (
-            <button className="btn btn-danger" onClick={this.handleDelete}>
-              <span className="icon trash" />
-              Delete
-            </button>
-          )}
+          {this.deleteButton}
           <hr />
         </div>
       </form>
+    )
+  }
+
+  private handleWorkspaceChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({workspace: e.target.value})
+  }
+
+  private get isNewConfig(): boolean {
+    const {isNewConfig} = this.props
+
+    return isNewConfig
+  }
+
+  private get options(): Options {
+    const {
+      config: {options},
+    } = this.props
+
+    return options
+  }
+
+  private get deleteButton(): JSX.Element {
+    if (this.isDefaultConfig) {
+      return null
+    }
+
+    return (
+      <button className="btn btn-danger" onClick={this.handleDelete}>
+        <span className="icon trash" />
+        Delete
+      </button>
     )
   }
 
@@ -167,6 +188,16 @@ class SlackConfig extends PureComponent<Props, State> {
     return this.props.workspaceID
   }
 
+  private get isWorkspaceEmpty(): boolean {
+    const {workspace} = this.state
+    return workspace === '' && !this.isDefaultConfig
+  }
+
+  private get isTestDisabled(): boolean {
+    const {testEnabled, enabled} = this.state
+    return !testEnabled || !enabled || this.isWorkspaceEmpty
+  }
+
   private handleTest = (e: MouseEvent<HTMLButtonElement>) => {
     const {
       onTest,
@@ -183,21 +214,22 @@ class SlackConfig extends PureComponent<Props, State> {
   }
 
   private handleSubmit = async e => {
-    const {isNewConfig} = this.props
     e.preventDefault()
+
+    const {workspace} = this.state
+    const {isNewConfig} = this.props
+
     const properties: SlackProperties = {
       url: this.url.value,
       channel: this.channel.value,
       enabled: this.state.enabled,
     }
+
     if (isNewConfig) {
-      properties.workspace = this.workspace.value
+      properties.workspace = workspace
     }
-    const success = await this.props.onSave(
-      properties,
-      isNewConfig,
-      this.workspace.value
-    )
+
+    const success = await this.props.onSave(properties, isNewConfig, workspace)
     if (success) {
       this.setState({testEnabled: true})
     }
@@ -205,7 +237,8 @@ class SlackConfig extends PureComponent<Props, State> {
 
   private handleDelete = async e => {
     e.preventDefault()
-    await this.props.onDelete(this.workspace.value, this.workspaceID)
+    const {workspace} = this.state
+    await this.props.onDelete(workspace, this.workspaceID)
   }
 
   private disableTest = () => {

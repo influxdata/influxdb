@@ -117,6 +117,7 @@ type Slack struct {
 	Channel   string `json:"channel"`   // Slack channel in which to post messages.
 	Username  string `json:"username"`  // Username of the Slack bot.
 	IconEmoji string `json:"iconEmoji"` // IconEmoji is an emoji name surrounded in ':' characters; The emoji image will replace the normal user icon for the slack bot.
+	Workspace string `json:"workspace"` // Workspace is the slack workspace for the alert handler
 }
 
 // Telegram sends alerts to telegram.org
