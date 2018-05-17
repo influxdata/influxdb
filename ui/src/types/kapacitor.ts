@@ -305,6 +305,7 @@ export interface HipChatProperties {
 }
 
 export interface KafkaProperties {
+  id?: string
   brokers: string[]
   timeout: string
   'batch-size': number

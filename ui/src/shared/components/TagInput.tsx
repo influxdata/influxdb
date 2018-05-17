@@ -14,6 +14,7 @@ interface Props {
   tags: Item[]
   title: string
   disableTest: () => void
+  inputID?: string
 }
 
 @ErrorHandling
@@ -21,16 +22,17 @@ class TagInput extends PureComponent<Props> {
   private input: HTMLInputElement
 
   public render() {
-    const {title, tags} = this.props
+    const {title, tags, inputID} = this.props
+    const id = inputID || title
 
     return (
       <div className="form-group col-xs-12">
-        <label htmlFor={title}>{title}</label>
+        <label htmlFor={id}>{title}</label>
         <input
           placeholder={`Type and hit 'Enter' to add to list of ${title}`}
           autoComplete="off"
           className="form-control tag-input"
-          id={title}
+          id={id}
           type="text"
           ref={r => (this.input = r)}
           onKeyDown={this.handleAddTag}

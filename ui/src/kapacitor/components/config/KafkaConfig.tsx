@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 
 import TagInput from 'src/shared/components/TagInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -8,10 +8,11 @@ import {Notification, NotificationFunc} from 'src/types'
 import {KafkaProperties} from 'src/types/kapacitor'
 import {notifyInvalidBatchSizeValue} from 'src/shared/copy/notifications'
 
+import {get} from 'src/utils/wrappers'
+
 interface Config {
-  options: KafkaProperties & {
-    id: string
-  }
+  options: KafkaProperties
+  isNewConfig?: boolean
 }
 
 interface Item {
@@ -20,10 +21,19 @@ interface Item {
 
 interface Props {
   config: Config
-  onSave: (properties: KafkaProperties) => void
-  onTest: (event: React.MouseEvent<HTMLButtonElement>) => void
+  onSave: (
+    properties: KafkaProperties,
+    isNewConfig: boolean,
+    specificConfig: string
+  ) => void
+  onTest: (
+    event: React.MouseEvent<HTMLButtonElement>,
+    specificConfigOptions: Partial<KafkaProperties>
+  ) => void
   enabled: boolean
   notify: (message: Notification | NotificationFunc) => void
+  id: number
+  onDelete: (specificConfig: string) => void
 }
 
 interface State {
@@ -56,6 +66,7 @@ class KafkaConfig extends PureComponent<Props, State> {
 
   public render() {
     const {options} = this.props.config
+    const {id: keyID} = this.props
     const id = options.id
     const timeout = options.timeout
     const batchSize = options['batch-size']
@@ -69,29 +80,30 @@ class KafkaConfig extends PureComponent<Props, State> {
     return (
       <form onSubmit={this.handleSubmit}>
         <div className="form-group col-xs-12">
-          <label htmlFor="id">ID</label>
+          <label htmlFor={`${keyID}-id`}>ID</label>
           <input
             className="form-control"
-            id="id"
+            id={`${keyID}-id`}
             type="text"
             ref={r => (this.id = r)}
             defaultValue={id || ''}
             onChange={this.disableTest}
-            readOnly={true}
+            readOnly={!this.isNewConfig}
           />
         </div>
         <TagInput
           title="Brokers"
+          inputID={`${keyID}-brokers`}
           onAddTag={this.handleAddBroker}
           onDeleteTag={this.handleDeleteBroker}
           tags={this.currentBrokersForTags}
           disableTest={this.disableTest}
         />
         <div className="form-group col-xs-12">
-          <label htmlFor="timeout">Timeout</label>
+          <label htmlFor={`${keyID}-timeout`}>Timeout</label>
           <input
             className="form-control"
-            id="timeout"
+            id={`${keyID}-timeout`}
             type="text"
             ref={r => (this.timeout = r)}
             defaultValue={timeout || ''}
@@ -99,10 +111,10 @@ class KafkaConfig extends PureComponent<Props, State> {
           />
         </div>
         <div className="form-group col-xs-12">
-          <label htmlFor="batchSize">Batch Size</label>
+          <label htmlFor={`${keyID}-batchsize`}>Batch Size</label>
           <input
             className="form-control"
-            id="batchSize"
+            id={`${keyID}-batchsize`}
             type="number"
             ref={r => (this.batchSize = r)}
             defaultValue={batchSize.toString() || '0'}
@@ -110,10 +122,10 @@ class KafkaConfig extends PureComponent<Props, State> {
           />
         </div>
         <div className="form-group col-xs-12">
-          <label htmlFor="batchTimeout">Batch Timeout</label>
+          <label htmlFor={`${keyID}-batch-timeout`}>Batch Timeout</label>
           <input
             className="form-control"
-            id="batchTimeout"
+            id={`${keyID}-batch-timeout`}
             type="text"
             ref={r => (this.batchTimeout = r)}
             defaultValue={batchTimeout || ''}
@@ -123,20 +135,20 @@ class KafkaConfig extends PureComponent<Props, State> {
         <div className="form-group col-xs-12">
           <div className="form-control-static">
             <input
-              id="useSSL"
+              id={`${keyID}-useSSL`}
               type="checkbox"
               defaultChecked={useSSL}
               ref={r => (this.useSSL = r)}
               onChange={this.disableTest}
             />
-            <label htmlFor="useSSL">Use SSL</label>
+            <label htmlFor={`${keyID}-useSSL`}>Use SSL</label>
           </div>
         </div>
         <div className="form-group col-xs-12">
-          <label htmlFor="sslCA">SSL CA</label>
+          <label htmlFor={`${keyID}-sslCA`}>SSL CA</label>
           <input
             className="form-control"
-            id="sslCA"
+            id={`${keyID}-sslCA`}
             type="text"
             ref={r => (this.sslCA = r)}
             defaultValue={sslCA || ''}
@@ -144,10 +156,10 @@ class KafkaConfig extends PureComponent<Props, State> {
           />
         </div>
         <div className="form-group col-xs-12">
-          <label htmlFor="sslCert">SSL Cert</label>
+          <label htmlFor={`${keyID}-sslCert`}>SSL Cert</label>
           <input
             className="form-control"
-            id="sslCert"
+            id={`${keyID}-sslCert`}
             type="text"
             ref={r => (this.sslCert = r)}
             defaultValue={sslCert || ''}
@@ -155,10 +167,10 @@ class KafkaConfig extends PureComponent<Props, State> {
           />
         </div>
         <div className="form-group col-xs-12">
-          <label htmlFor="sslKey">SSL Key</label>
+          <label htmlFor={`${keyID}-sslKey`}>SSL Key</label>
           <input
             className="form-control"
-            id="sslKey"
+            id={`${keyID}-sslKey`}
             type="text"
             ref={r => (this.sslKey = r)}
             defaultValue={sslKey || ''}
@@ -168,13 +180,15 @@ class KafkaConfig extends PureComponent<Props, State> {
         <div className="form-group col-xs-12">
           <div className="form-control-static">
             <input
-              id="insecureSkipVerify"
+              id={`${keyID}-insecureSkipVerify`}
               type="checkbox"
               defaultChecked={insecureSkipVerify}
               ref={r => (this.insecureSkipVerify = r)}
               onChange={this.disableTest}
             />
-            <label htmlFor="insecureSkipVerify">Insecure Skip Verify</label>
+            <label htmlFor={`${keyID}-insecureSkipVerify`}>
+              Insecure Skip Verify
+            </label>
           </div>
         </div>
         <div className="form-group form-group-submit col-xs-12 text-center">
@@ -189,11 +203,13 @@ class KafkaConfig extends PureComponent<Props, State> {
           <button
             className="btn btn-primary"
             disabled={!this.state.testEnabled}
-            onClick={this.props.onTest}
+            onClick={this.handleTest}
           >
             <span className="icon pulse-c" />
             Send Test Alert
           </button>
+          {this.deleteButton}
+          <hr />
         </div>
       </form>
     )
@@ -202,6 +218,36 @@ class KafkaConfig extends PureComponent<Props, State> {
   private get currentBrokersForTags(): Item[] {
     const {currentBrokers} = this.state
     return currentBrokers.map(broker => ({name: broker}))
+  }
+
+  private get configID(): string {
+    const {
+      config: {
+        options: {id},
+      },
+    } = this.props
+    return id
+  }
+
+  private get isNewConfig(): boolean {
+    return get(this.props, 'config.isNewConfig', false)
+  }
+
+  private get isDefaultConfig(): boolean {
+    return this.configID === 'default'
+  }
+
+  private get deleteButton(): JSX.Element {
+    if (this.isDefaultConfig) {
+      return null
+    }
+
+    return (
+      <button className="btn btn-danger" onClick={this.handleDelete}>
+        <span className="icon trash" />
+        Delete
+      </button>
+    )
   }
 
   private handleSubmit = async e => {
@@ -213,7 +259,7 @@ class KafkaConfig extends PureComponent<Props, State> {
       return
     }
 
-    const properties = {
+    const properties: KafkaProperties = {
       brokers: this.state.currentBrokers,
       timeout: this.timeout.value,
       'batch-size': batchSize,
@@ -225,10 +271,27 @@ class KafkaConfig extends PureComponent<Props, State> {
       'insecure-skip-verify': this.insecureSkipVerify.checked,
     }
 
-    const success = await this.props.onSave(properties)
+    if (this.isNewConfig) {
+      properties.id = this.id.value
+    }
+
+    const success = await this.props.onSave(
+      properties,
+      this.isNewConfig,
+      this.configID
+    )
     if (success) {
       this.setState({testEnabled: true})
     }
+  }
+
+  private handleTest = (e: MouseEvent<HTMLButtonElement>): void => {
+    this.props.onTest(e, {id: this.configID})
+  }
+
+  private handleDelete = (e: MouseEvent<HTMLButtonElement>): void => {
+    e.preventDefault()
+    this.props.onDelete(this.configID)
   }
 
   private disableTest = () => {

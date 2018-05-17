@@ -22,7 +22,6 @@ import {
 import {
   AlertaConfig,
   HipChatConfig,
-  KafkaConfig,
   OpsGenieConfig,
   PagerDutyConfig,
   PagerDuty2Config,
@@ -32,6 +31,8 @@ import {
   TalkConfig,
   TelegramConfig,
   VictorOpsConfig,
+  SlackConfigs,
+  KafkaConfigs,
 } from './config'
 
 import {
@@ -50,7 +51,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Source, Kapacitor} from 'src/types'
 import {Notification} from 'src/types/notifications'
 import {ServiceProperties, SpecificConfigOptions} from 'src/types/kapacitor'
-import SlackConfigs from 'src/kapacitor/components/config/SlackConfigs'
+
 import {
   AlertDisplayText,
   SupportedServices,
@@ -259,16 +260,22 @@ class AlertTabs extends PureComponent<Props, State> {
         )
       case AlertTypes.kafka:
         return (
-          <KafkaConfig
+          <KafkaConfigs
             onSave={this.handleSaveConfig(AlertTypes.kafka)}
-            config={this.getSectionElement(configSections, AlertTypes.kafka)}
+            configs={this.getSectionElements(configSections, AlertTypes.kafka)}
             onTest={this.handleTestConfig(AlertTypes.kafka, {
               cluster: this.getProperty(configSections, AlertTypes.kafka, 'id'),
             })}
-            enabled={this.getConfigEnabled(configSections, AlertTypes.kafka)}
+            onEnabled={this.getSpecificConfigEnabled(
+              configSections,
+              AlertTypes.kafka
+            )}
             notify={this.props.notify}
+            isMultipleConfigsSupported={true}
+            onDelete={this.handleDeleteConfig(AlertTypes.kafka)}
           />
         )
+
       case AlertTypes.opsgenie:
         return (
           <OpsGenieConfig
