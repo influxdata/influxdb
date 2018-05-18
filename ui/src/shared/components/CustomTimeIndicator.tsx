@@ -15,7 +15,8 @@ interface Props {
 
 const CustomTimeIndicator: SFC<Props> = ({queries}) => {
   const q = queries.find(
-    query => query.text.includes(TEMP_VAR_DASHBOARD_TIME) === false
+    query =>
+      _.get(query, 'text', '').includes(TEMP_VAR_DASHBOARD_TIME) === false
   )
   const customLower = _.get(q, ['queryConfig', 'range', 'lower'], null)
   const customUpper = _.get(q, ['queryConfig', 'range', 'upper'], null)
