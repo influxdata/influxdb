@@ -108,7 +108,7 @@ func UnmarshalServer(data []byte, s *chronograf.Server) error {
 
 	s.Metadata = make(map[string]interface{})
 	if len(pb.MetadataJSON) > 0 {
-		if err := json.Unmarshal([]byte(pb.MetadataJSON), s.Metadata); err != nil {
+		if err := json.Unmarshal([]byte(pb.MetadataJSON), &s.Metadata); err != nil {
 			return err
 		}
 	}
