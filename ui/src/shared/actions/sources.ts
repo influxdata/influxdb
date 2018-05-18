@@ -5,6 +5,7 @@ import {
   updateKapacitor as updateKapacitorAJAX,
   deleteKapacitor as deleteKapacitorAJAX,
 } from 'src/shared/apis'
+
 import {notify} from './notifications'
 import {errorThrown} from 'src/shared/actions/errors'
 
@@ -24,32 +25,6 @@ export type Action =
   | ActionFetchKapacitors
   | ActionSetActiveKapacitor
   | ActionDeleteKapacitor
-  | ActionLoadServices
-
-// Load Services
-export type LoadServices = (
-  source: Source,
-  services: Service[]
-) => ActionLoadServices
-
-export interface ActionLoadServices {
-  type: 'LOAD_SERVICES'
-  payload: {
-    source: Source
-    services: Service[]
-  }
-}
-
-export const loadServices = (
-  source: Source,
-  services: Service[]
-): ActionLoadServices => ({
-  type: 'LOAD_SERVICES',
-  payload: {
-    source,
-    services,
-  },
-})
 
 // Load Sources
 export type LoadSources = (sources: Source[]) => ActionLoadSources

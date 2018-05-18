@@ -1,4 +1,4 @@
-interface Service {
+export interface Service {
   id?: string
   url: string
   name: string
@@ -8,6 +8,7 @@ interface Service {
   active: boolean
   insecureSkipVerify: boolean
   links: {
+    source: string
     self: string
     proxy: string
   }

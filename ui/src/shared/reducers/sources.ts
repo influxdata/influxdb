@@ -10,19 +10,6 @@ const sourcesReducer = (state = initialState, action: Action): Source[] => {
       return action.payload.sources
     }
 
-    case 'LOAD_SERVICES': {
-      const {services} = action.payload
-      const newState = state.map<Source>(source => {
-        if (source.id === action.payload.source.id) {
-          return {...source, services}
-        }
-
-        return {...source}
-      })
-
-      return newState
-    }
-
     case 'SOURCE_UPDATED': {
       const {source} = action.payload
       const updatedIndex = state.findIndex(s => s.id === source.id)

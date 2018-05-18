@@ -1,13 +1,8 @@
 import reducer, {initialState} from 'src/shared/reducers/sources'
 
-import {
-  updateSource,
-  addSource,
-  loadServices,
-  loadSources,
-} from 'src/shared/actions/sources'
+import {updateSource, addSource, loadSources} from 'src/shared/actions/sources'
 
-import {source, service} from 'test/resources'
+import {source} from 'test/resources'
 
 describe('Shared.Reducers.sources', () => {
   it('can LOAD_SOURCES', () => {
@@ -74,19 +69,6 @@ describe('Shared.Reducers.sources', () => {
 
       expect(state.find(({id}) => id === '1').default).toBe(true)
       expect(state.find(({id}) => id === '2').default).toBe(false)
-    })
-  })
-
-  describe('LOAD_SERVICES', () => {
-    it('correctly loads the services', () => {
-      const s1 = {...service, id: '1'}
-      const s2 = {...service, id: '2'}
-
-      const expected = [s1, s2]
-      const state = reducer(initialState, loadSources([source]))
-      const actual = reducer(state, loadServices(source, expected))
-
-      expect(actual[0].services).toEqual(expected)
     })
   })
 })
