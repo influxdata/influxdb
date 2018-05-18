@@ -14,6 +14,7 @@ import {analyzeSuccess} from 'src/shared/copy/notifications'
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
 import {builder, argTypes} from 'src/ifql/constants'
+import {funcNames} from 'src/ifql/constants'
 
 import {Notification} from 'src/types'
 import {Suggestion, FlatBody, Links} from 'src/types/ifql'
@@ -385,12 +386,20 @@ export class IFQLPage extends PureComponent<Props, State> {
 
     try {
       const ast = await getAST({url: links.ast, body: script})
-      const suggs = this.state.suggestions
-      suggs[17] = {
-        name: 'join',
-        params: {tables: 'array', on: 'string', fn: 'function'},
-      }
-      const body = bodyNodes(ast, suggs)
+      const suggestions = this.state.suggestions.map(s => {
+        if (s.name === funcNames.JOIN) {
+          return {
+            ...s,
+            params: {
+              tables: 'object',
+              on: 'array',
+              fn: 'function',
+            },
+          }
+        }
+        return s
+      })
+      const body = bodyNodes(ast, suggestions)
       const status = {type: 'success', text: ''}
       this.setState({ast, script, body, status})
     } catch (error) {
