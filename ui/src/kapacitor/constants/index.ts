@@ -183,7 +183,7 @@ export const MAP_KEYS_FROM_CONFIG: KeyMappings = {
 export const ALERTS_FROM_CONFIG: FieldsFromConfigAlerts = {
   alerta: ['environment', 'origin', 'token'], // token = bool
   hipChat: ['url', 'room', 'token'], // token = bool
-  kafka: [],
+  kafka: ['id'],
   opsGenie: ['api-key', 'teams', 'recipients'], // api-key = bool
   opsGenie2: ['api-key', 'teams', 'recipients'], // api-key = bool
   pagerDuty: ['service-key'], // service-key = bool

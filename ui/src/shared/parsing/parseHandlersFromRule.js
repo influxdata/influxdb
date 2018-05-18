@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import {HANDLERS_TO_RULE} from 'src/kapacitor/constants'
+import {HANDLERS_TO_RULE, AlertTypes} from 'src/kapacitor/constants'
 
 export const parseHandlersFromRule = (rule, handlersFromConfig) => {
   const handlersOfKind = {}
@@ -47,22 +47,33 @@ export const parseAlertNodeList = rule => {
     rule.alertNodes,
     (acc, v, k) => {
       if (k in HANDLERS_TO_RULE && v.length > 0) {
-        if (k === 'slack') {
-          _.reduce(
-            v,
-            (alerts, alert) => {
-              const nickname = _.get(alert, 'workspace') || 'default'
-              if (!alerts[nickname]) {
-                const fullHandler = `${k} (${nickname})`
-                alerts[nickname] = fullHandler
-                acc.push(fullHandler)
-              }
-              return alerts
-            },
-            {}
-          )
-        } else {
-          acc.push(k)
+        let alerts
+        switch (k) {
+          case AlertTypes.slack:
+            alerts = _.uniqBy(
+              v,
+              alert => _.get(alert, 'workspace') || 'default'
+            )
+
+            acc.push(
+              ..._.map(alerts, alert => {
+                const nickname = _.get(alert, 'workspace') || 'default'
+                return `${k} (${nickname})`
+              })
+            )
+            break
+          case AlertTypes.kafka:
+            alerts = _.uniqBy(v, alert => _.get(alert, 'cluster'))
+
+            acc.push(
+              ..._.map(alerts, alert => {
+                const nickname = _.get(alert, 'cluster')
+                return `${k} (${nickname})`
+              })
+            )
+            break
+          default:
+            acc.push(k)
         }
       }
     },

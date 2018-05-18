@@ -69,7 +69,7 @@ class SlackConfig extends PureComponent<Props, State> {
             placeholder={this.nicknamePlaceholder}
             value={workspace}
             onChange={this.handleWorkspaceChange}
-            disabled={this.isNicknameEditable}
+            disabled={this.isNicknameDisabled}
           />
         </div>
         <div className="form-group col-xs-12">
@@ -198,9 +198,8 @@ class SlackConfig extends PureComponent<Props, State> {
     return !testEnabled || !enabled || this.isWorkspaceEmpty
   }
 
-  private get isNicknameEditable(): boolean {
-    const {testEnabled} = this.state
-    return (!this.isNewConfig && !testEnabled) || this.isDefaultConfig
+  private get isNicknameDisabled(): boolean {
+    return !this.isNewConfig || this.isDefaultConfig
   }
 
   private handleTest = (e: MouseEvent<HTMLButtonElement>) => {
