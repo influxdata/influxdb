@@ -115,6 +115,7 @@ type Handler struct {
 	stats     *Statistics
 
 	requestTracker *RequestTracker
+	writeThrottler *Throttler
 }
 
 // NewHandler returns a new instance of handler with routes.
@@ -127,6 +128,10 @@ func NewHandler(c Config) *Handler {
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
 	}
+
+	// Limit the number of concurrent & enqueued write requests.
+	h.writeThrottler = NewThrottler(c.MaxConcurrentWriteLimit, c.MaxEnqueuedWriteLimit)
+	h.writeThrottler.EnqueueTimeout = c.EnqueuedWriteTimeout
 
 	// Disable the write log if they have been suppressed.
 	writeLogEnabled := c.LogEnabled
@@ -283,6 +288,15 @@ func (h *Handler) AddRoutes(routes ...Route) {
 		// This is a normal handler signature and does not require authentication
 		if hf, ok := r.HandlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
 			handler = http.HandlerFunc(hf)
+		}
+
+		// Throttle route if this is a write endpoint.
+		if r.Method == http.MethodPost {
+			switch r.Pattern {
+			case "/write", "/api/v1/prom/write":
+				handler = h.writeThrottler.Handler(handler)
+			default:
+			}
 		}
 
 		handler = h.responseWriter(handler)
@@ -1646,4 +1660,72 @@ func (r *Response) Error() error {
 		}
 	}
 	return nil
+}
+
+// Throttler represents an HTTP throttler that limits the number of concurrent
+// requests being processed as well as the number of enqueued requests.
+type Throttler struct {
+	current  chan struct{}
+	enqueued chan struct{}
+
+	// Maximum amount of time requests can wait in queue.
+	// Must be set before adding middleware.
+	EnqueueTimeout time.Duration
+
+	Logger *zap.Logger
+}
+
+// NewThrottler returns a new instance of Throttler that limits to concurrentN.
+// requests processed at a time and maxEnqueueN requests waiting to be processed.
+func NewThrottler(concurrentN, maxEnqueueN int) *Throttler {
+	return &Throttler{
+		current:  make(chan struct{}, concurrentN),
+		enqueued: make(chan struct{}, concurrentN+maxEnqueueN),
+		Logger:   zap.NewNop(),
+	}
+}
+
+// Handler wraps h in a middleware handler that throttles requests.
+func (t *Throttler) Handler(h http.Handler) http.Handler {
+	timeout := t.EnqueueTimeout
+
+	// Return original handler if concurrent requests is zero.
+	if cap(t.current) == 0 {
+		return h
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Start a timer to limit enqueued request times.
+		var timerCh <-chan time.Time
+		if timeout > 0 {
+			timer := time.NewTimer(timeout)
+			defer timer.Stop()
+			timerCh = timer.C
+		}
+
+		// Wait for a spot in the queue.
+		if cap(t.enqueued) > cap(t.current) {
+			select {
+			case t.enqueued <- struct{}{}:
+				defer func() { <-t.enqueued }()
+			default:
+				t.Logger.Warn("request throttled, queue full", zap.Duration("d", timeout))
+				http.Error(w, "request throttled, queue full", http.StatusServiceUnavailable)
+				return
+			}
+		}
+
+		// Wait for a spot in the list of concurrent requests.
+		select {
+		case t.current <- struct{}{}:
+		case <-timerCh:
+			t.Logger.Warn("request throttled, exceeds timeout", zap.Duration("d", timeout))
+			http.Error(w, "request throttled, exceeds timeout", http.StatusServiceUnavailable)
+			return
+		}
+		defer func() { <-t.current }()
+
+		// Execute request.
+		h.ServeHTTP(w, r)
+	})
 }
