@@ -1,6 +1,6 @@
 import AJAX from 'src/utils/ajax'
 import {AlertTypes} from 'src/kapacitor/constants'
-import {Kapacitor, Service} from 'src/types'
+import {Kapacitor, Source, Service, NewService} from 'src/types'
 
 export function getSources() {
   return AJAX({
@@ -309,6 +309,31 @@ export const getServices = async (url: string): Promise<Service[]> => {
     const {data} = await AJAX({
       url,
       method: 'GET',
+    })
+
+    return data.services
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const createService = async (
+  source: Source,
+  {
+    url,
+    name = 'My IFQLD',
+    type,
+    username,
+    password,
+    insecureSkipVerify,
+  }: NewService
+): Promise<Service> => {
+  try {
+    const {data} = await AJAX({
+      url: source.links.services,
+      method: 'POST',
+      data: {url, name, type, username, password, insecureSkipVerify},
     })
 
     return data

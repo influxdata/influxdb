@@ -1,7 +1,7 @@
 // All copy for notifications should be stored here for easy editing
 // and ensuring stylistic consistency
 
-import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'shared/constants/index'
+import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
 
 const defaultErrorNotification = {
   type: 'error',
@@ -620,3 +620,13 @@ export const couldNotGetServices = {
   ...defaultErrorNotification,
   message: 'We could not get services',
 }
+
+export const ifqlCreated = {
+  ...defaultSuccessNotification,
+  message: 'IFQL Connection Created.  Script your heart out!',
+}
+
+export const ifqlNotCreated = (message: string) => ({
+  ...defaultErrorNotification,
+  message,
+})

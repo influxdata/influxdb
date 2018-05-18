@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import {bindActionCreators} from 'redux'
+import {RouteComponentProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import CheckServices from 'src/ifql/containers/CheckServices'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
+
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {analyzeSuccess} from 'src/shared/copy/notifications'
 
@@ -16,9 +16,16 @@ import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
 import {builder, argTypes} from 'src/ifql/constants'
 import {funcNames} from 'src/ifql/constants'
 
-import {Notification} from 'src/types'
-import {Suggestion, FlatBody, Links} from 'src/types/ifql'
-import {Service} from 'src/types'
+import {Source, Service, Notification} from 'src/types'
+import {
+  Suggestion,
+  FlatBody,
+  Links,
+  InputArg,
+  Handlers,
+  DeleteFuncNodeArgs,
+  Func,
+} from 'src/types/ifql'
 
 interface Status {
   type: string
@@ -28,6 +35,7 @@ interface Status {
 interface Props {
   links: Links
   services: Service[]
+  sources: Source[]
   notify: (message: Notification) => void
 }
 
@@ -47,7 +55,10 @@ interface State {
 export const IFQLContext = React.createContext()
 
 @ErrorHandling
-export class IFQLPage extends PureComponent<Props, State> {
+export class IFQLPage extends PureComponent<
+  Props & RouteComponentProps<any, any>,
+  State
+> {
   constructor(props) {
     super(props)
     this.state = {
@@ -430,12 +441,12 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 }
 
-const mapStateToProps = ({links, services}) => {
-  return {links: links.ifql, services}
+const mapStateToProps = ({links, services, sources}) => {
+  return {links: links.ifql, services, sources}
 }
 
-const mapDispatchToProps = dispatch => ({
-  notify: bindActionCreators(notifyAction, dispatch),
-})
+const mapDispatchToProps = {
+  notify: notifyAction,
+}
 
 export default connect(mapStateToProps, mapDispatchToProps)(IFQLPage)
