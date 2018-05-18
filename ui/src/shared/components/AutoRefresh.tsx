@@ -117,6 +117,7 @@ const AutoRefresh = (
           queries,
           resolution,
           templates,
+          // TODO: how is sourceLink being used? or do we need to be setting db & rp on query?
           editQueryStatus
         )
         const newSeries = timeSeries.map((response: TimeSeriesResponse) => ({

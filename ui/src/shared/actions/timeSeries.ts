@@ -83,6 +83,13 @@ export const fetchTimeSeriesAsync = async (
       tempVars,
       resolution,
     })
+    console.log(
+      `fetchTimeSeriesAsync query: ${JSON.stringify(
+        query,
+        null,
+        2
+      )}, db: ${db}, rp: ${rp}`
+    )
     return handleSuccess(data, query, editQueryStatus)
   } catch (error) {
     errorThrown(error)
