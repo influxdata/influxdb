@@ -1,12 +1,12 @@
 import _ from 'lodash'
-import {HANDLERS_TO_RULE, AlertTypes} from 'src/kapacitor/constants'
+import {HANDLERS_TO_RULE_THEM_ALL, AlertTypes} from 'src/kapacitor/constants'
 
 export const parseHandlersFromRule = (rule, handlersFromConfig) => {
   const handlersOfKind = {}
   const handlersOnThisAlert = []
 
   const handlersFromRule = _.pickBy(rule.alertNodes, (v, k) => {
-    return k in HANDLERS_TO_RULE
+    return k in HANDLERS_TO_RULE_THEM_ALL
   })
 
   _.forEach(handlersFromRule, (v, alertKind) => {
@@ -46,7 +46,7 @@ export const parseAlertNodeList = rule => {
   const nodeList = _.transform(
     rule.alertNodes,
     (acc, v, k) => {
-      if (k in HANDLERS_TO_RULE && v.length > 0) {
+      if (k in HANDLERS_TO_RULE_THEM_ALL && v.length > 0) {
         let alerts
         switch (k) {
           case AlertTypes.slack:

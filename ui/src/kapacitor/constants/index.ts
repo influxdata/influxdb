@@ -231,7 +231,7 @@ export const MAP_FIELD_KEYS_FROM_CONFIG: ConfigKeyMaps = {
 }
 
 // HANDLERS_TO_RULE returns array of fields that may be updated for each alert on rule.
-export const HANDLERS_TO_RULE: FieldsFromAllAlerts = {
+export const HANDLERS_TO_RULE_THEM_ALL: FieldsFromAllAlerts = {
   alerta: [
     'resource',
     'event',

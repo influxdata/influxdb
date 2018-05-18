@@ -172,6 +172,7 @@ class RuleHandlers extends PureComponent<Props, State> {
       alias: newItemName,
     }
 
+    // Handle kapacitor requiring a cluster to be provided that matches the id
     if (newEndpoint.type === AlertTypes.kafka) {
       newEndpoint.cluster = newEndpoint.id
     }

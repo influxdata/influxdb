@@ -9,6 +9,23 @@ import {Notification, NotificationFunc} from 'src/types'
 
 import {get} from 'src/utils/wrappers'
 
+const DEFAULT_CONFIG = {
+  options: {
+    id: '',
+    brokers: [],
+    timeout: '',
+    'batch-size': 0,
+    'batch-timeout': '',
+    'use-ssl': false,
+    'ssl-ca': '',
+    'ssl-cert': '',
+    'ssl-key': '',
+    'insecure-skip-verify': false,
+    enabled: false,
+  },
+  isNewConfig: true,
+}
+
 interface Config {
   options: KafkaProperties & {
     id: string
@@ -96,22 +113,7 @@ class KafkaConfigs extends Component<Props, State> {
 
   private handleAddConfig = (): void => {
     const {configs} = this.state
-    const newConfig: Config = {
-      options: {
-        id: '',
-        brokers: [],
-        timeout: '',
-        'batch-size': 0,
-        'batch-timeout': '',
-        'use-ssl': false,
-        'ssl-ca': '',
-        'ssl-cert': '',
-        'ssl-key': '',
-        'insecure-skip-verify': false,
-        enabled: false,
-      },
-      isNewConfig: true,
-    }
+    const newConfig: Config = DEFAULT_CONFIG
     const updatedConfigs = [...configs, newConfig]
     this.setState({configs: updatedConfigs})
   }

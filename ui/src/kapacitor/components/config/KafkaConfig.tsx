@@ -200,7 +200,7 @@ class KafkaConfig extends PureComponent<Props, State> {
               type="checkbox"
               id={`${keyID}-enabled`}
               checked={enabled}
-              onChange={this.handleEnabledChange}
+              onChange={this.handleConfigEnabledChange}
             />
             <label htmlFor={`${keyID}-enabled`}>Configuration Enabled</label>
           </div>
@@ -300,7 +300,7 @@ class KafkaConfig extends PureComponent<Props, State> {
     }
   }
 
-  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+  private handleConfigEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
     this.setState({enabled: e.target.checked})
     this.disableTest()
   }
