@@ -1,10 +1,11 @@
-import {Service} from 'src/types'
+import {Source, Service} from 'src/types'
 
 export type Action =
   | ActionLoadServices
   | ActionAddService
   | ActionDeleteService
   | ActionUpdateService
+  | ActionSetActiveService
 
 // Load Services
 export type LoadServices = (services: Service[]) => ActionLoadServices
@@ -66,6 +67,30 @@ export interface ActionUpdateService {
 export const updateService = (service: Service): ActionUpdateService => ({
   type: 'UPDATE_SERVICE',
   payload: {
+    service,
+  },
+})
+
+// Set Active Service
+export type SetActiveService = (
+  source: Source,
+  service: Service
+) => ActionSetActiveService
+export interface ActionSetActiveService {
+  type: 'SET_ACTIVE_SERVICE'
+  payload: {
+    source: Source
+    service: Service
+  }
+}
+
+export const setActiveService = (
+  source: Source,
+  service: Service
+): ActionSetActiveService => ({
+  type: 'SET_ACTIVE_SERVICE',
+  payload: {
+    source,
     service,
   },
 })
