@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {RouteComponentProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -55,10 +54,7 @@ interface State {
 export const IFQLContext = React.createContext()
 
 @ErrorHandling
-export class IFQLPage extends PureComponent<
-  Props & RouteComponentProps<any, any>,
-  State
-> {
+export class IFQLPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {

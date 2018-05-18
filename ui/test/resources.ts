@@ -21,6 +21,7 @@ export const me = {
 }
 
 export const sourceLinks: SourceLinks = {
+  services: '/chronograf/v1/sources/16/services',
   self: '/chronograf/v1/sources/16',
   kapacitors: '/chronograf/v1/sources/16/kapacitors',
   proxy: '/chronograf/v1/sources/16/proxy',

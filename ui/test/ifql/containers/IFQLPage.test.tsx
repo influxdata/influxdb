@@ -13,6 +13,8 @@ const setup = () => {
       suggestions: '',
       ast: '',
     },
+    services: [],
+    sources: [],
     notify: () => {},
   }
 

@@ -6,7 +6,4 @@ export interface Notification {
   message: string
 }
 
-interface AdditionalInfo {
-  [x: string]: string
-}
-export type NotificationFunc = (info?: AdditionalInfo) => Notification
+export type NotificationFunc = (message: any) => Notification

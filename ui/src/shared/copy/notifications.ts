@@ -131,7 +131,7 @@ export const notifySourceUdpateFailed = (sourceName, errorMessage) => ({
   message: `Failed to update InfluxDB ${sourceName} Connection: ${errorMessage}`,
 })
 
-export const notifySourceDeleted = sourceName => ({
+export const notifySourceDeleted = (sourceName: string) => ({
   ...defaultSuccessNotification,
   icon: 'server2',
   message: `${sourceName} deleted successfully.`,
@@ -536,7 +536,7 @@ export const notifyTestAlertSent = endpoint => ({
   message: `Test Alert sent to ${endpoint}. If the Alert does not reach its destination, please check your endpoint configuration settings.`,
 })
 
-export const notifyTestAlertFailed = (endpoint, errorMessage) => ({
+export const notifyTestAlertFailed = (endpoint, errorMessage?) => ({
   ...defaultErrorNotification,
   message: `There was an error sending a Test Alert to ${endpoint}${
     errorMessage ? `: ${errorMessage}` : '.'

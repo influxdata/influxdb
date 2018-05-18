@@ -18,6 +18,7 @@ import {ColorString, ColorNumber} from 'src/types/colors'
 import {CellType} from 'src/types/dashboard'
 
 export const sourceLinks: SourceLinks = {
+  services: '/chronograf/v1/sources/4',
   self: '/chronograf/v1/sources/4',
   kapacitors: '/chronograf/v1/sources/4/kapacitors',
   proxy: '/chronograf/v1/sources/4/proxy',
