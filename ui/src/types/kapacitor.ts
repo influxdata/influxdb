@@ -315,6 +315,7 @@ export interface KafkaProperties {
   'ssl-cert': string
   'ssl-key': string
   'insecure-skip-verify': boolean
+  enabled: boolean
 }
 
 export interface OpsGenieProperties {

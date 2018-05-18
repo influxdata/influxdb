@@ -1,4 +1,4 @@
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
 
 import TagInput from 'src/shared/components/TagInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -32,13 +32,14 @@ interface Props {
   ) => void
   enabled: boolean
   notify: (message: Notification | NotificationFunc) => void
-  id: number
+  id: string
   onDelete: (specificConfig: string) => void
 }
 
 interface State {
   currentBrokers: string[]
   testEnabled: boolean
+  enabled: boolean
 }
 
 @ErrorHandling
@@ -61,6 +62,7 @@ class KafkaConfig extends PureComponent<Props, State> {
     this.state = {
       currentBrokers: brokers || [],
       testEnabled: this.props.enabled,
+      enabled: get(this.props, 'config.options.enabled', false),
     }
   }
 
@@ -76,6 +78,7 @@ class KafkaConfig extends PureComponent<Props, State> {
     const sslCert = options['ssl-cert']
     const sslKey = options['ssl-key']
     const insecureSkipVerify = options['insecure-skip-verify']
+    const {enabled} = this.state
 
     return (
       <form onSubmit={this.handleSubmit}>
@@ -191,6 +194,17 @@ class KafkaConfig extends PureComponent<Props, State> {
             </label>
           </div>
         </div>
+        <div className="form-group col-xs-12">
+          <div className="form-control-static">
+            <input
+              type="checkbox"
+              id={`${keyID}-enabled`}
+              checked={enabled}
+              onChange={this.handleEnabledChange}
+            />
+            <label htmlFor={`${keyID}-enabled`}>Configuration Enabled</label>
+          </div>
+        </div>
         <div className="form-group form-group-submit col-xs-12 text-center">
           <button
             className="btn btn-primary"
@@ -269,6 +283,7 @@ class KafkaConfig extends PureComponent<Props, State> {
       'ssl-cert': this.sslCert.value,
       'ssl-key': this.sslKey.value,
       'insecure-skip-verify': this.insecureSkipVerify.checked,
+      enabled: this.state.enabled,
     }
 
     if (this.isNewConfig) {
@@ -283,6 +298,11 @@ class KafkaConfig extends PureComponent<Props, State> {
     if (success) {
       this.setState({testEnabled: true})
     }
+  }
+
+  private handleEnabledChange = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({enabled: e.target.checked})
+    this.disableTest()
   }
 
   private handleTest = (e: MouseEvent<HTMLButtonElement>): void => {
