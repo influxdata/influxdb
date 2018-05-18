@@ -185,6 +185,8 @@ type EngineOptions struct {
 	FieldValidator FieldValidator
 
 	OnNewEngine func(Engine)
+
+	FileStoreObserver FileStoreObserver
 }
 
 // NewEngineOptions returns the default options.
@@ -201,3 +203,13 @@ func NewEngineOptions() EngineOptions {
 var NewInmemIndex func(name string, sfile *SeriesFile) (interface{}, error)
 
 type CompactionPlannerCreator func(cfg Config) interface{}
+
+// FileStoreObserver is passed notifications before the file store adds or deletes files. In this way, it can
+// be sure to observe every file that is added or removed even in the presence of process death.
+type FileStoreObserver interface {
+	// FileFinishing is called before a file is renamed to it's final name.
+	FileFinishing(path string) error
+
+	// FileUnlinking is called before a file is unlinked.
+	FileUnlinking(path string) error
+}
