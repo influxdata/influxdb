@@ -442,8 +442,7 @@ class AlertTabs extends PureComponent<Props, State> {
       undefined
     )
     // if kapacitor supports pagerduty2 and opsgenie2, its at least v1.5
-    return
-    !_.isUndefined(hasPagerDuty2) && !_.isUndefined(hasOpsGenie2)
+    return !_.isUndefined(hasPagerDuty2) && !_.isUndefined(hasOpsGenie2)
   }
 
   private getSectionElements = (
