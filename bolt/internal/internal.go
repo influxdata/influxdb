@@ -76,6 +76,14 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 
 // MarshalServer encodes a server to binary protobuf format.
 func MarshalServer(s chronograf.Server) ([]byte, error) {
+	var (
+		metadata []byte
+		err      error
+	)
+	metadata, err = json.Marshal(s.Metadata)
+	if err != nil {
+		return nil, err
+	}
 	return proto.Marshal(&Server{
 		ID:                 int64(s.ID),
 		SrcID:              int64(s.SrcID),
@@ -87,6 +95,7 @@ func MarshalServer(s chronograf.Server) ([]byte, error) {
 		Organization:       s.Organization,
 		InsecureSkipVerify: s.InsecureSkipVerify,
 		Type:               s.Type,
+		MetadataJSON:       string(metadata),
 	})
 }
 
@@ -95,6 +104,13 @@ func UnmarshalServer(data []byte, s *chronograf.Server) error {
 	var pb Server
 	if err := proto.Unmarshal(data, &pb); err != nil {
 		return err
+	}
+
+	s.Metadata = make(map[string]interface{})
+	if len(pb.MetadataJSON) > 0 {
+		if err := json.Unmarshal([]byte(pb.MetadataJSON), s.Metadata); err != nil {
+			return err
+		}
 	}
 
 	s.ID = int(pb.ID)

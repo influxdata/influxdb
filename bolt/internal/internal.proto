@@ -122,6 +122,7 @@ message Server {
 	string Organization     = 8;  // Organization is the organization ID that resource belongs to
 	bool InsecureSkipVerify = 9;  // InsecureSkipVerify accepts any certificate from the client
 	string Type             = 10; // Type is the kind of the server (e.g. ifql)
+	string MetadataJSON     = 11; // JSON byte representation of the metadata
 }
 
 message Layout {

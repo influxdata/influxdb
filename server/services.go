@@ -10,14 +10,14 @@ import (
 )
 
 type postServiceRequest struct {
-	Name               *string `json:"name"`               // User facing name of service instance.; Required: true
-	URL                *string `json:"url"`                // URL for the service backend (e.g. http://localhost:9092);/ Required: true
-	Type               *string `json:"type"`               // Type is the kind of service (e.g. ifql); Required
-	Username           string  `json:"username,omitempty"` // Username for authentication to service
-	Password           string  `json:"password,omitempty"`
-	InsecureSkipVerify bool    `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the service is accepted.
-	Organization       string  `json:"organization"`       // Organization is the organization ID that resource belongs to
-
+	Name               *string                `json:"name"`               // User facing name of service instance.; Required: true
+	URL                *string                `json:"url"`                // URL for the service backend (e.g. http://localhost:9092);/ Required: true
+	Type               *string                `json:"type"`               // Type is the kind of service (e.g. ifql); Required
+	Username           string                 `json:"username,omitempty"` // Username for authentication to service
+	Password           string                 `json:"password,omitempty"`
+	InsecureSkipVerify bool                   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the service is accepted.
+	Organization       string                 `json:"organization"`       // Organization is the organization ID that resource belongs to
+	Metadata           map[string]interface{} `json:"metadata"`           // Metadata is any other data that the frontend wants to store about this service
 }
 
 func (p *postServiceRequest) Valid(defaultOrgID string) error {
@@ -51,15 +51,42 @@ type serviceLinks struct {
 }
 
 type service struct {
-	ID                 int          `json:"id,string"`          // Unique identifier representing a service instance.
-	SrcID              int          `json:"sourceID,string"`    // SrcID of the data source
-	Name               string       `json:"name"`               // User facing name of service instance.
-	URL                string       `json:"url"`                // URL for the service backend (e.g. http://localhost:9092)
-	Username           string       `json:"username,omitempty"` // Username for authentication to service
-	Password           string       `json:"password,omitempty"`
-	InsecureSkipVerify bool         `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the service is accepted.
-	Type               string       `json:"type"`               // Type is the kind of service (e.g. ifql)
-	Links              serviceLinks `json:"links"`              // Links are URI locations related to service
+	ID                 int                    `json:"id,string"`          // Unique identifier representing a service instance.
+	SrcID              int                    `json:"sourceID,string"`    // SrcID of the data source
+	Name               string                 `json:"name"`               // User facing name of service instance.
+	URL                string                 `json:"url"`                // URL for the service backend (e.g. http://localhost:9092)
+	Username           string                 `json:"username,omitempty"` // Username for authentication to service
+	Password           string                 `json:"password,omitempty"`
+	InsecureSkipVerify bool                   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the service is accepted.
+	Type               string                 `json:"type"`               // Type is the kind of service (e.g. ifql)
+	Metadata           map[string]interface{} `json:"metadata"`           // Metadata is any other data that the frontend wants to store about this service
+	Links              serviceLinks           `json:"links"`              // Links are URI locations related to service
+}
+
+func newService(srv chronograf.Server) service {
+	if srv.Metadata == nil {
+		srv.Metadata = make(map[string]interface{})
+	}
+	httpAPISrcs := "/chronograf/v1/sources"
+	return service{
+		ID:                 srv.ID,
+		SrcID:              srv.SrcID,
+		Name:               srv.Name,
+		Username:           srv.Username,
+		URL:                srv.URL,
+		InsecureSkipVerify: srv.InsecureSkipVerify,
+		Type:               srv.Type,
+		Metadata:           srv.Metadata,
+		Links: serviceLinks{
+			Self:   fmt.Sprintf("%s/%d/services/%d", httpAPISrcs, srv.SrcID, srv.ID),
+			Source: fmt.Sprintf("%s/%d", httpAPISrcs, srv.SrcID),
+			Proxy:  fmt.Sprintf("%s/%d/services/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
+		},
+	}
+}
+
+type services struct {
+	Services []service `json:"services"`
 }
 
 // NewService adds valid service store store.
@@ -103,6 +130,7 @@ func (s *Service) NewService(w http.ResponseWriter, r *http.Request) {
 		URL:                *req.URL,
 		Organization:       req.Organization,
 		Type:               *req.Type,
+		Metadata:           req.Metadata,
 	}
 
 	if srv, err = s.Store.Servers(ctx).Add(ctx, srv); err != nil {
@@ -114,28 +142,6 @@ func (s *Service) NewService(w http.ResponseWriter, r *http.Request) {
 	res := newService(srv)
 	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, s.Logger)
-}
-
-func newService(srv chronograf.Server) service {
-	httpAPISrcs := "/chronograf/v1/sources"
-	return service{
-		ID:                 srv.ID,
-		SrcID:              srv.SrcID,
-		Name:               srv.Name,
-		Username:           srv.Username,
-		URL:                srv.URL,
-		InsecureSkipVerify: srv.InsecureSkipVerify,
-		Type:               srv.Type,
-		Links: serviceLinks{
-			Self:   fmt.Sprintf("%s/%d/services/%d", httpAPISrcs, srv.SrcID, srv.ID),
-			Source: fmt.Sprintf("%s/%d", httpAPISrcs, srv.SrcID),
-			Proxy:  fmt.Sprintf("%s/%d/services/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
-		},
-	}
-}
-
-type services struct {
-	Services []service `json:"services"`
 }
 
 // Services retrieves all services from store.
@@ -222,12 +228,13 @@ func (s *Service) RemoveService(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchServiceRequest struct {
-	Name               *string `json:"name,omitempty"`     // User facing name of service instance.
-	Type               *string `json:"type,omitempty"`     // Type is the kind of service (e.g. ifql)
-	URL                *string `json:"url,omitempty"`      // URL for the service
-	Username           *string `json:"username,omitempty"` // Username for service auth
-	Password           *string `json:"password,omitempty"`
-	InsecureSkipVerify *bool   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the service is accepted.
+	Name               *string                 `json:"name,omitempty"`     // User facing name of service instance.
+	Type               *string                 `json:"type,omitempty"`     // Type is the kind of service (e.g. ifql)
+	URL                *string                 `json:"url,omitempty"`      // URL for the service
+	Username           *string                 `json:"username,omitempty"` // Username for service auth
+	Password           *string                 `json:"password,omitempty"`
+	InsecureSkipVerify *bool                   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the service is accepted.
+	Metadata           *map[string]interface{} `json:"metadata"`           // Metadata is any other data that the frontend wants to store about this service
 }
 
 func (p *patchServiceRequest) Valid() error {
@@ -297,6 +304,9 @@ func (s *Service) UpdateService(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.InsecureSkipVerify != nil {
 		srv.InsecureSkipVerify = *req.InsecureSkipVerify
+	}
+	if req.Metadata != nil {
+		srv.Metadata = *req.Metadata
 	}
 
 	if err := s.Store.Servers(ctx).Update(ctx, srv); err != nil {
