@@ -45,12 +45,14 @@ func (p *postServiceRequest) Valid(defaultOrgID string) error {
 }
 
 type serviceLinks struct {
-	Proxy string `json:"proxy"` // URL location of proxy endpoint for this source
-	Self  string `json:"self"`  // Self link mapping to this resource
+	Proxy  string `json:"proxy"`  // URL location of proxy endpoint for this source
+	Self   string `json:"self"`   // Self link mapping to this resource
+	Source string `json:"source"` // URL location of the parent source
 }
 
 type service struct {
 	ID                 int          `json:"id,string"`          // Unique identifier representing a service instance.
+	SrcID              int          `json:"sourceID,string"`    // SrcID of the data source
 	Name               string       `json:"name"`               // User facing name of service instance.
 	URL                string       `json:"url"`                // URL for the service backend (e.g. http://localhost:9092)
 	Username           string       `json:"username,omitempty"` // Username for authentication to service
@@ -118,14 +120,16 @@ func newService(srv chronograf.Server) service {
 	httpAPISrcs := "/chronograf/v1/sources"
 	return service{
 		ID:                 srv.ID,
+		SrcID:              srv.SrcID,
 		Name:               srv.Name,
 		Username:           srv.Username,
 		URL:                srv.URL,
 		InsecureSkipVerify: srv.InsecureSkipVerify,
 		Type:               srv.Type,
 		Links: serviceLinks{
-			Self:  fmt.Sprintf("%s/%d/services/%d", httpAPISrcs, srv.SrcID, srv.ID),
-			Proxy: fmt.Sprintf("%s/%d/services/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
+			Self:   fmt.Sprintf("%s/%d/services/%d", httpAPISrcs, srv.SrcID, srv.ID),
+			Source: fmt.Sprintf("%s/%d", httpAPISrcs, srv.SrcID),
+			Proxy:  fmt.Sprintf("%s/%d/services/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
 		},
 	}
 }
