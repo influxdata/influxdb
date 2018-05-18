@@ -3,8 +3,9 @@ import {bindActionCreators} from 'redux'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
-import TimeMachine from 'src/ifql/components/TimeMachine'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import CheckServices from 'src/ifql/containers/CheckServices'
+import TimeMachine from 'src/ifql/components/TimeMachine'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -16,6 +17,7 @@ import {builder, argTypes} from 'src/ifql/constants'
 
 import {Notification} from 'src/types'
 import {Suggestion, FlatBody, Links} from 'src/types/ifql'
+import {Service} from 'src/types'
 
 interface Status {
   type: string
@@ -24,6 +26,7 @@ interface Status {
 
 interface Props {
   links: Links
+  services: Service[]
   notify: (message: Notification) => void
 }
 
@@ -76,39 +79,41 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {suggestions, script, data, body, status} = this.state
 
     return (
-      <IFQLContext.Provider value={this.handlers}>
-        <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
-          <div className="page hosts-list-page">
-            <div className="page-header full-width">
-              <div className="page-header__container">
-                <div className="page-header__left">
-                  <h1 className="page-header__title">Time Machine</h1>
-                </div>
-                <div className="page-header__right">
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={this.getTimeSeries}
-                  >
-                    Get Data!
-                  </button>
+      <CheckServices>
+        <IFQLContext.Provider value={this.handlers}>
+          <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
+            <div className="page hosts-list-page">
+              <div className="page-header full-width">
+                <div className="page-header__container">
+                  <div className="page-header__left">
+                    <h1 className="page-header__title">Time Machine</h1>
+                  </div>
+                  <div className="page-header__right">
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={this.getTimeSeries}
+                    >
+                      Get Data!
+                    </button>
+                  </div>
                 </div>
               </div>
+              <TimeMachine
+                data={data}
+                body={body}
+                script={script}
+                status={status}
+                suggestions={suggestions}
+                onAnalyze={this.handleAnalyze}
+                onAppendFrom={this.handleAppendFrom}
+                onAppendJoin={this.handleAppendJoin}
+                onChangeScript={this.handleChangeScript}
+                onSubmitScript={this.handleSubmitScript}
+              />
             </div>
-            <TimeMachine
-              data={data}
-              body={body}
-              script={script}
-              status={status}
-              suggestions={suggestions}
-              onAnalyze={this.handleAnalyze}
-              onAppendFrom={this.handleAppendFrom}
-              onAppendJoin={this.handleAppendJoin}
-              onChangeScript={this.handleChangeScript}
-              onSubmitScript={this.handleSubmitScript}
-            />
-          </div>
-        </KeyboardShortcuts>
-      </IFQLContext.Provider>
+          </KeyboardShortcuts>
+        </IFQLContext.Provider>
+      </CheckServices>
     )
   }
 
@@ -416,8 +421,8 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 }
 
-const mapStateToProps = ({links}) => {
-  return {links: links.ifql}
+const mapStateToProps = ({links, services}) => {
+  return {links: links.ifql, services}
 }
 
 const mapDispatchToProps = dispatch => ({

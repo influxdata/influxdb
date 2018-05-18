@@ -1,4 +1,7 @@
 import {Source, Service} from 'src/types'
+import {getServices as getServicesAJAX} from 'src/shared/apis'
+import {notify} from './notifications'
+import {couldNotGetServices} from 'src/shared/copy/notifications'
 
 export type Action =
   | ActionLoadServices
@@ -94,3 +97,16 @@ export const setActiveService = (
     service,
   },
 })
+
+export type FetchServicesAsync = (source: Source) => (dispatch) => Promise<void>
+
+export const fetchServicesAsync = (source: Source) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    const services = await getServicesAJAX(source.links.services)
+    dispatch(loadServices(services))
+  } catch (err) {
+    dispatch(notify(couldNotGetServices))
+  }
+}

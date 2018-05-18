@@ -82,11 +82,7 @@ class TimeMachine extends PureComponent<Props> {
     return [
       {
         name: 'Explore',
-        headerButtons: [
-          <div key="analyze" className="btn btn-primary btn-xs">
-            Analyze
-          </div>,
-        ],
+        headerButtons: [],
         menuOptions: [],
         render: () => <SchemaExplorer />,
       },

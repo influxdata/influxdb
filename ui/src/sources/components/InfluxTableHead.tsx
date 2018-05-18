@@ -13,7 +13,6 @@ const InfluxTableHead: SFC<{}> = (): ReactElement<
         <th className="source-table--connect-col" />
         <th>InfluxDB Connection</th>
         <th className="text-right" />
-        <th>Services Connection</th>
         <th>
           Kapacitor Connection
           <QuestionMarkTooltip

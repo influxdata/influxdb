@@ -32,6 +32,9 @@ const servicesReducer = (state = initialState, action: Action): Service[] => {
 
       return newState
     }
+
+    case 'SET_ACTIVE_SERVICE': {
+    }
   }
 
   return state

@@ -32,4 +32,5 @@ export interface SourceLinks {
   databases: string
   annotations: string
   health: string
+  services: string
 }

@@ -35,7 +35,7 @@ import {
 } from 'src/kapacitor'
 import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
-import {IFQLPage} from 'src/ifql/index'
+import {IFQLPage} from 'src/ifql'
 import NotFound from 'src/shared/components/NotFound'
 
 import {getLinksAsync} from 'src/shared/actions/links'

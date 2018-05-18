@@ -614,3 +614,9 @@ export const analyzeSuccess = {
   ...defaultSuccessNotification,
   message: 'No errors found. Happy Happy Joy Joy!',
 }
+
+// Service notifications
+export const couldNotGetServices = {
+  ...defaultErrorNotification,
+  message: 'We could not get services',
+}

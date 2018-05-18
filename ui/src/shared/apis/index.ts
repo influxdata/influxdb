@@ -1,6 +1,6 @@
 import AJAX from 'src/utils/ajax'
 import {AlertTypes} from 'src/kapacitor/constants'
-import {Kapacitor} from 'src/types'
+import {Kapacitor, Service} from 'src/types'
 
 export function getSources() {
   return AJAX({
@@ -303,3 +303,17 @@ export const getQueryConfigAndStatus = (url, queries, tempVars = []) =>
     method: 'POST',
     data: {queries, tempVars},
   })
+
+export const getServices = async (url: string): Promise<Service[]> => {
+  try {
+    const {data} = await AJAX({
+      url,
+      method: 'GET',
+    })
+
+    return data
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
