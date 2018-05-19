@@ -208,8 +208,8 @@ type CompactionPlannerCreator func(cfg Config) interface{}
 // be sure to observe every file that is added or removed even in the presence of process death.
 type FileStoreObserver interface {
 	// FileFinishing is called before a file is renamed to it's final name.
-	FileFinishing(path string) error
+	FileFinishing(id uint64, path string) error
 
 	// FileUnlinking is called before a file is unlinked.
-	FileUnlinking(path string) error
+	FileUnlinking(id uint64, path string) error
 }
