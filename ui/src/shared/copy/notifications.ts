@@ -635,3 +635,8 @@ export const ifqlNotUpdated = (message: string) => ({
   ...defaultErrorNotification,
   message,
 })
+
+export const ifqlUpdated = {
+  ...defaultSuccessNotification,
+  message: 'Connection Updated. Rejoice!',
+}

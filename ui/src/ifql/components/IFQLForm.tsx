@@ -16,41 +16,33 @@ class IFQLForm extends PureComponent<Props> {
     const {service, onSubmit, onInputChange} = this.props
 
     return (
-      <div className="ifql-overlay">
-        <div className="template-variable-manager--header">
-          <div className="page-header__left">
-            <h1 className="page-header__title">Connect to IFQL</h1>
+      <div className="template-variable-manager--body">
+        <form onSubmit={onSubmit} style={{display: 'inline-block'}}>
+          <Input
+            name="url"
+            label="IFQL URL"
+            value={this.url}
+            placeholder={this.url}
+            onChange={onInputChange}
+          />
+          <Input
+            name="name"
+            label="Name"
+            value={service.name}
+            placeholder={service.name}
+            onChange={onInputChange}
+            maxLength={33}
+          />
+          <div className="form-group form-group-submit col-xs-12 text-center">
+            <button
+              className="btn btn-success"
+              type="submit"
+              data-test="submit-button"
+            >
+              {this.buttonText}
+            </button>
           </div>
-          <div className="page-header__right" />
-        </div>
-        <div className="template-variable-manager--body">
-          <form onSubmit={onSubmit} style={{display: 'inline-block'}}>
-            <Input
-              name="url"
-              label="IFQL URL"
-              value={this.url}
-              placeholder={this.url}
-              onChange={onInputChange}
-            />
-            <Input
-              name="name"
-              label="Name"
-              value={service.name}
-              placeholder={service.name}
-              onChange={onInputChange}
-              maxLength={33}
-            />
-            <div className="form-group form-group-submit col-xs-12 text-center">
-              <button
-                className="btn btn-success"
-                type="submit"
-                data-test="submit-button"
-              >
-                {this.buttonText}
-              </button>
-            </div>
-          </form>
-        </div>
+        </form>
       </div>
     )
   }

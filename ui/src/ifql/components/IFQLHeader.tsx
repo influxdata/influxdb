@@ -18,7 +18,7 @@ interface Props {
 
 class IFQLHeader extends PureComponent<Props> {
   public render() {
-    const {onGetTimeSeries, service} = this.props
+    const {onGetTimeSeries} = this.props
 
     return (
       <div className="page-header full-width">
@@ -27,7 +27,9 @@ class IFQLHeader extends PureComponent<Props> {
             <h1 className="page-header__title">Time Machine</h1>
           </div>
           <div className="page-header__right">
-            <a onClick={this.overlay} href="#" />
+            <button onClick={this.overlay} className="btn btn-sm btn-default">
+              Edit Connection
+            </button>
             <button
               className="btn btn-sm btn-primary"
               onClick={onGetTimeSeries}
@@ -40,7 +42,7 @@ class IFQLHeader extends PureComponent<Props> {
     )
   }
 
-  private overlay() {
+  private overlay = () => {
     const {showOverlay, service} = this.props
 
     showOverlay(

@@ -30,7 +30,7 @@ interface Props {
 }
 
 interface State {
-  service: NewService
+  service: Service
 }
 
 const port = 8093
@@ -45,16 +45,29 @@ class IFQLOverlay extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <IFQLForm
-        service={this.state.service}
-        onSubmit={this.handleSubmit}
-        onInputChange={this.handleInputChange}
-        exists={false}
-      />
+      <div className="ifql-overlay">
+        <div className="template-variable-manager--header">
+          <div className="page-header__left">
+            <h1 className="page-header__title">Connect to IFQL</h1>
+          </div>
+          <div className="page-header__right">
+            <span
+              className="page-header__dismiss"
+              onClick={this.props.onDismiss}
+            />
+          </div>
+        </div>
+        <IFQLForm
+          service={this.state.service}
+          onSubmit={this.handleSubmit}
+          onInputChange={this.handleInputChange}
+          exists={false}
+        />
+      </div>
     )
   }
 
-  private get defaultService(): NewService | Service {
+  private get defaultService(): NewService {
     if (this.props.mode === 'edit') {
       return this.props.service
     }

@@ -92,10 +92,7 @@ export class IFQLPage extends PureComponent<Props, State> {
         <IFQLContext.Provider value={this.handlers}>
           <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
             <div className="page hosts-list-page">
-              <IFQLHeader
-                service={this.service}
-                onGetTimeSeries={this.getTimeSeries}
-              />
+              {this.header}
               <TimeMachine
                 data={data}
                 body={body}
@@ -112,6 +109,18 @@ export class IFQLPage extends PureComponent<Props, State> {
           </KeyboardShortcuts>
         </IFQLContext.Provider>
       </CheckServices>
+    )
+  }
+
+  private get header(): JSX.Element {
+    const {services} = this.props
+
+    if (!services.length) {
+      return null
+    }
+
+    return (
+      <IFQLHeader service={this.service} onGetTimeSeries={this.getTimeSeries} />
     )
   }
 
