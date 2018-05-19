@@ -300,11 +300,12 @@ class CellEditorOverlay extends Component<Props, State> {
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
+      const source = _.get(q.source, 'links.self', q.source)
 
       return {
         queryConfig: q,
         query: q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q),
-        source: q.source,
+        source,
       }
     })
 

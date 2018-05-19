@@ -10,7 +10,7 @@ export interface QueryConfig {
   areTagsAccepted: boolean
   rawText?: string
   range?: DurationRange | null
-  source?: Source | null
+  source?: Source | null // doesn't come from server -- is set in CellEditorOverlay
   fill?: string
   status?: Status
   shifts?: TimeShift[]
