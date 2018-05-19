@@ -305,6 +305,7 @@ export interface HipChatProperties {
 }
 
 export interface KafkaProperties {
+  id?: string
   brokers: string[]
   timeout: string
   'batch-size': number
@@ -314,6 +315,7 @@ export interface KafkaProperties {
   'ssl-cert': string
   'ssl-key': string
   'insecure-skip-verify': boolean
+  enabled: boolean
 }
 
 export interface OpsGenieProperties {
