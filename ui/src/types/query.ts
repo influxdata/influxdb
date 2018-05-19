@@ -1,3 +1,4 @@
+import {Source} from 'src/types'
 export interface QueryConfig {
   id?: string
   database?: string
@@ -9,7 +10,7 @@ export interface QueryConfig {
   areTagsAccepted: boolean
   rawText?: string
   range?: DurationRange | null
-  sourceLink?: string
+  source?: Source | null
   fill?: string
   status?: Status
   shifts?: TimeShift[]

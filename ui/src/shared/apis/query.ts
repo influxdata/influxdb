@@ -53,13 +53,6 @@ export const fetchTimeSeries = async (
     // it may be used, but this slight modification is intended to allow for the use of
     // `database` while moving over to `db` for consistency over time
     const db = _.get(query, 'db', database)
-    console.log(
-      `fetchTimeSeries query: ${JSON.stringify(
-        query,
-        null,
-        2
-      )}, db: ${db}, rp: ${rp}, database: ${database}`
-    )
     const templatesWithIntervalVals = templates.map(temp => {
       if (temp.tempVar === ':interval:') {
         if (resolution) {
