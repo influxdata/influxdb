@@ -1,5 +1,6 @@
 import {Source, Service, NewService} from 'src/types'
 import {
+  updateService as updateServiceAJAX,
   getServices as getServicesAJAX,
   createService as createServiceAJAX,
 } from 'src/shared/apis'
@@ -125,6 +126,21 @@ export const createServiceAsync = (
   try {
     const s = await createServiceAJAX(source, service)
     dispatch(addService(s))
+  } catch (err) {
+    console.error(err.data)
+    throw err.data
+  }
+}
+
+export type UpdateServiceAsync = (
+  service: Service
+) => (dispatch) => Promise<void>
+export const updateServiceAsync = (service: Service) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    const s = await updateServiceAJAX(service)
+    dispatch(updateService(s))
   } catch (err) {
     console.error(err.data)
     throw err.data

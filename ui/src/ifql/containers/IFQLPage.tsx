@@ -2,9 +2,10 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
-import {ErrorHandling} from 'src/shared/decorators/errors'
 import CheckServices from 'src/ifql/containers/CheckServices'
 import TimeMachine from 'src/ifql/components/TimeMachine'
+import IFQLHeader from 'src/ifql/components/IFQLHeader'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -91,21 +92,10 @@ export class IFQLPage extends PureComponent<Props, State> {
         <IFQLContext.Provider value={this.handlers}>
           <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
             <div className="page hosts-list-page">
-              <div className="page-header full-width">
-                <div className="page-header__container">
-                  <div className="page-header__left">
-                    <h1 className="page-header__title">Time Machine</h1>
-                  </div>
-                  <div className="page-header__right">
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={this.getTimeSeries}
-                    >
-                      Get Data!
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <IFQLHeader
+                service={this.service}
+                onGetTimeSeries={this.getTimeSeries}
+              />
               <TimeMachine
                 data={data}
                 body={body}
@@ -123,6 +113,10 @@ export class IFQLPage extends PureComponent<Props, State> {
         </IFQLContext.Provider>
       </CheckServices>
     )
+  }
+
+  private get service(): Service {
+    return this.props.services[0]
   }
 
   private get handlers(): Handlers {

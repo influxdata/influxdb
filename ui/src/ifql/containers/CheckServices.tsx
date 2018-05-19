@@ -50,7 +50,11 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
     showOverlay(
       <OverlayContext.Consumer>
         {({onDismissOverlay}) => (
-          <IFQLOverlay onDismiss={onDismissOverlay} source={source} />
+          <IFQLOverlay
+            mode="new"
+            source={source}
+            onDismiss={onDismissOverlay}
+          />
         )}
       </OverlayContext.Consumer>,
       {}

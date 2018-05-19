@@ -3,20 +3,30 @@ import {connect} from 'react-redux'
 
 import IFQLForm from 'src/ifql/components/IFQLForm'
 
-import {Source, NewService, Notification} from 'src/types'
+import {Service, Source, NewService, Notification} from 'src/types'
 
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {
+  updateServiceAsync,
+  UpdateServiceAsync,
   createServiceAsync,
   CreateServiceAsync,
 } from 'src/shared/actions/services'
-import {ifqlCreated, ifqlNotCreated} from 'src/shared/copy/notifications'
+
+import {
+  ifqlCreated,
+  ifqlNotCreated,
+  ifqlNotUpdated,
+} from 'src/shared/copy/notifications'
 
 interface Props {
-  source: Source
+  mode: string
+  source?: Source
+  service?: Service
   onDismiss: () => void
   notify: (message: Notification) => void
   createService: CreateServiceAsync
+  updateService: UpdateServiceAsync
 }
 
 interface State {
@@ -44,7 +54,11 @@ class IFQLOverlay extends PureComponent<Props, State> {
     )
   }
 
-  private get defaultService(): NewService {
+  private get defaultService(): NewService | Service {
+    if (this.props.mode === 'edit') {
+      return this.props.service
+    }
+
     return {
       name: 'IFQL',
       url: this.url,
@@ -62,8 +76,32 @@ class IFQLOverlay extends PureComponent<Props, State> {
     this.setState({service: {...this.state.service, ...update}})
   }
 
-  private handleSubmit = async e => {
+  private handleSubmit = (e): void => {
     e.preventDefault()
+    if (this.props.mode === 'edit') {
+      this.handleEdit()
+      return
+    }
+
+    this.handleCreate()
+  }
+
+  private handleEdit = async (): Promise<void> => {
+    const {notify, onDismiss, updateService} = this.props
+    const {service} = this.state
+
+    try {
+      await updateService(service)
+    } catch (error) {
+      notify(ifqlNotUpdated(error.message))
+      return
+    }
+
+    notify(ifqlCreated)
+    onDismiss()
+  }
+
+  private handleCreate = async (): Promise<void> => {
     const {notify, source, onDismiss, createService} = this.props
 
     const {service} = this.state
@@ -90,6 +128,7 @@ class IFQLOverlay extends PureComponent<Props, State> {
 const mdtp = {
   notify: notifyAction,
   createService: createServiceAsync,
+  updateService: updateServiceAsync,
 }
 
 export default connect(null, mdtp)(IFQLOverlay)

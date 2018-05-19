@@ -342,3 +342,18 @@ export const createService = async (
     throw error
   }
 }
+
+export const updateService = async (service: Service): Promise<Service> => {
+  try {
+    const {data} = await AJAX({
+      url: service.links.self,
+      method: 'PATCH',
+      data: service,
+    })
+
+    return data
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

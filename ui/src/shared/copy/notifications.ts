@@ -630,3 +630,8 @@ export const ifqlNotCreated = (message: string) => ({
   ...defaultErrorNotification,
   message,
 })
+
+export const ifqlNotUpdated = (message: string) => ({
+  ...defaultErrorNotification,
+  message,
+})
