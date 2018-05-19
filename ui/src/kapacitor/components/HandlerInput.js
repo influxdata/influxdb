@@ -15,6 +15,7 @@ const HandlerInput = ({
   headerIndex = 0,
 }) => {
   const formGroupClass = `form-group ${fieldColumns}`
+
   return (
     <div className={formGroupClass}>
       <label htmlFor={fieldName}>{fieldDisplay}</label>

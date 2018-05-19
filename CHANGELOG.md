@@ -19,6 +19,7 @@
 1.  [#3416](https://github.com/influxdata/chronograf/pull/3416): Add support for disabling kapacitor services
 1.  [#3465](https://github.com/influxdata/chronograf/pull/3465): Add support for multiple slack configurations in the UI
 1.  [#3491](https://github.com/influxdata/chronograf/pull/3491): Upgrade kapacitor client to 1.5
+1.  [#3490](https://github.com/influxdata/chronograf/pull/3490): Add support for multiple kafka configurations in the UI
 
 ### UI Improvements
 

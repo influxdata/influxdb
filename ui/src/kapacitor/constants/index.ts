@@ -183,7 +183,7 @@ export const MAP_KEYS_FROM_CONFIG: KeyMappings = {
 export const ALERTS_FROM_CONFIG: FieldsFromConfigAlerts = {
   alerta: ['environment', 'origin', 'token'], // token = bool
   hipChat: ['url', 'room', 'token'], // token = bool
-  kafka: [],
+  kafka: ['id'],
   opsGenie: ['api-key', 'teams', 'recipients'], // api-key = bool
   opsGenie2: ['api-key', 'teams', 'recipients'], // api-key = bool
   pagerDuty: ['service-key'], // service-key = bool
@@ -231,7 +231,7 @@ export const MAP_FIELD_KEYS_FROM_CONFIG: ConfigKeyMaps = {
 }
 
 // HANDLERS_TO_RULE returns array of fields that may be updated for each alert on rule.
-export const HANDLERS_TO_RULE: FieldsFromAllAlerts = {
+export const HANDLERS_TO_RULE_THEM_ALL: FieldsFromAllAlerts = {
   alerta: [
     'resource',
     'event',
@@ -242,7 +242,7 @@ export const HANDLERS_TO_RULE: FieldsFromAllAlerts = {
     'service',
   ],
   hipChat: ['room'],
-  kafka: ['cluster', 'topic', 'template'],
+  kafka: ['id', 'cluster', 'topic', 'template'],
   opsGenie: ['teams', 'recipients'],
   opsGenie2: ['teams', 'recipients'],
   pagerDuty: [],
