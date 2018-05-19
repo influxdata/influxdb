@@ -1,3 +1,5 @@
-#datatype,long,dateTime:RFC3339Nano,dateTime:RFC3339Nano,dateTime:RFC3339Nano,string,double
-,blkid,_start,_stop,_time,_measurement,max
-,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:01Z,m1,43
+#datatype,string,long,string,string,dateTime:RFC3339,double
+#partition,false,false,false,true,false,false
+#default,_result,,,,,
+,result,table,_field,_measurement,_time,max
+,,0,f1,m1,2018-04-17T00:00:01Z,43

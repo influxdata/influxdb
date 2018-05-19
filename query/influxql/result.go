@@ -42,13 +42,17 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator
 
 			fieldName := ""
 			measurementVaries := -1
-			for k, v := range b.Tags() {
-				if k == "_measurement" {
+			for j, c := range b.Key().Cols() {
+				if c.Type != execute.TString {
+					return fmt.Errorf("partition column %q is not a string type", c.Label)
+				}
+				v := b.Key().Value(j).(string)
+				if c.Label == "_measurement" {
 					r.Name = v
-				} else if k == "_field" {
+				} else if c.Label == "_field" {
 					fieldName = v
 				} else {
-					r.Tags[k] = v
+					r.Tags[c.Label] = v
 				}
 			}
 
@@ -57,7 +61,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator
 					r.Columns = append(r.Columns, "time")
 				} else if c.Label == "_value" && fieldName != "" {
 					r.Columns = append(r.Columns, fieldName)
-				} else if !c.Common {
+				} else if !b.Key().HasCol(c.Label) {
 					r.Columns = append(r.Columns, c.Label)
 					if r.Name == "" && c.Label == "_measurement" {
 						measurementVaries = i
@@ -68,39 +72,44 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator
 				return fmt.Errorf("no Measurement name found in result blocks for result: %s", name)
 			}
 
-			times := b.Times()
-			var RowResultErr error
-			times.DoTime(func(ts []execute.Time, rr execute.RowReader) {
+			timeIdx := execute.ColIdx(execute.DefaultTimeColLabel, b.Cols())
+			if timeIdx < 0 {
+				return errors.New("table must have an _time column")
+			}
+			if typ := b.Cols()[timeIdx].Type; typ != execute.TTime {
+				return fmt.Errorf("column _time must be of type Time got %v", typ)
+			}
+			err := b.Do(func(cr execute.ColReader) error {
+				ts := cr.Times(timeIdx)
 				for i := range ts {
 					var v []interface{}
 
-					for j, c := range rr.Cols() {
-						if c.Common {
+					for j, c := range cr.Cols() {
+						if cr.Key().HasCol(c.Label) {
 							continue
 						}
 
 						if j == measurementVaries {
 							if c.Type != execute.TString {
-								RowResultErr = errors.New("unexpected type, _measurement is not a string")
-								return
+								return errors.New("unexpected type, _measurement is not a string")
 							}
-							r.Name = rr.AtString(i, j)
+							r.Name = cr.Strings(j)[i]
 							continue
 						}
 
 						switch c.Type {
 						case execute.TFloat:
-							v = append(v, rr.AtFloat(i, j))
+							v = append(v, cr.Floats(j)[i])
 						case execute.TInt:
-							v = append(v, rr.AtInt(i, j))
+							v = append(v, cr.Ints(j)[i])
 						case execute.TString:
-							v = append(v, rr.AtString(i, j))
+							v = append(v, cr.Strings(j)[i])
 						case execute.TUInt:
-							v = append(v, rr.AtUInt(i, j))
+							v = append(v, cr.UInts(j)[i])
 						case execute.TBool:
-							v = append(v, rr.AtBool(i, j))
+							v = append(v, cr.Bools(j)[i])
 						case execute.TTime:
-							v = append(v, rr.AtTime(i, j).Time().Format(time.RFC3339))
+							v = append(v, cr.Times(j)[i].Time().Format(time.RFC3339))
 						default:
 							v = append(v, "unknown")
 						}
@@ -108,10 +117,10 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator
 
 					r.Values = append(r.Values, v)
 				}
+				return nil
 			})
-
-			if RowResultErr != nil {
-				return RowResultErr
+			if err != nil {
+				return err
 			}
 
 			result.Series = append(result.Series, r)

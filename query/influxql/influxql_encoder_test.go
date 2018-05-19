@@ -25,38 +25,15 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 		{
 			query: "",
 			name:  "one result one row",
-
 			blocks: map[string][]*executetest.Block{
 				"0": {{
-					Bnds: execute.Bounds{
-						Start: 1,
-						Stop:  5,
-					},
+					KeyCols: []string{"_measurement", "_field", "host"},
 					ColMeta: []execute.ColMeta{
-						execute.TimeCol,
-						{
-							Label:  "_measurement",
-							Type:   execute.TString,
-							Kind:   execute.TagColKind,
-							Common: true,
-						},
-						{
-							Label:  "_field",
-							Type:   execute.TString,
-							Kind:   execute.TagColKind,
-							Common: true,
-						},
-						{
-							Label:  "host",
-							Type:   execute.TString,
-							Kind:   execute.TagColKind,
-							Common: true,
-						},
-						{
-							Label: execute.DefaultValueColLabel,
-							Type:  execute.TFloat,
-							Kind:  execute.ValueColKind,
-						},
+						{Label: "_time", Type: execute.TTime},
+						{Label: "_measurement", Type: execute.TString},
+						{Label: "_field", Type: execute.TString},
+						{Label: "host", Type: execute.TString},
+						{Label: execute.DefaultValueColLabel, Type: execute.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(5), "cpu", "max", "localhost", 98.9},

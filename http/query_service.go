@@ -35,7 +35,7 @@ func NewQueryHandler() *QueryHandler {
 		Router: httprouter.New(),
 		csvEncoder: &query.DelimitedMultiResultEncoder{
 			Delimiter: []byte{'\n'},
-			Encoder:   csv.NewResultEncoder(),
+			Encoder:   csv.NewResultEncoder(csv.DefaultEncoderConfig()),
 		},
 	}
 

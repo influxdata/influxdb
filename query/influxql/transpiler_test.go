@@ -17,6 +17,8 @@ import (
 	"github.com/influxdata/platform/query/influxql"
 )
 
+var passThroughProperties = []*semantic.Property{}
+
 func TestTranspiler(t *testing.T) {
 	for _, tt := range []struct {
 		s    string
@@ -86,7 +88,7 @@ func TestTranspiler(t *testing.T) {
 						ID: "mean0",
 						Spec: &functions.MeanOpSpec{
 							AggregateConfig: execute.AggregateConfig{
-								UseStartTime: true,
+								TimeSrc: "_start",
 							},
 						},
 					},
@@ -98,7 +100,7 @@ func TestTranspiler(t *testing.T) {
 									Key: &semantic.Identifier{Name: "r"},
 								}},
 								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{{
+									Properties: append(influxql.PassThroughProperties, []*semantic.Property{{
 										Key: &semantic.Identifier{Name: "mean"},
 										Value: &semantic.MemberExpression{
 											Object: &semantic.IdentifierExpression{
@@ -106,7 +108,7 @@ func TestTranspiler(t *testing.T) {
 											},
 											Property: "_value",
 										},
-									}},
+									}}...),
 								},
 							},
 						},
@@ -183,7 +185,7 @@ func TestTranspiler(t *testing.T) {
 									Key: &semantic.Identifier{Name: "r"},
 								}},
 								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{{
+									Properties: append(influxql.PassThroughProperties, []*semantic.Property{{
 										Key: &semantic.Identifier{Name: "value"},
 										Value: &semantic.MemberExpression{
 											Object: &semantic.IdentifierExpression{
@@ -191,7 +193,7 @@ func TestTranspiler(t *testing.T) {
 											},
 											Property: "_value",
 										},
-									}},
+									}}...),
 								},
 							},
 						},
@@ -268,7 +270,7 @@ func TestTranspiler(t *testing.T) {
 						ID: "mean0",
 						Spec: &functions.MeanOpSpec{
 							AggregateConfig: execute.AggregateConfig{
-								UseStartTime: true,
+								TimeSrc: "_start",
 							},
 						},
 					},
@@ -331,9 +333,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "max0",
 						Spec: &functions.MaxOpSpec{
-							SelectorConfig: execute.SelectorConfig{
-								UseStartTime: true,
-							},
+							SelectorConfig: execute.SelectorConfig{},
 						},
 					},
 					{
@@ -381,7 +381,7 @@ func TestTranspiler(t *testing.T) {
 									Key: &semantic.Identifier{Name: "r"},
 								}},
 								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
+									Properties: append(influxql.PassThroughProperties, []*semantic.Property{
 										{
 											Key: &semantic.Identifier{Name: "mean"},
 											Value: &semantic.MemberExpression{
@@ -400,7 +400,7 @@ func TestTranspiler(t *testing.T) {
 												Property: "val1",
 											},
 										},
-									},
+									}...),
 								},
 							},
 						},
@@ -570,7 +570,7 @@ func TestTranspiler(t *testing.T) {
 									Key: &semantic.Identifier{Name: "r"},
 								}},
 								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{{
+									Properties: append(influxql.PassThroughProperties, []*semantic.Property{{
 										Key: &semantic.Identifier{Name: "a_b"},
 										Value: &semantic.BinaryExpression{
 											Operator: ast.AdditionOperator,
@@ -587,7 +587,7 @@ func TestTranspiler(t *testing.T) {
 												Property: "val1",
 											},
 										},
-									}},
+									}}...),
 								},
 							},
 						},
