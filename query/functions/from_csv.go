@@ -112,27 +112,31 @@ func (c *CSVSource) AddTransformation(t execute.Transformation) {
 
 func (c *CSVSource) Run(ctx context.Context) {
 	var err error
-	for _, t := range c.ts {
-		var max execute.Time
-		err = c.data.Blocks().Do(func(b execute.Block) error {
+	var max execute.Time
+	err = c.data.Blocks().Do(func(b execute.Block) error {
+		for _, t := range c.ts {
 			err := t.Process(c.id, b)
 			if err != nil {
 				return err
 			}
-			if s := b.Bounds().Stop; s > max {
-				max = s
+			if idx := execute.ColIdx(execute.DefaultStopColLabel, b.Key().Cols()); idx >= 0 {
+				if stop := b.Key().ValueTime(idx); stop > max {
+					max = stop
+				}
 			}
-			return nil
-		})
-		if err != nil {
-			break
 		}
-
-		t.UpdateWatermark(c.id, max)
+		return nil
+	})
+	if err != nil {
+		goto FINISH
 	}
 
 	for _, t := range c.ts {
-		t.Finish(c.id, err)
+		t.UpdateWatermark(c.id, max)
 	}
 
+FINISH:
+	for _, t := range c.ts {
+		t.Finish(c.id, err)
+	}
 }

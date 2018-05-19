@@ -182,15 +182,17 @@ func (t *transpilerState) createIteratorSpec(expr influxql.Expr) (query.Operatio
 		case "mean":
 			return t.op("mean", &functions.MeanOpSpec{
 				AggregateConfig: execute.AggregateConfig{
-					UseStartTime: true,
+					TimeSrc: execute.DefaultStartColLabel,
 				},
 			}, group), nil
 		case "max":
+			//TODO add map after selector to handle src time
+			//src := execute.DefaultStartColLabel
+			//if len(t.calls) == 1 {
+			//	src = execute.DefaultTimeColLabel
+			//}
 			return t.op("max", &functions.MaxOpSpec{
-				SelectorConfig: execute.SelectorConfig{
-					UseRowTime:   len(t.calls) == 1,
-					UseStartTime: len(t.calls) > 1,
-				},
+				SelectorConfig: execute.SelectorConfig{},
 			}, group), nil
 		}
 	}
@@ -327,6 +329,25 @@ func (t *transpilerState) join(symbols []symbol) (query.OperationID, map[string]
 	return t.op("join", op, parents...), joinTable
 }
 
+// columns to always pass through in the map operation
+var passThrough = []string{"_time", "_measurement", "_field"}
+var PassThroughProperties []*semantic.Property
+
+func init() {
+	PassThroughProperties = make([]*semantic.Property, len(passThrough))
+	for i, name := range passThrough {
+		PassThroughProperties[i] = &semantic.Property{
+			Key: &semantic.Identifier{Name: name},
+			Value: &semantic.MemberExpression{
+				Object: &semantic.IdentifierExpression{
+					Name: "r",
+				},
+				Property: name,
+			},
+		}
+	}
+}
+
 // mapFields will take the list of symbols and maps each of the operations
 // using the column names.
 func (t *transpilerState) mapFields(in query.OperationID, symbols map[string]string) (query.OperationID, error) {
@@ -338,13 +359,14 @@ func (t *transpilerState) mapFields(in query.OperationID, symbols map[string]str
 		panic("number of columns does not match the number of fields")
 	}
 
-	properties := make([]*semantic.Property, len(t.stmt.Fields))
+	properties := make([]*semantic.Property, len(t.stmt.Fields)+len(passThrough))
+	copy(properties, PassThroughProperties)
 	for i, f := range t.stmt.Fields {
 		value, err := t.mapField(f.Expr, symbols)
 		if err != nil {
 			return "", err
 		}
-		properties[i] = &semantic.Property{
+		properties[i+len(passThrough)] = &semantic.Property{
 			Key:   &semantic.Identifier{Name: columns[i]},
 			Value: value,
 		}

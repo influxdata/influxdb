@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -15,13 +16,15 @@ import (
 	"github.com/influxdata/platform/query/influxql"
 
 	"fmt"
+
 	"github.com/influxdata/ifql/functions"
 	"github.com/influxdata/ifql/id"
 	"github.com/influxdata/ifql/query"
 	"github.com/influxdata/ifql/query/control"
 
-	"github.com/andreyvit/diff"
 	"strings"
+
+	"github.com/andreyvit/diff"
 )
 
 func init() {
@@ -146,6 +149,8 @@ func QueryTestCheckSpec(t *testing.T, qs platform.QueryServiceBridge, spec *quer
 	t.Helper()
 	ReplaceFromSpec(spec, input)
 	id := platform.ID("max")
+	//log.Println("QueryTestCheckSpec", query.Formatted(spec, query.FmtJSON))
+	log.Println("QueryTestCheckSpec")
 	results, err := qs.Query(context.Background(), id, spec)
 	if err != nil {
 		t.Errorf("failed to run query spec error=%s", err)
@@ -155,11 +160,12 @@ func QueryTestCheckSpec(t *testing.T, qs platform.QueryServiceBridge, spec *quer
 	// we are only expecting one result, for now
 	for results.More() {
 		_, res := results.Next()
-		enc := csv.NewResultEncoder()
+		enc := csv.NewResultEncoder(csv.DefaultEncoderConfig())
 		buf := new(bytes.Buffer)
 		err := enc.Encode(buf, res)
 		if err != nil {
 			t.Errorf("failed to run query spec error=%s", err)
+			results.Cancel()
 			return false, err
 		}
 		got := buf.String()
