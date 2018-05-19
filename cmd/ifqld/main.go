@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/influxdata/ifql"
 	"github.com/influxdata/ifql/functions"
@@ -52,7 +53,7 @@ func init() {
 	viper.BindEnv("MEM_BYTES")
 	viper.BindPFlag("mem_bytes", ifqlCmd.PersistentFlags().Lookup("mem-bytes"))
 
-	ifqlCmd.PersistentFlags().String("storage-hosts", "", "host:port address of the storage server.")
+	ifqlCmd.PersistentFlags().String("storage-hosts", "localhost:8082", "host:port address of the storage server.")
 	viper.BindEnv("STORAGE_HOSTS")
 	viper.BindPFlag("STORAGE_HOSTS", ifqlCmd.PersistentFlags().Lookup("storage-hosts"))
 
@@ -113,7 +114,7 @@ func getStrList(key string) ([]string, error) {
 	v := viper.GetViper()
 	valStr := v.GetString(key)
 	if valStr == "" {
-		return nil, errors.New("empty organization host string")
+		return nil, errors.New("empty value")
 	}
 
 	return strings.Split(valStr, ","), nil
@@ -122,7 +123,7 @@ func getStrList(key string) ([]string, error) {
 func injectDeps(deps execute.Dependencies) error {
 	storageHosts, err := getStrList("STORAGE_HOSTS")
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get storage hosts")
 	}
 	sr, err := pb.NewReader(storage.NewStaticLookup(storageHosts))
 	if err != nil {
@@ -131,13 +132,9 @@ func injectDeps(deps execute.Dependencies) error {
 
 	bucketName, err := getStrList("BUCKET_NAME")
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get bucket name")
 	}
-	orgName, err := getStrList("ORGANIZATION_NAME")
-	if err != nil {
-		return err
-	}
-	bucketSvc := StaticBucketService{BucketName: bucketName[0], OrgName: orgName}
+	bucketSvc := StaticBucketService{Name: bucketName[0]}
 
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:       sr,
@@ -185,6 +182,15 @@ func (b bucketLookup) Lookup(orgID id.ID, name string) (id.ID, bool) {
 	return id.ID(bucket.ID), true
 }
 
+var (
+	staticBucketID, staticOrgID platform.ID
+)
+
+func init() {
+	staticBucketID.DecodeFromString("abba")
+	staticOrgID.DecodeFromString("baab")
+}
+
 // StaticOrganizationService connects to Influx via HTTP using tokens to manage organizations.
 type StaticOrganizationService struct {
 	Name string
@@ -208,11 +214,9 @@ func (s *StaticOrganizationService) FindOrganization(ctx context.Context, filter
 }
 
 func (s *StaticOrganizationService) FindOrganizations(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
-	var id platform.ID
-	id.DecodeFromString(s.Name)
 	po := platform.Organization{
-		ID:   id,
-		Name: "staticorganization",
+		ID:   staticOrgID,
+		Name: s.Name,
 	}
 
 	return []*platform.Organization{&po}, 1, nil
@@ -234,8 +238,7 @@ func (s *StaticOrganizationService) DeleteOrganization(ctx context.Context, id p
 
 // StaticBucketService connects to Influx via HTTP using tokens to manage buckets
 type StaticBucketService struct {
-	BucketName string
-	OrgName    string
+	Name string
 }
 
 // FindBucketByID returns a single bucket by ID.
@@ -260,16 +263,11 @@ func (s *StaticBucketService) FindBucket(ctx context.Context, filter platform.Bu
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *StaticBucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
-	var bucketid platform.ID
-	bucketid.DecodeFromString(s.BucketName)
-
-	var orgid platform.ID
-	orgid.DecodeFromString(s.OrgName)
 	bo := platform.Bucket{
-		ID:              platform.ID("staticbucketid"),
-		OrganizationID:  platform.ID("staticorgid"),
-		Name:            "staticbucket",
-		RetentionPeriod: 7,
+		ID:              staticBucketID,
+		OrganizationID:  staticOrgID,
+		Name:            s.Name,
+		RetentionPeriod: 1000 * time.Hour,
 	}
 
 	return []*platform.Bucket{&bo}, 1, nil
