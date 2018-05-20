@@ -162,7 +162,7 @@ type Engine struct {
 
 	MaxPointsPerBlock int
 
-	// CacheFlushMemorySizeThreshold specifies the minimum size threshodl for
+	// CacheFlushMemorySizeThreshold specifies the minimum size threshold for
 	// the cache when the engine should write a snapshot to a TSM file
 	CacheFlushMemorySizeThreshold uint64
 
