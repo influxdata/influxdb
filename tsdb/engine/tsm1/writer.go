@@ -495,7 +495,6 @@ func (d *directIndex) flush(w io.Writer) (int64, error) {
 	}
 
 	return N, nil
-
 }
 
 func (d *directIndex) MarshalBinary() ([]byte, error) {
