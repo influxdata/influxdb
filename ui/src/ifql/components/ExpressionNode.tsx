@@ -11,12 +11,19 @@ interface Props {
   bodyID: string
   funcs: Func[]
   declarationID?: string
+  declarationsFromBody: string[]
 }
 
 // an Expression is a group of one or more functions
 class ExpressionNode extends PureComponent<Props> {
   public render() {
-    const {declarationID, bodyID, funcNames, funcs} = this.props
+    const {
+      declarationID,
+      bodyID,
+      funcNames,
+      funcs,
+      declarationsFromBody,
+    } = this.props
     return (
       <IFQLContext.Consumer>
         {({onDeleteFuncNode, onAddNode, onChangeArg, onGenerateScript}) => {
@@ -31,6 +38,7 @@ class ExpressionNode extends PureComponent<Props> {
                   onDelete={onDeleteFuncNode}
                   declarationID={declarationID}
                   onGenerateScript={onGenerateScript}
+                  declarationsFromBody={declarationsFromBody}
                 />
               ))}
               <FuncSelector

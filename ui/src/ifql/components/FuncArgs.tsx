@@ -12,6 +12,7 @@ interface Props {
   declarationID: string
   onGenerateScript: () => void
   onDeleteFunc: () => void
+  declarationsFromBody: string[]
 }
 
 @ErrorHandling
@@ -24,6 +25,7 @@ export default class FuncArgs extends PureComponent<Props> {
       onDeleteFunc,
       declarationID,
       onGenerateScript,
+      declarationsFromBody,
     } = this.props
 
     return (

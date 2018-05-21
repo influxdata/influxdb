@@ -12,6 +12,7 @@ interface Props {
   onDelete: OnDeleteFuncNode
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
+  declarationsFromBody: string[]
 }
 
 interface State {
@@ -38,6 +39,7 @@ export default class FuncNode extends PureComponent<Props, State> {
       onChangeArg,
       declarationID,
       onGenerateScript,
+      declarationsFromBody,
     } = this.props
     const {isExpanded} = this.state
 
@@ -57,6 +59,7 @@ export default class FuncNode extends PureComponent<Props, State> {
             declarationID={declarationID}
             onGenerateScript={onGenerateScript}
             onDeleteFunc={this.handleDelete}
+            declarationsFromBody={declarationsFromBody}
           />
         )}
       </div>
