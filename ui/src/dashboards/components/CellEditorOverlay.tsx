@@ -2,6 +2,7 @@ import React, {Component} from 'react'
 
 import _ from 'lodash'
 import uuid from 'uuid'
+import {get} from 'src/utils/wrappers'
 
 import ResizeContainer from 'src/shared/components/ResizeContainer'
 import QueryMaker from 'src/dashboards/components/QueryMaker'
@@ -16,7 +17,6 @@ import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'src/utils/influxql'
 import {getQueryConfigAndStatus} from 'src/shared/apis'
 import {IS_STATIC_LEGEND} from 'src/shared/constants'
-import {ColorString, ColorNumber} from 'src/types/colors'
 import {nextSource} from 'src/dashboards/utils/sources'
 
 import {
@@ -43,6 +43,9 @@ import {
   Legend,
   Status,
 } from 'src/types'
+import {ColorString, ColorNumber} from 'src/types/colors'
+import {SourceOption} from 'src/dashboards/components/OverlayControls'
+
 type QueryTransitions = typeof queryTransitions
 type EditRawTextAsyncFunc = (
   url: string,
@@ -118,11 +121,6 @@ const createWorkingDrafts = (
 @ErrorHandling
 class CellEditorOverlay extends Component<Props, State> {
   private overlayRef: HTMLDivElement
-
-  private formattedSources = this.props.sources.map(s => ({
-    ...s,
-    text: `${s.name} @ ${s.url}`,
-  }))
 
   constructor(props) {
     super(props)
@@ -251,6 +249,14 @@ class CellEditorOverlay extends Component<Props, State> {
     )
   }
 
+  private get formattedSources(): SourceOption[] {
+    const {sources} = this.props
+    return sources.map(s => ({
+      ...s,
+      text: `${s.name} @ ${s.url}`,
+    }))
+  }
+
   private onRef = (r: HTMLDivElement) => {
     this.overlayRef = r
   }
@@ -298,10 +304,9 @@ class CellEditorOverlay extends Component<Props, State> {
     const {queriesWorkingDraft, isStaticLegend} = this.state
     const {cell, thresholdsListColors, gaugeColors, lineColors} = this.props
 
-    const queries = queriesWorkingDraft.map(q => {
+    const queries: CellQuery[] = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
-      const source: string = _.get(q.source, 'links.self', q.source) // ensure source is url, whether source is already string or object
-
+      const source = get<string | null>(q.source, 'links.self', null)
       return {
         queryConfig: q,
         query: q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q),
@@ -316,12 +321,14 @@ class CellEditorOverlay extends Component<Props, State> {
       lineColors,
     })
 
-    this.props.onSave({
+    const newCell: Cell = {
       ...cell,
       queries,
       colors,
       legend: isStaticLegend ? staticLegend : {},
-    })
+    }
+
+    this.props.onSave(newCell)
   }
 
   private handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {
@@ -442,18 +449,19 @@ class CellEditorOverlay extends Component<Props, State> {
   private findSelectedSource = (): string => {
     const {source} = this.props
     const sources = this.formattedSources
-    const currentSource: Source = _.get(
+    const currentSource = get<Source | null>(
       this.state.queriesWorkingDraft,
-      '0.source'
+      '0.source',
+      null
     )
 
     if (!currentSource) {
-      const defaultSource = sources.find(s => s.id === source.id)
+      const defaultSource: Source = sources.find(s => s.id === source.id)
       return (defaultSource && defaultSource.text) || 'No sources'
     }
 
-    const selected = sources.find(
-      s => s.links.self === _.get(currentSource, 'links.self', currentSource) // ensure source is url, whether source is already string or object
+    const selected: Source = sources.find(
+      s => s.links.self === currentSource.links.self
     )
     return (selected && selected.text) || 'No sources'
   }
@@ -521,7 +529,12 @@ class CellEditorOverlay extends Component<Props, State> {
       cell: {queries},
       source,
     } = this.props
-    return _.get(queries, '0.source', source)
+    const initialSource: Source = get<Source>(
+      queries,
+      '0.queryConfig.0.source',
+      source
+    )
+    return initialSource
   }
 
   private get source(): Source {
@@ -532,10 +545,11 @@ class CellEditorOverlay extends Component<Props, State> {
       return source
     }
 
-    // ensure source is url, whether source is already string or object
     return (
-      sources.find(s => s.links.self === _.get(query, 'source.links.self')) ||
-      source
+      sources.find(
+        s =>
+          s.links.self === get<string | null>(query, 'source.links.self', null)
+      ) || source
     )
   }
 }

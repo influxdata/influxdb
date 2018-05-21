@@ -1,7 +1,7 @@
 import {Source} from 'src/types'
 
 export interface Query {
-  host: string[]
+  host: string[] // doesn't come from server - is set in buildQueriesForGraphs
   text: string
   id: string
   queryConfig: QueryConfig

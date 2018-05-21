@@ -32,9 +32,12 @@ interface CellLinks {
   self: string
 }
 
+// corresponds to DashboardQuery on the backend
 export interface CellQuery {
   query: string
   queryConfig: QueryConfig
+  source: string
+  text?: string // doesn't come from server
 }
 
 export interface Legend {
