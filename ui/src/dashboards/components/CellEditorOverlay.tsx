@@ -300,7 +300,7 @@ class CellEditorOverlay extends Component<Props, State> {
 
     const queries = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
-      const source = _.get(q.source, 'links.self', q.source)
+      const source: string = _.get(q.source, 'links.self', q.source) // ensure source is url, whether source is already string or object
 
       return {
         queryConfig: q,
@@ -453,7 +453,7 @@ class CellEditorOverlay extends Component<Props, State> {
     }
 
     const selected = sources.find(
-      s => s.links.self === currentSource.links.self
+      s => s.links.self === _.get(currentSource, 'links.self', currentSource) // ensure source is url, whether source is already string or object
     )
     return (selected && selected.text) || 'No sources'
   }
@@ -532,6 +532,7 @@ class CellEditorOverlay extends Component<Props, State> {
       return source
     }
 
+    // ensure source is url, whether source is already string or object
     return (
       sources.find(s => s.links.self === _.get(query, 'source.links.self')) ||
       source
