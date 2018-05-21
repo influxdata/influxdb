@@ -272,6 +272,18 @@
   # The maximum size of a client request body, in bytes. Setting this value to 0 disables the limit.
   # max-body-size = 25000000
 
+  # The maximum number of writes processed concurrently.
+  # Setting this to 0 disables the limit.
+  # max-concurrent-write-limit = 0
+
+  # The maximum number of writes queued for processing.
+  # Setting this to 0 disables the limit.
+  # max-enqueued-write-limit = 0
+
+  # The maximum duration for a write to wait in the queue to be processed.
+  # Setting this to 0 or setting max-concurrent-write-limit to 0 disables the limit.
+  # enqueued-write-timeout = 0
+
 
 ###
 ### [ifql]

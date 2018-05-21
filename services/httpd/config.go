@@ -1,6 +1,8 @@
 package httpd
 
 import (
+	"time"
+
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/toml"
 )
@@ -17,30 +19,36 @@ const (
 
 	// DefaultMaxBodySize is the default maximum size of a client request body, in bytes. Specify 0 for no limit.
 	DefaultMaxBodySize = 25e6
+
+	// DefaultEnqueuedWriteTimeout is the maximum time a write request can wait to be processed.
+	DefaultEnqueuedWriteTimeout = 30 * time.Second
 )
 
 // Config represents a configuration for a HTTP service.
 type Config struct {
-	Enabled               bool          `toml:"enabled"`
-	BindAddress           string        `toml:"bind-address"`
-	AuthEnabled           bool          `toml:"auth-enabled"`
-	LogEnabled            bool          `toml:"log-enabled"`
-	SuppressWriteLog      bool          `toml:"suppress-write-log"`
-	WriteTracing          bool          `toml:"write-tracing"`
-	PprofEnabled          bool          `toml:"pprof-enabled"`
-	HTTPSEnabled          bool          `toml:"https-enabled"`
-	HTTPSCertificate      string        `toml:"https-certificate"`
-	HTTPSPrivateKey       string        `toml:"https-private-key"`
-	MaxRowLimit           int           `toml:"max-row-limit"`
-	MaxConnectionLimit    int           `toml:"max-connection-limit"`
-	SharedSecret          string        `toml:"shared-secret"`
-	Realm                 string        `toml:"realm"`
-	UnixSocketEnabled     bool          `toml:"unix-socket-enabled"`
-	UnixSocketGroup       *toml.Group   `toml:"unix-socket-group"`
-	UnixSocketPermissions toml.FileMode `toml:"unix-socket-permissions"`
-	BindSocket            string        `toml:"bind-socket"`
-	MaxBodySize           int           `toml:"max-body-size"`
-	AccessLogPath         string        `toml:"access-log-path"`
+	Enabled                 bool          `toml:"enabled"`
+	BindAddress             string        `toml:"bind-address"`
+	AuthEnabled             bool          `toml:"auth-enabled"`
+	LogEnabled              bool          `toml:"log-enabled"`
+	SuppressWriteLog        bool          `toml:"suppress-write-log"`
+	WriteTracing            bool          `toml:"write-tracing"`
+	PprofEnabled            bool          `toml:"pprof-enabled"`
+	HTTPSEnabled            bool          `toml:"https-enabled"`
+	HTTPSCertificate        string        `toml:"https-certificate"`
+	HTTPSPrivateKey         string        `toml:"https-private-key"`
+	MaxRowLimit             int           `toml:"max-row-limit"`
+	MaxConnectionLimit      int           `toml:"max-connection-limit"`
+	SharedSecret            string        `toml:"shared-secret"`
+	Realm                   string        `toml:"realm"`
+	UnixSocketEnabled       bool          `toml:"unix-socket-enabled"`
+	UnixSocketGroup         *toml.Group   `toml:"unix-socket-group"`
+	UnixSocketPermissions   toml.FileMode `toml:"unix-socket-permissions"`
+	BindSocket              string        `toml:"bind-socket"`
+	MaxBodySize             int           `toml:"max-body-size"`
+	AccessLogPath           string        `toml:"access-log-path"`
+	MaxConcurrentWriteLimit int           `toml:"max-concurrent-write-limit"`
+	MaxEnqueuedWriteLimit   int           `toml:"max-enqueued-write-limit"`
+	EnqueuedWriteTimeout    time.Duration `toml:"enqueued-write-timeout"`
 }
 
 // NewConfig returns a new Config with default settings.
@@ -58,6 +66,7 @@ func NewConfig() Config {
 		UnixSocketPermissions: 0777,
 		BindSocket:            DefaultBindSocket,
 		MaxBodySize:           DefaultMaxBodySize,
+		EnqueuedWriteTimeout:  DefaultEnqueuedWriteTimeout,
 	}
 }
 
