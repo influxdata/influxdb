@@ -4,12 +4,15 @@ import _ from 'lodash'
 import ExpressionNode from 'src/ifql/components/ExpressionNode'
 import VariableName from 'src/ifql/components/VariableName'
 import FuncSelector from 'src/ifql/components/FuncSelector'
+import {funcNames} from 'src/ifql/constants'
 
 import {FlatBody, Suggestion} from 'src/types/ifql'
 
 interface Props {
   body: Body[]
   suggestions: Suggestion[]
+  onAppendFrom: () => void
+  onAppendJoin: () => void
 }
 
 interface Body extends FlatBody {
@@ -18,15 +21,14 @@ interface Body extends FlatBody {
 
 class BodyBuilder extends PureComponent<Props> {
   public render() {
-    const bodybuilder = this.props.body.map(b => {
+    const bodybuilder = this.props.body.map((b, i) => {
       if (b.declarations.length) {
         return b.declarations.map(d => {
           if (d.funcs) {
             return (
-              <div className="declaration" key={b.id}>
+              <div className="declaration" key={i}>
                 <VariableName name={d.name} />
                 <ExpressionNode
-                  key={b.id}
                   bodyID={b.id}
                   declarationID={d.id}
                   funcNames={this.funcNames}
@@ -37,7 +39,7 @@ class BodyBuilder extends PureComponent<Props> {
           }
 
           return (
-            <div className="declaration" key={b.id}>
+            <div className="declaration" key={i}>
               <VariableName name={b.source} />
             </div>
           )
@@ -45,8 +47,7 @@ class BodyBuilder extends PureComponent<Props> {
       }
 
       return (
-        <div className="declaration" key={b.id}>
-          <VariableName />
+        <div className="declaration" key={i}>
           <ExpressionNode
             bodyID={b.id}
             funcs={b.funcs}
@@ -63,7 +64,7 @@ class BodyBuilder extends PureComponent<Props> {
           <FuncSelector
             bodyID="fake-body-id"
             declarationID="fake-declaration-id"
-            onAddNode={this.createNewDeclaration}
+            onAddNode={this.createNewBody}
             funcs={this.newDeclarationFuncs}
             connectorVisible={false}
           />
@@ -73,15 +74,21 @@ class BodyBuilder extends PureComponent<Props> {
   }
 
   private get newDeclarationFuncs(): string[] {
-    // 'JOIN' only available if there are at least 2 named declarations
-    return ['from', 'join', 'variable']
+    const {body} = this.props
+    const declarationFunctions = [funcNames.FROM]
+    if (body.length > 1) {
+      declarationFunctions.push(funcNames.JOIN)
+    }
+    return declarationFunctions
   }
 
-  private createNewDeclaration = (bodyID, name, declarationID) => {
-    // Returning a string here so linter stops yelling
-    // TODO: write a real function
-
-    return `${bodyID} / ${name} / ${declarationID}`
+  private createNewBody = name => {
+    if (name === funcNames.FROM) {
+      this.props.onAppendFrom()
+    }
+    if (name === funcNames.JOIN) {
+      this.props.onAppendJoin()
+    }
   }
 
   private get funcNames() {

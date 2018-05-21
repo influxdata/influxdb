@@ -3,16 +3,28 @@ import SchemaExplorer from 'src/ifql/components/SchemaExplorer'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
 import TimeMachineVis from 'src/ifql/components/TimeMachineVis'
-import Threesizer from 'src/shared/components/Threesizer'
-import {Suggestion, OnChangeScript, FlatBody} from 'src/types/ifql'
+import Threesizer from 'src/shared/components/threesizer/Threesizer'
+import {
+  Suggestion,
+  OnChangeScript,
+  OnSubmitScript,
+  FlatBody,
+  Status,
+} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
+  data: string
   script: string
-  suggestions: Suggestion[]
   body: Body[]
+  status: Status
+  suggestions: Suggestion[]
   onChangeScript: OnChangeScript
+  onSubmitScript: OnSubmitScript
+  onAppendFrom: () => void
+  onAppendJoin: () => void
+  onAnalyze: () => void
 }
 
 interface Body extends FlatBody {
@@ -32,9 +44,12 @@ class TimeMachine extends PureComponent<Props> {
   }
 
   private get mainSplit() {
+    const {data} = this.props
     return [
       {
         handleDisplay: 'none',
+        menuOptions: [],
+        headerButtons: [],
         render: () => (
           <Threesizer
             divisions={this.divisions}
@@ -44,31 +59,67 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         handlePixels: 8,
-        render: () => <TimeMachineVis blob="Visualizer" />,
+        menuOptions: [],
+        headerButtons: [],
+        render: () => <TimeMachineVis data={data} />,
       },
     ]
   }
 
   private get divisions() {
-    const {body, suggestions, script, onChangeScript} = this.props
+    const {
+      body,
+      script,
+      status,
+      onAnalyze,
+      suggestions,
+      onAppendFrom,
+      onAppendJoin,
+      onChangeScript,
+      onSubmitScript,
+    } = this.props
+
     return [
       {
         name: 'Explore',
+        headerButtons: [],
+        menuOptions: [],
         render: () => <SchemaExplorer />,
       },
       {
         name: 'Script',
+        headerButtons: [
+          <div
+            key="analyze"
+            className="btn btn-default btn-sm analyze--button"
+            onClick={onAnalyze}
+          >
+            Analyze
+          </div>,
+        ],
+        menuOptions: [],
         render: visibility => (
           <TimeMachineEditor
+            status={status}
             script={script}
-            onChangeScript={onChangeScript}
             visibility={visibility}
+            onChangeScript={onChangeScript}
+            onSubmitScript={onSubmitScript}
           />
         ),
       },
       {
         name: 'Build',
-        render: () => <BodyBuilder body={body} suggestions={suggestions} />,
+        headerButtons: [],
+        menuOptions: [],
+        render: () => (
+          <BodyBuilder
+            body={body}
+            suggestions={suggestions}
+            onAppendFrom={onAppendFrom}
+            onAppendJoin={onAppendJoin}
+          />
+        ),
       },
     ]
   }

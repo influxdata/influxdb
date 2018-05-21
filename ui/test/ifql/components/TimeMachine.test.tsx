@@ -6,9 +6,14 @@ const setup = () => {
   const props = {
     script: '',
     body: [],
+    data: '',
+    status: {type: '', text: ''},
     suggestions: [],
     onSubmitScript: () => {},
     onChangeScript: () => {},
+    onAnalyze: () => {},
+    onAppendFrom: () => {},
+    onAppendJoin: () => {},
   }
 
   const wrapper = shallow(<TimeMachine {...props} />)

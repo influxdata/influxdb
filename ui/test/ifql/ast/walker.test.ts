@@ -1,7 +1,12 @@
 import Walker from 'src/ifql/ast/walker'
 import From from 'test/ifql/ast/from'
 import Complex from 'test/ifql/ast/complex'
-import {StringLiteral, Expression, ArrowFunction} from 'test/ifql/ast/variable'
+import {
+  StringLiteral,
+  Expression,
+  ArrowFunction,
+  Fork,
+} from 'test/ifql/ast/variable'
 
 describe('IFQL.AST.Walker', () => {
   describe('Walker#functions', () => {
@@ -80,7 +85,7 @@ describe('IFQL.AST.Walker', () => {
             })
           })
 
-          describe.only('a single ArrowFunction variable', () => {
+          describe('a single ArrowFunction variable', () => {
             it('returns the expected list', () => {
               const walker = new Walker(ArrowFunction)
               expect(walker.body).toEqual([
@@ -99,6 +104,45 @@ describe('IFQL.AST.Walker', () => {
                         {type: 'IntegerLiteral', source: '1'},
                       ],
                     },
+                  ],
+                },
+              ])
+            })
+          })
+
+          describe('forking', () => {
+            it('return the expected list of objects', () => {
+              const walker = new Walker(Fork)
+              expect(walker.body).toEqual([
+                {
+                  type: 'VariableDeclaration',
+                  source: 'tele = from(db: "telegraf")',
+                  declarations: [
+                    {
+                      name: 'tele',
+                      type: 'CallExpression',
+                      source: 'tele = from(db: "telegraf")',
+                      funcs: [
+                        {
+                          name: 'from',
+                          source: 'from(db: "telegraf")',
+                          args: [
+                            {
+                              key: 'db',
+                              value: 'telegraf',
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: 'PipeExpression',
+                  source: 'tele |> sum()',
+                  funcs: [
+                    {args: [], name: 'tele', source: 'tele'},
+                    {args: [], name: 'sum', source: '|> sum()'},
                   ],
                 },
               ])

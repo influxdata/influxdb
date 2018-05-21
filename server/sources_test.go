@@ -175,6 +175,7 @@ func Test_newSourceResponse(t *testing.T) {
 				},
 				Links: sourceLinks{
 					Self:        "/chronograf/v1/sources/1",
+					Services:    "/chronograf/v1/sources/1/services",
 					Proxy:       "/chronograf/v1/sources/1/proxy",
 					Queries:     "/chronograf/v1/sources/1/queries",
 					Write:       "/chronograf/v1/sources/1/write",
@@ -201,6 +202,7 @@ func Test_newSourceResponse(t *testing.T) {
 				Links: sourceLinks{
 					Self:        "/chronograf/v1/sources/1",
 					Proxy:       "/chronograf/v1/sources/1/proxy",
+					Services:    "/chronograf/v1/sources/1/services",
 					Queries:     "/chronograf/v1/sources/1/queries",
 					Write:       "/chronograf/v1/sources/1/write",
 					Kapacitors:  "/chronograf/v1/sources/1/kapacitors",
@@ -440,7 +442,7 @@ func TestService_SourcesID(t *testing.T) {
 			ID:              "1",
 			wantStatusCode:  200,
 			wantContentType: "application/json",
-			wantBody: `{"id":"1","name":"","url":"","default":false,"telegraf":"telegraf","organization":"","defaultRP":"","links":{"self":"/chronograf/v1/sources/1","kapacitors":"/chronograf/v1/sources/1/kapacitors","proxy":"/chronograf/v1/sources/1/proxy","queries":"/chronograf/v1/sources/1/queries","write":"/chronograf/v1/sources/1/write","permissions":"/chronograf/v1/sources/1/permissions","users":"/chronograf/v1/sources/1/users","databases":"/chronograf/v1/sources/1/dbs","annotations":"/chronograf/v1/sources/1/annotations","health":"/chronograf/v1/sources/1/health"}}
+			wantBody: `{"id":"1","name":"","url":"","default":false,"telegraf":"telegraf","organization":"","defaultRP":"","links":{"self":"/chronograf/v1/sources/1","kapacitors":"/chronograf/v1/sources/1/kapacitors","services":"/chronograf/v1/sources/1/services","proxy":"/chronograf/v1/sources/1/proxy","queries":"/chronograf/v1/sources/1/queries","write":"/chronograf/v1/sources/1/write","permissions":"/chronograf/v1/sources/1/permissions","users":"/chronograf/v1/sources/1/users","databases":"/chronograf/v1/sources/1/dbs","annotations":"/chronograf/v1/sources/1/annotations","health":"/chronograf/v1/sources/1/health"}}
 `,
 		},
 	}
@@ -530,7 +532,7 @@ func TestService_UpdateSource(t *testing.T) {
 			wantStatusCode:  200,
 			wantContentType: "application/json",
 			wantBody: func(url string) string {
-				return fmt.Sprintf(`{"id":"1","name":"marty","type":"influx","username":"bob","url":"%s","metaUrl":"http://murl","default":false,"telegraf":"murlin","organization":"1337","defaultRP":"pineapple","links":{"self":"/chronograf/v1/sources/1","kapacitors":"/chronograf/v1/sources/1/kapacitors","proxy":"/chronograf/v1/sources/1/proxy","queries":"/chronograf/v1/sources/1/queries","write":"/chronograf/v1/sources/1/write","permissions":"/chronograf/v1/sources/1/permissions","users":"/chronograf/v1/sources/1/users","databases":"/chronograf/v1/sources/1/dbs","annotations":"/chronograf/v1/sources/1/annotations","health":"/chronograf/v1/sources/1/health"}}
+				return fmt.Sprintf(`{"id":"1","name":"marty","type":"influx","username":"bob","url":"%s","metaUrl":"http://murl","default":false,"telegraf":"murlin","organization":"1337","defaultRP":"pineapple","links":{"self":"/chronograf/v1/sources/1","kapacitors":"/chronograf/v1/sources/1/kapacitors","services":"/chronograf/v1/sources/1/services","proxy":"/chronograf/v1/sources/1/proxy","queries":"/chronograf/v1/sources/1/queries","write":"/chronograf/v1/sources/1/write","permissions":"/chronograf/v1/sources/1/permissions","users":"/chronograf/v1/sources/1/users","databases":"/chronograf/v1/sources/1/dbs","annotations":"/chronograf/v1/sources/1/annotations","health":"/chronograf/v1/sources/1/health"}}
 `, url)
 			},
 		},

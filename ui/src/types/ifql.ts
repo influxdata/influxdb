@@ -10,6 +10,11 @@ export type OnGenerateScript = (script: string) => void
 export type OnChangeScript = (script: string) => void
 export type OnSubmitScript = () => void
 
+export interface Status {
+  type: string
+  text: string
+}
+
 export interface Handlers {
   onAddNode: OnAddNode
   onChangeArg: OnChangeArg

@@ -22,9 +22,9 @@ class ExpressionNode extends PureComponent<Props> {
         {({onDeleteFuncNode, onAddNode, onChangeArg, onGenerateScript}) => {
           return (
             <>
-              {funcs.map(func => (
+              {funcs.map((func, i) => (
                 <FuncNode
-                  key={func.id}
+                  key={i}
                   func={func}
                   bodyID={bodyID}
                   onChangeArg={onChangeArg}

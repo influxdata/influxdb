@@ -1,20 +1,42 @@
 import React, {PureComponent} from 'react'
-
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
+import CheckServices from 'src/ifql/containers/CheckServices'
 import TimeMachine from 'src/ifql/components/TimeMachine'
+import IFQLHeader from 'src/ifql/components/IFQLHeader'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
-import {Suggestion, FlatBody, Links} from 'src/types/ifql'
-import {InputArg, Handlers, DeleteFuncNodeArgs, Func} from 'src/types/ifql'
+
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {analyzeSuccess} from 'src/shared/copy/notifications'
 
 import {bodyNodes} from 'src/ifql/helpers'
-import {getSuggestions, getAST} from 'src/ifql/apis'
-import * as argTypes from 'src/ifql/constants/argumentTypes'
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
+import {builder, argTypes} from 'src/ifql/constants'
+import {funcNames} from 'src/ifql/constants'
+
+import {Source, Service, Notification} from 'src/types'
+import {
+  Suggestion,
+  FlatBody,
+  Links,
+  InputArg,
+  Handlers,
+  DeleteFuncNodeArgs,
+  Func,
+} from 'src/types/ifql'
+
+interface Status {
+  type: string
+  text: string
+}
 
 interface Props {
   links: Links
+  services: Service[]
+  sources: Source[]
+  notify: (message: Notification) => void
 }
 
 interface Body extends FlatBody {
@@ -25,7 +47,9 @@ interface State {
   body: Body[]
   ast: object
   script: string
+  data: string
   suggestions: Suggestion[]
+  status: Status
 }
 
 export const IFQLContext = React.createContext()
@@ -37,11 +61,13 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       body: [],
       ast: null,
+      data: 'Hit "Get Data!" or Ctrl + Enter to run your script',
       suggestions: [],
-      script: `from(db:"foo")
-        |> filter(fn: (r) => 
-        (r["a"] == 1 OR r.b == "two") AND 
-        (r["b"] == true OR r.d == "four"))`,
+      script: `fil = (r) => r._measurement == \"cpu\"\ntele = from(db: \"telegraf\") \n\t\t|> filter(fn: fil)\n        |> range(start: -1m)\n        |> sum()\n\n`,
+      status: {
+        type: 'none',
+        text: '',
+      },
     }
   }
 
@@ -59,37 +85,47 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {suggestions, script} = this.state
+    const {suggestions, script, data, body, status} = this.state
 
     return (
-      <IFQLContext.Provider value={this.handlers}>
-        <KeyboardShortcuts onControlEnter={this.handleSubmitScript}>
-          <div className="page hosts-list-page">
-            <div className="page-header full-width">
-              <div className="page-header__container">
-                <div className="page-header__left">
-                  <h1 className="page-header__title">Time Machine</h1>
-                </div>
-                <div className="page-header__right">
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={this.handleSubmitScript}
-                  >
-                    Submit Script
-                  </button>
-                </div>
-              </div>
+      <CheckServices>
+        <IFQLContext.Provider value={this.handlers}>
+          <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
+            <div className="page hosts-list-page">
+              {this.header}
+              <TimeMachine
+                data={data}
+                body={body}
+                script={script}
+                status={status}
+                suggestions={suggestions}
+                onAnalyze={this.handleAnalyze}
+                onAppendFrom={this.handleAppendFrom}
+                onAppendJoin={this.handleAppendJoin}
+                onChangeScript={this.handleChangeScript}
+                onSubmitScript={this.handleSubmitScript}
+              />
             </div>
-            <TimeMachine
-              script={script}
-              body={this.state.body}
-              suggestions={suggestions}
-              onChangeScript={this.handleChangeScript}
-            />
-          </div>
-        </KeyboardShortcuts>
-      </IFQLContext.Provider>
+          </KeyboardShortcuts>
+        </IFQLContext.Provider>
+      </CheckServices>
     )
+  }
+
+  private get header(): JSX.Element {
+    const {services} = this.props
+
+    if (!services.length) {
+      return null
+    }
+
+    return (
+      <IFQLHeader service={this.service} onGetTimeSeries={this.getTimeSeries} />
+    )
+  }
+
+  private get service(): Service {
+    return this.props.services[0]
   }
 
   private get handlers(): Handlers {
@@ -223,6 +259,20 @@ export class IFQLPage extends PureComponent<Props, State> {
       .join(', ')
   }
 
+  private handleAppendFrom = (): void => {
+    const {script} = this.state
+    const newScript = `${script.trim()}\n\n${builder.NEW_FROM}\n\n`
+
+    this.getASTResponse(newScript)
+  }
+
+  private handleAppendJoin = (): void => {
+    const {script} = this.state
+    const newScript = `${script.trim()}\n\n${builder.NEW_JOIN}\n\n`
+
+    this.getASTResponse(newScript)
+  }
+
   private handleChangeScript = (script: string): void => {
     this.setState({script})
   }
@@ -325,21 +375,77 @@ export class IFQLPage extends PureComponent<Props, State> {
     }, '')
   }
 
+  private handleAnalyze = async () => {
+    const {links, notify} = this.props
+
+    try {
+      const ast = await getAST({url: links.ast, body: this.state.script})
+      const body = bodyNodes(ast, this.state.suggestions)
+      const status = {type: 'success', text: ''}
+      notify(analyzeSuccess)
+
+      this.setState({ast, body, status})
+    } catch (error) {
+      this.setState({status: this.parseError(error)})
+      return console.error('Could not parse AST', error)
+    }
+  }
+
   private getASTResponse = async (script: string) => {
     const {links} = this.props
 
     try {
       const ast = await getAST({url: links.ast, body: script})
-      const body = bodyNodes(ast, this.state.suggestions)
-      this.setState({ast, script, body})
+      const suggestions = this.state.suggestions.map(s => {
+        if (s.name === funcNames.JOIN) {
+          return {
+            ...s,
+            params: {
+              tables: 'object',
+              on: 'array',
+              fn: 'function',
+            },
+          }
+        }
+        return s
+      })
+      const body = bodyNodes(ast, suggestions)
+      const status = {type: 'success', text: ''}
+      this.setState({ast, script, body, status})
     } catch (error) {
-      console.error('Could not parse AST', error)
+      this.setState({status: this.parseError(error)})
+      return console.error('Could not parse AST', error)
     }
+  }
+
+  private getTimeSeries = async () => {
+    const {script} = this.state
+    this.setState({data: 'fetching data...'})
+
+    try {
+      const {data} = await getTimeSeries(script)
+      this.setState({data})
+    } catch (error) {
+      this.setState({data: 'Error fetching data'})
+      console.error('Could not get timeSeries', error)
+    }
+
+    this.getASTResponse(script)
+  }
+
+  private parseError = (error): Status => {
+    const s = error.data.slice(0, -5) // There is a 'null\n' at the end of these responses
+    const data = JSON.parse(s)
+    return {type: 'error', text: `${data.message}`}
   }
 }
 
-const mapStateToProps = ({links}) => {
-  return {links: links.ifql}
+const mapStateToProps = ({links, services, sources}) => {
+  return {links: links.ifql, services, sources}
 }
 
-export default connect(mapStateToProps, null)(IFQLPage)
+const mapDispatchToProps = {
+  notify: notifyAction,
+}
+
+export default connect(mapStateToProps, mapDispatchToProps)(IFQLPage)
