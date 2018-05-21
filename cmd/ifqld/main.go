@@ -6,10 +6,13 @@ import (
 	nethttp "net/http"
 	"os"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/influxdata/ifql"
 	"github.com/influxdata/ifql/functions"
 	"github.com/influxdata/ifql/functions/storage"
+	"github.com/influxdata/ifql/functions/storage/pb"
 	"github.com/influxdata/ifql/id"
 	"github.com/influxdata/ifql/query"
 	"github.com/influxdata/ifql/query/execute"
@@ -17,6 +20,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	platformquery "github.com/influxdata/platform/query"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -49,17 +53,17 @@ func init() {
 	viper.BindEnv("MEM_BYTES")
 	viper.BindPFlag("mem_bytes", ifqlCmd.PersistentFlags().Lookup("mem-bytes"))
 
-	ifqlCmd.PersistentFlags().String("storage-hosts", "", "host:port address of the storage server.")
+	ifqlCmd.PersistentFlags().String("storage-hosts", "localhost:8082", "host:port address of the storage server.")
 	viper.BindEnv("STORAGE_HOSTS")
 	viper.BindPFlag("STORAGE_HOSTS", ifqlCmd.PersistentFlags().Lookup("storage-hosts"))
 
-	ifqlCmd.PersistentFlags().String("bucket-host", "", "The bucket service host. ")
-	viper.BindEnv("BUCKET_HOST")
-	viper.BindPFlag("BUCKET_HOST", ifqlCmd.PersistentFlags().Lookup("bucket-hosts"))
+	ifqlCmd.PersistentFlags().String("bucket-name", "defaultbucket", "The bucket to access. ")
+	viper.BindEnv("BUCKET_NAME")
+	viper.BindPFlag("BUCKET_NAME", ifqlCmd.PersistentFlags().Lookup("bucket-name"))
 
-	ifqlCmd.PersistentFlags().String("organization-hosts", "", "The organization service host.")
-	viper.BindEnv("ORGANIZATION_HOSTS")
-	viper.BindPFlag("ORGANIZATION_HOSTS", ifqlCmd.PersistentFlags().Lookup("organization-hosts"))
+	ifqlCmd.PersistentFlags().String("organization-name", "defaultorgname", "The organization name to use.")
+	viper.BindEnv("ORGANIZATION_NAME")
+	viper.BindPFlag("ORGANIZATION_NAME", ifqlCmd.PersistentFlags().Lookup("organization-name"))
 
 }
 
@@ -84,14 +88,17 @@ func ifqlF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var orgSvc platform.OrganizationService
-	// TODO(adam): figure out what orgSvc we need to create here.
+	orgName, err := getStrList("ORGANIZATION_NAME")
+	if err != nil {
+		return
+	}
+	orgSvc := StaticOrganizationService{Name: orgName[0]}
 
 	queryHandler := http.NewQueryHandler()
 	queryHandler.QueryService = platform.QueryServiceBridge{
 		AsyncQueryService: wrapController{Controller: c},
 	}
-	queryHandler.OrganizationService = orgSvc
+	queryHandler.OrganizationService = &orgSvc
 
 	handler := http.NewHandler("query")
 	handler.Handler = queryHandler
@@ -103,16 +110,35 @@ func ifqlF(cmd *cobra.Command, args []string) {
 	}
 }
 
-func injectDeps(deps execute.Dependencies) error {
+func getStrList(key string) ([]string, error) {
+	v := viper.GetViper()
+	valStr := v.GetString(key)
+	if valStr == "" {
+		return nil, errors.New("empty value")
+	}
 
-	// TODO(adam): figure out the correct read service
-	var sr storage.Reader
-	// TODO(adam): figure correct bucket service
-	var bucketSvc platform.BucketService
+	return strings.Split(valStr, ","), nil
+}
+
+func injectDeps(deps execute.Dependencies) error {
+	storageHosts, err := getStrList("STORAGE_HOSTS")
+	if err != nil {
+		return errors.Wrap(err, "failed to get storage hosts")
+	}
+	sr, err := pb.NewReader(storage.NewStaticLookup(storageHosts))
+	if err != nil {
+		return err
+	}
+
+	bucketName, err := getStrList("BUCKET_NAME")
+	if err != nil {
+		return errors.Wrap(err, "failed to get bucket name")
+	}
+	bucketSvc := StaticBucketService{Name: bucketName[0]}
 
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:       sr,
-		BucketLookup: platformquery.FromBucketService(bucketSvc),
+		BucketLookup: platformquery.FromBucketService(&bucketSvc),
 	})
 }
 
@@ -154,4 +180,111 @@ func (b bucketLookup) Lookup(orgID id.ID, name string) (id.ID, bool) {
 		return nil, false
 	}
 	return id.ID(bucket.ID), true
+}
+
+var (
+	staticBucketID, staticOrgID platform.ID
+)
+
+func init() {
+	staticBucketID.DecodeFromString("abba")
+	staticOrgID.DecodeFromString("baab")
+}
+
+// StaticOrganizationService connects to Influx via HTTP using tokens to manage organizations.
+type StaticOrganizationService struct {
+	Name string
+}
+
+func (s *StaticOrganizationService) FindOrganizationByID(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+	return s.FindOrganization(ctx, platform.OrganizationFilter{})
+}
+
+func (s *StaticOrganizationService) FindOrganization(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+	os, n, err := s.FindOrganizations(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if n < 1 {
+		return nil, fmt.Errorf("expected at least one organization")
+	}
+
+	return os[0], nil
+}
+
+func (s *StaticOrganizationService) FindOrganizations(ctx context.Context, filter platform.OrganizationFilter, opt ...platform.FindOptions) ([]*platform.Organization, int, error) {
+	po := platform.Organization{
+		ID:   staticOrgID,
+		Name: s.Name,
+	}
+
+	return []*platform.Organization{&po}, 1, nil
+
+}
+
+// CreateOrganization creates an organization.
+func (s *StaticOrganizationService) CreateOrganization(ctx context.Context, o *platform.Organization) error {
+	panic("not implemented")
+}
+
+func (s *StaticOrganizationService) UpdateOrganization(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error) {
+	panic("not implemented")
+}
+
+func (s *StaticOrganizationService) DeleteOrganization(ctx context.Context, id platform.ID) error {
+	panic("not implemented")
+}
+
+// StaticBucketService connects to Influx via HTTP using tokens to manage buckets
+type StaticBucketService struct {
+	Name string
+}
+
+// FindBucketByID returns a single bucket by ID.
+func (s *StaticBucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+	return s.FindBucket(ctx, platform.BucketFilter{})
+}
+
+// FindBucket returns the first bucket that matches filter.
+func (s *StaticBucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+	bs, n, err := s.FindBuckets(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if n == 0 {
+		return nil, fmt.Errorf("found no matching buckets")
+	}
+
+	return bs[0], nil
+}
+
+// FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
+// Additional options provide pagination & sorting.
+func (s *StaticBucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+	bo := platform.Bucket{
+		ID:              staticBucketID,
+		OrganizationID:  staticOrgID,
+		Name:            s.Name,
+		RetentionPeriod: 1000 * time.Hour,
+	}
+
+	return []*platform.Bucket{&bo}, 1, nil
+}
+
+// CreateBucket creates a new bucket and sets b.ID with the new identifier.
+func (s *StaticBucketService) CreateBucket(ctx context.Context, b *platform.Bucket) error {
+	panic("not implemented")
+}
+
+// UpdateBucket updates a single bucket with changeset.
+// Returns the new bucket state after update.
+func (s *StaticBucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+	panic("not implemented")
+}
+
+// DeleteBucket removes a bucket by ID.
+func (s *StaticBucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
+	panic("not implemented")
 }
