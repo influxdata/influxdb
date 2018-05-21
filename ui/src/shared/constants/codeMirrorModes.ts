@@ -23,6 +23,10 @@ export const modeIFQL = {
       token: 'function-arg',
     },
     {
+      regex: /\w+(?=[[]["]|[.])/,
+      token: 'function-arg-ref',
+    },
+    {
       regex: /AND|OR|[=][=]|[!][=]|[<][=]|[>][=]/,
       token: 'operator',
     },
