@@ -6,7 +6,7 @@ servers.
 `ifqld` runs on port `8093` by default
 
 ### Specification
-Here is the rough design specification for details until we get documentation up: http://bit.ly/ifql-spec
+Here is the rough design specification for details until we get documentation up: http://bit.ly/platform/query-spec
 
 ### INSTALLATION
 1. Upgrade to InfluxDB >= 1.4.1
@@ -25,7 +25,7 @@ the InfluxDB server. InfluxDB will open port `8082` to accept **IFQL** queries.
   bind-address = ":8082"
 ```
 
-3. Download `ifqld` and install from https://github.com/influxdata/ifql/releases
+3. Download `ifqld` and install from https://github.com/influxdata/platform/query/releases
 
 4. Start `ifqld` with the InfluxDB host and port of `8082`. To run in federated
 mode (see below), add the `--host` option for each InfluxDB host.

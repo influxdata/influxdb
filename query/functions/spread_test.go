@@ -3,10 +3,10 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute/executetest"
-	"github.com/influxdata/ifql/query/querytest"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/querytest"
 )
 
 func TestSpreadOperation_Marshaling(t *testing.T) {

@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/ifql/ast"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/execute/executetest"
-	"github.com/influxdata/ifql/query/querytest"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/querytest"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 func TestStateTrackingOperation_Marshaling(t *testing.T) {

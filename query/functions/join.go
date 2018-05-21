@@ -6,13 +6,13 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/influxdata/ifql/compiler"
-	"github.com/influxdata/ifql/interpreter"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/plan"
-	"github.com/influxdata/ifql/semantic"
-	"github.com/influxdata/ifql/values"
+	"github.com/influxdata/platform/query/compiler"
+	"github.com/influxdata/platform/query/interpreter"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/plan"
+	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/values"
 	"github.com/pkg/errors"
 )
 

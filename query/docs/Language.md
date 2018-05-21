@@ -9,7 +9,7 @@ The IFQL langauage is used to construct query specifications.
 
 # Syntax
 
-The langauage syntax is defined by the ifql/ifql.peg grammar.
+The langauage syntax is defined by the ifql/platform/query.peg grammar.
 
 ## Keyword Arguments
 

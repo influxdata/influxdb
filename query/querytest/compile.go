@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/semantic/semantictest"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic/semantictest"
 )
 
 type NewQueryTestCase struct {

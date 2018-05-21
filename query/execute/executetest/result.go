@@ -1,6 +1,6 @@
 package executetest
 
-import "github.com/influxdata/ifql/query/execute"
+import "github.com/influxdata/platform/query/execute"
 
 type Result struct {
 	Blks []*Block

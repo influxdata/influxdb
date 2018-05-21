@@ -3,7 +3,7 @@ package values
 import (
 	"regexp"
 
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 type Object interface {

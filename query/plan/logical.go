@@ -3,7 +3,7 @@ package plan
 import (
 	"fmt"
 
-	"github.com/influxdata/ifql/query"
+	"github.com/influxdata/platform/query"
 	uuid "github.com/satori/go.uuid"
 )
 

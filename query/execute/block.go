@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/influxdata/ifql/query"
+	"github.com/influxdata/platform/query"
 	"github.com/pkg/errors"
 )
 

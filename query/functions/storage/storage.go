@@ -4,9 +4,9 @@ import (
 	"context"
 	"log"
 
-	"github.com/influxdata/ifql/id"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/id"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/semantic"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 )

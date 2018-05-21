@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/ifql/ast"
-	"github.com/influxdata/ifql/ast/asttest"
-	"github.com/influxdata/ifql/parser"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/ast/asttest"
+	"github.com/influxdata/platform/query/parser"
 )
 
 func TestParse(t *testing.T) {

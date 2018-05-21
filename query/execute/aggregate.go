@@ -3,9 +3,9 @@ package execute
 import (
 	"fmt"
 
-	"github.com/influxdata/ifql/interpreter"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/interpreter"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 )
 

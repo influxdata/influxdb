@@ -3,7 +3,7 @@ package executetest
 import (
 	"math"
 
-	"github.com/influxdata/ifql/query/execute"
+	"github.com/influxdata/platform/query/execute"
 )
 
 var UnlimitedAllocator = &execute.Allocator{

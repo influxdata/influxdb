@@ -3,7 +3,7 @@ package execute
 import (
 	"fmt"
 
-	"github.com/influxdata/ifql/query"
+	"github.com/influxdata/platform/query"
 )
 
 type Trigger interface {

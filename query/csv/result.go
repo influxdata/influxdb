@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/values"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/values"
 	"github.com/influxdata/platform"
 	"github.com/pkg/errors"
 )

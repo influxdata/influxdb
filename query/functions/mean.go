@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/plan"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/plan"
 )
 
 const MeanKind = "mean"

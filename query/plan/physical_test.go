@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/plan"
-	"github.com/influxdata/ifql/query/plan/plantest"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/plan"
+	"github.com/influxdata/platform/query/plan/plantest"
 )
 
 func TestPhysicalPlanner_Plan(t *testing.T) {

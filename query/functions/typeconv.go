@@ -5,9 +5,9 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/semantic"
-	"github.com/influxdata/ifql/values"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/values"
 )
 
 func init() {

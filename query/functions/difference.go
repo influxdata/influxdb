@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/influxdata/ifql/interpreter"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/plan"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/interpreter"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/plan"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 const DifferenceKind = "difference"
@@ -262,7 +262,7 @@ func (d *difference) updateInt(v int64) int64 {
 
 	if d.nonNegative && diff < 0 {
 		//TODO(nathanielc): Return null when we have null support
-		// Also see https://github.com/influxdata/ifql/issues/217
+		// Also see https://github.com/influxdata/platform/query/issues/217
 		return v
 	}
 
@@ -287,7 +287,7 @@ func (d *difference) updateUInt(v uint64) int64 {
 
 	if d.nonNegative && diff < 0 {
 		//TODO(nathanielc): Return null when we have null support
-		// Also see https://github.com/influxdata/ifql/issues/217
+		// Also see https://github.com/influxdata/platform/query/issues/217
 		return int64(v)
 	}
 
@@ -305,7 +305,7 @@ func (d *difference) updateFloat(v float64) float64 {
 
 	if d.nonNegative && diff < 0 {
 		//TODO(nathanielc): Return null when we have null support
-		// Also see https://github.com/influxdata/ifql/issues/217
+		// Also see https://github.com/influxdata/platform/query/issues/217
 		return v
 	}
 

@@ -3,9 +3,9 @@ package execute
 import (
 	"fmt"
 
-	"github.com/influxdata/ifql/id"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/plan"
+	"github.com/influxdata/platform/query/id"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/plan"
 )
 
 type Transformation interface {

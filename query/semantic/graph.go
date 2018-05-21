@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/ifql/ast"
+	"github.com/influxdata/platform/query/ast"
 )
 
 type Node interface {

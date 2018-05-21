@@ -5,10 +5,10 @@ import (
 
 	"math/rand"
 
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/plan"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/plan"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 const SampleKind = "sample"

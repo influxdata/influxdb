@@ -8,16 +8,16 @@ export GO_GENERATE=go generate $(GO_ARGS)
 SOURCES := $(shell find . -name '*.go' -not -name '*_test.go')
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
 
-all: Gopkg.lock $(SUBDIRS) bin/ifql bin/ifqld
+all: Gopkg.lock $(SUBDIRS) bin/platform/query bin/ifqld
 
 $(SUBDIRS): bin/pigeon bin/cmpgen
 	$(MAKE) -C $@ $(MAKECMDGOALS)
 
-bin/ifql: $(SOURCES) bin/pigeon bin/cmpgen
-	$(GO_BUILD) -i -o bin/ifql ./cmd/ifql
+bin/platform/query: $(SOURCES) bin/pigeon bin/cmpgen
+	$(GO_BUILD) -i -o bin/platform/query ./cmd/ifql
 
-bin/ifqld: $(SOURCES) bin/pigeon bin/cmpgen
-	$(GO_BUILD) -i -o bin/ifqld ./cmd/ifqld
+bin/platform/queryd: $(SOURCES) bin/pigeon bin/cmpgen
+	$(GO_BUILD) -i -o bin/platform/queryd ./cmd/ifqld
 
 bin/pigeon: ./vendor/github.com/mna/pigeon/main.go
 	go build -i -o bin/pigeon  ./vendor/github.com/mna/pigeon
@@ -37,13 +37,13 @@ fmt: $(SOURCES_NO_VENDOR)
 update:
 	dep ensure -v -update
 
-test: Gopkg.lock bin/ifql
+test: Gopkg.lock bin/platform/query
 	$(GO_TEST) ./...
 
-test-race: Gopkg.lock bin/ifql
+test-race: Gopkg.lock bin/platform/query
 	$(GO_TEST) -race ./...
 
-bench: Gopkg.lock bin/ifql
+bench: Gopkg.lock bin/platform/query
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
 bin/goreleaser:
@@ -55,10 +55,10 @@ dist: bin/goreleaser
 release: dist release-docker
 
 release-docker:
-	docker build -t quay.io/influxdb/ifqld:latest .
-	docker tag quay.io/influxdb/ifqld:latest quay.io/influxdb/ifqld:${VERSION}
-	docker push quay.io/influxdb/ifqld:latest
-	docker push quay.io/influxdb/ifqld:${VERSION}
+	docker build -t quay.io/influxdb/platform/queryd:latest .
+	docker tag quay.io/influxdb/platform/queryd:latest quay.io/influxdb/ifqld:${VERSION}
+	docker push quay.io/influxdb/platform/queryd:latest
+	docker push quay.io/influxdb/platform/queryd:${VERSION}
 
 clean: $(SUBDIRS)
 	rm -rf bin dist

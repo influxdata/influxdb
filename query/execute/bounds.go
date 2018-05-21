@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/influxdata/ifql/values"
+	"github.com/influxdata/platform/query/values"
 )
 
 type Time = values.Time

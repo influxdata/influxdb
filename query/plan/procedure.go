@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/ifql/query"
+	"github.com/influxdata/platform/query"
 	uuid "github.com/satori/go.uuid"
 )
 

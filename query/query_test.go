@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/query"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query"
 )
 
 var ignoreUnexportedQuerySpec = cmpopts.IgnoreUnexported(query.Spec{})

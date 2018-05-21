@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/influxdata/ifql/query"
+	"github.com/influxdata/platform/query"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
 )

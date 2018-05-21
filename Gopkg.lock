@@ -87,7 +87,7 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/influxdata/ifql"
+  name = "github.com/influxdata/platform/query"
   packages = [
     ".",
     "ast",

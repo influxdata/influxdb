@@ -8,9 +8,9 @@ import (
 
 	"github.com/andreyvit/diff"
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/execute/executetest"
-	"github.com/influxdata/ifql/values"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/values"
 	"github.com/influxdata/platform/query/csv"
 )
 

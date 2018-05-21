@@ -1,6 +1,6 @@
 package semantic
 
-import "github.com/influxdata/ifql/ast"
+import "github.com/influxdata/platform/query/ast"
 
 type binarySignature struct {
 	operator    ast.OperatorKind

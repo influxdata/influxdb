@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	ifql "github.com/influxdata/ifql/query"
+	ifql "github.com/influxdata/platform/query"
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/query"

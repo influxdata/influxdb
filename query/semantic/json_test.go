@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/ifql/ast"
-	"github.com/influxdata/ifql/semantic"
-	"github.com/influxdata/ifql/semantic/semantictest"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/semantic/semantictest"
 )
 
 func TestJSONMarshal(t *testing.T) {

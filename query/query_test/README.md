@@ -49,4 +49,4 @@ Compliant to the HTTP spec for CSV data, the output produced by the ifqld proces
 
 The go program query/query_test/normalize_text/normalize.go can be run on a file to prepare the data in-place.  So you
 may create a new file by copy/pasting some text, then prepare the fire for testing by: 
-```go build ./query/query_test/normalize_text/normalize.go  && ./normalize query/query_test/test_cases/simple_max_out.csv```
+```go build ./query_test/normalize_text/normalize.go  && ./normalize query/query_test/test_cases/simple_max_out.csv```

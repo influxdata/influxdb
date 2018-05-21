@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/ifql/idfile"
+	"github.com/influxdata/platform/query/idfile"
 	uuid "github.com/satori/go.uuid"
 )
 

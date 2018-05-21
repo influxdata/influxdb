@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/influxdata/ifql/functions/storage"
-	"github.com/influxdata/ifql/query/execute"
+	"github.com/influxdata/platform/query/functions/storage"
+	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/yarpc"
 	"github.com/pkg/errors"
 )

@@ -3,7 +3,7 @@ package semantic_test
 import (
 	"testing"
 
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 func TestTypes_Comparable(t *testing.T) {

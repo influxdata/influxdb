@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/ifql/query/execute"
+	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform"
 )
 

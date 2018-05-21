@@ -17,10 +17,10 @@ import (
 
 	"fmt"
 
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/id"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/control"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/id"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/control"
 
 	"strings"
 

@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/execute/executetest"
 )
 
 func TestRowSelector_Process(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/semantic/semantictest"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic/semantictest"
 )
 
 func OperationMarshalingTestHelper(t *testing.T, data []byte, expOp *query.Operation) {

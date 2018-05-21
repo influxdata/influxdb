@@ -4,8 +4,8 @@ import (
 	"context"
 	"sort"
 
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
 )
 
 // QueryService represents a service for performing queries.

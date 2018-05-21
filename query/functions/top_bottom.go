@@ -1,7 +1,7 @@
 package functions
 
 import (
-	"github.com/influxdata/ifql/query"
+	"github.com/influxdata/platform/query"
 )
 
 func init() {

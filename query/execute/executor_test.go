@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/ifql/ast"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/id"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/execute/executetest"
-	"github.com/influxdata/ifql/query/plan"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/id"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/plan"
+	"github.com/influxdata/platform/query/semantic"
 	uuid "github.com/satori/go.uuid"
 )
 

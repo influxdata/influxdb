@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	_ "github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/interpreter"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/semantic"
-	"github.com/influxdata/ifql/values"
+	_ "github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/interpreter"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/values"
 )
 
 var scope *interpreter.Scope

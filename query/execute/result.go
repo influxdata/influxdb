@@ -3,7 +3,7 @@ package execute
 import (
 	"sync"
 
-	"github.com/influxdata/ifql/query/plan"
+	"github.com/influxdata/platform/query/plan"
 )
 
 type Result interface {

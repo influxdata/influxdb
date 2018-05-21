@@ -3,8 +3,8 @@ package pb
 import (
 	"fmt"
 
-	"github.com/influxdata/ifql/ast"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 )
 

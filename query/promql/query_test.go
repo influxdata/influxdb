@@ -6,11 +6,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/ifql/ast"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/semantic"
-	"github.com/influxdata/ifql/semantic/semantictest"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/semantic/semantictest"
 )
 
 func TestParsePromQL(t *testing.T) {

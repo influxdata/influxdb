@@ -3,7 +3,7 @@ package query
 import (
 	"io"
 
-	"github.com/influxdata/ifql/query/execute"
+	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform"
 )
 

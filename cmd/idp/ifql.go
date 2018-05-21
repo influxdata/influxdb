@@ -7,16 +7,16 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/influxdata/ifql"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/functions/storage"
-	"github.com/influxdata/ifql/functions/storage/pb"
-	ifqlid "github.com/influxdata/ifql/id"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/repl"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/functions/storage"
+	"github.com/influxdata/platform/query/functions/storage/pb"
+	ifqlid "github.com/influxdata/platform/query/id"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/repl"
+	"github.com/influxdata/query"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -96,7 +96,7 @@ func ifqlReplF(cmd *cobra.Command, args []string) {
 
 func init() {
 	ifqlCmd.AddCommand(&cobra.Command{
-		Use:   "query [query literal or @/path/to/ifql]",
+		Use:   "query [query literal or @/path/to/query.ifql]",
 		Short: "Execute an IFQL query",
 		Long: `Execute a literal IFQL query provided as a string,
 		or execute a literal IFQL query contained in a file by specifying the file prefixed with an @ sign.`,
@@ -171,7 +171,7 @@ func orgID(org string) (ifqlid.ID, error) {
 }
 
 func getIFQLREPL(storageHosts storage.Reader, buckets platform.BucketService, org ifqlid.ID, verbose bool) (*repl.REPL, error) {
-	conf := ifql.Config{
+	conf := query.Config{
 		Dependencies:     make(execute.Dependencies),
 		ConcurrencyQuota: runtime.NumCPU() * 2,
 		MemoryBytesQuota: math.MaxInt64,
@@ -182,7 +182,7 @@ func getIFQLREPL(storageHosts storage.Reader, buckets platform.BucketService, or
 		return nil, err
 	}
 
-	c, err := ifql.NewController(conf)
+	c, err := query.NewController(conf)
 	if err != nil {
 		return nil, err
 	}

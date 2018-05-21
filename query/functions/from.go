@@ -3,13 +3,13 @@ package functions
 import (
 	"fmt"
 
-	"github.com/influxdata/ifql/functions/storage"
-	"github.com/influxdata/ifql/id"
-	"github.com/influxdata/ifql/interpreter"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/plan"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/functions/storage"
+	"github.com/influxdata/platform/query/id"
+	"github.com/influxdata/platform/query/interpreter"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/plan"
+	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 )
 

@@ -3,9 +3,9 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/execute/executetest"
 )
 
 func TestKeys_Process(t *testing.T) {

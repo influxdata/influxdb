@@ -3,7 +3,7 @@ package executetest
 import (
 	"fmt"
 
-	"github.com/influxdata/ifql/query/execute"
+	"github.com/influxdata/platform/query/execute"
 )
 
 // Block is an implementation of execute.Block

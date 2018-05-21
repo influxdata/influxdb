@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/ifql/semantic"
-	"github.com/influxdata/ifql/values"
+	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/values"
 )
 
 func Compile(f *semantic.FunctionExpression, inTypes map[string]semantic.Type, builtinScope Scope, builtinDeclarations semantic.DeclarationScope) (Func, error) {

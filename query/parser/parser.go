@@ -5,7 +5,7 @@ package parser
 //go:generate pigeon -optimize-parser -optimize-grammar -o ifql.go ifql.peg
 
 import (
-	"github.com/influxdata/ifql/ast"
+	"github.com/influxdata/platform/query/ast"
 )
 
 // NewAST parses ifql query and produces an ast.Program

@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/ifql/ast"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
-	"github.com/influxdata/ifql/query/execute/executetest"
-	"github.com/influxdata/ifql/query/plan"
-	"github.com/influxdata/ifql/query/plan/plantest"
-	"github.com/influxdata/ifql/query/querytest"
-	"github.com/influxdata/ifql/semantic"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/plan"
+	"github.com/influxdata/platform/query/plan/plantest"
+	"github.com/influxdata/platform/query/querytest"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 func TestJoin_NewQuery(t *testing.T) {

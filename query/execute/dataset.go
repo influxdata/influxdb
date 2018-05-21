@@ -1,7 +1,7 @@
 package execute
 
 import (
-	"github.com/influxdata/ifql/query"
+	"github.com/influxdata/platform/query"
 	uuid "github.com/satori/go.uuid"
 )
 

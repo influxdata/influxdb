@@ -1,7 +1,7 @@
 package plantest
 
 import (
-	"github.com/influxdata/ifql/query/plan"
+	"github.com/influxdata/platform/query/plan"
 	uuid "github.com/satori/go.uuid"
 )
 
