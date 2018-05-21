@@ -1,6 +1,6 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import _ from 'lodash'
-import {get} from 'src/utils/wrappers'
+import {getNested} from 'src/utils/wrappers'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SlackConfig from 'src/kapacitor/components/config/SlackConfig'
@@ -98,7 +98,7 @@ class SlackConfigs extends PureComponent<Props, State> {
   }
 
   private isNewConfig = (config: Config): boolean => {
-    return get(config, 'isNewConfig', false)
+    return getNested(config, 'isNewConfig', false)
   }
 
   private isDefaultConfig = (config: Config): boolean => {

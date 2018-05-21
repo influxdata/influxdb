@@ -2,7 +2,7 @@ import React, {Component} from 'react'
 
 import _ from 'lodash'
 import uuid from 'uuid'
-import {get} from 'src/utils/wrappers'
+import {getNested} from 'src/utils/wrappers'
 
 import ResizeContainer from 'src/shared/components/ResizeContainer'
 import QueryMaker from 'src/dashboards/components/QueryMaker'
@@ -306,7 +306,7 @@ class CellEditorOverlay extends Component<Props, State> {
 
     const queries: CellQuery[] = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
-      const source = get<string | null>(q.source, 'links.self', null)
+      const source = getNested<string | null>(q.source, 'links.self', null)
       return {
         queryConfig: q,
         query: q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q),
@@ -449,7 +449,7 @@ class CellEditorOverlay extends Component<Props, State> {
   private findSelectedSource = (): string => {
     const {source} = this.props
     const sources = this.formattedSources
-    const currentSource = get<Source | null>(
+    const currentSource = getNested<Source | null>(
       this.state.queriesWorkingDraft,
       '0.source',
       null
@@ -529,7 +529,7 @@ class CellEditorOverlay extends Component<Props, State> {
       cell: {queries},
       source,
     } = this.props
-    const initialSource: Source = get<Source>(
+    const initialSource: Source = getNested<Source>(
       queries,
       '0.queryConfig.0.source',
       source
@@ -548,7 +548,8 @@ class CellEditorOverlay extends Component<Props, State> {
     return (
       sources.find(
         s =>
-          s.links.self === get<string | null>(query, 'source.links.self', null)
+          s.links.self ===
+          getNested<string | null>(query, 'source.links.self', null)
       ) || source
     )
   }
