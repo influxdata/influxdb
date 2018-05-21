@@ -528,13 +528,23 @@ class CellEditorOverlay extends Component<Props, State> {
     const {
       cell: {queries},
       source,
+      sources,
     } = this.props
-    const initialSource: Source = getNested<Source>(
+
+    const initialSourceLink: string = getNested<string>(
       queries,
-      '0.queryConfig.0.source',
-      source
+      '0.source',
+      null
     )
-    return initialSource
+
+    if (initialSourceLink) {
+      const initialSource = sources.find(
+        s => s.links.self === initialSourceLink
+      )
+
+      return initialSource
+    }
+    return source
   }
 
   private get source(): Source {
