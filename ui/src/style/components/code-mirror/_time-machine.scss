@@ -1,0 +1,45 @@
+/*
+  CodeMirror "Time Machine" Theme
+  ------------------------------------------------------------------------------
+  Intended for use with the IFQL CodeMirror Mode
+*/
+
+.cm-s-time-machine {
+  color: $g11-sidewalk;
+
+  .cm-variable {
+    color: $c-pool;
+    font-weight: 700;
+  }
+  .cm-function,
+  .cm-pipe-forward {
+    color: $c-comet;
+    font-weight: 700;
+  }
+  .cm-arrow-function,
+  .cm-function-arg {
+    color: #ff4d96;
+  }
+  .cm-operator {
+    color: $g15-platinum;
+  }
+  .cm-argument {
+    color: $g11-sidewalk;
+  }
+  .cm-string-single,
+  .cm-string-double {
+    color: $c-honeydew;
+  }
+  .cm-boolean {
+    color: $c-viridian;
+  }
+  .cm-null {
+    color: $c-dreamsicle;
+  }
+  .cm-number {
+    color: $c-hydrogen;
+  }
+  .cm-comment {
+    color: $g8-storm;
+  }
+}
