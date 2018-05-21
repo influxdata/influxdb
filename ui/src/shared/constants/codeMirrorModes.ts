@@ -11,12 +11,20 @@ export const modeIFQL = {
       token: 'function',
     },
     {
+      regex: /[\w\d]+(?=\s[=]\s)/,
+      token: 'variable',
+    },
+    {
       regex: /[=][>]/,
       token: 'arrow-function',
     },
     {
+      regex: /\w+(?=[)]\s[=][>])(?![(])/,
+      token: 'function-arg',
+    },
+    {
       regex: /AND|OR|[=][=]|[!][=]|[<][=]|[>][=]/,
-      token: 'logic-operator',
+      token: 'operator',
     },
     {
       regex: /\w+[:]/,
@@ -25,11 +33,11 @@ export const modeIFQL = {
     // The regex matches the token, the token property contains the type
     {
       regex: /"(?:[^\\]|\\.)*?(?:"|$)/,
-      token: 'string.double',
+      token: 'string-double',
     },
     {
       regex: /'(?:[^\\]|\\.)*?(?:'|$)/,
-      token: 'string.single',
+      token: 'string-single',
     },
     {
       regex: /(function)(\s+)([a-z$][\w$]*)/,
