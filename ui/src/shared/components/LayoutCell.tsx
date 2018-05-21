@@ -12,25 +12,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {dataToCSV} from 'src/shared/parsing/dataToCSV'
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 import {Cell, CellQuery} from 'src/types/dashboard'
-
-interface Series {
-  columns: string[]
-  name: string
-  values: number[][]
-}
-
-interface Result {
-  statement_id: number
-  series: Series[]
-}
-
-interface Response {
-  results: Result[]
-}
-
-interface Data {
-  response: Response[]
-}
+import {TimeSeriesServerResponse} from 'src/types/series'
 
 interface Props {
   cell: Cell
@@ -40,7 +22,7 @@ interface Props {
   onSummonOverlayTechnologies: (cell: Cell) => void
   isEditable: boolean
   onCancelEditCell: () => void
-  cellData: Data[]
+  cellData: TimeSeriesServerResponse[]
 }
 
 @ErrorHandling
