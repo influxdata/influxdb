@@ -12,12 +12,12 @@ import (
 	"github.com/influxdata/platform/mock"
 )
 
-var userCmpOptions = cmp.Options{
+var organizationCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []*platform.User) []*platform.User {
-		out := append([]*platform.User(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*platform.Organization) []*platform.Organization {
+		out := append([]*platform.Organization(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID.String() > out[j].ID.String()
 		})
@@ -25,44 +25,44 @@ var userCmpOptions = cmp.Options{
 	}),
 }
 
-// UserFields will include the IDGenerator, and users
-type UserFields struct {
-	IDGenerator platform.IDGenerator
-	Users       []*platform.User
+// OrganizationFields will include the IDGenerator, and organizations
+type OrganizationFields struct {
+	IDGenerator   platform.IDGenerator
+	Organizations []*platform.Organization
 }
 
-// CreateUser testing
-func CreateUser(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+// CreateOrganization testing
+func CreateOrganization(
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		user *platform.User
+		organization *platform.Organization
 	}
 	type wants struct {
-		err   error
-		users []*platform.User
+		err           error
+		organizations []*platform.Organization
 	}
 
 	tests := []struct {
 		name   string
-		fields UserFields
+		fields OrganizationFields
 		args   args
 		wants  wants
 	}{
 		{
-			name: "create users with empty set",
-			fields: UserFields{
-				IDGenerator: mock.NewIDGenerator("id1"),
-				Users:       []*platform.User{},
+			name: "create organizations with empty set",
+			fields: OrganizationFields{
+				IDGenerator:   mock.NewIDGenerator("id1"),
+				Organizations: []*platform.Organization{},
 			},
 			args: args{
-				user: &platform.User{
+				organization: &platform.Organization{
 					Name: "name1",
 				},
 			},
 			wants: wants{
-				users: []*platform.User{
+				organizations: []*platform.Organization{
 					{
 						Name: "name1",
 						ID:   platform.ID("id1"),
@@ -71,66 +71,66 @@ func CreateUser(
 			},
 		},
 		{
-			name: "basic create user",
-			fields: UserFields{
+			name: "basic create organization",
+			fields: OrganizationFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
 						return platform.ID("2")
 					},
 				},
-				Users: []*platform.User{
+				Organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("1"),
-						Name: "user1",
+						Name: "organization1",
 					},
 				},
 			},
 			args: args{
-				user: &platform.User{
-					Name: "user2",
+				organization: &platform.Organization{
+					Name: "organization2",
 				},
 			},
 			wants: wants{
-				users: []*platform.User{
+				organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("1"),
-						Name: "user1",
+						Name: "organization1",
 					},
 					{
 						ID:   platform.ID("2"),
-						Name: "user2",
+						Name: "organization2",
 					},
 				},
 			},
 		},
 		{
 			name: "names should not be unique",
-			fields: UserFields{
+			fields: OrganizationFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
 						return platform.ID("2")
 					},
 				},
-				Users: []*platform.User{
+				Organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("1"),
-						Name: "user1",
+						Name: "organization1",
 					},
 				},
 			},
 			args: args{
-				user: &platform.User{
-					Name: "user1",
+				organization: &platform.Organization{
+					Name: "organization1",
 				},
 			},
 			wants: wants{
-				users: []*platform.User{
+				organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("1"),
-						Name: "user1",
+						Name: "organization1",
 					},
 				},
-				err: fmt.Errorf("user with name user1 already exists"),
+				err: fmt.Errorf("organization with name organization1 already exists"),
 			},
 		},
 	}
@@ -140,7 +140,7 @@ func CreateUser(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.CreateUser(ctx, tt.args.user)
+			err := s.CreateOrganization(ctx, tt.args.organization)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -150,49 +150,49 @@ func CreateUser(
 					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
 				}
 			}
-			defer s.DeleteUser(ctx, tt.args.user.ID)
+			defer s.DeleteOrganization(ctx, tt.args.organization.ID)
 
-			users, _, err := s.FindUsers(ctx, platform.UserFilter{})
+			organizations, _, err := s.FindOrganizations(ctx, platform.OrganizationFilter{})
 			if err != nil {
-				t.Fatalf("failed to retrieve users: %v", err)
+				t.Fatalf("failed to retrieve organizations: %v", err)
 			}
-			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
-				t.Errorf("users are different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
+				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-// FindUserByID testing
-func FindUserByID(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+// FindOrganizationByID testing
+func FindOrganizationByID(
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
 	t *testing.T,
 ) {
 	type args struct {
 		id platform.ID
 	}
 	type wants struct {
-		err  error
-		user *platform.User
+		err          error
+		organization *platform.Organization
 	}
 
 	tests := []struct {
 		name   string
-		fields UserFields
+		fields OrganizationFields
 		args   args
 		wants  wants
 	}{
 		{
-			name: "basic find user by id",
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "basic find organization by id",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("1"),
-						Name: "user1",
+						Name: "organization1",
 					},
 					{
 						ID:   platform.ID("2"),
-						Name: "user2",
+						Name: "organization2",
 					},
 				},
 			},
@@ -200,9 +200,9 @@ func FindUserByID(
 				id: platform.ID("2"),
 			},
 			wants: wants{
-				user: &platform.User{
+				organization: &platform.Organization{
 					ID:   platform.ID("2"),
-					Name: "user2",
+					Name: "organization2",
 				},
 			},
 		},
@@ -214,7 +214,7 @@ func FindUserByID(
 			defer done()
 			ctx := context.TODO()
 
-			user, err := s.FindUserByID(ctx, tt.args.id)
+			organization, err := s.FindOrganizationByID(ctx, tt.args.id)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
 			}
@@ -225,16 +225,16 @@ func FindUserByID(
 				}
 			}
 
-			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
-				t.Errorf("user is different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
+				t.Errorf("organization is different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-// FindUsers testing
-func FindUsers(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+// FindOrganizations testing
+func FindOrganizations(
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -243,19 +243,19 @@ func FindUsers(
 	}
 
 	type wants struct {
-		users []*platform.User
-		err   error
+		organizations []*platform.Organization
+		err           error
 	}
 	tests := []struct {
 		name   string
-		fields UserFields
+		fields OrganizationFields
 		args   args
 		wants  wants
 	}{
 		{
-			name: "find all users",
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "find all organizations",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("test1"),
 						Name: "abc",
@@ -268,7 +268,7 @@ func FindUsers(
 			},
 			args: args{},
 			wants: wants{
-				users: []*platform.User{
+				organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("test1"),
 						Name: "abc",
@@ -281,9 +281,9 @@ func FindUsers(
 			},
 		},
 		{
-			name: "find user by id",
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "find organization by id",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("test1"),
 						Name: "abc",
@@ -298,7 +298,7 @@ func FindUsers(
 				ID: "test2",
 			},
 			wants: wants{
-				users: []*platform.User{
+				organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("test2"),
 						Name: "xyz",
@@ -307,9 +307,9 @@ func FindUsers(
 			},
 		},
 		{
-			name: "find user by name",
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "find organization by name",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("test1"),
 						Name: "abc",
@@ -324,7 +324,7 @@ func FindUsers(
 				name: "xyz",
 			},
 			wants: wants{
-				users: []*platform.User{
+				organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("test2"),
 						Name: "xyz",
@@ -340,7 +340,7 @@ func FindUsers(
 			defer done()
 			ctx := context.TODO()
 
-			filter := platform.UserFilter{}
+			filter := platform.OrganizationFilter{}
 			if tt.args.ID != "" {
 				id := platform.ID(tt.args.ID)
 				filter.ID = &id
@@ -349,7 +349,7 @@ func FindUsers(
 				filter.Name = &tt.args.name
 			}
 
-			users, _, err := s.FindUsers(ctx, filter)
+			organizations, _, err := s.FindOrganizations(ctx, filter)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
 			}
@@ -360,36 +360,36 @@ func FindUsers(
 				}
 			}
 
-			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
-				t.Errorf("users are different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
+				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-// DeleteUser testing
-func DeleteUser(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+// DeleteOrganization testing
+func DeleteOrganization(
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
 	t *testing.T,
 ) {
 	type args struct {
 		ID string
 	}
 	type wants struct {
-		err   error
-		users []*platform.User
+		err           error
+		organizations []*platform.Organization
 	}
 
 	tests := []struct {
 		name   string
-		fields UserFields
+		fields OrganizationFields
 		args   args
 		wants  wants
 	}{
 		{
-			name: "delete users using exist id",
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "delete organizations using exist id",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
 					{
 						Name: "orgA",
 						ID:   platform.ID("abc"),
@@ -404,7 +404,7 @@ func DeleteUser(
 				ID: "abc",
 			},
 			wants: wants{
-				users: []*platform.User{
+				organizations: []*platform.Organization{
 					{
 						Name: "orgB",
 						ID:   platform.ID("xyz"),
@@ -413,9 +413,9 @@ func DeleteUser(
 			},
 		},
 		{
-			name: "delete users using id that does not exist",
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "delete organizations using id that does not exist",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
 					{
 						Name: "orgA",
 						ID:   platform.ID("abc"),
@@ -430,8 +430,8 @@ func DeleteUser(
 				ID: "123",
 			},
 			wants: wants{
-				err: fmt.Errorf("user not found"),
-				users: []*platform.User{
+				err: fmt.Errorf("organization not found"),
+				organizations: []*platform.Organization{
 					{
 						Name: "orgA",
 						ID:   platform.ID("abc"),
@@ -450,7 +450,7 @@ func DeleteUser(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteUser(ctx, platform.ID(tt.args.ID))
+			err := s.DeleteOrganization(ctx, platform.ID(tt.args.ID))
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -461,21 +461,21 @@ func DeleteUser(
 				}
 			}
 
-			filter := platform.UserFilter{}
-			users, _, err := s.FindUsers(ctx, filter)
+			filter := platform.OrganizationFilter{}
+			organizations, _, err := s.FindOrganizations(ctx, filter)
 			if err != nil {
-				t.Fatalf("failed to retrieve users: %v", err)
+				t.Fatalf("failed to retrieve organizations: %v", err)
 			}
-			if diff := cmp.Diff(users, tt.wants.users, userCmpOptions...); diff != "" {
-				t.Errorf("users are different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(organizations, tt.wants.organizations, organizationCmpOptions...); diff != "" {
+				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-// FindUser testing
-func FindUser(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+// FindOrganization testing
+func FindOrganization(
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -483,20 +483,20 @@ func FindUser(
 	}
 
 	type wants struct {
-		user *platform.User
-		err  error
+		organization *platform.Organization
+		err          error
 	}
 
 	tests := []struct {
 		name   string
-		fields UserFields
+		fields OrganizationFields
 		args   args
 		wants  wants
 	}{
 		{
-			name: "find user by name",
-			fields: UserFields{
-				Users: []*platform.User{
+			name: "find organization by name",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("a"),
 						Name: "abc",
@@ -511,7 +511,7 @@ func FindUser(
 				name: "abc",
 			},
 			wants: wants{
-				user: &platform.User{
+				organization: &platform.Organization{
 					ID:   platform.ID("a"),
 					Name: "abc",
 				},
@@ -524,12 +524,12 @@ func FindUser(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			filter := platform.UserFilter{}
+			filter := platform.OrganizationFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
 			}
 
-			user, err := s.FindUser(ctx, filter)
+			organization, err := s.FindOrganization(ctx, filter)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -540,16 +540,16 @@ func FindUser(
 				}
 			}
 
-			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
-				t.Errorf("users are different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
+				t.Errorf("organizations are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
 }
 
-// UpdateUser testing
-func UpdateUser(
-	init func(UserFields, *testing.T) (platform.UserService, func()),
+// UpdateOrganization testing
+func UpdateOrganization(
+	init func(OrganizationFields, *testing.T) (platform.OrganizationService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -557,27 +557,27 @@ func UpdateUser(
 		id   platform.ID
 	}
 	type wants struct {
-		err  error
-		user *platform.User
+		err          error
+		organization *platform.Organization
 	}
 
 	tests := []struct {
 		name   string
-		fields UserFields
+		fields OrganizationFields
 		args   args
 		wants  wants
 	}{
 		{
 			name: "update name",
-			fields: UserFields{
-				Users: []*platform.User{
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
 					{
 						ID:   platform.ID("1"),
-						Name: "user1",
+						Name: "organization1",
 					},
 					{
 						ID:   platform.ID("2"),
-						Name: "user2",
+						Name: "organization2",
 					},
 				},
 			},
@@ -586,7 +586,7 @@ func UpdateUser(
 				name: "changed",
 			},
 			wants: wants{
-				user: &platform.User{
+				organization: &platform.Organization{
 					ID:   platform.ID("1"),
 					Name: "changed",
 				},
@@ -600,12 +600,12 @@ func UpdateUser(
 			defer done()
 			ctx := context.TODO()
 
-			upd := platform.UserUpdate{}
+			upd := platform.OrganizationUpdate{}
 			if tt.args.name != "" {
 				upd.Name = &tt.args.name
 			}
 
-			user, err := s.UpdateUser(ctx, tt.args.id, upd)
+			organization, err := s.UpdateOrganization(ctx, tt.args.id, upd)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -616,8 +616,8 @@ func UpdateUser(
 				}
 			}
 
-			if diff := cmp.Diff(user, tt.wants.user, userCmpOptions...); diff != "" {
-				t.Errorf("user is different -got/+want\ndiff %s", diff)
+			if diff := cmp.Diff(organization, tt.wants.organization, organizationCmpOptions...); diff != "" {
+				t.Errorf("organization is different -got/+want\ndiff %s", diff)
 			}
 		})
 	}

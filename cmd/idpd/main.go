@@ -73,6 +73,7 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	var authSvc platform.AuthorizationService
 	{
+		authSvc = c
 	}
 
 	var bucketSvc platform.BucketService
@@ -82,10 +83,12 @@ func platformF(cmd *cobra.Command, args []string) {
 
 	var orgSvc platform.OrganizationService
 	{
+		orgSvc = c
 	}
 
 	var userSvc platform.UserService
 	{
+		userSvc = c
 	}
 
 	errc := make(chan error)

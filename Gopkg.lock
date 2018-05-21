@@ -14,6 +14,12 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  name = "github.com/c-bata/go-prompt"
+  packages = ["."]
+  revision = "e99fbc797b795e0a7a94affc8d44f6a0350d85f0"
+  version = "v0.2.1"
+
+[[projects]]
   name = "github.com/coreos/bbolt"
   packages = ["."]
   revision = "583e8937c61f1af6513608ccc75c97b6abdf4ff9"
@@ -27,7 +33,14 @@
 
 [[projects]]
   name = "github.com/gogo/protobuf"
-  packages = ["proto"]
+  packages = [
+    "codec",
+    "gogoproto",
+    "proto",
+    "protoc-gen-gogo/descriptor",
+    "sortkeys",
+    "types"
+  ]
   revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
   version = "v1.0.0"
 
@@ -82,6 +95,7 @@
     "complete",
     "functions",
     "functions/storage",
+    "functions/storage/pb",
     "id",
     "interpreter",
     "parser",
@@ -90,6 +104,7 @@
     "query/execute",
     "query/execute/executetest",
     "query/plan",
+    "repl",
     "semantic",
     "values"
   ]
@@ -120,6 +135,23 @@
   revision = "617b83f940fd9acd207f712561a8a0590277fb38"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/influxdata/yamux"
+  packages = ["."]
+  revision = "1f58ded512de5feabbe30b60c7d33a7a896c5f16"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/influxdata/yarpc"
+  packages = [
+    ".",
+    "codes",
+    "status",
+    "yarpcproto"
+  ]
+  revision = "f0da2db138cad2fb425541938fc28dd5a5bc6918"
+
+[[projects]]
   name = "github.com/jsternberg/zap-logfmt"
   packages = ["."]
   revision = "ac4bd917e18a4548ce6e0e765b29a4e7f397b0b6"
@@ -137,10 +169,22 @@
   version = "v1.7.6"
 
 [[projects]]
+  name = "github.com/mattn/go-colorable"
+  packages = ["."]
+  revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
+  version = "v0.0.9"
+
+[[projects]]
   branch = "master"
   name = "github.com/mattn/go-isatty"
   packages = ["."]
   revision = "6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mattn/go-tty"
+  packages = ["."]
+  revision = "931426f7535ac39720c8909d70ece5a41a2502a6"
 
 [[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
@@ -174,6 +218,12 @@
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/pkg/term"
+  packages = ["termios"]
+  revision = "cda20d4ac917ad418d86e151eff439648b06185b"
 
 [[projects]]
   name = "github.com/prometheus/client_golang"
@@ -320,6 +370,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "df0270bef0a7df16d7ead444091275f949a085533e9d02720e3627ffcdf4462b"
+  inputs-digest = "c188bdf79b79e8ff70880142185e983c3ab104929be3246fe3d644b517d87fa1"
   solver-name = "gps-cdcl"
   solver-version = 1

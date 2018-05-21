@@ -14,6 +14,17 @@ type AuthorizationService struct {
 	AuthorizationService platform.AuthorizationService
 }
 
+// FindAuthorizationByID returns an authorization given an id, and logs any errors.
+func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
+	defer func() {
+		if err != nil {
+			s.Logger.Info("error finding authorization by id", zap.Error(err))
+		}
+	}()
+
+	return s.AuthorizationService.FindAuthorizationByID(ctx, id)
+}
+
 // FindAuthorizationByToken returns an authorization given a token, and logs any errors.
 func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, t string) (a *platform.Authorization, err error) {
 	defer func() {
@@ -48,12 +59,12 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 }
 
 // DeleteAuthorization deletes an authorization, and logs any errors.
-func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, t string) (err error) {
+func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) (err error) {
 	defer func() {
 		if err != nil {
 			s.Logger.Info("error deleting authorization", zap.Error(err))
 		}
 	}()
 
-	return s.AuthorizationService.DeleteAuthorization(ctx, t)
+	return s.AuthorizationService.DeleteAuthorization(ctx, id)
 }

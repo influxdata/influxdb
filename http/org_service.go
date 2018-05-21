@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
@@ -29,6 +30,7 @@ func NewOrgHandler() *OrgHandler {
 	h.HandlerFunc("GET", "/v1/orgs", h.handleGetOrgs)
 	h.HandlerFunc("GET", "/v1/orgs/:id", h.handleGetOrg)
 	h.HandlerFunc("PATCH", "/v1/orgs/:id", h.handlePatchOrg)
+	h.HandlerFunc("DELETE", "/v1/orgs/:id", h.handleDeleteOrg)
 	return h
 }
 
@@ -102,7 +104,7 @@ func decodeGetOrgRequest(ctx context.Context, r *http.Request) (*getOrgRequest, 
 	}
 
 	var i platform.ID
-	if err := (&i).Decode([]byte(id)); err != nil {
+	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
@@ -143,15 +145,55 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 	qp := r.URL.Query()
 	req := &getOrgsRequest{}
 
-	if id := qp.Get("orgID"); id != "" {
+	if id := qp.Get("id"); id != "" {
 		req.filter.ID = &platform.ID{}
 		if err := req.filter.ID.DecodeFromString(id); err != nil {
 			return nil, err
 		}
 	}
 
-	if name := qp.Get("orgName"); name != "" {
+	if name := qp.Get("org"); name != "" {
 		req.filter.Name = &name
+	}
+
+	return req, nil
+}
+
+// handleDeleteOrganization is the HTTP handler for the DELETE /v1/organizations/:id route.
+func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeDeleteOrganizationRequest(ctx, r)
+	if err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := h.OrganizationService.DeleteOrganization(ctx, req.OrganizationID); err != nil {
+		errors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+type deleteOrganizationRequest struct {
+	OrganizationID platform.ID
+}
+
+func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*deleteOrganizationRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, errors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req := &deleteOrganizationRequest{
+		OrganizationID: i,
 	}
 
 	return req, nil
@@ -192,7 +234,7 @@ func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgReque
 	}
 
 	var i platform.ID
-	if err := (&i).Decode([]byte(id)); err != nil {
+	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
@@ -244,10 +286,10 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 	qp := url.Query()
 
 	if filter.Name != nil {
-		qp.Add("orgName", *filter.Name)
+		qp.Add("name", *filter.Name)
 	}
 	if filter.ID != nil {
-		qp.Add("orgID", filter.ID.String())
+		qp.Add("id", filter.ID.String())
 	}
 	url.RawQuery = qp.Encode()
 
@@ -264,19 +306,11 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 		return nil, 0, err
 	}
 
-	// TODO: this should really check the error from the headers
 	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return nil, 0, err
-		}
-		return nil, 0, reqErr
+		return nil, 0, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var os []*platform.Organization
-
 	if err := json.NewDecoder(resp.Body).Decode(&os); err != nil {
 		return nil, 0, err
 	}
@@ -314,13 +348,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 
 	// TODO: this should really check the error from the headers
 	if resp.StatusCode != http.StatusCreated {
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
-		var reqErr errors.Error
-		if err := dec.Decode(&reqErr); err != nil {
-			return err
-		}
-		return reqErr
+		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(o); err != nil {
@@ -331,9 +359,70 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 }
 
 func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platform.ID, upd platform.OrganizationUpdate) (*platform.Organization, error) {
-	panic("not implemented")
+	u, err := newURL(s.Addr, organizationIDPath(id))
+	if err != nil {
+		return nil, err
+	}
+
+	octets, err := json.Marshal(upd)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+	}
+
+	var o platform.Organization
+	if err := json.NewDecoder(resp.Body).Decode(&o); err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return &o, nil
 }
 
 func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platform.ID) error {
-	panic("not implemented")
+	u, err := newURL(s.Addr, organizationIDPath(id))
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	switch resp.StatusCode {
+	case http.StatusNoContent, http.StatusAccepted:
+		return nil
+	}
+
+	return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+}
+
+func organizationIDPath(id platform.ID) string {
+	return path.Join(organizationPath, id.String())
 }

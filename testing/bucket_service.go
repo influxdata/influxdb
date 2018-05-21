@@ -28,8 +28,9 @@ var bucketCmpOptions = cmp.Options{
 
 // BucketFields will include the IDGenerator, and buckets
 type BucketFields struct {
-	IDGenerator platform.IDGenerator
-	Buckets     []*platform.Bucket
+	IDGenerator   platform.IDGenerator
+	Buckets       []*platform.Bucket
+	Organizations []*platform.Organization
 }
 
 // CreateBucket testing
@@ -56,6 +57,12 @@ func CreateBucket(
 			fields: BucketFields{
 				IDGenerator: mock.NewIDGenerator("id1"),
 				Buckets:     []*platform.Bucket{},
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 			},
 			args: args{
 				bucket: &platform.Bucket{
@@ -69,6 +76,7 @@ func CreateBucket(
 						Name:           "name1",
 						ID:             platform.ID("id1"),
 						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
 					},
 				},
 			},
@@ -88,11 +96,21 @@ func CreateBucket(
 						OrganizationID: platform.ID("org1"),
 					},
 				},
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+					{
+						Name: "otherorg",
+						ID:   platform.ID("org2"),
+					},
+				},
 			},
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "bucket2",
-					OrganizationID: platform.ID("org1"),
+					OrganizationID: platform.ID("org2"),
 				},
 			},
 			wants: wants{
@@ -100,12 +118,63 @@ func CreateBucket(
 					{
 						ID:             platform.ID("1"),
 						Name:           "bucket1",
+						Organization:   "theorg",
 						OrganizationID: platform.ID("org1"),
 					},
 					{
 						ID:             platform.ID("2"),
 						Name:           "bucket2",
+						Organization:   "otherorg",
+						OrganizationID: platform.ID("org2"),
+					},
+				},
+			},
+		},
+		{
+			name: "basic create bucket using org name",
+			fields: BucketFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return platform.ID("2")
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             platform.ID("1"),
+						Name:           "bucket1",
 						OrganizationID: platform.ID("org1"),
+					},
+				},
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+					{
+						Name: "otherorg",
+						ID:   platform.ID("org2"),
+					},
+				},
+			},
+			args: args{
+				bucket: &platform.Bucket{
+					Name:         "bucket2",
+					Organization: "otherorg",
+				},
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{
+					{
+						ID:             platform.ID("1"),
+						Name:           "bucket1",
+						Organization:   "theorg",
+						OrganizationID: platform.ID("org1"),
+					},
+					{
+						ID:             platform.ID("2"),
+						Name:           "bucket2",
+						Organization:   "otherorg",
+						OrganizationID: platform.ID("org2"),
 					},
 				},
 			},
@@ -125,6 +194,16 @@ func CreateBucket(
 						OrganizationID: platform.ID("org1"),
 					},
 				},
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+					{
+						Name: "otherorg",
+						ID:   platform.ID("org2"),
+					},
+				},
 			},
 			args: args{
 				bucket: &platform.Bucket{
@@ -137,6 +216,7 @@ func CreateBucket(
 					{
 						ID:             platform.ID("1"),
 						Name:           "bucket1",
+						Organization:   "theorg",
 						OrganizationID: platform.ID("org1"),
 					},
 				},
@@ -149,6 +229,16 @@ func CreateBucket(
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
 						return platform.ID("2")
+					},
+				},
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+					{
+						Name: "otherorg",
+						ID:   platform.ID("org2"),
 					},
 				},
 				Buckets: []*platform.Bucket{
@@ -170,11 +260,13 @@ func CreateBucket(
 					{
 						ID:             platform.ID("1"),
 						Name:           "bucket1",
+						Organization:   "theorg",
 						OrganizationID: platform.ID("org1"),
 					},
 					{
 						ID:             platform.ID("2"),
 						Name:           "bucket1",
+						Organization:   "otherorg",
 						OrganizationID: platform.ID("org2"),
 					},
 				},
@@ -244,6 +336,12 @@ func FindBucketByID(
 						Name:           "bucket2",
 					},
 				},
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 			},
 			args: args{
 				id: platform.ID("2"),
@@ -252,6 +350,7 @@ func FindBucketByID(
 				bucket: &platform.Bucket{
 					ID:             platform.ID("2"),
 					OrganizationID: platform.ID("org1"),
+					Organization:   "theorg",
 					Name:           "bucket2",
 				},
 			},
@@ -288,8 +387,10 @@ func FindBuckets(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   string
-		name string
+		ID             string
+		name           string
+		organization   string
+		organizationID string
 	}
 
 	type wants struct {
@@ -305,6 +406,16 @@ func FindBuckets(
 		{
 			name: "find all buckets",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+					{
+						Name: "otherorg",
+						ID:   platform.ID("org2"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
 						ID:             platform.ID("test1"),
@@ -324,6 +435,35 @@ func FindBuckets(
 					{
 						ID:             platform.ID("test1"),
 						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
+						Name:           "abc",
+					},
+					{
+						ID:             platform.ID("test2"),
+						OrganizationID: platform.ID("org2"),
+						Organization:   "otherorg",
+						Name:           "xyz",
+					},
+				},
+			},
+		},
+		{
+			name: "find buckets by organization name",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+					{
+						Name: "otherorg",
+						ID:   platform.ID("org2"),
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             platform.ID("test1"),
+						OrganizationID: platform.ID("org1"),
 						Name:           "abc",
 					},
 					{
@@ -331,12 +471,93 @@ func FindBuckets(
 						OrganizationID: platform.ID("org2"),
 						Name:           "xyz",
 					},
+					{
+						ID:             platform.ID("test3"),
+						OrganizationID: platform.ID("org1"),
+						Name:           "123",
+					},
+				},
+			},
+			args: args{
+				organization: "theorg",
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{
+					{
+						ID:             platform.ID("test1"),
+						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
+						Name:           "abc",
+					},
+					{
+						ID:             platform.ID("test3"),
+						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
+						Name:           "123",
+					},
+				},
+			},
+		},
+		{
+			name: "find buckets by organization id",
+			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+					{
+						Name: "otherorg",
+						ID:   platform.ID("org2"),
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             platform.ID("test1"),
+						OrganizationID: platform.ID("org1"),
+						Name:           "abc",
+					},
+					{
+						ID:             platform.ID("test2"),
+						OrganizationID: platform.ID("org2"),
+						Name:           "xyz",
+					},
+					{
+						ID:             platform.ID("test3"),
+						OrganizationID: platform.ID("org1"),
+						Name:           "123",
+					},
+				},
+			},
+			args: args{
+				organizationID: "org1",
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{
+					{
+						ID:             platform.ID("test1"),
+						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
+						Name:           "abc",
+					},
+					{
+						ID:             platform.ID("test3"),
+						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
+						Name:           "123",
+					},
 				},
 			},
 		},
 		{
 			name: "find bucket by id",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
 						ID:             platform.ID("test1"),
@@ -358,6 +579,7 @@ func FindBuckets(
 					{
 						ID:             platform.ID("test2"),
 						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
 						Name:           "xyz",
 					},
 				},
@@ -366,6 +588,12 @@ func FindBuckets(
 		{
 			name: "find bucket by name",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
 						ID:             platform.ID("test1"),
@@ -387,6 +615,7 @@ func FindBuckets(
 					{
 						ID:             platform.ID("test2"),
 						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
 						Name:           "xyz",
 					},
 				},
@@ -404,6 +633,13 @@ func FindBuckets(
 			if tt.args.ID != "" {
 				id := platform.ID(tt.args.ID)
 				filter.ID = &id
+			}
+			if tt.args.organizationID != "" {
+				id := platform.ID(tt.args.organizationID)
+				filter.OrganizationID = &id
+			}
+			if tt.args.organization != "" {
+				filter.Organization = &tt.args.organization
 			}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
@@ -449,14 +685,22 @@ func DeleteBucket(
 		{
 			name: "delete buckets using exist id",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
-						Name: "orgA",
-						ID:   platform.ID("abc"),
+						Name:           "A",
+						ID:             platform.ID("abc"),
+						OrganizationID: platform.ID("org1"),
 					},
 					{
-						Name: "orgB",
-						ID:   platform.ID("xyz"),
+						Name:           "B",
+						ID:             platform.ID("xyz"),
+						OrganizationID: platform.ID("org1"),
 					},
 				},
 			},
@@ -466,8 +710,10 @@ func DeleteBucket(
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						Name: "orgB",
-						ID:   platform.ID("xyz"),
+						Name:           "B",
+						ID:             platform.ID("xyz"),
+						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
 					},
 				},
 			},
@@ -475,14 +721,22 @@ func DeleteBucket(
 		{
 			name: "delete buckets using id that does not exist",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
-						Name: "orgA",
-						ID:   platform.ID("abc"),
+						Name:           "A",
+						ID:             platform.ID("abc"),
+						OrganizationID: platform.ID("org1"),
 					},
 					{
-						Name: "orgB",
-						ID:   platform.ID("xyz"),
+						Name:           "B",
+						ID:             platform.ID("xyz"),
+						OrganizationID: platform.ID("org1"),
 					},
 				},
 			},
@@ -493,12 +747,16 @@ func DeleteBucket(
 				err: fmt.Errorf("bucket not found"),
 				buckets: []*platform.Bucket{
 					{
-						Name: "orgA",
-						ID:   platform.ID("abc"),
+						Name:           "A",
+						ID:             platform.ID("abc"),
+						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
 					},
 					{
-						Name: "orgB",
-						ID:   platform.ID("xyz"),
+						Name:           "B",
+						ID:             platform.ID("xyz"),
+						OrganizationID: platform.ID("org1"),
+						Organization:   "theorg",
 					},
 				},
 			},
@@ -539,7 +797,8 @@ func FindBucket(
 	t *testing.T,
 ) {
 	type args struct {
-		name string
+		name           string
+		organizationID string
 	}
 
 	type wants struct {
@@ -556,24 +815,35 @@ func FindBucket(
 		{
 			name: "find bucket by name",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:   platform.ID("a"),
-						Name: "abc",
+						ID:             platform.ID("a"),
+						OrganizationID: platform.ID("org1"),
+						Name:           "abc",
 					},
 					{
-						ID:   platform.ID("b"),
-						Name: "xyz",
+						ID:             platform.ID("b"),
+						OrganizationID: platform.ID("org1"),
+						Name:           "xyz",
 					},
 				},
 			},
 			args: args{
-				name: "abc",
+				name:           "abc",
+				organizationID: "org1",
 			},
 			wants: wants{
 				bucket: &platform.Bucket{
-					ID:   platform.ID("a"),
-					Name: "abc",
+					ID:             platform.ID("a"),
+					OrganizationID: platform.ID("org1"),
+					Organization:   "theorg",
+					Name:           "abc",
 				},
 			},
 		},
@@ -587,6 +857,10 @@ func FindBucket(
 			filter := platform.BucketFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
+			}
+			if tt.args.organizationID != "" {
+				id := platform.ID(tt.args.organizationID)
+				filter.OrganizationID = &id
 			}
 
 			bucket, err := s.FindBucket(ctx, filter)
@@ -631,6 +905,12 @@ func UpdateBucket(
 		{
 			name: "update name",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
 						ID:             platform.ID("1"),
@@ -652,6 +932,7 @@ func UpdateBucket(
 				bucket: &platform.Bucket{
 					ID:             platform.ID("1"),
 					OrganizationID: platform.ID("org1"),
+					Organization:   "theorg",
 					Name:           "changed",
 				},
 			},
@@ -659,6 +940,12 @@ func UpdateBucket(
 		{
 			name: "update retention",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
 						ID:             platform.ID("1"),
@@ -680,6 +967,7 @@ func UpdateBucket(
 				bucket: &platform.Bucket{
 					ID:              platform.ID("1"),
 					OrganizationID:  platform.ID("org1"),
+					Organization:    "theorg",
 					Name:            "bucket1",
 					RetentionPeriod: 100 * time.Minute,
 				},
@@ -688,6 +976,12 @@ func UpdateBucket(
 		{
 			name: "update retention and name",
 			fields: BucketFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   platform.ID("org1"),
+					},
+				},
 				Buckets: []*platform.Bucket{
 					{
 						ID:             platform.ID("1"),
@@ -710,6 +1004,7 @@ func UpdateBucket(
 				bucket: &platform.Bucket{
 					ID:              platform.ID("2"),
 					OrganizationID:  platform.ID("org1"),
+					Organization:    "theorg",
 					Name:            "changed",
 					RetentionPeriod: 101 * time.Minute,
 				},
