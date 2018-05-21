@@ -1,0 +1,306 @@
+{
+package promql
+
+var reservedWords = map[string]bool{}
+
+}
+
+Grammar =  grammar:( Comment / AggregateExpression / VectorSelector ) EOF {
+    return grammar, nil
+}
+
+SourceChar = .
+
+Comment = "#" ( !EOL SourceChar )* {
+    return &Comment{string(c.text)}, nil
+}
+
+Identifier = ident:IdentifierName {
+    i := string(c.text)
+    if reservedWords[i] {
+        return nil, errors.New("identifier is a reserved word")
+    }
+    return &Identifier{ident.(string)}, nil
+}
+
+IdentifierName = IdentifierStart IdentifierPart* {
+    return string(c.text), nil
+}
+IdentifierStart = [\pL_]
+IdentifierPart = IdentifierStart / [\p{Nd}]
+
+StringLiteral = ( '"' DoubleStringChar* '"' / "'" SingleStringChar "'" / '`' RawStringChar* '`' ) {
+    str, err := strconv.Unquote(string(c.text))
+    if err != nil {
+        return nil, err
+    }
+    return &StringLiteral{str}, nil
+} / ( ( '"' DoubleStringChar* ( EOL / EOF ) ) / ( "'" SingleStringChar? ( EOL / EOF ) ) / '`' RawStringChar* EOF ) {
+    return nil, errors.New("string literal not terminated")
+}
+
+DoubleStringChar = !( '"' / "\\" / EOL ) SourceChar / "\\" DoubleStringEscape
+SingleStringChar = !( "'" / "\\" / EOL ) SourceChar / "\\" SingleStringEscape
+RawStringChar = !'`' SourceChar
+
+DoubleStringEscape = ( '"' / CommonEscapeSequence )
+    / ( SourceChar / EOL / EOF ) {
+    return nil, errors.New("invalid escape character")
+}
+SingleStringEscape = ( "'" / CommonEscapeSequence )
+    / ( SourceChar / EOL / EOF ) {
+    return nil, errors.New("invalid escape character")
+}
+
+CommonEscapeSequence = SingleCharEscape / OctalEscape / HexEscape / LongUnicodeEscape / ShortUnicodeEscape
+SingleCharEscape = 'a' / 'b' / 'n' / 'f' / 'r' / 't' / 'v' / '\\'
+OctalEscape = OctalDigit OctalDigit OctalDigit
+    / OctalDigit ( SourceChar / EOL / EOF ) {
+    return nil, errors.New("invalid octal escape")
+}
+HexEscape = 'x' HexDigit HexDigit
+    / 'x' ( SourceChar / EOL / EOF ) {
+    return nil, errors.New("invalid hexadecimal escape")
+}
+LongUnicodeEscape = 
+    'U' HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit {
+        return validateUnicodeEscape(string(c.text), "invalid Unicode escape")
+    }
+    / 'U' ( SourceChar / EOL / EOF ) {
+    return nil, errors.New("invalid Unicode escape")
+}
+ShortUnicodeEscape = 
+    'u' HexDigit HexDigit HexDigit HexDigit {
+        return validateUnicodeEscape(string(c.text), "invalid Unicode escape")
+    }
+    / 'u' ( SourceChar / EOL / EOF ) {
+    return nil, errors.New("invalid Unicode escape")
+}
+
+OctalDigit = [0-7]
+DecimalDigit = [0-9]
+HexDigit = [0-9a-f]i
+
+CharClassMatcher = '[' ( ClassCharRange / ClassChar / "\\" UnicodeClassEscape )* ']' 'i'? {
+    return string(c.text), nil
+} / '[' ( !( EOL ) SourceChar )* ( EOL / EOF ) {
+    return nil, errors.New("character class not terminated")
+}
+
+ClassCharRange = ClassChar '-' ClassChar
+ClassChar = !( "]" / "\\" / EOL ) SourceChar / "\\" CharClassEscape
+CharClassEscape = ( ']' / CommonEscapeSequence )
+    / !'p' ( SourceChar / EOL / EOF ) {
+    return nil, errors.New("invalid escape character")
+}
+
+UnicodeClassEscape = 'p' ( 
+      SingleCharUnicodeClass
+    / !'{' ( SourceChar / EOL / EOF ) { return nil, errors.New("invalid Unicode class escape") }
+    / '{' ident:IdentifierName '}' {
+        if !unicodeClasses[ident.(string)] {
+            return nil, errors.New("invalid Unicode class escape")
+        }
+        return nil, nil
+    }
+    / '{' IdentifierName ( ']' / EOL / EOF ) {
+        return nil, errors.New("Unicode class not terminated")
+    }
+)
+
+SingleCharUnicodeClass = [LMNCPZS]
+
+
+Number = '-'? Integer ( '.' Digit+ )? {
+    return NewNumber(string(c.text))
+}
+
+Integer = '0' / NonZeroDigit Digit* {
+    return strconv.ParseInt(string(c.text), 10, 64)
+}
+
+NonZeroDigit = [1-9]
+Digit = [0-9]
+
+LabelBlock = '{' block:LabelMatches '}' {
+    return block, nil
+} / '{' LabelMatches EOF {
+    return nil, errors.New("code block not terminated")
+}
+
+NanoSecondUnits = "ns"{
+    // Prometheus doesn't support nanoseconds, but, influx does
+    return time.Nanosecond, nil
+}
+
+MicroSecondUnits = ("us" / "µs" / "μs") {
+    // Prometheus doesn't support nanoseconds, but, influx does
+    return time.Microsecond, nil
+}
+
+MilliSecondUnits = "ms" {
+    // Prometheus doesn't support nanoseconds, but, influx does
+    return time.Millisecond, nil
+}
+
+SecondUnits = "s" {
+    return time.Second, nil
+}
+
+MinuteUnits = "m" {
+    return time.Minute, nil
+}
+
+HourUnits = "h" {
+    return time.Hour, nil
+}
+
+DayUnits = "d" {
+    // Prometheus always assumes exactly 24 hours in a day
+    // https://github.com/prometheus/common/blob/61f87aac8082fa8c3c5655c7608d7478d46ac2ad/model/time.go#L180
+    return time.Hour * 24, nil
+}
+
+WeekUnits = "w" {
+    // Prometheus always assumes exactly 7 days in a week
+    // https://github.com/prometheus/common/blob/61f87aac8082fa8c3c5655c7608d7478d46ac2ad/model/time.go#L180
+    return time.Hour * 24 * 7, nil
+}
+
+YearUnits = "y" {
+    // Prometheus always assumes 365 days
+    // https://github.com/prometheus/common/blob/61f87aac8082fa8c3c5655c7608d7478d46ac2ad/model/time.go#L180
+    return time.Hour * 24 * 365, nil
+}
+
+DurationUnits = (NanoSecondUnits / MicroSecondUnits / MilliSecondUnits / SecondUnits / MinuteUnits / HourUnits / DayUnits / WeekUnits / YearUnits)
+
+Duration = dur:Integer units:DurationUnits {
+    nanos := time.Duration(dur.(int64))
+    conversion := units.(time.Duration)
+    return time.Duration(nanos) * conversion, nil
+}
+
+Operators = "-" / "+" / "*" / "%" / "/" / "==" / "!=" / "<=" / "<" / ">=" / ">" / "=~" / "!~" / "^" / "="
+
+LabelOperators  = "!=" {
+    return NotEqual, nil
+} / "=~" {
+    return RegexMatch, nil
+} / "!~" {
+    return RegexNoMatch, nil
+} / "=" {
+    return Equal, nil
+}
+
+Label = Identifier
+LabelMatch = label:Label __ op:LabelOperators __ match:( StringLiteral / Number ) {
+    return NewLabelMatcher(label.(*Identifier), op.(MatchKind), match.(Arg))
+}
+LabelMatches = first:LabelMatch __ rest:LabelMatchesRest* {
+    return NewLabelMatches(first.(*LabelMatcher), rest)
+}
+
+LabelMatchesRest =  "," __ match:LabelMatch {
+    return match, nil
+}
+
+LabelList = ("(" __ ")") {
+    return nil, nil
+} / ("(" __ label:Label __ rest:LabelListRest* __ ")" {
+    return NewIdentifierList(label.(*Identifier), rest)
+})
+
+LabelListRest =  "," __ label:Label {
+    return label, nil
+}
+
+VectorSelector = metric:Identifier __  block:LabelBlock? __ rng:Range? __ offset:Offset? {
+    return NewSelector(metric.(*Identifier), block, rng, offset)
+}
+
+Range = "[" __ dur:Duration __ "]" {
+    return dur, nil
+}
+
+Offset = "offset"i __ dur:Duration {
+    return dur, nil
+}
+
+CountValueOperator = "count_values"i {
+    return &Operator{
+        Kind: CountValuesKind,
+    }, nil
+}
+
+BinaryAggregateOperators =  op:("topk"i / "bottomk"i / "quantile"i) {
+    return &Operator{
+        Kind: ToOperatorKind(string(op.([]byte))),
+    }, nil
+}
+
+UnaryAggregateOperators = op:("sum"i / "min"i / "max"i / "avg"i / "stddev"i / "stdvar"i / "count"i) {
+    return &Operator{
+        Kind: ToOperatorKind(string(op.([]byte))),
+    }, nil
+}
+
+AggregateOperators = CountValueOperator / BinaryAggregateOperators / UnaryAggregateOperators
+
+AggregateBy = "by"i __ labels:LabelList __ keep:"keep_common"i? {
+    return &Aggregate{
+        By: true,
+        Labels: labels.([]*Identifier),
+    }, nil
+}
+
+AggregateWithout = "without"i __ labels:LabelList {
+    return &Aggregate{
+        Without: true,
+        Labels: labels.([]*Identifier),
+    }, nil
+}
+
+AggregateGroup = AggregateBy / AggregateWithout
+
+AggregateExpression =
+op:CountValueOperator  __ "(" __ param:StringLiteral __ "," __ vector:VectorSelector __ ")" __ group:AggregateGroup? {
+    oper := op.(*Operator)
+    oper.Arg = param.(*StringLiteral)
+    return NewAggregateExpr(oper, vector.(*Selector), group)
+}
+/
+op:CountValueOperator  __ group:AggregateGroup? __ "(" __ param:StringLiteral __ "," __ vector:VectorSelector __ ")" {
+    oper := op.(*Operator)
+    oper.Arg = param.(*StringLiteral)
+    return NewAggregateExpr(oper, vector.(*Selector), group)
+}
+/
+op:BinaryAggregateOperators  __ "(" __  param:Number __ "," __ vector:VectorSelector __ ")" __ group:AggregateGroup? {
+    oper := op.(*Operator)
+    oper.Arg = param.(*Number)
+    return NewAggregateExpr(oper, vector.(*Selector), group)
+}
+/
+op:BinaryAggregateOperators  __ group:AggregateGroup? __ "(" __  param:Number __ "," __ vector:VectorSelector __ ")" {
+    oper := op.(*Operator)
+    oper.Arg = param.(*Number)
+    return NewAggregateExpr(oper, vector.(*Selector), group)
+}
+/
+op:UnaryAggregateOperators  __ "(" __ vector:VectorSelector __ ")" __ group:AggregateGroup? {
+    return NewAggregateExpr(op.(*Operator), vector.(*Selector), group)
+}
+/
+op:UnaryAggregateOperators  __ group:AggregateGroup? __ "(" __ vector:VectorSelector __ ")" {
+    return NewAggregateExpr(op.(*Operator), vector.(*Selector), group)
+}
+
+__ = ( Whitespace / EOL / Comment )*
+_ = Whitespace*
+
+Whitespace = [ \t\r]
+EOL = '\n'
+EOS = __ ';' / _ SingleLineComment? EOL / __ EOF
+
+EOF = !.
