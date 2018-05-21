@@ -117,7 +117,7 @@ func (cmd *Command) process(path string) error {
 					case tsm1.StringValue:
 						fmt.Printf("%s %q %d\n", k, v.Value(), t)
 					default:
-						fmt.Printf("%s EMPTY\n")
+						fmt.Printf("%s EMPTY\n", k)
 					}
 				}
 			}
