@@ -6,7 +6,7 @@ import {NewService} from 'src/types'
 
 interface Props {
   service: NewService
-  exists: boolean
+  mode: string
   onSubmit: (e: ChangeEvent<HTMLFormElement>) => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
@@ -48,9 +48,9 @@ class IFQLForm extends PureComponent<Props> {
   }
 
   private get buttonText(): string {
-    const {exists} = this.props
+    const {mode} = this.props
 
-    if (exists) {
+    if (mode === 'edit') {
       return 'Update'
     }
 

@@ -1,9 +1,10 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-import IFQLForm from 'src/ifql/components/IFQLForm'
+import IFQLNew from 'src/ifql/components/IFQLNew'
+import IFQLEdit from 'src/ifql/components/IFQLEdit'
 
-import {Service, Source, NewService, Notification} from 'src/types'
+import {Service, Source, Notification} from 'src/types'
 
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {
@@ -12,12 +13,6 @@ import {
   createServiceAsync,
   CreateServiceAsync,
 } from 'src/shared/actions/services'
-
-import {
-  ifqlCreated,
-  ifqlNotCreated,
-  ifqlNotUpdated,
-} from 'src/shared/copy/notifications'
 
 interface Props {
   mode: string
@@ -29,20 +24,7 @@ interface Props {
   updateService: UpdateServiceAsync
 }
 
-interface State {
-  service: Service
-}
-
-const port = 8093
-
-class IFQLOverlay extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      service: this.defaultService,
-    }
-  }
-
+class IFQLOverlay extends PureComponent<Props> {
   public render() {
     return (
       <div className="ifql-overlay">
@@ -57,84 +39,41 @@ class IFQLOverlay extends PureComponent<Props, State> {
             />
           </div>
         </div>
-        <IFQLForm
-          service={this.state.service}
-          onSubmit={this.handleSubmit}
-          onInputChange={this.handleInputChange}
-          exists={false}
-        />
+        {this.form}
       </div>
     )
   }
 
-  private get defaultService(): NewService {
-    if (this.props.mode === 'edit') {
-      return this.props.service
+  private get form(): JSX.Element {
+    const {
+      mode,
+      source,
+      service,
+      notify,
+      onDismiss,
+      createService,
+      updateService,
+    } = this.props
+
+    if (mode === 'new') {
+      return (
+        <IFQLNew
+          source={source}
+          notify={notify}
+          onDismiss={onDismiss}
+          createService={createService}
+        />
+      )
     }
 
-    return {
-      name: 'IFQL',
-      url: this.url,
-      username: '',
-      insecureSkipVerify: false,
-      type: 'ifql',
-      active: true,
-    }
-  }
-
-  private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    const {value, name} = e.target
-    const update = {[name]: value}
-
-    this.setState({service: {...this.state.service, ...update}})
-  }
-
-  private handleSubmit = (e): void => {
-    e.preventDefault()
-    if (this.props.mode === 'edit') {
-      this.handleEdit()
-      return
-    }
-
-    this.handleCreate()
-  }
-
-  private handleEdit = async (): Promise<void> => {
-    const {notify, onDismiss, updateService} = this.props
-    const {service} = this.state
-
-    try {
-      await updateService(service)
-    } catch (error) {
-      notify(ifqlNotUpdated(error.message))
-      return
-    }
-
-    notify(ifqlCreated)
-    onDismiss()
-  }
-
-  private handleCreate = async (): Promise<void> => {
-    const {notify, source, onDismiss, createService} = this.props
-
-    const {service} = this.state
-
-    try {
-      await createService(source, service)
-    } catch (error) {
-      notify(ifqlNotCreated(error.message))
-      return
-    }
-
-    notify(ifqlCreated)
-    onDismiss()
-  }
-
-  private get url(): string {
-    const parser = document.createElement('a')
-    parser.href = this.props.source.url
-
-    return `${parser.protocol}//${parser.hostname}:${port}`
+    return (
+      <IFQLEdit
+        notify={notify}
+        service={service}
+        onDismiss={onDismiss}
+        updateService={updateService}
+      />
+    )
   }
 }
 

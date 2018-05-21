@@ -6,11 +6,6 @@ export interface NewService {
   password?: string
   active: boolean
   insecureSkipVerify: boolean
-  links?: {
-    source: string
-    self: string
-    proxy: string
-  }
 }
 
 export interface Service {
