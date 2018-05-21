@@ -1,7 +1,14 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-const GraphOptionsTimeAxis = ({verticalTimeAxis, onToggleVerticalTimeAxis}) => (
+interface GraphOptionsTimeAxisProps {
+  verticalTimeAxis: boolean
+  onToggleVerticalTimeAxis: (b: boolean) => () => void
+}
+
+const GraphOptionsTimeAxis: SFC<GraphOptionsTimeAxisProps> = ({
+  verticalTimeAxis,
+  onToggleVerticalTimeAxis,
+}) => (
   <div className="form-group col-xs-12 col-sm-6">
     <label>Time Axis</label>
     <ul className="nav nav-tablist nav-tablist-sm">
@@ -20,12 +27,5 @@ const GraphOptionsTimeAxis = ({verticalTimeAxis, onToggleVerticalTimeAxis}) => (
     </ul>
   </div>
 )
-
-const {bool, func} = PropTypes
-
-GraphOptionsTimeAxis.propTypes = {
-  verticalTimeAxis: bool,
-  onToggleVerticalTimeAxis: func,
-}
 
 export default GraphOptionsTimeAxis

@@ -8,7 +8,12 @@ import {
   Template,
   QueryConfig,
 } from 'src/types'
-import {Axes, TableOptions, FieldName, DecimalPlaces} from 'src/types/dashboard'
+import {
+  Axes,
+  TableOptions,
+  FieldOption,
+  DecimalPlaces,
+} from 'src/types/dashboard'
 import {ColorString, ColorNumber} from 'src/types/colors'
 import {CellType} from 'src/types/dashboard'
 
@@ -106,7 +111,7 @@ export const axes: Axes = {
   },
 }
 
-export const fieldOptions: FieldName[] = [
+export const fieldOptions: FieldOption[] = [
   {
     internalName: 'time',
     displayName: '',

@@ -16,6 +16,7 @@
 1.  [#3290](https://github.com/influxdata/chronograf/pull/3290): Add support for PagerDuty v2 in UI
 1.  [#3369](https://github.com/influxdata/chronograf/pull/3369): Add support for OpsGenie v2 in UI
 1.  [#3386](https://github.com/influxdata/chronograf/pull/3386): Add support for Kafka in UI to configure and create alert handlers
+1.  [#3416](https://github.com/influxdata/chronograf/pull/3416): Allow kapacitor services to be disabled
 1.  [#3416](https://github.com/influxdata/chronograf/pull/3416): Add support for disabling kapacitor services
 1.  [#3465](https://github.com/influxdata/chronograf/pull/3465): Add support for multiple slack configurations in the UI
 1.  [#3491](https://github.com/influxdata/chronograf/pull/3491): Upgrade kapacitor client to 1.5
@@ -50,6 +51,9 @@
 1.  [#3357](https://github.com/influxdata/chronograf/pull/3357): Fix only the selected template variable value getting loaded
 1.  [#3389](https://github.com/influxdata/chronograf/pull/3389): Fix Generic OAuth bug for GitHub Enterprise where the principal was incorrectly being checked for email being Primary and Verified
 1.  [#3402](https://github.com/influxdata/chronograf/pull/3402): Fix missing icons when using basepath
+1.  [#3412](https://github.com/influxdata/chronograf/pull/3412): Limit max-width of TICKScript editor.
+1.  [#3166](https://github.com/influxdata/chronograf/pull/3166): Fixes naming of new TICKScripts
+
 1.  [#3412](https://github.com/influxdata/chronograf/pull/3412): Limit max-width of TICKScript editor
 1.  [#3166](https://github.com/influxdata/chronograf/pull/3166): Fix naming of new TICKScripts
 1.  [#3449](https://github.com/influxdata/chronograf/pull/3449): Fix data explorer query error reporting regression
