@@ -30,7 +30,8 @@
 }
 
 .cm-s-material .CodeMirror-gutters {
-  @include gradient-v($g2-kevlar, $g0-obsidian) border: none;
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+  border: none;
 }
 
 .cm-s-material .CodeMirror-gutters .CodeMirror-gutter {
@@ -181,29 +182,27 @@
   overflow: hidden;
   list-style: none;
   margin: 0;
-  padding: 2px;
-  -webkit-box-shadow: 2px 3px 5px rgba(0, 0, 0, .2);
-  -moz-box-shadow: 2px 3px 5px rgba(0, 0, 0, .2);
-  box-shadow: 2px 3px 5px rgba(0, 0, 0, .2);
-  border-radius: 3px;
-  border: 1px solid silver;
-  background: white;
-  font-size: 90%;
-  font-family: monospace;
+  padding: 0;
+  box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
+  border-radius: $radius;
+  font-size: 12px;
+  font-family: $code-font;
+  font-weight: 600;
   max-height: 20em;
   overflow-y: auto;
+  @include gradient-h($c-star, $c-pool);
 }
 
-.CodeMirror-hint {
+li.CodeMirror-hint {
   margin: 0;
-  padding: 0 4px;
-  border-radius: 2px;
+  padding: 6px 7px;
+  line-height: 12px;
   white-space: pre;
-  color: black;
+  color: $c-neutrino;
   cursor: pointer;
 }
 
 li.CodeMirror-hint-active {
-  background: #08f;
-  color: white;
+  @include gradient-h($c-comet, $c-laser);
+  color: $g20-white;
 }
