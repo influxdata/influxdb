@@ -2,7 +2,7 @@ import _ from 'lodash'
 import {buildQuery} from 'src/utils/influxql'
 import {TYPE_QUERY_CONFIG, TYPE_SHIFTED} from 'src/dashboards/constants'
 
-import {QueryConfig, TimeRange} from 'src/types'
+import {Query, QueryConfig, TimeRange} from 'src/types'
 
 interface Statement {
   queryConfig: QueryConfig
@@ -10,19 +10,12 @@ interface Statement {
   text: string
 }
 
-interface Query {
-  host: string[]
-  text: string
-  id: string
-  queryConfig: QueryConfig
-}
-
 const buildQueries = (
   proxy: string,
   queryConfigs: QueryConfig[],
   tR: TimeRange
 ): Query[] => {
-  const statements: Statement[] = queryConfigs.map(query => {
+  const statements: Statement[] = queryConfigs.map((query: QueryConfig) => {
     const {rawText, range, id, shifts, database, measurement, fields} = query
     const timeRange: TimeRange = range || tR
     const text: string =

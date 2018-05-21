@@ -2,6 +2,7 @@ import {AuthLinks, Organization, Role, User, Me} from './auth'
 import {Template, Cell, CellQuery, Legend, Axes} from './dashboard'
 import {
   GroupBy,
+  Query,
   QueryConfig,
   Status,
   TimeRange,
@@ -31,6 +32,7 @@ export {
   CellQuery,
   Legend,
   Status,
+  Query,
   QueryConfig,
   TimeShift,
   ApplyFuncsToFieldArgs,

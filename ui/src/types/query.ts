@@ -1,4 +1,12 @@
 import {Source} from 'src/types'
+
+export interface Query {
+  host: string[]
+  text: string
+  id: string
+  queryConfig: QueryConfig
+}
+
 export interface QueryConfig {
   id?: string
   database?: string
