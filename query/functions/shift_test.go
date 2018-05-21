@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 
@@ -23,16 +23,16 @@ func TestShiftOperation_Marshaling(t *testing.T) {
 }
 
 func TestShift_Process(t *testing.T) {
-	cols := []execute.ColMeta{
-		{Label: "t1", Type: execute.TString},
-		{Label: execute.DefaultTimeColLabel, Type: execute.TTime},
-		{Label: execute.DefaultValueColLabel, Type: execute.TFloat},
+	cols := []query.ColMeta{
+		{Label: "t1", Type: query.TString},
+		{Label: execute.DefaultTimeColLabel, Type: query.TTime},
+		{Label: execute.DefaultValueColLabel, Type: query.TFloat},
 	}
 
 	testCases := []struct {
 		name string
 		spec *functions.ShiftProcedureSpec
-		data []execute.Block
+		data []query.Block
 		want []*executetest.Block
 	}{
 		{
@@ -41,7 +41,7 @@ func TestShift_Process(t *testing.T) {
 				Columns: []string{execute.DefaultTimeColLabel},
 				Shift:   query.Duration(1),
 			},
-			data: []execute.Block{
+			data: []query.Block{
 				&executetest.Block{
 					KeyCols: []string{"t1"},
 					ColMeta: cols,
@@ -68,7 +68,7 @@ func TestShift_Process(t *testing.T) {
 				Columns: []string{execute.DefaultTimeColLabel},
 				Shift:   query.Duration(2),
 			},
-			data: []execute.Block{
+			data: []query.Block{
 				&executetest.Block{
 					KeyCols: []string{"t1"},
 					ColMeta: cols,

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/plan"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -90,7 +90,7 @@ func (c *Controller) Query(ctx context.Context, orgID id.ID, qSpec *query.Spec) 
 func (c *Controller) createQuery(ctx context.Context, orgID id.ID) *Query {
 	id := c.nextID()
 	cctx, cancel := context.WithCancel(ctx)
-	ready := make(chan map[string]execute.Result, 1)
+	ready := make(chan map[string]query.Result, 1)
 	return &Query{
 		id:    id,
 		orgID: orgID,
@@ -276,7 +276,7 @@ type Query struct {
 
 	err error
 
-	ready chan map[string]execute.Result
+	ready chan map[string]query.Result
 
 	mu     sync.Mutex
 	state  State
@@ -335,7 +335,7 @@ func (q *Query) Cancel() {
 // Ready returns a channel that will deliver the query results.
 // Its possible that the channel is closed before any results arrive, in which case the query should be
 // inspected for an error using Err().
-func (q *Query) Ready() <-chan map[string]execute.Result {
+func (q *Query) Ready() <-chan map[string]query.Result {
 	return q.ready
 }
 
@@ -414,7 +414,7 @@ func (q *Query) setErr(err error) {
 	q.state = Errored
 }
 
-func (q *Query) setResults(r map[string]execute.Result) {
+func (q *Query) setResults(r map[string]query.Result) {
 	q.mu.Lock()
 	if q.state == Executing {
 		q.ready <- r

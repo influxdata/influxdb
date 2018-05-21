@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform"
 )
 
 // MultiResultEncoder encodes results as InfluxQL JSON format.
@@ -24,7 +24,7 @@ type MultiResultEncoder struct{}
 //  3.  If the _measurement name is present in the tags, it will be used as the row.Name for all rows.
 //      Otherwise, we'll use the column value, which _must_ be present in that case.
 
-func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator) error {
+func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) error {
 	resp := Response{}
 
 	for results.More() {
@@ -37,13 +37,13 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator
 		}
 		result := Result{StatementID: nameInt}
 
-		err = blocks.Do(func(b execute.Block) error {
+		err = blocks.Do(func(b query.Block) error {
 			r := NewRow()
 
 			fieldName := ""
 			measurementVaries := -1
 			for j, c := range b.Key().Cols() {
-				if c.Type != execute.TString {
+				if c.Type != query.TString {
 					return fmt.Errorf("partition column %q is not a string type", c.Label)
 				}
 				v := b.Key().Value(j).(string)
@@ -76,10 +76,10 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator
 			if timeIdx < 0 {
 				return errors.New("table must have an _time column")
 			}
-			if typ := b.Cols()[timeIdx].Type; typ != execute.TTime {
+			if typ := b.Cols()[timeIdx].Type; typ != query.TTime {
 				return fmt.Errorf("column _time must be of type Time got %v", typ)
 			}
-			err := b.Do(func(cr execute.ColReader) error {
+			err := b.Do(func(cr query.ColReader) error {
 				ts := cr.Times(timeIdx)
 				for i := range ts {
 					var v []interface{}
@@ -90,7 +90,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator
 						}
 
 						if j == measurementVaries {
-							if c.Type != execute.TString {
+							if c.Type != query.TString {
 								return errors.New("unexpected type, _measurement is not a string")
 							}
 							r.Name = cr.Strings(j)[i]
@@ -98,17 +98,17 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator
 						}
 
 						switch c.Type {
-						case execute.TFloat:
+						case query.TFloat:
 							v = append(v, cr.Floats(j)[i])
-						case execute.TInt:
+						case query.TInt:
 							v = append(v, cr.Ints(j)[i])
-						case execute.TString:
+						case query.TString:
 							v = append(v, cr.Strings(j)[i])
-						case execute.TUInt:
+						case query.TUInt:
 							v = append(v, cr.UInts(j)[i])
-						case execute.TBool:
+						case query.TBool:
 							v = append(v, cr.Bools(j)[i])
-						case execute.TTime:
+						case query.TTime:
 							v = append(v, cr.Times(j)[i].Time().Format(time.RFC3339))
 						default:
 							v = append(v, "unknown")

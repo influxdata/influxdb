@@ -151,24 +151,24 @@ func NewCovarianceTransformation(d execute.Dataset, cache execute.BlockBuilderCa
 	}
 }
 
-func (t *CovarianceTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *CovarianceTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *CovarianceTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *CovarianceTransformation) Process(id execute.DatasetID, b query.Block) error {
 	cols := b.Cols()
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("covariance found duplicate block with key: %v", b.Key())
 	}
 	execute.AddBlockKeyCols(b.Key(), builder)
-	builder.AddCol(execute.ColMeta{
+	builder.AddCol(query.ColMeta{
 		Label: t.spec.TimeDst,
-		Type:  execute.TTime,
+		Type:  query.TTime,
 	})
-	valueIdx := builder.AddCol(execute.ColMeta{
+	valueIdx := builder.AddCol(query.ColMeta{
 		Label: t.spec.ValueLabel,
-		Type:  execute.TFloat,
+		Type:  query.TFloat,
 	})
 	xIdx := execute.ColIdx(t.spec.Columns[0], cols)
 	yIdx := execute.ColIdx(t.spec.Columns[1], cols)
@@ -181,9 +181,9 @@ func (t *CovarianceTransformation) Process(id execute.DatasetID, b execute.Block
 	}
 
 	t.reset()
-	b.Do(func(cr execute.ColReader) error {
+	b.Do(func(cr query.ColReader) error {
 		switch typ := cols[xIdx].Type; typ {
-		case execute.TFloat:
+		case query.TFloat:
 			t.DoFloat(cr.Floats(xIdx), cr.Floats(yIdx))
 		default:
 			return fmt.Errorf("covariance does not support %v", typ)

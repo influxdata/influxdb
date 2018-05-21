@@ -104,11 +104,11 @@ func NewUniqueTransformation(d execute.Dataset, cache execute.BlockBuilderCache,
 	}
 }
 
-func (t *uniqueTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *uniqueTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *uniqueTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *uniqueTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("unique found duplicate block with key: %v", b.Key())
@@ -130,56 +130,56 @@ func (t *uniqueTransformation) Process(id execute.DatasetID, b execute.Block) er
 		timeUnique   map[execute.Time]bool
 	)
 	switch col.Type {
-	case execute.TBool:
+	case query.TBool:
 		boolUnique = make(map[bool]bool)
-	case execute.TInt:
+	case query.TInt:
 		intUnique = make(map[int64]bool)
-	case execute.TUInt:
+	case query.TUInt:
 		uintUnique = make(map[uint64]bool)
-	case execute.TFloat:
+	case query.TFloat:
 		floatUnique = make(map[float64]bool)
-	case execute.TString:
+	case query.TString:
 		stringUnique = make(map[string]bool)
-	case execute.TTime:
+	case query.TTime:
 		timeUnique = make(map[execute.Time]bool)
 	}
 
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			// Check unique
 			switch col.Type {
-			case execute.TBool:
+			case query.TBool:
 				v := cr.Bools(colIdx)[i]
 				if boolUnique[v] {
 					continue
 				}
 				boolUnique[v] = true
-			case execute.TInt:
+			case query.TInt:
 				v := cr.Ints(colIdx)[i]
 				if intUnique[v] {
 					continue
 				}
 				intUnique[v] = true
-			case execute.TUInt:
+			case query.TUInt:
 				v := cr.UInts(colIdx)[i]
 				if uintUnique[v] {
 					continue
 				}
 				uintUnique[v] = true
-			case execute.TFloat:
+			case query.TFloat:
 				v := cr.Floats(colIdx)[i]
 				if floatUnique[v] {
 					continue
 				}
 				floatUnique[v] = true
-			case execute.TString:
+			case query.TString:
 				v := cr.Strings(colIdx)[i]
 				if stringUnique[v] {
 					continue
 				}
 				stringUnique[v] = true
-			case execute.TTime:
+			case query.TTime:
 				v := cr.Times(colIdx)[i]
 				if timeUnique[v] {
 					continue

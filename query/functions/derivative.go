@@ -5,9 +5,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -152,11 +152,11 @@ func NewDerivativeTransformation(d execute.Dataset, cache execute.BlockBuilderCa
 	}
 }
 
-func (t *derivativeTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *derivativeTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *derivativeTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *derivativeTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("derivative found duplicate block with key: %v", b.Key())
@@ -179,7 +179,7 @@ func (t *derivativeTransformation) Process(id execute.DatasetID, b execute.Block
 		if found {
 			dc := c
 			// Derivative always results in a float
-			dc.Type = execute.TFloat
+			dc.Type = query.TFloat
 			builder.AddCol(dc)
 			derivatives[j] = newDerivative(j, t.unit, t.nonNegative)
 		} else {
@@ -192,14 +192,14 @@ func (t *derivativeTransformation) Process(id execute.DatasetID, b execute.Block
 
 	// We need to drop the first row since its derivative is undefined
 	firstIdx := 1
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for j, c := range cols {
 			d := derivatives[j]
 			switch c.Type {
-			case execute.TBool:
+			case query.TBool:
 				builder.AppendBools(j, cr.Bools(j)[firstIdx:])
-			case execute.TInt:
+			case query.TInt:
 				if d != nil {
 					for i := 0; i < l; i++ {
 						time := cr.Times(timeIdx)[i]
@@ -211,7 +211,7 @@ func (t *derivativeTransformation) Process(id execute.DatasetID, b execute.Block
 				} else {
 					builder.AppendInts(j, cr.Ints(j)[firstIdx:])
 				}
-			case execute.TUInt:
+			case query.TUInt:
 				if d != nil {
 					for i := 0; i < l; i++ {
 						time := cr.Times(timeIdx)[i]
@@ -223,7 +223,7 @@ func (t *derivativeTransformation) Process(id execute.DatasetID, b execute.Block
 				} else {
 					builder.AppendUInts(j, cr.UInts(j)[firstIdx:])
 				}
-			case execute.TFloat:
+			case query.TFloat:
 				if d != nil {
 					for i := 0; i < l; i++ {
 						time := cr.Times(timeIdx)[i]
@@ -235,9 +235,9 @@ func (t *derivativeTransformation) Process(id execute.DatasetID, b execute.Block
 				} else {
 					builder.AppendFloats(j, cr.Floats(j)[firstIdx:])
 				}
-			case execute.TString:
+			case query.TString:
 				builder.AppendStrings(j, cr.Strings(j)[firstIdx:])
-			case execute.TTime:
+			case query.TTime:
 				builder.AppendTimes(j, cr.Times(j)[firstIdx:])
 			}
 		}

@@ -143,8 +143,8 @@ func (a *CountAgg) DoString(vs []string) {
 	a.count += int64(len(vs))
 }
 
-func (a *CountAgg) Type() execute.DataType {
-	return execute.TInt
+func (a *CountAgg) Type() query.DataType {
+	return query.TInt
 }
 func (a *CountAgg) ValueInt() int64 {
 	return a.count

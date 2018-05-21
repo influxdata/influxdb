@@ -3,32 +3,134 @@ package query
 import (
 	"io"
 
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/query/values"
 )
+
+type Result interface {
+	// Blocks returns a BlockIterator for iterating through results
+	Blocks() BlockIterator
+}
+
+type BlockIterator interface {
+	Do(f func(Block) error) error
+}
+
+type Block interface {
+	Key() PartitionKey
+
+	Cols() []ColMeta
+
+	// Do calls f to process the data contained within the block.
+	// The function f will be called zero or more times.
+	Do(f func(ColReader) error) error
+
+	// RefCount modifies the reference count on the block by n.
+	// When the RefCount goes to zero, the block is freed.
+	RefCount(n int)
+}
+
+type ColMeta struct {
+	Label string
+	Type  DataType
+}
+
+type DataType int
+
+const (
+	TInvalid DataType = iota
+	TBool
+	TInt
+	TUInt
+	TFloat
+	TString
+	TTime
+)
+
+func (t DataType) String() string {
+	switch t {
+	case TInvalid:
+		return "invalid"
+	case TBool:
+		return "bool"
+	case TInt:
+		return "int"
+	case TUInt:
+		return "uint"
+	case TFloat:
+		return "float"
+	case TString:
+		return "string"
+	case TTime:
+		return "time"
+	default:
+		return "unknown"
+	}
+}
+
+// ColReader allows access to reading slices of column data.
+// All data the ColReader exposes is guaranteed to be in memory.
+// Once a ColReader goes out of scope all slices are considered invalid.
+type ColReader interface {
+	Key() PartitionKey
+	// Cols returns a list of column metadata.
+	Cols() []ColMeta
+	// Len returns the length of the slices.
+	// All slices will have the same length.
+	Len() int
+	Bools(j int) []bool
+	Ints(j int) []int64
+	UInts(j int) []uint64
+	Floats(j int) []float64
+	Strings(j int) []string
+	Times(j int) []values.Time
+}
+
+type PartitionKey interface {
+	Cols() []ColMeta
+
+	HasCol(label string) bool
+
+	ValueBool(j int) bool
+	ValueUInt(j int) uint64
+	ValueInt(j int) int64
+	ValueFloat(j int) float64
+	ValueString(j int) string
+	ValueDuration(j int) values.Duration
+	ValueTime(j int) values.Time
+	Value(j int) interface{}
+
+	// Intersect returns a new PartitionKey with only columns in the list of labels.
+	Intersect(labels []string) PartitionKey
+	// Diff returns the labels that exist in list of labels but not in the key's columns.
+	Diff(labels []string) []string
+	Hash() uint64
+	Equal(o PartitionKey) bool
+	Less(o PartitionKey) bool
+	String() string
+}
 
 // ResultDecoder can decode a result from a reader.
 type ResultDecoder interface {
 	// Decode decodes data from r into a result.
-	Decode(r io.Reader) (execute.Result, error)
+	Decode(r io.Reader) (Result, error)
 }
 
 // ResultEncoder can encode a result into a writer.
 type ResultEncoder interface {
 	// Encode encodes data from the result into w.
-	Encode(w io.Writer, result execute.Result) error
+	Encode(w io.Writer, result Result) error
 }
 
 // MultiResultDecoder can decode multiple results from a reader.
 type MultiResultDecoder interface {
 	// Decode decodes multiple results from r.
-	Decode(r io.Reader) (platform.ResultIterator, error)
+	Decode(r io.Reader) (ResultIterator, error)
 }
 
 // MultiResultEncoder can encode multiple results into a writer.
 type MultiResultEncoder interface {
 	// Encode writes multiple results from r into w.
-	Encode(w io.Writer, results platform.ResultIterator) error
+	Encode(w io.Writer, results ResultIterator) error
 }
 
 // DelimitedMultiResultEncoder encodes multiple results using a trailing delimiter.
@@ -43,7 +145,7 @@ type flusher interface {
 	Flush()
 }
 
-func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results platform.ResultIterator) error {
+func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator) error {
 	for results.More() {
 		//TODO(nathanielc): Make the result name a property of a result.
 		_, result := results.Next()

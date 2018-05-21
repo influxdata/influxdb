@@ -132,11 +132,11 @@ func NewLimitTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}
 }
 
-func (t *limitTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *limitTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *limitTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *limitTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("limit found duplicate block with key: %v", b.Key())
@@ -155,7 +155,7 @@ func (t *limitTransformation) Process(id execute.DatasetID, b execute.Block) err
 
 	// AppendBlock with limit
 	n := t.n
-	b.Do(func(cr execute.ColReader) error {
+	b.Do(func(cr query.ColReader) error {
 		if n <= 0 {
 			// Returning an error terminates iteration
 			return errors.New("finished")
@@ -176,7 +176,7 @@ func (t *limitTransformation) Process(id execute.DatasetID, b execute.Block) err
 }
 
 type limitColReader struct {
-	execute.ColReader
+	query.ColReader
 	n int
 }
 

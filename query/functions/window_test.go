@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 
@@ -97,7 +97,7 @@ func TestFixedWindow_PassThrough(t *testing.T) {
 func TestFixedWindow_Process(t *testing.T) {
 	testCases := []struct {
 		name          string
-		valueCol      execute.ColMeta
+		valueCol      query.ColMeta
 		start         execute.Time
 		every, period execute.Duration
 		num           int
@@ -105,7 +105,7 @@ func TestFixedWindow_Process(t *testing.T) {
 	}{
 		{
 			name:     "nonoverlapping_nonaligned",
-			valueCol: execute.ColMeta{Label: "_value", Type: execute.TFloat},
+			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is *not* aligned with the every/period durations of the window
 			start:  execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
 			every:  execute.Duration(time.Minute),
@@ -115,11 +115,11 @@ func TestFixedWindow_Process(t *testing.T) {
 				return []*executetest.Block{
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start, start + execute.Time(time.Minute), start, 0.0},
@@ -132,11 +132,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(60*time.Second), 6.0},
@@ -149,11 +149,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(2*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(120*time.Second), 12.0},
@@ -166,7 +166,7 @@ func TestFixedWindow_Process(t *testing.T) {
 		},
 		{
 			name:     "nonoverlapping_aligned",
-			valueCol: execute.ColMeta{Label: "_value", Type: execute.TFloat},
+			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is aligned with the every/period durations of the window
 			start:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
 			every:  execute.Duration(time.Minute),
@@ -176,11 +176,11 @@ func TestFixedWindow_Process(t *testing.T) {
 				return []*executetest.Block{
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start, start + execute.Time(time.Minute), start, 0.0},
@@ -193,11 +193,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(60*time.Second), 6.0},
@@ -210,11 +210,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(2*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(120*time.Second), 12.0},
@@ -227,7 +227,7 @@ func TestFixedWindow_Process(t *testing.T) {
 		},
 		{
 			name:     "overlapping_nonaligned",
-			valueCol: execute.ColMeta{Label: "_value", Type: execute.TFloat},
+			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is *not* aligned with the every/period durations of the window
 			start:  execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
 			every:  execute.Duration(time.Minute),
@@ -237,11 +237,11 @@ func TestFixedWindow_Process(t *testing.T) {
 				return []*executetest.Block{
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start, start + execute.Time(time.Minute), start, 0.0},
@@ -254,11 +254,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start, start + execute.Time(2*time.Minute), start, 0.0},
@@ -277,11 +277,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(1*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(60*time.Second), 6.0},
@@ -297,11 +297,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(2*time.Minute), start + execute.Time(4*time.Minute), start + execute.Time(120*time.Second), 12.0},
@@ -314,7 +314,7 @@ func TestFixedWindow_Process(t *testing.T) {
 		},
 		{
 			name:     "overlapping_aligned",
-			valueCol: execute.ColMeta{Label: "_value", Type: execute.TFloat},
+			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is aligned with the every/period durations of the window
 			start:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
 			every:  execute.Duration(time.Minute),
@@ -324,11 +324,11 @@ func TestFixedWindow_Process(t *testing.T) {
 				return []*executetest.Block{
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start, start + execute.Time(time.Minute), start, 0.0},
@@ -341,11 +341,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start, start + execute.Time(2*time.Minute), start, 0.0},
@@ -364,11 +364,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(1*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(60*time.Second), 6.0},
@@ -384,11 +384,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(2*time.Minute), start + execute.Time(4*time.Minute), start + execute.Time(120*time.Second), 12.0},
@@ -401,7 +401,7 @@ func TestFixedWindow_Process(t *testing.T) {
 		},
 		{
 			name:     "underlapping_nonaligned",
-			valueCol: execute.ColMeta{Label: "_value", Type: execute.TFloat},
+			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is *not* aligned with the every/period durations of the window
 			start:  execute.Time(time.Date(2017, 10, 10, 10, 10, 10, 10, time.UTC).UnixNano()),
 			every:  execute.Duration(2 * time.Minute),
@@ -411,11 +411,11 @@ func TestFixedWindow_Process(t *testing.T) {
 				return []*executetest.Block{
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + 1*execute.Time(time.Minute), start + 2*execute.Time(time.Minute), start + execute.Time(60*time.Second), 6.0},
@@ -428,11 +428,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(3*time.Minute), start + execute.Time(4*time.Minute), start + execute.Time(180*time.Second), 18.0},
@@ -448,7 +448,7 @@ func TestFixedWindow_Process(t *testing.T) {
 		},
 		{
 			name:     "underlapping_aligned",
-			valueCol: execute.ColMeta{Label: "_value", Type: execute.TFloat},
+			valueCol: query.ColMeta{Label: "_value", Type: query.TFloat},
 			// Use a time that is  aligned with the every/period durations of the window
 			start:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
 			every:  execute.Duration(2 * time.Minute),
@@ -458,11 +458,11 @@ func TestFixedWindow_Process(t *testing.T) {
 				return []*executetest.Block{
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + 1*execute.Time(time.Minute), start + 2*execute.Time(time.Minute), start + execute.Time(60*time.Second), 6.0},
@@ -475,11 +475,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TFloat},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(3*time.Minute), start + execute.Time(4*time.Minute), start + execute.Time(180*time.Second), 18.0},
@@ -495,7 +495,7 @@ func TestFixedWindow_Process(t *testing.T) {
 		},
 		{
 			name:     "nonoverlapping_aligned_int",
-			valueCol: execute.ColMeta{Label: "_value", Type: execute.TInt},
+			valueCol: query.ColMeta{Label: "_value", Type: query.TInt},
 			// Use a time that is aligned with the every/period durations of the window
 			start:  execute.Time(time.Date(2017, 10, 10, 10, 0, 0, 0, time.UTC).UnixNano()),
 			every:  execute.Duration(time.Minute),
@@ -505,11 +505,11 @@ func TestFixedWindow_Process(t *testing.T) {
 				return []*executetest.Block{
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TInt},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TInt},
 						},
 						Data: [][]interface{}{
 							{start, start + execute.Time(time.Minute), start, int64(0.0)},
@@ -522,11 +522,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TInt},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TInt},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(1*time.Minute), start + execute.Time(2*time.Minute), start + execute.Time(60*time.Second), int64(6)},
@@ -539,11 +539,11 @@ func TestFixedWindow_Process(t *testing.T) {
 					},
 					{
 						KeyCols: []string{"_start", "_stop"},
-						ColMeta: []execute.ColMeta{
-							{Label: "_start", Type: execute.TTime},
-							{Label: "_stop", Type: execute.TTime},
-							{Label: "_time", Type: execute.TTime},
-							{Label: "_value", Type: execute.TInt},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_value", Type: query.TInt},
 						},
 						Data: [][]interface{}{
 							{start + execute.Time(2*time.Minute), start + execute.Time(3*time.Minute), start + execute.Time(120*time.Second), int64(12)},
@@ -584,10 +584,10 @@ func TestFixedWindow_Process(t *testing.T) {
 			)
 
 			block0 := &executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
 					tc.valueCol,
 				},
 			}
@@ -595,15 +595,15 @@ func TestFixedWindow_Process(t *testing.T) {
 			for i := 0; i < tc.num; i++ {
 				var v interface{}
 				switch tc.valueCol.Type {
-				case execute.TBool:
+				case query.TBool:
 					v = bool(i%2 == 0)
-				case execute.TInt:
+				case query.TInt:
 					v = int64(i)
-				case execute.TUInt:
+				case query.TUInt:
 					v = uint64(i)
-				case execute.TFloat:
+				case query.TFloat:
 					v = float64(i)
-				case execute.TString:
+				case query.TString:
 					v = strconv.Itoa(i)
 				}
 				block0.Data = append(block0.Data, []interface{}{

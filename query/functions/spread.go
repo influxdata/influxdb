@@ -137,8 +137,8 @@ func (a *SpreadIntAgg) DoInt(vs []int64) {
 	}
 }
 
-func (a *SpreadIntAgg) Type() execute.DataType {
-	return execute.TInt
+func (a *SpreadIntAgg) Type() query.DataType {
+	return query.TInt
 }
 
 // Value returns the difference between max and min
@@ -160,8 +160,8 @@ func (a *SpreadUIntAgg) DoUInt(vs []uint64) {
 	}
 }
 
-func (a *SpreadUIntAgg) Type() execute.DataType {
-	return execute.TUInt
+func (a *SpreadUIntAgg) Type() query.DataType {
+	return query.TUInt
 }
 
 // Value returns the difference between max and min
@@ -183,8 +183,8 @@ func (a *SpreadFloatAgg) DoFloat(vs []float64) {
 	}
 }
 
-func (a *SpreadFloatAgg) Type() execute.DataType {
-	return execute.TFloat
+func (a *SpreadFloatAgg) Type() query.DataType {
+	return query.TFloat
 }
 
 // Value returns the difference between max and min

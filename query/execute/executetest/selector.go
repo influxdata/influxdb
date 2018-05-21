@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 )
 
-func RowSelectorFuncTestHelper(t *testing.T, selector execute.RowSelector, data execute.Block, want []execute.Row) {
+func RowSelectorFuncTestHelper(t *testing.T, selector execute.RowSelector, data query.Block, want []execute.Row) {
 	t.Helper()
 
 	s := selector.NewFloatSelector()
@@ -15,7 +16,7 @@ func RowSelectorFuncTestHelper(t *testing.T, selector execute.RowSelector, data 
 	if valueIdx < 0 {
 		t.Fatal("no _value column found")
 	}
-	data.Do(func(cr execute.ColReader) error {
+	data.Do(func(cr query.ColReader) error {
 		s.DoFloat(cr.Floats(valueIdx), cr)
 		return nil
 	})
@@ -29,7 +30,7 @@ func RowSelectorFuncTestHelper(t *testing.T, selector execute.RowSelector, data 
 
 var rows []execute.Row
 
-func RowSelectorFuncBenchmarkHelper(b *testing.B, selector execute.RowSelector, data execute.Block) {
+func RowSelectorFuncBenchmarkHelper(b *testing.B, selector execute.RowSelector, data query.Block) {
 	b.Helper()
 
 	valueIdx := execute.ColIdx(execute.DefaultValueColLabel, data.Cols())
@@ -40,7 +41,7 @@ func RowSelectorFuncBenchmarkHelper(b *testing.B, selector execute.RowSelector, 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		s := selector.NewFloatSelector()
-		data.Do(func(cr execute.ColReader) error {
+		data.Do(func(cr query.ColReader) error {
 			s.DoFloat(cr.Floats(valueIdx), cr)
 			return nil
 		})
@@ -48,7 +49,7 @@ func RowSelectorFuncBenchmarkHelper(b *testing.B, selector execute.RowSelector, 
 	}
 }
 
-func IndexSelectorFuncTestHelper(t *testing.T, selector execute.IndexSelector, data execute.Block, want [][]int) {
+func IndexSelectorFuncTestHelper(t *testing.T, selector execute.IndexSelector, data query.Block, want [][]int) {
 	t.Helper()
 
 	var got [][]int
@@ -57,7 +58,7 @@ func IndexSelectorFuncTestHelper(t *testing.T, selector execute.IndexSelector, d
 	if valueIdx < 0 {
 		t.Fatal("no _value column found")
 	}
-	data.Do(func(cr execute.ColReader) error {
+	data.Do(func(cr query.ColReader) error {
 		var cpy []int
 		selected := s.DoFloat(cr.Floats(valueIdx))
 		if len(selected) > 0 {
@@ -73,7 +74,7 @@ func IndexSelectorFuncTestHelper(t *testing.T, selector execute.IndexSelector, d
 	}
 }
 
-func IndexSelectorFuncBenchmarkHelper(b *testing.B, selector execute.IndexSelector, data execute.Block) {
+func IndexSelectorFuncBenchmarkHelper(b *testing.B, selector execute.IndexSelector, data query.Block) {
 	b.Helper()
 
 	valueIdx := execute.ColIdx(execute.DefaultValueColLabel, data.Cols())
@@ -85,7 +86,7 @@ func IndexSelectorFuncBenchmarkHelper(b *testing.B, selector execute.IndexSelect
 	var got [][]int
 	for n := 0; n < b.N; n++ {
 		s := selector.NewFloatSelector()
-		data.Do(func(cr execute.ColReader) error {
+		data.Do(func(cr query.ColReader) error {
 			got = append(got, s.DoFloat(cr.Floats(valueIdx)))
 			return nil
 		})

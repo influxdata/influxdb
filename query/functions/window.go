@@ -227,7 +227,7 @@ func NewFixedWindowTransformation(
 	}
 }
 
-func (t *fixedWindowTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) (err error) {
+func (t *fixedWindowTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) (err error) {
 	panic("not implemented")
 	//tagKey := meta.Tags().Key()
 	//t.cache.ForEachBuilder(func(bk execute.BlockKey, bld execute.BlockBuilder) {
@@ -241,11 +241,11 @@ func (t *fixedWindowTransformation) RetractBlock(id execute.DatasetID, key execu
 	//return
 }
 
-func (t *fixedWindowTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block) error {
 	timeIdx := execute.ColIdx(t.timeCol, b.Cols())
 
-	newCols := make([]execute.ColMeta, 0, len(b.Cols())+2)
-	keyCols := make([]execute.ColMeta, 0, len(b.Cols())+2)
+	newCols := make([]query.ColMeta, 0, len(b.Cols())+2)
+	keyCols := make([]query.ColMeta, 0, len(b.Cols())+2)
 	keyColMap := make([]int, 0, len(b.Cols())+2)
 	startColIdx := -1
 	stopColIdx := -1
@@ -267,9 +267,9 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b execute.Bloc
 	}
 	if startColIdx == -1 {
 		startColIdx = len(newCols)
-		c := execute.ColMeta{
+		c := query.ColMeta{
 			Label: t.startColLabel,
-			Type:  execute.TTime,
+			Type:  query.TTime,
 		}
 		newCols = append(newCols, c)
 		keyCols = append(keyCols, c)
@@ -277,23 +277,23 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b execute.Bloc
 	}
 	if stopColIdx == -1 {
 		stopColIdx = len(newCols)
-		c := execute.ColMeta{
+		c := query.ColMeta{
 			Label: t.stopColLabel,
-			Type:  execute.TTime,
+			Type:  query.TTime,
 		}
 		newCols = append(newCols, c)
 		keyCols = append(keyCols, c)
 		keyColMap = append(keyColMap, stopColIdx)
 	}
 
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			tm := cr.Times(timeIdx)[i]
 			bounds := t.getWindowBounds(tm)
 			for _, bnds := range bounds {
 				// Update key
-				cols := make([]execute.ColMeta, len(keyCols))
+				cols := make([]query.ColMeta, len(keyCols))
 				values := make([]interface{}, len(keyCols))
 				for j, c := range keyCols {
 					cols[j] = c
@@ -321,17 +321,17 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b execute.Bloc
 						builder.AppendTime(stopColIdx, bnds.Stop)
 					default:
 						switch c.Type {
-						case execute.TBool:
+						case query.TBool:
 							builder.AppendBool(j, cr.Bools(j)[i])
-						case execute.TInt:
+						case query.TInt:
 							builder.AppendInt(j, cr.Ints(j)[i])
-						case execute.TUInt:
+						case query.TUInt:
 							builder.AppendUInt(j, cr.UInts(j)[i])
-						case execute.TFloat:
+						case query.TFloat:
 							builder.AppendFloat(j, cr.Floats(j)[i])
-						case execute.TString:
+						case query.TString:
 							builder.AppendString(j, cr.Strings(j)[i])
-						case execute.TTime:
+						case query.TTime:
 							builder.AppendTime(j, cr.Times(j)[i])
 						default:
 							execute.PanicUnknownType(c.Type)

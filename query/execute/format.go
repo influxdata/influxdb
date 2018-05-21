@@ -5,13 +5,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/influxdata/platform/query"
 )
 
 const fixedWidthTimeFmt = "2006-01-02T15:04:05.000000000Z"
 
 // Formatter writes a block to a Writer.
 type Formatter struct {
-	b         Block
+	b         query.Block
 	widths    []int
 	maxWidth  int
 	newWidths []int
@@ -38,7 +40,7 @@ var eol = []byte{'\n'}
 
 // NewFormatter creates a Formatter for a given block.
 // If opts is nil, the DefaultFormatOptions are used.
-func NewFormatter(b Block, opts *FormatOptions) *Formatter {
+func NewFormatter(b query.Block, opts *FormatOptions) *Formatter {
 	if opts == nil {
 		opts = DefaultFormatOptions()
 	}
@@ -63,14 +65,14 @@ func (w *writeToHelper) write(data []byte) {
 	w.err = err
 }
 
-var minWidthsByType = map[DataType]int{
-	TBool:    12,
-	TInt:     26,
-	TUInt:    27,
-	TFloat:   28,
-	TString:  22,
-	TTime:    len(fixedWidthTimeFmt),
-	TInvalid: 10,
+var minWidthsByType = map[query.DataType]int{
+	query.TBool:    12,
+	query.TInt:     26,
+	query.TUInt:    27,
+	query.TFloat:   28,
+	query.TString:  22,
+	query.TTime:    len(fixedWidthTimeFmt),
+	query.TInvalid: 10,
 }
 
 // WriteTo writes the formatted block data to w.
@@ -115,7 +117,7 @@ func (f *Formatter) WriteTo(out io.Writer) (int64, error) {
 
 	// Write rows
 	r := 0
-	f.b.Do(func(cr ColReader) error {
+	f.b.Do(func(cr query.ColReader) error {
 		if r == 0 {
 			l := cr.Len()
 			for i := 0; i < l; i++ {
@@ -210,20 +212,20 @@ func (f *Formatter) writeHeaderSeparator(w *writeToHelper) {
 	w.write(eol)
 }
 
-func (f *Formatter) valueBuf(i, j int, typ DataType, cr ColReader) (buf []byte) {
+func (f *Formatter) valueBuf(i, j int, typ query.DataType, cr query.ColReader) (buf []byte) {
 	switch typ {
-	case TBool:
+	case query.TBool:
 		buf = strconv.AppendBool(f.fmtBuf[0:0], cr.Bools(j)[i])
-	case TInt:
+	case query.TInt:
 		buf = strconv.AppendInt(f.fmtBuf[0:0], cr.Ints(j)[i], 10)
-	case TUInt:
+	case query.TUInt:
 		buf = strconv.AppendUint(f.fmtBuf[0:0], cr.UInts(j)[i], 10)
-	case TFloat:
+	case query.TFloat:
 		// TODO allow specifying format and precision
 		buf = strconv.AppendFloat(f.fmtBuf[0:0], cr.Floats(j)[i], 'f', -1, 64)
-	case TString:
+	case query.TString:
 		buf = []byte(cr.Strings(j)[i])
-	case TTime:
+	case query.TTime:
 		buf = []byte(cr.Times(j)[i].String())
 	}
 	return
@@ -238,15 +240,15 @@ func (f *Formatter) valueBuf(i, j int, typ DataType, cr ColReader) (buf []byte) 
 //
 type orderedCols struct {
 	indexMap []int
-	cols     []ColMeta
+	cols     []query.ColMeta
 }
 
-func newOrderedCols(cols []ColMeta) orderedCols {
+func newOrderedCols(cols []query.ColMeta) orderedCols {
 	indexMap := make([]int, len(cols))
 	for i := range indexMap {
 		indexMap[i] = i
 	}
-	cpy := make([]ColMeta, len(cols))
+	cpy := make([]query.ColMeta, len(cols))
 	copy(cpy, cols)
 	return orderedCols{
 		indexMap: indexMap,

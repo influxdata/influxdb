@@ -8,10 +8,10 @@ import (
 
 	"github.com/andreyvit/diff"
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/execute/executetest"
 	"github.com/influxdata/platform/query/values"
-	"github.com/influxdata/platform/query/csv"
 )
 
 type TestCase struct {
@@ -36,13 +36,13 @@ var symetricalTestCases = []TestCase{
 `),
 		result: &executetest.Result{Blks: []*executetest.Block{{
 			KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-			ColMeta: []execute.ColMeta{
-				{Label: "_start", Type: execute.TTime},
-				{Label: "_stop", Type: execute.TTime},
-				{Label: "_time", Type: execute.TTime},
-				{Label: "_measurement", Type: execute.TString},
-				{Label: "host", Type: execute.TString},
-				{Label: "_value", Type: execute.TFloat},
+			ColMeta: []query.ColMeta{
+				{Label: "_start", Type: query.TTime},
+				{Label: "_stop", Type: query.TTime},
+				{Label: "_time", Type: query.TTime},
+				{Label: "_measurement", Type: query.TString},
+				{Label: "host", Type: query.TString},
+				{Label: "_value", Type: query.TFloat},
 			},
 			Data: [][]interface{}{
 				{
@@ -82,13 +82,13 @@ var symetricalTestCases = []TestCase{
 				"cpu",
 				"A",
 			},
-			ColMeta: []execute.ColMeta{
-				{Label: "_start", Type: execute.TTime},
-				{Label: "_stop", Type: execute.TTime},
-				{Label: "_time", Type: execute.TTime},
-				{Label: "_measurement", Type: execute.TString},
-				{Label: "host", Type: execute.TString},
-				{Label: "_value", Type: execute.TFloat},
+			ColMeta: []query.ColMeta{
+				{Label: "_start", Type: query.TTime},
+				{Label: "_stop", Type: query.TTime},
+				{Label: "_time", Type: query.TTime},
+				{Label: "_measurement", Type: query.TString},
+				{Label: "host", Type: query.TString},
+				{Label: "_value", Type: query.TFloat},
 			},
 		}}},
 	},
@@ -107,13 +107,13 @@ var symetricalTestCases = []TestCase{
 		result: &executetest.Result{Blks: []*executetest.Block{
 			{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_measurement", Type: execute.TString},
-					{Label: "host", Type: execute.TString},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -136,13 +136,13 @@ var symetricalTestCases = []TestCase{
 			},
 			{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_measurement", Type: execute.TString},
-					{Label: "host", Type: execute.TString},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -189,13 +189,13 @@ var symetricalTestCases = []TestCase{
 		result: &executetest.Result{Blks: []*executetest.Block{
 			{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_measurement", Type: execute.TString},
-					{Label: "host", Type: execute.TString},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -218,13 +218,13 @@ var symetricalTestCases = []TestCase{
 			},
 			{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_measurement", Type: execute.TString},
-					{Label: "host", Type: execute.TString},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -247,14 +247,14 @@ var symetricalTestCases = []TestCase{
 			},
 			{
 				KeyCols: []string{"_start", "_stop", "location"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "location", Type: execute.TString},
-					{Label: "device", Type: execute.TString},
-					{Label: "min", Type: execute.TFloat},
-					{Label: "max", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "location", Type: query.TString},
+					{Label: "device", Type: query.TString},
+					{Label: "min", Type: query.TFloat},
+					{Label: "max", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -279,14 +279,14 @@ var symetricalTestCases = []TestCase{
 			},
 			{
 				KeyCols: []string{"_start", "_stop", "location"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "location", Type: execute.TString},
-					{Label: "device", Type: execute.TString},
-					{Label: "min", Type: execute.TFloat},
-					{Label: "max", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "location", Type: query.TString},
+					{Label: "device", Type: query.TString},
+					{Label: "min", Type: query.TFloat},
+					{Label: "max", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -333,13 +333,13 @@ var symetricalTestCases = []TestCase{
 		result: &executetest.Result{Blks: []*executetest.Block{
 			{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_measurement", Type: execute.TString},
-					{Label: "host", Type: execute.TString},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -362,13 +362,13 @@ var symetricalTestCases = []TestCase{
 			},
 			{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_measurement", Type: execute.TString},
-					{Label: "host", Type: execute.TString},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -397,13 +397,13 @@ var symetricalTestCases = []TestCase{
 					"cpu",
 					"A",
 				},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_measurement", Type: execute.TString},
-					{Label: "host", Type: execute.TString},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_value", Type: query.TFloat},
 				},
 			},
 		}},
@@ -424,13 +424,13 @@ func TestResultDecoder(t *testing.T) {
 `),
 			result: &executetest.Result{Blks: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_measurement", Type: execute.TString},
-					{Label: "host", Type: execute.TString},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{
@@ -466,7 +466,7 @@ func TestResultDecoder(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := new(executetest.Result)
-			if err := result.Blocks().Do(func(b execute.Block) error {
+			if err := result.Blocks().Do(func(b query.Block) error {
 				cb, err := executetest.ConvertBlock(b)
 				if err != nil {
 					return err

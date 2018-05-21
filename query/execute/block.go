@@ -17,45 +17,21 @@ const (
 	DefaultValueColLabel = "_value"
 )
 
-type PartitionKey interface {
-	Cols() []ColMeta
-
-	HasCol(label string) bool
-
-	ValueBool(j int) bool
-	ValueUInt(j int) uint64
-	ValueInt(j int) int64
-	ValueFloat(j int) float64
-	ValueString(j int) string
-	ValueDuration(j int) Duration
-	ValueTime(j int) Time
-	Value(j int) interface{}
-
-	// Intersect returns a new PartitionKey with only columns in the list of labels.
-	Intersect(labels []string) PartitionKey
-	// Diff returns the labels that exist in list of labels but not in the key's columns.
-	Diff(labels []string) []string
-	Hash() uint64
-	Equal(o PartitionKey) bool
-	Less(o PartitionKey) bool
-	String() string
-}
-
 type partitionKey struct {
-	cols    []ColMeta
+	cols    []query.ColMeta
 	values  []interface{}
 	hasHash bool
 	hash    uint64
 }
 
-func NewPartitionKey(cols []ColMeta, values []interface{}) PartitionKey {
+func NewPartitionKey(cols []query.ColMeta, values []interface{}) query.PartitionKey {
 	return &partitionKey{
 		cols:   cols,
 		values: values,
 	}
 }
 
-func (k *partitionKey) Cols() []ColMeta {
+func (k *partitionKey) Cols() []query.ColMeta {
 	return k.cols
 }
 func (k *partitionKey) HasCol(label string) bool {
@@ -86,9 +62,9 @@ func (k *partitionKey) ValueTime(j int) Time {
 	return k.values[j].(Time)
 }
 
-func (k *partitionKey) Intersect(keys []string) PartitionKey {
+func (k *partitionKey) Intersect(keys []string) query.PartitionKey {
 	nk := &partitionKey{
-		cols:   make([]ColMeta, 0, len(k.cols)),
+		cols:   make([]query.ColMeta, 0, len(k.cols)),
 		values: make([]interface{}, 0, len(k.values)),
 	}
 	for i, c := range k.cols {
@@ -125,15 +101,15 @@ func (k *partitionKey) Hash() uint64 {
 	return k.hash
 }
 
-func (k *partitionKey) Equal(o PartitionKey) bool {
+func (k *partitionKey) Equal(o query.PartitionKey) bool {
 	return partitionKeyEqual(k, o)
 }
 
-func (k *partitionKey) Less(o PartitionKey) bool {
+func (k *partitionKey) Less(o query.PartitionKey) bool {
 	return partitionKeyLess(k, o)
 }
 
-func partitionKeyEqual(a, b PartitionKey) bool {
+func partitionKeyEqual(a, b query.PartitionKey) bool {
 	if a.Hash() != b.Hash() {
 		return false
 	}
@@ -147,27 +123,27 @@ func partitionKeyEqual(a, b PartitionKey) bool {
 			return false
 		}
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			if a.ValueBool(j) != b.ValueBool(j) {
 				return false
 			}
-		case TInt:
+		case query.TInt:
 			if a.ValueInt(j) != b.ValueInt(j) {
 				return false
 			}
-		case TUInt:
+		case query.TUInt:
 			if a.ValueUInt(j) != b.ValueUInt(j) {
 				return false
 			}
-		case TFloat:
+		case query.TFloat:
 			if a.ValueFloat(j) != b.ValueFloat(j) {
 				return false
 			}
-		case TString:
+		case query.TString:
 			if a.ValueString(j) != b.ValueString(j) {
 				return false
 			}
-		case TTime:
+		case query.TTime:
 			if a.ValueTime(j) != b.ValueTime(j) {
 				return false
 			}
@@ -176,7 +152,7 @@ func partitionKeyEqual(a, b PartitionKey) bool {
 	return true
 }
 
-func partitionKeyLess(a, b PartitionKey) bool {
+func partitionKeyLess(a, b query.PartitionKey) bool {
 	aCols := a.Cols()
 	bCols := b.Cols()
 	if av, bv := len(aCols), len(bCols); av != bv {
@@ -187,27 +163,27 @@ func partitionKeyLess(a, b PartitionKey) bool {
 			return aCols[j].Label < bCols[j].Label
 		}
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			if av, bv := a.ValueBool(j), b.ValueBool(j); av != bv {
 				return av
 			}
-		case TInt:
+		case query.TInt:
 			if av, bv := a.ValueInt(j), b.ValueInt(j); av != bv {
 				return av < bv
 			}
-		case TUInt:
+		case query.TUInt:
 			if av, bv := a.ValueUInt(j), b.ValueUInt(j); av != bv {
 				return av < bv
 			}
-		case TFloat:
+		case query.TFloat:
 			if av, bv := a.ValueFloat(j), b.ValueFloat(j); av != bv {
 				return av < bv
 			}
-		case TString:
+		case query.TString:
 			if av, bv := a.ValueString(j), b.ValueString(j); av != bv {
 				return av < bv
 			}
-		case TTime:
+		case query.TTime:
 			if av, bv := a.ValueTime(j), b.ValueTime(j); av != bv {
 				return av < bv
 			}
@@ -229,10 +205,10 @@ func (k *partitionKey) String() string {
 	return b.String()
 }
 
-func PartitionKeyForRow(i int, cr ColReader) PartitionKey {
+func PartitionKeyForRow(i int, cr query.ColReader) query.PartitionKey {
 	key := cr.Key()
 	cols := cr.Cols()
-	colsCpy := make([]ColMeta, 0, len(cols))
+	colsCpy := make([]query.ColMeta, 0, len(cols))
 	values := make([]interface{}, 0, len(cols))
 	for j, c := range cols {
 		if !key.HasCol(c.Label) {
@@ -240,17 +216,17 @@ func PartitionKeyForRow(i int, cr ColReader) PartitionKey {
 		}
 		colsCpy = append(colsCpy, c)
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			values = append(values, cr.Bools(j)[i])
-		case TInt:
+		case query.TInt:
 			values = append(values, cr.Ints(j)[i])
-		case TUInt:
+		case query.TUInt:
 			values = append(values, cr.UInts(j)[i])
-		case TFloat:
+		case query.TFloat:
 			values = append(values, cr.Floats(j)[i])
-		case TString:
+		case query.TString:
 			values = append(values, cr.Strings(j)[i])
-		case TTime:
+		case query.TTime:
 			values = append(values, cr.Times(j)[i])
 		}
 	}
@@ -260,8 +236,8 @@ func PartitionKeyForRow(i int, cr ColReader) PartitionKey {
 	}
 }
 
-func PartitionKeyForRowOn(i int, cr ColReader, on map[string]bool) PartitionKey {
-	cols := make([]ColMeta, 0, len(on))
+func PartitionKeyForRowOn(i int, cr query.ColReader, on map[string]bool) query.PartitionKey {
+	cols := make([]query.ColMeta, 0, len(on))
 	values := make([]interface{}, 0, len(on))
 	for j, c := range cr.Cols() {
 		if !on[c.Label] {
@@ -269,48 +245,34 @@ func PartitionKeyForRowOn(i int, cr ColReader, on map[string]bool) PartitionKey 
 		}
 		cols = append(cols, c)
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			values = append(values, cr.Bools(j)[i])
-		case TInt:
+		case query.TInt:
 			values = append(values, cr.Ints(j)[i])
-		case TUInt:
+		case query.TUInt:
 			values = append(values, cr.UInts(j)[i])
-		case TFloat:
+		case query.TFloat:
 			values = append(values, cr.Floats(j)[i])
-		case TString:
+		case query.TString:
 			values = append(values, cr.Strings(j)[i])
-		case TTime:
+		case query.TTime:
 			values = append(values, cr.Times(j)[i])
 		}
 	}
 	return NewPartitionKey(cols, values)
 }
 
-type Block interface {
-	Key() PartitionKey
-
-	Cols() []ColMeta
-
-	// Do calls f to process the data contained within the block.
-	// The function f will be called zero or more times.
-	Do(f func(ColReader) error) error
-
-	// RefCount modifies the reference count on the block by n.
-	// When the RefCount goes to zero, the block is freed.
-	RefCount(n int)
-}
-
 // OneTimeBlock is a Block that permits reading data only once.
 // Specifically the ValueIterator may only be consumed once from any of the columns.
 type OneTimeBlock interface {
-	Block
+	query.Block
 	onetime()
 }
 
 // CacheOneTimeBlock returns a block that can be read multiple times.
 // If the block is not a OneTimeBlock it is returned directly.
 // Otherwise its contents are read into a new block.
-func CacheOneTimeBlock(b Block, a *Allocator) Block {
+func CacheOneTimeBlock(b query.Block, a *Allocator) query.Block {
 	_, ok := b.(OneTimeBlock)
 	if !ok {
 		return b
@@ -319,7 +281,7 @@ func CacheOneTimeBlock(b Block, a *Allocator) Block {
 }
 
 // CopyBlock returns a copy of the block and is OneTimeBlock safe.
-func CopyBlock(b Block, a *Allocator) Block {
+func CopyBlock(b query.Block, a *Allocator) query.Block {
 	builder := NewColListBlockBuilder(b.Key(), a)
 
 	cols := b.Cols()
@@ -336,14 +298,14 @@ func CopyBlock(b Block, a *Allocator) Block {
 }
 
 // AddBlockCols adds the columns of b onto builder.
-func AddBlockCols(b Block, builder BlockBuilder) {
+func AddBlockCols(b query.Block, builder BlockBuilder) {
 	cols := b.Cols()
 	for _, c := range cols {
 		builder.AddCol(c)
 	}
 }
 
-func AddBlockKeyCols(key PartitionKey, builder BlockBuilder) {
+func AddBlockKeyCols(key query.PartitionKey, builder BlockBuilder) {
 	for _, c := range key.Cols() {
 		builder.AddCol(c)
 	}
@@ -351,7 +313,7 @@ func AddBlockKeyCols(key PartitionKey, builder BlockBuilder) {
 
 // AddNewCols adds the columns of b onto builder that did not already exist.
 // Returns the mapping of builder cols to block cols.
-func AddNewCols(b Block, builder BlockBuilder) []int {
+func AddNewCols(b query.Block, builder BlockBuilder) []int {
 	cols := b.Cols()
 	existing := builder.Cols()
 	colMap := make([]int, len(existing))
@@ -374,12 +336,12 @@ func AddNewCols(b Block, builder BlockBuilder) []int {
 
 // AppendBlock append data from block b onto builder.
 // The colMap is a map of builder column index to block column index.
-func AppendBlock(b Block, builder BlockBuilder, colMap []int) {
+func AppendBlock(b query.Block, builder BlockBuilder, colMap []int) {
 	if len(b.Cols()) == 0 {
 		return
 	}
 
-	b.Do(func(cr ColReader) error {
+	b.Do(func(cr query.ColReader) error {
 		AppendCols(cr, builder, colMap)
 		return nil
 	})
@@ -387,7 +349,7 @@ func AppendBlock(b Block, builder BlockBuilder, colMap []int) {
 
 // AppendCols appends all columns from cr onto builder.
 // The colMap is a map of builder column index to cr column index.
-func AppendCols(cr ColReader, builder BlockBuilder, colMap []int) {
+func AppendCols(cr query.ColReader, builder BlockBuilder, colMap []int) {
 	for j := range builder.Cols() {
 		AppendCol(j, colMap[j], cr, builder)
 	}
@@ -395,20 +357,20 @@ func AppendCols(cr ColReader, builder BlockBuilder, colMap []int) {
 
 // AppendCol append a column from cr onto builder
 // The indexes bj and cj are builder and col reader indexes respectively.
-func AppendCol(bj, cj int, cr ColReader, builder BlockBuilder) {
+func AppendCol(bj, cj int, cr query.ColReader, builder BlockBuilder) {
 	c := cr.Cols()[cj]
 	switch c.Type {
-	case TBool:
+	case query.TBool:
 		builder.AppendBools(bj, cr.Bools(cj))
-	case TInt:
+	case query.TInt:
 		builder.AppendInts(bj, cr.Ints(cj))
-	case TUInt:
+	case query.TUInt:
 		builder.AppendUInts(bj, cr.UInts(cj))
-	case TFloat:
+	case query.TFloat:
 		builder.AppendFloats(bj, cr.Floats(cj))
-	case TString:
+	case query.TString:
 		builder.AppendStrings(bj, cr.Strings(cj))
-	case TTime:
+	case query.TTime:
 		builder.AppendTimes(bj, cr.Times(cj))
 	default:
 		PanicUnknownType(c.Type)
@@ -416,20 +378,20 @@ func AppendCol(bj, cj int, cr ColReader, builder BlockBuilder) {
 }
 
 // AppendMappedRecord appends the record from cr onto builder assuming matching columns.
-func AppendRecord(i int, cr ColReader, builder BlockBuilder) {
+func AppendRecord(i int, cr query.ColReader, builder BlockBuilder) {
 	for j, c := range builder.Cols() {
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			builder.AppendBool(j, cr.Bools(j)[i])
-		case TInt:
+		case query.TInt:
 			builder.AppendInt(j, cr.Ints(j)[i])
-		case TUInt:
+		case query.TUInt:
 			builder.AppendUInt(j, cr.UInts(j)[i])
-		case TFloat:
+		case query.TFloat:
 			builder.AppendFloat(j, cr.Floats(j)[i])
-		case TString:
+		case query.TString:
 			builder.AppendString(j, cr.Strings(j)[i])
-		case TTime:
+		case query.TTime:
 			builder.AppendTime(j, cr.Times(j)[i])
 		default:
 			PanicUnknownType(c.Type)
@@ -438,20 +400,20 @@ func AppendRecord(i int, cr ColReader, builder BlockBuilder) {
 }
 
 // AppendMappedRecord appends the records from cr onto builder, using colMap as a map of builder index to cr index.
-func AppendMappedRecord(i int, cr ColReader, builder BlockBuilder, colMap []int) {
+func AppendMappedRecord(i int, cr query.ColReader, builder BlockBuilder, colMap []int) {
 	for j, c := range builder.Cols() {
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			builder.AppendBool(j, cr.Bools(colMap[j])[i])
-		case TInt:
+		case query.TInt:
 			builder.AppendInt(j, cr.Ints(colMap[j])[i])
-		case TUInt:
+		case query.TUInt:
 			builder.AppendUInt(j, cr.UInts(colMap[j])[i])
-		case TFloat:
+		case query.TFloat:
 			builder.AppendFloat(j, cr.Floats(colMap[j])[i])
-		case TString:
+		case query.TString:
 			builder.AppendString(j, cr.Strings(colMap[j])[i])
-		case TTime:
+		case query.TTime:
 			builder.AppendTime(j, cr.Times(colMap[j])[i])
 		default:
 			PanicUnknownType(c.Type)
@@ -460,20 +422,20 @@ func AppendMappedRecord(i int, cr ColReader, builder BlockBuilder, colMap []int)
 }
 
 // AppendRecordForCols appends the only the columns provided from cr onto builder.
-func AppendRecordForCols(i int, cr ColReader, builder BlockBuilder, cols []ColMeta) {
+func AppendRecordForCols(i int, cr query.ColReader, builder BlockBuilder, cols []query.ColMeta) {
 	for j, c := range cols {
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			builder.AppendBool(j, cr.Bools(j)[i])
-		case TInt:
+		case query.TInt:
 			builder.AppendInt(j, cr.Ints(j)[i])
-		case TUInt:
+		case query.TUInt:
 			builder.AppendUInt(j, cr.UInts(j)[i])
-		case TFloat:
+		case query.TFloat:
 			builder.AppendFloat(j, cr.Floats(j)[i])
-		case TString:
+		case query.TString:
 			builder.AppendString(j, cr.Strings(j)[i])
-		case TTime:
+		case query.TTime:
 			builder.AppendTime(j, cr.Times(j)[i])
 		default:
 			PanicUnknownType(c.Type)
@@ -481,21 +443,21 @@ func AppendRecordForCols(i int, cr ColReader, builder BlockBuilder, cols []ColMe
 	}
 }
 
-func AppendKeyValues(key PartitionKey, builder BlockBuilder) {
+func AppendKeyValues(key query.PartitionKey, builder BlockBuilder) {
 	for j, c := range key.Cols() {
 		idx := ColIdx(c.Label, builder.Cols())
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			builder.AppendBool(idx, key.ValueBool(j))
-		case TInt:
+		case query.TInt:
 			builder.AppendInt(idx, key.ValueInt(j))
-		case TUInt:
+		case query.TUInt:
 			builder.AppendUInt(idx, key.ValueUInt(j))
-		case TFloat:
+		case query.TFloat:
 			builder.AppendFloat(idx, key.ValueFloat(j))
-		case TString:
+		case query.TString:
 			builder.AppendString(idx, key.ValueString(j))
-		case TTime:
+		case query.TTime:
 			builder.AppendTime(idx, key.ValueTime(j))
 		default:
 			PanicUnknownType(c.Type)
@@ -512,7 +474,7 @@ func ContainsStr(strs []string, str string) bool {
 	return false
 }
 
-func ColIdx(label string, cols []ColMeta) int {
+func ColIdx(label string, cols []query.ColMeta) int {
 	for j, c := range cols {
 		if c.Label == label {
 			return j
@@ -520,21 +482,21 @@ func ColIdx(label string, cols []ColMeta) int {
 	}
 	return -1
 }
-func HasCol(label string, cols []ColMeta) bool {
+func HasCol(label string, cols []query.ColMeta) bool {
 	return ColIdx(label, cols) >= 0
 }
 
 // BlockBuilder builds blocks that can be used multiple times
 type BlockBuilder interface {
-	Key() PartitionKey
+	Key() query.PartitionKey
 
 	NRows() int
 	NCols() int
-	Cols() []ColMeta
+	Cols() []query.ColMeta
 
 	// AddCol increases the size of the block by one column.
 	// The index of the column is returned.
-	AddCol(ColMeta) int
+	AddCol(query.ColMeta) int
 
 	// Set sets the value at the specified coordinates
 	// The rows and columns must exist before calling set, otherwise Set panics.
@@ -567,67 +529,7 @@ type BlockBuilder interface {
 
 	// Block returns the block that has been built.
 	// Further modifications of the builder will not effect the returned block.
-	Block() (Block, error)
-}
-
-type DataType int
-
-const (
-	TInvalid DataType = iota
-	TBool
-	TInt
-	TUInt
-	TFloat
-	TString
-	TTime
-)
-
-func (t DataType) String() string {
-	switch t {
-	case TInvalid:
-		return "invalid"
-	case TBool:
-		return "bool"
-	case TInt:
-		return "int"
-	case TUInt:
-		return "uint"
-	case TFloat:
-		return "float"
-	case TString:
-		return "string"
-	case TTime:
-		return "time"
-	default:
-		return "unknown"
-	}
-}
-
-type ColMeta struct {
-	Label string
-	Type  DataType
-}
-
-type BlockIterator interface {
-	Do(f func(Block) error) error
-}
-
-// ColReader allows access to reading slices of column data.
-// All data the ColReader exposes is guaranteed to be in memory.
-// Once a ColReader goes out of scope all slices are considered invalid.
-type ColReader interface {
-	Key() PartitionKey
-	// Cols returns a list of column metadata.
-	Cols() []ColMeta
-	// Len returns the length of the slices.
-	// All slices will have the same length.
-	Len() int
-	Bools(j int) []bool
-	Ints(j int) []int64
-	UInts(j int) []uint64
-	Floats(j int) []float64
-	Strings(j int) []string
-	Times(j int) []Time
+	Block() (query.Block, error)
 }
 
 type ColListBlockBuilder struct {
@@ -635,14 +537,14 @@ type ColListBlockBuilder struct {
 	alloc *Allocator
 }
 
-func NewColListBlockBuilder(key PartitionKey, a *Allocator) *ColListBlockBuilder {
+func NewColListBlockBuilder(key query.PartitionKey, a *Allocator) *ColListBlockBuilder {
 	return &ColListBlockBuilder{
 		blk:   &ColListBlock{key: key},
 		alloc: a,
 	}
 }
 
-func (b ColListBlockBuilder) Key() PartitionKey {
+func (b ColListBlockBuilder) Key() query.PartitionKey {
 	return b.blk.Key()
 }
 
@@ -652,39 +554,39 @@ func (b ColListBlockBuilder) NRows() int {
 func (b ColListBlockBuilder) NCols() int {
 	return len(b.blk.cols)
 }
-func (b ColListBlockBuilder) Cols() []ColMeta {
+func (b ColListBlockBuilder) Cols() []query.ColMeta {
 	return b.blk.colMeta
 }
 
-func (b ColListBlockBuilder) AddCol(c ColMeta) int {
+func (b ColListBlockBuilder) AddCol(c query.ColMeta) int {
 	var col column
 	switch c.Type {
-	case TBool:
+	case query.TBool:
 		col = &boolColumn{
 			ColMeta: c,
 			alloc:   b.alloc,
 		}
-	case TInt:
+	case query.TInt:
 		col = &intColumn{
 			ColMeta: c,
 			alloc:   b.alloc,
 		}
-	case TUInt:
+	case query.TUInt:
 		col = &uintColumn{
 			ColMeta: c,
 			alloc:   b.alloc,
 		}
-	case TFloat:
+	case query.TFloat:
 		col = &floatColumn{
 			ColMeta: c,
 			alloc:   b.alloc,
 		}
-	case TString:
+	case query.TString:
 		col = &stringColumn{
 			ColMeta: c,
 			alloc:   b.alloc,
 		}
-	case TTime:
+	case query.TTime:
 		col = &timeColumn{
 			ColMeta: c,
 			alloc:   b.alloc,
@@ -698,123 +600,123 @@ func (b ColListBlockBuilder) AddCol(c ColMeta) int {
 }
 
 func (b ColListBlockBuilder) SetBool(i int, j int, value bool) {
-	b.checkColType(j, TBool)
+	b.checkColType(j, query.TBool)
 	b.blk.cols[j].(*boolColumn).data[i] = value
 }
 func (b ColListBlockBuilder) AppendBool(j int, value bool) {
-	b.checkColType(j, TBool)
+	b.checkColType(j, query.TBool)
 	col := b.blk.cols[j].(*boolColumn)
 	col.data = b.alloc.AppendBools(col.data, value)
 	b.blk.nrows = len(col.data)
 }
 func (b ColListBlockBuilder) AppendBools(j int, values []bool) {
-	b.checkColType(j, TBool)
+	b.checkColType(j, query.TBool)
 	col := b.blk.cols[j].(*boolColumn)
 	col.data = b.alloc.AppendBools(col.data, values...)
 	b.blk.nrows = len(col.data)
 }
 
 func (b ColListBlockBuilder) SetInt(i int, j int, value int64) {
-	b.checkColType(j, TInt)
+	b.checkColType(j, query.TInt)
 	b.blk.cols[j].(*intColumn).data[i] = value
 }
 func (b ColListBlockBuilder) AppendInt(j int, value int64) {
-	b.checkColType(j, TInt)
+	b.checkColType(j, query.TInt)
 	col := b.blk.cols[j].(*intColumn)
 	col.data = b.alloc.AppendInts(col.data, value)
 	b.blk.nrows = len(col.data)
 }
 func (b ColListBlockBuilder) AppendInts(j int, values []int64) {
-	b.checkColType(j, TInt)
+	b.checkColType(j, query.TInt)
 	col := b.blk.cols[j].(*intColumn)
 	col.data = b.alloc.AppendInts(col.data, values...)
 	b.blk.nrows = len(col.data)
 }
 
 func (b ColListBlockBuilder) SetUInt(i int, j int, value uint64) {
-	b.checkColType(j, TUInt)
+	b.checkColType(j, query.TUInt)
 	b.blk.cols[j].(*uintColumn).data[i] = value
 }
 func (b ColListBlockBuilder) AppendUInt(j int, value uint64) {
-	b.checkColType(j, TUInt)
+	b.checkColType(j, query.TUInt)
 	col := b.blk.cols[j].(*uintColumn)
 	col.data = b.alloc.AppendUInts(col.data, value)
 	b.blk.nrows = len(col.data)
 }
 func (b ColListBlockBuilder) AppendUInts(j int, values []uint64) {
-	b.checkColType(j, TUInt)
+	b.checkColType(j, query.TUInt)
 	col := b.blk.cols[j].(*uintColumn)
 	col.data = b.alloc.AppendUInts(col.data, values...)
 	b.blk.nrows = len(col.data)
 }
 
 func (b ColListBlockBuilder) SetFloat(i int, j int, value float64) {
-	b.checkColType(j, TFloat)
+	b.checkColType(j, query.TFloat)
 	b.blk.cols[j].(*floatColumn).data[i] = value
 }
 func (b ColListBlockBuilder) AppendFloat(j int, value float64) {
-	b.checkColType(j, TFloat)
+	b.checkColType(j, query.TFloat)
 	col := b.blk.cols[j].(*floatColumn)
 	col.data = b.alloc.AppendFloats(col.data, value)
 	b.blk.nrows = len(col.data)
 }
 func (b ColListBlockBuilder) AppendFloats(j int, values []float64) {
-	b.checkColType(j, TFloat)
+	b.checkColType(j, query.TFloat)
 	col := b.blk.cols[j].(*floatColumn)
 	col.data = b.alloc.AppendFloats(col.data, values...)
 	b.blk.nrows = len(col.data)
 }
 
 func (b ColListBlockBuilder) SetString(i int, j int, value string) {
-	b.checkColType(j, TString)
+	b.checkColType(j, query.TString)
 	b.blk.cols[j].(*stringColumn).data[i] = value
 }
 func (b ColListBlockBuilder) AppendString(j int, value string) {
 	meta := b.blk.cols[j].Meta()
-	CheckColType(meta, TString)
+	CheckColType(meta, query.TString)
 	col := b.blk.cols[j].(*stringColumn)
 	col.data = b.alloc.AppendStrings(col.data, value)
 	b.blk.nrows = len(col.data)
 }
 func (b ColListBlockBuilder) AppendStrings(j int, values []string) {
-	b.checkColType(j, TString)
+	b.checkColType(j, query.TString)
 	col := b.blk.cols[j].(*stringColumn)
 	col.data = b.alloc.AppendStrings(col.data, values...)
 	b.blk.nrows = len(col.data)
 }
 
 func (b ColListBlockBuilder) SetTime(i int, j int, value Time) {
-	b.checkColType(j, TTime)
+	b.checkColType(j, query.TTime)
 	b.blk.cols[j].(*timeColumn).data[i] = value
 }
 func (b ColListBlockBuilder) AppendTime(j int, value Time) {
-	b.checkColType(j, TTime)
+	b.checkColType(j, query.TTime)
 	col := b.blk.cols[j].(*timeColumn)
 	col.data = b.alloc.AppendTimes(col.data, value)
 	b.blk.nrows = len(col.data)
 }
 func (b ColListBlockBuilder) AppendTimes(j int, values []Time) {
-	b.checkColType(j, TTime)
+	b.checkColType(j, query.TTime)
 	col := b.blk.cols[j].(*timeColumn)
 	col.data = b.alloc.AppendTimes(col.data, values...)
 	b.blk.nrows = len(col.data)
 }
 
-func (b ColListBlockBuilder) checkColType(j int, typ DataType) {
+func (b ColListBlockBuilder) checkColType(j int, typ query.DataType) {
 	CheckColType(b.blk.colMeta[j], typ)
 }
 
-func CheckColType(col ColMeta, typ DataType) {
+func CheckColType(col query.ColMeta, typ query.DataType) {
 	if col.Type != typ {
 		panic(fmt.Errorf("column %s is not of type %v", col.Label, typ))
 	}
 }
 
-func PanicUnknownType(typ DataType) {
+func PanicUnknownType(typ query.DataType) {
 	panic(fmt.Errorf("unknown type %v", typ))
 }
 
-func (b ColListBlockBuilder) Block() (Block, error) {
+func (b ColListBlockBuilder) Block() (query.Block, error) {
 	// Create copy in mutable state
 	return b.blk.Copy(), nil
 }
@@ -851,8 +753,8 @@ func (b ColListBlockBuilder) Sort(cols []string, desc bool) {
 // All data for the block is stored in RAM.
 // As a result At* methods are provided directly on the block for easy access.
 type ColListBlock struct {
-	key     PartitionKey
-	colMeta []ColMeta
+	key     query.PartitionKey
+	colMeta []query.ColMeta
 	cols    []column
 	nrows   int
 
@@ -868,10 +770,10 @@ func (b *ColListBlock) RefCount(n int) {
 	}
 }
 
-func (b *ColListBlock) Key() PartitionKey {
+func (b *ColListBlock) Key() query.PartitionKey {
 	return b.key
 }
-func (b *ColListBlock) Cols() []ColMeta {
+func (b *ColListBlock) Cols() []query.ColMeta {
 	return b.colMeta
 }
 func (b *ColListBlock) NRows() int {
@@ -882,33 +784,33 @@ func (b *ColListBlock) Len() int {
 	return b.nrows
 }
 
-func (b *ColListBlock) Do(f func(ColReader) error) error {
+func (b *ColListBlock) Do(f func(query.ColReader) error) error {
 	return f(b)
 }
 
 func (b *ColListBlock) Bools(j int) []bool {
-	CheckColType(b.colMeta[j], TBool)
+	CheckColType(b.colMeta[j], query.TBool)
 	return b.cols[j].(*boolColumn).data
 }
 func (b *ColListBlock) Ints(j int) []int64 {
-	CheckColType(b.colMeta[j], TInt)
+	CheckColType(b.colMeta[j], query.TInt)
 	return b.cols[j].(*intColumn).data
 }
 func (b *ColListBlock) UInts(j int) []uint64 {
-	CheckColType(b.colMeta[j], TUInt)
+	CheckColType(b.colMeta[j], query.TUInt)
 	return b.cols[j].(*uintColumn).data
 }
 func (b *ColListBlock) Floats(j int) []float64 {
-	CheckColType(b.colMeta[j], TFloat)
+	CheckColType(b.colMeta[j], query.TFloat)
 	return b.cols[j].(*floatColumn).data
 }
 func (b *ColListBlock) Strings(j int) []string {
 	meta := b.colMeta[j]
-	CheckColType(meta, TString)
+	CheckColType(meta, query.TString)
 	return b.cols[j].(*stringColumn).data
 }
 func (b *ColListBlock) Times(j int) []Time {
-	CheckColType(b.colMeta[j], TTime)
+	CheckColType(b.colMeta[j], query.TTime)
 	return b.cols[j].(*timeColumn).data
 }
 
@@ -917,7 +819,7 @@ func (b *ColListBlock) Copy() *ColListBlock {
 	cpy.key = b.key
 	cpy.nrows = b.nrows
 
-	cpy.colMeta = make([]ColMeta, len(b.colMeta))
+	cpy.colMeta = make([]query.ColMeta, len(b.colMeta))
 	copy(cpy.colMeta, b.colMeta)
 
 	cpy.cols = make([]column, len(b.cols))
@@ -958,7 +860,7 @@ func (c colListBlockSorter) Swap(x int, y int) {
 }
 
 type column interface {
-	Meta() ColMeta
+	Meta() query.ColMeta
 	Clear()
 	Copy() column
 	Equal(i, j int) bool
@@ -967,12 +869,12 @@ type column interface {
 }
 
 type boolColumn struct {
-	ColMeta
+	query.ColMeta
 	data  []bool
 	alloc *Allocator
 }
 
-func (c *boolColumn) Meta() ColMeta {
+func (c *boolColumn) Meta() query.ColMeta {
 	return c.ColMeta
 }
 
@@ -1004,12 +906,12 @@ func (c *boolColumn) Swap(i, j int) {
 }
 
 type intColumn struct {
-	ColMeta
+	query.ColMeta
 	data  []int64
 	alloc *Allocator
 }
 
-func (c *intColumn) Meta() ColMeta {
+func (c *intColumn) Meta() query.ColMeta {
 	return c.ColMeta
 }
 
@@ -1038,12 +940,12 @@ func (c *intColumn) Swap(i, j int) {
 }
 
 type uintColumn struct {
-	ColMeta
+	query.ColMeta
 	data  []uint64
 	alloc *Allocator
 }
 
-func (c *uintColumn) Meta() ColMeta {
+func (c *uintColumn) Meta() query.ColMeta {
 	return c.ColMeta
 }
 
@@ -1072,12 +974,12 @@ func (c *uintColumn) Swap(i, j int) {
 }
 
 type floatColumn struct {
-	ColMeta
+	query.ColMeta
 	data  []float64
 	alloc *Allocator
 }
 
-func (c *floatColumn) Meta() ColMeta {
+func (c *floatColumn) Meta() query.ColMeta {
 	return c.ColMeta
 }
 
@@ -1106,12 +1008,12 @@ func (c *floatColumn) Swap(i, j int) {
 }
 
 type stringColumn struct {
-	ColMeta
+	query.ColMeta
 	data  []string
 	alloc *Allocator
 }
 
-func (c *stringColumn) Meta() ColMeta {
+func (c *stringColumn) Meta() query.ColMeta {
 	return c.ColMeta
 }
 
@@ -1141,12 +1043,12 @@ func (c *stringColumn) Swap(i, j int) {
 }
 
 type timeColumn struct {
-	ColMeta
+	query.ColMeta
 	data  []Time
 	alloc *Allocator
 }
 
-func (c *timeColumn) Meta() ColMeta {
+func (c *timeColumn) Meta() query.ColMeta {
 	return c.ColMeta
 }
 
@@ -1177,8 +1079,8 @@ func (c *timeColumn) Swap(i, j int) {
 type BlockBuilderCache interface {
 	// BlockBuilder returns an existing or new BlockBuilder for the given meta data.
 	// The boolean return value indicates if BlockBuilder is new.
-	BlockBuilder(key PartitionKey) (BlockBuilder, bool)
-	ForEachBuilder(f func(PartitionKey, BlockBuilder))
+	BlockBuilder(key query.PartitionKey) (BlockBuilder, bool)
+	ForEachBuilder(f func(query.PartitionKey, BlockBuilder))
 }
 
 type blockBuilderCache struct {
@@ -1204,7 +1106,7 @@ func (d *blockBuilderCache) SetTriggerSpec(ts query.TriggerSpec) {
 	d.triggerSpec = ts
 }
 
-func (d *blockBuilderCache) Block(key PartitionKey) (Block, error) {
+func (d *blockBuilderCache) Block(key query.PartitionKey) (query.Block, error) {
 	b, ok := d.lookupState(key)
 	if !ok {
 		return nil, errors.New("block not found")
@@ -1212,7 +1114,7 @@ func (d *blockBuilderCache) Block(key PartitionKey) (Block, error) {
 	return b.builder.Block()
 }
 
-func (d *blockBuilderCache) lookupState(key PartitionKey) (blockState, bool) {
+func (d *blockBuilderCache) lookupState(key query.PartitionKey) (blockState, bool) {
 	v, ok := d.blocks.Lookup(key)
 	if !ok {
 		return blockState{}, false
@@ -1222,7 +1124,7 @@ func (d *blockBuilderCache) lookupState(key PartitionKey) (blockState, bool) {
 
 // BlockBuilder will return the builder for the specified block.
 // If no builder exists, one will be created.
-func (d *blockBuilderCache) BlockBuilder(key PartitionKey) (BlockBuilder, bool) {
+func (d *blockBuilderCache) BlockBuilder(key query.PartitionKey) (BlockBuilder, bool) {
 	b, ok := d.lookupState(key)
 	if !ok {
 		builder := NewColListBlockBuilder(key, d.alloc)
@@ -1236,34 +1138,34 @@ func (d *blockBuilderCache) BlockBuilder(key PartitionKey) (BlockBuilder, bool) 
 	return b.builder, !ok
 }
 
-func (d *blockBuilderCache) ForEachBuilder(f func(PartitionKey, BlockBuilder)) {
-	d.blocks.Range(func(key PartitionKey, value interface{}) {
+func (d *blockBuilderCache) ForEachBuilder(f func(query.PartitionKey, BlockBuilder)) {
+	d.blocks.Range(func(key query.PartitionKey, value interface{}) {
 		f(key, value.(blockState).builder)
 	})
 }
 
-func (d *blockBuilderCache) DiscardBlock(key PartitionKey) {
+func (d *blockBuilderCache) DiscardBlock(key query.PartitionKey) {
 	b, ok := d.lookupState(key)
 	if ok {
 		b.builder.ClearData()
 	}
 }
 
-func (d *blockBuilderCache) ExpireBlock(key PartitionKey) {
+func (d *blockBuilderCache) ExpireBlock(key query.PartitionKey) {
 	b, ok := d.blocks.Delete(key)
 	if ok {
 		b.(blockState).builder.ClearData()
 	}
 }
 
-func (d *blockBuilderCache) ForEach(f func(PartitionKey)) {
-	d.blocks.Range(func(key PartitionKey, value interface{}) {
+func (d *blockBuilderCache) ForEach(f func(query.PartitionKey)) {
+	d.blocks.Range(func(key query.PartitionKey, value interface{}) {
 		f(key)
 	})
 }
 
-func (d *blockBuilderCache) ForEachWithContext(f func(PartitionKey, Trigger, BlockContext)) {
-	d.blocks.Range(func(key PartitionKey, value interface{}) {
+func (d *blockBuilderCache) ForEachWithContext(f func(query.PartitionKey, Trigger, BlockContext)) {
+	d.blocks.Range(func(key query.PartitionKey, value interface{}) {
 		b := value.(blockState)
 		f(key, b.trigger, BlockContext{
 			Key:   key,

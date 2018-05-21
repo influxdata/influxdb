@@ -6,9 +6,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 )
 
 func TestAggregate_Process(t *testing.T) {
@@ -27,11 +28,11 @@ func TestAggregate_Process(t *testing.T) {
 			agg:    sumAgg,
 			data: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(100), execute.Time(0), 0.0},
@@ -48,11 +49,11 @@ func TestAggregate_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(100), execute.Time(100), 45.0},
@@ -69,11 +70,11 @@ func TestAggregate_Process(t *testing.T) {
 			agg: sumAgg,
 			data: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(100), execute.Time(0), 0.0},
@@ -90,11 +91,11 @@ func TestAggregate_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(100), execute.Time(0), 45.0},
@@ -108,11 +109,11 @@ func TestAggregate_Process(t *testing.T) {
 			data: []*executetest.Block{
 				{
 					KeyCols: []string{"_start", "_stop"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(100), execute.Time(0), 0.0},
@@ -129,11 +130,11 @@ func TestAggregate_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"_start", "_stop"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(100), execute.Time(200), execute.Time(100), 10.0},
@@ -152,11 +153,11 @@ func TestAggregate_Process(t *testing.T) {
 			want: []*executetest.Block{
 				{
 					KeyCols: []string{"_start", "_stop"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(100), execute.Time(100), 45.0},
@@ -164,11 +165,11 @@ func TestAggregate_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"_start", "_stop"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(100), execute.Time(200), execute.Time(200), 145.0},
@@ -183,12 +184,12 @@ func TestAggregate_Process(t *testing.T) {
 			data: []*executetest.Block{
 				{
 					KeyCols: []string{"_start", "_stop", "t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "t1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "t1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(100), "a", execute.Time(0), 0.0},
@@ -205,12 +206,12 @@ func TestAggregate_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"_start", "_stop", "t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "t1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "t1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(100), "b", execute.Time(0), 0.3},
@@ -227,12 +228,12 @@ func TestAggregate_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"_start", "_stop", "t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "t1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "t1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(100), execute.Time(200), "a", execute.Time(100), 10.0},
@@ -249,12 +250,12 @@ func TestAggregate_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"_start", "_stop", "t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "t1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "t1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(100), execute.Time(200), "b", execute.Time(100), 10.3},
@@ -273,12 +274,12 @@ func TestAggregate_Process(t *testing.T) {
 			want: []*executetest.Block{
 				{
 					KeyCols: []string{"_start", "_stop", "t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "t1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "t1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(100), "a", execute.Time(100), 45.0},
@@ -286,12 +287,12 @@ func TestAggregate_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"_start", "_stop", "t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "t1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "t1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(100), execute.Time(200), "a", execute.Time(200), 145.0},
@@ -299,12 +300,12 @@ func TestAggregate_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"_start", "_stop", "t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "t1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "t1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(100), "b", execute.Time(100), 48.0},
@@ -312,12 +313,12 @@ func TestAggregate_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"_start", "_stop", "t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "t1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "t1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(100), execute.Time(200), "b", execute.Time(200), 148.0},
@@ -335,12 +336,12 @@ func TestAggregate_Process(t *testing.T) {
 			agg: sumAgg,
 			data: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(100), execute.Time(0), 0.0, 0.0},
@@ -357,12 +358,12 @@ func TestAggregate_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(100), execute.Time(100), 45.0, -45.0},
@@ -379,12 +380,12 @@ func TestAggregate_Process(t *testing.T) {
 			agg: countAgg,
 			data: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(100), execute.Time(0), 0.0, 0.0},
@@ -401,12 +402,12 @@ func TestAggregate_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TInt},
-					{Label: "y", Type: execute.TInt},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TInt},
+					{Label: "y", Type: query.TInt},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(100), execute.Time(100), int64(10), int64(10)},

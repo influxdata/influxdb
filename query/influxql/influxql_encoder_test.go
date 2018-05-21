@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
-	"github.com/influxdata/platform"
 )
 
 var epoch = time.Unix(0, 0)
@@ -28,12 +28,12 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 			blocks: map[string][]*executetest.Block{
 				"0": {{
 					KeyCols: []string{"_measurement", "_field", "host"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_measurement", Type: execute.TString},
-						{Label: "_field", Type: execute.TString},
-						{Label: "host", Type: execute.TString},
-						{Label: execute.DefaultValueColLabel, Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "_field", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: execute.DefaultValueColLabel, Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(5), "cpu", "max", "localhost", 98.9},
@@ -48,13 +48,13 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 
-			resultsmap := map[string]execute.Result{}
+			resultsmap := map[string]query.Result{}
 
 			for k, v := range tc.blocks {
 				resultsmap[k] = executetest.NewResult(v)
 			}
 
-			results := platform.NewMapResultIterator(resultsmap)
+			results := query.NewMapResultIterator(resultsmap)
 
 			var resp bytes.Buffer
 			var influxQLEncoder MultiResultEncoder

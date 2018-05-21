@@ -138,11 +138,11 @@ func NewDistinctTransformation(d execute.Dataset, cache execute.BlockBuilderCach
 	}
 }
 
-func (t *distinctTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *distinctTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *distinctTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *distinctTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("distinct found duplicate block with key: %v", b.Key())
@@ -155,7 +155,7 @@ func (t *distinctTransformation) Process(id execute.DatasetID, b execute.Block) 
 	col := b.Cols()[colIdx]
 
 	execute.AddBlockKeyCols(b.Key(), builder)
-	colIdx = builder.AddCol(execute.ColMeta{
+	colIdx = builder.AddCol(query.ColMeta{
 		Label: execute.DefaultValueColLabel,
 		Type:  col.Type,
 	})
@@ -163,23 +163,23 @@ func (t *distinctTransformation) Process(id execute.DatasetID, b execute.Block) 
 	if b.Key().HasCol(t.column) {
 		j := execute.ColIdx(t.column, b.Key().Cols())
 		switch col.Type {
-		case execute.TBool:
+		case query.TBool:
 			builder.AppendBool(colIdx, b.Key().ValueBool(j))
-		case execute.TInt:
+		case query.TInt:
 			builder.AppendInt(colIdx, b.Key().ValueInt(j))
-		case execute.TUInt:
+		case query.TUInt:
 			builder.AppendUInt(colIdx, b.Key().ValueUInt(j))
-		case execute.TFloat:
+		case query.TFloat:
 			builder.AppendFloat(colIdx, b.Key().ValueFloat(j))
-		case execute.TString:
+		case query.TString:
 			builder.AppendString(colIdx, b.Key().ValueString(j))
-		case execute.TTime:
+		case query.TTime:
 			builder.AppendTime(colIdx, b.Key().ValueTime(j))
 		}
 
 		execute.AppendKeyValues(b.Key(), builder)
 		// TODO: this is a hack
-		return b.Do(func(execute.ColReader) error {
+		return b.Do(func(query.ColReader) error {
 			return nil
 		})
 	}
@@ -193,61 +193,61 @@ func (t *distinctTransformation) Process(id execute.DatasetID, b execute.Block) 
 		timeDistinct   map[execute.Time]bool
 	)
 	switch col.Type {
-	case execute.TBool:
+	case query.TBool:
 		boolDistinct = make(map[bool]bool)
-	case execute.TInt:
+	case query.TInt:
 		intDistinct = make(map[int64]bool)
-	case execute.TUInt:
+	case query.TUInt:
 		uintDistinct = make(map[uint64]bool)
-	case execute.TFloat:
+	case query.TFloat:
 		floatDistinct = make(map[float64]bool)
-	case execute.TString:
+	case query.TString:
 		stringDistinct = make(map[string]bool)
-	case execute.TTime:
+	case query.TTime:
 		timeDistinct = make(map[execute.Time]bool)
 	}
 
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			// Check distinct
 			switch col.Type {
-			case execute.TBool:
+			case query.TBool:
 				v := cr.Bools(colIdx)[i]
 				if boolDistinct[v] {
 					continue
 				}
 				boolDistinct[v] = true
 				builder.AppendBool(colIdx, v)
-			case execute.TInt:
+			case query.TInt:
 				v := cr.Ints(colIdx)[i]
 				if intDistinct[v] {
 					continue
 				}
 				intDistinct[v] = true
 				builder.AppendInt(colIdx, v)
-			case execute.TUInt:
+			case query.TUInt:
 				v := cr.UInts(colIdx)[i]
 				if uintDistinct[v] {
 					continue
 				}
 				uintDistinct[v] = true
 				builder.AppendUInt(colIdx, v)
-			case execute.TFloat:
+			case query.TFloat:
 				v := cr.Floats(colIdx)[i]
 				if floatDistinct[v] {
 					continue
 				}
 				floatDistinct[v] = true
 				builder.AppendFloat(colIdx, v)
-			case execute.TString:
+			case query.TString:
 				v := cr.Strings(colIdx)[i]
 				if stringDistinct[v] {
 					continue
 				}
 				stringDistinct[v] = true
 				builder.AppendString(colIdx, v)
-			case execute.TTime:
+			case query.TTime:
 				v := cr.Times(colIdx)[i]
 				if timeDistinct[v] {
 					continue

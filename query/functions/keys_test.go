@@ -3,28 +3,29 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 )
 
 func TestKeys_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.KeysProcedureSpec
-		data []execute.Block
+		data []query.Block
 		want []*executetest.Block
 	}{
 		{
 			name: "one block",
 			spec: &functions.KeysProcedureSpec{},
-			data: []execute.Block{
+			data: []query.Block{
 				&executetest.Block{
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
-						{Label: "tag0", Type: execute.TString},
-						{Label: "tag1", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "tag0", Type: query.TString},
+						{Label: "tag1", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{execute.Time(1), 2.0},
@@ -32,8 +33,8 @@ func TestKeys_Process(t *testing.T) {
 				},
 			},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_value", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_value", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{"_time"},
@@ -46,13 +47,13 @@ func TestKeys_Process(t *testing.T) {
 		{
 			name: "one block except",
 			spec: &functions.KeysProcedureSpec{Except: []string{"_value", "_time"}},
-			data: []execute.Block{
+			data: []query.Block{
 				&executetest.Block{
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
-						{Label: "tag0", Type: execute.TString},
-						{Label: "tag1", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "tag0", Type: query.TString},
+						{Label: "tag1", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{execute.Time(1), 2.0},
@@ -60,8 +61,8 @@ func TestKeys_Process(t *testing.T) {
 				},
 			},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_value", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_value", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{"tag0"},
@@ -72,14 +73,14 @@ func TestKeys_Process(t *testing.T) {
 		{
 			name: "two blocks",
 			spec: &functions.KeysProcedureSpec{},
-			data: []execute.Block{
+			data: []query.Block{
 				&executetest.Block{
 					KeyCols: []string{"tag0", "tag1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "tag0", Type: execute.TString},
-						{Label: "tag1", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "tag0", Type: query.TString},
+						{Label: "tag1", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{"tag0-0", "tag1-0", execute.Time(1), 2.0},
@@ -87,11 +88,11 @@ func TestKeys_Process(t *testing.T) {
 				},
 				&executetest.Block{
 					KeyCols: []string{"tag0", "tag2"},
-					ColMeta: []execute.ColMeta{
-						{Label: "tag0", Type: execute.TString},
-						{Label: "tag2", Type: execute.TString},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "tag0", Type: query.TString},
+						{Label: "tag2", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{"tag0-0", "tag2-0", execute.Time(1), 2.0},
@@ -101,10 +102,10 @@ func TestKeys_Process(t *testing.T) {
 			want: []*executetest.Block{
 				{
 					KeyCols: []string{"tag0", "tag1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "tag0", Type: execute.TString},
-						{Label: "tag1", Type: execute.TString},
-						{Label: "_value", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "tag0", Type: query.TString},
+						{Label: "tag1", Type: query.TString},
+						{Label: "_value", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{"tag0-0", "tag1-0", "_time"},
@@ -115,10 +116,10 @@ func TestKeys_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"tag0", "tag2"},
-					ColMeta: []execute.ColMeta{
-						{Label: "tag0", Type: execute.TString},
-						{Label: "tag2", Type: execute.TString},
-						{Label: "_value", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "tag0", Type: query.TString},
+						{Label: "tag2", Type: query.TString},
+						{Label: "_value", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{"tag0-0", "tag2-0", "_time"},

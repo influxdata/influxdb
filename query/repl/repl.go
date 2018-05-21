@@ -15,13 +15,13 @@ import (
 	"path/filepath"
 
 	prompt "github.com/c-bata/go-prompt"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/control"
+	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/parser"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/control"
-	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/influxdata/platform/query/values"
 	"github.com/pkg/errors"
@@ -224,7 +224,7 @@ func (r *REPL) doQuery(spec *query.Spec) error {
 		r := results[name]
 		blocks := r.Blocks()
 		fmt.Println("Result:", name)
-		err := blocks.Do(func(b execute.Block) error {
+		err := blocks.Do(func(b query.Block) error {
 			execute.NewFormatter(b, nil).WriteTo(os.Stdout)
 			return nil
 		})

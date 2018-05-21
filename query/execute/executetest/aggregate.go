@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 )
 
@@ -23,15 +24,15 @@ func AggFuncTestHelper(t *testing.T, agg execute.Aggregate, data []float64, want
 
 	var got interface{}
 	switch vf.Type() {
-	case execute.TBool:
+	case query.TBool:
 		got = vf.(execute.BoolValueFunc).ValueBool()
-	case execute.TInt:
+	case query.TInt:
 		got = vf.(execute.IntValueFunc).ValueInt()
-	case execute.TUInt:
+	case query.TUInt:
 		got = vf.(execute.UIntValueFunc).ValueUInt()
-	case execute.TFloat:
+	case query.TFloat:
 		got = vf.(execute.FloatValueFunc).ValueFloat()
-	case execute.TString:
+	case query.TString:
 		got = vf.(execute.StringValueFunc).ValueString()
 	}
 
@@ -49,15 +50,15 @@ func AggFuncBenchmarkHelper(b *testing.B, agg execute.Aggregate, data []float64,
 		vf.DoFloat(data)
 		var got interface{}
 		switch vf.Type() {
-		case execute.TBool:
+		case query.TBool:
 			got = vf.(execute.BoolValueFunc).ValueBool()
-		case execute.TInt:
+		case query.TInt:
 			got = vf.(execute.IntValueFunc).ValueInt()
-		case execute.TUInt:
+		case query.TUInt:
 			got = vf.(execute.UIntValueFunc).ValueUInt()
-		case execute.TFloat:
+		case query.TFloat:
 			got = vf.(execute.FloatValueFunc).ValueFloat()
-		case execute.TString:
+		case query.TString:
 			got = vf.(execute.StringValueFunc).ValueString()
 		}
 		if !cmp.Equal(want, got) {

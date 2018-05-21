@@ -3,11 +3,11 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/ast"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -145,7 +145,7 @@ func TestMap_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.MapProcedureSpec
-		data []execute.Block
+		data []query.Block
 		want []*executetest.Block
 	}{
 		{
@@ -183,10 +183,10 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0},
@@ -194,9 +194,9 @@ func TestMap_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 6.0},
@@ -242,10 +242,10 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0},
@@ -253,9 +253,9 @@ func TestMap_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0},
@@ -300,10 +300,10 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TInt},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TInt},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), int64(1)},
@@ -311,9 +311,9 @@ func TestMap_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0},
@@ -358,10 +358,10 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TUInt},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TUInt},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), uint64(1)},
@@ -369,9 +369,9 @@ func TestMap_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0},

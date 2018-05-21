@@ -3,8 +3,8 @@ package execute
 import (
 	"fmt"
 
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
 )
@@ -84,21 +84,21 @@ func NewAggregateTransformationAndDataset(id DatasetID, mode AccumulationMode, a
 	return NewAggregateTransformation(d, cache, agg, config), d
 }
 
-func (t *aggregateTransformation) RetractBlock(id DatasetID, key PartitionKey) error {
+func (t *aggregateTransformation) RetractBlock(id DatasetID, key query.PartitionKey) error {
 	//TODO(nathanielc): Store intermediate state for retractions
 	return t.d.RetractBlock(key)
 }
 
-func (t *aggregateTransformation) Process(id DatasetID, b Block) error {
+func (t *aggregateTransformation) Process(id DatasetID, b query.Block) error {
 	builder, new := t.cache.BlockBuilder(b.Key())
 	if !new {
 		return fmt.Errorf("aggregate found duplicate block with key: %v", b.Key())
 	}
 
 	AddBlockKeyCols(b.Key(), builder)
-	builder.AddCol(ColMeta{
+	builder.AddCol(query.ColMeta{
 		Label: t.config.TimeDst,
-		Type:  TTime,
+		Type:  query.TTime,
 	})
 
 	builderColMap := make([]int, len(t.config.Columns))
@@ -123,21 +123,21 @@ func (t *aggregateTransformation) Process(id DatasetID, b Block) error {
 		}
 		var vf ValueFunc
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			vf = t.agg.NewBoolAgg()
-		case TInt:
+		case query.TInt:
 			vf = t.agg.NewIntAgg()
-		case TUInt:
+		case query.TUInt:
 			vf = t.agg.NewUIntAgg()
-		case TFloat:
+		case query.TFloat:
 			vf = t.agg.NewFloatAgg()
-		case TString:
+		case query.TString:
 			vf = t.agg.NewStringAgg()
 		default:
 			return fmt.Errorf("unsupported aggregate column type %v", c.Type)
 		}
 		aggregates[j] = vf
-		builderColMap[j] = builder.AddCol(ColMeta{
+		builderColMap[j] = builder.AddCol(query.ColMeta{
 			Label: c.Label,
 			Type:  vf.Type(),
 		})
@@ -147,7 +147,7 @@ func (t *aggregateTransformation) Process(id DatasetID, b Block) error {
 		return err
 	}
 
-	b.Do(func(cr ColReader) error {
+	b.Do(func(cr query.ColReader) error {
 		for j := range t.config.Columns {
 			vf := aggregates[j]
 
@@ -155,15 +155,15 @@ func (t *aggregateTransformation) Process(id DatasetID, b Block) error {
 			c := b.Cols()[tj]
 
 			switch c.Type {
-			case TBool:
+			case query.TBool:
 				vf.(DoBoolAgg).DoBool(cr.Bools(tj))
-			case TInt:
+			case query.TInt:
 				vf.(DoIntAgg).DoInt(cr.Ints(tj))
-			case TUInt:
+			case query.TUInt:
 				vf.(DoUIntAgg).DoUInt(cr.UInts(tj))
-			case TFloat:
+			case query.TFloat:
 				vf.(DoFloatAgg).DoFloat(cr.Floats(tj))
-			case TString:
+			case query.TString:
 				vf.(DoStringAgg).DoString(cr.Strings(tj))
 			default:
 				return fmt.Errorf("unsupport aggregate type %v", c.Type)
@@ -175,15 +175,15 @@ func (t *aggregateTransformation) Process(id DatasetID, b Block) error {
 		bj := builderColMap[j]
 		// Append aggregated value
 		switch vf.Type() {
-		case TBool:
+		case query.TBool:
 			builder.AppendBool(bj, vf.(BoolValueFunc).ValueBool())
-		case TInt:
+		case query.TInt:
 			builder.AppendInt(bj, vf.(IntValueFunc).ValueInt())
-		case TUInt:
+		case query.TUInt:
 			builder.AppendUInt(bj, vf.(UIntValueFunc).ValueUInt())
-		case TFloat:
+		case query.TFloat:
 			builder.AppendFloat(bj, vf.(FloatValueFunc).ValueFloat())
-		case TString:
+		case query.TString:
 			builder.AppendString(bj, vf.(StringValueFunc).ValueString())
 		}
 	}
@@ -203,13 +203,13 @@ func (t *aggregateTransformation) Finish(id DatasetID, err error) {
 	t.d.Finish(err)
 }
 
-func AppendAggregateTime(srcTime, dstTime string, key PartitionKey, builder BlockBuilder) error {
+func AppendAggregateTime(srcTime, dstTime string, key query.PartitionKey, builder BlockBuilder) error {
 	srcTimeIdx := ColIdx(srcTime, key.Cols())
 	if srcTimeIdx < 0 {
 		return fmt.Errorf("timeValue column %q does not exist", srcTime)
 	}
 	srcTimeCol := key.Cols()[srcTimeIdx]
-	if srcTimeCol.Type != TTime {
+	if srcTimeCol.Type != query.TTime {
 		return fmt.Errorf("timeValue column %q does not have type time", srcTime)
 	}
 
@@ -218,7 +218,7 @@ func AppendAggregateTime(srcTime, dstTime string, key PartitionKey, builder Bloc
 		return fmt.Errorf("timeValue column %q does not exist", dstTime)
 	}
 	dstTimeCol := builder.Cols()[dstTimeIdx]
-	if dstTimeCol.Type != TTime {
+	if dstTimeCol.Type != query.TTime {
 		return fmt.Errorf("timeValue column %q does not have type time", dstTime)
 	}
 
@@ -235,7 +235,7 @@ type Aggregate interface {
 }
 
 type ValueFunc interface {
-	Type() DataType
+	Type() query.DataType
 }
 type DoBoolAgg interface {
 	ValueFunc

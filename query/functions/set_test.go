@@ -3,10 +3,10 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 
@@ -27,7 +27,7 @@ func TestSet_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.SetProcedureSpec
-		data []execute.Block
+		data []query.Block
 		want []*executetest.Block
 	}{
 		{
@@ -36,10 +36,10 @@ func TestSet_Process(t *testing.T) {
 				Key:   "t1",
 				Value: "bob",
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 2.0},
@@ -47,10 +47,10 @@ func TestSet_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 2.0, "bob"},
@@ -64,11 +64,11 @@ func TestSet_Process(t *testing.T) {
 				Key:   "t1",
 				Value: "bob",
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0, "jim"},
@@ -76,10 +76,10 @@ func TestSet_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0, "bob"},
@@ -93,13 +93,13 @@ func TestSet_Process(t *testing.T) {
 				Key:   "t1",
 				Value: "bob",
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0, "alice", "a"},
@@ -108,11 +108,11 @@ func TestSet_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0, "bob", "a"},
@@ -126,13 +126,13 @@ func TestSet_Process(t *testing.T) {
 				Key:   "t1",
 				Value: "bob",
 			},
-			data: []execute.Block{
+			data: []query.Block{
 				&executetest.Block{
 					KeyCols: []string{"t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
-						{Label: "t1", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{execute.Time(1), 1.0, "alice"},
@@ -141,10 +141,10 @@ func TestSet_Process(t *testing.T) {
 				},
 				&executetest.Block{
 					KeyCols: []string{"t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
-						{Label: "t1", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{execute.Time(3), 3.0, "sue"},
@@ -154,10 +154,10 @@ func TestSet_Process(t *testing.T) {
 			},
 			want: []*executetest.Block{{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 1.0, "bob"},
@@ -173,13 +173,13 @@ func TestSet_Process(t *testing.T) {
 				Key:   "t2",
 				Value: "bob",
 			},
-			data: []execute.Block{
+			data: []query.Block{
 				&executetest.Block{
 					KeyCols: []string{"t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
-						{Label: "t1", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{execute.Time(1), 1.0, "alice"},
@@ -188,10 +188,10 @@ func TestSet_Process(t *testing.T) {
 				},
 				&executetest.Block{
 					KeyCols: []string{"t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
-						{Label: "t1", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{execute.Time(3), 3.0, "sue"},
@@ -202,11 +202,11 @@ func TestSet_Process(t *testing.T) {
 			want: []*executetest.Block{
 				{
 					KeyCols: []string{"t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
-						{Label: "t1", Type: execute.TString},
-						{Label: "t2", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
+						{Label: "t2", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{execute.Time(1), 1.0, "alice", "bob"},
@@ -215,11 +215,11 @@ func TestSet_Process(t *testing.T) {
 				},
 				{
 					KeyCols: []string{"t1"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
-						{Label: "t1", Type: execute.TString},
-						{Label: "t2", Type: execute.TString},
+					ColMeta: []query.ColMeta{
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+						{Label: "t1", Type: query.TString},
+						{Label: "t2", Type: query.TString},
 					},
 					Data: [][]interface{}{
 						{execute.Time(3), 3.0, "sue", "bob"},

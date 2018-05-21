@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/ast"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -217,11 +217,11 @@ func NewFilterTransformation(d execute.Dataset, cache execute.BlockBuilderCache,
 	}, nil
 }
 
-func (t *filterTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *filterTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *filterTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *filterTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("filter found duplicate block with key: %v", b.Key())
@@ -236,7 +236,7 @@ func (t *filterTransformation) Process(id execute.DatasetID, b execute.Block) er
 	}
 
 	// Append only matching rows to block
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			if pass, err := t.fn.Eval(i, cr); err != nil {

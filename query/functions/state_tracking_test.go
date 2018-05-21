@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/ast"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -41,7 +41,7 @@ func TestStateTracking_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.StateTrackingProcedureSpec
-		data []execute.Block
+		data []query.Block
 		want []*executetest.Block
 	}{
 		{
@@ -53,10 +53,10 @@ func TestStateTracking_Process(t *testing.T) {
 				Fn:            gt5,
 				TimeCol:       "_time",
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 2.0},
@@ -68,11 +68,11 @@ func TestStateTracking_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "count", Type: execute.TInt},
-					{Label: "duration", Type: execute.TInt},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "count", Type: query.TInt},
+					{Label: "duration", Type: query.TInt},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 2.0, int64(-1), int64(-1)},
@@ -92,10 +92,10 @@ func TestStateTracking_Process(t *testing.T) {
 				Fn:            gt5,
 				TimeCol:       "_time",
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 2.0},
@@ -107,10 +107,10 @@ func TestStateTracking_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "duration", Type: execute.TInt},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "duration", Type: query.TInt},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 2.0, int64(-1)},
@@ -129,10 +129,10 @@ func TestStateTracking_Process(t *testing.T) {
 				Fn:         gt5,
 				TimeCol:    "_time",
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 2.0},
@@ -144,10 +144,10 @@ func TestStateTracking_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "count", Type: execute.TInt},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "count", Type: query.TInt},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), 2.0, int64(-1)},

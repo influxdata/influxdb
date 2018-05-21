@@ -129,8 +129,8 @@ func (a *StddevAgg) DoFloat(vs []float64) {
 		a.m2 += delta * delta2
 	}
 }
-func (a *StddevAgg) Type() execute.DataType {
-	return execute.TFloat
+func (a *StddevAgg) Type() query.DataType {
+	return query.TFloat
 }
 func (a *StddevAgg) ValueFloat() float64 {
 	if a.n < 2 {

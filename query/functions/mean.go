@@ -120,8 +120,8 @@ func (a *MeanAgg) DoFloat(vs []float64) {
 		a.sum += v
 	}
 }
-func (a *MeanAgg) Type() execute.DataType {
-	return execute.TFloat
+func (a *MeanAgg) Type() query.DataType {
+	return query.TFloat
 }
 func (a *MeanAgg) ValueFloat() float64 {
 	if a.count < 1 {

@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"
@@ -205,11 +205,11 @@ func NewStateTrackingTransformation(d execute.Dataset, cache execute.BlockBuilde
 	}, nil
 }
 
-func (t *stateTrackingTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *stateTrackingTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *stateTrackingTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *stateTrackingTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("found duplicate block with key: %v", b.Key())
@@ -228,15 +228,15 @@ func (t *stateTrackingTransformation) Process(id execute.DatasetID, b execute.Bl
 
 	// Add new value columns
 	if t.countLabel != "" {
-		countCol = builder.AddCol(execute.ColMeta{
+		countCol = builder.AddCol(query.ColMeta{
 			Label: t.countLabel,
-			Type:  execute.TInt,
+			Type:  query.TInt,
 		})
 	}
 	if t.durationLabel != "" {
-		durationCol = builder.AddCol(execute.ColMeta{
+		durationCol = builder.AddCol(query.ColMeta{
 			Label: t.durationLabel,
-			Type:  execute.TInt,
+			Type:  query.TInt,
 		})
 	}
 
@@ -252,7 +252,7 @@ func (t *stateTrackingTransformation) Process(id execute.DatasetID, b execute.Bl
 		return fmt.Errorf("no column %q exists", t.timeCol)
 	}
 	// Append modified rows
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			tm := cr.Times(timeIdx)[i]

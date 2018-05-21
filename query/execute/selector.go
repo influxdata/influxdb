@@ -70,7 +70,7 @@ func newSelectorTransformation(d Dataset, c BlockBuilderCache, config SelectorCo
 	}
 }
 
-func (t *selectorTransformation) RetractBlock(id DatasetID, key PartitionKey) error {
+func (t *selectorTransformation) RetractBlock(id DatasetID, key query.PartitionKey) error {
 	//TODO(nathanielc): Store intermediate state for retractions
 	return t.d.RetractBlock(key)
 }
@@ -84,7 +84,7 @@ func (t *selectorTransformation) Finish(id DatasetID, err error) {
 	t.d.Finish(err)
 }
 
-func (t *selectorTransformation) setupBuilder(b Block) (BlockBuilder, int, error) {
+func (t *selectorTransformation) setupBuilder(b query.Block) (BlockBuilder, int, error) {
 	builder, new := t.cache.BlockBuilder(b.Key())
 	if !new {
 		return nil, 0, fmt.Errorf("found duplicate block with key: %v", b.Key())
@@ -99,7 +99,7 @@ func (t *selectorTransformation) setupBuilder(b Block) (BlockBuilder, int, error
 	return builder, valueIdx, nil
 }
 
-func (t *indexSelectorTransformation) Process(id DatasetID, b Block) error {
+func (t *indexSelectorTransformation) Process(id DatasetID, b query.Block) error {
 	builder, valueIdx, err := t.setupBuilder(b)
 	if err != nil {
 		return err
@@ -108,35 +108,35 @@ func (t *indexSelectorTransformation) Process(id DatasetID, b Block) error {
 
 	var s interface{}
 	switch valueCol.Type {
-	case TBool:
+	case query.TBool:
 		s = t.selector.NewBoolSelector()
-	case TInt:
+	case query.TInt:
 		s = t.selector.NewIntSelector()
-	case TUInt:
+	case query.TUInt:
 		s = t.selector.NewUIntSelector()
-	case TFloat:
+	case query.TFloat:
 		s = t.selector.NewFloatSelector()
-	case TString:
+	case query.TString:
 		s = t.selector.NewStringSelector()
 	default:
 		return fmt.Errorf("unsupported selector type %v", valueCol.Type)
 	}
 
-	return b.Do(func(cr ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		switch valueCol.Type {
-		case TBool:
+		case query.TBool:
 			selected := s.(DoBoolIndexSelector).DoBool(cr.Bools(valueIdx))
 			t.appendSelected(selected, builder, cr)
-		case TInt:
+		case query.TInt:
 			selected := s.(DoIntIndexSelector).DoInt(cr.Ints(valueIdx))
 			t.appendSelected(selected, builder, cr)
-		case TUInt:
+		case query.TUInt:
 			selected := s.(DoUIntIndexSelector).DoUInt(cr.UInts(valueIdx))
 			t.appendSelected(selected, builder, cr)
-		case TFloat:
+		case query.TFloat:
 			selected := s.(DoFloatIndexSelector).DoFloat(cr.Floats(valueIdx))
 			t.appendSelected(selected, builder, cr)
-		case TString:
+		case query.TString:
 			selected := s.(DoStringIndexSelector).DoString(cr.Strings(valueIdx))
 			t.appendSelected(selected, builder, cr)
 		default:
@@ -146,7 +146,7 @@ func (t *indexSelectorTransformation) Process(id DatasetID, b Block) error {
 	})
 }
 
-func (t *rowSelectorTransformation) Process(id DatasetID, b Block) error {
+func (t *rowSelectorTransformation) Process(id DatasetID, b query.Block) error {
 	builder, valueIdx, err := t.setupBuilder(b)
 	if err != nil {
 		return err
@@ -155,31 +155,31 @@ func (t *rowSelectorTransformation) Process(id DatasetID, b Block) error {
 
 	var rower Rower
 	switch valueCol.Type {
-	case TBool:
+	case query.TBool:
 		rower = t.selector.NewBoolSelector()
-	case TInt:
+	case query.TInt:
 		rower = t.selector.NewIntSelector()
-	case TUInt:
+	case query.TUInt:
 		rower = t.selector.NewUIntSelector()
-	case TFloat:
+	case query.TFloat:
 		rower = t.selector.NewFloatSelector()
-	case TString:
+	case query.TString:
 		rower = t.selector.NewStringSelector()
 	default:
 		return fmt.Errorf("unsupported selector type %v", valueCol.Type)
 	}
 
-	b.Do(func(cr ColReader) error {
+	b.Do(func(cr query.ColReader) error {
 		switch valueCol.Type {
-		case TBool:
+		case query.TBool:
 			rower.(DoBoolRowSelector).DoBool(cr.Bools(valueIdx), cr)
-		case TInt:
+		case query.TInt:
 			rower.(DoIntRowSelector).DoInt(cr.Ints(valueIdx), cr)
-		case TUInt:
+		case query.TUInt:
 			rower.(DoUIntRowSelector).DoUInt(cr.UInts(valueIdx), cr)
-		case TFloat:
+		case query.TFloat:
 			rower.(DoFloatRowSelector).DoFloat(cr.Floats(valueIdx), cr)
-		case TString:
+		case query.TString:
 			rower.(DoStringRowSelector).DoString(cr.Strings(valueIdx), cr)
 		default:
 			return fmt.Errorf("unsupported selector type %v", valueCol.Type)
@@ -191,7 +191,7 @@ func (t *rowSelectorTransformation) Process(id DatasetID, b Block) error {
 	return nil
 }
 
-func (t *indexSelectorTransformation) appendSelected(selected []int, builder BlockBuilder, cr ColReader) {
+func (t *indexSelectorTransformation) appendSelected(selected []int, builder BlockBuilder, cr query.ColReader) {
 	if len(selected) == 0 {
 		return
 	}
@@ -199,17 +199,17 @@ func (t *indexSelectorTransformation) appendSelected(selected []int, builder Blo
 	for j, c := range cols {
 		for _, i := range selected {
 			switch c.Type {
-			case TBool:
+			case query.TBool:
 				builder.AppendBool(j, cr.Bools(j)[i])
-			case TInt:
+			case query.TInt:
 				builder.AppendInt(j, cr.Ints(j)[i])
-			case TUInt:
+			case query.TUInt:
 				builder.AppendUInt(j, cr.UInts(j)[i])
-			case TFloat:
+			case query.TFloat:
 				builder.AppendFloat(j, cr.Floats(j)[i])
-			case TString:
+			case query.TString:
 				builder.AppendString(j, cr.Strings(j)[i])
-			case TTime:
+			case query.TTime:
 				builder.AppendTime(j, cr.Times(j)[i])
 			default:
 				PanicUnknownType(c.Type)
@@ -224,17 +224,17 @@ func (t *rowSelectorTransformation) appendRows(builder BlockBuilder, rows []Row)
 		for _, row := range rows {
 			v := row.Values[j]
 			switch c.Type {
-			case TBool:
+			case query.TBool:
 				builder.AppendBool(j, v.(bool))
-			case TInt:
+			case query.TInt:
 				builder.AppendInt(j, v.(int64))
-			case TUInt:
+			case query.TUInt:
 				builder.AppendUInt(j, v.(uint64))
-			case TFloat:
+			case query.TFloat:
 				builder.AppendFloat(j, v.(float64))
-			case TString:
+			case query.TString:
 				builder.AppendString(j, v.(string))
-			case TTime:
+			case query.TTime:
 				builder.AppendTime(j, v.(Time))
 			default:
 				PanicUnknownType(c.Type)
@@ -280,45 +280,45 @@ type Rower interface {
 
 type DoBoolRowSelector interface {
 	Rower
-	DoBool(vs []bool, cr ColReader)
+	DoBool(vs []bool, cr query.ColReader)
 }
 type DoIntRowSelector interface {
 	Rower
-	DoInt(vs []int64, cr ColReader)
+	DoInt(vs []int64, cr query.ColReader)
 }
 type DoUIntRowSelector interface {
 	Rower
-	DoUInt(vs []uint64, cr ColReader)
+	DoUInt(vs []uint64, cr query.ColReader)
 }
 type DoFloatRowSelector interface {
 	Rower
-	DoFloat(vs []float64, cr ColReader)
+	DoFloat(vs []float64, cr query.ColReader)
 }
 type DoStringRowSelector interface {
 	Rower
-	DoString(vs []string, cr ColReader)
+	DoString(vs []string, cr query.ColReader)
 }
 
 type Row struct {
 	Values []interface{}
 }
 
-func ReadRow(i int, cr ColReader) (row Row) {
+func ReadRow(i int, cr query.ColReader) (row Row) {
 	cols := cr.Cols()
 	row.Values = make([]interface{}, len(cols))
 	for j, c := range cols {
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			row.Values[j] = cr.Bools(j)[i]
-		case TInt:
+		case query.TInt:
 			row.Values[j] = cr.Ints(j)[i]
-		case TUInt:
+		case query.TUInt:
 			row.Values[j] = cr.UInts(j)[i]
-		case TFloat:
+		case query.TFloat:
 			row.Values[j] = cr.Floats(j)[i]
-		case TString:
+		case query.TString:
 			row.Values[j] = cr.Strings(j)[i]
-		case TTime:
+		case query.TTime:
 			row.Values[j] = cr.Times(j)[i]
 		}
 	}

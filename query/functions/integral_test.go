@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 
@@ -37,7 +37,7 @@ func TestIntegral_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.IntegralProcedureSpec
-		data []execute.Block
+		data []query.Block
 		want []*executetest.Block
 	}{
 		{
@@ -46,13 +46,13 @@ func TestIntegral_Process(t *testing.T) {
 				Unit:            1,
 				AggregateConfig: execute.DefaultAggregateConfig,
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), execute.Time(3), execute.Time(1), 2.0},
@@ -61,11 +61,11 @@ func TestIntegral_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), execute.Time(3), execute.Time(3), 1.5},
@@ -78,13 +78,13 @@ func TestIntegral_Process(t *testing.T) {
 				Unit:            query.Duration(time.Second),
 				AggregateConfig: execute.DefaultAggregateConfig,
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1 * time.Second), execute.Time(4 * time.Second), execute.Time(1 * time.Second), 2.0},
@@ -93,11 +93,11 @@ func TestIntegral_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1 * time.Second), execute.Time(4 * time.Second), execute.Time(4 * time.Second), 3.0},
@@ -110,14 +110,14 @@ func TestIntegral_Process(t *testing.T) {
 				Unit:            1,
 				AggregateConfig: execute.DefaultAggregateConfig,
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), execute.Time(3), execute.Time(1), 2.0, "a"},
@@ -126,11 +126,11 @@ func TestIntegral_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), execute.Time(3), execute.Time(3), 1.5},
@@ -147,14 +147,14 @@ func TestIntegral_Process(t *testing.T) {
 					Columns: []string{"x", "y"},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), execute.Time(5), execute.Time(1), 2.0, 20.0},
@@ -165,12 +165,12 @@ func TestIntegral_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(1), execute.Time(5), execute.Time(5), 4.5, 45.0},

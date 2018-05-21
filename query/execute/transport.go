@@ -3,6 +3,8 @@ package execute
 import (
 	"sync"
 	"sync/atomic"
+
+	"github.com/influxdata/platform/query"
 )
 
 type Transport interface {
@@ -52,7 +54,7 @@ func (t *consecutiveTransport) Finished() <-chan struct{} {
 	return t.finished
 }
 
-func (t *consecutiveTransport) RetractBlock(id DatasetID, key PartitionKey) error {
+func (t *consecutiveTransport) RetractBlock(id DatasetID, key query.PartitionKey) error {
 	select {
 	case <-t.finished:
 		return t.err()
@@ -65,7 +67,7 @@ func (t *consecutiveTransport) RetractBlock(id DatasetID, key PartitionKey) erro
 	return nil
 }
 
-func (t *consecutiveTransport) Process(id DatasetID, b Block) error {
+func (t *consecutiveTransport) Process(id DatasetID, b query.Block) error {
 	select {
 	case <-t.finished:
 		return t.err()
@@ -230,35 +232,35 @@ func (m srcMessage) SrcDatasetID() DatasetID {
 
 type RetractBlockMsg interface {
 	Message
-	Key() PartitionKey
+	Key() query.PartitionKey
 }
 
 type retractBlockMsg struct {
 	srcMessage
-	key PartitionKey
+	key query.PartitionKey
 }
 
 func (m *retractBlockMsg) Type() MessageType {
 	return RetractBlockType
 }
-func (m *retractBlockMsg) Key() PartitionKey {
+func (m *retractBlockMsg) Key() query.PartitionKey {
 	return m.key
 }
 
 type ProcessMsg interface {
 	Message
-	Block() Block
+	Block() query.Block
 }
 
 type processMsg struct {
 	srcMessage
-	block Block
+	block query.Block
 }
 
 func (m *processMsg) Type() MessageType {
 	return ProcessType
 }
-func (m *processMsg) Block() Block {
+func (m *processMsg) Block() query.Block {
 	return m.block
 }
 

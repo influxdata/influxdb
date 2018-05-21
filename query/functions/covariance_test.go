@@ -3,10 +3,10 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -177,7 +177,7 @@ func TestCovariance_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.CovarianceProcedureSpec
-		data []execute.Block
+		data []query.Block
 		want []*executetest.Block
 	}{
 		{
@@ -190,14 +190,14 @@ func TestCovariance_Process(t *testing.T) {
 					Columns: []string{"x", "y"},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(0), 1.0, 1.0},
@@ -209,11 +209,11 @@ func TestCovariance_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(5), 2.5},
@@ -230,14 +230,14 @@ func TestCovariance_Process(t *testing.T) {
 					Columns: []string{"x", "y"},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(0), 1.0, 5.0},
@@ -249,11 +249,11 @@ func TestCovariance_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(5), -2.5},
@@ -270,14 +270,14 @@ func TestCovariance_Process(t *testing.T) {
 					Columns: []string{"x", "y"},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(0), 1.0, 1.0},
@@ -289,11 +289,11 @@ func TestCovariance_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(5), 0.5},
@@ -311,14 +311,14 @@ func TestCovariance_Process(t *testing.T) {
 					Columns: []string{"x", "y"},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(0), 1.0, 1.0},
@@ -330,11 +330,11 @@ func TestCovariance_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(5), 1.0},
@@ -352,14 +352,14 @@ func TestCovariance_Process(t *testing.T) {
 					Columns: []string{"x", "y"},
 				},
 			},
-			data: []execute.Block{&executetest.Block{
+			data: []query.Block{&executetest.Block{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "x", Type: execute.TFloat},
-					{Label: "y", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(0), 1.0, 5.0},
@@ -371,11 +371,11 @@ func TestCovariance_Process(t *testing.T) {
 			}},
 			want: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_start", Type: execute.TTime},
-					{Label: "_stop", Type: execute.TTime},
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(5), execute.Time(5), -1.0},

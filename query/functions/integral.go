@@ -113,20 +113,20 @@ func NewIntegralTransformation(d execute.Dataset, cache execute.BlockBuilderCach
 	}
 }
 
-func (t *integralTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *integralTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *integralTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *integralTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("integral found duplicate block with key: %v", b.Key())
 	}
 
 	execute.AddBlockKeyCols(b.Key(), builder)
-	builder.AddCol(execute.ColMeta{
+	builder.AddCol(query.ColMeta{
 		Label: t.spec.TimeDst,
-		Type:  execute.TTime,
+		Type:  query.TTime,
 	})
 	cols := b.Cols()
 	integrals := make([]*integral, len(cols))
@@ -134,9 +134,9 @@ func (t *integralTransformation) Process(id execute.DatasetID, b execute.Block) 
 	for j, c := range cols {
 		if execute.ContainsStr(t.spec.Columns, c.Label) {
 			integrals[j] = newIntegral(time.Duration(t.spec.Unit))
-			colMap[j] = builder.AddCol(execute.ColMeta{
+			colMap[j] = builder.AddCol(query.ColMeta{
 				Label: c.Label,
-				Type:  execute.TFloat,
+				Type:  query.TFloat,
 			})
 		}
 	}
@@ -149,7 +149,7 @@ func (t *integralTransformation) Process(id execute.DatasetID, b execute.Block) 
 	if timeIdx < 0 {
 		return fmt.Errorf("no column %q exists", t.spec.TimeSrc)
 	}
-	err := b.Do(func(cr execute.ColReader) error {
+	err := b.Do(func(cr query.ColReader) error {
 		for j, in := range integrals {
 			if in == nil {
 				continue

@@ -17,10 +17,10 @@ import (
 
 	"fmt"
 
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/control"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/id"
 
 	"strings"
 
@@ -37,12 +37,12 @@ type wrapController struct {
 	*control.Controller
 }
 
-func (c wrapController) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (platform.Query, error) {
+func (c wrapController) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (query.Query, error) {
 	q, err := c.Controller.Query(ctx, id.ID(orgID), query)
 	return q, err
 }
 
-func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (platform.Query, error) {
+func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (query.Query, error) {
 	q, err := c.Controller.QueryWithCompile(ctx, id.ID(orgID), query)
 	return q, err
 }
@@ -55,7 +55,7 @@ func Test_QueryEndToEnd(t *testing.T) {
 
 	c := control.New(config)
 
-	qs := platform.QueryServiceBridge{
+	qs := query.QueryServiceBridge{
 		AsyncQueryService: wrapController{Controller: c},
 	}
 
@@ -145,7 +145,7 @@ func ReplaceFromSpec(q *query.Spec, csvSrc string) {
 	}
 }
 
-func QueryTestCheckSpec(t *testing.T, qs platform.QueryServiceBridge, spec *query.Spec, input, want string) (bool, error) {
+func QueryTestCheckSpec(t *testing.T, qs query.QueryServiceBridge, spec *query.Spec, input, want string) (bool, error) {
 	t.Helper()
 	ReplaceFromSpec(spec, input)
 	id := platform.ID("max")

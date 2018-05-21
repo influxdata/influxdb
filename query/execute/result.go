@@ -3,13 +3,9 @@ package execute
 import (
 	"sync"
 
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/plan"
 )
-
-type Result interface {
-	// Blocks returns a BlockIterator for iterating through results
-	Blocks() BlockIterator
-}
 
 // result implements both the Transformation and Result interfaces,
 // mapping the pushed based Transformation API to the pull based Result interface.
@@ -22,7 +18,7 @@ type result struct {
 }
 
 type resultMessage struct {
-	block Block
+	block query.Block
 	err   error
 }
 
@@ -35,12 +31,12 @@ func newResult(plan.YieldSpec) *result {
 	}
 }
 
-func (s *result) RetractBlock(DatasetID, PartitionKey) error {
+func (s *result) RetractBlock(DatasetID, query.PartitionKey) error {
 	//TODO implement
 	return nil
 }
 
-func (s *result) Process(id DatasetID, b Block) error {
+func (s *result) Process(id DatasetID, b query.Block) error {
 	select {
 	case s.blocks <- resultMessage{
 		block: b,
@@ -50,11 +46,11 @@ func (s *result) Process(id DatasetID, b Block) error {
 	return nil
 }
 
-func (s *result) Blocks() BlockIterator {
+func (s *result) Blocks() query.BlockIterator {
 	return s
 }
 
-func (s *result) Do(f func(Block) error) error {
+func (s *result) Do(f func(query.Block) error) error {
 	for {
 		select {
 		case err := <-s.abortErr:

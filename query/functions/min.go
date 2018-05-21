@@ -125,14 +125,14 @@ func (s *MinSelector) Rows() []execute.Row {
 	return s.rows
 }
 
-func (s *MinSelector) selectRow(idx int, cr execute.ColReader) {
+func (s *MinSelector) selectRow(idx int, cr query.ColReader) {
 	// Capture row
 	if idx >= 0 {
 		s.rows = []execute.Row{execute.ReadRow(idx, cr)}
 	}
 }
 
-func (s *MinIntSelector) DoInt(vs []int64, cr execute.ColReader) {
+func (s *MinIntSelector) DoInt(vs []int64, cr query.ColReader) {
 	minIdx := -1
 	for i, v := range vs {
 		if !s.set || v < s.min {
@@ -143,7 +143,7 @@ func (s *MinIntSelector) DoInt(vs []int64, cr execute.ColReader) {
 	}
 	s.selectRow(minIdx, cr)
 }
-func (s *MinUIntSelector) DoUInt(vs []uint64, cr execute.ColReader) {
+func (s *MinUIntSelector) DoUInt(vs []uint64, cr query.ColReader) {
 	minIdx := -1
 	for i, v := range vs {
 		if !s.set || v < s.min {
@@ -154,7 +154,7 @@ func (s *MinUIntSelector) DoUInt(vs []uint64, cr execute.ColReader) {
 	}
 	s.selectRow(minIdx, cr)
 }
-func (s *MinFloatSelector) DoFloat(vs []float64, cr execute.ColReader) {
+func (s *MinFloatSelector) DoFloat(vs []float64, cr query.ColReader) {
 	minIdx := -1
 	for i, v := range vs {
 		if !s.set || v < s.min {

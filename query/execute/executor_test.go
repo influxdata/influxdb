@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/ast"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 	uuid "github.com/satori/go.uuid"
@@ -47,13 +47,13 @@ func TestExecutor_Execute(t *testing.T) {
 					plan.ProcedureIDFromOperationID("from"): {
 						ID: plan.ProcedureIDFromOperationID("from"),
 						Spec: &testFromProcedureSource{
-							data: []execute.Block{&executetest.Block{
+							data: []query.Block{&executetest.Block{
 								KeyCols: []string{"_start", "_stop"},
-								ColMeta: []execute.ColMeta{
-									{Label: "_start", Type: execute.TTime},
-									{Label: "_stop", Type: execute.TTime},
-									{Label: "_time", Type: execute.TTime},
-									{Label: "_value", Type: execute.TFloat},
+								ColMeta: []query.ColMeta{
+									{Label: "_start", Type: query.TTime},
+									{Label: "_stop", Type: query.TTime},
+									{Label: "_time", Type: query.TTime},
+									{Label: "_value", Type: query.TFloat},
 								},
 								Data: [][]interface{}{
 									{execute.Time(0), execute.Time(5), execute.Time(0), 1.0},
@@ -85,11 +85,11 @@ func TestExecutor_Execute(t *testing.T) {
 			want: map[string][]*executetest.Block{
 				plan.DefaultYieldName: []*executetest.Block{{
 					KeyCols: []string{"_start", "_stop"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(5), execute.Time(5), 15.0},
@@ -113,13 +113,13 @@ func TestExecutor_Execute(t *testing.T) {
 					plan.ProcedureIDFromOperationID("from"): {
 						ID: plan.ProcedureIDFromOperationID("from"),
 						Spec: &testFromProcedureSource{
-							data: []execute.Block{&executetest.Block{
+							data: []query.Block{&executetest.Block{
 								KeyCols: []string{"_start", "_stop"},
-								ColMeta: []execute.ColMeta{
-									{Label: "_start", Type: execute.TTime},
-									{Label: "_stop", Type: execute.TTime},
-									{Label: "_time", Type: execute.TTime},
-									{Label: "_value", Type: execute.TInt},
+								ColMeta: []query.ColMeta{
+									{Label: "_start", Type: query.TTime},
+									{Label: "_stop", Type: query.TTime},
+									{Label: "_time", Type: query.TTime},
+									{Label: "_value", Type: query.TInt},
 								},
 								Data: [][]interface{}{
 									{execute.Time(0), execute.Time(5), execute.Time(0), int64(1)},
@@ -243,11 +243,11 @@ func TestExecutor_Execute(t *testing.T) {
 			want: map[string][]*executetest.Block{
 				plan.DefaultYieldName: []*executetest.Block{{
 					KeyCols: []string{"_start", "_stop"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TInt},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TInt},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(5), execute.Time(5), int64(3)},
@@ -271,13 +271,13 @@ func TestExecutor_Execute(t *testing.T) {
 					plan.ProcedureIDFromOperationID("from"): {
 						ID: plan.ProcedureIDFromOperationID("from"),
 						Spec: &testFromProcedureSource{
-							data: []execute.Block{&executetest.Block{
+							data: []query.Block{&executetest.Block{
 								KeyCols: []string{"_start", "_stop"},
-								ColMeta: []execute.ColMeta{
-									{Label: "_start", Type: execute.TTime},
-									{Label: "_stop", Type: execute.TTime},
-									{Label: "_time", Type: execute.TTime},
-									{Label: "_value", Type: execute.TFloat},
+								ColMeta: []query.ColMeta{
+									{Label: "_start", Type: query.TTime},
+									{Label: "_stop", Type: query.TTime},
+									{Label: "_time", Type: query.TTime},
+									{Label: "_value", Type: query.TFloat},
 								},
 								Data: [][]interface{}{
 									{execute.Time(0), execute.Time(5), execute.Time(0), 1.0},
@@ -323,11 +323,11 @@ func TestExecutor_Execute(t *testing.T) {
 			want: map[string][]*executetest.Block{
 				"sum": []*executetest.Block{{
 					KeyCols: []string{"_start", "_stop"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(5), execute.Time(5), 15.0},
@@ -335,11 +335,11 @@ func TestExecutor_Execute(t *testing.T) {
 				}},
 				"mean": []*executetest.Block{{
 					KeyCols: []string{"_start", "_stop"},
-					ColMeta: []execute.ColMeta{
-						{Label: "_start", Type: execute.TTime},
-						{Label: "_stop", Type: execute.TTime},
-						{Label: "_time", Type: execute.TTime},
-						{Label: "_value", Type: execute.TFloat},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
 					},
 					Data: [][]interface{}{
 						{execute.Time(0), execute.Time(5), execute.Time(5), 3.0},
@@ -359,7 +359,7 @@ func TestExecutor_Execute(t *testing.T) {
 			}
 			got := make(map[string][]*executetest.Block, len(results))
 			for name, r := range results {
-				if err := r.Blocks().Do(func(b execute.Block) error {
+				if err := r.Blocks().Do(func(b query.Block) error {
 					cb, err := executetest.ConvertBlock(b)
 					if err != nil {
 						return err
@@ -386,7 +386,7 @@ func TestExecutor_Execute(t *testing.T) {
 }
 
 type testFromProcedureSource struct {
-	data []execute.Block
+	data []query.Block
 	ts   []execute.Transformation
 }
 

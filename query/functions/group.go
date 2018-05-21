@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -216,7 +216,7 @@ func NewGroupTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	return t
 }
 
-func (t *groupTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) (err error) {
+func (t *groupTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) (err error) {
 	//TODO(nathanielc): Investigate if this can be smarter and not retract all blocks with the same time bounds.
 	panic("not implemented")
 	//t.cache.ForEachBuilder(func(bk execute.BlockKey, builder execute.BlockBuilder) {
@@ -230,7 +230,7 @@ func (t *groupTransformation) RetractBlock(id execute.DatasetID, key execute.Par
 	//return
 }
 
-func (t *groupTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *groupTransformation) Process(id execute.DatasetID, b query.Block) error {
 	cols := b.Cols()
 	on := make(map[string]bool, len(cols))
 	if len(t.keys) > 0 {
@@ -248,7 +248,7 @@ func (t *groupTransformation) Process(id execute.DatasetID, b execute.Block) err
 			on[c.Label] = true
 		}
 	}
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			key := execute.PartitionKeyForRowOn(i, cr, on)

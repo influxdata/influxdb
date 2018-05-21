@@ -10,13 +10,13 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/control"
+	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
 	ifqlid "github.com/influxdata/platform/query/id"
-	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/repl"
-	"github.com/influxdata/query"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -171,21 +171,17 @@ func orgID(org string) (ifqlid.ID, error) {
 }
 
 func getIFQLREPL(storageHosts storage.Reader, buckets platform.BucketService, org ifqlid.ID, verbose bool) (*repl.REPL, error) {
-	conf := query.Config{
-		Dependencies:     make(execute.Dependencies),
-		ConcurrencyQuota: runtime.NumCPU() * 2,
-		MemoryBytesQuota: math.MaxInt64,
-		Verbose:          verbose,
+	conf := control.Config{
+		ExecutorDependencies: make(execute.Dependencies),
+		ConcurrencyQuota:     runtime.NumCPU() * 2,
+		MemoryBytesQuota:     math.MaxInt64,
+		Verbose:              verbose,
 	}
 
-	if err := injectDeps(conf.Dependencies, storageHosts, buckets); err != nil {
+	if err := injectDeps(conf.ExecutorDependencies, storageHosts, buckets); err != nil {
 		return nil, err
 	}
 
-	c, err := query.NewController(conf)
-	if err != nil {
-		return nil, err
-	}
-
+	c := control.New(conf)
 	return repl.New(c, org), nil
 }

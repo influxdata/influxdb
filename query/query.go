@@ -1,175 +1,178 @@
 package query
 
 import (
-	"errors"
-	"fmt"
+	"context"
+	"sort"
+
+	"github.com/influxdata/platform"
 )
 
-// Spec specifies a query.
-type Spec struct {
-	Operations []*Operation       `json:"operations"`
-	Edges      []Edge             `json:"edges"`
-	Resources  ResourceManagement `json:"resources"`
-
-	sorted   []*Operation
-	children map[OperationID][]*Operation
-	parents  map[OperationID][]*Operation
+// QueryService represents a service for performing queries.
+type QueryService interface {
+	// Query submits a query spec for execution returning a results iterator.
+	Query(ctx context.Context, orgID platform.ID, query *Spec) (ResultIterator, error)
+	// Query submits a query string for execution returning a results iterator.
+	QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (ResultIterator, error)
 }
 
-// Edge is a data flow relationship between a parent and a child
-type Edge struct {
-	Parent OperationID `json:"parent"`
-	Child  OperationID `json:"child"`
+// ResultIterator allows iterating through all results
+type ResultIterator interface {
+	// More indicates if there are more results.
+	// More must be called until it returns false in order to free all resources.
+	More() bool
+
+	// Next returns the next name and results.
+	// If More is false, Next panics.
+	Next() (string, Result)
+
+	// Cancel discards the remaining results.
+	// If not all results are going to be read, Cancel must be called to free resources.
+	Cancel()
+
+	// Err reports the first error encountered.
+	Err() error
 }
 
-// Walk calls f on each operation exactly once.
-// The function f will be called on an operation only after
-// all of its parents have already been passed to f.
-func (q *Spec) Walk(f func(o *Operation) error) error {
-	if len(q.sorted) == 0 {
-		if err := q.prepare(); err != nil {
-			return err
-		}
-	}
-	for _, o := range q.sorted {
-		err := f(o)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+// AsyncQueryService represents a service for performing queries where the results are delivered asynchronously.
+type AsyncQueryService interface {
+	// Query submits a query for execution returning immediately.
+	// The spec must not be modified while the query is still active.
+	// Done must be called on any returned Query objects.
+	Query(ctx context.Context, orgID platform.ID, query *Spec) (Query, error)
+
+	// QueryWithCompile submits a query for execution returning immediately.
+	// The query string will be compiled before submitting for execution.
+	// Done must be called on returned Query objects.
+	QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (Query, error)
 }
 
-// Validate ensures the query is a valid DAG.
-func (q *Spec) Validate() error {
-	return q.prepare()
+// Query represents an active query.
+type Query interface {
+	// Spec returns the spec used to execute this query.
+	// Spec must not be modified.
+	Spec() *Spec
+
+	// Ready returns a channel that will deliver the query results.
+	// Its possible that the channel is closed before any results arrive,
+	// in which case the query should be inspected for an error using Err().
+	Ready() <-chan map[string]Result
+
+	// Done must always be called to free resources.
+	Done()
+
+	// Cancel will stop the query execution.
+	// Done must still be called to free resources.
+	Cancel()
+
+	// Err reports any error the query may have encountered.
+	Err() error
 }
 
-// Children returns a list of children for a given operation.
-// If the query is invalid no children will be returned.
-func (q *Spec) Children(id OperationID) []*Operation {
-	if q.children == nil {
-		err := q.prepare()
-		if err != nil {
-			return nil
-		}
-	}
-	return q.children[id]
+// QueryServiceBridge implements the QueryService interface while consuming the AsyncQueryService interface.
+type QueryServiceBridge struct {
+	AsyncQueryService AsyncQueryService
 }
 
-// Parents returns a list of parents for a given operation.
-// If the query is invalid no parents will be returned.
-func (q *Spec) Parents(id OperationID) []*Operation {
-	if q.parents == nil {
-		err := q.prepare()
-		if err != nil {
-			return nil
-		}
-	}
-	return q.parents[id]
-}
-
-// prepare populates the internal datastructure needed to quickly navigate the query DAG.
-// As a result the query DAG is validated.
-func (q *Spec) prepare() error {
-	q.sorted = q.sorted[0:0]
-
-	parents, children, roots, err := q.determineParentsChildrenAndRoots()
+func (b QueryServiceBridge) Query(ctx context.Context, orgID platform.ID, spec *Spec) (ResultIterator, error) {
+	query, err := b.AsyncQueryService.Query(ctx, orgID, spec)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if len(roots) == 0 {
-		return errors.New("query has no root nodes")
-	}
-
-	q.parents = parents
-	q.children = children
-
-	tMarks := make(map[OperationID]bool)
-	pMarks := make(map[OperationID]bool)
-
-	for _, r := range roots {
-		if err := q.visit(tMarks, pMarks, r); err != nil {
-			return err
-		}
-	}
-	//reverse q.sorted
-	for i, j := 0, len(q.sorted)-1; i < j; i, j = i+1, j-1 {
-		q.sorted[i], q.sorted[j] = q.sorted[j], q.sorted[i]
-	}
-	return nil
+	return newResultIterator(query), nil
 }
-
-func (q *Spec) computeLookup() (map[OperationID]*Operation, error) {
-	lookup := make(map[OperationID]*Operation, len(q.Operations))
-	for _, o := range q.Operations {
-		if _, ok := lookup[o.ID]; ok {
-			return nil, fmt.Errorf("found duplicate operation ID %q", o.ID)
-		}
-		lookup[o.ID] = o
-	}
-	return lookup, nil
-}
-
-func (q *Spec) determineParentsChildrenAndRoots() (parents, children map[OperationID][]*Operation, roots []*Operation, _ error) {
-	lookup, err := q.computeLookup()
+func (b QueryServiceBridge) QueryWithCompile(ctx context.Context, orgID platform.ID, queryStr string) (ResultIterator, error) {
+	query, err := b.AsyncQueryService.QueryWithCompile(ctx, orgID, queryStr)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	children = make(map[OperationID][]*Operation, len(q.Operations))
-	parents = make(map[OperationID][]*Operation, len(q.Operations))
-	for _, e := range q.Edges {
-		// Build children map
-		c, ok := lookup[e.Child]
-		if !ok {
-			return nil, nil, nil, fmt.Errorf("edge references unknown child operation %q", e.Child)
-		}
-		children[e.Parent] = append(children[e.Parent], c)
-
-		// Build parents map
-		p, ok := lookup[e.Parent]
-		if !ok {
-			return nil, nil, nil, fmt.Errorf("edge references unknown parent operation %q", e.Parent)
-		}
-		parents[e.Child] = append(parents[e.Child], p)
-	}
-	// Find roots, i.e operations with no parents.
-	for _, o := range q.Operations {
-		if len(parents[o.ID]) == 0 {
-			roots = append(roots, o)
-		}
-	}
-	return
+	return newResultIterator(query), nil
 }
 
-// Depth first search topological sorting of a DAG.
-// https://en.wikipedia.org/wiki/Topological_sorting#Algorithms
-func (q *Spec) visit(tMarks, pMarks map[OperationID]bool, o *Operation) error {
-	id := o.ID
-	if tMarks[id] {
-		return errors.New("found cycle in query")
-	}
+// resultIterator implements a ResultIterator while consuming a Query
+type resultIterator struct {
+	query   Query
+	cancel  chan struct{}
+	ready   bool
+	results *MapResultIterator
+}
 
-	if !pMarks[id] {
-		tMarks[id] = true
-		for _, c := range q.children[id] {
-			if err := q.visit(tMarks, pMarks, c); err != nil {
-				return err
+func newResultIterator(q Query) *resultIterator {
+	return &resultIterator{
+		query:  q,
+		cancel: make(chan struct{}),
+	}
+}
+
+func (r *resultIterator) More() bool {
+	if !r.ready {
+		select {
+		case <-r.cancel:
+			goto DONE
+		case results, ok := <-r.query.Ready():
+			if !ok {
+				goto DONE
 			}
+			r.ready = true
+			r.results = NewMapResultIterator(results)
 		}
-		pMarks[id] = true
-		tMarks[id] = false
-		q.sorted = append(q.sorted, o)
 	}
-	return nil
+	if r.results.More() {
+		return true
+	}
+
+DONE:
+	r.query.Done()
+	return false
 }
 
-// Functions return the names of all functions used in the plan
-func (q *Spec) Functions() ([]string, error) {
-	funcs := []string{}
-	err := q.Walk(func(o *Operation) error {
-		funcs = append(funcs, string(o.Spec.Kind()))
-		return nil
-	})
-	return funcs, err
+func (r *resultIterator) Next() (string, Result) {
+	return r.results.Next()
+}
+
+func (r *resultIterator) Cancel() {
+	select {
+	case <-r.cancel:
+	default:
+		close(r.cancel)
+	}
+	r.query.Cancel()
+}
+
+func (r *resultIterator) Err() error {
+	return r.query.Err()
+}
+
+type MapResultIterator struct {
+	results map[string]Result
+	order   []string
+}
+
+func NewMapResultIterator(results map[string]Result) *MapResultIterator {
+	order := make([]string, 0, len(results))
+	for k := range results {
+		order = append(order, k)
+	}
+	sort.Strings(order)
+	return &MapResultIterator{
+		results: results,
+		order:   order,
+	}
+}
+
+func (r *MapResultIterator) More() bool {
+	return len(r.order) > 0
+}
+
+func (r *MapResultIterator) Next() (string, Result) {
+	next := r.order[0]
+	r.order = r.order[1:]
+	return next, r.results[next]
+}
+
+func (r *MapResultIterator) Cancel() {
+
+}
+
+func (r *MapResultIterator) Err() error {
+	return nil
 }

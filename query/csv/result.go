@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/values"
-	"github.com/influxdata/platform"
 	"github.com/pkg/errors"
 )
 
@@ -67,7 +67,7 @@ type ResultDecoderConfig struct {
 	MaxBufferCount int
 }
 
-func (d *ResultDecoder) Decode(r io.Reader) (execute.Result, error) {
+func (d *ResultDecoder) Decode(r io.Reader) (query.Result, error) {
 	return newResultDecoder(r, d.c, nil), nil
 }
 
@@ -85,7 +85,7 @@ func NewMultiResultDecoder(c ResultDecoderConfig) *MultiResultDecoder {
 	}
 }
 
-func (d *MultiResultDecoder) Decode(r io.Reader) (platform.ResultIterator, error) {
+func (d *MultiResultDecoder) Decode(r io.Reader) (query.ResultIterator, error) {
 	return &resultIterator{
 		c: d.c,
 		r: r,
@@ -112,7 +112,7 @@ func (r *resultIterator) More() bool {
 	return false
 }
 
-func (r *resultIterator) Next() (string, execute.Result) {
+func (r *resultIterator) Next() (string, query.Result) {
 	return r.next.id, r.next
 }
 
@@ -149,7 +149,7 @@ func newCSVReader(r io.Reader) *csv.Reader {
 	return csvr
 }
 
-func (r *resultDecoder) Blocks() execute.BlockIterator {
+func (r *resultDecoder) Blocks() query.BlockIterator {
 	return r
 }
 
@@ -157,7 +157,7 @@ func (r *resultDecoder) Abort(error) {
 	panic("not implemented")
 }
 
-func (r *resultDecoder) Do(f func(execute.Block) error) error {
+func (r *resultDecoder) Do(f func(query.Block) error) error {
 	cr := newCSVReader(r.r)
 
 	var extraLine []string
@@ -312,7 +312,7 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 		}
 		cols[j].ColMeta.Label = label
 		cols[j].ColMeta.Type = t
-		if t == execute.TTime {
+		if t == query.TTime {
 			switch desc {
 			case "RFC3339":
 				cols[j].fmt = time.RFC3339
@@ -352,7 +352,7 @@ type blockDecoder struct {
 
 	initialized bool
 	id          string
-	key         execute.PartitionKey
+	key         query.PartitionKey
 	cols        []colMeta
 
 	builder *execute.ColListBlockBuilder
@@ -385,7 +385,7 @@ func newBlock(
 	return b, nil
 }
 
-func (b *blockDecoder) Do(f func(execute.ColReader) error) (err error) {
+func (b *blockDecoder) Do(f func(query.ColReader) error) (err error) {
 	// Send off first batch from first advance call.
 	err = f(b.builder.RawBlock())
 	if err != nil {
@@ -480,7 +480,7 @@ func (b *blockDecoder) init(line []string) error {
 	if len(line) != 0 {
 		record = line[recordStartIdx:]
 	}
-	keyCols := make([]execute.ColMeta, 0, len(b.meta.Cols))
+	keyCols := make([]query.ColMeta, 0, len(b.meta.Cols))
 	keyValues := make([]interface{}, 0, len(b.meta.Cols))
 	for j, c := range b.meta.Cols {
 		if b.meta.Partitions[j] {
@@ -514,22 +514,22 @@ func (b *blockDecoder) appendRecord(record []string) error {
 	for j, c := range b.meta.Cols {
 		if record[j] == "" && b.meta.Defaults[j] != nil {
 			switch c.Type {
-			case execute.TBool:
+			case query.TBool:
 				v := b.meta.Defaults[j].(bool)
 				b.builder.AppendBool(j, v)
-			case execute.TInt:
+			case query.TInt:
 				v := b.meta.Defaults[j].(int64)
 				b.builder.AppendInt(j, v)
-			case execute.TUInt:
+			case query.TUInt:
 				v := b.meta.Defaults[j].(uint64)
 				b.builder.AppendUInt(j, v)
-			case execute.TFloat:
+			case query.TFloat:
 				v := b.meta.Defaults[j].(float64)
 				b.builder.AppendFloat(j, v)
-			case execute.TString:
+			case query.TString:
 				v := b.meta.Defaults[j].(string)
 				b.builder.AppendString(j, v)
-			case execute.TTime:
+			case query.TTime:
 				v := b.meta.Defaults[j].(execute.Time)
 				b.builder.AppendTime(j, v)
 			default:
@@ -546,16 +546,16 @@ func (b *blockDecoder) appendRecord(record []string) error {
 
 func (b *blockDecoder) RefCount(n int) {}
 
-func (b *blockDecoder) Key() execute.PartitionKey {
+func (b *blockDecoder) Key() query.PartitionKey {
 	return b.builder.Key()
 }
 
-func (b *blockDecoder) Cols() []execute.ColMeta {
+func (b *blockDecoder) Cols() []query.ColMeta {
 	return b.builder.Cols()
 }
 
 type colMeta struct {
-	execute.ColMeta
+	query.ColMeta
 	fmt string
 }
 
@@ -593,12 +593,12 @@ func NewResultEncoder(c ResultEncoderConfig) *ResultEncoder {
 	}
 }
 
-func (e *ResultEncoder) Encode(w io.Writer, result execute.Result) error {
+func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
 	tableID := 0
 	metaCols := []colMeta{
-		{ColMeta: execute.ColMeta{Label: "", Type: execute.TInvalid}},
-		{ColMeta: execute.ColMeta{Label: resultLabel, Type: execute.TString}},
-		{ColMeta: execute.ColMeta{Label: tableLabel, Type: execute.TInt}},
+		{ColMeta: query.ColMeta{Label: "", Type: query.TInvalid}},
+		{ColMeta: query.ColMeta{Label: resultLabel, Type: query.TString}},
+		{ColMeta: query.ColMeta{Label: tableLabel, Type: query.TInt}},
 	}
 	writer := csv.NewWriter(w)
 	if e.c.Delimiter != 0 {
@@ -608,12 +608,12 @@ func (e *ResultEncoder) Encode(w io.Writer, result execute.Result) error {
 
 	var lastCols []colMeta
 
-	return result.Blocks().Do(func(b execute.Block) error {
+	return result.Blocks().Do(func(b query.Block) error {
 		// Update cols with block cols
 		cols := metaCols
 		for _, c := range b.Cols() {
 			cm := colMeta{ColMeta: c}
-			if c.Type == execute.TTime {
+			if c.Type == query.TTime {
 				cm.fmt = time.RFC3339Nano
 			}
 			cols = append(cols, cm)
@@ -650,7 +650,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result execute.Result) error {
 		}
 
 		count := 0
-		err := b.Do(func(cr execute.ColReader) error {
+		err := b.Do(func(cr query.ColReader) error {
 			record := row[recordStartIdx:]
 			l := cr.Len()
 			count += l
@@ -688,7 +688,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result execute.Result) error {
 	})
 }
 
-func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols []colMeta, useKeyDefaults bool, key execute.PartitionKey) error {
+func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols []colMeta, useKeyDefaults bool, key query.PartitionKey) error {
 	defaults := make([]string, len(row))
 	for j, c := range cols {
 		switch j {
@@ -730,7 +730,7 @@ func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols 
 	return writer.Error()
 }
 
-func writeAnnotations(writer *csv.Writer, annotations []string, row, defaults []string, cols []colMeta, key execute.PartitionKey) error {
+func writeAnnotations(writer *csv.Writer, annotations []string, row, defaults []string, cols []colMeta, key query.PartitionKey) error {
 	for _, annotation := range annotations {
 		switch annotation {
 		case datatypeAnnotation:
@@ -759,17 +759,17 @@ func writeDatatypes(writer *csv.Writer, row []string, cols []colMeta) error {
 			continue
 		}
 		switch c.Type {
-		case execute.TBool:
+		case query.TBool:
 			row[j] = boolDatatype
-		case execute.TInt:
+		case query.TInt:
 			row[j] = intDatatype
-		case execute.TUInt:
+		case query.TUInt:
 			row[j] = uintDatatype
-		case execute.TFloat:
+		case query.TFloat:
 			row[j] = floatDatatype
-		case execute.TString:
+		case query.TString:
 			row[j] = stringDatatype
-		case execute.TTime:
+		case query.TTime:
 			row[j] = timeDataTypeWithFmt
 		default:
 			return fmt.Errorf("unknown column type %v", c.Type)
@@ -778,7 +778,7 @@ func writeDatatypes(writer *csv.Writer, row []string, cols []colMeta) error {
 	return writer.Write(row)
 }
 
-func writePartitions(writer *csv.Writer, row []string, cols []colMeta, key execute.PartitionKey) error {
+func writePartitions(writer *csv.Writer, row []string, cols []colMeta, key query.PartitionKey) error {
 	for j, c := range cols {
 		if j == annotationIdx {
 			row[j] = commentPrefix + partitionAnnotation
@@ -803,17 +803,17 @@ func writeDefaults(writer *csv.Writer, row, defaults []string) error {
 
 func decodeValue(value string, c colMeta) (v interface{}, err error) {
 	switch c.Type {
-	case execute.TBool:
+	case query.TBool:
 		v, err = strconv.ParseBool(value)
-	case execute.TInt:
+	case query.TInt:
 		v, err = strconv.ParseInt(value, 10, 64)
-	case execute.TUInt:
+	case query.TUInt:
 		v, err = strconv.ParseUint(value, 10, 64)
-	case execute.TFloat:
+	case query.TFloat:
 		v, err = strconv.ParseFloat(value, 64)
-	case execute.TString:
+	case query.TString:
 		v = value
-	case execute.TTime:
+	case query.TTime:
 		v, err = decodeTime(value, c.fmt)
 	default:
 		return nil, fmt.Errorf("unsupported type %v", c.Type)
@@ -823,33 +823,33 @@ func decodeValue(value string, c colMeta) (v interface{}, err error) {
 
 func decodeValueInto(j int, c colMeta, value string, builder execute.BlockBuilder) error {
 	switch c.Type {
-	case execute.TBool:
+	case query.TBool:
 		v, err := strconv.ParseBool(value)
 		if err != nil {
 			return err
 		}
 		builder.AppendBool(j, v)
-	case execute.TInt:
+	case query.TInt:
 		v, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return err
 		}
 		builder.AppendInt(j, v)
-	case execute.TUInt:
+	case query.TUInt:
 		v, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return err
 		}
 		builder.AppendUInt(j, v)
-	case execute.TFloat:
+	case query.TFloat:
 		v, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			return err
 		}
 		builder.AppendFloat(j, v)
-	case execute.TString:
+	case query.TString:
 		builder.AppendString(j, value)
-	case execute.TTime:
+	case query.TTime:
 		t, err := decodeTime(value, c.fmt)
 		if err != nil {
 			return err
@@ -863,36 +863,36 @@ func decodeValueInto(j int, c colMeta, value string, builder execute.BlockBuilde
 
 func encodeValue(value interface{}, c colMeta) (string, error) {
 	switch c.Type {
-	case execute.TBool:
+	case query.TBool:
 		return strconv.FormatBool(value.(bool)), nil
-	case execute.TInt:
+	case query.TInt:
 		return strconv.FormatInt(value.(int64), 10), nil
-	case execute.TUInt:
+	case query.TUInt:
 		return strconv.FormatUint(value.(uint64), 10), nil
-	case execute.TFloat:
+	case query.TFloat:
 		return strconv.FormatFloat(value.(float64), 'f', -1, 64), nil
-	case execute.TString:
+	case query.TString:
 		return value.(string), nil
-	case execute.TTime:
+	case query.TTime:
 		return encodeTime(value.(execute.Time), c.fmt), nil
 	default:
 		return "", fmt.Errorf("unknown type %v", c.Type)
 	}
 }
 
-func encodeValueFrom(i, j int, c colMeta, cr execute.ColReader) (string, error) {
+func encodeValueFrom(i, j int, c colMeta, cr query.ColReader) (string, error) {
 	switch c.Type {
-	case execute.TBool:
+	case query.TBool:
 		return strconv.FormatBool(cr.Bools(j)[i]), nil
-	case execute.TInt:
+	case query.TInt:
 		return strconv.FormatInt(cr.Ints(j)[i], 10), nil
-	case execute.TUInt:
+	case query.TUInt:
 		return strconv.FormatUint(cr.UInts(j)[i], 10), nil
-	case execute.TFloat:
+	case query.TFloat:
 		return strconv.FormatFloat(cr.Floats(j)[i], 'f', -1, 64), nil
-	case execute.TString:
+	case query.TString:
 		return cr.Strings(j)[i], nil
-	case execute.TTime:
+	case query.TTime:
 		return encodeTime(cr.Times(j)[i], c.fmt), nil
 	default:
 		return "", fmt.Errorf("unknown type %v", c.Type)
@@ -918,7 +918,7 @@ func copyLine(line []string) []string {
 }
 
 // decodeType returns the execute.DataType and any additional format description.
-func decodeType(datatype string) (t execute.DataType, desc string, err error) {
+func decodeType(datatype string) (t query.DataType, desc string, err error) {
 	split := strings.SplitN(datatype, ":", 2)
 	if len(split) > 1 {
 		desc = split[1]
@@ -926,17 +926,17 @@ func decodeType(datatype string) (t execute.DataType, desc string, err error) {
 	typ := split[0]
 	switch typ {
 	case boolDatatype:
-		t = execute.TBool
+		t = query.TBool
 	case intDatatype:
-		t = execute.TInt
+		t = query.TInt
 	case uintDatatype:
-		t = execute.TUInt
+		t = query.TUInt
 	case floatDatatype:
-		t = execute.TFloat
+		t = query.TFloat
 	case stringDatatype:
-		t = execute.TString
+		t = query.TString
 	case timeDatatype:
-		t = execute.TTime
+		t = query.TTime
 	default:
 		err = fmt.Errorf("unsupported data type %q", typ)
 	}

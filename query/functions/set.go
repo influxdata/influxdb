@@ -114,16 +114,16 @@ func NewSetTransformation(
 	}
 }
 
-func (t *setTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *setTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	// TODO
 	return nil
 }
 
-func (t *setTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *setTransformation) Process(id execute.DatasetID, b query.Block) error {
 	key := b.Key()
 	if idx := execute.ColIdx(t.key, key.Cols()); idx >= 0 {
 		// Update key
-		cols := make([]execute.ColMeta, len(key.Cols()))
+		cols := make([]query.ColMeta, len(key.Cols()))
 		values := make([]interface{}, len(key.Cols()))
 		for j, c := range key.Cols() {
 			cols[j] = c
@@ -139,14 +139,14 @@ func (t *setTransformation) Process(id execute.DatasetID, b execute.Block) error
 	if created {
 		execute.AddBlockCols(b, builder)
 		if !execute.HasCol(t.key, builder.Cols()) {
-			builder.AddCol(execute.ColMeta{
+			builder.AddCol(query.ColMeta{
 				Label: t.key,
-				Type:  execute.TString,
+				Type:  query.TString,
 			})
 		}
 	}
 	idx := execute.ColIdx(t.key, builder.Cols())
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		for j := range cr.Cols() {
 			if j == idx {
 				continue

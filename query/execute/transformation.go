@@ -3,14 +3,14 @@ package execute
 import (
 	"fmt"
 
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/plan"
 )
 
 type Transformation interface {
-	RetractBlock(id DatasetID, key PartitionKey) error
-	Process(id DatasetID, b Block) error
+	RetractBlock(id DatasetID, key query.PartitionKey) error
+	Process(id DatasetID, b query.Block) error
 	UpdateWatermark(id DatasetID, t Time) error
 	UpdateProcessingTime(id DatasetID, t Time) error
 	Finish(id DatasetID, err error)

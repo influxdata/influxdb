@@ -153,24 +153,24 @@ func (s *LastSelector) Rows() []execute.Row {
 	return s.rows
 }
 
-func (s *LastSelector) selectLast(l int, cr execute.ColReader) {
+func (s *LastSelector) selectLast(l int, cr query.ColReader) {
 	if l > 0 {
 		s.rows = []execute.Row{execute.ReadRow(l-1, cr)}
 	}
 }
 
-func (s *LastSelector) DoBool(vs []bool, cr execute.ColReader) {
+func (s *LastSelector) DoBool(vs []bool, cr query.ColReader) {
 	s.selectLast(len(vs), cr)
 }
-func (s *LastSelector) DoInt(vs []int64, cr execute.ColReader) {
+func (s *LastSelector) DoInt(vs []int64, cr query.ColReader) {
 	s.selectLast(len(vs), cr)
 }
-func (s *LastSelector) DoUInt(vs []uint64, cr execute.ColReader) {
+func (s *LastSelector) DoUInt(vs []uint64, cr query.ColReader) {
 	s.selectLast(len(vs), cr)
 }
-func (s *LastSelector) DoFloat(vs []float64, cr execute.ColReader) {
+func (s *LastSelector) DoFloat(vs []float64, cr query.ColReader) {
 	s.selectLast(len(vs), cr)
 }
-func (s *LastSelector) DoString(vs []string, cr execute.ColReader) {
+func (s *LastSelector) DoString(vs []string, cr query.ColReader) {
 	s.selectLast(len(vs), cr)
 }

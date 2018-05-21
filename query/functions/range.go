@@ -145,11 +145,11 @@ func NewRangeTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}, nil
 }
 
-func (t *rangeTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *rangeTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *rangeTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *rangeTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("range found duplicate block with key: %v", b.Key())

@@ -3,6 +3,7 @@ package executetest
 import (
 	"fmt"
 
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 )
 
@@ -12,7 +13,7 @@ import (
 // Use Normalize to ensure that all fields are set before equality comparisons.
 type Block struct {
 	// PartitionKey of the block. Does not need to be set explicitly.
-	PartitionKey execute.PartitionKey
+	PartitionKey query.PartitionKey
 	// KeyCols is a list of column that are part of the partition key.
 	// The column type is deduced from the ColMeta slice.
 	KeyCols []string
@@ -20,7 +21,7 @@ type Block struct {
 	// Only needs to be set when no data is present on the Block.
 	KeyValues []interface{}
 	// ColMeta is a list of columns of the block.
-	ColMeta []execute.ColMeta
+	ColMeta []query.ColMeta
 	// Data is a list of rows, i.e. Data[row][col]
 	// Each row must be a list with length equal to len(ColMeta)
 	Data [][]interface{}
@@ -29,7 +30,7 @@ type Block struct {
 // Normalize ensures all fields of the Block are set correctly.
 func (b *Block) Normalize() {
 	if b.PartitionKey == nil {
-		cols := make([]execute.ColMeta, len(b.KeyCols))
+		cols := make([]query.ColMeta, len(b.KeyCols))
 		if len(b.KeyValues) != len(b.KeyCols) {
 			b.KeyValues = make([]interface{}, len(b.KeyCols))
 		}
@@ -49,16 +50,16 @@ func (b *Block) Normalize() {
 
 func (b *Block) RefCount(n int) {}
 
-func (b *Block) Cols() []execute.ColMeta {
+func (b *Block) Cols() []query.ColMeta {
 	return b.ColMeta
 }
 
-func (b *Block) Key() execute.PartitionKey {
+func (b *Block) Key() query.PartitionKey {
 	b.Normalize()
 	return b.PartitionKey
 }
 
-func (b *Block) Do(f func(execute.ColReader) error) error {
+func (b *Block) Do(f func(query.ColReader) error) error {
 	for _, r := range b.Data {
 		if err := f(ColReader{
 			key:  b.Key(),
@@ -72,16 +73,16 @@ func (b *Block) Do(f func(execute.ColReader) error) error {
 }
 
 type ColReader struct {
-	key  execute.PartitionKey
-	cols []execute.ColMeta
+	key  query.PartitionKey
+	cols []query.ColMeta
 	row  []interface{}
 }
 
-func (cr ColReader) Cols() []execute.ColMeta {
+func (cr ColReader) Cols() []query.ColMeta {
 	return cr.cols
 }
 
-func (cr ColReader) Key() execute.PartitionKey {
+func (cr ColReader) Key() query.PartitionKey {
 	return cr.key
 }
 func (cr ColReader) Len() int {
@@ -113,11 +114,11 @@ func (cr ColReader) Times(j int) []execute.Time {
 }
 
 func BlocksFromCache(c execute.DataCache) (blocks []*Block, err error) {
-	c.ForEach(func(key execute.PartitionKey) {
+	c.ForEach(func(key query.PartitionKey) {
 		if err != nil {
 			return
 		}
-		var b execute.Block
+		var b query.Block
 		b, err = c.Block(key)
 		if err != nil {
 			return
@@ -132,7 +133,7 @@ func BlocksFromCache(c execute.DataCache) (blocks []*Block, err error) {
 	return blocks, nil
 }
 
-func ConvertBlock(b execute.Block) (*Block, error) {
+func ConvertBlock(b query.Block) (*Block, error) {
 	key := b.Key()
 	blk := &Block{
 		PartitionKey: key,
@@ -149,24 +150,24 @@ func ConvertBlock(b execute.Block) (*Block, error) {
 		}
 	}
 
-	err := b.Do(func(cr execute.ColReader) error {
+	err := b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			row := make([]interface{}, len(blk.ColMeta))
 			for j, c := range blk.ColMeta {
 				var v interface{}
 				switch c.Type {
-				case execute.TBool:
+				case query.TBool:
 					v = cr.Bools(j)[i]
-				case execute.TInt:
+				case query.TInt:
 					v = cr.Ints(j)[i]
-				case execute.TUInt:
+				case query.TUInt:
 					v = cr.UInts(j)[i]
-				case execute.TFloat:
+				case query.TFloat:
 					v = cr.Floats(j)[i]
-				case execute.TString:
+				case query.TString:
 					v = cr.Strings(j)[i]
-				case execute.TTime:
+				case query.TTime:
 					v = cr.Times(j)[i]
 				default:
 					panic(fmt.Errorf("unknown column type %s", c.Type))

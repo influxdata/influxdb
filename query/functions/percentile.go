@@ -195,8 +195,8 @@ func (a *PercentileAgg) DoFloat(vs []float64) {
 	}
 }
 
-func (a *PercentileAgg) Type() execute.DataType {
-	return execute.TFloat
+func (a *PercentileAgg) Type() query.DataType {
+	return query.TFloat
 }
 func (a *PercentileAgg) ValueFloat() float64 {
 	return a.digest.Quantile(a.Quantile)
@@ -250,8 +250,8 @@ func (a *ExactPercentileAgg) DoFloat(vs []float64) {
 	a.data = append(a.data, vs...)
 }
 
-func (a *ExactPercentileAgg) Type() execute.DataType {
-	return execute.TFloat
+func (a *ExactPercentileAgg) Type() query.DataType {
+	return query.TFloat
 }
 
 func (a *ExactPercentileAgg) ValueFloat() float64 {

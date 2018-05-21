@@ -6,8 +6,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/influxdata/platform/query/functions/storage"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/yarpc"
 	"github.com/pkg/errors"
 )
@@ -42,7 +43,7 @@ type connection struct {
 	client StorageClient
 }
 
-func (sr *reader) Read(ctx context.Context, trace map[string]string, readSpec storage.ReadSpec, start, stop execute.Time) (execute.BlockIterator, error) {
+func (sr *reader) Read(ctx context.Context, trace map[string]string, readSpec storage.ReadSpec, start, stop execute.Time) (query.BlockIterator, error) {
 	var predicate *Predicate
 	if readSpec.Predicate != nil {
 		p, err := ToStoragePredicate(readSpec.Predicate)
@@ -81,7 +82,7 @@ type bockIterator struct {
 	predicate *Predicate
 }
 
-func (bi *bockIterator) Do(f func(execute.Block) error) error {
+func (bi *bockIterator) Do(f func(query.Block) error) error {
 	// Setup read request
 	var req ReadRequest
 	req.Database = string(bi.readSpec.BucketID)
@@ -163,20 +164,20 @@ func determineAggregateMethod(agg string) (Aggregate_AggregateType, error) {
 	return 0, fmt.Errorf("unknown aggregate type %q", agg)
 }
 
-func convertDataType(t ReadResponse_DataType) execute.DataType {
+func convertDataType(t ReadResponse_DataType) query.DataType {
 	switch t {
 	case DataTypeFloat:
-		return execute.TFloat
+		return query.TFloat
 	case DataTypeInteger:
-		return execute.TInt
+		return query.TInt
 	case DataTypeUnsigned:
-		return execute.TUInt
+		return query.TUInt
 	case DataTypeBoolean:
-		return execute.TBool
+		return query.TBool
 	case DataTypeString:
-		return execute.TString
+		return query.TString
 	default:
-		return execute.TInvalid
+		return query.TInvalid
 	}
 }
 
@@ -187,44 +188,44 @@ const (
 	valueColIdx = 3
 )
 
-func (bi *bockIterator) determineBlockCols(s *ReadResponse_SeriesFrame, typ execute.DataType) []execute.ColMeta {
-	cols := make([]execute.ColMeta, 4+len(s.Tags))
-	cols[startColIdx] = execute.ColMeta{
+func (bi *bockIterator) determineBlockCols(s *ReadResponse_SeriesFrame, typ query.DataType) []query.ColMeta {
+	cols := make([]query.ColMeta, 4+len(s.Tags))
+	cols[startColIdx] = query.ColMeta{
 		Label: execute.DefaultStartColLabel,
-		Type:  execute.TTime,
+		Type:  query.TTime,
 	}
-	cols[stopColIdx] = execute.ColMeta{
+	cols[stopColIdx] = query.ColMeta{
 		Label: execute.DefaultStopColLabel,
-		Type:  execute.TTime,
+		Type:  query.TTime,
 	}
-	cols[timeColIdx] = execute.ColMeta{
+	cols[timeColIdx] = query.ColMeta{
 		Label: execute.DefaultTimeColLabel,
-		Type:  execute.TTime,
+		Type:  query.TTime,
 	}
-	cols[valueColIdx] = execute.ColMeta{
+	cols[valueColIdx] = query.ColMeta{
 		Label: execute.DefaultValueColLabel,
 		Type:  typ,
 	}
 	for j, tag := range s.Tags {
-		cols[4+j] = execute.ColMeta{
+		cols[4+j] = query.ColMeta{
 			Label: string(tag.Key),
-			Type:  execute.TString,
+			Type:  query.TString,
 		}
 	}
 	return cols
 }
 
-func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec) execute.PartitionKey {
-	cols := make([]execute.ColMeta, 0, len(s.Tags))
+func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec) query.PartitionKey {
+	cols := make([]query.ColMeta, 0, len(s.Tags))
 	values := make([]interface{}, 0, len(s.Tags))
 	if len(readSpec.GroupKeys) > 0 {
 		for _, tag := range s.Tags {
 			if !execute.ContainsStr(readSpec.GroupKeys, string(tag.Key)) {
 				continue
 			}
-			cols = append(cols, execute.ColMeta{
+			cols = append(cols, query.ColMeta{
 				Label: string(tag.Key),
-				Type:  execute.TString,
+				Type:  query.TString,
 			})
 			values = append(values, string(tag.Value))
 		}
@@ -233,17 +234,17 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 			if !execute.ContainsStr(readSpec.GroupExcept, string(tag.Key)) {
 				continue
 			}
-			cols = append(cols, execute.ColMeta{
+			cols = append(cols, query.ColMeta{
 				Label: string(tag.Key),
-				Type:  execute.TString,
+				Type:  query.TString,
 			})
 			values = append(values, string(tag.Value))
 		}
 	} else if !readSpec.MergeAll {
 		for _, tag := range s.Tags {
-			cols = append(cols, execute.ColMeta{
+			cols = append(cols, query.ColMeta{
 				Label: string(tag.Key),
-				Type:  execute.TString,
+				Type:  query.TString,
 			})
 			values = append(values, string(tag.Value))
 		}
@@ -256,8 +257,8 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 // Since it can only be read once it is also a ValueIterator for itself.
 type block struct {
 	bounds execute.Bounds
-	key    execute.PartitionKey
-	cols   []execute.ColMeta
+	key    query.PartitionKey
+	cols   []query.ColMeta
 
 	// cache of the tags on the current series.
 	// len(tags) == len(colMeta)
@@ -289,8 +290,8 @@ type block struct {
 
 func newBlock(
 	bounds execute.Bounds,
-	key execute.PartitionKey,
-	cols []execute.ColMeta,
+	key query.PartitionKey,
+	cols []query.ColMeta,
 	ms *mergedStreams,
 	readSpec *storage.ReadSpec,
 	tags []Tag,
@@ -320,16 +321,16 @@ func (b *block) wait() {
 	<-b.done
 }
 
-func (b *block) Key() execute.PartitionKey {
+func (b *block) Key() query.PartitionKey {
 	return b.key
 }
-func (b *block) Cols() []execute.ColMeta {
+func (b *block) Cols() []query.ColMeta {
 	return b.cols
 }
 
 // onetime satisfies the OneTimeBlock interface since this block may only be read once.
 func (b *block) onetime() {}
-func (b *block) Do(f func(execute.ColReader) error) error {
+func (b *block) Do(f func(query.ColReader) error) error {
 	defer close(b.done)
 	for b.advance() {
 		if err := f(b); err != nil {
@@ -344,27 +345,27 @@ func (b *block) Len() int {
 }
 
 func (b *block) Bools(j int) []bool {
-	execute.CheckColType(b.cols[j], execute.TBool)
+	execute.CheckColType(b.cols[j], query.TBool)
 	return b.colBufs[j].([]bool)
 }
 func (b *block) Ints(j int) []int64 {
-	execute.CheckColType(b.cols[j], execute.TInt)
+	execute.CheckColType(b.cols[j], query.TInt)
 	return b.colBufs[j].([]int64)
 }
 func (b *block) UInts(j int) []uint64 {
-	execute.CheckColType(b.cols[j], execute.TUInt)
+	execute.CheckColType(b.cols[j], query.TUInt)
 	return b.colBufs[j].([]uint64)
 }
 func (b *block) Floats(j int) []float64 {
-	execute.CheckColType(b.cols[j], execute.TFloat)
+	execute.CheckColType(b.cols[j], query.TFloat)
 	return b.colBufs[j].([]float64)
 }
 func (b *block) Strings(j int) []string {
-	execute.CheckColType(b.cols[j], execute.TString)
+	execute.CheckColType(b.cols[j], query.TString)
 	return b.colBufs[j].([]string)
 }
 func (b *block) Times(j int) []execute.Time {
-	execute.CheckColType(b.cols[j], execute.TTime)
+	execute.CheckColType(b.cols[j], query.TTime)
 	return b.colBufs[j].([]execute.Time)
 }
 
@@ -408,8 +409,8 @@ func (b *block) advance() bool {
 				return true
 			}
 		case boolPointsType:
-			if b.cols[valueColIdx].Type != execute.TBool {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, execute.TBool)
+			if b.cols[valueColIdx].Type != query.TBool {
+				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TBool)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -440,8 +441,8 @@ func (b *block) advance() bool {
 			b.appendBounds()
 			return true
 		case intPointsType:
-			if b.cols[valueColIdx].Type != execute.TInt {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, execute.TInt)
+			if b.cols[valueColIdx].Type != query.TInt {
+				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TInt)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -472,8 +473,8 @@ func (b *block) advance() bool {
 			b.appendBounds()
 			return true
 		case uintPointsType:
-			if b.cols[valueColIdx].Type != execute.TUInt {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, execute.TUInt)
+			if b.cols[valueColIdx].Type != query.TUInt {
+				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TUInt)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -504,8 +505,8 @@ func (b *block) advance() bool {
 			b.appendBounds()
 			return true
 		case floatPointsType:
-			if b.cols[valueColIdx].Type != execute.TFloat {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, execute.TFloat)
+			if b.cols[valueColIdx].Type != query.TFloat {
+				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TFloat)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -537,8 +538,8 @@ func (b *block) advance() bool {
 			b.appendBounds()
 			return true
 		case stringPointsType:
-			if b.cols[valueColIdx].Type != execute.TString {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, execute.TString)
+			if b.cols[valueColIdx].Type != query.TString {
+				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TString)
 				// TODO: Add error handling
 				// Type changed,
 				return false
@@ -620,7 +621,7 @@ func (b *block) appendBounds() {
 type streamState struct {
 	stream     Storage_ReadClient
 	rep        ReadResponse
-	currentKey execute.PartitionKey
+	currentKey query.PartitionKey
 	readSpec   *storage.ReadSpec
 	finished   bool
 }
@@ -652,7 +653,7 @@ func (s *streamState) more() bool {
 	return true
 }
 
-func (s *streamState) key() execute.PartitionKey {
+func (s *streamState) key() query.PartitionKey {
 	return s.currentKey
 }
 
@@ -674,11 +675,11 @@ func (s *streamState) next() ReadResponse_Frame {
 
 type mergedStreams struct {
 	streams    []*streamState
-	currentKey execute.PartitionKey
+	currentKey query.PartitionKey
 	i          int
 }
 
-func (s *mergedStreams) key() execute.PartitionKey {
+func (s *mergedStreams) key() query.PartitionKey {
 	if len(s.streams) == 1 {
 		return s.streams[0].key()
 	}
@@ -725,7 +726,7 @@ func (s *mergedStreams) advance() bool {
 
 func (s *mergedStreams) determineNewKey() bool {
 	minIdx := -1
-	var minKey execute.PartitionKey
+	var minKey query.PartitionKey
 	for i, stream := range s.streams {
 		if !stream.more() {
 			continue

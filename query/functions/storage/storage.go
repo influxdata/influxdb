@@ -4,8 +4,9 @@ import (
 	"context"
 	"log"
 
-	"github.com/influxdata/platform/query/id"
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/semantic"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -95,7 +96,7 @@ func (s *source) run(ctx context.Context) error {
 
 	//TODO(nathanielc): Pass through context to actual network I/O.
 	for blocks, mark, ok := s.next(ctx, trace); ok; blocks, mark, ok = s.next(ctx, trace) {
-		err := blocks.Do(func(b execute.Block) error {
+		err := blocks.Do(func(b query.Block) error {
 			for _, t := range s.ts {
 				if err := t.Process(s.id, b); err != nil {
 					return err
@@ -120,7 +121,7 @@ func (s *source) run(ctx context.Context) error {
 	return nil
 }
 
-func (s *source) next(ctx context.Context, trace map[string]string) (execute.BlockIterator, execute.Time, bool) {
+func (s *source) next(ctx context.Context, trace map[string]string) (query.BlockIterator, execute.Time, bool) {
 	start := s.currentTime - execute.Time(s.window.Period)
 	stop := s.currentTime
 
@@ -170,6 +171,6 @@ type ReadSpec struct {
 }
 
 type Reader interface {
-	Read(ctx context.Context, trace map[string]string, rs ReadSpec, start, stop execute.Time) (execute.BlockIterator, error)
+	Read(ctx context.Context, trace map[string]string, rs ReadSpec, start, stop execute.Time) (query.BlockIterator, error)
 	Close()
 }

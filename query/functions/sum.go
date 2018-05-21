@@ -133,8 +133,8 @@ func (a *SumIntAgg) DoInt(vs []int64) {
 		a.sum += v
 	}
 }
-func (a *SumIntAgg) Type() execute.DataType {
-	return execute.TInt
+func (a *SumIntAgg) Type() query.DataType {
+	return query.TInt
 }
 func (a *SumIntAgg) ValueInt() int64 {
 	return a.sum
@@ -149,8 +149,8 @@ func (a *SumUIntAgg) DoUInt(vs []uint64) {
 		a.sum += v
 	}
 }
-func (a *SumUIntAgg) Type() execute.DataType {
-	return execute.TUInt
+func (a *SumUIntAgg) Type() query.DataType {
+	return query.TUInt
 }
 func (a *SumUIntAgg) ValueUInt() uint64 {
 	return a.sum
@@ -165,8 +165,8 @@ func (a *SumFloatAgg) DoFloat(vs []float64) {
 		a.sum += v
 	}
 }
-func (a *SumFloatAgg) Type() execute.DataType {
-	return execute.TFloat
+func (a *SumFloatAgg) Type() query.DataType {
+	return query.TFloat
 }
 func (a *SumFloatAgg) ValueFloat() float64 {
 	return a.sum

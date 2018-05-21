@@ -19,7 +19,7 @@ type TriggerContext struct {
 }
 
 type BlockContext struct {
-	Key   PartitionKey
+	Key   query.PartitionKey
 	Count int
 }
 

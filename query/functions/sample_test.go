@@ -3,10 +3,10 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 
@@ -26,7 +26,7 @@ func TestSampleOperation_Marshaling(t *testing.T) {
 func TestSample_Process(t *testing.T) {
 	testCases := []struct {
 		name   string
-		data   execute.Block
+		data   query.Block
 		want   [][]int
 		fromor *functions.SampleSelector
 	}{
@@ -38,11 +38,11 @@ func TestSample_Process(t *testing.T) {
 			name: "everything in separate Do calls",
 			data: &executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 7.0, "a", "y"},
@@ -78,11 +78,11 @@ func TestSample_Process(t *testing.T) {
 			name: "everything in single Do call",
 			data: execute.CopyBlock(&executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 7.0, "a", "y"},
@@ -118,11 +118,11 @@ func TestSample_Process(t *testing.T) {
 			name: "every-other-even",
 			data: execute.CopyBlock(&executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 7.0, "a", "y"},
@@ -153,11 +153,11 @@ func TestSample_Process(t *testing.T) {
 			name: "every-other-odd",
 			data: execute.CopyBlock(&executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 7.0, "a", "y"},
@@ -188,11 +188,11 @@ func TestSample_Process(t *testing.T) {
 			name: "every-third-0",
 			data: execute.CopyBlock(&executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 7.0, "a", "y"},
@@ -222,11 +222,11 @@ func TestSample_Process(t *testing.T) {
 			name: "every-third-1",
 			data: execute.CopyBlock(&executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 7.0, "a", "y"},
@@ -255,11 +255,11 @@ func TestSample_Process(t *testing.T) {
 			name: "every-third-2",
 			data: execute.CopyBlock(&executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 7.0, "a", "y"},
@@ -288,11 +288,11 @@ func TestSample_Process(t *testing.T) {
 			name: "every-third-2 in separate Do calls",
 			data: &executetest.Block{
 				KeyCols: []string{"t1"},
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
-					{Label: "t1", Type: execute.TString},
-					{Label: "t2", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 7.0, "a", "y"},

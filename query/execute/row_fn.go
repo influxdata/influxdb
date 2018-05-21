@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/influxdata/platform/query/compiler"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/compiler"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/influxdata/platform/query/values"
 	"github.com/pkg/errors"
@@ -39,7 +39,7 @@ func newRowFn(fn *semantic.FunctionExpression) (rowFn, error) {
 	}, nil
 }
 
-func (f *rowFn) prepare(cols []ColMeta) error {
+func (f *rowFn) prepare(cols []query.ColMeta) error {
 	// Prepare types and recordCols
 	propertyTypes := make(map[string]semantic.Type, len(f.references))
 	for _, r := range f.references {
@@ -68,51 +68,51 @@ func (f *rowFn) prepare(cols []ColMeta) error {
 	return nil
 }
 
-func ConvertToKind(t DataType) semantic.Kind {
+func ConvertToKind(t query.DataType) semantic.Kind {
 	// TODO make this an array lookup.
 	switch t {
-	case TInvalid:
+	case query.TInvalid:
 		return semantic.Invalid
-	case TBool:
+	case query.TBool:
 		return semantic.Bool
-	case TInt:
+	case query.TInt:
 		return semantic.Int
-	case TUInt:
+	case query.TUInt:
 		return semantic.UInt
-	case TFloat:
+	case query.TFloat:
 		return semantic.Float
-	case TString:
+	case query.TString:
 		return semantic.String
-	case TTime:
+	case query.TTime:
 		return semantic.Time
 	default:
 		return semantic.Invalid
 	}
 }
 
-func ConvertFromKind(k semantic.Kind) DataType {
+func ConvertFromKind(k semantic.Kind) query.DataType {
 	// TODO make this an array lookup.
 	switch k {
 	case semantic.Invalid:
-		return TInvalid
+		return query.TInvalid
 	case semantic.Bool:
-		return TBool
+		return query.TBool
 	case semantic.Int:
-		return TInt
+		return query.TInt
 	case semantic.UInt:
-		return TUInt
+		return query.TUInt
 	case semantic.Float:
-		return TFloat
+		return query.TFloat
 	case semantic.String:
-		return TString
+		return query.TString
 	case semantic.Time:
-		return TTime
+		return query.TTime
 	default:
-		return TInvalid
+		return query.TInvalid
 	}
 }
 
-func (f *rowFn) eval(row int, cr ColReader) (values.Value, error) {
+func (f *rowFn) eval(row int, cr query.ColReader) (values.Value, error) {
 	for _, r := range f.references {
 		f.record.Set(r, ValueForRow(row, f.recordCols[r], cr))
 	}
@@ -134,7 +134,7 @@ func NewRowPredicateFn(fn *semantic.FunctionExpression) (*RowPredicateFn, error)
 	}, nil
 }
 
-func (f *RowPredicateFn) Prepare(cols []ColMeta) error {
+func (f *RowPredicateFn) Prepare(cols []query.ColMeta) error {
 	err := f.rowFn.prepare(cols)
 	if err != nil {
 		return err
@@ -145,7 +145,7 @@ func (f *RowPredicateFn) Prepare(cols []ColMeta) error {
 	return nil
 }
 
-func (f *RowPredicateFn) Eval(row int, cr ColReader) (bool, error) {
+func (f *RowPredicateFn) Eval(row int, cr query.ColReader) (bool, error) {
 	v, err := f.rowFn.eval(row, cr)
 	if err != nil {
 		return false, err
@@ -170,7 +170,7 @@ func NewRowMapFn(fn *semantic.FunctionExpression) (*RowMapFn, error) {
 	}, nil
 }
 
-func (f *RowMapFn) Prepare(cols []ColMeta) error {
+func (f *RowMapFn) Prepare(cols []query.ColMeta) error {
 	err := f.rowFn.prepare(cols)
 	if err != nil {
 		return err
@@ -192,7 +192,7 @@ func (f *RowMapFn) Type() semantic.Type {
 	return f.preparedFn.Type()
 }
 
-func (f *RowMapFn) Eval(row int, cr ColReader) (values.Object, error) {
+func (f *RowMapFn) Eval(row int, cr query.ColReader) (values.Object, error) {
 	v, err := f.rowFn.eval(row, cr)
 	if err != nil {
 		return nil, err
@@ -204,20 +204,20 @@ func (f *RowMapFn) Eval(row int, cr ColReader) (values.Object, error) {
 	return v.Object(), nil
 }
 
-func ValueForRow(i, j int, cr ColReader) values.Value {
+func ValueForRow(i, j int, cr query.ColReader) values.Value {
 	t := cr.Cols()[j].Type
 	switch t {
-	case TString:
+	case query.TString:
 		return values.NewStringValue(cr.Strings(j)[i])
-	case TInt:
+	case query.TInt:
 		return values.NewIntValue(cr.Ints(j)[i])
-	case TUInt:
+	case query.TUInt:
 		return values.NewUIntValue(cr.UInts(j)[i])
-	case TFloat:
+	case query.TFloat:
 		return values.NewFloatValue(cr.Floats(j)[i])
-	case TBool:
+	case query.TBool:
 		return values.NewBoolValue(cr.Bools(j)[i])
-	case TTime:
+	case query.TTime:
 		return values.NewTimeValue(cr.Times(j)[i])
 	default:
 		PanicUnknownType(t)

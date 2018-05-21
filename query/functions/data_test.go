@@ -26,7 +26,7 @@ func init() {
 var NormalData []float64
 
 // NormalBlock is a block of data whose value col is NormalData.
-var NormalBlock execute.Block
+var NormalBlock query.Block
 
 func init() {
 	dist := distuv.Normal{
@@ -42,10 +42,10 @@ func init() {
 	stop := execute.Time(time.Date(2017, 10, 10, 0, 0, 0, 0, time.UTC).UnixNano())
 	t1Value := "a"
 	key := execute.NewPartitionKey(
-		[]execute.ColMeta{
-			{Label: execute.DefaultStartColLabel, Type: execute.TTime},
-			{Label: execute.DefaultStopColLabel, Type: execute.TTime},
-			{Label: "t1", Type: execute.TString},
+		[]query.ColMeta{
+			{Label: execute.DefaultStartColLabel, Type: query.TTime},
+			{Label: execute.DefaultStopColLabel, Type: query.TTime},
+			{Label: "t1", Type: query.TString},
 		},
 		[]interface{}{
 			start,
@@ -55,12 +55,12 @@ func init() {
 	)
 	normalBlockBuilder := execute.NewColListBlockBuilder(key, executetest.UnlimitedAllocator)
 
-	normalBlockBuilder.AddCol(execute.ColMeta{Label: execute.DefaultTimeColLabel, Type: execute.TTime})
-	normalBlockBuilder.AddCol(execute.ColMeta{Label: execute.DefaultStartColLabel, Type: execute.TTime})
-	normalBlockBuilder.AddCol(execute.ColMeta{Label: execute.DefaultStopColLabel, Type: execute.TTime})
-	normalBlockBuilder.AddCol(execute.ColMeta{Label: execute.DefaultValueColLabel, Type: execute.TFloat})
-	normalBlockBuilder.AddCol(execute.ColMeta{Label: "t1", Type: execute.TString})
-	normalBlockBuilder.AddCol(execute.ColMeta{Label: "t2", Type: execute.TString})
+	normalBlockBuilder.AddCol(query.ColMeta{Label: execute.DefaultTimeColLabel, Type: query.TTime})
+	normalBlockBuilder.AddCol(query.ColMeta{Label: execute.DefaultStartColLabel, Type: query.TTime})
+	normalBlockBuilder.AddCol(query.ColMeta{Label: execute.DefaultStopColLabel, Type: query.TTime})
+	normalBlockBuilder.AddCol(query.ColMeta{Label: execute.DefaultValueColLabel, Type: query.TFloat})
+	normalBlockBuilder.AddCol(query.ColMeta{Label: "t1", Type: query.TString})
+	normalBlockBuilder.AddCol(query.ColMeta{Label: "t2", Type: query.TString})
 
 	times := make([]execute.Time, N)
 	startTimes := make([]execute.Time, N)

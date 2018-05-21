@@ -5,9 +5,9 @@ import (
 	"log"
 	"sort"
 
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -112,11 +112,11 @@ func NewMapTransformation(d execute.Dataset, cache execute.BlockBuilderCache, sp
 	}, nil
 }
 
-func (t *mapTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *mapTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *mapTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 	// Prepare the functions for the column types.
 	cols := b.Cols()
 	err := t.fn.Prepare(cols)
@@ -125,7 +125,7 @@ func (t *mapTransformation) Process(id execute.DatasetID, b execute.Block) error
 		return err
 	}
 
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			m, err := t.fn.Eval(i, cr)
@@ -144,7 +144,7 @@ func (t *mapTransformation) Process(id execute.DatasetID, b execute.Block) error
 				}
 				sort.Strings(keys)
 				for _, k := range keys {
-					builder.AddCol(execute.ColMeta{
+					builder.AddCol(query.ColMeta{
 						Label: k,
 						Type:  execute.ConvertFromKind(properties[k].Kind()),
 					})

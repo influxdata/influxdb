@@ -3,9 +3,9 @@ package functions
 import (
 	"fmt"
 
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -126,18 +126,18 @@ func NewShiftTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}
 }
 
-func (t *shiftTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *shiftTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *shiftTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *shiftTransformation) Process(id execute.DatasetID, b query.Block) error {
 	key := b.Key()
 	// Update key
-	cols := make([]execute.ColMeta, len(key.Cols()))
+	cols := make([]query.ColMeta, len(key.Cols()))
 	values := make([]interface{}, len(key.Cols()))
 	for j, c := range key.Cols() {
 		if execute.ContainsStr(t.columns, c.Label) {
-			if c.Type != execute.TTime {
+			if c.Type != query.TTime {
 				return fmt.Errorf("column %q is not of type time", c.Label)
 			}
 			cols[j] = c
@@ -155,7 +155,7 @@ func (t *shiftTransformation) Process(id execute.DatasetID, b execute.Block) err
 	}
 	execute.AddBlockCols(b, builder)
 
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		for j, c := range cr.Cols() {
 			if execute.ContainsStr(t.columns, c.Label) {
 				l := cr.Len()

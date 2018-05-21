@@ -147,8 +147,8 @@ func (a *SkewAgg) DoFloat(vs []float64) {
 		a.m1 += deltaN
 	}
 }
-func (a *SkewAgg) Type() execute.DataType {
-	return execute.TFloat
+func (a *SkewAgg) Type() query.DataType {
+	return query.TFloat
 }
 func (a *SkewAgg) ValueFloat() float64 {
 	if a.n < 2 {

@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -151,18 +151,18 @@ func NewKeysTransformation(d execute.Dataset, cache execute.BlockBuilderCache, s
 	}
 }
 
-func (t *keysTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *keysTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *keysTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *keysTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("keys found duplicate block with key: %v", b.Key())
 	}
 
 	execute.AddBlockKeyCols(b.Key(), builder)
-	colIdx := builder.AddCol(execute.ColMeta{Label: execute.DefaultValueColLabel, Type: execute.TString})
+	colIdx := builder.AddCol(query.ColMeta{Label: execute.DefaultValueColLabel, Type: query.TString})
 
 	cols := b.Cols()
 	sort.Slice(cols, func(i, j int) bool {
@@ -194,7 +194,7 @@ func (t *keysTransformation) Process(id execute.DatasetID, b execute.Block) erro
 	}
 
 	// TODO: this is a hack
-	return b.Do(func(execute.ColReader) error {
+	return b.Do(func(query.ColReader) error {
 		return nil
 	})
 }

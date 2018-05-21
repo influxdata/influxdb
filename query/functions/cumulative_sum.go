@@ -3,9 +3,9 @@ package functions
 import (
 	"fmt"
 
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -106,11 +106,11 @@ func NewCumulativeSumTransformation(d execute.Dataset, cache execute.BlockBuilde
 	}
 }
 
-func (t *cumulativeSumTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *cumulativeSumTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	return t.d.RetractBlock(key)
 }
 
-func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b query.Block) error {
 	builder, created := t.cache.BlockBuilder(b.Key())
 	if !created {
 		return fmt.Errorf("cumulative sum found duplicate block with key: %v", b.Key())
@@ -127,13 +127,13 @@ func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b execute.Bl
 			}
 		}
 	}
-	return b.Do(func(cr execute.ColReader) error {
+	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for j, c := range cols {
 			switch c.Type {
-			case execute.TBool:
+			case query.TBool:
 				builder.AppendBools(j, cr.Bools(j))
-			case execute.TInt:
+			case query.TInt:
 				if sumers[j] != nil {
 					for i := 0; i < l; i++ {
 						builder.AppendInt(j, sumers[j].sumInt(cr.Ints(j)[i]))
@@ -141,7 +141,7 @@ func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b execute.Bl
 				} else {
 					builder.AppendInts(j, cr.Ints(j))
 				}
-			case execute.TUInt:
+			case query.TUInt:
 				if sumers[j] != nil {
 					for i := 0; i < l; i++ {
 						builder.AppendUInt(j, sumers[j].sumUInt(cr.UInts(j)[i]))
@@ -149,7 +149,7 @@ func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b execute.Bl
 				} else {
 					builder.AppendUInts(j, cr.UInts(j))
 				}
-			case execute.TFloat:
+			case query.TFloat:
 				if sumers[j] != nil {
 					for i := 0; i < l; i++ {
 						builder.AppendFloat(j, sumers[j].sumFloat(cr.Floats(j)[i]))
@@ -157,9 +157,9 @@ func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b execute.Bl
 				} else {
 					builder.AppendFloats(j, cr.Floats(j))
 				}
-			case execute.TString:
+			case query.TString:
 				builder.AppendStrings(j, cr.Strings(j))
-			case execute.TTime:
+			case query.TTime:
 				builder.AppendTimes(j, cr.Times(j))
 			}
 		}

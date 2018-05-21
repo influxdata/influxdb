@@ -3,10 +3,10 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 
@@ -34,7 +34,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.CumulativeSumProcedureSpec
-		data []execute.Block
+		data []query.Block
 		want []*executetest.Block
 	}{
 		{
@@ -42,10 +42,10 @@ func TestCumulativeSum_Process(t *testing.T) {
 			spec: &functions.CumulativeSumProcedureSpec{
 				Columns: []string{execute.DefaultValueColLabel},
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 2.0},
@@ -61,9 +61,9 @@ func TestCumulativeSum_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "_value", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), 2.0},
@@ -84,12 +84,12 @@ func TestCumulativeSum_Process(t *testing.T) {
 			spec: &functions.CumulativeSumProcedureSpec{
 				Columns: []string{"int", "uint", "float"},
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "int", Type: execute.TInt},
-					{Label: "uint", Type: execute.TUInt},
-					{Label: "float", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "int", Type: query.TInt},
+					{Label: "uint", Type: query.TUInt},
+					{Label: "float", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), int64(2), uint64(1), 1.0},
@@ -105,11 +105,11 @@ func TestCumulativeSum_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "int", Type: execute.TInt},
-					{Label: "uint", Type: execute.TUInt},
-					{Label: "float", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "int", Type: query.TInt},
+					{Label: "uint", Type: query.TUInt},
+					{Label: "float", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), int64(2), uint64(1), 1.0},
@@ -130,12 +130,12 @@ func TestCumulativeSum_Process(t *testing.T) {
 			spec: &functions.CumulativeSumProcedureSpec{
 				Columns: []string{"int", "float"},
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "time2", Type: execute.TTime},
-					{Label: "int", Type: execute.TInt},
-					{Label: "float", Type: execute.TFloat},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "time2", Type: query.TTime},
+					{Label: "int", Type: query.TInt},
+					{Label: "float", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(0), int64(2), 1.0},
@@ -151,11 +151,11 @@ func TestCumulativeSum_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "time2", Type: execute.TTime},
-					{Label: "int", Type: execute.TInt},
-					{Label: "float", Type: execute.TFloat},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "time2", Type: query.TTime},
+					{Label: "int", Type: query.TInt},
+					{Label: "float", Type: query.TFloat},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), execute.Time(0), int64(2), 1.0},
@@ -176,11 +176,11 @@ func TestCumulativeSum_Process(t *testing.T) {
 			spec: &functions.CumulativeSumProcedureSpec{
 				Columns: []string{"int"},
 			},
-			data: []execute.Block{&executetest.Block{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "int", Type: execute.TInt},
-					{Label: "t", Type: execute.TString},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "int", Type: query.TInt},
+					{Label: "t", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), int64(2), "tag0"},
@@ -196,10 +196,10 @@ func TestCumulativeSum_Process(t *testing.T) {
 				},
 			}},
 			want: []*executetest.Block{{
-				ColMeta: []execute.ColMeta{
-					{Label: "_time", Type: execute.TTime},
-					{Label: "int", Type: execute.TInt},
-					{Label: "t", Type: execute.TString},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "int", Type: query.TInt},
+					{Label: "t", Type: query.TString},
 				},
 				Data: [][]interface{}{
 					{execute.Time(0), int64(2), "tag0"},

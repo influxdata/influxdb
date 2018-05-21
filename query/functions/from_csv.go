@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
-	"github.com/influxdata/platform/query/csv"
 	"github.com/pkg/errors"
 )
 
@@ -102,7 +102,7 @@ func createFromCSVSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 
 type CSVSource struct {
 	id   execute.DatasetID
-	data execute.Result
+	data query.Result
 	ts   []execute.Transformation
 }
 
@@ -113,7 +113,7 @@ func (c *CSVSource) AddTransformation(t execute.Transformation) {
 func (c *CSVSource) Run(ctx context.Context) {
 	var err error
 	var max execute.Time
-	err = c.data.Blocks().Do(func(b execute.Block) error {
+	err = c.data.Blocks().Do(func(b query.Block) error {
 		for _, t := range c.ts {
 			err := t.Process(c.id, b)
 			if err != nil {

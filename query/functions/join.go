@@ -6,10 +6,10 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/influxdata/platform/query/compiler"
-	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/compiler"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/influxdata/platform/query/values"
@@ -225,7 +225,7 @@ type mergeJoinParentState struct {
 	finished   bool
 }
 
-func (t *mergeJoinTransformation) RetractBlock(id execute.DatasetID, key execute.PartitionKey) error {
+func (t *mergeJoinTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
 	panic("not implemented")
 	//t.mu.Lock()
 	//defer t.mu.Unlock()
@@ -237,7 +237,7 @@ func (t *mergeJoinTransformation) RetractBlock(id execute.DatasetID, key execute
 	//return t.d.RetractBlock(execute.ToBlockKey(bm))
 }
 
-func (t *mergeJoinTransformation) Process(id execute.DatasetID, b execute.Block) error {
+func (t *mergeJoinTransformation) Process(id execute.DatasetID, b query.Block) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -342,7 +342,7 @@ func (t *mergeJoinTransformation) Finish(id execute.DatasetID, err error) {
 }
 
 type MergeJoinCache interface {
-	Tables(execute.PartitionKey) *joinTables
+	Tables(query.PartitionKey) *joinTables
 }
 
 type mergeJoinCache struct {
@@ -375,7 +375,7 @@ func NewMergeJoinCache(joinFn *joinFunc, a *execute.Allocator, leftName, rightNa
 	}
 }
 
-func (c *mergeJoinCache) Block(key execute.PartitionKey) (execute.Block, error) {
+func (c *mergeJoinCache) Block(key query.PartitionKey) (query.Block, error) {
 	t, ok := c.lookup(key)
 	if !ok {
 		return nil, errors.New("block not found")
@@ -383,14 +383,14 @@ func (c *mergeJoinCache) Block(key execute.PartitionKey) (execute.Block, error) 
 	return t.Join()
 }
 
-func (c *mergeJoinCache) ForEach(f func(execute.PartitionKey)) {
-	c.data.Range(func(key execute.PartitionKey, value interface{}) {
+func (c *mergeJoinCache) ForEach(f func(query.PartitionKey)) {
+	c.data.Range(func(key query.PartitionKey, value interface{}) {
 		f(key)
 	})
 }
 
-func (c *mergeJoinCache) ForEachWithContext(f func(execute.PartitionKey, execute.Trigger, execute.BlockContext)) {
-	c.data.Range(func(key execute.PartitionKey, value interface{}) {
+func (c *mergeJoinCache) ForEachWithContext(f func(query.PartitionKey, execute.Trigger, execute.BlockContext)) {
+	c.data.Range(func(key query.PartitionKey, value interface{}) {
 		tables := value.(*joinTables)
 		bc := execute.BlockContext{
 			Key:   key,
@@ -400,14 +400,14 @@ func (c *mergeJoinCache) ForEachWithContext(f func(execute.PartitionKey, execute
 	})
 }
 
-func (c *mergeJoinCache) DiscardBlock(key execute.PartitionKey) {
+func (c *mergeJoinCache) DiscardBlock(key query.PartitionKey) {
 	t, ok := c.lookup(key)
 	if ok {
 		t.ClearData()
 	}
 }
 
-func (c *mergeJoinCache) ExpireBlock(key execute.PartitionKey) {
+func (c *mergeJoinCache) ExpireBlock(key query.PartitionKey) {
 	v, ok := c.data.Delete(key)
 	if ok {
 		v.(*joinTables).ClearData()
@@ -418,7 +418,7 @@ func (c *mergeJoinCache) SetTriggerSpec(spec query.TriggerSpec) {
 	c.triggerSpec = spec
 }
 
-func (c *mergeJoinCache) lookup(key execute.PartitionKey) (*joinTables, bool) {
+func (c *mergeJoinCache) lookup(key query.PartitionKey) (*joinTables, bool) {
 	v, ok := c.data.Lookup(key)
 	if !ok {
 		return nil, false
@@ -426,7 +426,7 @@ func (c *mergeJoinCache) lookup(key execute.PartitionKey) (*joinTables, bool) {
 	return v.(*joinTables), true
 }
 
-func (c *mergeJoinCache) Tables(key execute.PartitionKey) *joinTables {
+func (c *mergeJoinCache) Tables(key query.PartitionKey) *joinTables {
 	tables, ok := c.lookup(key)
 	if !ok {
 		tables = &joinTables{
@@ -449,7 +449,7 @@ func (c *mergeJoinCache) Tables(key execute.PartitionKey) *joinTables {
 type joinTables struct {
 	keys []string
 	on   map[string]bool
-	key  execute.PartitionKey
+	key  query.PartitionKey
 
 	alloc *execute.Allocator
 
@@ -471,7 +471,7 @@ func (t *joinTables) ClearData() {
 }
 
 // Join performs a sort-merge join
-func (t *joinTables) Join() (execute.Block, error) {
+func (t *joinTables) Join() (query.Block, error) {
 	// First prepare the join function
 	left := t.left.RawBlock()
 	right := t.right.RawBlock()
@@ -493,7 +493,7 @@ func (t *joinTables) Join() (execute.Block, error) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		builder.AddCol(execute.ColMeta{
+		builder.AddCol(query.ColMeta{
 			Label: k,
 			Type:  execute.ConvertFromKind(properties[k].Kind()),
 		})
@@ -513,7 +513,7 @@ func (t *joinTables) Join() (execute.Block, error) {
 
 	var (
 		leftSet, rightSet subset
-		leftKey, rightKey execute.PartitionKey
+		leftKey, rightKey query.PartitionKey
 	)
 
 	rows := map[string]int{
@@ -552,7 +552,7 @@ func (t *joinTables) Join() (execute.Block, error) {
 	return builder.Block()
 }
 
-func (t *joinTables) advance(offset int, table *execute.ColListBlock) (subset, execute.PartitionKey) {
+func (t *joinTables) advance(offset int, table *execute.ColListBlock) (subset, query.PartitionKey) {
 	if n := table.NRows(); n == offset {
 		return subset{Start: n, Stop: n}, nil
 	}
@@ -582,27 +582,27 @@ func equalRowKeys(x, y int, table *execute.ColListBlock, on map[string]bool) boo
 			continue
 		}
 		switch c.Type {
-		case execute.TBool:
+		case query.TBool:
 			if xv, yv := table.Bools(j)[x], table.Bools(j)[y]; xv != yv {
 				return false
 			}
-		case execute.TInt:
+		case query.TInt:
 			if xv, yv := table.Ints(j)[x], table.Ints(j)[y]; xv != yv {
 				return false
 			}
-		case execute.TUInt:
+		case query.TUInt:
 			if xv, yv := table.UInts(j)[x], table.UInts(j)[y]; xv != yv {
 				return false
 			}
-		case execute.TFloat:
+		case query.TFloat:
 			if xv, yv := table.Floats(j)[x], table.Floats(j)[y]; xv != yv {
 				return false
 			}
-		case execute.TString:
+		case query.TString:
 			if xv, yv := table.Strings(j)[x], table.Strings(j)[y]; xv != yv {
 				return false
 			}
-		case execute.TTime:
+		case query.TTime:
 			if xv, yv := table.Times(j)[x], table.Times(j)[y]; xv != yv {
 				return false
 			}

@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"hash/fnv"
 	"math"
+
+	"github.com/influxdata/platform/query"
 )
 
 type PartitionLookup struct {
@@ -11,7 +13,7 @@ type PartitionLookup struct {
 }
 
 type partitionEntry struct {
-	key   PartitionKey
+	key   query.PartitionKey
 	value interface{}
 }
 
@@ -21,7 +23,7 @@ func NewPartitionLookup() *PartitionLookup {
 	}
 }
 
-func (l *PartitionLookup) Lookup(key PartitionKey) (interface{}, bool) {
+func (l *PartitionLookup) Lookup(key query.PartitionKey) (interface{}, bool) {
 	if key == nil {
 		return nil, false
 	}
@@ -39,7 +41,7 @@ func (l *PartitionLookup) Lookup(key PartitionKey) (interface{}, bool) {
 	return nil, false
 }
 
-func (l *PartitionLookup) Set(key PartitionKey, value interface{}) {
+func (l *PartitionLookup) Set(key query.PartitionKey, value interface{}) {
 	h := key.Hash()
 	entries := l.partitions[h]
 	l.partitions[h] = append(entries, partitionEntry{
@@ -48,7 +50,7 @@ func (l *PartitionLookup) Set(key PartitionKey, value interface{}) {
 	})
 }
 
-func (l *PartitionLookup) Delete(key PartitionKey) (interface{}, bool) {
+func (l *PartitionLookup) Delete(key query.PartitionKey) (interface{}, bool) {
 	if key == nil {
 		return nil, false
 	}
@@ -67,7 +69,7 @@ func (l *PartitionLookup) Delete(key PartitionKey) (interface{}, bool) {
 	return nil, false
 }
 
-func (l *PartitionLookup) Range(f func(key PartitionKey, value interface{})) {
+func (l *PartitionLookup) Range(f func(key query.PartitionKey, value interface{})) {
 	for _, entries := range l.partitions {
 		for _, entry := range entries {
 			f(entry.key, entry.value)
@@ -75,26 +77,26 @@ func (l *PartitionLookup) Range(f func(key PartitionKey, value interface{})) {
 	}
 }
 
-func computeKeyHash(key PartitionKey) uint64 {
+func computeKeyHash(key query.PartitionKey) uint64 {
 	h := fnv.New64()
 	for j, c := range key.Cols() {
 		h.Write([]byte(c.Label))
 		switch c.Type {
-		case TBool:
+		case query.TBool:
 			if key.ValueBool(j) {
 				h.Write([]byte{1})
 			} else {
 				h.Write([]byte{0})
 			}
-		case TInt:
+		case query.TInt:
 			binary.Write(h, binary.BigEndian, key.ValueInt(j))
-		case TUInt:
+		case query.TUInt:
 			binary.Write(h, binary.BigEndian, key.ValueUInt(j))
-		case TFloat:
+		case query.TFloat:
 			binary.Write(h, binary.BigEndian, math.Float64bits(key.ValueFloat(j)))
-		case TString:
+		case query.TString:
 			h.Write([]byte(key.ValueString(j)))
-		case TTime:
+		case query.TTime:
 			binary.Write(h, binary.BigEndian, uint64(key.ValueTime(j)))
 		}
 	}
