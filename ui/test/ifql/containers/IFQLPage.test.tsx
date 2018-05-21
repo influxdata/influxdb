@@ -13,6 +13,9 @@ const setup = () => {
       suggestions: '',
       ast: '',
     },
+    services: [],
+    sources: [],
+    notify: () => {},
   }
 
   const wrapper = shallow(<IFQLPage {...props} />)

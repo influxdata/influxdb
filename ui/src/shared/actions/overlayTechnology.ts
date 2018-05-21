@@ -8,6 +8,19 @@ interface Options {
   transitionTime?: number
 }
 
+export type ShowOverlay = (
+  OverlayNode: OverlayNodeType,
+  options: Options
+) => ActionOverlayNode
+
+export interface ActionOverlayNode {
+  type: 'SHOW_OVERLAY'
+  payload: {
+    OverlayNode
+    options
+  }
+}
+
 export const showOverlay = (
   OverlayNode: OverlayNodeType,
   options: Options

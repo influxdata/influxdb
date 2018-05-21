@@ -21,6 +21,7 @@ export const me = {
 }
 
 export const sourceLinks: SourceLinks = {
+  services: '/chronograf/v1/sources/16/services',
   self: '/chronograf/v1/sources/16',
   kapacitors: '/chronograf/v1/sources/16/kapacitors',
   proxy: '/chronograf/v1/sources/16/proxy',
@@ -90,6 +91,22 @@ export const kapacitor = {
   links: {
     self: '/kapa/1',
     proxy: '/proxy/kapacitor/1',
+  },
+}
+
+export const service = {
+  id: '1',
+  url: 'localhost:8082',
+  type: 'ifql',
+  name: 'IFQL',
+  username: '',
+  password: '',
+  active: false,
+  insecureSkipVerify: false,
+  links: {
+    source: '/chronograf/v1/sources/1',
+    proxy: '/chronograf/v1/sources/1/services/2/proxy',
+    self: '/chronograf/v1/sources/1/services/2',
   },
 }
 

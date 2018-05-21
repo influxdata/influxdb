@@ -9,7 +9,7 @@
     "url": "github:influxdata/chronograf"
   },
   "scripts": {
-    "build": "yarn run clean && webpack --config ./webpack/prod.config.js",
+    "build": "yarn run clean && webpack --config ./webpack/prod.config.js --display-error-details",
     "build:dev": "webpack --config ./webpack/dev.config.js",
     "build:vendor": "webpack --config webpack/vendor.config.js",
     "start": "yarn run clean && yarn run build:vendor && webpack --watch --config ./webpack/dev.config.js --progress",

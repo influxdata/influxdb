@@ -1,10 +1,10 @@
 import _ from 'lodash'
+import {Source, Kapacitor} from 'src/types'
+import {Action} from 'src/shared/actions/sources'
 
-const getInitialState = () => []
+export const initialState: Source[] = []
 
-const initialState = getInitialState()
-
-const sourcesReducer = (state = initialState, action) => {
+const sourcesReducer = (state = initialState, action: Action): Source[] => {
   switch (action.type) {
     case 'LOAD_SOURCES': {
       return action.payload.sources
@@ -59,7 +59,11 @@ const sourcesReducer = (state = initialState, action) => {
       const {kapacitor} = action.payload
       const updatedSources = _.cloneDeep(state)
       updatedSources.forEach(source => {
-        const index = _.findIndex(source.kapacitors, k => k.id === kapacitor.id)
+        const index = _.findIndex<Kapacitor>(
+          source.kapacitors,
+          k => k.id === kapacitor.id
+        )
+
         if (index >= 0) {
           source.kapacitors.splice(index, 1)
         }

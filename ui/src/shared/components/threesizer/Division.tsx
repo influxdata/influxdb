@@ -2,13 +2,16 @@ import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import classnames from 'classnames'
 import calculateSize from 'calculate-size'
 
+import DivisionHeader from 'src/shared/components/threesizer/DivisionHeader'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
+import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
 
 const NOOP = () => {}
 
 interface Props {
   name?: string
   handleDisplay?: string
+  menuOptions?: MenuItem[]
   handlePixels: number
   id: string
   size: number
@@ -19,6 +22,9 @@ interface Props {
   render: (visibility: string) => ReactElement<any>
   onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => void
   onDoubleClick: (id: string) => void
+  onMaximize: (id: string) => void
+  onMinimize: (id: string) => void
+  headerButtons: JSX.Element[]
 }
 
 interface Style {
@@ -59,7 +65,7 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {name, render, draggable} = this.props
+    const {name, render, draggable, menuOptions, headerButtons} = this.props
     return (
       <div
         className={this.containerClass}
@@ -77,7 +83,14 @@ class Division extends PureComponent<Props> {
           <div className={this.titleClass}>{name}</div>
         </div>
         <div className={this.contentsClass} style={this.contentStyle}>
-          {name && <div className="threesizer--header" />}
+          {name && (
+            <DivisionHeader
+              buttons={headerButtons}
+              menuOptions={menuOptions}
+              onMinimize={this.handleMinimize}
+              onMaximize={this.handleMaximize}
+            />
+          )}
           <div className="threesizer--body">{render(this.visibility)}</div>
         </div>
       </div>
@@ -162,7 +175,10 @@ class Division extends PureComponent<Props> {
   private get handleClass(): string {
     const {draggable, orientation} = this.props
 
+    const collapsed = orientation === HANDLE_VERTICAL && this.isTitleObscured
+
     return classnames('threesizer--handle', {
+      'threesizer--collapsed': collapsed,
       disabled: !draggable,
       dragging: this.isDragging,
       vertical: orientation === HANDLE_VERTICAL,
@@ -222,6 +238,16 @@ class Division extends PureComponent<Props> {
     const {onDoubleClick, id} = this.props
 
     onDoubleClick(id)
+  }
+
+  private handleMinimize = (): void => {
+    const {id, onMinimize} = this.props
+    onMinimize(id)
+  }
+
+  private handleMaximize = (): void => {
+    const {id, onMaximize} = this.props
+    onMaximize(id)
   }
 }
 

@@ -5,3 +5,4 @@ export const getAST = jest.fn(() => Promise.resolve({}))
 export const getDatabases = jest.fn(() =>
   Promise.resolve(['db1', 'db2', 'db3'])
 )
+export const getTimeSeries = jest.fn(() => Promise.resolve({data: ''}))

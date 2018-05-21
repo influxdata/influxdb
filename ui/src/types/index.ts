@@ -1,3 +1,4 @@
+import {Service, NewService} from './services'
 import {AuthLinks, Organization, Role, User, Me} from './auth'
 import {Template, Cell, CellQuery, Legend, Axes} from './dashboard'
 import {
@@ -53,4 +54,6 @@ export {
   Notification,
   NotificationFunc,
   Axes,
+  Service,
+  NewService,
 }

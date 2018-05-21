@@ -154,7 +154,7 @@ func (s *Service) Kapacitors(w http.ResponseWriter, r *http.Request) {
 
 	srvs := []kapacitor{}
 	for _, srv := range mrSrvs {
-		if srv.SrcID == srcID {
+		if srv.SrcID == srcID && srv.Type == "" {
 			srvs = append(srvs, newKapacitor(srv))
 		}
 	}
@@ -182,7 +182,7 @@ func (s *Service) KapacitorsID(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	srv, err := s.Store.Servers(ctx).Get(ctx, id)
-	if err != nil || srv.SrcID != srcID {
+	if err != nil || srv.SrcID != srcID || srv.Type != "" {
 		notFound(w, id, s.Logger)
 		return
 	}
@@ -207,7 +207,7 @@ func (s *Service) RemoveKapacitor(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	srv, err := s.Store.Servers(ctx).Get(ctx, id)
-	if err != nil || srv.SrcID != srcID {
+	if err != nil || srv.SrcID != srcID || srv.Type != "" {
 		notFound(w, id, s.Logger)
 		return
 	}
@@ -258,7 +258,7 @@ func (s *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	srv, err := s.Store.Servers(ctx).Get(ctx, id)
-	if err != nil || srv.SrcID != srcID {
+	if err != nil || srv.SrcID != srcID || srv.Type != "" {
 		notFound(w, id, s.Logger)
 		return
 	}

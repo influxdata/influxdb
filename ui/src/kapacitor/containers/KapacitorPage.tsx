@@ -169,6 +169,7 @@ export class KapacitorPage extends PureComponent<Props, State> {
     return (
       <KapacitorForm
         hash={hash}
+        notify={notify}
         source={source}
         exists={exists}
         kapacitor={kapacitor}
@@ -176,7 +177,6 @@ export class KapacitorPage extends PureComponent<Props, State> {
         onChangeUrl={this.handleChangeUrl}
         onReset={this.handleResetToDefaults}
         onInputChange={this.handleInputChange}
-        notify={notify}
         onCheckboxChange={this.handleCheckboxChange}
       />
     )
