@@ -3,7 +3,7 @@ package query
 import (
 	"context"
 
-	"github.com/influxdata/ifql/id"
+	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform"
 )
 

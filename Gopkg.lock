@@ -20,6 +20,12 @@
   version = "v0.2.1"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/codahale/hdrhistogram"
+  packages = ["."]
+  revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
+
+[[projects]]
   name = "github.com/coreos/bbolt"
   packages = ["."]
   revision = "583e8937c61f1af6513608ccc75c97b6abdf4ff9"
@@ -49,6 +55,71 @@
   packages = ["proto"]
   revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
   version = "v1.1.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gonum/blas"
+  packages = [
+    ".",
+    "blas64",
+    "native",
+    "native/internal/math32"
+  ]
+  revision = "e7c5890b24cf6f3bb173f76e1bd71e80e887e3f9"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gonum/floats"
+  packages = ["."]
+  revision = "7de1f4ea7ab57890bfd427af68c7994cd67975d4"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gonum/internal"
+  packages = [
+    "asm/f32",
+    "asm/f64"
+  ]
+  revision = "fda53f8d25717c07e2dac25758075a182bd74235"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gonum/lapack"
+  packages = [
+    ".",
+    "lapack64",
+    "native"
+  ]
+  revision = "f0b8b25edeceafb3a2752941c7bf0cda962df112"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gonum/mathext"
+  packages = [
+    ".",
+    "internal/amos",
+    "internal/cephes",
+    "internal/gonum"
+  ]
+  revision = "3ffefb3e36fc77021b605da090e6571103cb6ef3"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gonum/matrix"
+  packages = [
+    ".",
+    "mat64"
+  ]
+  revision = "a41cc49d4c29f7451775f4379a5cc6ec6239dfab"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gonum/stat"
+  packages = [
+    ".",
+    "distuv"
+  ]
+  revision = "ec9c8a1062f4be6c6ad671f0f5dba12d4a76826d"
 
 [[projects]]
   name = "github.com/google/go-cmp"
@@ -84,31 +155,6 @@
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
   version = "v1.0"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/influxdata/ifql"
-  packages = [
-    ".",
-    "ast",
-    "compiler",
-    "complete",
-    "functions",
-    "functions/storage",
-    "functions/storage/pb",
-    "id",
-    "interpreter",
-    "parser",
-    "query",
-    "query/control",
-    "query/execute",
-    "query/execute/executetest",
-    "query/plan",
-    "repl",
-    "semantic",
-    "values"
-  ]
-  revision = "068bee932b9cdfbb3aa0d5bb023eac9228c88423"
 
 [[projects]]
   branch = "master"
@@ -202,6 +248,7 @@
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
+    "ext",
     "log"
   ]
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
@@ -312,6 +359,35 @@
   version = "v1.0.2"
 
 [[projects]]
+  name = "github.com/uber/jaeger-client-go"
+  packages = [
+    ".",
+    "config",
+    "internal/baggage",
+    "internal/baggage/remote",
+    "internal/spanlog",
+    "internal/throttler",
+    "internal/throttler/remote",
+    "log",
+    "rpcmetrics",
+    "thrift",
+    "thrift-gen/agent",
+    "thrift-gen/baggage",
+    "thrift-gen/jaeger",
+    "thrift-gen/sampling",
+    "thrift-gen/zipkincore",
+    "utils"
+  ]
+  revision = "b043381d944715b469fd6b37addfd30145ca1758"
+  version = "v2.14.0"
+
+[[projects]]
+  name = "github.com/uber/jaeger-lib"
+  packages = ["metrics"]
+  revision = "ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5"
+  version = "v1.5.0"
+
+[[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
   revision = "4e336646b2ef9fc6e47be8e21594178f98e5ebcf"
@@ -370,6 +446,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c188bdf79b79e8ff70880142185e983c3ab104929be3246fe3d644b517d87fa1"
+  inputs-digest = "7e6c508f4349af14fb56dd5feb04d7f1ac10f0c88caf74f12f115c456b039940"
   solver-name = "gps-cdcl"
   solver-version = 1

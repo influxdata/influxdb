@@ -1,19 +1,18 @@
-package platform
+package query
 
 import (
 	"context"
 	"sort"
 
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
+	"github.com/influxdata/platform"
 )
 
 // QueryService represents a service for performing queries.
 type QueryService interface {
 	// Query submits a query spec for execution returning a results iterator.
-	Query(ctx context.Context, orgID ID, query *query.Spec) (ResultIterator, error)
+	Query(ctx context.Context, orgID platform.ID, query *Spec) (ResultIterator, error)
 	// Query submits a query string for execution returning a results iterator.
-	QueryWithCompile(ctx context.Context, orgID ID, query string) (ResultIterator, error)
+	QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (ResultIterator, error)
 }
 
 // ResultIterator allows iterating through all results
@@ -24,7 +23,7 @@ type ResultIterator interface {
 
 	// Next returns the next name and results.
 	// If More is false, Next panics.
-	Next() (string, execute.Result)
+	Next() (string, Result)
 
 	// Cancel discards the remaining results.
 	// If not all results are going to be read, Cancel must be called to free resources.
@@ -39,24 +38,24 @@ type AsyncQueryService interface {
 	// Query submits a query for execution returning immediately.
 	// The spec must not be modified while the query is still active.
 	// Done must be called on any returned Query objects.
-	Query(ctx context.Context, orgID ID, query *query.Spec) (Query, error)
+	Query(ctx context.Context, orgID platform.ID, query *Spec) (Query, error)
 
 	// QueryWithCompile submits a query for execution returning immediately.
 	// The query string will be compiled before submitting for execution.
 	// Done must be called on returned Query objects.
-	QueryWithCompile(ctx context.Context, orgID ID, query string) (Query, error)
+	QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (Query, error)
 }
 
 // Query represents an active query.
 type Query interface {
 	// Spec returns the spec used to execute this query.
 	// Spec must not be modified.
-	Spec() *query.Spec
+	Spec() *Spec
 
 	// Ready returns a channel that will deliver the query results.
 	// Its possible that the channel is closed before any results arrive,
 	// in which case the query should be inspected for an error using Err().
-	Ready() <-chan map[string]execute.Result
+	Ready() <-chan map[string]Result
 
 	// Done must always be called to free resources.
 	Done()
@@ -74,14 +73,14 @@ type QueryServiceBridge struct {
 	AsyncQueryService AsyncQueryService
 }
 
-func (b QueryServiceBridge) Query(ctx context.Context, orgID ID, spec *query.Spec) (ResultIterator, error) {
+func (b QueryServiceBridge) Query(ctx context.Context, orgID platform.ID, spec *Spec) (ResultIterator, error) {
 	query, err := b.AsyncQueryService.Query(ctx, orgID, spec)
 	if err != nil {
 		return nil, err
 	}
 	return newResultIterator(query), nil
 }
-func (b QueryServiceBridge) QueryWithCompile(ctx context.Context, orgID ID, queryStr string) (ResultIterator, error) {
+func (b QueryServiceBridge) QueryWithCompile(ctx context.Context, orgID platform.ID, queryStr string) (ResultIterator, error) {
 	query, err := b.AsyncQueryService.QueryWithCompile(ctx, orgID, queryStr)
 	if err != nil {
 		return nil, err
@@ -126,7 +125,7 @@ DONE:
 	return false
 }
 
-func (r *resultIterator) Next() (string, execute.Result) {
+func (r *resultIterator) Next() (string, Result) {
 	return r.results.Next()
 }
 
@@ -144,11 +143,11 @@ func (r *resultIterator) Err() error {
 }
 
 type MapResultIterator struct {
-	results map[string]execute.Result
+	results map[string]Result
 	order   []string
 }
 
-func NewMapResultIterator(results map[string]execute.Result) *MapResultIterator {
+func NewMapResultIterator(results map[string]Result) *MapResultIterator {
 	order := make([]string, 0, len(results))
 	for k := range results {
 		order = append(order, k)
@@ -164,7 +163,7 @@ func (r *MapResultIterator) More() bool {
 	return len(r.order) > 0
 }
 
-func (r *MapResultIterator) Next() (string, execute.Result) {
+func (r *MapResultIterator) Next() (string, Result) {
 	next := r.order[0]
 	r.order = r.order[1:]
 	return next, r.results[next]

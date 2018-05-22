@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"net/url"
 
-	ifql "github.com/influxdata/ifql/query"
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/query"
+	ifql "github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/csv"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
@@ -25,7 +25,7 @@ type QueryHandler struct {
 
 	csvEncoder query.MultiResultEncoder
 
-	QueryService        platform.QueryService
+	QueryService        query.QueryService
 	OrganizationService platform.OrganizationService
 }
 
@@ -71,7 +71,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var results platform.ResultIterator
+	var results query.ResultIterator
 	if r.Header.Get("Content-type") == "application/json" {
 		req, err := decodePostQueryRequest(ctx, r)
 		if err != nil {
@@ -132,7 +132,7 @@ type QueryService struct {
 	InsecureSkipVerify bool
 }
 
-func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *ifql.Spec) (platform.ResultIterator, error) {
+func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *ifql.Spec) (query.ResultIterator, error) {
 	u, err := newURL(s.Addr, queryPath)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *ifql
 	return s.processResponse(resp)
 }
 
-func (s *QueryService) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (platform.ResultIterator, error) {
+func (s *QueryService) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (query.ResultIterator, error) {
 	u, err := newURL(s.Addr, queryPath)
 	if err != nil {
 		return nil, err
@@ -189,7 +189,7 @@ func (s *QueryService) QueryWithCompile(ctx context.Context, orgID platform.ID, 
 	return s.processResponse(resp)
 }
 
-func (s *QueryService) processResponse(resp *http.Response) (platform.ResultIterator, error) {
+func (s *QueryService) processResponse(resp *http.Response) (query.ResultIterator, error) {
 	var decoder query.MultiResultDecoder
 	switch resp.Header.Get("Content-Type") {
 	case "text/csv":

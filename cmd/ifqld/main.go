@@ -9,17 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/ifql"
-	"github.com/influxdata/ifql/functions"
-	"github.com/influxdata/ifql/functions/storage"
-	"github.com/influxdata/ifql/functions/storage/pb"
-	"github.com/influxdata/ifql/id"
-	"github.com/influxdata/ifql/query"
-	"github.com/influxdata/ifql/query/execute"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
-	platformquery "github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/control"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/functions/storage"
+	"github.com/influxdata/platform/query/functions/storage/pb"
+	"github.com/influxdata/platform/query/id"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -73,20 +72,16 @@ func ifqlF(cmd *cobra.Command, args []string) {
 	// Create top level logger
 	logger = influxlogger.New(os.Stdout)
 
-	config := ifql.Config{
-		Dependencies:     make(execute.Dependencies),
-		ConcurrencyQuota: concurrencyQuota,
-		MemoryBytesQuota: memoryBytesQuota,
+	config := control.Config{
+		ExecutorDependencies: make(execute.Dependencies),
+		ConcurrencyQuota:     concurrencyQuota,
+		MemoryBytesQuota:     int64(memoryBytesQuota),
 	}
-	if err := injectDeps(config.Dependencies); err != nil {
+	if err := injectDeps(config.ExecutorDependencies); err != nil {
 		logger.Error("error injecting dependencies", zap.Error(err))
 		os.Exit(1)
 	}
-	c, err := ifql.NewController(config)
-	if err != nil {
-		logger.Error("error creating controller", zap.Error(err))
-		os.Exit(1)
-	}
+	c := control.New(config)
 
 	orgName, err := getStrList("ORGANIZATION_NAME")
 	if err != nil {
@@ -95,7 +90,7 @@ func ifqlF(cmd *cobra.Command, args []string) {
 	orgSvc := StaticOrganizationService{Name: orgName[0]}
 
 	queryHandler := http.NewQueryHandler()
-	queryHandler.QueryService = platform.QueryServiceBridge{
+	queryHandler.QueryService = query.QueryServiceBridge{
 		AsyncQueryService: wrapController{Controller: c},
 	}
 	queryHandler.OrganizationService = &orgSvc
@@ -138,7 +133,7 @@ func injectDeps(deps execute.Dependencies) error {
 
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
 		Reader:       sr,
-		BucketLookup: platformquery.FromBucketService(&bucketSvc),
+		BucketLookup: query.FromBucketService(&bucketSvc),
 	})
 }
 
@@ -152,15 +147,15 @@ func main() {
 // wrapController is needed to make *ifql.Controller implement platform.AsyncQueryService.
 // TODO(nathanielc): Remove this type and make ifql.Controller implement the platform.AsyncQueryService directly.
 type wrapController struct {
-	*ifql.Controller
+	*control.Controller
 }
 
-func (c wrapController) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (platform.Query, error) {
+func (c wrapController) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (query.Query, error) {
 	q, err := c.Controller.Query(ctx, id.ID(orgID), query)
 	return q, err
 }
 
-func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (platform.Query, error) {
+func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (query.Query, error) {
 	q, err := c.Controller.QueryWithCompile(ctx, id.ID(orgID), query)
 	return q, err
 }
