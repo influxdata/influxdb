@@ -128,9 +128,12 @@ export class CheckSources extends Component<Props, State> {
     const source = sources.find(s => s.id === params.sourceID)
     const defaultSource = sources.find(s => s.default === true)
 
+    const role = _.get(this.props, 'auth.me.role', '')
+    const nextRole = _.get(nextProps, 'auth.me.role', '')
+
     if (
-      isUserAuthorized(this.props.auth.me.role, ADMIN_ROLE) &&
-      !isUserAuthorized(nextProps.auth.me.role, ADMIN_ROLE)
+      isUserAuthorized(role, ADMIN_ROLE) &&
+      !isUserAuthorized(nextRole, ADMIN_ROLE)
     ) {
       return router.push('/')
     }
