@@ -96,6 +96,7 @@ export const kapacitor = {
 
 export const service = {
   id: '1',
+  sourceID: '1',
   url: 'localhost:8082',
   type: 'ifql',
   name: 'IFQL',
@@ -108,6 +109,7 @@ export const service = {
     proxy: '/chronograf/v1/sources/1/services/2/proxy',
     self: '/chronograf/v1/sources/1/services/2',
   },
+  metadata: {},
 }
 
 export const kapacitorRules = [

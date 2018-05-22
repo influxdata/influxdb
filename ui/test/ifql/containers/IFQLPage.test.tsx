@@ -3,6 +3,7 @@ import {shallow} from 'enzyme'
 
 import {IFQLPage} from 'src/ifql/containers/IFQLPage'
 import TimeMachine from 'src/ifql/components/TimeMachine'
+import {ActionTypes} from 'src/ifql/actions'
 
 jest.mock('src/ifql/apis', () => require('mocks/ifql/apis'))
 
@@ -15,7 +16,19 @@ const setup = () => {
     },
     services: [],
     sources: [],
+    script: '',
     notify: () => {},
+    params: {
+      sourceID: '',
+    },
+    updateScript: (script: string) => {
+      return {
+        type: ActionTypes.UpdateScript,
+        payload: {
+          script,
+        },
+      }
+    },
   }
 
   const wrapper = shallow(<IFQLPage {...props} />)
