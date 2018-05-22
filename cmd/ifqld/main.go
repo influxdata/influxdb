@@ -25,10 +25,17 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	// commit represents a hash of the commit that build this binary.
+	// Commit is populated with build flags.
+	commit string
+)
+
 var ifqlCmd = &cobra.Command{
-	Use:   "ifqld",
-	Short: "IFQL Enterprise Server",
-	Run:   ifqlF,
+	Use:     "ifqld",
+	Short:   "IFQL Server",
+	Version: commit,
+	Run:     ifqlF,
 }
 
 var (

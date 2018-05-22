@@ -26,8 +26,10 @@
 
 
 required = [
-# Pigeon is the command used to generate the IFQL parser from the PEG description
-"github.com/mna/pigeon"
+    # Pigeon is the command used to generate the IFQL parser from the PEG description
+    "github.com/mna/pigeon",
+    # goreleaser is a utility to build and upload to S3
+    "github.com/goreleaser/goreleaser"
 ]
 
 [[constraint]]

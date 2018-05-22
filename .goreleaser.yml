@@ -1,0 +1,46 @@
+project_name: platform
+builds:
+  - goos:
+    - linux
+    - darwin
+    - windows
+    goarch:
+    - amd64
+    - 386
+    - arm
+    - arm64
+    goarm:
+    - 6
+    - 7
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: windows
+        goarch: 386
+    main: ./cmd/ifqld/
+    ldflags: -s -w -X main.commit={{.Commit}}
+    binary: ifqld
+
+
+archive:
+  format: tar.gz
+  wrap_in_directory: true
+  format_overrides:
+    - goos: windows
+      format: zip
+  replacements:
+    darwin: macOS
+  name_template: '{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{
+    .Arm }}{{ end }}'
+  files:
+  - LICENSE
+  - README.md
+
+snapshot:
+  name_template: 'nightly'
+
+s3:
+  -
+    bucket: dl.influxdata.com
+    region: us-east-1
+    folder: "ifql/nightlies/"

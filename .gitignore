@@ -4,6 +4,9 @@ vendor
 # binary databases
 idpdb.bolt
 
+# Project distirbution
+/dist
+
 # Project binaries.
 /idp
 /idpd

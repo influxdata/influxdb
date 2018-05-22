@@ -14,3 +14,25 @@ jobs:
       # - run: go get -v -t -d ./...
       # - run: go get honnef.co/go/tools/cmd/megacheck
       # - run: megacheck ./...
+
+  deploy:
+    docker:
+      - image: circleci/golang:1.10.2
+    working_directory: /go/src/github.com/influxdata/platform
+    steps:
+      - checkout
+      - run: make nightly
+
+
+workflows:
+  version: 2
+  build-and-deploy:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
+
