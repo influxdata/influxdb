@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {KafkaProperties} from 'src/types/kapacitor'
 import {Notification, NotificationFunc} from 'src/types'
 
-import {getNested} from 'src/utils/wrappers'
+import {getDeep} from 'src/utils/wrappers'
 
 const DEFAULT_CONFIG = {
   options: {
@@ -63,8 +63,8 @@ class KafkaConfigs extends Component<Props, State> {
     return (
       <div>
         {this.configs.map(c => {
-          const enabled = getNested<boolean>(c, 'options.enabled', false)
-          const id = getNested<string>(c, 'options.id', '')
+          const enabled = getDeep<boolean>(c, 'options.enabled', false)
+          const id = getDeep<string>(c, 'options.id', '')
           return (
             <KafkaConfig
               config={c}
@@ -93,7 +93,7 @@ class KafkaConfigs extends Component<Props, State> {
   }
   private get configs(): Config[] {
     return _.sortBy(this.state.configs, c => {
-      const id = getNested<string>(c, 'options.id', '')
+      const id = getDeep<string>(c, 'options.id', '')
       const {isNewConfig} = c
       if (id === 'default') {
         return ''

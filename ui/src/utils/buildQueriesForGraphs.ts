@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import {getNested} from 'src/utils/wrappers'
+import {getDeep} from 'src/utils/wrappers'
 import {buildQuery} from 'src/utils/influxql'
 import {TYPE_QUERY_CONFIG, TYPE_SHIFTED} from 'src/dashboards/constants'
 
@@ -42,11 +42,7 @@ const buildQueries = (
   const queries: Query[] = statements
     .filter(s => s.text !== null)
     .map(({queryConfig, text, id}) => {
-      const queryProxy = getNested<string>(
-        queryConfig,
-        'source.links.proxy',
-        ''
-      )
+      const queryProxy = getDeep<string>(queryConfig, 'source.links.proxy', '')
       const host: string[] = [queryProxy || proxy]
 
       return {
