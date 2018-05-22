@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"path"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
+	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -40,17 +40,17 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 
 	req, err := decodePostBucketRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := h.BucketService.CreateBucket(ctx, req.Bucket); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.Bucket); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -76,18 +76,18 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 	req, err := decodeGetBucketRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	b, err := h.BucketService.FindBucketByID(ctx, req.BucketID)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -100,7 +100,7 @@ func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketReq
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -120,12 +120,12 @@ func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Reques
 
 	req, err := decodeDeleteBucketRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := h.BucketService.DeleteBucket(ctx, req.BucketID); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
@@ -140,7 +140,7 @@ func decodeDeleteBucketRequest(ctx context.Context, r *http.Request) (*deleteBuc
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -160,18 +160,18 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 
 	req, err := decodeGetBucketsRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, bs); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -215,18 +215,18 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 
 	req, err := decodePatchBucketRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	b, err := h.BucketService.UpdateBucket(ctx, req.BucketID, req.Update)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -240,7 +240,7 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -290,7 +290,7 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var b platform.Bucket
@@ -310,7 +310,7 @@ func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFi
 	}
 
 	if n == 0 {
-		return nil, fmt.Errorf("found no matching buckets")
+		return nil, errors.New("found no matching buckets")
 	}
 
 	return bs[0], nil
@@ -353,7 +353,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, 0, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var bs []*platform.Bucket
@@ -393,7 +393,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 	}
 
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(b); err != nil {
@@ -432,7 +432,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var b platform.Bucket
@@ -468,7 +468,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 		return nil
 	}
 
-	return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+	return errors.New(resp.Header.Get("X-Influx-Error"))
 }
 
 func bucketIDPath(id platform.ID) string {

@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"path"
 
 	"go.uber.org/zap"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
+	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -43,7 +43,7 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 	req, err := decodePostAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "postAuthorization"), zap.Error(err))
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
@@ -51,13 +51,13 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 
 	if err := h.AuthorizationService.CreateAuthorization(ctx, req.Authorization); err != nil {
 		// Don't log here, it should already be handled by the service
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.Authorization); err != nil {
 		h.Logger.Info("failed to encode response", zap.String("handler", "postAuthorization"), zap.Error(err))
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -84,20 +84,20 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 	req, err := decodeGetAuthorizationsRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "getAuthorizations"), zap.Error(err))
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	as, _, err := h.AuthorizationService.FindAuthorizations(ctx, req.filter)
 	if err != nil {
 		// Don't log here, it should already be handled by the service
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, as); err != nil {
 		h.Logger.Info("failed to encode response", zap.String("handler", "getAuthorizations"), zap.Error(err))
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -142,20 +142,20 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 	req, err := decodeGetAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "getAuthorization"), zap.Error(err))
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
 	if err != nil {
 		// Don't log here, it should already be handled by the service
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
 		h.Logger.Info("failed to encode response", zap.String("handler", "getAuthorization"), zap.Error(err))
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -168,7 +168,7 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -188,13 +188,13 @@ func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, 
 	req, err := decodeDeleteAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := h.AuthorizationService.DeleteAuthorization(ctx, req.ID); err != nil {
 		// Don't log here, it should already be handled by the service
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
@@ -209,7 +209,7 @@ func decodeDeleteAuthorizationRequest(ctx context.Context, r *http.Request) (*de
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -250,7 +250,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var b platform.Authorization
@@ -264,7 +264,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 
 // FindAuthorizationByToken returns a single authorization by Token.
 func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, token string) (*platform.Authorization, error) {
-	return nil, fmt.Errorf("not supported in HTTP authorization service")
+	return nil, errors.New("not supported in HTTP authorization service")
 }
 
 // FindAuthorizations returns a list of authorizations that match filter and the total count of matching authorizations.
@@ -304,7 +304,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, 0, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var bs []*platform.Authorization
@@ -349,7 +349,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 
 	// TODO: this should really check the error from the headers
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(a); err != nil {
@@ -383,7 +383,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 		return nil
 	}
 
-	return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+	return errors.New(resp.Header.Get("X-Influx-Error"))
 }
 
 func authorizationIDPath(id platform.ID) string {
