@@ -181,6 +181,7 @@ type FileStore struct {
 
 	currentTempDirID int
 
+	id  uint64
 	obs tsdb.FileStoreObserver
 }
 
@@ -228,7 +229,8 @@ func NewFileStore(dir string) *FileStore {
 }
 
 // WithObserver sets the observer for the file store.
-func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
+func (f *FileStore) WithObserver(id uint64, obs tsdb.FileStoreObserver) {
+	f.id = id
 	f.obs = obs
 }
 
@@ -692,7 +694,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 		// give the observer a chance to process the file first.
 		if f.obs != nil {
-			if err := f.obs.FileFinishing(file); err != nil {
+			if err := f.obs.FileFinishing(f.id, file); err != nil {
 				return err
 			}
 		}
@@ -749,7 +751,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 				// give the observer a chance to process the file first.
 				if f.obs != nil {
-					if err := f.obs.FileUnlinking(file.Path()); err != nil {
+					if err := f.obs.FileUnlinking(f.id, file.Path()); err != nil {
 						return err
 					}
 				}
