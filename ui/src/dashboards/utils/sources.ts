@@ -1,12 +1,12 @@
-import {QueryConfig} from 'src/types'
+import {QueryConfig, Source} from 'src/types'
 
 export const nextSource = (
   prevQuery: QueryConfig,
   nextQuery: QueryConfig
-): string => {
-  if (nextQuery.sourceLink) {
-    return nextQuery.sourceLink
+): Source => {
+  if (nextQuery.source) {
+    return nextQuery.source
   }
 
-  return prevQuery.sourceLink
+  return prevQuery.source
 }

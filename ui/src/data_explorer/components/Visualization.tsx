@@ -9,7 +9,7 @@ import {GRAPH, TABLE} from 'src/shared/constants'
 import buildQueries from 'src/utils/buildQueriesForGraphs'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {Source, QueryConfig, Template, TimeRange} from 'src/types'
+import {Source, Query, QueryConfig, Template, TimeRange} from 'src/types'
 
 const META_QUERY_REGEX = /^(show|create|drop)/i
 
@@ -101,12 +101,12 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
     })
   }
 
-  private get queries(): QueryConfig[] {
+  private get queries(): Query[] {
     const {source, queryConfigs, timeRange} = this.props
     return buildQueries(source.links.proxy, queryConfigs, timeRange)
   }
 
-  private get query(): QueryConfig {
+  private get query(): Query {
     const {activeQueryIndex} = this.props
     const activeQuery = this.queries[activeQueryIndex]
     const defaultQuery = this.queries[0]

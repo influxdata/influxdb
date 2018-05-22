@@ -2,6 +2,7 @@ import React, {Component} from 'react'
 
 import _ from 'lodash'
 import uuid from 'uuid'
+import {getDeep} from 'src/utils/wrappers'
 
 import ResizeContainer from 'src/shared/components/ResizeContainer'
 import QueryMaker from 'src/dashboards/components/QueryMaker'
@@ -16,7 +17,6 @@ import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'src/utils/influxql'
 import {getQueryConfigAndStatus} from 'src/shared/apis'
 import {IS_STATIC_LEGEND} from 'src/shared/constants'
-import {ColorString, ColorNumber} from 'src/types/colors'
 import {nextSource} from 'src/dashboards/utils/sources'
 
 import {
@@ -43,6 +43,9 @@ import {
   Legend,
   Status,
 } from 'src/types'
+import {ColorString, ColorNumber} from 'src/types/colors'
+import {SourceOption} from 'src/dashboards/components/OverlayControls'
+
 type QueryTransitions = typeof queryTransitions
 type EditRawTextAsyncFunc = (
   url: string,
@@ -96,36 +99,28 @@ interface State {
   isStaticLegend: boolean
 }
 
-const createWorkingDraft = (
-  sourceLink: string,
-  query: CellQuery
-): QueryConfig => {
+const createWorkingDraft = (source: Source, query: CellQuery): QueryConfig => {
   const {queryConfig} = query
   const draft: QueryConfig = {
     ...queryConfig,
     id: uuid.v4(),
-    sourceLink,
+    source,
   }
 
   return draft
 }
 
 const createWorkingDrafts = (
-  sourceLink: string,
+  source: Source,
   queries: CellQuery[]
 ): QueryConfig[] =>
   _.cloneDeep(
-    queries.map((query: CellQuery) => createWorkingDraft(sourceLink, query))
+    queries.map((query: CellQuery) => createWorkingDraft(source, query))
   )
 
 @ErrorHandling
 class CellEditorOverlay extends Component<Props, State> {
   private overlayRef: HTMLDivElement
-
-  private formattedSources = this.props.sources.map(s => ({
-    ...s,
-    text: `${s.name} @ ${s.url}`,
-  }))
 
   constructor(props) {
     super(props)
@@ -142,7 +137,7 @@ class CellEditorOverlay extends Component<Props, State> {
       queries = [{id: uuid.v4()}]
     }
 
-    const queriesWorkingDraft = createWorkingDrafts(this.sourceLink, queries)
+    const queriesWorkingDraft = createWorkingDrafts(this.initialSource, queries)
 
     this.state = {
       queriesWorkingDraft,
@@ -254,6 +249,14 @@ class CellEditorOverlay extends Component<Props, State> {
     )
   }
 
+  private get formattedSources(): SourceOption[] {
+    const {sources} = this.props
+    return sources.map(s => ({
+      ...s,
+      text: `${s.name} @ ${s.url}`,
+    }))
+  }
+
   private onRef = (r: HTMLDivElement) => {
     this.overlayRef = r
   }
@@ -284,7 +287,7 @@ class CellEditorOverlay extends Component<Props, State> {
     this.setState({
       queriesWorkingDraft: [
         ...queriesWorkingDraft,
-        {...defaultQueryConfig({id: uuid.v4()}), sourceLink: null},
+        {...defaultQueryConfig({id: uuid.v4()}), source: this.initialSource},
       ],
     })
     this.handleSetActiveQueryIndex(newIndex)
@@ -301,13 +304,13 @@ class CellEditorOverlay extends Component<Props, State> {
     const {queriesWorkingDraft, isStaticLegend} = this.state
     const {cell, thresholdsListColors, gaugeColors, lineColors} = this.props
 
-    const queries = queriesWorkingDraft.map(q => {
+    const queries: CellQuery[] = queriesWorkingDraft.map(q => {
       const timeRange = q.range || {upper: null, lower: TEMP_VAR_DASHBOARD_TIME}
-
+      const source = getDeep<string | null>(q.source, 'links.self', null)
       return {
         queryConfig: q,
         query: q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q),
-        sourceLink: q.sourceLink,
+        source,
       }
     })
 
@@ -318,12 +321,14 @@ class CellEditorOverlay extends Component<Props, State> {
       lineColors,
     })
 
-    this.props.onSave({
+    const newCell: Cell = {
       ...cell,
       queries,
       colors,
       legend: isStaticLegend ? staticLegend : {},
-    })
+    }
+
+    this.props.onSave(newCell)
   }
 
   private handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {
@@ -342,10 +347,9 @@ class CellEditorOverlay extends Component<Props, State> {
     const queriesWorkingDraft: QueryConfig[] = this.state.queriesWorkingDraft.map(
       q => ({
         ..._.cloneDeep(q),
-        sourceLink: source.links.self,
+        source,
       })
     )
-
     this.setState({queriesWorkingDraft})
   }
 
@@ -427,7 +431,7 @@ class CellEditorOverlay extends Component<Props, State> {
 
             return {
               ...config.queryConfig,
-              sourceLink: q.sourceLink,
+              source: q.source,
               isQuerySupportedByExplorer,
             }
           }
@@ -445,14 +449,20 @@ class CellEditorOverlay extends Component<Props, State> {
   private findSelectedSource = (): string => {
     const {source} = this.props
     const sources = this.formattedSources
-    const currentSource = _.get(this.state.queriesWorkingDraft, '0.sourceLink')
+    const currentSource = getDeep<Source | null>(
+      this.state.queriesWorkingDraft,
+      '0.source',
+      null
+    )
 
     if (!currentSource) {
-      const defaultSource = sources.find(s => s.id === source.id)
+      const defaultSource: Source = sources.find(s => s.id === source.id)
       return (defaultSource && defaultSource.text) || 'No sources'
     }
 
-    const selected = sources.find(s => s.links.self === currentSource)
+    const selected: Source = sources.find(
+      s => s.links.self === currentSource.links.self
+    )
     return (selected && selected.text) || 'No sources'
   }
 
@@ -514,23 +524,42 @@ class CellEditorOverlay extends Component<Props, State> {
     return result
   }
 
-  private get sourceLink(): string {
+  private get initialSource(): Source {
     const {
       cell: {queries},
-      source: {links},
+      source,
+      sources,
     } = this.props
-    return _.get(queries, '0.source.links.self', links.self)
+
+    const initialSourceLink: string = getDeep<string>(queries, '0.source', null)
+
+    if (initialSourceLink) {
+      const initialSource = sources.find(
+        s => s.links.self === initialSourceLink
+      )
+
+      return initialSource
+    }
+    return source
   }
 
   private get source(): Source {
     const {source, sources} = this.props
-    const query = _.get(this.state.queriesWorkingDraft, 0, {sourceLink: null})
+    const query = _.get(this.state.queriesWorkingDraft, 0, {source: null})
 
-    if (!query.sourceLink) {
+    if (!query.source) {
       return source
     }
 
-    return sources.find(s => s.links.self === query.sourceLink) || source
+    const foundSource = sources.find(
+      s =>
+        s.links.self ===
+        getDeep<string | null>(query, 'source.links.self', null)
+    )
+    if (foundSource) {
+      return foundSource
+    }
+    return source
   }
 }
 

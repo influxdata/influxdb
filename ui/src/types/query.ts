@@ -1,3 +1,12 @@
+import {Source} from 'src/types'
+
+export interface Query {
+  host: string[] // doesn't come from server - is set in buildQueriesForGraphs
+  text: string
+  id: string
+  queryConfig: QueryConfig
+}
+
 export interface QueryConfig {
   id?: string
   database?: string
@@ -9,7 +18,7 @@ export interface QueryConfig {
   areTagsAccepted: boolean
   rawText?: string
   range?: DurationRange | null
-  sourceLink?: string
+  source?: Source | null // doesn't come from server -- is set in CellEditorOverlay
   fill?: string
   status?: Status
   shifts?: TimeShift[]

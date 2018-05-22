@@ -4,12 +4,12 @@ import Table from './Table'
 import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 
-import {QueryConfig, Template} from 'src/types'
+import {Query, Template} from 'src/types'
 
 interface Props {
   view: string
-  query?: QueryConfig
-  queries: QueryConfig[]
+  query?: Query
+  queries: Query[]
   templates: Template[]
   autoRefresh: number
   editQueryStatus: () => void
