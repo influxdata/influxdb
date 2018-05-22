@@ -123,6 +123,7 @@ func (bi *bockIterator) Do(f func(query.Block) error) error {
 			return err
 		}
 		streams = append(streams, &streamState{
+			bounds:   bi.bounds,
 			stream:   stream,
 			readSpec: &bi.readSpec,
 		})
@@ -139,7 +140,7 @@ func (bi *bockIterator) Do(f func(query.Block) error) error {
 		frame := ms.next()
 		s := frame.GetSeries()
 		typ := convertDataType(s.DataType)
-		key := partitionKeyForSeries(s, &bi.readSpec)
+		key := partitionKeyForSeries(s, &bi.readSpec, bi.bounds)
 		cols := bi.determineBlockCols(s, typ)
 		block := newBlock(bi.bounds, key, cols, ms, &bi.readSpec, s.Tags)
 
@@ -215,9 +216,19 @@ func (bi *bockIterator) determineBlockCols(s *ReadResponse_SeriesFrame, typ quer
 	return cols
 }
 
-func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec) query.PartitionKey {
-	cols := make([]query.ColMeta, 0, len(s.Tags))
-	values := make([]interface{}, 0, len(s.Tags))
+func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.PartitionKey {
+	cols := make([]query.ColMeta, 2, len(s.Tags))
+	values := make([]interface{}, 2, len(s.Tags))
+	cols[0] = query.ColMeta{
+		Label: execute.DefaultStartColLabel,
+		Type:  query.TTime,
+	}
+	values[0] = bnds.Start
+	cols[1] = query.ColMeta{
+		Label: execute.DefaultStopColLabel,
+		Type:  query.TTime,
+	}
+	values[1] = bnds.Stop
 	if len(readSpec.GroupKeys) > 0 {
 		for _, tag := range s.Tags {
 			if !execute.ContainsStr(readSpec.GroupKeys, string(tag.Key)) {
@@ -619,6 +630,7 @@ func (b *block) appendBounds() {
 }
 
 type streamState struct {
+	bounds     execute.Bounds
 	stream     Storage_ReadClient
 	rep        ReadResponse
 	currentKey query.PartitionKey
@@ -661,7 +673,7 @@ func (s *streamState) computeKey() {
 	// Determine new currentKey
 	if p := s.peek(); readFrameType(p) == seriesType {
 		series := p.GetSeries()
-		s.currentKey = partitionKeyForSeries(series, s.readSpec)
+		s.currentKey = partitionKeyForSeries(series, s.readSpec, s.bounds)
 	}
 }
 func (s *streamState) next() ReadResponse_Frame {
