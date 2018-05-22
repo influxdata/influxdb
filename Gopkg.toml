@@ -25,6 +25,11 @@
 #   unused-packages = true
 
 
+required = [
+# Pigeon is the command used to generate the IFQL parser from the PEG description
+"github.com/mna/pigeon"
+]
+
 [[constraint]]
   name = "github.com/google/go-cmp"
   version = "0.2.0"
@@ -32,6 +37,13 @@
 [[constraint]]
   name = "github.com/influxdata/influxdb"
   branch = "master"
+
+
+# Pigeon hasn't made official releases for a while, we need to use master for now.
+# We plan to replace pigeon with a hand written parser, as such this dependency is short lived.
+[[override]]
+  branch = "master"
+  name = "github.com/mna/pigeon"
 
 # Dependency is pinned to explicit revision rather than latest release because
 # latest release pre-dates context, which we need.

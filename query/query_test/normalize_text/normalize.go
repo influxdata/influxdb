@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"golang.org/x/text/unicode/norm"
 	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 func normalizeString(s string) []byte {

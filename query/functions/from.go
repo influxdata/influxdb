@@ -3,11 +3,11 @@ package functions
 import (
 	"fmt"
 
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/interpreter"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/pkg/errors"

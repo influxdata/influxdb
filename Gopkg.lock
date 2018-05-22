@@ -245,6 +245,16 @@
   revision = "bb74f1db0675b241733089d5a1faa5dd8b0ef57b"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/mna/pigeon"
+  packages = [
+    ".",
+    "ast",
+    "builder"
+  ]
+  revision = "2ad051b8b508f69e7dcf8febdea2856ec2db73ed"
+
+[[projects]]
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
@@ -438,6 +448,16 @@
   version = "v0.3.0"
 
 [[projects]]
+  branch = "master"
+  name = "golang.org/x/tools"
+  packages = [
+    "go/ast/astutil",
+    "imports",
+    "internal/fastwalk"
+  ]
+  revision = "28aef64757f4d432485ab970b094e1af8b301e84"
+
+[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
@@ -446,6 +466,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7e6c508f4349af14fb56dd5feb04d7f1ac10f0c88caf74f12f115c456b039940"
+  inputs-digest = "ed7f4f2ab4a6f007ba6377ae04b0405146ea60608de96ef76ab19eef8113e694"
   solver-name = "gps-cdcl"
   solver-version = 1
