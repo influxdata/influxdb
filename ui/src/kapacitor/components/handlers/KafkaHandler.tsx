@@ -61,7 +61,7 @@ const KafkaHandler: SFC<Props> = ({
             <HandlerInput
               selectedHandler={handler}
               handleModifyHandler={handleModifyHandler}
-              fieldName="topic"
+              fieldName="kafka-topic"
               fieldDisplay="Topic"
               placeholder=""
             />

@@ -140,7 +140,7 @@ type Talk struct{}
 // Kafka sends alerts to any Kafka brokers specified in the handler config
 type Kafka struct {
 	Cluster  string `json:"cluster"`
-	Topic    string `json:"topic"`
+	Topic    string `json:"kafka-topic"`
 	Template string `json:"template"`
 }
 
