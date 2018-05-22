@@ -551,13 +551,15 @@ class CellEditorOverlay extends Component<Props, State> {
       return source
     }
 
-    return (
-      sources.find(
-        s =>
-          s.links.self ===
-          getDeep<string | null>(query, 'source.links.self', null)
-      ) || source
+    const foundSource = sources.find(
+      s =>
+        s.links.self ===
+        getDeep<string | null>(query, 'source.links.self', null)
     )
+    if (foundSource) {
+      return foundSource
+    }
+    return source
   }
 }
 
