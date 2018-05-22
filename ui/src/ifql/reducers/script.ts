@@ -1,4 +1,4 @@
-import {Action} from 'src/ifql/actions'
+import {Action, ActionTypes} from 'src/ifql/actions'
 import {editor} from 'src/ifql/constants'
 
 const scriptReducer = (
@@ -6,7 +6,7 @@ const scriptReducer = (
   action: Action
 ): string => {
   switch (action.type) {
-    case 'UPDATE_SCRIPT': {
+    case ActionTypes.UpdateScript: {
       return action.payload.script
     }
   }

@@ -3,7 +3,7 @@ import {shallow} from 'enzyme'
 
 import {IFQLPage} from 'src/ifql/containers/IFQLPage'
 import TimeMachine from 'src/ifql/components/TimeMachine'
-import {ActionUpdateScript} from 'src/ifql/actions'
+import {ActionTypes} from 'src/ifql/actions'
 
 jest.mock('src/ifql/apis', () => require('mocks/ifql/apis'))
 
@@ -23,11 +23,11 @@ const setup = () => {
     },
     updateScript: (script: string) => {
       return {
-        type: 'UPDATE_SCRIPT',
+        type: ActionTypes.UpdateScript,
         payload: {
           script,
         },
-      } as ActionUpdateScript
+      }
     },
   }
 
