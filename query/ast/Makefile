@@ -1,9 +1,13 @@
-SUBDIRS := asttest
+SUBDIRS = asttest
+
+subdirs: $(SUBDIRS)
 
 $(SUBDIRS):
 	$(MAKE) -C $@ $(MAKECMDGOALS)
 
 all: $(SUBDIRS)
 
+clean: $(SUBDIRS)
 
-.PHONY: $(SUBDIRS) clean
+
+.PHONY: all clean subdirs $(SUBDIRS)

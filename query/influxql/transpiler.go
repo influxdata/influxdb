@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/semantic"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 // Transpiler converts InfluxQL queries into a query spec.

@@ -6,4 +6,6 @@ idpdb.bolt
 
 # Project binaries.
 /idp
-/transpilerd
+/idpd
+/ifqld
+/bin

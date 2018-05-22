@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/ast"
 	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/semantic"
 )
 
