@@ -31,6 +31,7 @@
   -moz-osx-font-smoothing: grayscale;
 
   &.authzero:before {content: "\e951";}
+  &.bar-chart:before {content: "\e913";}
   &.brush:before {content: "\e939";}
   &.caret-down:before {content: "\e902";}
   &.caret-left:before {content: "\e900";}
@@ -72,6 +73,7 @@
   &.server2:before {content: "\e94c";}
   &.shuffle:before {content: "\e94e";}
   &.square:before {content: "\e93e";}
+  &.text-block:before {content: "\e911";}
   &.trash:before {content: "\e905";}
   &.triangle:before {content: "\e92c";}
   &.user:before {content: "\e90d";}
