@@ -11,8 +11,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -924,6 +926,102 @@ func TestHandler_XRequestId(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestThrottler_Handler(t *testing.T) {
+	t.Run("OK", func(t *testing.T) {
+		throttler := httpd.NewThrottler(2, 98)
+
+		// Send the total number of concurrent requests to the channel.
+		var concurrentN int32
+		concurrentCh := make(chan int)
+
+		h := throttler.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&concurrentN, 1)
+			concurrentCh <- int(atomic.LoadInt32(&concurrentN))
+			time.Sleep(1 * time.Millisecond)
+			atomic.AddInt32(&concurrentN, -1)
+		}))
+
+		// Execute requests concurrently.
+		const n = 100
+		for i := 0; i < n; i++ {
+			go func() { h.ServeHTTP(nil, nil) }()
+		}
+
+		// Read the number of concurrent requests for every execution.
+		for i := 0; i < n; i++ {
+			if v := <-concurrentCh; v > 2 {
+				t.Fatalf("concurrent requests exceed maximum: %d", v)
+			}
+		}
+	})
+
+	t.Run("ErrTimeout", func(t *testing.T) {
+		throttler := httpd.NewThrottler(2, 1)
+		throttler.EnqueueTimeout = 1 * time.Millisecond
+
+		resp := make(chan struct{})
+		h := throttler.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			resp <- struct{}{}
+		}))
+
+		pending := make(chan struct{}, 2)
+
+		// First two requests should execute immediately.
+		go func() { pending <- struct{}{}; h.ServeHTTP(nil, nil) }()
+		go func() { pending <- struct{}{}; h.ServeHTTP(nil, nil) }()
+
+		<-pending
+		<-pending
+
+		// Third request should be enqueued but timeout.
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, nil)
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("unexpected status code: %d", w.Code)
+		} else if body := w.Body.String(); body != "request throttled, exceeds timeout\n" {
+			t.Fatalf("unexpected response body: %q", body)
+		}
+
+		// Allow 2 existing requests to complete.
+		<-resp
+		<-resp
+	})
+
+	t.Run("ErrFull", func(t *testing.T) {
+		delay := 100 * time.Millisecond
+		if os.Getenv("CI") != "" {
+			delay = 2 * time.Second
+		}
+
+		throttler := httpd.NewThrottler(2, 1)
+
+		resp := make(chan struct{})
+		h := throttler.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			resp <- struct{}{}
+		}))
+
+		// First two requests should execute immediately and third should be queued.
+		go func() { h.ServeHTTP(nil, nil) }()
+		go func() { h.ServeHTTP(nil, nil) }()
+		go func() { h.ServeHTTP(nil, nil) }()
+		time.Sleep(delay)
+
+		// Fourth request should fail when trying to enqueue.
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, nil)
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("unexpected status code: %d", w.Code)
+		} else if body := w.Body.String(); body != "request throttled, queue full\n" {
+			t.Fatalf("unexpected response body: %q", body)
+		}
+
+		// Allow 3 existing requests to complete.
+		<-resp
+		<-resp
+		<-resp
+	})
 }
 
 // NewHandler represents a test wrapper for httpd.Handler.
