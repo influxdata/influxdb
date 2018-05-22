@@ -30,18 +30,6 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  &.collapse:before {content: "\e90f";}
-  &.okta:before {content: "\e912";}
-  &.user-remove:before {content: "\e904";}
-  &.user-add:before {content: "\e907";}
-  &.group:before {content: "\e908";}
-  &.user:before {content: "\e90d";}
-  &.eye-closed:before {content: "\e956";}
-  &.eye-open:before {content: "\e957";}
-  &.arrow-down:before {content: "\e910";}
-  &.arrow-left:before {content: "\e90c";}
-  &.arrow-right:before {content: "\e911";}
-  &.arrow-up:before {content: "\e90b";}
   &.authzero:before {content: "\e951";}
   &.brush:before {content: "\e939";}
   &.caret-down:before {content: "\e902";}
@@ -52,8 +40,9 @@
   &.circle:before {content: "\e940";}
   &.clock:before {content: "\e91b";}
   &.cog-thick:before {content: "\e906";}
+  &.collapse:before {content: "\e90f";}
   &.crown2:before {content: "\e94b";}
-  &.cube:before {content: "\e92e";}
+  &.cube:before {content: "\e90b";}
   &.cubo-node:before {content: "\e919";}
   &.cubo-uniform:before {content: "\e91a";}
   &.dash-f:before {content: "\e927";}
@@ -63,12 +52,17 @@
   &.duplicate:before {content: "\e917";}
   &.expand-a:before {content: "\e944";}
   &.expand-b:before {content: "\e942";}
-  &.export:before {content: "\e941";}
+  &.export:before {content: "\e90c";}
+  &.eye-closed:before {content: "\e956";}
+  &.eye-open:before {content: "\e957";}
   &.graphline:before {content: "\e90e";}
+  &.group:before {content: "\e908";}
   &.heroku:before {content: "\e947";}
   &.heroku-simple:before {content: "\e948";}
+  &.import:before {content: "\e910";}
   &.oauth:before {content: "\e94f";}
   &.octagon:before {content: "\e92d";}
+  &.okta:before {content: "\e912";}
   &.pause:before {content: "\e94a";}
   &.plus:before {content: "\e90a";}
   &.pulse-c:before {content: "\e936";}
@@ -80,6 +74,9 @@
   &.square:before {content: "\e93e";}
   &.trash:before {content: "\e905";}
   &.triangle:before {content: "\e92c";}
+  &.user:before {content: "\e90d";}
+  &.user-add:before {content: "\e907";}
+  &.user-remove:before {content: "\e904";}
   &.alert-triangle:before {content: "\f02d";}
   &.link:before {content: "\f05c";}
   &.pencil:before {content: "\f058";}
