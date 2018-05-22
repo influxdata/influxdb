@@ -62,7 +62,7 @@ class DivisionMenu extends PureComponent<Props, State> {
   private get buttonClass(): string {
     const {expanded} = this.state
 
-    return classnames('btn btn-sm btn-square btn-default', {
+    return classnames('btn btn-xs btn-square btn-default', {
       active: expanded,
     })
   }
