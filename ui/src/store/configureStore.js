@@ -16,6 +16,7 @@ import cellEditorOverlay from 'src/dashboards/reducers/cellEditorOverlay'
 import overlayTechnology from 'src/shared/reducers/overlayTechnology'
 import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
 import persistStateEnhancer from './persistStateEnhancer'
+import servicesReducer from 'src/shared/reducers/services'
 
 const rootReducer = combineReducers({
   ...statusReducers,
@@ -28,6 +29,7 @@ const rootReducer = combineReducers({
   overlayTechnology,
   dashTimeV1,
   routing: routerReducer,
+  services: servicesReducer,
 })
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose

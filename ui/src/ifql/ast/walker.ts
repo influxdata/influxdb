@@ -218,10 +218,9 @@ export default class Walker {
       return [...this.walk(currentNode.argument), {name, args, source}]
     }
 
-    if (currentNode.type === 'ArrowFunctionExpression') {
-      const params = currentNode.params
-      const body = currentNode.body
-      return [{name, params, body}]
+    if (currentNode.type === 'Identifier') {
+      name = currentNode.name
+      return [{name, source}]
     }
 
     name = currentNode.callee.name

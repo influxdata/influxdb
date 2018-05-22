@@ -1,12 +1,12 @@
 import _ from 'lodash'
-import {HANDLERS_TO_RULE} from 'src/kapacitor/constants'
+import {HANDLERS_TO_RULE_THEM_ALL, AlertTypes} from 'src/kapacitor/constants'
 
 export const parseHandlersFromRule = (rule, handlersFromConfig) => {
   const handlersOfKind = {}
   const handlersOnThisAlert = []
 
   const handlersFromRule = _.pickBy(rule.alertNodes, (v, k) => {
-    return k in HANDLERS_TO_RULE
+    return k in HANDLERS_TO_RULE_THEM_ALL
   })
 
   _.forEach(handlersFromRule, (v, alertKind) => {
@@ -46,23 +46,34 @@ export const parseAlertNodeList = rule => {
   const nodeList = _.transform(
     rule.alertNodes,
     (acc, v, k) => {
-      if (k in HANDLERS_TO_RULE && v.length > 0) {
-        if (k === 'slack') {
-          _.reduce(
-            v,
-            (alerts, alert) => {
-              const nickname = _.get(alert, 'workspace') || 'default'
-              if (!alerts[nickname]) {
-                const fullHandler = `${k} (${nickname})`
-                alerts[nickname] = fullHandler
-                acc.push(fullHandler)
-              }
-              return alerts
-            },
-            {}
-          )
-        } else {
-          acc.push(k)
+      if (k in HANDLERS_TO_RULE_THEM_ALL && v.length > 0) {
+        let alerts
+        switch (k) {
+          case AlertTypes.slack:
+            alerts = _.uniqBy(
+              v,
+              alert => _.get(alert, 'workspace') || 'default'
+            )
+
+            acc.push(
+              ..._.map(alerts, alert => {
+                const nickname = _.get(alert, 'workspace') || 'default'
+                return `${k} (${nickname})`
+              })
+            )
+            break
+          case AlertTypes.kafka:
+            alerts = _.uniqBy(v, alert => _.get(alert, 'cluster'))
+
+            acc.push(
+              ..._.map(alerts, alert => {
+                const nickname = _.get(alert, 'cluster')
+                return `${k} (${nickname})`
+              })
+            )
+            break
+          default:
+            acc.push(k)
         }
       }
     },

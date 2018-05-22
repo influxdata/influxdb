@@ -3,13 +3,25 @@ import {Controlled as CodeMirror, IInstance} from 'react-codemirror2'
 import {EditorChange} from 'codemirror'
 import 'src/external/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {OnChangeScript} from 'src/types/ifql'
+import {OnChangeScript, OnSubmitScript} from 'src/types/ifql'
 import {editor} from 'src/ifql/constants'
+
+interface Gutter {
+  line: number
+  text: string
+}
+
+interface Status {
+  type: string
+  text: string
+}
 
 interface Props {
   script: string
-  onChangeScript: OnChangeScript
   visibility: string
+  status: Status
+  onChangeScript: OnChangeScript
+  onSubmitScript: OnSubmitScript
 }
 
 interface EditorInstance extends IInstance {
@@ -19,12 +31,21 @@ interface EditorInstance extends IInstance {
 @ErrorHandling
 class TimeMachineEditor extends PureComponent<Props> {
   private editor: EditorInstance
+  private prevKey: string
 
   constructor(props) {
     super(props)
   }
 
   public componentDidUpdate(prevProps) {
+    if (this.props.status.type === 'error') {
+      this.makeError()
+    }
+
+    if (this.props.status.type !== 'error') {
+      this.editor.clearGutter('error-gutter')
+    }
+
     if (prevProps.visibility === this.props.visibility) {
       return
     }
@@ -45,6 +66,7 @@ class TimeMachineEditor extends PureComponent<Props> {
       extraKeys: {'Ctrl-Space': 'autocomplete'},
       completeSingle: false,
       autoRefresh: true,
+      gutters: ['error-gutter'],
     }
 
     return (
@@ -58,17 +80,71 @@ class TimeMachineEditor extends PureComponent<Props> {
           onBeforeChange={this.updateCode}
           onTouchStart={this.onTouchStart}
           editorDidMount={this.handleMount}
+          onBlur={this.handleBlur}
         />
       </div>
     )
   }
 
+  private handleBlur = (): void => {
+    this.props.onSubmitScript()
+  }
+
+  private makeError(): void {
+    this.editor.clearGutter('error-gutter')
+    const lineNumbers = this.statusLine
+    lineNumbers.forEach(({line, text}) => {
+      this.editor.setGutterMarker(
+        line - 1,
+        'error-gutter',
+        this.errorMarker(text)
+      )
+    })
+
+    this.editor.refresh()
+  }
+
+  private errorMarker(message: string): HTMLElement {
+    const span = document.createElement('span')
+    span.className = 'icon stop error-warning'
+    span.title = message
+    return span
+  }
+
+  private get statusLine(): Gutter[] {
+    const {status} = this.props
+    const messages = status.text.split('\n')
+    const lineNumbers = messages.map(text => {
+      const [numbers] = text.split(' ')
+      const [lineNumber] = numbers.split(':')
+      return {line: Number(lineNumber), text}
+    })
+
+    return lineNumbers
+  }
+
   private handleMount = (instance: EditorInstance) => {
+    instance.refresh() // required to for proper line height on mount
     this.editor = instance
   }
 
   private handleKeyUp = (instance: EditorInstance, e: KeyboardEvent) => {
     const {key} = e
+    const prevKey = this.prevKey
+
+    if (
+      prevKey === 'Control' ||
+      prevKey === 'Meta' ||
+      (prevKey === 'Shift' && key === '.')
+    ) {
+      return (this.prevKey = key)
+    }
+
+    this.prevKey = key
+
+    if (editor.EXCLUDED_KEYS.includes(key)) {
+      return
+    }
 
     if (editor.EXCLUDED_KEYS.includes(key)) {
       return

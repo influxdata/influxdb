@@ -108,6 +108,7 @@ func TestServer(t *testing.T) {
   "links": {
     "self": "/chronograf/v1/sources/5000",
     "kapacitors": "/chronograf/v1/sources/5000/kapacitors",
+    "services": "/chronograf/v1/sources/5000/services",
     "proxy": "/chronograf/v1/sources/5000/proxy",
     "queries": "/chronograf/v1/sources/5000/queries",
     "write": "/chronograf/v1/sources/5000/write",
@@ -296,6 +297,7 @@ func TestServer(t *testing.T) {
       "links": {
         "self": "/chronograf/v1/sources/5000",
         "kapacitors": "/chronograf/v1/sources/5000/kapacitors",
+        "services": "/chronograf/v1/sources/5000/services",
         "proxy": "/chronograf/v1/sources/5000/proxy",
         "queries": "/chronograf/v1/sources/5000/queries",
         "write": "/chronograf/v1/sources/5000/write",
@@ -2943,7 +2945,7 @@ func TestServer(t *testing.T) {
 			serverURL := fmt.Sprintf("http://%v:%v%v", host, port, tt.args.path)
 
 			// Wait for the server to come online
-			timeout := time.Now().Add(5 * time.Second)
+			timeout := time.Now().Add(30 * time.Second)
 			for {
 				_, err := http.Get(serverURL + "/swagger.json")
 				if err == nil {

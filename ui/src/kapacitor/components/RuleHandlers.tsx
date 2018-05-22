@@ -171,6 +171,12 @@ class RuleHandlers extends PureComponent<Props, State> {
       ...selectedItem,
       alias: newItemName,
     }
+
+    // Handle kapacitor requiring a cluster to be provided that matches the id
+    if (newEndpoint.type === AlertTypes.kafka) {
+      newEndpoint.cluster = newEndpoint.id
+    }
+
     this.setState(
       {
         handlersOnThisAlert: [...handlersOnThisAlert, newEndpoint],
@@ -250,7 +256,6 @@ class RuleHandlers extends PureComponent<Props, State> {
     ])
 
     handlersOnThisAlert[modifiedIndex] = modifiedHandler
-
     this.setState(
       {
         selectedHandler: modifiedHandler,
@@ -262,17 +267,14 @@ class RuleHandlers extends PureComponent<Props, State> {
 
   private getNickname = (handler: Handler): string => {
     const configType: AlertTypes = _.get(handler, 'type')
-    if (configType === 'slack') {
-      const workspace: string = _.get<Handler, string>(handler, 'workspace')
-
-      if (workspace === '') {
-        return 'default'
-      }
-
-      return workspace
+    switch (configType) {
+      case AlertTypes.slack:
+        return _.get(handler, 'workspace') || 'default'
+      case AlertTypes.kafka:
+        return _.get(handler, 'id') || _.get(handler, 'cluster')
+      default:
+        return null
     }
-
-    return undefined
   }
 
   private addNicknameText = (handler: Handler): HandlerWithText => {

@@ -3,8 +3,10 @@ import classnames from 'classnames'
 import uuid from 'uuid'
 import _ from 'lodash'
 
-import ResizeDivision from 'src/shared/components/ResizeDivision'
+import Division from 'src/shared/components/threesizer/Division'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
+
 import {
   HANDLE_NONE,
   HANDLE_PIXELS,
@@ -28,20 +30,22 @@ interface State {
   dragEvent: any
 }
 
-interface Division {
+interface DivisionProps {
   name?: string
   handleDisplay?: string
   handlePixels?: number
+  headerButtons?: JSX.Element[]
+  menuOptions: MenuItem[]
   render: (visibility?: string) => ReactElement<any>
 }
 
-interface DivisionState extends Division {
+interface DivisionState extends DivisionProps {
   id: string
   size: number
 }
 
 interface Props {
-  divisions: Division[]
+  divisions: DivisionProps[]
   orientation: string
   containerClass?: string
 }
@@ -129,7 +133,7 @@ class Threesizer extends Component<Props, State> {
         ref={r => (this.containerRef = r)}
       >
         {divisions.map((d, i) => (
-          <ResizeDivision
+          <Division
             key={d.id}
             id={d.id}
             name={d.name}
@@ -140,9 +144,13 @@ class Threesizer extends Component<Props, State> {
             handlePixels={d.handlePixels}
             handleDisplay={d.handleDisplay}
             activeHandleID={activeHandleID}
+            onMaximize={this.handleMaximize}
+            onMinimize={this.handleMinimize}
             onDoubleClick={this.handleDoubleClick}
-            onHandleStartDrag={this.handleStartDrag}
             render={this.props.divisions[i].render}
+            onHandleStartDrag={this.handleStartDrag}
+            menuOptions={this.props.divisions[i].menuOptions}
+            headerButtons={this.props.divisions[i].headerButtons}
           />
         ))}
       </div>
@@ -204,6 +212,50 @@ class Threesizer extends Component<Props, State> {
       }
 
       return {...d, size: 1}
+    })
+
+    this.setState({divisions})
+  }
+
+  private handleMaximize = (id: string): void => {
+    const maxDiv = this.state.divisions.find(d => d.id === id)
+
+    if (!maxDiv) {
+      return
+    }
+
+    const divisions = this.state.divisions.map(d => {
+      if (d.id !== id) {
+        return {...d, size: 0}
+      }
+
+      return {...d, size: 1}
+    })
+
+    this.setState({divisions})
+  }
+
+  private handleMinimize = (id: string): void => {
+    const minDiv = this.state.divisions.find(d => d.id === id)
+    const numDivisions = this.state.divisions.length
+
+    if (!minDiv) {
+      return
+    }
+
+    let size
+    if (numDivisions <= 1) {
+      size = 1
+    } else {
+      size = 1 / (this.state.divisions.length - 1)
+    }
+
+    const divisions = this.state.divisions.map(d => {
+      if (d.id !== id) {
+        return {...d, size}
+      }
+
+      return {...d, size: 0}
     })
 
     this.setState({divisions})

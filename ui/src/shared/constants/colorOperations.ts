@@ -36,7 +36,7 @@ export const stringifyColorValues = colors => {
 export const generateThresholdsListHexs = ({
   colors,
   lastValue,
-  cellType = CellType.Line,
+  cellType = 'line',
 }) => {
   const defaultColoring = {
     bgColor: null,
@@ -83,10 +83,8 @@ export const generateThresholdsListHexs = ({
       colors,
       lastValueNumber
     )
-    bgColor = null
-    textColor = nearestCrossedThreshold.hex
 
-    return {bgColor, textColor}
+    return {bgColor: null, textColor: nearestCrossedThreshold.hex}
   }
 
   // When there is only a base color and it's applued to the background

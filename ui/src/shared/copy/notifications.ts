@@ -1,7 +1,7 @@
 // All copy for notifications should be stored here for easy editing
 // and ensuring stylistic consistency
 
-import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'shared/constants/index'
+import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
 
 const defaultErrorNotification = {
   type: 'error',
@@ -131,7 +131,7 @@ export const notifySourceUdpateFailed = (sourceName, errorMessage) => ({
   message: `Failed to update InfluxDB ${sourceName} Connection: ${errorMessage}`,
 })
 
-export const notifySourceDeleted = sourceName => ({
+export const notifySourceDeleted = (sourceName: string) => ({
   ...defaultSuccessNotification,
   icon: 'server2',
   message: `${sourceName} deleted successfully.`,
@@ -536,7 +536,7 @@ export const notifyTestAlertSent = endpoint => ({
   message: `Test Alert sent to ${endpoint}. If the Alert does not reach its destination, please check your endpoint configuration settings.`,
 })
 
-export const notifyTestAlertFailed = (endpoint, errorMessage) => ({
+export const notifyTestAlertFailed = (endpoint, errorMessage?) => ({
   ...defaultErrorNotification,
   message: `There was an error sending a Test Alert to ${endpoint}${
     errorMessage ? `: ${errorMessage}` : '.'
@@ -608,3 +608,35 @@ export const notifyKapacitorNotFound = () => ({
   ...defaultErrorNotification,
   message: 'We could not find a Kapacitor configuration for this source.',
 })
+
+// IFQL notifications
+export const analyzeSuccess = {
+  ...defaultSuccessNotification,
+  message: 'No errors found. Happy Happy Joy Joy!',
+}
+
+// Service notifications
+export const couldNotGetServices = {
+  ...defaultErrorNotification,
+  message: 'We could not get services',
+}
+
+export const ifqlCreated = {
+  ...defaultSuccessNotification,
+  message: 'IFQL Connection Created.  Script your heart out!',
+}
+
+export const ifqlNotCreated = (message: string) => ({
+  ...defaultErrorNotification,
+  message,
+})
+
+export const ifqlNotUpdated = (message: string) => ({
+  ...defaultErrorNotification,
+  message,
+})
+
+export const ifqlUpdated = {
+  ...defaultSuccessNotification,
+  message: 'Connection Updated. Rejoice!',
+}

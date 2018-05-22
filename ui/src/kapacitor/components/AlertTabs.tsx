@@ -22,7 +22,6 @@ import {
 import {
   AlertaConfig,
   HipChatConfig,
-  KafkaConfig,
   OpsGenieConfig,
   PagerDutyConfig,
   PagerDuty2Config,
@@ -32,6 +31,8 @@ import {
   TalkConfig,
   TelegramConfig,
   VictorOpsConfig,
+  SlackConfigs,
+  KafkaConfigs,
 } from './config'
 
 import {
@@ -50,7 +51,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Source, Kapacitor} from 'src/types'
 import {Notification} from 'src/types/notifications'
 import {ServiceProperties, SpecificConfigOptions} from 'src/types/kapacitor'
-import SlackConfigs from 'src/kapacitor/components/config/SlackConfigs'
+
 import {
   AlertDisplayText,
   SupportedServices,
@@ -259,16 +260,22 @@ class AlertTabs extends PureComponent<Props, State> {
         )
       case AlertTypes.kafka:
         return (
-          <KafkaConfig
+          <KafkaConfigs
             onSave={this.handleSaveConfig(AlertTypes.kafka)}
-            config={this.getSectionElement(configSections, AlertTypes.kafka)}
+            configs={this.getSectionElements(configSections, AlertTypes.kafka)}
             onTest={this.handleTestConfig(AlertTypes.kafka, {
               cluster: this.getProperty(configSections, AlertTypes.kafka, 'id'),
             })}
-            enabled={this.getConfigEnabled(configSections, AlertTypes.kafka)}
+            onEnabled={this.getSpecificConfigEnabled(
+              configSections,
+              AlertTypes.kafka
+            )}
             notify={this.props.notify}
+            isMultipleConfigsSupported={this.isMultipleConfigsSupported}
+            onDelete={this.handleDeleteConfig(AlertTypes.kafka)}
           />
         )
+
       case AlertTypes.opsgenie:
         return (
           <OpsGenieConfig
@@ -342,19 +349,6 @@ class AlertTabs extends PureComponent<Props, State> {
           />
         )
       case AlertTypes.slack:
-        const hasPagerDuty2 = getNested<Section>(
-          configSections,
-          AlertTypes.pagerduty2,
-          undefined
-        )
-        const hasOpsGenie2 = getNested<Section>(
-          configSections,
-          AlertTypes.opsgenie2,
-          undefined
-        )
-        // if kapacitor supports pagerduty2 and opsgenie2, its at least v1.5
-        const isMultipleConfigsSupported: boolean =
-          !_.isUndefined(hasPagerDuty2) && !_.isUndefined(hasOpsGenie2)
         return (
           <SlackConfigs
             configs={this.getSectionElements(configSections, AlertTypes.slack)}
@@ -365,7 +359,7 @@ class AlertTabs extends PureComponent<Props, State> {
               configSections,
               AlertTypes.slack
             )}
-            isMultipleConfigsSupported={isMultipleConfigsSupported}
+            isMultipleConfigsSupported={this.isMultipleConfigsSupported}
           />
         )
 
@@ -435,6 +429,22 @@ class AlertTabs extends PureComponent<Props, State> {
     return _.get(sections, [section, 'elements', '0'], null)
   }
 
+  private get isMultipleConfigsSupported(): boolean {
+    const {configSections} = this.state
+    const hasPagerDuty2 = getNested<Section>(
+      configSections,
+      AlertTypes.pagerduty2,
+      undefined
+    )
+    const hasOpsGenie2 = getNested<Section>(
+      configSections,
+      AlertTypes.opsgenie2,
+      undefined
+    )
+    // if kapacitor supports pagerduty2 and opsgenie2, its at least v1.5
+    return !_.isUndefined(hasPagerDuty2) && !_.isUndefined(hasOpsGenie2)
+  }
+
   private getSectionElements = (
     sections: Sections,
     section: string
@@ -443,7 +453,7 @@ class AlertTabs extends PureComponent<Props, State> {
   }
 
   private getConfigEnabled = (sections: Sections, section: string): boolean => {
-    if (section === AlertTypes.slack) {
+    if (section === AlertTypes.slack || section === AlertTypes.kafka) {
       const configElements = getNested<Section[]>(
         sections,
         `${section}.elements`,

@@ -1,7 +1,7 @@
 import {
   defaultRuleConfigs,
   DEFAULT_RULE_ID,
-  HANDLERS_TO_RULE,
+  HANDLERS_TO_RULE_THEM_ALL,
 } from 'src/kapacitor/constants'
 import _ from 'lodash'
 
@@ -99,7 +99,7 @@ export default function rules(state = {}, action) {
           const existing = _.get(alertNodesByType, h.type, [])
           alertNodesByType[h.type] = [
             ...existing,
-            _.pick(h, HANDLERS_TO_RULE[h.type]),
+            _.pick(h, HANDLERS_TO_RULE_THEM_ALL[h.type]),
           ]
         }
       })

@@ -17,6 +17,7 @@ import (
 type sourceLinks struct {
 	Self        string `json:"self"`            // Self link mapping to this resource
 	Kapacitors  string `json:"kapacitors"`      // URL for kapacitors endpoint
+	Services    string `json:"services"`        // URL for services endpoint
 	Proxy       string `json:"proxy"`           // URL for proxy endpoint
 	Queries     string `json:"queries"`         // URL for the queries analysis endpoint
 	Write       string `json:"write"`           // URL for the write line-protocol endpoint
@@ -49,6 +50,7 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 		Links: sourceLinks{
 			Self:        fmt.Sprintf("%s/%d", httpAPISrcs, src.ID),
 			Kapacitors:  fmt.Sprintf("%s/%d/kapacitors", httpAPISrcs, src.ID),
+			Services:    fmt.Sprintf("%s/%d/services", httpAPISrcs, src.ID),
 			Proxy:       fmt.Sprintf("%s/%d/proxy", httpAPISrcs, src.ID),
 			Queries:     fmt.Sprintf("%s/%d/queries", httpAPISrcs, src.ID),
 			Write:       fmt.Sprintf("%s/%d/write", httpAPISrcs, src.ID),

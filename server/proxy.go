@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// KapacitorProxy proxies requests to kapacitor using the path query parameter.
-func (s *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
+// Proxy proxies requests to services using the path query parameter.
+func (s *Service) Proxy(w http.ResponseWriter, r *http.Request) {
 	srcID, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error(), s.Logger)
@@ -88,24 +88,24 @@ func (s *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 	proxy.ServeHTTP(w, r)
 }
 
-// KapacitorProxyPost proxies POST to kapacitor
-func (s *Service) KapacitorProxyPost(w http.ResponseWriter, r *http.Request) {
-	s.KapacitorProxy(w, r)
+// ProxyPost proxies POST to service
+func (s *Service) ProxyPost(w http.ResponseWriter, r *http.Request) {
+	s.Proxy(w, r)
 }
 
-// KapacitorProxyPatch proxies PATCH to kapacitor
-func (s *Service) KapacitorProxyPatch(w http.ResponseWriter, r *http.Request) {
-	s.KapacitorProxy(w, r)
+// ProxyPatch proxies PATCH to Service
+func (s *Service) ProxyPatch(w http.ResponseWriter, r *http.Request) {
+	s.Proxy(w, r)
 }
 
-// KapacitorProxyGet proxies GET to kapacitor
-func (s *Service) KapacitorProxyGet(w http.ResponseWriter, r *http.Request) {
-	s.KapacitorProxy(w, r)
+// ProxyGet proxies GET to service
+func (s *Service) ProxyGet(w http.ResponseWriter, r *http.Request) {
+	s.Proxy(w, r)
 }
 
-// KapacitorProxyDelete proxies DELETE to kapacitor
-func (s *Service) KapacitorProxyDelete(w http.ResponseWriter, r *http.Request) {
-	s.KapacitorProxy(w, r)
+// ProxyDelete proxies DELETE to service
+func (s *Service) ProxyDelete(w http.ResponseWriter, r *http.Request) {
+	s.Proxy(w, r)
 }
 
 func singleJoiningSlash(a, b string) string {

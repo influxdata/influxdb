@@ -359,15 +359,17 @@ type KapacitorProperty struct {
 
 // Server represents a proxy connection to an HTTP server
 type Server struct {
-	ID                 int    `json:"id,string"`          // ID is the unique ID of the server
-	SrcID              int    `json:"srcId,string"`       // SrcID of the data source
-	Name               string `json:"name"`               // Name is the user-defined name for the server
-	Username           string `json:"username"`           // Username is the username to connect to the server
-	Password           string `json:"password"`           // Password is in CLEARTEXT
-	URL                string `json:"url"`                // URL are the connections to the server
-	InsecureSkipVerify bool   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the server is accepted.
-	Active             bool   `json:"active"`             // Is this the active server for the source?
-	Organization       string `json:"organization"`       // Organization is the organization ID that resource belongs to
+	ID                 int                    `json:"id,string"`          // ID is the unique ID of the server
+	SrcID              int                    `json:"srcId,string"`       // SrcID of the data source
+	Name               string                 `json:"name"`               // Name is the user-defined name for the server
+	Username           string                 `json:"username"`           // Username is the username to connect to the server
+	Password           string                 `json:"password"`           // Password is in CLEARTEXT
+	URL                string                 `json:"url"`                // URL are the connections to the server
+	InsecureSkipVerify bool                   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the server is accepted.
+	Active             bool                   `json:"active"`             // Is this the active server for the source?
+	Organization       string                 `json:"organization"`       // Organization is the organization ID that resource belongs to
+	Type               string                 `json:"type"`               // Type is the kind of service (e.g. kapacitor or ifql)
+	Metadata           map[string]interface{} `json:"metadata"`           // Metadata is any other data that the frontend wants to store about this service
 }
 
 // ServersStore stores connection information for a `Server`

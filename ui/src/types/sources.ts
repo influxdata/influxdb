@@ -1,4 +1,4 @@
-import {Kapacitor} from './'
+import {Kapacitor, Service} from './'
 
 export interface Source {
   id: string
@@ -18,6 +18,7 @@ export interface Source {
   links: SourceLinks
   kapacitors?: Kapacitor[] // this field does not exist on the server type for Source and is added in the client in the reducer for loading kapacitors.
   text?: string // added client-side for dropdowns
+  services?: Service[]
 }
 
 export interface SourceLinks {
@@ -32,4 +33,5 @@ export interface SourceLinks {
   databases: string
   annotations: string
   health: string
+  services: string
 }

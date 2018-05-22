@@ -4,8 +4,11 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {Grid} from 'react-virtualized'
 
 const SCROLLBAR_SIZE_BUFFER = 20
+type HeightWidthFunction = (arg: {index: number}) => number
 
-interface Props {
+export interface PropsMultiGrid {
+  width: number
+  height: number
   columnCount?: number
   classNameBottomLeftGrid?: string
   classNameBottomRightGrid?: string
@@ -23,15 +26,12 @@ interface Props {
   scrollTop?: number
   scrollLeft?: number
   rowCount?: number
-  rowHeight?: (arg: {index: number}) => {} | number
-  columnWidth?: (arg: object) => {} | number
+  rowHeight?: number | HeightWidthFunction
+  columnWidth?: number | HeightWidthFunction
   onScroll?: (arg: object) => {}
-  width: number
-  height: number
-  scrollToRow?: () => {}
   onSectionRendered?: () => {}
-  scrollToColumn?: () => {}
   cellRenderer?: (arg: object) => JSX.Element
+  [key: string]: any // MultiGrid can accept any prop, and will rerender if they change
 }
 
 interface State {
@@ -49,7 +49,7 @@ interface State {
  * If no sticky columns, only 1 sticky header Grid will be rendered.
  * If sticky columns, 2 sticky header Grids will be rendered.
  */
-class MultiGrid extends React.PureComponent<Props, State> {
+class MultiGrid extends React.PureComponent<PropsMultiGrid, State> {
   public static defaultProps = {
     classNameBottomLeftGrid: '',
     classNameBottomRightGrid: '',
@@ -68,7 +68,10 @@ class MultiGrid extends React.PureComponent<Props, State> {
     styleTopRightGrid: {},
   }
 
-  public static getDerivedStateFromProps(nextProps, prevState) {
+  public static getDerivedStateFromProps(
+    nextProps: PropsMultiGrid,
+    prevState: State
+  ) {
     if (
       nextProps.scrollLeft !== prevState.scrollLeft ||
       nextProps.scrollTop !== prevState.scrollTop
@@ -99,10 +102,10 @@ class MultiGrid extends React.PureComponent<Props, State> {
   private deferredMeasurementCacheTopRightGrid: CellMeasurerCacheDecorator
   private leftGridWidth: number | null = 0
   private topGridHeight: number | null = 0
-  private lastRenderedColumnWidth: (arg: object) => {} | number
+  private lastRenderedColumnWidth: number | HeightWidthFunction
   private lastRenderedFixedColumnCount: number = 0
   private lastRenderedFixedRowCount: number = 0
-  private lastRenderedRowHeight: (arg: {index: number}) => {} | number
+  private lastRenderedRowHeight: number | HeightWidthFunction
   private bottomRightGridStyle: object | null
   private topRightGridStyle: object | null
   private lastRenderedStyle: object | null
@@ -118,7 +121,7 @@ class MultiGrid extends React.PureComponent<Props, State> {
   private bottomLeftGridStyle: object | null
   private topLeftGridStyle: object | null
 
-  constructor(props, context) {
+  constructor(props: PropsMultiGrid, context) {
     super(props, context)
 
     this.state = {
@@ -321,10 +324,7 @@ class MultiGrid extends React.PureComponent<Props, State> {
     )
   }
 
-  public cellRendererBottomLeftGrid = ({
-    rowIndex,
-    ...rest
-  }: Partial<Props> & {rowIndex: number; key: string}): JSX.Element => {
+  public cellRendererBottomLeftGrid = ({rowIndex, ...rest}) => {
     const {cellRenderer, fixedRowCount, rowCount} = this.props
 
     if (rowIndex === rowCount - fixedRowCount) {
@@ -346,7 +346,7 @@ class MultiGrid extends React.PureComponent<Props, State> {
     }
   }
 
-  private getBottomGridHeight(props) {
+  private getBottomGridHeight(props: PropsMultiGrid) {
     const {height} = props
 
     const topGridHeight = this.getTopGridHeight(props)
@@ -354,7 +354,7 @@ class MultiGrid extends React.PureComponent<Props, State> {
     return height - topGridHeight
   }
 
-  private getLeftGridWidth(props) {
+  private getLeftGridWidth(props: PropsMultiGrid) {
     const {fixedColumnCount, columnWidth} = props
 
     if (this.leftGridWidth == null) {
@@ -374,7 +374,7 @@ class MultiGrid extends React.PureComponent<Props, State> {
     return this.leftGridWidth
   }
 
-  private getRightGridWidth(props) {
+  private getRightGridWidth(props: PropsMultiGrid) {
     const {width} = props
 
     const leftGridWidth = this.getLeftGridWidth(props)
@@ -383,7 +383,7 @@ class MultiGrid extends React.PureComponent<Props, State> {
     return result
   }
 
-  private getTopGridHeight(props) {
+  private getTopGridHeight(props: PropsMultiGrid) {
     const {fixedRowCount, rowHeight} = props
 
     if (this.topGridHeight == null) {

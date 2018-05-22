@@ -203,6 +203,19 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/sources/:id/roles/:rid", EnsureEditor(service.RemoveSourceRole))
 	router.PATCH("/chronograf/v1/sources/:id/roles/:rid", EnsureEditor(service.UpdateSourceRole))
 
+	// Services are resources that chronograf proxies to
+	router.GET("/chronograf/v1/sources/:id/services", EnsureViewer(service.Services))
+	router.POST("/chronograf/v1/sources/:id/services", EnsureEditor(service.NewService))
+	router.GET("/chronograf/v1/sources/:id/services/:kid", EnsureViewer(service.ServiceID))
+	router.PATCH("/chronograf/v1/sources/:id/services/:kid", EnsureEditor(service.UpdateService))
+	router.DELETE("/chronograf/v1/sources/:id/services/:kid", EnsureEditor(service.RemoveService))
+
+	// Service Proxy
+	router.GET("/chronograf/v1/sources/:id/services/:kid/proxy", EnsureViewer(service.ProxyGet))
+	router.POST("/chronograf/v1/sources/:id/services/:kid/proxy", EnsureEditor(service.ProxyPost))
+	router.PATCH("/chronograf/v1/sources/:id/services/:kid/proxy", EnsureEditor(service.ProxyPatch))
+	router.DELETE("/chronograf/v1/sources/:id/services/:kid/proxy", EnsureEditor(service.ProxyDelete))
+
 	// Kapacitor
 	router.GET("/chronograf/v1/sources/:id/kapacitors", EnsureViewer(service.Kapacitors))
 	router.POST("/chronograf/v1/sources/:id/kapacitors", EnsureEditor(service.NewKapacitor))
@@ -221,10 +234,10 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", EnsureEditor(service.KapacitorRulesDelete))
 
 	// Kapacitor Proxy
-	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureViewer(service.KapacitorProxyGet))
-	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.KapacitorProxyPost))
-	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.KapacitorProxyPatch))
-	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.KapacitorProxyDelete))
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureViewer(service.ProxyGet))
+	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.ProxyPost))
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.ProxyPatch))
+	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", EnsureEditor(service.ProxyDelete))
 
 	// Layouts
 	router.GET("/chronograf/v1/layouts", EnsureViewer(service.Layouts))
