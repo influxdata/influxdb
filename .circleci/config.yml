@@ -9,7 +9,7 @@ jobs:
     steps:
       - checkout
       - run: make test
-      - run: go vet -v ./...
+      - run: make vet
       # TODO add these checks to the Makefile
       # - run: go get -v -t -d ./...
       # - run: go get honnef.co/go/tools/cmd/megacheck
