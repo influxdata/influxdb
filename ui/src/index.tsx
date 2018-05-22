@@ -26,6 +26,7 @@ import {StatusPage} from 'src/status'
 import {HostsPage, HostPage} from 'src/hosts'
 import DataExplorerPage from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
+import {LogsPage} from 'src/logs'
 import AlertsApp from 'src/alerts'
 import {
   KapacitorPage,
@@ -119,6 +120,9 @@ class Root extends PureComponent<{}, State> {
           <Route path="/" component={UserIsAuthenticated(CheckSources)} />
           <Route path="/login" component={UserIsNotAuthenticated(Login)} />
           <Route path="/purgatory" component={UserIsAuthenticated(Purgatory)} />
+          <Route component={UserIsAuthenticated(App)}>
+            <Route path="/logs" component={LogsPage} />
+          </Route>
           <Route
             path="/sources/new"
             component={UserIsAuthenticated(SourcePage)}

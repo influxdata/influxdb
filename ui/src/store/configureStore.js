@@ -7,6 +7,7 @@ import errorsMiddleware from 'shared/middleware/errors'
 import {resizeLayout} from 'shared/middleware/resizeLayout'
 import {queryStringConfig} from 'shared/middleware/queryStringConfig'
 import statusReducers from 'src/status/reducers'
+import logsReducer from 'src/logs/reducers'
 import sharedReducers from 'shared/reducers'
 import dataExplorerReducers from 'src/data_explorer/reducers'
 import adminReducers from 'src/admin/reducers'
@@ -28,6 +29,7 @@ const rootReducer = combineReducers({
   cellEditorOverlay,
   overlayTechnology,
   dashTimeV1,
+  logs: logsReducer,
   routing: routerReducer,
   services: servicesReducer,
 })

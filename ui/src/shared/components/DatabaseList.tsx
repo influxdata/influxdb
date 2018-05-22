@@ -6,13 +6,11 @@ import _ from 'lodash'
 import {QueryConfig, Source} from 'src/types'
 import {Namespace} from 'src/types/query'
 
-import {showDatabases, showRetentionPolicies} from 'src/shared/apis/metaQuery'
-import showDatabasesParser from 'src/shared/parsing/showDatabases'
-import showRetentionPoliciesParser from 'src/shared/parsing/showRetentionPolicies'
-
 import DatabaseListItem from 'src/shared/components/DatabaseListItem'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
 
 interface DatabaseListProps {
   query: QueryConfig
@@ -80,24 +78,7 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
     const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
 
     try {
-      const {data} = await showDatabases(proxy)
-      const {databases} = showDatabasesParser(data)
-      const rps = await showRetentionPolicies(proxy, databases)
-      const namespaces = rps.data.results.reduce((acc, result, index) => {
-        const {retentionPolicies} = showRetentionPoliciesParser(result)
-
-        const dbrp = retentionPolicies.map(rp => ({
-          database: databases[index],
-          retentionPolicy: rp.name,
-        }))
-
-        return [...acc, ...dbrp]
-      }, [])
-
-      const sorted = _.sortBy(namespaces, ({database}: Namespace) =>
-        database.toLowerCase()
-      )
-
+      const sorted = await getDatabasesWithRetentionPolicies(proxy)
       this.setState({namespaces: sorted})
     } catch (err) {
       console.error(err)
