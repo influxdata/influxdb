@@ -30,7 +30,7 @@ $dash-ceo-z: $dygraph-legend-z + 10;
 
   &:only-child {
     top: 0;
-    height: 100%;
+    height: 100% !important;
   }
 }
 .page-contents--split {
