@@ -40,6 +40,7 @@ const RefreshingGraph = ({
   fieldOptions,
   timeFormat,
   decimalPlaces,
+  onSetResolution,
   resizerTopHeight,
   staticLegend,
   manualRefresh, // when changed, re-mounts the component
@@ -72,6 +73,7 @@ const RefreshingGraph = ({
         prefix={prefix}
         suffix={suffix}
         inView={inView}
+        onSetResolution={onSetResolution}
       />
     )
   }
@@ -92,6 +94,7 @@ const RefreshingGraph = ({
         prefix={prefix}
         suffix={suffix}
         inView={inView}
+        onSetResolution={onSetResolution}
       />
     )
   }
@@ -118,6 +121,7 @@ const RefreshingGraph = ({
         grabDataForDownload={grabDataForDownload}
         handleSetHoverTime={handleSetHoverTime}
         isInCEO={isInCEO}
+        onSetResolution={onSetResolution}
       />
     )
   }
@@ -147,6 +151,7 @@ const RefreshingGraph = ({
       grabDataForDownload={grabDataForDownload}
       handleSetHoverTime={handleSetHoverTime}
       showSingleStat={type === 'line-plus-single-stat'}
+      onSetResolution={onSetResolution}
     />
   )
 }
@@ -197,6 +202,7 @@ RefreshingGraph.propTypes = {
   hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
   isInCEO: bool,
+  onSetResolution: func,
 }
 
 RefreshingGraph.defaultProps = {

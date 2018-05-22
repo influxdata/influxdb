@@ -2,7 +2,6 @@ import React, {Component, ReactElement} from 'react'
 import _ from 'lodash'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-
 import LayoutCellMenu from 'src/shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'src/shared/components/LayoutCellHeader'
 import {notify} from 'src/shared/actions/notifications'
@@ -11,7 +10,9 @@ import download from 'src/external/download.js'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {dataToCSV} from 'src/shared/parsing/dataToCSV'
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
-import {Cell, CellQuery} from 'src/types/dashboard'
+import {PREDEFINED_TEMP_VARS} from 'src/shared/constants'
+
+import {Cell, CellQuery, Template} from 'src/types/'
 import {TimeSeriesServerResponse} from 'src/types/series'
 
 interface Props {
@@ -23,6 +24,8 @@ interface Props {
   isEditable: boolean
   onCancelEditCell: () => void
   cellData: TimeSeriesServerResponse[]
+  templates: Template[]
+  resolution: number
 }
 
 @ErrorHandling
@@ -44,10 +47,49 @@ export default class LayoutCell extends Component<Props> {
             onCSVDownload={this.handleCSVDownload}
           />
         </Authorized>
-        <LayoutCellHeader cellName={cell.name} isEditable={isEditable} />
+        <LayoutCellHeader cellName={this.cellName} isEditable={isEditable} />
         <div className="dash-graph--container">{this.renderGraph}</div>
       </div>
     )
+  }
+
+  private get cellName(): string {
+    const {
+      cell: {name},
+    } = this.props
+    return this.replaceTemplateVariables(name)
+  }
+
+  private get userDefinedTemplateVariables(): Template[] {
+    const {templates} = this.props
+    return templates.filter(temp => {
+      const isPredefinedTempVar: boolean = !!PREDEFINED_TEMP_VARS.find(
+        t => t === temp.tempVar
+      )
+      return !isPredefinedTempVar
+    })
+  }
+
+  private replaceTemplateVariables = (str: string): string => {
+    const isTemplated: boolean = _.get(str.match(/:/g), 'length', 0) >= 2 // tempVars are wrapped in :
+
+    if (isTemplated) {
+      const renderedString = _.reduce<Template, string>(
+        this.userDefinedTemplateVariables,
+        (acc, template) => {
+          const {tempVar} = template
+          const templateValue = template.values.find(v => v.selected)
+          const value = templateValue.value
+          const regex = new RegExp(tempVar, 'g')
+          return acc.replace(regex, value)
+        },
+        str
+      )
+
+      return renderedString
+    }
+
+    return str
   }
 
   private get queries(): CellQuery[] {

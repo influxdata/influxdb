@@ -4,24 +4,7 @@ import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
 
 import {intervalValuesPoints} from 'src/shared/constants'
 
-interface TemplateQuery {
-  db: string
-  rp: string
-  influxql: string
-}
-
-interface TemplateValue {
-  type: string
-  value: string
-  selected: boolean
-}
-
-interface Template {
-  type: string
-  tempVar: string
-  query: TemplateQuery
-  values: TemplateValue[]
-}
+import {Template} from 'src/types'
 
 interface Query {
   host: string | string[]
