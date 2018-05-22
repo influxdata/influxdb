@@ -2,6 +2,8 @@ package functions
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 
 	"context"
 	"strings"
@@ -17,12 +19,14 @@ import (
 const FromCSVKind = "fromCSV"
 
 type FromCSVOpSpec struct {
-	CSV string `json:"csv"`
+	CSV  string `json:"csv"`
+	File string `json:"file"`
 }
 
 var fromCSVSignature = semantic.FunctionSignature{
 	Params: map[string]semantic.Type{
-		"csv": semantic.String,
+		"csv":  semantic.String,
+		"file": semantic.String,
 	},
 	ReturnType: query.TableObjectType,
 }
@@ -37,17 +41,30 @@ func init() {
 func createFromCSVOpSpec(args query.Arguments, a *query.Administration) (query.OperationSpec, error) {
 	spec := new(FromCSVOpSpec)
 
-	if csv, ok, err := args.GetString("db"); err != nil {
+	if csv, ok, err := args.GetString("csv"); err != nil {
 		return nil, err
 	} else if ok {
 		spec.CSV = csv
 	}
 
-	if spec.CSV == "" {
-		return nil, errors.New("must provide csv text")
+	if file, ok, err := args.GetString("file"); err != nil {
+		return nil, err
+	} else if ok {
+		spec.File = file
 	}
 
-	// TODO(adam): validate the CSV before we go much further?
+	if spec.CSV == "" && spec.File == "" {
+		return nil, errors.New("must provide csv raw text or filename")
+	}
+
+	if spec.CSV != "" && spec.File != "" {
+		return nil, errors.New("must provide exactly one of the parameters csv or file")
+	}
+
+	if _, err := os.Stat(spec.File); err != nil {
+		return nil, errors.Wrap(err, "failed to stat csv file: ")
+	}
+
 	return spec, nil
 }
 
@@ -60,7 +77,8 @@ func (s *FromCSVOpSpec) Kind() query.OperationKind {
 }
 
 type FromCSVProcedureSpec struct {
-	CSV string
+	CSV  string
+	File string
 }
 
 func newFromCSVProcedure(qs query.OperationSpec, pa plan.Administration) (plan.ProcedureSpec, error) {
@@ -70,7 +88,8 @@ func newFromCSVProcedure(qs query.OperationSpec, pa plan.Administration) (plan.P
 	}
 
 	return &FromCSVProcedureSpec{
-		CSV: spec.CSV,
+		CSV:  spec.CSV,
+		File: spec.File,
 	}, nil
 }
 
@@ -81,6 +100,7 @@ func (s *FromCSVProcedureSpec) Kind() plan.ProcedureKind {
 func (s *FromCSVProcedureSpec) Copy() plan.ProcedureSpec {
 	ns := new(FromCSVProcedureSpec)
 	ns.CSV = s.CSV
+	ns.File = s.File
 	return ns
 }
 
@@ -90,8 +110,18 @@ func createFromCSVSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 		return nil, fmt.Errorf("invalid spec type %T", prSpec)
 	}
 
+	csvText := spec.CSV
+	// if spec.File non-empty then spec.CSV is empty
+	if spec.File != "" {
+		csvBytes, err := ioutil.ReadFile(spec.File)
+		if err != nil {
+			return nil, err
+		}
+		csvText = string(csvBytes)
+	}
+
 	decoder := csv.NewResultDecoder(csv.ResultDecoderConfig{})
-	result, err := decoder.Decode(strings.NewReader(spec.CSV))
+	result, err := decoder.Decode(strings.NewReader(csvText))
 	if err != nil {
 		return nil, err
 	}
