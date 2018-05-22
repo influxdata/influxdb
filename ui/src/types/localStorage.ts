@@ -7,6 +7,7 @@ export interface LocalStorage {
   dataExplorer: DataExplorer
   dataExplorerQueryConfigs: DataExplorerQueryConfigs
   timeRange: TimeRange
+  script: string
 }
 
 export type VERSION = string

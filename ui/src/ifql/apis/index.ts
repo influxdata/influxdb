@@ -1,4 +1,6 @@
 import AJAX from 'src/utils/ajax'
+import {Service} from 'src/types'
+import {updateService} from 'src/shared/apis'
 
 export const getSuggestions = async (url: string) => {
   try {
@@ -34,17 +36,24 @@ export const getAST = async (request: ASTRequest) => {
   }
 }
 
-export const getTimeSeries = async (script: string) => {
+export const getTimeSeries = async (service: Service, script: string) => {
+  const and = encodeURIComponent('&')
+  const mark = encodeURIComponent('?')
+  const garbage = script.replace(/\s/g, '') // server cannot handle whitespace
+
   try {
     const data = await AJAX({
       method: 'POST',
-      url: `http://localhost:8093/query?q=${script}`,
+      url: `${
+        service.links.proxy
+      }?path=/v1/query${mark}orgName=defaulorgname${and}q=${garbage}`,
+      headers: {'Content-Type': 'text/plain'},
     })
 
     return data
   } catch (error) {
     console.error('Problem fetching data', error)
-    throw error
+    throw error.data.message
   }
 }
 
@@ -79,6 +88,22 @@ export const getTagValues = async () => {
     return data.values
   } catch (error) {
     console.error('Could not get tag values', error)
+    throw error
+  }
+}
+
+export const updateScript = async (service: Service, script: string) => {
+  const updates = {...service, metadata: {script}}
+
+  try {
+    const response = await updateService(updates)
+    return response
+  } catch (error) {
+    if (error.data) {
+      console.error('Could not update script', error.data)
+      throw error.data
+    }
+
     throw error
   }
 }

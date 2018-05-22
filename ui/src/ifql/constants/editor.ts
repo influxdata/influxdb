@@ -58,3 +58,6 @@ export const EXCLUDED_KEYS = [
   'Meta',
   ' ',
 ]
+
+export const DEFAULT_SCRIPT =
+  'fil = (r) => r._measurement == "cpu"\ntele = from(db: "telegraf") \n\t\t|> filter(fn: fil)\n        |> range(start: -1m)\n        |> sum()\n\n'
