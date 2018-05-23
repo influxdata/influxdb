@@ -16,6 +16,7 @@ GO_ARGS=-tags '$(GO_TAGS)'
 export GO_BUILD=go build $(GO_ARGS)
 export GO_TEST=go test $(GO_ARGS)
 export GO_GENERATE=go generate $(GO_ARGS)
+export GO_VET= go vet $(GO_ARGS)
 
 
 # All go source files
@@ -86,6 +87,9 @@ test: all
 
 test-race: all
 	$(GO_TEST) -race ./...
+
+vet: all
+	$(GO_VET) -v ./...
 
 bench: all
 	$(GO_TEST) -bench=. -run=^$$ ./...

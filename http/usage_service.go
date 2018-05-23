@@ -2,12 +2,12 @@ package http
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
+	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -34,18 +34,18 @@ func (h *UsageHandler) handleGetUsage(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetUsageRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	b, err := h.UsageService.GetUsage(ctx, req.filter)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -80,10 +80,10 @@ func decodeGetUsageRequest(ctx context.Context, r *http.Request) (*getUsageReque
 	stop := qp.Get("stop")
 
 	if start == "" && stop != "" {
-		return nil, fmt.Errorf("start query param required")
+		return nil, errors.New("start query param required")
 	}
 	if start == "" && stop != "" {
-		return nil, fmt.Errorf("stop query param required")
+		return nil, errors.New("stop query param required")
 	}
 
 	if start == "" && stop == "" {

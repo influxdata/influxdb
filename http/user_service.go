@@ -4,19 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"path"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
+	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
-
 	UserService platform.UserService
 }
 
@@ -40,17 +39,17 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePostUserRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := h.UserService.CreateUser(ctx, req.User); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.User); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -76,18 +75,18 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetUserRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	b, err := h.UserService.FindUserByID(ctx, req.UserID)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -100,7 +99,7 @@ func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -121,12 +120,12 @@ func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeDeleteUserRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := h.UserService.DeleteUser(ctx, req.UserID); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
@@ -141,7 +140,7 @@ func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -160,18 +159,18 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetUsersRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	users, _, err := h.UserService.FindUsers(ctx, req.filter)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, users); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -204,18 +203,18 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePatchUserRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	b, err := h.UserService.UpdateUser(ctx, req.UserID, req.Update)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -229,7 +228,7 @@ func decodePatchUserRequest(ctx context.Context, r *http.Request) (*patchUserReq
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -275,7 +274,7 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var b platform.User
@@ -295,7 +294,7 @@ func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) 
 	}
 
 	if n == 0 {
-		return nil, fmt.Errorf("found no matching user")
+		return nil, errors.New("found no matching user")
 	}
 
 	return users[0], nil
@@ -332,7 +331,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, 0, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var bs []*platform.User
@@ -375,7 +374,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
 	}
 
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(u); err != nil {
@@ -414,7 +413,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var u platform.User
@@ -446,7 +445,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	}
 
 	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	return nil

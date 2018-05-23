@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"path"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
+	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -40,17 +40,17 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePostOrgRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := h.OrganizationService.CreateOrganization(ctx, req.Org); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.Org); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -76,18 +76,18 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetOrgRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	b, err := h.OrganizationService.FindOrganizationByID(ctx, req.OrgID)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -100,7 +100,7 @@ func decodeGetOrgRequest(ctx context.Context, r *http.Request) (*getOrgRequest, 
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -121,18 +121,18 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetOrgsRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	orgs, _, err := h.OrganizationService.FindOrganizations(ctx, req.filter)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, orgs); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -165,12 +165,12 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeDeleteOrganizationRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := h.OrganizationService.DeleteOrganization(ctx, req.OrganizationID); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
@@ -185,7 +185,7 @@ func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*del
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -205,18 +205,18 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePatchOrgRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	o, err := h.OrganizationService.UpdateOrganization(ctx, req.OrgID, req.Update)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, o); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		kerrors.EncodeHTTP(ctx, err, w)
 		return
 	}
 }
@@ -230,7 +230,7 @@ func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgReque
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, errors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("url missing id")
 	}
 
 	var i platform.ID
@@ -272,7 +272,7 @@ func (s *OrganizationService) FindOrganization(ctx context.Context, filter platf
 	}
 
 	if n < 1 {
-		return nil, fmt.Errorf("expected at least one organization")
+		return nil, errors.New("expected at least one organization")
 	}
 
 	return os[0], nil
@@ -307,7 +307,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, 0, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, 0, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var os []*platform.Organization
@@ -348,7 +348,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 
 	// TODO: this should really check the error from the headers
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(o); err != nil {
@@ -385,7 +385,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
 	}
 
 	var o platform.Organization
@@ -420,7 +420,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 		return nil
 	}
 
-	return fmt.Errorf(resp.Header.Get("X-Influx-Error"))
+	return errors.New(resp.Header.Get("X-Influx-Error"))
 }
 
 func organizationIDPath(id platform.ID) string {
