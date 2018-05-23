@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
@@ -14,10 +15,13 @@ import {
 } from 'src/side_nav/components/NavItems'
 
 import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
-import {Params, Location, Links, Me} from 'src/types/sideNav'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {Params, Location, Links, Me} from 'src/types/sideNav'
+import {Source} from 'src/types'
+
 interface Props {
+  sources: Source[]
   params: Params
   location: Location
   isHidden: boolean
@@ -42,9 +46,13 @@ class SideNav extends PureComponent<Props> {
       logoutLink,
       links,
       me,
+      sources = [],
     } = this.props
 
-    const sourcePrefix = `/sources/${sourceID}`
+    const defaultSource = sources.find(s => s.default)
+    const id = sourceID || _.get(defaultSource, 'id', 0)
+
+    const sourcePrefix = `/sources/${id}`
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
 
     const isDefaultPage = location.split('/').includes(DEFAULT_HOME_PAGE)
@@ -69,6 +77,16 @@ class SideNav extends PureComponent<Props> {
         >
           <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
         </NavBlock>
+        <FeatureFlag name="log-viewer">
+          <NavBlock
+            highlightWhen={['logs']}
+            icon="cubo-node"
+            link={'/logs'}
+            location={location}
+          >
+            <NavHeader link={'/logs'} title="Log Viewer" />
+          </NavBlock>
+        </FeatureFlag>
         <NavBlock
           highlightWhen={['data-explorer', 'delorean']}
           icon="graphline"
@@ -164,12 +182,14 @@ class SideNav extends PureComponent<Props> {
 }
 
 const mapStateToProps = ({
+  sources,
   auth: {isUsingAuth, logoutLink, me},
   app: {
     ephemeral: {inPresentationMode},
   },
   links,
 }) => ({
+  sources,
   isHidden: inPresentationMode,
   isUsingAuth,
   logoutLink,
