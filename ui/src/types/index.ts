@@ -1,3 +1,4 @@
+import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
 import {AuthLinks, Organization, Role, User, Me} from './auth'
 import {Template, Cell, CellQuery, Legend, Axes} from './dashboard'
@@ -58,4 +59,6 @@ export {
   Axes,
   Service,
   NewService,
+  LayoutCell,
+  LayoutQuery,
 }
