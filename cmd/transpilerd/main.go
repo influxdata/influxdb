@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	nethttp "net/http"
 	"os"
 	"strings"
 
@@ -61,7 +60,9 @@ func transpileF(cmd *cobra.Command, args []string) {
 	handler.Handler = transpileHandler
 
 	log.Printf("Starting transpilerd on %s\n", flags.bindAddr)
-	log.Fatal(nethttp.ListenAndServe(flags.bindAddr, handler))
+	if err := http.ListenAndServe(flags.bindAddr, handler, nil); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
