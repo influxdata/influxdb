@@ -1,3 +1,5 @@
+import {modeIFQL, modeTickscript} from 'src/shared/constants/codeMirrorModes'
+
 /* eslint-disable */
 const CodeMirror = require('codemirror')
 
@@ -309,79 +311,9 @@ function indentFunction(states, meta) {
   }
 }
 
-CodeMirror.defineSimpleMode('tickscript', {
-  // The start state contains the rules that are intially used
-  start: [
-    // The regex matches the token, the token property contains the type
-    {
-      regex: /"(?:[^\\]|\\.)*?(?:"|$)/,
-      token: 'string.double'
-    },
-    {
-      regex: /'(?:[^\\]|\\.)*?(?:'|$)/,
-      token: 'string.single'
-    },
-    {
-      regex: /(function)(\s+)([a-z$][\w$]*)/,
-      token: ['keyword', null, 'variable-2'],
-    },
-    // Rules are matched in the order in which they appear, so there is
-    // no ambiguity between this one and the one above
-    {
-      regex: /(?:var|return|if|for|while|else|do|this|stream|batch|influxql|lambda)/,
-      token: 'keyword',
-    },
-    {
-      regex: /true|false|null|undefined|TRUE|FALSE/,
-      token: 'atom'
-    },
-    {
-      regex: /0x[a-f\d]+|[-+]?(?:\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/i,
-      token: 'number',
-    },
-    {
-      regex: /\/\/.*/,
-      token: 'comment'
-    },
-    {
-      regex: /\/(?:[^\\]|\\.)*?\//,
-      token: 'variable-3'
-    },
-    // A next property will cause the mode to move to a different state
-    {
-      regex: /\/\*/,
-      token: 'comment',
-      next: 'comment'
-    },
-    {
-      regex: /[-+\/*=<>!]+/,
-      token: 'operator'
-    },
-    {
-      regex: /[a-z$][\w$]*/,
-      token: 'variable'
-    },
-  ],
-  // The multi-line comment state.
-  comment: [{
-      regex: /.*?\*\//,
-      token: 'comment',
-      next: 'start'
-    },
-    {
-      regex: /.*/,
-      token: 'comment'
-    },
-  ],
-  // The meta property contains global information about the mode. It
-  // can contain properties like lineComment, which are supported by
-  // all modes, and also directives like dontIndentStates, which are
-  // specific to simple modes.
-  meta: {
-    dontIndentStates: ['comment'],
-    lineComment: '//',
-  },
-})
+// Modes
+CodeMirror.defineSimpleMode('ifql', modeIFQL)
+CodeMirror.defineSimpleMode('tickscript', modeTickscript)
 
 // CodeMirror Hints
 

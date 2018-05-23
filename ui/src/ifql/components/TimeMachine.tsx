@@ -91,7 +91,7 @@ class TimeMachine extends PureComponent<Props> {
         headerButtons: [
           <div
             key="analyze"
-            className="btn btn-default btn-sm analyze--button"
+            className="btn btn-default btn-xs analyze--button"
             onClick={onAnalyze}
           >
             Analyze

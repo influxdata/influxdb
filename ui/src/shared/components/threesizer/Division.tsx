@@ -59,7 +59,7 @@ class Division extends PureComponent<Props> {
       fontSize: '16px',
       fontWeight: '500',
     })
-    const NAME_OFFSET = 66
+    const NAME_OFFSET = 96
 
     this.collapseThreshold = width + NAME_OFFSET
   }

@@ -8,7 +8,7 @@ import {Notification, NotificationFunc} from 'src/types'
 import {KafkaProperties} from 'src/types/kapacitor'
 import {notifyInvalidBatchSizeValue} from 'src/shared/copy/notifications'
 
-import {get} from 'src/utils/wrappers'
+import {getDeep} from 'src/utils/wrappers'
 
 interface Config {
   options: KafkaProperties
@@ -62,7 +62,7 @@ class KafkaConfig extends PureComponent<Props, State> {
     this.state = {
       currentBrokers: brokers || [],
       testEnabled: this.props.enabled,
-      enabled: get(this.props, 'config.options.enabled', false),
+      enabled: getDeep<boolean>(this.props, 'config.options.enabled', false),
     }
   }
 
@@ -244,7 +244,7 @@ class KafkaConfig extends PureComponent<Props, State> {
   }
 
   private get isNewConfig(): boolean {
-    return get(this.props, 'config.isNewConfig', false)
+    return getDeep<boolean>(this.props, 'config.isNewConfig', false)
   }
 
   private get isDefaultConfig(): boolean {

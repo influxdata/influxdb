@@ -7,6 +7,7 @@ import errorsMiddleware from 'shared/middleware/errors'
 import {resizeLayout} from 'shared/middleware/resizeLayout'
 import {queryStringConfig} from 'shared/middleware/queryStringConfig'
 import statusReducers from 'src/status/reducers'
+import logsReducer from 'src/logs/reducers'
 import sharedReducers from 'shared/reducers'
 import dataExplorerReducers from 'src/data_explorer/reducers'
 import adminReducers from 'src/admin/reducers'
@@ -17,6 +18,7 @@ import overlayTechnology from 'src/shared/reducers/overlayTechnology'
 import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
 import persistStateEnhancer from './persistStateEnhancer'
 import servicesReducer from 'src/shared/reducers/services'
+import scriptReducer from 'src/ifql/reducers/script'
 
 const rootReducer = combineReducers({
   ...statusReducers,
@@ -28,8 +30,10 @@ const rootReducer = combineReducers({
   cellEditorOverlay,
   overlayTechnology,
   dashTimeV1,
+  logs: logsReducer,
   routing: routerReducer,
   services: servicesReducer,
+  script: scriptReducer,
 })
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose

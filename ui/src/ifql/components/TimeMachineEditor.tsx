@@ -60,12 +60,13 @@ class TimeMachineEditor extends PureComponent<Props> {
 
     const options = {
       lineNumbers: true,
-      theme: 'material',
+      theme: 'time-machine',
       tabIndex: 1,
       readonly: false,
       extraKeys: {'Ctrl-Space': 'autocomplete'},
       completeSingle: false,
       autoRefresh: true,
+      mode: 'ifql',
       gutters: ['error-gutter'],
     }
 

@@ -1,7 +1,7 @@
 import React, {PureComponent, MouseEvent} from 'react'
 
 import _ from 'lodash'
-import {get} from 'src/utils/wrappers'
+import {getDeep} from 'src/utils/wrappers'
 
 import {
   Tab,
@@ -431,12 +431,12 @@ class AlertTabs extends PureComponent<Props, State> {
 
   private get isMultipleConfigsSupported(): boolean {
     const {configSections} = this.state
-    const hasPagerDuty2: Section = get(
+    const hasPagerDuty2 = getDeep<Section>(
       configSections,
       AlertTypes.pagerduty2,
       undefined
     )
-    const hasOpsGenie2: Section = get(
+    const hasOpsGenie2 = getDeep<Section>(
       configSections,
       AlertTypes.opsgenie2,
       undefined
@@ -454,9 +454,13 @@ class AlertTabs extends PureComponent<Props, State> {
 
   private getConfigEnabled = (sections: Sections, section: string): boolean => {
     if (section === AlertTypes.slack || section === AlertTypes.kafka) {
-      const configElements: Section[] = get(sections, `${section}.elements`, [])
+      const configElements = getDeep<Section[]>(
+        sections,
+        `${section}.elements`,
+        []
+      )
       const enabledConfigElements = configElements.filter(e => {
-        const enabled: boolean = get(e, 'options.enabled', false)
+        const enabled = getDeep<boolean>(e, 'options.enabled', false)
         return enabled
       })
       return enabledConfigElements.length > 0

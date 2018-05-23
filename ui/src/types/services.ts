@@ -10,6 +10,7 @@ export interface NewService {
 
 export interface Service {
   id?: string
+  sourceID: string
   url: string
   name: string
   type: string
@@ -17,6 +18,9 @@ export interface Service {
   password?: string
   active: boolean
   insecureSkipVerify: boolean
+  metadata: {
+    [x: string]: any
+  }
   links: {
     source: string
     self: string

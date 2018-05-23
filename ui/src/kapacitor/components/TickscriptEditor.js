@@ -19,9 +19,10 @@ class TickscriptEditor extends Component {
 
     const options = {
       lineNumbers: true,
-      theme: 'material',
+      theme: 'tickscript',
       tabIndex: 1,
       readonly: false,
+      mode: 'tickscript',
     }
 
     return (

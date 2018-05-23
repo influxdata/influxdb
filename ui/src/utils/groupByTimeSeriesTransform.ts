@@ -16,7 +16,7 @@ import {
   TimeSeriesSuccessfulResult,
   TimeSeries,
 } from 'src/types/series'
-import {get} from 'src/utils/wrappers'
+import {getDeep} from 'src/utils/wrappers'
 
 interface Result {
   series: TimeSeriesSeries[]
@@ -60,7 +60,7 @@ const flattenGroupBySeries = (
   }
 
   const tagsKeys = _.keys(tags)
-  const seriesArray = get<TimeSeriesSeries[]>(results, '[0].series', [])
+  const seriesArray = getDeep<TimeSeriesSeries[]>(results, '[0].series', [])
 
   const accumulatedValues = fastReduce<TimeSeriesSeries, TimeSeriesValue[][]>(
     seriesArray,
@@ -76,7 +76,7 @@ const flattenGroupBySeries = (
     },
     []
   )
-  const firstColumns = get<string[]>(results, '[0].series[0]columns', [])
+  const firstColumns = getDeep<string[]>(results, '[0].series[0]columns', [])
 
   const flattenedSeries: Result[] = [
     {
@@ -102,7 +102,11 @@ const constructResults = (
   const MappedResponse = fastMap<TimeSeriesServerResponse, Result[]>(
     raw,
     (response, index) => {
-      const results = get<TimeSeriesResult[]>(response, 'response.results', [])
+      const results = getDeep<TimeSeriesResult[]>(
+        response,
+        'response.results',
+        []
+      )
 
       const successfulResults = results.filter(
         r => 'series' in r && !('error' in r)

@@ -242,7 +242,7 @@ export const HANDLERS_TO_RULE_THEM_ALL: FieldsFromAllAlerts = {
     'service',
   ],
   hipChat: ['room'],
-  kafka: ['id', 'cluster', 'topic', 'template'],
+  kafka: ['id', 'cluster', 'kafka-topic', 'template'],
   opsGenie: ['teams', 'recipients'],
   opsGenie2: ['teams', 'recipients'],
   pagerDuty: [],

@@ -17,7 +17,7 @@ class CustomTimeRange extends Component {
   }
 
   componentDidMount() {
-    const {timeRange} = this.props
+    const {timeRange, timeInterval} = this.props
 
     const lower = rome(this.lower, {
       dateValidator: rome.val.beforeEq(this.upper),
@@ -26,6 +26,7 @@ class CustomTimeRange extends Component {
       autoClose: false,
       autoHideOnBlur: false,
       autoHideOnClick: false,
+      timeInterval,
     })
 
     const upper = rome(this.upper, {
@@ -35,6 +36,7 @@ class CustomTimeRange extends Component {
       initialValue: this.getInitialDate(timeRange.upper),
       autoHideOnBlur: false,
       autoHideOnClick: false,
+      timeInterval,
     })
 
     this.lowerCal = lower
@@ -239,7 +241,11 @@ class CustomTimeRange extends Component {
   }
 }
 
-const {func, shape, string} = PropTypes
+CustomTimeRange.defaultProps = {
+  timeInterval: 1800,
+}
+
+const {func, shape, string, number} = PropTypes
 
 CustomTimeRange.propTypes = {
   onApplyTimeRange: func.isRequired,
@@ -247,6 +253,7 @@ CustomTimeRange.propTypes = {
     lower: string.isRequired,
     upper: string,
   }).isRequired,
+  timeInterval: number,
   onClose: func,
   page: string,
 }
