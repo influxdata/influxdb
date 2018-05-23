@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/influxdata/line-protocol"
@@ -341,8 +342,9 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Block) erro
 		isValue[i] = sort.SearchStrings(t.spec.Spec.ValueColumns, col.Label) < len(t.spec.Spec.ValueColumns) && t.spec.Spec.ValueColumns[sort.SearchStrings(t.spec.Spec.ValueColumns, col.Label)] == col.Label
 		isTag[i] = sort.SearchStrings(t.spec.Spec.TagColumns, col.Label) < len(t.spec.Spec.TagColumns) && t.spec.Spec.TagColumns[sort.SearchStrings(t.spec.Spec.TagColumns, col.Label)] == col.Label
 	}
-
+	wg := sync.WaitGroup{}
 	var err error
+	wg.Add(1)
 	go func() {
 		m.name = t.spec.Spec.Name
 		b.Do(func(er query.ColReader) error {
@@ -391,6 +393,7 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Block) erro
 			return nil
 		})
 		pw.Close()
+		wg.Done()
 	}()
 
 	req, err := http.NewRequest(t.spec.Spec.Method, t.spec.Spec.Addr, pr)
@@ -413,8 +416,8 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Block) erro
 	if err != nil {
 		return err
 	}
-
-	defer resp.Body.Close()
+	wg.Wait()
+	resp.Body.Close()
 
 	return req.Body.Close()
 }
