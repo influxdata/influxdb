@@ -1358,7 +1358,66 @@ export const rule = {
 }
 
 // prettier-ignore
-export const FROM_LAST_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
+export const RESPONSE_METADATA = `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
+#partition,false,false,false,false,false,false,true,true,true,true
+#default,_result,,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
+,,0,2018-05-23T17:42:29.536834648Z,2018-05-23T17:43:29.536834648Z,2018-05-23T17:42:29.654Z,0,usage_guest,cpu,cpu-total,WattsInfluxDB
+`
+
+export const RESPONSE_NO_METADATA = `,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
+,,0,2018-05-23T17:42:29.536834648Z,2018-05-23T17:43:29.536834648Z,2018-05-23T17:42:29.654Z,0,usage_guest,cpu,cpu-total,WattsInfluxDB
+`
+
+export const RESPONSE_NO_MEASUREMENT = `,result,table,_start,_stop,_time,_value,_field,cpu,host
+,,0,2018-05-23T17:42:29.536834648Z,2018-05-23T17:43:29.536834648Z,2018-05-23T17:42:29.654Z,0,usage_guest,cpu-total,WattsInfluxDB`
+
+export const EXPECTED_COLUMNS = [
+  '',
+  'result',
+  'table',
+  '_start',
+  '_stop',
+  '_time',
+  '_value',
+  '_field',
+  '_measurement',
+  'cpu',
+  'host',
+]
+
+export const EXPECTED_METADATA = [
+  [
+    'datatype',
+    'string',
+    'long',
+    'dateTime:RFC3339',
+    'dateTime:RFC3339',
+    'dateTime:RFC3339',
+    'double',
+    'string',
+    'string',
+    'string',
+    'string',
+  ],
+  [
+    'partition',
+    'false',
+    'false',
+    'false',
+    'false',
+    'false',
+    'false',
+    'true',
+    'true',
+    'true',
+    'true',
+  ],
+  ['default', '_result', '', '', '', '', '', '', '', '', ''],
+]
+
+// prettier-ignore
+export const LARGE_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
 #partition,false,false,false,false,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
