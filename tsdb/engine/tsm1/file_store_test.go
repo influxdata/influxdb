@@ -2750,26 +2750,26 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 }
 
 type mockObserver struct {
-	fileFinishing func(id uint64, path string) error
-	fileUnlinking func(id uint64, path string) error
+	fileFinishing func(path string) error
+	fileUnlinking func(path string) error
 }
 
-func (m mockObserver) FileFinishing(id uint64, path string) error {
-	return m.fileFinishing(id, path)
+func (m mockObserver) FileFinishing(path string) error {
+	return m.fileFinishing(path)
 }
 
-func (m mockObserver) FileUnlinking(id uint64, path string) error {
-	return m.fileUnlinking(id, path)
+func (m mockObserver) FileUnlinking(path string) error {
+	return m.fileUnlinking(path)
 }
 
 func TestFileStore_Observer(t *testing.T) {
 	var finishes, unlinks []string
 	m := mockObserver{
-		fileFinishing: func(id uint64, path string) error {
+		fileFinishing: func(path string) error {
 			finishes = append(finishes, path)
 			return nil
 		},
-		fileUnlinking: func(id uint64, path string) error {
+		fileUnlinking: func(path string) error {
 			unlinks = append(unlinks, path)
 			return nil
 		},
@@ -2790,7 +2790,7 @@ func TestFileStore_Observer(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 	fs := tsm1.NewFileStore(dir)
-	fs.WithObserver(0, m)
+	fs.WithObserver(m)
 
 	// Setup 3 files
 	data := []keyValues{

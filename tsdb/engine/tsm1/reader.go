@@ -258,8 +258,7 @@ func NewTSMReader(f *os.File) (*TSMReader, error) {
 }
 
 // WithObserver sets the observer for the TSM reader.
-func (t *TSMReader) WithObserver(id uint64, obs tsdb.FileStoreObserver) {
-	t.tombstoner.id = id
+func (t *TSMReader) WithObserver(obs tsdb.FileStoreObserver) {
 	t.tombstoner.obs = obs
 }
 

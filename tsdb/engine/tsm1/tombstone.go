@@ -53,7 +53,7 @@ type Tombstoner struct {
 	tmp               [8]byte
 	lastAppliedOffset int64
 
-	id  uint64
+	// Optional observer for when tombstone files are written.
 	obs tsdb.FileStoreObserver
 }
 
@@ -369,7 +369,7 @@ func (t *Tombstoner) commit() error {
 	t.pendingFile.Close()
 
 	if t.obs != nil {
-		if err := t.obs.FileFinishing(t.id, tmpFilename); err != nil {
+		if err := t.obs.FileFinishing(tmpFilename); err != nil {
 			return err
 		}
 	}
