@@ -12,6 +12,7 @@ interface SourceItem {
 }
 
 interface Props {
+  currentNamespace: Namespace
   availableSources: Source[]
   currentSource: Source | null
   currentNamespaces: Namespace[]
@@ -67,11 +68,13 @@ class LogViewerHeader extends PureComponent<Props> {
   }
 
   private get selectedNamespace(): string {
-    if (_.isEmpty(this.namespaceDropDownItems)) {
+    const {currentNamespace} = this.props
+
+    if (!currentNamespace) {
       return ''
     }
 
-    return this.namespaceDropDownItems[0].text
+    return `${currentNamespace.database}.${currentNamespace.retentionPolicy}`
   }
 
   private get namespaceDropDownItems() {

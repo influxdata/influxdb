@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 import {getSourceAsync, setTimeRange, setNamespace} from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import {Source, Namespace, TimeRange} from 'src/types'
@@ -10,6 +9,7 @@ interface Props {
   sources: Source[]
   currentSource: Source | null
   currentNamespaces: Namespace[]
+  currentNamespace: Namespace
   getSource: (sourceID: string) => void
   getSources: () => void
   setTimeRange: (timeRange: TimeRange) => void
@@ -44,7 +44,13 @@ class LogsPage extends PureComponent<Props> {
   }
 
   private get header(): JSX.Element {
-    const {sources, currentSource, currentNamespaces, timeRange} = this.props
+    const {
+      sources,
+      currentSource,
+      currentNamespaces,
+      timeRange,
+      currentNamespace,
+    } = this.props
 
     return (
       <LogViewerHeader
@@ -55,6 +61,7 @@ class LogsPage extends PureComponent<Props> {
         onChooseTimerange={this.handleChooseTimerange}
         currentSource={currentSource}
         currentNamespaces={currentNamespaces}
+        currentNamespace={currentNamespace}
       />
     )
   }
@@ -84,11 +91,11 @@ const mapStateToProps = ({
   currentNamespace,
 })
 
-const mapDispatchToProps = dispatch => ({
-  getSource: bindActionCreators(getSourceAsync, dispatch),
-  getSources: bindActionCreators(getSourcesAsync, dispatch),
-  setTimeRange: bindActionCreators(setTimeRange, dispatch),
-  setNamespace: bindActionCreators(setNamespace, dispatch),
-})
+const mapDispatchToProps = {
+  getSource: getSourceAsync,
+  getSources: getSourcesAsync,
+  setTimeRange,
+  setNamespace,
+}
 
 export default connect(mapStateToProps, mapDispatchToProps)(LogsPage)

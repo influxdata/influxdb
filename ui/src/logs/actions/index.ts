@@ -1,6 +1,7 @@
 import {Source, Namespace, TimeRange} from 'src/types'
 import {getSource} from 'src/shared/apis'
 import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
+import {get} from 'src/utils/wrappers'
 
 export enum ActionTypes {
   SetSource = 'LOGS_SET_SOURCE',
@@ -73,11 +74,20 @@ export const setTimeRange = (timeRange: TimeRange): SetTimeRangeAction => ({
   },
 })
 
-export const getSourceAsync = sourceID => async dispatch => {
+export const getSourceAsync = (sourceID: string) => async dispatch => {
   const response = await getSource(sourceID)
   const source = response.data
-  const namespaces = await getDatabasesWithRetentionPolicies(source.links.proxy)
 
-  dispatch(setSource(source))
-  dispatch(setNamespaces(namespaces))
+  if (source) {
+    const namespaces = await getDatabasesWithRetentionPolicies(
+      get(source, 'links.proxy', '')
+    )
+
+    if (namespaces && namespaces.length > 0) {
+      dispatch(setNamespace(namespaces[0]))
+    }
+
+    dispatch(setNamespaces(namespaces))
+    dispatch(setSource(source))
+  }
 }
