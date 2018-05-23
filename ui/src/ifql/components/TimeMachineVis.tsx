@@ -1,9 +1,9 @@
 import React, {PureComponent, CSSProperties} from 'react'
 
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ScriptResult, ScriptStatus} from 'src/types'
 import TableSidebar from 'src/ifql/components/TableSidebar'
+import TimeMachineTable from 'src/ifql/components/TimeMachineTable'
 import {HANDLE_PIXELS} from 'src/shared/constants'
 
 interface Props {
@@ -32,7 +32,9 @@ class TimeMachineVis extends PureComponent<Props, State> {
           onSelectResult={this.handleSelectResult}
         />
         <div className="time-machine--vis">
-          <FancyScrollbar />
+          {this.shouldShowTable && (
+            <TimeMachineTable {...this.selectedResult} />
+          )}
         </div>
       </div>
     )
@@ -46,6 +48,14 @@ class TimeMachineVis extends PureComponent<Props, State> {
     return {
       padding: `${HANDLE_PIXELS}px`,
     }
+  }
+
+  private get shouldShowTable(): boolean {
+    return !!this.selectedResult
+  }
+
+  private get selectedResult(): ScriptResult {
+    return this.props.data.find(d => d.id === this.state.selectedResultID)
   }
 }
 

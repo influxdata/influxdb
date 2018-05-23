@@ -11,6 +11,7 @@ import {
 describe('IFQL response parser', () => {
   it('parseResults into the right number of tables', () => {
     const result = parseResults(LARGE_RESPONSE)
+
     expect(result).toHaveLength(47)
   })
 

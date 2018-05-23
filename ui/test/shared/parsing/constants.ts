@@ -1367,6 +1367,7 @@ export const RESPONSE_METADATA = `#datatype,string,long,dateTime:RFC3339,dateTim
 
 export const RESPONSE_NO_METADATA = `,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
 ,,0,2018-05-23T17:42:29.536834648Z,2018-05-23T17:43:29.536834648Z,2018-05-23T17:42:29.654Z,0,usage_guest,cpu,cpu-total,WattsInfluxDB
+
 `
 
 export const RESPONSE_NO_MEASUREMENT = `,result,table,_start,_stop,_time,_value,_field,cpu,host
@@ -1893,4 +1894,6 @@ export const LARGE_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dateTime:R
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,241,1677-09-21T00:12:43.145224192Z,2018-05-22T22:39:17.042276772Z,2018-05-22T22:39:12.34Z,"1 day,  1:11",uptime_format,system,WattsInfluxDB
+
+
 `
