@@ -245,10 +245,7 @@ func NewTSMReader(f *os.File) (*TSMReader, error) {
 	}
 
 	t.index = index
-	t.tombstoner = &Tombstoner{
-		Path:     t.Path(),
-		FilterFn: index.ContainsKey,
-	}
+	t.tombstoner = NewTombstoner(t.Path(), index.ContainsKey)
 
 	if err := t.applyTombstones(); err != nil {
 		return nil, err
@@ -259,7 +256,7 @@ func NewTSMReader(f *os.File) (*TSMReader, error) {
 
 // WithObserver sets the observer for the TSM reader.
 func (t *TSMReader) WithObserver(obs tsdb.FileStoreObserver) {
-	t.tombstoner.obs = obs
+	t.tombstoner.WithObserver(obs)
 }
 
 func (t *TSMReader) applyTombstones() error {

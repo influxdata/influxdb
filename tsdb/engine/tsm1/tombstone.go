@@ -57,6 +57,15 @@ type Tombstoner struct {
 	obs tsdb.FileStoreObserver
 }
 
+// NewTombstoner constructs a Tombstoner for the given path. FilterFn can be nil.
+func NewTombstoner(path string, filterFn func(k []byte) bool) *Tombstoner {
+	return &Tombstoner{
+		Path:     path,
+		FilterFn: filterFn,
+		obs:      noFileStoreObserver{},
+	}
+}
+
 // Tombstone represents an individual deletion.
 type Tombstone struct {
 	// Key is the tombstoned series key.
@@ -65,6 +74,11 @@ type Tombstone struct {
 	// Min and Max are the min and max unix nanosecond time ranges of Key that are deleted.  If
 	// the full range is deleted, both values are -1.
 	Min, Max int64
+}
+
+// WithObserver sets a FileStoreObserver for when the tombstone file is written.
+func (t *Tombstoner) WithObserver(obs tsdb.FileStoreObserver) {
+	t.obs = obs
 }
 
 // Add adds the all keys, across all timestamps, to the tombstone.
@@ -368,10 +382,8 @@ func (t *Tombstoner) commit() error {
 	tmpFilename := t.pendingFile.Name()
 	t.pendingFile.Close()
 
-	if t.obs != nil {
-		if err := t.obs.FileFinishing(tmpFilename); err != nil {
-			return err
-		}
+	if err := t.obs.FileFinishing(tmpFilename); err != nil {
+		return err
 	}
 
 	if err := renameFile(tmpFilename, t.tombstonePath()); err != nil {

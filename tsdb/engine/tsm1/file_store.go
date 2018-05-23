@@ -222,6 +222,7 @@ func NewFileStore(dir string) *FileStore {
 			files:  map[string]TSMFile{},
 			logger: logger,
 		},
+		obs: noFileStoreObserver{},
 	}
 	fs.purger.fileStore = fs
 	return fs
@@ -517,10 +518,7 @@ func (f *FileStore) Open() error {
 				}
 			}
 
-			if f.obs != nil {
-				df.WithObserver(f.obs)
-			}
-
+			df.WithObserver(f.obs)
 			readerC <- &res{r: df}
 		}(i, file)
 	}
@@ -696,10 +694,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		}
 
 		// give the observer a chance to process the file first.
-		if f.obs != nil {
-			if err := f.obs.FileFinishing(file); err != nil {
-				return err
-			}
+		if err := f.obs.FileFinishing(file); err != nil {
+			return err
 		}
 
 		var newName = file
@@ -727,9 +723,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		if err != nil {
 			return err
 		}
-		if f.obs != nil {
-			tsm.WithObserver(f.obs)
-		}
+		tsm.WithObserver(f.obs)
 
 		updated = append(updated, tsm)
 	}
@@ -757,15 +751,13 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 				keep = false
 
 				// give the observer a chance to process the file first.
-				if f.obs != nil {
-					if err := f.obs.FileUnlinking(file.Path()); err != nil {
-						return err
-					}
+				if err := f.obs.FileUnlinking(file.Path()); err != nil {
+					return err
+				}
 
-					for _, t := range file.TombstoneFiles() {
-						if err := f.obs.FileUnlinking(t.Path); err != nil {
-							return err
-						}
+				for _, t := range file.TombstoneFiles() {
+					if err := f.obs.FileUnlinking(t.Path); err != nil {
+						return err
 					}
 				}
 
