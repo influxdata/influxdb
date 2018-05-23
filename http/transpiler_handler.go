@@ -28,8 +28,16 @@ func NewTranspilerQueryHandler(orgID platform.ID) *TranspilerQueryHandler {
 		Logger: zap.NewNop(),
 	}
 
+	h.HandlerFunc("GET", "/ping", h.servePing)
 	h.HandlerFunc("POST", "/query", h.handlePostQuery)
 	return h
+}
+
+// servePing returns a simple response to let the client know the server is running.
+// This handler is only available for 1.x compatibility and is not part of the 2.0 platform.
+func (h *TranspilerQueryHandler) servePing(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handlePostInfluxQL handles query requests mirroring the 1.x influxdb API.
