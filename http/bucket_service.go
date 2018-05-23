@@ -289,8 +289,8 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, err
 	}
 
 	var b platform.Bucket
@@ -352,8 +352,8 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 		return nil, 0, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, 0, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, 0, err
 	}
 
 	var bs []*platform.Bucket
@@ -392,8 +392,9 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 		return err
 	}
 
-	if resp.StatusCode != http.StatusCreated {
-		return errors.New(resp.Header.Get("X-Influx-Error"))
+	// TODO(jsternberg): Should this check for a 201 explicitly?
+	if err := CheckError(resp); err != nil {
+		return err
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(b); err != nil {
@@ -431,8 +432,8 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, err
 	}
 
 	var b platform.Bucket
@@ -462,13 +463,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	if err != nil {
 		return err
 	}
-
-	switch resp.StatusCode {
-	case http.StatusNoContent, http.StatusAccepted:
-		return nil
-	}
-
-	return errors.New(resp.Header.Get("X-Influx-Error"))
+	return CheckError(resp)
 }
 
 func bucketIDPath(id platform.ID) string {

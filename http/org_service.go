@@ -306,8 +306,8 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 		return nil, 0, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, 0, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, 0, err
 	}
 
 	var os []*platform.Organization
@@ -346,9 +346,9 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platfor
 		return err
 	}
 
-	// TODO: this should really check the error from the headers
-	if resp.StatusCode != http.StatusCreated {
-		return errors.New(resp.Header.Get("X-Influx-Error"))
+	// TODO(jsternberg): Should this check for a 201 explicitly?
+	if err := CheckError(resp); err != nil {
+		return err
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(o); err != nil {
@@ -384,8 +384,8 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id platfor
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, err
 	}
 
 	var o platform.Organization
@@ -414,13 +414,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 	if err != nil {
 		return err
 	}
-
-	switch resp.StatusCode {
-	case http.StatusNoContent, http.StatusAccepted:
-		return nil
-	}
-
-	return errors.New(resp.Header.Get("X-Influx-Error"))
+	return CheckError(resp)
 }
 
 func organizationIDPath(id platform.ID) string {

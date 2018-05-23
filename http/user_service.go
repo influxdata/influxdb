@@ -273,8 +273,8 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, err
 	}
 
 	var b platform.User
@@ -330,8 +330,8 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 		return nil, 0, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, 0, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, 0, err
 	}
 
 	var bs []*platform.User
@@ -373,8 +373,9 @@ func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
 		return err
 	}
 
-	if resp.StatusCode != http.StatusCreated {
-		return errors.New(resp.Header.Get("X-Influx-Error"))
+	// TODO(jsternberg): Should this check for a 201 explicitly?
+	if err := CheckError(resp); err != nil {
+		return err
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(u); err != nil {
@@ -412,8 +413,8 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, err
 	}
 
 	var u platform.User
@@ -443,12 +444,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	if err != nil {
 		return err
 	}
-
-	if resp.StatusCode != http.StatusAccepted {
-		return errors.New(resp.Header.Get("X-Influx-Error"))
-	}
-
-	return nil
+	return CheckError(resp)
 }
 
 func userIDPath(id platform.ID) string {

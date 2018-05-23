@@ -24,7 +24,7 @@ func EncodeHTTP(ctx context.Context, err error, w http.ResponseWriter) {
 	}
 	e.SetCode()
 
-	w.Header().Set("X-Influx-Error", e.Error())
+	w.Header().Set("X-Influx-Error", e.Err)
 	w.Header().Set("X-Influx-Reference", fmt.Sprintf("%d", e.Reference))
 	w.WriteHeader(e.Code)
 }
