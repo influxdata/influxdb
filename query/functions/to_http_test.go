@@ -19,7 +19,7 @@ func TestToHTTP_NewQuery(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
 		{
 			Name: "from with database with range",
-			Raw:  `from(db:"mydb") |> toHTTP(addr: "https://localhost:8081", name:"series1", method:"POST",  timeout: 50s)`,
+			Raw:  `from(db:"mydb") |> toHTTP(url: "https://localhost:8081", name:"series1", method:"POST",  timeout: 50s)`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
@@ -31,7 +31,7 @@ func TestToHTTP_NewQuery(t *testing.T) {
 					{
 						ID: "toHTTP1",
 						Spec: &functions.ToHTTPOpSpec{
-							Addr:         "https://localhost:8081",
+							URL:          "https://localhost:8081",
 							Name:         "series1",
 							Method:       "POST",
 							Timeout:      50 * time.Second,
@@ -61,7 +61,7 @@ func TestToHTTP_NewQuery(t *testing.T) {
 
 func TestToHTTPOpSpec_UnmarshalJSON(t *testing.T) {
 	type fields struct {
-		Addr        string
+		URL         string
 		Method      string
 		Headers     map[string]string
 		URLParams   map[string]string
@@ -81,12 +81,12 @@ func TestToHTTPOpSpec_UnmarshalJSON(t *testing.T) {
 				"id": "toHTTP",
 				"kind": "toHTTP",
 				"spec": {
-				  "addr": "https://localhost:8081",
+				  "url": "https://localhost:8081",
 				  "method" :"POST"
 				}
 			}`),
 			fields: fields{
-				Addr:   "https://localhost:8081",
+				URL:    "https://localhost:8081",
 				Method: "POST",
 			},
 		}, {
@@ -96,12 +96,12 @@ func TestToHTTPOpSpec_UnmarshalJSON(t *testing.T) {
 			"id": "toHTTP",
 			"kind": "toHTTP",
 			"spec": {
-			  "addr": "https://loc	alhost:8081",
+			  "url": "https://loc	alhost:8081",
 			  "method" :"POST"
 			}
 		}`),
 			fields: fields{
-				Addr:   "https://localhost:8081",
+				URL:    "https://localhost:8081",
 				Method: "POST",
 			},
 			wantErr: true,
@@ -109,7 +109,7 @@ func TestToHTTPOpSpec_UnmarshalJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			o := &functions.ToHTTPOpSpec{
-				Addr:        tt.fields.Addr,
+				URL:         tt.fields.URL,
 				Method:      tt.fields.Method,
 				Headers:     tt.fields.Headers,
 				URLParams:   tt.fields.URLParams,
@@ -155,7 +155,7 @@ func TestToHTTP_Process(t *testing.T) {
 			name: "colblock with name in _measurement",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
-					Addr:         server.URL,
+					URL:          server.URL,
 					Method:       "GET",
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
@@ -186,7 +186,7 @@ func TestToHTTP_Process(t *testing.T) {
 			name: "one block with measurement name in _measurement",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
-					Addr:         server.URL,
+					URL:          server.URL,
 					Method:       "GET",
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
@@ -217,7 +217,7 @@ func TestToHTTP_Process(t *testing.T) {
 			name: "one block with measurement name in _measurement and tag",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
-					Addr:         server.URL,
+					URL:          server.URL,
 					Method:       "GET",
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
@@ -249,7 +249,7 @@ func TestToHTTP_Process(t *testing.T) {
 			name: "one block",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
-					Addr:         server.URL,
+					URL:          server.URL,
 					Method:       "POST",
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
@@ -278,7 +278,7 @@ func TestToHTTP_Process(t *testing.T) {
 			name: "one block with unused tag",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
-					Addr:         server.URL,
+					URL:          server.URL,
 					Method:       "GET",
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
@@ -312,7 +312,7 @@ one_block_w_unused_tag _value=4 41
 			name: "one block with tag",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
-					Addr:         server.URL,
+					URL:          server.URL,
 					Method:       "GET",
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
@@ -347,7 +347,7 @@ one_block_w_tag,fred=elevendyone _value=4 41
 			name: "multi block",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
-					Addr:         server.URL,
+					URL:          server.URL,
 					Method:       "GET",
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
@@ -392,7 +392,7 @@ one_block_w_tag,fred=elevendyone _value=4 41
 			name: "multi collist blocks",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
-					Addr:         server.URL,
+					URL:          server.URL,
 					Method:       "GET",
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
