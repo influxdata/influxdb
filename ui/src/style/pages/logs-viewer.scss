@@ -1,0 +1,33 @@
+/*
+    Styles for Logs Viewer Page
+    ----------------------------------------------------------------------------
+*/
+
+$logs-viewer-graph-height: 240px;
+$logs-viewer-search-height: 108px;
+$logs-viewer-gutter: 60px;
+
+.logs-viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: none;
+}
+
+.logs-viewer--graph-container {
+  padding: 30px $logs-viewer-gutter 18px $logs-viewer-gutter;
+  height: $logs-viewer-graph-height;
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+}
+
+.logs-viewer--search-container {
+  padding: 20px $logs-viewer-gutter;
+  height: $logs-viewer-search-height;
+  background-color: $g3-castle;
+}
+
+.logs-viewer--table-container {
+  padding: 12px $logs-viewer-gutter 30px $logs-viewer-gutter;
+  height: calc(100% - #{$logs-viewer-graph-height + $logs-viewer-search-height});
+  background-color: $g3-castle;
+}
