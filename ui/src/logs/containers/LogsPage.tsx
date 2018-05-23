@@ -4,6 +4,8 @@ import {getSourceAsync, setTimeRange, setNamespace} from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import {Source, Namespace, TimeRange} from 'src/types'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
+import GraphContainer from 'src/logs/components/LogsGraphContainer'
+import TableContainer from 'src/logs/components/LogsTableContainer'
 
 interface Props {
   sources: Source[]
@@ -30,7 +32,7 @@ class LogsPage extends PureComponent<Props> {
 
   public render() {
     return (
-      <div className="page hosts-list-page">
+      <div className="page">
         <div className="page-header full-width">
           <div className="page-header__container">
             <div className="page-header__left">
@@ -38,6 +40,10 @@ class LogsPage extends PureComponent<Props> {
             </div>
             <div className="page-header__right">{this.header}</div>
           </div>
+        </div>
+        <div className="page-contents logs-viewer">
+          <GraphContainer thing="wooo" />
+          <TableContainer thing="snooo" />
         </div>
       </div>
     )
