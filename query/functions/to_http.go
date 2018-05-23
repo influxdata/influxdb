@@ -55,7 +55,7 @@ var toHTTPKeepAliveClient = newToHTTPClient()
 type innerToHTTPOpSpec ToHTTPOpSpec
 
 type ToHTTPOpSpec struct {
-	Addr         string            `json:"addr"`
+	URL          string            `json:"url"`
 	Method       string            `json:"method"` // default behavior should be POST
 	Name         string            `json:"name"`
 	NameColumn   string            `json:"name_column"` // either name or name_column must be set, if none is set try to use the "_measurement" column.
@@ -82,7 +82,7 @@ func init() {
 // If the value_column isn't set it defaults to a []string{execute.DefaultValueColLabel}.
 func (o *ToHTTPOpSpec) ReadArgs(args query.Arguments) error {
 	var err error
-	o.Addr, err = args.GetRequiredString("addr")
+	o.URL, err = args.GetRequiredString("url")
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (o *ToHTTPOpSpec) UnmarshalJSON(b []byte) (err error) {
 	if err = json.Unmarshal(b, (*innerToHTTPOpSpec)(o)); err != nil {
 		return err
 	}
-	u, err := url.ParseRequestURI(o.Addr)
+	u, err := url.ParseRequestURI(o.URL)
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func (o *ToHTTPProcedureSpec) Copy() plan.ProcedureSpec {
 	s := o.Spec
 	res := &ToHTTPProcedureSpec{
 		Spec: &ToHTTPOpSpec{
-			Addr:         s.Addr,
+			URL:          s.URL,
 			Method:       s.Method,
 			Name:         s.Name,
 			NameColumn:   s.NameColumn,
@@ -396,7 +396,7 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Block) erro
 		wg.Done()
 	}()
 
-	req, err := http.NewRequest(t.spec.Spec.Method, t.spec.Spec.Addr, pr)
+	req, err := http.NewRequest(t.spec.Spec.Method, t.spec.Spec.URL, pr)
 	if err != nil {
 		return err
 	}
