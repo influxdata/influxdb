@@ -81,7 +81,7 @@ func (f *Formatter) WriteTo(out io.Writer) (int64, error) {
 
 	// Sort cols
 	cols := f.b.Cols()
-	f.cols = newOrderedCols(cols)
+	f.cols = newOrderedCols(cols, f.b.Key())
 	sort.Sort(f.cols)
 
 	// Compute header widths
@@ -241,9 +241,10 @@ func (f *Formatter) valueBuf(i, j int, typ query.DataType, cr query.ColReader) (
 type orderedCols struct {
 	indexMap []int
 	cols     []query.ColMeta
+	key      query.PartitionKey
 }
 
-func newOrderedCols(cols []query.ColMeta) orderedCols {
+func newOrderedCols(cols []query.ColMeta, key query.PartitionKey) orderedCols {
 	indexMap := make([]int, len(cols))
 	for i := range indexMap {
 		indexMap[i] = i
@@ -253,6 +254,7 @@ func newOrderedCols(cols []query.ColMeta) orderedCols {
 	return orderedCols{
 		indexMap: indexMap,
 		cols:     cpy,
+		key:      key,
 	}
 }
 
@@ -267,6 +269,16 @@ func (o orderedCols) Swap(i int, j int) {
 }
 
 func (o orderedCols) Less(i int, j int) bool {
+	ki := ColIdx(o.cols[i].Label, o.key.Cols())
+	kj := ColIdx(o.cols[j].Label, o.key.Cols())
+	if ki >= 0 && kj >= 0 {
+		return ki < kj
+	} else if ki >= 0 {
+		return true
+	} else if kj >= 0 {
+		return false
+	}
+
 	// Time column is always first
 	if o.cols[i].Label == DefaultTimeColLabel {
 		return true
