@@ -839,6 +839,10 @@ func (d *indirectIndex) searchOffset(key []byte) int {
 // search returns the byte position of key in the index.  If key is not
 // in the index, len(index) is returned.
 func (d *indirectIndex) search(key []byte) int {
+	if !d.ContainsKey(key) {
+		return len(d.b)
+	}
+
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice).
 	i := bytesutil.SearchBytesFixed(d.offsets, 4, func(x []byte) bool {
