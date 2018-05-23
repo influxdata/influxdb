@@ -31,20 +31,23 @@ type Command struct {
 	addr            string
 	cpuProfile      string
 	memProfile      string
-	orgID           string
 	database        string
 	retentionPolicy string
 	startTime       int64
 	endTime         int64
-	limit           uint64
-	slimit          uint64
-	soffset         uint64
+	limit           int64
+	slimit          int64
+	soffset         int64
 	desc            bool
 	silent          bool
 	expr            string
 	agg             string
-	grouping        string
+	groupArg        string
+	group           storage.ReadRequest_Group
+	groupKeys       string
 	keys            []string
+	hintsArg        string
+	hints           storage.HintFlags
 
 	aggType storage.Aggregate_AggregateType
 
@@ -82,19 +85,20 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.cpuProfile, "cpuprofile", "", "CPU profile name")
 	fs.StringVar(&cmd.memProfile, "memprofile", "", "memory profile name")
 	fs.StringVar(&cmd.addr, "addr", ":8082", "the RPC address")
-	fs.StringVar(&cmd.orgID, "org-id", "", "Optional: org identifier when querying multi-tenant store")
 	fs.StringVar(&cmd.database, "database", "", "the database to query")
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to query")
 	fs.StringVar(&start, "start", "", "Optional: the start time to query (RFC3339 format)")
 	fs.StringVar(&end, "end", "", "Optional: the end time to query (RFC3339 format)")
-	fs.Uint64Var(&cmd.slimit, "slimit", 0, "Optional: limit number of series")
-	fs.Uint64Var(&cmd.soffset, "soffset", 0, "Optional: start offset for series")
-	fs.Uint64Var(&cmd.limit, "limit", 0, "Optional: limit number of values per series")
+	fs.Int64Var(&cmd.slimit, "slimit", 0, "Optional: limit number of series")
+	fs.Int64Var(&cmd.soffset, "soffset", 0, "Optional: start offset for series")
+	fs.Int64Var(&cmd.limit, "limit", 0, "Optional: limit number of values per series (-1 to return series only)")
 	fs.BoolVar(&cmd.desc, "desc", false, "Optional: return results in descending order")
 	fs.BoolVar(&cmd.silent, "silent", false, "silence output")
 	fs.StringVar(&cmd.expr, "expr", "", "InfluxQL conditional expression")
 	fs.StringVar(&cmd.agg, "agg", "", "aggregate functions (sum, count)")
-	fs.StringVar(&cmd.grouping, "grouping", "", "comma-separated list of tags to specify series order")
+	fs.StringVar(&cmd.groupArg, "group", "none", "group operation (none,all,by,except,disable)")
+	fs.StringVar(&cmd.groupKeys, "group-keys", "", "comma-separated list of tags to specify series order")
+	fs.StringVar(&cmd.hintsArg, "hints", "none", "comma-separated list of read hints (none,no_points,no_series)")
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = func() {
@@ -130,17 +134,8 @@ func (cmd *Command) Run(args ...string) error {
 		cmd.endTime = models.MaxNanoTime
 	}
 
-	if cmd.agg != "" {
-		tm := proto.EnumValueMap("storage.Aggregate_AggregateType")
-		agg, ok := tm[strings.ToUpper(cmd.agg)]
-		if !ok {
-			return errors.New("invalid aggregate function: " + cmd.agg)
-		}
-		cmd.aggType = storage.Aggregate_AggregateType(agg)
-	}
-
-	if cmd.grouping != "" {
-		cmd.keys = strings.Split(cmd.grouping, ",")
+	if cmd.groupKeys != "" {
+		cmd.keys = strings.Split(cmd.groupKeys, ",")
 	}
 
 	if err := cmd.validate(); err != nil {
@@ -157,25 +152,41 @@ func (cmd *Command) Run(args ...string) error {
 }
 
 func (cmd *Command) validate() error {
-	if cmd.orgID != "" && cmd.retentionPolicy != "" {
-		return fmt.Errorf("omit retention policy for multi-tenant request")
-	}
 	if cmd.database == "" {
 		return fmt.Errorf("must specify a database")
 	}
 	if cmd.startTime != 0 && cmd.endTime != 0 && cmd.endTime < cmd.startTime {
 		return fmt.Errorf("end time before start time")
 	}
+
+	if cmd.agg != "" {
+		tm := proto.EnumValueMap("com.github.influxdata.influxdb.services.storage.Aggregate_AggregateType")
+		agg, ok := tm[strings.ToUpper(cmd.agg)]
+		if !ok {
+			return errors.New("invalid aggregate function: " + cmd.agg)
+		}
+		cmd.aggType = storage.Aggregate_AggregateType(agg)
+	}
+
+	enums := proto.EnumValueMap("com.github.influxdata.influxdb.services.storage.ReadRequest_Group")
+	group, ok := enums["GROUP_"+strings.ToUpper(cmd.groupArg)]
+	if !ok {
+		return errors.New("invalid group type: " + cmd.groupArg)
+	}
+	cmd.group = storage.ReadRequest_Group(group)
+
+	enums = proto.EnumValueMap("com.github.influxdata.influxdb.services.storage.ReadRequest_HintFlags")
+	for _, h := range strings.Split(cmd.hintsArg, ",") {
+		cmd.hints |= storage.HintFlags(enums["HINT_"+strings.ToUpper(h)])
+	}
+
 	return nil
 }
 
 func (cmd *Command) query(c storage.StorageClient) error {
 	var req storage.ReadRequest
 	req.Database = cmd.database
-	if cmd.orgID != "" {
-		req.RequestType = storage.ReadRequestTypeMultiTenant
-		req.OrgID = cmd.orgID
-	} else if cmd.retentionPolicy != "" {
+	if cmd.retentionPolicy != "" {
 		req.Database += "/" + cmd.retentionPolicy
 	}
 
@@ -185,7 +196,9 @@ func (cmd *Command) query(c storage.StorageClient) error {
 	req.SeriesOffset = cmd.soffset
 	req.PointsLimit = cmd.limit
 	req.Descending = cmd.desc
-	req.Grouping = cmd.keys
+	req.Group = cmd.group
+	req.GroupKeys = cmd.keys
+	req.Hints = cmd.hints
 
 	if cmd.aggType != storage.AggregateTypeNone {
 		req.Aggregate = &storage.Aggregate{Type: cmd.aggType}
@@ -274,12 +287,34 @@ func (cmd *Command) processFramesSilent(frames []storage.ReadResponse_Frame) {
 	}
 }
 
+func printByteSlice(wr *bufio.Writer, v [][]byte) {
+	wr.WriteString("[\033[36m")
+	first := true
+	for _, t := range v {
+		if !first {
+			wr.WriteByte(',')
+		} else {
+			first = false
+		}
+		wr.Write(t)
+	}
+	wr.WriteString("\033[0m]\n")
+}
+
 func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadResponse_Frame) {
 	var buf [1024]byte
 	var line []byte
 
 	for _, frame := range frames {
 		switch f := frame.Data.(type) {
+		case *storage.ReadResponse_Frame_Group:
+			g := f.Group
+			wr.WriteString("partition values")
+			printByteSlice(wr, g.PartitionKeyVals)
+			wr.WriteString("group keys")
+			printByteSlice(wr, g.TagKeys)
+			wr.Flush()
+
 		case *storage.ReadResponse_Frame_Series:
 			s := f.Series
 			wr.WriteString("\033[36m")

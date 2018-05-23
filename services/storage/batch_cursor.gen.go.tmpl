@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"context"
 	"errors"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -68,34 +67,25 @@ func (c *{{.name}}FilterBatchCursor) Next() (key []int64, value []{{.Type}}) {
 
 type {{.name}}MultiShardBatchCursor struct {
 	tsdb.{{.Name}}BatchCursor
-	ctx    context.Context
+	cursorContext
 	filter *{{.name}}FilterBatchCursor
-	itrs   tsdb.CursorIterators
-	req    *tsdb.CursorRequest
-	err    error
-	limit  uint64
-	count  uint64
 }
 
-func new{{.Name}}MultiShardBatchCursor(ctx context.Context, cur tsdb.{{.Name}}BatchCursor, rr *readRequest, req *tsdb.CursorRequest, itrs tsdb.CursorIterators, cond expression) *{{.name}}MultiShardBatchCursor {
-	var filter *{{.name}}FilterBatchCursor
+func (c *{{.name}}MultiShardBatchCursor) reset(cur tsdb.{{.Name}}BatchCursor, itrs tsdb.CursorIterators, cond expression) {
 	if cond != nil {
-		filter = new{{.Name}}FilterBatchCursor(cond)
-		filter.reset(cur)
-		cur = filter
+		if c.filter == nil {
+			c.filter = new{{.Name}}FilterBatchCursor(cond)
+		}
+		c.filter.reset(cur)
+		cur = c.filter
 	}
 
-	c := &{{.name}}MultiShardBatchCursor{
-		{{.Name}}BatchCursor: cur,
-		ctx:    ctx,
-		filter: filter,
-		req:    req,
-		itrs:   itrs,
-		limit:  rr.limit,
-	}
-
-	return c
+	c.{{.Name}}BatchCursor = cur
+	c.itrs = itrs
+	c.err = nil
+	c.count = 0
 }
+
 
 func (c *{{.name}}MultiShardBatchCursor) Err() error        { return c.err }
 
@@ -107,11 +97,11 @@ func (c *{{.name}}MultiShardBatchCursor) Next() (key []int64, value []{{.Type}})
 				continue
 			}
 		}
-		c.count += uint64(len(ks))
+		c.count += int64(len(ks))
 		if c.count > c.limit {
 			diff := c.count - c.limit
 			c.count -= diff
-			rem := uint64(len(ks)) - diff
+			rem := int64(len(ks)) - diff
 			ks = ks[:rem]
 			vs = vs[:rem]
 		}

@@ -22,9 +22,18 @@ func TestPlannerCondition(t *testing.T) {
 		t.Fatal("ParseExpr", err)
 	}
 
+	makeFields := func(s ...string) []field {
+		f := make([]field, len(s))
+		for i := range s {
+			f[i].n = s[i]
+			f[i].nb = []byte(s[i])
+		}
+		return f
+	}
+
 	p := &indexSeriesCursor{
 		sqry:            sqry,
-		fields:          []string{"user", "system", "val"},
+		fields:          measurementFields{"cpu": makeFields("system", "user"), "mem": makeFields("val")},
 		cond:            cond,
 		measurementCond: influxql.Reduce(RewriteExprRemoveFieldValue(influxql.CloneExpr(cond)), nil),
 	}
@@ -32,13 +41,13 @@ func TestPlannerCondition(t *testing.T) {
 	var keys []string
 	row := p.Next()
 	for row != nil {
-		keys = append(keys, string(models.MakeKey(row.name, row.stags))+" "+row.field)
+		keys = append(keys, string(models.MakeKey(row.name, row.stags))+" "+row.field.n)
 		row = p.Next()
 	}
 
-	exp := []string{"cpu,host=host1 user", "cpu,host=host1 system", "mem,host=host1 user", "mem,host=host1 system", "mem,host=host1 val"}
-	if !cmp.Equal(exp, keys) {
-		t.Errorf("unexpected, %s", cmp.Diff(exp, keys))
+	exp := []string{"cpu,host=host1 system", "cpu,host=host1 user", "mem,host=host1 val"}
+	if !cmp.Equal(keys, exp) {
+		t.Errorf("unexpected -got/+want\n%s", cmp.Diff(keys, exp))
 	}
 }
 

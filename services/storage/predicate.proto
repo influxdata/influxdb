@@ -1,5 +1,6 @@
 syntax = "proto3";
-package storage;
+package com.github.influxdata.influxdb.services.storage;
+option go_package = "storage";
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
