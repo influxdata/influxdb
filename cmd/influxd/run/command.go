@@ -7,6 +7,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -90,6 +92,13 @@ func (cmd *Command) Run(args ...string) error {
 	if cmd.Logger, logErr = config.Logging.New(cmd.Stderr); logErr != nil {
 		// assign the default logger
 		cmd.Logger = logger.New(cmd.Stderr)
+	}
+
+	// Attempt to run pprof on :6060 before startup if debug pprof enabled.
+	if config.HTTPD.DebugPprofEnabled {
+		runtime.SetBlockProfileRate(int(1 * time.Second))
+		runtime.SetMutexProfileFraction(1)
+		go func() { http.ListenAndServe("localhost:6060", nil) }()
 	}
 
 	// Print sweet InfluxDB logo.
