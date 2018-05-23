@@ -40,8 +40,6 @@ func NewServer(handler http.Handler, logger *zap.Logger) *Server {
 		srv: &http.Server{
 			Handler: handler,
 		},
-		// TODO(jsternberg): Use the logger to report when we are
-		// shutting down.
 		logger: logger,
 	}
 }
@@ -79,6 +77,8 @@ func (s *Server) serve(listener net.Listener) <-chan error {
 }
 
 func (s *Server) shutdown(signalCh <-chan os.Signal) error {
+	s.logger.Info("Shutting down server", zap.Duration("timeout", s.ShutdownTimeout))
+
 	// The shutdown needs to succeed in 20 seconds or less.
 	ctx, cancel := context.WithTimeout(context.Background(), s.ShutdownTimeout)
 	defer cancel()
@@ -92,6 +92,7 @@ func (s *Server) shutdown(signalCh <-chan os.Signal) error {
 		defer s.wg.Done()
 		select {
 		case <-signalCh:
+			s.logger.Info("Initializing hard shutdown")
 			cancel()
 		case <-done:
 		}

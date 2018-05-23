@@ -1,21 +1,28 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"context"
 	"os"
 	"strings"
 
+	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform/http"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 var transpileCmd = &cobra.Command{
 	Use:   "transpilerd",
 	Short: "Transpiler Query Server",
-	Run:   transpileF,
+	Run: func(cmd *cobra.Command, args []string) {
+		logger := influxlogger.New(os.Stdout)
+		if err := transpileF(cmd, logger, args); err != nil && err != context.Canceled {
+			logger.Error("Encountered fatal error", zap.String("error", err.Error()))
+			os.Exit(1)
+		}
+	},
 }
 
 // Flags contains all the CLI flag values for transpilerd.
@@ -41,16 +48,19 @@ func init() {
 	viper.BindPFlag("IFQLD_HOSTS", transpileCmd.PersistentFlags().Lookup("ifqld-hosts"))
 }
 
-func transpileF(cmd *cobra.Command, args []string) {
+func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 	hosts, err := discoverHosts()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	} else if len(hosts) == 0 {
-		log.Fatal("no ifqld hosts found")
+		return errors.New("no ifqld hosts found")
 	}
+
+	// TODO(nathanielc): Allow QueryService to use multiple hosts.
+
+	logger.Info("Using ifqld service", zap.Strings("hosts", hosts))
 	transpileHandler := http.NewTranspilerQueryHandler()
 	transpileHandler.QueryService = &http.QueryService{
-		//TODO(nathanielc): Allow QueryService to use multiple hosts.
 		Addr: hosts[0],
 	}
 
@@ -59,15 +69,12 @@ func transpileF(cmd *cobra.Command, args []string) {
 	handler := http.NewHandler("transpile")
 	handler.Handler = transpileHandler
 
-	log.Printf("Starting transpilerd on %s\n", flags.bindAddr)
-	if err := http.ListenAndServe(flags.bindAddr, handler, nil); err != nil {
-		log.Fatal(err)
-	}
+	logger.Info("Starting transpilerd", zap.String("bind_addr", flags.bindAddr))
+	return http.ListenAndServe(flags.bindAddr, handler, logger)
 }
 
 func main() {
 	if err := transpileCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }
