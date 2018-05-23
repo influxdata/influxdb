@@ -29,7 +29,7 @@ SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -
 CMDS := bin/idp bin/idpd bin/ifqld
 
 # List of utilities to build as part of the build process
-UTILS := bin/pigeon bin/cmpgen
+UTILS := bin/pigeon bin/cmpgen bin/goreleaser
 
 # Default target to build all commands.
 #
@@ -65,6 +65,9 @@ bin/pigeon: ./vendor/github.com/mna/pigeon/main.go
 bin/cmpgen: ./query/ast/asttest/cmpgen/main.go
 	go build -i -o bin/cmpgen ./query/ast/asttest/cmpgen
 
+bin/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
+	go build -i -o bin/goreleaser ./vendor/github.com/goreleaser/goreleaser
+
 #
 # Define how source dependencies are managed
 #
@@ -73,7 +76,10 @@ Gopkg.lock: Gopkg.toml
 	dep ensure -v
 
 vendor/github.com/mna/pigeon/main.go: Gopkg.lock
-	dep ensure -v
+	dep ensure -v -vendor-only
+
+vendor/github.com/goreleaser/goreleaser/main.go: Gopkg.lock
+	dep ensure -v -vendor-only
 
 #
 # Define action only targets
@@ -93,6 +99,9 @@ vet: all
 
 bench: all
 	$(GO_TEST) -bench=. -run=^$$ ./...
+
+nightly: bin/goreleaser all
+	PATH=./bin:${PATH} goreleaser --snapshot --rm-dist
 
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
