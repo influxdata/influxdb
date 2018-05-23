@@ -152,7 +152,7 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 		}
 	}
 
-	if name := qp.Get("org"); name != "" {
+	if name := qp.Get("name"); name != "" {
 		req.filter.Name = &name
 	}
 

@@ -327,11 +327,29 @@ func FindAuthorizationByToken(
 						},
 					},
 					{
+						ID:     platform.ID("0"),
+						UserID: platform.ID("user1"),
+						Token:  "rand0",
+						Permissions: []platform.Permission{
+							platform.CreateUserPermission,
+							platform.DeleteUserPermission,
+						},
+					},
+					{
 						ID:     platform.ID("2"),
 						UserID: platform.ID("user2"),
 						Token:  "rand2",
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
+						},
+					},
+					{
+						ID:     platform.ID("3"),
+						UserID: platform.ID("user1"),
+						Token:  "rand3",
+						Permissions: []platform.Permission{
+							platform.CreateUserPermission,
+							platform.DeleteUserPermission,
 						},
 					},
 				},
@@ -520,6 +538,72 @@ func FindAuthorizations(
 						Token:  "rand3",
 						Permissions: []platform.Permission{
 							platform.DeleteUserPermission,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "find authorization by token",
+			fields: AuthorizationFields{
+				Users: []*platform.User{
+					{
+						Name: "cooluser",
+						ID:   platform.ID("user1"),
+					},
+					{
+						Name: "regularuser",
+						ID:   platform.ID("user2"),
+					},
+				},
+				Authorizations: []*platform.Authorization{
+					{
+						ID:     platform.ID("0"),
+						UserID: platform.ID("user1"),
+						Token:  "rand1",
+						Permissions: []platform.Permission{
+							platform.DeleteUserPermission,
+						},
+					},
+					{
+						ID:     platform.ID("1"),
+						UserID: platform.ID("user1"),
+						Token:  "rand1",
+						Permissions: []platform.Permission{
+							platform.CreateUserPermission,
+							platform.DeleteUserPermission,
+						},
+					},
+					{
+						ID:     platform.ID("2"),
+						UserID: platform.ID("user2"),
+						Token:  "rand2",
+						Permissions: []platform.Permission{
+							platform.CreateUserPermission,
+						},
+					},
+					{
+						ID:     platform.ID("3"),
+						UserID: platform.ID("user1"),
+						Token:  "rand3",
+						Permissions: []platform.Permission{
+							platform.DeleteUserPermission,
+						},
+					},
+				},
+			},
+			args: args{
+				token: "rand2",
+			},
+			wants: wants{
+				authorizations: []*platform.Authorization{
+					{
+						ID:     platform.ID("2"),
+						UserID: platform.ID("user2"),
+						User:   "regularuser",
+						Token:  "rand2",
+						Permissions: []platform.Permission{
+							platform.CreateUserPermission,
 						},
 					},
 				},
