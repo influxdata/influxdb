@@ -249,8 +249,8 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, err
 	}
 
 	var b platform.Authorization
@@ -303,8 +303,8 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 		return nil, 0, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, 0, errors.New(resp.Header.Get("X-Influx-Error"))
+	if err := CheckError(resp); err != nil {
+		return nil, 0, err
 	}
 
 	var bs []*platform.Authorization
@@ -347,9 +347,9 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 		return err
 	}
 
-	// TODO: this should really check the error from the headers
-	if resp.StatusCode != http.StatusCreated {
-		return errors.New(resp.Header.Get("X-Influx-Error"))
+	// TODO(jsternberg): Should this check for a 201 explicitly?
+	if err := CheckError(resp); err != nil {
+		return err
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(a); err != nil {
@@ -377,13 +377,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	if err != nil {
 		return err
 	}
-
-	switch resp.StatusCode {
-	case http.StatusNoContent, http.StatusAccepted:
-		return nil
-	}
-
-	return errors.New(resp.Header.Get("X-Influx-Error"))
+	return CheckError(resp)
 }
 
 func authorizationIDPath(id platform.ID) string {
