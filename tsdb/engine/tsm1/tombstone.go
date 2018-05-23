@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (
@@ -50,6 +52,9 @@ type Tombstoner struct {
 	pendingFile       *os.File
 	tmp               [8]byte
 	lastAppliedOffset int64
+
+	id  uint64
+	obs tsdb.FileStoreObserver
 }
 
 // Tombstone represents an individual deletion.
@@ -362,6 +367,12 @@ func (t *Tombstoner) commit() error {
 
 	tmpFilename := t.pendingFile.Name()
 	t.pendingFile.Close()
+
+	if t.obs != nil {
+		if err := t.obs.FileFinishing(t.id, tmpFilename); err != nil {
+			return err
+		}
+	}
 
 	if err := renameFile(tmpFilename, t.tombstonePath()); err != nil {
 		return err

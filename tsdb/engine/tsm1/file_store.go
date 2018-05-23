@@ -518,6 +518,11 @@ func (f *FileStore) Open() error {
 					return
 				}
 			}
+
+			if f.obs != nil {
+				df.WithObserver(f.id, f.obs)
+			}
+
 			readerC <- &res{r: df}
 		}(i, file)
 	}
@@ -724,6 +729,10 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		if err != nil {
 			return err
 		}
+		if f.obs != nil {
+			tsm.WithObserver(f.id, f.obs)
+		}
+
 		updated = append(updated, tsm)
 	}
 
@@ -753,6 +762,12 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 				if f.obs != nil {
 					if err := f.obs.FileUnlinking(f.id, file.Path()); err != nil {
 						return err
+					}
+
+					for _, t := range file.TombstoneFiles() {
+						if err := f.obs.FileUnlinking(f.id, t.Path); err != nil {
+							return err
+						}
 					}
 				}
 
