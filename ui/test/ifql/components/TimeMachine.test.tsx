@@ -6,7 +6,8 @@ const setup = () => {
   const props = {
     script: '',
     body: [],
-    data: '',
+    data: [],
+    visStatus: {type: '', text: ''},
     status: {type: '', text: ''},
     suggestions: [],
     onSubmitScript: () => {},

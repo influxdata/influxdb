@@ -1,40 +1,51 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, CSSProperties} from 'react'
+
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {ScriptResult, ScriptStatus} from 'src/types'
+import TableSidebar from 'src/ifql/components/TableSidebar'
+import {HANDLE_PIXELS} from 'src/shared/constants'
 
 interface Props {
-  data: string
+  data: ScriptResult[]
+  status: ScriptStatus
+}
+
+interface State {
+  selectedResultID: string | null
 }
 
 @ErrorHandling
-class TimeMachineVis extends PureComponent<Props> {
+class TimeMachineVis extends PureComponent<Props, State> {
+  constructor(props) {
+    super(props)
+
+    this.state = {selectedResultID: null}
+  }
+
   public render() {
     return (
-      <div className="time-machine-visualization">
-        <div className="time-machine--graph">
-          <FancyScrollbar>
-            <div className="time-machine--graph-body">
-              {this.data.map((d, i) => {
-                return (
-                  <div key={i} className="data-row">
-                    {d}
-                  </div>
-                )
-              })}
-            </div>
-          </FancyScrollbar>
+      <div className="time-machine-visualization" style={this.style}>
+        <TableSidebar
+          data={this.props.data}
+          selectedResultID={this.state.selectedResultID}
+          onSelectResult={this.handleSelectResult}
+        />
+        <div className="time-machine--vis">
+          <FancyScrollbar />
         </div>
       </div>
     )
   }
 
-  private get data(): string[] {
-    const {data} = this.props
-    if (!data) {
-      return ['Your query was syntactically correct but returned no data']
-    }
+  private handleSelectResult = (selectedResultID: string): void => {
+    this.setState({selectedResultID})
+  }
 
-    return this.props.data.split('\n')
+  private get style(): CSSProperties {
+    return {
+      padding: `${HANDLE_PIXELS}px`,
+    }
   }
 }
 

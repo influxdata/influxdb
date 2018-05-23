@@ -1,11 +1,8 @@
 import Papa from 'papaparse'
 import _ from 'lodash'
+import uuid from 'uuid'
 
-interface ScriptResult {
-  name: string
-  data: string[][]
-  metadata: string[][]
-}
+import {ScriptResult} from 'src/types'
 
 export const parseResults = (resp: string): ScriptResult[] => {
   return resp.split('\n\n').map(parseResult)
@@ -27,6 +24,7 @@ export const parseResult = (raw: string, index: number): ScriptResult => {
   const name = _.get(data, `1.${measurementHeaderIndex}`, `Result ${index}`)
 
   return {
+    id: uuid.v4(),
     name,
     data,
     metadata,

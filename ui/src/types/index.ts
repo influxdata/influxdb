@@ -22,6 +22,7 @@ import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem} from './shared'
 import {Notification, NotificationFunc} from './notifications'
+import {ScriptResult, ScriptStatus} from './ifql'
 
 export {
   Me,
@@ -61,4 +62,6 @@ export {
   NewService,
   LayoutCell,
   LayoutQuery,
+  ScriptResult,
+  ScriptStatus,
 }

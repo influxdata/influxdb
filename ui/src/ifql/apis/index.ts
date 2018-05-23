@@ -1,6 +1,7 @@
 import AJAX from 'src/utils/ajax'
-import {Service} from 'src/types'
+import {Service, ScriptResult} from 'src/types'
 import {updateService} from 'src/shared/apis'
+import {parseResults} from 'src/shared/parsing/ifql'
 
 export const getSuggestions = async (url: string) => {
   try {
@@ -36,21 +37,23 @@ export const getAST = async (request: ASTRequest) => {
   }
 }
 
-export const getTimeSeries = async (service: Service, script: string) => {
+export const getTimeSeries = async (
+  service: Service,
+  script: string
+): Promise<ScriptResult[]> => {
   const and = encodeURIComponent('&')
   const mark = encodeURIComponent('?')
   const garbage = script.replace(/\s/g, '') // server cannot handle whitespace
 
   try {
-    const data = await AJAX({
+    const {data} = await AJAX({
       method: 'POST',
       url: `${
         service.links.proxy
       }?path=/v1/query${mark}orgName=defaulorgname${and}q=${garbage}`,
-      headers: {'Content-Type': 'text/plain'},
     })
 
-    return data
+    return parseResults(data)
   } catch (error) {
     console.error('Problem fetching data', error)
     throw error.data.message

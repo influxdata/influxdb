@@ -9,22 +9,24 @@ import {
   OnChangeScript,
   OnSubmitScript,
   FlatBody,
-  Status,
+  ScriptStatus,
+  ScriptResult,
 } from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
-  data: string
+  data: ScriptResult[]
   script: string
   body: Body[]
-  status: Status
+  status: ScriptStatus
   suggestions: Suggestion[]
   onChangeScript: OnChangeScript
   onSubmitScript: OnSubmitScript
   onAppendFrom: () => void
   onAppendJoin: () => void
   onAnalyze: () => void
+  visStatus: ScriptStatus
 }
 
 interface Body extends FlatBody {
@@ -44,7 +46,7 @@ class TimeMachine extends PureComponent<Props> {
   }
 
   private get mainSplit() {
-    const {data} = this.props
+    const {data, visStatus} = this.props
     return [
       {
         handleDisplay: 'none',
@@ -61,7 +63,7 @@ class TimeMachine extends PureComponent<Props> {
         handlePixels: 8,
         menuOptions: [],
         headerButtons: [],
-        render: () => <TimeMachineVis data={data} />,
+        render: () => <TimeMachineVis data={data} status={visStatus} />,
       },
     ]
   }

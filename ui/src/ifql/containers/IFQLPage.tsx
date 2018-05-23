@@ -19,7 +19,7 @@ import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
 import {funcNames, builder, argTypes} from 'src/ifql/constants'
 
-import {Source, Service, Notification} from 'src/types'
+import {Source, Service, Notification, ScriptResult} from 'src/types'
 import {
   Suggestion,
   FlatBody,
@@ -54,9 +54,10 @@ interface Body extends FlatBody {
 interface State {
   body: Body[]
   ast: object
-  data: string
+  data: ScriptResult[]
   suggestions: Suggestion[]
   status: Status
+  visStatus: Status
 }
 
 export const IFQLContext = React.createContext()
@@ -68,10 +69,14 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       body: [],
       ast: null,
-      data: 'Hit "Get Data!" or Ctrl + Enter to run your script',
+      data: [],
       suggestions: [],
       status: {
         type: 'none',
+        text: '',
+      },
+      visStatus: {
+        type: 'info',
         text: '',
       },
     }
@@ -91,7 +96,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {suggestions, data, body, status} = this.state
+    const {suggestions, data, body, status, visStatus} = this.state
     const {script} = this.props
 
     return (
@@ -105,6 +110,7 @@ export class IFQLPage extends PureComponent<Props, State> {
                 body={body}
                 script={script}
                 status={status}
+                visStatus={visStatus}
                 suggestions={suggestions}
                 onAnalyze={this.handleAnalyze}
                 onAppendFrom={this.handleAppendFrom}
@@ -428,10 +434,10 @@ export class IFQLPage extends PureComponent<Props, State> {
 
   private getTimeSeries = async () => {
     const {script} = this.props
-    this.setState({data: 'fetching data...'})
+    this.setState({visStatus: {type: 'loading', text: 'Fetching results...'}})
 
     try {
-      const {data} = await getTimeSeries(this.service, script)
+      const data = await getTimeSeries(this.service, script)
       this.setState({data})
     } catch (error) {
       this.setState({data: error})
