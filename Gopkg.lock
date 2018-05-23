@@ -176,6 +176,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/influxdata/line-protocol"
+  packages = ["."]
+  revision = "32c6aa80de5eb09d190ad284a8214a531c6bce57"
+
+[[projects]]
+  branch = "master"
   name = "github.com/influxdata/tdigest"
   packages = ["."]
   revision = "617b83f940fd9acd207f712561a8a0590277fb38"
@@ -466,6 +472,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ed7f4f2ab4a6f007ba6377ae04b0405146ea60608de96ef76ab19eef8113e694"
+  inputs-digest = "9160f64870b72a100aaa14f58a1954251b65005cdff86e4bddceef312ee4e936"
   solver-name = "gps-cdcl"
   solver-version = 1
