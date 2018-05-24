@@ -271,6 +271,9 @@ type block struct {
 	key    query.PartitionKey
 	cols   []query.ColMeta
 
+	empty bool
+	more  bool
+
 	// cache of the tags on the current series.
 	// len(tags) == len(colMeta)
 	tags [][]byte
@@ -316,8 +319,11 @@ func newBlock(
 		readSpec: readSpec,
 		ms:       ms,
 		done:     make(chan struct{}),
+		empty:    true,
 	}
 	b.readTags(tags)
+	// Call advance now so that we know if we are empty or not
+	b.more = b.advance()
 	return b
 }
 
@@ -343,6 +349,12 @@ func (b *block) Cols() []query.ColMeta {
 func (b *block) onetime() {}
 func (b *block) Do(f func(query.ColReader) error) error {
 	defer close(b.done)
+	// If the initial advance call indicated we are done, return immediately
+	if !b.more {
+		return b.err
+	}
+
+	f(b)
 	for b.advance() {
 		if err := f(b); err != nil {
 			return err
@@ -426,6 +438,7 @@ func (b *block) advance() bool {
 				// Type changed,
 				return false
 			}
+			b.empty = false
 			// read next frame
 			frame := b.ms.next()
 			p := frame.GetBooleanPoints()
@@ -458,6 +471,7 @@ func (b *block) advance() bool {
 				// Type changed,
 				return false
 			}
+			b.empty = false
 			// read next frame
 			frame := b.ms.next()
 			p := frame.GetIntegerPoints()
@@ -490,6 +504,7 @@ func (b *block) advance() bool {
 				// Type changed,
 				return false
 			}
+			b.empty = false
 			// read next frame
 			frame := b.ms.next()
 			p := frame.GetUnsignedPoints()
@@ -522,6 +537,7 @@ func (b *block) advance() bool {
 				// Type changed,
 				return false
 			}
+			b.empty = false
 			// read next frame
 			frame := b.ms.next()
 			p := frame.GetFloatPoints()
@@ -555,6 +571,7 @@ func (b *block) advance() bool {
 				// Type changed,
 				return false
 			}
+			b.empty = false
 			// read next frame
 			frame := b.ms.next()
 			p := frame.GetStringPoints()
@@ -627,6 +644,10 @@ func (b *block) appendBounds() {
 		}
 		b.colBufs[j] = colBuf
 	}
+}
+
+func (b *block) Empty() bool {
+	return b.empty
 }
 
 type streamState struct {

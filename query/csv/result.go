@@ -357,6 +357,8 @@ type blockDecoder struct {
 
 	builder *execute.ColListBlockBuilder
 
+	empty bool
+
 	more bool
 
 	eof       bool
@@ -373,6 +375,8 @@ func newBlock(
 		r:    r,
 		c:    c,
 		meta: meta,
+		// assume its empty until we append a record
+		empty: true,
 	}
 	var err error
 	b.more, err = b.advance(extraLine)
@@ -511,6 +515,7 @@ func (b *blockDecoder) init(line []string) error {
 }
 
 func (b *blockDecoder) appendRecord(record []string) error {
+	b.empty = false
 	for j, c := range b.meta.Cols {
 		if record[j] == "" && b.meta.Defaults[j] != nil {
 			switch c.Type {
@@ -542,6 +547,10 @@ func (b *blockDecoder) appendRecord(record []string) error {
 		}
 	}
 	return nil
+}
+
+func (b *blockDecoder) Empty() bool {
+	return b.empty
 }
 
 func (b *blockDecoder) RefCount(n int) {}
@@ -595,6 +604,7 @@ func NewResultEncoder(c ResultEncoderConfig) *ResultEncoder {
 
 func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
 	tableID := 0
+	tableIDStr := "0"
 	metaCols := []colMeta{
 		{ColMeta: query.ColMeta{Label: "", Type: query.TInvalid}},
 		{ColMeta: query.ColMeta{Label: resultLabel, Type: query.TString}},
@@ -607,6 +617,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
 	writer.UseCRLF = true
 
 	var lastCols []colMeta
+	var lastEmpty bool
 
 	return result.Blocks().Do(func(b query.Block) error {
 		// Update cols with block cols
@@ -623,13 +634,13 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
 
 		schemaChanged := !equalCols(cols, lastCols)
 
-		if schemaChanged {
+		if lastEmpty || schemaChanged || b.Empty() {
 			if len(lastCols) > 0 {
 				// Write out empty line if not first block
 				writer.Write(nil)
 			}
 
-			if err := writeSchema(writer, &e.c, row, cols, false, b.Key()); err != nil {
+			if err := writeSchema(writer, &e.c, row, cols, b.Empty(), b.Key(), tableIDStr); err != nil {
 				return err
 			}
 		}
@@ -642,18 +653,16 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
 				case resultIdx:
 					row[j] = ""
 				case tableIdx:
-					row[j] = strconv.Itoa(tableID)
+					row[j] = tableIDStr
 				default:
 					row[j] = ""
 				}
 			}
 		}
 
-		count := 0
 		err := b.Do(func(cr query.ColReader) error {
 			record := row[recordStartIdx:]
 			l := cr.Len()
-			count += l
 			for i := 0; i < l; i++ {
 				for j, c := range cols[recordStartIdx:] {
 					v, err := encodeValueFrom(i, j, c, cr)
@@ -671,24 +680,16 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
 			return err
 		}
 
-		// If the table was empty add its own schema
-		if !schemaChanged && count == 0 {
-			if len(lastCols) > 0 {
-				// Write out empty line if not first block
-				writer.Write(nil)
-			}
-			if err := writeSchema(writer, &e.c, row, cols, true, b.Key()); err != nil {
-				return err
-			}
-		}
-
 		tableID++
+		tableIDStr = strconv.Itoa(tableID)
 		lastCols = cols
+		lastEmpty = b.Empty()
+		writer.Flush()
 		return writer.Error()
 	})
 }
 
-func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols []colMeta, useKeyDefaults bool, key query.PartitionKey) error {
+func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols []colMeta, useKeyDefaults bool, key query.PartitionKey, tableID string) error {
 	defaults := make([]string, len(row))
 	for j, c := range cols {
 		switch j {
@@ -697,7 +698,11 @@ func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols 
 			// TODO use real result name
 			defaults[j] = "_result"
 		case tableIdx:
-			defaults[j] = ""
+			if useKeyDefaults {
+				defaults[j] = tableID
+			} else {
+				defaults[j] = ""
+			}
 		default:
 			if useKeyDefaults {
 				kj := execute.ColIdx(c.Label, key.Cols())

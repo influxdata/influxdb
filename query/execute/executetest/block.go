@@ -48,6 +48,10 @@ func (b *Block) Normalize() {
 	}
 }
 
+func (b *Block) Empty() bool {
+	return len(b.Data) == 0
+}
+
 func (b *Block) RefCount(n int) {}
 
 func (b *Block) Cols() []query.ColMeta {
