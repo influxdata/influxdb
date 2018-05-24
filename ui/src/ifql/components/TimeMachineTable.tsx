@@ -1,8 +1,11 @@
 import React, {PureComponent} from 'react'
-import {Grid, GridCellProps, AutoSizer} from 'react-virtualized'
+import _ from 'lodash'
+import {Grid, GridCellProps, AutoSizer, ColumnSizer} from 'react-virtualized'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ScriptResult} from 'src/types'
+
+const TIME_COLUMN_WIDTH = 170
 
 @ErrorHandling
 export default class TimeMachineTable extends PureComponent<ScriptResult> {
@@ -13,20 +16,32 @@ export default class TimeMachineTable extends PureComponent<ScriptResult> {
       <div style={{flex: '1 1 auto'}}>
         <AutoSizer>
           {({height, width}) => (
-            <Grid
-              className="table-graph--scroll-window"
-              cellRenderer={this.cellRenderer}
-              columnCount={data[0].length}
-              columnWidth={100}
-              height={height}
-              rowCount={data.length}
-              rowHeight={30}
+            <ColumnSizer
               width={width}
-            />
+              columnMinWidth={TIME_COLUMN_WIDTH}
+              columnCount={this.columnCount}
+            >
+              {({adjustedWidth, getColumnWidth}) => (
+                <Grid
+                  className="table-graph--scroll-window"
+                  cellRenderer={this.cellRenderer}
+                  columnCount={this.columnCount}
+                  columnWidth={getColumnWidth}
+                  height={height}
+                  rowCount={data.length}
+                  rowHeight={30}
+                  width={adjustedWidth}
+                />
+              )}
+            </ColumnSizer>
           )}
         </AutoSizer>
       </div>
     )
+  }
+
+  private get columnCount(): number {
+    return _.get(this.props.data, '0', []).length
   }
 
   private cellRenderer = ({
