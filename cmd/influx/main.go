@@ -21,7 +21,8 @@ var influxCmd = &cobra.Command{
 func init() {
 	influxCmd.AddCommand(authorizationCmd)
 	influxCmd.AddCommand(bucketCmd)
-	influxCmd.AddCommand(ifqlCmd)
+	influxCmd.AddCommand(replCmd)
+	influxCmd.AddCommand(queryCmd)
 	influxCmd.AddCommand(organizationCmd)
 	influxCmd.AddCommand(userCmd)
 }
