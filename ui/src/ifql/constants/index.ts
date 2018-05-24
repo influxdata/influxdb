@@ -3,5 +3,6 @@ import * as editor from 'src/ifql/constants/editor'
 import * as argTypes from 'src/ifql/constants/argumentTypes'
 import * as funcNames from 'src/ifql/constants/funcNames'
 import * as builder from 'src/ifql/constants/builder'
+import * as vis from 'src/ifql/constants/vis'
 
-export {ast, funcNames, argTypes, editor, builder}
+export {ast, funcNames, argTypes, editor, builder, vis}

@@ -1,6 +1,6 @@
-import React from 'react'
+import React, {SFC} from 'react'
 
-const NoResult = () => (
+const NoResult: SFC = () => (
   <div className="graph-empty">
     <p>No Results</p>
   </div>

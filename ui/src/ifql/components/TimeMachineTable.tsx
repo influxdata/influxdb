@@ -4,8 +4,7 @@ import {Grid, GridCellProps, AutoSizer, ColumnSizer} from 'react-virtualized'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ScriptResult} from 'src/types'
-
-const TIME_COLUMN_WIDTH = 170
+import {vis} from 'src/ifql/constants'
 
 @ErrorHandling
 export default class TimeMachineTable extends PureComponent<ScriptResult> {
@@ -18,7 +17,7 @@ export default class TimeMachineTable extends PureComponent<ScriptResult> {
           {({height, width}) => (
             <ColumnSizer
               width={width}
-              columnMinWidth={TIME_COLUMN_WIDTH}
+              columnMinWidth={vis.TIME_COLUMN_WIDTH}
               columnCount={this.columnCount}
             >
               {({adjustedWidth, getColumnWidth}) => (
@@ -29,7 +28,7 @@ export default class TimeMachineTable extends PureComponent<ScriptResult> {
                   columnWidth={getColumnWidth}
                   height={height}
                   rowCount={data.length}
-                  rowHeight={30}
+                  rowHeight={vis.TABLE_ROW_HEIGHT}
                   width={adjustedWidth}
                 />
               )}
@@ -51,8 +50,14 @@ export default class TimeMachineTable extends PureComponent<ScriptResult> {
     style,
   }: GridCellProps): React.ReactNode => {
     const {data} = this.props
+    const headerRowClass = !rowIndex ? 'table-graph-cell__fixed-row' : ''
+
     return (
-      <div key={key} style={style} className="table-graph-cell">
+      <div
+        key={key}
+        style={style}
+        className={`table-graph-cell ${headerRowClass}`}
+      >
         {data[rowIndex][columnIndex]}
       </div>
     )
