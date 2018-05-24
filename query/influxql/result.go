@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
 )
 
 // MultiResultEncoder encodes results as InfluxQL JSON format.
@@ -17,13 +16,16 @@ type MultiResultEncoder struct{}
 
 // Encode writes a collection of results to the influxdb 1.X http response format.
 // Expectations/Assumptions:
-//  1.  Each result will be published as a 'statement' in the top-level list of results.  The 'staementID'
-//      will be interpreted as an integer, and will return an error otherwise.
-//  2.  If the _field name is present in the tags, and a _value column is present, the _value column will
-//      be renamed to the value of the _field tag
-//  3.  If the _measurement name is present in the tags, it will be used as the row.Name for all rows.
-//      Otherwise, we'll use the column value, which _must_ be present in that case.
-
+//  1.  Each result will be published as a 'statement' in the top-level list of results. The result name
+//      will be interpreted as an integer and used as the statement id.
+//  2.  If the _measurement name is present in the partition key, it will be used as the result name instead
+//      of as a normal tag.
+//  3.  All columns in the partition key must be strings and they will be used as tags. There is no current way
+//      to have a tag and field be the same name in the results.
+//      TODO(jsternberg): For full compatibility, the above must be possible.
+//  4.  All other columns are fields and will be output in the order they are found.
+//      TODO(jsternberg): This function currently requires the first column to be a time field, but this isn't
+//      a strict requirement and will be lifted when we begin to work on transpiling meta queries.
 func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) error {
 	resp := Response{}
 
@@ -31,17 +33,17 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 		name, r := results.Next()
 		id, err := strconv.Atoi(name)
 		if err != nil {
-			return fmt.Errorf("unable to parse statement id from result name: %s", err)
+			resp.error(fmt.Errorf("unable to parse statement id from result name: %s", err))
+			results.Cancel()
+			break
 		}
 
 		blocks := r.Blocks()
 
 		result := Result{StatementID: id}
-		err = blocks.Do(func(b query.Block) error {
-			r := NewRow()
+		if err := blocks.Do(func(b query.Block) error {
+			var r Row
 
-			fieldName := ""
-			measurementVaries := -1
 			for j, c := range b.Key().Cols() {
 				if c.Type != query.TString {
 					return fmt.Errorf("partition column %q is not a string type", c.Label)
@@ -49,87 +51,95 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 				v := b.Key().Value(j).(string)
 				if c.Label == "_measurement" {
 					r.Name = v
-				} else if c.Label == "_field" {
-					fieldName = v
 				} else {
+					if r.Tags == nil {
+						r.Tags = make(map[string]string)
+					}
 					r.Tags[c.Label] = v
 				}
 			}
 
-			for i, c := range b.Cols() {
-				if c.Label == "_time" {
+			for _, c := range b.Cols() {
+				if c.Label == "time" {
 					r.Columns = append(r.Columns, "time")
-				} else if c.Label == "_value" && fieldName != "" {
-					r.Columns = append(r.Columns, fieldName)
 				} else if !b.Key().HasCol(c.Label) {
 					r.Columns = append(r.Columns, c.Label)
-					if r.Name == "" && c.Label == "_measurement" {
-						measurementVaries = i
-					}
 				}
 			}
-			if r.Name == "" && measurementVaries == -1 {
-				return fmt.Errorf("no Measurement name found in result blocks for result: %s", name)
-			}
 
-			timeIdx := execute.ColIdx(execute.DefaultTimeColLabel, b.Cols())
-			if timeIdx < 0 {
-				return errors.New("table must have an _time column")
-			}
-			if typ := b.Cols()[timeIdx].Type; typ != query.TTime {
-				return fmt.Errorf("column _time must be of type Time got %v", typ)
-			}
-			err := b.Do(func(cr query.ColReader) error {
-				ts := cr.Times(timeIdx)
-				for i := range ts {
-					var v []interface{}
+			if err := b.Do(func(cr query.ColReader) error {
+				var values [][]interface{}
+				j := 0
+				for idx, c := range b.Cols() {
+					if cr.Key().HasCol(c.Label) {
+						continue
+					}
 
-					for j, c := range cr.Cols() {
-						if cr.Key().HasCol(c.Label) {
-							continue
-						}
-
-						if j == measurementVaries {
-							if c.Type != query.TString {
-								return errors.New("unexpected type, _measurement is not a string")
-							}
-							r.Name = cr.Strings(j)[i]
-							continue
-						}
-
+					// Use the first column, usually time, to pre-generate all of the value containers.
+					if j == 0 {
 						switch c.Type {
-						case query.TFloat:
-							v = append(v, cr.Floats(j)[i])
-						case query.TInt:
-							v = append(v, cr.Ints(j)[i])
-						case query.TString:
-							v = append(v, cr.Strings(j)[i])
-						case query.TUInt:
-							v = append(v, cr.UInts(j)[i])
-						case query.TBool:
-							v = append(v, cr.Bools(j)[i])
 						case query.TTime:
-							v = append(v, cr.Times(j)[i].Time().Format(time.RFC3339))
+							values = make([][]interface{}, len(cr.Times(0)))
 						default:
-							v = append(v, "unknown")
+							// TODO(jsternberg): Support using other columns. This will
+							// mostly be necessary for meta queries.
+							return errors.New("first column must be time")
+						}
+
+						for j := range values {
+							values[j] = make([]interface{}, len(r.Columns))
 						}
 					}
 
-					r.Values = append(r.Values, v)
+					// Fill in the values for each column.
+					switch c.Type {
+					case query.TFloat:
+						for i, v := range cr.Floats(idx) {
+							values[i][j] = v
+						}
+					case query.TInt:
+						for i, v := range cr.Ints(idx) {
+							values[i][j] = v
+						}
+					case query.TString:
+						for i, v := range cr.Strings(idx) {
+							values[i][j] = v
+						}
+					case query.TUInt:
+						for i, v := range cr.UInts(idx) {
+							values[i][j] = v
+						}
+					case query.TBool:
+						for i, v := range cr.Bools(idx) {
+							values[i][j] = v
+						}
+					case query.TTime:
+						for i, v := range cr.Times(idx) {
+							values[i][j] = v.Time().Format(time.RFC3339)
+						}
+					default:
+						return fmt.Errorf("unsupported column type: %s", c.Type)
+					}
+					j++
 				}
+				r.Values = append(r.Values, values...)
 				return nil
-			})
-			if err != nil {
+			}); err != nil {
 				return err
 			}
 
-			result.Series = append(result.Series, r)
+			result.Series = append(result.Series, &r)
 			return nil
-		})
-		if err != nil {
-			return fmt.Errorf("error iterating through results: %s", err)
+		}); err != nil {
+			resp.error(err)
+			results.Cancel()
+			break
 		}
 		resp.Results = append(resp.Results, result)
+	}
+
+	if err := results.Err(); err != nil {
+		resp.error(err)
 	}
 
 	return json.NewEncoder(w).Encode(resp)

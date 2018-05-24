@@ -9,11 +9,13 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
 )
 
 type TranspilerQueryHandler struct {
 	*httprouter.Router
 
+	Logger       *zap.Logger
 	QueryService query.QueryService
 }
 
@@ -21,6 +23,7 @@ type TranspilerQueryHandler struct {
 func NewTranspilerQueryHandler() *TranspilerQueryHandler {
 	h := &TranspilerQueryHandler{
 		Router: httprouter.New(),
+		Logger: zap.NewNop(),
 	}
 
 	h.HandlerFunc("POST", "/v1/transpiler/query", h.handlePostQuery)
@@ -100,9 +103,10 @@ func (h *TranspilerQueryHandler) handlePostInfluxQL(w http.ResponseWriter, r *ht
 		return
 	}
 
-	err = encodeResult(w, results, ce.contentType, ce.encoder)
-	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+	// Once we have reached this stage, it is the encoder's job to encode any
+	// errors in the encoded format.
+	if err := encodeResult(w, results, ce.contentType, ce.encoder); err != nil {
+		h.Logger.Info("Unable to encode result", zap.Error(err))
 		return
 	}
 }
