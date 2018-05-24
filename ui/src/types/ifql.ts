@@ -10,7 +10,7 @@ export type OnGenerateScript = (script: string) => void
 export type OnChangeScript = (script: string) => void
 export type OnSubmitScript = () => void
 
-export interface Status {
+export interface ScriptStatus {
   type: string
   text: string
 }
@@ -109,4 +109,13 @@ export interface Links {
   self: string
   suggestions: string
   ast: string
+}
+
+// ScriptResult is the result of a request to IFQL
+// https://github.com/influxdata/platform/blob/master/query/docs/SPEC.md#response-format
+export interface ScriptResult {
+  id: string
+  name: string
+  data: string[][]
+  metadata: string[][]
 }
