@@ -1,6 +1,10 @@
 v1.5.3 [unreleased]
 -------------------
 
+### Features
+
+-	[#9903](https://github.com/influxdata/influxdb/pull/9903): Add optional pprof http endpoint immediately on startup.
+
 ### Bugfixes
 
 -	[#9765](https://github.com/influxdata/influxdb/pull/9765): Fix the validation for multiple nested distinct calls.
