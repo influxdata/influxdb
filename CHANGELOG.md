@@ -1,6 +1,7 @@
 ## v1.5.1.0 [unreleased]
 
 ### Features
+1.  [#3522](https://github.com/influxdata/chronograf/pull/3522): Add support for Template Variables in Cell Titles
 
 ### UI Improvements
 
