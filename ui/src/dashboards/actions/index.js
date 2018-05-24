@@ -22,10 +22,6 @@ import {
   notifyCellDeleted,
 } from 'shared/copy/notifications'
 
-import {
-  TEMPLATE_VARIABLE_SELECTED,
-  TEMPLATE_VARIABLES_SELECTED_BY_NAME,
-} from 'shared/constants/actionTypes'
 import {makeQueryForTemplate} from 'src/dashboards/utils/templateVariableQueryGenerator'
 import parsers from 'shared/parsing'
 
@@ -162,7 +158,7 @@ export const editCellQueryStatus = (queryID, status) => ({
 })
 
 export const templateVariableSelected = (dashboardID, templateID, values) => ({
-  type: TEMPLATE_VARIABLE_SELECTED,
+  type: 'TEMPLATE_VARIABLE_SELECTED',
   payload: {
     dashboardID,
     templateID,
@@ -171,7 +167,7 @@ export const templateVariableSelected = (dashboardID, templateID, values) => ({
 })
 
 export const templateVariablesSelectedByName = (dashboardID, query) => ({
-  type: TEMPLATE_VARIABLES_SELECTED_BY_NAME,
+  type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
   payload: {
     dashboardID,
     query,

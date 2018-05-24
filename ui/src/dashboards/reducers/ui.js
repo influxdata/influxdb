@@ -13,10 +13,6 @@ const initialState = {
   activeCellID: '',
 }
 
-import {
-  TEMPLATE_VARIABLE_SELECTED,
-  TEMPLATE_VARIABLES_SELECTED_BY_NAME,
-} from 'shared/constants/actionTypes'
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
 export default function ui(state = initialState, action) {
@@ -204,7 +200,7 @@ export default function ui(state = initialState, action) {
       return {...state, cellQueryStatus: {queryID, status}}
     }
 
-    case TEMPLATE_VARIABLE_SELECTED: {
+    case 'TEMPLATE_VARIABLE_SELECTED': {
       const {
         dashboardID,
         templateID,
@@ -235,7 +231,7 @@ export default function ui(state = initialState, action) {
       return {...state, dashboards: newDashboards}
     }
 
-    case TEMPLATE_VARIABLES_SELECTED_BY_NAME: {
+    case 'TEMPLATE_VARIABLES_SELECTED_BY_NAME': {
       const {dashboardID, query} = action.payload
 
       const selecteds = Object.keys(query).map(k => ({
