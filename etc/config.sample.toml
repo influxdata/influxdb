@@ -241,6 +241,10 @@
   # troubleshooting and monitoring.
   # pprof-enabled = true
 
+  # Enables a pprof endpoint that binds to localhost:6060 immediately on startup.
+  # This is only needed to debug startup issues.
+  # debug-pprof-enabled = false
+
   # Determines whether HTTPS is enabled.
   # https-enabled = false
 
