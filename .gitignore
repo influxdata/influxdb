@@ -8,7 +8,7 @@ idpdb.bolt
 /dist
 
 # Project binaries.
-/idp
+/influx
 /idpd
 /ifqld
 /bin
