@@ -27,7 +27,12 @@ import (
 	"github.com/andreyvit/diff"
 )
 
+var (
+	staticResultID platform.ID
+)
+
 func init() {
+	staticResultID.DecodeFromString("1")
 	query.FinalizeRegistration()
 }
 
@@ -49,7 +54,7 @@ func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID,
 
 func Test_QueryEndToEnd(t *testing.T) {
 	config := control.Config{
-		ConcurrencyQuota: 2 * 4,
+		ConcurrencyQuota: 0,
 		MemoryBytesQuota: math.MaxInt64,
 	}
 
@@ -79,10 +84,7 @@ func Test_QueryEndToEnd(t *testing.T) {
 		ext := filepath.Ext(ifqlFile)
 		prefix := ifqlFile[0 : len(ifqlFile)-len(ext)]
 
-		csvIn, err := getTestData(prefix, ".in.csv")
-		if err != nil {
-			t.Fatalf("error in test case %s: %s", prefix, err)
-		}
+		csvIn := prefix + ".in.csv"
 
 		csvOut, err := getTestData(prefix, ".out.csv")
 		if err != nil {
@@ -139,41 +141,37 @@ func ReplaceFromSpec(q *query.Spec, csvSrc string) {
 	for _, op := range q.Operations {
 		if op.Spec.Kind() == functions.FromKind {
 			op.Spec = &platformfunctions.FromCSVOpSpec{
-				CSV: csvSrc,
+				File: csvSrc,
 			}
 		}
 	}
 }
 
-func QueryTestCheckSpec(t *testing.T, qs query.QueryServiceBridge, spec *query.Spec, input, want string) (bool, error) {
+func QueryTestCheckSpec(t *testing.T, qs query.QueryServiceBridge, spec *query.Spec, inputFile, want string) (bool, error) {
 	t.Helper()
-	ReplaceFromSpec(spec, input)
-	id := platform.ID("max")
+	ReplaceFromSpec(spec, inputFile)
+
 	//log.Println("QueryTestCheckSpec", query.Formatted(spec, query.FmtJSON))
 	log.Println("QueryTestCheckSpec")
-	results, err := qs.Query(context.Background(), id, spec)
+	results, err := qs.Query(context.Background(), staticResultID, spec)
 	if err != nil {
 		t.Errorf("failed to run query spec error=%s", err)
 		return false, err
 	}
 
+	enc := csv.NewResultEncoder(csv.DefaultEncoderConfig())
+	buf := new(bytes.Buffer)
 	// we are only expecting one result, for now
 	for results.More() {
 		_, res := results.Next()
-		enc := csv.NewResultEncoder(csv.DefaultEncoderConfig())
-		buf := new(bytes.Buffer)
+
 		err := enc.Encode(buf, res)
 		if err != nil {
 			t.Errorf("failed to run query spec error=%s", err)
 			results.Cancel()
 			return false, err
 		}
-		got := buf.String()
-		if g, w := strings.TrimSpace(got), strings.TrimSpace(want); g != w {
-			t.Errorf("Result not as expected want(-) got (+):\n%v", diff.LineDiff(w, g))
-			results.Cancel()
-			return false, nil
-		}
+
 	}
 
 	err = results.Err()
@@ -181,6 +179,14 @@ func QueryTestCheckSpec(t *testing.T, qs query.QueryServiceBridge, spec *query.S
 		t.Errorf("failed to run query spec error=%s", err)
 		return false, err
 	}
+
+	got := buf.String()
+	if g, w := strings.TrimSpace(got), strings.TrimSpace(want); g != w {
+		t.Errorf("Result not as expected want(-) got (+):\n%v", diff.LineDiff(w, g))
+		results.Cancel()
+		return false, nil
+	}
+
 	return true, nil
 
 }

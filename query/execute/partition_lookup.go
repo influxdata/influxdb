@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"hash/fnv"
 	"math"
+	"sort"
 
 	"github.com/influxdata/platform/query"
 )
@@ -69,8 +70,15 @@ func (l *PartitionLookup) Delete(key query.PartitionKey) (interface{}, bool) {
 	return nil, false
 }
 
+// Range will iterate in a deterministic order determined by the hash key
 func (l *PartitionLookup) Range(f func(key query.PartitionKey, value interface{})) {
-	for _, entries := range l.partitions {
+	keys := make([]uint64, len(l.partitions))
+	for k, _ := range l.partitions {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, k := range keys {
+		entries := l.partitions[k]
 		for _, entry := range entries {
 			f(entry.key, entry.value)
 		}
