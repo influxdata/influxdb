@@ -294,19 +294,19 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 			for _, bnds := range bounds {
 				// Update key
 				cols := make([]query.ColMeta, len(keyCols))
-				values := make([]interface{}, len(keyCols))
+				vs := make([]values.Value, len(keyCols))
 				for j, c := range keyCols {
 					cols[j] = c
 					switch c.Label {
 					case t.startColLabel:
-						values[j] = bnds.Start
+						vs[j] = values.NewTimeValue(bnds.Start)
 					case t.stopColLabel:
-						values[j] = bnds.Stop
+						vs[j] = values.NewTimeValue(bnds.Stop)
 					default:
-						values[j] = b.Key().Value(keyColMap[j])
+						vs[j] = b.Key().Value(keyColMap[j])
 					}
 				}
-				key := execute.NewPartitionKey(cols, values)
+				key := execute.NewPartitionKey(cols, vs)
 				builder, created := t.cache.BlockBuilder(key)
 				if created {
 					for _, c := range newCols {

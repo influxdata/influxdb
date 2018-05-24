@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/values"
 )
 
 const (
@@ -47,10 +48,10 @@ func init() {
 			{Label: execute.DefaultStopColLabel, Type: query.TTime},
 			{Label: "t1", Type: query.TString},
 		},
-		[]interface{}{
-			start,
-			stop,
-			t1Value,
+		[]values.Value{
+			values.NewTimeValue(start),
+			values.NewTimeValue(stop),
+			values.NewStringValue(t1Value),
 		},
 	)
 	normalBlockBuilder := execute.NewColListBlockBuilder(key, executetest.UnlimitedAllocator)

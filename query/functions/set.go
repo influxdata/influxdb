@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/values"
 )
 
 const SetKind = "set"
@@ -124,16 +125,16 @@ func (t *setTransformation) Process(id execute.DatasetID, b query.Block) error {
 	if idx := execute.ColIdx(t.key, key.Cols()); idx >= 0 {
 		// Update key
 		cols := make([]query.ColMeta, len(key.Cols()))
-		values := make([]interface{}, len(key.Cols()))
+		vs := make([]values.Value, len(key.Cols()))
 		for j, c := range key.Cols() {
 			cols[j] = c
 			if j == idx {
-				values[j] = t.value
+				vs[j] = values.NewStringValue(t.value)
 			} else {
-				values[j] = key.Value(j)
+				vs[j] = key.Value(j)
 			}
 		}
-		key = execute.NewPartitionKey(cols, values)
+		key = execute.NewPartitionKey(cols, vs)
 	}
 	builder, created := t.cache.BlockBuilder(key)
 	if created {

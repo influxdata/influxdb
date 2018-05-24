@@ -10,12 +10,14 @@ import (
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/values"
 )
 
 const MapKind = "map"
 
 type MapOpSpec struct {
-	Fn *semantic.FunctionExpression `json:"fn"`
+	Fn       *semantic.FunctionExpression `json:"fn"`
+	MergeKey bool                         `json:"mergeKey"`
 }
 
 var mapSignature = query.DefaultFunctionSignature()
@@ -34,17 +36,26 @@ func createMapOpSpec(args query.Arguments, a *query.Administration) (query.Opera
 		return nil, err
 	}
 
-	f, err := args.GetRequiredFunction("fn")
-	if err != nil {
+	spec := new(MapOpSpec)
+
+	if f, err := args.GetRequiredFunction("fn"); err != nil {
 		return nil, err
+	} else {
+		fn, err := interpreter.ResolveFunction(f)
+		if err != nil {
+			return nil, err
+		}
+		spec.Fn = fn
 	}
-	fn, err := interpreter.ResolveFunction(f)
-	if err != nil {
+
+	if m, ok, err := args.GetBool("mergeKey"); err != nil {
 		return nil, err
+	} else if ok {
+		spec.MergeKey = m
+	} else {
+		spec.MergeKey = true
 	}
-	return &MapOpSpec{
-		Fn: fn,
-	}, nil
+	return spec, nil
 }
 
 func newMapOp() query.OperationSpec {
@@ -56,7 +67,8 @@ func (s *MapOpSpec) Kind() query.OperationKind {
 }
 
 type MapProcedureSpec struct {
-	Fn *semantic.FunctionExpression
+	Fn       *semantic.FunctionExpression
+	MergeKey bool
 }
 
 func newMapProcedure(qs query.OperationSpec, pa plan.Administration) (plan.ProcedureSpec, error) {
@@ -66,7 +78,8 @@ func newMapProcedure(qs query.OperationSpec, pa plan.Administration) (plan.Proce
 	}
 
 	return &MapProcedureSpec{
-		Fn: spec.Fn,
+		Fn:       spec.Fn,
+		MergeKey: spec.MergeKey,
 	}, nil
 }
 
@@ -75,6 +88,7 @@ func (s *MapProcedureSpec) Kind() plan.ProcedureKind {
 }
 func (s *MapProcedureSpec) Copy() plan.ProcedureSpec {
 	ns := new(MapProcedureSpec)
+	*ns = *s
 	ns.Fn = s.Fn.Copy().(*semantic.FunctionExpression)
 	return ns
 }
@@ -97,7 +111,8 @@ type mapTransformation struct {
 	d     execute.Dataset
 	cache execute.BlockBuilderCache
 
-	fn *execute.RowMapFn
+	fn       *execute.RowMapFn
+	mergeKey bool
 }
 
 func NewMapTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *MapProcedureSpec) (*mapTransformation, error) {
@@ -106,9 +121,10 @@ func NewMapTransformation(d execute.Dataset, cache execute.BlockBuilderCache, sp
 		return nil, err
 	}
 	return &mapTransformation{
-		d:     d,
-		cache: cache,
-		fn:    fn,
+		d:        d,
+		cache:    cache,
+		fn:       fn,
+		mergeKey: spec.MergeKey,
 	}, nil
 }
 
@@ -124,6 +140,19 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 		// TODO(nathanielc): Should we not fail the query for failed compilation?
 		return err
 	}
+	// Determine keys return from function
+	properties := t.fn.Type().Properties()
+	keys := make([]string, 0, len(properties))
+	for k := range properties {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Determine on which cols to partition
+	on := make(map[string]bool, len(b.Key().Cols()))
+	for _, c := range b.Key().Cols() {
+		on[c.Label] = t.mergeKey || execute.ContainsStr(keys, c.Label)
+	}
 
 	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
@@ -133,17 +162,17 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 				log.Printf("failed to evaluate map expression: %v", err)
 				continue
 			}
-			key := execute.PartitionKeyForRow(i, cr)
+			key := partitionKeyForObject(i, cr, m, on)
 			builder, created := t.cache.BlockBuilder(key)
 			if created {
-				// Add columns from function in sorted order
-				properties := t.fn.Type().Properties()
-				keys := make([]string, 0, len(properties))
-				for k := range properties {
-					keys = append(keys, k)
+				if t.mergeKey {
+					execute.AddBlockKeyCols(b.Key(), builder)
 				}
-				sort.Strings(keys)
+				// Add columns from function in sorted order
 				for _, k := range keys {
+					if t.mergeKey && b.Key().HasCol(k) {
+						continue
+					}
 					builder.AddCol(query.ColMeta{
 						Label: k,
 						Type:  execute.ConvertFromKind(properties[k].Kind()),
@@ -151,13 +180,51 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 				}
 			}
 			for j, c := range builder.Cols() {
-				v, _ := m.Get(c.Label)
+				v, ok := m.Get(c.Label)
+				if !ok {
+					if idx := execute.ColIdx(c.Label, b.Key().Cols()); t.mergeKey && idx >= 0 {
+						v = b.Key().Value(idx)
+					} else {
+						// This should be unreachable
+						return fmt.Errorf("could not find value for column %q", c.Label)
+					}
+				}
 				execute.AppendValue(builder, j, v)
 			}
 		}
 		return nil
 	})
+}
 
+func partitionKeyForObject(i int, cr query.ColReader, obj values.Object, on map[string]bool) query.PartitionKey {
+	cols := make([]query.ColMeta, 0, len(on))
+	vs := make([]values.Value, 0, len(on))
+	for j, c := range cr.Cols() {
+		if !on[c.Label] {
+			continue
+		}
+		cols = append(cols, c)
+		v, ok := obj.Get(c.Label)
+		if ok {
+			vs = append(vs, v)
+		} else {
+			switch c.Type {
+			case query.TBool:
+				vs = append(vs, values.NewBoolValue(cr.Bools(j)[i]))
+			case query.TInt:
+				vs = append(vs, values.NewIntValue(cr.Ints(j)[i]))
+			case query.TUInt:
+				vs = append(vs, values.NewUIntValue(cr.UInts(j)[i]))
+			case query.TFloat:
+				vs = append(vs, values.NewFloatValue(cr.Floats(j)[i]))
+			case query.TString:
+				vs = append(vs, values.NewStringValue(cr.Strings(j)[i]))
+			case query.TTime:
+				vs = append(vs, values.NewTimeValue(cr.Times(j)[i]))
+			}
+		}
+	}
+	return execute.NewPartitionKey(cols, vs)
 }
 
 func (t *mapTransformation) UpdateWatermark(id execute.DatasetID, mark execute.Time) error {

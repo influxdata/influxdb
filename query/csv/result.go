@@ -232,7 +232,7 @@ type tableMetadata struct {
 	TableID    string
 	Cols       []colMeta
 	Partitions []bool
-	Defaults   []interface{}
+	Defaults   []values.Value
 	NumFields  int
 }
 
@@ -319,7 +319,7 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 	}
 
 	cols := make([]colMeta, len(labels))
-	defaultValues := make([]interface{}, len(labels))
+	defaultValues := make([]values.Value, len(labels))
 	partitionValues := make([]bool, len(labels))
 
 	for j, label := range labels {
@@ -502,10 +502,10 @@ func (b *blockDecoder) init(line []string) error {
 		record = line[recordStartIdx:]
 	}
 	keyCols := make([]query.ColMeta, 0, len(b.meta.Cols))
-	keyValues := make([]interface{}, 0, len(b.meta.Cols))
+	keyValues := make([]values.Value, 0, len(b.meta.Cols))
 	for j, c := range b.meta.Cols {
 		if b.meta.Partitions[j] {
-			var value interface{}
+			var value values.Value
 			if b.meta.Defaults[j] != nil {
 				value = b.meta.Defaults[j]
 			} else if record != nil {
@@ -537,22 +537,22 @@ func (b *blockDecoder) appendRecord(record []string) error {
 		if record[j] == "" && b.meta.Defaults[j] != nil {
 			switch c.Type {
 			case query.TBool:
-				v := b.meta.Defaults[j].(bool)
+				v := b.meta.Defaults[j].Bool()
 				b.builder.AppendBool(j, v)
 			case query.TInt:
-				v := b.meta.Defaults[j].(int64)
+				v := b.meta.Defaults[j].Int()
 				b.builder.AppendInt(j, v)
 			case query.TUInt:
-				v := b.meta.Defaults[j].(uint64)
+				v := b.meta.Defaults[j].UInt()
 				b.builder.AppendUInt(j, v)
 			case query.TFloat:
-				v := b.meta.Defaults[j].(float64)
+				v := b.meta.Defaults[j].Float()
 				b.builder.AppendFloat(j, v)
 			case query.TString:
-				v := b.meta.Defaults[j].(string)
+				v := b.meta.Defaults[j].Str()
 				b.builder.AppendString(j, v)
 			case query.TTime:
-				v := b.meta.Defaults[j].(execute.Time)
+				v := b.meta.Defaults[j].Time()
 				b.builder.AppendTime(j, v)
 			default:
 				return fmt.Errorf("unsupported column type %v", c.Type)
@@ -843,24 +843,45 @@ func writeDefaults(writer *csv.Writer, row, defaults []string) error {
 	return writer.Write(row)
 }
 
-func decodeValue(value string, c colMeta) (v interface{}, err error) {
+func decodeValue(value string, c colMeta) (values.Value, error) {
+	var val values.Value
 	switch c.Type {
 	case query.TBool:
-		v, err = strconv.ParseBool(value)
+		v, err := strconv.ParseBool(value)
+		if err != nil {
+			return nil, err
+		}
+		val = values.NewBoolValue(v)
 	case query.TInt:
-		v, err = strconv.ParseInt(value, 10, 64)
+		v, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		val = values.NewIntValue(v)
 	case query.TUInt:
-		v, err = strconv.ParseUint(value, 10, 64)
+		v, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		val = values.NewUIntValue(v)
 	case query.TFloat:
-		v, err = strconv.ParseFloat(value, 64)
+		v, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return nil, err
+		}
+		val = values.NewFloatValue(v)
 	case query.TString:
-		v = value
+		val = values.NewStringValue(value)
 	case query.TTime:
-		v, err = decodeTime(value, c.fmt)
+		v, err := decodeTime(value, c.fmt)
+		if err != nil {
+			return nil, err
+		}
+		val = values.NewTimeValue(v)
 	default:
 		return nil, fmt.Errorf("unsupported type %v", c.Type)
 	}
-	return
+	return val, nil
 }
 
 func decodeValueInto(j int, c colMeta, value string, builder execute.BlockBuilder) error {
@@ -903,20 +924,20 @@ func decodeValueInto(j int, c colMeta, value string, builder execute.BlockBuilde
 	return nil
 }
 
-func encodeValue(value interface{}, c colMeta) (string, error) {
+func encodeValue(value values.Value, c colMeta) (string, error) {
 	switch c.Type {
 	case query.TBool:
-		return strconv.FormatBool(value.(bool)), nil
+		return strconv.FormatBool(value.Bool()), nil
 	case query.TInt:
-		return strconv.FormatInt(value.(int64), 10), nil
+		return strconv.FormatInt(value.Int(), 10), nil
 	case query.TUInt:
-		return strconv.FormatUint(value.(uint64), 10), nil
+		return strconv.FormatUint(value.UInt(), 10), nil
 	case query.TFloat:
-		return strconv.FormatFloat(value.(float64), 'f', -1, 64), nil
+		return strconv.FormatFloat(value.Float(), 'f', -1, 64), nil
 	case query.TString:
-		return value.(string), nil
+		return value.Str(), nil
 	case query.TTime:
-		return encodeTime(value.(execute.Time), c.fmt), nil
+		return encodeTime(value.Time(), c.fmt), nil
 	default:
 		return "", fmt.Errorf("unknown type %v", c.Type)
 	}

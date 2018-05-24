@@ -88,6 +88,57 @@ func (v value) Function() Function {
 // InvalidValue is a non nil value who's type is semantic.Invalid
 var InvalidValue = value{t: semantic.Invalid}
 
+func NewValue(v interface{}, k semantic.Kind) (Value, error) {
+	switch k {
+	case semantic.String:
+		_, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("string value must have type string, got %T", v)
+		}
+	case semantic.Int:
+		_, ok := v.(int64)
+		if !ok {
+			return nil, fmt.Errorf("int value must have type int64, got %T", v)
+		}
+	case semantic.UInt:
+		_, ok := v.(uint64)
+		if !ok {
+			return nil, fmt.Errorf("uint value must have type uint64, got %T", v)
+		}
+	case semantic.Float:
+		_, ok := v.(float64)
+		if !ok {
+			return nil, fmt.Errorf("float value must have type float64, got %T", v)
+		}
+	case semantic.Bool:
+		_, ok := v.(bool)
+		if !ok {
+			return nil, fmt.Errorf("bool value must have type bool, got %T", v)
+		}
+	case semantic.Time:
+		_, ok := v.(Time)
+		if !ok {
+			return nil, fmt.Errorf("time value must have type Time, got %T", v)
+		}
+	case semantic.Duration:
+		_, ok := v.(Duration)
+		if !ok {
+			return nil, fmt.Errorf("duration value must have type Duration, got %T", v)
+		}
+	case semantic.Regexp:
+		_, ok := v.(*regexp.Regexp)
+		if !ok {
+			return nil, fmt.Errorf("regexp value must have type *regexp.Regexp, got %T", v)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported value kind %v", k)
+	}
+	return value{
+		t: k,
+		v: v,
+	}, nil
+}
+
 func NewStringValue(v string) Value {
 	return value{
 		t: semantic.String,
