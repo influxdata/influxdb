@@ -60,6 +60,10 @@ export const modeIFQL = {
       token: 'number',
     },
     {
+      regex: /({.+:.+})/,
+      token: 'object',
+    },
+    {
       regex: /\/\/.*/,
       token: 'comment',
     },

@@ -4,6 +4,7 @@ $ifql-node-gap: 5px;
 $ifql-node-padding: 10px;
 $ifql-arg-min-width: 120px;
 $ifql-number-color: $c-neutrino;
+$ifql-object-color: $c-viridian;
 $ifql-string-color: $c-honeydew;
 $ifql-boolean-color: $c-viridian;
 $ifql-invalid-color: $c-viridian;
@@ -74,6 +75,10 @@ $ifql-invalid-color: $c-viridian;
 
 .variable-value--number {
   color: $ifql-number-color;
+}
+
+.variable-value--object {
+  color: $ifql-object-color;
 }
 
 .variable-value--invalid {
@@ -257,16 +262,16 @@ $ifql-filter-parens: $g5-pepper;
   padding: 0 ($ifql-filter-gap / 2);
 }
 
-.ifql-filter--value+.ifql-filter--operator,
-.ifql-filter--paren-close+.ifql-filter--operator {
+.ifql-filter--value + .ifql-filter--operator,
+.ifql-filter--paren-close + .ifql-filter--operator {
   padding: 0 $ifql-filter-gap;
 }
 
-.ifql-filter--key+.ifql-filter--operator {
+.ifql-filter--key + .ifql-filter--operator {
   background-color: $ifql-filter-expression;
 }
 
-.ifql-filter--key+.ifql-filter--operator+.ifql-filter--value {
+.ifql-filter--key + .ifql-filter--operator + .ifql-filter--value {
   background-color: $ifql-filter-expression;
   border-radius: 0 3px 3px 0;
 }
@@ -291,7 +296,8 @@ $ifql-filter-parens: $g5-pepper;
   height: $ifql-filter-unit-wrapped;
   width: ($ifql-filter-unit-wrapped - $ifql-filter-unit) / 2;
   background-color: $ifql-filter-parens;
-  border: (($ifql-filter-unit-wrapped - $ifql-filter-unit) / 2) solid $ifql-filter-expression;
+  border: (($ifql-filter-unit-wrapped - $ifql-filter-unit) / 2) solid
+    $ifql-filter-expression;
 }
 
 .ifql-filter--paren-open {
