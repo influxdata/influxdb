@@ -143,6 +143,21 @@ func (s *source) next(ctx context.Context, trace map[string]string) (query.Block
 	return bi, stop, true
 }
 
+type GroupMode int
+
+const (
+	// GroupModeDefault specifies the default grouping mode, which is GroupModeAll.
+	GroupModeDefault GroupMode = 0
+	// GroupModeNone merges all series into a single group.
+	GroupModeNone GroupMode = 1 << iota
+	// GroupModeAll produces a separate block for each series.
+	GroupModeAll
+	// GroupModeBy produces a block for each unique value of the specified GroupKeys.
+	GroupModeBy
+	// GroupModeExcept produces a block for the unique values of all keys, except those specified by GroupKeys.
+	GroupModeExcept
+)
+
 type ReadSpec struct {
 	OrganizationID []byte
 	BucketID       []byte
@@ -162,12 +177,13 @@ type ReadSpec struct {
 	// By default this is false meaning all values of time are produced for a given series,
 	// before any values are produced from the next series.
 	OrderByTime bool
-	// MergeAll indicates that all series should be merged into a single group
-	MergeAll bool
-	// GroupKeys is the list of dimensions along which to group
+	// GroupMode instructs
+	GroupMode GroupMode
+	// GroupKeys is the list of dimensions along which to group.
+	//
+	// When GroupMode is GroupModeBy, the results will be grouped by the specified keys.
+	// When GroupMode is GroupModeExcept, the results will be grouped by all keys, except those specified.
 	GroupKeys []string
-	// GroupExcept is the list of dimensions along which to not group
-	GroupExcept []string
 }
 
 type Reader interface {

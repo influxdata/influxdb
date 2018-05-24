@@ -225,8 +225,8 @@ func (r *REPL) doQuery(spec *query.Spec) error {
 		blocks := r.Blocks()
 		fmt.Println("Result:", name)
 		err := blocks.Do(func(b query.Block) error {
-			execute.NewFormatter(b, nil).WriteTo(os.Stdout)
-			return nil
+			_, err := execute.NewFormatter(b, nil).WriteTo(os.Stdout)
+			return err
 		})
 		if err != nil {
 			return err

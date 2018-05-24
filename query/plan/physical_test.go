@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/plan/plantest"
 )
@@ -422,7 +422,8 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 					plan.ProcedureIDFromOperationID("group"): {
 						ID: plan.ProcedureIDFromOperationID("group"),
 						Spec: &functions.GroupProcedureSpec{
-							By: []string{"host", "region"},
+							GroupMode: functions.GroupModeBy,
+							GroupKeys: []string{"host", "region"},
 						},
 						Parents:  []plan.ProcedureID{plan.ProcedureIDFromOperationID("range")},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("sum")},
@@ -465,6 +466,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 								},
 							},
 							GroupingSet:     true,
+							GroupMode:       functions.GroupModeBy,
 							GroupKeys:       []string{"host", "region"},
 							AggregateSet:    true,
 							AggregateMethod: "sum",
@@ -523,7 +525,8 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 					plan.ProcedureIDFromOperationID("group"): {
 						ID: plan.ProcedureIDFromOperationID("group"),
 						Spec: &functions.GroupProcedureSpec{
-							By: []string{"host"},
+							GroupMode: functions.GroupModeBy,
+							GroupKeys: []string{"host"},
 						},
 						Parents:  []plan.ProcedureID{plan.ProcedureIDFromOperationID("range")},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("distinct")},
@@ -568,6 +571,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 								},
 							},
 							GroupingSet: true,
+							GroupMode:   functions.GroupModeBy,
 							GroupKeys:   []string{"host"},
 							LimitSet:    true,
 							PointsLimit: -1,
@@ -626,7 +630,8 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 					plan.ProcedureIDFromOperationID("group"): {
 						ID: plan.ProcedureIDFromOperationID("group"),
 						Spec: &functions.GroupProcedureSpec{
-							By: []string{"host"},
+							GroupMode: functions.GroupModeBy,
+							GroupKeys: []string{"host"},
 						},
 						Parents:  []plan.ProcedureID{plan.ProcedureIDFromOperationID("range")},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("distinct")},
@@ -671,6 +676,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 								},
 							},
 							GroupingSet: true,
+							GroupMode:   functions.GroupModeBy,
 							GroupKeys:   []string{"host"},
 						},
 						Parents: nil,
@@ -727,7 +733,8 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 					plan.ProcedureIDFromOperationID("group"): {
 						ID: plan.ProcedureIDFromOperationID("group"),
 						Spec: &functions.GroupProcedureSpec{
-							By: []string{"host"},
+							GroupMode: functions.GroupModeBy,
+							GroupKeys: []string{"host"},
 						},
 						Parents:  []plan.ProcedureID{plan.ProcedureIDFromOperationID("range")},
 						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("distinct")},
@@ -772,6 +779,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 								},
 							},
 							GroupingSet: true,
+							GroupMode:   functions.GroupModeBy,
 							GroupKeys:   []string{"host"},
 						},
 						Parents: nil,

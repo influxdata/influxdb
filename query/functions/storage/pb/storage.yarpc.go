@@ -23,7 +23,6 @@ package pb
 
 import (
 	context "context"
-
 	yarpc "github.com/influxdata/yarpc"
 )
 
@@ -164,7 +163,7 @@ func _Storage_Hints_Handler(srv interface{}, ctx context.Context, dec func(inter
 }
 
 var _Storage_serviceDesc = yarpc.ServiceDesc{
-	ServiceName: "storage.Storage",
+	ServiceName: "com.github.influxdata.influxdb.services.storage.Storage",
 	Index:       0,
 	HandlerType: (*StorageServer)(nil),
 	Methods: []yarpc.MethodDesc{

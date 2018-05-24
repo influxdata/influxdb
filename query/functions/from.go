@@ -101,9 +101,8 @@ type FromProcedureSpec struct {
 
 	GroupingSet bool
 	OrderByTime bool
-	MergeAll    bool
+	GroupMode   GroupMode
 	GroupKeys   []string
-	GroupExcept []string
 
 	AggregateSet    bool
 	AggregateMethod string
@@ -214,9 +213,8 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 			SeriesOffset:    spec.SeriesOffset,
 			Descending:      spec.Descending,
 			OrderByTime:     spec.OrderByTime,
-			MergeAll:        spec.MergeAll,
+			GroupMode:       storage.GroupMode(spec.GroupMode),
 			GroupKeys:       spec.GroupKeys,
-			GroupExcept:     spec.GroupExcept,
 			AggregateMethod: spec.AggregateMethod,
 		},
 		bounds,

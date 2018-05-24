@@ -117,7 +117,7 @@ func (f *Formatter) WriteTo(out io.Writer) (int64, error) {
 
 	// Write rows
 	r := 0
-	f.b.Do(func(cr query.ColReader) error {
+	w.err = f.b.Do(func(cr query.ColReader) error {
 		if r == 0 {
 			l := cr.Len()
 			for i := 0; i < l; i++ {

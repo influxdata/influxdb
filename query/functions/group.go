@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
+	"math/bits"
 )
 
 const GroupKind = "group"
@@ -17,6 +18,8 @@ const GroupKind = "group"
 type GroupOpSpec struct {
 	By     []string `json:"by"`
 	Except []string `json:"except"`
+	All    bool     `json:"all"`
+	None   bool     `json:"none"`
 }
 
 var groupSignature = query.DefaultFunctionSignature()
@@ -24,6 +27,8 @@ var groupSignature = query.DefaultFunctionSignature()
 func init() {
 	groupSignature.Params["by"] = semantic.NewArrayType(semantic.String)
 	groupSignature.Params["except"] = semantic.NewArrayType(semantic.String)
+	groupSignature.Params["none"] = semantic.Bool
+	groupSignature.Params["all"] = semantic.Bool
 
 	query.RegisterFunction(GroupKind, createGroupOpSpec, groupSignature)
 	query.RegisterOpSpec(GroupKind, newGroupOp)
@@ -38,6 +43,18 @@ func createGroupOpSpec(args query.Arguments, a *query.Administration) (query.Ope
 	}
 
 	spec := new(GroupOpSpec)
+
+	if val, ok, err := args.GetBool("none"); err != nil {
+		return nil, err
+	} else if ok && val {
+		spec.None = true
+	}
+	if val, ok, err := args.GetBool("all"); err != nil {
+		return nil, err
+	} else if ok && val {
+		spec.All = true
+	}
+
 	if array, ok, err := args.GetArray("by", semantic.String); err != nil {
 		return nil, err
 	} else if ok {
@@ -55,9 +72,16 @@ func createGroupOpSpec(args query.Arguments, a *query.Administration) (query.Ope
 		}
 	}
 
-	if len(spec.By) > 0 && len(spec.Except) > 0 {
-		return nil, errors.New(`cannot specify both "by" and "except" keyword arguments`)
+	switch bits.OnesCount(uint(groupModeFromSpec(spec))) {
+	case 0:
+		// empty args
+		spec.All = true
+	case 1:
+		// all good
+	default:
+		return nil, errors.New(`specify one of "by", "except", "none" or "all" keyword arguments`)
 	}
+
 	return spec, nil
 }
 
@@ -69,9 +93,45 @@ func (s *GroupOpSpec) Kind() query.OperationKind {
 	return GroupKind
 }
 
+type GroupMode int
+
+const (
+	// GroupModeDefault will use the default grouping of GroupModeAll.
+	GroupModeDefault GroupMode = 0
+
+	// GroupModeNone merges all series into a single group.
+	GroupModeNone GroupMode = 1 << iota
+	// GroupModeAll produces a separate block for each series.
+	GroupModeAll
+	// GroupModeBy produces a block for each unique value of the specified GroupKeys.
+	GroupModeBy
+	// GroupModeExcept produces a block for the unique values of all keys, except those specified by GroupKeys.
+	GroupModeExcept
+)
+
+func groupModeFromSpec(spec *GroupOpSpec) GroupMode {
+	var mode GroupMode
+	if spec.All {
+		mode |= GroupModeAll
+	}
+	if spec.None {
+		mode |= GroupModeNone
+	}
+	if len(spec.By) > 0 {
+		mode |= GroupModeBy
+	}
+	if len(spec.Except) > 0 {
+		mode |= GroupModeExcept
+	}
+	if mode == GroupModeDefault {
+		mode = GroupModeAll
+	}
+	return mode
+}
+
 type GroupProcedureSpec struct {
-	By     []string
-	Except []string
+	GroupMode GroupMode
+	GroupKeys []string
 }
 
 func newGroupProcedure(qs query.OperationSpec, pa plan.Administration) (plan.ProcedureSpec, error) {
@@ -80,9 +140,22 @@ func newGroupProcedure(qs query.OperationSpec, pa plan.Administration) (plan.Pro
 		return nil, fmt.Errorf("invalid spec type %T", qs)
 	}
 
+	mode := groupModeFromSpec(spec)
+	var keys []string
+	switch mode {
+	case GroupModeAll:
+	case GroupModeNone:
+	case GroupModeBy:
+		keys = spec.By
+	case GroupModeExcept:
+		keys = spec.Except
+	default:
+		return nil, fmt.Errorf("invalid GroupOpSpec; multiple modes detected")
+	}
+
 	p := &GroupProcedureSpec{
-		By:     spec.By,
-		Except: spec.Except,
+		GroupMode: mode,
+		GroupKeys: keys,
 	}
 	return p, nil
 }
@@ -93,11 +166,10 @@ func (s *GroupProcedureSpec) Kind() plan.ProcedureKind {
 func (s *GroupProcedureSpec) Copy() plan.ProcedureSpec {
 	ns := new(GroupProcedureSpec)
 
-	ns.By = make([]string, len(s.By))
-	copy(ns.By, s.By)
+	ns.GroupMode = s.GroupMode
 
-	ns.Except = make([]string, len(s.Except))
-	copy(ns.Except, s.Except)
+	ns.GroupKeys = make([]string, len(s.GroupKeys))
+	copy(ns.GroupKeys, s.GroupKeys)
 
 	return ns
 }
@@ -120,19 +192,16 @@ func (s *GroupProcedureSpec) PushDown(root *plan.Procedure, dup func() *plan.Pro
 		selectSpec = root.Spec.(*FromProcedureSpec)
 		selectSpec.OrderByTime = false
 		selectSpec.GroupingSet = false
-		selectSpec.MergeAll = false
+		selectSpec.GroupMode = GroupModeDefault
 		selectSpec.GroupKeys = nil
-		selectSpec.GroupExcept = nil
 		return
 	}
 	selectSpec.GroupingSet = true
 	// TODO implement OrderByTime
 	//selectSpec.OrderByTime = true
 
-	// Merge all series into a single group if we have no specific grouping dimensions.
-	selectSpec.MergeAll = len(s.By) == 0 && len(s.Except) == 0
-	selectSpec.GroupKeys = s.By
-	selectSpec.GroupExcept = s.Except
+	selectSpec.GroupMode = s.GroupMode
+	selectSpec.GroupKeys = s.GroupKeys
 }
 
 type AggregateGroupRewriteRule struct {
@@ -196,23 +265,18 @@ type groupTransformation struct {
 	d     execute.Dataset
 	cache execute.BlockBuilderCache
 
-	keys   []string
-	except []string
-
-	// Ignoring is true of len(keys) == 0 && len(except) > 0
-	ignoring bool
+	mode GroupMode
+	keys []string
 }
 
 func NewGroupTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *GroupProcedureSpec) *groupTransformation {
 	t := &groupTransformation{
-		d:        d,
-		cache:    cache,
-		keys:     spec.By,
-		except:   spec.Except,
-		ignoring: len(spec.By) == 0 && len(spec.Except) > 0,
+		d:     d,
+		cache: cache,
+		mode:  spec.GroupMode,
+		keys:  spec.GroupKeys,
 	}
 	sort.Strings(t.keys)
-	sort.Strings(t.except)
 	return t
 }
 
@@ -233,14 +297,14 @@ func (t *groupTransformation) RetractBlock(id execute.DatasetID, key query.Parti
 func (t *groupTransformation) Process(id execute.DatasetID, b query.Block) error {
 	cols := b.Cols()
 	on := make(map[string]bool, len(cols))
-	if len(t.keys) > 0 {
+	if t.mode == GroupModeBy && len(t.keys) > 0 {
 		for _, k := range t.keys {
 			on[k] = true
 		}
-	} else if len(t.except) > 0 {
+	} else if t.mode == GroupModeExcept && len(t.keys) > 0 {
 	COLS:
 		for _, c := range cols {
-			for _, label := range t.except {
+			for _, label := range t.keys {
 				if c.Label == label {
 					continue COLS
 				}
