@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import LogsSearchBar from 'src/logs/components/LogsSearchBar'
 
 interface Props {
   thing: string
@@ -8,9 +9,7 @@ class LogsTableContainer extends PureComponent<Props> {
   public render() {
     return (
       <>
-        <div className="logs-viewer--search-container">
-          <p>search</p>
-        </div>
+        <LogsSearchBar thing="thing" />
         <div className="logs-viewer--table-container">
           <p>{this.props.thing}</p>
         </div>

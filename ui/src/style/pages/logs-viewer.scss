@@ -11,7 +11,7 @@ $logs-viewer-gutter: 60px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  flex-wrap: none;
+  flex-wrap: nowrap;
 }
 
 .logs-viewer--graph-container {
@@ -21,6 +21,9 @@ $logs-viewer-gutter: 60px;
 }
 
 .logs-viewer--search-container {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   padding: 20px $logs-viewer-gutter;
   height: $logs-viewer-search-height;
   background-color: $g3-castle;
@@ -30,4 +33,118 @@ $logs-viewer-gutter: 60px;
   padding: 12px $logs-viewer-gutter 30px $logs-viewer-gutter;
   height: calc(100% - #{$logs-viewer-graph-height + $logs-viewer-search-height});
   background-color: $g3-castle;
+}
+
+// Search Bar
+.logs-viewer--search {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.logs-viewer--search-input {
+  flex: 1 0 0;
+  margin-right: 8px;
+  position: relative;
+
+  > span.icon.search {
+    font-size: 14px;
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    color: $g8-storm;
+    transition: color 0.25s ease;
+  }
+
+  > input.form-control.input-sm {
+    padding-left: 30px;
+  }
+
+  > input.form-control.input-sm:focus + span.icon.search {
+    color: $c-pool;
+  }
+}
+
+// Filters Bar
+.logs-viewer--filters-container {
+  display: flex;
+  align-items: center;
+  @include no-user-select();
+  margin-top: 8px;
+}
+
+.logs-viewer--results-text {
+  margin: 0 12px 0 33px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 13px;
+  font-weight: 500;
+  color: $g9-mountain;
+
+  strong {
+    color: $g15-platinum;
+    font-weight: 700;
+  }
+}
+
+.logs-viewer--filters {
+  flex: 1 0 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.logs-viewer--filter {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  list-style: none;
+  padding: 0 2px 0 8px;
+  height: 26px;
+  border-radius: 4px;
+  background-color: $g5-pepper;
+  color: $g13-mist;
+  font-weight: 500;
+  margin: 2px;
+}
+
+.logs-viewer--filter-remove {
+  outline: none;
+  width: 24px;
+  height: 24px;
+  background-color: transparent;
+  border: 0;
+  position: relative;
+
+  &:before,
+  &:after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g8-storm;
+    transition: background-color 0.25s ease;
+    content: '';
+  }
+
+  &:before {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+
+  &:after {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+  
+  &:hover {
+    cursor: pointer;
+
+    &:before,
+    &:after {
+      background-color: $c-dreamsicle;
+    }
+  }
 }
