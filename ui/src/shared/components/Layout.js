@@ -4,7 +4,7 @@ import WidgetCell from 'shared/components/WidgetCell'
 import LayoutCell from 'shared/components/LayoutCell'
 import RefreshingGraph from 'shared/components/RefreshingGraph'
 import {buildQueriesForLayouts} from 'utils/buildQueriesForLayouts'
-import {IS_STATIC_LEGEND} from 'src/shared/constants'
+import {IS_STATIC_LEGEND, defaultIntervalValue} from 'src/shared/constants'
 
 import _ from 'lodash'
 
@@ -24,6 +24,7 @@ const getSource = (cell, source, sources, defaultSource) => {
 class LayoutState extends Component {
   state = {
     cellData: [],
+    resolution: defaultIntervalValue,
   }
 
   grabDataForDownload = cellData => {
@@ -36,8 +37,13 @@ class LayoutState extends Component {
         {...this.props}
         {...this.state}
         grabDataForDownload={this.grabDataForDownload}
+        onSetResolution={this.handleSetResolution}
       />
     )
+  }
+
+  handleSetResolution = resolution => {
+    this.setState({resolution})
   }
 }
 
@@ -60,6 +66,7 @@ const Layout = (
     sources,
     onZoom,
     cellData,
+    resolution,
     templates,
     timeRange,
     isEditable,
@@ -69,6 +76,7 @@ const Layout = (
     autoRefresh,
     manualRefresh,
     onDeleteCell,
+    onSetResolution,
     onCancelEditCell,
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
@@ -79,7 +87,9 @@ const Layout = (
   <LayoutCell
     cell={cell}
     cellData={cellData}
+    templates={templates}
     isEditable={isEditable}
+    resolution={resolution}
     onEditCell={onEditCell}
     onCloneCell={onCloneCell}
     onDeleteCell={onDeleteCell}
@@ -115,6 +125,7 @@ const Layout = (
           timeRange,
           host
         )}
+        onSetResolution={onSetResolution}
       />
     )}
   </LayoutCell>

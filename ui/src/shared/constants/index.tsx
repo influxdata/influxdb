@@ -438,8 +438,9 @@ export const DEFAULT_SOURCE = {
   metaUrl: '',
 }
 
+export const defaultIntervalValue = '333'
 export const intervalValuesPoints = [
-  {value: '333', type: 'points', selected: true},
+  {value: defaultIntervalValue, type: 'points', selected: true},
 ]
 
 export const interval = {
