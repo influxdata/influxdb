@@ -33,14 +33,7 @@ class LogsPage extends PureComponent<Props> {
   public render() {
     return (
       <div className="page">
-        <div className="page-header full-width">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Log Viewer</h1>
-            </div>
-            <div className="page-header__right">{this.header}</div>
-          </div>
-        </div>
+        {this.header}
         <div className="page-contents logs-viewer">
           <GraphContainer thing="wooo" />
           <TableContainer thing="snooo" />

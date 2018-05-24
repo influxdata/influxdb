@@ -56,16 +56,12 @@ class TimeRangeDropdown extends Component<Props, State> {
 
   public render() {
     const {selected, preventCustomTimeRange, page} = this.props
-    const {customTimeRange, isCustomTimeRangeOpen, isOpen} = this.state
+    const {customTimeRange, isCustomTimeRangeOpen} = this.state
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
         <div className="time-range-dropdown">
-          <div
-            className={classnames('dropdown dropdown-290', {
-              open: isOpen,
-            })}
-          >
+          <div className={this.dropdownClassName}>
             <div
               className="btn btn-sm btn-default dropdown-toggle"
               onClick={this.toggleMenu}
@@ -130,6 +126,21 @@ class TimeRangeDropdown extends Component<Props, State> {
         </div>
       </ClickOutside>
     )
+  }
+
+  private get dropdownClassName(): string {
+    const {
+      isOpen,
+      customTimeRange: {lower, upper},
+    } = this.state
+
+    const absoluteTimeRange = !!lower || !!upper
+
+    return classnames('dropdown', {
+      'dropdown-290': absoluteTimeRange,
+      'dropdown-120': !absoluteTimeRange,
+      open: isOpen,
+    })
   }
 
   private findTimeRangeInputValue = ({upper, lower}: TimeRange) => {
