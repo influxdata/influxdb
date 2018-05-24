@@ -1480,7 +1480,7 @@ The possible data types are:
 | Datatype     | IFQL type | Description                                                                          |
 | --------     | --------- | -----------                                                                          |
 | boolean      | bool      | a truth value, one of "true" or "false"                                              |
-| unsignedlong | uint      | an unsigned 64-bit integer                                                           |
+| unsignedLong | uint      | an unsigned 64-bit integer                                                           |
 | long         | int       | a signed 64-bit integer                                                              |
 | double       | float     | a IEEE-754 64-bit floating-point number                                              |
 | string       | string    | a UTF-8 encoded string                                                               |

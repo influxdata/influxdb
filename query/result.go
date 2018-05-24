@@ -27,6 +27,9 @@ type Block interface {
 	// RefCount modifies the reference count on the block by n.
 	// When the RefCount goes to zero, the block is freed.
 	RefCount(n int)
+
+	// Empty returns whether the block contains no records.
+	Empty() bool
 }
 
 type ColMeta struct {

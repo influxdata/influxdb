@@ -776,6 +776,9 @@ func (b *ColListBlock) Key() query.PartitionKey {
 func (b *ColListBlock) Cols() []query.ColMeta {
 	return b.colMeta
 }
+func (b *ColListBlock) Empty() bool {
+	return b.nrows == 0
+}
 func (b *ColListBlock) NRows() int {
 	return b.nrows
 }

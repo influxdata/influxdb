@@ -65,9 +65,7 @@ var symetricalTestCases = []TestCase{
 		}}},
 	},
 	{
-		name: "single empty table",
-		// The encoder cannot encode a empty tables, it needs to know ahead of time if it is empty
-		skip:          true,
+		name:          "single empty table",
 		encoderConfig: csv.DefaultEncoderConfig(),
 		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
 #partition,false,false,true,true,false,true,true,false
@@ -312,9 +310,7 @@ var symetricalTestCases = []TestCase{
 		}},
 	},
 	{
-		name: "multiple tables with one empty",
-		// The encoder cannot encode a empty tables, it needs to know ahead of time if it is empty
-		skip:          true,
+		name:          "multiple tables with one empty",
 		encoderConfig: csv.DefaultEncoderConfig(),
 		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
 #partition,false,false,true,true,false,true,true,false
@@ -327,7 +323,7 @@ var symetricalTestCases = []TestCase{
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
 #partition,false,false,true,true,false,true,true,false
-#default,_result,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,,cpu,A,
+#default,_result,2,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,,cpu,A,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 `),
 		result: &executetest.Result{Blks: []*executetest.Block{
