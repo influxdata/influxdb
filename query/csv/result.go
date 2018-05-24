@@ -80,6 +80,9 @@ type MultiResultDecoder struct {
 
 // NewMultiResultDecoder creates a new MultiResultDecoder.
 func NewMultiResultDecoder(c ResultDecoderConfig) *MultiResultDecoder {
+	if c.MaxBufferCount == 0 {
+		c.MaxBufferCount = defaultMaxBufferCount
+	}
 	return &MultiResultDecoder{
 		c: c,
 	}

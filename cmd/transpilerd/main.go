@@ -63,6 +63,7 @@ func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 	transpileHandler.QueryService = &http.QueryService{
 		Addr: hosts[0],
 	}
+	transpileHandler.Logger = logger
 
 	//TODO(nathanielc): Add health checks
 

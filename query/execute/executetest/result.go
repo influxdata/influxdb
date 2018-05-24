@@ -1,6 +1,8 @@
 package executetest
 
-import "github.com/influxdata/platform/query"
+import (
+	"github.com/influxdata/platform/query"
+)
 
 type Result struct {
 	Blks []*Block

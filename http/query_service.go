@@ -190,6 +190,12 @@ func (s *QueryService) QueryWithCompile(ctx context.Context, orgID platform.ID, 
 }
 
 func (s *QueryService) processResponse(resp *http.Response) (query.ResultIterator, error) {
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	// TODO(jsternberg): Handle a 204 response?
+
 	var decoder query.MultiResultDecoder
 	switch resp.Header.Get("Content-Type") {
 	case "text/csv":
