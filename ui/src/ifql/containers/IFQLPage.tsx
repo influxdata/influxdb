@@ -1,19 +1,13 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 import _ from 'lodash'
 
-import CheckServices from 'src/ifql/containers/CheckServices'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import IFQLHeader from 'src/ifql/components/IFQLHeader'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 
-import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {analyzeSuccess} from 'src/shared/copy/notifications'
-import {
-  updateScript as updateScriptAction,
-  UpdateScript,
-} from 'src/ifql/actions'
+import {UpdateScript} from 'src/ifql/actions'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
@@ -42,9 +36,6 @@ interface Props {
   notify: (message: Notification) => void
   script: string
   updateScript: UpdateScript
-  params: {
-    sourceID: string
-  }
 }
 
 interface Body extends FlatBody {
@@ -101,28 +92,26 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {script} = this.props
 
     return (
-      <CheckServices>
-        <IFQLContext.Provider value={this.handlers}>
-          <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
-            <div className="page hosts-list-page">
-              {this.header}
-              <TimeMachine
-                data={data}
-                body={body}
-                script={script}
-                status={status}
-                visStatus={visStatus}
-                suggestions={suggestions}
-                onAnalyze={this.handleAnalyze}
-                onAppendFrom={this.handleAppendFrom}
-                onAppendJoin={this.handleAppendJoin}
-                onChangeScript={this.handleChangeScript}
-                onSubmitScript={this.handleSubmitScript}
-              />
-            </div>
-          </KeyboardShortcuts>
-        </IFQLContext.Provider>
-      </CheckServices>
+      <IFQLContext.Provider value={this.handlers}>
+        <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
+          <div className="page hosts-list-page">
+            {this.header}
+            <TimeMachine
+              data={data}
+              body={body}
+              script={script}
+              status={status}
+              visStatus={visStatus}
+              suggestions={suggestions}
+              onAnalyze={this.handleAnalyze}
+              onAppendFrom={this.handleAppendFrom}
+              onAppendJoin={this.handleAppendJoin}
+              onChangeScript={this.handleChangeScript}
+              onSubmitScript={this.handleSubmitScript}
+            />
+          </div>
+        </KeyboardShortcuts>
+      </IFQLContext.Provider>
     )
   }
 
@@ -455,13 +444,4 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 }
 
-const mapStateToProps = ({links, services, sources, script}) => {
-  return {links: links.ifql, services, sources, script}
-}
-
-const mapDispatchToProps = {
-  notify: notifyAction,
-  updateScript: updateScriptAction,
-}
-
-export default connect(mapStateToProps, mapDispatchToProps)(IFQLPage)
+export default IFQLPage

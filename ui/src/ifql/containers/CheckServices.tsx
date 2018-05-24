@@ -1,10 +1,17 @@
 import React, {PureComponent, ReactChildren} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
+import {WithRouterProps} from 'react-router'
 
+import {IFQLPage} from 'src/ifql'
 import IFQLOverlay from 'src/ifql/components/IFQLOverlay'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
-import {Source, Service} from 'src/types'
+import {Source, Service, Notification} from 'src/types'
+import {Links} from 'src/types/ifql'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {
+  updateScript as updateScriptAction,
+  UpdateScript,
+} from 'src/ifql/actions'
 import * as a from 'src/shared/actions/overlayTechnology'
 import * as b from 'src/shared/actions/services'
 
@@ -16,6 +23,10 @@ interface Props {
   children: ReactChildren
   showOverlay: a.ShowOverlay
   fetchServicesAsync: b.FetchServicesAsync
+  notify: (message: Notification) => void
+  updateScript: UpdateScript
+  script: string
+  links: Links
 }
 
 export class CheckServices extends PureComponent<Props & WithRouterProps> {
@@ -36,11 +47,22 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
   }
 
   public render() {
+    const {services, sources, notify, updateScript, links, script} = this.props
+
     if (!this.props.services.length) {
-      return null
+      return null // put loading spinner here
     }
 
-    return this.props.children
+    return (
+      <IFQLPage
+        sources={sources}
+        services={services}
+        links={links}
+        script={script}
+        notify={notify}
+        updateScript={updateScript}
+      />
+    )
   }
 
   private overlay() {
@@ -69,8 +91,17 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
 const mdtp = {
   fetchServicesAsync: actions.fetchServicesAsync,
   showOverlay: actions.showOverlay,
+  updateScript: updateScriptAction,
+  notify: notifyAction,
 }
 
-const mstp = ({sources, services}) => ({sources, services})
+const mstp = ({sources, services, links, script}) => {
+  return {
+    links: links.ifql,
+    script,
+    sources,
+    services,
+  }
+}
 
-export default connect(mstp, mdtp)(withRouter(CheckServices))
+export default connect(mstp, mdtp)(CheckServices)
