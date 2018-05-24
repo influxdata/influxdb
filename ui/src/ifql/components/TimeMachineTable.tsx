@@ -37,7 +37,7 @@ export default class TimeMachineTable extends PureComponent<ScriptResult> {
   }: GridCellProps): React.ReactNode => {
     const {data} = this.props
     return (
-      <div key={key} style={style}>
+      <div key={key} style={style} className="table-graph-cell">
         {data[rowIndex][columnIndex]}
       </div>
     )

@@ -1,4 +1,5 @@
 import React, {PureComponent, CSSProperties} from 'react'
+import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ScriptResult, ScriptStatus} from 'src/types'
@@ -20,7 +21,13 @@ class TimeMachineVis extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
-    this.state = {selectedResultID: null}
+    this.state = {selectedResultID: this.initialResultID}
+  }
+
+  public componentDidUpdate(__, prevState) {
+    if (prevState.selectedResultID === null) {
+      this.setState({selectedResultID: this.initialResultID})
+    }
   }
 
   public render() {
@@ -40,6 +47,10 @@ class TimeMachineVis extends PureComponent<Props, State> {
     )
   }
 
+  private get initialResultID(): string {
+    return _.get(this.props.data, '0.id', null)
+  }
+
   private handleSelectResult = (selectedResultID: string): void => {
     this.setState({selectedResultID})
   }
@@ -51,7 +62,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
   }
 
   private get shouldShowTable(): boolean {
-    return !!this.selectedResult
+    return !!this.props.data && !!this.selectedResult
   }
 
   private get selectedResult(): ScriptResult {

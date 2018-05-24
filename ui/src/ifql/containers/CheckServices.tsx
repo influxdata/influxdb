@@ -36,6 +36,10 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
   }
 
   public render() {
+    if (!this.props.services.length) {
+      return null
+    }
+
     return this.props.children
   }
 

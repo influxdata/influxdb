@@ -93,6 +93,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     }
 
     this.getASTResponse(script)
+    this.getTimeSeries()
   }
 
   public render() {

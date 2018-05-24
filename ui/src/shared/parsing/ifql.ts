@@ -4,10 +4,10 @@ import uuid from 'uuid'
 
 import {ScriptResult} from 'src/types'
 
-export const parseResults = (resp: string): ScriptResult[] => {
-  return resp
+export const parseResults = (response: string): ScriptResult[] => {
+  return response
     .trim()
-    .split('\n\n')
+    .split(/\n\s*\n/)
     .map(parseResult)
 }
 
