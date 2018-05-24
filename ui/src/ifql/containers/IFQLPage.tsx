@@ -36,7 +36,7 @@ interface Status {
 interface Props {
   links: Links
   services: Service[]
-  sources: Source[]
+  source: Source
   notify: (message: Notification) => void
   script: string
   updateScript: UpdateScript
@@ -99,6 +99,7 @@ export class IFQLPage extends PureComponent<Props, State> {
               body={body}
               script={script}
               status={status}
+              service={this.service}
               suggestions={suggestions}
               onAnalyze={this.handleAnalyze}
               onAppendFrom={this.handleAppendFrom}

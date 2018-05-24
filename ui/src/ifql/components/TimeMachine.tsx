@@ -12,10 +12,13 @@ import {
   ScriptStatus,
   ScriptResult,
 } from 'src/types/ifql'
+
+import {Service} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
+  service: Service
   data: ScriptResult[]
   script: string
   body: Body[]
@@ -72,6 +75,7 @@ class TimeMachine extends PureComponent<Props> {
       body,
       script,
       status,
+      service,
       onAnalyze,
       suggestions,
       onAppendFrom,
@@ -85,7 +89,7 @@ class TimeMachine extends PureComponent<Props> {
         name: 'Explore',
         headerButtons: [],
         menuOptions: [],
-        render: () => <SchemaExplorer />,
+        render: () => <SchemaExplorer service={service} />,
       },
       {
         name: 'Script',

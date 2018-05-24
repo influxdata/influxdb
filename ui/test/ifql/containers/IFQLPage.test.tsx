@@ -15,7 +15,7 @@ const setup = () => {
       ast: '',
     },
     services: [],
-    sources: [],
+    source: [],
     script: '',
     notify: () => {},
     params: {

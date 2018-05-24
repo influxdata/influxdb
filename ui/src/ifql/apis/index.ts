@@ -3,7 +3,7 @@ import _ from 'lodash'
 import AJAX from 'src/utils/ajax'
 import {Service, ScriptResult} from 'src/types'
 import {updateService} from 'src/shared/apis'
-import {parseResults} from 'src/shared/parsing/ifql'
+import {parseResults} from 'src/shared/parsing/v2/results'
 
 export const getSuggestions = async (url: string) => {
   try {

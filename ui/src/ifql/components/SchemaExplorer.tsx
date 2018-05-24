@@ -1,8 +1,15 @@
 import React, {PureComponent} from 'react'
 import DatabaseList from 'src/ifql/components/DatabaseList'
 
-class SchemaExplorer extends PureComponent {
+import {Service} from 'src/types'
+
+interface Props {
+  service: Service
+}
+
+class SchemaExplorer extends PureComponent<Props> {
   public render() {
+    const {service} = this.props
     return (
       <div className="ifql-schema-explorer">
         <div className="ifql-schema--controls">
@@ -23,7 +30,7 @@ class SchemaExplorer extends PureComponent {
             <span className="icon collapse" />
           </button>
         </div>
-        <DatabaseList />
+        <DatabaseList service={service} />
       </div>
     )
   }

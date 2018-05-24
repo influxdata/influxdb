@@ -1,4 +1,4 @@
-import {parseResults} from 'src/shared/parsing/ifql'
+import {parseResults} from 'src/shared/parsing/v2/results'
 import {
   RESPONSE_NO_METADATA,
   RESPONSE_METADATA,
@@ -6,9 +6,9 @@ import {
   LARGE_RESPONSE,
   EXPECTED_METADATA,
   EXPECTED_COLUMNS,
-} from 'test/shared/parsing/constants'
+} from 'test/shared/parsing/v2/constants'
 
-describe('IFQL response parser', () => {
+describe('IFQL results parser', () => {
   it('parseResults into the right number of tables', () => {
     const result = parseResults(LARGE_RESPONSE)
 
