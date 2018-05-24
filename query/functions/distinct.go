@@ -103,7 +103,9 @@ func (r DistinctPointLimitRewriteRule) Rewrite(pr *plan.Procedure, planner plan.
 	}
 
 	groupStar := !fromSpec.GroupingSet && distinct.Column != execute.DefaultValueColLabel
-	groupByColumn := fromSpec.GroupingSet && ((len(fromSpec.GroupKeys) > 0 && execute.ContainsStr(fromSpec.GroupKeys, distinct.Column)) || (len(fromSpec.GroupExcept) > 0 && !execute.ContainsStr(fromSpec.GroupExcept, distinct.Column)))
+	groupByColumn := fromSpec.GroupingSet && len(fromSpec.GroupKeys) > 0 &&
+		((fromSpec.GroupMode == GroupModeBy && execute.ContainsStr(fromSpec.GroupKeys, distinct.Column)) ||
+			(fromSpec.GroupMode == GroupModeExcept && !execute.ContainsStr(fromSpec.GroupKeys, distinct.Column)))
 	if groupStar || groupByColumn {
 		fromSpec.LimitSet = true
 		fromSpec.PointsLimit = -1
@@ -150,8 +152,20 @@ func (t *distinctTransformation) Process(id execute.DatasetID, b query.Block) er
 
 	colIdx := execute.ColIdx(t.column, b.Cols())
 	if colIdx < 0 {
-		return fmt.Errorf("no column %q exists", t.column)
+		// doesn't exist in this block, so add an empty value
+		execute.AddBlockKeyCols(b.Key(), builder)
+		colIdx = builder.AddCol(query.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  query.TString,
+		})
+		builder.AppendString(colIdx, "")
+		execute.AppendKeyValues(b.Key(), builder)
+		// TODO: hack required to ensure data flows downstream
+		return b.Do(func(query.ColReader) error {
+			return nil
+		})
 	}
+
 	col := b.Cols()[colIdx]
 
 	execute.AddBlockKeyCols(b.Key(), builder)
@@ -178,7 +192,7 @@ func (t *distinctTransformation) Process(id execute.DatasetID, b query.Block) er
 		}
 
 		execute.AppendKeyValues(b.Key(), builder)
-		// TODO: this is a hack
+		// TODO: hack required to ensure data flows downstream
 		return b.Do(func(query.ColReader) error {
 			return nil
 		})

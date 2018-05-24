@@ -33,7 +33,8 @@ func TestGroup_Process(t *testing.T) {
 		{
 			name: "fan in",
 			spec: &functions.GroupProcedureSpec{
-				By: []string{"t1"},
+				GroupMode: functions.GroupModeBy,
+				GroupKeys: []string{"t1"},
 			},
 			data: []query.Block{
 				&executetest.Block{
@@ -117,7 +118,8 @@ func TestGroup_Process(t *testing.T) {
 		{
 			name: "fan in ignoring",
 			spec: &functions.GroupProcedureSpec{
-				Except: []string{"_time", "_value", "t2"},
+				GroupMode: functions.GroupModeExcept,
+				GroupKeys: []string{"_time", "_value", "t2"},
 			},
 			data: []query.Block{
 				&executetest.Block{
@@ -207,7 +209,8 @@ func TestGroup_Process(t *testing.T) {
 		{
 			name: "fan out",
 			spec: &functions.GroupProcedureSpec{
-				By: []string{"t1"},
+				GroupMode: functions.GroupModeBy,
+				GroupKeys: []string{"t1"},
 			},
 			data: []query.Block{&executetest.Block{
 				ColMeta: []query.ColMeta{
@@ -248,7 +251,8 @@ func TestGroup_Process(t *testing.T) {
 		{
 			name: "fan out ignoring",
 			spec: &functions.GroupProcedureSpec{
-				Except: []string{"_time", "_value", "t2"},
+				GroupMode: functions.GroupModeExcept,
+				GroupKeys: []string{"_time", "_value", "t2"},
 			},
 			data: []query.Block{&executetest.Block{
 				ColMeta: []query.ColMeta{
@@ -310,7 +314,8 @@ func TestGroup_Process(t *testing.T) {
 
 func TestGroup_PushDown(t *testing.T) {
 	spec := &functions.GroupProcedureSpec{
-		By: []string{"t1", "t2"},
+		GroupMode: functions.GroupModeBy,
+		GroupKeys: []string{"t1", "t2"},
 	}
 	root := &plan.Procedure{
 		Spec: new(functions.FromProcedureSpec),
@@ -318,7 +323,7 @@ func TestGroup_PushDown(t *testing.T) {
 	want := &plan.Procedure{
 		Spec: &functions.FromProcedureSpec{
 			GroupingSet: true,
-			MergeAll:    false,
+			GroupMode:   functions.GroupModeBy,
 			GroupKeys:   []string{"t1", "t2"},
 		},
 	}
@@ -327,12 +332,13 @@ func TestGroup_PushDown(t *testing.T) {
 }
 func TestGroup_PushDown_Duplicate(t *testing.T) {
 	spec := &functions.GroupProcedureSpec{
-		By: []string{"t1", "t2"},
+		GroupMode: functions.GroupModeBy,
+		GroupKeys: []string{"t1", "t2"},
 	}
 	root := &plan.Procedure{
 		Spec: &functions.FromProcedureSpec{
 			GroupingSet: true,
-			MergeAll:    true,
+			GroupMode:   functions.GroupModeAll,
 		},
 	}
 	want := &plan.Procedure{
