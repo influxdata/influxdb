@@ -5,10 +5,13 @@ import uuid from 'uuid'
 import {ScriptResult} from 'src/types'
 
 export const parseResults = (response: string): ScriptResult[] => {
-  return response
-    .trim()
-    .split(/\n\s*\n/)
-    .map(parseResult)
+  const trimmedReponse = response.trim()
+
+  if (_.isEmpty(trimmedReponse)) {
+    return []
+  }
+
+  return trimmedReponse.split(/\n\s*\n/).map(parseResult)
 }
 
 export const parseResult = (raw: string, index: number): ScriptResult => {

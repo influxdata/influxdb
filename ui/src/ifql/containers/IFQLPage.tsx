@@ -6,7 +6,10 @@ import IFQLHeader from 'src/ifql/components/IFQLHeader'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 
-import {analyzeSuccess} from 'src/shared/copy/notifications'
+import {
+  analyzeSuccess,
+  ifqlTimeSeriesError,
+} from 'src/shared/copy/notifications'
 import {UpdateScript} from 'src/ifql/actions'
 
 import {bodyNodes} from 'src/ifql/helpers'
@@ -22,6 +25,7 @@ import {
   Handlers,
   DeleteFuncNodeArgs,
   Func,
+  ScriptStatus,
 } from 'src/types/ifql'
 
 interface Status {
@@ -46,9 +50,8 @@ interface State {
   body: Body[]
   ast: object
   data: ScriptResult[]
+  status: ScriptStatus
   suggestions: Suggestion[]
-  status: Status
-  visStatus: Status
 }
 
 export const IFQLContext = React.createContext()
@@ -66,15 +69,11 @@ export class IFQLPage extends PureComponent<Props, State> {
         type: 'none',
         text: '',
       },
-      visStatus: {
-        type: 'info',
-        text: '',
-      },
     }
   }
 
   public async componentDidMount() {
-    const {links, script} = this.props
+    const {links} = this.props
 
     try {
       const suggestions = await getSuggestions(links.suggestions)
@@ -83,12 +82,11 @@ export class IFQLPage extends PureComponent<Props, State> {
       console.error('Could not get function suggestions: ', error)
     }
 
-    this.getASTResponse(script)
     this.getTimeSeries()
   }
 
   public render() {
-    const {suggestions, data, body, status, visStatus} = this.state
+    const {suggestions, data, body, status} = this.state
     const {script} = this.props
 
     return (
@@ -101,7 +99,6 @@ export class IFQLPage extends PureComponent<Props, State> {
               body={body}
               script={script}
               status={status}
-              visStatus={visStatus}
               suggestions={suggestions}
               onAnalyze={this.handleAnalyze}
               onAppendFrom={this.handleAppendFrom}
@@ -397,6 +394,10 @@ export class IFQLPage extends PureComponent<Props, State> {
   private getASTResponse = async (script: string) => {
     const {links} = this.props
 
+    if (!script) {
+      return
+    }
+
     try {
       const ast = await getAST({url: links.ast, body: script})
       const suggestions = this.state.suggestions.map(s => {
@@ -423,18 +424,28 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private getTimeSeries = async () => {
-    const {script} = this.props
-    this.setState({visStatus: {type: 'loading', text: 'Fetching results...'}})
+    const {script, links, notify} = this.props
+
+    if (!script) {
+      return
+    }
+
+    try {
+      await getAST({url: links.ast, body: script})
+    } catch (error) {
+      this.setState({status: this.parseError(error)})
+      return console.error('Could not parse AST', error)
+    }
 
     try {
       const data = await getTimeSeries(this.service, script)
       this.setState({data})
     } catch (error) {
-      this.setState({data: error})
+      this.setState({data: []})
+
+      notify(ifqlTimeSeriesError(error))
       console.error('Could not get timeSeries', error)
     }
-
-    this.getASTResponse(script)
   }
 
   private parseError = (error): Status => {

@@ -26,7 +26,6 @@ interface Props {
   onAppendFrom: () => void
   onAppendJoin: () => void
   onAnalyze: () => void
-  visStatus: ScriptStatus
 }
 
 interface Body extends FlatBody {
@@ -46,7 +45,7 @@ class TimeMachine extends PureComponent<Props> {
   }
 
   private get mainSplit() {
-    const {data, visStatus} = this.props
+    const {data} = this.props
     return [
       {
         handleDisplay: 'none',
@@ -63,7 +62,7 @@ class TimeMachine extends PureComponent<Props> {
         handlePixels: 8,
         menuOptions: [],
         headerButtons: [],
-        render: () => <TimeMachineVis data={data} status={visStatus} />,
+        render: () => <TimeMachineVis data={data} />,
       },
     ]
   }

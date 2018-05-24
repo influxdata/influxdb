@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 import AJAX from 'src/utils/ajax'
 import {Service, ScriptResult} from 'src/types'
 import {updateService} from 'src/shared/apis'
@@ -56,7 +58,9 @@ export const getTimeSeries = async (
     return parseResults(data)
   } catch (error) {
     console.error('Problem fetching data', error)
-    throw error.data.message
+
+    throw _.get(error, 'headers.x-influx-error', false) ||
+      _.get(error, 'data.message', 'unknown error 🤷')
   }
 }
 
