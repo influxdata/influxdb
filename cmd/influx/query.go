@@ -21,88 +21,39 @@ import (
 	"github.com/spf13/viper"
 )
 
-var ifqlCmd = &cobra.Command{
-	Use:   "ifql",
-	Short: "Commands to interact with an IFQL server",
-	Run:   ifqlF,
+var queryCmd = &cobra.Command{
+	Use:   "query [query literal or @/path/to/query.ifql]",
+	Short: "Execute an IFQL query",
+	Long: `Execute a literal IFQL query provided as a string,
+		or execute a literal IFQL query contained in a file by specifying the file prefixed with an @ sign.`,
+	Args: cobra.ExactArgs(1),
+	Run:  ifqlQueryF,
 }
 
-var ifqlFlags struct {
+var queryFlags struct {
 	StorageHosts string
 	OrgID        string
 	Verbose      bool
 }
 
 func init() {
-	ifqlCmd.PersistentFlags().StringVar(&ifqlFlags.StorageHosts, "storage-hosts", "localhost:8082", "Comma-separated list of storage hosts")
+	queryCmd.PersistentFlags().StringVar(&queryFlags.StorageHosts, "storage-hosts", "localhost:8082", "Comma-separated list of storage hosts")
 	viper.BindEnv("STORAGE_HOSTS")
 	if h := viper.GetString("STORAGE_HOSTS"); h != "" {
-		ifqlFlags.StorageHosts = h
+		queryFlags.StorageHosts = h
 	}
 
-	ifqlCmd.PersistentFlags().BoolVarP(&ifqlFlags.Verbose, "verbose", "v", false, "Verbose output")
+	queryCmd.PersistentFlags().BoolVarP(&queryFlags.Verbose, "verbose", "v", false, "Verbose output")
 	viper.BindEnv("VERBOSE")
 	if viper.GetBool("VERBOSE") {
-		ifqlFlags.Verbose = true
+		queryFlags.Verbose = true
 	}
 
-	ifqlCmd.PersistentFlags().StringVar(&ifqlFlags.OrgID, "org-id", "", "Organization ID")
+	queryCmd.PersistentFlags().StringVar(&queryFlags.OrgID, "org-id", "", "Organization ID")
 	viper.BindEnv("ORG_ID")
 	if h := viper.GetString("ORG_ID"); h != "" {
-		ifqlFlags.OrgID = h
+		queryFlags.OrgID = h
 	}
-}
-
-func ifqlF(cmd *cobra.Command, args []string) {
-	cmd.Usage()
-}
-
-func init() {
-	ifqlCmd.AddCommand(&cobra.Command{
-		Use:   "repl",
-		Short: "Interactive IFQL REPL (read-eval-print-loop)",
-		Args:  cobra.NoArgs,
-		Run:   ifqlReplF,
-	})
-}
-
-func ifqlReplF(cmd *cobra.Command, args []string) {
-	hosts, err := storageHostReader(strings.Split(ifqlFlags.StorageHosts, ","))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	org, err := orgID(ifqlFlags.OrgID)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	buckets, err := bucketService(flags.host, flags.token)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	r, err := getIFQLREPL(hosts, buckets, org, ifqlFlags.Verbose)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	r.Run()
-}
-
-func init() {
-	ifqlCmd.AddCommand(&cobra.Command{
-		Use:   "query [query literal or @/path/to/query.ifql]",
-		Short: "Execute an IFQL query",
-		Long: `Execute a literal IFQL query provided as a string,
-		or execute a literal IFQL query contained in a file by specifying the file prefixed with an @ sign.`,
-		Args: cobra.ExactArgs(1),
-		Run:  ifqlQueryF,
-	})
 }
 
 func ifqlQueryF(cmd *cobra.Command, args []string) {
@@ -112,13 +63,13 @@ func ifqlQueryF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	hosts, err := storageHostReader(strings.Split(ifqlFlags.StorageHosts, ","))
+	hosts, err := storageHostReader(strings.Split(queryFlags.StorageHosts, ","))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	org, err := orgID(ifqlFlags.OrgID)
+	org, err := orgID(queryFlags.OrgID)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -130,7 +81,7 @@ func ifqlQueryF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	r, err := getIFQLREPL(hosts, buckets, org, ifqlFlags.Verbose)
+	r, err := getIFQLREPL(hosts, buckets, org, queryFlags.Verbose)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -166,7 +117,7 @@ func bucketService(addr, token string) (platform.BucketService, error) {
 
 func orgID(org string) (ifqlid.ID, error) {
 	var oid ifqlid.ID
-	err := oid.DecodeFromString(ifqlFlags.OrgID)
+	err := oid.DecodeFromString(org)
 	return oid, err
 }
 

@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/cmd/idp/internal"
+	"github.com/influxdata/platform/cmd/influx/internal"
 	"github.com/influxdata/platform/http"
 	"github.com/spf13/cobra"
 )
