@@ -29,14 +29,14 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 
 	for results.More() {
 		name, r := results.Next()
+		id, err := strconv.Atoi(name)
+		if err != nil {
+			return fmt.Errorf("unable to parse statement id from result name: %s", err)
+		}
 
 		blocks := r.Blocks()
-		nameInt, err := strconv.Atoi(name)
-		if err != nil {
-			return fmt.Errorf("error converting result name to integer: %s", name)
-		}
-		result := Result{StatementID: nameInt}
 
+		result := Result{StatementID: id}
 		err = blocks.Do(func(b query.Block) error {
 			r := NewRow()
 

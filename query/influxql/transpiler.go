@@ -157,9 +157,13 @@ func (t *transpilerState) Transpile(ctx context.Context) (*query.Spec, error) {
 	}
 
 	// Map each of the fields in the symbol table to their appropriate column.
-	if _, err := t.mapFields(mapIn, symbolTable); err != nil {
+	mapId, err := t.mapFields(mapIn, symbolTable)
+	if err != nil {
 		return nil, err
 	}
+
+	// Yield the statement to the name zero.
+	t.op("yield", &functions.YieldOpSpec{Name: "0"}, mapId)
 	return t.spec, nil
 }
 

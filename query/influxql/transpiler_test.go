@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/query/ast"
-	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/semantic"
 	influxqllib "github.com/influxdata/influxql"
+	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/influxql"
+	"github.com/influxdata/platform/query/semantic"
 )
 
 var passThroughProperties = []*semantic.Property{}
@@ -113,6 +113,12 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
 				},
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
@@ -120,6 +126,7 @@ func TestTranspiler(t *testing.T) {
 					{Parent: "filter0", Child: "group0"},
 					{Parent: "group0", Child: "mean0"},
 					{Parent: "mean0", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
 				},
 			},
 		},
@@ -198,11 +205,18 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
 				},
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
 					{Parent: "range0", Child: "filter0"},
 					{Parent: "filter0", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
 				},
 			},
 		},
@@ -405,6 +419,12 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
 				},
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
@@ -418,6 +438,7 @@ func TestTranspiler(t *testing.T) {
 					{Parent: "mean0", Child: "join0"},
 					{Parent: "max0", Child: "join0"},
 					{Parent: "join0", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
 				},
 			},
 		},
@@ -592,6 +613,12 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
 				},
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
@@ -601,6 +628,7 @@ func TestTranspiler(t *testing.T) {
 					{Parent: "filter0", Child: "join0"},
 					{Parent: "filter1", Child: "join0"},
 					{Parent: "join0", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
 				},
 			},
 		},

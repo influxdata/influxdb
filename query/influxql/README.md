@@ -81,3 +81,12 @@ If there are any variables that are fields and are not the primary field being s
         |> map(fn: (r) => {_value: r.val1})
 
 The created cursor is then used to map the results.
+
+## Yielding Results
+
+Each result is yielded with the statement id as the name.
+
+    > SELECT max(usage_user) FROM telegraf..cpu
+    ... |> yield(name: "0")
+
+Successive commands will increment the name used by yield so that results can be ordered correctly when encoding the result.
