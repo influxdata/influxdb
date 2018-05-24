@@ -593,9 +593,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	}
 	f1 := MustWriteTSM(dir, 1, writes)
 
-	ts := tsm1.Tombstoner{
-		Path: f1,
-	}
+	ts := tsm1.NewTombstoner(f1, nil)
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, math.MinInt64, math.MaxInt64)
 
 	if err := ts.Flush(); err != nil {
@@ -697,9 +695,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	}
 	f1 := MustWriteTSM(dir, 1, writes)
 
-	ts := tsm1.Tombstoner{
-		Path: f1,
-	}
+	ts := tsm1.NewTombstoner(f1, nil)
 	// a1 should remain after compaction
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 2, math.MaxInt64)
 
@@ -806,9 +802,7 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	}
 	f1 := MustWriteTSM(dir, 1, writes)
 
-	ts := tsm1.Tombstoner{
-		Path: f1,
-	}
+	ts := tsm1.NewTombstoner(f1, nil)
 	// a1, a3 should remain after compaction
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 2, 2)
 	ts.AddRange([][]byte{[]byte("cpu,host=A#!~#value")}, 4, 4)
