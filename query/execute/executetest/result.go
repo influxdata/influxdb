@@ -5,11 +5,16 @@ import (
 )
 
 type Result struct {
+	Nm   string
 	Blks []*Block
 }
 
 func NewResult(blocks []*Block) *Result {
 	return &Result{Blks: blocks}
+}
+
+func (r *Result) Name() string {
+	return r.Nm
 }
 
 func (r *Result) Blocks() query.BlockIterator {

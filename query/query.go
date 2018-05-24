@@ -21,9 +21,9 @@ type ResultIterator interface {
 	// More must be called until it returns false in order to free all resources.
 	More() bool
 
-	// Next returns the next name and results.
+	// Next returns the next result.
 	// If More is false, Next panics.
-	Next() (string, Result)
+	Next() Result
 
 	// Cancel discards the remaining results.
 	// If not all results are going to be read, Cancel must be called to free resources.
@@ -125,7 +125,7 @@ DONE:
 	return false
 }
 
-func (r *resultIterator) Next() (string, Result) {
+func (r *resultIterator) Next() Result {
 	return r.results.Next()
 }
 
@@ -163,10 +163,10 @@ func (r *MapResultIterator) More() bool {
 	return len(r.order) > 0
 }
 
-func (r *MapResultIterator) Next() (string, Result) {
+func (r *MapResultIterator) Next() Result {
 	next := r.order[0]
 	r.order = r.order[1:]
-	return next, r.results[next]
+	return r.results[next]
 }
 
 func (r *MapResultIterator) Cancel() {
@@ -174,5 +174,32 @@ func (r *MapResultIterator) Cancel() {
 }
 
 func (r *MapResultIterator) Err() error {
+	return nil
+}
+
+type SliceResultIterator struct {
+	results []Result
+}
+
+func NewSliceResultIterator(results []Result) *SliceResultIterator {
+	return &SliceResultIterator{
+		results: results,
+	}
+}
+
+func (r *SliceResultIterator) More() bool {
+	return len(r.results) > 0
+}
+
+func (r *SliceResultIterator) Next() Result {
+	next := r.results[0]
+	r.results = r.results[1:]
+	return next
+}
+
+func (r *SliceResultIterator) Cancel() {
+}
+
+func (r *SliceResultIterator) Err() error {
 	return nil
 }

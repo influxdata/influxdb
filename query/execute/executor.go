@@ -88,7 +88,7 @@ func (e *executor) createExecutionState(ctx context.Context, orgID id.ID, p *pla
 		if err != nil {
 			return nil, err
 		}
-		r := newResult(yield)
+		r := newResult(name, yield)
 		ds.AddTransformation(r)
 		es.results[name] = r
 	}

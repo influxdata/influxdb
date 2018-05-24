@@ -7,6 +7,7 @@ import (
 )
 
 type Result interface {
+	Name() string
 	// Blocks returns a BlockIterator for iterating through results
 	Blocks() BlockIterator
 }
@@ -138,10 +139,17 @@ type MultiResultEncoder interface {
 
 // DelimitedMultiResultEncoder encodes multiple results using a trailing delimiter.
 // The delimiter is written after every result.
+//
+// If an error is encountered when iterating EncodeError will be called on the Encoder.
+//
 // If the io.Writer implements flusher, it will be flushed after each delimiter.
 type DelimitedMultiResultEncoder struct {
 	Delimiter []byte
-	Encoder   ResultEncoder
+	Encoder   interface {
+		ResultEncoder
+		// EncodeError encodes an error on the writer.
+		EncodeError(w io.Writer, err error) error
+	}
 }
 
 type flusher interface {
@@ -150,18 +158,21 @@ type flusher interface {
 
 func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator) error {
 	for results.More() {
-		//TODO(nathanielc): Make the result name a property of a result.
-		_, result := results.Next()
+		result := results.Next()
 		if err := e.Encoder.Encode(w, result); err != nil {
 			return err
 		}
 		if _, err := w.Write(e.Delimiter); err != nil {
-			return nil
+			return err
 		}
 		// Flush the writer after each result
 		if f, ok := w.(flusher); ok {
 			f.Flush()
 		}
 	}
-	return results.Err()
+	err := results.Err()
+	if err != nil {
+		return e.Encoder.EncodeError(w, err)
+	}
+	return nil
 }

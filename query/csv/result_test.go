@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/execute/executetest"
 	"github.com/influxdata/platform/query/values"
+	"github.com/pkg/errors"
 )
 
 type TestCase struct {
@@ -34,76 +35,9 @@ var symetricalTestCases = []TestCase{
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:01Z,cpu,A,43
 `),
-		result: &executetest.Result{Blks: []*executetest.Block{{
-			KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-			ColMeta: []query.ColMeta{
-				{Label: "_start", Type: query.TTime},
-				{Label: "_stop", Type: query.TTime},
-				{Label: "_time", Type: query.TTime},
-				{Label: "_measurement", Type: query.TString},
-				{Label: "host", Type: query.TString},
-				{Label: "_value", Type: query.TFloat},
-			},
-			Data: [][]interface{}{
-				{
-					values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-					values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-					values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-					"cpu",
-					"A",
-					42.0,
-				},
-				{
-					values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-					values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-					values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
-					"cpu",
-					"A",
-					43.0,
-				},
-			},
-		}}},
-	},
-	{
-		name:          "single empty table",
-		encoderConfig: csv.DefaultEncoderConfig(),
-		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
-#default,_result,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,,cpu,A,
-,result,table,_start,_stop,_time,_measurement,host,_value
-`),
-		result: &executetest.Result{Blks: []*executetest.Block{{
-			KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-			KeyValues: []interface{}{
-				values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-				values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-				"cpu",
-				"A",
-			},
-			ColMeta: []query.ColMeta{
-				{Label: "_start", Type: query.TTime},
-				{Label: "_stop", Type: query.TTime},
-				{Label: "_time", Type: query.TTime},
-				{Label: "_measurement", Type: query.TString},
-				{Label: "host", Type: query.TString},
-				{Label: "_value", Type: query.TFloat},
-			},
-		}}},
-	},
-	{
-		name:          "multiple tables",
-		encoderConfig: csv.DefaultEncoderConfig(),
-		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
-#default,_result,,,,,,,
-,result,table,_start,_stop,_time,_measurement,host,_value
-,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
-,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:01Z,cpu,A,43
-,,1,2018-04-17T00:05:00Z,2018-04-17T00:10:00Z,2018-04-17T00:06:00Z,mem,A,52
-,,1,2018-04-17T00:05:00Z,2018-04-17T00:10:00Z,2018-04-17T00:07:01Z,mem,A,53
-`),
-		result: &executetest.Result{Blks: []*executetest.Block{
-			{
+		result: &executetest.Result{
+			Nm: "_result",
+			Blks: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -131,9 +65,27 @@ var symetricalTestCases = []TestCase{
 						43.0,
 					},
 				},
-			},
-			{
+			}},
+		},
+	},
+	{
+		name:          "single empty table",
+		encoderConfig: csv.DefaultEncoderConfig(),
+		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
+#partition,false,false,true,true,false,true,true,false
+#default,_result,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,,cpu,A,
+,result,table,_start,_stop,_time,_measurement,host,_value
+`),
+		result: &executetest.Result{
+			Nm: "_result",
+			Blks: []*executetest.Block{{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+				KeyValues: []interface{}{
+					values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+					values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+					"cpu",
+					"A",
+				},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
 					{Label: "_stop", Type: query.TTime},
@@ -142,26 +94,84 @@ var symetricalTestCases = []TestCase{
 					{Label: "host", Type: query.TString},
 					{Label: "_value", Type: query.TFloat},
 				},
-				Data: [][]interface{}{
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 6, 0, 0, time.UTC)),
-						"mem",
-						"A",
-						52.0,
+			}},
+		},
+	},
+	{
+		name:          "multiple tables",
+		encoderConfig: csv.DefaultEncoderConfig(),
+		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
+#partition,false,false,true,true,false,true,true,false
+#default,_result,,,,,,,
+,result,table,_start,_stop,_time,_measurement,host,_value
+,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
+,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:01Z,cpu,A,43
+,,1,2018-04-17T00:05:00Z,2018-04-17T00:10:00Z,2018-04-17T00:06:00Z,mem,A,52
+,,1,2018-04-17T00:05:00Z,2018-04-17T00:10:00Z,2018-04-17T00:07:01Z,mem,A,53
+`),
+		result: &executetest.Result{
+			Nm: "_result",
+			Blks: []*executetest.Block{
+				{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
 					},
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 7, 1, 0, time.UTC)),
-						"mem",
-						"A",
-						53.0,
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							"cpu",
+							"A",
+							42.0,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
+							"cpu",
+							"A",
+							43.0,
+						},
+					},
+				},
+				{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 6, 0, 0, time.UTC)),
+							"mem",
+							"A",
+							52.0,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 7, 1, 0, time.UTC)),
+							"mem",
+							"A",
+							53.0,
+						},
 					},
 				},
 			},
-		}},
+		},
 	},
 	{
 		name:          "multiple tables with differing schemas",
@@ -184,130 +194,133 @@ var symetricalTestCases = []TestCase{
 ,,3,2018-04-17T00:05:00Z,2018-04-17T00:10:00Z,2018-04-17T00:06:00Z,Europe,4623,52,89.3
 ,,3,2018-04-17T00:05:00Z,2018-04-17T00:10:00Z,2018-04-17T00:07:01Z,Europe,3163,53,55.6
 `),
-		result: &executetest.Result{Blks: []*executetest.Block{
-			{
-				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []query.ColMeta{
-					{Label: "_start", Type: query.TTime},
-					{Label: "_stop", Type: query.TTime},
-					{Label: "_time", Type: query.TTime},
-					{Label: "_measurement", Type: query.TString},
-					{Label: "host", Type: query.TString},
-					{Label: "_value", Type: query.TFloat},
-				},
-				Data: [][]interface{}{
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						"cpu",
-						"A",
-						42.0,
+		result: &executetest.Result{
+			Nm: "_result",
+			Blks: []*executetest.Block{
+				{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
 					},
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
-						"cpu",
-						"A",
-						43.0,
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							"cpu",
+							"A",
+							42.0,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
+							"cpu",
+							"A",
+							43.0,
+						},
+					},
+				},
+				{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 6, 0, 0, time.UTC)),
+							"mem",
+							"A",
+							52.0,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 7, 1, 0, time.UTC)),
+							"mem",
+							"A",
+							53.0,
+						},
+					},
+				},
+				{
+					KeyCols: []string{"_start", "_stop", "location"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "location", Type: query.TString},
+						{Label: "device", Type: query.TString},
+						{Label: "min", Type: query.TFloat},
+						{Label: "max", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							"USA",
+							"1563",
+							42.0,
+							67.9,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
+							"USA",
+							"1414",
+							43.0,
+							44.7,
+						},
+					},
+				},
+				{
+					KeyCols: []string{"_start", "_stop", "location"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "location", Type: query.TString},
+						{Label: "device", Type: query.TString},
+						{Label: "min", Type: query.TFloat},
+						{Label: "max", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 6, 0, 0, time.UTC)),
+							"Europe",
+							"4623",
+							52.0,
+							89.3,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 7, 1, 0, time.UTC)),
+							"Europe",
+							"3163",
+							53.0,
+							55.6,
+						},
 					},
 				},
 			},
-			{
-				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []query.ColMeta{
-					{Label: "_start", Type: query.TTime},
-					{Label: "_stop", Type: query.TTime},
-					{Label: "_time", Type: query.TTime},
-					{Label: "_measurement", Type: query.TString},
-					{Label: "host", Type: query.TString},
-					{Label: "_value", Type: query.TFloat},
-				},
-				Data: [][]interface{}{
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 6, 0, 0, time.UTC)),
-						"mem",
-						"A",
-						52.0,
-					},
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 7, 1, 0, time.UTC)),
-						"mem",
-						"A",
-						53.0,
-					},
-				},
-			},
-			{
-				KeyCols: []string{"_start", "_stop", "location"},
-				ColMeta: []query.ColMeta{
-					{Label: "_start", Type: query.TTime},
-					{Label: "_stop", Type: query.TTime},
-					{Label: "_time", Type: query.TTime},
-					{Label: "location", Type: query.TString},
-					{Label: "device", Type: query.TString},
-					{Label: "min", Type: query.TFloat},
-					{Label: "max", Type: query.TFloat},
-				},
-				Data: [][]interface{}{
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						"USA",
-						"1563",
-						42.0,
-						67.9,
-					},
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
-						"USA",
-						"1414",
-						43.0,
-						44.7,
-					},
-				},
-			},
-			{
-				KeyCols: []string{"_start", "_stop", "location"},
-				ColMeta: []query.ColMeta{
-					{Label: "_start", Type: query.TTime},
-					{Label: "_stop", Type: query.TTime},
-					{Label: "_time", Type: query.TTime},
-					{Label: "location", Type: query.TString},
-					{Label: "device", Type: query.TString},
-					{Label: "min", Type: query.TFloat},
-					{Label: "max", Type: query.TFloat},
-				},
-				Data: [][]interface{}{
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 6, 0, 0, time.UTC)),
-						"Europe",
-						"4623",
-						52.0,
-						89.3,
-					},
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 7, 1, 0, time.UTC)),
-						"Europe",
-						"3163",
-						53.0,
-						55.6,
-					},
-				},
-			},
-		}},
+		},
 	},
 	{
 		name:          "multiple tables with one empty",
@@ -326,83 +339,86 @@ var symetricalTestCases = []TestCase{
 #default,_result,2,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,,cpu,A,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 `),
-		result: &executetest.Result{Blks: []*executetest.Block{
-			{
-				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []query.ColMeta{
-					{Label: "_start", Type: query.TTime},
-					{Label: "_stop", Type: query.TTime},
-					{Label: "_time", Type: query.TTime},
-					{Label: "_measurement", Type: query.TString},
-					{Label: "host", Type: query.TString},
-					{Label: "_value", Type: query.TFloat},
+		result: &executetest.Result{
+			Nm: "_result",
+			Blks: []*executetest.Block{
+				{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							"cpu",
+							"A",
+							42.0,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
+							"cpu",
+							"A",
+							43.0,
+						},
+					},
 				},
-				Data: [][]interface{}{
-					{
+				{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 6, 0, 0, time.UTC)),
+							"mem",
+							"A",
+							52.0,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 7, 1, 0, time.UTC)),
+							"mem",
+							"A",
+							53.0,
+						},
+					},
+				},
+				{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					KeyValues: []interface{}{
 						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
 						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
 						"cpu",
 						"A",
-						42.0,
 					},
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
-						"cpu",
-						"A",
-						43.0,
-					},
-				},
-			},
-			{
-				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []query.ColMeta{
-					{Label: "_start", Type: query.TTime},
-					{Label: "_stop", Type: query.TTime},
-					{Label: "_time", Type: query.TTime},
-					{Label: "_measurement", Type: query.TString},
-					{Label: "host", Type: query.TString},
-					{Label: "_value", Type: query.TFloat},
-				},
-				Data: [][]interface{}{
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 6, 0, 0, time.UTC)),
-						"mem",
-						"A",
-						52.0,
-					},
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 10, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 7, 1, 0, time.UTC)),
-						"mem",
-						"A",
-						53.0,
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
 					},
 				},
 			},
-			{
-				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				KeyValues: []interface{}{
-					values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-					values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-					"cpu",
-					"A",
-				},
-				ColMeta: []query.ColMeta{
-					{Label: "_start", Type: query.TTime},
-					{Label: "_stop", Type: query.TTime},
-					{Label: "_time", Type: query.TTime},
-					{Label: "_measurement", Type: query.TString},
-					{Label: "host", Type: query.TString},
-					{Label: "_value", Type: query.TFloat},
-				},
-			},
-		}},
+		},
 	},
 }
 
@@ -418,35 +434,38 @@ func TestResultDecoder(t *testing.T) {
 ,,,,,2018-04-17T00:00:00Z,cpu,A,42.0
 ,,,,,2018-04-17T00:00:01Z,cpu,A,43.0
 `),
-			result: &executetest.Result{Blks: []*executetest.Block{{
-				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
-				ColMeta: []query.ColMeta{
-					{Label: "_start", Type: query.TTime},
-					{Label: "_stop", Type: query.TTime},
-					{Label: "_time", Type: query.TTime},
-					{Label: "_measurement", Type: query.TString},
-					{Label: "host", Type: query.TString},
-					{Label: "_value", Type: query.TFloat},
-				},
-				Data: [][]interface{}{
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						"cpu",
-						"A",
-						42.0,
+			result: &executetest.Result{
+				Nm: "_result",
+				Blks: []*executetest.Block{{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
 					},
-					{
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
-						values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
-						"cpu",
-						"A",
-						43.0,
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							"cpu",
+							"A",
+							42.0,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
+							"cpu",
+							"A",
+							43.0,
+						},
 					},
-				},
-			}}},
+				}},
+			},
 		},
 	}
 	testCases = append(testCases, symetricalTestCases...)
@@ -461,7 +480,9 @@ func TestResultDecoder(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := new(executetest.Result)
+			got := &executetest.Result{
+				Nm: result.Name(),
+			}
 			if err := result.Blocks().Do(func(b query.Block) error {
 				cb, err := executetest.ConvertBlock(b)
 				if err != nil {
@@ -506,11 +527,192 @@ func TestResultEncoder(t *testing.T) {
 			}
 		})
 	}
+}
+func TestMutliResultEncoder(t *testing.T) {
+	testCases := []struct {
+		name    string
+		results query.ResultIterator
+		encoded []byte
+		config  csv.ResultEncoderConfig
+	}{
+		{
+			name:   "single result",
+			config: csv.DefaultEncoderConfig(),
+			results: query.NewSliceResultIterator([]query.Result{&executetest.Result{
+				Nm: "_result",
+				Blks: []*executetest.Block{{
+					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_start", Type: query.TTime},
+						{Label: "_stop", Type: query.TTime},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_value", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							"cpu",
+							"A",
+							42.0,
+						},
+						{
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+							values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
+							"cpu",
+							"A",
+							43.0,
+						},
+					},
+				}},
+			}}),
+			encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
+#partition,false,false,true,true,false,true,true,false
+#default,_result,,,,,,,
+,result,table,_start,_stop,_time,_measurement,host,_value
+,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
+,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:01Z,cpu,A,43
 
+`),
+		},
+		{
+			name:   "two results",
+			config: csv.DefaultEncoderConfig(),
+			results: query.NewSliceResultIterator([]query.Result{
+				&executetest.Result{
+					Nm: "_result",
+					Blks: []*executetest.Block{{
+						KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_measurement", Type: query.TString},
+							{Label: "host", Type: query.TString},
+							{Label: "_value", Type: query.TFloat},
+						},
+						Data: [][]interface{}{
+							{
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+								"cpu",
+								"A",
+								42.0,
+							},
+							{
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
+								"cpu",
+								"A",
+								43.0,
+							},
+						},
+					}},
+				},
+				&executetest.Result{
+					Nm: "mean",
+					Blks: []*executetest.Block{{
+						KeyCols: []string{"_start", "_stop", "_measurement", "host"},
+						ColMeta: []query.ColMeta{
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "_time", Type: query.TTime},
+							{Label: "_measurement", Type: query.TString},
+							{Label: "host", Type: query.TString},
+							{Label: "_value", Type: query.TFloat},
+						},
+						Data: [][]interface{}{
+							{
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+								"cpu",
+								"A",
+								40.0,
+							},
+							{
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 5, 0, 0, time.UTC)),
+								values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 1, 0, time.UTC)),
+								"cpu",
+								"A",
+								40.1,
+							},
+						},
+					}},
+				},
+			}),
+			encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
+#partition,false,false,true,true,false,true,true,false
+#default,_result,,,,,,,
+,result,table,_start,_stop,_time,_measurement,host,_value
+,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
+,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:01Z,cpu,A,43
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
+#partition,false,false,true,true,false,true,true,false
+#default,mean,,,,,,,
+,result,table,_start,_stop,_time,_measurement,host,_value
+,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,40
+,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:01Z,cpu,A,40.1
+
+`),
+		},
+		{
+			name:   "error results",
+			config: csv.DefaultEncoderConfig(),
+			results: errorResultIterator{
+				Error: errors.New("test error"),
+			},
+			encoded: toCRLF(`error,reference
+test error,
+`),
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			encoder := csv.NewMultiResultEncoder(tc.config)
+			var got bytes.Buffer
+			err := encoder.Encode(&got, tc.results)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if g, w := got.String(), string(tc.encoded); g != w {
+				t.Errorf("unexpected encoding -want/+got:\n%s", diff.LineDiff(w, g))
+			}
+		})
+	}
 }
 
 var crlfPattern = regexp.MustCompile(`\r?\n`)
 
 func toCRLF(data string) []byte {
 	return []byte(crlfPattern.ReplaceAllString(data, "\r\n"))
+}
+
+type errorResultIterator struct {
+	Error error
+}
+
+func (r errorResultIterator) More() bool {
+	return false
+}
+
+func (r errorResultIterator) Next() query.Result {
+	panic("no results")
+}
+
+func (r errorResultIterator) Cancel() {
+}
+
+func (r errorResultIterator) Err() error {
+	return r.Error
 }

@@ -124,7 +124,6 @@ func Test_QueryEndToEnd(t *testing.T) {
 				t.Errorf("failed to run influxql query spec for test case %s. error=%s", prefix, err)
 			}
 		}
-
 	}
 }
 
@@ -163,7 +162,7 @@ func QueryTestCheckSpec(t *testing.T, qs query.QueryServiceBridge, spec *query.S
 	buf := new(bytes.Buffer)
 	// we are only expecting one result, for now
 	for results.More() {
-		_, res := results.Next()
+		res := results.Next()
 
 		err := enc.Encode(buf, res)
 		if err != nil {
