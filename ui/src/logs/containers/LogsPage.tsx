@@ -4,9 +4,18 @@ import {getSourceAsync, setTimeRange, setNamespace} from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import {Source, Namespace, TimeRange} from 'src/types'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
-import GraphContainer from 'src/logs/components/LogsGraphContainer'
-import TableContainer from 'src/logs/components/LogsTableContainer'
-import SearchContainer from 'src/logs/components/LogsSearchContainer'
+import Graph from 'src/logs/components/LogsGraph'
+import Table from 'src/logs/components/LogsTable'
+import SearchBar from 'src/logs/components/LogsSearchBar'
+import FilterBar from 'src/logs/components/LogsFilterBar'
+
+export interface Filter {
+  id: string
+  key: string
+  value: string
+  operator: string
+  enabled: boolean
+}
 
 interface Props {
   sources: Source[]
@@ -22,6 +31,7 @@ interface Props {
 
 interface State {
   searchString: string
+  filters: Filter[]
 }
 
 class LogsPage extends PureComponent<Props, State> {
@@ -30,6 +40,7 @@ class LogsPage extends PureComponent<Props, State> {
 
     this.state = {
       searchString: '',
+      filters: [],
     }
   }
 
@@ -44,20 +55,24 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {searchString} = this.state
+    const {searchString, filters} = this.state
 
     return (
       <div className="page">
         {this.header}
         <div className="page-contents logs-viewer">
-          <GraphContainer thing="wooo" />
-          <SearchContainer
+          <Graph thing="wooo" />
+          <SearchBar
             searchString={searchString}
             onChange={this.handleSearchInputChange}
             onSearch={this.handleSubmitSearch}
-            numResults={300}
           />
-          <TableContainer thing="snooo" />
+          <FilterBar
+            numResults={300}
+            filters={filters}
+            onUpdateFilters={this.handleUpdateFilters}
+          />
+          <Table thing="snooo" />
         </div>
       </div>
     )
@@ -94,6 +109,10 @@ class LogsPage extends PureComponent<Props, State> {
 
   private handleSubmitSearch = (): void => {
     // do the thing
+  }
+
+  private handleUpdateFilters = (filters: Filter[]): void => {
+    this.setState({filters})
   }
 
   private handleChooseTimerange = (timeRange: TimeRange) => {

@@ -4,7 +4,8 @@
 */
 
 $logs-viewer-graph-height: 240px;
-$logs-viewer-search-height: 108px;
+$logs-viewer-search-height: 46px; 
+$logs-viewer-filter-height: 42px;
 $logs-viewer-gutter: 60px;
 
 .logs-viewer {
@@ -20,28 +21,22 @@ $logs-viewer-gutter: 60px;
   @include gradient-v($g2-kevlar, $g0-obsidian);
 }
 
-.logs-viewer--search-container {
+.logs-viewer--search-bar {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  padding: 20px $logs-viewer-gutter;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+  padding: 0 $logs-viewer-gutter;
   height: $logs-viewer-search-height;
   background-color: $g3-castle;
 }
 
 .logs-viewer--table-container {
   padding: 12px $logs-viewer-gutter 30px $logs-viewer-gutter;
-  height: calc(100% - #{$logs-viewer-graph-height + $logs-viewer-search-height});
+  height: calc(100% - #{$logs-viewer-graph-height + $logs-viewer-search-height + $logs-viewer-filter-height});
   background-color: $g3-castle;
 }
 
 // Search Bar
-.logs-viewer--search {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-}
-
 .logs-viewer--search-input {
   flex: 1 0 0;
   margin-right: 8px;
@@ -67,11 +62,13 @@ $logs-viewer-gutter: 60px;
 }
 
 // Filters Bar
-.logs-viewer--filters-container {
+.logs-viewer--filter-bar {
   display: flex;
   align-items: center;
   @include no-user-select();
-  margin-top: 8px;
+  padding: 0 $logs-viewer-gutter;
+  height: $logs-viewer-filter-height;
+  background-color: $g3-castle;
 }
 
 .logs-viewer--results-text {
