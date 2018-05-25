@@ -181,6 +181,8 @@ type FileStore struct {
 
 	currentTempDirID int
 
+	parseFileName ParseFileNameFunc
+
 	obs tsdb.FileStoreObserver
 }
 
@@ -222,7 +224,8 @@ func NewFileStore(dir string) *FileStore {
 			files:  map[string]TSMFile{},
 			logger: logger,
 		},
-		obs: noFileStoreObserver{},
+		obs:           noFileStoreObserver{},
+		parseFileName: DefaultParseFileName,
 	}
 	fs.purger.fileStore = fs
 	return fs
@@ -231,6 +234,14 @@ func NewFileStore(dir string) *FileStore {
 // WithObserver sets the observer for the file store.
 func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
 	f.obs = obs
+}
+
+func (f *FileStore) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
+	f.parseFileName = parseFileNameFunc
+}
+
+func (f *FileStore) ParseFileName(path string) (int, int, error) {
+	return f.parseFileName(path)
 }
 
 // enableTraceLogging must be called before the FileStore is opened.
@@ -485,7 +496,7 @@ func (f *FileStore) Open() error {
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
-		generation, _, err := ParseFileName(fn)
+		generation, _, err := f.parseFileName(fn)
 		if err != nil {
 			return err
 		}
@@ -1048,8 +1059,8 @@ func DefaultFormatFileName(generation, sequence int) string {
 // ParseFileNameFunc is executed when parsing a TSM filename into generation & sequence.
 type ParseFileNameFunc func(name string) (generation, sequence int, err error)
 
-// ParseFileName is used to parse the filenames of TSM files.
-var ParseFileName ParseFileNameFunc = func(name string) (int, int, error) {
+// DefaultParseFileName is used to parse the filenames of TSM files.
+func DefaultParseFileName(name string) (int, int, error) {
 	base := filepath.Base(name)
 	idx := strings.Index(base, ".")
 	if idx == -1 {
