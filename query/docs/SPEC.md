@@ -999,12 +999,19 @@ Map applies a function to each record of the input tables.
 The modified records are assigned to new tables based on the partition key of the input table.
 The output tables are the result of applying the map function to each record on the input tables.
 
+When the output record contains a different value for the partition key the record is repartitioned into the appropriate table.
+When the output record drops a column that was part of the partition key that column is removed from the partition key.
+
 Map has the following properties:
 
 * `fn` function
     Function to apply to each record.
     The return value must be an object.
-    Only properties defined on the return object will be present on the output records.
+* `mergeKey` bool
+    MergeKey indicates if the record returned from fn should be merged with the partition key.
+    When merging, all columns on the partition key will be added to the record giving precedence to any columns already present on the record.
+    When not merging, only columns defined on the returned record will be present on the output records.
+    Defaults to true.
 
 #### Range
 

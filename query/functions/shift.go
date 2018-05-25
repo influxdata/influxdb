@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/values"
 )
 
 const ShiftKind = "shift"
@@ -134,20 +135,20 @@ func (t *shiftTransformation) Process(id execute.DatasetID, b query.Block) error
 	key := b.Key()
 	// Update key
 	cols := make([]query.ColMeta, len(key.Cols()))
-	values := make([]interface{}, len(key.Cols()))
+	vs := make([]values.Value, len(key.Cols()))
 	for j, c := range key.Cols() {
 		if execute.ContainsStr(t.columns, c.Label) {
 			if c.Type != query.TTime {
 				return fmt.Errorf("column %q is not of type time", c.Label)
 			}
 			cols[j] = c
-			values[j] = key.ValueTime(j).Add(t.shift)
+			vs[j] = values.NewTimeValue(key.ValueTime(j).Add(t.shift))
 		} else {
 			cols[j] = c
-			values[j] = key.Value(j)
+			vs[j] = key.Value(j)
 		}
 	}
-	key = execute.NewPartitionKey(cols, values)
+	key = execute.NewPartitionKey(cols, vs)
 
 	builder, created := t.cache.BlockBuilder(key)
 	if !created {

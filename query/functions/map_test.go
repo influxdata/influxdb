@@ -28,6 +28,7 @@ func TestMap_NewQuery(t *testing.T) {
 					{
 						ID: "map1",
 						Spec: &functions.MapOpSpec{
+							MergeKey: true,
 							Fn: &semantic.FunctionExpression{
 								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 								Body: &semantic.BinaryExpression{
@@ -63,6 +64,7 @@ func TestMap_NewQuery(t *testing.T) {
 					{
 						ID: "map1",
 						Spec: &functions.MapOpSpec{
+							MergeKey: true,
 							Fn: &semantic.FunctionExpression{
 								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 								Body: &semantic.BinaryExpression{
@@ -151,6 +153,7 @@ func TestMap_Process(t *testing.T) {
 		{
 			name: `_value+5`,
 			spec: &functions.MapProcedureSpec{
+				MergeKey: false,
 				Fn: &semantic.FunctionExpression{
 					Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 					Body: &semantic.ObjectExpression{
@@ -205,8 +208,307 @@ func TestMap_Process(t *testing.T) {
 			}},
 		},
 		{
+			name: `_value+5 mergeKey=true`,
+			spec: &functions.MapProcedureSpec{
+				MergeKey: true,
+				Fn: &semantic.FunctionExpression{
+					Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
+					Body: &semantic.ObjectExpression{
+						Properties: []*semantic.Property{
+							{
+								Key: &semantic.Identifier{Name: "_time"},
+								Value: &semantic.MemberExpression{
+									Object: &semantic.IdentifierExpression{
+										Name: "r",
+									},
+									Property: "_time",
+								},
+							},
+							{
+								Key: &semantic.Identifier{Name: "_value"},
+								Value: &semantic.BinaryExpression{
+									Operator: ast.AdditionOperator,
+									Left: &semantic.MemberExpression{
+										Object: &semantic.IdentifierExpression{
+											Name: "r",
+										},
+										Property: "_value",
+									},
+									Right: &semantic.FloatLiteral{
+										Value: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			data: []query.Block{&executetest.Block{
+				KeyCols: []string{"_measurement", "host"},
+				ColMeta: []query.ColMeta{
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{"m", "A", execute.Time(1), 1.0},
+					{"m", "A", execute.Time(2), 6.0},
+				},
+			}},
+			want: []*executetest.Block{{
+				KeyCols: []string{"_measurement", "host"},
+				ColMeta: []query.ColMeta{
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{"m", "A", execute.Time(1), 6.0},
+					{"m", "A", execute.Time(2), 11.0},
+				},
+			}},
+		},
+		{
+			name: `_value+5 mergeKey=false drop cols`,
+			spec: &functions.MapProcedureSpec{
+				MergeKey: false,
+				Fn: &semantic.FunctionExpression{
+					Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
+					Body: &semantic.ObjectExpression{
+						Properties: []*semantic.Property{
+							{
+								Key: &semantic.Identifier{Name: "_time"},
+								Value: &semantic.MemberExpression{
+									Object: &semantic.IdentifierExpression{
+										Name: "r",
+									},
+									Property: "_time",
+								},
+							},
+							{
+								Key: &semantic.Identifier{Name: "_value"},
+								Value: &semantic.BinaryExpression{
+									Operator: ast.AdditionOperator,
+									Left: &semantic.MemberExpression{
+										Object: &semantic.IdentifierExpression{
+											Name: "r",
+										},
+										Property: "_value",
+									},
+									Right: &semantic.FloatLiteral{
+										Value: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			data: []query.Block{&executetest.Block{
+				KeyCols: []string{"_measurement", "host"},
+				ColMeta: []query.ColMeta{
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{"m", "A", execute.Time(1), 1.0},
+					{"m", "A", execute.Time(2), 6.0},
+				},
+			}},
+			want: []*executetest.Block{{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(1), 6.0},
+					{execute.Time(2), 11.0},
+				},
+			}},
+		},
+		{
+			name: `_value+5 mergeKey=true repartition`,
+			spec: &functions.MapProcedureSpec{
+				MergeKey: true,
+				Fn: &semantic.FunctionExpression{
+					Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
+					Body: &semantic.ObjectExpression{
+						Properties: []*semantic.Property{
+							{
+								Key: &semantic.Identifier{Name: "_time"},
+								Value: &semantic.MemberExpression{
+									Object: &semantic.IdentifierExpression{
+										Name: "r",
+									},
+									Property: "_time",
+								},
+							},
+							{
+								Key: &semantic.Identifier{Name: "host"},
+								Value: &semantic.BinaryExpression{
+									Operator: ast.AdditionOperator,
+									Left: &semantic.MemberExpression{
+										Object: &semantic.IdentifierExpression{
+											Name: "r",
+										},
+										Property: "host",
+									},
+									Right: &semantic.StringLiteral{Value: ".local"},
+								},
+							},
+							{
+								Key: &semantic.Identifier{Name: "_value"},
+								Value: &semantic.BinaryExpression{
+									Operator: ast.AdditionOperator,
+									Left: &semantic.MemberExpression{
+										Object: &semantic.IdentifierExpression{
+											Name: "r",
+										},
+										Property: "_value",
+									},
+									Right: &semantic.FloatLiteral{
+										Value: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			data: []query.Block{&executetest.Block{
+				KeyCols: []string{"_measurement", "host"},
+				ColMeta: []query.ColMeta{
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{"m", "A", execute.Time(1), 1.0},
+					{"m", "A", execute.Time(2), 6.0},
+				},
+			}},
+			want: []*executetest.Block{{
+				KeyCols: []string{"_measurement", "host"},
+				ColMeta: []query.ColMeta{
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{"m", "A.local", execute.Time(1), 6.0},
+					{"m", "A.local", execute.Time(2), 11.0},
+				},
+			}},
+		},
+		{
+			name: `_value+5 mergeKey=true repartition fan out`,
+			spec: &functions.MapProcedureSpec{
+				MergeKey: true,
+				Fn: &semantic.FunctionExpression{
+					Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
+					Body: &semantic.ObjectExpression{
+						Properties: []*semantic.Property{
+							{
+								Key: &semantic.Identifier{Name: "_time"},
+								Value: &semantic.MemberExpression{
+									Object: &semantic.IdentifierExpression{
+										Name: "r",
+									},
+									Property: "_time",
+								},
+							},
+							{
+								Key: &semantic.Identifier{Name: "host"},
+								Value: &semantic.BinaryExpression{
+									Operator: ast.AdditionOperator,
+									Left: &semantic.MemberExpression{
+										Object: &semantic.IdentifierExpression{
+											Name: "r",
+										},
+										Property: "host",
+									},
+									Right: &semantic.BinaryExpression{
+										Operator: ast.AdditionOperator,
+										Left:     &semantic.StringLiteral{Value: "."},
+										Right: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "domain",
+										},
+									},
+								},
+							},
+							{
+								Key: &semantic.Identifier{Name: "_value"},
+								Value: &semantic.BinaryExpression{
+									Operator: ast.AdditionOperator,
+									Left: &semantic.MemberExpression{
+										Object: &semantic.IdentifierExpression{
+											Name: "r",
+										},
+										Property: "_value",
+									},
+									Right: &semantic.FloatLiteral{
+										Value: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			data: []query.Block{&executetest.Block{
+				KeyCols: []string{"_measurement", "host"},
+				ColMeta: []query.ColMeta{
+					{Label: "_measurement", Type: query.TString},
+					{Label: "host", Type: query.TString},
+					{Label: "domain", Type: query.TString},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{"m", "A", "example.com", execute.Time(1), 1.0},
+					{"m", "A", "www.example.com", execute.Time(2), 6.0},
+				},
+			}},
+			want: []*executetest.Block{
+				{
+					KeyCols: []string{"_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{"m", "A.example.com", execute.Time(1), 6.0},
+					},
+				},
+				{
+					KeyCols: []string{"_measurement", "host"},
+					ColMeta: []query.ColMeta{
+						{Label: "_measurement", Type: query.TString},
+						{Label: "host", Type: query.TString},
+						{Label: "_time", Type: query.TTime},
+						{Label: "_value", Type: query.TFloat},
+					},
+					Data: [][]interface{}{
+						{"m", "A.www.example.com", execute.Time(2), 11.0},
+					},
+				},
+			},
+		},
+		{
 			name: `_value*_value`,
 			spec: &functions.MapProcedureSpec{
+				MergeKey: false,
 				Fn: &semantic.FunctionExpression{
 					Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 					Body: &semantic.ObjectExpression{
@@ -266,6 +568,7 @@ func TestMap_Process(t *testing.T) {
 		{
 			name: "float(r._value) int",
 			spec: &functions.MapProcedureSpec{
+				MergeKey: false,
 				Fn: &semantic.FunctionExpression{
 					Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 					Body: &semantic.ObjectExpression{
@@ -324,6 +627,7 @@ func TestMap_Process(t *testing.T) {
 		{
 			name: "float(r._value) uint",
 			spec: &functions.MapProcedureSpec{
+				MergeKey: false,
 				Fn: &semantic.FunctionExpression{
 					Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "r"}}},
 					Body: &semantic.ObjectExpression{

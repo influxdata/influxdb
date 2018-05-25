@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/values"
 	"github.com/pkg/errors"
 )
 
@@ -19,12 +20,12 @@ const (
 
 type partitionKey struct {
 	cols    []query.ColMeta
-	values  []interface{}
+	values  []values.Value
 	hasHash bool
 	hash    uint64
 }
 
-func NewPartitionKey(cols []query.ColMeta, values []interface{}) query.PartitionKey {
+func NewPartitionKey(cols []query.ColMeta, values []values.Value) query.PartitionKey {
 	return &partitionKey{
 		cols:   cols,
 		values: values,
@@ -37,60 +38,29 @@ func (k *partitionKey) Cols() []query.ColMeta {
 func (k *partitionKey) HasCol(label string) bool {
 	return ColIdx(label, k.cols) >= 0
 }
-func (k *partitionKey) Value(j int) interface{} {
+func (k *partitionKey) Value(j int) values.Value {
 	return k.values[j]
 }
 func (k *partitionKey) ValueBool(j int) bool {
-	return k.values[j].(bool)
+	return k.values[j].Bool()
 }
 func (k *partitionKey) ValueUInt(j int) uint64 {
-	return k.values[j].(uint64)
+	return k.values[j].UInt()
 }
 func (k *partitionKey) ValueInt(j int) int64 {
-	return k.values[j].(int64)
+	return k.values[j].Int()
 }
 func (k *partitionKey) ValueFloat(j int) float64 {
-	return k.values[j].(float64)
+	return k.values[j].Float()
 }
 func (k *partitionKey) ValueString(j int) string {
-	return k.values[j].(string)
+	return k.values[j].Str()
 }
 func (k *partitionKey) ValueDuration(j int) Duration {
-	return k.values[j].(Duration)
+	return k.values[j].Duration()
 }
 func (k *partitionKey) ValueTime(j int) Time {
-	return k.values[j].(Time)
-}
-
-func (k *partitionKey) Intersect(keys []string) query.PartitionKey {
-	nk := &partitionKey{
-		cols:   make([]query.ColMeta, 0, len(k.cols)),
-		values: make([]interface{}, 0, len(k.values)),
-	}
-	for i, c := range k.cols {
-		found := false
-		for _, label := range keys {
-			if c.Label == label {
-				found = true
-				break
-			}
-		}
-
-		if found {
-			nk.cols = append(nk.cols, c)
-			nk.values = append(nk.values, k.values[i])
-		}
-	}
-	return nk
-}
-func (k *partitionKey) Diff(labels []string) []string {
-	diff := make([]string, 0, len(labels))
-	for _, label := range labels {
-		if ColIdx(label, k.cols) < 0 {
-			diff = append(diff, label)
-		}
-	}
-	return diff
+	return k.values[j].Time()
 }
 
 func (k *partitionKey) Hash() uint64 {
@@ -209,7 +179,7 @@ func PartitionKeyForRow(i int, cr query.ColReader) query.PartitionKey {
 	key := cr.Key()
 	cols := cr.Cols()
 	colsCpy := make([]query.ColMeta, 0, len(cols))
-	values := make([]interface{}, 0, len(cols))
+	vs := make([]values.Value, 0, len(cols))
 	for j, c := range cols {
 		if !key.HasCol(c.Label) {
 			continue
@@ -217,28 +187,28 @@ func PartitionKeyForRow(i int, cr query.ColReader) query.PartitionKey {
 		colsCpy = append(colsCpy, c)
 		switch c.Type {
 		case query.TBool:
-			values = append(values, cr.Bools(j)[i])
+			vs = append(vs, values.NewBoolValue(cr.Bools(j)[i]))
 		case query.TInt:
-			values = append(values, cr.Ints(j)[i])
+			vs = append(vs, values.NewIntValue(cr.Ints(j)[i]))
 		case query.TUInt:
-			values = append(values, cr.UInts(j)[i])
+			vs = append(vs, values.NewUIntValue(cr.UInts(j)[i]))
 		case query.TFloat:
-			values = append(values, cr.Floats(j)[i])
+			vs = append(vs, values.NewFloatValue(cr.Floats(j)[i]))
 		case query.TString:
-			values = append(values, cr.Strings(j)[i])
+			vs = append(vs, values.NewStringValue(cr.Strings(j)[i]))
 		case query.TTime:
-			values = append(values, cr.Times(j)[i])
+			vs = append(vs, values.NewTimeValue(cr.Times(j)[i]))
 		}
 	}
 	return &partitionKey{
 		cols:   colsCpy,
-		values: values,
+		values: vs,
 	}
 }
 
 func PartitionKeyForRowOn(i int, cr query.ColReader, on map[string]bool) query.PartitionKey {
 	cols := make([]query.ColMeta, 0, len(on))
-	values := make([]interface{}, 0, len(on))
+	vs := make([]values.Value, 0, len(on))
 	for j, c := range cr.Cols() {
 		if !on[c.Label] {
 			continue
@@ -246,20 +216,20 @@ func PartitionKeyForRowOn(i int, cr query.ColReader, on map[string]bool) query.P
 		cols = append(cols, c)
 		switch c.Type {
 		case query.TBool:
-			values = append(values, cr.Bools(j)[i])
+			vs = append(vs, values.NewBoolValue(cr.Bools(j)[i]))
 		case query.TInt:
-			values = append(values, cr.Ints(j)[i])
+			vs = append(vs, values.NewIntValue(cr.Ints(j)[i]))
 		case query.TUInt:
-			values = append(values, cr.UInts(j)[i])
+			vs = append(vs, values.NewUIntValue(cr.UInts(j)[i]))
 		case query.TFloat:
-			values = append(values, cr.Floats(j)[i])
+			vs = append(vs, values.NewFloatValue(cr.Floats(j)[i]))
 		case query.TString:
-			values = append(values, cr.Strings(j)[i])
+			vs = append(vs, values.NewStringValue(cr.Strings(j)[i]))
 		case query.TTime:
-			values = append(values, cr.Times(j)[i])
+			vs = append(vs, values.NewTimeValue(cr.Times(j)[i]))
 		}
 	}
-	return NewPartitionKey(cols, values)
+	return NewPartitionKey(cols, vs)
 }
 
 // OneTimeBlock is a Block that permits reading data only once.

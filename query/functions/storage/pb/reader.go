@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions/storage"
+	"github.com/influxdata/platform/query/values"
 	"github.com/influxdata/yarpc"
 	"github.com/pkg/errors"
 )
@@ -279,17 +280,17 @@ func determineBlockColsForSeries(s *ReadResponse_SeriesFrame, typ query.DataType
 
 func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.PartitionKey {
 	cols := make([]query.ColMeta, 2, len(s.Tags))
-	values := make([]interface{}, 2, len(s.Tags))
+	vs := make([]values.Value, 2, len(s.Tags))
 	cols[0] = query.ColMeta{
 		Label: execute.DefaultStartColLabel,
 		Type:  query.TTime,
 	}
-	values[0] = bnds.Start
+	vs[0] = values.NewTimeValue(bnds.Start)
 	cols[1] = query.ColMeta{
 		Label: execute.DefaultStopColLabel,
 		Type:  query.TTime,
 	}
-	values[1] = bnds.Stop
+	vs[1] = values.NewTimeValue(bnds.Stop)
 	switch readSpec.GroupMode {
 	case storage.GroupModeBy:
 		// partition key in GroupKeys order, including tags in the GroupKeys slice
@@ -299,7 +300,7 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 					Label: string(s.Tags[i].Key),
 					Type:  query.TString,
 				})
-				values = append(values, string(s.Tags[i].Value))
+				vs = append(vs, values.NewStringValue(string(s.Tags[i].Value)))
 			}
 		}
 	case storage.GroupModeExcept:
@@ -310,7 +311,7 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 					Label: string(s.Tags[i].Key),
 					Type:  query.TString,
 				})
-				values = append(values, string(s.Tags[i].Value))
+				vs = append(vs, values.NewStringValue(string(s.Tags[i].Value)))
 			}
 		}
 	case storage.GroupModeAll:
@@ -319,10 +320,10 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 				Label: string(s.Tags[i].Key),
 				Type:  query.TString,
 			})
-			values = append(values, string(s.Tags[i].Value))
+			vs = append(vs, values.NewStringValue(string(s.Tags[i].Value)))
 		}
 	}
-	return execute.NewPartitionKey(cols, values)
+	return execute.NewPartitionKey(cols, vs)
 }
 
 func determineBlockColsForGroup(f *ReadResponse_GroupFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
@@ -357,25 +358,25 @@ func determineBlockColsForGroup(f *ReadResponse_GroupFrame, typ query.DataType) 
 
 func partitionKeyForGroup(g *ReadResponse_GroupFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.PartitionKey {
 	cols := make([]query.ColMeta, 2, len(readSpec.GroupKeys)+2)
-	values := make([]interface{}, 2, len(readSpec.GroupKeys)+2)
+	vs := make([]values.Value, 2, len(readSpec.GroupKeys)+2)
 	cols[0] = query.ColMeta{
 		Label: execute.DefaultStartColLabel,
 		Type:  query.TTime,
 	}
-	values[0] = bnds.Start
+	vs[0] = values.NewTimeValue(bnds.Start)
 	cols[1] = query.ColMeta{
 		Label: execute.DefaultStopColLabel,
 		Type:  query.TTime,
 	}
-	values[1] = bnds.Stop
+	vs[1] = values.NewTimeValue(bnds.Stop)
 	for i := range readSpec.GroupKeys {
 		cols = append(cols, query.ColMeta{
 			Label: readSpec.GroupKeys[i],
 			Type:  query.TString,
 		})
-		values = append(values, string(g.PartitionKeyVals[i]))
+		vs = append(vs, values.NewStringValue(string(g.PartitionKeyVals[i])))
 	}
-	return execute.NewPartitionKey(cols, values)
+	return execute.NewPartitionKey(cols, vs)
 }
 
 // block implement OneTimeBlock as it can only be read once.

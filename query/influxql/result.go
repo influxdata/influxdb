@@ -49,7 +49,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 				if c.Type != query.TString {
 					return fmt.Errorf("partition column %q is not a string type", c.Label)
 				}
-				v := b.Key().Value(j).(string)
+				v := b.Key().Value(j).Str()
 				if c.Label == "_measurement" {
 					r.Name = v
 				} else {

@@ -101,12 +101,8 @@ type PartitionKey interface {
 	ValueString(j int) string
 	ValueDuration(j int) values.Duration
 	ValueTime(j int) values.Time
-	Value(j int) interface{}
+	Value(j int) values.Value
 
-	// Intersect returns a new PartitionKey with only columns in the list of labels.
-	Intersect(labels []string) PartitionKey
-	// Diff returns the labels that exist in list of labels but not in the key's columns.
-	Diff(labels []string) []string
 	Hash() uint64
 	Equal(o PartitionKey) bool
 	Less(o PartitionKey) bool

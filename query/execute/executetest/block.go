@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/values"
 )
 
 // Block is an implementation of execute.Block
@@ -31,6 +32,7 @@ type Block struct {
 func (b *Block) Normalize() {
 	if b.PartitionKey == nil {
 		cols := make([]query.ColMeta, len(b.KeyCols))
+		vs := make([]values.Value, len(b.KeyCols))
 		if len(b.KeyValues) != len(b.KeyCols) {
 			b.KeyValues = make([]interface{}, len(b.KeyCols))
 		}
@@ -43,8 +45,13 @@ func (b *Block) Normalize() {
 			if len(b.Data) > 0 {
 				b.KeyValues[j] = b.Data[0][idx]
 			}
+			v, err := values.NewValue(b.KeyValues[j], execute.ConvertToKind(cols[j].Type))
+			if err != nil {
+				panic(err)
+			}
+			vs[j] = v
 		}
-		b.PartitionKey = execute.NewPartitionKey(cols, b.KeyValues)
+		b.PartitionKey = execute.NewPartitionKey(cols, vs)
 	}
 }
 
@@ -150,7 +157,24 @@ func ConvertBlock(b query.Block) (*Block, error) {
 		blk.KeyValues = make([]interface{}, len(keyCols))
 		for j, c := range keyCols {
 			blk.KeyCols[j] = c.Label
-			blk.KeyValues[j] = key.Value(j)
+			var v interface{}
+			switch c.Type {
+			case query.TBool:
+				v = key.ValueBool(j)
+			case query.TUInt:
+				v = key.ValueUInt(j)
+			case query.TInt:
+				v = key.ValueInt(j)
+			case query.TFloat:
+				v = key.ValueFloat(j)
+			case query.TString:
+				v = key.ValueString(j)
+			case query.TTime:
+				v = key.ValueTime(j)
+			default:
+				return nil, fmt.Errorf("unsupported column type %v", c.Type)
+			}
+			blk.KeyValues[j] = v
 		}
 	}
 
