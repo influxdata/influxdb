@@ -912,7 +912,7 @@ func (r *RelativeStrengthIndexReducer) Emit() []FloatPoint {
 	}
 }
 
-type TripleExponentialAverageReducer struct {
+type TripleExponentialDerivativeReducer struct {
 	trix       gota.TRIX
 	holdPeriod uint32
 	count      uint32
@@ -920,31 +920,31 @@ type TripleExponentialAverageReducer struct {
 	t          int64
 }
 
-func NewTripleExponentialAverageReducer(period int, holdPeriod int, warmupType gota.WarmupType) *TripleExponentialAverageReducer {
+func NewTripleExponentialDerivativeReducer(period int, holdPeriod int, warmupType gota.WarmupType) *TripleExponentialDerivativeReducer {
 	trix := gota.NewTRIX(period, warmupType)
 	if holdPeriod == -1 {
 		holdPeriod = trix.WarmCount()
 	}
-	return &TripleExponentialAverageReducer{
+	return &TripleExponentialDerivativeReducer{
 		trix:       *trix,
 		holdPeriod: uint32(holdPeriod),
 	}
 }
-func (r *TripleExponentialAverageReducer) AggregateFloat(p *FloatPoint) {
+func (r *TripleExponentialDerivativeReducer) AggregateFloat(p *FloatPoint) {
 	r.aggregate(p.Value, p.Time)
 }
-func (r *TripleExponentialAverageReducer) AggregateInteger(p *IntegerPoint) {
+func (r *TripleExponentialDerivativeReducer) AggregateInteger(p *IntegerPoint) {
 	r.aggregate(float64(p.Value), p.Time)
 }
-func (r *TripleExponentialAverageReducer) AggregateUnsigned(p *UnsignedPoint) {
+func (r *TripleExponentialDerivativeReducer) AggregateUnsigned(p *UnsignedPoint) {
 	r.aggregate(float64(p.Value), p.Time)
 }
-func (r *TripleExponentialAverageReducer) aggregate(v float64, t int64) {
+func (r *TripleExponentialDerivativeReducer) aggregate(v float64, t int64) {
 	r.v = r.trix.Add(v)
 	r.t = t
 	r.count++
 }
-func (r *TripleExponentialAverageReducer) Emit() []FloatPoint {
+func (r *TripleExponentialDerivativeReducer) Emit() []FloatPoint {
 	if r.count <= r.holdPeriod {
 		return nil
 	}
@@ -1882,11 +1882,14 @@ func (r *FloatTopReducer) AggregateFloat(p *FloatPoint) {
 		if !r.h.cmp(&r.h.points[0], p) {
 			return
 		}
-		r.h.points[0] = *p
+		p.CopyTo(&r.h.points[0])
 		heap.Fix(r.h, 0)
 		return
 	}
-	heap.Push(r.h, *p)
+
+	var clone FloatPoint
+	p.CopyTo(&clone)
+	heap.Push(r.h, clone)
 }
 
 func (r *FloatTopReducer) Emit() []FloatPoint {
@@ -1925,11 +1928,14 @@ func (r *IntegerTopReducer) AggregateInteger(p *IntegerPoint) {
 		if !r.h.cmp(&r.h.points[0], p) {
 			return
 		}
-		r.h.points[0] = *p
+		p.CopyTo(&r.h.points[0])
 		heap.Fix(r.h, 0)
 		return
 	}
-	heap.Push(r.h, *p)
+
+	var clone IntegerPoint
+	p.CopyTo(&clone)
+	heap.Push(r.h, clone)
 }
 
 func (r *IntegerTopReducer) Emit() []IntegerPoint {
@@ -1968,11 +1974,14 @@ func (r *UnsignedTopReducer) AggregateUnsigned(p *UnsignedPoint) {
 		if !r.h.cmp(&r.h.points[0], p) {
 			return
 		}
-		r.h.points[0] = *p
+		p.CopyTo(&r.h.points[0])
 		heap.Fix(r.h, 0)
 		return
 	}
-	heap.Push(r.h, *p)
+
+	var clone UnsignedPoint
+	p.CopyTo(&clone)
+	heap.Push(r.h, clone)
 }
 
 func (r *UnsignedTopReducer) Emit() []UnsignedPoint {
@@ -2011,11 +2020,14 @@ func (r *FloatBottomReducer) AggregateFloat(p *FloatPoint) {
 		if !r.h.cmp(&r.h.points[0], p) {
 			return
 		}
-		r.h.points[0] = *p
+		p.CopyTo(&r.h.points[0])
 		heap.Fix(r.h, 0)
 		return
 	}
-	heap.Push(r.h, *p)
+
+	var clone FloatPoint
+	p.CopyTo(&clone)
+	heap.Push(r.h, clone)
 }
 
 func (r *FloatBottomReducer) Emit() []FloatPoint {
@@ -2054,11 +2066,14 @@ func (r *IntegerBottomReducer) AggregateInteger(p *IntegerPoint) {
 		if !r.h.cmp(&r.h.points[0], p) {
 			return
 		}
-		r.h.points[0] = *p
+		p.CopyTo(&r.h.points[0])
 		heap.Fix(r.h, 0)
 		return
 	}
-	heap.Push(r.h, *p)
+
+	var clone IntegerPoint
+	p.CopyTo(&clone)
+	heap.Push(r.h, clone)
 }
 
 func (r *IntegerBottomReducer) Emit() []IntegerPoint {
@@ -2097,11 +2112,14 @@ func (r *UnsignedBottomReducer) AggregateUnsigned(p *UnsignedPoint) {
 		if !r.h.cmp(&r.h.points[0], p) {
 			return
 		}
-		r.h.points[0] = *p
+		p.CopyTo(&r.h.points[0])
 		heap.Fix(r.h, 0)
 		return
 	}
-	heap.Push(r.h, *p)
+
+	var clone UnsignedPoint
+	p.CopyTo(&clone)
+	heap.Push(r.h, clone)
 }
 
 func (r *UnsignedBottomReducer) Emit() []UnsignedPoint {

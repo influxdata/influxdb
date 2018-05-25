@@ -23,14 +23,60 @@ func (MathTypeMapper) MapType(measurement *influxql.Measurement, field string) i
 
 func (MathTypeMapper) CallType(name string, args []influxql.DataType) (influxql.DataType, error) {
 	switch name {
-	case "abs", "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "exp", "log", "ln", "log2", "log10", "sqrt", "pow":
-		return influxql.Float, nil
-	case "floor", "ceil", "round":
-		switch args[0] {
+	case "sin", "cos", "tan", "atan", "exp", "log", "ln", "log2", "log10", "sqrt":
+		var arg0 influxql.DataType
+		if len(args) > 0 {
+			arg0 = args[0]
+		}
+		switch arg0 {
+		case influxql.Float, influxql.Integer, influxql.Unsigned, influxql.Unknown:
+			return influxql.Float, nil
+		default:
+			return influxql.Unknown, fmt.Errorf("invalid argument type for the first argument in %s(): %s", name, arg0)
+		}
+	case "asin", "acos":
+		var arg0 influxql.DataType
+		if len(args) > 0 {
+			arg0 = args[0]
+		}
+		switch arg0 {
+		case influxql.Float, influxql.Unknown:
+			return influxql.Float, nil
+		default:
+			return influxql.Unknown, fmt.Errorf("invalid argument type for the first argument in %s(): %s", name, arg0)
+		}
+	case "atan2", "pow":
+		var arg0, arg1 influxql.DataType
+		if len(args) > 0 {
+			arg0 = args[0]
+		}
+		if len(args) > 1 {
+			arg1 = args[1]
+		}
+
+		switch arg0 {
+		case influxql.Float, influxql.Integer, influxql.Unsigned, influxql.Unknown:
+			// Pass through to verify the second argument.
+		default:
+			return influxql.Unknown, fmt.Errorf("invalid argument type for the first argument in %s(): %s", name, arg0)
+		}
+
+		switch arg1 {
+		case influxql.Float, influxql.Integer, influxql.Unsigned, influxql.Unknown:
+			return influxql.Float, nil
+		default:
+			return influxql.Unknown, fmt.Errorf("invalid argument type for the second argument in %s(): %s", name, arg1)
+		}
+	case "abs", "floor", "ceil", "round":
+		var arg0 influxql.DataType
+		if len(args) > 0 {
+			arg0 = args[0]
+		}
+		switch arg0 {
 		case influxql.Float, influxql.Integer, influxql.Unsigned, influxql.Unknown:
 			return args[0], nil
 		default:
-			return influxql.Unknown, fmt.Errorf("invalid argument type for first argument in %s(): %s", name, args[0])
+			return influxql.Unknown, fmt.Errorf("invalid argument type for the first argument in %s(): %s", name, arg0)
 		}
 	}
 	return influxql.Unknown, nil
@@ -125,7 +171,7 @@ func (v MathValuer) Call(name string, args []interface{}) (interface{}, bool) {
 			}
 			return nil, true
 		case "log2":
-			if arg0, ok := asFloat(args); ok {
+			if arg0, ok := asFloat(arg0); ok {
 				return math.Log2(arg0), true
 			}
 			return nil, true

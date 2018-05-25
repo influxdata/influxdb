@@ -174,7 +174,7 @@ func (p *SeriesPartition) Path() string { return p.path }
 func (p *SeriesPartition) IndexPath() string { return filepath.Join(p.path, "index") }
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
-// The returned ids list returns values for new series and zero for existing series.
+// The ids parameter is modified to contain series IDs for all keys belonging to this partition.
 func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitionIDs []int, ids []uint64) error {
 	var writeRequired bool
 	p.mu.RLock()

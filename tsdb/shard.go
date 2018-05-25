@@ -69,6 +69,9 @@ var (
 	// the file's magic number.
 	ErrUnknownFieldsFormat = errors.New("unknown field index format")
 
+	// ErrUnknownFieldType is returned when the type of a field cannot be determined.
+	ErrUnknownFieldType = errors.New("unknown field type")
+
 	// ErrShardNotIdle is returned when an operation requring the shard to be idle/cold is
 	// attempted on a hot shard.
 	ErrShardNotIdle = errors.New("shard not idle")
@@ -309,7 +312,7 @@ func (s *Shard) Open() error {
 		idx.WithLogger(s.baseLogger)
 
 		// Initialize underlying engine.
-		e, err := NewEngine(s.id, idx, s.database, s.path, s.walPath, s.sfile, s.options)
+		e, err := NewEngine(s.id, idx, s.path, s.walPath, s.sfile, s.options)
 		if err != nil {
 			return err
 		}

@@ -20,7 +20,9 @@ v1.6.0 [unreleased]
 -	[#9793](https://github.com/influxdata/influxdb/pull/9793): Add key sanitization to deletetsm.
 -	[#9791](https://github.com/influxdata/influxdb/pull/9791): Optimize the spread function to process points iteratively instead of in batch.
 -	[#9649](https://github.com/influxdata/influxdb/pull/9649): Allow math functions to be used in the condition.
--	[#9888](https://github.com/influxdata/influxdb/pull/9888): [1.6] HTTP Write Throttle.
+-	[#9888](https://github.com/influxdata/influxdb/pull/9888): HTTP Write Throttle.
+-	[#9822](https://github.com/influxdata/influxdb/pull/9822): Implement SHOW STATS FOR 'indexes'.
+-	[#9832](https://github.com/influxdata/influxdb/pull/9832): Add dumptsmwal command to influx_inspect.
 
 ### Bugfixes
 
@@ -40,6 +42,8 @@ v1.6.0 [unreleased]
 -	[#9615](https://github.com/influxdata/influxdb/pull/9615): Remove error for series file when no shards exist.
 -	[#9751](https://github.com/influxdata/influxdb/pull/9751): Fix the validation for multiple nested distinct calls.
 -	[#9792](https://github.com/influxdata/influxdb/pull/9792): TSM: TSMReader.Close blocks until reads complete
+-	[#9858](https://github.com/influxdata/influxdb/pull/9858): Return the correct auxiliary values for top/bottom.
+-	[#9866](https://github.com/influxdata/influxdb/pull/9866): Close TSMReaders from FileStore.Close after releasing FileStore mutex.
 
 v1.5.0 [2018-03-06]
 -------------------

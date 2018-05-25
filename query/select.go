@@ -253,7 +253,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 		opt.Interval = Interval{}
 
 		return newHoltWintersIterator(input, opt, int(h.Val), int(m.Val), includeFitData, interval)
-	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_average", "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average", "chande_momentum_oscillator", "elapsed":
+	case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_derivative", "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average", "chande_momentum_oscillator", "elapsed":
 		if !opt.Interval.IsZero() {
 			if opt.Ascending {
 				opt.StartTime -= int64(opt.Interval.Duration)
@@ -289,7 +289,7 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				}
 			}
 			return newMovingAverageIterator(input, int(n.Val), opt)
-		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_average":
+		case "exponential_moving_average", "double_exponential_moving_average", "triple_exponential_moving_average", "relative_strength_index", "triple_exponential_derivative":
 			n := expr.Args[1].(*influxql.IntegerLiteral)
 			if n.Val > 1 && !opt.Interval.IsZero() {
 				if opt.Ascending {
@@ -320,8 +320,8 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				return newTripleExponentialMovingAverageIterator(input, int(n.Val), nHold, warmupType, opt)
 			case "relative_strength_index":
 				return newRelativeStrengthIndexIterator(input, int(n.Val), nHold, warmupType, opt)
-			case "triple_exponential_average":
-				return newTripleExponentialAverageIterator(input, int(n.Val), nHold, warmupType, opt)
+			case "triple_exponential_derivative":
+				return newTripleExponentialDerivativeIterator(input, int(n.Val), nHold, warmupType, opt)
 			}
 		case "kaufmans_efficiency_ratio", "kaufmans_adaptive_moving_average":
 			n := expr.Args[1].(*influxql.IntegerLiteral)

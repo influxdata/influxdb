@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // ErrFileInUse is returned when attempting to remove or close a TSM file that is still being used.
@@ -244,13 +245,18 @@ func NewTSMReader(f *os.File) (*TSMReader, error) {
 	}
 
 	t.index = index
-	t.tombstoner = &Tombstoner{Path: t.Path(), FilterFn: index.ContainsKey}
+	t.tombstoner = NewTombstoner(t.Path(), index.ContainsKey)
 
 	if err := t.applyTombstones(); err != nil {
 		return nil, err
 	}
 
 	return t, nil
+}
+
+// WithObserver sets the observer for the TSM reader.
+func (t *TSMReader) WithObserver(obs tsdb.FileStoreObserver) {
+	t.tombstoner.WithObserver(obs)
 }
 
 func (t *TSMReader) applyTombstones() error {

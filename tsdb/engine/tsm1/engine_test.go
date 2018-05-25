@@ -234,7 +234,7 @@ func TestEngine_Backup(t *testing.T) {
 	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
-	e := tsm1.NewEngine(1, idx, db, f.Name(), walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, f.Name(), walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -341,7 +341,7 @@ func TestEngine_Export(t *testing.T) {
 	idx := tsdb.MustOpenIndex(1, db, filepath.Join(f.Name(), "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
-	e := tsm1.NewEngine(1, idx, db, f.Name(), walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, f.Name(), walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -1684,7 +1684,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	idx := tsdb.MustOpenIndex(1, db, filepath.Join(dir, "index"), tsdb.NewSeriesIDSet(), sfile.SeriesFile, opt)
 	defer idx.Close()
 
-	e := tsm1.NewEngine(1, idx, db, dir, walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, dir, walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -1887,6 +1887,85 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 			case <-time.NewTimer(30 * time.Second).C:
 				t.Fatalf("timed out after 30 seconds waiting for waitgroup")
 			case <-done:
+			}
+		})
+	}
+}
+
+func TestEngine_WritePoints_TypeConflict(t *testing.T) {
+	os.Setenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED", "1")
+	defer os.Unsetenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED")
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+
+			e := MustOpenEngine(index)
+			defer e.Close()
+
+			if err := e.WritePointsString(
+				`cpu,host=A value=1.1 1`,
+				`cpu,host=A value=1i 2`,
+			); err == nil {
+				t.Fatalf("expected field type conflict")
+			} else if err != tsdb.ErrFieldTypeConflict {
+				t.Fatalf("error mismatch: got %v, exp %v", err, tsdb.ErrFieldTypeConflict)
+			}
+
+			// Series type should be a float
+			got, err := e.Type([]byte(tsm1.SeriesFieldKey("cpu,host=A", "value")))
+			if err != nil {
+				t.Fatalf("unexpected error getting field type: %v", err)
+			}
+
+			if exp := models.Float; got != exp {
+				t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
+			}
+
+			values := e.Cache.Values([]byte(tsm1.SeriesFieldKey("cpu,host=A", "value")))
+			if got, exp := len(values), 1; got != exp {
+				t.Fatalf("values len mismatch: got %v, exp %v", got, exp)
+			}
+		})
+	}
+}
+
+func TestEngine_WritePoints_Reload(t *testing.T) {
+	t.Skip("Disabled until INFLUXDB_SERIES_TYPE_CHECK_ENABLED is enabled by default")
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+
+			e := MustOpenEngine(index)
+			defer e.Close()
+
+			if err := e.WritePointsString(
+				`cpu,host=A value=1.1 1`,
+			); err != nil {
+				t.Fatalf("expected field type conflict")
+			}
+
+			// Series type should be a float
+			got, err := e.Type([]byte(tsm1.SeriesFieldKey("cpu,host=A", "value")))
+			if err != nil {
+				t.Fatalf("unexpected error getting field type: %v", err)
+			}
+
+			if exp := models.Float; got != exp {
+				t.Fatalf("field type mismatch: got %v, exp %v", got, exp)
+			}
+
+			if err := e.WriteSnapshot(); err != nil {
+				t.Fatalf("unexpected error writing snapshot: %v", err)
+			}
+
+			if err := e.Reopen(); err != nil {
+				t.Fatalf("unexpected error reopning engine: %v", err)
+			}
+
+			if err := e.WritePointsString(
+				`cpu,host=A value=1i 1`,
+			); err != tsdb.ErrFieldTypeConflict {
+				t.Fatalf("expected field type conflict: got %v", err)
 			}
 		})
 	}
@@ -2238,7 +2317,7 @@ func NewEngine(index string) (*Engine, error) {
 	idxPath := filepath.Join(dbPath, "index")
 	idx := tsdb.MustOpenIndex(1, db, idxPath, seriesIDs, sfile, opt)
 
-	tsm1Engine := tsm1.NewEngine(1, idx, db, filepath.Join(root, "data"), filepath.Join(root, "wal"), sfile, opt).(*tsm1.Engine)
+	tsm1Engine := tsm1.NewEngine(1, idx, filepath.Join(root, "data"), filepath.Join(root, "wal"), sfile, opt).(*tsm1.Engine)
 
 	return &Engine{
 		Engine:    tsm1Engine,
@@ -2310,7 +2389,7 @@ func (e *Engine) Reopen() error {
 	e.index = tsdb.MustOpenIndex(1, db, e.indexPath, seriesIDSet, e.sfile, opt)
 
 	// Re-initialize engine.
-	e.Engine = tsm1.NewEngine(1, e.index, db, filepath.Join(e.root, "data"), filepath.Join(e.root, "wal"), e.sfile, opt).(*tsm1.Engine)
+	e.Engine = tsm1.NewEngine(1, e.index, filepath.Join(e.root, "data"), filepath.Join(e.root, "wal"), e.sfile, opt).(*tsm1.Engine)
 
 	// Reopen engine
 	if err := e.Engine.Open(); err != nil {
@@ -2325,9 +2404,7 @@ func (e *Engine) Reopen() error {
 // index. It will panic if the underlying index does not have a SeriesIDSet
 // method.
 func (e *Engine) SeriesIDSet() *tsdb.SeriesIDSet {
-	return e.index.(interface {
-		SeriesIDSet() *tsdb.SeriesIDSet
-	}).SeriesIDSet()
+	return e.index.SeriesIDSet()
 }
 
 // AddSeries adds the provided series data to the index and writes a point to

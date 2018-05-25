@@ -59,7 +59,7 @@ func (m *measurement) bytes() int {
 	b += int(unsafe.Sizeof(m.Database)) + len(m.Database)
 	b += int(unsafe.Sizeof(m.Name)) + len(m.Name)
 	if m.NameBytes != nil {
-		b += int(unsafe.Sizeof(m.NameBytes)) + cap(m.NameBytes)
+		b += int(unsafe.Sizeof(m.NameBytes)) + len(m.NameBytes)
 	}
 	b += 24 // 24 bytes for m.mu RWMutex
 	b += int(unsafe.Sizeof(m.fieldNames))
@@ -1034,7 +1034,7 @@ func (s *series) bytes() int {
 	// Do not count s.Measurement to prevent double-counting in Index.Bytes.
 	b += int(unsafe.Sizeof(s.Key)) + len(s.Key)
 	for _, tag := range s.Tags {
-		b += int(unsafe.Sizeof(tag)) + cap(tag.Key) + cap(tag.Value)
+		b += int(unsafe.Sizeof(tag)) + len(tag.Key) + len(tag.Value)
 	}
 	b += int(unsafe.Sizeof(s.Tags))
 	s.mu.RUnlock()
@@ -1072,7 +1072,7 @@ func (t *tagKeyValue) bytes() int {
 	for k, v := range t.entries {
 		b += int(unsafe.Sizeof(k)) + len(k)
 		b += len(v.m) * 8 // uint64
-		b += cap(v.a) * 8 // uint64
+		b += len(v.a) * 8 // uint64
 		b += int(unsafe.Sizeof(v) + unsafe.Sizeof(*v))
 	}
 	t.mu.RUnlock()

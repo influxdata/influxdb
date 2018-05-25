@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -179,6 +180,8 @@ type FileStore struct {
 	purger *purger
 
 	currentTempDirID int
+
+	obs tsdb.FileStoreObserver
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -219,9 +222,15 @@ func NewFileStore(dir string) *FileStore {
 			files:  map[string]TSMFile{},
 			logger: logger,
 		},
+		obs: noFileStoreObserver{},
 	}
 	fs.purger.fileStore = fs
 	return fs
+}
+
+// WithObserver sets the observer for the file store.
+func (f *FileStore) WithObserver(obs tsdb.FileStoreObserver) {
+	f.obs = obs
 }
 
 // enableTraceLogging must be called before the FileStore is opened.
@@ -267,7 +276,8 @@ func (f *FileStore) Count() int {
 	return len(f.files)
 }
 
-// Files returns the slice of TSM files currently loaded.
+// Files returns the slice of TSM files currently loaded. This is only used for
+// tests, and the files aren't guaranteed to stay valid in the presense of compactions.
 func (f *FileStore) Files() []TSMFile {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -309,6 +319,12 @@ func (f *FileStore) WalkKeys(seek []byte, fn func(key []byte, typ byte) error) e
 	if len(f.files) == 0 {
 		f.mu.RUnlock()
 		return nil
+	}
+
+	// Ensure files are not unmapped while we're iterating over them.
+	for _, r := range f.files {
+		r.Ref()
+		defer r.Unref()
 	}
 
 	ki := newMergeKeyIterator(f.files, seek)
@@ -469,7 +485,7 @@ func (f *FileStore) Open() error {
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
-		generation, _, err := ParseTSMFileName(fn)
+		generation, _, err := ParseFileName(fn)
 		if err != nil {
 			return err
 		}
@@ -501,6 +517,8 @@ func (f *FileStore) Open() error {
 					return
 				}
 			}
+
+			df.WithObserver(f.obs)
 			readerC <- &res{r: df}
 		}(i, file)
 	}
@@ -595,12 +613,14 @@ func (f *FileStore) Cost(key []byte, min, max int64) query.IteratorCost {
 }
 
 // Reader returns a TSMReader for path if one is currently managed by the FileStore.
-// Otherwise it returns nil.
+// Otherwise it returns nil. If it returns a file, you must call Unref on it when
+// you are done, and never use it after that.
 func (f *FileStore) TSMReader(path string) *TSMReader {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	for _, r := range f.files {
 		if r.Path() == path {
+			r.Ref()
 			return r.(*TSMReader)
 		}
 	}
@@ -668,6 +688,16 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 	// Rename all the new files to make them live on restart
 	for _, file := range newFiles {
+		if !strings.HasSuffix(file, tsmTmpExt) && !strings.HasSuffix(file, TSMFileExtension) {
+			// This isn't a .tsm or .tsm.tmp file.
+			continue
+		}
+
+		// give the observer a chance to process the file first.
+		if err := f.obs.FileFinishing(file); err != nil {
+			return err
+		}
+
 		var newName = file
 		if strings.HasSuffix(file, tsmTmpExt) {
 			// The new TSM files have a tmp extension.  First rename them.
@@ -675,9 +705,6 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			if err := os.Rename(file, newName); err != nil {
 				return err
 			}
-		} else if !strings.HasSuffix(file, TSMFileExtension) {
-			// This isn't a .tsm or .tsm.tmp file.
-			continue
 		}
 
 		fd, err := os.Open(newName)
@@ -696,6 +723,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		if err != nil {
 			return err
 		}
+		tsm.WithObserver(f.obs)
+
 		updated = append(updated, tsm)
 	}
 
@@ -721,17 +750,33 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			if remove == file.Path() {
 				keep = false
 
+				// give the observer a chance to process the file first.
+				if err := f.obs.FileUnlinking(file.Path()); err != nil {
+					return err
+				}
+
+				for _, t := range file.TombstoneFiles() {
+					if err := f.obs.FileUnlinking(t.Path); err != nil {
+						return err
+					}
+				}
+
 				// If queries are running against this file, then we need to move it out of the
 				// way and let them complete.  We'll then delete the original file to avoid
 				// blocking callers upstream.  If the process crashes, the temp file is
 				// cleaned up at startup automatically.
+				//
+				// In order to ensure that there are no races with this (file held externally calls Ref
+				// after we check InUse), we need to maintain the invariant that every handle to a file
+				// is handed out in use (Ref'd), and handlers only ever relinquish the file once (call Unref
+				// exactly once, and never use it again). InUse is only valid during a write lock, since
+				// we allow calls to Ref and Unref under the read lock and no lock at all respectively.
 				if file.InUse() {
 					// Copy all the tombstones related to this TSM file
 					var deletes []string
 					for _, t := range file.TombstoneFiles() {
 						deletes = append(deletes, t.Path)
 					}
-					deletes = append(deletes, file.Path())
 
 					// Rename the TSM file used by this reader
 					tempPath := fmt.Sprintf("%s.%s", file.Path(), TmpTSMFileExtension)
@@ -742,7 +787,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 					// Remove the old file and tombstones.  We can't use the normal TSMReader.Remove()
 					// because it now refers to our temp file which we can't remove.
 					for _, f := range deletes {
-						if err := os.RemoveAll(f); err != nil {
+						if err := os.Remove(f); err != nil {
 							return err
 						}
 					}
@@ -950,29 +995,36 @@ func (f *FileStore) locations(key []byte, t int64, ascending bool) []*location {
 // in the path provided.
 func (f *FileStore) CreateSnapshot() (string, error) {
 	f.traceLogger.Info("Creating snapshot", zap.String("dir", f.dir))
-	files := f.Files()
 
 	f.mu.Lock()
+	// create a copy of the files slice and ensure they aren't closed out from
+	// under us, nor the slice mutated.
+	files := make([]TSMFile, len(f.files))
+	copy(files, f.files)
+
+	for _, tsmf := range files {
+		tsmf.Ref()
+		defer tsmf.Unref()
+	}
+
+	// increment and keep track of the current temp dir for when we drop the lock.
+	// this ensures we are the only writer to the directory.
 	f.currentTempDirID += 1
-	f.mu.Unlock()
-
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	// get a tmp directory name
 	tmpPath := fmt.Sprintf("%d.%s", f.currentTempDirID, TmpTSMFileExtension)
 	tmpPath = filepath.Join(f.dir, tmpPath)
+	f.mu.Unlock()
+
+	// create the tmp directory and add the hard links. there is no longer any shared
+	// mutable state.
 	err := os.Mkdir(tmpPath, 0777)
 	if err != nil {
 		return "", err
 	}
-
 	for _, tsmf := range files {
 		newpath := filepath.Join(tmpPath, filepath.Base(tsmf.Path()))
 		if err := os.Link(tsmf.Path(), newpath); err != nil {
 			return "", fmt.Errorf("error creating tsm hard link: %q", err)
 		}
-		// Check for tombstones and link those as well
 		for _, tf := range tsmf.TombstoneFiles() {
 			newpath := filepath.Join(tmpPath, filepath.Base(tf.Path))
 			if err := os.Link(tf.Path, newpath); err != nil {
@@ -984,8 +1036,20 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	return tmpPath, nil
 }
 
-// ParseTSMFileName parses the generation and sequence from a TSM file name.
-func ParseTSMFileName(name string) (int, int, error) {
+// FormatFileNameFunc is executed when generating a new TSM filename.
+// Source filenames are provided via src.
+type FormatFileNameFunc func(generation, sequence int) string
+
+// DefaultFormatFileName is the default implementation to format TSM filenames.
+func DefaultFormatFileName(generation, sequence int) string {
+	return fmt.Sprintf("%09d-%09d", generation, sequence)
+}
+
+// ParseFileNameFunc is executed when parsing a TSM filename into generation & sequence.
+type ParseFileNameFunc func(name string) (generation, sequence int, err error)
+
+// ParseFileName is used to parse the filenames of TSM files.
+var ParseFileName ParseFileNameFunc = func(name string) (int, int, error) {
 	base := filepath.Base(name)
 	idx := strings.Index(base, ".")
 	if idx == -1 {
@@ -1296,6 +1360,11 @@ func (p *purger) purge() {
 		for {
 			p.mu.Lock()
 			for k, v := range p.files {
+				// In order to ensure that there are no races with this (file held externally calls Ref
+				// after we check InUse), we need to maintain the invariant that every handle to a file
+				// is handed out in use (Ref'd), and handlers only ever relinquish the file once (call Unref
+				// exactly once, and never use it again). InUse is only valid during a write lock, since
+				// we allow calls to Ref and Unref under the read lock and no lock at all respectively.
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
 						p.logger.Info("Purge: close file", zap.Error(err))

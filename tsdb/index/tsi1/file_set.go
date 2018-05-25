@@ -18,17 +18,15 @@ type FileSet struct {
 	levels       []CompactionLevel
 	sfile        *tsdb.SeriesFile
 	files        []File
-	database     string
 	manifestSize int64 // Size of the manifest file in bytes.
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(database string, levels []CompactionLevel, sfile *tsdb.SeriesFile, files []File) (*FileSet, error) {
+func NewFileSet(levels []CompactionLevel, sfile *tsdb.SeriesFile, files []File) (*FileSet, error) {
 	return &FileSet{
-		levels:   levels,
-		sfile:    sfile,
-		files:    files,
-		database: database,
+		levels: levels,
+		sfile:  sfile,
+		files:  files,
 	}, nil
 }
 
@@ -42,7 +40,6 @@ func (fs *FileSet) bytes() int {
 	for _, file := range fs.files {
 		b += file.bytes()
 	}
-	b += len(fs.database)
 	b += int(unsafe.Sizeof(*fs))
 	return b
 }
@@ -79,10 +76,9 @@ func (fs *FileSet) SeriesFile() *tsdb.SeriesFile { return fs.sfile }
 // Filters do not need to be rebuilt because log files have no bloom filter.
 func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 	return &FileSet{
-		database: fs.database,
-		levels:   fs.levels,
-		sfile:    fs.sfile,
-		files:    append([]File{f}, fs.files...),
+		levels: fs.levels,
+		sfile:  fs.sfile,
+		files:  append([]File{f}, fs.files...),
 	}
 }
 
@@ -125,9 +121,8 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 
 	// Build new fileset and rebuild changed filters.
 	return &FileSet{
-		levels:   fs.levels,
-		files:    other,
-		database: fs.database,
+		levels: fs.levels,
+		files:  other,
 	}
 }
 

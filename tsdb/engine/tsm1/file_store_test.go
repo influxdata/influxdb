@@ -2749,6 +2749,110 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 	}
 }
 
+type mockObserver struct {
+	fileFinishing func(path string) error
+	fileUnlinking func(path string) error
+}
+
+func (m mockObserver) FileFinishing(path string) error {
+	return m.fileFinishing(path)
+}
+
+func (m mockObserver) FileUnlinking(path string) error {
+	return m.fileUnlinking(path)
+}
+
+func TestFileStore_Observer(t *testing.T) {
+	var finishes, unlinks []string
+	m := mockObserver{
+		fileFinishing: func(path string) error {
+			finishes = append(finishes, path)
+			return nil
+		},
+		fileUnlinking: func(path string) error {
+			unlinks = append(unlinks, path)
+			return nil
+		},
+	}
+
+	check := func(results []string, expect ...string) {
+		t.Helper()
+		if len(results) != len(expect) {
+			t.Fatalf("wrong number of results: %d results != %d expected", len(results), len(expect))
+		}
+		for i, ex := range expect {
+			if got := filepath.Base(results[i]); got != ex {
+				t.Fatalf("unexpected result: got %q != expected %q", got, ex)
+			}
+		}
+	}
+
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+	fs.WithObserver(m)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0), tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(10, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(20, 3.0)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	if err := fs.Replace(nil, files); err != nil {
+		t.Fatalf("error replacing: %v", err)
+	}
+
+	// Create a tombstone
+	if err := fs.DeleteRange([][]byte{[]byte("cpu")}, 10, 10); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	// Check that we observed finishes correctly
+	check(finishes,
+		"000000001-000000001.tsm",
+		"000000002-000000001.tsm",
+		"000000003-000000001.tsm",
+		"000000002-000000001.tombstone.tmp",
+	)
+	check(unlinks)
+	unlinks, finishes = nil, nil
+
+	// remove files including a tombstone
+	if err := fs.Replace(files[1:3], nil); err != nil {
+		t.Fatal("error replacing")
+	}
+
+	// Check that we observed unlinks correctly
+	check(finishes)
+	check(unlinks,
+		"000000002-000000001.tsm",
+		"000000002-000000001.tombstone",
+		"000000003-000000001.tsm",
+	)
+	unlinks, finishes = nil, nil
+
+	// add a tombstone for the first file multiple times.
+	if err := fs.DeleteRange([][]byte{[]byte("cpu")}, 0, 0); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+	if err := fs.DeleteRange([][]byte{[]byte("cpu")}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	check(finishes,
+		"000000001-000000001.tombstone.tmp",
+		"000000001-000000001.tombstone.tmp",
+	)
+	check(unlinks)
+	unlinks, finishes = nil, nil
+}
+
 func newFileDir(dir string, values ...keyValues) ([]string, error) {
 	var files []string
 
@@ -2771,7 +2875,7 @@ func newFileDir(dir string, values ...keyValues) ([]string, error) {
 		if err := w.Close(); err != nil {
 			return nil, err
 		}
-		newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(id))
+		newName := filepath.Join(filepath.Dir(f.Name()), tsm1.DefaultFormatFileName(id, 1)+".tsm")
 		if err := os.Rename(f.Name(), newName); err != nil {
 			return nil, err
 		}
@@ -2806,7 +2910,7 @@ func newFiles(dir string, values ...keyValues) ([]string, error) {
 			return nil, err
 		}
 
-		newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(id))
+		newName := filepath.Join(filepath.Dir(f.Name()), tsm1.DefaultFormatFileName(id, 1)+".tsm")
 		if err := os.Rename(f.Name(), newName); err != nil {
 			return nil, err
 		}
@@ -2840,10 +2944,6 @@ func MustTempFile(dir string) *os.File {
 
 func fatal(t *testing.T, msg string, err error) {
 	t.Fatalf("unexpected error %v: %v", msg, err)
-}
-
-func tsmFileName(id int) string {
-	return fmt.Sprintf("%09d-%09d.tsm", id, 1)
 }
 
 var fsResult []tsm1.FileStat

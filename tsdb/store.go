@@ -135,6 +135,32 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	return statistics
 }
 
+func (s *Store) IndexBytes() int {
+	// Build index set to work on.
+	is := IndexSet{Indexes: make([]Index, 0, len(s.shardIDs()))}
+	s.mu.RLock()
+	for _, sid := range s.shardIDs() {
+		shard, ok := s.shards[sid]
+		if !ok {
+			continue
+		}
+
+		if is.SeriesFile == nil {
+			is.SeriesFile = shard.sfile
+		}
+		is.Indexes = append(is.Indexes, shard.index)
+	}
+	s.mu.RUnlock()
+	is = is.DedupeInmemIndexes()
+
+	var b int
+	for _, idx := range is.Indexes {
+		b += idx.Bytes()
+	}
+
+	return b
+}
+
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
 
@@ -629,12 +655,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return err
 	}
 
-	var ss *SeriesIDSet
-	if i, ok := index.(interface {
-		SeriesIDSet() *SeriesIDSet
-	}); ok {
-		ss = i.SeriesIDSet()
-	}
+	ss := index.SeriesIDSet()
 
 	db := sh.Database()
 	if err := sh.Close(); err != nil {
@@ -651,13 +672,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 			return err
 		}
 
-		if i, ok := index.(interface {
-			SeriesIDSet() *SeriesIDSet
-		}); ok {
-			ss.Diff(i.SeriesIDSet())
-		} else {
-			return fmt.Errorf("unable to get series id set for index in shard at %s", sh.Path())
-		}
+		ss.Diff(index.SeriesIDSet())
 		return nil
 	})
 
@@ -989,16 +1004,11 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 			return err
 		}
 
-		if i, ok := index.(interface {
-			SeriesIDSet() *SeriesIDSet
-		}); ok {
-			seriesIDs := i.SeriesIDSet()
-			setMu.Lock()
-			others = append(others, seriesIDs)
-			setMu.Unlock()
-		} else {
-			return fmt.Errorf("unable to get series id set for index in shard at %s", sh.Path())
-		}
+		seriesIDs := index.SeriesIDSet()
+		setMu.Lock()
+		others = append(others, seriesIDs)
+		setMu.Unlock()
+
 		return nil
 	})
 
@@ -1903,11 +1913,7 @@ func (s shardSet) ForEach(f func(ids *SeriesIDSet)) error {
 			return err
 		}
 
-		if t, ok := idx.(interface {
-			SeriesIDSet() *SeriesIDSet
-		}); ok {
-			f(t.SeriesIDSet())
-		}
+		f(idx.SeriesIDSet())
 	}
 	return nil
 }

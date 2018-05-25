@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
+	"github.com/influxdata/influxdb/pkg/radix"
 	intar "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query"
@@ -145,7 +146,6 @@ type Engine struct {
 	snapWG   *sync.WaitGroup // waitgroup for running snapshot compactions
 
 	id           uint64
-	database     string
 	path         string
 	sfile        *tsdb.SeriesFile
 	logger       *zap.Logger // Logger to be used for important messages
@@ -162,7 +162,7 @@ type Engine struct {
 
 	MaxPointsPerBlock int
 
-	// CacheFlushMemorySizeThreshold specifies the minimum size threshodl for
+	// CacheFlushMemorySizeThreshold specifies the minimum size threshold for
 	// the cache when the engine should write a snapshot to a TSM file
 	CacheFlushMemorySizeThreshold uint64
 
@@ -174,6 +174,9 @@ type Engine struct {
 	// WALEnabled determines whether writes to the WAL are enabled.  If this is false,
 	// writes will only exist in the cache and can be lost if a snapshot has not occurred.
 	WALEnabled bool
+
+	// Invoked when creating a backup file "as new".
+	GenerateFormatFileNameFunc func() FormatFileNameFunc
 
 	// Controls whether to enabled compactions when the engine is open
 	enableCompactionsOnOpen bool
@@ -187,21 +190,29 @@ type Engine struct {
 
 	// provides access to the total set of series IDs
 	seriesIDSets tsdb.SeriesIDSets
+
+	// seriesTypeMap maps a series key to field type
+	seriesTypeMap *radix.Tree
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
-	w := NewWAL(walPath)
-	w.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
+func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Engine {
+	var wal *WAL
+	if opt.WALEnabled {
+		wal = NewWAL(walPath)
+		wal.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
+	}
 
 	fs := NewFileStore(path)
+	if opt.FileStoreObserver != nil {
+		fs.WithObserver(opt.FileStoreObserver)
+	}
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
 
-	c := &Compactor{
-		Dir:       path,
-		FileStore: fs,
-		RateLimit: opt.CompactionThroughputLimiter,
-	}
+	c := NewCompactor()
+	c.Dir = path
+	c.FileStore = fs
+	c.RateLimit = opt.CompactionThroughputLimiter
 
 	var planner CompactionPlanner = NewDefaultPlanner(fs, time.Duration(opt.Config.CompactFullWriteColdDuration))
 	if opt.CompactionPlannerCreator != nil {
@@ -213,7 +224,6 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 	stats := &EngineStatistics{}
 	e := &Engine{
 		id:           id,
-		database:     database,
 		path:         path,
 		index:        idx,
 		sfile:        sfile,
@@ -221,7 +231,7 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		traceLogger:  logger,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
-		WAL:   w,
+		WAL:   wal,
 		Cache: cache,
 
 		FileStore:      fs,
@@ -232,15 +242,24 @@ func NewEngine(id uint64, idx tsdb.Index, database, path string, walPath string,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
 		WALEnabled:                    opt.WALEnabled,
-		stats:                         stats,
-		compactionLimiter:             opt.CompactionLimiter,
-		scheduler:                     newScheduler(stats, opt.CompactionLimiter.Capacity()),
-		seriesIDSets:                  opt.SeriesIDSets,
+		GenerateFormatFileNameFunc:    func() FormatFileNameFunc { return DefaultFormatFileName },
+		stats:             stats,
+		compactionLimiter: opt.CompactionLimiter,
+		scheduler:         newScheduler(stats, opt.CompactionLimiter.Capacity()),
+		seriesIDSets:      opt.SeriesIDSets,
+	}
+
+	// Feature flag to enable per-series type checking, by default this is off and
+	// e.seriesTypeMap will be nil.
+	if os.Getenv("INFLUXDB_SERIES_TYPE_CHECK_ENABLED") != "" {
+		e.seriesTypeMap = radix.New()
 	}
 
 	if e.traceLogging {
 		fs.enableTraceLogging(true)
-		w.enableTraceLogging(true)
+		if e.WALEnabled {
+			e.WAL.enableTraceLogging(true)
+		}
 	}
 
 	return e
@@ -559,11 +578,10 @@ func (e *Engine) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 
 // LastModified returns the time when this shard was last modified.
 func (e *Engine) LastModified() time.Time {
-	walTime := e.WAL.LastWriteTime()
 	fsTime := e.FileStore.LastModified()
 
-	if walTime.After(fsTime) {
-		return walTime
+	if e.WALEnabled && e.WAL.LastWriteTime().After(fsTime) {
+		return e.WAL.LastWriteTime()
 	}
 
 	return fsTime
@@ -641,13 +659,19 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 
 	statistics = append(statistics, e.Cache.Statistics(tags)...)
 	statistics = append(statistics, e.FileStore.Statistics(tags)...)
-	statistics = append(statistics, e.WAL.Statistics(tags)...)
+	if e.WALEnabled {
+		statistics = append(statistics, e.WAL.Statistics(tags)...)
+	}
 	return statistics
 }
 
 // DiskSize returns the total size in bytes of all TSM and WAL segments on disk.
 func (e *Engine) DiskSize() int64 {
-	return e.FileStore.DiskSizeBytes() + e.WAL.DiskSizeBytes()
+	var walDiskSizeBytes int64
+	if e.WALEnabled {
+		walDiskSizeBytes = e.WAL.DiskSizeBytes()
+	}
+	return e.FileStore.DiskSizeBytes() + walDiskSizeBytes
 }
 
 // Open opens and initializes the engine.
@@ -671,16 +695,20 @@ func (e *Engine) Open() error {
 
 	e.index.SetFieldSet(fields)
 
-	if err := e.WAL.Open(); err != nil {
-		return err
+	if e.WALEnabled {
+		if err := e.WAL.Open(); err != nil {
+			return err
+		}
 	}
 
 	if err := e.FileStore.Open(); err != nil {
 		return err
 	}
 
-	if err := e.reloadCache(); err != nil {
-		return err
+	if e.WALEnabled {
+		if err := e.reloadCache(); err != nil {
+			return err
+		}
 	}
 
 	e.Compactor.Open()
@@ -704,7 +732,10 @@ func (e *Engine) Close() error {
 	if err := e.FileStore.Close(); err != nil {
 		return err
 	}
-	return e.WAL.Close()
+	if e.WALEnabled {
+		return e.WAL.Close()
+	}
+	return nil
 }
 
 // WithLogger sets the logger for the engine.
@@ -715,7 +746,9 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 		e.traceLogger = e.logger
 	}
 
-	e.WAL.WithLogger(e.logger)
+	if e.WALEnabled {
+		e.WAL.WithLogger(e.logger)
+	}
 	e.FileStore.WithLogger(e.logger)
 }
 
@@ -1124,7 +1157,8 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 	}
 
 	if asNew {
-		filename = fmt.Sprintf("%09d-%09d.%s", e.FileStore.NextGeneration(), 1, TSMFileExtension)
+		formatFileName := e.GenerateFormatFileNameFunc()
+		filename = formatFileName(e.FileStore.NextGeneration(), 1) + "." + TSMFileExtension
 	}
 
 	tmp := fmt.Sprintf("%s.%s", filepath.Join(e.path, filename), TmpTSMFileExtension)
@@ -1187,8 +1221,12 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 // It returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []models.Point) error {
 	values := make(map[string][]Value, len(points))
-	var keyBuf []byte
-	var baseLen int
+	var (
+		keyBuf    []byte
+		baseLen   int
+		seriesErr error
+	)
+
 	for _, p := range points {
 		keyBuf = append(keyBuf[:0], p.Key()...)
 		keyBuf = append(keyBuf, keyFieldSeparator...)
@@ -1202,6 +1240,37 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			}
 
 			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
+
+			if e.seriesTypeMap != nil {
+				// Fast-path check to see if the field for the series already exists.
+				if v, ok := e.seriesTypeMap.Get(keyBuf); !ok {
+					if typ, err := e.Type(keyBuf); err != nil {
+						// Field type is unknown, we can try to add it.
+					} else if typ != iter.Type() {
+						// Existing type is different from what was passed in, we need to drop
+						// this write and refresh the series type map.
+						seriesErr = tsdb.ErrFieldTypeConflict
+						e.seriesTypeMap.Insert(keyBuf, int(typ))
+						continue
+					}
+
+					// Doesn't exsts, so try to insert
+					vv, ok := e.seriesTypeMap.Insert(keyBuf, int(iter.Type()))
+
+					// We didn't insert and the type that exists isn't what we tried to insert, so
+					// we have a conflict and must drop this field/series.
+					if !ok || vv != int(iter.Type()) {
+						seriesErr = tsdb.ErrFieldTypeConflict
+						continue
+					}
+				} else if v != int(iter.Type()) {
+					// The series already exists, but with a different type.  This is also a type conflict
+					// and we need to drop this field/series.
+					seriesErr = tsdb.ErrFieldTypeConflict
+					continue
+				}
+			}
+
 			var v Value
 			switch iter.Type() {
 			case models.Float:
@@ -1241,15 +1310,16 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	defer e.mu.RUnlock()
 
 	// first try to write to the cache
-	err := e.Cache.WriteMulti(values)
-	if err != nil {
+	if err := e.Cache.WriteMulti(values); err != nil {
 		return err
 	}
 
 	if e.WALEnabled {
-		_, err = e.WAL.WriteMulti(values)
+		if _, err := e.WAL.WriteMulti(values); err != nil {
+			return err
+		}
 	}
-	return err
+	return seriesErr
 }
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series
@@ -1689,25 +1759,31 @@ func (e *Engine) WriteSnapshot() error {
 		logEnd()
 	}()
 
-	closedFiles, snapshot, err := func() ([]string, *Cache, error) {
+	var formatFileName FormatFileNameFunc
+	closedFiles, snapshot, err := func() (segments []string, snapshot *Cache, err error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 
-		if err := e.WAL.CloseSegment(); err != nil {
-			return nil, nil, err
+		if e.WALEnabled {
+			if err = e.WAL.CloseSegment(); err != nil {
+				return
+			}
+
+			segments, err = e.WAL.ClosedSegments()
+			if err != nil {
+				return
+			}
 		}
 
-		segments, err := e.WAL.ClosedSegments()
+		snapshot, err = e.Cache.Snapshot()
 		if err != nil {
-			return nil, nil, err
+			return
 		}
 
-		snapshot, err := e.Cache.Snapshot()
-		if err != nil {
-			return nil, nil, err
-		}
+		// Determine filename generation function under lock.
+		formatFileName = e.GenerateFormatFileNameFunc()
 
-		return segments, snapshot, nil
+		return
 	}()
 
 	if err != nil {
@@ -1728,7 +1804,7 @@ func (e *Engine) WriteSnapshot() error {
 		zap.String("path", e.path),
 		zap.Duration("duration", time.Since(dedup)))
 
-	return e.writeSnapshotAndCommit(log, closedFiles, snapshot)
+	return e.writeSnapshotAndCommit(log, closedFiles, snapshot, formatFileName)
 }
 
 // CreateSnapshot will create a temp directory that holds
@@ -1750,7 +1826,7 @@ func (e *Engine) CreateSnapshot() (string, error) {
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments.
-func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, snapshot *Cache) (err error) {
+func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, snapshot *Cache, formatFileName FormatFileNameFunc) (err error) {
 	defer func() {
 		if err != nil {
 			e.Cache.ClearSnapshot(false)
@@ -1758,7 +1834,7 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, s
 	}()
 
 	// write the new snapshot files
-	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
+	newFiles, err := e.Compactor.WriteSnapshot(snapshot, formatFileName)
 	if err != nil {
 		log.Info("Error writing snapshot from compactor", zap.Error(err))
 		return err
@@ -1776,8 +1852,10 @@ func (e *Engine) writeSnapshotAndCommit(log *zap.Logger, closedFiles []string, s
 	// clear the snapshot from the in-memory cache, then the old WAL files
 	e.Cache.ClearSnapshot(true)
 
-	if err := e.WAL.Remove(closedFiles); err != nil {
-		log.Info("Error removing closed WAL segments", zap.Error(err))
+	if e.WALEnabled {
+		if err := e.WAL.Remove(closedFiles); err != nil {
+			log.Info("Error removing closed WAL segments", zap.Error(err))
+		}
 	}
 
 	return nil
@@ -1798,7 +1876,7 @@ func (e *Engine) compactCache() {
 
 		case <-t.C:
 			e.Cache.UpdateAge()
-			if e.ShouldCompactCache(e.WAL.LastWriteTime()) {
+			if e.ShouldCompactCache() {
 				start := time.Now()
 				e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
 				err := e.WriteSnapshot()
@@ -1816,15 +1894,18 @@ func (e *Engine) compactCache() {
 
 // ShouldCompactCache returns true if the Cache is over its flush threshold
 // or if the passed in lastWriteTime is older than the write cold threshold.
-func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
+func (e *Engine) ShouldCompactCache() bool {
 	sz := e.Cache.Size()
 
 	if sz == 0 {
 		return false
 	}
 
-	return sz > e.CacheFlushMemorySizeThreshold ||
-		(e.WALEnabled && time.Since(lastWriteTime) > e.CacheFlushWriteColdDuration)
+	if sz > e.CacheFlushMemorySizeThreshold {
+		return true
+	}
+
+	return e.WALEnabled && time.Since(e.WAL.LastWriteTime()) > e.CacheFlushWriteColdDuration
 }
 
 func (e *Engine) compact(wg *sync.WaitGroup) {
@@ -2841,6 +2922,32 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 		}
 	}
 	return cost, nil
+}
+
+// Type returns FieldType for a series.  If the series does not
+// exist, ErrUnkownFieldType is returned.
+func (e *Engine) Type(series []byte) (models.FieldType, error) {
+	if typ, err := e.Cache.Type(series); err == nil {
+		return typ, nil
+	}
+
+	typ, err := e.FileStore.Type(series)
+	if err != nil {
+		return 0, err
+	}
+	switch typ {
+	case BlockFloat64:
+		return models.Float, nil
+	case BlockInteger:
+		return models.Integer, nil
+	case BlockUnsigned:
+		return models.Unsigned, nil
+	case BlockString:
+		return models.String, nil
+	case BlockBoolean:
+		return models.Boolean, nil
+	}
+	return 0, tsdb.ErrUnknownFieldType
 }
 
 func (e *Engine) seriesCost(seriesKey, field string, tmin, tmax int64) query.IteratorCost {
