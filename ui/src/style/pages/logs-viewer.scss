@@ -184,6 +184,7 @@ $logs-viewer-gutter: 60px;
     font-weight: 600;
     color: $g11-sidewalk;
     transition: background-color 0.25s ease, color 0.25s ease;
+    margin: 0;
 
     &:hover {
       cursor: pointer;
