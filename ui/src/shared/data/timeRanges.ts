@@ -1,4 +1,13 @@
-export const timeRanges = [
+interface TimeRange {
+  defaultGroupBy: string
+  seconds: number
+  inputValue: string
+  lower: string
+  upper: string | null
+  menuOption: string
+}
+
+export const timeRanges: TimeRange[] = [
   {
     defaultGroupBy: '10s',
     seconds: 300,
