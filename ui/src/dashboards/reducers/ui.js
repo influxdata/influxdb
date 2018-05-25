@@ -11,6 +11,7 @@ const initialState = {
   cellQueryStatus: {queryID: null, status: null},
   hoverTime: NULL_HOVER_TIME,
   activeCellID: '',
+  tempVarOverrides: {},
 }
 
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
@@ -272,6 +273,18 @@ export default function ui(state = initialState, action) {
       )
 
       return {...state, dashboards: newDashboards}
+    }
+
+    case 'EDIT_TEMPLATE_VARIABLE_OVERRIDES': {
+      const {dashboardID, tempVarOverrides} = action.payload
+
+      return {
+        ...state,
+        tempVarOverrides: {
+          ...state.tempVarOverrides,
+          [dashboardID]: tempVarOverrides,
+        },
+      }
     }
 
     case 'EDIT_TEMPLATE_VARIABLE_VALUES': {

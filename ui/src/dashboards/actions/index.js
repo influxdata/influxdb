@@ -174,6 +174,17 @@ export const templateVariablesSelectedByName = (dashboardID, query) => ({
   },
 })
 
+export const editTemplateVariableOverrides = (
+  dashboardID,
+  tempVarOverrides
+) => ({
+  type: 'EDIT_TEMPLATE_VARIABLE_OVERRIDES',
+  payload: {
+    dashboardID,
+    tempVarOverrides,
+  },
+})
+
 export const editTemplateVariableValues = (
   dashboardID,
   templateID,

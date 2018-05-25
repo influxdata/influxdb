@@ -2,7 +2,10 @@
 import queryString from 'query-string'
 
 import {enablePresentationMode} from 'src/shared/actions/app'
-import {templateVariablesSelectedByName} from 'src/dashboards/actions'
+import {
+  templateVariablesSelectedByName,
+  editTemplateVariableOverrides,
+} from 'src/dashboards/actions'
 
 export const queryStringConfig = () => {
   let prevPath
@@ -22,6 +25,7 @@ export const queryStringConfig = () => {
       const dashboardID = currentPath.match(dashboardRegex)[2]
       if (currentPath !== prevPath) {
         next(templateVariablesSelectedByName(+dashboardID, qs))
+        next(editTemplateVariableOverrides(dashboardID, qs))
       }
 
       prevPath = currentPath
