@@ -4,6 +4,7 @@ import {OnChangeArg} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Func} from 'src/types/ifql'
 import {funcNames} from 'src/ifql/constants'
+import Join from 'src/ifql/components/Join'
 
 interface Props {
   func: Func
@@ -27,7 +28,30 @@ export default class FuncArgs extends PureComponent<Props> {
       onGenerateScript,
       declarationsFromBody,
     } = this.props
-
+    const {name: funcName, id: funcID} = func
+    if (funcName === funcNames.JOIN) {
+      return (
+        <div className="func-node--tooltip">
+          <Join
+            func={func}
+            bodyID={bodyID}
+            declarationID={declarationID}
+            onChangeArg={onChangeArg}
+            declarationsFromBody={declarationsFromBody}
+            onGenerateScript={onGenerateScript}
+          />
+          <div className="func-node--buttons">
+            <div
+              className="btn btn-sm btn-danger func-node--delete"
+              onClick={onDeleteFunc}
+            >
+              Delete
+            </div>
+            {this.build}
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="func-node--tooltip">
         {func.args.map(({key, value, type}) => {
@@ -38,8 +62,8 @@ export default class FuncArgs extends PureComponent<Props> {
               argKey={key}
               value={value}
               bodyID={bodyID}
-              funcID={func.id}
-              funcName={func.name}
+              funcID={funcID}
+              funcName={funcName}
               onChangeArg={onChangeArg}
               declarationID={declarationID}
               onGenerateScript={onGenerateScript}

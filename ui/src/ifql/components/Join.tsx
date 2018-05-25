@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
 
 import Dropdown from 'src/shared/components/Dropdown'
 import FuncArgInput from 'src/ifql/components/FuncArgInput'
@@ -26,18 +27,27 @@ interface DropdownItem {
 }
 
 class Join extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps(nextProps: Props) {
+    const tables = nextProps.func.args.find(a => a.key === 'tables')
+    if (tables) {
+      const keys = _.keys(tables.value)
+      return {table1: keys[0], table2: keys[1]}
+    }
+    return {table1: '', table2: ''}
+  }
   constructor(props) {
     super(props)
+
     this.state = {
-      table1: '',
-      table2: '',
+      table1: this.table1Value,
+      table2: this.table2Value,
     }
   }
 
   public render() {
     const {table1, table2} = this.state
     const {
-      declarationsFromBody,
+      declarationsFromBody = [],
       func,
       bodyID,
       onChangeArg,
@@ -49,16 +59,16 @@ class Join extends PureComponent<Props, State> {
         <div className="func-arg">
           <label className="func-arg--label">{'tables'}</label>
           <Dropdown
-            selected={table1 in declarationsFromBody ? table1 : ''}
-            className="from--dropdown dropdown-160 func-arg--value"
+            selected={_.includes(declarationsFromBody, table1) ? table1 : ''}
+            className="from--dropdown dropdown-100 func-arg--value"
             menuClass="dropdown-astronaut"
             buttonColor="btn-default"
             items={this.items}
             onChoose={this.handleChooseTable1}
           />
           <Dropdown
-            selected={table1 in declarationsFromBody ? table2 : ''}
-            className="from--dropdown dropdown-160 func-arg--value"
+            selected={_.includes(declarationsFromBody, table2) ? table2 : ''}
+            className="from--dropdown dropdown-100 func-arg--value"
             menuClass="dropdown-astronaut"
             buttonColor="btn-default"
             items={this.items}
@@ -119,17 +129,19 @@ class Join extends PureComponent<Props, State> {
       func,
       onGenerateScript,
     } = this.props
-    const {table1, table2} = this.state
-    onChangeArg({
-      funcID: func.id,
-      bodyID,
-      declarationID,
-      key: 'tables',
-      value: {[table1]: table1, [table2]: table2},
-      generate: true,
-    })
+    const table1 = this.table1Value
+    const table2 = this.table2Value
     if (table1 !== '' && table2 !== '') {
-      console.log('generating!')
+      // const value = `${table1}:${table1}, ${table2}:${table2}`
+      const value = {[table1]: table1, [table2]: table2}
+      onChangeArg({
+        funcID: func.id,
+        bodyID,
+        declarationID,
+        key: 'tables',
+        value,
+        generate: true,
+      })
       onGenerateScript()
     }
   }
@@ -146,6 +158,24 @@ class Join extends PureComponent<Props, State> {
   private get fnValue(): string {
     const fnObject = this.props.func.args.find(a => a.key === 'fn')
     return fnObject.value.toString()
+  }
+
+  private get table1Value(): string {
+    const tables = this.props.func.args.find(a => a.key === 'tables')
+    if (tables) {
+      const keys = _.keys(tables.value)
+      return keys[0]
+    }
+    return ''
+  }
+
+  private get table2Value(): string {
+    const tables = this.props.func.args.find(a => a.key === 'tables')
+    if (tables) {
+      const keys = _.keys(tables.value)
+      return keys[1]
+    }
+    return ''
   }
 }
 
