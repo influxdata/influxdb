@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import {Filter} from 'src/logs/containers/LogsPage'
+import FilterBlock from 'src/logs/components/LogsFilter'
 
 interface Props {
   numResults: number
@@ -25,31 +26,25 @@ class LogsFilters extends PureComponent<Props> {
     const {filters} = this.props
 
     return filters.map(filter => (
-      <li className="logs-viewer--filter">
-        <span>
-          {filter.key}
-          {filter.operator}
-          {filter.value}
-        </span>
-        <button
-          className="logs-viewer--filter-remove"
-          onClick={this.handleDeleteFilter(filter.id)}
-        />
-      </li>
+      <FilterBlock
+        key={filter.id}
+        filter={filter}
+        onDelete={this.handleDeleteFilter}
+        onToggleStatus={this.handleToggleFilterStatus}
+        onToggleOperator={this.handleToggleFilterOperator}
+      />
     ))
   }
 
   private handleDeleteFilter = (id: string) => (): void => {
     const {filters, onUpdateFilters} = this.props
 
-    const filteredFilters = filters.map(
-      filter => (filter.id === id ? null : filter)
-    )
+    const filteredFilters = filters.filter(filter => filter.id !== id)
 
     onUpdateFilters(filteredFilters)
   }
 
-  private handleToggleFilter = (id: string) => (): void => {
+  private handleToggleFilterStatus = (id: string) => (): void => {
     const {filters, onUpdateFilters} = this.props
 
     const filteredFilters = filters.map(filter => {
@@ -61,6 +56,28 @@ class LogsFilters extends PureComponent<Props> {
     })
 
     onUpdateFilters(filteredFilters)
+  }
+
+  private handleToggleFilterOperator = (id: string) => (): void => {
+    const {filters, onUpdateFilters} = this.props
+
+    const filteredFilters = filters.map(filter => {
+      if (filter.id === id) {
+        return {...filter, operator: this.toggleOperator(filter.operator)}
+      }
+
+      return filter
+    })
+
+    onUpdateFilters(filteredFilters)
+  }
+
+  private toggleOperator = (op: string): string => {
+    if (op === '==') {
+      return '!='
+    }
+
+    return '=='
   }
 }
 

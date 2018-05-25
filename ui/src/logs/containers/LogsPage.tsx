@@ -34,13 +34,23 @@ interface State {
   filters: Filter[]
 }
 
+const DUMMY_FILTERS = [
+  {
+    id: '0',
+    key: 'host',
+    value: 'prod1-rsavage.local',
+    operator: '==',
+    enabled: true,
+  },
+]
+
 class LogsPage extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
     this.state = {
       searchString: '',
-      filters: [],
+      filters: DUMMY_FILTERS,
     }
   }
 

@@ -94,6 +94,7 @@ $logs-viewer-gutter: 60px;
 }
 
 .logs-viewer--filter {
+  position: relative;
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -103,8 +104,20 @@ $logs-viewer-gutter: 60px;
   border-radius: 4px;
   background-color: $g5-pepper;
   color: $g13-mist;
-  font-weight: 500;
+  font-weight: 600;
   margin: 2px;
+
+  &.disabled {
+    background-color: $g4-onyx;
+    color: $g9-mountain;
+    font-style: italic;
+  }
+
+  &.active {
+    background-color: $g6-smoke;
+    color: $g15-platinum;
+  }
+
 }
 
 .logs-viewer--filter-remove {
@@ -142,6 +155,40 @@ $logs-viewer-gutter: 60px;
     &:before,
     &:after {
       background-color: $c-dreamsicle;
+    }
+  }
+}
+
+.logs-viewer--filter-tooltip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: $radius;
+  z-index: 9999;
+  @extend %drop-shadow;
+  background-color: $g4-onyx;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+
+  > li {
+    height: 26px;
+    line-height: 26px;
+    padding: 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: $g11-sidewalk;
+    transition: background-color 0.25s ease, color 0.25s ease;
+
+    &:hover {
+      cursor: pointer;
+      background-color: $g5-pepper;
+      color: $g18-cloud;
     }
   }
 }
