@@ -238,15 +238,42 @@ export default class Walker {
     })
   }
 
+  private constructObject(value) {
+    const propArray = _.get(value, 'properties', [])
+    const valueObj = propArray.reduce((acc, p) => {
+      return {...acc, [p.key.name]: p.value.name}
+    }, {})
+    return valueObj
+  }
+
+  private constructArray(value) {
+    const elementsArray = _.get(value, 'elements', [])
+    const valueArray = elementsArray.reduce((acc, e) => {
+      return [...acc, e.value]
+    }, [])
+    return valueArray
+  }
+
   private getProperties = props => {
-    return props.map(prop => ({
-      key: prop.key.name,
-      value: _.get(
-        prop,
-        'value.value',
-        _.get(prop, 'value.location.source', '')
-      ),
-    }))
+    return props.map(prop => {
+      const key = prop.key.name
+      let value
+      if (_.get(prop, 'value.type', '') === 'ObjectExpression') {
+        value = this.constructObject(prop.value)
+      } else if (_.get(prop, 'value.type', '') === 'ArrayExpression') {
+        value = this.constructArray(prop.value)
+      } else {
+        value = _.get(
+          prop,
+          'value.value',
+          _.get(prop, 'value.location.source', '')
+        )
+      }
+      return {
+        key,
+        value,
+      }
+    })
   }
 
   private get baseExpression() {

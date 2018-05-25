@@ -6,6 +6,7 @@ import {
   Expression,
   ArrowFunction,
   Fork,
+  JoinWithObjectArg,
 } from 'test/ifql/ast/variable'
 
 describe('IFQL.AST.Walker', () => {
@@ -149,6 +150,35 @@ describe('IFQL.AST.Walker', () => {
             })
           })
         })
+      })
+    })
+
+    describe('Args that are objects', () => {
+      it('returns an object when arg type is object', () => {
+        const walker = new Walker(JoinWithObjectArg)
+        expect(walker.body).toEqual([
+          {
+            type: 'CallExpression',
+            source:
+              'join(tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"])',
+            funcs: [
+              {
+                name: 'join',
+                source:
+                  'join(tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"])',
+                args: [
+                  {key: 'tables', value: {cpu: 'cpu', mem: 'mem'}},
+                  {key: 'on', value: ['host']},
+                  {
+                    key: 'fn',
+                    value:
+                      '(tables) => tables.cpu["_value"] + tables.mem["_value"]',
+                  },
+                ],
+              },
+            ],
+          },
+        ])
       })
     })
 
