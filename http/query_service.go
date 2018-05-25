@@ -32,11 +32,8 @@ type QueryHandler struct {
 // NewQueryHandler returns a new instance of QueryHandler.
 func NewQueryHandler() *QueryHandler {
 	h := &QueryHandler{
-		Router: httprouter.New(),
-		csvEncoder: &query.DelimitedMultiResultEncoder{
-			Delimiter: []byte{'\n'},
-			Encoder:   csv.NewResultEncoder(csv.DefaultEncoderConfig()),
-		},
+		Router:     httprouter.New(),
+		csvEncoder: csv.NewMultiResultEncoder(csv.DefaultEncoderConfig()),
 	}
 
 	h.HandlerFunc("POST", queryPath, h.handlePostQuery)

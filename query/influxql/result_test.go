@@ -22,23 +22,22 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 	}{
 		{
 			name: "Default",
-			in: query.NewMapResultIterator(
-				map[string]query.Result{
-					"0": &executetest.Result{
-						Blks: []*executetest.Block{{
-							KeyCols: []string{"_measurement", "host"},
-							ColMeta: []query.ColMeta{
-								{Label: "time", Type: query.TTime},
-								{Label: "_measurement", Type: query.TString},
-								{Label: "host", Type: query.TString},
-								{Label: "value", Type: query.TFloat},
-							},
-							Data: [][]interface{}{
-								{mustParseTime("2018-05-24T09:00:00Z"), "m0", "server01", float64(2)},
-							},
-						}},
-					},
-				},
+			in: query.NewSliceResultIterator(
+				[]query.Result{&executetest.Result{
+					Nm: "0",
+					Blks: []*executetest.Block{{
+						KeyCols: []string{"_measurement", "host"},
+						ColMeta: []query.ColMeta{
+							{Label: "time", Type: query.TTime},
+							{Label: "_measurement", Type: query.TString},
+							{Label: "host", Type: query.TString},
+							{Label: "value", Type: query.TFloat},
+						},
+						Data: [][]interface{}{
+							{mustParseTime("2018-05-24T09:00:00Z"), "m0", "server01", float64(2)},
+						},
+					}},
+				}},
 			),
 			out: `{"results":[{"statement_id":0,"series":[{"name":"m0","tags":{"host":"server01"},"columns":["time","value"],"values":[["2018-05-24T09:00:00Z",2]]}]}]}`,
 		},
@@ -66,9 +65,9 @@ type resultErrorIterator struct {
 	Error string
 }
 
-func (*resultErrorIterator) Cancel()                      {}
-func (*resultErrorIterator) More() bool                   { return false }
-func (*resultErrorIterator) Next() (string, query.Result) { return "", nil }
+func (*resultErrorIterator) Cancel()            {}
+func (*resultErrorIterator) More() bool         { return false }
+func (*resultErrorIterator) Next() query.Result { panic("no results") }
 
 func (ri *resultErrorIterator) Err() error {
 	return errors.New(ri.Error)

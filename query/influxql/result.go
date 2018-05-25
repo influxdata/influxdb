@@ -30,7 +30,8 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 	resp := Response{}
 
 	for results.More() {
-		name, r := results.Next()
+		r := results.Next()
+		name := r.Name()
 		id, err := strconv.Atoi(name)
 		if err != nil {
 			resp.error(fmt.Errorf("unable to parse statement id from result name: %s", err))

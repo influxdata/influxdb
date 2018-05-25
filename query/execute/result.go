@@ -10,6 +10,8 @@ import (
 // result implements both the Transformation and Result interfaces,
 // mapping the pushed based Transformation API to the pull based Result interface.
 type result struct {
+	name string
+
 	mu     sync.Mutex
 	blocks chan resultMessage
 
@@ -22,8 +24,9 @@ type resultMessage struct {
 	err   error
 }
 
-func newResult(plan.YieldSpec) *result {
+func newResult(name string, spec plan.YieldSpec) *result {
 	return &result{
+		name: name,
 		// TODO(nathanielc): Currently this buffer needs to be big enough hold all result blocks :(
 		blocks:   make(chan resultMessage, 1000),
 		abortErr: make(chan error, 1),
@@ -31,6 +34,9 @@ func newResult(plan.YieldSpec) *result {
 	}
 }
 
+func (s *result) Name() string {
+	return s.name
+}
 func (s *result) RetractBlock(DatasetID, query.PartitionKey) error {
 	//TODO implement
 	return nil
