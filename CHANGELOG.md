@@ -1,12 +1,16 @@
 ## v1.5.1.0 [unreleased]
 
 ### Features
+
 1.  [#3522](https://github.com/influxdata/chronograf/pull/3522): Add support for Template Variables in Cell Titles
 
 ### UI Improvements
 
 1.  [#3474](https://github.com/influxdata/chronograf/pull/3474): Sort task table on Manage Alert page alphabetically
+
 ### Bug Fixes
+
+1.  [#3527](https://github.com/influxdata/chronograf/pull/3527): Ensure cell queries use constraints from TimeSelector
 
 ## v1.5.0.0 [2018-05-15-RC]
 
