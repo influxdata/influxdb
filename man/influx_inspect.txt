@@ -85,7 +85,7 @@ VERIFY OPTIONS
   Root storage path. Defaults to '~/.influxdb'.
 
 VERIFY-SERIESFILE OPTIONS
---------------
+-------------------------
 -dir <path>::
   Root data storage path. Defaults to '~/.influxdb/data'.
 
@@ -98,7 +98,7 @@ VERIFY-SERIESFILE OPTIONS
 -v::
   Verbose output. Optional.
 
--c <amount::
+-c <amount>::
   Number of concurrent workers to run. Defaults to the number of cores on the machine. Optional.
 
 include:footer.txt[]
