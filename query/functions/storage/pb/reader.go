@@ -314,7 +314,7 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 				vs = append(vs, values.NewStringValue(string(s.Tags[i].Value)))
 			}
 		}
-	case storage.GroupModeAll:
+	case storage.GroupModeDefault, storage.GroupModeAll:
 		for i := range s.Tags {
 			cols = append(cols, query.ColMeta{
 				Label: string(s.Tags[i].Key),

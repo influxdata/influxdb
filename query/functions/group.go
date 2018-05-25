@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"sort"
 
+	"math/bits"
+
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
-	"math/bits"
 )
 
 const GroupKind = "group"

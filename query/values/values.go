@@ -85,6 +85,10 @@ func (v value) Function() Function {
 	return v.v.(Function)
 }
 
+func (v value) String() string {
+	return fmt.Sprintf("%v", v.v)
+}
+
 // InvalidValue is a non nil value who's type is semantic.Invalid
 var InvalidValue = value{t: semantic.Invalid}
 
