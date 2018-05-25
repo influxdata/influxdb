@@ -110,7 +110,7 @@ func (r *resultIterator) More() bool {
 			extraMeta = r.next.extraMeta
 		}
 		r.next, r.err = newResultDecoder(r.r, r.c, extraMeta)
-		return true
+		return r.err == nil
 	}
 	return false
 }
