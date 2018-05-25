@@ -1,11 +1,16 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
 interface Props {
-  thing: string
+  numResults: number
+  searchString: string
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onSearch: () => void
 }
 
 class LogsSearchBar extends PureComponent<Props> {
   public render() {
+    const {searchString, onSearch, onChange, numResults} = this.props
+
     return (
       <div className="logs-viewer--search-container">
         <div className="logs-viewer--search">
@@ -13,21 +18,23 @@ class LogsSearchBar extends PureComponent<Props> {
             <input
               type="text"
               placeholder="Search logs using Keywords or Regular Expressions..."
-              defaultValue=""
+              value={searchString}
+              onChange={onChange}
+              onKeyDown={this.handleInputKeyDown}
               className="form-control input-sm"
               spellCheck={false}
               autoComplete="off"
             />
             <span className="icon search" />
           </div>
-          <button className="btn btn-sm btn-primary">
+          <button className="btn btn-sm btn-primary" onClick={onSearch}>
             <span className="icon search" />
             Search
           </button>
         </div>
         <div className="logs-viewer--filters-container">
           <label className="logs-viewer--results-text">
-            Query returned <strong>2,401 Events</strong>
+            Query returned <strong>{numResults} Events</strong>
           </label>
           <ul className="logs-viewer--filters">
             <li className="logs-viewer--filter">
@@ -46,6 +53,12 @@ class LogsSearchBar extends PureComponent<Props> {
         </div>
       </div>
     )
+  }
+
+  private handleInputKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') {
+      return this.props.onSearch()
+    }
   }
 }
 

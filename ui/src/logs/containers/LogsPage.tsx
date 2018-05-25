@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {getSourceAsync, setTimeRange, setNamespace} from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
@@ -6,6 +6,7 @@ import {Source, Namespace, TimeRange} from 'src/types'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
 import GraphContainer from 'src/logs/components/LogsGraphContainer'
 import TableContainer from 'src/logs/components/LogsTableContainer'
+import SearchContainer from 'src/logs/components/LogsSearchContainer'
 
 interface Props {
   sources: Source[]
@@ -19,7 +20,19 @@ interface Props {
   timeRange: TimeRange
 }
 
-class LogsPage extends PureComponent<Props> {
+interface State {
+  searchString: string
+}
+
+class LogsPage extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      searchString: '',
+    }
+  }
+
   public componentDidUpdate() {
     if (!this.props.currentSource) {
       this.props.getSource(this.props.sources[0].id)
@@ -31,11 +44,19 @@ class LogsPage extends PureComponent<Props> {
   }
 
   public render() {
+    const {searchString} = this.state
+
     return (
       <div className="page">
         {this.header}
         <div className="page-contents logs-viewer">
           <GraphContainer thing="wooo" />
+          <SearchContainer
+            searchString={searchString}
+            onChange={this.handleSearchInputChange}
+            onSearch={this.handleSubmitSearch}
+            numResults={300}
+          />
           <TableContainer thing="snooo" />
         </div>
       </div>
@@ -63,6 +84,16 @@ class LogsPage extends PureComponent<Props> {
         currentNamespace={currentNamespace}
       />
     )
+  }
+
+  private handleSearchInputChange = (
+    e: ChangeEvent<HTMLInputElement>
+  ): void => {
+    this.setState({searchString: e.target.value})
+  }
+
+  private handleSubmitSearch = (): void => {
+    // do the thing
   }
 
   private handleChooseTimerange = (timeRange: TimeRange) => {
