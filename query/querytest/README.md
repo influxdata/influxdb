@@ -47,6 +47,11 @@ Compliant to the HTTP spec for CSV data, the output produced by the ifqld proces
 - UTF-8 normalized
 - line endings are `\r\n`
 
-The go program query/query_test/normalize_text/normalize.go can be run on a file to prepare the data in-place.  So you
-may create a new file by copy/pasting some text, then prepare the fire for testing by: 
-```go build ./query_test/normalize_text/normalize.go  && ./normalize query/query_test/test_cases/simple_max_out.csv```
+The go program query/querytest/prepcsvtests/prepcsvtests.go can be run to prepare tests.  A valid test case must have 
+<CASENAME>.ifql  and <CASENAME>.in.csv   files.  The prepcsvtests executable will iterate over all such test cases in 
+the user-supplied directory, run the ifql query on the input and prompt the user to approve saving the result as
+<CASENAME>.out.csv.   
+```go build ./querytest/prepcsvtests/prepcsvtests.go  && ./prepcsvtests query/querytests/test_cases```
+
+Optionally, you can give a CASENAME to prep the output for a single case: 
+```go build ./querytest/prepcsvtests/prepcsvtests.go  && ./prepcsvtests query/querytests/test_cases CASENAME```
