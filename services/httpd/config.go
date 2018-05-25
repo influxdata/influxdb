@@ -33,10 +33,7 @@ type Config struct {
 	SuppressWriteLog        bool          `toml:"suppress-write-log"`
 	WriteTracing            bool          `toml:"write-tracing"`
 	PprofEnabled            bool          `toml:"pprof-enabled"`
-<<<<<<< HEAD
-=======
 	DebugPprofEnabled       bool          `toml:"debug-pprof-enabled"`
->>>>>>> origin/master
 	HTTPSEnabled            bool          `toml:"https-enabled"`
 	HTTPSCertificate        string        `toml:"https-certificate"`
 	HTTPSPrivateKey         string        `toml:"https-private-key"`
