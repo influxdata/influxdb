@@ -1,14 +1,10 @@
 import React, {PureComponent} from 'react'
 
-interface Props {
-  thing: string
-}
-
-class LogsGraphContainer extends PureComponent<Props> {
+class LogsGraphContainer extends PureComponent {
   public render() {
     return (
       <div className="logs-viewer--graph-container">
-        <p>{this.props.thing}</p>
+        <div className="logs-viewer--graph">{this.props.children}</div>
       </div>
     )
   }
