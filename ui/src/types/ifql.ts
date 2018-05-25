@@ -35,7 +35,7 @@ export interface InputArg {
   bodyID: string
   declarationID?: string
   key: string
-  value: string | boolean
+  value: string | boolean | {[x: string]: string}
   generate?: boolean
 }
 
@@ -78,11 +78,29 @@ export interface Func {
   id: string
 }
 
-type Value = string | boolean
+export type Arg = ArgString | ArgBool | ArgObject | ArgVar
 
-export interface Arg {
+export interface ArgString {
   key: string
-  value: Value
+  value: string
+  type: 'string'
+}
+
+export interface ArgBool {
+  key: string
+  value: boolean
+  type: 'bool'
+}
+
+export interface ArgObject {
+  key: string
+  value: {[x: string]: string}
+  type: 'object'
+}
+
+export interface ArgVar {
+  key: string
+  value: string
   type: string
 }
 
