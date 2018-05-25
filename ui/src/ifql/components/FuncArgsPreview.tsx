@@ -51,11 +51,19 @@ export default class FuncArgsPreview extends PureComponent<Props> {
       }
 
       const separator = i === 0 ? null : ', '
+      let argValue
+
+      if (arg.type === 'object') {
+        const valueMap = _.map(arg.value, (value, key) => `${key}:${value}`)
+        argValue = '{' + valueMap.join(', ') + '}'
+      } else {
+        argValue = `${arg.value}`
+      }
 
       return (
         <React.Fragment key={uuid.v4()}>
           {separator}
-          {arg.key}: {this.colorArgType(`${arg.value}`, arg.type)}
+          {arg.key}: {this.colorArgType(argValue, arg.type)}
         </React.Fragment>
       )
     })
@@ -75,6 +83,9 @@ export default class FuncArgsPreview extends PureComponent<Props> {
       }
       case 'string': {
         return <span className="variable-value--string">"{argument}"</span>
+      }
+      case 'object': {
+        return <span className="variable-value--object">{argument}</span>
       }
       case 'invalid': {
         return <span className="variable-value--invalid">{argument}</span>
