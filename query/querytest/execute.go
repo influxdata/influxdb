@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"os"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
@@ -52,7 +53,7 @@ func GetQueryServiceBridge() *query.QueryServiceBridge {
 	}
 }
 
-func GetQueryEncodedResults(qs *query.QueryServiceBridge, spec *query.Spec, inputFile string) (string, error) {
+func GetQueryEncodedResults(qs query.QueryService, spec *query.Spec, inputFile string) (string, error) {
 	results, err := qs.Query(context.Background(), staticResultID, spec)
 	if err != nil {
 		return "", err
@@ -75,6 +76,9 @@ func GetQueryEncodedResults(qs *query.QueryServiceBridge, spec *query.Spec, inpu
 
 func GetTestData(prefix, suffix string) (string, error) {
 	datafile := prefix + suffix
+	if _, err := os.Stat(datafile); err != nil {
+		return "", err
+	}
 	csv, err := ioutil.ReadFile(datafile)
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %s", datafile)
