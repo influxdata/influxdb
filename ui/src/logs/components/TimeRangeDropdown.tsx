@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
 import classnames from 'classnames'
 import moment from 'moment'
+import _ from 'lodash'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import timeRanges from 'src/logs/data/timeRanges'
@@ -134,7 +135,7 @@ class TimeRangeDropdown extends Component<Props, State> {
       customTimeRange: {lower, upper},
     } = this.state
 
-    const absoluteTimeRange = !!lower || !!upper
+    const absoluteTimeRange = !_.isEmpty(lower) && !_.isEmpty(upper)
 
     return classnames('dropdown', {
       'dropdown-290': absoluteTimeRange,
