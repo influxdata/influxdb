@@ -156,7 +156,6 @@ func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *ifql
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 	return s.processResponse(resp)
 }
 
@@ -182,7 +181,6 @@ func (s *QueryService) QueryWithCompile(ctx context.Context, orgID platform.ID, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 	return s.processResponse(resp)
 }
 

@@ -139,7 +139,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 		resp.Results = append(resp.Results, result)
 	}
 
-	if err := results.Err(); err != nil {
+	if err := results.Err(); err != nil && resp.Err == "" {
 		resp.error(err)
 	}
 

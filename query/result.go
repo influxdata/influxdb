@@ -124,7 +124,7 @@ type ResultEncoder interface {
 // MultiResultDecoder can decode multiple results from a reader.
 type MultiResultDecoder interface {
 	// Decode decodes multiple results from r.
-	Decode(r io.Reader) (ResultIterator, error)
+	Decode(r io.ReadCloser) (ResultIterator, error)
 }
 
 // MultiResultEncoder can encode multiple results into a writer.
