@@ -38,7 +38,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 	compactor.Dir = dir
 	compactor.FileStore = &fakeFileStore{}
 
-	files, err := compactor.WriteSnapshot(c, tsm1.DefaultFormatFileName)
+	files, err := compactor.WriteSnapshot(c)
 	if err == nil {
 		t.Fatalf("expected error writing snapshot: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 
 	compactor.Open()
 
-	files, err = compactor.WriteSnapshot(c, tsm1.DefaultFormatFileName)
+	files, err = compactor.WriteSnapshot(c)
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -142,13 +142,13 @@ func TestCompactor_CompactFull(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseFileName(f3)
+	expGen, expSeq, err := tsm1.DefaultParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
+	gotGen, gotSeq, err := tsm1.DefaultParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -527,13 +527,13 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseFileName(f3)
+	expGen, expSeq, err := tsm1.DefaultParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
+	gotGen, gotSeq, err := tsm1.DefaultParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -629,13 +629,13 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseFileName(f3)
+	expGen, expSeq, err := tsm1.DefaultParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
+	gotGen, gotSeq, err := tsm1.DefaultParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -732,13 +732,13 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseFileName(f3)
+	expGen, expSeq, err := tsm1.DefaultParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
+	gotGen, gotSeq, err := tsm1.DefaultParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -840,13 +840,13 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseFileName(f3)
+	expGen, expSeq, err := tsm1.DefaultParseFileName(f3)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
+	gotGen, gotSeq, err := tsm1.DefaultParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -956,13 +956,13 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	expGen, expSeq, err := tsm1.ParseFileName(f2Name)
+	expGen, expSeq, err := tsm1.DefaultParseFileName(f2Name)
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
 	expSeq = expSeq + 1
 
-	gotGen, gotSeq, err := tsm1.ParseFileName(files[0])
+	gotGen, gotSeq, err := tsm1.DefaultParseFileName(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error parsing file name: %v", err)
 	}
@@ -2884,4 +2884,8 @@ func (w *fakeFileStore) Close() {
 		r.Close()
 	}
 	w.readers = nil
+}
+
+func (w *fakeFileStore) ParseFileName(path string) (int, int, error) {
+	return tsm1.DefaultParseFileName(path)
 }
