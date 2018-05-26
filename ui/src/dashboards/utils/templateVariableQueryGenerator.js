@@ -59,4 +59,53 @@ export const makeQueryForTemplate = ({influxql, db, measurement, tagKey}) =>
     .replace(':measurement:', `"${measurement}"`)
     .replace(':tagKey:', `"${tagKey}"`)
 
+export const stripTempVar = tempVarName =>
+  tempVarName.substr(1, tempVarName.length - 2)
+
+const reconcileTempVarsWithOverrides = (currentTempVars, tempVarOverrides) => {
+  if (!tempVarOverrides) {
+    return currentTempVars
+  }
+  const reconciledTempVars = currentTempVars.map(tempVar => {
+    const {tempVar: name, values} = tempVar
+    const strippedTempVar = stripTempVar(name)
+    const overrideValue = tempVarOverrides[strippedTempVar]
+
+    if (overrideValue) {
+      const isValidTempVarOverride = !!values.find(
+        ({value}) => value === overrideValue
+      )
+
+      if (isValidTempVarOverride) {
+        const overriddenValues = values.map(tempVarValue => {
+          const {value} = tempVarValue
+          if (value === overrideValue) {
+            return {...tempVarValue, selected: true}
+          }
+          return {...tempVarValue, selected: false}
+        })
+        return {...tempVar, values: overriddenValues}
+      }
+
+      // TODO: generate error notification ?
+      return tempVar
+    }
+
+    return tempVar
+  })
+
+  return reconciledTempVars
+}
+
+export const applyDashboardTempVarOverrides = (
+  dashboard,
+  tempVarOverrides
+) => ({
+  ...dashboard,
+  templates: reconcileTempVarsWithOverrides(
+    dashboard.templates,
+    tempVarOverrides
+  ),
+})
+
 export default generateTemplateVariableQuery

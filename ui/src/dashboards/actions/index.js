@@ -1,3 +1,6 @@
+import {push} from 'react-router-redux'
+import queryString from 'query-string'
+
 import {
   getDashboards as getDashboardsAJAX,
   updateDashboard as updateDashboardAJAX,
@@ -174,14 +177,14 @@ export const templateVariablesSelectedByName = (dashboardID, query) => ({
   },
 })
 
-export const editTemplateVariableOverrides = (
+export const updateTemplateVariableOverride = (
   dashboardID,
-  tempVarOverrides
+  updatedTempVarOverride
 ) => ({
-  type: 'EDIT_TEMPLATE_VARIABLE_OVERRIDES',
+  type: 'UPDATE_TEMPLATE_VARIABLE_OVERRIDE',
   payload: {
     dashboardID,
-    tempVarOverrides,
+    updatedTempVarOverride,
   },
 })
 
@@ -362,10 +365,26 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
       const {type, query, id} = tempsWithQueries[i]
       const parsed = parsers[type](data, query.tagKey || query.measurement)
       const vals = parsed[type]
-      dispatch(editTemplateVariableValues(dashboard.id, id, vals))
+      dispatch(editTemplateVariableValues(+dashboard.id, id, vals))
     })
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
   }
+}
+
+export const updateURLQueryValue = (
+  location,
+  updatedQueryParam
+) => dispatch => {
+  const updatedLocationQuery = {...location.query, ...updatedQueryParam}
+  const updatedSearchString = queryString.stringify(updatedLocationQuery)
+  const updatedSearch = {search: updatedSearchString}
+  const updatedLocation = {
+    ...location,
+    query: updatedLocationQuery,
+    ...updatedSearch,
+  }
+
+  dispatch(push(updatedLocation))
 }

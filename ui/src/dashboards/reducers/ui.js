@@ -2,6 +2,8 @@ import _ from 'lodash'
 import {timeRanges} from 'shared/data/timeRanges'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
+import {applyDashboardTempVarOverrides} from 'src/dashboards/utils/templateVariableQueryGenerator'
+
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
 const initialState = {
@@ -235,54 +237,28 @@ export default function ui(state = initialState, action) {
     case 'TEMPLATE_VARIABLES_SELECTED_BY_NAME': {
       const {dashboardID, query} = action.payload
 
-      const selecteds = Object.keys(query).map(k => ({
-        tempVar: `:${k}:`,
-        selectedValue: query[k],
-      }))
-
-      const makeNewValue = (value, selected) => ({...value, selected})
-
-      const makeNewValues = template => ({
-        ...template,
-        values: template.values.map(
-          value =>
-            selecteds.find(({selectedValue}) => selectedValue === value.value)
-              ? makeNewValue(value, true)
-              : makeNewValue(value, false)
-        ),
-      })
-
-      const makeNewTemplates = templates =>
-        templates.map(
-          template =>
-            selecteds.find(({tempVar}) => tempVar === template.tempVar)
-              ? makeNewValues(template)
-              : template
-        )
-
-      const makeNewDashboard = dashboard => ({
-        ...dashboard,
-        templates: makeNewTemplates(dashboard.templates),
-      })
-
       const newDashboards = state.dashboards.map(
         oldDashboard =>
           oldDashboard.id === dashboardID
-            ? makeNewDashboard(oldDashboard)
+            ? applyDashboardTempVarOverrides(oldDashboard, query)
             : oldDashboard
       )
 
       return {...state, dashboards: newDashboards}
     }
 
-    case 'EDIT_TEMPLATE_VARIABLE_OVERRIDES': {
-      const {dashboardID, tempVarOverrides} = action.payload
+    case 'UPDATE_TEMPLATE_VARIABLE_OVERRIDE': {
+      const {dashboardID, updatedTempVarOverride} = action.payload
+      const updatedTempVarOverrides = {
+        ...state.tempVarOverrides[dashboardID],
+        ...updatedTempVarOverride,
+      }
 
       return {
         ...state,
         tempVarOverrides: {
           ...state.tempVarOverrides,
-          [dashboardID]: tempVarOverrides,
+          [dashboardID]: updatedTempVarOverrides,
         },
       }
     }

@@ -29,6 +29,11 @@ import {
 } from 'src/dashboards/actions/cellEditorOverlay'
 import {showOverlay} from 'src/shared/actions/overlayTechnology'
 
+import {
+  applyDashboardTempVarOverrides,
+  stripTempVar,
+} from 'src/dashboards/utils/templateVariableQueryGenerator'
+
 import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
 
 import {
@@ -255,15 +260,31 @@ class DashboardPage extends Component {
     dashboardActions.deleteDashboardCellAsync(dashboard, cell)
   }
 
-  handleSelectTemplate = templateID => values => {
+  handleSelectTemplate = templateID => value => {
     const {
       dashboardActions,
       dashboard,
       params: {dashboardID},
+      location,
     } = this.props
-    dashboardActions.templateVariableSelected(dashboard.id, templateID, [
-      values,
-    ])
+    // TODO: block viewer from doing this
+    const currentTempVar = dashboard.templates.find(
+      tempVar => tempVar.id === templateID
+    )
+    const strippedTempVar = stripTempVar(currentTempVar.tempVar)
+    const isTempVarInURLQuery = !!location.query[strippedTempVar]
+
+    if (isTempVarInURLQuery) {
+      const updatedQueryParam = {
+        [strippedTempVar]: value.value,
+      }
+      dashboardActions.updateURLQueryValue(location, updatedQueryParam)
+      dashboardActions.updateTemplateVariableOverride(
+        dashboardID,
+        updatedQueryParam
+      )
+    }
+    dashboardActions.templateVariableSelected(dashboard.id, templateID, [value])
     dashboardActions.putDashboardByID(dashboardID)
   }
 
@@ -545,6 +566,7 @@ DashboardPage.propTypes = {
   gaugeColors: colorsNumberSchema.isRequired,
   lineColors: colorsStringSchema.isRequired,
   handleShowOverlay: func.isRequired,
+  tempVarOverrides: shape({}),
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -553,7 +575,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
       ephemeral: {inPresentationMode},
       persisted: {autoRefresh, showTemplateControlBar},
     },
-    dashboardUI: {dashboards, cellQueryStatus},
+    dashboardUI: {dashboards, cellQueryStatus, tempVarOverrides},
     sources,
     dashTimeV1,
     auth: {me, isUsingAuth},
@@ -573,9 +595,16 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
       r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
     ) || defaultTimeRange
 
-  const dashboard = dashboards.find(
+  let dashboard = dashboards.find(
     d => d.id === idNormalizer(TYPE_ID, dashboardID)
   )
+
+  if (dashboard) {
+    dashboard = applyDashboardTempVarOverrides(
+      dashboard,
+      tempVarOverrides[dashboard.id]
+    )
+  }
 
   const selectedCell = cell
 
