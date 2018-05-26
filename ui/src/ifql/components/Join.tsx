@@ -129,17 +129,14 @@ class Join extends PureComponent<Props, State> {
       func,
       onGenerateScript,
     } = this.props
-    const table1 = this.table1Value
-    const table2 = this.table2Value
-    if (table1 !== '' && table2 !== '') {
-      // const value = `${table1}:${table1}, ${table2}:${table2}`
-      const value = {[table1]: table1, [table2]: table2}
+    const {table1, table2} = this.state
+    if (table1 !== '' && table2 !== '' && table1 !== table2) {
       onChangeArg({
         funcID: func.id,
         bodyID,
         declarationID,
         key: 'tables',
-        value,
+        value: {[table1]: table1, [table2]: table2},
         generate: true,
       })
       onGenerateScript()
