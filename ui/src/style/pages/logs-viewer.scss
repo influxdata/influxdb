@@ -15,9 +15,10 @@ $logs-viewer-gutter: 60px;
 }
 
 .logs-viewer--graph-container {
-  padding: 30px $logs-viewer-gutter 18px $logs-viewer-gutter;
+  padding: 22px ($logs-viewer-gutter - 16px) 10px ($logs-viewer-gutter - 16px);
   height: $logs-viewer-graph-height;
   @include gradient-v($g2-kevlar, $g0-obsidian);
+  display: flex;
 }
 
 .logs-viewer--search-container {
@@ -30,4 +31,11 @@ $logs-viewer-gutter: 60px;
   padding: 12px $logs-viewer-gutter 30px $logs-viewer-gutter;
   height: calc(100% - #{$logs-viewer-graph-height + $logs-viewer-search-height});
   background-color: $g3-castle;
+}
+
+.logs-viewer--graph {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 8px 16px;
 }

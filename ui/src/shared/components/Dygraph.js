@@ -88,8 +88,8 @@ class Dygraph extends Component {
 
     this.dygraph = new Dygraphs(graphRef, timeSeries, {
       ...defaultOptions,
-      ...options,
       ...OPTIONS,
+      ...options,
     })
 
     const {w} = this.dygraph.getArea()
