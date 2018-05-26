@@ -258,7 +258,12 @@ export class IFQLPage extends PureComponent<Props, State> {
         }
 
         if (type === argTypes.ARRAY) {
-          return `${key}: [${value}]`
+          return `${key}: ["${value}"]`
+        }
+
+        if (type === argTypes.OBJECT) {
+          const valueString = _.map(value, (v, k) => k + ':' + v).join(',')
+          return `${key}: {${valueString}}`
         }
 
         return `${key}: ${value}`
