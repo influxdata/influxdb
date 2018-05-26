@@ -230,7 +230,7 @@ export class IFQLPage extends PureComponent<Props, State> {
         }
 
         if (!declaration.funcs) {
-          return `${acc}${b.source}\n\n`
+          return `${acc}${b.source}`
         }
 
         return `${acc}${declaration.name} = ${this.funcsToScript(
