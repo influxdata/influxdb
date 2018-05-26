@@ -1,30 +1,23 @@
 import React, {PureComponent, MouseEvent} from 'react'
 
 interface Props {
-  measurement: string
+  schemaType: string
+  name: string
 }
 
 interface State {
   isOpen: boolean
 }
 
-export default class MeasurementListItem extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      isOpen: false,
-    }
-  }
-
+export default class SchemaItem extends PureComponent<Props, State> {
   public render() {
-    const {measurement} = this.props
-
+    const {schemaType} = this.props
     return (
       <div className={this.className}>
         <div className="ifql-schema-item" onClick={this.handleClick}>
           <div className="ifql-schema-item-toggle" />
-          {measurement}
-          <span className="ifql-schema-type">Measurement</span>
+          {name}
+          <span className="ifql-schema-type">{schemaType}</span>
         </div>
       </div>
     )

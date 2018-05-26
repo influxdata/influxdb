@@ -67,6 +67,30 @@ export const MEASUREMENTS_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dat
 
 `
 
+/* 
+From the following request:
+
+    from(db: "telegraf")
+      |> range(start: -24h)
+      |> group(none: true)
+      |> keys(except:["_time","_value","_start","_stop"])
+      |> map(fn: (r) => r._value)
+*/
+export const TAGS_RESPONSE = `#datatype,string,long,string
+#partition,false,false,false
+#default,_result,,
+,result,table,_value
+,,0,_field
+,,0,_measurement
+,,0,cpu
+,,0,device
+,,0,fstype
+,,0,host
+,,0,mode
+,,0,name
+,,0,path
+`
+
 // prettier-ignore
 export const LARGE_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
 #partition,false,false,false,false,false,false,true,true,true,true

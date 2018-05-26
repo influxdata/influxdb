@@ -1,69 +1,95 @@
-import classnames from 'classnames'
-import React, {PureComponent, MouseEvent} from 'react'
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import React, {PureComponent, CSSProperties, MouseEvent} from 'react'
+
+import {Service, SchemaFilter} from 'src/types'
+import {tagsFromMeasurement} from 'src/shared/apis/v2/metaQueries'
+import parseTags from 'src/shared/parsing/v2/tags'
+import TagList from 'src/ifql/components/TagList'
 
 interface Props {
-  tagKey: string
-  tagValues: string[]
+  tag: string
+  db: string
+  service: Service
+  filter: SchemaFilter[]
 }
 
 interface State {
   isOpen: boolean
+  loading: string
+  tags: string[]
 }
 
-@ErrorHandling
-class TagListItem extends PureComponent<Props, State> {
+enum RemoteDataState {
+  NotStarted = 'NotStarted',
+  Loading = 'Loading',
+  Done = 'Done',
+  Error = 'Error',
+}
+
+export default class TagListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
+
     this.state = {
       isOpen: false,
+      loading: RemoteDataState.NotStarted,
+      tags: [],
     }
   }
 
   public render() {
-    const {isOpen} = this.state
+    const {tag, db, service} = this.props
+    const {tags} = this.state
 
     return (
-      <div className={this.className}>
+      <div className={this.className} style={this.style}>
         <div className="ifql-schema-item" onClick={this.handleClick}>
           <div className="ifql-schema-item-toggle" />
-          {this.tagItemLabel}
-          <span className="ifql-schema-type">Tag Key</span>
+          {tag}
+          <TagList db={db} service={service} tags={tags} />
         </div>
-        {isOpen && this.renderTagValues}
       </div>
     )
   }
 
-  private handleClick = (e: MouseEvent<HTMLElement>): void => {
+  private async getTags() {
+    const {db, service, tag, filter} = this.props
+
+    try {
+      const response = await tagsFromMeasurement(service, db, measurement)
+      const tags = parseTags(response)
+      this.setState({
+        tags,
+        loading: RemoteDataState.Done,
+      })
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  private handleClick = (e: MouseEvent<HTMLDivElement>) => {
     e.stopPropagation()
+
+    if (this.isFetchable) {
+      this.getTags()
+    }
+
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  private get tagItemLabel(): string {
-    const {tagKey} = this.props
-    return `${tagKey}`
-  }
+  private get isFetchable(): boolean {
+    const {isOpen, loading} = this.state
 
-  private get renderTagValues(): JSX.Element[] | JSX.Element {
-    const {tagValues} = this.props
-    if (!tagValues || !tagValues.length) {
-      return <div className="ifql-schema-tree__empty">No tag values</div>
-    }
-
-    return tagValues.map(v => {
-      return (
-        <div key={v} className="ifql-schema-item readonly ifql-tree-node">
-          {v}
-        </div>
-      )
-    })
+    return (
+      !isOpen &&
+      (loading === RemoteDataState.NotStarted ||
+        loading !== RemoteDataState.Error)
+    )
   }
 
   private get className(): string {
     const {isOpen} = this.state
-    return classnames('ifql-schema-tree ifql-tree-node', {expanded: isOpen})
+    const openClass = isOpen ? 'expanded' : ''
+
+    return `ifql-schema-tree ifql-tree-node ${openClass}`
   }
 }
-
-export default TagListItem

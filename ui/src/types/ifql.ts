@@ -119,3 +119,8 @@ export interface ScriptResult {
   data: string[][]
   metadata: string[][]
 }
+
+export interface SchemaFilter {
+  key: string
+  value: string
+}

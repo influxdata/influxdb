@@ -1,9 +1,9 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 
-import {measurements as measurementsAsync} from 'src/shared/apis/v2/metaQueries'
-import parseMeasurements from 'src/shared/parsing/v2/measurements'
-import MeasurementList from 'src/ifql/components/MeasurementList'
+import {tags as fetchTags} from 'src/shared/apis/v2/metaQueries'
+import parseTags from 'src/shared/parsing/v2/tags'
+import TagList from 'src/ifql/components/TagList'
 import {Service} from 'src/types'
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
 
 interface State {
   isOpen: boolean
-  measurements: string[]
+  tags: string[]
 }
 
 class DatabaseListItem extends PureComponent<Props, State> {
@@ -21,7 +21,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
     super(props)
     this.state = {
       isOpen: false,
-      measurements: [],
+      tags: [],
     }
   }
 
@@ -29,17 +29,17 @@ class DatabaseListItem extends PureComponent<Props, State> {
     const {db, service} = this.props
 
     try {
-      const response = await measurementsAsync(service, db)
-      const measurements = parseMeasurements(response)
-      this.setState({measurements})
+      const response = await fetchTags(service, db)
+      const tags = parseTags(response)
+      this.setState({tags})
     } catch (error) {
       console.error(error)
     }
   }
 
   public render() {
-    const {db} = this.props
-    const {measurements} = this.state
+    const {db, service} = this.props
+    const {tags} = this.state
 
     return (
       <div className={this.className} onClick={this.handleChooseDatabase}>
@@ -48,7 +48,11 @@ class DatabaseListItem extends PureComponent<Props, State> {
           {db}
           <span className="ifql-schema-type">Bucket</span>
         </div>
-        {this.state.isOpen && <MeasurementList measurements={measurements} />}
+        {this.state.isOpen && (
+          <>
+            <TagList db={db} service={service} tags={tags} filter={[]} />
+          </>
+        )}
       </div>
     )
   }
