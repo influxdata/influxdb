@@ -27,14 +27,14 @@ interface DropdownItem {
 }
 
 class Join extends PureComponent<Props, State> {
-  public static getDerivedStateFromProps(nextProps: Props) {
-    const tables = nextProps.func.args.find(a => a.key === 'tables')
-    if (tables) {
-      const keys = _.keys(tables.value)
-      return {table1: keys[0], table2: keys[1]}
-    }
-    return {table1: '', table2: ''}
-  }
+  // public static getDerivedStateFromProps(nextProps: Props) {
+  //   const tables = nextProps.func.args.find(a => a.key === 'tables')
+  //   if (tables) {
+  //     const keys = _.keys(tables.value)
+  //     return {table1: keys[0], table2: keys[1]}
+  //   }
+  //   return {table1: '', table2: ''}
+  // }
   constructor(props) {
     super(props)
 
