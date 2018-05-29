@@ -447,6 +447,8 @@ export class IFQLPage extends PureComponent<Props, State> {
       notify(ifqlTimeSeriesError(error))
       console.error('Could not get timeSeries', error)
     }
+
+    this.getASTResponse(script)
   }
 
   private parseError = (error): Status => {
