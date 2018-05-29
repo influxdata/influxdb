@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/influxdata/platform/query"
@@ -942,4 +943,8 @@ func readFrameType(frame ReadResponse_Frame) frameType {
 	default:
 		panic(fmt.Errorf("unknown read response frame type: %T", frame.Data))
 	}
+}
+
+func indexOfTag(t []Tag, k string) int {
+	return sort.Search(len(t), func(i int) bool { return string(t[i].Key) >= k })
 }
