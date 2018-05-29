@@ -17,21 +17,21 @@ type TranspilerQueryHandler struct {
 
 	Logger       *zap.Logger
 	QueryService query.QueryService
+	OrgID        platform.ID
 }
 
 // NewQueryHandler returns a new instance of QueryHandler.
-func NewTranspilerQueryHandler() *TranspilerQueryHandler {
+func NewTranspilerQueryHandler(orgID platform.ID) *TranspilerQueryHandler {
 	h := &TranspilerQueryHandler{
 		Router: httprouter.New(),
 		Logger: zap.NewNop(),
 	}
 
-	h.HandlerFunc("POST", "/v1/transpiler/query", h.handlePostQuery)
-	h.HandlerFunc("POST", "/query", h.handlePostInfluxQL)
+	h.HandlerFunc("POST", "/query", h.handlePostQuery)
 	return h
 }
 
-// handlePostQuery is an HTTP handler that transpiles a query for the specified language.
+// handlePostInfluxQL handles query requests mirroring the 1.x influxdb API.
 func (h *TranspilerQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -41,63 +41,11 @@ func (h *TranspilerQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// TODO(nathanielc): Create routes that mimic the API of the source languages instead of explicitly defining the language.
-	lang := r.FormValue("lang")
-	if lang == "" {
-		kerrors.EncodeHTTP(ctx, errors.New("must pass language in lang parameter"), w)
-		return
-	}
-
-	var orgID platform.ID
-	err := orgID.DecodeFromString(r.FormValue("orgID"))
-	if err != nil {
-		kerrors.EncodeHTTP(ctx, errors.New("must pass organization ID as string in orgID parameter"), w)
-		return
-	}
-
-	var ce crossExecute
-	switch lang {
-	case "influxql":
-		fallthrough
-	default:
-		ce = influxqlCE
-	}
-
-	results, err := query.QueryWithTranspile(ctx, orgID, queryStr, h.QueryService, ce.transpiler)
-	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
-		return
-	}
-
-	err = encodeResult(w, results, ce.contentType, ce.encoder)
-	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
-		return
-	}
-}
-
-// handlePostInfluxQL handles query requests mirroring the 1.x influxdb API.
-func (h *TranspilerQueryHandler) handlePostInfluxQL(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	queryStr := r.FormValue("q")
-	if queryStr == "" {
-		kerrors.EncodeHTTP(ctx, errors.New("must pass query string in q parameter"), w)
-		return
-	}
-
-	var orgID platform.ID
-	err := orgID.DecodeFromString(r.FormValue("orgID"))
-	if err != nil {
-		kerrors.EncodeHTTP(ctx, errors.New("must pass organization ID as string in orgID parameter"), w)
-		return
-	}
-
 	//TODO(nathanielc): Get database and rp information if needed.
 
 	ce := influxqlCE
 
-	results, err := query.QueryWithTranspile(ctx, orgID, queryStr, h.QueryService, ce.transpiler)
+	results, err := query.QueryWithTranspile(ctx, h.OrgID, queryStr, h.QueryService, ce.transpiler)
 	if err != nil {
 		kerrors.EncodeHTTP(ctx, err, w)
 		return
