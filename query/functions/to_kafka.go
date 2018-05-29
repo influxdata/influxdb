@@ -63,10 +63,6 @@ func (o *ToKafkaOpSpec) ReadArgs(args query.Arguments) error {
 	var err error
 	var ok bool
 
-	// if o.WriterConfig == nil {
-	// 	o.WriterConfig = &kafka.WriterConfig{}
-	// }
-
 	brokers, err := args.GetRequiredArray("brokers", semantic.String)
 	if err != nil {
 		return err
