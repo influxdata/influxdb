@@ -279,22 +279,5 @@ func (o orderedCols) Less(i int, j int) bool {
 		return false
 	}
 
-	// Time column is always first
-	if o.cols[i].Label == DefaultTimeColLabel {
-		return true
-	}
-	if o.cols[j].Label == DefaultTimeColLabel {
-		return false
-	}
-
-	// Value column is always last
-	if o.cols[i].Label == DefaultValueColLabel {
-		return false
-	}
-	if o.cols[j].Label == DefaultValueColLabel {
-		return true
-	}
-
-	// within a class sort by label
-	return o.cols[i].Label < o.cols[j].Label
+	return i < j
 }

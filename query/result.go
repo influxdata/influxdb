@@ -103,7 +103,6 @@ type PartitionKey interface {
 	ValueTime(j int) values.Time
 	Value(j int) values.Value
 
-	Hash() uint64
 	Equal(o PartitionKey) bool
 	Less(o PartitionKey) bool
 	String() string

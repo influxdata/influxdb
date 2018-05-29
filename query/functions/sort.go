@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
+	"github.com/influxdata/platform/query/values"
 )
 
 const SortKind = "sort"
@@ -129,7 +130,15 @@ func (t *sortTransformation) RetractBlock(id execute.DatasetID, key query.Partit
 }
 
 func (t *sortTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+	key := b.Key()
+	for _, label := range t.cols {
+		if key.HasCol(label) {
+			key = t.sortedKey(key)
+			break
+		}
+	}
+
+	builder, created := t.cache.BlockBuilder(key)
 	if !created {
 		return fmt.Errorf("sort found duplicate block with key: %v", b.Key())
 	}
@@ -159,4 +168,26 @@ func (t *sortTransformation) UpdateProcessingTime(id execute.DatasetID, pt execu
 }
 func (t *sortTransformation) Finish(id execute.DatasetID, err error) {
 	t.d.Finish(err)
+}
+
+func (t *sortTransformation) sortedKey(key query.PartitionKey) query.PartitionKey {
+	cols := make([]query.ColMeta, len(key.Cols()))
+	vs := make([]values.Value, len(key.Cols()))
+	j := 0
+	for _, label := range t.cols {
+		idx := execute.ColIdx(label, key.Cols())
+		if idx >= 0 {
+			cols[j] = key.Cols()[idx]
+			vs[j] = key.Value(idx)
+			j++
+		}
+	}
+	for idx, c := range key.Cols() {
+		if !execute.ContainsStr(t.cols, c.Label) {
+			cols[j] = c
+			vs[j] = key.Value(idx)
+			j++
+		}
+	}
+	return execute.NewPartitionKey(cols, vs)
 }
