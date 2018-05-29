@@ -1,13 +1,12 @@
-interface TimeRange {
+import {TimeRange} from 'src/types/query'
+interface TimeRangeOption extends TimeRange {
   defaultGroupBy: string
   seconds: number
   inputValue: string
-  lower: string
-  upper: string | null
   menuOption: string
 }
 
-export const timeRanges: TimeRange[] = [
+export const timeRanges: TimeRangeOption[] = [
   {
     defaultGroupBy: '10s',
     seconds: 300,
