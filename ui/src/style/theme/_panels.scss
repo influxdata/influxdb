@@ -29,6 +29,25 @@ $panel-gutter: 30px;
   @extend %no-user-select;
 }
 
+.panel-controls {
+  display: flex;
+  align-items: center;
+
+  &:nth-child(1) {
+    justify-content: flex-start;
+    > * {
+      margin-right: 8px;
+    }
+  }
+
+  &:nth-child(2) {
+    justify-content: flex-end;
+    > * {
+      margin-left: 8px;
+    }
+  }
+}
+
 .panel-body {
   background-color: $g3-castle;
   padding: $panel-gutter;
