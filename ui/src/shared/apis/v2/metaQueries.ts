@@ -48,11 +48,19 @@ export const tagValues = async (
   service: Service,
   db: string,
   filter: SchemaFilter[],
-  tagKey: string
+  tagKey: string,
+  searchTerm: string = ''
 ): Promise<any> => {
+  let regexFilter = ''
+
+  if (searchTerm) {
+    regexFilter = `|> filter(fn: (r) => r.${tagKey} =~ /${searchTerm}/)`
+  }
+
   const script = `
     from(db:"${db}")
       |> range(start:-1h)
+      ${regexFilter}
       ${tagsetFilter(filter)}
       |> group(by:["${tagKey}"])
       |> distinct(column:"${tagKey}")

@@ -1,4 +1,6 @@
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
+
+import _ from 'lodash'
 
 import {Service, SchemaFilter, RemoteDataState} from 'src/types'
 import {tagValues as fetchTagValues} from 'src/shared/apis/v2/metaQueries'
@@ -16,6 +18,7 @@ interface State {
   isOpen: boolean
   loading: string
   tagValues: string[]
+  searchTerm: string
 }
 
 export default class TagListItem extends PureComponent<Props, State> {
@@ -26,12 +29,15 @@ export default class TagListItem extends PureComponent<Props, State> {
       isOpen: false,
       loading: RemoteDataState.NotStarted,
       tagValues: [],
+      searchTerm: '',
     }
+
+    this.debouncedSearch = _.debounce(this.getTagValues, 250)
   }
 
   public render() {
     const {tag, db, service, filter} = this.props
-    const {tagValues} = this.state
+    const {tagValues, searchTerm} = this.state
 
     return (
       <div className={this.className}>
@@ -41,25 +47,58 @@ export default class TagListItem extends PureComponent<Props, State> {
           <span className="ifql-schema-type">Tag Key</span>
         </div>
         {this.state.isOpen && (
-          <TagValueList
-            db={db}
-            service={service}
-            values={tagValues}
-            tag={tag}
-            filter={filter}
-          />
+          <>
+            <div className="ifql-schema--filter">
+              <input
+                className="form-control input-sm"
+                placeholder={`Filter within ${tag}`}
+                type="text"
+                spellCheck={false}
+                autoComplete="off"
+                value={searchTerm}
+                onClick={this.handleInputClick}
+                onChange={this.onSearch}
+              />
+            </div>
+            <TagValueList
+              db={db}
+              service={service}
+              values={tagValues}
+              tag={tag}
+              filter={filter}
+            />
+          </>
         )}
       </div>
     )
   }
 
-  private async getTagValues() {
+  private onSearch = (e: ChangeEvent<HTMLInputElement>): void => {
+    const searchTerm = e.target.value
+
+    this.setState({searchTerm}, () => this.debouncedSearch())
+  }
+
+  private debouncedSearch() {} // See constructor
+
+  private handleInputClick = (e: MouseEvent<HTMLInputElement>): void => {
+    e.stopPropagation()
+  }
+
+  private getTagValues = async () => {
     const {db, service, tag, filter} = this.props
+    const {searchTerm} = this.state
 
     this.setState({loading: RemoteDataState.Loading})
 
     try {
-      const response = await fetchTagValues(service, db, filter, tag)
+      const response = await fetchTagValues(
+        service,
+        db,
+        filter,
+        tag,
+        searchTerm
+      )
       const tagValues = parseValuesColumn(response)
       this.setState({
         tagValues,
