@@ -28,6 +28,7 @@ class DashboardsPageContents extends Component {
       onDeleteDashboard,
       onCreateDashboard,
       onCloneDashboard,
+      onExportDashboard,
       dashboardLink,
     } = this.props
     const {searchTerm} = this.state
@@ -73,6 +74,7 @@ class DashboardsPageContents extends Component {
                     onDeleteDashboard={onDeleteDashboard}
                     onCreateDashboard={onCreateDashboard}
                     onCloneDashboard={onCloneDashboard}
+                    onExportDashboard={onExportDashboard}
                     dashboardLink={dashboardLink}
                   />
                 </div>
@@ -92,6 +94,7 @@ DashboardsPageContents.propTypes = {
   onDeleteDashboard: func.isRequired,
   onCreateDashboard: func.isRequired,
   onCloneDashboard: func.isRequired,
+  onExportDashboard: func.isRequired,
   dashboardLink: string.isRequired,
 }
 

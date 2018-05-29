@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 import {
   getDashboards as getDashboardsAJAX,
   updateDashboard as updateDashboardAJAX,
@@ -7,6 +9,7 @@ import {
   deleteDashboardCell as deleteDashboardCellAJAX,
   runTemplateVariableQuery,
 } from 'src/dashboards/apis'
+import {getMe} from 'src/shared/apis/auth'
 
 import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
@@ -217,6 +220,16 @@ export const getDashboardsAsync = () => async dispatch => {
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
+  }
+}
+
+export const getChronografVersion = () => async () => {
+  try {
+    const results = await getMe()
+    const version = _.get(results, 'headers.x-chronograf-version')
+    return version
+  } catch (error) {
+    console.error(error)
   }
 }
 

@@ -14,6 +14,7 @@ interface Props {
   onCloneDashboard: (
     dashboard: Dashboard
   ) => (event: MouseEvent<HTMLButtonElement>) => void
+  onExportDashboard: (dashboard: Dashboard) => () => void
   dashboardLink: string
 }
 
@@ -24,6 +25,7 @@ class DashboardsTable extends PureComponent<Props> {
       dashboardLink,
       onCloneDashboard,
       onDeleteDashboard,
+      onExportDashboard,
     } = this.props
 
     if (!dashboards.length) {
@@ -63,6 +65,12 @@ class DashboardsTable extends PureComponent<Props> {
                 replaceWithIfNotAuthorized={<td />}
               >
                 <td className="text-right">
+                  <button
+                    className="btn btn-xs btn-default table--show-on-row-hover"
+                    onClick={onExportDashboard(dashboard)}
+                  >
+                    <span className="icon export" />Export
+                  </button>
                   <button
                     className="btn btn-xs btn-default table--show-on-row-hover"
                     onClick={onCloneDashboard(dashboard)}
