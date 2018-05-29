@@ -26,24 +26,32 @@ class LogViewerHeader extends PureComponent<Props> {
   public render(): JSX.Element {
     const {timeRange} = this.props
     return (
-      <>
-        <Dropdown
-          className="dropdown-300"
-          items={this.sourceDropDownItems}
-          selected={this.selectedSource}
-          onChoose={this.handleChooseSource}
-        />
-        <Dropdown
-          className="dropdown-300"
-          items={this.namespaceDropDownItems}
-          selected={this.selectedNamespace}
-          onChoose={this.handleChooseNamespace}
-        />
-        <TimeRangeDropdown
-          onChooseTimeRange={this.handleChooseTimeRange}
-          selected={timeRange}
-        />
-      </>
+      <div className="page-header full-width">
+        <div className="page-header__container">
+          <div className="page-header__left">
+            <h1 className="page-header__title">Log Viewer</h1>
+          </div>
+          <div className="page-header__right">
+            <Dropdown
+              className="dropdown-300"
+              items={this.sourceDropDownItems}
+              selected={this.selectedSource}
+              onChoose={this.handleChooseSource}
+            />
+            <Dropdown
+              className="dropdown-180"
+              iconName="disks"
+              items={this.namespaceDropDownItems}
+              selected={this.selectedNamespace}
+              onChoose={this.handleChooseNamespace}
+            />
+            <TimeRangeDropdown
+              onChooseTimeRange={this.handleChooseTimeRange}
+              selected={timeRange}
+            />
+          </div>
+        </div>
+      </div>
     )
   }
 
