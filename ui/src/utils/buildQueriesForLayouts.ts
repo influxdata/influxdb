@@ -57,15 +57,25 @@ const addTimeBoundsToRawText = (rawText: string): string => {
     return
   }
 
+  const dashboardTimeRegex = new RegExp(
+    `time( )?>( )?${TEMP_VAR_DASHBOARD_TIME}`,
+    'g'
+  )
   const dashboardTimeText: string = `time > ${TEMP_VAR_DASHBOARD_TIME}`
-  if (rawText.indexOf(dashboardTimeText) !== -1) {
+  const isUsingTimeSelectorBounds: boolean = !_.isEmpty(
+    rawText.match(dashboardTimeRegex)
+  )
+
+  if (isUsingTimeSelectorBounds) {
+    const upperTimeBoundRegex = new RegExp('time( )?<', 'g')
+    const hasUpperTimeBound = !_.isEmpty(rawText.match(upperTimeBoundRegex))
     if (
       rawText.indexOf(TEMP_VAR_UPPER_DASHBOARD_TIME) === -1 &&
-      rawText.indexOf('time <') === -1
+      !hasUpperTimeBound
     ) {
       const upperDashboardTimeText = `time < ${TEMP_VAR_UPPER_DASHBOARD_TIME}`
       const fullTimeText = `${dashboardTimeText} AND ${upperDashboardTimeText}`
-      const boundedQueryText = rawText.replace(dashboardTimeText, fullTimeText)
+      const boundedQueryText = rawText.replace(dashboardTimeRegex, fullTimeText)
       return boundedQueryText
     }
   }
