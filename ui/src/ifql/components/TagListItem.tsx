@@ -6,6 +6,7 @@ import {Service, SchemaFilter, RemoteDataState} from 'src/types'
 import {tagValues as fetchTagValues} from 'src/shared/apis/v2/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/v2/tags'
 import TagValueList from 'src/ifql/components/TagValueList'
+import LoaderSkeleton from 'src/ifql/components/LoaderSkeleton'
 
 interface Props {
   tag: string
@@ -60,17 +61,24 @@ export default class TagListItem extends PureComponent<Props, State> {
                 onChange={this.onSearch}
               />
             </div>
-            <TagValueList
-              db={db}
-              service={service}
-              values={tagValues}
-              tag={tag}
-              filter={filter}
-            />
+            {this.isLoading && <LoaderSkeleton />}
+            {!this.isLoading && (
+              <TagValueList
+                db={db}
+                service={service}
+                values={tagValues}
+                tag={tag}
+                filter={filter}
+              />
+            )}
           </>
         )}
       </div>
     )
+  }
+
+  private get isLoading(): boolean {
+    return this.state.loading === RemoteDataState.Loading
   }
 
   private onSearch = (e: ChangeEvent<HTMLInputElement>): void => {

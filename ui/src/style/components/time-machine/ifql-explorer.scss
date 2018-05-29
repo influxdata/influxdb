@@ -81,7 +81,7 @@ $ifql-tree-line: 2px;
     transform: translate(-50%, -50%);
   }
 
-  &:hover {
+  &:not(.skeleton):hover {
     color: $g17-whisper;
     cursor: pointer;
     background-color: $g4-onyx;
@@ -124,6 +124,24 @@ $ifql-tree-line: 2px;
     color: $g11-sidewalk;
     cursor: default;
   }
+}
+
+@keyframes skeleton-animation {
+  0% {
+    background-position: 100% 50%
+  }
+
+  100% {
+    background-position: 0% 50%
+  }
+}
+
+.ifql-schema-item-skeleton {
+  background: linear-gradient(70deg, $g4-onyx 0%, $g5-pepper 50%, $g4-onyx 100%);
+  border-radius: 4px;
+  height: 60%;
+  background-size: 400% 400%;
+  animation: skeleton-animation 1s ease infinite;
 }
 
 /* Tree Node Lines */
@@ -189,4 +207,9 @@ $ifql-tree-line: 2px;
   margin-right: $ifql-tree-indent / 2;
   margin-top: 1px;
   margin-bottom: 5px;
+
+  input {
+    height: 25px;
+    font-size: 12px;
+  }
 }

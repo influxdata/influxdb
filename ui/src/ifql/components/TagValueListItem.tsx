@@ -3,6 +3,7 @@ import React, {PureComponent, MouseEvent} from 'react'
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/v2/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/v2/tags'
 import TagList from 'src/ifql/components/TagList'
+import LoaderSkeleton from 'src/ifql/components/LoaderSkeleton'
 import {Service, SchemaFilter, RemoteDataState} from 'src/types'
 
 interface Props {
@@ -42,16 +43,23 @@ class TagValueListItem extends PureComponent<Props, State> {
         </div>
         {this.state.isOpen && (
           <>
-            <TagList
-              db={db}
-              service={service}
-              tags={tags}
-              filter={this.filter}
-            />
+            {this.isLoading && <LoaderSkeleton />}
+            {!this.isLoading && (
+              <TagList
+                db={db}
+                service={service}
+                tags={tags}
+                filter={this.filter}
+              />
+            )}
           </>
         )}
       </div>
     )
+  }
+
+  private get isLoading(): boolean {
+    return this.state.loading === RemoteDataState.Loading
   }
 
   private get filter(): SchemaFilter[] {
