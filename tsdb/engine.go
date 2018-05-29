@@ -162,6 +162,9 @@ type EngineOptions struct {
 	ShardID       uint64
 	InmemIndex    interface{} // shared in-memory index
 
+	// Limits the concurrent number of TSM files that can be loaded at once.
+	OpenLimiter limiter.Fixed
+
 	CompactionPlannerCreator    CompactionPlannerCreator
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate

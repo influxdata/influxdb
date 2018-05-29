@@ -204,6 +204,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	}
 
 	fs := NewFileStore(path)
+	fs.openLimiter = opt.OpenLimiter
 	if opt.FileStoreObserver != nil {
 		fs.WithObserver(opt.FileStoreObserver)
 	}

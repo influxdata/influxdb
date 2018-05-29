@@ -206,6 +206,9 @@ func (s *Store) loadShards() error {
 		err error
 	}
 
+	// Limit the number of concurrent TSM files to be opened to the number of cores.
+	s.EngineOptions.OpenLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
+
 	// Setup a shared limiter for compactions
 	lim := s.EngineOptions.Config.MaxConcurrentCompactions
 	if lim == 0 {
