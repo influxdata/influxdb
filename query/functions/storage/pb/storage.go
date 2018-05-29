@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
-	"sort"
 )
 
 type HintFlags uint32
@@ -23,6 +22,14 @@ func (h HintFlags) NoSeries() bool {
 
 func (h *HintFlags) SetNoSeries() {
 	*h |= HintFlags(HintNoSeries)
+}
+
+func (h HintFlags) HintSchemaAllTime() bool {
+	return uint32(h)&uint32(HintSchemaAllTime) != 0
+}
+
+func (h *HintFlags) SetHintSchemaAllTime() {
+	*h |= HintFlags(HintSchemaAllTime)
 }
 
 func (h HintFlags) String() string {
@@ -45,8 +52,4 @@ func (h HintFlags) String() string {
 	}
 
 	return strings.Join(s, ",")
-}
-
-func indexOfTag(t []Tag, k string) int {
-	return sort.Search(len(t), func(i int) bool { return string(t[i].Key) >= k })
 }
