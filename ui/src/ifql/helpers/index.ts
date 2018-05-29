@@ -1,6 +1,8 @@
 import uuid from 'uuid'
 import _ from 'lodash'
 import Walker from 'src/ifql/ast/walker'
+import {funcNames} from 'src/ifql/constants'
+
 import {FlatBody, Func} from 'src/types/ifql'
 
 interface Body extends FlatBody {
@@ -11,6 +13,20 @@ export const bodyNodes = (ast, suggestions): Body[] => {
   if (!ast) {
     return []
   }
+
+  const enrichedSuggestions = suggestions.map(s => {
+    if (s.name === funcNames.JOIN) {
+      return {
+        ...s,
+        params: {
+          tables: 'object',
+          on: 'array',
+          fn: 'function',
+        },
+      }
+    }
+    return s
+  })
 
   const walker = new Walker(ast)
 
@@ -26,7 +42,7 @@ export const bodyNodes = (ast, suggestions): Body[] => {
         return {
           ...d,
           id: uuid.v4(),
-          funcs: functions(d.funcs, suggestions),
+          funcs: functions(d.funcs, enrichedSuggestions),
         }
       })
 
@@ -37,7 +53,7 @@ export const bodyNodes = (ast, suggestions): Body[] => {
 
     return {
       id,
-      funcs: functions(funcs, suggestions),
+      funcs: functions(funcs, enrichedSuggestions),
       declarations: [],
       type,
       source,

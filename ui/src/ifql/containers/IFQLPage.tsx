@@ -17,7 +17,7 @@ import {
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
-import {funcNames, builder, argTypes} from 'src/ifql/constants'
+import {builder, argTypes} from 'src/ifql/constants'
 
 import {Source, Service, Notification} from 'src/types'
 import {
@@ -408,20 +408,7 @@ export class IFQLPage extends PureComponent<Props, State> {
 
     try {
       const ast = await getAST({url: links.ast, body: script})
-      const suggestions = this.state.suggestions.map(s => {
-        if (s.name === funcNames.JOIN) {
-          return {
-            ...s,
-            params: {
-              tables: 'object',
-              on: 'array',
-              fn: 'function',
-            },
-          }
-        }
-        return s
-      })
-      const body = bodyNodes(ast, suggestions)
+      const body = bodyNodes(ast, this.state.suggestions)
       const status = {type: 'success', text: ''}
       this.setState({ast, body, status})
       this.props.updateScript(script)
