@@ -64,7 +64,7 @@ class DashboardsPageContents extends Component<Props, State> {
     )
   }
 
-  private renderPanelHeading(): JSX.Element {
+  private get renderPanelHeading(): JSX.Element {
     const {onCreateDashboard} = this.props
 
     return (
