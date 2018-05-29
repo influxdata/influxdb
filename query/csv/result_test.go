@@ -506,7 +506,7 @@ func TestResultDecoder(t *testing.T) {
 
 func TestResultEncoder(t *testing.T) {
 	testCases := []TestCase{
-	// Add tests cases specific to encoding here
+		// Add tests cases specific to encoding here
 	}
 	testCases = append(testCases, symetricalTestCases...)
 	for _, tc := range testCases {

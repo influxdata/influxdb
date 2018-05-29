@@ -75,7 +75,7 @@ func (d *ResultDecoder) Decode(r io.Reader) (query.Result, error) {
 // Results are delimited by an empty line.
 type MultiResultDecoder struct {
 	c ResultDecoderConfig
-	r io.Reader
+	r io.ReadCloser
 }
 
 // NewMultiResultDecoder creates a new MultiResultDecoder.
@@ -88,7 +88,7 @@ func NewMultiResultDecoder(c ResultDecoderConfig) *MultiResultDecoder {
 	}
 }
 
-func (d *MultiResultDecoder) Decode(r io.Reader) (query.ResultIterator, error) {
+func (d *MultiResultDecoder) Decode(r io.ReadCloser) (query.ResultIterator, error) {
 	return &resultIterator{
 		c: d.c,
 		r: r,
@@ -98,9 +98,11 @@ func (d *MultiResultDecoder) Decode(r io.Reader) (query.ResultIterator, error) {
 // resultIterator iterates through the results encoded in r.
 type resultIterator struct {
 	c    ResultDecoderConfig
-	r    io.Reader
+	r    io.ReadCloser
 	next *resultDecoder
 	err  error
+
+	canceled bool
 }
 
 func (r *resultIterator) More() bool {
@@ -110,8 +112,13 @@ func (r *resultIterator) More() bool {
 			extraMeta = r.next.extraMeta
 		}
 		r.next, r.err = newResultDecoder(r.r, r.c, extraMeta)
-		return r.err == nil
+		if r.err == nil {
+			return true
+		}
 	}
+
+	// Release the resources for this query.
+	r.Cancel()
 	return false
 }
 
@@ -120,6 +127,14 @@ func (r *resultIterator) Next() query.Result {
 }
 
 func (r *resultIterator) Cancel() {
+	if r.canceled {
+		return
+	}
+
+	if err := r.r.Close(); err != nil && r.err == nil {
+		r.err = err
+	}
+	r.canceled = true
 }
 
 func (r *resultIterator) Err() error {

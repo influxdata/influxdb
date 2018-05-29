@@ -198,6 +198,7 @@ func (r *SliceResultIterator) Next() Result {
 }
 
 func (r *SliceResultIterator) Cancel() {
+	r.results = nil
 }
 
 func (r *SliceResultIterator) Err() error {
