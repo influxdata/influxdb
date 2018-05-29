@@ -70,12 +70,12 @@ class DashboardsPageContents extends Component<Props, State> {
     return (
       <div className="panel-heading">
         <h2 className="panel-title">{this.panelTitle}</h2>
-        <div className="dashboards-page--actions">
+        <div className="panel-controls">
           <SearchBar
             placeholder="Filter by Name..."
             onSearch={this.filterDashboards}
           />
-          <button className="btn btn-sm btn-primary">
+          <button className="btn btn-sm btn-default">
             <span className="icon import" /> Import Dashboard
           </button>
           <Authorized requiredRole={EDITOR_ROLE}>
