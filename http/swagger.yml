@@ -201,6 +201,296 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /tasks:
+    get:
+      tags:
+        - Tasks
+      summary: List tasks.
+      description: Lists tasks, limit 100
+      parameters:
+        - in: query
+          name: after
+          schema:
+            type: string
+          description: returns tasks after specified ID
+        - in: query
+          name: user
+          schema:
+            type: string
+          description: filter tasks to a specific user id
+        - in: query
+          name: organization
+          schema:
+            type: string
+          description: filter tasks to a specific organization id
+      responses:
+        '200':
+          description: A list of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Tasks"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Tasks
+      summary: Create a new task
+      requestBody:
+        description: task to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Task"
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/tasks/{taskId}':
+    get:
+      tags:
+        - Tasks
+      summary: Retrieve an task
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task to get
+      responses:
+        '200':
+          description: task details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags:
+        - Tasks
+      summary: Update a task
+      description: Update a task. This will cancel all queued runs.
+      requestBody:
+        description: task update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Task"
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task to get
+      responses:
+        '200':
+          description: task updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Tasks
+      summary: Delete a task
+      description: Deletes a task and all associated records
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task to delete
+      responses:
+        '204':
+          description: task deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/tasks/{taskId}/runs':
+    get:
+      tags:
+        - Tasks
+      summary: Retrieve list of run records for a task
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task to get runs for
+        - in: query
+          name: after
+          schema:
+            type: string
+          description: returns runs after specified ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: the number of runs to return
+        - in: query
+          name: afterTime
+          schema:
+            type: string
+          description: filter runs to those queued after this time
+        - in: query
+          name: beforeTime
+          schema:
+            type: string
+          description: filter runs to those queued before this time
+      responses:
+        '200':
+          description: a list of task runs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Run"
+                  links:
+                    $ref: "#/components/schemas/Links"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/tasks/{taskId}/runs/{runId}':
+    get:
+      tags:
+        - Tasks
+      summary: Retrieve a single run record for a task
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: task ID
+        - in: path
+          name: runId
+          schema:
+            type: string
+          required: true
+          description: run ID
+      responses:
+        '200':
+          description: The run record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/tasks/{taskId}/runs/{runId}/retry':
+    post:
+      tags:
+        - Tasks
+      summary: Retry a task run
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: task ID
+        - in: path
+          name: runId
+          schema:
+            type: string
+          required: true
+          description: run ID
+      responses:
+        '200':
+          description: The newly created retry run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/tasks/{taskId}/logs':
+    get:
+      tags:
+        - Tasks
+      summary: Retrieve all logs for a task
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task to get logs for
+        - in: query
+          name: run
+          schema:
+            type: string
+          description: Filters logs to a specific run.
+      responses:
+        '200':
+          description: all logs for a task
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Link"
   /users:
     get:
       tags:
@@ -304,6 +594,7 @@ components:
     Bucket:
       properties:
         id:
+          readOnly: true
           type: string
         organizationId:
           type: string
@@ -312,37 +603,127 @@ components:
         retentionPeriod:
           type: integer
           format: int64
+      required: [organizationId, name, retentionPeriod]
     Buckets:
       type: array
       items:
         $ref: "#/components/schemas/Bucket"
+    Link:
+      type: object
+      readOnly: true
+      description: URI of resource.
+      properties:
+        href:
+          type: string
+          format: url
+      required: [href]
+    Links:
+      type: object
+      properties:
+        next:
+          $ref: "#/components/schemas/Link"
+        self:
+          $ref: "#/components/schemas/Link"
+        prev:
+          $ref: "#/components/schemas/Link"
+      required: [self]
     Organization:
       properties:
         id:
+          readOnly: true
           type: string
         name:
           type: string
+      required: [name]
     Organizations:
       type: array
       items:
         $ref: "#/components/schemas/Organization"
+    Run:
+      properties:
+        id:
+          readOnly: true
+          type: string
+        status:
+          type: string
+          enum: [
+            "queued",
+            "executing",
+            "failed",
+            "success"
+          ]
+        queuedAt:
+          readOnly: true
+          type: string
+          format: dateTime
+        startTime:
+          readOnly: true
+          type: string
+          format: dateTime
+        endTime:
+          readOnly: true
+          type: string
+          format: dateTime
+        error:
+          $ref: "#/components/schemas/Error"
+        log:
+          readOnly: true
+          description: A url to a relevant log.
+          type: string
+      required: [queuedAt, status]
+    Task:
+      properties:
+        id:
+          readOnly: true
+          type: string
+        name:
+          description: A modifiable description of the task.
+          type: string
+        status:
+          description: The current status of the task. When updated to 'disabled', cancels all queued jobs of this task.
+          type: string
+          enum: [
+            "enabled",
+            "disabled"
+          ]
+        owner:
+          $ref: "#/components/schemas/User"
+        ifql:
+          description: The ifql to run for this task.
+          type: string
+        every:
+          readOnly: true
+          description: A simple task repetition schedule; parsed from ifql.
+          type: string
+        cron:
+          readOnly: true
+          description: A task repetition schedule in the form '* * * * * *'; parsed from ifql.
+          type: string
+        last:
+          $ref: "#/components/schemas/Run"
+    Tasks:
+      type: array
+      items:
+        $ref: "#/components/schemas/Task"
     User:
       properties:
         id:
+          readOnly: true
           type: string
         name:
           type: string
+      required: [name]
     Users:
       type: array
       items:
         $ref: "#/components/schemas/User"
     Error:
-      required:
-        - code
-        - message
       properties:
         code:
+          readOnly: true
           type: integer
           format: int32
         message:
+          readOnly: true
           type: string
+      required: [code, message]
