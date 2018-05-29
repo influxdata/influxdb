@@ -99,8 +99,10 @@ func (c *floatAscendingBatchCursor) Err() error { return nil }
 
 // close closes the cursor and any dependent cursors.
 func (c *floatAscendingBatchCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
@@ -398,8 +400,10 @@ func (c *integerAscendingBatchCursor) Err() error { return nil }
 
 // close closes the cursor and any dependent cursors.
 func (c *integerAscendingBatchCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
@@ -697,8 +701,10 @@ func (c *unsignedAscendingBatchCursor) Err() error { return nil }
 
 // close closes the cursor and any dependent cursors.
 func (c *unsignedAscendingBatchCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
@@ -996,8 +1002,10 @@ func (c *stringAscendingBatchCursor) Err() error { return nil }
 
 // close closes the cursor and any dependent cursors.
 func (c *stringAscendingBatchCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
@@ -1295,8 +1303,10 @@ func (c *booleanAscendingBatchCursor) Err() error { return nil }
 
 // close closes the cursor and any dependent cursors.
 func (c *booleanAscendingBatchCursor) Close() {
-	c.tsm.keyCursor.Close()
-	c.tsm.keyCursor = nil
+	if c.tsm.keyCursor != nil {
+		c.tsm.keyCursor.Close()
+		c.tsm.keyCursor = nil
+	}
 	c.cache.values = nil
 	c.tsm.values = nil
 }
