@@ -199,6 +199,7 @@ LineGraph.propTypes = {
   displayOptions: shape({
     stepPlot: bool,
     stackedGraph: bool,
+    animatedZooms: bool,
   }),
   activeQueryIndex: number,
   ruleValues: shape({}),

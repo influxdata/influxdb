@@ -8,15 +8,9 @@ import {
   TYPE_IFQL,
 } from 'src/dashboards/constants'
 import {shiftTimeRange} from 'src/shared/query/helpers'
-import {QueryConfig, Field, GroupBy, TimeShift} from 'src/types'
+import {QueryConfig, Field, GroupBy, TimeShift, TimeRange} from 'src/types'
 
-export const quoteIfTimestamp = ({
-  lower,
-  upper,
-}: {
-  lower: string
-  upper: string
-}): {lower: string; upper: string} => {
+export const quoteIfTimestamp = ({lower, upper}: TimeRange): TimeRange => {
   if (lower && lower.includes('Z') && !lower.includes("'")) {
     lower = `'${lower}'`
   }
@@ -29,7 +23,7 @@ export const quoteIfTimestamp = ({
 }
 
 export default function buildInfluxQLQuery(
-  timeRange,
+  timeRange: TimeRange,
   config: QueryConfig,
   shift: string = ''
 ): string {
@@ -66,7 +60,7 @@ function buildSelect(
 // type arg will reason about new query types i.e. IFQL, GraphQL, or queryConfig
 export const buildQuery = (
   type: string,
-  timeRange: object,
+  timeRange: TimeRange,
   config: QueryConfig,
   shift: TimeShift | null = null
 ): string => {
@@ -201,5 +195,7 @@ function buildFill(fill: string): string {
   return ` FILL(${fill})`
 }
 
-export const buildRawText = (config: QueryConfig, timeRange: object): string =>
-  config.rawText || buildInfluxQLQuery(timeRange, config) || ''
+export const buildRawText = (
+  config: QueryConfig,
+  timeRange: TimeRange
+): string => config.rawText || buildInfluxQLQuery(timeRange, config) || ''

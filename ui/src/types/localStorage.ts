@@ -1,4 +1,13 @@
-import {QueryConfig, TimeRange} from 'src/types'
+import {QueryConfig, TimeRange, Namespace, Source} from 'src/types'
+
+export interface LogsState {
+  currentSource: Source | null
+  currentNamespaces: Namespace[]
+  currentNamespace: Namespace | null
+  timeRange: TimeRange
+  histogramQueryConfig: QueryConfig | null
+  histogramData: object[]
+}
 
 export interface LocalStorage {
   VERSION: VERSION
@@ -8,6 +17,7 @@ export interface LocalStorage {
   dataExplorerQueryConfigs: DataExplorerQueryConfigs
   timeRange: TimeRange
   script: string
+  logs: LogsState
 }
 
 export type VERSION = string
