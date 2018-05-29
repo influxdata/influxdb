@@ -78,7 +78,7 @@ export interface Func {
   id: string
 }
 
-export type Arg = ArgString | ArgBool | ArgObject | ArgVar
+export type Arg = ArgString | ArgBool | ArgObject
 
 export interface ArgString {
   key: string
@@ -96,12 +96,6 @@ export interface ArgObject {
   key: string
   value: {[x: string]: string}
   type: 'object'
-}
-
-export interface ArgVar {
-  key: string
-  value: string
-  type: string
 }
 
 interface FlatExpression {

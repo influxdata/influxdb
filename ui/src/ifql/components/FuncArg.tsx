@@ -13,7 +13,7 @@ interface Props {
   funcName: string
   funcID: string
   argKey: string
-  value: string | boolean
+  value: string | boolean | {[x: string]: string}
   type: string
   bodyID: string
   declarationID: string
