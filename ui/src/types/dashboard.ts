@@ -96,7 +96,7 @@ export enum CellType {
   Guide = 'guide',
 }
 
-interface TemplateValue {
+export interface TemplateValue {
   value: string
   type: string
   selected: boolean

@@ -13,15 +13,25 @@
   @include gradient-v($g2-kevlar, $g0-obsidian);
 }
 
-.time-machine--graph {
-  width: calc(100% - 60px);
-  height: calc(100% - 60px);
+.time-machine--sidebar,
+.time-machine--vis {
   background-color: $g3-castle;
   border-radius: $radius;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   flex-wrap: nowrap;
+  height: inherit;
+}
+
+.time-machine--sidebar {
+  flex-basis: 25%;
+  margin-right: 5px;
+}
+
+.time-machine--vis {
+  flex-basis: 75%;
+  flex-grow: 1;
 }
 
 .time-machine--graph-header {
@@ -34,7 +44,6 @@
 
 .time-machine--graph-header .nav.nav-tablist {
   width: 180px;
-
   li {
     justify-content: center;
     flex: 1 0 0;

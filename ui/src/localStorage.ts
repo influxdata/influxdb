@@ -56,6 +56,7 @@ export const saveToLocalStorage = ({
   timeRange,
   dataExplorer,
   dashTimeV1: {ranges},
+  logs,
   script,
 }: LocalStorage): void => {
   try {
@@ -72,6 +73,7 @@ export const saveToLocalStorage = ({
         dataExplorer,
         dataExplorerQueryConfigs,
         script,
+        logs,
       })
     )
   } catch (err) {

@@ -640,3 +640,8 @@ export const ifqlUpdated = {
   ...defaultSuccessNotification,
   message: 'Connection Updated. Rejoice!',
 }
+
+export const ifqlTimeSeriesError = (message: string) => ({
+  ...defaultErrorNotification,
+  message: `Could not get data: ${message}`,
+})

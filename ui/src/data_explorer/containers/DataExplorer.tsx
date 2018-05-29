@@ -103,7 +103,7 @@ export class DataExplorer extends PureComponent<Props, State> {
     const {showWriteForm} = this.state
 
     return (
-      <div className="data-explorer">
+      <>
         {showWriteForm ? (
           <OverlayTechnologies>
             <WriteDataForm
@@ -150,7 +150,7 @@ export class DataExplorer extends PureComponent<Props, State> {
             editQueryStatus={queryConfigActions.editQueryStatus}
           />
         </ResizeContainer>
-      </div>
+      </>
     )
   }
 

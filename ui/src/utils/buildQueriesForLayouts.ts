@@ -1,18 +1,23 @@
-import {buildQuery} from 'utils/influxql'
+import {buildQuery} from 'src/utils/influxql'
 import {TYPE_SHIFTED, TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
 import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'src/shared/constants'
-import {timeRanges} from 'shared/data/timeRanges'
+import {timeRanges} from 'src/shared/data/timeRanges'
+import {Source, LayoutQuery, TimeRange} from 'src/types'
 
-const buildCannedDashboardQuery = (query, {lower, upper}, host) => {
+const buildCannedDashboardQuery = (
+  query: LayoutQuery,
+  {lower, upper}: TimeRange,
+  host: string
+): string => {
   const {defaultGroupBy} = timeRanges.find(range => range.lower === lower) || {
     defaultGroupBy: '5m',
   }
   const {wheres, groupbys} = query
 
-  let text = query.text
+  let text = query.query
 
   if (upper) {
     text += ` where time > '${lower}' AND time < '${upper}'`
@@ -43,7 +48,12 @@ const buildCannedDashboardQuery = (query, {lower, upper}, host) => {
   return text
 }
 
-export const buildQueriesForLayouts = (cell, source, timeRange, host) => {
+export const buildQueriesForLayouts = (
+  cell,
+  source: Source,
+  timeRange: TimeRange,
+  host: string
+) => {
   return cell.queries.map(query => {
     let queryText
     // Canned dashboards use an different a schema different from queryConfig.

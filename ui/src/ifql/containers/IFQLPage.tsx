@@ -1,25 +1,22 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 import _ from 'lodash'
 
-import CheckServices from 'src/ifql/containers/CheckServices'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import IFQLHeader from 'src/ifql/components/IFQLHeader'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {analyzeSuccess} from 'src/shared/copy/notifications'
 import {
-  updateScript as updateScriptAction,
-  UpdateScript,
-} from 'src/ifql/actions'
+  analyzeSuccess,
+  ifqlTimeSeriesError,
+} from 'src/shared/copy/notifications'
+import {UpdateScript} from 'src/ifql/actions'
 
 import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
 import {builder, argTypes} from 'src/ifql/constants'
 
-import {Source, Service, Notification} from 'src/types'
+import {Source, Service, Notification, ScriptResult} from 'src/types'
 import {
   Suggestion,
   FlatBody,
@@ -28,6 +25,7 @@ import {
   Handlers,
   DeleteFuncNodeArgs,
   Func,
+  ScriptStatus,
 } from 'src/types/ifql'
 
 interface Status {
@@ -42,9 +40,6 @@ interface Props {
   notify: (message: Notification) => void
   script: string
   updateScript: UpdateScript
-  params: {
-    sourceID: string
-  }
 }
 
 interface Body extends FlatBody {
@@ -54,9 +49,9 @@ interface Body extends FlatBody {
 interface State {
   body: Body[]
   ast: object
-  data: string
+  data: ScriptResult[]
+  status: ScriptStatus
   suggestions: Suggestion[]
-  status: Status
 }
 
 export const IFQLContext = React.createContext()
@@ -68,7 +63,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     this.state = {
       body: [],
       ast: null,
-      data: 'Hit "Get Data!" or Ctrl + Enter to run your script',
+      data: [],
       suggestions: [],
       status: {
         type: 'none',
@@ -78,7 +73,7 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {links, script} = this.props
+    const {links} = this.props
 
     try {
       const suggestions = await getSuggestions(links.suggestions)
@@ -87,7 +82,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       console.error('Could not get function suggestions: ', error)
     }
 
-    this.getASTResponse(script)
+    this.getTimeSeries()
   }
 
   public render() {
@@ -95,27 +90,25 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {script} = this.props
 
     return (
-      <CheckServices>
-        <IFQLContext.Provider value={this.handlers}>
-          <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
-            <div className="page hosts-list-page">
-              {this.header}
-              <TimeMachine
-                data={data}
-                body={body}
-                script={script}
-                status={status}
-                suggestions={suggestions}
-                onAnalyze={this.handleAnalyze}
-                onAppendFrom={this.handleAppendFrom}
-                onAppendJoin={this.handleAppendJoin}
-                onChangeScript={this.handleChangeScript}
-                onSubmitScript={this.handleSubmitScript}
-              />
-            </div>
-          </KeyboardShortcuts>
-        </IFQLContext.Provider>
-      </CheckServices>
+      <IFQLContext.Provider value={this.handlers}>
+        <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
+          <div className="page hosts-list-page">
+            {this.header}
+            <TimeMachine
+              data={data}
+              body={body}
+              script={script}
+              status={status}
+              suggestions={suggestions}
+              onAnalyze={this.handleAnalyze}
+              onAppendFrom={this.handleAppendFrom}
+              onAppendJoin={this.handleAppendJoin}
+              onChangeScript={this.handleChangeScript}
+              onSubmitScript={this.handleSubmitScript}
+            />
+          </div>
+        </KeyboardShortcuts>
+      </IFQLContext.Provider>
     )
   }
 
@@ -406,6 +399,10 @@ export class IFQLPage extends PureComponent<Props, State> {
   private getASTResponse = async (script: string) => {
     const {links} = this.props
 
+    if (!script) {
+      return
+    }
+
     try {
       const ast = await getAST({url: links.ast, body: script})
       const body = bodyNodes(ast, this.state.suggestions)
@@ -419,18 +416,28 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 
   private getTimeSeries = async () => {
-    const {script} = this.props
-    this.setState({data: 'fetching data...'})
+    const {script, links, notify} = this.props
 
-    try {
-      const {data} = await getTimeSeries(this.service, script)
-      this.setState({data})
-    } catch (error) {
-      this.setState({data: error})
-      console.error('Could not get timeSeries', error)
+    if (!script) {
+      return
     }
 
-    this.getASTResponse(script)
+    try {
+      await getAST({url: links.ast, body: script})
+    } catch (error) {
+      this.setState({status: this.parseError(error)})
+      return console.error('Could not parse AST', error)
+    }
+
+    try {
+      const data = await getTimeSeries(this.service, script)
+      this.setState({data})
+    } catch (error) {
+      this.setState({data: []})
+
+      notify(ifqlTimeSeriesError(error))
+      console.error('Could not get timeSeries', error)
+    }
   }
 
   private parseError = (error): Status => {
@@ -440,13 +447,4 @@ export class IFQLPage extends PureComponent<Props, State> {
   }
 }
 
-const mapStateToProps = ({links, services, sources, script}) => {
-  return {links: links.ifql, services, sources, script}
-}
-
-const mapDispatchToProps = {
-  notify: notifyAction,
-  updateScript: updateScriptAction,
-}
-
-export default connect(mapStateToProps, mapDispatchToProps)(IFQLPage)
+export default IFQLPage

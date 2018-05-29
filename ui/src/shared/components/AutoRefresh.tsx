@@ -4,6 +4,7 @@ import _ from 'lodash'
 import {fetchTimeSeries} from 'src/shared/apis/query'
 import {DEFAULT_TIME_SERIES} from 'src/shared/constants/series'
 import {TimeSeriesServerResponse, TimeSeriesResponse} from 'src/types/series'
+import {Template} from 'src/types'
 
 interface Axes {
   bounds: {
@@ -21,25 +22,6 @@ interface Query {
   id: string
 }
 
-interface TemplateQuery {
-  db: string
-  rp: string
-  influxql: string
-}
-
-interface TemplateValue {
-  type: string
-  value: string
-  selected: boolean
-}
-
-interface Template {
-  type: string
-  tempVar: string
-  query: TemplateQuery
-  values: TemplateValue[]
-}
-
 export interface Props {
   type: string
   autoRefresh: number
@@ -49,6 +31,7 @@ export interface Props {
   axes: Axes
   editQueryStatus: () => void
   grabDataForDownload: (timeSeries: TimeSeriesServerResponse[]) => void
+  onSetResolution?: (resolution: number) => void
 }
 
 interface State {
@@ -180,9 +163,13 @@ const AutoRefresh = (
       )
     }
 
-    private setResolution = resolution => {
+    private setResolution = (resolution: number) => {
+      const {onSetResolution} = this.props
       if (resolution !== this.state.resolution) {
         this.setState({resolution})
+        if (onSetResolution) {
+          onSetResolution(resolution)
+        }
       }
     }
 
