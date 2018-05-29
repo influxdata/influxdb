@@ -1,9 +1,9 @@
-import React, {PureComponent, CSSProperties, MouseEvent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 
-import {Service, SchemaFilter} from 'src/types'
-import {tagsFromMeasurement} from 'src/shared/apis/v2/metaQueries'
-import parseTags from 'src/shared/parsing/v2/tags'
-import TagList from 'src/ifql/components/TagList'
+import {Service, SchemaFilter, RemoteDataState} from 'src/types'
+import {tagValues as fetchTagValues} from 'src/shared/apis/v2/metaQueries'
+import parseValuesColumn from 'src/shared/parsing/v2/tags'
+import TagValueList from 'src/ifql/components/TagValueList'
 
 interface Props {
   tag: string
@@ -15,14 +15,7 @@ interface Props {
 interface State {
   isOpen: boolean
   loading: string
-  tags: string[]
-}
-
-enum RemoteDataState {
-  NotStarted = 'NotStarted',
-  Loading = 'Loading',
-  Done = 'Done',
-  Error = 'Error',
+  tagValues: string[]
 }
 
 export default class TagListItem extends PureComponent<Props, State> {
@@ -32,33 +25,44 @@ export default class TagListItem extends PureComponent<Props, State> {
     this.state = {
       isOpen: false,
       loading: RemoteDataState.NotStarted,
-      tags: [],
+      tagValues: [],
     }
   }
 
   public render() {
-    const {tag, db, service} = this.props
-    const {tags} = this.state
+    const {tag, db, service, filter} = this.props
+    const {tagValues} = this.state
 
     return (
-      <div className={this.className} style={this.style}>
+      <div className={this.className}>
         <div className="ifql-schema-item" onClick={this.handleClick}>
           <div className="ifql-schema-item-toggle" />
           {tag}
-          <TagList db={db} service={service} tags={tags} />
+          <span className="ifql-schema-type">Tag Key</span>
         </div>
+        {this.state.isOpen && (
+          <TagValueList
+            db={db}
+            service={service}
+            values={tagValues}
+            tag={tag}
+            filter={filter}
+          />
+        )}
       </div>
     )
   }
 
-  private async getTags() {
+  private async getTagValues() {
     const {db, service, tag, filter} = this.props
 
+    this.setState({loading: RemoteDataState.Loading})
+
     try {
-      const response = await tagsFromMeasurement(service, db, measurement)
-      const tags = parseTags(response)
+      const response = await fetchTagValues(service, db, filter, tag)
+      const tagValues = parseValuesColumn(response)
       this.setState({
-        tags,
+        tagValues,
         loading: RemoteDataState.Done,
       })
     } catch (error) {
@@ -70,7 +74,7 @@ export default class TagListItem extends PureComponent<Props, State> {
     e.stopPropagation()
 
     if (this.isFetchable) {
-      this.getTags()
+      this.getTagValues()
     }
 
     this.setState({isOpen: !this.state.isOpen})

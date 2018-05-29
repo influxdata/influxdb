@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
-import DatabaseList from 'src/ifql/components/DatabaseList'
 
+import DatabaseList from 'src/ifql/components/DatabaseList'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {Service} from 'src/types'
 
 interface Props {
@@ -30,7 +31,9 @@ class SchemaExplorer extends PureComponent<Props> {
             <span className="icon collapse" />
           </button>
         </div>
-        <DatabaseList service={service} />
+        <FancyScrollbar>
+          <DatabaseList service={service} />
+        </FancyScrollbar>
       </div>
     )
   }

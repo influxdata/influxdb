@@ -4,6 +4,7 @@ import {shallow} from 'enzyme'
 import {IFQLPage} from 'src/ifql/containers/IFQLPage'
 import TimeMachine from 'src/ifql/components/TimeMachine'
 import {ActionTypes} from 'src/ifql/actions'
+import {source} from 'test/resources'
 
 jest.mock('src/ifql/apis', () => require('mocks/ifql/apis'))
 
@@ -15,7 +16,7 @@ const setup = () => {
       ast: '',
     },
     services: [],
-    source: [],
+    source,
     script: '',
     notify: () => {},
     params: {

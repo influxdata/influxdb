@@ -124,3 +124,10 @@ export interface SchemaFilter {
   key: string
   value: string
 }
+
+export enum RemoteDataState {
+  NotStarted = 'NotStarted',
+  Loading = 'Loading',
+  Done = 'Done',
+  Error = 'Error',
+}

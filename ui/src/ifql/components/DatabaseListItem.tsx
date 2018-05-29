@@ -1,8 +1,8 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 
-import {tags as fetchTags} from 'src/shared/apis/v2/metaQueries'
-import parseTags from 'src/shared/parsing/v2/tags'
+import {tagKeys as fetchTagKeys} from 'src/shared/apis/v2/metaQueries'
+import parseValuesColumn from 'src/shared/parsing/v2/tags'
 import TagList from 'src/ifql/components/TagList'
 import {Service} from 'src/types'
 
@@ -29,8 +29,8 @@ class DatabaseListItem extends PureComponent<Props, State> {
     const {db, service} = this.props
 
     try {
-      const response = await fetchTags(service, db)
-      const tags = parseTags(response)
+      const response = await fetchTagKeys(service, db, [])
+      const tags = parseValuesColumn(response)
       this.setState({tags})
     } catch (error) {
       console.error(error)

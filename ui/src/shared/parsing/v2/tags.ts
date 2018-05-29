@@ -3,7 +3,7 @@ import _ from 'lodash'
 import {ScriptResult} from 'src/types'
 import {parseResults} from 'src/shared/parsing/v2/results'
 
-const parseTags = (resp: string): string[] => {
+const parseValuesColumn = (resp: string): string[] => {
   const results = parseResults(resp)
 
   if (results.length === 0) {
@@ -20,4 +20,4 @@ const parseTags = (resp: string): string[] => {
   return _.sortBy(tags, t => t.toLocaleLowerCase())
 }
 
-export default parseTags
+export default parseValuesColumn

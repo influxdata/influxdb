@@ -1,7 +1,7 @@
 import _ from 'lodash'
 
 import AJAX from 'src/utils/ajax'
-import {Service} from 'src/types'
+import {Service, SchemaFilter} from 'src/types'
 
 export const measurements = async (
   service: Service,
@@ -18,14 +18,47 @@ export const measurements = async (
   return proxy(service, script)
 }
 
-export const tags = async (service: Service, db: string): Promise<any> => {
+export const tagKeys = async (
+  service: Service,
+  db: string,
+  filter: SchemaFilter[]
+): Promise<any> => {
+  let tagKeyFilter = ''
+
+  if (filter.length) {
+    const predicates = filter.map(({key}) => `r._value != "${key}"`)
+
+    tagKeyFilter = `|> filter(fn: (r) => ${predicates.join(' and ')} )`
+  }
+
   const script = `
     from(db: "${db}")
-	    |> range(start: -24h)
+      |> range(start: -24h)
+      ${tagsetFilter(filter)}
      	|> group(none: true)
-      |> keys(except:["_time","_value","_start","_stop"])
+      |> keys(except:["_time", "_value", "_start", "_stop"])
       |> map(fn: (r) => r._value)
+      ${tagKeyFilter}
     `
+
+  return proxy(service, script)
+}
+
+export const tagValues = async (
+  service: Service,
+  db: string,
+  filter: SchemaFilter[],
+  tagKey: string
+): Promise<any> => {
+  const script = `
+    from(db:"${db}")
+      |> range(start:-1h)
+      ${tagsetFilter(filter)}
+      |> group(by:["${tagKey}"])
+      |> distinct(column:"${tagKey}")
+      |> group(none: true)
+      |> limit(n:100)
+  `
 
   return proxy(service, script)
 }
@@ -44,6 +77,16 @@ export const tagsFromMeasurement = async (
   `
 
   return proxy(service, script)
+}
+
+const tagsetFilter = (filter: SchemaFilter[]): string => {
+  if (!filter.length) {
+    return ''
+  }
+
+  const predicates = filter.map(({key, value}) => `r.${key} == "${value}"`)
+
+  return `|> filter(fn: (r) => ${predicates.join(' and ')} )`
 }
 
 const proxy = async (service: Service, script: string) => {
