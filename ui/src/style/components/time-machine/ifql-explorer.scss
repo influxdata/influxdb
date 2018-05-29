@@ -183,3 +183,10 @@ $ifql-tree-line: 2px;
     opacity: 1;
   }
 }
+
+.ifql-schema-tree > .ifql-schema--filter {
+  margin-left: $ifql-tree-indent / 2;
+  margin-right: $ifql-tree-indent / 2;
+  margin-top: 1px;
+  margin-bottom: 5px;
+}

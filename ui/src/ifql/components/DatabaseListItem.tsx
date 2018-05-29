@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import classnames from 'classnames'
 
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/v2/metaQueries'
@@ -14,6 +14,7 @@ interface Props {
 interface State {
   isOpen: boolean
   tags: string[]
+  searchTerm: string
 }
 
 class DatabaseListItem extends PureComponent<Props, State> {
@@ -22,6 +23,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
     this.state = {
       isOpen: false,
       tags: [],
+      searchTerm: '',
     }
   }
 
@@ -39,10 +41,10 @@ class DatabaseListItem extends PureComponent<Props, State> {
 
   public render() {
     const {db, service} = this.props
-    const {tags} = this.state
+    const {tags, searchTerm} = this.state
 
     return (
-      <div className={this.className} onClick={this.handleChooseDatabase}>
+      <div className={this.className} onClick={this.handleClick}>
         <div className="ifql-schema-item">
           <div className="ifql-schema-item-toggle" />
           {db}
@@ -50,11 +52,29 @@ class DatabaseListItem extends PureComponent<Props, State> {
         </div>
         {this.state.isOpen && (
           <>
-            <TagList db={db} service={service} tags={tags} filter={[]} />
+            <div className="ifql-schema--filter">
+              <input
+                className="form-control input-sm"
+                placeholder={`Filter within ${db}`}
+                type="text"
+                spellCheck={false}
+                autoComplete="off"
+                value={searchTerm}
+                onClick={this.handleInputClick}
+                onChange={this.onSearch}
+              />
+            </div>
+            <TagList db={db} service={service} tags={this.tags} filter={[]} />
           </>
         )}
       </div>
     )
+  }
+
+  private get tags(): string[] {
+    const {tags, searchTerm} = this.state
+    const term = searchTerm.toLocaleLowerCase()
+    return tags.filter(t => t.toLocaleLowerCase().includes(term))
   }
 
   private get className(): string {
@@ -63,8 +83,18 @@ class DatabaseListItem extends PureComponent<Props, State> {
     })
   }
 
-  private handleChooseDatabase = () => {
+  private onSearch = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({
+      searchTerm: e.target.value,
+    })
+  }
+
+  private handleClick = () => {
     this.setState({isOpen: !this.state.isOpen})
+  }
+
+  private handleInputClick = (e: MouseEvent<HTMLInputElement>) => {
+    e.stopPropagation()
   }
 }
 

@@ -24,8 +24,18 @@ export default class TagList extends PureComponent<Props, State> {
   public render() {
     const {db, service, tags, filter} = this.props
 
-    return tags.map(t => (
-      <TagListItem key={t} db={db} tag={t} service={service} filter={filter} />
-    ))
+    return (
+      <>
+        {tags.map(t => (
+          <TagListItem
+            key={t}
+            db={db}
+            tag={t}
+            service={service}
+            filter={filter}
+          />
+        ))}
+      </>
+    )
   }
 }
