@@ -59,7 +59,7 @@ class Join extends PureComponent<Props, State> {
         <div className="func-arg">
           <label className="func-arg--label">{'tables'}</label>
           <Dropdown
-            selected={_.includes(declarationsFromBody, table1) ? table1 : ''}
+            selected={table1}
             className="from--dropdown dropdown-100 func-arg--value"
             menuClass="dropdown-astronaut"
             buttonColor="btn-default"
@@ -67,7 +67,7 @@ class Join extends PureComponent<Props, State> {
             onChoose={this.handleChooseTable1}
           />
           <Dropdown
-            selected={_.includes(declarationsFromBody, table2) ? table2 : ''}
+            selected={table2}
             className="from--dropdown dropdown-100 func-arg--value"
             menuClass="dropdown-astronaut"
             buttonColor="btn-default"
