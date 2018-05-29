@@ -250,7 +250,8 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 	startColIdx := -1
 	stopColIdx := -1
 	for j, c := range b.Cols() {
-		keyed := b.Key().HasCol(c.Label)
+		keyIdx := execute.ColIdx(c.Label, b.Key().Cols())
+		keyed := keyIdx >= 0
 		if c.Label == t.startColLabel {
 			startColIdx = j
 			keyed = true
@@ -262,7 +263,7 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 		newCols = append(newCols, c)
 		if keyed {
 			keyCols = append(keyCols, c)
-			keyColMap = append(keyColMap, j)
+			keyColMap = append(keyColMap, keyIdx)
 		}
 	}
 	if startColIdx == -1 {
@@ -273,7 +274,7 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 		}
 		newCols = append(newCols, c)
 		keyCols = append(keyCols, c)
-		keyColMap = append(keyColMap, startColIdx)
+		keyColMap = append(keyColMap, len(keyColMap))
 	}
 	if stopColIdx == -1 {
 		stopColIdx = len(newCols)
@@ -283,7 +284,7 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 		}
 		newCols = append(newCols, c)
 		keyCols = append(keyCols, c)
-		keyColMap = append(keyColMap, stopColIdx)
+		keyColMap = append(keyColMap, len(keyColMap))
 	}
 
 	return b.Do(func(cr query.ColReader) error {
