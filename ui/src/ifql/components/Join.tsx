@@ -17,35 +17,16 @@ interface Props {
   onGenerateScript: () => void
 }
 
-interface State {
-  table1: string
-  table2: string
-}
-
 interface DropdownItem {
   text: string
 }
 
-class Join extends PureComponent<Props, State> {
-  // public static getDerivedStateFromProps(nextProps: Props) {
-  //   const tables = nextProps.func.args.find(a => a.key === 'tables')
-  //   if (tables) {
-  //     const keys = _.keys(tables.value)
-  //     return {table1: keys[0], table2: keys[1]}
-  //   }
-  //   return {table1: '', table2: ''}
-  // }
+class Join extends PureComponent<Props> {
   constructor(props) {
     super(props)
-
-    this.state = {
-      table1: this.table1Value,
-      table2: this.table2Value,
-    }
   }
 
   public render() {
-    const {table1, table2} = this.state
     const {
       func,
       bodyID,
@@ -58,7 +39,7 @@ class Join extends PureComponent<Props, State> {
         <div className="func-arg">
           <label className="func-arg--label">{'tables'}</label>
           <Dropdown
-            selected={table1}
+            selected={this.table1Value}
             className="from--dropdown dropdown-100 func-arg--value"
             menuClass="dropdown-astronaut"
             buttonColor="btn-default"
@@ -66,7 +47,7 @@ class Join extends PureComponent<Props, State> {
             onChoose={this.handleChooseTable1}
           />
           <Dropdown
-            selected={table2}
+            selected={this.table2Value}
             className="from--dropdown dropdown-100 func-arg--value"
             menuClass="dropdown-astronaut"
             buttonColor="btn-default"
@@ -103,24 +84,14 @@ class Join extends PureComponent<Props, State> {
   }
 
   private handleChooseTable1 = (item: DropdownItem): void => {
-    this.setState(
-      {
-        table1: item.text,
-      },
-      this.handleChooseTables
-    )
+    this.handleChooseTables(item.text, this.table2Value)
   }
 
   private handleChooseTable2 = (item: DropdownItem): void => {
-    this.setState(
-      {
-        table2: item.text,
-      },
-      this.handleChooseTables
-    )
+    this.handleChooseTables(this.table1Value, item.text)
   }
 
-  private handleChooseTables = (): void => {
+  private handleChooseTables = (table1, table2): void => {
     const {
       onChangeArg,
       bodyID,
@@ -128,18 +99,16 @@ class Join extends PureComponent<Props, State> {
       func,
       onGenerateScript,
     } = this.props
-    const {table1, table2} = this.state
-    if (table1 !== '' && table2 !== '' && table1 !== table2) {
-      onChangeArg({
-        funcID: func.id,
-        bodyID,
-        declarationID,
-        key: 'tables',
-        value: {[table1]: table1, [table2]: table2},
-        generate: true,
-      })
-      onGenerateScript()
-    }
+
+    onChangeArg({
+      funcID: func.id,
+      bodyID,
+      declarationID,
+      key: 'tables',
+      value: {[table1]: table1, [table2]: table2},
+      generate: true,
+    })
+    onGenerateScript()
   }
 
   private get items(): DropdownItem[] {
@@ -160,7 +129,7 @@ class Join extends PureComponent<Props, State> {
     const tables = this.props.func.args.find(a => a.key === 'tables')
     if (tables) {
       const keys = _.keys(tables.value)
-      return keys[0]
+      return _.get(keys, '0', '')
     }
     return ''
   }
@@ -169,7 +138,7 @@ class Join extends PureComponent<Props, State> {
     const tables = this.props.func.args.find(a => a.key === 'tables')
     if (tables) {
       const keys = _.keys(tables.value)
-      return keys[1]
+      return _.get(keys, '1', _.get(keys, '0', ''))
     }
     return ''
   }
