@@ -4,16 +4,17 @@ import {
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
   setNamespaceAsync,
-  executeHistogramQueryAsync,
+  executeQueriesAsync,
   changeZoomAsync,
 } from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
 import Graph from 'src/logs/components/LogsGraph'
-import Table from 'src/logs/components/LogsTable'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogViewerChart from 'src/logs/components/LogViewerChart'
+import LogsTable from 'src/logs/components/LogsTable'
+import {getDeep} from 'src/utils/wrappers'
 
 import {Source, Namespace, TimeRange} from 'src/types'
 
@@ -35,9 +36,13 @@ interface Props {
   setTimeRangeAsync: (timeRange: TimeRange) => void
   setNamespaceAsync: (namespace: Namespace) => void
   changeZoomAsync: (timeRange: TimeRange) => void
-  executeHistogramQueryAsync: () => void
+  executeQueriesAsync: () => void
   timeRange: TimeRange
   histogramData: object[]
+  tableData: {
+    columns: string[]
+    values: string[]
+  }
 }
 
 interface State {
@@ -73,10 +78,16 @@ class LogsPage extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.getSources()
+
+    if (this.props.currentNamespace) {
+      this.props.executeQueriesAsync()
+    }
   }
 
   public render() {
     const {searchString, filters} = this.state
+
+    const count = getDeep(this.props, 'tableData.values.length', 0)
 
     return (
       <div className="page">
@@ -89,11 +100,11 @@ class LogsPage extends PureComponent<Props, State> {
             onSearch={this.handleSubmitSearch}
           />
           <FilterBar
-            numResults={300}
+            numResults={count}
             filters={filters}
             onUpdateFilters={this.handleUpdateFilters}
           />
-          <Table thing="snooo" />
+          <LogsTable data={this.props.tableData} />
         </div>
       </div>
     )
@@ -149,7 +160,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   private handleChooseTimerange = (timeRange: TimeRange) => {
     this.props.setTimeRangeAsync(timeRange)
-    this.props.executeHistogramQueryAsync()
+    this.props.executeQueriesAsync()
   }
 
   private handleChooseSource = (sourceID: string) => {
@@ -175,6 +186,7 @@ const mapStateToProps = ({
     timeRange,
     currentNamespace,
     histogramData,
+    tableData,
   },
 }) => ({
   sources,
@@ -183,6 +195,7 @@ const mapStateToProps = ({
   timeRange,
   currentNamespace,
   histogramData,
+  tableData,
 })
 
 const mapDispatchToProps = {
@@ -190,7 +203,7 @@ const mapDispatchToProps = {
   getSources: getSourcesAsync,
   setTimeRangeAsync,
   setNamespaceAsync,
-  executeHistogramQueryAsync,
+  executeQueriesAsync,
   changeZoomAsync,
 }
 

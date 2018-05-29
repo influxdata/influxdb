@@ -1,13 +1,36 @@
+import _ from 'lodash'
 import {Source, Namespace, TimeRange, QueryConfig} from 'src/types'
 import {getSource} from 'src/shared/apis'
 import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
-import {buildHistogramQueryConfig} from 'src/logs/utils'
+import {buildHistogramQueryConfig, buildTableQueryConfig} from 'src/logs/utils'
 import {getDeep} from 'src/utils/wrappers'
 import buildQuery from 'src/utils/influxql'
 import {executeQueryAsync} from 'src/logs/api'
 import {LogsState} from 'src/types/localStorage'
 
-type GetState = () => {logs: LogsState}
+interface TableData {
+  columns: string[]
+  values: string[]
+}
+
+const defaultTableData = {
+  columns: [
+    'time',
+    'message',
+    'facility_code',
+    'procid',
+    'severity_code',
+    'timestamp',
+    'version',
+  ],
+  values: [],
+}
+
+interface State {
+  logs: LogsState
+}
+
+type GetState = () => State
 
 export enum ActionTypes {
   SetSource = 'LOGS_SET_SOURCE',
@@ -16,6 +39,8 @@ export enum ActionTypes {
   SetNamespace = 'LOGS_SET_NAMESPACE',
   SetHistogramQueryConfig = 'LOGS_SET_HISTOGRAM_QUERY_CONFIG',
   SetHistogramData = 'LOGS_SET_HISTOGRAM_DATA',
+  SetTableQueryConfig = 'LOGS_SET_TABLE_QUERY_CONFIG',
+  SetTableData = 'LOGS_SET_TABLE_DATA',
   ChangeZoom = 'LOGS_CHANGE_ZOOM',
 }
 
@@ -61,6 +86,20 @@ interface SetHistogramData {
   }
 }
 
+interface SetTableQueryConfig {
+  type: ActionTypes.SetTableQueryConfig
+  payload: {
+    queryConfig: QueryConfig
+  }
+}
+
+interface SetTableData {
+  type: ActionTypes.SetTableData
+  payload: {
+    data: object
+  }
+}
+
 interface ChangeZoomAction {
   type: ActionTypes.ChangeZoom
   payload: {
@@ -77,12 +116,32 @@ export type Action =
   | SetHistogramQueryConfig
   | SetHistogramData
   | ChangeZoomAction
+  | SetTableData
+  | SetTableQueryConfig
+
+const getTimeRange = (state: State): TimeRange | null =>
+  getDeep<TimeRange | null>(state, 'logs.timeRange', null)
+
+const getNamespace = (state: State): Namespace | null =>
+  getDeep<Namespace | null>(state, 'logs.currentNamespace', null)
+
+const getProxyLink = (state: State): string | null =>
+  getDeep<string | null>(state, 'logs.currentSource.links.proxy', null)
+
+const getHistogramQueryConfig = (state: State): QueryConfig | null =>
+  getDeep<QueryConfig | null>(state, 'logs.histogramQueryConfig', null)
+
+const getTableQueryConfig = (state: State): QueryConfig | null =>
+  getDeep<QueryConfig | null>(state, 'logs.tableQueryConfig', null)
 
 export const setSource = (source: Source): SetSourceAction => ({
   type: ActionTypes.SetSource,
-  payload: {
-    source,
-  },
+  payload: {source},
+})
+
+const setHistogramData = (response): SetHistogramData => ({
+  type: ActionTypes.SetHistogramData,
+  payload: {data: [{response}]},
 })
 
 export const executeHistogramQueryAsync = () => async (
@@ -90,34 +149,49 @@ export const executeHistogramQueryAsync = () => async (
   getState: GetState
 ): Promise<void> => {
   const state = getState()
-  const queryConfig = getDeep<QueryConfig | null>(
-    state,
-    'logs.histogramQueryConfig',
-    null
-  )
-  const timeRange = getDeep<TimeRange | null>(state, 'logs.timeRange', null)
-  const namespace = getDeep<Namespace | null>(
-    state,
-    'logs.currentNamespace',
-    null
-  )
-  const proxyLink = getDeep<string | null>(
-    state,
-    'logs.currentSource.links.proxy',
-    null
-  )
 
-  if (queryConfig && timeRange && namespace && proxyLink) {
+  const queryConfig = getHistogramQueryConfig(state)
+  const timeRange = getTimeRange(state)
+  const namespace = getNamespace(state)
+  const proxyLink = getProxyLink(state)
+
+  if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
     const query = buildQuery(timeRange, queryConfig)
     const response = await executeQueryAsync(proxyLink, namespace, query)
 
-    dispatch({
-      type: ActionTypes.SetHistogramData,
-      payload: {
-        data: [{response}],
-      },
-    })
+    dispatch(setHistogramData(response))
   }
+}
+
+const setTableData = (series: TableData): SetTableData => ({
+  type: ActionTypes.SetTableData,
+  payload: {data: {columns: series.columns, values: _.reverse(series.values)}},
+})
+
+export const executeTableQueryAsync = () => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  const state = getState()
+
+  const queryConfig = getTableQueryConfig(state)
+  const timeRange = getTimeRange(state)
+  const namespace = getNamespace(state)
+  const proxyLink = getProxyLink(state)
+
+  if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
+    const query = buildQuery(timeRange, queryConfig)
+    const response = await executeQueryAsync(proxyLink, namespace, query)
+
+    const series = getDeep(response, 'results.0.series.0', defaultTableData)
+
+    dispatch(setTableData(series))
+  }
+}
+
+export const executeQueriesAsync = () => async dispatch => {
+  dispatch(executeHistogramQueryAsync())
+  dispatch(executeTableQueryAsync())
 }
 
 export const setHistogramQueryConfigAsync = () => async (
@@ -144,6 +218,31 @@ export const setHistogramQueryConfigAsync = () => async (
   }
 }
 
+export const setTableQueryConfig = (queryConfig: QueryConfig) => ({
+  type: ActionTypes.SetTableQueryConfig,
+  payload: {queryConfig},
+})
+
+export const setTableQueryConfigAsync = () => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  const state = getState()
+  const namespace = getDeep<Namespace | null>(
+    state,
+    'logs.currentNamespace',
+    null
+  )
+  const timeRange = getDeep<TimeRange | null>(state, 'logs.timeRange', null)
+
+  if (timeRange && namespace) {
+    const queryConfig = buildTableQueryConfig(namespace, timeRange)
+
+    dispatch(setTableQueryConfig(queryConfig))
+    dispatch(executeTableQueryAsync())
+  }
+}
+
 export const setNamespaceAsync = (namespace: Namespace) => async (
   dispatch
 ): Promise<void> => {
@@ -153,6 +252,7 @@ export const setNamespaceAsync = (namespace: Namespace) => async (
   })
 
   dispatch(setHistogramQueryConfigAsync())
+  dispatch(setTableQueryConfigAsync())
 }
 
 export const setNamespaces = (
@@ -174,6 +274,7 @@ export const setTimeRangeAsync = (timeRange: TimeRange) => async (
     },
   })
   dispatch(setHistogramQueryConfigAsync())
+  dispatch(setTableQueryConfigAsync())
 }
 
 export const populateNamespacesAsync = (proxyLink: string) => async (
@@ -206,16 +307,9 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
   getState: GetState
 ): Promise<void> => {
   const state = getState()
-  const namespace = getDeep<Namespace | null>(
-    state,
-    'logs.currentNamespace',
-    null
-  )
-  const proxyLink = getDeep<string | null>(
-    state,
-    'logs.currentSource.links.proxy',
-    null
-  )
+
+  const namespace = getNamespace(state)
+  const proxyLink = getProxyLink(state)
 
   if (namespace && proxyLink) {
     const queryConfig = buildHistogramQueryConfig(namespace, timeRange)
@@ -229,5 +323,8 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
         timeRange,
       },
     })
+
+    await dispatch(setTimeRangeAsync(timeRange))
+    await dispatch(executeTableQueryAsync())
   }
 }

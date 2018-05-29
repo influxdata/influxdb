@@ -7,6 +7,8 @@ const defaultState: LogsState = {
   timeRange: {lower: 'now() - 1m', upper: null},
   currentNamespace: null,
   histogramQueryConfig: null,
+  tableQueryConfig: null,
+  tableData: [],
   histogramData: [],
 }
 
@@ -24,6 +26,10 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, histogramQueryConfig: action.payload.queryConfig}
     case ActionTypes.SetHistogramData:
       return {...state, histogramData: action.payload.data}
+    case ActionTypes.SetTableQueryConfig:
+      return {...state, tableQueryConfig: action.payload.queryConfig}
+    case ActionTypes.SetTableData:
+      return {...state, tableData: action.payload.data}
     case ActionTypes.ChangeZoom:
       const {timeRange, data} = action.payload
       return {...state, timeRange, histogramData: data}
