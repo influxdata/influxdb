@@ -47,7 +47,6 @@ class Join extends PureComponent<Props, State> {
   public render() {
     const {table1, table2} = this.state
     const {
-      declarationsFromBody = [],
       func,
       bodyID,
       onChangeArg,
