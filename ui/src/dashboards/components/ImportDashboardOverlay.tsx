@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import {getDeep} from 'src/utils/wrappers'
 
 import Container from 'src/shared/components/overlay/OverlayContainer'
@@ -33,13 +33,20 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
       <Container maxWidth={800}>
         <Heading title="Import Dashboard" onDismiss={onDismissOverlay} />
         <Body>
-          <input type="file" onChange={this.handleChooseFile} accept=".json" />
-          <button
-            className="btn btn-sm btn-default"
-            onClick={this.handleImportDashboard}
-          >
-            Import
-          </button>
+          <form onSubmit={this.handleImportDashboard}>
+            <div className="form-group col-sm-6">
+              <label htmlFor="dashboardUploader">Choose File to Import</label>
+              <input
+                id="dashboardUploader"
+                type="file"
+                onChange={this.handleChooseFile}
+                accept=".json"
+              />
+            </div>
+            <div className="form-group form-group-submit col-xs-12 text-center">
+              <button className="btn btn btn-success">Import</button>
+            </div>
+          </form>
         </Body>
       </Container>
     )
@@ -56,7 +63,9 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
     fileReader.readAsText(file)
   }
 
-  private handleImportDashboard = (): void => {
+  private handleImportDashboard = (e: FormEvent<HTMLFormElement>): void => {
+    e.preventDefault()
+
     const {onImportDashboard, onDismissOverlay} = this.props
     const {dashboardFromFile} = this.state
     if (dashboardFromFile) {
