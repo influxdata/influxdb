@@ -1,6 +1,5 @@
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -10,24 +9,19 @@ import SearchBar from 'src/hosts/components/SearchBar'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Dashboard} from 'src/types/dashboard'
-import {showOverlay} from 'src/shared/actions/overlayTechnology'
+import {
+  showOverlay as showOverlayAction,
+  ShowOverlay,
+} from 'src/shared/actions/overlayTechnology'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
-
-interface OverlayOptions {
-  dismissOnClickOutside?: boolean
-  dismissOnEscape?: boolean
-}
 
 interface Props {
   dashboards: Dashboard[]
   onDeleteDashboard: () => void
   onCreateDashboard: () => void
   onCloneDashboard: () => void
-<<<<<<< HEAD
   onExportDashboard: () => void
-=======
-  handleShowOverlay: (overlay: React.Component, options: OverlayOptions) => void
->>>>>>> Introduce ImportDashboardOverlay component
+  showOverlay: ShowOverlay
   dashboardLink: string
 }
 
@@ -135,13 +129,13 @@ class DashboardsPageContents extends Component<Props, State> {
   }
 
   private showImportOverlay = (): void => {
-    const {handleShowOverlay} = this.props
+    const {showOverlay} = this.props
     const options = {
       dismissOnClickOutside: false,
       dismissOnEscape: false,
     }
 
-    handleShowOverlay(
+    showOverlay(
       <OverlayContext.Consumer>
         {({onDismissOverlay}) => (
           <ImportDashboardOverlay onDismissOverlay={onDismissOverlay} />
@@ -152,8 +146,8 @@ class DashboardsPageContents extends Component<Props, State> {
   }
 }
 
-const mapDispatchToProps = dispatch => ({
-  handleShowOverlay: bindActionCreators(showOverlay, dispatch),
-})
+const mapDispatchToProps = {
+  showOverlay: showOverlayAction,
+}
 
 export default connect(null, mapDispatchToProps)(DashboardsPageContents)
