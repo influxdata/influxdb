@@ -2,7 +2,7 @@ import React, {PureComponent, MouseEvent} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+import Authorized, {EDITOR_ROLE, VIEWER_ROLE} from 'src/auth/Authorized'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 import {Dashboard} from 'src/types'
@@ -60,33 +60,40 @@ class DashboardsTable extends PureComponent<Props> {
                   <span className="empty-string">None</span>
                 )}
               </td>
-              <Authorized
-                requiredRole={EDITOR_ROLE}
-                replaceWithIfNotAuthorized={<td />}
-              >
-                <td className="text-right">
+              <td className="text-right">
+                <Authorized
+                  requiredRole={VIEWER_ROLE}
+                  replaceWithIfNotAuthorized={<div />}
+                >
                   <button
                     className="btn btn-xs btn-default table--show-on-row-hover"
                     onClick={onExportDashboard(dashboard)}
                   >
                     <span className="icon export" />Export
                   </button>
-                  <button
-                    className="btn btn-xs btn-default table--show-on-row-hover"
-                    onClick={onCloneDashboard(dashboard)}
-                  >
-                    <span className="icon duplicate" />
-                    Clone
-                  </button>
-                  <ConfirmButton
-                    confirmAction={onDeleteDashboard(dashboard)}
-                    size="btn-xs"
-                    type="btn-danger"
-                    text="Delete"
-                    customClass="table--show-on-row-hover"
-                  />
-                </td>
-              </Authorized>
+                </Authorized>
+                <Authorized
+                  requiredRole={EDITOR_ROLE}
+                  replaceWithIfNotAuthorized={<div />}
+                >
+                  <span>
+                    <button
+                      className="btn btn-xs btn-default table--show-on-row-hover"
+                      onClick={onCloneDashboard(dashboard)}
+                    >
+                      <span className="icon duplicate" />
+                      Clone
+                    </button>
+                    <ConfirmButton
+                      confirmAction={onDeleteDashboard(dashboard)}
+                      size="btn-xs"
+                      type="btn-danger"
+                      text="Delete"
+                      customClass="table--show-on-row-hover"
+                    />
+                  </span>
+                </Authorized>
+              </td>
             </tr>
           ))}
         </tbody>
