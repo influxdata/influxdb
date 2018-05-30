@@ -33,6 +33,7 @@ import {showOverlay} from 'src/shared/actions/overlayTechnology'
 import {
   applyDashboardTempVarOverrides,
   stripTempVar,
+  getInvalidTempVarsInURLQuery,
 } from 'src/dashboards/utils/tempVars'
 
 import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
@@ -48,7 +49,10 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'shared/constants'
-import {notifyDashboardNotFound} from 'shared/copy/notifications'
+import {
+  notifyDashboardNotFound,
+  notifyInvalidTempVarValueInURLQuery,
+} from 'shared/copy/notifications'
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
@@ -114,6 +118,13 @@ class DashboardPage extends Component {
       router.push(`/sources/${source.id}/dashboards`)
       return notify(notifyDashboardNotFound(dashboardID))
     }
+
+    const urlQueryTempVarsWithInvalidValues = getInvalidTempVarsInURLQuery(
+      dashboard.templates
+    )
+    urlQueryTempVarsWithInvalidValues.forEach(invalidURLQuery => {
+      notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery))
+    })
 
     syncURLQueryFromTempVars(location, dashboard.templates)
 
@@ -609,8 +620,8 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
   )
 
   if (dashboard) {
-    const queries = queryString.parse(window.location.search)
-    dashboard = applyDashboardTempVarOverrides(dashboard, queries)
+    const urlQueries = queryString.parse(window.location.search)
+    dashboard = applyDashboardTempVarOverrides(dashboard, urlQueries)
   }
 
   const selectedCell = cell

@@ -1,3 +1,6 @@
+import _ from 'lodash'
+import queryString from 'query-string'
+
 import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
 
 const generateTemplateVariableQuery = ({
@@ -63,17 +66,20 @@ export const stripTempVar = tempVarName =>
   tempVarName.substr(1, tempVarName.length - 2)
 
 export const generateURLQueryFromTempVars = tempVars => {
-  const queries = {}
+  const urlQueries = {}
 
   tempVars.forEach(({tempVar, values}) => {
     const selected = values.find(value => value.selected === true)
     const strippedTempVar = stripTempVar(tempVar)
 
-    queries[strippedTempVar] = selected.value
+    urlQueries[strippedTempVar] = selected.value
   })
 
-  return queries
+  return urlQueries
 }
+
+export const isValidTempVarOverride = (values, overrideValue) =>
+  !!values.find(({value}) => value === overrideValue)
 
 const reconcileTempVarsWithOverrides = (currentTempVars, tempVarOverrides) => {
   if (!tempVarOverrides) {
@@ -85,11 +91,9 @@ const reconcileTempVarsWithOverrides = (currentTempVars, tempVarOverrides) => {
     const overrideValue = tempVarOverrides[strippedTempVar]
 
     if (overrideValue) {
-      const isValidTempVarOverride = !!values.find(
-        ({value}) => value === overrideValue
-      )
+      const isValid = isValidTempVarOverride(values, overrideValue)
 
-      if (isValidTempVarOverride) {
+      if (isValid) {
         const overriddenValues = values.map(tempVarValue => {
           const {value} = tempVarValue
           if (value === overrideValue) {
@@ -100,7 +104,6 @@ const reconcileTempVarsWithOverrides = (currentTempVars, tempVarOverrides) => {
         return {...tempVar, values: overriddenValues}
       }
 
-      // TODO: generate error notification ?
       return tempVar
     }
 
@@ -120,5 +123,30 @@ export const applyDashboardTempVarOverrides = (
     tempVarOverrides
   ),
 })
+
+export const getInvalidTempVarsInURLQuery = tempVars => {
+  const urlQueries = queryString.parse(window.location.search)
+
+  const urlQueryTempVarsWithInvalidValues = _.reduce(
+    urlQueries,
+    (acc, v, k) => {
+      const matchedTempVar = tempVars.find(
+        ({tempVar}) => stripTempVar(tempVar) === k
+      )
+      if (matchedTempVar) {
+        const isValidTempVarValue = !!matchedTempVar.values.find(
+          ({value}) => value === v
+        )
+        if (!isValidTempVarValue) {
+          acc.push({key: k, value: v})
+        }
+      }
+      return acc
+    },
+    []
+  )
+
+  return urlQueryTempVarsWithInvalidValues
+}
 
 export default generateTemplateVariableQuery

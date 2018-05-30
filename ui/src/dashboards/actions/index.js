@@ -366,11 +366,11 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
 
 export const syncURLQueryFromQueryObject = (
   location,
-  updatedQuery,
-  deletedQueries = {}
+  updatedURLQuery,
+  deletedURLQueries = {}
 ) => dispatch => {
-  const updatedLocationQuery = {...location.query, ...updatedQuery}
-  _.each(deletedQueries, (v, k) => {
+  const updatedLocationQuery = {...location.query, ...updatedURLQuery}
+  _.each(deletedURLQueries, (v, k) => {
     delete updatedLocationQuery[k]
   })
 
@@ -390,10 +390,10 @@ export const syncURLQueryFromTempVars = (
   tempVars,
   deletedTempVars = []
 ) => dispatch => {
-  const updatedQueries = generateURLQueryFromTempVars(tempVars)
-  const deletedQueries = generateURLQueryFromTempVars(deletedTempVars)
+  const updatedURLQueries = generateURLQueryFromTempVars(tempVars)
+  const deletedURLQueries = generateURLQueryFromTempVars(deletedTempVars)
 
   dispatch(
-    syncURLQueryFromQueryObject(location, updatedQueries, deletedQueries)
+    syncURLQueryFromQueryObject(location, updatedURLQueries, deletedURLQueries)
   )
 }
