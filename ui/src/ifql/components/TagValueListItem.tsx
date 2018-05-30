@@ -1,4 +1,4 @@
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
 
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/v2/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/v2/tags'
@@ -18,6 +18,7 @@ interface State {
   isOpen: boolean
   tags: string[]
   loading: RemoteDataState
+  searchTerm: string
 }
 
 class TagValueListItem extends PureComponent<Props, State> {
@@ -27,12 +28,13 @@ class TagValueListItem extends PureComponent<Props, State> {
       isOpen: false,
       tags: [],
       loading: RemoteDataState.NotStarted,
+      searchTerm: '',
     }
   }
 
   public render() {
     const {db, service, value} = this.props
-    const {tags} = this.state
+    const {searchTerm} = this.state
 
     return (
       <div className={this.className} onClick={this.handleClick}>
@@ -45,12 +47,26 @@ class TagValueListItem extends PureComponent<Props, State> {
           <>
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
-              <TagList
-                db={db}
-                service={service}
-                tags={tags}
-                filter={this.filter}
-              />
+              <>
+                <div className="ifql-schema--filter">
+                  <input
+                    className="form-control input-sm"
+                    placeholder={`Filter within ${db}`}
+                    type="text"
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={searchTerm}
+                    onClick={this.handleInputClick}
+                    onChange={this.onSearch}
+                  />
+                </div>
+                <TagList
+                  db={db}
+                  service={service}
+                  tags={this.tags}
+                  filter={this.filter}
+                />
+              </>
             )}
           </>
         )}
@@ -66,6 +82,12 @@ class TagValueListItem extends PureComponent<Props, State> {
     const {filter, tag, value} = this.props
 
     return [...filter, {key: tag, value}]
+  }
+
+  private get tags(): string[] {
+    const {tags, searchTerm} = this.state
+    const term = searchTerm.toLocaleLowerCase()
+    return tags.filter(t => t.toLocaleLowerCase().includes(term))
   }
 
   private async getTags() {
@@ -89,6 +111,10 @@ class TagValueListItem extends PureComponent<Props, State> {
     return `ifql-schema-tree ifql-tree-node ${openClass}`
   }
 
+  private handleInputClick = (e: MouseEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+  }
+
   private handleClick = (e: MouseEvent<HTMLDivElement>) => {
     e.stopPropagation()
 
@@ -97,6 +123,12 @@ class TagValueListItem extends PureComponent<Props, State> {
     }
 
     this.setState({isOpen: !this.state.isOpen})
+  }
+
+  private onSearch = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({
+      searchTerm: e.target.value,
+    })
   }
 
   private get isFetchable(): boolean {
