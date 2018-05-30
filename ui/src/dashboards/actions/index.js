@@ -8,6 +8,7 @@ import {
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
   runTemplateVariableQuery,
+  createDashboard as createDashboardAJAX,
 } from 'src/dashboards/apis'
 import {getMe} from 'src/shared/apis/auth'
 
@@ -72,6 +73,13 @@ export const setTimeRange = timeRange => ({
 
 export const updateDashboard = dashboard => ({
   type: 'UPDATE_DASHBOARD',
+  payload: {
+    dashboard,
+  },
+})
+
+export const createDashboard = dashboard => ({
+  type: 'CREATE_DASHBOARD',
   payload: {
     dashboard,
   },
@@ -370,6 +378,33 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
       const vals = parsed[type]
       dispatch(editTemplateVariableValues(dashboard.id, id, vals))
     })
+  } catch (error) {
+    console.error(error)
+    dispatch(errorThrown(error))
+  }
+}
+
+export const importDashboardAsync = dashboard => async dispatch => {
+  try {
+    // save only selected template values to server
+    const templatesWithOnlySelectedValues = removeUnselectedTemplateValues(
+      dashboard
+    )
+
+    const {
+      data: dashboardWithOnlySelectedTemplateValues,
+    } = await createDashboardAJAX({
+      ...dashboard,
+      templates: templatesWithOnlySelectedValues,
+    })
+
+    // save all template values to redux
+    dispatch(
+      createDashboard({
+        ...dashboardWithOnlySelectedTemplateValues,
+        templates: dashboard.templates,
+      })
+    )
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))

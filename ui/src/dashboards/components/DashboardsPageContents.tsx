@@ -23,6 +23,7 @@ interface Props {
     dashboard: Dashboard
   ) => (event: MouseEvent<HTMLButtonElement>) => void
   onExportDashboard: (dashboard: Dashboard) => () => void
+  onImportDashboard: (dashboard: Dashboard) => void
   showOverlay: ShowOverlay
   dashboardLink: string
 }
@@ -131,7 +132,7 @@ class DashboardsPageContents extends Component<Props, State> {
   }
 
   private showImportOverlay = (): void => {
-    const {showOverlay} = this.props
+    const {showOverlay, onImportDashboard} = this.props
     const options = {
       dismissOnClickOutside: false,
       dismissOnEscape: false,
@@ -140,7 +141,10 @@ class DashboardsPageContents extends Component<Props, State> {
     showOverlay(
       <OverlayContext.Consumer>
         {({onDismissOverlay}) => (
-          <ImportDashboardOverlay onDismissOverlay={onDismissOverlay} />
+          <ImportDashboardOverlay
+            onDismissOverlay={onDismissOverlay}
+            onImportDashboard={onImportDashboard}
+          />
         )}
       </OverlayContext.Consumer>,
       options

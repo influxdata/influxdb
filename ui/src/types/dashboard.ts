@@ -134,3 +134,8 @@ export interface Dashboard {
   organization: string
   links?: DashboardLinks
 }
+
+export interface DashboardFile {
+  chronografVersion?: string
+  dashboard: Dashboard
+}

@@ -11,19 +11,22 @@ import {
   getDashboardsAsync,
   deleteDashboardAsync,
   getChronografVersion,
+  importDashboardAsync,
 } from 'src/dashboards/actions'
 
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Source, Dashboard} from 'src/types'
+import {DashboardFile} from 'src/types/dashboard'
 
 interface Props {
   source: Source
   router: InjectedRouter
   handleGetDashboards: () => void
-  handleGetChronografVersion: () => void
+  handleGetChronografVersion: () => string
   handleDeleteDashboard: (dashboard: Dashboard) => void
+  handleImportDashboard: (dashboard: Dashboard) => void
   dashboards: Dashboard[]
 }
 
@@ -47,6 +50,7 @@ class DashboardsPage extends PureComponent<Props> {
           onCreateDashboard={this.handleCreateDashboard}
           onCloneDashboard={this.handleCloneDashboard}
           onExportDashboard={this.handleExportDashboard}
+          onImportDashboard={this.handleImportDashboard}
         />
       </div>
     )
@@ -92,9 +96,20 @@ class DashboardsPage extends PureComponent<Props> {
     )
   }
 
-  private modifyDashboardForDownload = async (dashboard: Dashboard) => {
+  private modifyDashboardForDownload = async (
+    dashboard: Dashboard
+  ): Promise<DashboardFile> => {
     const version = await this.props.handleGetChronografVersion()
     return {chronografVersion: version, dashboard}
+  }
+
+  private handleImportDashboard = async (
+    dashboard: Dashboard
+  ): Promise<void> => {
+    await this.props.handleImportDashboard({
+      ...dashboard,
+      name: `${dashboard.name} (imported)`,
+    })
   }
 }
 
@@ -107,6 +122,7 @@ const mapDispatchToProps = {
   handleGetDashboards: getDashboardsAsync,
   handleDeleteDashboard: deleteDashboardAsync,
   handleGetChronografVersion: getChronografVersion,
+  handleImportDashboard: importDashboardAsync,
 }
 
 export default withRouter(
