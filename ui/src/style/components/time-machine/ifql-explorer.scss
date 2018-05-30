@@ -74,7 +74,7 @@ $ifql-tree-line: 2px;
     left: $ifql-tree-indent / 2;
     transform: translate(-50%, -50%);
   }
-  &:not(.skeleton):hover {
+  &:not(.no-hover):hover {
     color: $g17-whisper;
     cursor: pointer;
     background-color: $g4-onyx;
@@ -110,6 +110,10 @@ $ifql-tree-line: 2px;
     background-color: transparent;
     color: $g11-sidewalk;
     cursor: default;
+  }
+  .increase-values-limit {
+    margin-left: 8px;
+    width: 160px;
   }
 }
 
@@ -194,10 +198,22 @@ $ifql-tree-line: 2px;
   margin-right: $ifql-tree-indent / 2;
   margin-top: 1px;
   margin-bottom: 5px;
-  input {
-    height: 25px;
-    font-size: 12px;
-  }
+  max-width: 220px;
+}
+
+.ifql-schema--filter>input.input-sm {
+  height: 25px;
+  font-size: 12px;
+}
+
+.tag-value-list--header>.ifql-schema--filter {
+  display: inline-block;
+  margin-right: 15px;
+}
+
+.tag-value-list--header {
+  font-size: 12px;
+  color: $g11-sidewalk;
 }
 
 /*
@@ -207,18 +223,13 @@ $ifql-tree-line: 2px;
     From http: //tobiasahlin.com/spinkit/.
 */
 
-.search-spinner {
-  position: absolute;
-  right: 15px;
-  top: 2px;
-}
-
-.search-spinner .spinner {
+.loading-spinner .spinner {
   width: 25px;
   text-align: center;
+  margin: 0 auto;
 }
 
-.search-spinner .spinner>div {
+.loading-spinner .spinner>div {
   width: 8px;
   height: 8px;
   background-color: $g8-storm;
@@ -227,11 +238,11 @@ $ifql-tree-line: 2px;
   animation: sk-bouncedelay 1s infinite ease-in-out both;
 }
 
-.search-spinner .spinner .bounce1 {
+.loading-spinner .spinner .bounce1 {
   animation-delay: -0.32s;
 }
 
-.search-spinner .spinner .bounce2 {
+.loading-spinner .spinner .bounce2 {
   animation-delay: -0.16s;
 }
 

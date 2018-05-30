@@ -30,7 +30,7 @@ export default class TagList extends PureComponent<Props, State> {
           <TagListItem
             key={t}
             db={db}
-            tag={t}
+            tagKey={t}
             service={service}
             filter={filter}
           />

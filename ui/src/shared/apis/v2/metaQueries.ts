@@ -44,18 +44,33 @@ export const tagKeys = async (
   return proxy(service, script)
 }
 
-export const tagValues = async (
-  service: Service,
-  db: string,
-  filter: SchemaFilter[],
-  tagKey: string,
-  searchTerm: string = ''
-): Promise<any> => {
+interface TagValuesParams {
+  service: Service
+  db: string
+  tagKey: string
+  limit: number
+  filter?: SchemaFilter[]
+  searchTerm?: string
+  count?: boolean
+}
+
+export const tagValues = async ({
+  db,
+  service,
+  tagKey,
+  limit,
+  filter = [],
+  searchTerm = '',
+  count = false,
+}: TagValuesParams): Promise<any> => {
   let regexFilter = ''
 
   if (searchTerm) {
     regexFilter = `|> filter(fn: (r) => r.${tagKey} =~ /${searchTerm}/)`
   }
+
+  const limitFunc = count ? '' : `|> limit(n:${limit})`
+  const countFunc = count ? '|> count()' : ''
 
   const script = `
     from(db:"${db}")
@@ -64,8 +79,9 @@ export const tagValues = async (
       ${tagsetFilter(filter)}
       |> group(by:["${tagKey}"])
       |> distinct(column:"${tagKey}")
-      |> group(none: true)
-      |> limit(n:100)
+      |> group(by:["_stop","_start"])
+      ${limitFunc}
+      ${countFunc}
   `
 
   return proxy(service, script)

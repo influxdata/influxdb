@@ -1,16 +1,22 @@
-import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
+import React, {
+  PureComponent,
+  CSSProperties,
+  ChangeEvent,
+  MouseEvent,
+} from 'react'
 
 import _ from 'lodash'
 
 import {Service, SchemaFilter, RemoteDataState} from 'src/types'
 import {tagValues as fetchTagValues} from 'src/shared/apis/v2/metaQueries'
+import {explorer} from 'src/ifql/constants'
 import parseValuesColumn from 'src/shared/parsing/v2/tags'
 import TagValueList from 'src/ifql/components/TagValueList'
 import LoaderSkeleton from 'src/ifql/components/LoaderSkeleton'
-import SearchSpinner from 'src/ifql/components/SearchSpinner'
+import LoadingSpinner from 'src/ifql/components/LoadingSpinner'
 
 interface Props {
-  tag: string
+  tagKey: string
   db: string
   service: Service
   filter: SchemaFilter[]
@@ -20,8 +26,11 @@ interface State {
   isOpen: boolean
   loadingAll: RemoteDataState
   loadingSearch: RemoteDataState
+  loadingMore: RemoteDataState
   tagValues: string[]
   searchTerm: string
+  limit: number
+  count: number | null
 }
 
 export default class TagListItem extends PureComponent<Props, State> {
@@ -32,53 +41,81 @@ export default class TagListItem extends PureComponent<Props, State> {
       isOpen: false,
       loadingAll: RemoteDataState.NotStarted,
       loadingSearch: RemoteDataState.NotStarted,
+      loadingMore: RemoteDataState.NotStarted,
       tagValues: [],
+      count: null,
       searchTerm: '',
+      limit: explorer.TAG_VALUES_LIMIT,
     }
 
-    this.debouncedSearch = _.debounce(this.searchTagValues, 250)
+    this.debouncedOnSearch = _.debounce(() => {
+      this.searchTagValues()
+      this.getCount()
+    }, 250)
+  }
+
+  public async componentDidMount() {
+    this.getCount()
   }
 
   public render() {
-    const {tag, db, service, filter} = this.props
-    const {tagValues, searchTerm} = this.state
+    const {tagKey, db, service, filter} = this.props
+    const {tagValues, searchTerm, loadingMore, count, limit} = this.state
 
     return (
       <div className={this.className}>
         <div className="ifql-schema-item" onClick={this.handleClick}>
           <div className="ifql-schema-item-toggle" />
-          {tag}
+          {tagKey}
           <span className="ifql-schema-type">Tag Key</span>
         </div>
         {this.state.isOpen && (
           <>
-            <div className="ifql-schema--filter">
-              <input
-                className="form-control input-sm"
-                placeholder={`Filter within ${tag}`}
-                type="text"
-                spellCheck={false}
-                autoComplete="off"
-                value={searchTerm}
-                onClick={this.handleInputClick}
-                onChange={this.onSearch}
-              />
-              {this.isSearching && <SearchSpinner />}
+            <div className="tag-value-list--header">
+              <div className="ifql-schema--filter">
+                <input
+                  className="form-control input-sm"
+                  placeholder={`Filter within ${tagKey}`}
+                  type="text"
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={searchTerm}
+                  onClick={this.handleInputClick}
+                  onChange={this.onSearch}
+                />
+                {this.isSearching && (
+                  <LoadingSpinner style={this.spinnerStyle} />
+                )}
+              </div>
+              {!!count && `${count} total`}
             </div>
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
-              <TagValueList
-                db={db}
-                service={service}
-                values={tagValues}
-                tag={tag}
-                filter={filter}
-              />
+              <>
+                <TagValueList
+                  db={db}
+                  service={service}
+                  values={tagValues}
+                  tagKey={tagKey}
+                  filter={filter}
+                  onLoadMoreValues={this.handleLoadMoreValues}
+                  isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
+                  shouldShowMoreValues={limit < count}
+                />
+              </>
             )}
           </>
         )}
       </div>
     )
+  }
+
+  private get spinnerStyle(): CSSProperties {
+    return {
+      position: 'absolute',
+      right: '15px',
+      top: '6px',
+    }
   }
 
   private get isSearching(): boolean {
@@ -93,11 +130,11 @@ export default class TagListItem extends PureComponent<Props, State> {
     const searchTerm = e.target.value
 
     this.setState({searchTerm, loadingSearch: RemoteDataState.Loading}, () =>
-      this.debouncedSearch()
+      this.debouncedOnSearch()
     )
   }
 
-  private debouncedSearch() {} // See constructor
+  private debouncedOnSearch() {} // See constructor
 
   private handleInputClick = (e: MouseEvent<HTMLInputElement>): void => {
     e.stopPropagation()
@@ -133,10 +170,33 @@ export default class TagListItem extends PureComponent<Props, State> {
     }
   }
 
+  private getMoreTagValues = async () => {
+    this.setState({loadingMore: RemoteDataState.Loading})
+
+    try {
+      const tagValues = await this.getTagValues()
+
+      this.setState({
+        tagValues,
+        loadingMore: RemoteDataState.Done,
+      })
+    } catch (error) {
+      console.error(error)
+      this.setState({loadingMore: RemoteDataState.Error})
+    }
+  }
+
   private getTagValues = async () => {
-    const {db, service, tag, filter} = this.props
-    const {searchTerm} = this.state
-    const response = await fetchTagValues(service, db, filter, tag, searchTerm)
+    const {db, service, tagKey, filter} = this.props
+    const {searchTerm, limit} = this.state
+    const response = await fetchTagValues({
+      service,
+      db,
+      filter,
+      tagKey,
+      limit,
+      searchTerm,
+    })
 
     return parseValuesColumn(response)
   }
@@ -149,6 +209,43 @@ export default class TagListItem extends PureComponent<Props, State> {
     }
 
     this.setState({isOpen: !this.state.isOpen})
+  }
+
+  private handleLoadMoreValues = (): void => {
+    const {limit} = this.state
+
+    this.setState(
+      {limit: limit + explorer.TAG_VALUES_LIMIT},
+      this.getMoreTagValues
+    )
+  }
+
+  private async getCount() {
+    const {service, db, filter, tagKey} = this.props
+    const {limit, searchTerm} = this.state
+    try {
+      const response = await fetchTagValues({
+        service,
+        db,
+        filter,
+        tagKey,
+        limit,
+        searchTerm,
+        count: true,
+      })
+
+      const parsed = parseValuesColumn(response)
+
+      if (parsed.length !== 1) {
+        throw new Error('Unexpected count response')
+      }
+
+      const count = Number(parsed[0])
+
+      this.setState({count})
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   private get isFetchable(): boolean {

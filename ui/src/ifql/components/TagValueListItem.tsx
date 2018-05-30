@@ -9,7 +9,7 @@ import {Service, SchemaFilter, RemoteDataState} from 'src/types'
 interface Props {
   db: string
   service: Service
-  tag: string
+  tagKey: string
   value: string
   filter: SchemaFilter[]
 }
@@ -79,9 +79,9 @@ class TagValueListItem extends PureComponent<Props, State> {
   }
 
   private get filter(): SchemaFilter[] {
-    const {filter, tag, value} = this.props
+    const {filter, tagKey, value} = this.props
 
-    return [...filter, {key: tag, value}]
+    return [...filter, {key: tagKey, value}]
   }
 
   private get tags(): string[] {
