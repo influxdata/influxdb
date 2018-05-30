@@ -13,6 +13,7 @@ interface Props {
   isLoadingMoreValues: boolean
   onLoadMoreValues: () => void
   shouldShowMoreValues: boolean
+  loadMoreCount: number
 }
 
 export default class TagValueList extends PureComponent<Props> {
@@ -60,12 +61,12 @@ export default class TagValueList extends PureComponent<Props> {
   }
 
   private get buttonValue(): string | JSX.Element {
-    const {isLoadingMoreValues} = this.props
+    const {isLoadingMoreValues, loadMoreCount} = this.props
 
     if (isLoadingMoreValues) {
       return <LoadingSpinner />
     }
 
-    return `Load next ${explorer.TAG_VALUES_LIMIT} values`
+    return `Load next ${loadMoreCount} values`
   }
 }

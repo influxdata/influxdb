@@ -256,6 +256,12 @@ export default class TagListItem extends PureComponent<Props, State> {
     }
   }
 
+  private get loadMoreCount(): number {
+    const {count, limit} = this.state
+
+    return Math.min(Math.abs(count - limit), explorer.TAG_VALUES_LIMIT)
+  }
+
   private get isFetchable(): boolean {
     const {isOpen, loadingAll} = this.state
 
