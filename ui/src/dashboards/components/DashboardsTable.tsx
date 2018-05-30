@@ -76,7 +76,7 @@ class DashboardsTable extends PureComponent<Props> {
                   requiredRole={EDITOR_ROLE}
                   replaceWithIfNotAuthorized={<div />}
                 >
-                  <span>
+                  <>
                     <button
                       className="btn btn-xs btn-default table--show-on-row-hover"
                       onClick={onCloneDashboard(dashboard)}
@@ -91,7 +91,7 @@ class DashboardsTable extends PureComponent<Props> {
                       text="Delete"
                       customClass="table--show-on-row-hover"
                     />
-                  </span>
+                  </>
                 </Authorized>
               </td>
             </tr>

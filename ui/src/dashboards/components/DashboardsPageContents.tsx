@@ -87,19 +87,21 @@ class DashboardsPageContents extends Component<Props, State> {
             placeholder="Filter by Name..."
             onSearch={this.filterDashboards}
           />
-          <button
-            className="btn btn-sm btn-default"
-            onClick={this.showImportOverlay}
-          >
-            <span className="icon import" /> Import Dashboard
-          </button>
           <Authorized requiredRole={EDITOR_ROLE}>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={onCreateDashboard}
-            >
-              <span className="icon plus" /> Create Dashboard
-            </button>
+            <>
+              <button
+                className="btn btn-sm btn-default"
+                onClick={this.showImportOverlay}
+              >
+                <span className="icon import" /> Import Dashboard
+              </button>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={onCreateDashboard}
+              >
+                <span className="icon plus" /> Create Dashboard
+              </button>
+            </>
           </Authorized>
         </div>
       </div>
