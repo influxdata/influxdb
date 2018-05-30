@@ -1,24 +1,12 @@
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
 #partition,false,false,false,false,false,false,true,true,true
-#default,_result,0,,,,,load15,system,host.local
+#default,_result,0,,,,,load1,system,host.local
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
 #partition,false,false,false,false,false,false,true,true,true
-#default,_result,,,,,,,,
+#default,_result,1,,,,,load15,system,host.local
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,82.9833984375,used_percent,swap,host.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:36Z,82.598876953125,used_percent,swap,host.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:46Z,82.598876953125,used_percent,swap,host.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:56Z,82.598876953125,used_percent,swap,host.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:06Z,82.598876953125,used_percent,swap,host.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,82.6416015625,used_percent,swap,host.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,2.9833984375,used_percent,swap,host1.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:36Z,2.598876953125,used_percent,swap,host1.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:46Z,2.598876953125,used_percent,swap,host1.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:56Z,2.598876953125,used_percent,swap,host1.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:06Z,2.598876953125,used_percent,swap,host1.local
-,,1,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,2.6416015625,used_percent,swap,host1.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
 #partition,false,false,false,false,false,false,true,true,true
@@ -27,5 +15,18 @@
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
 #partition,false,false,false,false,false,false,true,true,true
-#default,_result,3,,,,,load1,system,host.local
+#default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,82.9833984375,used_percent,swap,host.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:36Z,82.598876953125,used_percent,swap,host.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:46Z,82.598876953125,used_percent,swap,host.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:56Z,82.598876953125,used_percent,swap,host.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:06Z,82.598876953125,used_percent,swap,host.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,82.6416015625,used_percent,swap,host.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,2.9833984375,used_percent,swap,host1.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:36Z,2.598876953125,used_percent,swap,host1.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:46Z,2.598876953125,used_percent,swap,host1.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:56Z,2.598876953125,used_percent,swap,host1.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:06Z,2.598876953125,used_percent,swap,host1.local
+,,3,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,2.6416015625,used_percent,swap,host1.local
+

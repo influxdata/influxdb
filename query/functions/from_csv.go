@@ -3,6 +3,7 @@ package functions
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 
 	"context"
@@ -143,6 +144,7 @@ func (c *CSVSource) AddTransformation(t execute.Transformation) {
 func (c *CSVSource) Run(ctx context.Context) {
 	var err error
 	var max execute.Time
+	maxSet := false
 	err = c.data.Blocks().Do(func(b query.Block) error {
 		for _, t := range c.ts {
 			err := t.Process(c.id, b)
@@ -150,8 +152,9 @@ func (c *CSVSource) Run(ctx context.Context) {
 				return err
 			}
 			if idx := execute.ColIdx(execute.DefaultStopColLabel, b.Key().Cols()); idx >= 0 {
-				if stop := b.Key().ValueTime(idx); stop > max {
+				if stop := b.Key().ValueTime(idx); !maxSet || stop > max {
 					max = stop
+					maxSet = true
 				}
 			}
 		}
@@ -161,12 +164,16 @@ func (c *CSVSource) Run(ctx context.Context) {
 		goto FINISH
 	}
 
-	for _, t := range c.ts {
-		t.UpdateWatermark(c.id, max)
+	if maxSet {
+		for _, t := range c.ts {
+			log.Println("UpdateWatermark", max)
+			t.UpdateWatermark(c.id, max)
+		}
 	}
 
 FINISH:
 	for _, t := range c.ts {
+		log.Println("FINISH")
 		t.Finish(c.id, err)
 	}
 }

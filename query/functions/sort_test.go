@@ -156,6 +156,41 @@ func TestSort_Process(t *testing.T) {
 			}},
 		},
 		{
+			name: "one block multiple columns with key",
+			spec: &functions.SortProcedureSpec{
+				Cols: []string{"_time", "_stop"},
+				Desc: true,
+			},
+			data: []query.Block{&executetest.Block{
+				KeyCols: []string{"_start", "_stop"},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(1), execute.Time(3), execute.Time(1), 1.0},
+					{execute.Time(1), execute.Time(3), execute.Time(2), 1.0},
+					{execute.Time(1), execute.Time(3), execute.Time(3), 2.0},
+				},
+			}},
+			want: []*executetest.Block{{
+				KeyCols: []string{"_stop", "_start"},
+				ColMeta: []query.ColMeta{
+					{Label: "_start", Type: query.TTime},
+					{Label: "_stop", Type: query.TTime},
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(1), execute.Time(3), execute.Time(3), 2.0},
+					{execute.Time(1), execute.Time(3), execute.Time(2), 1.0},
+					{execute.Time(1), execute.Time(3), execute.Time(1), 1.0},
+				},
+			}},
+		},
+		{
 			name: "multiple blocks",
 			spec: &functions.SortProcedureSpec{
 				Cols: []string{"_value"},
