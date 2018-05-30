@@ -25,9 +25,7 @@ export const parseResult = (raw: string, index: number): ScriptResult => {
   const metadata = Papa.parse(rawMetadata).data
   const data = Papa.parse(rawData).data
 
-  const headerRow = _.get(data, '0', [])
-  const measurementHeaderIndex = headerRow.findIndex(v => v === '_measurement')
-  const name = _.get(data, `1.${measurementHeaderIndex}`, `Result ${index}`)
+  const name = `Result ${index}`
 
   return {
     id: uuid.v4(),
