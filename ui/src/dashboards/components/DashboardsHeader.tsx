@@ -1,8 +1,8 @@
 import React from 'react'
 
-import SourceIndicator from 'shared/components/SourceIndicator'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
 
-const DashboardsHeader = () => (
+const DashboardsHeader = (): JSX.Element => (
   <div className="page-header">
     <div className="page-header__container">
       <div className="page-header__left">
