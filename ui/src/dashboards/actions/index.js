@@ -1,5 +1,6 @@
-import {push} from 'react-router-redux'
+import _ from 'lodash'
 import queryString from 'query-string'
+import {push} from 'react-router-redux'
 
 import {
   getDashboards as getDashboardsAJAX,
@@ -365,9 +366,14 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
 
 export const syncURLQueryFromQueryObject = (
   location,
-  updatedQuery
+  updatedQuery,
+  deletedQueries = {}
 ) => dispatch => {
   const updatedLocationQuery = {...location.query, ...updatedQuery}
+  _.each(deletedQueries, (v, k) => {
+    delete updatedLocationQuery[k]
+  })
+
   const updatedSearchString = queryString.stringify(updatedLocationQuery)
   const updatedSearch = {search: updatedSearchString}
   const updatedLocation = {
@@ -379,8 +385,15 @@ export const syncURLQueryFromQueryObject = (
   dispatch(push(updatedLocation))
 }
 
-export const syncURLQueryFromTempVars = (location, tempVars) => dispatch => {
+export const syncURLQueryFromTempVars = (
+  location,
+  tempVars,
+  deletedTempVars = []
+) => dispatch => {
   const updatedQueries = generateURLQueryFromTempVars(tempVars)
+  const deletedQueries = generateURLQueryFromTempVars(deletedTempVars)
 
-  dispatch(syncURLQueryFromQueryObject(location, updatedQueries))
+  dispatch(
+    syncURLQueryFromQueryObject(location, updatedQueries, deletedQueries)
+  )
 }

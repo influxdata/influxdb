@@ -301,7 +301,15 @@ class DashboardPage extends Component {
         templates,
       })
       onSaveTemplatesSuccess()
-      dashboardActions.syncURLQueryFromTempVars(location, templates)
+      const deletedTempVars = dashboard.templates.filter(
+        ({tempVar: oldTempVar}) =>
+          !templates.find(({tempVar: newTempVar}) => oldTempVar === newTempVar)
+      )
+      dashboardActions.syncURLQueryFromTempVars(
+        location,
+        templates,
+        deletedTempVars
+      )
     } catch (error) {
       console.error(error)
     }
