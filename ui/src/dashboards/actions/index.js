@@ -25,7 +25,7 @@ import {
   notifyCellDeleted,
 } from 'shared/copy/notifications'
 
-import {makeQueryForTemplate} from 'src/dashboards/utils/templateVariableQueryGenerator'
+import {makeQueryForTemplate} from 'src/dashboards/utils/tempVars'
 import parsers from 'shared/parsing'
 
 export const loadDashboards = (dashboards, dashboardID) => ({

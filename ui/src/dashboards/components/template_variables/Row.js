@@ -19,7 +19,7 @@ import {runTemplateVariableQuery as runTemplateVariableQueryAJAX} from 'src/dash
 import parsers from 'shared/parsing'
 
 import {TEMPLATE_TYPES} from 'src/dashboards/constants'
-import generateTemplateVariableQuery from 'src/dashboards/utils/templateVariableQueryGenerator'
+import generateTemplateVariableQuery from 'src/dashboards/utils/tempVars'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {notify as notifyAction} from 'shared/actions/notifications'

@@ -34,7 +34,7 @@ import {
   applyDashboardTempVarOverrides,
   stripTempVar,
   generateURLQueryFromTempVars,
-} from 'src/dashboards/utils/templateVariableQueryGenerator'
+} from 'src/dashboards/utils/tempVars'
 
 import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
 

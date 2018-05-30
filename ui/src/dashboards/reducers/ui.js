@@ -2,7 +2,7 @@ import _ from 'lodash'
 import {timeRanges} from 'shared/data/timeRanges'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
-import {applyDashboardTempVarOverrides} from 'src/dashboards/utils/templateVariableQueryGenerator'
+import {applyDashboardTempVarOverrides} from 'src/dashboards/utils/tempVars'
 
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
