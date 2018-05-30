@@ -12,6 +12,11 @@ const parseValuesColumn = (resp: string): string[] => {
 
   const tags = results.reduce<string[]>((acc, result: ScriptResult) => {
     const colIndex = result.data[0].findIndex(header => header === '_value')
+
+    if (colIndex === -1) {
+      return [...acc]
+    }
+
     const resultTags = result.data.slice(1).map(row => row[colIndex])
 
     return [...acc, ...resultTags]

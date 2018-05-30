@@ -3,7 +3,6 @@ import React, {PureComponent, MouseEvent} from 'react'
 import TagValueListItem from 'src/ifql/components/TagValueListItem'
 import LoadingSpinner from 'src/ifql/components/LoadingSpinner'
 import {Service, SchemaFilter} from 'src/types'
-import {explorer} from 'src/ifql/constants'
 
 interface Props {
   service: Service

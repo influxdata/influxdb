@@ -71,7 +71,10 @@ export default class TagListItem extends PureComponent<Props, State> {
         </div>
         {this.state.isOpen && (
           <>
-            <div className="tag-value-list--header">
+            <div
+              className="tag-value-list--header"
+              onClick={this.handleInputClick}
+            >
               <div className="ifql-schema--filter">
                 <input
                   className="form-control input-sm"
@@ -80,7 +83,6 @@ export default class TagListItem extends PureComponent<Props, State> {
                   spellCheck={false}
                   autoComplete="off"
                   value={searchTerm}
-                  onClick={this.handleInputClick}
                   onChange={this.onSearch}
                 />
                 {this.isSearching && (
@@ -101,6 +103,7 @@ export default class TagListItem extends PureComponent<Props, State> {
                   onLoadMoreValues={this.handleLoadMoreValues}
                   isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
                   shouldShowMoreValues={limit < count}
+                  loadMoreCount={this.loadMoreCount}
                 />
               </>
             )}
@@ -136,7 +139,7 @@ export default class TagListItem extends PureComponent<Props, State> {
 
   private debouncedOnSearch() {} // See constructor
 
-  private handleInputClick = (e: MouseEvent<HTMLInputElement>): void => {
+  private handleInputClick = (e: MouseEvent<HTMLDivElement>): void => {
     e.stopPropagation()
   }
 
@@ -237,7 +240,12 @@ export default class TagListItem extends PureComponent<Props, State> {
       const parsed = parseValuesColumn(response)
 
       if (parsed.length !== 1) {
-        throw new Error('Unexpected count response')
+        // We expect to never reach this state; instead, the IFQL server should
+        // return a non-200 status code is handled earlier (after fetching).
+        // This return guards against some unexpected behavior---the IFQL server
+        // returning a 200 status code but ALSO having an error in the CSV
+        // response body
+        return
       }
 
       const count = Number(parsed[0])
