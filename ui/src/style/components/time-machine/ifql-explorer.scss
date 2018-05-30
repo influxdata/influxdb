@@ -5,7 +5,6 @@
 
 $ifql-tree-indent: 26px;
 $ifql-tree-line: 2px;
-
 .ifql-schema-explorer {
   width: 100%;
   height: 100%;
@@ -19,8 +18,7 @@ $ifql-tree-line: 2px;
   flex-direction: column;
   align-items: stretch;
   padding-left: 0;
-
-  > .ifql-schema-tree {
+  >.ifql-schema-tree {
     padding-left: $ifql-tree-indent;
   }
 }
@@ -39,9 +37,7 @@ $ifql-tree-line: 2px;
 .ifql-schema-item-toggle {
   width: $ifql-tree-indent;
   height: $ifql-tree-indent;
-  position: relative;
-
-  // Plus Sign
+  position: relative; // Plus Sign
   &:before,
   &:after {
     content: '';
@@ -53,8 +49,7 @@ $ifql-tree-line: 2px;
     width: $ifql-tree-indent / 3;
     height: $ifql-tree-line;
     transition: transform 0.25s ease, background-color 0.25s ease;
-  }
-  // Vertical Line
+  } // Vertical Line
   &:after {
     transform: translate(-50%, -50%) rotate(90deg);
   }
@@ -73,28 +68,23 @@ $ifql-tree-line: 2px;
   color: $g11-sidewalk;
   white-space: nowrap;
   transition: color 0.25s ease, background-color 0.25s ease;
-
-  > span.icon {
+  >span.icon {
     position: absolute;
     top: 50%;
     left: $ifql-tree-indent / 2;
     transform: translate(-50%, -50%);
   }
-
   &:not(.skeleton):hover {
     color: $g17-whisper;
     cursor: pointer;
     background-color: $g4-onyx;
-
     .ifql-schema-item-toggle:before,
     .ifql-schema-item-toggle:after {
       background-color: $g17-whisper;
     }
   }
-
-  .expanded > & {
+  .expanded>& {
     color: $c-pool;
-
     .ifql-schema-item-toggle:before,
     .ifql-schema-item-toggle:after {
       background-color: $c-pool;
@@ -106,17 +96,14 @@ $ifql-tree-line: 2px;
     .ifql-schema-item-toggle:after {
       transform: translate(-50%, -50%) rotate(0deg);
     }
-
     &:hover {
       color: $c-laser;
-
       .ifql-schema-item-toggle:before,
       .ifql-schema-item-toggle:after {
         background-color: $c-laser;
       }
     }
   }
-
   &.readonly,
   &.readonly:hover {
     padding-left: $ifql-tree-indent + 8px;
@@ -130,7 +117,6 @@ $ifql-tree-line: 2px;
   0% {
     background-position: 100% 50%
   }
-
   100% {
     background-position: 0% 50%
   }
@@ -145,6 +131,7 @@ $ifql-tree-line: 2px;
 }
 
 /* Tree Node Lines */
+
 .ifql-tree-node:before,
 .ifql-tree-node:after {
   content: '';
@@ -159,6 +146,7 @@ $ifql-tree-line: 2px;
   width: $ifql-tree-line;
   height: 100%;
 }
+
 .ifql-tree-node:last-child:before {
   height: $ifql-tree-indent / 2;
 }
@@ -175,6 +163,7 @@ $ifql-tree-line: 2px;
     Controls
     ----------------------------------------------------------------------------
 */
+
 .ifql-schema--controls {
   padding: 11px;
   display: flex;
@@ -185,9 +174,8 @@ $ifql-tree-line: 2px;
 .ifql-schema--filter {
   flex: 1 0 0;
   margin-right: 4px;
+  position: relative;
 }
-
-
 
 // Hints
 .ifql-schema-type {
@@ -196,20 +184,77 @@ $ifql-tree-line: 2px;
   margin-left: 8px;
   opacity: 0;
   transition: opacity 0.25s ease;
-
-  .ifql-schema-item:hover  & {
+  .ifql-schema-item:hover & {
     opacity: 1;
   }
 }
 
-.ifql-schema-tree > .ifql-schema--filter {
+.ifql-schema-tree>.ifql-schema--filter {
   margin-left: $ifql-tree-indent / 2;
   margin-right: $ifql-tree-indent / 2;
   margin-top: 1px;
   margin-bottom: 5px;
-
   input {
     height: 25px;
     font-size: 12px;
+  }
+}
+
+/*
+    Spinner
+    ----------------------------------------------------------------------------
+
+    From http: //tobiasahlin.com/spinkit/.
+*/
+
+.search-spinner {
+  position: absolute;
+  right: 15px;
+  top: 2px;
+}
+
+.search-spinner .spinner {
+  width: 25px;
+  text-align: center;
+}
+
+.search-spinner .spinner>div {
+  width: 8px;
+  height: 8px;
+  background-color: $g8-storm;
+  border-radius: 100%;
+  display: inline-block;
+  animation: sk-bouncedelay 1s infinite ease-in-out both;
+}
+
+.search-spinner .spinner .bounce1 {
+  animation-delay: -0.32s;
+}
+
+.search-spinner .spinner .bounce2 {
+  animation-delay: -0.16s;
+}
+
+@-webkit-keyframes sk-bouncedelay {
+  0%,
+  80%,
+  100% {
+    -webkit-transform: scale(0)
+  }
+  40% {
+    -webkit-transform: scale(1.0)
+  }
+}
+
+@keyframes sk-bouncedelay {
+  0%,
+  80%,
+  100% {
+    -webkit-transform: scale(0);
+    transform: scale(0);
+  }
+  40% {
+    -webkit-transform: scale(1.0);
+    transform: scale(1.0);
   }
 }

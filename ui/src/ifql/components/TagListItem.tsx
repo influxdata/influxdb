@@ -7,6 +7,7 @@ import {tagValues as fetchTagValues} from 'src/shared/apis/v2/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/v2/tags'
 import TagValueList from 'src/ifql/components/TagValueList'
 import LoaderSkeleton from 'src/ifql/components/LoaderSkeleton'
+import SearchSpinner from 'src/ifql/components/SearchSpinner'
 
 interface Props {
   tag: string
@@ -17,7 +18,8 @@ interface Props {
 
 interface State {
   isOpen: boolean
-  loading: string
+  loadingAll: RemoteDataState
+  loadingSearch: RemoteDataState
   tagValues: string[]
   searchTerm: string
 }
@@ -28,12 +30,13 @@ export default class TagListItem extends PureComponent<Props, State> {
 
     this.state = {
       isOpen: false,
-      loading: RemoteDataState.NotStarted,
+      loadingAll: RemoteDataState.NotStarted,
+      loadingSearch: RemoteDataState.NotStarted,
       tagValues: [],
       searchTerm: '',
     }
 
-    this.debouncedSearch = _.debounce(this.getTagValues, 250)
+    this.debouncedSearch = _.debounce(this.searchTagValues, 250)
   }
 
   public render() {
@@ -60,6 +63,7 @@ export default class TagListItem extends PureComponent<Props, State> {
                 onClick={this.handleInputClick}
                 onChange={this.onSearch}
               />
+              {this.isSearching && <SearchSpinner />}
             </div>
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
@@ -77,14 +81,20 @@ export default class TagListItem extends PureComponent<Props, State> {
     )
   }
 
+  private get isSearching(): boolean {
+    return this.state.loadingSearch === RemoteDataState.Loading
+  }
+
   private get isLoading(): boolean {
-    return this.state.loading === RemoteDataState.Loading
+    return this.state.loadingAll === RemoteDataState.Loading
   }
 
   private onSearch = (e: ChangeEvent<HTMLInputElement>): void => {
     const searchTerm = e.target.value
 
-    this.setState({searchTerm}, () => this.debouncedSearch())
+    this.setState({searchTerm, loadingSearch: RemoteDataState.Loading}, () =>
+      this.debouncedSearch()
+    )
   }
 
   private debouncedSearch() {} // See constructor
@@ -93,47 +103,61 @@ export default class TagListItem extends PureComponent<Props, State> {
     e.stopPropagation()
   }
 
-  private getTagValues = async () => {
-    const {db, service, tag, filter} = this.props
-    const {searchTerm} = this.state
-
-    this.setState({loading: RemoteDataState.Loading})
-
+  private searchTagValues = async () => {
     try {
-      const response = await fetchTagValues(
-        service,
-        db,
-        filter,
-        tag,
-        searchTerm
-      )
-      const tagValues = parseValuesColumn(response)
+      const tagValues = await this.getTagValues()
+
       this.setState({
         tagValues,
-        loading: RemoteDataState.Done,
+        loadingSearch: RemoteDataState.Done,
       })
     } catch (error) {
       console.error(error)
+      this.setState({loadingSearch: RemoteDataState.Error})
     }
+  }
+
+  private getAllTagValues = async () => {
+    this.setState({loadingAll: RemoteDataState.Loading})
+
+    try {
+      const tagValues = await this.getTagValues()
+
+      this.setState({
+        tagValues,
+        loadingAll: RemoteDataState.Done,
+      })
+    } catch (error) {
+      console.error(error)
+      this.setState({loadingAll: RemoteDataState.Error})
+    }
+  }
+
+  private getTagValues = async () => {
+    const {db, service, tag, filter} = this.props
+    const {searchTerm} = this.state
+    const response = await fetchTagValues(service, db, filter, tag, searchTerm)
+
+    return parseValuesColumn(response)
   }
 
   private handleClick = (e: MouseEvent<HTMLDivElement>) => {
     e.stopPropagation()
 
     if (this.isFetchable) {
-      this.getTagValues()
+      this.getAllTagValues()
     }
 
     this.setState({isOpen: !this.state.isOpen})
   }
 
   private get isFetchable(): boolean {
-    const {isOpen, loading} = this.state
+    const {isOpen, loadingAll} = this.state
 
     return (
       !isOpen &&
-      (loading === RemoteDataState.NotStarted ||
-        loading !== RemoteDataState.Error)
+      (loadingAll === RemoteDataState.NotStarted ||
+        loadingAll !== RemoteDataState.Error)
     )
   }
 
