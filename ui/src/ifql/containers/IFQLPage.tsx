@@ -22,7 +22,7 @@ import {
   FlatBody,
   Links,
   InputArg,
-  Handlers,
+  Context,
   DeleteFuncNodeArgs,
   Func,
   ScriptStatus,
@@ -90,7 +90,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {script} = this.props
 
     return (
-      <IFQLContext.Provider value={this.handlers}>
+      <IFQLContext.Provider value={this.getContext}>
         <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
           <div className="page hosts-list-page">
             {this.header}
@@ -129,7 +129,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     return this.props.services[0]
   }
 
-  private get handlers(): Handlers {
+  private get getContext(): Context {
     return {
       onAddNode: this.handleAddNode,
       onChangeArg: this.handleChangeArg,
@@ -137,6 +137,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       onChangeScript: this.handleChangeScript,
       onDeleteFuncNode: this.handleDeleteFuncNode,
       onGenerateScript: this.handleGenerateScript,
+      service: this.service,
     }
   }
 

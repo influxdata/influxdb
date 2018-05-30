@@ -120,6 +120,7 @@ class TimeMachine extends PureComponent<Props> {
         render: () => (
           <BodyBuilder
             body={body}
+            service={service}
             suggestions={suggestions}
             onAppendFrom={onAppendFrom}
             onAppendJoin={onAppendJoin}

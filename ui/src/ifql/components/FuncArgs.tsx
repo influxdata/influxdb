@@ -4,9 +4,11 @@ import {OnChangeArg} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Func} from 'src/types/ifql'
 import {funcNames} from 'src/ifql/constants'
+import {Service} from 'src/types'
 
 interface Props {
   func: Func
+  service: Service
   bodyID: string
   onChangeArg: OnChangeArg
   declarationID: string
@@ -20,6 +22,7 @@ export default class FuncArgs extends PureComponent<Props> {
     const {
       func,
       bodyID,
+      service,
       onChangeArg,
       onDeleteFunc,
       declarationID,
@@ -37,6 +40,7 @@ export default class FuncArgs extends PureComponent<Props> {
               value={value}
               bodyID={bodyID}
               funcID={func.id}
+              service={service}
               funcName={func.name}
               onChangeArg={onChangeArg}
               declarationID={declarationID}

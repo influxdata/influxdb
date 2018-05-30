@@ -1,3 +1,4 @@
+import {Service} from 'src/types'
 // function definitions
 export type OnDeleteFuncNode = (ids: DeleteFuncNodeArgs) => void
 export type OnChangeArg = (inputArg: InputArg) => void
@@ -15,13 +16,14 @@ export interface ScriptStatus {
   text: string
 }
 
-export interface Handlers {
+export interface Context {
   onAddNode: OnAddNode
   onChangeArg: OnChangeArg
   onSubmitScript: OnSubmitScript
   onChangeScript: OnChangeScript
   onDeleteFuncNode: OnDeleteFuncNode
   onGenerateScript: OnGenerateScript
+  service: Service
 }
 
 export interface DeleteFuncNodeArgs {
