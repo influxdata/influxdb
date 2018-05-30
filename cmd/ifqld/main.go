@@ -47,6 +47,10 @@ var (
 func init() {
 	viper.SetEnvPrefix("IFQLD")
 
+	ifqlCmd.PersistentFlags().BoolP("verbose", "v", false, "Whether the server should be verbose.")
+	viper.BindEnv("VERBOSE")
+	viper.BindPFlag("verbose", ifqlCmd.PersistentFlags().Lookup("verbose"))
+
 	ifqlCmd.PersistentFlags().StringVar(&bindAddr, "bind-addr", ":8093", "The bind address for this daemon.")
 	viper.BindEnv("BIND_ADDR")
 	viper.BindPFlag("bind_addr", ifqlCmd.PersistentFlags().Lookup("bind-addr"))
@@ -83,6 +87,7 @@ func ifqlF(cmd *cobra.Command, args []string) {
 		ExecutorDependencies: make(execute.Dependencies),
 		ConcurrencyQuota:     concurrencyQuota,
 		MemoryBytesQuota:     int64(memoryBytesQuota),
+		Verbose:              viper.GetBool("verbose"),
 	}
 	if err := injectDeps(config.ExecutorDependencies); err != nil {
 		logger.Error("error injecting dependencies", zap.Error(err))
