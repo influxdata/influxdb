@@ -12,7 +12,7 @@ import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager from 'src/dashboards/components/template_variables/Manager'
+import TemplateVariableManager from 'src/dashboards/components/template_variables/TemplateVariableManager'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
 
