@@ -49,11 +49,8 @@ func init() {
 	viper.BindEnv("IFQLD_HOSTS")
 	viper.BindPFlag("IFQLD_HOSTS", transpileCmd.PersistentFlags().Lookup("ifqld-hosts"))
 
-	transpileCmd.PersistentFlags().StringP("org", "o", "", "name of the organization that owns the bucket")
-	viper.BindEnv("ORG")
-	viper.BindPFlag("ORG", transpileCmd.PersistentFlags().Lookup("org"))
-
-	transpileCmd.PersistentFlags().StringP("org-id", "", "", "id of the organization that owns the bucket")
+	// TODO(jsternberg): Determine how we are going to identify the organization id in open source.
+	transpileCmd.PersistentFlags().StringP("org-id", "", "0000000000000000", "id of the organization that owns the bucket")
 	viper.BindEnv("ORG_ID")
 	viper.BindPFlag("ORG_ID", transpileCmd.PersistentFlags().Lookup("org-id"))
 }
@@ -67,14 +64,14 @@ func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 	}
 
 	// Retrieve the organization that we are using.
-	id, err := getOrganization(cmd)
+	id, err := getOrganization()
 	if err != nil {
 		return err
 	}
 
 	// TODO(nathanielc): Allow QueryService to use multiple hosts.
 
-	logger.Info("Using ifqld service", zap.Strings("hosts", hosts))
+	logger.Info("Using ifqld service", zap.Strings("hosts", hosts), zap.Stringer("org-id", id))
 	transpileHandler := http.NewTranspilerQueryHandler(id)
 	transpileHandler.QueryService = &http.QueryService{
 		Addr: hosts[0],
@@ -106,21 +103,18 @@ func getStrList(key string) ([]string, error) {
 	return strings.Split(valStr, ","), nil
 }
 
-func getOrganization(cmd *cobra.Command) (platform.ID, error) {
+func getOrganization() (platform.ID, error) {
 	v := viper.GetViper()
-	orgName := v.GetString("ORG")
 	orgID := v.GetString("ORG_ID")
-	if (orgName != "" && orgID != "") || (orgName == "" && orgID == "") {
-		return nil, errors.New("must specify exactly one of org or org-id")
+	if orgID == "" {
+		return nil, errors.New("must specify org-id")
 	}
 
-	if orgID != "" {
-		var id platform.ID
-		if err := id.DecodeFromString(orgID); err != nil {
-			return nil, fmt.Errorf("unable to decode organization id: %s", err)
-		}
+	var id platform.ID
+	if err := id.DecodeFromString(orgID); err != nil {
+		return nil, fmt.Errorf("unable to decode organization id: %s", err)
 	}
-	return platform.ID(orgName), nil
+	return id, nil
 }
 
 func discoverHosts() ([]string, error) {
