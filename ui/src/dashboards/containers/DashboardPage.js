@@ -33,6 +33,7 @@ import {showOverlay} from 'src/shared/actions/overlayTechnology'
 import {
   applyDashboardTempVarOverrides,
   stripTempVar,
+  generateURLQueryFromTempVars,
 } from 'src/dashboards/utils/templateVariableQueryGenerator'
 
 import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
@@ -297,9 +298,18 @@ class DashboardPage extends Component {
         templates,
       })
       onSaveTemplatesSuccess()
+      this.syncURLQueryFromTempVars(templates)
     } catch (error) {
       console.error(error)
     }
+  }
+
+  syncURLQueryFromTempVars = tempVars => {
+    const {dashboardActions, location} = this.props
+
+    const updatedQueries = generateURLQueryFromTempVars(tempVars)
+
+    dashboardActions.updateURLQueryValue(location, updatedQueries)
   }
 
   handleRunQueryFailure = error => {

@@ -62,6 +62,19 @@ export const makeQueryForTemplate = ({influxql, db, measurement, tagKey}) =>
 export const stripTempVar = tempVarName =>
   tempVarName.substr(1, tempVarName.length - 2)
 
+export const generateURLQueryFromTempVars = tempVars => {
+  const queries = {}
+
+  tempVars.forEach(({tempVar, values}) => {
+    const selected = values.find(value => value.selected === true)
+    const strippedTempVar = stripTempVar(tempVar)
+
+    queries[strippedTempVar] = selected.value
+  })
+
+  return queries
+}
+
 const reconcileTempVarsWithOverrides = (currentTempVars, tempVarOverrides) => {
   if (!tempVarOverrides) {
     return currentTempVars
