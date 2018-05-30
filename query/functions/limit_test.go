@@ -57,6 +57,60 @@ func TestLimit_Process(t *testing.T) {
 			}},
 		},
 		{
+			name: "one block with offset single batch",
+			spec: &functions.LimitProcedureSpec{
+				N:      1,
+				Offset: 1,
+			},
+			data: []query.Block{execute.CopyBlock(&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(1), 2.0},
+					{execute.Time(2), 1.0},
+					{execute.Time(3), 0.0},
+				},
+			}, executetest.UnlimitedAllocator)},
+			want: []*executetest.Block{{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(2), 1.0},
+				},
+			}},
+		},
+		{
+			name: "one block with offset multiple batches",
+			spec: &functions.LimitProcedureSpec{
+				N:      1,
+				Offset: 1,
+			},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(1), 2.0},
+					{execute.Time(2), 1.0},
+					{execute.Time(3), 0.0},
+				},
+			}},
+			want: []*executetest.Block{{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(2), 1.0},
+				},
+			}},
+		},
+		{
 			name: "multiple blocks",
 			spec: &functions.LimitProcedureSpec{
 				N: 2,
