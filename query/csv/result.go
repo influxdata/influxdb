@@ -115,6 +115,10 @@ func (r *resultIterator) More() bool {
 		if r.err == nil {
 			return true
 		}
+		if r.err == io.EOF {
+			// Do not report EOF errors
+			r.err = nil
+		}
 	}
 
 	// Release the resources for this query.
@@ -265,6 +269,10 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 			l, err := r.Read()
 			if err != nil {
 				if err == io.EOF {
+					if datatypes == nil && partitions == nil && defaults == nil {
+						// No, just pass the EOF up
+						return tableMetadata{}, err
+					}
 					switch {
 					case datatypes == nil:
 						return tableMetadata{}, fmt.Errorf("missing expected annotation datatype")
@@ -272,9 +280,6 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 						return tableMetadata{}, fmt.Errorf("missing expected annotation partition")
 					case defaults == nil:
 						return tableMetadata{}, fmt.Errorf("missing expected annotation default")
-					default:
-						// No, just pass the EOF up
-						return tableMetadata{}, err
 					}
 				}
 				return tableMetadata{}, err
