@@ -1,4 +1,4 @@
-import React, {Component} from 'react'
+import React, {Component, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
@@ -17,10 +17,12 @@ import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 
 interface Props {
   dashboards: Dashboard[]
-  onDeleteDashboard: () => void
+  onDeleteDashboard: (dashboard: Dashboard) => () => void
   onCreateDashboard: () => void
-  onCloneDashboard: () => void
-  onExportDashboard: () => void
+  onCloneDashboard: (
+    dashboard: Dashboard
+  ) => (event: MouseEvent<HTMLButtonElement>) => void
+  onExportDashboard: (dashboard: Dashboard) => () => void
   showOverlay: ShowOverlay
   dashboardLink: string
 }
