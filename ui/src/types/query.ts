@@ -86,6 +86,7 @@ export interface Status {
 export interface TimeRange {
   lower: string
   upper?: string | null
+  seconds?: number
 }
 
 export interface DurationRange {
