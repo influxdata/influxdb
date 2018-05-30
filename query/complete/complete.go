@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -94,4 +95,11 @@ func (c Completer) FunctionSuggestion(name string) (FunctionSuggestion, error) {
 
 func isFunction(d semantic.VariableDeclaration) bool {
 	return d.InitType().Kind() == semantic.Function
+}
+
+// DefaultCompleter create a completer with builtin scope and declarations
+func DefaultCompleter() Completer {
+	scope, declarations := query.BuiltIns()
+	interpScope := interpreter.NewScopeWithValues(scope)
+	return NewCompleter(interpScope, declarations)
 }
