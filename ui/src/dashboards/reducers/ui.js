@@ -247,22 +247,6 @@ export default function ui(state = initialState, action) {
       return {...state, dashboards: newDashboards}
     }
 
-    case 'UPDATE_TEMPLATE_VARIABLE_OVERRIDE': {
-      const {dashboardID, updatedTempVarOverride} = action.payload
-      const updatedTempVarOverrides = {
-        ...state.tempVarOverrides[dashboardID],
-        ...updatedTempVarOverride,
-      }
-
-      return {
-        ...state,
-        tempVarOverrides: {
-          ...state.tempVarOverrides,
-          [dashboardID]: updatedTempVarOverrides,
-        },
-      }
-    }
-
     case 'EDIT_TEMPLATE_VARIABLE_VALUES': {
       const {dashboardID, templateID, values} = action.payload
 

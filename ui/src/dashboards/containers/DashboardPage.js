@@ -5,6 +5,7 @@ import {withRouter} from 'react-router'
 import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
+import queryString from 'query-string'
 
 import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -279,10 +280,6 @@ class DashboardPage extends Component {
         [strippedTempVar]: value.value,
       }
       dashboardActions.updateURLQueryValue(location, updatedQueryParam)
-      dashboardActions.updateTemplateVariableOverride(
-        dashboardID,
-        updatedQueryParam
-      )
     }
     dashboardActions.templateVariableSelected(dashboard.id, templateID, [value])
     dashboardActions.putDashboardByID(dashboardID)
@@ -566,7 +563,6 @@ DashboardPage.propTypes = {
   gaugeColors: colorsNumberSchema.isRequired,
   lineColors: colorsStringSchema.isRequired,
   handleShowOverlay: func.isRequired,
-  tempVarOverrides: shape({}),
 }
 
 const mapStateToProps = (state, {params: {dashboardID}}) => {
@@ -575,7 +571,7 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
       ephemeral: {inPresentationMode},
       persisted: {autoRefresh, showTemplateControlBar},
     },
-    dashboardUI: {dashboards, cellQueryStatus, tempVarOverrides},
+    dashboardUI: {dashboards, cellQueryStatus},
     sources,
     dashTimeV1,
     auth: {me, isUsingAuth},
@@ -600,10 +596,8 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
   )
 
   if (dashboard) {
-    dashboard = applyDashboardTempVarOverrides(
-      dashboard,
-      tempVarOverrides[dashboard.id]
-    )
+    const queries = queryString.parse(window.location.search)
+    dashboard = applyDashboardTempVarOverrides(dashboard, queries)
   }
 
   const selectedCell = cell
