@@ -172,6 +172,8 @@ type FileStore struct {
 
 	files []TSMFile
 
+	openLimiter limiter.Fixed // limit the number of concurrent opening TSM files.
+
 	logger       *zap.Logger // Logger to be used for important messages
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
@@ -217,6 +219,7 @@ func NewFileStore(dir string) *FileStore {
 		lastModified: time.Time{},
 		logger:       logger,
 		traceLogger:  logger,
+		openLimiter:  limiter.NewFixed(runtime.GOMAXPROCS(0)),
 		stats:        &FileStoreStatistics{},
 		purger: &purger{
 			files:  map[string]TSMFile{},
@@ -500,6 +503,12 @@ func (f *FileStore) Open() error {
 		}
 
 		go func(idx int, file *os.File) {
+			// Ensure a limited number of TSM files are loaded at once.
+			// Systems which have very large datasets (1TB+) can have thousands
+			// of TSM files which can cause extremely long load times.
+			f.openLimiter.Take()
+			defer f.openLimiter.Release()
+
 			start := time.Now()
 			df, err := NewTSMReader(file)
 			f.logger.Info("Opened file",
