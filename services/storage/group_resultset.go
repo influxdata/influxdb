@@ -186,18 +186,20 @@ func groupNoneSort(g *groupResultSet) (int, error) {
 
 	n := 0
 	row := cur.Next()
-	g.km.setTags(row.tags)
+	if row != nil {
+		g.km.setTags(row.tags)
 
-	allTime := g.req.Hints.HintSchemaAllTime()
+		allTime := g.req.Hints.HintSchemaAllTime()
 
-	for {
-		n++
-		row = cur.Next()
-		if row == nil {
-			break
-		}
-		if allTime || g.seriesHasPoints(row) {
-			g.km.mergeTagKeys(row.tags)
+		for {
+			n++
+			row = cur.Next()
+			if row == nil {
+				break
+			}
+			if allTime || g.seriesHasPoints(row) {
+				g.km.mergeTagKeys(row.tags)
+			}
 		}
 	}
 

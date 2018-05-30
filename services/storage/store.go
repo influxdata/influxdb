@@ -153,7 +153,11 @@ func (s *Store) GroupRead(ctx context.Context, req *ReadRequest) (*groupResultSe
 	req.TimestampRange.End = end
 
 	newCursor := func() (seriesCursor, error) {
-		return newIndexSeriesCursor(ctx, req.Predicate, shards)
+		cur, err := newIndexSeriesCursor(ctx, req.Predicate, shards)
+		if cur == nil || err != nil {
+			return nil, err
+		}
+		return cur, nil
 	}
 
 	return newGroupResultSet(ctx, req, newCursor), nil

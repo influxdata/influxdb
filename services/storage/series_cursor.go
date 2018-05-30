@@ -116,6 +116,9 @@ func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*t
 
 			p.fields = extractFields(fi)
 			fi.Close()
+			if len(p.fields) == 0 {
+				goto CLEANUP
+			}
 			return p, nil
 		}
 	}
@@ -150,31 +153,33 @@ func (c *indexSeriesCursor) Next() *seriesRow {
 		return nil
 	}
 
-RETRY:
-	if len(c.nf) == 0 {
-		// next series key
-		sr, err := c.sqry.Next()
-		if err != nil {
-			c.err = err
-			c.Close()
-			return nil
-		} else if sr == nil {
-			c.Close()
-			return nil
+	for {
+		if len(c.nf) == 0 {
+			// next series key
+			sr, err := c.sqry.Next()
+			if err != nil {
+				c.err = err
+				c.Close()
+				return nil
+			} else if sr == nil {
+				c.Close()
+				return nil
+			}
+
+			c.row.name = sr.Name
+			c.row.stags = sr.Tags
+			c.tags = copyTags(c.tags, sr.Tags)
+			c.tags.Set(measurementKey, sr.Name)
+
+			c.nf = c.fields[string(sr.Name)]
+			// c.nf may be nil if there are no fields
+		} else {
+			c.row.field, c.nf = c.nf[0], c.nf[1:]
+
+			if c.measurementCond == nil || evalExprBool(c.measurementCond, c) {
+				break
+			}
 		}
-
-		c.row.name = sr.Name
-		c.row.stags = sr.Tags
-		c.tags = copyTags(c.tags, sr.Tags)
-		c.tags.Set(measurementKey, sr.Name)
-
-		c.nf = c.fields[string(sr.Name)]
-	}
-
-	c.row.field, c.nf = c.nf[0], c.nf[1:]
-
-	if c.measurementCond != nil && !evalExprBool(c.measurementCond, c) {
-		goto RETRY
 	}
 
 	c.tags.Set(fieldKey, c.row.field.nb)
