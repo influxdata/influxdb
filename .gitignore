@@ -11,4 +11,5 @@ idpdb.bolt
 /influx
 /idpd
 /ifqld
+/transpilerd
 /bin
