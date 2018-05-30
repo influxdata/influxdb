@@ -33,7 +33,6 @@ import {showOverlay} from 'src/shared/actions/overlayTechnology'
 import {
   applyDashboardTempVarOverrides,
   stripTempVar,
-  generateURLQueryFromTempVars,
 } from 'src/dashboards/utils/tempVars'
 
 import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
@@ -83,6 +82,7 @@ class DashboardPage extends Component {
         getDashboardsAsync,
         updateTempVarValues,
         putDashboardByID,
+        syncURLQueryFromTempVars,
       },
       source,
       meRole,
@@ -92,6 +92,7 @@ class DashboardPage extends Component {
       getAnnotationsAsync,
       timeRange,
       autoRefresh,
+      location,
     } = this.props
 
     const annotationRange = millisecondTimeRange(timeRange)
@@ -113,6 +114,8 @@ class DashboardPage extends Component {
       router.push(`/sources/${source.id}/dashboards`)
       return notify(notifyDashboardNotFound(dashboardID))
     }
+
+    syncURLQueryFromTempVars(location, dashboard.templates)
 
     // Refresh and persists influxql generated template variable values.
     // If using auth and role is Viewer, temp vars will be stale until dashboard
@@ -280,7 +283,7 @@ class DashboardPage extends Component {
       const updatedQueryParam = {
         [strippedTempVar]: value.value,
       }
-      dashboardActions.updateURLQueryValue(location, updatedQueryParam)
+      dashboardActions.syncURLQueryFromQueryObject(location, updatedQueryParam)
     }
     dashboardActions.templateVariableSelected(dashboard.id, templateID, [value])
     dashboardActions.putDashboardByID(dashboardID)
@@ -290,7 +293,7 @@ class DashboardPage extends Component {
     templates,
     onSaveTemplatesSuccess
   ) => async () => {
-    const {dashboardActions, dashboard} = this.props
+    const {location, dashboardActions, dashboard} = this.props
 
     try {
       await dashboardActions.putDashboard({
@@ -298,18 +301,10 @@ class DashboardPage extends Component {
         templates,
       })
       onSaveTemplatesSuccess()
-      this.syncURLQueryFromTempVars(templates)
+      dashboardActions.syncURLQueryFromTempVars(location, templates)
     } catch (error) {
       console.error(error)
     }
-  }
-
-  syncURLQueryFromTempVars = tempVars => {
-    const {dashboardActions, location} = this.props
-
-    const updatedQueries = generateURLQueryFromTempVars(tempVars)
-
-    dashboardActions.updateURLQueryValue(location, updatedQueries)
   }
 
   handleRunQueryFailure = error => {

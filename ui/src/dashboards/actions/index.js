@@ -14,6 +14,7 @@ import {
 import {notify} from 'shared/actions/notifications'
 import {errorThrown} from 'shared/actions/errors'
 
+import {generateURLQueryFromTempVars} from 'src/dashboards/utils/tempVars'
 import {
   getNewDashboardCell,
   getClonedDashboardCell,
@@ -362,11 +363,11 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
   }
 }
 
-export const updateURLQueryValue = (
+export const syncURLQueryFromQueryObject = (
   location,
-  updatedQueryParam
+  updatedQuery
 ) => dispatch => {
-  const updatedLocationQuery = {...location.query, ...updatedQueryParam}
+  const updatedLocationQuery = {...location.query, ...updatedQuery}
   const updatedSearchString = queryString.stringify(updatedLocationQuery)
   const updatedSearch = {search: updatedSearchString}
   const updatedLocation = {
@@ -376,4 +377,10 @@ export const updateURLQueryValue = (
   }
 
   dispatch(push(updatedLocation))
+}
+
+export const syncURLQueryFromTempVars = (location, tempVars) => dispatch => {
+  const updatedQueries = generateURLQueryFromTempVars(tempVars)
+
+  dispatch(syncURLQueryFromQueryObject(location, updatedQueries))
 }
