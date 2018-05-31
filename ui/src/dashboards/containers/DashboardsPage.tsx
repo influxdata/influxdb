@@ -95,7 +95,7 @@ class DashboardsPage extends PureComponent<Props> {
       dashboard
     )
     download(
-      JSON.stringify(dashboardForDownload),
+      JSON.stringify(dashboardForDownload, null, '\t'),
       `${dashboard.name}.json`,
       'text/plain'
     )
