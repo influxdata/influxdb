@@ -72,3 +72,12 @@ export const timeRanges = [
     menuOption: 'Past 30d',
   },
 ]
+
+export const FORMAT_INFLUXQL = 'influxql'
+
+export const defaultTimeRange = {
+  upper: null,
+  lower: 'now() - 15m',
+  seconds: 900,
+  format: FORMAT_INFLUXQL,
+}

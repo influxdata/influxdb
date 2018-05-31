@@ -1,9 +1,5 @@
 import reducer from 'src/dashboards/reducers/dashTimeV1'
-import {
-  addDashTimeV1,
-  setDashTimeV1,
-  deleteDashboard,
-} from 'src/dashboards/actions/index'
+import {setDashTimeV1, deleteDashboard} from 'src/dashboards/actions/index'
 
 const emptyState = undefined
 const dashboardID = 1
@@ -16,13 +12,6 @@ describe('Dashboards.Reducers.DashTimeV1', () => {
     const expected = {ranges: []}
 
     expect(actual).toEqual(expected)
-  })
-
-  it('can add a dashboard time', () => {
-    const actual = reducer(emptyState, addDashTimeV1(dashboardID, timeRange))
-    const expected = [{dashboardID, timeRange}]
-
-    expect(actual.ranges).toEqual(expected)
   })
 
   it('can delete a dashboard time range', () => {

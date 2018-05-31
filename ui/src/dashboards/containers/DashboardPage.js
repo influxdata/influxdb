@@ -49,6 +49,7 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'shared/constants'
+import {FORMAT_INFLUXQL, defaultTimeRange} from 'src/shared/data/timeRanges'
 import {
   notifyDashboardNotFound,
   notifyInvalidTempVarValueInURLQuery,
@@ -56,14 +57,6 @@ import {
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
-
-const FORMAT_INFLUXQL = 'influxql'
-const defaultTimeRange = {
-  upper: null,
-  lower: 'now() - 15m',
-  seconds: 900,
-  format: FORMAT_INFLUXQL,
-}
 
 @ErrorHandling
 class DashboardPage extends Component {
