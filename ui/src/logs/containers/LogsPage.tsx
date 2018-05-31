@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {
   getSourceAndPopulateNamespacesAsync,
@@ -6,6 +6,7 @@ import {
   setNamespaceAsync,
   executeQueriesAsync,
   changeZoomAsync,
+  setSearchTermAsync,
 } from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
@@ -37,12 +38,14 @@ interface Props {
   setNamespaceAsync: (namespace: Namespace) => void
   changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
+  setSearchTermAsync: (searchTerm: string) => void
   timeRange: TimeRange
   histogramData: object[]
   tableData: {
     columns: string[]
     values: string[]
   }
+  searchTerm: string
 }
 
 interface State {
@@ -85,7 +88,8 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {searchString, filters} = this.state
+    const {filters} = this.state
+    const {searchTerm} = this.props
 
     const count = getDeep(this.props, 'tableData.values.length', 0)
 
@@ -95,8 +99,7 @@ class LogsPage extends PureComponent<Props, State> {
         <div className="page-contents logs-viewer">
           <Graph>{this.chart}</Graph>
           <SearchBar
-            searchString={searchString}
-            onChange={this.handleSearchInputChange}
+            searchString={searchTerm}
             onSearch={this.handleSubmitSearch}
           />
           <FilterBar
@@ -144,14 +147,8 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleSearchInputChange = (
-    e: ChangeEvent<HTMLInputElement>
-  ): void => {
-    this.setState({searchString: e.target.value})
-  }
-
-  private handleSubmitSearch = (): void => {
-    // do the thing
+  private handleSubmitSearch = (value: string): void => {
+    this.props.setSearchTermAsync(value)
   }
 
   private handleUpdateFilters = (filters: Filter[]): void => {
@@ -187,6 +184,7 @@ const mapStateToProps = ({
     currentNamespace,
     histogramData,
     tableData,
+    searchTerm,
   },
 }) => ({
   sources,
@@ -196,6 +194,7 @@ const mapStateToProps = ({
   currentNamespace,
   histogramData,
   tableData,
+  searchTerm,
 })
 
 const mapDispatchToProps = {
@@ -205,6 +204,7 @@ const mapDispatchToProps = {
   setNamespaceAsync,
   executeQueriesAsync,
   changeZoomAsync,
+  setSearchTermAsync,
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(LogsPage)

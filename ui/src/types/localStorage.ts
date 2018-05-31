@@ -9,6 +9,7 @@ export interface LogsState {
   histogramData: object[]
   tableQueryConfig: QueryConfig | null
   tableData: object[]
+  searchTerm: string | null
 }
 
 export interface LocalStorage {

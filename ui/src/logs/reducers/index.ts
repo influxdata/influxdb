@@ -10,6 +10,7 @@ const defaultState: LogsState = {
   tableQueryConfig: null,
   tableData: [],
   histogramData: [],
+  searchTerm: null,
 }
 
 export default (state: LogsState = defaultState, action: Action) => {
@@ -33,6 +34,9 @@ export default (state: LogsState = defaultState, action: Action) => {
     case ActionTypes.ChangeZoom:
       const {timeRange, data} = action.payload
       return {...state, timeRange, histogramData: data}
+    case ActionTypes.SetSearchTerm:
+      const {searchTerm} = action.payload
+      return {...state, searchTerm}
     default:
       return state
   }

@@ -42,7 +42,7 @@ export default function buildInfluxQLQuery(
   return `${select}${condition}${dimensions}${fillClause}`
 }
 
-function buildSelect(
+export function buildSelect(
   {fields, database, retentionPolicy, measurement}: QueryConfig,
   shift: string | null = null
 ): string {
@@ -122,7 +122,7 @@ function buildFields(fieldFuncs: Field[], shift = ''): string {
     .join(', ')
 }
 
-function buildWhereClause({
+export function buildWhereClause({
   lower,
   upper,
   tags,
@@ -163,7 +163,7 @@ function buildWhereClause({
   return ` WHERE ${subClauses.join(' AND ')}`
 }
 
-function buildGroupBy(groupBy: GroupBy): string {
+export function buildGroupBy(groupBy: GroupBy): string {
   return `${buildGroupByTime(groupBy)}${buildGroupByTags(groupBy)}`
 }
 
@@ -191,7 +191,7 @@ function buildGroupByTags(groupBy: GroupBy): string {
   return ` GROUP BY ${tags}`
 }
 
-function buildFill(fill: string): string {
+export function buildFill(fill: string): string {
   return ` FILL(${fill})`
 }
 

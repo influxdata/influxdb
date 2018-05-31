@@ -2,7 +2,11 @@ import _ from 'lodash'
 import {Source, Namespace, TimeRange, QueryConfig} from 'src/types'
 import {getSource} from 'src/shared/apis'
 import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
-import {buildHistogramQueryConfig, buildTableQueryConfig} from 'src/logs/utils'
+import {
+  buildHistogramQueryConfig,
+  buildTableQueryConfig,
+  buildLogQuery,
+} from 'src/logs/utils'
 import {getDeep} from 'src/utils/wrappers'
 import buildQuery from 'src/utils/influxql'
 import {executeQueryAsync} from 'src/logs/api'
@@ -42,6 +46,7 @@ export enum ActionTypes {
   SetTableQueryConfig = 'LOGS_SET_TABLE_QUERY_CONFIG',
   SetTableData = 'LOGS_SET_TABLE_DATA',
   ChangeZoom = 'LOGS_CHANGE_ZOOM',
+  SetSearchTerm = 'LOGS_SET_SEARCH_TERM',
 }
 
 interface SetSourceAction {
@@ -100,6 +105,13 @@ interface SetTableData {
   }
 }
 
+interface SetSearchTerm {
+  type: ActionTypes.SetSearchTerm
+  payload: {
+    searchTerm: string
+  }
+}
+
 interface ChangeZoomAction {
   type: ActionTypes.ChangeZoom
   payload: {
@@ -118,6 +130,7 @@ export type Action =
   | ChangeZoomAction
   | SetTableData
   | SetTableQueryConfig
+  | SetSearchTerm
 
 const getTimeRange = (state: State): TimeRange | null =>
   getDeep<TimeRange | null>(state, 'logs.timeRange', null)
@@ -133,6 +146,9 @@ const getHistogramQueryConfig = (state: State): QueryConfig | null =>
 
 const getTableQueryConfig = (state: State): QueryConfig | null =>
   getDeep<QueryConfig | null>(state, 'logs.tableQueryConfig', null)
+
+const getSearchTerm = (state: State): string | null =>
+  getDeep<string | null>(state, 'logs.searchTerm', null)
 
 export const setSource = (source: Source): SetSourceAction => ({
   type: ActionTypes.SetSource,
@@ -154,9 +170,10 @@ export const executeHistogramQueryAsync = () => async (
   const timeRange = getTimeRange(state)
   const namespace = getNamespace(state)
   const proxyLink = getProxyLink(state)
+  const searchTerm = getSearchTerm(state)
 
   if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
-    const query = buildQuery(timeRange, queryConfig)
+    const query = buildLogQuery(timeRange, queryConfig, searchTerm)
     const response = await executeQueryAsync(proxyLink, namespace, query)
 
     dispatch(setHistogramData(response))
@@ -178,9 +195,10 @@ export const executeTableQueryAsync = () => async (
   const timeRange = getTimeRange(state)
   const namespace = getNamespace(state)
   const proxyLink = getProxyLink(state)
+  const searchTerm = getSearchTerm(state)
 
   if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
-    const query = buildQuery(timeRange, queryConfig)
+    const query = buildLogQuery(timeRange, queryConfig, searchTerm)
     const response = await executeQueryAsync(proxyLink, namespace, query)
 
     const series = getDeep(response, 'results.0.series.0', defaultTableData)
@@ -192,6 +210,14 @@ export const executeTableQueryAsync = () => async (
 export const executeQueriesAsync = () => async dispatch => {
   dispatch(executeHistogramQueryAsync())
   dispatch(executeTableQueryAsync())
+}
+
+export const setSearchTermAsync = (searchTerm: string) => async dispatch => {
+  dispatch({
+    type: ActionTypes.SetSearchTerm,
+    payload: {searchTerm},
+  })
+  dispatch(executeQueriesAsync())
 }
 
 export const setHistogramQueryConfigAsync = () => async (
