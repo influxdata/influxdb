@@ -8,12 +8,14 @@ import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOve
 import SearchBar from 'src/hosts/components/SearchBar'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Dashboard} from 'src/types/dashboard'
 import {
   showOverlay as showOverlayAction,
   ShowOverlay,
 } from 'src/shared/actions/overlayTechnology'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
+
+import {Dashboard} from 'src/types'
+import {Notification} from 'src/types/notifications'
 
 interface Props {
   dashboards: Dashboard[]
@@ -24,6 +26,7 @@ interface Props {
   ) => (event: MouseEvent<HTMLButtonElement>) => void
   onExportDashboard: (dashboard: Dashboard) => () => void
   onImportDashboard: (dashboard: Dashboard) => void
+  notify: (message: Notification) => void
   showOverlay: ShowOverlay
   dashboardLink: string
 }
@@ -134,7 +137,7 @@ class DashboardsPageContents extends Component<Props, State> {
   }
 
   private showImportOverlay = (): void => {
-    const {showOverlay, onImportDashboard} = this.props
+    const {showOverlay, onImportDashboard, notify} = this.props
     const options = {
       dismissOnClickOutside: false,
       dismissOnEscape: false,
@@ -146,6 +149,7 @@ class DashboardsPageContents extends Component<Props, State> {
           <ImportDashboardOverlay
             onDismissOverlay={onDismissOverlay}
             onImportDashboard={onImportDashboard}
+            notify={notify}
           />
         )}
       </OverlayContext.Consumer>,

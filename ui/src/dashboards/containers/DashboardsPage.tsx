@@ -2,6 +2,7 @@ import React, {PureComponent} from 'react'
 import {withRouter, InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
 import download from 'src/external/download'
+import _ from 'lodash'
 
 import DashboardsHeader from 'src/dashboards/components/DashboardsHeader'
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
@@ -13,11 +14,13 @@ import {
   getChronografVersion,
   importDashboardAsync,
 } from 'src/dashboards/actions'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import {NEW_DASHBOARD} from 'src/dashboards/constants'
+import {NEW_DASHBOARD, DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Source, Dashboard} from 'src/types'
+import {Notification} from 'src/types/notifications'
 import {DashboardFile} from 'src/types/dashboard'
 
 interface Props {
@@ -27,6 +30,7 @@ interface Props {
   handleGetChronografVersion: () => string
   handleDeleteDashboard: (dashboard: Dashboard) => void
   handleImportDashboard: (dashboard: Dashboard) => void
+  notify: (message: Notification) => void
   dashboards: Dashboard[]
 }
 
@@ -37,7 +41,7 @@ class DashboardsPage extends PureComponent<Props> {
   }
 
   public render() {
-    const {dashboards} = this.props
+    const {dashboards, notify} = this.props
     const dashboardLink = `/sources/${this.props.source.id}`
 
     return (
@@ -51,6 +55,7 @@ class DashboardsPage extends PureComponent<Props> {
           onCloneDashboard={this.handleCloneDashboard}
           onExportDashboard={this.handleExportDashboard}
           onImportDashboard={this.handleImportDashboard}
+          notify={notify}
         />
       </div>
     )
@@ -106,9 +111,10 @@ class DashboardsPage extends PureComponent<Props> {
   private handleImportDashboard = async (
     dashboard: Dashboard
   ): Promise<void> => {
+    const name = _.get(dashboard, 'name', DEFAULT_DASHBOARD_NAME)
     await this.props.handleImportDashboard({
       ...dashboard,
-      name: `${dashboard.name} (imported)`,
+      name,
     })
   }
 }
@@ -123,6 +129,7 @@ const mapDispatchToProps = {
   handleDeleteDashboard: deleteDashboardAsync,
   handleGetChronografVersion: getChronografVersion,
   handleImportDashboard: importDashboardAsync,
+  notify: notifyAction,
 }
 
 export default withRouter(

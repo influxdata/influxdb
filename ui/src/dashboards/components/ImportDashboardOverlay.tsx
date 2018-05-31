@@ -1,20 +1,39 @@
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
+import _ from 'lodash'
+
 import {getDeep} from 'src/utils/wrappers'
 
 import Container from 'src/shared/components/overlay/OverlayContainer'
 import Heading from 'src/shared/components/overlay/OverlayHeading'
 import Body from 'src/shared/components/overlay/OverlayBody'
+import {notifyDashboardImportFailed} from 'src/shared/copy/notifications'
 
 import {Dashboard} from 'src/types'
 import {DashboardFile} from 'src/types/dashboard'
+import {Notification} from 'src/types/notifications'
 
 interface Props {
   onDismissOverlay: () => void
   onImportDashboard: (dashboard: Dashboard) => void
+  notify: (message: Notification) => void
+}
+
+interface DashboardFromFile {
+  dashboard: Dashboard | null
+  fileName: string
 }
 
 interface State {
-  dashboardFromFile: Dashboard
+  dashboardFromFile: DashboardFromFile
+}
+
+interface File extends Blob {
+  lastModified: number
+  lastModifiedDate: Date
+  name: string
+  size: number
+  type: string
+  webkitRelativePath: string
 }
 
 class ImportDashboardOverlay extends PureComponent<Props, State> {
@@ -53,12 +72,17 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
   }
 
   private handleChooseFile = (e: ChangeEvent<HTMLInputElement>): void => {
-    const file = e.target.files[0]
+    const file: File = getDeep(e, 'target.files[0]', null)
     const fileReader = new FileReader()
     fileReader.onloadend = () => {
       const result: DashboardFile = JSON.parse(fileReader.result)
       const dashboard = getDeep<Dashboard>(result, 'dashboard', null)
-      this.setState({dashboardFromFile: dashboard})
+      const fileName = file.name
+      const dashboardFromFile: DashboardFromFile = {
+        dashboard,
+        fileName,
+      }
+      this.setState({dashboardFromFile})
     }
     fileReader.readAsText(file)
   }
@@ -68,8 +92,13 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
 
     const {onImportDashboard, onDismissOverlay} = this.props
     const {dashboardFromFile} = this.state
-    if (dashboardFromFile) {
-      onImportDashboard(dashboardFromFile)
+    const {dashboard, fileName} = dashboardFromFile
+    if (!_.isEmpty(dashboard)) {
+      onImportDashboard(dashboard)
+    } else {
+      this.props.notify(
+        notifyDashboardImportFailed(fileName, 'No dashboard found in file')
+      )
     }
     onDismissOverlay()
   }

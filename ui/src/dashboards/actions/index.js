@@ -24,6 +24,8 @@ import {
   notifyDashboardDeleteFailed,
   notifyCellAdded,
   notifyCellDeleted,
+  notifyDashboardImportFailed,
+  notifyDashboardImported,
 } from 'shared/copy/notifications'
 
 import {
@@ -391,12 +393,12 @@ export const importDashboardAsync = dashboard => async dispatch => {
       dashboard
     )
 
-    const {
-      data: dashboardWithOnlySelectedTemplateValues,
-    } = await createDashboardAJAX({
+    const results = await createDashboardAJAX({
       ...dashboard,
       templates: templatesWithOnlySelectedValues,
     })
+
+    const dashboardWithOnlySelectedTemplateValues = _.get(results, 'data')
 
     // save all template values to redux
     dispatch(
@@ -405,7 +407,10 @@ export const importDashboardAsync = dashboard => async dispatch => {
         templates: dashboard.templates,
       })
     )
+    dispatch(notify(notifyDashboardImported(name)))
   } catch (error) {
+    const errorMessage = _.get(error, 'data.message')
+    dispatch(notify(notifyDashboardImportFailed('', errorMessage)))
     console.error(error)
     dispatch(errorThrown(error))
   }
