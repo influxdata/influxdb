@@ -2,13 +2,24 @@ import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 
 interface Props {
   searchString: string
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void
-  onSearch: () => void
+  onSearch: (value: string) => void
 }
 
-class LogsSearchBar extends PureComponent<Props> {
+interface State {
+  searchTerm: string
+}
+
+class LogsSearchBar extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      searchTerm: props.searchString,
+    }
+  }
+
   public render() {
-    const {searchString, onSearch, onChange} = this.props
+    const {searchTerm} = this.state
 
     return (
       <div className="logs-viewer--search-bar">
@@ -16,8 +27,8 @@ class LogsSearchBar extends PureComponent<Props> {
           <input
             type="text"
             placeholder="Search logs using Keywords or Regular Expressions..."
-            value={searchString}
-            onChange={onChange}
+            value={searchTerm}
+            onChange={this.handleChange}
             onKeyDown={this.handleInputKeyDown}
             className="form-control input-sm"
             spellCheck={false}
@@ -25,7 +36,7 @@ class LogsSearchBar extends PureComponent<Props> {
           />
           <span className="icon search" />
         </div>
-        <button className="btn btn-sm btn-primary" onClick={onSearch}>
+        <button className="btn btn-sm btn-primary" onClick={this.handleSearch}>
           <span className="icon search" />
           Search
         </button>
@@ -33,10 +44,18 @@ class LogsSearchBar extends PureComponent<Props> {
     )
   }
 
+  private handleSearch = () => {
+    this.props.onSearch(this.state.searchTerm)
+  }
+
   private handleInputKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') {
-      return this.props.onSearch()
+      return this.handleSearch()
     }
+  }
+
+  private handleChange = (e: ChangeEvent<HTMLInputElement>): void => {
+    this.setState({searchTerm: e.target.value})
   }
 }
 

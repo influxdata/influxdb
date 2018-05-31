@@ -1,3 +1,4 @@
+import _ from 'lodash'
 import moment from 'moment'
 import React, {PureComponent} from 'react'
 import {Grid, AutoSizer} from 'react-virtualized'
@@ -11,34 +12,18 @@ interface Props {
   }
 }
 
-const FACILITY_CODES = [
-  'kern',
-  'user',
-  'mail',
-  'daemon',
-  'auth',
-  'syslog',
-  'lpr',
-  'news',
-  'uucp',
-  'clock',
-  'authpriv',
-  'ftp',
-  'NTP',
-  'log audit',
-  'log alert',
-  'cron',
-  'local0',
-  'local1',
-  'local2',
-  'local3',
-  'local4',
-  'local5',
-  'local6',
-  'local7',
-]
+interface State {
+  scrollLeft: number
+}
 
-class LogsTable extends PureComponent<Props> {
+class LogsTable extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      scrollLeft: 0,
+    }
+  }
   public render() {
     const rowCount = getDeep(this.props, 'data.values.length', 0)
     const columnCount = getDeep(this.props, 'data.columns.length', 1) - 1
@@ -52,6 +37,7 @@ class LogsTable extends PureComponent<Props> {
               rowHeight={40}
               rowCount={1}
               width={width}
+              scrollLeft={this.state.scrollLeft}
               cellRenderer={this.headerRenderer}
               columnCount={columnCount}
               columnWidth={this.getColumnWidth}
@@ -69,6 +55,7 @@ class LogsTable extends PureComponent<Props> {
                 rowHeight={40}
                 rowCount={rowCount}
                 width={width}
+                onScroll={this.handleScroll}
                 cellRenderer={this.cellRenderer}
                 columnCount={columnCount}
                 columnWidth={this.getColumnWidth}
@@ -80,24 +67,26 @@ class LogsTable extends PureComponent<Props> {
     )
   }
 
-  private severityLevel(value: number): string {
+  private handleScroll = scrollInfo => {
+    const {scrollLeft} = scrollInfo
+
+    this.setState({scrollLeft})
+  }
+
+  private severityLevel(value: string): string {
     switch (value) {
-      case 0:
+      case 'emerg':
         return 'Emergency'
-      case 1:
+      case 'alert':
         return 'Alert'
-      case 2:
+      case 'crit':
         return 'Critical'
-      case 3:
+      case 'err':
         return 'Error'
-      case 4:
-        return 'Warning'
-      case 5:
-        return 'Notice'
-      case 6:
+      case 'info':
         return 'Informational'
       default:
-        return 'Debug'
+        return _.capitalize(value)
     }
   }
 
@@ -118,18 +107,13 @@ class LogsTable extends PureComponent<Props> {
     return getDeep<string>(
       {
         timestamp: 'Timestamp',
-        facility_code: 'Facility',
         procid: 'Proc ID',
-        severity_code: 'Severity',
         message: 'Message',
+        appname: 'Application',
       },
       key,
-      ''
+      _.capitalize(key)
     )
-  }
-
-  private facility(key: number): string {
-    return getDeep<string>(FACILITY_CODES, key, '')
   }
 
   private headerRenderer = ({key, style, columnIndex}) => {
@@ -159,11 +143,8 @@ class LogsTable extends PureComponent<Props> {
       case 'timestamp':
         value = moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
         break
-      case 'severity_code':
-        value = this.severityLevel(+value)
-        break
-      case 'facility_code':
-        value = this.facility(+value)
+      case 'severity':
+        value = this.severityLevel(value)
         break
     }
 

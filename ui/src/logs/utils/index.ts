@@ -1,6 +1,15 @@
+import _ from 'lodash'
 import moment from 'moment'
 import uuid from 'uuid'
 import {TimeRange, Namespace, QueryConfig} from 'src/types'
+import {NULL_STRING} from 'src/shared/constants/queryFillOptions'
+import {
+  quoteIfTimestamp,
+  buildSelect,
+  buildWhereClause,
+  buildGroupBy,
+  buildFill,
+} from 'src/utils/influxql'
 
 const BIN_COUNT = 30
 
@@ -9,7 +18,7 @@ const histogramFields = [
     alias: '',
     args: [
       {
-        alias: '',
+        alias: 'message',
         type: 'field',
         value: 'message',
       },
@@ -26,9 +35,9 @@ const tableFields = [
     value: 'timestamp',
   },
   {
-    alias: 'facility_code',
+    alias: 'facility',
     type: 'field',
-    value: 'facility_code',
+    value: 'facility',
   },
   {
     alias: 'procid',
@@ -36,9 +45,19 @@ const tableFields = [
     value: 'procid',
   },
   {
-    alias: 'severity_code',
+    alias: 'appname',
     type: 'field',
-    value: 'severity_code',
+    value: 'appname',
+  },
+  {
+    alias: 'severity',
+    type: 'field',
+    value: 'severity',
+  },
+  {
+    alias: 'host',
+    type: 'field',
+    value: 'host',
   },
   {
     alias: 'message',
@@ -54,6 +73,25 @@ const defaultQueryConfig = {
   rawText: null,
   shifts: [],
   tags: {},
+}
+
+export function buildLogQuery(
+  timeRange: TimeRange,
+  config: QueryConfig,
+  searchTerm: string | null = null
+): string {
+  const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
+  const {upper, lower} = quoteIfTimestamp(timeRange)
+  const select = buildSelect(config, '')
+  const dimensions = buildGroupBy(groupBy)
+  const fillClause = groupBy.time ? buildFill(fill) : ''
+
+  let condition = buildWhereClause({lower, upper, tags, areTagsAccepted})
+  if (!_.isEmpty(searchTerm)) {
+    condition = `${condition} AND message =~ ${new RegExp(searchTerm)}`
+  }
+
+  return `${select}${condition}${dimensions}${fillClause}`
 }
 
 const computeSeconds = (range: TimeRange) => {
