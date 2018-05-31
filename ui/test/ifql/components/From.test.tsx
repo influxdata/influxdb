@@ -3,7 +3,7 @@ import {shallow} from 'enzyme'
 import From from 'src/ifql/components/From'
 import {service} from 'test/resources'
 
-jest.mock('src/ifql/apis', () => require('mocks/ifql/apis'))
+jest.mock('src/shared/apis/metaQuery', () => require('mocks/ifql/apis'))
 
 const setup = () => {
   const props = {
