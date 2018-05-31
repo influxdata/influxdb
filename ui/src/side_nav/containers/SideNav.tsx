@@ -77,16 +77,6 @@ class SideNav extends PureComponent<Props> {
         >
           <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
         </NavBlock>
-        <FeatureFlag name="log-viewer">
-          <NavBlock
-            highlightWhen={['logs']}
-            icon="text-block"
-            link={'/logs'}
-            location={location}
-          >
-            <NavHeader link={'/logs'} title="Log Viewer" />
-          </NavBlock>
-        </FeatureFlag>
         <NavBlock
           highlightWhen={['data-explorer', 'delorean']}
           icon="graphline"
@@ -120,6 +110,17 @@ class SideNav extends PureComponent<Props> {
             Alert History
           </NavListItem>
         </NavBlock>
+
+        <FeatureFlag name="log-viewer">
+          <NavBlock
+            highlightWhen={['logs']}
+            icon="text-block"
+            link={'/logs'}
+            location={location}
+          >
+            <NavHeader link={'/logs'} title="Log Viewer" />
+          </NavBlock>
+        </FeatureFlag>
 
         <Authorized
           requiredRole={ADMIN_ROLE}

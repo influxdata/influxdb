@@ -1,9 +1,11 @@
 import _ from 'lodash'
 import moment from 'moment'
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 import {Grid, AutoSizer} from 'react-virtualized'
 import {getDeep} from 'src/utils/wrappers'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+
+const ROW_HEIGHT = 40
 
 interface Props {
   data: {
@@ -14,6 +16,7 @@ interface Props {
 
 interface State {
   scrollLeft: number
+  scrollTop: number
 }
 
 class LogsTable extends PureComponent<Props, State> {
@@ -22,6 +25,7 @@ class LogsTable extends PureComponent<Props, State> {
 
     this.state = {
       scrollLeft: 0,
+      scrollTop: 0,
     }
   }
   public render() {
@@ -33,12 +37,12 @@ class LogsTable extends PureComponent<Props, State> {
         <AutoSizer>
           {({width}) => (
             <Grid
-              height={40}
-              rowHeight={40}
+              height={ROW_HEIGHT}
+              rowHeight={ROW_HEIGHT}
               rowCount={1}
               width={width}
               scrollLeft={this.state.scrollLeft}
-              onScroll={this.handleScroll}
+              onScroll={this.handleHeaderScroll}
               cellRenderer={this.headerRenderer}
               columnCount={columnCount}
               columnWidth={this.getColumnWidth}
@@ -48,19 +52,27 @@ class LogsTable extends PureComponent<Props, State> {
         <AutoSizer>
           {({width, height}) => (
             <FancyScrollbar
-              style={{width, height, marginTop: '40px'}}
-              autoHide={false}
+              style={{
+                width,
+                height,
+                marginTop: `${ROW_HEIGHT}px`,
+              }}
+              setScrollTop={this.handleScrollbarScroll}
+              scrollTop={this.state.scrollTop}
+              autoHide={true}
             >
               <Grid
                 height={height}
-                rowHeight={40}
+                rowHeight={ROW_HEIGHT}
                 rowCount={rowCount}
                 width={width}
                 scrollLeft={this.state.scrollLeft}
+                scrollTop={this.state.scrollTop}
                 onScroll={this.handleScroll}
                 cellRenderer={this.cellRenderer}
                 columnCount={columnCount}
                 columnWidth={this.getColumnWidth}
+                style={{height: 40 * rowCount}}
               />
             </FancyScrollbar>
           )}
@@ -69,10 +81,17 @@ class LogsTable extends PureComponent<Props, State> {
     )
   }
 
-  private handleScroll = scrollInfo => {
-    const {scrollLeft} = scrollInfo
+  private handleHeaderScroll = ({scrollLeft}) => this.setState({scrollLeft})
 
-    this.setState({scrollLeft})
+  private handleScrollbarScroll = (e: MouseEvent<JSX.Element>) => {
+    const {target} = e
+    this.handleScroll(target)
+  }
+
+  private handleScroll = scrollInfo => {
+    const {scrollLeft, scrollTop} = scrollInfo
+
+    this.setState({scrollLeft, scrollTop})
   }
 
   private severityLevel(value: string): string {
@@ -157,6 +176,9 @@ class LogsTable extends PureComponent<Props, State> {
         break
       case 'severity_1':
         value = this.severityLevel(value)
+        break
+      case 'message':
+        value = _.replace(value, '\\n', '')
         break
       case 'severity':
         return (
