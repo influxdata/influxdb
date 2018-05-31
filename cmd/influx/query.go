@@ -2,15 +2,13 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/control"
+	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/functions/storage"
@@ -119,20 +117,4 @@ func orgID(org string) (ifqlid.ID, error) {
 	var oid ifqlid.ID
 	err := oid.DecodeFromString(org)
 	return oid, err
-}
-
-func getIFQLREPL(storageHosts storage.Reader, buckets platform.BucketService, org ifqlid.ID, verbose bool) (*repl.REPL, error) {
-	conf := control.Config{
-		ExecutorDependencies: make(execute.Dependencies),
-		ConcurrencyQuota:     runtime.NumCPU() * 2,
-		MemoryBytesQuota:     math.MaxInt64,
-		Verbose:              verbose,
-	}
-
-	if err := injectDeps(conf.ExecutorDependencies, storageHosts, buckets); err != nil {
-		return nil, err
-	}
-
-	c := control.New(conf)
-	return repl.New(c, org), nil
 }

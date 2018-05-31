@@ -1,25 +1,14 @@
-package complete
+package complete_test
 
 import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	_ "github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform/query/complete"
 	"github.com/influxdata/platform/query/interpreter"
-	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/semantic"
 	"github.com/influxdata/platform/query/values"
 )
-
-var scope *interpreter.Scope
-var declarations semantic.DeclarationScope
-
-func init() {
-	query.FinalizeRegistration()
-	s, d := query.BuiltIns()
-	scope = interpreter.NewScopeWithValues(s)
-	declarations = d
-}
 
 func TestNames(t *testing.T) {
 	s := interpreter.NewScope()
@@ -27,7 +16,7 @@ func TestNames(t *testing.T) {
 	s.Set("boom", v)
 	s.Set("tick", v)
 
-	c := NewCompleter(s, semantic.DeclarationScope{})
+	c := complete.NewCompleter(s, semantic.DeclarationScope{})
 
 	results := c.Names()
 	expected := []string{
@@ -41,10 +30,15 @@ func TestNames(t *testing.T) {
 }
 
 func TestDeclaration(t *testing.T) {
-	name := "range"
+	name := "foo"
+	scope := interpreter.NewScope()
+	scope.Set(name, values.NewIntValue(5))
+	declarations := make(semantic.DeclarationScope)
+	declarations[name] = semantic.NewExternalVariableDeclaration(name, semantic.Int)
+
 	expected := declarations[name].ID()
 
-	declaration, _ := NewCompleter(scope, declarations).Declaration(name)
+	declaration, _ := complete.NewCompleter(scope, declarations).Declaration(name)
 	result := declaration.ID()
 
 	if !cmp.Equal(result, expected) {
@@ -60,7 +54,7 @@ func TestFunctionNames(t *testing.T) {
 	d["noBoom"] = semantic.NewExternalVariableDeclaration("noBoom", semantic.String)
 
 	s := interpreter.NewScope()
-	c := NewCompleter(s, d)
+	c := complete.NewCompleter(s, d)
 	results := c.FunctionNames()
 
 	expected := []string{
@@ -73,14 +67,26 @@ func TestFunctionNames(t *testing.T) {
 }
 
 func TestFunctionSuggestion(t *testing.T) {
-	name := "range"
-	result, _ := NewCompleter(scope, declarations).FunctionSuggestion(name)
+	name := "bar"
+	scope := interpreter.NewScope()
+	declarations := make(semantic.DeclarationScope)
+	declarations[name] = semantic.NewExternalVariableDeclaration(
+		name,
+		semantic.NewFunctionType(
+			semantic.FunctionSignature{
+				Params: map[string]semantic.Type{
+					"start": semantic.Time,
+					"stop":  semantic.Time,
+				},
+			},
+		),
+	)
+	result, _ := complete.NewCompleter(scope, declarations).FunctionSuggestion(name)
 
-	expected := FunctionSuggestion{
+	expected := complete.FunctionSuggestion{
 		Params: map[string]string{
 			"start": semantic.Time.String(),
 			"stop":  semantic.Time.String(),
-			"table": query.TableObjectType.Kind().String(),
 		},
 	}
 

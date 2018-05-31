@@ -6,6 +6,7 @@ import (
 
 	"github.com/gonum/stat/distuv"
 	"github.com/influxdata/platform/query"
+	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
 	"github.com/influxdata/platform/query/values"
@@ -18,10 +19,6 @@ const (
 
 	seed = 42
 )
-
-func init() {
-	query.FinalizeRegistration()
-}
 
 // NormalData is a slice of N random values that are normaly distributed with mean Mu and standard deviation Sigma.
 var NormalData []float64

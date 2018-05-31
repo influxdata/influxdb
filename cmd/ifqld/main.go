@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/query"
+	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"

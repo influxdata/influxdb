@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform/query"
+	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/influxql"
 
 	"github.com/andreyvit/diff"
