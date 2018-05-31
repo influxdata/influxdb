@@ -178,12 +178,9 @@ func (t *transpilerState) createIteratorSpec(expr influxql.Expr) (query.Operatio
 		}
 
 		// TODO(jsternberg): Handle group by tags and the windowing function.
-		//group := t.op("group", &functions.GroupOpSpec{
-		//	By: []string{"_measurement"},
-		//}, ref)
-		// TODO(jsternberg): The group spec doesn't seem to be working at the
-		// moment so just ignore this temporarily and fix it in a future commit.
-		group := ref
+		group := t.op("group", &functions.GroupOpSpec{
+			By: []string{"_measurement"},
+		}, ref)
 
 		switch expr.Name {
 		case "mean":
