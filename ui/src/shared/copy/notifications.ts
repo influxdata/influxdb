@@ -426,6 +426,12 @@ export const notifyDashboardImportFailed = (fileName, errorMessage) => ({
   message: `Failed to import Dashboard from file ${fileName}: ${errorMessage}.`,
 })
 
+export const notifyDashboardUploadFailed = (fileName, errorMessage) => ({
+  ...defaultErrorNotification,
+  duration: INFINITE,
+  message: `Failed to upload Dashboard from file ${fileName}: ${errorMessage}.`,
+})
+
 export const notifyDashboardDeleteFailed = (name, errorMessage) =>
   `Failed to delete Dashboard ${name}: ${errorMessage}.`
 

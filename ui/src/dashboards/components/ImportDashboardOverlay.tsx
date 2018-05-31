@@ -6,7 +6,10 @@ import {getDeep} from 'src/utils/wrappers'
 import Container from 'src/shared/components/overlay/OverlayContainer'
 import Heading from 'src/shared/components/overlay/OverlayHeading'
 import Body from 'src/shared/components/overlay/OverlayBody'
-import {notifyDashboardImportFailed} from 'src/shared/copy/notifications'
+import {
+  notifyDashboardImportFailed,
+  notifyDashboardUploadFailed,
+} from 'src/shared/copy/notifications'
 
 import {Dashboard} from 'src/types'
 import {DashboardFile} from 'src/types/dashboard'
@@ -25,6 +28,7 @@ interface DashboardFromFile {
 
 interface State {
   dashboardFromFile: DashboardFromFile
+  isImportable: boolean
 }
 
 interface File extends Blob {
@@ -42,6 +46,7 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
 
     this.state = {
       dashboardFromFile: null,
+      isImportable: false,
     }
   }
 
@@ -63,7 +68,12 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
               />
             </div>
             <div className="form-group form-group-submit col-xs-12 text-center">
-              <button className="btn btn btn-success">Import</button>
+              <button
+                className="btn btn btn-success"
+                disabled={this.isDisabled}
+              >
+                Import
+              </button>
             </div>
           </form>
         </Body>
@@ -71,18 +81,32 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
     )
   }
 
+  private get isDisabled(): boolean {
+    const {isImportable} = this.state
+    if (isImportable) {
+      return false
+    }
+    return true
+  }
+
   private handleChooseFile = (e: ChangeEvent<HTMLInputElement>): void => {
     const file: File = getDeep(e, 'target.files[0]', null)
+    const fileName = file.name
     const fileReader = new FileReader()
     fileReader.onloadend = () => {
-      const result: DashboardFile = JSON.parse(fileReader.result)
-      const dashboard = getDeep<Dashboard>(result, 'dashboard', null)
-      const fileName = file.name
-      const dashboardFromFile: DashboardFromFile = {
-        dashboard,
-        fileName,
+      try {
+        const result: DashboardFile = JSON.parse(fileReader.result)
+        const dashboard = getDeep<Dashboard>(result, 'dashboard', null)
+        const dashboardFromFile: DashboardFromFile = {
+          dashboard,
+          fileName,
+        }
+        this.setState({dashboardFromFile})
+        this.setState({isImportable: true})
+      } catch (error) {
+        this.props.notify(notifyDashboardUploadFailed(fileName, error))
+        this.setState({isImportable: false})
       }
-      this.setState({dashboardFromFile})
     }
     fileReader.readAsText(file)
   }
