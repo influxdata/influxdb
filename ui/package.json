@@ -19,6 +19,7 @@
     "test": "jest",
     "test:lint": "yarn run lint; yarn run test",
     "test:watch": "jest --watch",
+    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch",
     "clean": "rm -rf ./build/*",
     "eslint:fix": "eslint src --fix",
     "tslint:fix": "tslint --fix -c ./tslint.json '{src,test}/**/*.ts?(x)'",
