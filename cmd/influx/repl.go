@@ -2,9 +2,18 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
+	"runtime"
 	"strings"
 
+	"github.com/influxdata/platform"
+	_ "github.com/influxdata/platform/query/builtin"
+	"github.com/influxdata/platform/query/control"
+	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/functions/storage"
+	ifqlid "github.com/influxdata/platform/query/id"
+	"github.com/influxdata/platform/query/repl"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -68,4 +77,20 @@ func replF(cmd *cobra.Command, args []string) {
 	}
 
 	r.Run()
+}
+
+func getIFQLREPL(storageHosts storage.Reader, buckets platform.BucketService, org ifqlid.ID, verbose bool) (*repl.REPL, error) {
+	conf := control.Config{
+		ExecutorDependencies: make(execute.Dependencies),
+		ConcurrencyQuota:     runtime.NumCPU() * 2,
+		MemoryBytesQuota:     math.MaxInt64,
+		Verbose:              verbose,
+	}
+
+	if err := injectDeps(conf.ExecutorDependencies, storageHosts, buckets); err != nil {
+		return nil, err
+	}
+
+	c := control.New(conf)
+	return repl.New(c, org), nil
 }

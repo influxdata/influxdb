@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/influxdata/platform/query"
+	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/querytest"
 
 	"golang.org/x/text/unicode/norm"
@@ -24,10 +25,6 @@ func normalizeString(s string) []byte {
 
 func printUsage() {
 	fmt.Println("usage: prepcsvtests /path/to/testfiles [testname]")
-}
-
-func init() {
-	query.FinalizeRegistration()
 }
 
 func main() {

@@ -111,29 +111,16 @@ func RegisterBuiltInValue(name string, v values.Value) {
 	builtinScope[name] = v
 }
 
-// FinalizeRegistration must be called to complete registration.
+// FinalizeBuiltIns must be called to complete registration.
 // Future calls to RegisterFunction, RegisterBuiltIn or RegisterBuiltInValue will panic.
-func FinalizeRegistration() {
+func FinalizeBuiltIns() {
 	if finalized {
 		panic("already finalized")
 	}
 	finalized = true
-	//for name, script := range builtins {
-	//	astProg, err := parser.NewAST(script)
-	//	if err != nil {
-	//		panic(errors.Wrapf(err, "failed to parse builtin %q", name))
-	//	}
-	//	semProg, err := semantic.New(astProg, builtinDeclarations)
-	//	if err != nil {
-	//		panic(errors.Wrapf(err, "failed to create semantic graph for builtin %q", name))
-	//	}
-
-	//	if err := interpreter.Eval(semProg, builtinScope); err != nil {
-	//		panic(errors.Wrapf(err, "failed to evaluate builtin %q", name))
-	//	}
-	//}
-	//// free builtins list
-	//builtins = nil
+	// Call BuiltIns to validate all built-in values are valid.
+	// A panic will occur if any value is invalid.
+	_, _ = BuiltIns()
 }
 
 var TableObjectType = semantic.NewObjectType(map[string]semantic.Type{
@@ -267,6 +254,9 @@ func DefaultFunctionSignature() semantic.FunctionSignature {
 }
 
 func BuiltIns() (map[string]values.Value, semantic.DeclarationScope) {
+	if !finalized {
+		panic("builtins not finalized")
+	}
 	qd := new(queryDomain)
 	return builtIns(qd)
 }

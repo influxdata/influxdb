@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/ast"
+	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
 	"github.com/influxdata/platform/query/functions"
