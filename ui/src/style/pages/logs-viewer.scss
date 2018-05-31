@@ -202,3 +202,36 @@ $logs-viewer-gutter: 60px;
   height: 100%;
   padding: 8px 16px;
 }
+
+.logs-viewer--dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: $g0-obsidian;
+
+  &.emerg-severity {
+    @include gradient-diag-up($c-ruby, $c-fire);
+  }
+  &.alert-severity {
+    @include gradient-diag-up($c-fire, $c-curacao);
+  }
+  &.crit-severity {
+    @include gradient-diag-up($c-curacao, $c-tiger);
+  }
+  &.err-severity {
+    @include gradient-diag-up($c-tiger, $c-pineapple);
+  }
+  &.warning-severity {
+    @include gradient-diag-up($c-pineapple, $c-thunder);
+  }
+  &.notice-severity {
+    @include gradient-diag-up($c-rainforest, $c-honeydew);
+  }
+  &.info-severity {
+    @include gradient-diag-up($c-star, $c-comet);
+  }
+  &.debug-severity {
+    @include gradient-diag-up($g5-pepper, $g6-smoke);
+  }
+}

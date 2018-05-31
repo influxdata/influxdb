@@ -30,9 +30,19 @@ const histogramFields = [
 
 const tableFields = [
   {
+    alias: 'severity',
+    type: 'field',
+    value: 'severity',
+  },
+  {
     alias: 'timestamp',
     type: 'field',
     value: 'timestamp',
+  },
+  {
+    alias: 'severity_text',
+    type: 'field',
+    value: 'severity',
   },
   {
     alias: 'facility',
@@ -48,11 +58,6 @@ const tableFields = [
     alias: 'appname',
     type: 'field',
     value: 'appname',
-  },
-  {
-    alias: 'severity',
-    type: 'field',
-    value: 'severity',
   },
   {
     alias: 'host',
