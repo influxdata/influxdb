@@ -126,7 +126,8 @@ class DashboardPage extends Component {
       notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery))
     })
 
-    syncURLQueryFromTempVars(location, dashboard.templates)
+    const {upper, lower} = timeRange
+    syncURLQueryFromTempVars(location, dashboard.templates, [], {upper, lower})
 
     // Refresh and persists influxql generated template variable values.
     // If using auth and role is Viewer, temp vars will be stale until dashboard
@@ -220,6 +221,11 @@ class DashboardPage extends Component {
     dashboardActions.setDashTimeV1(dashboard.id, {
       ...timeRange,
       format: FORMAT_INFLUXQL,
+    })
+
+    dashboardActions.syncURLQueryFromQueryObject(location, {
+      lower: timeRange.lower,
+      upper: timeRange.upper,
     })
 
     const annotationRange = millisecondTimeRange(timeRange)
@@ -337,6 +343,11 @@ class DashboardPage extends Component {
 
   handleZoomedTimeRange = (zoomedLower, zoomedUpper) => {
     this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
+    const {dashboardActions, location} = this.props
+    dashboardActions.syncURLQueryFromQueryObject(location, {
+      zoomedLower,
+      zoomedUpper,
+    })
   }
 
   setScrollTop = event => {
@@ -374,12 +385,11 @@ class DashboardPage extends Component {
       params: {sourceID, dashboardID},
     } = this.props
 
-    const low = zoomedLower ? zoomedLower : lower
-    const up = zoomedUpper ? zoomedUpper : upper
+    const low = zoomedLower || lower
+    const up = zoomedUpper || upper
 
     const lowerType = low && low.includes(':') ? 'timeStamp' : 'constant'
     const upperType = up && up.includes(':') ? 'timeStamp' : 'constant'
-
     const dashboardTime = {
       id: 'dashtime',
       tempVar: TEMP_VAR_DASHBOARD_TIME,

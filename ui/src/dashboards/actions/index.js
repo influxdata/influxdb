@@ -388,12 +388,19 @@ export const syncURLQueryFromQueryObject = (
 export const syncURLQueryFromTempVars = (
   location,
   tempVars,
-  deletedTempVars = []
+  deletedTempVars = [],
+  timeRange = {}
 ) => dispatch => {
   const updatedURLQueries = generateURLQueryFromTempVars(tempVars)
   const deletedURLQueries = generateURLQueryFromTempVars(deletedTempVars)
 
+  const updatedURLQueriesWithTimeRange = {...updatedURLQueries, ...timeRange}
+
   dispatch(
-    syncURLQueryFromQueryObject(location, updatedURLQueries, deletedURLQueries)
+    syncURLQueryFromQueryObject(
+      location,
+      updatedURLQueriesWithTimeRange,
+      deletedURLQueries
+    )
   )
 }
