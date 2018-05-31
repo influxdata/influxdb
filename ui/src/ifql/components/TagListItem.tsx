@@ -54,10 +54,6 @@ export default class TagListItem extends PureComponent<Props, State> {
     }, 250)
   }
 
-  public async componentDidMount() {
-    this.getCount()
-  }
-
   public render() {
     const {tagKey, db, service, filter} = this.props
     const {tagValues, searchTerm, loadingMore, count, limit} = this.state
@@ -208,6 +204,7 @@ export default class TagListItem extends PureComponent<Props, State> {
     e.stopPropagation()
 
     if (this.isFetchable) {
+      this.getCount()
       this.getAllTagValues()
     }
 
