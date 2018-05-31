@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/ifql"
-	"github.com/influxdata/ifql/parser"
+	"github.com/influxdata/platform/query/builtin"
+	"github.com/influxdata/platform/query/parser"
 )
 
 type Params map[string]string
@@ -47,7 +47,7 @@ func (s *Service) IFQL(w http.ResponseWriter, r *http.Request) {
 
 // IFQLSuggestions returns a list of available IFQL functions for the IFQL Builder
 func (s *Service) IFQLSuggestions(w http.ResponseWriter, r *http.Request) {
-	completer := ifql.DefaultCompleter()
+	completer := query.DefaultCompleter()
 	names := completer.FunctionNames()
 	var functions []SuggestionResponse
 	for _, name := range names {
@@ -80,7 +80,7 @@ func (s *Service) IFQLSuggestions(w http.ResponseWriter, r *http.Request) {
 func (s *Service) IFQLSuggestion(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	name := httprouter.GetParamFromContext(ctx, "name")
-	completer := ifql.DefaultCompleter()
+	completer := query.DefaultCompleter()
 
 	suggestion, err := completer.FunctionSuggestion(name)
 	if err != nil {
