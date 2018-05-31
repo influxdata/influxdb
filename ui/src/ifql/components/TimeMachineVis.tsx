@@ -24,7 +24,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
     this.state = {selectedResultID: this.initialResultID}
   }
 
-  public componentDidUpdate(__, prevState) {
+  public componentDidUpdate() {
     if (!this.selectedResult) {
       this.setState({selectedResultID: this.initialResultID})
     }
