@@ -6,9 +6,11 @@ import VariableName from 'src/ifql/components/VariableName'
 import FuncSelector from 'src/ifql/components/FuncSelector'
 import {funcNames} from 'src/ifql/constants'
 
+import {Service} from 'src/types'
 import {FlatBody, Suggestion} from 'src/types/ifql'
 
 interface Props {
+  service: Service
   body: Body[]
   suggestions: Suggestion[]
   onAppendFrom: () => void

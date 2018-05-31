@@ -1,65 +1,55 @@
-import PropTypes from 'prop-types'
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 
-import _ from 'lodash'
-
+import {SchemaFilter, Service} from 'src/types'
 import TagListItem from 'src/ifql/components/TagListItem'
-
-import {getTags, getTagValues} from 'src/ifql/apis'
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-const {shape} = PropTypes
 
 interface Props {
   db: string
+  service: Service
+  tags: string[]
+  filter: SchemaFilter[]
 }
 
 interface State {
-  tags: {}
-  selectedTag: string
+  isOpen: boolean
 }
 
-@ErrorHandling
-class TagList extends PureComponent<Props, State> {
-  public static contextTypes = {
-    source: shape({
-      links: shape({}).isRequired,
-    }).isRequired,
-  }
-
+export default class TagList extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
-    this.state = {
-      tags: {},
-      selectedTag: '',
-    }
-  }
 
-  public componentDidMount() {
-    const {db} = this.props
-    if (!db) {
-      return
-    }
-
-    this.getTags()
-  }
-
-  public async getTags() {
-    const keys = await getTags()
-    const values = await getTagValues()
-
-    const tags = keys.reduce((acc, k) => {
-      return {...acc, [k]: values}
-    }, {})
-
-    this.setState({tags})
+    this.state = {isOpen: false}
   }
 
   public render() {
-    return _.map(this.state.tags, (tagValues: string[], tagKey: string) => (
-      <TagListItem key={tagKey} tagKey={tagKey} tagValues={tagValues} />
-    ))
+    const {db, service, tags, filter} = this.props
+
+    if (tags.length) {
+      return (
+        <>
+          {tags.map(t => (
+            <TagListItem
+              key={t}
+              db={db}
+              tagKey={t}
+              service={service}
+              filter={filter}
+            />
+          ))}
+        </>
+      )
+    }
+
+    return (
+      <div className="ifql-schema-tree ifql-tree-node">
+        <div className="ifql-schema-item no-hover" onClick={this.handleClick}>
+          <div className="no-results">No more tag keys.</div>
+        </div>
+      </div>
+    )
+  }
+
+  private handleClick(e: MouseEvent<HTMLDivElement>) {
+    e.stopPropagation()
   }
 }
-
-export default TagList

@@ -1,9 +1,11 @@
 import React, {PureComponent} from 'react'
 
-import {getDatabases} from 'src/ifql/apis'
+import {showDatabases} from 'src/shared/apis/metaQuery'
+import showDatabasesParser from 'src/shared/parsing/showDatabases'
 
 import Dropdown from 'src/shared/components/Dropdown'
 import {OnChangeArg} from 'src/types/ifql'
+import {Service} from 'src/types'
 
 interface Props {
   funcID: string
@@ -12,6 +14,7 @@ interface Props {
   bodyID: string
   declarationID: string
   onChangeArg: OnChangeArg
+  service: Service
 }
 
 interface State {
@@ -31,11 +34,16 @@ class From extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
+    const {service} = this.props
+
     try {
-      const dbs = await getDatabases()
-      this.setState({dbs})
-    } catch (error) {
-      // TODO: notity error
+      const {data} = await showDatabases(`${service.links.source}/proxy`)
+      const {databases} = showDatabasesParser(data)
+      const sorted = databases.sort()
+
+      this.setState({dbs: sorted})
+    } catch (err) {
+      console.error(err)
     }
   }
 

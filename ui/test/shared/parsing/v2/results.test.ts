@@ -1,14 +1,13 @@
-import {parseResults} from 'src/shared/parsing/ifql'
+import {parseResults} from 'src/shared/parsing/v2/results'
 import {
   RESPONSE_NO_METADATA,
   RESPONSE_METADATA,
-  RESPONSE_NO_MEASUREMENT,
   LARGE_RESPONSE,
   EXPECTED_METADATA,
   EXPECTED_COLUMNS,
-} from 'test/shared/parsing/constants'
+} from 'test/shared/parsing/v2/constants'
 
-describe('IFQL response parser', () => {
+describe('IFQL results parser', () => {
   it('parseResults into the right number of tables', () => {
     const result = parseResults(LARGE_RESPONSE)
 
@@ -32,22 +31,6 @@ describe('IFQL response parser', () => {
       const actual = parseResults(RESPONSE_METADATA)[0].metadata
 
       expect(actual).toEqual(EXPECTED_METADATA)
-    })
-  })
-
-  describe('name', () => {
-    it('uses the measurement as a name when present', () => {
-      const actual = parseResults(RESPONSE_METADATA)[0].name
-      const expected = 'cpu'
-
-      expect(actual).toBe(expected)
-    })
-
-    it('uses the index as a name if a measurement column is not present', () => {
-      const actual = parseResults(RESPONSE_NO_MEASUREMENT)[0].name
-      const expected = 'Result 0'
-
-      expect(actual).toBe(expected)
     })
   })
 })

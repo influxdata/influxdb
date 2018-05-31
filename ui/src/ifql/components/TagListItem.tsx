@@ -1,69 +1,278 @@
-import classnames from 'classnames'
-import React, {PureComponent, MouseEvent} from 'react'
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import React, {
+  PureComponent,
+  CSSProperties,
+  ChangeEvent,
+  MouseEvent,
+} from 'react'
+
+import _ from 'lodash'
+
+import {Service, SchemaFilter, RemoteDataState} from 'src/types'
+import {tagValues as fetchTagValues} from 'src/shared/apis/v2/metaQueries'
+import {explorer} from 'src/ifql/constants'
+import parseValuesColumn from 'src/shared/parsing/v2/tags'
+import TagValueList from 'src/ifql/components/TagValueList'
+import LoaderSkeleton from 'src/ifql/components/LoaderSkeleton'
+import LoadingSpinner from 'src/ifql/components/LoadingSpinner'
 
 interface Props {
   tagKey: string
-  tagValues: string[]
+  db: string
+  service: Service
+  filter: SchemaFilter[]
 }
 
 interface State {
   isOpen: boolean
+  loadingAll: RemoteDataState
+  loadingSearch: RemoteDataState
+  loadingMore: RemoteDataState
+  tagValues: string[]
+  searchTerm: string
+  limit: number
+  count: number | null
 }
 
-@ErrorHandling
-class TagListItem extends PureComponent<Props, State> {
+export default class TagListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
+
     this.state = {
       isOpen: false,
+      loadingAll: RemoteDataState.NotStarted,
+      loadingSearch: RemoteDataState.NotStarted,
+      loadingMore: RemoteDataState.NotStarted,
+      tagValues: [],
+      count: null,
+      searchTerm: '',
+      limit: explorer.TAG_VALUES_LIMIT,
     }
+
+    this.debouncedOnSearch = _.debounce(() => {
+      this.searchTagValues()
+      this.getCount()
+    }, 250)
   }
 
   public render() {
-    const {isOpen} = this.state
+    const {tagKey, db, service, filter} = this.props
+    const {tagValues, searchTerm, loadingMore, count, limit} = this.state
 
     return (
       <div className={this.className}>
         <div className="ifql-schema-item" onClick={this.handleClick}>
           <div className="ifql-schema-item-toggle" />
-          {this.tagItemLabel}
+          {tagKey}
           <span className="ifql-schema-type">Tag Key</span>
         </div>
-        {isOpen && this.renderTagValues}
+        {this.state.isOpen && (
+          <>
+            <div
+              className="tag-value-list--header"
+              onClick={this.handleInputClick}
+            >
+              <div className="ifql-schema--filter">
+                <input
+                  className="form-control input-sm"
+                  placeholder={`Filter within ${tagKey}`}
+                  type="text"
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={searchTerm}
+                  onChange={this.onSearch}
+                />
+                {this.isSearching && (
+                  <LoadingSpinner style={this.spinnerStyle} />
+                )}
+              </div>
+              {!!count && `${count} total`}
+            </div>
+            {this.isLoading && <LoaderSkeleton />}
+            {!this.isLoading && (
+              <>
+                <TagValueList
+                  db={db}
+                  service={service}
+                  values={tagValues}
+                  tagKey={tagKey}
+                  filter={filter}
+                  onLoadMoreValues={this.handleLoadMoreValues}
+                  isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
+                  shouldShowMoreValues={limit < count}
+                  loadMoreCount={this.loadMoreCount}
+                />
+              </>
+            )}
+          </>
+        )}
       </div>
     )
   }
 
-  private handleClick = (e: MouseEvent<HTMLElement>): void => {
+  private get spinnerStyle(): CSSProperties {
+    return {
+      position: 'absolute',
+      right: '15px',
+      top: '6px',
+    }
+  }
+
+  private get isSearching(): boolean {
+    return this.state.loadingSearch === RemoteDataState.Loading
+  }
+
+  private get isLoading(): boolean {
+    return this.state.loadingAll === RemoteDataState.Loading
+  }
+
+  private onSearch = (e: ChangeEvent<HTMLInputElement>): void => {
+    const searchTerm = e.target.value
+
+    this.setState({searchTerm, loadingSearch: RemoteDataState.Loading}, () =>
+      this.debouncedOnSearch()
+    )
+  }
+
+  private debouncedOnSearch() {} // See constructor
+
+  private handleInputClick = (e: MouseEvent<HTMLDivElement>): void => {
     e.stopPropagation()
+  }
+
+  private searchTagValues = async () => {
+    try {
+      const tagValues = await this.getTagValues()
+
+      this.setState({
+        tagValues,
+        loadingSearch: RemoteDataState.Done,
+      })
+    } catch (error) {
+      console.error(error)
+      this.setState({loadingSearch: RemoteDataState.Error})
+    }
+  }
+
+  private getAllTagValues = async () => {
+    this.setState({loadingAll: RemoteDataState.Loading})
+
+    try {
+      const tagValues = await this.getTagValues()
+
+      this.setState({
+        tagValues,
+        loadingAll: RemoteDataState.Done,
+      })
+    } catch (error) {
+      console.error(error)
+      this.setState({loadingAll: RemoteDataState.Error})
+    }
+  }
+
+  private getMoreTagValues = async () => {
+    this.setState({loadingMore: RemoteDataState.Loading})
+
+    try {
+      const tagValues = await this.getTagValues()
+
+      this.setState({
+        tagValues,
+        loadingMore: RemoteDataState.Done,
+      })
+    } catch (error) {
+      console.error(error)
+      this.setState({loadingMore: RemoteDataState.Error})
+    }
+  }
+
+  private getTagValues = async () => {
+    const {db, service, tagKey, filter} = this.props
+    const {searchTerm, limit} = this.state
+    const response = await fetchTagValues({
+      service,
+      db,
+      filter,
+      tagKey,
+      limit,
+      searchTerm,
+    })
+
+    return parseValuesColumn(response)
+  }
+
+  private handleClick = (e: MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+
+    if (this.isFetchable) {
+      this.getCount()
+      this.getAllTagValues()
+    }
+
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  private get tagItemLabel(): string {
-    const {tagKey} = this.props
-    return `${tagKey}`
+  private handleLoadMoreValues = (): void => {
+    const {limit} = this.state
+
+    this.setState(
+      {limit: limit + explorer.TAG_VALUES_LIMIT},
+      this.getMoreTagValues
+    )
   }
 
-  private get renderTagValues(): JSX.Element[] | JSX.Element {
-    const {tagValues} = this.props
-    if (!tagValues || !tagValues.length) {
-      return <div className="ifql-schema-tree__empty">No tag values</div>
-    }
+  private async getCount() {
+    const {service, db, filter, tagKey} = this.props
+    const {limit, searchTerm} = this.state
+    try {
+      const response = await fetchTagValues({
+        service,
+        db,
+        filter,
+        tagKey,
+        limit,
+        searchTerm,
+        count: true,
+      })
 
-    return tagValues.map(v => {
-      return (
-        <div key={v} className="ifql-schema-item readonly ifql-tree-node">
-          {v}
-        </div>
-      )
-    })
+      const parsed = parseValuesColumn(response)
+
+      if (parsed.length !== 1) {
+        // We expect to never reach this state; instead, the IFQL server should
+        // return a non-200 status code is handled earlier (after fetching).
+        // This return guards against some unexpected behavior---the IFQL server
+        // returning a 200 status code but ALSO having an error in the CSV
+        // response body
+        return
+      }
+
+      const count = Number(parsed[0])
+
+      this.setState({count})
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  private get loadMoreCount(): number {
+    const {count, limit} = this.state
+
+    return Math.min(Math.abs(count - limit), explorer.TAG_VALUES_LIMIT)
+  }
+
+  private get isFetchable(): boolean {
+    const {isOpen, loadingAll} = this.state
+
+    return (
+      !isOpen &&
+      (loadingAll === RemoteDataState.NotStarted ||
+        loadingAll !== RemoteDataState.Error)
+    )
   }
 
   private get className(): string {
     const {isOpen} = this.state
-    return classnames('ifql-schema-tree ifql-tree-node', {expanded: isOpen})
+    const openClass = isOpen ? 'expanded' : ''
+
+    return `ifql-schema-tree ifql-tree-node ${openClass}`
   }
 }
-
-export default TagListItem

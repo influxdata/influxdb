@@ -47,7 +47,7 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
   }
 
   public render() {
-    const {services, sources, notify, updateScript, links, script} = this.props
+    const {services, notify, updateScript, links, script} = this.props
 
     if (!this.props.services.length) {
       return null // put loading spinner here
@@ -55,7 +55,7 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
 
     return (
       <IFQLPage
-        sources={sources}
+        source={this.source}
         services={services}
         links={links}
         script={script}
@@ -65,9 +65,14 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
     )
   }
 
+  private get source(): Source {
+    const {params, sources} = this.props
+
+    return sources.find(s => s.id === params.sourceID)
+  }
+
   private overlay() {
-    const {showOverlay, services, sources, params} = this.props
-    const source = sources.find(s => s.id === params.sourceID)
+    const {showOverlay, services} = this.props
 
     if (services.length) {
       return
@@ -78,7 +83,7 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
         {({onDismissOverlay}) => (
           <IFQLOverlay
             mode="new"
-            source={source}
+            source={this.source}
             onDismiss={onDismissOverlay}
           />
         )}

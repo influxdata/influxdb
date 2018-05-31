@@ -1,6 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import FuncArg from 'src/ifql/components/FuncArg'
+import {service} from 'test/resources'
 
 const setup = () => {
   const props = {
@@ -11,6 +12,7 @@ const setup = () => {
     argKey: '',
     value: '',
     type: '',
+    service,
     onChangeArg: () => {},
     onGenerateScript: () => {},
   }
