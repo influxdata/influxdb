@@ -105,7 +105,7 @@ class DashboardsPage extends PureComponent<Props> {
     dashboard: Dashboard
   ): Promise<DashboardFile> => {
     const version = await this.props.handleGetChronografVersion()
-    return {chronografVersion: version, dashboard}
+    return {meta: {chronografVersion: version}, dashboard}
   }
 
   private handleImportDashboard = async (
