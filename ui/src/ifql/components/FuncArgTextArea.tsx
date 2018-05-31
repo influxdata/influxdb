@@ -19,10 +19,10 @@ interface State {
 }
 
 @ErrorHandling
-class FuncArgInput extends PureComponent<Props, State> {
+class FuncArgTextArea extends PureComponent<Props, State> {
   private ref: React.RefObject<HTMLTextAreaElement>
 
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
     this.ref = React.createRef()
     this.state = {
@@ -99,4 +99,4 @@ class FuncArgInput extends PureComponent<Props, State> {
   }
 }
 
-export default FuncArgInput
+export default FuncArgTextArea
