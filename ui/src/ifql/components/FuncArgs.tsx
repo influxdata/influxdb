@@ -29,9 +29,9 @@ export default class FuncArgs extends PureComponent<Props> {
       declarationsFromBody,
     } = this.props
     const {name: funcName, id: funcID} = func
-    if (funcName === funcNames.JOIN) {
-      return (
-        <div className="func-node--tooltip">
+    return (
+      <div className="func-node--tooltip">
+        {funcName === funcNames.JOIN ? (
           <Join
             func={func}
             bodyID={bodyID}
@@ -40,22 +40,8 @@ export default class FuncArgs extends PureComponent<Props> {
             declarationsFromBody={declarationsFromBody}
             onGenerateScript={onGenerateScript}
           />
-          <div className="func-node--buttons">
-            <div
-              className="btn btn-sm btn-danger func-node--delete"
-              onClick={onDeleteFunc}
-            >
-              Delete
-            </div>
-            {this.build}
-          </div>
-        </div>
-      )
-    }
-    return (
-      <div className="func-node--tooltip">
-        {func.args.map(({key, value, type}) => {
-          return (
+        ) : (
+          func.args.map(({key, value, type}) => (
             <FuncArg
               key={key}
               type={type}
@@ -68,8 +54,8 @@ export default class FuncArgs extends PureComponent<Props> {
               declarationID={declarationID}
               onGenerateScript={onGenerateScript}
             />
-          )
-        })}
+          ))
+        )}
         <div className="func-node--buttons">
           <div
             className="btn btn-sm btn-danger func-node--delete"
