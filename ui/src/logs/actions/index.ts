@@ -20,12 +20,14 @@ interface TableData {
 const defaultTableData = {
   columns: [
     'time',
-    'message',
-    'facility_code',
-    'procid',
-    'severity_code',
+    'severity',
     'timestamp',
-    'version',
+    'severity_1',
+    'facility',
+    'procid',
+    'application',
+    'host',
+    'message',
   ],
   values: [],
 }
