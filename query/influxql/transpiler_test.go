@@ -78,12 +78,12 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
-					//{
-					//	ID: "group0",
-					//	Spec: &functions.GroupOpSpec{
-					//		By: []string{"_measurement"},
-					//	},
-					//},
+					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
+						},
+					},
 					{
 						ID: "mean0",
 						Spec: &functions.MeanOpSpec{
@@ -145,8 +145,8 @@ func TestTranspiler(t *testing.T) {
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
 					{Parent: "range0", Child: "filter0"},
-					//{Parent: "filter0", Child: "group0"},
-					{Parent: "filter0", Child: "mean0"},
+					{Parent: "filter0", Child: "group0"},
+					{Parent: "group0", Child: "mean0"},
 					{Parent: "mean0", Child: "map0"},
 					{Parent: "map0", Child: "yield0"},
 				},
@@ -316,12 +316,12 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
-					//{
-					//	ID: "group0",
-					//	Spec: &functions.GroupOpSpec{
-					//		By: []string{"_measurement"},
-					//	},
-					//},
+					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
+						},
+					},
 					{
 						ID: "mean0",
 						Spec: &functions.MeanOpSpec{
@@ -382,12 +382,12 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
-					//{
-					//	ID: "group1",
-					//	Spec: &functions.GroupOpSpec{
-					//		By: []string{"_measurement"},
-					//	},
-					//},
+					{
+						ID: "group1",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
+						},
+					},
 					{
 						ID: "max0",
 						Spec: &functions.MaxOpSpec{
@@ -493,12 +493,12 @@ func TestTranspiler(t *testing.T) {
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
 					{Parent: "range0", Child: "filter0"},
-					//{Parent: "filter0", Child: "group0"},
-					{Parent: "filter0", Child: "mean0"},
+					{Parent: "filter0", Child: "group0"},
+					{Parent: "group0", Child: "mean0"},
 					{Parent: "from1", Child: "range1"},
 					{Parent: "range1", Child: "filter1"},
-					//{Parent: "filter1", Child: "group1"},
-					{Parent: "filter1", Child: "max0"},
+					{Parent: "filter1", Child: "group1"},
+					{Parent: "group1", Child: "max0"},
 					{Parent: "mean0", Child: "join0"},
 					{Parent: "max0", Child: "join0"},
 					{Parent: "join0", Child: "map0"},
