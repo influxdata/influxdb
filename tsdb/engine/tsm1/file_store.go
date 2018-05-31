@@ -3,6 +3,7 @@ package tsm1
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -453,6 +454,10 @@ func (f *FileStore) Open() error {
 	// Not loading files from disk so nothing to do
 	if f.dir == "" {
 		return nil
+	}
+
+	if f.openLimiter == nil {
+		return errors.New("cannot open FileStore without an OpenLimiter (is EngineOptions.OpenLimiter set?)")
 	}
 
 	// find the current max ID for temp directories
