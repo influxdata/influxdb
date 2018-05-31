@@ -178,15 +178,20 @@ func (t *transpilerState) createIteratorSpec(expr influxql.Expr) (query.Operatio
 		}
 
 		// TODO(jsternberg): Handle group by tags and the windowing function.
-		group := t.op("group", &functions.GroupOpSpec{
-			By: []string{"_measurement"},
-		}, ref)
+		//group := t.op("group", &functions.GroupOpSpec{
+		//	By: []string{"_measurement"},
+		//}, ref)
+		// TODO(jsternberg): The group spec doesn't seem to be working at the
+		// moment so just ignore this temporarily and fix it in a future commit.
+		group := ref
 
 		switch expr.Name {
 		case "mean":
 			return t.op("mean", &functions.MeanOpSpec{
 				AggregateConfig: execute.AggregateConfig{
+					Columns: []string{execute.DefaultValueColLabel},
 					TimeSrc: execute.DefaultStartColLabel,
+					TimeDst: execute.DefaultTimeColLabel,
 				},
 			}, group), nil
 		case "max":
@@ -196,7 +201,9 @@ func (t *transpilerState) createIteratorSpec(expr influxql.Expr) (query.Operatio
 			//	src = execute.DefaultTimeColLabel
 			//}
 			return t.op("max", &functions.MaxOpSpec{
-				SelectorConfig: execute.SelectorConfig{},
+				SelectorConfig: execute.SelectorConfig{
+					Column: execute.DefaultValueColLabel,
+				},
 			}, group), nil
 		}
 	}
@@ -333,25 +340,6 @@ func (t *transpilerState) join(symbols []symbol) (query.OperationID, map[string]
 	return t.op("join", op, parents...), joinTable
 }
 
-// columns to always pass through in the map operation
-var passThrough = []string{"_time", "_measurement", "_field"}
-var PassThroughProperties []*semantic.Property
-
-func init() {
-	PassThroughProperties = make([]*semantic.Property, len(passThrough))
-	for i, name := range passThrough {
-		PassThroughProperties[i] = &semantic.Property{
-			Key: &semantic.Identifier{Name: name},
-			Value: &semantic.MemberExpression{
-				Object: &semantic.IdentifierExpression{
-					Name: "r",
-				},
-				Property: name,
-			},
-		}
-	}
-}
-
 // mapFields will take the list of symbols and maps each of the operations
 // using the column names.
 func (t *transpilerState) mapFields(in query.OperationID, symbols map[string]string) (query.OperationID, error) {
@@ -363,17 +351,34 @@ func (t *transpilerState) mapFields(in query.OperationID, symbols map[string]str
 		panic("number of columns does not match the number of fields")
 	}
 
-	properties := make([]*semantic.Property, len(t.stmt.Fields)+len(passThrough))
-	copy(properties, PassThroughProperties)
+	properties := make([]*semantic.Property, 0, len(t.stmt.Fields)+2)
+	properties = append(properties, &semantic.Property{
+		Key: &semantic.Identifier{Name: "time"},
+		Value: &semantic.MemberExpression{
+			Object: &semantic.IdentifierExpression{
+				Name: "r",
+			},
+			Property: execute.DefaultTimeColLabel,
+		},
+	})
+	properties = append(properties, &semantic.Property{
+		Key: &semantic.Identifier{Name: "_measurement"},
+		Value: &semantic.MemberExpression{
+			Object: &semantic.IdentifierExpression{
+				Name: "r",
+			},
+			Property: "_measurement",
+		},
+	})
 	for i, f := range t.stmt.Fields {
 		value, err := t.mapField(f.Expr, symbols)
 		if err != nil {
 			return "", err
 		}
-		properties[i+len(passThrough)] = &semantic.Property{
+		properties = append(properties, &semantic.Property{
 			Key:   &semantic.Identifier{Name: columns[i]},
 			Value: value,
-		}
+		})
 	}
 	return t.op("map", &functions.MapOpSpec{Fn: &semantic.FunctionExpression{
 		Params: []*semantic.FunctionParam{{
