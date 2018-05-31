@@ -13,6 +13,7 @@ type PlatformHandler struct {
 	UserHandler          *UserHandler
 	OrgHandler           *OrgHandler
 	AuthorizationHandler *AuthorizationHandler
+	DashboardHandler     *DashboardHandler
 }
 
 func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -52,6 +53,11 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 
 	if strings.HasPrefix(r.URL.Path, "/v1/authorizations") {
 		h.AuthorizationHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/v1/dashboards") {
+		h.DashboardHandler.ServeHTTP(w, r)
 		return
 	}
 

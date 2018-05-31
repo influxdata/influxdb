@@ -69,6 +69,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create Dashboards bucket.
+		if err := c.initializeDashboards(ctx, tx); err != nil {
+			return err
+		}
+
 		// Always create User bucket.
 		if err := c.initializeUsers(ctx, tx); err != nil {
 			return err
