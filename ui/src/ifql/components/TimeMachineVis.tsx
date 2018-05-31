@@ -25,7 +25,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
   }
 
   public componentDidUpdate(__, prevState) {
-    if (prevState.selectedResultID === null) {
+    if (!this.selectedResult) {
       this.setState({selectedResultID: this.initialResultID})
     }
   }
@@ -33,7 +33,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
   public render() {
     return (
       <div className="time-machine-visualization" style={this.style}>
-        {this.hasResults && (
+        {this.showSidebar && (
           <TableSidebar
             data={this.props.data}
             selectedResultID={this.state.selectedResultID}
@@ -62,6 +62,10 @@ class TimeMachineVis extends PureComponent<Props, State> {
     return {
       padding: `${HANDLE_PIXELS}px`,
     }
+  }
+
+  private get showSidebar(): boolean {
+    return this.props.data.length > 1
   }
 
   private get hasResults(): boolean {
