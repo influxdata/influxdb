@@ -48,18 +48,20 @@ class TagValueListItem extends PureComponent<Props, State> {
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
               <>
-                <div className="ifql-schema--filter">
-                  <input
-                    className="form-control input-sm"
-                    placeholder={`Filter within ${db}`}
-                    type="text"
-                    spellCheck={false}
-                    autoComplete="off"
-                    value={searchTerm}
-                    onClick={this.handleInputClick}
-                    onChange={this.onSearch}
-                  />
-                </div>
+                {!!this.tags.length && (
+                  <div className="ifql-schema--filter">
+                    <input
+                      className="form-control input-sm"
+                      placeholder={`Filter within ${db}`}
+                      type="text"
+                      spellCheck={false}
+                      autoComplete="off"
+                      value={searchTerm}
+                      onClick={this.handleInputClick}
+                      onChange={this.onSearch}
+                    />
+                  </div>
+                )}
                 <TagList
                   db={db}
                   service={service}

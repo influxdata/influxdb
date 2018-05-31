@@ -61,12 +61,12 @@ export default class TagValueList extends PureComponent<Props> {
   }
 
   private get buttonValue(): string | JSX.Element {
-    const {isLoadingMoreValues, loadMoreCount} = this.props
+    const {isLoadingMoreValues, loadMoreCount, tagKey} = this.props
 
     if (isLoadingMoreValues) {
       return <LoadingSpinner />
     }
 
-    return `Load next ${loadMoreCount} values`
+    return `Load next ${loadMoreCount} values for ${tagKey}`
   }
 }

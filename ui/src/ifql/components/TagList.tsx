@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 
 import {SchemaFilter, Service} from 'src/types'
 import TagListItem from 'src/ifql/components/TagListItem'
@@ -24,18 +24,32 @@ export default class TagList extends PureComponent<Props, State> {
   public render() {
     const {db, service, tags, filter} = this.props
 
+    if (tags.length) {
+      return (
+        <>
+          {tags.map(t => (
+            <TagListItem
+              key={t}
+              db={db}
+              tagKey={t}
+              service={service}
+              filter={filter}
+            />
+          ))}
+        </>
+      )
+    }
+
     return (
-      <>
-        {tags.map(t => (
-          <TagListItem
-            key={t}
-            db={db}
-            tagKey={t}
-            service={service}
-            filter={filter}
-          />
-        ))}
-      </>
+      <div className="ifql-schema-tree ifql-tree-node">
+        <div className="ifql-schema-item no-hover" onClick={this.handleClick}>
+          <div className="no-results">No more tag keys.</div>
+        </div>
+      </div>
     )
+  }
+
+  private handleClick(e: MouseEvent<HTMLDivElement>) {
+    e.stopPropagation()
   }
 }
