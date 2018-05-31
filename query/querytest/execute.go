@@ -58,20 +58,12 @@ func GetQueryEncodedResults(qs query.QueryService, spec *query.Spec, inputFile s
 	if err != nil {
 		return "", err
 	}
-	enc := csv.NewResultEncoder(csv.DefaultEncoderConfig())
+	enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
 	buf := new(bytes.Buffer)
-	// we are only expecting one result, for now
-	for results.More() {
-		res := results.Next()
-
-		err := enc.Encode(buf, res)
-		if err != nil {
-			results.Cancel()
-			return "", err
-		}
-
+	if err := enc.Encode(buf, results); err != nil {
+		return "", err
 	}
-	return buf.String(), nil
+	return buf.String(), results.Err()
 }
 
 func GetTestData(prefix, suffix string) (string, error) {

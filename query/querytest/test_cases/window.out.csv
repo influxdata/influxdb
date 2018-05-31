@@ -1,0 +1,17 @@
+#datatype,string,long,string,long,dateTime:RFC3339
+#partition,false,false,true,false,false
+#default,0,,,,
+,result,table,_measurement,io_time,time
+,,0,diskio,15204688,2018-05-22T19:53:26Z
+,,0,diskio,648,2018-05-22T19:53:26Z
+,,0,diskio,15204894,2018-05-22T19:53:36Z
+,,0,diskio,648,2018-05-22T19:53:36Z
+,,0,diskio,15205102,2018-05-22T19:53:46Z
+,,0,diskio,648,2018-05-22T19:53:46Z
+,,0,diskio,15205226,2018-05-22T19:53:56Z
+,,0,diskio,648,2018-05-22T19:53:56Z
+,,0,diskio,15205499,2018-05-22T19:54:06Z
+,,0,diskio,648,2018-05-22T19:54:06Z
+,,0,diskio,15205755,2018-05-22T19:54:16Z
+,,0,diskio,648,2018-05-22T19:54:16Z
+

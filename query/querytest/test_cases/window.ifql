@@ -1,0 +1,5 @@
+from(db:"testdb")
+  |> range(start: 2018-05-22T00:00:00Z)
+  |> window(every:1s)
+  |> map(mergeKey:false, fn: (r) => {_measurement:r._measurement, io_time:r._value,time: r._time})
+  |> yield(name:"0")

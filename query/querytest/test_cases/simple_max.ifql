@@ -1,6 +1,5 @@
 from(db:"test")
   |> range(start:-5m)
-  |> group(by:["_measurement"])
   |> max(column: "_value")
   |> map(fn: (r) => {time:r._time, _measurement:r._measurement, max:r._value}, mergeKey:false)
   |> yield(name:"0")

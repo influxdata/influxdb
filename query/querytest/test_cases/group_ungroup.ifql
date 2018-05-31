@@ -1,0 +1,6 @@
+from(db:"testdb")
+  |> range(start: 2018-05-23T13:09:22.885021542Z)
+  |> group(by: ["name"])
+  |> group()
+  |> map( mergeKey:false, fn: (r) => {_measurement:r._measurement,io_time:r._value,time: r._time})
+  |> yield(name:"0")
