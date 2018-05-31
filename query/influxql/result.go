@@ -2,7 +2,6 @@ package influxql
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -69,27 +68,18 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 			}
 
 			if err := b.Do(func(cr query.ColReader) error {
-				var values [][]interface{}
+				// Preallocate the number of rows for the response to make this section
+				// of code easier to read. Find a time column which should exist
+				// in the output.
+				values := make([][]interface{}, cr.Len())
+				for j := range values {
+					values[j] = make([]interface{}, len(r.Columns))
+				}
+
 				j := 0
 				for idx, c := range b.Cols() {
 					if cr.Key().HasCol(c.Label) {
 						continue
-					}
-
-					// Use the first column, usually time, to pre-generate all of the value containers.
-					if j == 0 {
-						switch c.Type {
-						case query.TTime:
-							values = make([][]interface{}, len(cr.Times(0)))
-						default:
-							// TODO(jsternberg): Support using other columns. This will
-							// mostly be necessary for meta queries.
-							return errors.New("first column must be time")
-						}
-
-						for j := range values {
-							values[j] = make([]interface{}, len(r.Columns))
-						}
 					}
 
 					// Fill in the values for each column.

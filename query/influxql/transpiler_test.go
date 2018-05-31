@@ -78,17 +78,19 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
-					{
-						ID: "group0",
-						Spec: &functions.GroupOpSpec{
-							By: []string{"_measurement"},
-						},
-					},
+					//{
+					//	ID: "group0",
+					//	Spec: &functions.GroupOpSpec{
+					//		By: []string{"_measurement"},
+					//	},
+					//},
 					{
 						ID: "mean0",
 						Spec: &functions.MeanOpSpec{
 							AggregateConfig: execute.AggregateConfig{
-								TimeSrc: "_start",
+								TimeSrc: execute.DefaultStartColLabel,
+								TimeDst: execute.DefaultTimeColLabel,
+								Columns: []string{execute.DefaultValueColLabel},
 							},
 						},
 					},
@@ -100,15 +102,35 @@ func TestTranspiler(t *testing.T) {
 									Key: &semantic.Identifier{Name: "r"},
 								}},
 								Body: &semantic.ObjectExpression{
-									Properties: append(influxql.PassThroughProperties, []*semantic.Property{{
-										Key: &semantic.Identifier{Name: "mean"},
-										Value: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "time"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_time",
 											},
-											Property: "_value",
 										},
-									}}...),
+										{
+											Key: &semantic.Identifier{Name: "_measurement"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "mean"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_value",
+											},
+										},
+									},
 								},
 							},
 						},
@@ -123,8 +145,8 @@ func TestTranspiler(t *testing.T) {
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
 					{Parent: "range0", Child: "filter0"},
-					{Parent: "filter0", Child: "group0"},
-					{Parent: "group0", Child: "mean0"},
+					//{Parent: "filter0", Child: "group0"},
+					{Parent: "filter0", Child: "mean0"},
 					{Parent: "mean0", Child: "map0"},
 					{Parent: "map0", Child: "yield0"},
 				},
@@ -192,15 +214,35 @@ func TestTranspiler(t *testing.T) {
 									Key: &semantic.Identifier{Name: "r"},
 								}},
 								Body: &semantic.ObjectExpression{
-									Properties: append(influxql.PassThroughProperties, []*semantic.Property{{
-										Key: &semantic.Identifier{Name: "value"},
-										Value: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "time"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_time",
 											},
-											Property: "_value",
 										},
-									}}...),
+										{
+											Key: &semantic.Identifier{Name: "_measurement"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "value"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_value",
+											},
+										},
+									},
 								},
 							},
 						},
@@ -274,17 +316,19 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
-					{
-						ID: "group0",
-						Spec: &functions.GroupOpSpec{
-							By: []string{"_measurement"},
-						},
-					},
+					//{
+					//	ID: "group0",
+					//	Spec: &functions.GroupOpSpec{
+					//		By: []string{"_measurement"},
+					//	},
+					//},
 					{
 						ID: "mean0",
 						Spec: &functions.MeanOpSpec{
 							AggregateConfig: execute.AggregateConfig{
-								TimeSrc: "_start",
+								TimeSrc: execute.DefaultStartColLabel,
+								TimeDst: execute.DefaultTimeColLabel,
+								Columns: []string{execute.DefaultValueColLabel},
 							},
 						},
 					},
@@ -338,16 +382,18 @@ func TestTranspiler(t *testing.T) {
 							},
 						},
 					},
-					{
-						ID: "group1",
-						Spec: &functions.GroupOpSpec{
-							By: []string{"_measurement"},
-						},
-					},
+					//{
+					//	ID: "group1",
+					//	Spec: &functions.GroupOpSpec{
+					//		By: []string{"_measurement"},
+					//	},
+					//},
 					{
 						ID: "max0",
 						Spec: &functions.MaxOpSpec{
-							SelectorConfig: execute.SelectorConfig{},
+							SelectorConfig: execute.SelectorConfig{
+								Column: execute.DefaultValueColLabel,
+							},
 						},
 					},
 					{
@@ -395,7 +441,25 @@ func TestTranspiler(t *testing.T) {
 									Key: &semantic.Identifier{Name: "r"},
 								}},
 								Body: &semantic.ObjectExpression{
-									Properties: append(influxql.PassThroughProperties, []*semantic.Property{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "time"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_time",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "_measurement"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
+											},
+										},
 										{
 											Key: &semantic.Identifier{Name: "mean"},
 											Value: &semantic.MemberExpression{
@@ -414,7 +478,7 @@ func TestTranspiler(t *testing.T) {
 												Property: "val1",
 											},
 										},
-									}...),
+									},
 								},
 							},
 						},
@@ -429,12 +493,12 @@ func TestTranspiler(t *testing.T) {
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
 					{Parent: "range0", Child: "filter0"},
-					{Parent: "filter0", Child: "group0"},
-					{Parent: "group0", Child: "mean0"},
+					//{Parent: "filter0", Child: "group0"},
+					{Parent: "filter0", Child: "mean0"},
 					{Parent: "from1", Child: "range1"},
 					{Parent: "range1", Child: "filter1"},
-					{Parent: "filter1", Child: "group1"},
-					{Parent: "group1", Child: "max0"},
+					//{Parent: "filter1", Child: "group1"},
+					{Parent: "filter1", Child: "max0"},
 					{Parent: "mean0", Child: "join0"},
 					{Parent: "max0", Child: "join0"},
 					{Parent: "join0", Child: "map0"},
@@ -591,24 +655,44 @@ func TestTranspiler(t *testing.T) {
 									Key: &semantic.Identifier{Name: "r"},
 								}},
 								Body: &semantic.ObjectExpression{
-									Properties: append(influxql.PassThroughProperties, []*semantic.Property{{
-										Key: &semantic.Identifier{Name: "a_b"},
-										Value: &semantic.BinaryExpression{
-											Operator: ast.AdditionOperator,
-											Left: &semantic.MemberExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "time"},
+											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
 												},
-												Property: "val0",
-											},
-											Right: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "val1",
+												Property: "_time",
 											},
 										},
-									}}...),
+										{
+											Key: &semantic.Identifier{Name: "_measurement"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "a_b"},
+											Value: &semantic.BinaryExpression{
+												Operator: ast.AdditionOperator,
+												Left: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "val0",
+												},
+												Right: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "val1",
+												},
+											},
+										},
+									},
 								},
 							},
 						},
