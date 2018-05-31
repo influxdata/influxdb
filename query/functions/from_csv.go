@@ -62,8 +62,10 @@ func createFromCSVOpSpec(args query.Arguments, a *query.Administration) (query.O
 		return nil, errors.New("must provide exactly one of the parameters csv or file")
 	}
 
-	if _, err := os.Stat(spec.File); err != nil {
-		return nil, errors.Wrap(err, "failed to stat csv file: ")
+	if spec.File != "" {
+		if _, err := os.Stat(spec.File); err != nil {
+			return nil, errors.Wrap(err, "failed to stat csv file: ")
+		}
 	}
 
 	return spec, nil
