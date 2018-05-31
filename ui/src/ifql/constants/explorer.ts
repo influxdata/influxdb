@@ -1,1 +1,1 @@
-export const TAG_VALUES_LIMIT = 2
+export const TAG_VALUES_LIMIT = 10
