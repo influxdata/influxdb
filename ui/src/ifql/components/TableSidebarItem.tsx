@@ -14,7 +14,7 @@ export default class TableSidebarItem extends PureComponent<Props> {
   public render() {
     return (
       <div
-        className={`query-builder--list-item ${this.active}`}
+        className={`query-builder--list-item flux-table ${this.active}`}
         onClick={this.handleClick}
       >
         {this.props.name}

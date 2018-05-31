@@ -113,13 +113,15 @@ export interface Links {
   ast: string
 }
 
-// ScriptResult is the result of a request to IFQL
+// FluxTable is the result of a request to IFQL
 // https://github.com/influxdata/platform/blob/master/query/docs/SPEC.md#response-format
-export interface ScriptResult {
+export interface FluxTable {
   id: string
   name: string
   data: string[][]
-  metadata: string[][]
+  partitionKey: {
+    [key: string]: string
+  }
 }
 
 export interface SchemaFilter {

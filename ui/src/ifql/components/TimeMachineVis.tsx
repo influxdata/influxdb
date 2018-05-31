@@ -2,14 +2,14 @@ import React, {PureComponent, CSSProperties} from 'react'
 import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {ScriptResult} from 'src/types'
+import {FluxTable} from 'src/types'
 import TableSidebar from 'src/ifql/components/TableSidebar'
 import TimeMachineTable from 'src/ifql/components/TimeMachineTable'
 import {HANDLE_PIXELS} from 'src/shared/constants'
 import NoResults from 'src/ifql/components/NoResults'
 
 interface Props {
-  data: ScriptResult[]
+  data: FluxTable[]
 }
 
 interface State {
@@ -76,7 +76,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
     return !!this.props.data && !!this.selectedResult
   }
 
-  private get selectedResult(): ScriptResult {
+  private get selectedResult(): FluxTable {
     return this.props.data.find(d => d.id === this.state.selectedResultID)
   }
 }

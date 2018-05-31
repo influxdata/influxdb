@@ -10,7 +10,7 @@ import {
   OnSubmitScript,
   FlatBody,
   ScriptStatus,
-  ScriptResult,
+  FluxTable,
 } from 'src/types/ifql'
 
 import {Service} from 'src/types'
@@ -19,7 +19,7 @@ import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
   service: Service
-  data: ScriptResult[]
+  data: FluxTable[]
   script: string
   body: Body[]
   status: ScriptStatus

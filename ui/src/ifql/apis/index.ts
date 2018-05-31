@@ -1,9 +1,9 @@
 import _ from 'lodash'
 
 import AJAX from 'src/utils/ajax'
-import {Service, ScriptResult} from 'src/types'
+import {Service, FluxTable} from 'src/types'
 import {updateService} from 'src/shared/apis'
-import {parseResults} from 'src/shared/parsing/v2/results'
+import {parseResponse} from 'src/shared/parsing/v2/results'
 
 export const getSuggestions = async (url: string) => {
   try {
@@ -42,7 +42,7 @@ export const getAST = async (request: ASTRequest) => {
 export const getTimeSeries = async (
   service: Service,
   script: string
-): Promise<ScriptResult[]> => {
+): Promise<FluxTable[]> => {
   const and = encodeURIComponent('&')
   const mark = encodeURIComponent('?')
   const garbage = script.replace(/\s/g, '') // server cannot handle whitespace
@@ -55,7 +55,7 @@ export const getTimeSeries = async (
       }?path=/v1/query${mark}orgName=defaulorgname${and}q=${garbage}`,
     })
 
-    return parseResults(data)
+    return parseResponse(data)
   } catch (error) {
     console.error('Problem fetching data', error)
 

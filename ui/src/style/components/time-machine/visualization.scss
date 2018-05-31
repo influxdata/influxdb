@@ -55,3 +55,8 @@
   padding: 0 16px 8px 16px;
   flex: 1 0 0;
 }
+
+.query-builder--list-item.flux-table {
+  white-space: nowrap;
+  overflow-x: hidden;
+}
