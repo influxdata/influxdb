@@ -5,7 +5,9 @@ import _ from 'lodash'
 import Authorized, {EDITOR_ROLE, VIEWER_ROLE} from 'src/auth/Authorized'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
-import {Dashboard} from 'src/types'
+import {getDeep} from 'src/utils/wrappers'
+
+import {Dashboard, Template} from 'src/types'
 
 interface Props {
   dashboards: Dashboard[]
@@ -49,17 +51,7 @@ class DashboardsTable extends PureComponent<Props> {
                   {dashboard.name}
                 </Link>
               </td>
-              <td>
-                {dashboard.templates.length ? (
-                  dashboard.templates.map(tv => (
-                    <code className="table--temp-var" key={tv.id}>
-                      {tv.tempVar}
-                    </code>
-                  ))
-                ) : (
-                  <span className="empty-string">None</span>
-                )}
-              </td>
+              <td>{this.getDashboardTemplates(dashboard)}</td>
               <td className="text-right">
                 <Authorized
                   requiredRole={VIEWER_ROLE}
@@ -101,7 +93,23 @@ class DashboardsTable extends PureComponent<Props> {
     )
   }
 
-  private get emptyStateDashboard() {
+  private getDashboardTemplates = (
+    dashboard: Dashboard
+  ): JSX.Element | JSX.Element[] => {
+    const templates = getDeep<Template[]>(dashboard, 'templates', [])
+
+    if (templates.length) {
+      return templates.map(tv => (
+        <code className="table--temp-var" key={tv.id}>
+          {tv.tempVar}
+        </code>
+      ))
+    }
+
+    return <span className="empty-string">None</span>
+  }
+
+  private get emptyStateDashboard(): JSX.Element {
     const {onCreateDashboard} = this.props
     return (
       <Authorized
@@ -125,7 +133,7 @@ class DashboardsTable extends PureComponent<Props> {
     )
   }
 
-  private get unauthorizedEmptyState() {
+  private get unauthorizedEmptyState(): JSX.Element {
     return (
       <div className="generic-empty-state">
         <h4 style={{margin: '90px 0'}}>

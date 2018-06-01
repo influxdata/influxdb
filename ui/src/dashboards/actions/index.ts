@@ -35,8 +35,9 @@ import {
 import {CellType} from 'src/types/dashboard'
 import {makeQueryForTemplate} from 'src/dashboards/utils/templateVariableQueryGenerator'
 import parsers from 'src/shared/parsing'
+import {getDeep} from 'src/utils/wrappers'
 
-import {Dashboard, TimeRange, Cell, Query, Source} from 'src/types'
+import {Dashboard, TimeRange, Cell, Query, Source, Template} from 'src/types'
 
 interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
@@ -477,17 +478,19 @@ export const getChronografVersion = () => async (): Promise<string | void> => {
   }
 }
 
-const removeUnselectedTemplateValues = (dashboard: Dashboard) => {
-  const templates = dashboard.templates.map(template => {
-    if (template.type === 'csv') {
-      return template
+const removeUnselectedTemplateValues = (dashboard: Dashboard): Template[] => {
+  const templates = getDeep<Template[]>(dashboard, 'templates', []).map(
+    template => {
+      if (template.type === 'csv') {
+        return template
+      }
+
+      const value = template.values.find(val => val.selected)
+      const values = value ? [value] : []
+
+      return {...template, values}
     }
-
-    const value = template.values.find(val => val.selected)
-    const values = value ? [value] : []
-
-    return {...template, values}
-  })
+  )
   return templates
 }
 
