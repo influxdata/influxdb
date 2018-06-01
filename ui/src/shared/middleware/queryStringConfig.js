@@ -31,10 +31,6 @@ export const queryStringConfig = store => {
           r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
         )
 
-        if (!dashboardTimeRange) {
-          return
-        }
-
         let timeRange = dashboardTimeRange
 
         if (urlQueries.upper) {

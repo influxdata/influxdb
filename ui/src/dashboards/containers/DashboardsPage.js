@@ -8,15 +8,21 @@ import DashboardsHeader from 'src/dashboards/components/DashboardsHeader'
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
 
 import {createDashboard} from 'src/dashboards/apis'
-import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
+import {
+  getDashboardsAsync,
+  deleteDashboardAsync,
+  pruneDashTimeV1 as pruneDashTimeV1Action,
+} from 'src/dashboards/actions'
 
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
 class DashboardsPage extends Component {
-  componentDidMount() {
-    this.props.handleGetDashboards()
+  async componentDidMount() {
+    const dashboards = await this.props.handleGetDashboards()
+    const dashboardIDs = dashboards.map(d => d.id)
+    this.props.pruneDashTimeV1(dashboardIDs)
   }
 
   handleCreateDashboard = async () => {
@@ -80,6 +86,7 @@ DashboardsPage.propTypes = {
   }).isRequired,
   handleGetDashboards: func.isRequired,
   handleDeleteDashboard: func.isRequired,
+  pruneDashTimeV1: func.isRequired,
   dashboards: arrayOf(shape()),
 }
 
@@ -91,6 +98,7 @@ const mapStateToProps = ({dashboardUI: {dashboards, dashboard}}) => ({
 const mapDispatchToProps = dispatch => ({
   handleGetDashboards: bindActionCreators(getDashboardsAsync, dispatch),
   handleDeleteDashboard: bindActionCreators(deleteDashboardAsync, dispatch),
+  pruneDashTimeV1: bindActionCreators(pruneDashTimeV1Action, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
