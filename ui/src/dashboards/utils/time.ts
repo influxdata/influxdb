@@ -53,7 +53,8 @@ export const validAbsoluteTimeRange = (
     timeRange.lower &&
     timeRange.upper &&
     moment(timeRange.lower).isValid() &&
-    moment(timeRange.upper).isValid()
+    moment(timeRange.upper).isValid() &&
+    moment(timeRange.lower).isBefore(moment(timeRange.upper))
   ) {
     return timeRange
   }
