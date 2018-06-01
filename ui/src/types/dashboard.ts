@@ -102,13 +102,15 @@ export interface TemplateValue {
   selected: boolean
 }
 
-interface TemplateQuery {
+export interface TemplateQuery {
   command: string
-  db?: string
+  db: string
+  database?: string
   rp?: string
   measurement: string
   tagKey: string
   fieldKey: string
+  influxql: string
 }
 
 export interface Template {

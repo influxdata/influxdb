@@ -142,7 +142,15 @@ export const TEMPLATE_VARIABLE_TYPES = {
   tagValues: 'tagValue',
 }
 
-export const TEMPLATE_VARIABLE_QUERIES = {
+interface TemplateVariableQueries {
+  databases: string
+  measurements: string
+  fieldKeys: string
+  tagKeys: string
+  tagValues: string
+}
+
+export const TEMPLATE_VARIABLE_QUERIES: TemplateVariableQueries = {
   databases: 'SHOW DATABASES',
   measurements: 'SHOW MEASUREMENTS ON :database:',
   fieldKeys: 'SHOW FIELD KEYS ON :database: FROM :measurement:',
