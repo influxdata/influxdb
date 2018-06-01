@@ -1,10 +1,11 @@
 import React, {PureComponent, ReactElement, DragEvent} from 'react'
 import classnames from 'classnames'
+// import {notifyDashboardUploadFailed} from 'src/shared/copy/notifications'
 
 interface Props {
   fileTypesToAccept?: string
   containerClass?: string
-  handleSubmit: (uploadContent: string) => void
+  handleSubmit: (uploadContent: string, fileName: string) => void
   submitText?: string
 }
 
@@ -147,9 +148,9 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   private handleSubmit = () => {
     const {handleSubmit} = this.props
-    const {uploadContent} = this.state
+    const {uploadContent, fileName} = this.state
 
-    handleSubmit(uploadContent)
+    handleSubmit(uploadContent, fileName)
   }
 
   private handleFile = (drop: boolean) => (e: any): void => {

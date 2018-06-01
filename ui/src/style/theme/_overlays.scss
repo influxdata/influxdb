@@ -29,6 +29,8 @@ $overlay-min-height: 150px;
 }
 
 .overlay--dismiss {
+  position: relative;
+  z-index: $overlay-dismiss--z;
   width: ($overlay-title-height - 20px);
   height: ($overlay-title-height - 20px);
   position: relative;
