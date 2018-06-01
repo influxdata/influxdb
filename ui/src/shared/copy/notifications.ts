@@ -414,6 +414,18 @@ export const notifyDashboardDeleted = name => ({
   message: `Dashboard ${name} deleted successfully.`,
 })
 
+export const notifyDashboardExported = name => ({
+  ...defaultSuccessNotification,
+  icon: 'dash-h',
+  message: `Dashboard ${name} exported successfully.`,
+})
+
+export const notifyDashboardExportFailed = (name, errorMessage) => ({
+  ...defaultErrorNotification,
+  duration: INFINITE,
+  message: `Failed to export Dashboard ${name}: ${errorMessage}.`,
+})
+
 export const notifyDashboardImported = name => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',

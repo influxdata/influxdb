@@ -667,7 +667,11 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
     )
     dispatch(notify(notifyDashboardImported(name)))
   } catch (error) {
-    const errorMessage = _.get(error, 'data.message')
+    const errorMessage = _.get(
+      error,
+      'data.message',
+      'Could not upload dashboard'
+    )
     dispatch(notify(notifyDashboardImportFailed('', errorMessage)))
     console.error(error)
     dispatch(errorThrown(error))

@@ -18,6 +18,10 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import {NEW_DASHBOARD, DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {
+  notifyDashboardExported,
+  notifyDashboardExportFailed,
+} from 'src/shared/copy/notifications'
 
 import {Source, Dashboard} from 'src/types'
 import {Notification} from 'src/types/notifications'
@@ -94,11 +98,16 @@ class DashboardsPage extends PureComponent<Props> {
     const dashboardForDownload = await this.modifyDashboardForDownload(
       dashboard
     )
-    download(
-      JSON.stringify(dashboardForDownload, null, '\t'),
-      `${dashboard.name}.json`,
-      'text/plain'
-    )
+    try {
+      download(
+        JSON.stringify(dashboardForDownload, null, '\t'),
+        `${dashboard.name}.json`,
+        'text/plain'
+      )
+      this.props.notify(notifyDashboardExported(dashboard.name))
+    } catch (error) {
+      this.props.notify(notifyDashboardExportFailed(dashboard.name, error))
+    }
   }
 
   private modifyDashboardForDownload = async (
