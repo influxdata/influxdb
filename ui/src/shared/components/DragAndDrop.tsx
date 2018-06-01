@@ -1,9 +1,11 @@
 import React, {PureComponent, ReactElement, DragEvent} from 'react'
+import classnames from 'classnames'
 
 interface Props {
   fileTypesToAccept?: string
   containerClass?: string
   handleSubmit: (uploadContent: string) => void
+  submitText?: string
 }
 
 interface State {
@@ -17,6 +19,10 @@ interface State {
 
 let dragCounter = 0
 class DragAndDrop extends PureComponent<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    submitText: 'Write this File',
+  }
+
   private fileInput: HTMLInputElement
 
   constructor(props: Props) {
@@ -34,7 +40,7 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   public render() {
     return (
-      <div className="drag-and-drop">
+      <div className={this.containerClass}>
         {/* (Invisible, covers entire screen)
         This div handles drag only*/}
         <div
@@ -67,7 +73,7 @@ class DragAndDrop extends PureComponent<Props, State> {
         <input
           type="file"
           ref={r => (this.fileInput = r)}
-          className="write-data-form--upload"
+          className="drag-and-drop--input"
           accept={this.fileTypesToAccept}
           onChange={this.handleFile(false)}
         />
@@ -86,42 +92,41 @@ class DragAndDrop extends PureComponent<Props, State> {
     return fileTypesToAccept
   }
 
+  private get containerClass(): string {
+    const {dragClass} = this.state
+
+    return `drag-and-drop ${dragClass}`
+  }
+
   private get infoClass(): string {
     const {uploadContent} = this.state
 
-    if (uploadContent) {
-      return 'write-data-form--graphic write-data-form--graphic_success'
-    }
-
-    return 'write-data-form--graphic'
+    return classnames('drag-and-drop--graphic', {success: uploadContent})
   }
 
   private get dragAreaClass(): string {
     const {uploadContent} = this.state
 
-    if (uploadContent) {
-      return 'drag-and-drop--form'
-    }
-
-    return 'drag-and-drop--form active'
+    return classnames('drag-and-drop--form', {active: !uploadContent})
   }
 
   private get dragAreaHeader(): ReactElement<HTMLHeadElement> {
     const {uploadContent, fileName} = this.state
 
     if (uploadContent) {
-      return <h3 className="drag-and-drop--header selected">{fileName}</h3>
+      return <div className="drag-and-drop--header selected">{fileName}</div>
     }
 
     return (
-      <h3 className="drag-and-drop--header empty">
+      <div className="drag-and-drop--header empty">
         Drop a file here or click to upload
-      </h3>
+      </div>
     )
   }
 
   private get buttons(): ReactElement<HTMLSpanElement> | null {
     const {uploadContent} = this.state
+    const {submitText} = this.props
 
     if (!uploadContent) {
       return null
@@ -129,11 +134,11 @@ class DragAndDrop extends PureComponent<Props, State> {
 
     return (
       <span className="drag-and-drop--buttons">
-        <button className="btn btn-md btn-success" onClick={this.handleSubmit}>
-          Write this File
+        <button className="btn btn-sm btn-success" onClick={this.handleSubmit}>
+          {submitText}
         </button>
         <button
-          className="btn btn-md btn-default"
+          className="btn btn-sm btn-default"
           onClick={this.handleCancelFile}
         >
           Cancel
