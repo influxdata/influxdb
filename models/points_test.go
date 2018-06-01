@@ -2388,6 +2388,50 @@ func TestEscapeStringField(t *testing.T) {
 	}
 }
 
+func TestParseKeyBytes(t *testing.T) {
+	testCases := []struct {
+		input        string
+		expectedName string
+		expectedTags map[string]string
+	}{
+		{input: "m,k=v", expectedName: "m", expectedTags: map[string]string{"k": "v"}},
+		{input: "m\\ q,k=v", expectedName: "m q", expectedTags: map[string]string{"k": "v"}},
+		{input: "m,k\\ q=v", expectedName: "m", expectedTags: map[string]string{"k q": "v"}},
+		{input: "m\\ q,k\\ q=v", expectedName: "m q", expectedTags: map[string]string{"k q": "v"}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.input, func(t *testing.T) {
+			name, tags := models.ParseKeyBytes([]byte(testCase.input))
+			if !bytes.Equal([]byte(testCase.expectedName), name) {
+				t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.expectedName)
+			}
+			if !tags.Equal(models.NewTags(testCase.expectedTags)) {
+				t.Errorf("%s produced tags %s but expected %s", testCase.input, tags.String(), models.NewTags(testCase.expectedTags).String())
+			}
+		})
+	}
+}
+
+func TestParseName(t *testing.T) {
+	testCases := []struct {
+		input        string
+		expectedName string
+	}{
+		{input: "m,k=v", expectedName: "m"},
+		{input: "m\\ q,k=v", expectedName: "m q"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.input, func(t *testing.T) {
+			name := models.ParseName([]byte(testCase.input))
+			if !bytes.Equal([]byte(testCase.expectedName), name) {
+				t.Errorf("%s produced measurement %s but expected %s", testCase.input, string(name), testCase.expectedName)
+			}
+		})
+	}
+}
+
 func BenchmarkEscapeStringField_Plain(b *testing.B) {
 	s := "nothing special"
 	for i := 0; i < b.N; i++ {
