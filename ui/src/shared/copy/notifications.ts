@@ -443,7 +443,7 @@ export const notifyBuilderDisabled = () => ({
 export const notifyInvalidTempVarValueInURLQuery = ({key, value}) => ({
   ...defaultErrorNotification,
   icon: 'cube',
-  message: `Invalid URL query value supplied for template variable '${key}': '${value}'.`,
+  message: `Invalid URL query value of '${value}' supplied for template variable '${key}'.`,
 })
 
 export const notifyInvalidTimeRangeValueInURLQuery = () => ({
