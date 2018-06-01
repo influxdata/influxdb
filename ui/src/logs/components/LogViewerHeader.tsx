@@ -1,6 +1,7 @@
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import {Source, Namespace} from 'src/types'
+import classnames from 'classnames'
 import Dropdown from 'src/shared/components/Dropdown'
 import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
 
@@ -62,25 +63,23 @@ class LogViewerHeader extends PureComponent<Props> {
 
   private get status(): JSX.Element {
     const {liveUpdating, onChangeLiveUpdatingStatus} = this.props
-    if (liveUpdating) {
-      return (
-        <button
-          className={'btn btn-sm btn-default btn-square'}
+
+    return (
+      <ul className="nav nav-tablist nav-tablist-sm logs-viewer--mode-toggle">
+        <li
+          className={classnames({active: liveUpdating})}
           onClick={onChangeLiveUpdatingStatus}
         >
-          <span style={{marginRight: '10px'}} className="icon pause" />
-        </button>
-      )
-    } else {
-      return (
-        <button
-          className={'btn btn-sm btn-default btn-square'}
+          <span className="icon play" />
+        </li>
+        <li
+          className={classnames({active: !liveUpdating})}
           onClick={onChangeLiveUpdatingStatus}
         >
-          <span style={{marginRight: '10px'}} className="icon refresh" />
-        </button>
-      )
-    }
+          <span className="icon pause" />
+        </li>
+      </ul>
+    )
   }
 
   private handleChooseTimeRange = (timerange: TimeRange) => {

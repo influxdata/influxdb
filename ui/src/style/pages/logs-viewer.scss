@@ -235,3 +235,12 @@ $logs-viewer-gutter: 60px;
     @include gradient-diag-up($g5-pepper, $g6-smoke);
   }
 }
+
+// Play & Pause Toggle in Header
+.nav.nav-tablist.nav-tablist-sm.logs-viewer--mode-toggle {
+  > li {
+    padding: 0;
+    width: 26px;
+    justify-content: center;
+  }
+}
