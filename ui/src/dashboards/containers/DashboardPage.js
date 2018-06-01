@@ -50,9 +50,11 @@ import {
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'shared/constants'
 import {FORMAT_INFLUXQL, defaultTimeRange} from 'src/shared/data/timeRanges'
+import {validAbsoluteTimeRange} from 'src/dashboards/utils/time'
 import {
   notifyDashboardNotFound,
   notifyInvalidTempVarValueInURLQuery,
+  notifyInvalidZoomedTimeRangeValueInURLQuery,
 } from 'shared/copy/notifications'
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -64,12 +66,21 @@ class DashboardPage extends Component {
     super(props)
 
     const urlQueries = queryString.parse(window.location.search)
-    const {zoomedLower = null, zoomedUpper = null} = urlQueries
+    let {zoomedLower, zoomedUpper} = urlQueries
+
+    if (!validAbsoluteTimeRange({lower: zoomedLower, upper: zoomedUpper})) {
+      if (zoomedLower || zoomedUpper) {
+        props.notify(notifyInvalidZoomedTimeRangeValueInURLQuery())
+      }
+      zoomedLower = null
+      zoomedUpper = null
+    }
 
     this.state = {
       isEditMode: false,
       selectedCell: null,
-      zoomedTimeRange: {zoomedLower, zoomedUpper},
+      zoomedLower,
+      zoomedUpper,
       scrollTop: 0,
       windowHeight: window.innerHeight,
     }
@@ -91,9 +102,11 @@ class DashboardPage extends Component {
       notify,
       getAnnotationsAsync,
       timeRange,
+      timeRange: {upper, lower},
       autoRefresh,
       location,
     } = this.props
+    const {zoomedUpper, zoomedLower} = this.state
 
     const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
@@ -122,8 +135,12 @@ class DashboardPage extends Component {
       notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery))
     })
 
-    const {upper, lower} = timeRange
-    syncURLQueryFromTempVars(location, dashboard.templates, [], {upper, lower})
+    syncURLQueryFromTempVars(location, dashboard.templates, [], {
+      upper,
+      lower,
+      zoomedUpper,
+      zoomedLower,
+    })
 
     // Refresh and persists influxql generated template variable values.
     // If using auth and role is Viewer, temp vars will be stale until dashboard
@@ -343,7 +360,7 @@ class DashboardPage extends Component {
   }
 
   handleZoomedTimeRange = (zoomedLower, zoomedUpper) => {
-    this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
+    this.setState({zoomedLower, zoomedUpper})
     const {dashboardActions, location} = this.props
     dashboardActions.syncURLQueryFromQueriesObject(location, {
       zoomedLower,
@@ -356,10 +373,6 @@ class DashboardPage extends Component {
   }
 
   render() {
-    const {
-      zoomedTimeRange,
-      zoomedTimeRange: {zoomedLower, zoomedUpper},
-    } = this.state
     const {
       isUsingAuth,
       meRole,
@@ -387,6 +400,7 @@ class DashboardPage extends Component {
       handleClickPresentationButton,
       params: {sourceID, dashboardID},
     } = this.props
+    const {zoomedLower, zoomedUpper} = this.state
 
     const low = zoomedLower || lower
     const up = zoomedUpper || upper
@@ -469,7 +483,7 @@ class DashboardPage extends Component {
           isHidden={inPresentationMode}
           onAddCell={this.handleAddCell}
           onManualRefresh={onManualRefresh}
-          zoomedTimeRange={zoomedTimeRange}
+          zoomedTimeRange={{zoomedUpper, zoomedLower}}
           onSave={this.handleRenameDashboard}
           onCancel={this.handleCancelEditDashboard}
           onEditDashboard={this.handleEditDashboard}

@@ -452,6 +452,12 @@ export const notifyInvalidTimeRangeValueInURLQuery = () => ({
   message: `Invalid URL query value supplied for lower or upper time range.`,
 })
 
+export const notifyInvalidZoomedTimeRangeValueInURLQuery = () => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
+})
+
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
 export const notifyAlertRuleCreated = () => ({

@@ -34,9 +34,7 @@ export const millisecondTimeRange = ({
   return {since, until}
 }
 
-export const validRelativeTimeRange = (
-  timeRange: TimeRange
-): TimeRange | null => {
+const validRelativeTimeRange = (timeRange: TimeRange): TimeRange | null => {
   const matchedRange = timeRanges.find(t => t.lower === timeRange.lower)
 
   if (matchedRange) {
