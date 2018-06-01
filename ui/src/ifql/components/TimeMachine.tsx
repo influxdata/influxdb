@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, CSSProperties} from 'react'
 import SchemaExplorer from 'src/ifql/components/SchemaExplorer'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
@@ -65,6 +65,7 @@ class TimeMachine extends PureComponent<Props> {
         handlePixels: 8,
         menuOptions: [],
         headerButtons: [],
+        style: {overflow: 'visible'} as CSSProperties,
         render: () => <TimeMachineVis data={data} />,
       },
     ]

@@ -108,3 +108,29 @@ export const MULTI_SCHEMA_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dat
 
 
 `
+
+export const CSV_TO_DYGRAPH = `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
+#partition,false,false,true,true,false,false,true,true,true,true
+#default,_result,,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
+,,1,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:41Z,1,usage_idle,cpu,cpu-total,bertrand.local
+,,1,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:42Z,2,usage_idle,cpu,cpu-total,bertrand.local
+,,2,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:41Z,3,usage_idle,cpu,cpu-total,bertrand.local
+,,2,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:42Z,2,usage_idle,cpu,cpu-total,bertrand.local
+,,3,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:41Z,5,usage_idle,cpu,cpu-total,bertrand.local
+,,3,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:42Z,1,usage_idle,cpu,cpu-total,bertrand.local
+
+
+`
+
+export const CSV_TO_DYGRAPH_MISMATCHED = `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#partition,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,host
+,,0,2018-06-04T17:12:21.025984999Z,2018-06-04T17:13:00Z,2018-06-04T17:12:25Z,1,active,mem,bertrand.local
+,,0,2018-06-04T17:12:21.025984999Z,2018-06-04T17:13:00Z,2018-06-04T17:12:35Z,2,active,mem,bertrand.local
+,,1,2018-06-04T17:12:21.025984999Z,2018-06-04T17:13:00Z,2018-06-05T17:12:25Z,10,available,mem,bertrand.local
+,,1,2018-06-04T17:12:21.025984999Z,2018-06-04T17:13:00Z,2018-06-05T17:12:35Z,11,available,mem,bertrand.local
+`

@@ -1,19 +1,26 @@
-import React, {PureComponent, CSSProperties} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {FluxTable} from 'src/types'
+import VisHeaderTabs from 'src/data_explorer/components/VisHeaderTabs'
 import TableSidebar from 'src/ifql/components/TableSidebar'
 import TimeMachineTable from 'src/ifql/components/TimeMachineTable'
-import {HANDLE_PIXELS} from 'src/shared/constants'
+import FluxGraph from 'src/ifql/components/FluxGraph'
 import NoResults from 'src/ifql/components/NoResults'
 
 interface Props {
   data: FluxTable[]
 }
 
+enum VisType {
+  Table = 'Table View',
+  Line = 'Line Graph',
+}
+
 interface State {
   selectedResultID: string | null
+  visType: VisType
 }
 
 @ErrorHandling
@@ -21,7 +28,10 @@ class TimeMachineVis extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
-    this.state = {selectedResultID: this.initialResultID}
+    this.state = {
+      selectedResultID: this.initialResultID,
+      visType: VisType.Line,
+    }
   }
 
   public componentDidUpdate() {
@@ -31,8 +41,38 @@ class TimeMachineVis extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {visType} = this.state
+
     return (
-      <div className="time-machine-visualization" style={this.style}>
+      <div className="time-machine-visualization">
+        <div className="time-machine-visualization--settings">
+          <VisHeaderTabs
+            view={visType}
+            views={[VisType.Table, VisType.Line]}
+            currentView={visType}
+            onToggleView={this.selectVisType}
+          />
+        </div>
+        <div className="time-machine-visualization--visualization">
+          {this.vis}
+        </div>
+      </div>
+    )
+  }
+
+  private get vis(): JSX.Element {
+    const {visType} = this.state
+    const {data} = this.props
+    if (visType === VisType.Line) {
+      return <FluxGraph data={data} />
+    }
+
+    return this.table
+  }
+
+  private get table(): JSX.Element {
+    return (
+      <>
         {this.showSidebar && (
           <TableSidebar
             data={this.props.data}
@@ -46,7 +86,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
           )}
           {!this.hasResults && <NoResults />}
         </div>
-      </div>
+      </>
     )
   }
 
@@ -58,10 +98,8 @@ class TimeMachineVis extends PureComponent<Props, State> {
     this.setState({selectedResultID})
   }
 
-  private get style(): CSSProperties {
-    return {
-      padding: `${HANDLE_PIXELS}px`,
-    }
+  private selectVisType = (visType: VisType): void => {
+    this.setState({visType})
   }
 
   private get showSidebar(): boolean {

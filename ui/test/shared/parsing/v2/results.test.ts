@@ -9,20 +9,18 @@ import {
 describe('IFQL results parser', () => {
   it('parseResponse into the right number of tables', () => {
     const result = parseResponse(MULTI_SCHEMA_RESPONSE)
-
     expect(result).toHaveLength(4)
   })
 
   describe('headers', () => {
-    it('can parse headers when no metadata is present', () => {
-      const actual = parseResponse(RESPONSE_NO_METADATA)[0].data[0]
-
-      expect(actual).toEqual(EXPECTED_COLUMNS)
+    it('throws when no metadata is present', () => {
+      expect(() => {
+        parseResponse(RESPONSE_NO_METADATA)
+      }).toThrow()
     })
 
     it('can parse headers when metadata is present', () => {
       const actual = parseResponse(RESPONSE_METADATA)[0].data[0]
-
       expect(actual).toEqual(EXPECTED_COLUMNS)
     })
   })
@@ -36,7 +34,6 @@ describe('IFQL results parser', () => {
         cpu: 'cpu-total',
         host: 'WattsInfluxDB',
       }
-
       expect(actual).toEqual(expected)
     })
   })

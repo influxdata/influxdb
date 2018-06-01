@@ -25,6 +25,10 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
     .filter(line => !line.startsWith('#'))
     .join('\n')
 
+  if (_.isEmpty(annotationLines)) {
+    throw new Error('Unable to extract annotation data')
+  }
+
   const nonAnnotationData = Papa.parse(nonAnnotationLines).data
   const annotationData = Papa.parse(annotationLines).data
   const headerRow = nonAnnotationData[0]
@@ -44,10 +48,6 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
 
   const partitionRow = annotationData.find(row => row[0] === '#partition')
   const defaultsRow = annotationData.find(row => row[0] === '#default')
-
-  if (!annotationData) {
-    throw new Error('Unable to extract partition annotation')
-  }
 
   // partitionRow = ['#partition', 'false', 'true', 'true', 'false']
   const partitionKeyIndices = partitionRow.reduce((acc, value, i) => {

@@ -4,7 +4,7 @@ import {groupByTimeSeriesTransform} from 'src/utils/groupByTimeSeriesTransform'
 import {TimeSeriesServerResponse, TimeSeries} from 'src/types/series'
 import {TimeSeriesValue} from 'src/types/series'
 
-type DygraphValue = string | number | Date | null
+export type DygraphValue = string | number | Date | null
 
 interface Label {
   label: string
@@ -23,7 +23,7 @@ interface TimeSeriesToTableGraphReturnType {
   sortedLabels: Label[]
 }
 
-interface DygraphSeries {
+export interface DygraphSeries {
   [x: string]: {
     axis: string
   }
