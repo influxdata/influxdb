@@ -210,7 +210,9 @@ class DashboardPage extends Component {
       dashboardActions,
       getAnnotationsAsync,
       source,
+      location,
     } = this.props
+
     dashboardActions.setDashTimeV1(dashboard.id, {
       ...timeRange,
       format: FORMAT_INFLUXQL,
