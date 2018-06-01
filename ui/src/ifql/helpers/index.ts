@@ -1,15 +1,16 @@
 import uuid from 'uuid'
-import _ from 'lodash'
+
 import Walker from 'src/ifql/ast/walker'
 import {funcNames} from 'src/ifql/constants'
+import {getDeep} from 'src/utils/wrappers'
 
-import {FlatBody, Func} from 'src/types/ifql'
+import {FlatBody, Func, Suggestion} from 'src/types/ifql'
 
 interface Body extends FlatBody {
   id: string
 }
 
-export const bodyNodes = (ast, suggestions): Body[] => {
+export const bodyNodes = (ast, suggestions: Suggestion[]): Body[] => {
   if (!ast) {
     return []
   }
@@ -63,7 +64,7 @@ export const bodyNodes = (ast, suggestions): Body[] => {
   return body
 }
 
-const functions = (funcs, suggestions): Func[] => {
+const functions = (funcs: Func[], suggestions: Suggestion[]): Func[] => {
   const funcList = funcs.map(func => {
     const suggestion = suggestions.find(f => f.name === func.name)
     if (!suggestion) {
@@ -77,7 +78,8 @@ const functions = (funcs, suggestions): Func[] => {
 
     const {params, name} = suggestion
     const args = Object.entries(params).map(([key, type]) => {
-      const value = _.get(func.args.find(arg => arg.key === key), 'value', '')
+      const argWithKey = func.args.find(arg => arg.key === key)
+      const value = getDeep<string>(argWithKey, 'value', '')
 
       return {
         key,

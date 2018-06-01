@@ -4,8 +4,9 @@ import _ from 'lodash'
 import Dropdown from 'src/shared/components/Dropdown'
 import FuncArgInput from 'src/ifql/components/FuncArgInput'
 import FuncArgTextArea from 'src/ifql/components/FuncArgTextArea'
+import {getDeep} from 'src/utils/wrappers'
 
-import {OnChangeArg, Func} from 'src/types/ifql'
+import {OnChangeArg, Func, Arg} from 'src/types/ifql'
 import {argTypes} from 'src/ifql/constants'
 
 interface Props {
@@ -22,7 +23,7 @@ interface DropdownItem {
 }
 
 class Join extends PureComponent<Props> {
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
   }
 
@@ -37,7 +38,7 @@ class Join extends PureComponent<Props> {
     return (
       <>
         <div className="func-arg">
-          <label className="func-arg--label">{'tables'}</label>
+          <label className="func-arg--label">tables</label>
           <Dropdown
             selected={this.table1Value}
             className="from--dropdown dropdown-100 func-arg--value"
@@ -91,7 +92,7 @@ class Join extends PureComponent<Props> {
     this.handleChooseTables(this.table1Value, item.text)
   }
 
-  private handleChooseTables = (table1, table2): void => {
+  private handleChooseTables = (table1: string, table2: string): void => {
     const {
       onChangeArg,
       bodyID,
@@ -115,30 +116,36 @@ class Join extends PureComponent<Props> {
     return this.props.declarationsFromBody.map(d => ({text: d}))
   }
 
+  private get argsArray(): Arg[] {
+    const {func} = this.props
+    return getDeep<Arg[]>(func, 'args', [])
+  }
+
   private get onValue(): string {
-    const onObject = this.props.func.args.find(a => a.key === 'on')
+    const onObject = this.argsArray.find(a => a.key === 'on')
     return onObject.value.toString()
   }
 
   private get fnValue(): string {
-    const fnObject = this.props.func.args.find(a => a.key === 'fn')
+    const fnObject = this.argsArray.find(a => a.key === 'fn')
     return fnObject.value.toString()
   }
 
   private get table1Value(): string {
-    const tables = this.props.func.args.find(a => a.key === 'tables')
+    const tables = this.argsArray.find(a => a.key === 'tables')
     if (tables) {
       const keys = _.keys(tables.value)
-      return _.get(keys, '0', '')
+      return getDeep<string>(keys, '0', '')
     }
     return ''
   }
 
   private get table2Value(): string {
-    const tables = this.props.func.args.find(a => a.key === 'tables')
+    const tables = this.argsArray.find(a => a.key === 'tables')
+
     if (tables) {
       const keys = _.keys(tables.value)
-      return _.get(keys, '1', _.get(keys, '0', ''))
+      return getDeep<string>(keys, '1', getDeep<string>(keys, '0', ''))
     }
     return ''
   }
