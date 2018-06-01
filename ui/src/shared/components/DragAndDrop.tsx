@@ -14,7 +14,6 @@ interface State {
   fileName: string
   progress: string
   dragClass: string
-  isUploading: boolean
 }
 
 let dragCounter = 0
@@ -34,7 +33,6 @@ class DragAndDrop extends PureComponent<Props, State> {
       fileName: '',
       progress: '',
       dragClass: 'drag-none',
-      isUploading: false,
     }
   }
 
