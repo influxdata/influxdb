@@ -43,11 +43,13 @@ export const queryStringConfig = store => {
 
           timeRange = dashboardTimeRange || defaultTimeRange
 
-          dispatch(
-            notifyAction(
-              notifyInvalidTimeRangeValueInURLQuery(timeRangeFromQueries)
+          if (timeRangeFromQueries.lower || timeRangeFromQueries.upper) {
+            dispatch(
+              notifyAction(
+                notifyInvalidTimeRangeValueInURLQuery(timeRangeFromQueries)
+              )
             )
-          )
+          }
         }
 
         dispatch(setDashTimeV1(+dashboardID, timeRange))

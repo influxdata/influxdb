@@ -60,10 +60,6 @@ export const validAbsoluteTimeRange = (
 }
 
 export const validTimeRange = (timeRange: TimeRange): TimeRange | null => {
-  if (!timeRange.lower) {
-    return null
-  }
-
   let timeRangeOrNull = validRelativeTimeRange(timeRange)
   if (!timeRangeOrNull) {
     timeRangeOrNull = validAbsoluteTimeRange(timeRange)
