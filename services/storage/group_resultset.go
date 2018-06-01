@@ -184,23 +184,16 @@ func groupNoneSort(g *groupResultSet) (int, error) {
 		return 0, nil
 	}
 
+	allTime := g.req.Hints.HintSchemaAllTime()
+	g.km.clear()
 	n := 0
 	row := cur.Next()
-	if row != nil {
-		g.km.setTags(row.tags)
-
-		allTime := g.req.Hints.HintSchemaAllTime()
-
-		for {
-			n++
-			row = cur.Next()
-			if row == nil {
-				break
-			}
-			if allTime || g.seriesHasPoints(row) {
-				g.km.mergeTagKeys(row.tags)
-			}
+	for row != nil {
+		n++
+		if allTime || g.seriesHasPoints(row) {
+			g.km.mergeTagKeys(row.tags)
 		}
+		row = cur.Next()
 	}
 
 	cur.Close()
@@ -208,19 +201,21 @@ func groupNoneSort(g *groupResultSet) (int, error) {
 }
 
 func groupByNextGroup(g *groupResultSet) GroupCursor {
+next:
 	row := g.rows[g.i]
 	for i := range g.keys {
 		g.rgc.vals[i] = row.tags.Get(g.keys[i])
 	}
 
+	g.km.clear()
 	allTime := g.req.Hints.HintSchemaAllTime()
-
+	c := 0
 	rowKey := row.sortKey
-	g.km.setTags(row.tags)
-	j := g.i + 1
+	j := g.i
 	for j < len(g.rows) && bytes.Equal(rowKey, g.rows[j].sortKey) {
 		if allTime || g.seriesHasPoints(g.rows[j]) {
 			g.km.mergeTagKeys(g.rows[j].tags)
+			c++
 		}
 		j++
 	}
@@ -231,7 +226,11 @@ func groupByNextGroup(g *groupResultSet) GroupCursor {
 	g.i = j
 	if j == len(g.rows) {
 		g.eof = true
+	} else if c == 0 {
+		// no rows with points
+		goto next
 	}
+
 	return &g.rgc
 }
 
@@ -354,16 +353,9 @@ type keyMerger struct {
 	keys [2][][]byte
 }
 
-func (km *keyMerger) setTags(tags models.Tags) {
+func (km *keyMerger) clear() {
 	km.i = 0
-	if cap(km.keys[0]) < len(tags) {
-		km.keys[0] = make([][]byte, len(tags))
-	} else {
-		km.keys[0] = km.keys[0][:len(tags)]
-	}
-	for i := range tags {
-		km.keys[0][i] = tags[i].Key
-	}
+	km.keys[0] = km.keys[0][:0]
 }
 
 func (km *keyMerger) get() [][]byte { return km.keys[km.i&1] }

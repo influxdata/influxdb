@@ -16,7 +16,7 @@ type responseWriter struct {
 
 	// current series
 	sf *ReadResponse_SeriesFrame
-	ss int
+	ss int // pointer to current series frame; used to skip writing if no points
 	sz int // estimated size in bytes for pending write
 
 	vc int // total value count

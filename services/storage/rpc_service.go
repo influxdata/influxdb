@@ -155,6 +155,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 
 	return nil
 }
+
 func (r *rpcService) handleRead(ctx context.Context, req *ReadRequest, w *responseWriter) error {
 	rs, err := r.Store.Read(ctx, req)
 	if err != nil {
