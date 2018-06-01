@@ -33,19 +33,18 @@ export const queryStringConfig = store => {
 
         let timeRange = dashboardTimeRange
 
-        if (urlQueries.upper) {
-          timeRange = {
-            ...timeRange,
-            upper: urlQueries.upper,
-            lower: urlQueries.lower,
+        const isValidTimeRange = validTimeRange(timeRange)
+        if (isValidTimeRange) {
+          if (urlQueries.upper) {
+            timeRange = {
+              ...timeRange,
+              upper: urlQueries.upper,
+              lower: urlQueries.lower,
+            }
+          } else {
+            timeRange = timeRanges.find(t => t.lower === urlQueries.lower)
           }
         } else {
-          timeRange = timeRanges.find(t => t.lower === urlQueries.lower)
-        }
-
-        const isValidTimeRange = validTimeRange(timeRange)
-
-        if (!isValidTimeRange) {
           dispatch(
             notifyAction(notifyInvalidTimeRangeValueInURLQuery(timeRange))
           )
