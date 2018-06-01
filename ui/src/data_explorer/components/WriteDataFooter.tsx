@@ -1,4 +1,4 @@
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {
   WRITE_DATA_DOCS_LINK,
   DATA_IMPORT_DOCS_LINK,
@@ -12,7 +12,8 @@ interface Props {
   isUploading: boolean
   uploadContent: string
   inputContent: string
-  handleSubmit: (e: MouseEvent<HTMLButtonElement>) => void
+  // handleSubmit: (e: MouseEvent<HTMLButtonElement>) => void
+  handleSubmit: () => void
 }
 
 class WriteDataFooter extends PureComponent<Props> {

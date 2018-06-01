@@ -32,7 +32,10 @@ class WriteDataHeader extends PureComponent<Props> {
             database={selectedDatabase}
             onErrorThrown={errorThrown}
           />
-          <ul className="nav nav-tablist nav-tablist-sm">
+          <ul
+            className="nav nav-tablist nav-tablist-sm"
+            style={{position: 'relative', zIndex: 9010}}
+          >
             <li onClick={this.handleToggleOff} className={this.fileUploadClass}>
               File Upload
             </li>
@@ -45,7 +48,10 @@ class WriteDataHeader extends PureComponent<Props> {
             </li>
           </ul>
         </div>
-        <div className="page-header__right">
+        <div
+          className="page-header__right"
+          style={{position: 'relative', zIndex: 9010}}
+        >
           <span className="page-header__dismiss" onClick={onClose} />
         </div>
       </div>

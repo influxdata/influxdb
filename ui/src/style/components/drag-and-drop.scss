@@ -1,0 +1,21 @@
+/*
+  Drag and Drop Styles
+  ------------------------------------------------------------------------------
+*/
+
+$drag-and-drop--z-dropzone: 9000;
+$drag-and-drop--z-form: 9010;
+
+.drag-and-drop--dropzone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: $drag-and-drop--z-dropzone;
+}
+
+.drag-and-drop--form {
+  position: relative;
+  z-index: $drag-and-drop--z-form;
+}

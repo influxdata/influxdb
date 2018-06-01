@@ -9,14 +9,14 @@ $write-data--drag-overlay-z: 1;
 $write-data--max-width: 960px;
 $write-data--gutter: 30px;
 $write-data--margin: 18px;
-$write-data--input-height: calc(90vh - 48px - 60px - 36px); // Heights of everything but input height
+$write-data--input-height: calc(
+  90vh - 48px - 60px - 36px
+); // Heights of everything but input height
 $write-data--transition: opacity 0.4s ease;
 
 .write-data-form {
   max-width: $write-data--max-width;
   margin: 0 auto;
-  position: relative;
-  z-index: $write-data--form-z;
 }
 .write-data-form--header {
   height: $chronograf-page-header-height;
@@ -40,7 +40,7 @@ $write-data--transition: opacity 0.4s ease;
 .write-data-form--body {
   padding: $write-data--margin $write-data--gutter;
   border-radius: 0 0 $radius $radius;
-  @include gradient-v($g2-kevlar,$g0-obsidian);
+  @include gradient-v($g2-kevlar, $g0-obsidian);
 }
 textarea.form-control.write-data-form--input {
   height: $write-data--input-height;
@@ -76,9 +76,7 @@ textarea.form-control.write-data-form--input {
   border: 2px solid $g4-onyx;
   margin-bottom: 48px;
   border-radius: 3px;
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 
   > p {
     color: $g12-forge;
@@ -100,7 +98,7 @@ textarea.form-control.write-data-form--input {
   }
 }
 
-input[type="file"].write-data-form--upload {
+input[type='file'].write-data-form--upload {
   display: none;
 }
 .write-data-form--filepath_selected,
@@ -113,8 +111,12 @@ input[type="file"].write-data-form--upload {
   text-overflow: ellipsis;
   margin: 0 0 30px 0;
 }
-.write-data-form--filepath_empty {color: $g12-forge;}
-.write-data-form--filepath_selected {color: $c-rainforest;}
+.write-data-form--filepath_empty {
+  color: $g12-forge;
+}
+.write-data-form--filepath_selected {
+  color: $c-rainforest;
+}
 
 .write-data-form--file-submit {
   margin-top: 30px;
