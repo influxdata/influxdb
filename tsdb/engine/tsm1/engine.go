@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/pkg/radix"
@@ -322,7 +323,7 @@ func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 	}
 
 	// Rename the temporary digest file to the actual digest file.
-	if err := renameFile(tf.Name(), digestPath); err != nil {
+	if err := file.RenameFile(tf.Name(), digestPath); err != nil {
 		return nil, 0, err
 	}
 
@@ -1052,7 +1053,7 @@ func (e *Engine) overlay(r io.Reader, basePath string, asNew bool) error {
 			}
 		}
 
-		if err := syncDir(e.path); err != nil {
+		if err := file.SyncDir(e.path); err != nil {
 			return nil, err
 		}
 
