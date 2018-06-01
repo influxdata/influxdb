@@ -153,13 +153,21 @@ func TestKeyMerger(t *testing.T) {
 			},
 			exp: "tag0,tag1,tag2,tag3",
 		},
+		{
+			name: "new tags,verify clear",
+			tags: []models.Tags{
+				models.ParseTags([]byte("foo,tag9=v0")),
+				models.ParseTags([]byte("foo,tag8=v0")),
+			},
+			exp: "tag8,tag9",
+		},
 	}
 
+	var km keyMerger
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var km keyMerger
-			km.setTags(tt.tags[0])
-			for _, tags := range tt.tags[1:] {
+			km.clear()
+			for _, tags := range tt.tags {
 				km.mergeTagKeys(tags)
 			}
 
