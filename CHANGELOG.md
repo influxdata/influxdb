@@ -45,6 +45,7 @@ v1.6.0 [unreleased]
 -	[#9866](https://github.com/influxdata/influxdb/pull/9866): Close TSMReaders from FileStore.Close after releasing FileStore mutex.
 -	[#9918](https://github.com/influxdata/influxdb/pull/9918): TSM1 Open Limiter.
 -	[#9928](https://github.com/influxdata/influxdb/pull/9928): TSM: Enforce OpenLimiter must not be nil.
+-	[#9921](https://github.com/influxdata/influxdb/pull/9921): buildtsi: Do not escape measurement names.
 
 v1.5.0 [2018-03-06]
 -------------------
