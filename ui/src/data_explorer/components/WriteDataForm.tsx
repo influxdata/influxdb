@@ -1,9 +1,10 @@
 import React, {
   PureComponent,
-  // DragEvent,
+  DragEvent,
   ChangeEvent,
   KeyboardEvent,
 } from 'react'
+import classnames from 'classnames'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
 import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
@@ -12,7 +13,7 @@ import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Source, DropdownItem} from 'src/types'
-// let dragCounter = 0
+let dragCounter = 0
 
 interface Props {
   source: Source
@@ -53,9 +54,17 @@ class WriteDataForm extends PureComponent<Props, State> {
 
   public render() {
     const {onClose, errorThrown, source} = this.props
+    const {dragClass} = this.state
 
     return (
-      <div className={OVERLAY_TECHNOLOGY}>
+      <div
+        onDrop={this.handleFile(true)}
+        onDragOver={this.handleDragOver}
+        onDragEnter={this.handleDragEnter}
+        onDragExit={this.handleDragLeave}
+        onDragLeave={this.handleDragLeave}
+        className={classnames(OVERLAY_TECHNOLOGY, dragClass)}
+      >
         <div className="write-data-form">
           <WriteDataHeader
             {...this.state}
@@ -96,23 +105,21 @@ class WriteDataForm extends PureComponent<Props, State> {
     }
   }
 
-  private handleSubmit = async (uploadContent: string) => {
-    console.log('submit!', uploadContent)
+  private handleSubmit = async () => {
+    const {onClose, source, writeLineProtocol} = this.props
+    const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
+    const content = isManual ? inputContent : uploadContent
+    this.setState({isUploading: true})
 
-    // const {onClose, source, writeLineProtocol} = this.props
-    // const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
-    // const content = isManual ? inputContent : uploadContent
-    // this.setState({isUploading: true})
-
-    // try {
-    //   await writeLineProtocol(source, selectedDatabase, content)
-    //   this.setState({isUploading: false})
-    //   onClose()
-    //   window.location.reload()
-    // } catch (error) {
-    //   this.setState({isUploading: false})
-    //   console.error(error.data.error)
-    // }
+    try {
+      await writeLineProtocol(source, selectedDatabase, content)
+      this.setState({isUploading: false})
+      onClose()
+      window.location.reload()
+    } catch (error) {
+      this.setState({isUploading: false})
+      console.error(error.data.error)
+    }
   }
 
   private handleEdit = (e: ChangeEvent<HTMLTextAreaElement>): void => {
@@ -152,24 +159,24 @@ class WriteDataForm extends PureComponent<Props, State> {
     this.fileInput.value = ''
   }
 
-  // private handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-  //   e.preventDefault()
-  //   e.stopPropagation()
-  // }
+  private handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
 
-  // private handleDragEnter = (e: DragEvent<HTMLDivElement>): void => {
-  //   dragCounter += 1
-  //   e.preventDefault()
-  //   this.setState({dragClass: 'drag-over'})
-  // }
+  private handleDragEnter = (e: DragEvent<HTMLDivElement>): void => {
+    dragCounter += 1
+    e.preventDefault()
+    this.setState({dragClass: 'drag-over'})
+  }
 
-  // private handleDragLeave = (e: DragEvent<HTMLDivElement>): void => {
-  //   dragCounter -= 1
-  //   e.preventDefault()
-  //   if (dragCounter === 0) {
-  //     this.setState({dragClass: 'drag-none'})
-  //   }
-  // }
+  private handleDragLeave = (e: DragEvent<HTMLDivElement>): void => {
+    dragCounter -= 1
+    e.preventDefault()
+    if (dragCounter === 0) {
+      this.setState({dragClass: 'drag-none'})
+    }
+  }
 
   private handleFileOpen = (): void => {
     const {uploadContent} = this.state

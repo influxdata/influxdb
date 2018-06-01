@@ -7,14 +7,13 @@ import React, {
   ReactElement,
 } from 'react'
 import WriteDataFooter from 'src/data_explorer/components/WriteDataFooter'
-import DragAndDrop from 'src/shared/components/DragAndDrop'
 
 interface Props {
   handleCancelFile: (e: MouseEvent<HTMLButtonElement>) => void
   handleEdit: (e: ChangeEvent<HTMLTextAreaElement>) => void
   handleKeyUp: (e: KeyboardEvent<HTMLTextAreaElement>) => void
   handleFile: (drop: boolean) => (e: DragEvent<HTMLInputElement>) => void
-  handleSubmit: (uploadContent: string) => void
+  handleSubmit: (e: MouseEvent<HTMLButtonElement>) => void
   inputContent: string
   uploadContent: string
   fileName: string
@@ -34,9 +33,9 @@ class WriteDataBody extends PureComponent<Props> {
     )
   }
 
-  // private handleFile = (e: any): void => {
-  //   this.props.handleFile(false)(e)
-  // }
+  private handleFile = (e: any): void => {
+    this.props.handleFile(false)(e)
+  }
 
   private get input(): JSX.Element {
     const {isManual} = this.props
@@ -44,13 +43,7 @@ class WriteDataBody extends PureComponent<Props> {
       return this.textarea
     }
 
-    // return this.dragArea
-    return (
-      <DragAndDrop
-        handleSubmit={this.props.handleSubmit}
-        fileTypesToAccept="text/*, application/gzip"
-      />
-    )
+    return this.dragArea
   }
 
   private get textarea(): ReactElement<HTMLTextAreaElement> {
@@ -69,80 +62,86 @@ class WriteDataBody extends PureComponent<Props> {
     )
   }
 
-  // private get dragArea(): ReactElement<HTMLDivElement> {
-  //   const {fileInput, handleFileOpen} = this.props
+  private get dragArea(): ReactElement<HTMLDivElement> {
+    const {fileInput, handleFileOpen} = this.props
 
-  //   return (
-  //     <div className={this.dragAreaClass} onClick={handleFileOpen}>
-  //       {this.dragAreaHeader}
-  //       <div className={this.infoClass} />
-  //       <input
-  //         type="file"
-  //         ref={fileInput}
-  //         className="write-data-form--upload"
-  //         accept="text/*, application/gzip"
-  //         onChange={this.handleFile}
-  //       />
-  //       {this.buttons}
-  //     </div>
-  //   )
-  // }
+    return (
+      <div className={this.dragAreaClass} onClick={handleFileOpen}>
+        {this.dragAreaHeader}
+        <div className={this.infoClass} />
+        <input
+          type="file"
+          ref={fileInput}
+          className="write-data-form--upload"
+          accept="text/*, application/gzip"
+          onChange={this.handleFile}
+        />
+        {this.buttons}
+      </div>
+    )
+  }
 
-  // private get dragAreaHeader(): ReactElement<HTMLHeadElement> {
-  //   const {uploadContent, fileName} = this.props
+  private get dragAreaHeader(): ReactElement<HTMLHeadElement> {
+    const {uploadContent, fileName} = this.props
 
-  //   if (uploadContent) {
-  //     return <h3 className="write-data-form--filepath_selected">{fileName}</h3>
-  //   }
+    if (uploadContent) {
+      return <h3 className="write-data-form--filepath_selected">{fileName}</h3>
+    }
 
-  //   return (
-  //     <h3 className="write-data-form--filepath_empty">
-  //       Drop a file here or click to upload
-  //     </h3>
-  //   )
-  // }
+    return (
+      <h3 className="write-data-form--filepath_empty">
+        Drop a file here or click to upload
+      </h3>
+    )
+  }
 
-  // private get infoClass(): string {
-  //   const {uploadContent} = this.props
+  private get infoClass(): string {
+    const {uploadContent} = this.props
 
-  //   if (uploadContent) {
-  //     return 'write-data-form--graphic write-data-form--graphic_success'
-  //   }
+    if (uploadContent) {
+      return 'write-data-form--graphic write-data-form--graphic_success'
+    }
 
-  //   return 'write-data-form--graphic'
-  // }
+    return 'write-data-form--graphic'
+  }
 
-  // private get buttons(): ReactElement<HTMLSpanElement> | null {
-  //   const {uploadContent, handleSubmit, handleCancelFile} = this.props
+  private get buttons(): ReactElement<HTMLSpanElement> | null {
+    const {uploadContent, handleSubmit, handleCancelFile} = this.props
 
-  //   if (!uploadContent) {
-  //     return null
-  //   }
+    if (!uploadContent) {
+      return null
+    }
 
-  //   return (
-  //     <span className="write-data-form--file-submit">
-  //       <button className="btn btn-md btn-success" onClick={handleSubmit}>
-  //         Write this File
-  //       </button>
-  //       <button className="btn btn-md btn-default" onClick={handleCancelFile}>
-  //         Cancel
-  //       </button>
-  //     </span>
-  //   )
-  // }
+    return (
+      <span className="write-data-form--file-submit">
+        <button className="btn btn-md btn-success" onClick={handleSubmit}>
+          Write this File
+        </button>
+        <button className="btn btn-md btn-default" onClick={handleCancelFile}>
+          Cancel
+        </button>
+      </span>
+    )
+  }
 
-  // private get dragAreaClass(): string {
-  //   const {uploadContent} = this.props
+  private get dragAreaClass(): string {
+    const {uploadContent} = this.props
 
-  //   if (uploadContent) {
-  //     return 'write-data-form--file'
-  //   }
+    if (uploadContent) {
+      return 'write-data-form--file'
+    }
 
-  //   return 'write-data-form--file write-data-form--file_active'
-  // }
+    return 'write-data-form--file write-data-form--file_active'
+  }
 
   private get footer(): JSX.Element | null {
-    const {isUploading, isManual, inputContent, uploadContent} = this.props
+    const {
+      isUploading,
+      isManual,
+      inputContent,
+      handleSubmit,
+      uploadContent,
+    } = this.props
 
     if (!isManual) {
       return null
@@ -153,14 +152,10 @@ class WriteDataBody extends PureComponent<Props> {
         isUploading={isUploading}
         isManual={isManual}
         inputContent={inputContent}
-        handleSubmit={this.handleSubmit}
+        handleSubmit={handleSubmit}
         uploadContent={uploadContent}
       />
     )
-  }
-
-  private handleSubmit = (): void => {
-    this.props.handleSubmit('')
   }
 }
 
