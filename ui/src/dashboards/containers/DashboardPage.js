@@ -218,7 +218,7 @@ class DashboardPage extends Component {
       format: FORMAT_INFLUXQL,
     })
 
-    dashboardActions.syncURLQueryFromQueryObject(location, {
+    dashboardActions.syncURLQueryFromQueriesObject(location, {
       lower: timeRange.lower,
       upper: timeRange.upper,
     })
@@ -295,7 +295,10 @@ class DashboardPage extends Component {
       const updatedQueryParam = {
         [strippedTempVar]: value.value,
       }
-      dashboardActions.syncURLQueryFromQueryObject(location, updatedQueryParam)
+      dashboardActions.syncURLQueryFromQueriesObject(
+        location,
+        updatedQueryParam
+      )
     }
     dashboardActions.templateVariableSelected(dashboard.id, templateID, [value])
     dashboardActions.putDashboardByID(dashboardID)
@@ -339,7 +342,7 @@ class DashboardPage extends Component {
   handleZoomedTimeRange = (zoomedLower, zoomedUpper) => {
     this.setState({zoomedTimeRange: {zoomedLower, zoomedUpper}})
     const {dashboardActions, location} = this.props
-    dashboardActions.syncURLQueryFromQueryObject(location, {
+    dashboardActions.syncURLQueryFromQueriesObject(location, {
       zoomedLower,
       zoomedUpper,
     })

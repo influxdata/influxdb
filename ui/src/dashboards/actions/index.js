@@ -358,14 +358,14 @@ export const updateTempVarValues = (source, dashboard) => async dispatch => {
 
 const removeNullValues = obj => _.pickBy(obj, o => o)
 
-export const syncURLQueryFromQueryObject = (
+export const syncURLQueryFromQueriesObject = (
   location,
-  updatedURLQuery,
+  updatedURLQueries,
   deletedURLQueries = {}
 ) => dispatch => {
   const updatedLocationQuery = removeNullValues({
     ...location.query,
-    ...updatedURLQuery,
+    ...updatedURLQueries,
   })
 
   _.each(deletedURLQueries, (v, k) => {
@@ -395,7 +395,7 @@ export const syncURLQueryFromTempVars = (
   const updatedURLQueriesWithTimeRange = {...updatedURLQueries, ...timeRange}
 
   dispatch(
-    syncURLQueryFromQueryObject(
+    syncURLQueryFromQueriesObject(
       location,
       updatedURLQueriesWithTimeRange,
       deletedURLQueries
