@@ -63,10 +63,13 @@ class DashboardPage extends Component {
   constructor(props) {
     super(props)
 
+    const urlQueries = queryString.parse(window.location.search)
+    const {zoomedLower = null, zoomedUpper = null} = urlQueries
+
     this.state = {
       isEditMode: false,
       selectedCell: null,
-      zoomedTimeRange: {zoomedLower: null, zoomedUpper: null},
+      zoomedTimeRange: {zoomedLower, zoomedUpper},
       scrollTop: 0,
       windowHeight: window.innerHeight,
     }
@@ -353,8 +356,10 @@ class DashboardPage extends Component {
   }
 
   render() {
-    const {zoomedTimeRange} = this.state
-    const {zoomedLower, zoomedUpper} = zoomedTimeRange
+    const {
+      zoomedTimeRange,
+      zoomedTimeRange: {zoomedLower, zoomedUpper},
+    } = this.state
     const {
       isUsingAuth,
       meRole,
