@@ -15,20 +15,6 @@ export const bodyNodes = (ast, suggestions: Suggestion[]): Body[] => {
     return []
   }
 
-  const enrichedSuggestions = suggestions.map(s => {
-    if (s.name === funcNames.JOIN) {
-      return {
-        ...s,
-        params: {
-          tables: 'object',
-          on: 'array',
-          fn: 'function',
-        },
-      }
-    }
-    return s
-  })
-
   const walker = new Walker(ast)
 
   const body = walker.body.map(b => {
@@ -43,7 +29,7 @@ export const bodyNodes = (ast, suggestions: Suggestion[]): Body[] => {
         return {
           ...d,
           id: uuid.v4(),
-          funcs: functions(d.funcs, enrichedSuggestions),
+          funcs: functions(d.funcs, suggestions),
         }
       })
 
@@ -54,7 +40,7 @@ export const bodyNodes = (ast, suggestions: Suggestion[]): Body[] => {
 
     return {
       id,
-      funcs: functions(funcs, enrichedSuggestions),
+      funcs: functions(funcs, suggestions),
       declarations: [],
       type,
       source,
