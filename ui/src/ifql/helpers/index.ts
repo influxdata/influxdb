@@ -1,8 +1,7 @@
 import uuid from 'uuid'
+import _ from 'lodash'
 
 import Walker from 'src/ifql/ast/walker'
-import {funcNames} from 'src/ifql/constants'
-import {getDeep} from 'src/utils/wrappers'
 
 import {FlatBody, Func, Suggestion} from 'src/types/ifql'
 
@@ -55,6 +54,7 @@ const functions = (funcs: Func[], suggestions: Suggestion[]): Func[] => {
     const suggestion = suggestions.find(f => f.name === func.name)
     if (!suggestion) {
       return {
+        type: func.type,
         id: uuid.v4(),
         source: func.source,
         name: func.name,
@@ -65,7 +65,7 @@ const functions = (funcs: Func[], suggestions: Suggestion[]): Func[] => {
     const {params, name} = suggestion
     const args = Object.entries(params).map(([key, type]) => {
       const argWithKey = func.args.find(arg => arg.key === key)
-      const value = getDeep<string>(argWithKey, 'value', '')
+      const value = _.get(argWithKey, 'value', '')
 
       return {
         key,
@@ -75,6 +75,7 @@ const functions = (funcs: Func[], suggestions: Suggestion[]): Func[] => {
     })
 
     return {
+      type: func.type,
       id: uuid.v4(),
       source: func.source,
       name,
