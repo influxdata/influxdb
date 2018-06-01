@@ -1,3 +1,5 @@
+import {TimeRange} from 'src/types/query'
+
 interface InputTimeRange {
   seconds?: number
   lower?: string
@@ -27,4 +29,11 @@ export const millisecondTimeRange = ({
     until = Date.parse(upper)
   }
   return {since, until}
+}
+
+export const validTimeRange = (timeRange: TimeRange): boolean => {
+  if (!timeRange || !timeRange.lower) {
+    return false
+  }
+  return true
 }

@@ -3,8 +3,11 @@ import queryString from 'query-string'
 
 import {enablePresentationMode} from 'src/shared/actions/app'
 import {setDashTimeV1} from 'src/dashboards/actions'
+import {notify as notifyAction} from 'shared/actions/notifications'
+import {notifyInvalidTimeRangeValueInURLQuery} from 'shared/copy/notifications'
 import {timeRanges, defaultTimeRange} from 'src/shared/data/timeRanges'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
+import {validTimeRange} from 'src/dashboards/utils/time'
 
 export const queryStringConfig = store => {
   let prevPath
@@ -24,14 +27,15 @@ export const queryStringConfig = store => {
       if (currentPath !== prevPath) {
         const {dashTimeV1} = store.getState()
 
-        const foundTimeRange = dashTimeV1.ranges.find(
+        const dashboardTimeRange = dashTimeV1.ranges.find(
           r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
         )
 
-        let timeRange = foundTimeRange || defaultTimeRange
+        if (!dashboardTimeRange) {
+          return
+        }
 
-        // if lower and upper in urlQueries.
-        // and if valid.
+        let timeRange = dashboardTimeRange
 
         if (urlQueries.upper) {
           timeRange = {
@@ -42,9 +46,17 @@ export const queryStringConfig = store => {
         } else {
           timeRange = timeRanges.find(t => t.lower === urlQueries.lower)
         }
-        if (foundTimeRange) {
-          dispatch(setDashTimeV1(+dashboardID, timeRange))
+
+        const isValidTimeRange = validTimeRange(timeRange)
+
+        if (!isValidTimeRange) {
+          dispatch(
+            notifyAction(notifyInvalidTimeRangeValueInURLQuery(timeRange))
+          )
+          timeRange = defaultTimeRange
         }
+
+        dispatch(setDashTimeV1(+dashboardID, timeRange))
       }
       prevPath = currentPath
     }

@@ -438,10 +438,18 @@ export const notifyBuilderDisabled = () => ({
   message: `Your query contains a user-defined Template Variable. The Schema Explorer cannot render the query and is disabled.`,
 })
 
+//  Template Variables & URL Queries
+//  ----------------------------------------------------------------------------
 export const notifyInvalidTempVarValueInURLQuery = ({key, value}) => ({
   ...defaultErrorNotification,
   icon: 'cube',
-  message: `Invalid URL query value of '${value}' supplied for template variable '${key}'.`,
+  message: `Invalid URL query value supplied for template variable '${key}': '${value}'.`,
+})
+
+export const notifyInvalidTimeRangeValueInURLQuery = () => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Invalid URL query value supplied for lower or upper time range.`,
 })
 
 //  Rule Builder Notifications
