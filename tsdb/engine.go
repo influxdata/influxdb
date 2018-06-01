@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime"
 	"sort"
 	"time"
 
@@ -192,13 +193,15 @@ type EngineOptions struct {
 	FileStoreObserver FileStoreObserver
 }
 
-// NewEngineOptions returns the default options.
+// NewEngineOptions constructs an EngineOptions object with safe default values.
+// This should only be used in tests; production environments should read from a config file.
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
 		EngineVersion: DefaultEngine,
 		IndexVersion:  DefaultIndex,
 		Config:        NewConfig(),
 		WALEnabled:    true,
+		OpenLimiter:   limiter.NewFixed(runtime.GOMAXPROCS(0)),
 	}
 }
 
