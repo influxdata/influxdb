@@ -17,9 +17,11 @@ interface Props {
   currentSource: Source | null
   currentNamespaces: Namespace[]
   timeRange: TimeRange
+  liveUpdating: boolean
   onChooseSource: (sourceID: string) => void
   onChooseNamespace: (namespace: Namespace) => void
   onChooseTimerange: (timeRange: TimeRange) => void
+  onChangeLiveUpdatingStatus: () => void
 }
 
 class LogViewerHeader extends PureComponent<Props> {
@@ -29,7 +31,10 @@ class LogViewerHeader extends PureComponent<Props> {
       <div className="page-header full-width">
         <div className="page-header__container">
           <div className="page-header__left">
-            <h1 className="page-header__title">Log Viewer</h1>
+            {this.status}
+            <h1 className="page-header__title" style={{marginLeft: '10px'}}>
+              Log Viewer
+            </h1>
           </div>
           <div className="page-header__right">
             <Dropdown
@@ -53,6 +58,29 @@ class LogViewerHeader extends PureComponent<Props> {
         </div>
       </div>
     )
+  }
+
+  private get status(): JSX.Element {
+    const {liveUpdating, onChangeLiveUpdatingStatus} = this.props
+    if (liveUpdating) {
+      return (
+        <button
+          className={'btn btn-sm btn-default btn-square'}
+          onClick={onChangeLiveUpdatingStatus}
+        >
+          <span style={{marginRight: '10px'}} className="icon pause" />
+        </button>
+      )
+    } else {
+      return (
+        <button
+          className={'btn btn-sm btn-default btn-square'}
+          onClick={onChangeLiveUpdatingStatus}
+        >
+          <span style={{marginRight: '10px'}} className="icon refresh" />
+        </button>
+      )
+    }
   }
 
   private handleChooseTimeRange = (timerange: TimeRange) => {
