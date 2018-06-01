@@ -78,24 +78,12 @@ export interface Func {
   id: string
 }
 
-export type Arg = ArgString | ArgBool | ArgObject
+export type Arg = ArgString
 
 export interface ArgString {
   key: string
   value: string
-  type: 'string'
-}
-
-export interface ArgBool {
-  key: string
-  value: boolean
-  type: 'bool'
-}
-
-export interface ArgObject {
-  key: string
-  value: {[x: string]: string}
-  type: 'object'
+  type: string
 }
 
 interface FlatExpression {
