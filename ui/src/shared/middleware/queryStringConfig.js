@@ -5,7 +5,7 @@ import {enablePresentationMode} from 'src/shared/actions/app'
 import {setDashTimeV1} from 'src/dashboards/actions'
 import {notify as notifyAction} from 'shared/actions/notifications'
 import {notifyInvalidTimeRangeValueInURLQuery} from 'shared/copy/notifications'
-import {timeRanges, defaultTimeRange} from 'src/shared/data/timeRanges'
+import {defaultTimeRange} from 'src/shared/data/timeRanges'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {validTimeRange} from 'src/dashboards/utils/time'
 
@@ -25,30 +25,29 @@ export const queryStringConfig = store => {
       const currentPath = window.location.pathname
       const dashboardID = currentPath.match(dashboardRegex)[1]
       if (currentPath !== prevPath) {
+        let timeRange
         const {dashTimeV1} = store.getState()
 
-        const dashboardTimeRange = dashTimeV1.ranges.find(
-          r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
-        )
+        const timeRangeFromQueries = {
+          upper: urlQueries.upper,
+          lower: urlQueries.lower,
+        }
+        const timeRangeOrNull = validTimeRange(timeRangeFromQueries)
 
-        let timeRange = dashboardTimeRange
-
-        const isValidTimeRange = validTimeRange(timeRange)
-        if (isValidTimeRange) {
-          if (urlQueries.upper) {
-            timeRange = {
-              ...timeRange,
-              upper: urlQueries.upper,
-              lower: urlQueries.lower,
-            }
-          } else {
-            timeRange = timeRanges.find(t => t.lower === urlQueries.lower)
-          }
+        if (timeRangeOrNull) {
+          timeRange = timeRangeOrNull
         } else {
-          dispatch(
-            notifyAction(notifyInvalidTimeRangeValueInURLQuery(timeRange))
+          const dashboardTimeRange = dashTimeV1.ranges.find(
+            r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
           )
-          timeRange = defaultTimeRange
+
+          timeRange = dashboardTimeRange || defaultTimeRange
+
+          dispatch(
+            notifyAction(
+              notifyInvalidTimeRangeValueInURLQuery(timeRangeFromQueries)
+            )
+          )
         }
 
         dispatch(setDashTimeV1(+dashboardID, timeRange))

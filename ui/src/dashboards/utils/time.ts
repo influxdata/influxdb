@@ -34,23 +34,40 @@ export const millisecondTimeRange = ({
   return {since, until}
 }
 
-export const isRelativeTimeRange = timeRange =>
-  timeRange.lower.includes('now()')
+export const validRelativeTimeRange = (
+  timeRange: TimeRange
+): TimeRange | null => {
+  const matchedRange = timeRanges.find(t => t.lower === timeRange.lower)
 
-export const validTimeRange = (timeRange: TimeRange): boolean => {
-  if (!timeRange || !timeRange.lower) {
-    return false
+  if (matchedRange) {
+    return matchedRange
   }
 
-  const isValidRelativeTimeRange = !!timeRanges.find(
-    t => t.lower === timeRange.lower
-  )
+  return null
+}
 
-  const isUpperValid = timeRange.upper && moment(timeRange.upper).isValid()
-  const isLowerValid = moment(timeRange.lower).isValid()
-
-  if (!isTimeValid) {
-    return false
+export const validAbsoluteTimeRange = (
+  timeRange: TimeRange
+): TimeRange | null => {
+  if (
+    timeRange.lower &&
+    timeRange.upper &&
+    moment(timeRange.lower).isValid() &&
+    moment(timeRange.upper).isValid()
+  ) {
+    return timeRange
   }
-  return true
+  return null
+}
+
+export const validTimeRange = (timeRange: TimeRange): TimeRange | null => {
+  if (!timeRange.lower) {
+    return null
+  }
+
+  let timeRangeOrNull = validRelativeTimeRange(timeRange)
+  if (!timeRangeOrNull) {
+    timeRangeOrNull = validAbsoluteTimeRange(timeRange)
+  }
+  return timeRangeOrNull
 }
