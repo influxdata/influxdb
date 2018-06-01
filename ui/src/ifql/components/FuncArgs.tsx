@@ -5,9 +5,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Func} from 'src/types/ifql'
 import {funcNames} from 'src/ifql/constants'
 import Join from 'src/ifql/components/Join'
+import {Service} from 'src/types'
 
 interface Props {
   func: Func
+  service: Service
   bodyID: string
   onChangeArg: OnChangeArg
   declarationID: string
@@ -22,6 +24,7 @@ export default class FuncArgs extends PureComponent<Props> {
     const {
       func,
       bodyID,
+      service,
       onChangeArg,
       onDeleteFunc,
       declarationID,
@@ -50,6 +53,7 @@ export default class FuncArgs extends PureComponent<Props> {
               bodyID={bodyID}
               funcID={funcID}
               funcName={funcName}
+              service={service}
               onChangeArg={onChangeArg}
               declarationID={declarationID}
               onGenerateScript={onGenerateScript}

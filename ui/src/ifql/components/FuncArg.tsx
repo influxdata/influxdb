@@ -8,8 +8,10 @@ import From from 'src/ifql/components/From'
 
 import {funcNames, argTypes} from 'src/ifql/constants'
 import {OnChangeArg} from 'src/types/ifql'
+import {Service} from 'src/types'
 
 interface Props {
+  service: Service
   funcName: string
   funcID: string
   argKey: string
@@ -30,6 +32,7 @@ class FuncArg extends PureComponent<Props> {
       type,
       bodyID,
       funcID,
+      service,
       funcName,
       onChangeArg,
       declarationID,
@@ -39,6 +42,7 @@ class FuncArg extends PureComponent<Props> {
     if (funcName === funcNames.FROM) {
       return (
         <From
+          service={service}
           argKey={argKey}
           funcID={funcID}
           value={this.value}

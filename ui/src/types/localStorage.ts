@@ -7,6 +7,9 @@ export interface LogsState {
   timeRange: TimeRange
   histogramQueryConfig: QueryConfig | null
   histogramData: object[]
+  tableQueryConfig: QueryConfig | null
+  tableData: object[]
+  searchTerm: string | null
 }
 
 export interface LocalStorage {

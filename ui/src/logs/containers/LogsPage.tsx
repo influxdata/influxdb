@@ -1,19 +1,21 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
   setNamespaceAsync,
-  executeHistogramQueryAsync,
+  executeQueriesAsync,
   changeZoomAsync,
+  setSearchTermAsync,
 } from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
 import Graph from 'src/logs/components/LogsGraph'
-import Table from 'src/logs/components/LogsTable'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogViewerChart from 'src/logs/components/LogViewerChart'
+import LogsTable from 'src/logs/components/LogsTable'
+import {getDeep} from 'src/utils/wrappers'
 
 import {Source, Namespace, TimeRange} from 'src/types'
 
@@ -35,9 +37,15 @@ interface Props {
   setTimeRangeAsync: (timeRange: TimeRange) => void
   setNamespaceAsync: (namespace: Namespace) => void
   changeZoomAsync: (timeRange: TimeRange) => void
-  executeHistogramQueryAsync: () => void
+  executeQueriesAsync: () => void
+  setSearchTermAsync: (searchTerm: string) => void
   timeRange: TimeRange
   histogramData: object[]
+  tableData: {
+    columns: string[]
+    values: string[]
+  }
+  searchTerm: string
 }
 
 interface State {
@@ -73,10 +81,17 @@ class LogsPage extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.getSources()
+
+    if (this.props.currentNamespace) {
+      this.props.executeQueriesAsync()
+    }
   }
 
   public render() {
-    const {searchString, filters} = this.state
+    const {filters} = this.state
+    const {searchTerm} = this.props
+
+    const count = getDeep(this.props, 'tableData.values.length', 0)
 
     return (
       <div className="page">
@@ -84,16 +99,15 @@ class LogsPage extends PureComponent<Props, State> {
         <div className="page-contents logs-viewer">
           <Graph>{this.chart}</Graph>
           <SearchBar
-            searchString={searchString}
-            onChange={this.handleSearchInputChange}
+            searchString={searchTerm}
             onSearch={this.handleSubmitSearch}
           />
           <FilterBar
-            numResults={300}
+            numResults={count}
             filters={filters}
             onUpdateFilters={this.handleUpdateFilters}
           />
-          <Table thing="snooo" />
+          <LogsTable data={this.props.tableData} />
         </div>
       </div>
     )
@@ -133,14 +147,8 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleSearchInputChange = (
-    e: ChangeEvent<HTMLInputElement>
-  ): void => {
-    this.setState({searchString: e.target.value})
-  }
-
-  private handleSubmitSearch = (): void => {
-    // do the thing
+  private handleSubmitSearch = (value: string): void => {
+    this.props.setSearchTermAsync(value)
   }
 
   private handleUpdateFilters = (filters: Filter[]): void => {
@@ -149,7 +157,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   private handleChooseTimerange = (timeRange: TimeRange) => {
     this.props.setTimeRangeAsync(timeRange)
-    this.props.executeHistogramQueryAsync()
+    this.props.executeQueriesAsync()
   }
 
   private handleChooseSource = (sourceID: string) => {
@@ -175,6 +183,8 @@ const mapStateToProps = ({
     timeRange,
     currentNamespace,
     histogramData,
+    tableData,
+    searchTerm,
   },
 }) => ({
   sources,
@@ -183,6 +193,8 @@ const mapStateToProps = ({
   timeRange,
   currentNamespace,
   histogramData,
+  tableData,
+  searchTerm,
 })
 
 const mapDispatchToProps = {
@@ -190,8 +202,9 @@ const mapDispatchToProps = {
   getSources: getSourcesAsync,
   setTimeRangeAsync,
   setNamespaceAsync,
-  executeHistogramQueryAsync,
+  executeQueriesAsync,
   changeZoomAsync,
+  setSearchTermAsync,
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(LogsPage)

@@ -73,9 +73,5 @@ required = ["github.com/kevinburke/go-bindata","github.com/gogo/protobuf/proto",
   version = "~1.1.0"
 
 [[constraint]]
-  name = "github.com/influxdata/ifql"
-  revision = "9445c4494d4421db2ab1aaaf6f4069446f11752e"
-
-[[constraint]]
   name = "github.com/influxdata/kapacitor"
   revision = "4f10efc41b4dcac070495cf95ba2c41cfcc2aa3a"

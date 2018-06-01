@@ -12,12 +12,6 @@
   revision = "3ec0642a7fb6488f65b06f9040adc67e3990296a"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/beorn7/perks"
-  packages = ["quantile"]
-  revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
-
-[[projects]]
   name = "github.com/boltdb/bolt"
   packages = ["."]
   revision = "5cc10bbbc5c141029940133bb33c9e969512a698"
@@ -46,7 +40,6 @@
 [[projects]]
   name = "github.com/gogo/protobuf"
   packages = [
-    "codec",
     "gogoproto",
     "jsonpb",
     "plugin/compare",
@@ -108,25 +101,6 @@
   revision = "53e6ce116135b80d037921a7fdd5138cf32d7a8a"
 
 [[projects]]
-  name = "github.com/influxdata/ifql"
-  packages = [
-    ".",
-    "ast",
-    "compiler",
-    "complete",
-    "functions",
-    "interpreter",
-    "parser",
-    "query",
-    "query/control",
-    "query/execute",
-    "query/execute/storage",
-    "query/plan",
-    "semantic"
-  ]
-  revision = "9445c4494d4421db2ab1aaaf6f4069446f11752e"
-
-[[projects]]
   name = "github.com/influxdata/influxdb"
   packages = [
     "influxql",
@@ -154,6 +128,35 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/influxdata/line-protocol"
+  packages = ["."]
+  revision = "32c6aa80de5eb09d190ad284a8214a531c6bce57"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/influxdata/platform"
+  packages = [
+    ".",
+    "query",
+    "query/ast",
+    "query/builtin",
+    "query/compiler",
+    "query/complete",
+    "query/csv",
+    "query/execute",
+    "query/functions",
+    "query/functions/storage",
+    "query/id",
+    "query/interpreter",
+    "query/parser",
+    "query/plan",
+    "query/semantic",
+    "query/values"
+  ]
+  revision = "6b2cf4e666447f73e6a6d7368cd6b4698f1de91f"
+
+[[projects]]
+  branch = "master"
   name = "github.com/influxdata/tdigest"
   packages = ["."]
   revision = "617b83f940fd9acd207f712561a8a0590277fb38"
@@ -164,23 +167,6 @@
   revision = "6d3895376368aa52a3a81d2a16e90f0f52371967"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/influxdata/yamux"
-  packages = ["."]
-  revision = "1f58ded512de5feabbe30b60c7d33a7a896c5f16"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/influxdata/yarpc"
-  packages = [
-    ".",
-    "codes",
-    "status",
-    "yarpcproto"
-  ]
-  revision = "f0da2db138cad2fb425541938fc28dd5a5bc6918"
-
-[[projects]]
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
   revision = "4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa"
@@ -189,12 +175,6 @@
   name = "github.com/kevinburke/go-bindata"
   packages = ["."]
   revision = "46eb4c183bfc1ebb527d9d19bcded39476302eb8"
-
-[[projects]]
-  name = "github.com/matttproud/golang_protobuf_extensions"
-  packages = ["pbutil"]
-  revision = "3247c84500bff8d9fb6d579d800f20b3e091582c"
-  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/opentracing/opentracing-go"
@@ -210,39 +190,6 @@
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
-
-[[projects]]
-  name = "github.com/prometheus/client_golang"
-  packages = ["prometheus"]
-  revision = "c5b7fccd204277076155f10851dad72b76a49317"
-  version = "v0.8.0"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/prometheus/client_model"
-  packages = ["go"]
-  revision = "99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/prometheus/common"
-  packages = [
-    "expfmt",
-    "internal/bitbucket.org/ww/goautoneg",
-    "model"
-  ]
-  revision = "e4aa40a9169a88835b849a6efb71e05dc04b88f0"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/prometheus/procfs"
-  packages = [
-    ".",
-    "internal/util",
-    "nfs",
-    "xfs"
-  ]
-  revision = "780932d4fbbe0e69b84c34c20f5c8d0981e109ea"
 
 [[projects]]
   name = "github.com/satori/go.uuid"
@@ -311,6 +258,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "177aad722546727b812f2baf43e2fcc614cc1fa209efa3fdffa4dbcafb6dfdad"
+  inputs-digest = "d50a9a3e46034310699abad51d2d8572c09640074aeda4e8e35149c72e78b582"
   solver-name = "gps-cdcl"
   solver-version = 1

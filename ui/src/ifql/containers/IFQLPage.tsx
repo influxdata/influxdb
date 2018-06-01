@@ -22,7 +22,7 @@ import {
   FlatBody,
   Links,
   InputArg,
-  Handlers,
+  Context,
   DeleteFuncNodeArgs,
   Func,
   ScriptStatus,
@@ -36,7 +36,7 @@ interface Status {
 interface Props {
   links: Links
   services: Service[]
-  sources: Source[]
+  source: Source
   notify: (message: Notification) => void
   script: string
   updateScript: UpdateScript
@@ -90,7 +90,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     const {script} = this.props
 
     return (
-      <IFQLContext.Provider value={this.handlers}>
+      <IFQLContext.Provider value={this.getContext}>
         <KeyboardShortcuts onControlEnter={this.getTimeSeries}>
           <div className="page hosts-list-page">
             {this.header}
@@ -99,6 +99,7 @@ export class IFQLPage extends PureComponent<Props, State> {
               body={body}
               script={script}
               status={status}
+              service={this.service}
               suggestions={suggestions}
               onAnalyze={this.handleAnalyze}
               onAppendFrom={this.handleAppendFrom}
@@ -128,7 +129,7 @@ export class IFQLPage extends PureComponent<Props, State> {
     return this.props.services[0]
   }
 
-  private get handlers(): Handlers {
+  private get getContext(): Context {
     return {
       onAddNode: this.handleAddNode,
       onChangeArg: this.handleChangeArg,
@@ -136,6 +137,7 @@ export class IFQLPage extends PureComponent<Props, State> {
       onChangeScript: this.handleChangeScript,
       onDeleteFuncNode: this.handleDeleteFuncNode,
       onGenerateScript: this.handleGenerateScript,
+      service: this.service,
     }
   }
 
@@ -438,6 +440,8 @@ export class IFQLPage extends PureComponent<Props, State> {
       notify(ifqlTimeSeriesError(error))
       console.error('Could not get timeSeries', error)
     }
+
+    this.getASTResponse(script)
   }
 
   private parseError = (error): Status => {

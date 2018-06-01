@@ -1,12 +1,14 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import TimeMachine from 'src/ifql/components/TimeMachine'
+import {service} from 'test/resources'
 
 const setup = () => {
   const props = {
     script: '',
     body: [],
     data: [],
+    service,
     suggestions: [],
     onSubmitScript: () => {},
     onChangeScript: () => {},

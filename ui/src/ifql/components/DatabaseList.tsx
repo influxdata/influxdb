@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import PropTypes from 'prop-types'
 
 import DatabaseListItem from 'src/ifql/components/DatabaseListItem'
 
@@ -7,29 +6,23 @@ import {showDatabases} from 'src/shared/apis/metaQuery'
 import showDatabasesParser from 'src/shared/parsing/showDatabases'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Service} from 'src/types'
 
-interface DatabaseListState {
-  databases: string[]
-  measurement: string
-  db: string
+interface Props {
+  service: Service
 }
 
-const {shape} = PropTypes
+interface State {
+  databases: string[]
+}
 
 @ErrorHandling
-class DatabaseList extends PureComponent<{}, DatabaseListState> {
-  public static contextTypes = {
-    source: shape({
-      links: shape({}).isRequired,
-    }).isRequired,
-  }
-
+class DatabaseList extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
+
     this.state = {
       databases: [],
-      measurement: '',
-      db: '',
     }
   }
 
@@ -38,10 +31,10 @@ class DatabaseList extends PureComponent<{}, DatabaseListState> {
   }
 
   public async getDatabases() {
-    const {source} = this.context
+    const {service} = this.props
 
     try {
-      const {data} = await showDatabases(source.links.proxy)
+      const {data} = await showDatabases(`${service.links.source}/proxy`)
       const {databases} = showDatabasesParser(data)
       const sorted = databases.sort()
 
@@ -52,8 +45,11 @@ class DatabaseList extends PureComponent<{}, DatabaseListState> {
   }
 
   public render() {
-    return this.state.databases.map(db => {
-      return <DatabaseListItem db={db} key={db} />
+    const {databases} = this.state
+    const {service} = this.props
+
+    return databases.map(db => {
+      return <DatabaseListItem db={db} key={db} service={service} />
     })
   }
 }

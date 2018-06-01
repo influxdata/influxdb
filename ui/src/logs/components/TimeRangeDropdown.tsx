@@ -130,10 +130,9 @@ class TimeRangeDropdown extends Component<Props, State> {
   }
 
   private get dropdownClassName(): string {
-    const {
-      isOpen,
-      customTimeRange: {lower, upper},
-    } = this.state
+    const {isOpen} = this.state
+
+    const {lower, upper} = _.get(this.props, 'selected', {upper: '', lower: ''})
 
     const absoluteTimeRange = !_.isEmpty(lower) && !_.isEmpty(upper)
 

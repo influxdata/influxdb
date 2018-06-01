@@ -1,8 +1,9 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import From from 'src/ifql/components/From'
+import {service} from 'test/resources'
 
-jest.mock('src/ifql/apis', () => require('mocks/ifql/apis'))
+jest.mock('src/shared/apis/metaQuery', () => require('mocks/ifql/apis'))
 
 const setup = () => {
   const props = {
@@ -11,6 +12,7 @@ const setup = () => {
     value: 'db1',
     bodyID: '2',
     declarationID: '1',
+    service,
     onChangeArg: () => {},
   }
 

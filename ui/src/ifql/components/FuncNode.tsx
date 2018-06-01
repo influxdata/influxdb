@@ -4,9 +4,11 @@ import FuncArgs from 'src/ifql/components/FuncArgs'
 import FuncArgsPreview from 'src/ifql/components/FuncArgsPreview'
 import {OnDeleteFuncNode, OnChangeArg, Func} from 'src/types/ifql'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Service} from 'src/types'
 
 interface Props {
   func: Func
+  service: Service
   bodyID: string
   declarationID?: string
   onDelete: OnDeleteFuncNode
@@ -36,6 +38,7 @@ export default class FuncNode extends PureComponent<Props, State> {
     const {
       func,
       bodyID,
+      service,
       onChangeArg,
       declarationID,
       onGenerateScript,
@@ -55,6 +58,7 @@ export default class FuncNode extends PureComponent<Props, State> {
           <FuncArgs
             func={func}
             bodyID={bodyID}
+            service={service}
             onChangeArg={onChangeArg}
             declarationID={declarationID}
             onGenerateScript={onGenerateScript}
