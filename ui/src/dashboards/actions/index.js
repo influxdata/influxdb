@@ -330,7 +330,7 @@ export const deleteDashboardCellAsync = (dashboard, cell) => async dispatch => {
   }
 }
 
-export const updateTempVarValues = (source, dashboard) => async dispatch => {
+export const hydrateTempVarValues = (source, dashboard) => async dispatch => {
   try {
     const tempsWithQueries = dashboard.templates.filter(
       ({query}) => !!query.influxql

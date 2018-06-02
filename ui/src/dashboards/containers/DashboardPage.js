@@ -91,7 +91,7 @@ class DashboardPage extends Component {
       params: {dashboardID},
       dashboardActions: {
         getDashboardsAsync,
-        updateTempVarValues,
+        hydrateTempVarValues,
         putDashboardByID,
         syncURLQueryFromTempVars,
       },
@@ -147,7 +147,7 @@ class DashboardPage extends Component {
     // is refactored so as not to require a write operation (a PUT in this case)
     if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
       await putDashboardByID(dashboardID)
-      await updateTempVarValues(source, dashboard)
+      await hydrateTempVarValues(source, dashboard)
     }
   }
 
