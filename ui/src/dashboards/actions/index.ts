@@ -668,6 +668,12 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
         templates: dashboard.templates,
       })
     )
+
+    const {
+      data: {dashboards},
+    } = await getDashboardsAJAX()
+    dispatch(loadDashboards(dashboards))
+
     dispatch(notify(notifyDashboardImported(name)))
   } catch (error) {
     const errorMessage = _.get(
