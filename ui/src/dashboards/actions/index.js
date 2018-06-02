@@ -474,34 +474,28 @@ const syncDashboardTimeRangeFromURLQueries = (
   urlQueries,
   location
 ) => (dispatch, getState) => {
-  const dashboard = getState().dashboardUI.dashboards.find(
-    d => d.id === dashboardID
-  )
-
   const {
-    upper = null,
-    lower = null,
-    zoomedUpper = null,
-    zoomedLower = null,
-  } = urlQueries
-
-  let timeRange
-  const {dashTimeV1} = getState()
+    dashboardUI: {dashboards},
+    dashTimeV1,
+  } = getState()
+  const dashboard = dashboards.find(d => d.id === dashboardID)
 
   const timeRangeFromQueries = {
     upper: urlQueries.upper,
     lower: urlQueries.lower,
   }
-  const timeRangeOrNull = validTimeRange(timeRangeFromQueries)
+  const zoomedTimeRangeFromQueries = {
+    lower: urlQueries.zoomedLower,
+    upper: urlQueries.zoomedUpper,
+  }
 
-  if (timeRangeOrNull) {
-    timeRange = timeRangeOrNull
-  } else {
+  let validatedTimeRange = validTimeRange(timeRangeFromQueries)
+  if (!validatedTimeRange.lower) {
     const dashboardTimeRange = dashTimeV1.ranges.find(
       r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
     )
 
-    timeRange = dashboardTimeRange || defaultTimeRange
+    validatedTimeRange = dashboardTimeRange || defaultTimeRange
 
     if (timeRangeFromQueries.lower || timeRangeFromQueries.upper) {
       dispatch(
@@ -509,22 +503,23 @@ const syncDashboardTimeRangeFromURLQueries = (
       )
     }
   }
+  dispatch(setDashTimeV1(dashboardID, validatedTimeRange))
 
-  dispatch(setDashTimeV1(dashboardID, timeRange))
-
-  if (!validAbsoluteTimeRange({lower: zoomedLower, upper: zoomedUpper})) {
-    if (zoomedLower || zoomedUpper) {
-      dispatch(notify(notifyInvalidZoomedTimeRangeValueInURLQuery()))
-    }
+  const validatedZoomedTimeRange = validAbsoluteTimeRange(
+    zoomedTimeRangeFromQueries
+  )
+  if (
+    !validatedZoomedTimeRange.lower &&
+    (urlQueries.zoomedLower || urlQueries.zoomedUpper)
+  ) {
+    dispatch(notify(notifyInvalidZoomedTimeRangeValueInURLQuery()))
   }
-
-  dispatch(setZoomedTimeRange({zoomedLower, zoomedUpper}))
-
+  dispatch(setZoomedTimeRange(validatedZoomedTimeRange))
   const urlQueryTimeRanges = {
-    upper,
-    lower,
-    zoomedUpper,
-    zoomedLower,
+    lower: validatedTimeRange.lower,
+    upper: validatedTimeRange.upper,
+    zoomedLower: validatedZoomedTimeRange.lower,
+    zoomedUpper: validatedZoomedTimeRange.upper,
   }
   dispatch(
     syncURLQueryFromTempVars(

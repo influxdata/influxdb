@@ -34,35 +34,37 @@ export const millisecondTimeRange = ({
   return {since, until}
 }
 
-const validRelativeTimeRange = (timeRange: TimeRange): TimeRange | null => {
-  const matchedRange = timeRanges.find(t => t.lower === timeRange.lower)
+const nullTimeRange: TimeRange = {lower: null, upper: null}
 
-  if (matchedRange) {
-    return matchedRange
+const validRelativeTimeRange = (timeRange: TimeRange): TimeRange => {
+  const validatedTimeRange = timeRanges.find(t => t.lower === timeRange.lower)
+
+  if (validatedTimeRange) {
+    return validatedTimeRange
   }
 
-  return null
+  return nullTimeRange
 }
 
-export const validAbsoluteTimeRange = (
-  timeRange: TimeRange
-): TimeRange | null => {
-  if (
-    timeRange.lower &&
-    timeRange.upper &&
-    moment(timeRange.lower).isValid() &&
-    moment(timeRange.upper).isValid() &&
-    moment(timeRange.lower).isBefore(moment(timeRange.upper))
-  ) {
-    return timeRange
+export const validAbsoluteTimeRange = (timeRange: TimeRange): TimeRange => {
+  if (timeRange.lower && timeRange.upper) {
+    if (moment(timeRange.lower).isValid()) {
+      if (
+        timeRange.upper === 'now()' ||
+        (moment(timeRange.upper).isValid() &&
+          moment(timeRange.lower).isBefore(moment(timeRange.upper)))
+      ) {
+        return timeRange
+      }
+    }
   }
-  return null
+  return nullTimeRange
 }
 
-export const validTimeRange = (timeRange: TimeRange): TimeRange | null => {
-  let timeRangeOrNull = validRelativeTimeRange(timeRange)
-  if (!timeRangeOrNull) {
-    timeRangeOrNull = validAbsoluteTimeRange(timeRange)
+export const validTimeRange = (timeRange: TimeRange): TimeRange => {
+  const validatedTimeRange = validRelativeTimeRange(timeRange)
+  if (validatedTimeRange.lower) {
+    return validatedTimeRange
   }
-  return timeRangeOrNull
+  return validAbsoluteTimeRange(timeRange)
 }
