@@ -8,6 +8,18 @@ export function getDashboards() {
   })
 }
 
+export const getDashboard = async dashboardID => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url: `/chronograf/v1/dashboards/${dashboardID}`,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export function updateDashboard(dashboard) {
   return AJAX({
     method: 'PUT',

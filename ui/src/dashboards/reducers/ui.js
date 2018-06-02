@@ -9,6 +9,7 @@ const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 const initialState = {
   dashboards: [],
   timeRange: {lower, upper},
+  zoomedTimeRange: {lower: null, upper: null},
   isEditMode: false,
   cellQueryStatus: {queryID: null, status: null},
   hoverTime: NULL_HOVER_TIME,
@@ -29,10 +30,23 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'LOAD_DASHBOARD': {
+      const {dashboard} = action.payload
+      const newDashboards = _.unionBy([dashboard], state.dashboards, 'id')
+
+      return {...state, dashboards: newDashboards}
+    }
+
     case 'SET_DASHBOARD_TIME_RANGE': {
       const {timeRange} = action.payload
 
       return {...state, timeRange}
+    }
+
+    case 'SET_DASHBOARD_ZOOMED_TIME_RANGE': {
+      const {zoomedTimeRange} = action.payload
+
+      return {...state, zoomedTimeRange}
     }
 
     case 'UPDATE_DASHBOARD': {
@@ -235,12 +249,12 @@ export default function ui(state = initialState, action) {
     }
 
     case 'TEMPLATE_VARIABLES_SELECTED_BY_NAME': {
-      const {dashboardID, query} = action.payload
+      const {dashboardID, queries} = action.payload
 
       const newDashboards = state.dashboards.map(
         oldDashboard =>
           oldDashboard.id === dashboardID
-            ? applyDashboardTempVarOverrides(oldDashboard, query)
+            ? applyDashboardTempVarOverrides(oldDashboard, queries)
             : oldDashboard
       )
 

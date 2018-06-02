@@ -1,5 +1,4 @@
 import _ from 'lodash'
-import queryString from 'query-string'
 
 import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
 
@@ -124,9 +123,7 @@ export const applyDashboardTempVarOverrides = (
   ),
 })
 
-export const getInvalidTempVarsInURLQuery = tempVars => {
-  const urlQueries = queryString.parse(window.location.search)
-
+export const findInvalidTempVarsInURLQuery = (tempVars, urlQueries) => {
   const urlQueryTempVarsWithInvalidValues = _.reduce(
     urlQueries,
     (acc, v, k) => {
