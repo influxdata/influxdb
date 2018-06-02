@@ -29,7 +29,7 @@ const DashboardHeader = ({
   showTemplateControlBar,
   timeRange: {upper, lower},
   handleClickPresentationButton,
-  zoomedTimeRange: {zoomedLower, zoomedUpper},
+  zoomedTimeRange: {lower: zoomedLower, upper: zoomedUpper},
 }) =>
   isHidden ? null : (
     <div className="page-header full-width">
@@ -115,8 +115,8 @@ const {arrayOf, bool, func, number, shape, string} = PropTypes
 
 DashboardHeader.defaultProps = {
   zoomedTimeRange: {
-    zoomedLower: null,
-    zoomedUpper: null,
+    lower: null,
+    upper: null,
   },
 }
 

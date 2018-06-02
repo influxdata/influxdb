@@ -317,7 +317,7 @@ class DashboardPage extends Component {
 
   handleZoomedTimeRange = (zoomedLower, zoomedUpper) => {
     const {dashboardActions, location} = this.props
-    const zoomedTimeRange = {zoomedLower, zoomedUpper}
+    const zoomedTimeRange = {lower: zoomedLower, upper: zoomedUpper}
     dashboardActions.setZoomedTimeRangeAsync(zoomedTimeRange, location)
   }
 

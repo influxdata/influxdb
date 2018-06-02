@@ -481,8 +481,8 @@ const syncDashboardTimeRangeFromURLQueries = (
   const dashboard = dashboards.find(d => d.id === dashboardID)
 
   const timeRangeFromQueries = {
-    upper: urlQueries.upper,
     lower: urlQueries.lower,
+    upper: urlQueries.upper,
   }
   const zoomedTimeRangeFromQueries = {
     lower: urlQueries.zoomedLower,
@@ -570,5 +570,9 @@ export const setZoomedTimeRangeAsync = (
   location
 ) => async dispatch => {
   dispatch(setZoomedTimeRange(zoomedTimeRange))
-  dispatch(syncURLQueryFromQueriesObject(location, zoomedTimeRange))
+  const urlQueryZoomedTimeRange = {
+    zoomedLower: zoomedTimeRange.lower,
+    zoomedUpper: zoomedTimeRange.upper,
+  }
+  dispatch(syncURLQueryFromQueriesObject(location, urlQueryZoomedTimeRange))
 }
