@@ -14,7 +14,7 @@ import TableInput from 'src/dashboards/components/template_variables/TableInput'
 import RowValues from 'src/dashboards/components/template_variables/RowValues'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
-import {runTemplateVariableQuery as runTemplateVariableQueryAJAX} from 'src/dashboards/apis'
+import {getTempVarValuesBySourceQuery as getTempVarValuesBySourceQueryAJAX} from 'src/dashboards/apis'
 
 import parsers from 'shared/parsing'
 
@@ -203,7 +203,10 @@ class RowWrapper extends Component {
       if (type === 'csv') {
         parsedData = e.target.values.value.split(',').map(value => value.trim())
       } else {
-        parsedData = await this.runTemplateVariableQuery(source, queryConfig)
+        parsedData = await this.getTempVarValuesBySourceQuery(
+          source,
+          queryConfig
+        )
       }
 
       onRunQuerySuccess(template, queryConfig, compact(parsedData), tempVar)
@@ -264,12 +267,12 @@ class RowWrapper extends Component {
     this.setState({selectedTagKey: item.text})
   }
 
-  runTemplateVariableQuery = async (
+  getTempVarValuesBySourceQuery = async (
     source,
     {query, database, rp, tempVars, type, measurement, tagKey}
   ) => {
     try {
-      const {data} = await runTemplateVariableQueryAJAX(source, {
+      const {data} = await getTempVarValuesBySourceQueryAJAX(source, {
         query,
         db: database,
         rp,

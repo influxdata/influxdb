@@ -9,7 +9,7 @@ import {
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
-  runTemplateVariableQuery,
+  getTempVarValuesBySourceQuery,
 } from 'src/dashboards/apis'
 
 import {notify} from 'shared/actions/notifications'
@@ -337,7 +337,9 @@ export const hydrateTempVarValues = (source, dashboard) => async dispatch => {
     )
 
     const asyncQueries = tempsWithQueries.map(({query}) =>
-      runTemplateVariableQuery(source, {query: makeQueryForTemplate(query)})
+      getTempVarValuesBySourceQuery(source, {
+        query: makeQueryForTemplate(query),
+      })
     )
 
     const results = await Promise.all(asyncQueries)

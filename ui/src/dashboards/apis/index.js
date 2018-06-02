@@ -87,7 +87,7 @@ export const editTemplateVariables = async templateVariable => {
   }
 }
 
-export const runTemplateVariableQuery = async (
+export const getTempVarValuesBySourceQuery = async (
   source,
   {
     query,
