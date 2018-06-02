@@ -142,10 +142,10 @@ class DashboardPage extends Component {
       zoomedLower,
     })
 
-    // Refresh and persists influxql generated template variable values.
     // If using auth and role is Viewer, temp vars will be stale until dashboard
     // is refactored so as not to require a write operation (a PUT in this case)
     if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
+      // putDashboardByID refreshes & persists influxql generated template variable values.
       await putDashboardByID(dashboardID)
       await hydrateTempVarValues(source, dashboard)
     }
