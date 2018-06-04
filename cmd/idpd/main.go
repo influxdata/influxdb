@@ -91,6 +91,11 @@ func platformF(cmd *cobra.Command, args []string) {
 		userSvc = c
 	}
 
+	var dashboardSvc platform.DashboardService
+	{
+		dashboardSvc = c
+	}
+
 	errc := make(chan error)
 
 	sigs := make(chan os.Signal, 1)
@@ -111,6 +116,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		userHandler := http.NewUserHandler()
 		userHandler.UserService = userSvc
 
+		dashboardHandler := http.NewDashboardHandler()
+		dashboardHandler.DashboardService = dashboardSvc
+
 		authHandler := http.NewAuthorizationHandler()
 		authHandler.AuthorizationService = authSvc
 		authHandler.Logger = logger.With(zap.String("handler", "auth"))
@@ -120,6 +128,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			OrgHandler:           orgHandler,
 			UserHandler:          userHandler,
 			AuthorizationHandler: authHandler,
+			DashboardHandler:     dashboardHandler,
 		}
 		h := http.NewHandler("platform")
 		h.Handler = platformHandler
