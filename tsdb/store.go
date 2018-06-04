@@ -230,15 +230,36 @@ func (s *Store) loadShards() error {
 
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
-	// Env var to disable throughput limiter.  This will be moved to a config option in 1.5.
 	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
-	if os.Getenv("INFLUXDB_DATA_COMPACTION_THROUGHPUT") == "" {
-		rate, burst := 48*1024*1024, 48*1024*1024
-		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(48*1024*1024, 48*1024*1024)
-		compactionSettings = append(compactionSettings, zap.Int("throughput_bytes_per_second", rate), zap.Int("throughput_burst_bytes", burst))
+	throughput := int(s.EngineOptions.Config.CompactThroughput)
+	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
+	compactionSettings = append(
+		compactionSettings,
+		zap.Int("throughput_bytes_per_second", throughput),
+		zap.Int("throughput_bytes_per_second_burst", throughputBurst),
+	)
+	if throughput > 0 {
+		if throughputBurst < throughput {
+			throughputBurst = throughput
+		}
+		s.Logger.Info(
+			"Compaction throughput enabled",
+			zap.String("throughput_bytes_per_second", fmt.Sprintf("%d%%", throughput)),
+			zap.String("throughput_bytes_per_second_burst", fmt.Sprintf("%d%%", throughputBurst)),
+		)
+		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(
+			throughput,
+			throughputBurst,
+		)
 	} else {
-		compactionSettings = append(compactionSettings, zap.String("throughput_bytes_per_second", "unlimited"), zap.String("throughput_burst", "unlimited"))
+		compactionSettings = append(
+			compactionSettings,
+			zap.String("throughput_bytes_per_second", "unlimited"),
+			zap.String("throughput_bytes_per_second_burst", "unlimited"),
+		)
+		s.Logger.Info("Compaction throughput limit disabled")
 	}
+
 	s.Logger.Info("Compaction settings", compactionSettings...)
 
 	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
