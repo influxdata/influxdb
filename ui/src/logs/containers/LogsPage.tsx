@@ -51,6 +51,7 @@ interface Props {
 interface State {
   searchString: string
   filters: Filter[]
+  liveUpdating: boolean
 }
 
 const DUMMY_FILTERS = [
@@ -64,12 +65,15 @@ const DUMMY_FILTERS = [
 ]
 
 class LogsPage extends PureComponent<Props, State> {
+  private interval: NodeJS.Timer
+
   constructor(props: Props) {
     super(props)
 
     this.state = {
       searchString: '',
       filters: DUMMY_FILTERS,
+      liveUpdating: false,
     }
   }
 
@@ -85,10 +89,16 @@ class LogsPage extends PureComponent<Props, State> {
     if (this.props.currentNamespace) {
       this.props.executeQueriesAsync()
     }
+
+    this.startUpdating()
+  }
+
+  public componentWillUnmount() {
+    clearInterval(this.interval)
   }
 
   public render() {
-    const {filters} = this.state
+    const {filters, liveUpdating} = this.state
     const {searchTerm} = this.props
 
     const count = getDeep(this.props, 'tableData.values.length', 0)
@@ -107,10 +117,41 @@ class LogsPage extends PureComponent<Props, State> {
             filters={filters}
             onUpdateFilters={this.handleUpdateFilters}
           />
-          <LogsTable data={this.props.tableData} />
+          <LogsTable
+            data={this.props.tableData}
+            onScrollVertical={this.handleVerticalScroll}
+            onScrolledToTop={this.handleScrollToTop}
+            isScrolledToTop={liveUpdating}
+          />
         </div>
       </div>
     )
+  }
+
+  private startUpdating = () => {
+    if (this.interval) {
+      clearInterval(this.interval)
+    }
+
+    this.interval = setInterval(this.handleInterval, 10000)
+    this.setState({liveUpdating: true})
+  }
+
+  private handleScrollToTop = () => {
+    if (!this.state.liveUpdating) {
+      this.startUpdating()
+    }
+  }
+
+  private handleVerticalScroll = () => {
+    if (this.state.liveUpdating) {
+      clearInterval(this.interval)
+      this.setState({liveUpdating: false})
+    }
+  }
+
+  private handleInterval = () => {
+    this.props.executeQueriesAsync()
   }
 
   private get chart(): JSX.Element {
@@ -133,8 +174,11 @@ class LogsPage extends PureComponent<Props, State> {
       timeRange,
     } = this.props
 
+    const {liveUpdating} = this.state
+
     return (
       <LogViewerHeader
+        liveUpdating={liveUpdating}
         availableSources={sources}
         timeRange={timeRange}
         onChooseSource={this.handleChooseSource}
@@ -143,8 +187,20 @@ class LogsPage extends PureComponent<Props, State> {
         currentSource={currentSource}
         currentNamespaces={currentNamespaces}
         currentNamespace={currentNamespace}
+        onChangeLiveUpdatingStatus={this.handleChangeLiveUpdatingStatus}
       />
     )
+  }
+
+  private handleChangeLiveUpdatingStatus = (): void => {
+    const {liveUpdating} = this.state
+
+    if (liveUpdating) {
+      clearInterval(this.interval)
+      this.setState({liveUpdating: false})
+    } else {
+      this.startUpdating()
+    }
   }
 
   private handleSubmitSearch = (value: string): void => {

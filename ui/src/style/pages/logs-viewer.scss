@@ -15,6 +15,10 @@ $logs-viewer-gutter: 60px;
   flex-wrap: nowrap;
 }
 
+.logs-viewer-header-title {
+  margin-left: 10px;
+}
+
 .logs-viewer--graph-container {
   padding: 22px ($logs-viewer-gutter - 16px) 10px ($logs-viewer-gutter - 16px);
   height: $logs-viewer-graph-height;
@@ -233,5 +237,14 @@ $logs-viewer-gutter: 60px;
   }
   &.debug-severity {
     @include gradient-diag-up($g5-pepper, $g6-smoke);
+  }
+}
+
+// Play & Pause Toggle in Header
+.nav.nav-tablist.nav-tablist-sm.logs-viewer--mode-toggle {
+  > li {
+    padding: 0;
+    width: 26px;
+    justify-content: center;
   }
 }

@@ -1,39 +1,64 @@
 import _ from 'lodash'
 import moment from 'moment'
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {Component, MouseEvent} from 'react'
 import {Grid, AutoSizer} from 'react-virtualized'
 import {getDeep} from 'src/utils/wrappers'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
-const ROW_HEIGHT = 40
+const ROW_HEIGHT = 30
+const HIGHLIGHT_COLOR = '#555'
 
 interface Props {
   data: {
     columns: string[]
     values: string[]
   }
+  isScrolledToTop: boolean
+  onScrollVertical: () => void
+  onScrolledToTop: () => void
 }
 
 interface State {
   scrollLeft: number
   scrollTop: number
+  currentRow: number
 }
 
-class LogsTable extends PureComponent<Props, State> {
+class LogsTable extends Component<Props, State> {
+  public static getDerivedStateFromProps(props, state) {
+    const {scrolledToTop} = props
+
+    let scrollTop = _.get(state, 'scrollTop', 0)
+    if (scrolledToTop) {
+      scrollTop = 0
+    }
+
+    return {
+      scrollTop,
+      scrollLeft: 0,
+      currentRow: -1,
+    }
+  }
+
   constructor(props: Props) {
     super(props)
 
     this.state = {
-      scrollLeft: 0,
       scrollTop: 0,
+      scrollLeft: 0,
+      currentRow: -1,
     }
   }
+
   public render() {
     const rowCount = getDeep(this.props, 'data.values.length', 0)
     const columnCount = getDeep(this.props, 'data.columns.length', 1) - 1
 
     return (
-      <div className="logs-viewer--table-container">
+      <div
+        className="logs-viewer--table-container"
+        onMouseOut={this.handleMouseOut}
+      >
         <AutoSizer>
           {({width}) => (
             <Grid
@@ -72,7 +97,7 @@ class LogsTable extends PureComponent<Props, State> {
                 cellRenderer={this.cellRenderer}
                 columnCount={columnCount}
                 columnWidth={this.getColumnWidth}
-                style={{height: 40 * rowCount}}
+                style={{height: ROW_HEIGHT * rowCount}}
               />
             </FancyScrollbar>
           )}
@@ -90,6 +115,12 @@ class LogsTable extends PureComponent<Props, State> {
 
   private handleScroll = scrollInfo => {
     const {scrollLeft, scrollTop} = scrollInfo
+
+    if (scrollTop === 0) {
+      this.props.onScrolledToTop()
+    } else if (scrollTop !== this.state.scrollTop) {
+      this.props.onScrollVertical()
+    }
 
     this.setState({scrollLeft, scrollTop})
   }
@@ -116,7 +147,7 @@ class LogsTable extends PureComponent<Props, State> {
 
     switch (column) {
       case 'message':
-        return 900
+        return 1200
       case 'timestamp':
         return 200
       case 'procid':
@@ -168,7 +199,9 @@ class LogsTable extends PureComponent<Props, State> {
       ''
     )
 
-    let value = this.props.data.values[rowIndex][columnIndex + 1]
+    let value: string | JSX.Element = this.props.data.values[rowIndex][
+      columnIndex + 1
+    ]
 
     switch (column) {
       case 'timestamp':
@@ -181,21 +214,38 @@ class LogsTable extends PureComponent<Props, State> {
         value = _.replace(value, '\\n', '')
         break
       case 'severity':
-        return (
-          <div style={style} key={key}>
-            <div
-              className={`logs-viewer--dot ${value}-severity`}
-              title={this.severityLevel(value)}
-            />
-          </div>
+        value = (
+          <div
+            className={`logs-viewer--dot ${value}-severity`}
+            title={this.severityLevel(value)}
+          />
         )
     }
 
+    let backgroundColor = ''
+    if (rowIndex === this.state.currentRow && columnIndex > 0) {
+      backgroundColor = HIGHLIGHT_COLOR
+    }
+
     return (
-      <div style={style} key={key}>
+      <div
+        style={{...style, padding: '5px', backgroundColor}}
+        key={key}
+        onMouseOver={this.handleMouseOver}
+        data-index={rowIndex}
+      >
         {value}
       </div>
     )
+  }
+
+  private handleMouseOver = (e: MouseEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement
+    this.setState({currentRow: +target.dataset.index})
+  }
+
+  private handleMouseOut = () => {
+    this.setState({currentRow: -1})
   }
 }
 

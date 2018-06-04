@@ -1,6 +1,7 @@
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import {Source, Namespace} from 'src/types'
+import classnames from 'classnames'
 import Dropdown from 'src/shared/components/Dropdown'
 import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
 
@@ -17,9 +18,11 @@ interface Props {
   currentSource: Source | null
   currentNamespaces: Namespace[]
   timeRange: TimeRange
+  liveUpdating: boolean
   onChooseSource: (sourceID: string) => void
   onChooseNamespace: (namespace: Namespace) => void
   onChooseTimerange: (timeRange: TimeRange) => void
+  onChangeLiveUpdatingStatus: () => void
 }
 
 class LogViewerHeader extends PureComponent<Props> {
@@ -29,7 +32,10 @@ class LogViewerHeader extends PureComponent<Props> {
       <div className="page-header full-width">
         <div className="page-header__container">
           <div className="page-header__left">
-            <h1 className="page-header__title">Log Viewer</h1>
+            {this.status}
+            <h1 className="page-header__title logs-viewer-header-title">
+              Log Viewer
+            </h1>
           </div>
           <div className="page-header__right">
             <Dropdown
@@ -52,6 +58,27 @@ class LogViewerHeader extends PureComponent<Props> {
           </div>
         </div>
       </div>
+    )
+  }
+
+  private get status(): JSX.Element {
+    const {liveUpdating, onChangeLiveUpdatingStatus} = this.props
+
+    return (
+      <ul className="nav nav-tablist nav-tablist-sm logs-viewer--mode-toggle">
+        <li
+          className={classnames({active: liveUpdating})}
+          onClick={onChangeLiveUpdatingStatus}
+        >
+          <span className="icon play" />
+        </li>
+        <li
+          className={classnames({active: !liveUpdating})}
+          onClick={onChangeLiveUpdatingStatus}
+        >
+          <span className="icon pause" />
+        </li>
+      </ul>
     )
   }
 
