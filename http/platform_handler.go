@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	nethttp "net/http"
 	"strings"
 
@@ -33,7 +34,11 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	}
 
 	ctx := r.Context()
-	ctx = idpctx.TokenFromAuthorizationHeader(ctx, r)
+	var err error
+	if ctx, err = extractAuthorization(ctx, r); err != nil {
+		nethttp.Error(w, err.Error(), nethttp.StatusBadRequest)
+		return
+	}
 	r = r.WithContext(ctx)
 
 	if strings.HasPrefix(r.URL.Path, "/v1/buckets") {
@@ -62,4 +67,12 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	}
 
 	nethttp.NotFound(w, r)
+}
+
+func extractAuthorization(ctx context.Context, r *nethttp.Request) (context.Context, error) {
+	t, err := ParseAuthHeaderToken(r)
+	if err != nil {
+		return ctx, err
+	}
+	return idpctx.SetToken(ctx, t), nil
 }

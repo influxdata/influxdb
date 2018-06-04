@@ -2,7 +2,6 @@ package context
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/errors"
@@ -43,10 +42,4 @@ func GetToken(ctx context.Context) (string, error) {
 	}
 
 	return t, nil
-}
-
-// TokenFromAuthorizationHeader retrieves a auth token from the HTTP Authorization header.
-var TokenFromAuthorizationHeader = func(ctx context.Context, r *http.Request) context.Context {
-	token := r.Header.Get("Authorization")
-	return SetToken(ctx, token)
 }
