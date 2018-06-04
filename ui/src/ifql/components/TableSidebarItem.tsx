@@ -1,11 +1,16 @@
-import React, {PureComponent} from 'react'
+import React, {Fragment, PureComponent} from 'react'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
+interface PartitionKey {
+  [x: string]: string
+}
 
 interface Props {
   name: string
   id: string
   isSelected: boolean
+  partitionKey: PartitionKey
   onSelect: (id: string) => void
 }
 
@@ -14,12 +19,27 @@ export default class TableSidebarItem extends PureComponent<Props> {
   public render() {
     return (
       <div
-        className={`query-builder--list-item flux-table ${this.active}`}
+        className={`time-machine-sidebar--item ${this.active}`}
         onClick={this.handleClick}
       >
-        {this.props.name}
+        {this.name}
       </div>
     )
+  }
+
+  private get name(): JSX.Element[] {
+    const keysIHate = ['_start', '_stop']
+    return Object.entries(this.props.partitionKey)
+      .filter(([k]) => !keysIHate.includes(k))
+      .map(([k, v], i) => {
+        return (
+          <Fragment key={i}>
+            <span className="key">{k}</span>
+            <span className="equals">=</span>
+            <span className="value">{v}</span>
+          </Fragment>
+        )
+      })
   }
 
   private get active(): string {

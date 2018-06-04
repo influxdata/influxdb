@@ -69,9 +69,48 @@
   flex: 1 0 0;
 }
 
-.query-builder--list-item.flux-table {
+
+.time-machine-sidebar--item {
+  @include no-user-select();
+  background-color: $query-builder--list-item-bg;
+  color: $query-builder--list-item-text;
+  height: $query-builder--list-item-height;
+  list-style-type: none;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 $query-builder--list-gutter;
+  transition: color 0.25s ease, background-color 0.25s ease;
   white-space: nowrap;
   overflow-x: hidden;
+
+  &:hover {
+    background-color: $query-builder--list-item-bg-hover;
+    color: $query-builder--list-item-text-hover;
+    cursor: pointer;
+  }
+
+  &.active {
+    background-color: $query-builder--list-item-bg-active;
+    color: $query-builder--list-item-text-active;
+  }
+
+  > span {
+    padding-right: 1px;
+    padding-left: 1px;
+  }
+
+  > span.key {
+    color: $g9-mountain;
+  }
+
+  > span.value {
+    padding-right: 5px;
+    color: $g11-sidewalk;
+  }
 }
 
 .flux-graph {

@@ -30,7 +30,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
 
     this.state = {
       selectedResultID: this.initialResultID,
-      visType: VisType.Line,
+      visType: VisType.Table,
     }
   }
 

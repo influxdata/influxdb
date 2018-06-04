@@ -27,12 +27,13 @@ export default class TableSidebar extends PureComponent<Props> {
         )}
         <FancyScrollbar>
           <div className="time-machine-vis--sidebar query-builder--list">
-            {data.map(({name, id}) => {
+            {data.map(({partitionKey, id}) => {
               return (
                 <TableSidebarItem
                   id={id}
                   key={id}
                   name={name}
+                  partitionKey={partitionKey}
                   onSelect={onSelectResult}
                   isSelected={id === selectedResultID}
                 />
