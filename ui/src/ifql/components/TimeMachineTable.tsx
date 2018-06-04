@@ -46,9 +46,9 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
                   scrollLeft={scrollLeft}
                   style={this.headerStyle}
                   columnWidth={getColumnWidth}
-                  height={vis.TABLE_ROW_HEIGHT}
+                  height={vis.TABLE_ROW_HEADER_HEIGHT}
                   columnCount={this.columnCount}
-                  rowHeight={vis.TABLE_ROW_HEIGHT}
+                  rowHeight={vis.TABLE_ROW_HEADER_HEIGHT}
                   cellRenderer={this.headerCellRenderer}
                 />
               )}
@@ -97,7 +97,7 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
   }
 
   private get headerOffset(): number {
-    return NUM_FIXED_ROWS * vis.TABLE_ROW_HEIGHT
+    return NUM_FIXED_ROWS * vis.TABLE_ROW_HEADER_HEIGHT
   }
 
   private handleScroll = ({scrollLeft}): void => {
@@ -112,7 +112,7 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
     return (
       <div
         key={key}
-        style={style}
+        style={{...style, display: 'flex', alignItems: 'center'}}
         className="table-graph-cell table-graph-cell__fixed-row"
       >
         {this.table.data[0][columnIndex]}

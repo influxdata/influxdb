@@ -1,4 +1,4 @@
-import React, {PureComponent, CSSProperties} from 'react'
+import React, {PureComponent, CSSProperties, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 import {FluxTable} from 'src/types'
@@ -13,21 +13,46 @@ interface Props {
   onSelectResult: (id: string) => void
 }
 
+interface State {
+  searchTerm: string
+}
+
 @ErrorHandling
-export default class TableSidebar extends PureComponent<Props> {
+export default class TableSidebar extends PureComponent<Props, State> {
+  constructor(props) {
+    super(props)
+
+    this.state = {
+      searchTerm: '',
+    }
+  }
+
   public render() {
-    const {data, selectedResultID, onSelectResult} = this.props
+    const {selectedResultID, onSelectResult} = this.props
+    const {searchTerm} = this.state
 
     return (
       <div className="time-machine--sidebar">
         {!this.isDataEmpty && (
-          <div className="query-builder--heading" style={this.headingStyle}>
+          <div
+            className="time-machine-sidebar--heading"
+            style={this.headingStyle}
+          >
             Tables
+            <div className="time-machine-sidebar--filter">
+              <input
+                type="text"
+                className="form-control input-xs"
+                onChange={this.handleSearch}
+                placeholder="Filter tables"
+                value={searchTerm}
+              />
+            </div>
           </div>
         )}
         <FancyScrollbar>
           <div className="time-machine-vis--sidebar query-builder--list">
-            {data.map(({partitionKey, id}) => {
+            {this.data.map(({partitionKey, id}) => {
               return (
                 <TableSidebarItem
                   id={id}
@@ -45,9 +70,20 @@ export default class TableSidebar extends PureComponent<Props> {
     )
   }
 
+  private handleSearch = (e: ChangeEvent<HTMLInputElement>) => {
+    this.setState({searchTerm: e.target.value})
+  }
+
+  get data(): FluxTable[] {
+    const {data} = this.props
+    const {searchTerm} = this.state
+
+    return data.filter(d => d.name.includes(searchTerm))
+  }
+
   get headingStyle(): CSSProperties {
     return {
-      height: `${vis.TABLE_ROW_HEIGHT + 2.5}px`,
+      height: `${vis.TABLE_ROW_HEADER_HEIGHT + 4}px`,
       backgroundColor: '#31313d',
       borderBottom: '2px solid #383846', // $g5-pepper
     }
