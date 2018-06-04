@@ -6,6 +6,7 @@ import {
   Expression,
   ArrowFunction,
   Fork,
+  JoinWithObjectArg,
 } from 'test/ifql/ast/variable'
 
 describe('IFQL.AST.Walker', () => {
@@ -14,7 +15,7 @@ describe('IFQL.AST.Walker', () => {
       describe('a single expression', () => {
         it('returns a flattened ordered list of from and its args', () => {
           const walker = new Walker(From)
-          expect(walker.body).toEqual([
+          const expectedWalkerBody = [
             {
               type: 'CallExpression',
               source: 'from(db: "telegraf")',
@@ -31,14 +32,15 @@ describe('IFQL.AST.Walker', () => {
                 },
               ],
             },
-          ])
+          ]
+          expect(walker.body).toEqual(expectedWalkerBody)
         })
 
         describe('variables', () => {
           describe('a single string literal variable', () => {
             it('returns the expected list', () => {
               const walker = new Walker(StringLiteral)
-              expect(walker.body).toEqual([
+              const expectedWalkerBody = [
                 {
                   type: 'VariableDeclaration',
                   source: 'bux = "im a var"',
@@ -50,14 +52,15 @@ describe('IFQL.AST.Walker', () => {
                     },
                   ],
                 },
-              ])
+              ]
+              expect(walker.body).toEqual(expectedWalkerBody)
             })
           })
 
           describe('a single expression variable', () => {
             it('returns the expected list', () => {
               const walker = new Walker(Expression)
-              expect(walker.body).toEqual([
+              const expectedWalkerBody = [
                 {
                   type: 'VariableDeclaration',
                   source: 'tele = from(db: "telegraf")',
@@ -81,14 +84,15 @@ describe('IFQL.AST.Walker', () => {
                     },
                   ],
                 },
-              ])
+              ]
+              expect(walker.body).toEqual(expectedWalkerBody)
             })
           })
 
           describe('a single ArrowFunction variable', () => {
             it('returns the expected list', () => {
               const walker = new Walker(ArrowFunction)
-              expect(walker.body).toEqual([
+              const expectedWalkerBody = [
                 {
                   type: 'VariableDeclaration',
                   source: 'addOne = (n) => n + 1',
@@ -106,14 +110,15 @@ describe('IFQL.AST.Walker', () => {
                     },
                   ],
                 },
-              ])
+              ]
+              expect(walker.body).toEqual(expectedWalkerBody)
             })
           })
 
           describe('forking', () => {
             it('return the expected list of objects', () => {
               const walker = new Walker(Fork)
-              expect(walker.body).toEqual([
+              const expectedWalkerBody = [
                 {
                   type: 'VariableDeclaration',
                   source: 'tele = from(db: "telegraf")',
@@ -145,17 +150,48 @@ describe('IFQL.AST.Walker', () => {
                     {args: [], name: 'sum', source: '|> sum()'},
                   ],
                 },
-              ])
+              ]
+              expect(walker.body).toEqual(expectedWalkerBody)
             })
           })
         })
       })
     })
 
+    describe('Args that are objects', () => {
+      it('returns an object when arg type is object', () => {
+        const walker = new Walker(JoinWithObjectArg)
+        const expectedWalkerBody = [
+          {
+            type: 'CallExpression',
+            source:
+              'join(tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"])',
+            funcs: [
+              {
+                name: 'join',
+                source:
+                  'join(tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"])',
+                args: [
+                  {key: 'tables', value: {cpu: 'cpu', mem: 'mem'}},
+                  {key: 'on', value: ['host']},
+                  {
+                    key: 'fn',
+                    value:
+                      '(tables) => tables.cpu["_value"] + tables.mem["_value"]',
+                  },
+                ],
+              },
+            ],
+          },
+        ]
+        expect(walker.body).toEqual(expectedWalkerBody)
+      })
+    })
+
     describe('complex example', () => {
       it('returns a flattened ordered list of all funcs and their args', () => {
         const walker = new Walker(Complex)
-        expect(walker.body).toEqual([
+        const expectedWalkerBody = [
           {
             type: 'PipeExpression',
             source:
@@ -183,7 +219,8 @@ describe('IFQL.AST.Walker', () => {
               },
             ],
           },
-        ])
+        ]
+        expect(walker.body).toEqual(expectedWalkerBody)
       })
     })
   })

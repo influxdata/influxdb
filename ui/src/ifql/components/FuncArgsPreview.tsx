@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import uuid from 'uuid'
 import _ from 'lodash'
 
 import {Func} from 'src/types/ifql'
@@ -6,7 +7,7 @@ import {funcNames} from 'src/ifql/constants'
 import Filter from 'src/ifql/components/Filter'
 import FilterPreview from 'src/ifql/components/FilterPreview'
 
-import uuid from 'uuid'
+import {getDeep} from 'src/utils/wrappers'
 
 interface Props {
   func: Func
@@ -26,7 +27,7 @@ export default class FuncArgsPreview extends PureComponent<Props> {
     }
 
     if (func.name === funcNames.FILTER) {
-      const value = _.get(args, '0.value', '')
+      const value = getDeep<string>(args, '0.value', '')
       if (!value) {
         return this.colorizedArguments
       }
@@ -51,11 +52,18 @@ export default class FuncArgsPreview extends PureComponent<Props> {
       }
 
       const separator = i === 0 ? null : ', '
+      let argValue
+      if (arg.type === 'object') {
+        const valueMap = _.map(arg.value, (value, key) => `${key}:${value}`)
+        argValue = `{${valueMap.join(', ')}}`
+      } else {
+        argValue = `${arg.value}`
+      }
 
       return (
         <React.Fragment key={uuid.v4()}>
           {separator}
-          {arg.key}: {this.colorArgType(`${arg.value}`, arg.type)}
+          {arg.key}: {this.colorArgType(argValue, arg.type)}
         </React.Fragment>
       )
     })
@@ -75,6 +83,9 @@ export default class FuncArgsPreview extends PureComponent<Props> {
       }
       case 'string': {
         return <span className="variable-value--string">"{argument}"</span>
+      }
+      case 'object': {
+        return <span className="variable-value--object">{argument}</span>
       }
       case 'invalid': {
         return <span className="variable-value--invalid">{argument}</span>

@@ -35,6 +35,7 @@ class BodyBuilder extends PureComponent<Props> {
                   declarationID={d.id}
                   funcNames={this.funcNames}
                   funcs={d.funcs}
+                  declarationsFromBody={this.declarationsFromBody}
                 />
               </div>
             )
@@ -54,6 +55,7 @@ class BodyBuilder extends PureComponent<Props> {
             bodyID={b.id}
             funcs={b.funcs}
             funcNames={this.funcNames}
+            declarationsFromBody={this.declarationsFromBody}
           />
         </div>
       )
@@ -82,6 +84,20 @@ class BodyBuilder extends PureComponent<Props> {
       declarationFunctions.push(funcNames.JOIN)
     }
     return declarationFunctions
+  }
+
+  private get declarationsFromBody(): string[] {
+    const {body} = this.props
+    const declarations = _.flatten(
+      body.map(b => {
+        if ('declarations' in b) {
+          const declarationsArray = b.declarations
+          return declarationsArray.map(da => da.name)
+        }
+        return []
+      })
+    )
+    return declarations
   }
 
   private createNewBody = name => {

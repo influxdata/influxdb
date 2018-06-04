@@ -345,3 +345,516 @@ export const Fork = {
     },
   ],
 }
+
+export const JoinWithObjectArg = {
+  type: 'Program',
+  location: {
+    start: {
+      line: 1,
+      column: 1,
+    },
+    end: {
+      line: 1,
+      column: 106,
+    },
+    source:
+      'join(tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"])',
+  },
+  body: [
+    {
+      type: 'ExpressionStatement',
+      location: {
+        start: {
+          line: 1,
+          column: 1,
+        },
+        end: {
+          line: 1,
+          column: 106,
+        },
+        source:
+          'join(tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"])',
+      },
+      expression: {
+        type: 'CallExpression',
+        location: {
+          start: {
+            line: 1,
+            column: 1,
+          },
+          end: {
+            line: 1,
+            column: 106,
+          },
+          source:
+            'join(tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"])',
+        },
+        callee: {
+          type: 'Identifier',
+          location: {
+            start: {
+              line: 1,
+              column: 1,
+            },
+            end: {
+              line: 1,
+              column: 5,
+            },
+            source: 'join',
+          },
+          name: 'join',
+        },
+        arguments: [
+          {
+            type: 'ObjectExpression',
+            location: {
+              start: {
+                line: 1,
+                column: 6,
+              },
+              end: {
+                line: 1,
+                column: 105,
+              },
+              source:
+                'tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"]',
+            },
+            properties: [
+              {
+                type: 'Property',
+                location: {
+                  start: {
+                    line: 1,
+                    column: 6,
+                  },
+                  end: {
+                    line: 1,
+                    column: 31,
+                  },
+                  source: 'tables:{cpu:cpu, mem:mem}',
+                },
+                key: {
+                  type: 'Identifier',
+                  location: {
+                    start: {
+                      line: 1,
+                      column: 6,
+                    },
+                    end: {
+                      line: 1,
+                      column: 12,
+                    },
+                    source: 'tables',
+                  },
+                  name: 'tables',
+                },
+                value: {
+                  type: 'ObjectExpression',
+                  location: {
+                    start: {
+                      line: 1,
+                      column: 14,
+                    },
+                    end: {
+                      line: 1,
+                      column: 30,
+                    },
+                    source: 'cpu:cpu, mem:mem',
+                  },
+                  properties: [
+                    {
+                      type: 'Property',
+                      location: {
+                        start: {
+                          line: 1,
+                          column: 14,
+                        },
+                        end: {
+                          line: 1,
+                          column: 21,
+                        },
+                        source: 'cpu:cpu',
+                      },
+                      key: {
+                        type: 'Identifier',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 14,
+                          },
+                          end: {
+                            line: 1,
+                            column: 17,
+                          },
+                          source: 'cpu',
+                        },
+                        name: 'cpu',
+                      },
+                      value: {
+                        type: 'Identifier',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 18,
+                          },
+                          end: {
+                            line: 1,
+                            column: 21,
+                          },
+                          source: 'cpu',
+                        },
+                        name: 'cpu',
+                      },
+                    },
+                    {
+                      type: 'Property',
+                      location: {
+                        start: {
+                          line: 1,
+                          column: 23,
+                        },
+                        end: {
+                          line: 1,
+                          column: 30,
+                        },
+                        source: 'mem:mem',
+                      },
+                      key: {
+                        type: 'Identifier',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 23,
+                          },
+                          end: {
+                            line: 1,
+                            column: 26,
+                          },
+                          source: 'mem',
+                        },
+                        name: 'mem',
+                      },
+                      value: {
+                        type: 'Identifier',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 27,
+                          },
+                          end: {
+                            line: 1,
+                            column: 30,
+                          },
+                          source: 'mem',
+                        },
+                        name: 'mem',
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                type: 'Property',
+                location: {
+                  start: {
+                    line: 1,
+                    column: 33,
+                  },
+                  end: {
+                    line: 1,
+                    column: 44,
+                  },
+                  source: 'on:["host"]',
+                },
+                key: {
+                  type: 'Identifier',
+                  location: {
+                    start: {
+                      line: 1,
+                      column: 33,
+                    },
+                    end: {
+                      line: 1,
+                      column: 35,
+                    },
+                    source: 'on',
+                  },
+                  name: 'on',
+                },
+                value: {
+                  type: 'ArrayExpression',
+                  location: {
+                    start: {
+                      line: 1,
+                      column: 37,
+                    },
+                    end: {
+                      line: 1,
+                      column: 43,
+                    },
+                    source: '"host"',
+                  },
+                  elements: [
+                    {
+                      type: 'StringLiteral',
+                      location: {
+                        start: {
+                          line: 1,
+                          column: 37,
+                        },
+                        end: {
+                          line: 1,
+                          column: 43,
+                        },
+                        source: '"host"',
+                      },
+                      value: 'host',
+                    },
+                  ],
+                },
+              },
+              {
+                type: 'Property',
+                location: {
+                  start: {
+                    line: 1,
+                    column: 46,
+                  },
+                  end: {
+                    line: 1,
+                    column: 105,
+                  },
+                  source:
+                    'fn: (tables) => tables.cpu["_value"] + tables.mem["_value"]',
+                },
+                key: {
+                  type: 'Identifier',
+                  location: {
+                    start: {
+                      line: 1,
+                      column: 46,
+                    },
+                    end: {
+                      line: 1,
+                      column: 48,
+                    },
+                    source: 'fn',
+                  },
+                  name: 'fn',
+                },
+                value: {
+                  type: 'ArrowFunctionExpression',
+                  location: {
+                    start: {
+                      line: 1,
+                      column: 50,
+                    },
+                    end: {
+                      line: 1,
+                      column: 105,
+                    },
+                    source:
+                      '(tables) => tables.cpu["_value"] + tables.mem["_value"]',
+                  },
+                  params: [
+                    {
+                      type: 'Property',
+                      location: {
+                        start: {
+                          line: 1,
+                          column: 51,
+                        },
+                        end: {
+                          line: 1,
+                          column: 57,
+                        },
+                        source: 'tables',
+                      },
+                      key: {
+                        type: 'Identifier',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 51,
+                          },
+                          end: {
+                            line: 1,
+                            column: 57,
+                          },
+                          source: 'tables',
+                        },
+                        name: 'tables',
+                      },
+                      value: null,
+                    },
+                  ],
+                  body: {
+                    type: 'BinaryExpression',
+                    location: {
+                      start: {
+                        line: 1,
+                        column: 62,
+                      },
+                      end: {
+                        line: 1,
+                        column: 105,
+                      },
+                      source: 'tables.cpu["_value"] + tables.mem["_value"]',
+                    },
+                    operator: '+',
+                    left: {
+                      type: 'MemberExpression',
+                      location: {
+                        start: {
+                          line: 1,
+                          column: 62,
+                        },
+                        end: {
+                          line: 1,
+                          column: 83,
+                        },
+                        source: 'tables.cpu["_value"] ',
+                      },
+                      object: {
+                        type: 'MemberExpression',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 62,
+                          },
+                          end: {
+                            line: 1,
+                            column: 83,
+                          },
+                          source: 'tables.cpu["_value"] ',
+                        },
+                        object: {
+                          type: 'Identifier',
+                          location: {
+                            start: {
+                              line: 1,
+                              column: 62,
+                            },
+                            end: {
+                              line: 1,
+                              column: 68,
+                            },
+                            source: 'tables',
+                          },
+                          name: 'tables',
+                        },
+                        property: {
+                          type: 'Identifier',
+                          location: {
+                            start: {
+                              line: 1,
+                              column: 69,
+                            },
+                            end: {
+                              line: 1,
+                              column: 72,
+                            },
+                            source: 'cpu',
+                          },
+                          name: 'cpu',
+                        },
+                      },
+                      property: {
+                        type: 'StringLiteral',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 73,
+                          },
+                          end: {
+                            line: 1,
+                            column: 81,
+                          },
+                          source: '"_value"',
+                        },
+                        value: '_value',
+                      },
+                    },
+                    right: {
+                      type: 'MemberExpression',
+                      location: {
+                        start: {
+                          line: 1,
+                          column: 85,
+                        },
+                        end: {
+                          line: 1,
+                          column: 105,
+                        },
+                        source: 'tables.mem["_value"]',
+                      },
+                      object: {
+                        type: 'MemberExpression',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 85,
+                          },
+                          end: {
+                            line: 1,
+                            column: 105,
+                          },
+                          source: 'tables.mem["_value"]',
+                        },
+                        object: {
+                          type: 'Identifier',
+                          location: {
+                            start: {
+                              line: 1,
+                              column: 85,
+                            },
+                            end: {
+                              line: 1,
+                              column: 91,
+                            },
+                            source: 'tables',
+                          },
+                          name: 'tables',
+                        },
+                        property: {
+                          type: 'Identifier',
+                          location: {
+                            start: {
+                              line: 1,
+                              column: 92,
+                            },
+                            end: {
+                              line: 1,
+                              column: 95,
+                            },
+                            source: 'mem',
+                          },
+                          name: 'mem',
+                        },
+                      },
+                      property: {
+                        type: 'StringLiteral',
+                        location: {
+                          start: {
+                            line: 1,
+                            column: 96,
+                          },
+                          end: {
+                            line: 1,
+                            column: 104,
+                          },
+                          source: '"_value"',
+                        },
+                        value: '_value',
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+}
