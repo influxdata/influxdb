@@ -55,13 +55,13 @@ interface State {
 }
 
 const DUMMY_FILTERS = [
-  // {
-  //   id: '0',
-  //   key: 'host',
-  //   value: 'prod1-rsavage.local',
-  //   operator: '==',
-  //   enabled: true,
-  // },
+  {
+    id: '0',
+    key: 'host',
+    value: 'prod1-rsavage.local',
+    operator: '==',
+    enabled: true,
+  },
 ]
 
 class LogsPage extends PureComponent<Props, State> {
@@ -121,7 +121,7 @@ class LogsPage extends PureComponent<Props, State> {
             data={this.props.tableData}
             onScrollVertical={this.handleVerticalScroll}
             onScrolledToTop={this.handleScrollToTop}
-            scrolledToTop={liveUpdating}
+            isScrolledToTop={liveUpdating}
           />
         </div>
       </div>

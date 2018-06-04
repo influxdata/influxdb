@@ -13,7 +13,7 @@ interface Props {
     columns: string[]
     values: string[]
   }
-  scrolledToTop: boolean
+  isScrolledToTop: boolean
   onScrollVertical: () => void
   onScrolledToTop: () => void
 }

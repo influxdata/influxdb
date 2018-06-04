@@ -33,7 +33,7 @@ class LogViewerHeader extends PureComponent<Props> {
         <div className="page-header__container">
           <div className="page-header__left">
             {this.status}
-            <h1 className="page-header__title" style={{marginLeft: '10px'}}>
+            <h1 className="page-header__title logs-viewer-header-title">
               Log Viewer
             </h1>
           </div>
