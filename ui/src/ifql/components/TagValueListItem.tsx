@@ -52,7 +52,7 @@ class TagValueListItem extends PureComponent<Props, State> {
                   <div className="ifql-schema--filter">
                     <input
                       className="form-control input-sm"
-                      placeholder={`Filter within ${db}`}
+                      placeholder={`Filter within ${value}`}
                       type="text"
                       spellCheck={false}
                       autoComplete="off"
