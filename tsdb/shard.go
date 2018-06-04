@@ -188,7 +188,7 @@ func NewShard(id uint64, path string, walPath string, sfile *SeriesFile, opt Eng
 // WithLogger sets the logger on the shard. It must be called before Open.
 func (s *Shard) WithLogger(log *zap.Logger) {
 	s.baseLogger = log
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err == nil {
 		engine.WithLogger(s.baseLogger)
 		s.index.WithLogger(s.baseLogger)
@@ -211,7 +211,7 @@ func (s *Shard) SetEnabled(enabled bool) {
 
 // ScheduleFullCompaction forces a full compaction to be schedule on the shard.
 func (s *Shard) ScheduleFullCompaction() error {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
@@ -248,7 +248,7 @@ type ShardStatistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil
 	}
@@ -401,7 +401,7 @@ func (s *Shard) ready() error {
 
 // LastModified returns the time when this shard was last modified.
 func (s *Shard) LastModified() time.Time {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return time.Time{}
 	}
@@ -430,7 +430,7 @@ func (s *Shard) seriesFile() (*SeriesFile, error) {
 
 // IsIdle return true if the shard is not receiving writes and is fully compacted.
 func (s *Shard) IsIdle() bool {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return true
 	}
@@ -438,7 +438,7 @@ func (s *Shard) IsIdle() bool {
 }
 
 func (s *Shard) Free() error {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
@@ -451,7 +451,7 @@ func (s *Shard) Free() error {
 
 // SetCompactionsEnabled enables or disable shard background compactions.
 func (s *Shard) SetCompactionsEnabled(enabled bool) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return
 	}
@@ -698,7 +698,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
 func (s *Shard) DeleteSeriesRange(itr SeriesIterator, min, max int64) error {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
@@ -708,7 +708,7 @@ func (s *Shard) DeleteSeriesRange(itr SeriesIterator, min, max int64) error {
 // DeleteSeriesRangeWithPredicate deletes all values from for seriesKeys between min and max (inclusive)
 // for which predicate() returns true. If predicate() is nil, then all values in range are deleted.
 func (s *Shard) DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate func(name []byte, tags models.Tags) (int64, int64, bool)) error {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
@@ -717,7 +717,7 @@ func (s *Shard) DeleteSeriesRangeWithPredicate(itr SeriesIterator, predicate fun
 
 // DeleteMeasurement deletes a measurement and all underlying series.
 func (s *Shard) DeleteMeasurement(name []byte) error {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
@@ -726,7 +726,7 @@ func (s *Shard) DeleteMeasurement(name []byte) error {
 
 // SeriesN returns the unique number of series in the shard.
 func (s *Shard) SeriesN() int64 {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return 0
 	}
@@ -735,7 +735,7 @@ func (s *Shard) SeriesN() int64 {
 
 // SeriesSketches returns the measurement sketches for the shard.
 func (s *Shard) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -744,7 +744,7 @@ func (s *Shard) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 
 // MeasurementsSketches returns the measurement sketches for the shard.
 func (s *Shard) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -753,7 +753,7 @@ func (s *Shard) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 
 // MeasurementNamesByRegex returns names of measurements matching the regular expression.
 func (s *Shard) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil, err
 	}
@@ -762,7 +762,7 @@ func (s *Shard) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 
 // MeasurementTagKeysByExpr returns all the tag keys for the provided expression.
 func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil, err
 	}
@@ -784,7 +784,7 @@ func (s *Shard) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte
 // TODO(edd): This method is currently only being called from tests; do we
 // really need it?
 func (s *Shard) MeasurementFields(name []byte) *MeasurementFields {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil
 	}
@@ -795,7 +795,7 @@ func (s *Shard) MeasurementFields(name []byte) *MeasurementFields {
 // TODO(edd): This method is currently only being called from tests; do we
 // really need it?
 func (s *Shard) MeasurementExists(name []byte) (bool, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return false, err
 	}
@@ -804,7 +804,7 @@ func (s *Shard) MeasurementExists(name []byte) (bool, error) {
 
 // WriteTo writes the shard's data to w.
 func (s *Shard) WriteTo(w io.Writer) (int64, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return 0, err
 	}
@@ -815,7 +815,7 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 
 // CreateIterator returns an iterator for the data in the shard.
 func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil, err
 	}
@@ -851,7 +851,7 @@ func (s *Shard) CreateSeriesCursor(ctx context.Context, req SeriesCursorRequest,
 }
 
 func (s *Shard) CreateCursorIterator(ctx context.Context) (CursorIterator, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil, err
 	}
@@ -860,7 +860,7 @@ func (s *Shard) CreateCursorIterator(ctx context.Context) (CursorIterator, error
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
 func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1036,7 +1036,7 @@ func (s *Shard) expandSources(sources influxql.Sources) (influxql.Sources, error
 // Backup backs up the shard by creating a tar archive of all TSM files that
 // have been modified since the provided time. See Engine.Backup for more details.
 func (s *Shard) Backup(w io.Writer, basePath string, since time.Time) error {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
@@ -1044,7 +1044,7 @@ func (s *Shard) Backup(w io.Writer, basePath string, since time.Time) error {
 }
 
 func (s *Shard) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
@@ -1099,7 +1099,7 @@ func (s *Shard) Import(r io.Reader, basePath string) error {
 // CreateSnapshot will return a path to a temp directory
 // containing hard links to the underlying shard files.
 func (s *Shard) CreateSnapshot() (string, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return "", err
 	}
@@ -1108,7 +1108,7 @@ func (s *Shard) CreateSnapshot() (string, error) {
 
 // ForEachMeasurementName iterates over each measurement in the shard.
 func (s *Shard) ForEachMeasurementName(fn func(name []byte) error) error {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return err
 	}
@@ -1116,7 +1116,7 @@ func (s *Shard) ForEachMeasurementName(fn func(name []byte) error) error {
 }
 
 func (s *Shard) TagKeyCardinality(name, key []byte) int {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return 0
 	}
@@ -1125,7 +1125,7 @@ func (s *Shard) TagKeyCardinality(name, key []byte) int {
 
 // Digest returns a digest of the shard.
 func (s *Shard) Digest() (io.ReadCloser, int64, error) {
-	engine, err := s.engine()
+	engine, err := s.Engine()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1147,7 +1147,7 @@ func (s *Shard) Digest() (io.ReadCloser, int64, error) {
 //
 // If a caller needs an Engine reference but is already under a lock, then they
 // should use engineNoLock().
-func (s *Shard) engine() (Engine, error) {
+func (s *Shard) Engine() (Engine, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.engineNoLock()
@@ -1363,7 +1363,7 @@ func (a Shards) IteratorCost(measurement string, opt query.IteratorOptions) (que
 			defer limit.Release()
 			defer wg.Done()
 
-			engine, err := sh.engine()
+			engine, err := sh.Engine()
 			if err != nil {
 				setErr(err)
 				return
