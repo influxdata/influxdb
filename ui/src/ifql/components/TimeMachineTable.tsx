@@ -8,12 +8,16 @@ import {vis} from 'src/ifql/constants'
 
 const NUM_FIXED_ROWS = 1
 
+interface Props {
+  table: FluxTable
+}
+
 interface State {
   scrollLeft: number
 }
 
 @ErrorHandling
-export default class TimeMachineTable extends PureComponent<FluxTable, State> {
+export default class TimeMachineTable extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -22,7 +26,6 @@ export default class TimeMachineTable extends PureComponent<FluxTable, State> {
   }
 
   public render() {
-    const {data} = this.props
     const {scrollLeft} = this.state
 
     return (
@@ -70,7 +73,7 @@ export default class TimeMachineTable extends PureComponent<FluxTable, State> {
                   cellRenderer={this.cellRenderer}
                   rowHeight={vis.TABLE_ROW_HEIGHT}
                   height={height - this.headerOffset}
-                  rowCount={data.length - NUM_FIXED_ROWS}
+                  rowCount={this.table.data.length - NUM_FIXED_ROWS}
                 />
               )}
             </ColumnSizer>
@@ -90,7 +93,7 @@ export default class TimeMachineTable extends PureComponent<FluxTable, State> {
   }
 
   private get columnCount(): number {
-    return _.get(this.props.data, '0', []).length
+    return _.get(this.table, 'data.0', []).length
   }
 
   private get headerOffset(): number {
@@ -106,15 +109,13 @@ export default class TimeMachineTable extends PureComponent<FluxTable, State> {
     key,
     style,
   }: GridCellProps): React.ReactNode => {
-    const {data} = this.props
-
     return (
       <div
         key={key}
         style={style}
         className="table-graph-cell table-graph-cell__fixed-row"
       >
-        {data[0][columnIndex]}
+        {this.table.data[0][columnIndex]}
       </div>
     )
   }
@@ -125,12 +126,25 @@ export default class TimeMachineTable extends PureComponent<FluxTable, State> {
     rowIndex,
     style,
   }: GridCellProps): React.ReactNode => {
-    const {data} = this.props
-
     return (
       <div key={key} style={style} className="table-graph-cell">
-        {data[rowIndex + NUM_FIXED_ROWS][columnIndex]}
+        {this.table.data[rowIndex + NUM_FIXED_ROWS][columnIndex]}
       </div>
     )
+  }
+
+  private get table(): FluxTable {
+    const IGNORED_COLUMNS = ['', 'result', 'table', '_start', '_stop']
+    const {table} = this.props
+    const header = table.data[0]
+    const indices = IGNORED_COLUMNS.map(name => header.indexOf(name))
+    const data = table.data.map(row =>
+      row.filter((__, i) => !indices.includes(i))
+    )
+
+    return {
+      ...table,
+      data,
+    }
   }
 }

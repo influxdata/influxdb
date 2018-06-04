@@ -82,7 +82,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
         )}
         <div className="time-machine--vis">
           {this.shouldShowTable && (
-            <TimeMachineTable {...this.selectedResult} />
+            <TimeMachineTable table={this.selectedResult} />
           )}
           {!this.hasResults && <NoResults />}
         </div>
