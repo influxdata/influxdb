@@ -1,14 +1,14 @@
 import React, {PureComponent, CSSProperties} from 'react'
 import _ from 'lodash'
 
-import {ScriptResult} from 'src/types'
+import {FluxTable} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import TableSidebarItem from 'src/ifql/components/TableSidebarItem'
 import {vis} from 'src/ifql/constants'
 
 interface Props {
-  data: ScriptResult[]
+  data: FluxTable[]
   selectedResultID: string
   onSelectResult: (id: string) => void
 }
@@ -22,7 +22,7 @@ export default class TableSidebar extends PureComponent<Props> {
       <div className="time-machine--sidebar">
         {!this.isDataEmpty && (
           <div className="query-builder--heading" style={this.headingStyle}>
-            Results
+            Tables
           </div>
         )}
         <FancyScrollbar>

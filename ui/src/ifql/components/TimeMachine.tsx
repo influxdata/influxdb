@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, CSSProperties} from 'react'
 import SchemaExplorer from 'src/ifql/components/SchemaExplorer'
 import BodyBuilder from 'src/ifql/components/BodyBuilder'
 import TimeMachineEditor from 'src/ifql/components/TimeMachineEditor'
@@ -10,7 +10,7 @@ import {
   OnSubmitScript,
   FlatBody,
   ScriptStatus,
-  ScriptResult,
+  FluxTable,
 } from 'src/types/ifql'
 
 import {Service} from 'src/types'
@@ -19,7 +19,7 @@ import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
   service: Service
-  data: ScriptResult[]
+  data: FluxTable[]
   script: string
   body: Body[]
   status: ScriptStatus
@@ -65,6 +65,7 @@ class TimeMachine extends PureComponent<Props> {
         handlePixels: 8,
         menuOptions: [],
         headerButtons: [],
+        style: {overflow: 'visible'} as CSSProperties,
         render: () => <TimeMachineVis data={data} />,
       },
     ]

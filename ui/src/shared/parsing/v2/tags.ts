@@ -1,16 +1,16 @@
 import _ from 'lodash'
 
-import {ScriptResult} from 'src/types'
-import {parseResults} from 'src/shared/parsing/v2/results'
+import {FluxTable} from 'src/types'
+import {parseResponse} from 'src/shared/parsing/v2/results'
 
 const parseValuesColumn = (resp: string): string[] => {
-  const results = parseResults(resp)
+  const results = parseResponse(resp)
 
   if (results.length === 0) {
     return []
   }
 
-  const tags = results.reduce<string[]>((acc, result: ScriptResult) => {
+  const tags = results.reduce<string[]>((acc, result: FluxTable) => {
     const colIndex = result.data[0].findIndex(header => header === '_value')
 
     if (colIndex === -1) {

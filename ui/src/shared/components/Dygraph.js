@@ -390,6 +390,7 @@ Dygraph.defaultProps = {
   staticLegend: {
     type: null,
   },
+  setResolution: () => {},
 }
 
 Dygraph.propTypes = {

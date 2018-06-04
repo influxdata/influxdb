@@ -3,7 +3,7 @@ import _ from 'lodash'
 import {Grid, GridCellProps, AutoSizer, ColumnSizer} from 'react-virtualized'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {ScriptResult} from 'src/types'
+import {FluxTable} from 'src/types'
 import {vis} from 'src/ifql/constants'
 
 const NUM_FIXED_ROWS = 1
@@ -13,10 +13,7 @@ interface State {
 }
 
 @ErrorHandling
-export default class TimeMachineTable extends PureComponent<
-  ScriptResult,
-  State
-> {
+export default class TimeMachineTable extends PureComponent<FluxTable, State> {
   constructor(props) {
     super(props)
     this.state = {

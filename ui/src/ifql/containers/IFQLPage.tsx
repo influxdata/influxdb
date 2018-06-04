@@ -16,7 +16,7 @@ import {bodyNodes} from 'src/ifql/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/ifql/apis'
 import {builder, argTypes} from 'src/ifql/constants'
 
-import {Source, Service, Notification, ScriptResult} from 'src/types'
+import {Source, Service, Notification, FluxTable} from 'src/types'
 import {
   Suggestion,
   FlatBody,
@@ -49,7 +49,7 @@ interface Body extends FlatBody {
 interface State {
   body: Body[]
   ast: object
-  data: ScriptResult[]
+  data: FluxTable[]
   status: ScriptStatus
   suggestions: Suggestion[]
 }

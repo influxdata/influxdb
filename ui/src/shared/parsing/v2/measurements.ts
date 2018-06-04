@@ -1,7 +1,7 @@
-import {parseResults} from 'src/shared/parsing/v2/results'
+import {parseResponse} from 'src/shared/parsing/v2/results'
 
 const parseMeasurements = (resp: string): string[] => {
-  const results = parseResults(resp)
+  const results = parseResponse(resp)
 
   if (results.length === 0) {
     return []

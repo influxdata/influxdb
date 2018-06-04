@@ -1,4 +1,4 @@
-import React, {Component, ReactElement, MouseEvent} from 'react'
+import React, {Component, ReactElement, MouseEvent, CSSProperties} from 'react'
 import classnames from 'classnames'
 import uuid from 'uuid'
 import _ from 'lodash'
@@ -34,6 +34,7 @@ interface DivisionProps {
   name?: string
   handleDisplay?: string
   handlePixels?: number
+  style?: CSSProperties
   headerButtons?: JSX.Element[]
   menuOptions: MenuItem[]
   render: (visibility?: string) => ReactElement<any>
@@ -138,6 +139,7 @@ class Threesizer extends Component<Props, State> {
             id={d.id}
             name={d.name}
             size={d.size}
+            style={d.style}
             offset={this.offset}
             draggable={i > 0}
             orientation={orientation}

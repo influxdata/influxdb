@@ -1,4 +1,9 @@
-import React, {PureComponent, ReactElement, MouseEvent} from 'react'
+import React, {
+  CSSProperties,
+  PureComponent,
+  ReactElement,
+  MouseEvent,
+} from 'react'
 import classnames from 'classnames'
 import calculateSize from 'calculate-size'
 
@@ -12,6 +17,7 @@ interface Props {
   name?: string
   handleDisplay?: string
   menuOptions?: MenuItem[]
+  style?: CSSProperties
   handlePixels: number
   id: string
   size: number
@@ -27,16 +33,11 @@ interface Props {
   headerButtons: JSX.Element[]
 }
 
-interface Style {
-  width?: string
-  height?: string
-  display?: string
-}
-
 class Division extends PureComponent<Props> {
   public static defaultProps: Partial<Props> = {
     name: '',
     handleDisplay: 'visible',
+    style: {},
   }
 
   private collapseThreshold: number = 0
@@ -109,7 +110,7 @@ class Division extends PureComponent<Props> {
     return 'Drag to resize.\nDouble click to expand.'
   }
 
-  private get contentStyle(): Style {
+  private get contentStyle(): CSSProperties {
     if (this.props.orientation === HANDLE_HORIZONTAL) {
       return {
         height: `calc(100% - ${this.handlePixels}px)`,
@@ -121,7 +122,7 @@ class Division extends PureComponent<Props> {
     }
   }
 
-  private get handleStyle(): Style {
+  private get handleStyle(): CSSProperties {
     const {handleDisplay: display, orientation, handlePixels} = this.props
 
     if (orientation === HANDLE_HORIZONTAL) {
@@ -137,14 +138,17 @@ class Division extends PureComponent<Props> {
     }
   }
 
-  private get containerStyle(): Style {
-    if (this.props.orientation === HANDLE_HORIZONTAL) {
+  private get containerStyle(): CSSProperties {
+    const {style, orientation} = this.props
+    if (orientation === HANDLE_HORIZONTAL) {
       return {
+        ...style,
         height: this.size,
       }
     }
 
     return {
+      ...style,
       width: this.size,
     }
   }
