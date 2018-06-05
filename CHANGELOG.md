@@ -4,6 +4,7 @@ v1.5.4 [unreleased]
 ### Bugfixes
 
 -	[#9924](https://github.com/influxdata/influxdb/pull/9924): [1.5] Fix panic in readTombstoneV4.
+-	[#9931](https://github.com/influxdata/influxdb/pull/9931): buildtsi: Do not escape measurement names.
 
 v1.5.3 [2018-05-25]
 -------------------
