@@ -5,6 +5,7 @@ import {ShowHintOptions} from 'src/types/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OnChangeScript, OnSubmitScript, Suggestion} from 'src/types/flux'
 import {getFluxCompletions} from 'src/flux/helpers/autoComplete'
+import 'src/external/codemirror'
 
 interface Gutter {
   line: number
