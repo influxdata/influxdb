@@ -1,23 +1,27 @@
 import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import classnames from 'classnames'
-
 import {CopyToClipboard} from 'react-copy-to-clipboard'
+
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/flux/values'
 import TagList from 'src/flux/components/TagList'
-import {Service} from 'src/types'
+import {
+  notifyCopyToClipboardSuccess,
+  notifyCopyToClipboardFailed,
+} from 'src/shared/copy/notifications'
+
+import {Service, Notification} from 'src/types'
 
 interface Props {
   db: string
   service: Service
+  notify: (message: Notification) => void
 }
 
 interface State {
   isOpen: boolean
   tags: string[]
   searchTerm: string
-  isCopied: boolean
-  copiedText: string
 }
 
 class DatabaseListItem extends PureComponent<Props, State> {
@@ -27,8 +31,6 @@ class DatabaseListItem extends PureComponent<Props, State> {
       isOpen: false,
       tags: [],
       searchTerm: '',
-      isCopied: false,
-      copiedText: '',
     }
   }
 
@@ -106,8 +108,13 @@ class DatabaseListItem extends PureComponent<Props, State> {
     e.stopPropagation()
   }
 
-  private handleCopy = (copiedText: string): void => {
-    this.setState({isCopied: true, copiedText})
+  private handleCopy = (copiedText: string, isSuccessful: boolean): void => {
+    const {notify} = this.props
+    if (isSuccessful) {
+      notify(notifyCopyToClipboardSuccess(copiedText))
+    } else {
+      notify(notifyCopyToClipboardFailed(copiedText))
+    }
   }
 
   private onSearch = (e: ChangeEvent<HTMLInputElement>) => {
