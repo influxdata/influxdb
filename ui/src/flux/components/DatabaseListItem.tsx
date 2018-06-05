@@ -64,7 +64,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
             </div>
           </CopyToClipboard>
         </div>
-        {this.filter}
+        {this.filterAndTagList}
       </div>
     )
   }
@@ -81,7 +81,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
     })
   }
 
-  private get filter(): JSX.Element {
+  private get filterAndTagList(): JSX.Element {
     const {db, service} = this.props
     const {isOpen, searchTerm} = this.state
 
