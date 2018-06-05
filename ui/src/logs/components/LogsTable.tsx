@@ -236,12 +236,12 @@ class LogsTable extends Component<Props, State> {
     )
   }
 
-  private handleMouseOver = (e: MouseEvent<HTMLElement>) => {
+  private handleMouseEnter = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement
     this.setState({currentRow: +target.dataset.index})
   }
 
-  private handleMouseOut = () => {
+  private handleMouseLeave = (): void => {
     this.setState({currentRow: -1})
   }
 }
