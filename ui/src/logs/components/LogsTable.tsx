@@ -207,9 +207,6 @@ class LogsTable extends Component<Props, State> {
       case 'timestamp':
         value = moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
         break
-      case 'severity_1':
-        value = this.severityLevel(value)
-        break
       case 'message':
         value = _.replace(value, '\\n', '')
         break
