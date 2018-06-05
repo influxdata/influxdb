@@ -52,9 +52,11 @@ class DatabaseListItem extends PureComponent<Props, State> {
     return (
       <div className={this.className} onClick={this.handleClick}>
         <div className="flux-schema-item">
-          <div className="flux-schema-item-toggle" />
-          {db}
-          <span className="flux-schema-type">Bucket</span>
+          <div className="flex-schema-item-group">
+            <div className="flux-schema-item-toggle" />
+            {db}
+            <span className="flux-schema-type">Bucket</span>
+          </div>
           <CopyToClipboard text={db} onCopy={this.handleCopy}>
             <div className="flux-schema-copy" onClick={this.handleCopyClick}>
               <span className="icon duplicate" title="copy to clipboard" />

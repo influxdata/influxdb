@@ -120,6 +120,12 @@ $flux-tree-line: 2px;
   }
 }
 
+.flex-schema-item-group {
+  display: flex;
+  flex: 1 0 0;
+  align-items: center;
+}
+
 @keyframes skeleton-animation {
   0% {
     background-position: 100% 50%;
