@@ -149,15 +149,15 @@ class LogsTable extends Component<Props, State> {
       case 'message':
         return 1200
       case 'timestamp':
-        return 200
+        return 160
       case 'procid':
-        return 100
+        return 80
       case 'facility':
-        return 150
+        return 120
       case 'severity_1':
-        return 150
+        return 80
       case 'severity':
-        return 24
+        return 22
       default:
         return 200
     }
