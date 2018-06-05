@@ -12,6 +12,7 @@
 ### Bug Fixes
 
 1.  [#3527](https://github.com/influxdata/chronograf/pull/3527): Ensure cell queries use constraints from TimeSelector
+1.  [#3573](https://github.com/influxdata/chronograf/pull/3573): Fix Gauge color selection bug
 
 ## v1.5.0.0 [2018-05-15-RC]
 
