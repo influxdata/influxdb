@@ -2,91 +2,120 @@
 
 The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent query in IFQL. The transpiler works off of a few simple rules that match with the equivalent method of constructing queries in InfluxDB.
 
-## Identify the variables
+**NOTE:** The transpiler code is not finished and may not necessarily reflect what is in this document. When they conflict, this document is considered to be the correct way to do it. If you wish to change how the transpiler works, modify this file first.
 
-The InfluxQL query engine works by filling in variables and evaluating the query for the values in each row. The first step of transforming a query is identifying the variables so we can figure out how to fill them correctly. A variable is any point in the query that has a **variable or a function call**. Math functions do not count as function calls and are handled in the eval phase.
+1. [Identify the cursors](#identify-cursors)
+2. [Identify the query type](#identify-query-type)
+3. [Group the cursors](#group-cursors)
+4. [Create the cursors for each group](#group-cursors)
+    1. [Identify the variables](#identify-variables)
+    2. [Generate each cursor](#generate-cursor)
+    3. [Join the cursors](#join-cursors)
+    4. [Evaluate the condition](#evaluate-condition)
+    5. [Perform the grouping](#perform-grouping)
+    6. [Evaluate the function](#evaluate-function)
+5. [Join the groups](#join-groups)
+6. [Map and eval columns](#map-and-eval)
 
-For the following query, it is easy to identify the points:
+## <a name="identify-cursors"></a> Identify the cursors
+
+The InfluxQL query engine works by filling in variables and evaluating the query for the values in each row. The first step of transforming a query is identifying the cursors so we can figure out how to fill them correctly. A cursor is any point in the query that has a **variable or a function call**. Math functions do not count as function calls and are handled in the eval phase.
+
+For the following query, it is easy to identify the cursors:
 
     SELECT max(usage_user), usage_system FROM telegraf..cpu
 
-`max(usage_user)` and `usage_system` are the variables that we need to fill in for each row.
+`max(usage_user)` and `usage_system` are the cursors that we need to fill in for each row. Cursors are global and are not per-field.
 
-## Create the iterators/cursors
+## <a name="identify-query-type"></a> Identify the query type
 
-Each variable has a separate cursor created. We generate a separate `from(db: ...)` query chain for each of the variables above and then join them together at the end. The above would generate something like this:
+There are three types of queries: raw, aggregate, and selector. A raw query is one where all of the cursors reference a variable. An aggregate is one where all of the cursors reference a function call. A selector is one where there is exactly one function call that is a selector (such as `max()` or `min()`) and the remaining variables, if there are any, are variables. If there is only one function call with no variables and that function is a selector, then the function type is a selector.
 
-    max = from(db: "telegraf")
-        |> range(...)
-        |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
-        |> group()
-        |> max()
-    usage_system = from(db: "telegraf")
-        |> range(...)
-        |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
+## <a name="group-cursors"></a> Group the cursors
 
-These are the primary entry points that retrieve data. Aggregates and selectors will include the group by parameters in the `group()` section of the chain. If `GROUP BY *` is used, then `group()` will be excluded. If a `GROUP BY time(...)` is used, then `window()` is used to window the results.
+We group the cursors based on the query type. For raw queries and selectors, all of the cursors are put into the same group. For aggregates, each function call is put into a separate group so they can be joined at the end.
 
-## Join the iterators/cursors
+## <a name="create-groups"></a> Create the cursors for each group
 
-Each of the iterators/cursors created above will be joined together into a single stream. Depending on the type of query, this may be an `outer_join` or `left_join`. If the query is an aggregate or a raw query, an outer join is used. If the query is a selector, a left join is used using the selector as the leftmost column. This way, any of the points that are not selected will be dropped.
+We create the cursors within each group. This process is repeated for every group.
 
-As an example:
+### <a name="identify-variables"></a> Identify the variables
 
-    // TODO(jsternberg): Figure out the real command that makes this work
-    // since it doesn't exist yet.
-    result = left_join(tables: {val1: max, val2: usage_system}, by: "val1", fn: (tables) => {val1: val1, val2: val2})
+Each of the variables in the group are identified. This involves inspecting the condition to collect the common variables in the expression while also retrieving the variables for each expression within the group. For a function call, this retrieves the variable used as a function argument rather than the function itself.
 
-The join is skipped when there is only one cursor. Replace `left_join` with `outer_join` if this is an aggregate or raw query.
+If a wildcard is identified, then the schema must be consulted for all of the fields and tags. If there is a wildcard in the dimensions (the group by clause), then the dimensions are excluded from the field expansion. If there is a specific listing of dimensions in the grouping, then those specific tags are excluded.
 
-**TODO:** It needs to be resolved how this works because the necessary tags for join to work get stripped in the create cursors/iterators step.
+### <a name="generate-cursor"></a> Generate each cursor
 
-## Map and eval the columns
+The base cursor for each variable is generated using the following template:
+
+    create_cursor = (db, rp="autogen", start, stop=now(), m, f) => from(db: db+"/"+rp)
+        |> range(start: start, stop: stop)
+        |> filter(fn: (r) => r._measurement == m and r._field == f)
+
+### <a name="join-cursors"></a> Join the cursors
+
+After creating the base cursors, each of them is joined into a single stream using an `inner_join`.
+
+**TODO(jsternberg):** Raw queries need to evaluate `fill()` at this stage while selectors and aggregates should not.
+
+    > SELECT usage_user, usage_system FROM telegraf..cpu WHERE time >= now() - 5m
+    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_user")
+    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_system")
+    inner_join(tables: {val1: val1, val2: val2}, except: ["_field"], fn: (tables) => {val1: tables.val1, val2: tables.val2})
+
+If there is only one cursor, then we need to exclude the `_field` column from the table so the table schema matches and we can perform another join later. The `_field` property is not needed after the initial cursor creation.
+
+**TODO(jsternberg):** This step can probably be done by a drop column function when/if it exists.
+
+    > SELECT usage_user FROM telegraf..cpu WHERE time >= now() - 5m
+    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_user")
+    val1 |> group(except: ["_field"])
+
+### <a name="evaluate-condition"></a> Evaluate the condition
+
+At this point, generate the `filter` call to evaluate the condition. If there is no condition outside of the time selector, then this step is skipped.
+
+### <a name="perform-grouping"></a> Perform the grouping
+
+We group together the streams based on the `GROUP BY` clause. As an example:
+
+    > SELECT mean(usage_user) FROM telegraf..cpu WHERE time >= now() - 5m GROUP BY time(5m), host
+    ... |> group(by: ["_measurement", "host"]) |> window(every: 5m)
+
+If the `GROUP BY time(...)` doesn't exist, `window()` is skipped. If there is no `GROUP BY` clause, it always groups by `_measurement`. If a wildcard is used for grouping, then this step is skipped.
+
+### <a name="evaluate-function"></a> Evaluate the function
+
+If this group contains a function call, the function is evaluated at this stage and invoked on the specific column. As an example:
+
+    > SELECT max(usage_user), usage_system FROM telegraf..cpu
+    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_user")
+    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_system")
+    inner_join(tables: {val1: val1, val2: val2}, except: ["_field"], fn: (tables) => {val1: tables.val1, val2: tables.val2})
+        |> max(column: "val1")
+
+For an aggregate, the following is used instead:
+
+    > SELECT mean(usage_user) FROM telegraf..cpu
+    create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_user")
+        |> group(except: ["_field"])
+        |> mean(timeSrc: "_start", columns: ["_value"])
+
+If the aggregate is combined with conditions, the column name of `_value` is replaced with whatever the generated column name is.
+
+## <a name="join-groups"></a> Join the groups
+
+If there is only one group, this does not need to be done and can be skipped.
+
+If there are multiple groups, as is the case when there are multiple function calls, then we perform an `outer_join` using the time and any remaining partition keys.
+
+## <a name="map-and-eval"></a> Map and eval the columns
 
 After joining the results if a join was required, then a `map` call is used to both evaluate the math functions and name the columns.
 
     result |> map(fn: (r) => {max: r.val1, usage_system: r.val2})
 
-This is the final result.
+This is the final result. It will also include any tags in the partition key and the time will be located in the `_time` variable.
 
-## Evaluating conditions
-
-Conditions are evaluated by inspecting the condition and using a filter. When inspecting the condition, it looks for all variable references and identifies which ones are tags and which are fields. For a query that does not have any extra fields (only tags), a filter gets added like this:
-
-    > SELECT max(usage_user) FROM telegraf..cpu WHERE host = 'server01'
-    max = from(db: "telegraf")
-        |> range(...)
-        |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
-        |> filter(fn: (r) => r.host == 'server01')
-
-If the condition includes the primary field that is selected, the filter will use `_value`.
-
-    > SELECT max(usage_user) FROM telegraf..cpu WHERE usage_user < 100
-    max = from(db: "telegraf")
-        |> range(...)
-        |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
-        |> filter(fn: (r) => r._value < 100)
-
-If there are any variables that are fields and are not the primary field being selected, they will be selected separately and joined.
-
-    > SELECT max(usage_user) FROM telegraf..cpu WHERE usage_system < 20
-    val1 = from(db: "telegraf")
-        |> range(...)
-        |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
-    val2 = from(db: "telegraf")
-        |> range(...)
-        |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_system")
-    max = left_join(tables: {val1: val1, val2: val2}, by: "val1", fn: (tables) => {val1: val1, val2: val2})
-        |> filter(fn: (r) => r.val2 < 20)
-        |> map(fn: (r) => {_value: r.val1})
-
-The created cursor is then used to map the results.
-
-## Yielding Results
-
-Each result is yielded with the statement id as the name.
-
-    > SELECT max(usage_user) FROM telegraf..cpu
-    ... |> yield(name: "0")
-
-Successive commands will increment the name used by yield so that results can be ordered correctly when encoding the result.
+**TODO(jsternberg):** Find a way for a column to be both used as a tag and a field. This is not currently possible because the encoder can't tell the difference between the two.
