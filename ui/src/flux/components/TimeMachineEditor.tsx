@@ -1,9 +1,10 @@
 import React, {PureComponent} from 'react'
-import {Controlled as CodeMirror, IInstance} from 'react-codemirror2'
+import {Controlled as ReactCodeMirror, IInstance} from 'react-codemirror2'
 import {EditorChange} from 'codemirror'
-import 'src/external/codemirror'
+import {ShowHintOptions} from 'src/types/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {OnChangeScript, OnSubmitScript} from 'src/types/flux'
+import {OnChangeScript, OnSubmitScript, Suggestion} from 'src/types/flux'
+import {getFluxCompletions} from 'src/flux/helpers/autoComplete'
 
 interface Gutter {
   line: number
@@ -21,10 +22,11 @@ interface Props {
   status: Status
   onChangeScript: OnChangeScript
   onSubmitScript: OnSubmitScript
+  suggestions: Suggestion[]
 }
 
 interface EditorInstance extends IInstance {
-  showHint: (options?: any) => void
+  showHint: (options?: ShowHintOptions) => void
 }
 
 @ErrorHandling
@@ -36,19 +38,21 @@ class TimeMachineEditor extends PureComponent<Props> {
   }
 
   public componentDidUpdate(prevProps) {
-    if (this.props.status.type === 'error') {
+    const {status, visibility} = this.props
+
+    if (status.type === 'error') {
       this.makeError()
     }
 
-    if (this.props.status.type !== 'error') {
+    if (status.type !== 'error') {
       this.editor.clearGutter('error-gutter')
     }
 
-    if (prevProps.visibility === this.props.visibility) {
+    if (prevProps.visibility === visibility) {
       return
     }
 
-    if (this.props.visibility === 'visible') {
+    if (visibility === 'visible') {
       setTimeout(() => this.editor.refresh(), 60)
     }
   }
@@ -61,7 +65,6 @@ class TimeMachineEditor extends PureComponent<Props> {
       theme: 'time-machine',
       tabIndex: 1,
       readonly: false,
-      extraKeys: {'Ctrl-Space': 'autocomplete'},
       completeSingle: false,
       autoRefresh: true,
       mode: 'flux',
@@ -70,7 +73,7 @@ class TimeMachineEditor extends PureComponent<Props> {
 
     return (
       <div className="time-machine-editor">
-        <CodeMirror
+        <ReactCodeMirror
           autoFocus={true}
           autoCursor={true}
           value={script}
@@ -79,6 +82,7 @@ class TimeMachineEditor extends PureComponent<Props> {
           onTouchStart={this.onTouchStart}
           editorDidMount={this.handleMount}
           onBlur={this.handleBlur}
+          onKeyUp={this.handleKeyUp}
         />
       </div>
     )
@@ -127,6 +131,17 @@ class TimeMachineEditor extends PureComponent<Props> {
   }
 
   private onTouchStart = () => {}
+
+  private handleKeyUp = (editor: EditorInstance, e: KeyboardEvent) => {
+    const {suggestions} = this.props
+    const space = ' '
+
+    if (e.ctrlKey && e.key === space) {
+      editor.showHint({
+        hint: () => getFluxCompletions(this.editor, suggestions),
+      })
+    }
+  }
 
   private updateCode = (
     _: IInstance,
