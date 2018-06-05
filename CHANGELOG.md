@@ -3,6 +3,7 @@
 ### Features
 
 1.  [#3522](https://github.com/influxdata/chronograf/pull/3522): Add support for Template Variables in Cell Titles
+1.  [#3559](https://github.com/influxdata/chronograf/pull/3559): Add ability to export and import dashboards
 
 ### UI Improvements
 
