@@ -4,7 +4,6 @@ import {EditorChange} from 'codemirror'
 import 'src/external/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OnChangeScript, OnSubmitScript} from 'src/types/flux'
-import {editor} from 'src/flux/constants'
 
 interface Gutter {
   line: number
@@ -31,7 +30,6 @@ interface EditorInstance extends IInstance {
 @ErrorHandling
 class TimeMachineEditor extends PureComponent<Props> {
   private editor: EditorInstance
-  private prevKey: string
 
   constructor(props) {
     super(props)
@@ -77,7 +75,6 @@ class TimeMachineEditor extends PureComponent<Props> {
           autoCursor={true}
           value={script}
           options={options}
-          onKeyUp={this.handleKeyUp}
           onBeforeChange={this.updateCode}
           onTouchStart={this.onTouchStart}
           editorDidMount={this.handleMount}
@@ -127,31 +124,6 @@ class TimeMachineEditor extends PureComponent<Props> {
   private handleMount = (instance: EditorInstance) => {
     instance.refresh() // required to for proper line height on mount
     this.editor = instance
-  }
-
-  private handleKeyUp = (instance: EditorInstance, e: KeyboardEvent) => {
-    const {key} = e
-    const prevKey = this.prevKey
-
-    if (
-      prevKey === 'Control' ||
-      prevKey === 'Meta' ||
-      (prevKey === 'Shift' && key === '.')
-    ) {
-      return (this.prevKey = key)
-    }
-
-    this.prevKey = key
-
-    if (editor.EXCLUDED_KEYS.includes(key)) {
-      return
-    }
-
-    if (editor.EXCLUDED_KEYS.includes(key)) {
-      return
-    }
-
-    instance.showHint({completeSingle: false})
   }
 
   private onTouchStart = () => {}
