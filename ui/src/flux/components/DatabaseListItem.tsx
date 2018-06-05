@@ -45,8 +45,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {db, service} = this.props
-    const {searchTerm} = this.state
+    const {db} = this.props
 
     return (
       <div className={this.className} onClick={this.handleClick}>
@@ -61,23 +60,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
             </div>
           </CopyToClipboard>
         </div>
-        {this.state.isOpen && (
-          <>
-            <div className="flux-schema--filter">
-              <input
-                className="form-control input-sm"
-                placeholder={`Filter within ${db}`}
-                type="text"
-                spellCheck={false}
-                autoComplete="off"
-                value={searchTerm}
-                onClick={this.handleInputClick}
-                onChange={this.onSearch}
-              />
-            </div>
-            <TagList db={db} service={service} tags={this.tags} filter={[]} />
-          </>
-        )}
+        {this.filter}
       </div>
     )
   }
@@ -92,6 +75,31 @@ class DatabaseListItem extends PureComponent<Props, State> {
     return classnames('flux-schema-tree', {
       expanded: this.state.isOpen,
     })
+  }
+
+  private get filter(): JSX.Element {
+    const {db, service} = this.props
+    const {isOpen, searchTerm} = this.state
+
+    if (isOpen) {
+      return (
+        <>
+          <div className="flux-schema--filter">
+            <input
+              className="form-control input-sm"
+              placeholder={`Filter within ${db}`}
+              type="text"
+              spellCheck={false}
+              autoComplete="off"
+              value={searchTerm}
+              onClick={this.handleInputClick}
+              onChange={this.onSearch}
+            />
+          </div>
+          <TagList db={db} service={service} tags={this.tags} filter={[]} />
+        </>
+      )
+    }
   }
 
   private handleCopyClick = e => {
