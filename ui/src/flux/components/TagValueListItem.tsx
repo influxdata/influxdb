@@ -1,10 +1,18 @@
 import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
 
+import {CopyToClipboard} from 'react-copy-to-clipboard'
+
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/flux/values'
 import TagList from 'src/flux/components/TagList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
-import {Service, SchemaFilter, RemoteDataState} from 'src/types'
+
+import {
+  notifyCopyToClipboardSuccess,
+  notifyCopyToClipboardFailed,
+} from 'src/shared/copy/notifications'
+
+import {Service, SchemaFilter, RemoteDataState, Notification} from 'src/types'
 
 interface Props {
   db: string
@@ -12,6 +20,7 @@ interface Props {
   tagKey: string
   value: string
   filter: SchemaFilter[]
+  notify: (message: Notification) => void
 }
 
 interface State {
@@ -39,9 +48,17 @@ class TagValueListItem extends PureComponent<Props, State> {
     return (
       <div className={this.className} onClick={this.handleClick}>
         <div className="flux-schema-item">
-          <div className="flux-schema-item-toggle" />
-          {value}
-          <span className="flux-schema-type">Tag Value</span>
+          <div className="flex-schema-item-group">
+            <div className="flux-schema-item-toggle" />
+            {value}
+            <span className="flux-schema-type">Tag Value</span>
+          </div>
+          <CopyToClipboard text={value} onCopy={this.handleCopy}>
+            <div className="flux-schema-copy" onClick={this.handleCopyClick}>
+              <span className="icon duplicate" title="copy to clipboard" />
+              Copy
+            </div>
+          </CopyToClipboard>
         </div>
         {this.state.isOpen && (
           <>
@@ -125,6 +142,19 @@ class TagValueListItem extends PureComponent<Props, State> {
     }
 
     this.setState({isOpen: !this.state.isOpen})
+  }
+
+  private handleCopyClick = e => {
+    e.stopPropagation()
+  }
+
+  private handleCopy = (copiedText: string, isSuccessful: boolean): void => {
+    const {notify} = this.props
+    if (isSuccessful) {
+      notify(notifyCopyToClipboardSuccess(copiedText))
+    } else {
+      notify(notifyCopyToClipboardFailed(copiedText))
+    }
   }
 
   private onSearch = (e: ChangeEvent<HTMLInputElement>) => {
