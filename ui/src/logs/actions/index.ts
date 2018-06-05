@@ -10,7 +10,7 @@ import {
 import {getDeep} from 'src/utils/wrappers'
 import buildQuery from 'src/utils/influxql'
 import {executeQueryAsync} from 'src/logs/api'
-import {LogsState} from 'src/types/localStorage'
+import {LogsState, Filter} from 'src/types/logs'
 
 interface TableData {
   columns: string[]
@@ -49,8 +49,32 @@ export enum ActionTypes {
   SetTableData = 'LOGS_SET_TABLE_DATA',
   ChangeZoom = 'LOGS_CHANGE_ZOOM',
   SetSearchTerm = 'LOGS_SET_SEARCH_TERM',
+  AddFilter = 'LOGS_ADD_FILTER',
+  RemoveFilter = 'LOGS_REMOVE_FILTER',
+  SetFilterOperator = 'LOGS_SET_FILTER_OPERATOR',
 }
 
+export interface AddFilterAction {
+  type: ActionTypes.AddFilter
+  payload: {
+    filter: Filter
+  }
+}
+
+export interface SetFilterOperatorAction {
+  type: ActionTypes.SetFilterOperator
+  payload: {
+    id: string
+    operator: string
+  }
+}
+
+export interface RemoveFilterAction {
+  type: ActionTypes.RemoveFilter
+  payload: {
+    id: string
+  }
+}
 interface SetSourceAction {
   type: ActionTypes.SetSource
   payload: {
@@ -133,6 +157,9 @@ export type Action =
   | SetTableData
   | SetTableQueryConfig
   | SetSearchTerm
+  | AddFilterAction
+  | RemoveFilterAction
+  | SetFilterOperatorAction
 
 const getTimeRange = (state: State): TimeRange | null =>
   getDeep<TimeRange | null>(state, 'logs.timeRange', null)
@@ -152,9 +179,27 @@ const getTableQueryConfig = (state: State): QueryConfig | null =>
 const getSearchTerm = (state: State): string | null =>
   getDeep<string | null>(state, 'logs.searchTerm', null)
 
+const getFilters = (state: State): Filter[] =>
+  getDeep<Filter[]>(state, 'logs.filters', [])
+
+export const setFilterOperator = (id: string, operator: string) => ({
+  type: ActionTypes.SetFilterOperator,
+  payload: {id, operator},
+})
+
 export const setSource = (source: Source): SetSourceAction => ({
   type: ActionTypes.SetSource,
   payload: {source},
+})
+
+export const addFilter = (filter: Filter): AddFilterAction => ({
+  type: ActionTypes.AddFilter,
+  payload: {filter},
+})
+
+export const removeFilter = (id: string): RemoveFilterAction => ({
+  type: ActionTypes.RemoveFilter,
+  payload: {id},
 })
 
 const setHistogramData = (response): SetHistogramData => ({
@@ -173,9 +218,10 @@ export const executeHistogramQueryAsync = () => async (
   const namespace = getNamespace(state)
   const proxyLink = getProxyLink(state)
   const searchTerm = getSearchTerm(state)
+  const filters = getFilters(state)
 
   if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
-    const query = buildLogQuery(timeRange, queryConfig, searchTerm)
+    const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
     const response = await executeQueryAsync(proxyLink, namespace, query)
 
     dispatch(setHistogramData(response))
@@ -198,9 +244,10 @@ export const executeTableQueryAsync = () => async (
   const namespace = getNamespace(state)
   const proxyLink = getProxyLink(state)
   const searchTerm = getSearchTerm(state)
+  const filters = getFilters(state)
 
   if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
-    const query = buildLogQuery(timeRange, queryConfig, searchTerm)
+    const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
     const response = await executeQueryAsync(proxyLink, namespace, query)
 
     const series = getDeep(response, 'results.0.series.0', defaultTableData)

@@ -1,11 +1,12 @@
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import classnames from 'classnames'
-import {Filter} from 'src/logs/containers/LogsPage'
+import {Filter} from 'src/types/logs'
+import {getDeep} from 'src/utils/wrappers'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 interface Props {
   filter: Filter
-  onDelete: (id: string) => () => void
+  onDelete: (id: string) => void
   onChangeOperator: (id: string, newOperator: string) => void
   onChangeValue: (id: string, newValue: string) => void
 }
@@ -34,7 +35,10 @@ class LogsFilter extends PureComponent<Props, State> {
       <ClickOutside onClickOutside={this.handleClickOutside}>
         <li className={this.className} onClick={this.handleStartEdit}>
           {editing ? this.renderEditor : this.label}
-          <div className="logs-viewer--filter-remove" onClick={onDelete(id)} />
+          <div
+            className="logs-viewer--filter-remove"
+            onClick={this.handleDelete}
+          />
         </li>
       </ClickOutside>
     )
@@ -53,12 +57,22 @@ class LogsFilter extends PureComponent<Props, State> {
     return classnames('logs-viewer--filter', {active: editing})
   }
 
+  private handleDelete = () => {
+    const id = getDeep(this.props, 'filter.id', '')
+    this.props.onDelete(id)
+  }
+
   private get label(): JSX.Element {
     const {
       filter: {key, operator, value},
     } = this.props
 
-    return <span>{`${key} ${operator} ${value}`}</span>
+    let displayKey = key
+    if (key === 'severity_1') {
+      displayKey = 'severity'
+    }
+
+    return <span>{`${displayKey} ${operator} ${value}`}</span>
   }
 
   private get renderEditor(): JSX.Element {
@@ -123,6 +137,25 @@ class LogsFilter extends PureComponent<Props, State> {
       e.preventDefault()
       this.setState({editing: false})
     }
+  }
+
+  private handleToggleOperator = () => {
+    const id = getDeep(this.props, 'filter.id', '')
+
+    let nextOperator = '=='
+    if (this.operator === '==') {
+      nextOperator = '!='
+    }
+
+    this.props.onChangeOperator(id, nextOperator)
+  }
+
+  private get toggleOperatorText(): string {
+    return this.operator === '==' ? '!=' : '=='
+  }
+
+  private get operator(): string {
+    return getDeep(this.props, 'filter.operator', '')
   }
 }
 

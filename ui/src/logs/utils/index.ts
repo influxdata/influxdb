@@ -1,6 +1,7 @@
 import _ from 'lodash'
 import moment from 'moment'
 import uuid from 'uuid'
+import {Filter} from 'src/types/logs'
 import {TimeRange, Namespace, QueryConfig} from 'src/types'
 import {NULL_STRING} from 'src/shared/constants/queryFillOptions'
 import {
@@ -40,6 +41,11 @@ const tableFields = [
     value: 'timestamp',
   },
   {
+    alias: 'message',
+    type: 'field',
+    value: 'message',
+  },
+  {
     alias: 'severity_text',
     type: 'field',
     value: 'severity',
@@ -64,11 +70,6 @@ const tableFields = [
     type: 'field',
     value: 'host',
   },
-  {
-    alias: 'message',
-    type: 'field',
-    value: 'message',
-  },
 ]
 
 const defaultQueryConfig = {
@@ -80,9 +81,38 @@ const defaultQueryConfig = {
   tags: {},
 }
 
+const keyMapping = (key: string): string => {
+  switch (key) {
+    case 'severity_1':
+      return 'severity'
+    default:
+      return key
+  }
+}
+
+const operatorMapping = (operator: string): string => {
+  switch (operator) {
+    case '==':
+      return '='
+    default:
+      return operator
+  }
+}
+
+export const filtersClause = (filters: Filter[]): string => {
+  return _.map(
+    filters,
+    (filter: Filter) =>
+      `"${keyMapping(filter.key)}" ${operatorMapping(filter.operator)} '${
+        filter.value
+      }'`
+  ).join(' AND ')
+}
+
 export function buildLogQuery(
   timeRange: TimeRange,
   config: QueryConfig,
+  filters: Filter[],
   searchTerm: string | null = null
 ): string {
   const {groupBy, fill = NULL_STRING, tags, areTagsAccepted} = config
@@ -94,6 +124,10 @@ export function buildLogQuery(
   let condition = buildWhereClause({lower, upper, tags, areTagsAccepted})
   if (!_.isEmpty(searchTerm)) {
     condition = `${condition} AND message =~ ${new RegExp(searchTerm)}`
+  }
+
+  if (!_.isEmpty(filters)) {
+    condition = `${condition} AND ${filtersClause(filters)}`
   }
 
   return `${select}${condition}${dimensions}${fillClause}`
