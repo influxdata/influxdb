@@ -86,11 +86,6 @@ func platformF(cmd *cobra.Command, args []string) {
 		orgSvc = c
 	}
 
-	var taskSvc platform.TaskService
-	{
-		taskSvc = c
-	}
-
 	var userSvc platform.UserService
 	{
 		userSvc = c
@@ -117,9 +112,6 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		orgHandler := http.NewOrgHandler()
 		orgHandler.OrganizationService = orgSvc
-
-		taskHandler := http.NewTaskHandler()
-		taskHandler.TaskService = taskSvc
 
 		userHandler := http.NewUserHandler()
 		userHandler.UserService = userSvc
