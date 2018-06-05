@@ -2730,10 +2730,10 @@ func TestServer(t *testing.T) {
       "external": {
         "statusFeed": ""
       },
-      "ifql": {
-        "ast": "/chronograf/v1/ifql/ast",
-        "self": "/chronograf/v1/ifql",
-        "suggestions": "/chronograf/v1/ifql/suggestions"
+      "flux": {
+        "ast": "/chronograf/v1/flux/ast",
+        "self": "/chronograf/v1/flux",
+        "suggestions": "/chronograf/v1/flux/suggestions"
       }
     }
     `,
@@ -2818,10 +2818,10 @@ func TestServer(t *testing.T) {
       "external": {
         "statusFeed": ""
       },
-      "ifql": {
-        "ast": "/chronograf/v1/ifql/ast",
-        "self": "/chronograf/v1/ifql",
-        "suggestions": "/chronograf/v1/ifql/suggestions"
+      "flux": {
+        "ast": "/chronograf/v1/flux/ast",
+        "self": "/chronograf/v1/flux",
+        "suggestions": "/chronograf/v1/flux/suggestions"
       }
     }
     `,

@@ -1,0 +1,349 @@
+$flux-node-height: 30px;
+$flux-node-tooltip-gap: 4px;
+$flux-node-gap: 5px;
+$flux-node-padding: 10px;
+$flux-arg-min-width: 120px;
+$flux-number-color: $c-neutrino;
+$flux-object-color: $c-viridian;
+$flux-string-color: $c-honeydew;
+$flux-boolean-color: $c-viridian;
+$flux-invalid-color: $c-viridian;
+/*
+  Shared Node styles
+  ------------------
+*/
+
+%flux-node {
+  min-height: $flux-node-height;
+  border-radius: $radius;
+  padding: 0 $flux-node-padding;
+  font-size: 13px;
+  font-weight: 600;
+  position: relative;
+  background-color: $g4-onyx;
+  transition: background-color 0.25s ease;
+
+  &:hover {
+    background-color: $g6-smoke;
+  }
+}
+
+.body-builder {
+  padding: 30px;
+  min-width: 440px;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  background-color: $g1-raven;
+}
+
+.declaration {
+  width: 100%;
+  margin-bottom: 24px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+
+.variable-string {
+  @extend %flux-node;
+  color: $g11-sidewalk;
+  line-height: $flux-node-height;
+  white-space: nowrap;
+  @include no-user-select();
+}
+
+.variable-blank {
+  font-style: italic;
+}
+
+.variable-name {
+  color: $c-pool;
+}
+
+.variable-value--string {
+  color: $flux-string-color;
+}
+
+.variable-value--boolean {
+  color: $flux-boolean-color;
+}
+
+.variable-value--number {
+  color: $flux-number-color;
+}
+
+.variable-value--object {
+  color: $flux-object-color;
+}
+
+.variable-value--invalid {
+  color: $flux-invalid-color;
+}
+
+.func-node {
+  @extend %flux-node;
+  display: flex;
+  align-items: center;
+
+  margin-left: $flux-node-gap;
+
+  // Connection Line
+  &:after {
+    content: '';
+    height: 4px;
+    width: $flux-node-gap;
+    background-color: $g4-onyx;
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translate(-100%, -50%);
+  }
+
+  &:first-child:after {
+    content: none;
+    margin-left: 0;
+  }
+}
+
+.func-node--name,
+.func-node--preview {
+  font-size: 13px;
+  @include no-user-select();
+  white-space: nowrap;
+  transition: color 0.25s ease;
+  font-weight: 600;
+}
+
+.func-node--name {
+  height: $flux-node-height;
+  line-height: $flux-node-height;
+  color: $c-comet;
+  .func-node:hover & {
+    color: $c-potassium;
+  }
+}
+
+.func-node--preview {
+  color: $g11-sidewalk;
+  margin-left: 4px;
+  padding: 5px 0;
+  display: flex;
+  align-items: center;
+  .func-node:hover & {
+    color: $g17-whisper;
+  }
+}
+
+.func-node--tooltip,
+.variable-name--tooltip {
+  background-color: $g3-castle;
+  border-radius: $radius;
+  padding: 10px;
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  position: absolute;
+  top: calc(100% + #{$flux-node-tooltip-gap});
+  left: 0;
+  z-index: 9999;
+  box-shadow: 0 0 10px 2px $g2-kevlar; // Caret
+  &:before {
+    content: '';
+    border-width: 9px;
+    border-style: solid;
+    border-color: transparent;
+    border-bottom-color: $g3-castle;
+    position: absolute;
+    top: 0;
+    left: $flux-node-padding + 3px;
+    transform: translate(-50%, -100%);
+  } // Invisible block to continue hovering
+  &:after {
+    content: '';
+    width: 80%;
+    height: 7px;
+    position: absolute;
+    top: -7px;
+    left: 0;
+  }
+}
+
+.func-node--buttons {
+  display: flex;
+  margin-top: 12px;
+}
+
+.func-node--delete,
+.func-node--build {
+  width: 60px;
+}
+
+.func-node--sub .func-arg {
+  min-width: $flux-arg-min-width;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  margin-bottom: 4px;
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+
+.func-arg--label {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: $g10-wolf;
+  padding-right: 8px;
+  @include no-user-select();
+}
+
+.func-arg--value {
+  flex: 1 0 0;
+}
+
+.func-arg--textarea {
+  overflow: hidden;
+  width: 300px;
+}
+
+.variable-name--tooltip {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+
+.variable-name--input {
+  width: 140px;
+}
+
+.variable-name--operator {
+  width: 20px;
+  height: 30px;
+  text-align: center;
+  line-height: 30px;
+  font-weight: 600;
+  @include no-user-select();
+}
+
+/*
+  Filter Preview Styles
+  ------------------------------------------------------------------------------
+*/
+
+$flux-filter-gap: 6px;
+$flux-filter-unit: 26px;
+$flux-filter-unit-wrapped: 34px;
+$flux-filter-expression: $g3-castle;
+$flux-filter-parens: $g5-pepper;
+%flux-filter-style {
+  height: $flux-filter-unit;
+  line-height: $flux-filter-unit;
+  border-style: solid;
+  border-width: 0;
+}
+
+.flux-filter--key {
+  @extend %flux-filter-style;
+  background-color: $flux-filter-expression;
+  border-radius: 3px 0 0 3px;
+  padding-left: $flux-filter-gap;
+}
+
+.flux-filter--operator {
+  @extend %flux-filter-style;
+  text-transform: uppercase;
+  padding: 0 ($flux-filter-gap / 2);
+}
+
+.flux-filter--value + .flux-filter--operator,
+.flux-filter--paren-close + .flux-filter--operator {
+  padding: 0 $flux-filter-gap;
+}
+
+.flux-filter--key + .flux-filter--operator {
+  background-color: $flux-filter-expression;
+}
+
+.flux-filter--key + .flux-filter--operator + .flux-filter--value {
+  background-color: $flux-filter-expression;
+  border-radius: 0 3px 3px 0;
+}
+
+.flux-filter--value {
+  @extend %flux-filter-style;
+  padding-right: $flux-filter-gap;
+  &.number {
+    color: $flux-number-color;
+  }
+  &.string {
+    color: $flux-string-color;
+  }
+  &.boolean {
+    color: $flux-boolean-color;
+  }
+}
+
+.flux-filter--paren-open,
+.flux-filter--paren-close {
+  @extend %flux-filter-style;
+  height: $flux-filter-unit-wrapped;
+  width: ($flux-filter-unit-wrapped - $flux-filter-unit) / 2;
+  background-color: $flux-filter-parens;
+  border: (($flux-filter-unit-wrapped - $flux-filter-unit) / 2) solid
+    $flux-filter-expression;
+}
+
+.flux-filter--paren-open {
+  border-right: 0;
+  border-radius: 3px 0 0 3px;
+}
+
+.flux-filter--paren-close {
+  border-left: 0;
+  border-radius: 0 3px 3px 0;
+}
+
+%flux-filter-wrapped {
+  position: relative;
+  z-index: 2;
+  background-color: $flux-filter-parens;
+  &:before {
+    content: '';
+    width: 100%;
+    height: $flux-filter-unit-wrapped;
+    position: absolute;
+    top: ($flux-filter-unit - $flux-filter-unit-wrapped) / 2;
+    left: 0;
+    border-style: solid;
+    border-width: (($flux-filter-unit-wrapped - $flux-filter-unit) / 2) 0;
+    border-color: $flux-filter-expression;
+    z-index: -1;
+    box-sizing: border-box;
+  }
+}
+
+.flux-filter--paren-open+.flux-filter--key,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value {
+  @extend %flux-filter-wrapped;
+}
+
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator,
+.flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator {
+  background-color: $flux-filter-expression;
+  height: $flux-filter-unit-wrapped;
+  line-height: $flux-filter-unit-wrapped;
+}

@@ -6,7 +6,7 @@ import {
   EXPECTED_COLUMNS,
 } from 'test/shared/parsing/v2/constants'
 
-describe('IFQL results parser', () => {
+describe('Flux results parser', () => {
   it('parseResponse into the right number of tables', () => {
     const result = parseResponse(MULTI_SCHEMA_RESPONSE)
     expect(result).toHaveLength(4)

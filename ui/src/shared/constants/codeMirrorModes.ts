@@ -1,7 +1,7 @@
-export const modeIFQL = {
+export const modeFlux = {
   // The start state contains the rules that are intially used
   start: [
-    // IFQL Syntax
+    // Flux Syntax
     {
       regex: /[|][>]/,
       token: 'pipe-forward',

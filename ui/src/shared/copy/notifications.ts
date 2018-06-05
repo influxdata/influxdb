@@ -609,7 +609,7 @@ export const notifyKapacitorNotFound = () => ({
   message: 'We could not find a Kapacitor configuration for this source.',
 })
 
-// IFQL notifications
+// Flux notifications
 export const analyzeSuccess = {
   ...defaultSuccessNotification,
   message: 'No errors found. Happy Happy Joy Joy!',
@@ -621,27 +621,27 @@ export const couldNotGetServices = {
   message: 'We could not get services',
 }
 
-export const ifqlCreated = {
+export const fluxCreated = {
   ...defaultSuccessNotification,
-  message: 'IFQL Connection Created.  Script your heart out!',
+  message: 'Flux Connection Created.  Script your heart out!',
 }
 
-export const ifqlNotCreated = (message: string) => ({
+export const fluxNotCreated = (message: string) => ({
   ...defaultErrorNotification,
   message,
 })
 
-export const ifqlNotUpdated = (message: string) => ({
+export const fluxNotUpdated = (message: string) => ({
   ...defaultErrorNotification,
   message,
 })
 
-export const ifqlUpdated = {
+export const fluxUpdated = {
   ...defaultSuccessNotification,
   message: 'Connection Updated. Rejoice!',
 }
 
-export const ifqlTimeSeriesError = (message: string) => ({
+export const fluxTimeSeriesError = (message: string) => ({
   ...defaultErrorNotification,
   message: `Could not get data: ${message}`,
 })

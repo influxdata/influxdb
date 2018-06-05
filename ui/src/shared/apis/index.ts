@@ -322,7 +322,7 @@ export const createService = async (
   source: Source,
   {
     url,
-    name = 'My IFQLD',
+    name = 'My FluxD',
     type,
     username,
     password,

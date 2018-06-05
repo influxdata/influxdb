@@ -18,7 +18,7 @@ import overlayTechnology from 'src/shared/reducers/overlayTechnology'
 import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
 import persistStateEnhancer from './persistStateEnhancer'
 import servicesReducer from 'src/shared/reducers/services'
-import scriptReducer from 'src/ifql/reducers/script'
+import scriptReducer from 'src/flux/reducers/script'
 
 const rootReducer = combineReducers({
   ...statusReducers,
