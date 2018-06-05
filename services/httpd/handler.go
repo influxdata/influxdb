@@ -1002,8 +1002,6 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
-	readRequest.PointsLimit = math.MaxUint64
-
 	ctx := context.Background()
 	rs, err := h.Store.Read(ctx, readRequest)
 	if err != nil {
