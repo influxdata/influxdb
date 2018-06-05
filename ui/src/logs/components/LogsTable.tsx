@@ -221,6 +221,18 @@ class LogsTable extends Component<Props, State> {
             title={this.severityLevel(value)}
           />
         )
+        break
+      default:
+        value = (
+          <div
+            className="logs-viewer--clickable"
+            title={`Filter by "${value}"`}
+            onMouseOver={this.handleMouseEnter}
+            data-index={rowIndex}
+          >
+            {value}
+          </div>
+        )
     }
 
     const highlightRow = rowIndex === this.state.currentRow && columnIndex >= 0
