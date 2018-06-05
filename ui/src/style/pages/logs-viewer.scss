@@ -109,20 +109,19 @@ $logs-viewer-gutter: 60px;
   border-radius: 4px;
   background-color: $g5-pepper;
   color: $g13-mist;
-  font-weight: 600;
+  font-weight: 500;
+  font-family: $code-font;
   margin: 2px;
 
-  &.disabled {
-    background-color: $g4-onyx;
-    color: $g9-mountain;
-    font-style: italic;
-  }
-
-  &.active {
+  &.active,
+  &:hover {
     background-color: $g6-smoke;
-    color: $g15-platinum;
+    color: $g17-whisper;
   }
 
+  &:hover {
+    cursor: pointer;
+  }
 }
 
 .logs-viewer--filter-remove {
@@ -164,40 +163,30 @@ $logs-viewer-gutter: 60px;
   }
 }
 
-.logs-viewer--filter-tooltip {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  border-radius: $radius;
-  z-index: 9999;
-  @extend %drop-shadow;
-  background-color: $g4-onyx;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  overflow: hidden;
+.logs-viewer--operator,
+.logs-viewer--value,
+.logs-viewer--filter-label {
+  margin-right: 2px;
 
-  > li {
-    height: 26px;
-    line-height: 26px;
-    padding: 0 8px;
-    font-size: 13px;
-    font-weight: 600;
-    color: $g11-sidewalk;
-    transition: background-color 0.25s ease, color 0.25s ease;
-    margin: 0;
+  &.form-control.input-xs {
+    padding: 0 5px;
+    font-weight: 500;
+    height: 24px;
+    border-radius: 3px;
+    border-color: $g6-smoke;
 
-    &:hover {
-      cursor: pointer;
-      background-color: $g5-pepper;
-      color: $g18-cloud;
+    &:focus {
+      border-color: $c-pool;
     }
   }
 }
+
+.logs-viewer--operator {
+  width: 30px;
+}
+
+// .logs-viewer--value {
+// }
 
 // Graph
 .logs-viewer--graph {

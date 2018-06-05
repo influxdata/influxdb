@@ -1,16 +1,17 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import classnames from 'classnames'
 import {Filter} from 'src/logs/containers/LogsPage'
+import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 interface Props {
   filter: Filter
   onDelete: (id: string) => () => void
-  onToggleStatus: (id: string) => () => void
-  onToggleOperator: (id: string) => () => void
+  onChangeOperator: (id: string, newOperator: string) => () => void
+  onChangeValue: (id: string, newValue: string) => () => void
 }
 
 interface State {
-  expanded: boolean
+  editing: boolean
 }
 
 class LogsFilter extends PureComponent<Props, State> {
@@ -18,7 +19,7 @@ class LogsFilter extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      expanded: false,
+      editing: false,
     }
   }
 
@@ -27,15 +28,29 @@ class LogsFilter extends PureComponent<Props, State> {
       filter: {id},
       onDelete,
     } = this.props
-    const {expanded} = this.state
+    const {editing} = this.state
 
     return (
-      <li className={this.className} onMouseLeave={this.handleMouseLeave}>
-        {this.label}
-        <div className="logs-viewer--filter-remove" onClick={onDelete(id)} />
-        {expanded && this.renderTooltip}
-      </li>
+      <ClickOutside onClickOutside={this.handleClickOutside}>
+        <li className={this.className} onClick={this.handleStartEdit}>
+          {editing ? this.renderEditor : this.label}
+          <div className="logs-viewer--filter-remove" onClick={onDelete(id)} />
+        </li>
+      </ClickOutside>
     )
+  }
+
+  private handleClickOutside = (): void => {
+    this.setState({editing: false})
+  }
+
+  private handleStartEdit = (): void => {
+    this.setState({editing: true})
+  }
+
+  private get className(): string {
+    const {editing} = this.state
+    return classnames('logs-viewer--filter', {active: editing})
   }
 
   private get label(): JSX.Element {
@@ -43,51 +58,54 @@ class LogsFilter extends PureComponent<Props, State> {
       filter: {key, operator, value},
     } = this.props
 
+    return <span>{`${key} ${operator} ${value}`}</span>
+  }
+
+  private get renderEditor(): JSX.Element {
+    const {
+      filter: {key, operator, value},
+    } = this.props
+
     return (
-      <span
-        onMouseEnter={this.handleMouseEnter}
-      >{`${key} ${operator} ${value}`}</span>
+      <>
+        <div>{key}</div>
+        <input
+          type="text"
+          maxLength={2}
+          value={operator}
+          className="form-control monotype input-xs logs-viewer--operator"
+          spellCheck={false}
+          onChange={this.handlValueInput}
+        />
+        <input
+          type="text"
+          maxLength={2}
+          value={value}
+          className="form-control monotype input-xs logs-viewer--value"
+          spellCheck={false}
+          autoFocus={true}
+          onChange={this.handleOperatorInput}
+        />
+      </>
     )
   }
 
-  private get className(): string {
-    const {expanded} = this.state
+  private handleOperatorInput = (e: ChangeEvent<HTMLInputElement>): void => {
     const {
-      filter: {enabled},
+      filter: {id},
+      onChangeOperator,
     } = this.props
 
-    return classnames('logs-viewer--filter', {
-      active: expanded,
-      disabled: !enabled,
-    })
+    onChangeOperator(id, e.target.value)
   }
 
-  private handleMouseEnter = (): void => {
-    this.setState({expanded: true})
-  }
-
-  private handleMouseLeave = (): void => {
-    this.setState({expanded: false})
-  }
-
-  private get renderTooltip(): JSX.Element {
+  private handlValueInput = (e: ChangeEvent<HTMLInputElement>): void => {
     const {
-      filter: {id, enabled, operator},
-      onDelete,
-      onToggleStatus,
-      onToggleOperator,
+      filter: {id},
+      onChangeValue,
     } = this.props
 
-    const toggleStatusText = enabled ? 'Disable' : 'Enable'
-    const toggleOperatorText = operator === '==' ? '!=' : '=='
-
-    return (
-      <ul className="logs-viewer--filter-tooltip">
-        <li onClick={onToggleStatus(id)}>{toggleStatusText}</li>
-        <li onClick={onToggleOperator(id)}>{toggleOperatorText}</li>
-        <li onClick={onDelete(id)}>Delete</li>
-      </ul>
-    )
+    onChangeValue(id, e.target.value)
   }
 }
 

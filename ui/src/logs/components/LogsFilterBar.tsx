@@ -30,8 +30,8 @@ class LogsFilters extends PureComponent<Props> {
         key={filter.id}
         filter={filter}
         onDelete={this.handleDeleteFilter}
-        onToggleStatus={this.handleToggleFilterStatus}
-        onToggleOperator={this.handleToggleFilterOperator}
+        onChangeOperator={this.handleChangeFilterOperator}
+        onChangeValue={this.handleChangeFilterValue}
       />
     ))
   }
@@ -44,12 +44,15 @@ class LogsFilters extends PureComponent<Props> {
     onUpdateFilters(filteredFilters)
   }
 
-  private handleToggleFilterStatus = (id: string) => (): void => {
+  private handleChangeFilterOperator = (
+    id: string,
+    operator: string
+  ) => (): void => {
     const {filters, onUpdateFilters} = this.props
 
     const filteredFilters = filters.map(filter => {
       if (filter.id === id) {
-        return {...filter, enabled: !filter.enabled}
+        return {...filter, operator}
       }
 
       return filter
@@ -58,26 +61,18 @@ class LogsFilters extends PureComponent<Props> {
     onUpdateFilters(filteredFilters)
   }
 
-  private handleToggleFilterOperator = (id: string) => (): void => {
+  private handleChangeFilterValue = (id: string, value: string) => (): void => {
     const {filters, onUpdateFilters} = this.props
 
     const filteredFilters = filters.map(filter => {
       if (filter.id === id) {
-        return {...filter, operator: this.toggleOperator(filter.operator)}
+        return {...filter, value}
       }
 
       return filter
     })
 
     onUpdateFilters(filteredFilters)
-  }
-
-  private toggleOperator = (op: string): string => {
-    if (op === '==') {
-      return '!='
-    }
-
-    return '=='
   }
 }
 
