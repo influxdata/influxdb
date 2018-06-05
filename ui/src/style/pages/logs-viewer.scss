@@ -208,11 +208,13 @@ $logs-viewer-gutter: 60px;
 }
 
 .logs-viewer--dot {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   display: inline-block;
   background-color: $g0-obsidian;
+  border: 2px solid $g3-castle;
+  margin-left: 2px;
 
   &.emerg-severity {
     @include gradient-diag-up($c-ruby, $c-fire);
@@ -236,7 +238,7 @@ $logs-viewer-gutter: 60px;
     @include gradient-diag-up($c-star, $c-comet);
   }
   &.debug-severity {
-    @include gradient-diag-up($g5-pepper, $g6-smoke);
+    @include gradient-diag-up($g9-mountain, $g10-wolf);
   }
 }
 
@@ -246,5 +248,45 @@ $logs-viewer-gutter: 60px;
     padding: 0;
     width: 26px;
     justify-content: center;
+  }
+}
+
+// Table Cell Styles
+.logs-viewer--cell {
+  font-size: 12px;
+  padding: 0 4px;
+  color: $g11-sidewalk;
+  display: flex;
+  align-content: center;
+  align-items: center;
+  font-family: $code-font;
+
+  &.highlight {
+    background-color: $g5-pepper;
+    color: $g20-white;
+  }
+}
+.logs-viewer--cell-header {
+  font-weight: 600;
+  color: $g15-platinum;
+  border-bottom: 2px solid $g5-pepper;
+}
+
+// Clickable Cells
+.logs-viewer--clickable {
+  padding: 1px 3px;
+  border-radius: 3px;
+  @include no-user-select();
+
+  &:hover {
+    background-color: $c-pool;
+    color: $g20-white;
+    cursor: pointer;
+  }
+
+  &:active,
+  &:active:hover {
+    background-color: $c-ocean;
+    color: $c-neutrino;
   }
 }
