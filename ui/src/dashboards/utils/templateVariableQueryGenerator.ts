@@ -1,4 +1,10 @@
 import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
+import {Template, TemplateQuery} from 'src/types/dashboard'
+
+interface PartialTemplateWithQuery {
+  query: string
+  tempVars: Array<Partial<Template>>
+}
 
 const generateTemplateVariableQuery = ({
   type,
@@ -8,7 +14,7 @@ const generateTemplateVariableQuery = ({
     measurement,
     tagKey,
   },
-}) => {
+}: Partial<Template>): PartialTemplateWithQuery => {
   const tempVars = []
 
   if (database) {
@@ -45,7 +51,7 @@ const generateTemplateVariableQuery = ({
     })
   }
 
-  const query = TEMPLATE_VARIABLE_QUERIES[type]
+  const query: string = TEMPLATE_VARIABLE_QUERIES[type]
 
   return {
     query,
@@ -53,7 +59,12 @@ const generateTemplateVariableQuery = ({
   }
 }
 
-export const makeQueryForTemplate = ({influxql, db, measurement, tagKey}) =>
+export const makeQueryForTemplate = ({
+  influxql,
+  db,
+  measurement,
+  tagKey,
+}: TemplateQuery): string =>
   influxql
     .replace(':database:', `"${db}"`)
     .replace(':measurement:', `"${measurement}"`)

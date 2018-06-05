@@ -1,12 +1,11 @@
-import React, {PureComponent, ComponentClass} from 'react'
+import React, {PureComponent, Component} from 'react'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {dismissOverlay} from 'src/shared/actions/overlayTechnology'
 
 interface Props {
-  OverlayNode?: ComponentClass<any>
+  OverlayNode?: Component<any>
   dismissOnClickOutside?: boolean
   dismissOnEscape?: boolean
   transitionTime?: number
@@ -98,8 +97,8 @@ const mapStateToProps = ({
   transitionTime,
 })
 
-const mapDispatchToProps = dispatch => ({
-  handleDismissOverlay: bindActionCreators(dismissOverlay, dispatch),
-})
+const mapDispatchToProps = {
+  handleDismissOverlay: dismissOverlay,
+}
 
 export default connect(mapStateToProps, mapDispatchToProps)(Overlay)
