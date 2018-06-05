@@ -156,7 +156,7 @@ RETRY:
 			return nil
 		}
 		keyb := []byte(key)
-		mm, _ := models.ParseName(keyb)
+		mm := models.ParseName(keyb)
 		c.row.measurement = string(mm)
 		c.tags = models.ParseTags(keyb)
 
