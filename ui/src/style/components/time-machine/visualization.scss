@@ -69,6 +69,29 @@
   flex: 1 0 0;
 }
 
+.time-machine-sidebar--heading {
+  @include no-user-select();
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  color: $query-builder--heading-text;
+  background-color: $query-builder--heading-bg;
+  padding: 0 $query-builder--list-gutter;
+  line-height: $query-builder--heading-height;
+
+  > .time-machine-sidebar--filter {
+    flex: 1 1 100%;
+    margin-left: 20px;
+    margin-top: 1px;
+
+    input {
+      font-size: 12px;
+    }
+  }
+}
 
 .time-machine-sidebar--item {
   @include no-user-select();
