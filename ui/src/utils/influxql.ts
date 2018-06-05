@@ -5,7 +5,7 @@ import {NULL_STRING} from 'src/shared/constants/queryFillOptions'
 import {
   TYPE_QUERY_CONFIG,
   TYPE_SHIFTED,
-  TYPE_IFQL,
+  TYPE_FLUX,
 } from 'src/dashboards/constants'
 import {shiftTimeRange} from 'src/shared/query/helpers'
 import {QueryConfig, Field, GroupBy, TimeShift, TimeRange} from 'src/types'
@@ -57,7 +57,7 @@ export function buildSelect(
   return statement
 }
 
-// type arg will reason about new query types i.e. IFQL, GraphQL, or queryConfig
+// type arg will reason about new query types i.e. Flux, GraphQL, or queryConfig
 export const buildQuery = (
   type: string,
   timeRange: TimeRange,
@@ -77,8 +77,8 @@ export const buildQuery = (
       )
     }
 
-    case TYPE_IFQL: {
-      // build query usining IFQL here
+    case TYPE_FLUX: {
+      // build query usining FLUX here
     }
   }
 

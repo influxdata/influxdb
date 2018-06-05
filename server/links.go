@@ -5,7 +5,7 @@ import (
 	"net/url"
 )
 
-type getIFQLLinksResponse struct {
+type getFluxLinksResponse struct {
 	AST         string `json:"ast"`
 	Self        string `json:"self"`
 	Suggestions string `json:"suggestions"`

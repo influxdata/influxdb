@@ -22,7 +22,7 @@ import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem} from './shared'
 import {Notification, NotificationFunc} from './notifications'
-import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './ifql'
+import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
 
 export {
   Me,

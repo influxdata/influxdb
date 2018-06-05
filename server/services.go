@@ -12,7 +12,7 @@ import (
 type postServiceRequest struct {
 	Name               *string                `json:"name"`               // User facing name of service instance.; Required: true
 	URL                *string                `json:"url"`                // URL for the service backend (e.g. http://localhost:9092);/ Required: true
-	Type               *string                `json:"type"`               // Type is the kind of service (e.g. ifql); Required
+	Type               *string                `json:"type"`               // Type is the kind of service (e.g. flux); Required
 	Username           string                 `json:"username,omitempty"` // Username for authentication to service
 	Password           string                 `json:"password,omitempty"`
 	InsecureSkipVerify bool                   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the service is accepted.
@@ -58,7 +58,7 @@ type service struct {
 	Username           string                 `json:"username,omitempty"` // Username for authentication to service
 	Password           string                 `json:"password,omitempty"`
 	InsecureSkipVerify bool                   `json:"insecureSkipVerify"` // InsecureSkipVerify as true means any certificate presented by the service is accepted.
-	Type               string                 `json:"type"`               // Type is the kind of service (e.g. ifql)
+	Type               string                 `json:"type"`               // Type is the kind of service (e.g. flux)
 	Metadata           map[string]interface{} `json:"metadata"`           // Metadata is any other data that the frontend wants to store about this service
 	Links              serviceLinks           `json:"links"`              // Links are URI locations related to service
 }
@@ -229,7 +229,7 @@ func (s *Service) RemoveService(w http.ResponseWriter, r *http.Request) {
 
 type patchServiceRequest struct {
 	Name               *string                 `json:"name,omitempty"`     // User facing name of service instance.
-	Type               *string                 `json:"type,omitempty"`     // Type is the kind of service (e.g. ifql)
+	Type               *string                 `json:"type,omitempty"`     // Type is the kind of service (e.g. flux)
 	URL                *string                 `json:"url,omitempty"`      // URL for the service
 	Username           *string                 `json:"username,omitempty"` // Username for service auth
 	Password           *string                 `json:"password,omitempty"`
