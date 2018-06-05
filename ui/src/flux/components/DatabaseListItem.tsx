@@ -55,11 +55,10 @@ class DatabaseListItem extends PureComponent<Props, State> {
           {db}
           <span className="flux-schema-type">Bucket</span>
           <CopyToClipboard text={db} onCopy={this.handleCopy}>
-            <span
-              className="icon duplicate"
-              title="copy to clipboard"
-              style={{zIndex: 100}}
-            />
+            <div className="flux-schema-copy" onClick={this.handleCopyClick}>
+              <span className="icon duplicate" title="copy to clipboard" />
+              Copy
+            </div>
           </CopyToClipboard>
         </div>
         {this.state.isOpen && (
@@ -93,6 +92,10 @@ class DatabaseListItem extends PureComponent<Props, State> {
     return classnames('flux-schema-tree', {
       expanded: this.state.isOpen,
     })
+  }
+
+  private handleCopyClick = e => {
+    e.stopPropagation()
   }
 
   private handleCopy = (copiedText: string): void => {
