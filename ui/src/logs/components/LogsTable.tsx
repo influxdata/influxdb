@@ -1,12 +1,12 @@
 import _ from 'lodash'
 import moment from 'moment'
+import classnames from 'classnames'
 import React, {Component, MouseEvent} from 'react'
 import {Grid, AutoSizer} from 'react-virtualized'
 import {getDeep} from 'src/utils/wrappers'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
-const ROW_HEIGHT = 30
-const HIGHLIGHT_COLOR = '#555'
+const ROW_HEIGHT = 26
 
 interface Props {
   data: {
@@ -57,7 +57,7 @@ class LogsTable extends Component<Props, State> {
     return (
       <div
         className="logs-viewer--table-container"
-        onMouseOut={this.handleMouseOut}
+        onMouseOut={this.handleMouseLeave}
       >
         <AutoSizer>
           {({width}) => (
@@ -149,15 +149,15 @@ class LogsTable extends Component<Props, State> {
       case 'message':
         return 1200
       case 'timestamp':
-        return 200
+        return 160
       case 'procid':
-        return 100
+        return 80
       case 'facility':
-        return 150
+        return 120
       case 'severity_1':
-        return 150
+        return 80
       case 'severity':
-        return 24
+        return 22
       default:
         return 200
     }
@@ -186,7 +186,11 @@ class LogsTable extends Component<Props, State> {
     )
 
     return (
-      <div style={style} key={key}>
+      <div
+        className="logs-viewer--cell logs-viewer--cell-header"
+        style={style}
+        key={key}
+      >
         {this.header(value)}
       </div>
     )
@@ -207,9 +211,6 @@ class LogsTable extends Component<Props, State> {
       case 'timestamp':
         value = moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
         break
-      case 'severity_1':
-        value = this.severityLevel(value)
-        break
       case 'message':
         value = _.replace(value, '\\n', '')
         break
@@ -220,18 +221,28 @@ class LogsTable extends Component<Props, State> {
             title={this.severityLevel(value)}
           />
         )
+        break
+      default:
+        value = (
+          <div
+            className="logs-viewer--clickable"
+            title={`Filter by "${value}"`}
+            onMouseOver={this.handleMouseEnter}
+            data-index={rowIndex}
+          >
+            {value}
+          </div>
+        )
     }
 
-    let backgroundColor = ''
-    if (rowIndex === this.state.currentRow && columnIndex > 0) {
-      backgroundColor = HIGHLIGHT_COLOR
-    }
+    const highlightRow = rowIndex === this.state.currentRow && columnIndex >= 0
 
     return (
       <div
-        style={{...style, padding: '5px', backgroundColor}}
+        className={classnames('logs-viewer--cell', {highlight: highlightRow})}
         key={key}
-        onMouseOver={this.handleMouseOver}
+        style={style}
+        onMouseOver={this.handleMouseEnter}
         data-index={rowIndex}
       >
         {value}
@@ -239,12 +250,12 @@ class LogsTable extends Component<Props, State> {
     )
   }
 
-  private handleMouseOver = (e: MouseEvent<HTMLElement>) => {
+  private handleMouseEnter = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement
     this.setState({currentRow: +target.dataset.index})
   }
 
-  private handleMouseOut = () => {
+  private handleMouseLeave = (): void => {
     this.setState({currentRow: -1})
   }
 }
