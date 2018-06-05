@@ -1,6 +1,7 @@
 import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import classnames from 'classnames'
 
+import {CopyToClipboard} from 'react-copy-to-clipboard'
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/flux/values'
 import TagList from 'src/flux/components/TagList'
@@ -15,6 +16,8 @@ interface State {
   isOpen: boolean
   tags: string[]
   searchTerm: string
+  isCopied: boolean
+  copiedText: string
 }
 
 class DatabaseListItem extends PureComponent<Props, State> {
@@ -24,6 +27,8 @@ class DatabaseListItem extends PureComponent<Props, State> {
       isOpen: false,
       tags: [],
       searchTerm: '',
+      isCopied: false,
+      copiedText: '',
     }
   }
 
@@ -49,6 +54,13 @@ class DatabaseListItem extends PureComponent<Props, State> {
           <div className="flux-schema-item-toggle" />
           {db}
           <span className="flux-schema-type">Bucket</span>
+          <CopyToClipboard text={db} onCopy={this.handleCopy}>
+            <span
+              className="icon duplicate"
+              title="copy to clipboard"
+              style={{zIndex: 100}}
+            />
+          </CopyToClipboard>
         </div>
         {this.state.isOpen && (
           <>
@@ -81,6 +93,10 @@ class DatabaseListItem extends PureComponent<Props, State> {
     return classnames('flux-schema-tree', {
       expanded: this.state.isOpen,
     })
+  }
+
+  private handleCopy = (copiedText: string): void => {
+    this.setState({isCopied: true, copiedText})
   }
 
   private onSearch = (e: ChangeEvent<HTMLInputElement>) => {
