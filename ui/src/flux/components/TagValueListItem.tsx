@@ -1,7 +1,7 @@
 import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
 
-import {tagKeys as fetchTagKeys} from 'src/shared/apis/v2/metaQueries'
-import parseValuesColumn from 'src/shared/parsing/v2/tags'
+import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
+import parseValuesColumn from 'src/shared/parsing/flux/values'
 import TagList from 'src/flux/components/TagList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 import {Service, SchemaFilter, RemoteDataState} from 'src/types'

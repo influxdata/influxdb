@@ -1,7 +1,7 @@
 import _ from 'lodash'
 
 import {FluxTable} from 'src/types'
-import {parseResponse} from 'src/shared/parsing/v2/results'
+import {parseResponse} from 'src/shared/parsing/flux/response'
 
 const parseValuesColumn = (resp: string): string[] => {
   const results = parseResponse(resp)

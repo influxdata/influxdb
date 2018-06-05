@@ -1,10 +1,10 @@
-import {parseResponse} from 'src/shared/parsing/v2/results'
+import {parseResponse} from 'src/shared/parsing/flux/response'
 import {
   RESPONSE_NO_METADATA,
   RESPONSE_METADATA,
   MULTI_SCHEMA_RESPONSE,
   EXPECTED_COLUMNS,
-} from 'test/shared/parsing/v2/constants'
+} from 'test/shared/parsing/flux/constants'
 
 describe('Flux results parser', () => {
   it('parseResponse into the right number of tables', () => {

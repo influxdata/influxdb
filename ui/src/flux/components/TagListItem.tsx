@@ -8,9 +8,9 @@ import React, {
 import _ from 'lodash'
 
 import {Service, SchemaFilter, RemoteDataState} from 'src/types'
-import {tagValues as fetchTagValues} from 'src/shared/apis/v2/metaQueries'
+import {tagValues as fetchTagValues} from 'src/shared/apis/flux/metaQueries'
 import {explorer} from 'src/flux/constants'
-import parseValuesColumn from 'src/shared/parsing/v2/tags'
+import parseValuesColumn from 'src/shared/parsing/flux/values'
 import TagValueList from 'src/flux/components/TagValueList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 import LoadingSpinner from 'src/flux/components/LoadingSpinner'

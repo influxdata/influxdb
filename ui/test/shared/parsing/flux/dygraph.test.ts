@@ -1,9 +1,9 @@
-import {fluxTablesToDygraph} from 'src/shared/parsing/v2/dygraph'
-import {parseResponse} from 'src/shared/parsing/v2/results'
+import {fluxTablesToDygraph} from 'src/shared/parsing/flux/dygraph'
+import {parseResponse} from 'src/shared/parsing/flux/response'
 import {
   CSV_TO_DYGRAPH,
   CSV_TO_DYGRAPH_MISMATCHED,
-} from 'test/shared/parsing/v2/constants'
+} from 'test/shared/parsing/flux/constants'
 
 describe('fluxTablesToDygraph', () => {
   it('can parse flux tables to dygraph series', () => {

@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-import {fluxTablesToDygraph} from 'src/shared/parsing/v2/dygraph'
+import {fluxTablesToDygraph} from 'src/shared/parsing/flux/dygraph'
 
 import Dygraph from 'src/shared/components/Dygraph'
 import {FluxTable} from 'src/types'

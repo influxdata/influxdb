@@ -3,7 +3,7 @@ import _ from 'lodash'
 import AJAX from 'src/utils/ajax'
 import {Service, FluxTable} from 'src/types'
 import {updateService} from 'src/shared/apis'
-import {parseResponse} from 'src/shared/parsing/v2/results'
+import {parseResponse} from 'src/shared/parsing/flux/response'
 
 export const getSuggestions = async (url: string) => {
   try {
