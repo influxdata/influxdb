@@ -1193,7 +1193,7 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 	for i := 0; i < len(keys); i++ {
 		// Replace tsm key format with index key format.
 		keys[i], field = SeriesAndFieldFromCompositeKey(keys[i])
-		name := tsdb.MeasurementFromSeriesKey(keys[i])
+		name := models.ParseName(keys[i])
 		mf := e.fieldset.CreateFieldsIfNotExists(name)
 		if err := mf.CreateFieldIfNotExists(field, fieldTypes[i]); err != nil {
 			return err
