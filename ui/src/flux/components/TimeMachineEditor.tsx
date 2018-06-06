@@ -4,7 +4,8 @@ import {EditorChange} from 'codemirror'
 import {ShowHintOptions} from 'src/types/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OnChangeScript, OnSubmitScript, Suggestion} from 'src/types/flux'
-import {getFluxCompletions} from 'src/flux/helpers/autoComplete'
+import {EXCLUDED_KEYS} from 'src/flux/constants/editor'
+import {getSuggestions} from 'src/flux/helpers/autoComplete'
 import 'src/external/codemirror'
 
 interface Gutter {
@@ -133,15 +134,29 @@ class TimeMachineEditor extends PureComponent<Props> {
 
   private onTouchStart = () => {}
 
-  private handleKeyUp = (editor: EditorInstance, e: KeyboardEvent) => {
-    const {suggestions} = this.props
-    const space = ' '
+  private handleKeyUp = (__, e: KeyboardEvent) => {
+    const {ctrlKey, metaKey, key} = e
 
-    if (e.ctrlKey && e.key === space) {
-      editor.showHint({
-        hint: () => getFluxCompletions(this.editor, suggestions),
-      })
+    if (ctrlKey && key === ' ') {
+      this.showAutoComplete()
+
+      return
     }
+
+    if (ctrlKey || metaKey || EXCLUDED_KEYS.includes(key)) {
+      return
+    }
+
+    this.showAutoComplete()
+  }
+
+  private showAutoComplete() {
+    const {suggestions} = this.props
+
+    this.editor.showHint({
+      hint: () => getSuggestions(this.editor, suggestions),
+      completeSingle: false,
+    })
   }
 
   private updateCode = (
