@@ -7,6 +7,11 @@ export type OnAddNode = (
   funcName: string,
   declarationID: string
 ) => void
+export type OnInsertYield = (
+  bodyID: string,
+  declarationID: string,
+  funcNodeIndex: number
+) => void
 export type OnGenerateScript = (script: string) => void
 export type OnChangeScript = (script: string) => void
 export type OnSubmitScript = () => void
@@ -23,6 +28,7 @@ export interface Context {
   onChangeScript: OnChangeScript
   onDeleteFuncNode: OnDeleteFuncNode
   onGenerateScript: OnGenerateScript
+  onInsertYield: OnInsertYield
   service: Service
 }
 

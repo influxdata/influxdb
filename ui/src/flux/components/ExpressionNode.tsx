@@ -31,6 +31,7 @@ class ExpressionNode extends PureComponent<Props> {
           onAddNode,
           onChangeArg,
           onGenerateScript,
+          onInsertYield,
           service,
         }) => {
           return (
@@ -38,11 +39,13 @@ class ExpressionNode extends PureComponent<Props> {
               {funcs.map((func, i) => (
                 <FuncNode
                   key={i}
+                  index={i}
                   func={func}
                   bodyID={bodyID}
                   service={service}
                   onChangeArg={onChangeArg}
                   onDelete={onDeleteFuncNode}
+                  onInsertYield={onInsertYield}
                   declarationID={declarationID}
                   onGenerateScript={onGenerateScript}
                   declarationsFromBody={declarationsFromBody}

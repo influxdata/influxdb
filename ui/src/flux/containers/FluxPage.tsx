@@ -146,6 +146,7 @@ export class FluxPage extends PureComponent<Props, State> {
       onChangeScript: this.handleChangeScript,
       onDeleteFuncNode: this.handleDeleteFuncNode,
       onGenerateScript: this.handleGenerateScript,
+      onInsertYield: this.handleInsertYield,
       service: this.service,
     }
   }
@@ -327,8 +328,52 @@ export class FluxPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
+  private handleInsertYield = (
+    bodyID: string,
+    declarationID: string,
+    funcNodeIndex: number
+  ): void => {
+    const script = this.state.body.reduce((acc, body) => {
+      const {id, source, funcs} = body
+
+      if (id === bodyID) {
+        const declaration = body.declarations.find(d => d.id === declarationID)
+        if (declaration) {
+          return `${acc}${declaration.name} = ${this.addYieldFunc(
+            declaration.funcs,
+            funcNodeIndex
+          )}`
+        }
+
+        return `${acc}${this.addYieldFunc(funcs, funcNodeIndex)}`
+      }
+
+      return `${acc}${this.formatSource(source)}`
+    }, '')
+
+    this.getASTResponse(script)
+  }
+
+  private addYieldFunc = (funcs, index) => {
+    if (index < funcs.length - 1) {
+      return this.insertFunc(funcs, 'yield', index)
+    } else {
+      return this.appendFunc(funcs, 'yield')
+    }
+  }
+
   private appendFunc = (funcs, name): string => {
     return `${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
+  }
+
+  private insertFunc = (funcs, name, index): string => {
+    const before = funcs.slice(0, index + 1)
+    const after = funcs.slice(index + 1)
+    const funcSeparator = '\n\t|> '
+
+    return `${this.funcsToScript(
+      before
+    )}${funcSeparator}${name}()${funcSeparator}${this.funcsToScript(after)}\n\n`
   }
 
   private handleDeleteFuncNode = (ids: DeleteFuncNodeArgs): void => {

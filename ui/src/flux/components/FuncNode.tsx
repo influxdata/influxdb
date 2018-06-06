@@ -2,7 +2,12 @@ import React, {PureComponent, MouseEvent} from 'react'
 
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
-import {OnDeleteFuncNode, OnChangeArg, Func} from 'src/types/flux'
+import {
+  OnDeleteFuncNode,
+  OnChangeArg,
+  OnInsertYield,
+  Func,
+} from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Service} from 'src/types'
 
@@ -10,8 +15,10 @@ interface Props {
   func: Func
   service: Service
   bodyID: string
+  index: number
   declarationID?: string
   onDelete: OnDeleteFuncNode
+  onInsertYield: OnInsertYield
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
   declarationsFromBody: string[]
@@ -51,6 +58,7 @@ export default class FuncNode extends PureComponent<Props, State> {
         className="func-node"
         onMouseEnter={this.handleMouseEnter}
         onMouseLeave={this.handleMouseLeave}
+        onClick={this.handleClick}
       >
         <div className="func-node--connector" />
         <div className="func-node--name">{func.name}</div>
@@ -71,7 +79,8 @@ export default class FuncNode extends PureComponent<Props, State> {
     )
   }
 
-  private handleDelete = (): void => {
+  private handleDelete = (e: MouseEvent<HTMLElement>): void => {
+    e.stopPropagation()
     const {func, bodyID, declarationID} = this.props
 
     this.props.onDelete({funcID: func.id, bodyID, declarationID})
@@ -87,5 +96,13 @@ export default class FuncNode extends PureComponent<Props, State> {
     e.stopPropagation()
 
     this.setState({isExpanded: false})
+  }
+
+  private handleClick = (e: MouseEvent<HTMLElement>): void => {
+    e.stopPropagation()
+
+    const {onInsertYield, index, bodyID, declarationID} = this.props
+
+    onInsertYield(bodyID, declarationID, index)
   }
 }

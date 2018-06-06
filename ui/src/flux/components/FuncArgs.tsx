@@ -1,4 +1,4 @@
-import React, {PureComponent, ReactElement} from 'react'
+import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import FuncArg from 'src/flux/components/FuncArg'
 import {OnChangeArg} from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -16,7 +16,7 @@ interface Props {
   onChangeArg: OnChangeArg
   declarationID: string
   onGenerateScript: () => void
-  onDeleteFunc: () => void
+  onDeleteFunc: (e: MouseEvent<HTMLElement>) => void
   declarationsFromBody: string[]
 }
 
