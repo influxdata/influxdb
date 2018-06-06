@@ -5,7 +5,7 @@ import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
 import {
   OnDeleteFuncNode,
   OnChangeArg,
-  OnInsertYield,
+  OnToggleYield,
   Func,
 } from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -18,7 +18,7 @@ interface Props {
   index: number
   declarationID?: string
   onDelete: OnDeleteFuncNode
-  onInsertYield: OnInsertYield
+  onToggleYield: OnToggleYield
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
   declarationsFromBody: string[]
@@ -101,8 +101,8 @@ export default class FuncNode extends PureComponent<Props, State> {
   private handleClick = (e: MouseEvent<HTMLElement>): void => {
     e.stopPropagation()
 
-    const {onInsertYield, index, bodyID, declarationID} = this.props
+    const {onToggleYield, index, bodyID, declarationID} = this.props
 
-    onInsertYield(bodyID, declarationID, index)
+    onToggleYield(bodyID, declarationID, index)
   }
 }

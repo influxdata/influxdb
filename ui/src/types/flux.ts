@@ -7,7 +7,7 @@ export type OnAddNode = (
   funcName: string,
   declarationID: string
 ) => void
-export type OnInsertYield = (
+export type OnToggleYield = (
   bodyID: string,
   declarationID: string,
   funcNodeIndex: number
@@ -28,7 +28,7 @@ export interface Context {
   onChangeScript: OnChangeScript
   onDeleteFuncNode: OnDeleteFuncNode
   onGenerateScript: OnGenerateScript
-  onInsertYield: OnInsertYield
+  onToggleYield: OnToggleYield
   service: Service
 }
 

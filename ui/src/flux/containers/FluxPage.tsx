@@ -146,7 +146,7 @@ export class FluxPage extends PureComponent<Props, State> {
       onChangeScript: this.handleChangeScript,
       onDeleteFuncNode: this.handleDeleteFuncNode,
       onGenerateScript: this.handleGenerateScript,
-      onInsertYield: this.handleInsertYield,
+      onToggleYield: this.handleToggleYield,
       service: this.service,
     }
   }
@@ -328,7 +328,7 @@ export class FluxPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private handleInsertYield = (
+  private handleToggleYield = (
     bodyID: string,
     declarationID: string,
     funcNodeIndex: number
@@ -338,14 +338,15 @@ export class FluxPage extends PureComponent<Props, State> {
 
       if (id === bodyID) {
         const declaration = body.declarations.find(d => d.id === declarationID)
+
         if (declaration) {
-          return `${acc}${declaration.name} = ${this.addYieldFunc(
+          return `${acc}${declaration.name} = ${this.addOrRemoveYieldFunc(
             declaration.funcs,
             funcNodeIndex
           )}`
         }
 
-        return `${acc}${this.addYieldFunc(funcs, funcNodeIndex)}`
+        return `${acc}${this.addOrRemoveYieldFunc(funcs, funcNodeIndex)}`
       }
 
       return `${acc}${this.formatSource(source)}`
@@ -354,26 +355,45 @@ export class FluxPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private addYieldFunc = (funcs, index) => {
-    if (index < funcs.length - 1) {
-      return this.insertFunc(funcs, 'yield', index)
-    } else {
-      return this.appendFunc(funcs, 'yield')
+  private addOrRemoveYieldFunc = (
+    funcs: Func[],
+    funcNodeIndex: number
+  ): string => {
+    if (funcNodeIndex < funcs.length - 1) {
+      const funcAfterNode = funcs[funcNodeIndex + 1]
+
+      if (funcAfterNode.name === 'yield') {
+        return this.removeYieldFunc(funcs, funcAfterNode)
+      }
     }
+
+    return this.insertYieldFunc(funcs, funcNodeIndex)
   }
 
-  private appendFunc = (funcs, name): string => {
+  private removeYieldFunc = (funcs: Func[], funcAfterNode: Func): string => {
+    const filteredFuncs = funcs.filter(f => f.id !== funcAfterNode.id)
+
+    return `${this.funcsToScript(filteredFuncs)}\n\n`
+  }
+
+  private appendFunc = (funcs: Func[], name: string): string => {
     return `${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
   }
 
-  private insertFunc = (funcs, name, index): string => {
-    const before = funcs.slice(0, index + 1)
-    const after = funcs.slice(index + 1)
+  private insertYieldFunc = (funcs: Func[], index: number): string => {
+    const funcsBefore = funcs.slice(0, index + 1)
+    const funcsBeforeScript = this.funcsToScript(funcsBefore)
+
+    const funcsAfter = funcs.slice(index + 1)
+    const funcsAfterScript = this.funcsToScript(funcsAfter)
+
     const funcSeparator = '\n\t|> '
 
-    return `${this.funcsToScript(
-      before
-    )}${funcSeparator}${name}()${funcSeparator}${this.funcsToScript(after)}\n\n`
+    if (funcsAfterScript) {
+      return `${funcsBeforeScript}${funcSeparator}yield()${funcSeparator}${funcsAfterScript}\n\n`
+    }
+
+    return `${funcsBeforeScript}${funcSeparator}yield()\n\n`
   }
 
   private handleDeleteFuncNode = (ids: DeleteFuncNodeArgs): void => {

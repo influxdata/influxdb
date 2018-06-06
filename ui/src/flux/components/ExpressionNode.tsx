@@ -31,7 +31,7 @@ class ExpressionNode extends PureComponent<Props> {
           onAddNode,
           onChangeArg,
           onGenerateScript,
-          onInsertYield,
+          onToggleYield,
           service,
         }) => {
           return (
@@ -45,7 +45,7 @@ class ExpressionNode extends PureComponent<Props> {
                   service={service}
                   onChangeArg={onChangeArg}
                   onDelete={onDeleteFuncNode}
-                  onInsertYield={onInsertYield}
+                  onToggleYield={onToggleYield}
                   declarationID={declarationID}
                   onGenerateScript={onGenerateScript}
                   declarationsFromBody={declarationsFromBody}
