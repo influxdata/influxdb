@@ -1,11 +1,12 @@
 import React, {PureComponent} from 'react'
-import {Filter} from 'src/logs/containers/LogsPage'
+import {Filter} from 'src/types/logs'
 import FilterBlock from 'src/logs/components/LogsFilter'
 
 interface Props {
   numResults: number
   filters: Filter[]
-  onUpdateFilters: (fitlers: Filter[]) => void
+  onDelete: (id: string) => void
+  onFilterChange: (id: string, operator: string, value: string) => void
 }
 
 class LogsFilters extends PureComponent<Props> {
@@ -29,47 +30,10 @@ class LogsFilters extends PureComponent<Props> {
       <FilterBlock
         key={filter.id}
         filter={filter}
-        onDelete={this.handleDeleteFilter}
-        onChangeOperator={this.handleChangeFilterOperator}
-        onChangeValue={this.handleChangeFilterValue}
+        onDelete={this.props.onDelete}
+        onChangeFilter={this.props.onFilterChange}
       />
     ))
-  }
-
-  private handleDeleteFilter = (id: string) => (): void => {
-    const {filters, onUpdateFilters} = this.props
-
-    const filteredFilters = filters.filter(filter => filter.id !== id)
-
-    onUpdateFilters(filteredFilters)
-  }
-
-  private handleChangeFilterOperator = (id: string, operator: string): void => {
-    const {filters, onUpdateFilters} = this.props
-
-    const filteredFilters = filters.map(filter => {
-      if (filter.id === id) {
-        return {...filter, operator}
-      }
-
-      return filter
-    })
-
-    onUpdateFilters(filteredFilters)
-  }
-
-  private handleChangeFilterValue = (id: string, value: string): void => {
-    const {filters, onUpdateFilters} = this.props
-
-    const filteredFilters = filters.map(filter => {
-      if (filter.id === id) {
-        return {...filter, value}
-      }
-
-      return filter
-    })
-
-    onUpdateFilters(filteredFilters)
   }
 }
 

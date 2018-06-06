@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import uuid from 'uuid'
 import {connect} from 'react-redux'
 import {
   getSourceAndPopulateNamespacesAsync,
@@ -7,6 +8,9 @@ import {
   executeQueriesAsync,
   changeZoomAsync,
   setSearchTermAsync,
+  addFilter,
+  removeFilter,
+  changeFilter,
 } from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
@@ -18,13 +22,7 @@ import LogsTable from 'src/logs/components/LogsTable'
 import {getDeep} from 'src/utils/wrappers'
 
 import {Source, Namespace, TimeRange} from 'src/types'
-
-export interface Filter {
-  id: string
-  key: string
-  value: string
-  operator: string
-}
+import {Filter} from 'src/types/logs'
 
 interface Props {
   sources: Source[]
@@ -38,6 +36,9 @@ interface Props {
   changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
   setSearchTermAsync: (searchTerm: string) => void
+  addFilter: (filter: Filter) => void
+  removeFilter: (id: string) => void
+  changeFilter: (id: string, operator: string, value: string) => void
   timeRange: TimeRange
   histogramData: object[]
   tableData: {
@@ -45,22 +46,13 @@ interface Props {
     values: string[]
   }
   searchTerm: string
+  filters: Filter[]
 }
 
 interface State {
   searchString: string
-  filters: Filter[]
   liveUpdating: boolean
 }
-
-const DUMMY_FILTERS = [
-  {
-    id: '0',
-    key: 'host',
-    value: 'prod1-rsavage.local',
-    operator: '==',
-  },
-]
 
 class LogsPage extends PureComponent<Props, State> {
   private interval: NodeJS.Timer
@@ -70,7 +62,6 @@ class LogsPage extends PureComponent<Props, State> {
 
     this.state = {
       searchString: '',
-      filters: DUMMY_FILTERS,
       liveUpdating: false,
     }
   }
@@ -96,8 +87,8 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {filters, liveUpdating} = this.state
-    const {searchTerm} = this.props
+    const {liveUpdating} = this.state
+    const {searchTerm, filters} = this.props
 
     const count = getDeep(this.props, 'tableData.values.length', 0)
 
@@ -112,14 +103,16 @@ class LogsPage extends PureComponent<Props, State> {
           />
           <FilterBar
             numResults={count}
-            filters={filters}
-            onUpdateFilters={this.handleUpdateFilters}
+            filters={filters || []}
+            onDelete={this.handleFilterDelete}
+            onFilterChange={this.handleFilterChange}
           />
           <LogsTable
             data={this.props.tableData}
             onScrollVertical={this.handleVerticalScroll}
             onScrolledToTop={this.handleScrollToTop}
             isScrolledToTop={liveUpdating}
+            onTagSelection={this.handleTagSelection}
           />
         </div>
       </div>
@@ -146,6 +139,17 @@ class LogsPage extends PureComponent<Props, State> {
       clearInterval(this.interval)
       this.setState({liveUpdating: false})
     }
+  }
+
+  private handleTagSelection = (selection: {tag: string; key: string}) => {
+    // Do something with the tag
+    this.props.addFilter({
+      id: uuid.v4(),
+      key: selection.key,
+      value: selection.tag,
+      operator: '==',
+    })
+    this.props.executeQueriesAsync()
   }
 
   private handleInterval = () => {
@@ -205,8 +209,18 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.setSearchTermAsync(value)
   }
 
-  private handleUpdateFilters = (filters: Filter[]): void => {
-    this.setState({filters})
+  private handleFilterDelete = (id: string): void => {
+    this.props.removeFilter(id)
+    this.props.executeQueriesAsync()
+  }
+
+  private handleFilterChange = (
+    id: string,
+    operator: string,
+    value: string
+  ) => {
+    this.props.changeFilter(id, operator, value)
+    this.props.executeQueriesAsync()
   }
 
   private handleChooseTimerange = (timeRange: TimeRange) => {
@@ -239,6 +253,7 @@ const mapStateToProps = ({
     histogramData,
     tableData,
     searchTerm,
+    filters,
   },
 }) => ({
   sources,
@@ -249,6 +264,7 @@ const mapStateToProps = ({
   histogramData,
   tableData,
   searchTerm,
+  filters,
 })
 
 const mapDispatchToProps = {
@@ -259,6 +275,9 @@ const mapDispatchToProps = {
   executeQueriesAsync,
   changeZoomAsync,
   setSearchTermAsync,
+  addFilter,
+  removeFilter,
+  changeFilter,
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(LogsPage)

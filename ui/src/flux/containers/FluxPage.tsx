@@ -268,8 +268,15 @@ export class FluxPage extends PureComponent<Props, State> {
 
   private handleAppendFrom = (): void => {
     const {script} = this.props
-    const newScript = `${script.trim()}\n\n${builder.NEW_FROM}\n\n`
+    let newScript = script.trim()
+    const from = builder.NEW_FROM
 
+    if (!newScript) {
+      this.getASTResponse(from)
+      return
+    }
+
+    newScript = `${script.trim()}\n\n${from}\n\n`
     this.getASTResponse(newScript)
   }
 

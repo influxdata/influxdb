@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 
+import {NotificationContext} from 'src/flux/containers/CheckServices'
 import DatabaseListItem from 'src/flux/components/DatabaseListItem'
 
 import {showDatabases} from 'src/shared/apis/metaQuery'
@@ -49,7 +50,13 @@ class DatabaseList extends PureComponent<Props, State> {
     const {service} = this.props
 
     return databases.map(db => {
-      return <DatabaseListItem db={db} key={db} service={service} />
+      return (
+        <NotificationContext.Consumer key={db}>
+          {({notify}) => (
+            <DatabaseListItem db={db} service={service} notify={notify} />
+          )}
+        </NotificationContext.Consumer>
+      )
     })
   }
 }

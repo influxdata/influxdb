@@ -22,7 +22,7 @@ $flux-tree-gutter: 11px;
   flex-direction: column;
   align-items: stretch;
   padding-left: 0;
-  >.flux-schema-tree {
+  > .flux-schema-tree {
     padding-left: $flux-tree-indent;
   }
 }
@@ -72,7 +72,7 @@ $flux-tree-gutter: 11px;
   color: $g11-sidewalk;
   white-space: nowrap;
   transition: color 0.25s ease, background-color 0.25s ease;
-  >span.icon {
+  > span.icon {
     position: absolute;
     top: 50%;
     left: $flux-tree-indent / 2;
@@ -87,7 +87,7 @@ $flux-tree-gutter: 11px;
       background-color: $g17-whisper;
     }
   }
-  .expanded>& {
+  .expanded > & {
     color: $c-pool;
     .flux-schema--expander:before,
     .flux-schema--expander:after {
@@ -130,12 +130,35 @@ $flux-tree-gutter: 11px;
   border-radius: 4px 0 0 4px;
 }
 
+.flex-schema-item-group {
+  display: flex;
+  flex: 1 0 0;
+  align-items: center;
+}
+
+.flux-schema-copy {
+  color: $g11-sidewalk;
+  display: inline-block;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  margin-left: 8px;
+  .flux-schema--item:hover & {
+    opacity: 1;
+  }
+  > span.icon {
+    margin-right: 3px;
+  }
+  &:hover {
+    color: $g15-platinum;
+  }
+}
+
 @keyframes skeleton-animation {
   0% {
-    background-position: 100% 50%
+    background-position: 100% 50%;
   }
   100% {
-    background-position: 0% 50%
+    background-position: 0% 50%;
   }
 }
 
@@ -270,7 +293,7 @@ $flux-tree-gutter: 11px;
   margin: 0 auto;
 }
 
-.loading-spinner .spinner>div {
+.loading-spinner .spinner > div {
   width: 8px;
   height: 8px;
   background-color: $g8-storm;
@@ -291,10 +314,10 @@ $flux-tree-gutter: 11px;
   0%,
   80%,
   100% {
-    -webkit-transform: scale(0)
+    -webkit-transform: scale(0);
   }
   40% {
-    -webkit-transform: scale(1.0)
+    -webkit-transform: scale(1);
   }
 }
 
@@ -306,7 +329,7 @@ $flux-tree-gutter: 11px;
     transform: scale(0);
   }
   40% {
-    -webkit-transform: scale(1.0);
-    transform: scale(1.0);
+    -webkit-transform: scale(1);
+    transform: scale(1);
   }
 }

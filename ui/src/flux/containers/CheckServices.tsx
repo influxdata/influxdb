@@ -15,6 +15,8 @@ import {
 import * as a from 'src/shared/actions/overlayTechnology'
 import * as b from 'src/shared/actions/services'
 
+export const NotificationContext = React.createContext()
+
 const actions = {...a, ...b}
 
 interface Props {
@@ -54,14 +56,16 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
     }
 
     return (
-      <FluxPage
-        source={this.source}
-        services={services}
-        links={links}
-        script={script}
-        notify={notify}
-        updateScript={updateScript}
-      />
+      <NotificationContext.Provider value={{notify}}>
+        <FluxPage
+          source={this.source}
+          services={services}
+          links={links}
+          script={script}
+          notify={notify}
+          updateScript={updateScript}
+        />
+      </NotificationContext.Provider>
     )
   }
 

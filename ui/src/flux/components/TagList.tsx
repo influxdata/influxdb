@@ -1,7 +1,9 @@
 import React, {PureComponent, MouseEvent} from 'react'
 
-import {SchemaFilter, Service} from 'src/types'
 import TagListItem from 'src/flux/components/TagListItem'
+import {NotificationContext} from 'src/flux/containers/CheckServices'
+
+import {SchemaFilter, Service} from 'src/types'
 
 interface Props {
   db: string
@@ -28,13 +30,17 @@ export default class TagList extends PureComponent<Props, State> {
       return (
         <>
           {tags.map(t => (
-            <TagListItem
-              key={t}
-              db={db}
-              tagKey={t}
-              service={service}
-              filter={filter}
-            />
+            <NotificationContext.Consumer key={t}>
+              {({notify}) => (
+                <TagListItem
+                  db={db}
+                  tagKey={t}
+                  service={service}
+                  filter={filter}
+                  notify={notify}
+                />
+              )}
+            </NotificationContext.Consumer>
           ))}
         </>
       )

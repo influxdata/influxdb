@@ -1,14 +1,21 @@
 import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import classnames from 'classnames'
+import {CopyToClipboard} from 'react-copy-to-clipboard'
 
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/flux/values'
 import TagList from 'src/flux/components/TagList'
-import {Service} from 'src/types'
+import {
+  notifyCopyToClipboardSuccess,
+  notifyCopyToClipboardFailed,
+} from 'src/shared/copy/notifications'
+
+import {Service, NotificationAction} from 'src/types'
 
 interface Props {
   db: string
   service: Service
+  notify: NotificationAction
 }
 
 interface State {
@@ -40,33 +47,25 @@ class DatabaseListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {db, service} = this.props
+    const {db} = this.props
     const {searchTerm} = this.state
 
     return (
       <div className={this.className} onClick={this.handleClick}>
         <div className="flux-schema--item">
-          <div className="flux-schema--expander" />
-          {db}
-          <span className="flux-schema--type">Bucket</span>
-        </div>
-        {this.state.isOpen && (
-          <>
-            <div className="flux-schema--filter">
-              <input
-                className="form-control input-xs"
-                placeholder={`Filter within ${db}`}
-                type="text"
-                spellCheck={false}
-                autoComplete="off"
-                value={searchTerm}
-                onClick={this.handleInputClick}
-                onChange={this.onSearch}
-              />
+          <div className="flex-schema-item-group">
+            <div className="flux-schema--expander" />
+            {db}
+            <span className="flux-schema--type">Bucket</span>
+          </div>
+          <CopyToClipboard text={db} onCopy={this.handleCopyAttempt}>
+            <div className="flux-schema-copy" onClick={this.handleClickCopy}>
+              <span className="icon duplicate" title="copy to clipboard" />
+              Copy
             </div>
-            <TagList db={db} service={service} tags={this.tags} filter={[]} />
-          </>
-        )}
+          </CopyToClipboard>
+        </div>
+        {this.filterAndTagList}
       </div>
     )
   }
@@ -81,6 +80,47 @@ class DatabaseListItem extends PureComponent<Props, State> {
     return classnames('flux-schema-tree', {
       expanded: this.state.isOpen,
     })
+  }
+
+  private get filterAndTagList(): JSX.Element {
+    const {db, service} = this.props
+    const {isOpen, searchTerm} = this.state
+
+    if (isOpen) {
+      return (
+        <>
+          <div className="flux-schema--filter">
+            <input
+              className="form-control input-xs"
+              placeholder={`Filter within ${db}`}
+              type="text"
+              spellCheck={false}
+              autoComplete="off"
+              value={searchTerm}
+              onClick={this.handleInputClick}
+              onChange={this.onSearch}
+            />
+          </div>
+          <TagList db={db} service={service} tags={this.tags} filter={[]} />
+        </>
+      )
+    }
+  }
+
+  private handleClickCopy = e => {
+    e.stopPropagation()
+  }
+
+  private handleCopyAttempt = (
+    copiedText: string,
+    isSuccessful: boolean
+  ): void => {
+    const {notify} = this.props
+    if (isSuccessful) {
+      notify(notifyCopyToClipboardSuccess(copiedText))
+    } else {
+      notify(notifyCopyToClipboardFailed(copiedText))
+    }
   }
 
   private onSearch = (e: ChangeEvent<HTMLInputElement>) => {
