@@ -1,16 +1,5 @@
-import {QueryConfig, TimeRange, Namespace, Source} from 'src/types'
-
-export interface LogsState {
-  currentSource: Source | null
-  currentNamespaces: Namespace[]
-  currentNamespace: Namespace | null
-  timeRange: TimeRange
-  histogramQueryConfig: QueryConfig | null
-  histogramData: object[]
-  tableQueryConfig: QueryConfig | null
-  tableData: object[]
-  searchTerm: string | null
-}
+import {QueryConfig, TimeRange} from 'src/types'
+import {LogsState} from 'src/types/logs'
 
 export interface LocalStorage {
   VERSION: VERSION

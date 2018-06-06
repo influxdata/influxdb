@@ -7,6 +7,8 @@ import {getDeep} from 'src/utils/wrappers'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const ROW_HEIGHT = 26
+const ROW_CHAR_LIMIT = 100
+const CHAR_WIDTH = 7
 
 interface Props {
   data: {
@@ -16,6 +18,7 @@ interface Props {
   isScrolledToTop: boolean
   onScrollVertical: () => void
   onScrolledToTop: () => void
+  onTagSelection: (selection: {tag: string; key: string}) => void
 }
 
 interface State {
@@ -26,28 +29,38 @@ interface State {
 
 class LogsTable extends Component<Props, State> {
   public static getDerivedStateFromProps(props, state) {
-    const {scrolledToTop} = props
+    const {isScrolledToTop} = props
 
     let scrollTop = _.get(state, 'scrollTop', 0)
-    if (scrolledToTop) {
+    if (isScrolledToTop) {
       scrollTop = 0
     }
 
+    const scrollLeft = _.get(state, 'scrollLeft', 0)
+
     return {
       scrollTop,
-      scrollLeft: 0,
+      scrollLeft,
       currentRow: -1,
     }
   }
 
+  private grid: React.RefObject<Grid>
+
   constructor(props: Props) {
     super(props)
+
+    this.grid = React.createRef()
 
     this.state = {
       scrollTop: 0,
       scrollLeft: 0,
       currentRow: -1,
     }
+  }
+
+  public componentDidUpdate() {
+    this.grid.current.recomputeGridSize()
   }
 
   public render() {
@@ -57,7 +70,7 @@ class LogsTable extends Component<Props, State> {
     return (
       <div
         className="logs-viewer--table-container"
-        onMouseOut={this.handleMouseLeave}
+        onMouseOut={this.handleMouseOut}
       >
         <AutoSizer>
           {({width}) => (
@@ -84,11 +97,11 @@ class LogsTable extends Component<Props, State> {
               }}
               setScrollTop={this.handleScrollbarScroll}
               scrollTop={this.state.scrollTop}
-              autoHide={true}
+              autoHide={false}
             >
               <Grid
                 height={height}
-                rowHeight={ROW_HEIGHT}
+                rowHeight={this.calculateRowHeight}
                 rowCount={rowCount}
                 width={width}
                 scrollLeft={this.state.scrollLeft}
@@ -97,7 +110,8 @@ class LogsTable extends Component<Props, State> {
                 cellRenderer={this.cellRenderer}
                 columnCount={columnCount}
                 columnWidth={this.getColumnWidth}
-                style={{height: ROW_HEIGHT * rowCount}}
+                ref={this.grid}
+                style={{height: this.calculateTotalHeight()}}
               />
             </FancyScrollbar>
           )}
@@ -111,6 +125,31 @@ class LogsTable extends Component<Props, State> {
   private handleScrollbarScroll = (e: MouseEvent<JSX.Element>) => {
     const {target} = e
     this.handleScroll(target)
+  }
+
+  private calculateMessageHeight = (index: number): number => {
+    const columnIndex = this.props.data.columns.indexOf('message')
+    const height =
+      (Math.floor(
+        this.props.data.values[index][columnIndex].length / ROW_CHAR_LIMIT
+      ) +
+        1) *
+      ROW_HEIGHT
+    return height
+  }
+
+  private calculateTotalHeight = (): number => {
+    return _.reduce(
+      this.props.data.values,
+      (acc, __, index) => {
+        return acc + this.calculateMessageHeight(index)
+      },
+      0
+    )
+  }
+
+  private calculateRowHeight = (d: {index: number}): number => {
+    return this.calculateMessageHeight(d.index)
   }
 
   private handleScroll = scrollInfo => {
@@ -147,7 +186,7 @@ class LogsTable extends Component<Props, State> {
 
     switch (column) {
       case 'message':
-        return 1200
+        return ROW_CHAR_LIMIT * CHAR_WIDTH
       case 'timestamp':
         return 160
       case 'procid':
@@ -219,23 +258,38 @@ class LogsTable extends Component<Props, State> {
           <div
             className={`logs-viewer--dot ${value}-severity`}
             title={this.severityLevel(value)}
+            onMouseOver={this.handleMouseEnter}
+            data-index={rowIndex}
           />
         )
         break
-      default:
-        value = (
-          <div
-            className="logs-viewer--clickable"
-            title={`Filter by "${value}"`}
-            onMouseOver={this.handleMouseEnter}
-            data-index={rowIndex}
-          >
-            {value}
-          </div>
-        )
     }
 
     const highlightRow = rowIndex === this.state.currentRow && columnIndex >= 0
+
+    if (this.isClickable(column)) {
+      return (
+        <div
+          className={classnames('logs-viewer--cell', {
+            highlight: highlightRow,
+          })}
+          title={`Filter by "${value}"`}
+          style={{...style, padding: '5px'}}
+          key={key}
+          data-index={rowIndex}
+          onMouseOver={this.handleMouseEnter}
+        >
+          <div
+            data-tag-key={column}
+            data-tag-value={value}
+            onClick={this.handleTagClick}
+            className="logs-viewer--clickable"
+          >
+            {value}
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div
@@ -255,8 +309,26 @@ class LogsTable extends Component<Props, State> {
     this.setState({currentRow: +target.dataset.index})
   }
 
-  private handleMouseLeave = (): void => {
+  private handleTagClick = (e: MouseEvent<HTMLElement>) => {
+    const {onTagSelection} = this.props
+    const target = e.target as HTMLElement
+    const selection = {
+      tag: target.dataset.tagValue,
+      key: target.dataset.tagKey,
+    }
+
+    onTagSelection(selection)
+  }
+
+  private handleMouseOut = () => {
     this.setState({currentRow: -1})
+  }
+
+  private isClickable(key): boolean {
+    return _.includes(
+      ['appname', 'facility', 'host', 'hostname', 'severity_1'],
+      key
+    )
   }
 }
 
