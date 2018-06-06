@@ -102,6 +102,12 @@
   revision = "88950e537e7e644cd746a3102037b5d2b723e9f5"
 
 [[projects]]
+  name = "github.com/cespare/xxhash"
+  packages = ["."]
+  revision = "5c37fe3735342a2e0d01c87a907579987c8936cc"
+  version = "v1.0.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/codahale/hdrhistogram"
   packages = ["."]
@@ -532,6 +538,12 @@
   version = "v1.2.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/segmentio/kafka-go"
+  packages = ["."]
+  revision = "44a19ca9cf5925ba3c5153dd0d9e5b44e8dfd717"
+
+[[projects]]
   name = "github.com/sergi/go-diff"
   packages = ["diffmatchpatch"]
   revision = "1744e2970ca51c86172c8190fadad617561ed6e7"
@@ -706,6 +718,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8037672c58ee1166ab921f553c2be239edfce5df42133e1b92b86ffb3c41144b"
+  inputs-digest = "8666620edf4d5f9d8ea8917eba18447194a86b306dead9083728b9df5dd5e391"
   solver-name = "gps-cdcl"
   solver-version = 1
