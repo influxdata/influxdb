@@ -60,15 +60,15 @@ export default class TagListItem extends PureComponent<Props, State> {
 
     return (
       <div className={this.className}>
-        <div className="flux-schema-item" onClick={this.handleClick}>
-          <div className="flux-schema-item-toggle" />
+        <div className="flux-schema--item" onClick={this.handleClick}>
+          <div className="flux-schema--expander" />
           {tagKey}
-          <span className="flux-schema-type">Tag Key</span>
+          <span className="flux-schema--type">Tag Key</span>
         </div>
         {this.state.isOpen && (
           <>
             <div
-              className="tag-value-list--header"
+              className="flux-schema--header"
               onClick={this.handleInputClick}
             >
               <div className="flux-schema--filter">
@@ -277,6 +277,6 @@ export default class TagListItem extends PureComponent<Props, State> {
     const {isOpen} = this.state
     const openClass = isOpen ? 'expanded' : ''
 
-    return `flux-schema-tree flux-tree-node ${openClass}`
+    return `flux-schema-tree flux-schema--child ${openClass}`
   }
 }

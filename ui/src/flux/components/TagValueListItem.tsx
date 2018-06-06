@@ -38,10 +38,10 @@ class TagValueListItem extends PureComponent<Props, State> {
 
     return (
       <div className={this.className} onClick={this.handleClick}>
-        <div className="flux-schema-item">
-          <div className="flux-schema-item-toggle" />
+        <div className="flux-schema--item">
+          <div className="flux-schema--expander" />
           {value}
-          <span className="flux-schema-type">Tag Value</span>
+          <span className="flux-schema--type">Tag Value</span>
         </div>
         {this.state.isOpen && (
           <>
@@ -110,7 +110,7 @@ class TagValueListItem extends PureComponent<Props, State> {
     const {isOpen} = this.state
     const openClass = isOpen ? 'expanded' : ''
 
-    return `flux-schema-tree flux-tree-node ${openClass}`
+    return `flux-schema-tree flux-schema--child ${openClass}`
   }
 
   private handleInputClick = (e: MouseEvent<HTMLInputElement>) => {
