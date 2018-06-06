@@ -63,7 +63,7 @@ const shouldCompleteFunction = (currentLineText, cursorPosition) => {
     const char = currentLineText[i]
     const charBefore = currentLineText[i - 1]
 
-    if (char + charBefore === pipe || char === endOfFunc) {
+    if (charBefore + char === pipe || char === endOfFunc) {
       break
     } else if (char === startOfFunc || char === endOfParamKey) {
       return false
