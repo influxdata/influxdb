@@ -1,7 +1,14 @@
-import React, {SFC, MouseEvent} from 'react'
+import React, {SFC, MouseEvent, CSSProperties} from 'react'
+import _ from 'lodash'
 
 const handleClick = (e: MouseEvent<HTMLDivElement>): void => {
   e.stopPropagation()
+}
+
+const randomSize = (): CSSProperties => {
+  const width = _.random(60, 200)
+
+  return {width: `${width}px`}
 }
 
 const LoaderSkeleton: SFC = () => {
@@ -13,28 +20,19 @@ const LoaderSkeleton: SFC = () => {
       >
         <div className="flux-schema--item no-hover">
           <div className="flux-schema--expander" />
-          <div
-            className="flux-schema--item-skeleton"
-            style={{width: '160px'}}
-          />
+          <div className="flux-schema--item-skeleton" style={randomSize()} />
         </div>
       </div>
       <div className="flux-schema-tree flux-schema--child">
         <div className="flux-schema--item no-hover">
           <div className="flux-schema--expander" />
-          <div
-            className="flux-schema--item-skeleton"
-            style={{width: '200px'}}
-          />
+          <div className="flux-schema--item-skeleton" style={randomSize()} />
         </div>
       </div>
       <div className="flux-schema-tree flux-schema--child">
         <div className="flux-schema--item no-hover">
           <div className="flux-schema--expander" />
-          <div
-            className="flux-schema--item-skeleton"
-            style={{width: '120px'}}
-          />
+          <div className="flux-schema--item-skeleton" style={randomSize()} />
         </div>
       </div>
     </>
