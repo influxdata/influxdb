@@ -132,8 +132,8 @@ export default class TagListItem extends PureComponent<Props, State> {
   private get spinnerStyle(): CSSProperties {
     return {
       position: 'absolute',
-      right: '15px',
-      top: '6px',
+      right: '18px',
+      top: '11px',
     }
   }
 

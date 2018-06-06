@@ -291,14 +291,17 @@ $flux-tree-gutter: 11px;
   width: 25px;
   text-align: center;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
 }
 
 .loading-spinner .spinner > div {
   width: 8px;
   height: 8px;
-  background-color: $g8-storm;
-  border-radius: 100%;
-  display: inline-block;
+  background-color: $c-pool;
+  border-radius: 50%;
   animation: sk-bouncedelay 1s infinite ease-in-out both;
 }
 
@@ -310,26 +313,13 @@ $flux-tree-gutter: 11px;
   animation-delay: -0.16s;
 }
 
-@-webkit-keyframes sk-bouncedelay {
-  0%,
-  80%,
-  100% {
-    -webkit-transform: scale(0);
-  }
-  40% {
-    -webkit-transform: scale(1);
-  }
-}
-
 @keyframes sk-bouncedelay {
   0%,
   80%,
   100% {
-    -webkit-transform: scale(0);
     transform: scale(0);
   }
   40% {
-    -webkit-transform: scale(1);
     transform: scale(1);
   }
 }
