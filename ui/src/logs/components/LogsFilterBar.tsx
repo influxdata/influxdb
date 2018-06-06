@@ -44,10 +44,7 @@ class LogsFilters extends PureComponent<Props> {
     onUpdateFilters(filteredFilters)
   }
 
-  private handleChangeFilterOperator = (
-    id: string,
-    operator: string
-  ) => (): void => {
+  private handleChangeFilterOperator = (id: string, operator: string): void => {
     const {filters, onUpdateFilters} = this.props
 
     const filteredFilters = filters.map(filter => {
@@ -61,7 +58,7 @@ class LogsFilters extends PureComponent<Props> {
     onUpdateFilters(filteredFilters)
   }
 
-  private handleChangeFilterValue = (id: string, value: string) => (): void => {
+  private handleChangeFilterValue = (id: string, value: string): void => {
     const {filters, onUpdateFilters} = this.props
 
     const filteredFilters = filters.map(filter => {

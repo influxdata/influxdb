@@ -3,7 +3,7 @@
     ----------------------------------------------------------------------------
 */
 
-$logs-viewer-graph-height: 240px;
+$logs-viewer-graph-height: 180px;
 $logs-viewer-search-height: 46px; 
 $logs-viewer-filter-height: 42px;
 $logs-viewer-gutter: 60px;
@@ -184,9 +184,9 @@ $logs-viewer-gutter: 60px;
 .logs-viewer--operator {
   width: 30px;
 }
-
-// .logs-viewer--value {
-// }
+.logs-viewer--value {
+  width: 170px;
+}
 
 // Graph
 .logs-viewer--graph {
@@ -275,7 +275,6 @@ $logs-viewer-gutter: 60px;
 
   &:active,
   &:active:hover {
-    background-color: $c-ocean;
-    color: $c-neutrino;
+    background-color: $c-laser;
   }
 }

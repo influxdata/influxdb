@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import classnames from 'classnames'
 import {Filter} from 'src/logs/containers/LogsPage'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
@@ -6,8 +6,8 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 interface Props {
   filter: Filter
   onDelete: (id: string) => () => void
-  onChangeOperator: (id: string, newOperator: string) => () => void
-  onChangeValue: (id: string, newValue: string) => () => void
+  onChangeOperator: (id: string, newOperator: string) => void
+  onChangeValue: (id: string, newValue: string) => void
 }
 
 interface State {
@@ -75,16 +75,17 @@ class LogsFilter extends PureComponent<Props, State> {
           value={operator}
           className="form-control monotype input-xs logs-viewer--operator"
           spellCheck={false}
-          onChange={this.handlValueInput}
+          onChange={this.handleOperatorInput}
+          onKeyDown={this.handleKeyDown}
         />
         <input
           type="text"
-          maxLength={2}
           value={value}
           className="form-control monotype input-xs logs-viewer--value"
           spellCheck={false}
           autoFocus={true}
-          onChange={this.handleOperatorInput}
+          onChange={this.handleValueInput}
+          onKeyDown={this.handleKeyDown}
         />
       </>
     )
@@ -96,16 +97,32 @@ class LogsFilter extends PureComponent<Props, State> {
       onChangeOperator,
     } = this.props
 
-    onChangeOperator(id, e.target.value)
+    const cleanValue = this.enforceOperatorChars(e.target.value)
+
+    onChangeOperator(id, cleanValue)
   }
 
-  private handlValueInput = (e: ChangeEvent<HTMLInputElement>): void => {
+  private handleValueInput = (e: ChangeEvent<HTMLInputElement>): void => {
     const {
       filter: {id},
       onChangeValue,
     } = this.props
 
     onChangeValue(id, e.target.value)
+  }
+
+  private enforceOperatorChars = text => {
+    return text
+      .split('')
+      .filter(t => ['!', '~', `=`].includes(t))
+      .join('')
+  }
+
+  private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      this.setState({editing: false})
+    }
   }
 }
 
