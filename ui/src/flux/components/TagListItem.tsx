@@ -85,7 +85,11 @@ export default class TagListItem extends PureComponent<Props, State> {
                   <LoadingSpinner style={this.spinnerStyle} />
                 )}
               </div>
-              {!!count && `${count} total`}
+              {!!count && (
+                <div className="flux-schema--count">{`${count} Tag Value${
+                  count > 1 ? 's' : ''
+                }`}</div>
+              )}
             </div>
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
