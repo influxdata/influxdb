@@ -74,8 +74,8 @@ export default class TagListItem extends PureComponent<Props, State> {
             {tagKey}
             <span className="flux-schema-type">Tag Key</span>{' '}
           </div>
-          <CopyToClipboard text={tagKey} onCopy={this.handleCopy}>
-            <div className="flux-schema-copy" onClick={this.handleCopyClick}>
+          <CopyToClipboard text={tagKey} onCopy={this.handleCopyAttempt}>
+            <div className="flux-schema-copy" onClick={this.handleClickCopy}>
               <span className="icon duplicate" title="copy to clipboard" />
               Copy
             </div>
@@ -236,11 +236,14 @@ export default class TagListItem extends PureComponent<Props, State> {
     )
   }
 
-  private handleCopyClick = e => {
+  private handleClickCopy = e => {
     e.stopPropagation()
   }
 
-  private handleCopy = (copiedText: string, isSuccessful: boolean): void => {
+  private handleCopyAttempt = (
+    copiedText: string,
+    isSuccessful: boolean
+  ): void => {
     const {notify} = this.props
     if (isSuccessful) {
       notify(notifyCopyToClipboardSuccess(copiedText))

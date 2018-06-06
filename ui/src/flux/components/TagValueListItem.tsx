@@ -58,8 +58,8 @@ class TagValueListItem extends PureComponent<Props, State> {
             {value}
             <span className="flux-schema-type">Tag Value</span>
           </div>
-          <CopyToClipboard text={value} onCopy={this.handleCopy}>
-            <div className="flux-schema-copy" onClick={this.handleCopyClick}>
+          <CopyToClipboard text={value} onCopy={this.handleCopyAttempt}>
+            <div className="flux-schema-copy" onClick={this.handleClickCopy}>
               <span className="icon duplicate" title="copy to clipboard" />
               Copy
             </div>
@@ -149,11 +149,14 @@ class TagValueListItem extends PureComponent<Props, State> {
     this.setState({isOpen: !this.state.isOpen})
   }
 
-  private handleCopyClick = e => {
+  private handleClickCopy = e => {
     e.stopPropagation()
   }
 
-  private handleCopy = (copiedText: string, isSuccessful: boolean): void => {
+  private handleCopyAttempt = (
+    copiedText: string,
+    isSuccessful: boolean
+  ): void => {
     const {notify} = this.props
     if (isSuccessful) {
       notify(notifyCopyToClipboardSuccess(copiedText))

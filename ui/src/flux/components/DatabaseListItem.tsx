@@ -57,8 +57,8 @@ class DatabaseListItem extends PureComponent<Props, State> {
             {db}
             <span className="flux-schema-type">Bucket</span>
           </div>
-          <CopyToClipboard text={db} onCopy={this.handleCopy}>
-            <div className="flux-schema-copy" onClick={this.handleCopyClick}>
+          <CopyToClipboard text={db} onCopy={this.handleCopyAttempt}>
+            <div className="flux-schema-copy" onClick={this.handleClickCopy}>
               <span className="icon duplicate" title="copy to clipboard" />
               Copy
             </div>
@@ -106,11 +106,14 @@ class DatabaseListItem extends PureComponent<Props, State> {
     }
   }
 
-  private handleCopyClick = e => {
+  private handleClickCopy = e => {
     e.stopPropagation()
   }
 
-  private handleCopy = (copiedText: string, isSuccessful: boolean): void => {
+  private handleCopyAttempt = (
+    copiedText: string,
+    isSuccessful: boolean
+  ): void => {
     const {notify} = this.props
     if (isSuccessful) {
       notify(notifyCopyToClipboardSuccess(copiedText))
