@@ -114,7 +114,7 @@ class SideNav extends PureComponent<Props> {
         <FeatureFlag name="log-viewer">
           <NavBlock
             highlightWhen={['logs']}
-            icon="text-block"
+            icon="wood-log7"
             link={'/logs'}
             location={location}
           >
