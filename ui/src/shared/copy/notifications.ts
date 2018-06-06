@@ -639,6 +639,17 @@ export const analyzeSuccess = {
   message: 'No errors found. Happy Happy Joy Joy!',
 }
 
+export const notifyCopyToClipboardSuccess = text => ({
+  ...defaultSuccessNotification,
+  icon: 'dash-h',
+  message: `'${text}' has been copied to clipboard.`,
+})
+
+export const notifyCopyToClipboardFailed = text => ({
+  ...defaultErrorNotification,
+  message: `'${text}' was not copied to clipboard.`,
+})
+
 // Service notifications
 export const couldNotGetServices = {
   ...defaultErrorNotification,

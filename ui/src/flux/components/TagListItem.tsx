@@ -6,6 +6,7 @@ import React, {
 } from 'react'
 
 import _ from 'lodash'
+import {CopyToClipboard} from 'react-copy-to-clipboard'
 
 import {Service, SchemaFilter, RemoteDataState} from 'src/types'
 import {tagValues as fetchTagValues} from 'src/shared/apis/flux/metaQueries'
@@ -14,12 +15,19 @@ import parseValuesColumn from 'src/shared/parsing/flux/values'
 import TagValueList from 'src/flux/components/TagValueList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 import LoadingSpinner from 'src/flux/components/LoadingSpinner'
+import {
+  notifyCopyToClipboardSuccess,
+  notifyCopyToClipboardFailed,
+} from 'src/shared/copy/notifications'
+
+import {NotificationAction} from 'src/types'
 
 interface Props {
   tagKey: string
   db: string
   service: Service
   filter: SchemaFilter[]
+  notify: NotificationAction
 }
 
 interface State {
@@ -61,9 +69,17 @@ export default class TagListItem extends PureComponent<Props, State> {
     return (
       <div className={this.className}>
         <div className="flux-schema-item" onClick={this.handleClick}>
-          <div className="flux-schema-item-toggle" />
-          {tagKey}
-          <span className="flux-schema-type">Tag Key</span>
+          <div className="flex-schema-item-group">
+            <div className="flux-schema-item-toggle" />
+            {tagKey}
+            <span className="flux-schema-type">Tag Key</span>{' '}
+          </div>
+          <CopyToClipboard text={tagKey} onCopy={this.handleCopyAttempt}>
+            <div className="flux-schema-copy" onClick={this.handleClickCopy}>
+              <span className="icon duplicate" title="copy to clipboard" />
+              Copy
+            </div>
+          </CopyToClipboard>
         </div>
         {this.state.isOpen && (
           <>
@@ -218,6 +234,22 @@ export default class TagListItem extends PureComponent<Props, State> {
       {limit: limit + explorer.TAG_VALUES_LIMIT},
       this.getMoreTagValues
     )
+  }
+
+  private handleClickCopy = e => {
+    e.stopPropagation()
+  }
+
+  private handleCopyAttempt = (
+    copiedText: string,
+    isSuccessful: boolean
+  ): void => {
+    const {notify} = this.props
+    if (isSuccessful) {
+      notify(notifyCopyToClipboardSuccess(copiedText))
+    } else {
+      notify(notifyCopyToClipboardFailed(copiedText))
+    }
   }
 
   private async getCount() {

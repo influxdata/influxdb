@@ -21,7 +21,11 @@ import {
 import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem} from './shared'
-import {Notification, NotificationFunc} from './notifications'
+import {
+  Notification,
+  NotificationFunc,
+  NotificationAction,
+} from './notifications'
 import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
 
 export {
@@ -57,6 +61,7 @@ export {
   Task,
   Notification,
   NotificationFunc,
+  NotificationAction,
   Axes,
   Dashboard,
   Service,

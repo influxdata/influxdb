@@ -140,6 +140,7 @@
     "react": "^16.3.1",
     "react-addons-shallow-compare": "^15.0.2",
     "react-codemirror2": "^4.2.1",
+    "react-copy-to-clipboard": "^5.0.1",
     "react-custom-scrollbars": "^4.1.1",
     "react-dimensions": "^1.2.0",
     "react-dnd": "^2.6.0",
