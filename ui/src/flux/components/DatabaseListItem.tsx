@@ -54,7 +54,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
           <>
             <div className="flux-schema--filter">
               <input
-                className="form-control input-sm"
+                className="form-control input-xs"
                 placeholder={`Filter within ${db}`}
                 type="text"
                 spellCheck={false}

@@ -73,7 +73,7 @@ export default class TagListItem extends PureComponent<Props, State> {
             >
               <div className="flux-schema--filter">
                 <input
-                  className="form-control input-sm"
+                  className="form-control input-xs"
                   placeholder={`Filter within ${tagKey}`}
                   type="text"
                   spellCheck={false}

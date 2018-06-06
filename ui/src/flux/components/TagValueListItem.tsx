@@ -51,7 +51,7 @@ class TagValueListItem extends PureComponent<Props, State> {
                 {!!this.tags.length && (
                   <div className="flux-schema--filter">
                     <input
-                      className="form-control input-sm"
+                      className="form-control input-xs"
                       placeholder={`Filter within ${value}`}
                       type="text"
                       spellCheck={false}
