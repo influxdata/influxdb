@@ -29,8 +29,8 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 	resp := Response{}
 
 	for results.More() {
-		r := results.Next()
-		name := r.Name()
+		res := results.Next()
+		name := res.Name()
 		id, err := strconv.Atoi(name)
 		if err != nil {
 			resp.error(fmt.Errorf("unable to parse statement id from result name: %s", err))
@@ -38,11 +38,11 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 			break
 		}
 
-		blocks := r.Blocks()
+		blocks := res.Blocks()
 
 		result := Result{StatementID: id}
 		if err := blocks.Do(func(b query.Block) error {
-			var r Row
+			var row Row
 
 			for j, c := range b.Key().Cols() {
 				if c.Type != query.TString {
@@ -50,21 +50,33 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 				}
 				v := b.Key().Value(j).Str()
 				if c.Label == "_measurement" {
-					r.Name = v
+					row.Name = v
 				} else {
-					if r.Tags == nil {
-						r.Tags = make(map[string]string)
+					if row.Tags == nil {
+						row.Tags = make(map[string]string)
 					}
-					r.Tags[c.Label] = v
+					row.Tags[c.Label] = v
 				}
 			}
 
+			// TODO: resultColMap should be constructed from query metadata once it is provided.
+			// for now we know that an influxql query ALWAYS has time first, so we put this placeholder
+			// here to catch this most obvious requirement.  Column orderings should be explicitly determined
+			// from the ordering given in the original query.
+			resultColMap := map[string]int{}
+			j := 1
 			for _, c := range b.Cols() {
 				if c.Label == "time" {
-					r.Columns = append(r.Columns, "time")
+					resultColMap[c.Label] = 0
 				} else if !b.Key().HasCol(c.Label) {
-					r.Columns = append(r.Columns, c.Label)
+					resultColMap[c.Label] = j
+					j++
 				}
+			}
+
+			row.Columns = make([]string, len(resultColMap))
+			for k, v := range resultColMap {
+				row.Columns[v] = k
 			}
 
 			if err := b.Do(func(cr query.ColReader) error {
@@ -73,7 +85,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 				// in the output.
 				values := make([][]interface{}, cr.Len())
 				for j := range values {
-					values[j] = make([]interface{}, len(r.Columns))
+					values[j] = make([]interface{}, len(row.Columns))
 				}
 
 				j := 0
@@ -82,6 +94,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 						continue
 					}
 
+					j = resultColMap[c.Label]
 					// Fill in the values for each column.
 					switch c.Type {
 					case query.TFloat:
@@ -111,15 +124,15 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 					default:
 						return fmt.Errorf("unsupported column type: %s", c.Type)
 					}
-					j++
+
 				}
-				r.Values = append(r.Values, values...)
+				row.Values = append(row.Values, values...)
 				return nil
 			}); err != nil {
 				return err
 			}
 
-			result.Series = append(result.Series, &r)
+			result.Series = append(result.Series, &row)
 			return nil
 		}); err != nil {
 			resp.error(err)

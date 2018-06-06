@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
+	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/querytest"
 
 	"golang.org/x/text/unicode/norm"
@@ -74,7 +75,8 @@ func main() {
 			return
 		}
 		querytest.ReplaceFromSpec(qspec, incsv)
-		result, err := querytest.GetQueryEncodedResults(qs, qspec, incsv)
+		enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
+		result, err := querytest.GetQueryEncodedResults(qs, qspec, incsv, enc)
 		if err != nil {
 			fmt.Printf("error: %s", err)
 			return

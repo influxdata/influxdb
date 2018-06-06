@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/control"
-	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/id"
 )
@@ -53,12 +52,12 @@ func GetQueryServiceBridge() *query.QueryServiceBridge {
 	}
 }
 
-func GetQueryEncodedResults(qs query.QueryService, spec *query.Spec, inputFile string) (string, error) {
+func GetQueryEncodedResults(qs query.QueryService, spec *query.Spec, inputFile string, enc query.MultiResultEncoder) (string, error) {
 	results, err := qs.Query(context.Background(), staticResultID, spec)
 	if err != nil {
 		return "", err
 	}
-	enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
+
 	buf := new(bytes.Buffer)
 	if err := enc.Encode(buf, results); err != nil {
 		return "", err

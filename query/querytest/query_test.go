@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
+	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/influxql"
 
 	"github.com/andreyvit/diff"
@@ -81,7 +82,8 @@ func queryTester(t *testing.T, qs query.QueryService, prefix, queryExt string) {
 	}
 
 	csvIn := prefix + ".in.csv"
-	QueryTestCheckSpec(t, qs, spec, csvIn, csvOut)
+	enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
+	QueryTestCheckSpec(t, qs, spec, csvIn, csvOut, enc)
 }
 
 func queryTranspileTester(t *testing.T, transpiler query.Transpiler, qs query.QueryService, prefix, queryExt string) {
@@ -105,18 +107,27 @@ func queryTranspileTester(t *testing.T, transpiler query.Transpiler, qs query.Qu
 	}
 
 	csvIn := prefix + ".in.csv"
-	QueryTestCheckSpec(t, qs, spec, csvIn, csvOut)
+	enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
+	QueryTestCheckSpec(t, qs, spec, csvIn, csvOut, enc)
+
+	enc = influxql.NewMultiResultEncoder()
+	jsonOut, err := GetTestData(prefix, ".out.json")
+	if err != nil {
+		t.Logf("skipping json evaluation: %s", err)
+		return
+	}
+	QueryTestCheckSpec(t, qs, spec, csvIn, jsonOut, enc)
 }
 
-func QueryTestCheckSpec(t *testing.T, qs query.QueryService, spec *query.Spec, inputFile, want string) {
+func QueryTestCheckSpec(t *testing.T, qs query.QueryService, spec *query.Spec, inputFile, want string, enc query.MultiResultEncoder) {
 	t.Helper()
 	ReplaceFromSpec(spec, inputFile)
 
-	got, err := GetQueryEncodedResults(qs, spec, inputFile)
+	got, err := GetQueryEncodedResults(qs, spec, inputFile, enc)
 	if err != nil {
-		t.Fatalf("failed to run query: %v", err)
+		t.Errorf("failed to run query: %v", err)
 	}
 	if g, w := strings.TrimSpace(got), strings.TrimSpace(want); g != w {
-		t.Fatalf("result not as expected want(-) got (+):\n%v", diff.LineDiff(w, g))
+		t.Errorf("result not as expected want(-) got (+):\n%v", diff.LineDiff(w, g))
 	}
 }
