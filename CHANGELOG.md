@@ -44,6 +44,7 @@ v1.6.0 [unreleased]
 -	[#9792](https://github.com/influxdata/influxdb/pull/9792): TSM: TSMReader.Close blocks until reads complete
 -	[#9858](https://github.com/influxdata/influxdb/pull/9858): Return the correct auxiliary values for top/bottom.
 -	[#9866](https://github.com/influxdata/influxdb/pull/9866): Close TSMReaders from FileStore.Close after releasing FileStore mutex.
+-	[#9932](https://github.com/influxdata/influxdb/pull/9932): buildtsi: Do not escape measurement names.
 
 v1.5.0 [2018-03-06]
 -------------------
