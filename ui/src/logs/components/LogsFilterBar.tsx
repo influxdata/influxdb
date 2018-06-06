@@ -6,7 +6,7 @@ interface Props {
   numResults: number
   filters: Filter[]
   onDelete: (id: string) => void
-  onFilterOperatorChange: (id: string, operator: string) => void
+  onFilterChange: (id: string, operator: string, value: string) => void
 }
 
 class LogsFilters extends PureComponent<Props> {
@@ -31,21 +31,9 @@ class LogsFilters extends PureComponent<Props> {
         key={filter.id}
         filter={filter}
         onDelete={this.props.onDelete}
-        onChangeOperator={this.props.onFilterOperatorChange}
-        onChangeValue={this.handleChangeFilterValue}
+        onChangeFilter={this.props.onFilterChange}
       />
     ))
-  }
-
-  private handleChangeFilterValue = (id: string, value: string): void => {
-    // const {filters, onUpdateFilters} = this.props
-    // const filteredFilters = filters.map(filter => {
-    //   if (filter.id === id) {
-    //     return {...filter, value}
-    //   }
-    //   return filter
-    // })
-    // onUpdateFilters(filteredFilters)
   }
 }
 

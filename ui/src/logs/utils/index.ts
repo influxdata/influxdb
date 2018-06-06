@@ -99,13 +99,21 @@ const operatorMapping = (operator: string): string => {
   }
 }
 
+const valueMapping = (operator: string, value): string => {
+  if (operator === '=~') {
+    return `${new RegExp(value)}`
+  } else {
+    return `'${value}'`
+  }
+}
+
 export const filtersClause = (filters: Filter[]): string => {
   return _.map(
     filters,
     (filter: Filter) =>
-      `"${keyMapping(filter.key)}" ${operatorMapping(filter.operator)} '${
-        filter.value
-      }'`
+      `"${keyMapping(filter.key)}" ${operatorMapping(
+        filter.operator
+      )} ${valueMapping(filter.operator, filter.value)}`
   ).join(' AND ')
 }
 

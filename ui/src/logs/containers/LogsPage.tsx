@@ -10,7 +10,7 @@ import {
   setSearchTermAsync,
   addFilter,
   removeFilter,
-  setFilterOperator,
+  changeFilter,
 } from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
@@ -38,7 +38,7 @@ interface Props {
   setSearchTermAsync: (searchTerm: string) => void
   addFilter: (filter: Filter) => void
   removeFilter: (id: string) => void
-  setFilterOperator: (id: string, operator: string) => void
+  changeFilter: (id: string, operator: string, value: string) => void
   timeRange: TimeRange
   histogramData: object[]
   tableData: {
@@ -105,7 +105,7 @@ class LogsPage extends PureComponent<Props, State> {
             numResults={count}
             filters={filters || []}
             onDelete={this.handleFilterDelete}
-            onFilterOperatorChange={this.handleFilterOperatorChange}
+            onFilterChange={this.handleFilterChange}
           />
           <LogsTable
             data={this.props.tableData}
@@ -147,7 +147,6 @@ class LogsPage extends PureComponent<Props, State> {
       id: uuid.v4(),
       key: selection.key,
       value: selection.tag,
-      enabled: true,
       operator: '==',
     })
     this.props.executeQueriesAsync()
@@ -215,8 +214,12 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.executeQueriesAsync()
   }
 
-  private handleFilterOperatorChange = (id: string, operator: string) => {
-    this.props.setFilterOperator(id, operator)
+  private handleFilterChange = (
+    id: string,
+    operator: string,
+    value: string
+  ) => {
+    this.props.changeFilter(id, operator, value)
     this.props.executeQueriesAsync()
   }
 
@@ -274,7 +277,7 @@ const mapDispatchToProps = {
   setSearchTermAsync,
   addFilter,
   removeFilter,
-  setFilterOperator,
+  changeFilter,
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(LogsPage)

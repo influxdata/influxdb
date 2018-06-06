@@ -7,12 +7,13 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 interface Props {
   filter: Filter
   onDelete: (id: string) => void
-  onChangeOperator: (id: string, newOperator: string) => void
-  onChangeValue: (id: string, newValue: string) => void
+  onChangeFilter: (id: string, newOperator: string, newValue: string) => void
 }
 
 interface State {
   editing: boolean
+  value: string
+  operator: string
 }
 
 class LogsFilter extends PureComponent<Props, State> {
@@ -21,14 +22,12 @@ class LogsFilter extends PureComponent<Props, State> {
 
     this.state = {
       editing: false,
+      value: this.props.filter.value,
+      operator: this.props.filter.operator,
     }
   }
 
   public render() {
-    const {
-      filter: {id},
-      onDelete,
-    } = this.props
     const {editing} = this.state
 
     return (
@@ -45,7 +44,7 @@ class LogsFilter extends PureComponent<Props, State> {
   }
 
   private handleClickOutside = (): void => {
-    this.setState({editing: false})
+    this.stopEditing()
   }
 
   private handleStartEdit = (): void => {
@@ -76,8 +75,9 @@ class LogsFilter extends PureComponent<Props, State> {
   }
 
   private get renderEditor(): JSX.Element {
+    const {operator, value} = this.state
     const {
-      filter: {key, operator, value},
+      filter: {key},
     } = this.props
 
     return (
@@ -106,56 +106,36 @@ class LogsFilter extends PureComponent<Props, State> {
   }
 
   private handleOperatorInput = (e: ChangeEvent<HTMLInputElement>): void => {
-    const {
-      filter: {id},
-      onChangeOperator,
-    } = this.props
+    const operator = getDeep(e, 'target.value', '').trim()
 
-    const cleanValue = this.enforceOperatorChars(e.target.value)
-
-    onChangeOperator(id, cleanValue)
+    this.setState({operator})
   }
 
   private handleValueInput = (e: ChangeEvent<HTMLInputElement>): void => {
-    const {
-      filter: {id},
-      onChangeValue,
-    } = this.props
-
-    onChangeValue(id, e.target.value)
-  }
-
-  private enforceOperatorChars = text => {
-    return text
-      .split('')
-      .filter(t => ['!', '~', `=`].includes(t))
-      .join('')
+    const value = getDeep(e, 'target.value', '').trim()
+    this.setState({value})
   }
 
   private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      this.setState({editing: false})
+      this.stopEditing()
     }
   }
 
-  private handleToggleOperator = () => {
+  private stopEditing(): void {
     const id = getDeep(this.props, 'filter.id', '')
+    const {operator, value} = this.state
 
-    let nextOperator = '=='
-    if (this.operator === '==') {
-      nextOperator = '!='
+    let state = {}
+    if (['!=', '==', '=~'].includes(operator) && value !== '') {
+      this.props.onChangeFilter(id, operator, value)
+    } else {
+      const {filter} = this.props
+      state = {operator: filter.operator, value: filter.value}
     }
 
-    this.props.onChangeOperator(id, nextOperator)
-  }
-
-  private get toggleOperatorText(): string {
-    return this.operator === '==' ? '!=' : '=='
-  }
-
-  private get operator(): string {
-    return getDeep(this.props, 'filter.operator', '')
+    this.setState({...state, editing: false})
   }
 }
 

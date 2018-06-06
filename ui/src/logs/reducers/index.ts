@@ -4,7 +4,7 @@ import {
   Action,
   RemoveFilterAction,
   AddFilterAction,
-  SetFilterOperatorAction,
+  ChangeFilterAction,
 } from 'src/logs/actions'
 import {LogsState} from 'src/types/logs'
 
@@ -40,15 +40,15 @@ const addFilter = (state: LogsState, action: AddFilterAction): LogsState => {
   return {...state, filters: [..._.get(state, 'filters', []), filter]}
 }
 
-const setFilterOperator = (
+const changeFilter = (
   state: LogsState,
-  action: SetFilterOperatorAction
+  action: ChangeFilterAction
 ): LogsState => {
-  const {id, operator} = action.payload
+  const {id, operator, value} = action.payload
 
   const mappedFilters = _.map(_.get(state, 'filters', []), f => {
     if (f.id === id) {
-      return {...f, operator}
+      return {...f, operator, value}
     }
     return f
   })
@@ -84,8 +84,8 @@ export default (state: LogsState = defaultState, action: Action) => {
       return addFilter(state, action)
     case ActionTypes.RemoveFilter:
       return removeFilter(state, action)
-    case ActionTypes.SetFilterOperator:
-      return setFilterOperator(state, action)
+    case ActionTypes.ChangeFilter:
+      return changeFilter(state, action)
     default:
       return state
   }

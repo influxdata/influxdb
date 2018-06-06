@@ -51,7 +51,7 @@ export enum ActionTypes {
   SetSearchTerm = 'LOGS_SET_SEARCH_TERM',
   AddFilter = 'LOGS_ADD_FILTER',
   RemoveFilter = 'LOGS_REMOVE_FILTER',
-  SetFilterOperator = 'LOGS_SET_FILTER_OPERATOR',
+  ChangeFilter = 'LOGS_CHANGE_FILTER',
 }
 
 export interface AddFilterAction {
@@ -61,11 +61,12 @@ export interface AddFilterAction {
   }
 }
 
-export interface SetFilterOperatorAction {
-  type: ActionTypes.SetFilterOperator
+export interface ChangeFilterAction {
+  type: ActionTypes.ChangeFilter
   payload: {
     id: string
     operator: string
+    value: string
   }
 }
 
@@ -159,7 +160,7 @@ export type Action =
   | SetSearchTerm
   | AddFilterAction
   | RemoveFilterAction
-  | SetFilterOperatorAction
+  | ChangeFilterAction
 
 const getTimeRange = (state: State): TimeRange | null =>
   getDeep<TimeRange | null>(state, 'logs.timeRange', null)
@@ -182,9 +183,9 @@ const getSearchTerm = (state: State): string | null =>
 const getFilters = (state: State): Filter[] =>
   getDeep<Filter[]>(state, 'logs.filters', [])
 
-export const setFilterOperator = (id: string, operator: string) => ({
-  type: ActionTypes.SetFilterOperator,
-  payload: {id, operator},
+export const changeFilter = (id: string, operator: string, value: string) => ({
+  type: ActionTypes.ChangeFilter,
+  payload: {id, operator, value},
 })
 
 export const setSource = (source: Source): SetSourceAction => ({
