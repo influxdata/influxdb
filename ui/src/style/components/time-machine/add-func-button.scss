@@ -1,12 +1,12 @@
 /*
-    IFQL Add Function Button
+    Flux Add Function Button
     ----------------------------------------------------------------------------
 */
 
-$ifql-func-selector--gap: 10px;
-$ifql-func-selector--height: 30px;
+$flux-func-selector--gap: 10px;
+$flux-func-selector--height: 30px;
 
-.ifql-func--selector {
+.flux-func--selector {
   display: flex;
   align-items: center;
   position: relative;
@@ -17,8 +17,8 @@ $ifql-func-selector--height: 30px;
 }
 
 .func-selector--connector {
-  width: $ifql-func-selector--gap;
-  height: $ifql-func-selector--height;
+  width: $flux-func-selector--gap;
+  height: $flux-func-selector--height;
   position: relative;
 
   &:after {
@@ -32,7 +32,7 @@ $ifql-func-selector--height: 30px;
   }
 }
 
-.btn.btn-sm.ifql-func--button {
+.btn.btn-sm.flux-func--button {
   border-radius: 50%;
   float: left;
   &:focus {
@@ -40,32 +40,32 @@ $ifql-func-selector--height: 30px;
   }
 }
 
-.ifql-func--autocomplete,
-.ifql-func--list {
+.flux-func--autocomplete,
+.flux-func--list {
   position: absolute;
   width: 166px;
 }
 
-.ifql-func--autocomplete {
+.flux-func--autocomplete {
   left: 0;
   top: 0;
 
   .func-selector--connector + & {
-    left: $ifql-func-selector--gap;
+    left: $flux-func-selector--gap;
   }
 }
 
-.ifql-func--list {
+.flux-func--list {
   left: 0;
   border-radius: $radius;
-  top: $ifql-func-selector--height;
+  top: $flux-func-selector--height;
   padding: 0;
   margin: 0;
   @extend %no-user-select;
   @include gradient-h($c-star, $c-pool);
 }
 
-.ifql-func--item {
+.flux-func--item {
   height: 28px;
   line-height: 28px;
   padding: 0 11px;

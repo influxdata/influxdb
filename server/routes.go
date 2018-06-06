@@ -44,7 +44,7 @@ type getRoutesResponse struct {
 	Auth          []AuthRoute              `json:"auth"`             // Location of all auth routes.
 	Logout        *string                  `json:"logout,omitempty"` // Location of the logout route for all auth routes
 	ExternalLinks getExternalLinksResponse `json:"external"`         // All external links for the client to use
-	IFQL          getIFQLLinksResponse     `json:"ifql"`
+	Flux          getFluxLinksResponse     `json:"flux"`
 }
 
 // AllRoutes is a handler that returns all links to resources in Chronograf server, as well as
@@ -95,10 +95,10 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			StatusFeed:  &a.StatusFeed,
 			CustomLinks: customLinks,
 		},
-		IFQL: getIFQLLinksResponse{
-			Self:        "/chronograf/v1/ifql",
-			AST:         "/chronograf/v1/ifql/ast",
-			Suggestions: "/chronograf/v1/ifql/suggestions",
+		Flux: getFluxLinksResponse{
+			Self:        "/chronograf/v1/flux",
+			AST:         "/chronograf/v1/flux/ast",
+			Suggestions: "/chronograf/v1/flux/suggestions",
 		},
 	}
 

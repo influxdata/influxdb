@@ -37,7 +37,10 @@ $logs-viewer-gutter: 60px;
 
 .logs-viewer--table-container {
   padding: 12px $logs-viewer-gutter 30px $logs-viewer-gutter;
-  height: calc(100% - #{$logs-viewer-graph-height + $logs-viewer-search-height + $logs-viewer-filter-height});
+  height: calc(
+    100% - #{$logs-viewer-graph-height + $logs-viewer-search-height +
+      $logs-viewer-filter-height}
+  );
   background-color: $g3-castle;
 }
 
@@ -118,7 +121,6 @@ $logs-viewer-gutter: 60px;
     background-color: $g6-smoke;
     color: $g17-whisper;
   }
-
   &:hover {
     cursor: pointer;
   }
@@ -152,7 +154,7 @@ $logs-viewer-gutter: 60px;
   &:after {
     transform: translate(-50%, -50%) rotate(45deg);
   }
-  
+
   &:hover {
     cursor: pointer;
 

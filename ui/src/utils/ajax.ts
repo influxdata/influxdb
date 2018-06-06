@@ -22,7 +22,7 @@ interface Links {
   meLink: object
   config: object
   environment: object
-  ifql: object
+  flux: object
 }
 
 interface LinksInputs {
@@ -35,7 +35,7 @@ interface LinksInputs {
   me: object
   config: object
   environment: object
-  ifql: object
+  flux: object
 }
 
 function generateResponseWithLinks<T extends object>(
@@ -52,7 +52,7 @@ function generateResponseWithLinks<T extends object>(
     me: meLink,
     config,
     environment,
-    ifql,
+    flux,
   } = newLinks
 
   const linksObj = {
@@ -65,7 +65,7 @@ function generateResponseWithLinks<T extends object>(
     meLink,
     config,
     environment,
-    ifql,
+    flux,
   }
 
   return Object.assign({}, response, linksObj)
