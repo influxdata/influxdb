@@ -36,8 +36,7 @@ class LogsSearchBar extends PureComponent<Props, State> {
           />
           <span className="icon search" />
         </div>
-        <button className="btn btn-sm btn-primary" onClick={this.handleSearch}>
-          <span className="icon search" />
+        <button className="btn btn-sm btn-default" onClick={this.handleSearch}>
           Search
         </button>
       </div>

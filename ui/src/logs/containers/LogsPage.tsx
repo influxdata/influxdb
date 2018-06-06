@@ -24,7 +24,6 @@ export interface Filter {
   key: string
   value: string
   operator: string
-  enabled: boolean
 }
 
 interface Props {
@@ -60,7 +59,6 @@ const DUMMY_FILTERS = [
     key: 'host',
     value: 'prod1-rsavage.local',
     operator: '==',
-    enabled: true,
   },
 ]
 
