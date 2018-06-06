@@ -48,7 +48,6 @@ class DatabaseListItem extends PureComponent<Props, State> {
 
   public render() {
     const {db} = this.props
-    const {searchTerm} = this.state
 
     return (
       <div className={this.className} onClick={this.handleClick}>
