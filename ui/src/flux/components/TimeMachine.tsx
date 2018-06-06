@@ -109,6 +109,7 @@ class TimeMachine extends PureComponent<Props> {
             status={status}
             script={script}
             visibility={visibility}
+            suggestions={suggestions}
             onChangeScript={onChangeScript}
             onSubmitScript={onSubmitScript}
           />
