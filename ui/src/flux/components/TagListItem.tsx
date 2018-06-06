@@ -20,14 +20,14 @@ import {
   notifyCopyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 
-import {Notification} from 'src/types'
+import {NotificationAction} from 'src/types'
 
 interface Props {
   tagKey: string
   db: string
   service: Service
   filter: SchemaFilter[]
-  notify: (message: Notification) => void
+  notify: NotificationAction
 }
 
 interface State {

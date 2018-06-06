@@ -10,12 +10,12 @@ import {
   notifyCopyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 
-import {Service, Notification} from 'src/types'
+import {Service, NotificationAction} from 'src/types'
 
 interface Props {
   db: string
   service: Service
-  notify: (message: Notification) => void
+  notify: NotificationAction
 }
 
 interface State {
