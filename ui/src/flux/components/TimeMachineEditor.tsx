@@ -73,13 +73,13 @@ class TimeMachineEditor extends PureComponent<Props, State> {
     const {script} = this.props
 
     const options = {
-      lineNumbers: true,
-      theme: 'time-machine',
       tabIndex: 1,
-      readonly: false,
-      completeSingle: false,
-      autoRefresh: true,
       mode: 'flux',
+      readonly: false,
+      lineNumbers: true,
+      autoRefresh: true,
+      theme: 'time-machine',
+      completeSingle: false,
       gutters: ['error-gutter'],
     }
 
@@ -135,7 +135,6 @@ class TimeMachineEditor extends PureComponent<Props, State> {
     }
 
     const errorDiv = document.createElement('div')
-    errorDiv.id = text
     errorDiv.className = 'inline-error-message'
     errorDiv.innerText = text
     widget = this.editor.addLineWidget(line, errorDiv) as Widget
