@@ -136,8 +136,17 @@ $flux-invalid-color: $c-viridian;
   @extend %flux-node;
   display: flex;
   align-items: center;
-
   margin-left: $flux-node-gap;
+}
+
+.func-node--connector {
+  width: $flux-node-gap;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-100%);
+  z-index: 0;
 
   // Connection Lines
   &:before,
@@ -151,7 +160,7 @@ $flux-invalid-color: $c-viridian;
     width: $flux-connector-line;
     height: calc(100% + #{$flux-node-tooltip-gap});
     top: -$flux-node-tooltip-gap / 2;
-    left: -$flux-node-gap / 2;
+    left: $flux-node-gap / 2;
     transform: translateX(-50%);
   }
   // Horizontal Line
@@ -159,21 +168,33 @@ $flux-invalid-color: $c-viridian;
     height: $flux-connector-line;
     width: $flux-node-gap / 2;
     top: 50%;
-    left: 0;
-    transform: translate(-100%, -50%);
+    left: $flux-node-gap / 2;
+    transform: translateY(-50%);
   }
-  
-  // When there is no variable name for the declaration
-  &:first-child {
-    margin-left: 0;
+}
+// When a query exists unassigned to a variable
+.func-node:first-child {
+  margin-left: 0;
+  padding-left: $flux-node-gap;
 
+  .func-node--connector {
+    transform: translateX(0);
+    z-index: 2;
+
+    // Vertical Line
     &:before {
-      left: $flux-node-gap / 2;
-      top: 100%;
-      height: $flux-node-tooltip-gap / 2;
+      height: $flux-node-gap;
+      top: $flux-node-gap / 2;
+      @include gradient-v($c-comet, $g4-onyx);
     }
+    // Dot
     &:after {
-      content: none;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: $c-comet;
+      top: $flux-node-gap / 2;
+      transform: translate(-50%, -50%);
     }
   }
 }
