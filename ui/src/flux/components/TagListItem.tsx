@@ -34,6 +34,8 @@ interface State {
 }
 
 export default class TagListItem extends PureComponent<Props, State> {
+  private debouncedOnSearch: () => void
+
   constructor(props) {
     super(props)
 
@@ -132,8 +134,6 @@ export default class TagListItem extends PureComponent<Props, State> {
       this.debouncedOnSearch()
     )
   }
-
-  private debouncedOnSearch() {} // See constructor
 
   private handleInputClick = (e: MouseEvent<HTMLDivElement>): void => {
     e.stopPropagation()
