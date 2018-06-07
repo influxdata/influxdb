@@ -234,7 +234,6 @@ $flux-invalid-color: $c-viridian;
   padding: 10px;
   display: flex;
   align-items: stretch;
-  flex-direction: column;
   position: absolute;
   top: 0;
   left: calc(100% + #{$flux-node-tooltip-gap});
@@ -264,22 +263,30 @@ $flux-invalid-color: $c-viridian;
   }
 }
 
-.func-node--buttons {
+.func-arg--buttons {
   display: flex;
-  margin-top: 12px;
+  flex-direction: column;
+  justify-content: center;
+  margin-left: 8px;
 }
 
-.func-node--delete,
 .func-node--build {
   width: 60px;
+  margin-top: 4px;
 }
 
-.func-node--sub .func-arg {
+.func-args {
+  display: flex;
+  flex-direction: column;
+}
+
+.func-arg {
   min-width: $flux-arg-min-width;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   margin-bottom: 4px;
+
   &:last-of-type {
     margin-bottom: 0;
   }

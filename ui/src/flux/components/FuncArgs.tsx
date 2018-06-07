@@ -34,38 +34,40 @@ export default class FuncArgs extends PureComponent<Props> {
     const {name: funcName, id: funcID} = func
     return (
       <div className="func-node--tooltip">
-        {funcName === funcNames.JOIN ? (
-          <Join
-            func={func}
-            bodyID={bodyID}
-            declarationID={declarationID}
-            onChangeArg={onChangeArg}
-            declarationsFromBody={declarationsFromBody}
-            onGenerateScript={onGenerateScript}
-          />
-        ) : (
-          func.args.map(({key, value, type}) => (
-            <FuncArg
-              key={key}
-              type={type}
-              argKey={key}
-              value={value}
+        <div className="func-args">
+          {funcName === funcNames.JOIN ? (
+            <Join
+              func={func}
               bodyID={bodyID}
-              funcID={funcID}
-              funcName={funcName}
-              service={service}
-              onChangeArg={onChangeArg}
               declarationID={declarationID}
+              onChangeArg={onChangeArg}
+              declarationsFromBody={declarationsFromBody}
               onGenerateScript={onGenerateScript}
             />
-          ))
-        )}
-        <div className="func-node--buttons">
+          ) : (
+            func.args.map(({key, value, type}) => (
+              <FuncArg
+                key={key}
+                type={type}
+                argKey={key}
+                value={value}
+                bodyID={bodyID}
+                funcID={funcID}
+                funcName={funcName}
+                service={service}
+                onChangeArg={onChangeArg}
+                declarationID={declarationID}
+                onGenerateScript={onGenerateScript}
+              />
+            ))
+          )}
+        </div>
+        <div className="func-arg--buttons">
           <div
-            className="btn btn-sm btn-danger func-node--delete"
+            className="btn btn-sm btn-danger btn-square"
             onClick={onDeleteFunc}
           >
-            Delete
+            <span className="icon trash" />
           </div>
           {this.build}
         </div>
