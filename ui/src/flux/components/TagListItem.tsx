@@ -101,11 +101,7 @@ export default class TagListItem extends PureComponent<Props, State> {
                   <LoadingSpinner style={this.spinnerStyle} />
                 )}
               </div>
-              {!!count && (
-                <div className="flux-schema--count">{`${count} Tag Value${
-                  count > 1 ? 's' : ''
-                }`}</div>
-              )}
+              {this.count}
             </div>
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
@@ -126,6 +122,24 @@ export default class TagListItem extends PureComponent<Props, State> {
           </>
         )}
       </div>
+    )
+  }
+
+  private get count(): JSX.Element {
+    const {count} = this.state
+
+    if (!count) {
+      return
+    }
+
+    let pluralizer = 's'
+
+    if (count === 1) {
+      pluralizer = ''
+    }
+
+    return (
+      <div className="flux-schema--count">{`${count} Tag Value${pluralizer}`}</div>
     )
   }
 
