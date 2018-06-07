@@ -54,10 +54,14 @@ interface State {
   suggestions: Suggestion[]
 }
 
+type ScriptFunc = (script: string) => void
+
 export const FluxContext = React.createContext()
 
 @ErrorHandling
 export class FluxPage extends PureComponent<Props, State> {
+  private debouncedASTResponse: ScriptFunc
+
   constructor(props) {
     super(props)
     this.state = {
@@ -70,6 +74,10 @@ export class FluxPage extends PureComponent<Props, State> {
         text: '',
       },
     }
+
+    this.debouncedASTResponse = _.debounce(script => {
+      this.getASTResponse(script, false)
+    }, 250)
   }
 
   public async componentDidMount() {
@@ -288,6 +296,7 @@ export class FluxPage extends PureComponent<Props, State> {
   }
 
   private handleChangeScript = (script: string): void => {
+    this.debouncedASTResponse(script)
     this.props.updateScript(script)
   }
 
@@ -405,7 +414,7 @@ export class FluxPage extends PureComponent<Props, State> {
     }
   }
 
-  private getASTResponse = async (script: string) => {
+  private getASTResponse = async (script: string, update: boolean = true) => {
     const {links} = this.props
 
     if (!script) {
@@ -414,10 +423,14 @@ export class FluxPage extends PureComponent<Props, State> {
 
     try {
       const ast = await getAST({url: links.ast, body: script})
+
+      if (update) {
+        this.props.updateScript(script)
+      }
+
       const body = bodyNodes(ast, this.state.suggestions)
       const status = {type: 'success', text: ''}
       this.setState({ast, body, status})
-      this.props.updateScript(script)
     } catch (error) {
       this.setState({status: this.parseError(error)})
       return console.error('Could not parse AST', error)
