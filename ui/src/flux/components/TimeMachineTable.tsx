@@ -8,25 +8,46 @@ import {vis} from 'src/flux/constants'
 
 const NUM_FIXED_ROWS = 1
 
+const filterTable = (table: FluxTable): FluxTable => {
+  const IGNORED_COLUMNS = ['', 'result', 'table', '_start', '_stop']
+  const header = table.data[0]
+  const indices = IGNORED_COLUMNS.map(name => header.indexOf(name))
+  const data = table.data.map(row =>
+    row.filter((__, i) => !indices.includes(i))
+  )
+
+  return {
+    ...table,
+    data,
+  }
+}
+
 interface Props {
   table: FluxTable
 }
 
 interface State {
   scrollLeft: number
+  filteredTable: FluxTable
 }
 
 @ErrorHandling
 export default class TimeMachineTable extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps({table}: Props) {
+    return {filteredTable: filterTable(table)}
+  }
+
   constructor(props) {
     super(props)
+
     this.state = {
       scrollLeft: 0,
+      filteredTable: filterTable(props.table),
     }
   }
 
   public render() {
-    const {scrollLeft} = this.state
+    const {scrollLeft, filteredTable} = this.state
 
     return (
       <div style={{flex: '1 1 auto'}}>
@@ -73,7 +94,7 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
                   cellRenderer={this.cellRenderer}
                   rowHeight={vis.TABLE_ROW_HEIGHT}
                   height={height - this.headerOffset}
-                  rowCount={this.table.data.length - NUM_FIXED_ROWS}
+                  rowCount={filteredTable.data.length - NUM_FIXED_ROWS}
                 />
               )}
             </ColumnSizer>
@@ -93,7 +114,9 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
   }
 
   private get columnCount(): number {
-    return _.get(this.table, 'data.0', []).length
+    const {filteredTable} = this.state
+
+    return _.get(filteredTable, 'data.0', []).length
   }
 
   private get headerOffset(): number {
@@ -109,13 +132,15 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
     key,
     style,
   }: GridCellProps): React.ReactNode => {
+    const {filteredTable} = this.state
+
     return (
       <div
         key={key}
         style={{...style, display: 'flex', alignItems: 'center'}}
         className="table-graph-cell table-graph-cell__fixed-row"
       >
-        {this.table.data[0][columnIndex]}
+        {filteredTable.data[0][columnIndex]}
       </div>
     )
   }
@@ -126,25 +151,12 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
     rowIndex,
     style,
   }: GridCellProps): React.ReactNode => {
+    const {filteredTable} = this.state
+
     return (
       <div key={key} style={style} className="table-graph-cell">
-        {this.table.data[rowIndex + NUM_FIXED_ROWS][columnIndex]}
+        {filteredTable.data[rowIndex + NUM_FIXED_ROWS][columnIndex]}
       </div>
     )
-  }
-
-  private get table(): FluxTable {
-    const IGNORED_COLUMNS = ['', 'result', 'table', '_start', '_stop']
-    const {table} = this.props
-    const header = table.data[0]
-    const indices = IGNORED_COLUMNS.map(name => header.indexOf(name))
-    const data = table.data.map(row =>
-      row.filter((__, i) => !indices.includes(i))
-    )
-
-    return {
-      ...table,
-      data,
-    }
   }
 }
