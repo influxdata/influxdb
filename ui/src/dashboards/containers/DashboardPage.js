@@ -60,6 +60,7 @@ class DashboardPage extends Component {
       selectedCell: null,
       scrollTop: 0,
       windowHeight: window.innerHeight,
+      dashboardsNames: [],
     }
   }
 
@@ -104,6 +105,8 @@ class DashboardPage extends Component {
       // putDashboardByID refreshes & persists influxql generated template variable values.
       await putDashboardByID(dashboardID)
     }
+
+    this.getDashboardsNames()
   }
 
   componentWillReceiveProps(nextProps) {
@@ -128,6 +131,20 @@ class DashboardPage extends Component {
     this.intervalID = false
     window.removeEventListener('resize', this.handleWindowResize, true)
     this.props.handleDismissEditingAnnotation()
+  }
+
+  async getDashboardsNames() {
+    const {
+      params: {sourceID},
+      dashboardActions: {getDashboardsAsync},
+    } = this.props
+
+    const dashboards = await getDashboardsAsync()
+    const dashboardsNames = dashboards.map(d => ({
+      name: d.name,
+      link: `/sources/${sourceID}/dashboards/${d.id}`,
+    }))
+    this.setState({dashboardsNames})
   }
 
   inView = cell => {
@@ -233,13 +250,14 @@ class DashboardPage extends Component {
     this.setState({isEditMode: false})
   }
 
-  handleRenameDashboard = name => {
+  handleRenameDashboard = async name => {
     const {dashboardActions, dashboard} = this.props
     this.setState({isEditMode: false})
     const newDashboard = {...dashboard, name}
 
     dashboardActions.updateDashboard(newDashboard)
-    dashboardActions.putDashboard(newDashboard)
+    await dashboardActions.putDashboard(newDashboard)
+    this.getDashboardsNames()
   }
 
   handleUpdateDashboardCell = newCell => () => {
@@ -354,6 +372,7 @@ class DashboardPage extends Component {
       handleClickPresentationButton,
       params: {sourceID, dashboardID},
     } = this.props
+    const {dashboardsNames} = this.state
 
     const low = zoomedLower || lower
     const up = zoomedUpper || upper
@@ -400,10 +419,6 @@ class DashboardPage extends Component {
 
     const {isEditMode} = this.state
 
-    const names = dashboards.map(d => ({
-      name: d.name,
-      link: `/sources/${sourceID}/dashboards/${d.id}`,
-    }))
     return (
       <div className="page dashboard-page">
         {selectedCell ? (
@@ -426,7 +441,7 @@ class DashboardPage extends Component {
           />
         ) : null}
         <DashboardHeader
-          names={names}
+          names={dashboardsNames}
           sourceID={sourceID}
           dashboard={dashboard}
           dashboards={dashboards}
