@@ -6,7 +6,7 @@ import * as builder from 'src/flux/constants/builder'
 import * as vis from 'src/flux/constants/vis'
 import * as explorer from 'src/flux/constants/explorer'
 
-const MAX_RESPONSE_BYTES = 2e6 // 2 MB
+const MAX_RESPONSE_BYTES = 1e7 // 10 MB
 
 export {
   ast,
