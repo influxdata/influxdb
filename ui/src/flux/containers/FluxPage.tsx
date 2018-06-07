@@ -9,6 +9,7 @@ import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import {
   analyzeSuccess,
   fluxTimeSeriesError,
+  fluxResponseTruncatedError,
 } from 'src/shared/copy/notifications'
 import {UpdateScript} from 'src/flux/actions'
 
@@ -452,8 +453,13 @@ export class FluxPage extends PureComponent<Props, State> {
     }
 
     try {
-      const data = await getTimeSeries(this.service, script)
-      this.setState({data})
+      const {tables, didTruncate} = await getTimeSeries(this.service, script)
+
+      this.setState({data: tables})
+
+      if (didTruncate) {
+        notify(fluxResponseTruncatedError())
+      }
     } catch (error) {
       this.setState({data: []})
 

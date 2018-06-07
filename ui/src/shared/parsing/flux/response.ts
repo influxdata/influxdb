@@ -29,6 +29,12 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
     throw new Error('Unable to extract annotation data')
   }
 
+  if (_.isEmpty(nonAnnotationLines)) {
+    // A response may be truncated on an arbitrary line. This guards against
+    // the case where a response is truncated on annotation data
+    return []
+  }
+
   const nonAnnotationData = Papa.parse(nonAnnotationLines).data
   const annotationData = Papa.parse(annotationLines).data
   const headerRow = nonAnnotationData[0]

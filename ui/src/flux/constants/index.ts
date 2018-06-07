@@ -6,4 +6,15 @@ import * as builder from 'src/flux/constants/builder'
 import * as vis from 'src/flux/constants/vis'
 import * as explorer from 'src/flux/constants/explorer'
 
-export {ast, funcNames, argTypes, editor, builder, vis, explorer}
+const MAX_RESPONSE_BYTES = 1e7 // 10 MB
+
+export {
+  ast,
+  funcNames,
+  argTypes,
+  editor,
+  builder,
+  vis,
+  explorer,
+  MAX_RESPONSE_BYTES,
+}
