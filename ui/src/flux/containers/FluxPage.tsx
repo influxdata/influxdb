@@ -355,6 +355,42 @@ export class FluxPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
+  private getNextYieldName = (): string => {
+    const yieldNamePrefix = 'results_'
+    const yieldNamePattern = `${yieldNamePrefix}(\\d+)`
+    const regex = new RegExp(yieldNamePattern)
+
+    const MIN = -1
+
+    const yieldsMaxResultNumber = this.state.body.reduce((scriptMax, body) => {
+      const {funcs: bodyFuncs, declarations} = body
+
+      let funcs = bodyFuncs
+      if (!_.isEmpty(declarations)) {
+        funcs = _.flatMap(declarations, d => d.funcs)
+      }
+
+      const yields = funcs.filter(f => f.name === 'yield')
+
+      const bodyMax = yields.reduce((max, y) => {
+        const yieldArg = _.get(y, 'args.0.value')
+
+        if (!yieldArg) {
+          return max
+        }
+
+        const yieldNumberString = _.get(yieldArg.match(regex), '1', `${MIN}`)
+        const yieldNumber = parseInt(yieldNumberString, 10)
+
+        return Math.max(yieldNumber, max)
+      }, scriptMax)
+
+      return Math.max(scriptMax, bodyMax)
+    }, MIN)
+
+    return `${yieldNamePrefix}${yieldsMaxResultNumber + 1}`
+  }
+
   private addOrRemoveYieldFunc = (
     funcs: Func[],
     funcNodeIndex: number
@@ -390,10 +426,10 @@ export class FluxPage extends PureComponent<Props, State> {
     const funcSeparator = '\n\t|> '
 
     if (funcsAfterScript) {
-      return `${funcsBeforeScript}${funcSeparator}yield()${funcSeparator}${funcsAfterScript}\n\n`
+      return `${funcsBeforeScript}${funcSeparator}yield(name: "${this.getNextYieldName()}")${funcSeparator}${funcsAfterScript}\n\n`
     }
 
-    return `${funcsBeforeScript}${funcSeparator}yield()\n\n`
+    return `${funcsBeforeScript}${funcSeparator}yield(name: "${this.getNextYieldName()}")\n\n`
   }
 
   private handleDeleteFuncNode = (ids: DeleteFuncNodeArgs): void => {
