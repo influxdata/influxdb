@@ -5,6 +5,8 @@ import {
   RemoveFilterAction,
   AddFilterAction,
   ChangeFilterAction,
+  DecrementQueryCountAction,
+  IncrementQueryCountAction,
 } from 'src/logs/actions'
 import {LogsState} from 'src/types/logs'
 
@@ -19,6 +21,7 @@ const defaultState: LogsState = {
   histogramData: [],
   searchTerm: null,
   filters: [],
+  queryCount: 0,
 }
 
 const removeFilter = (
@@ -56,6 +59,22 @@ const changeFilter = (
   return {...state, filters: mappedFilters}
 }
 
+const decrementQueryCount = (
+  state: LogsState,
+  __: DecrementQueryCountAction
+) => {
+  const {queryCount} = state
+  return {...state, queryCount: Math.max(queryCount - 1, 0)}
+}
+
+const incrementQueryCount = (
+  state: LogsState,
+  __: IncrementQueryCountAction
+) => {
+  const {queryCount} = state
+  return {...state, queryCount: queryCount + 1}
+}
+
 export default (state: LogsState = defaultState, action: Action) => {
   switch (action.type) {
     case ActionTypes.SetSource:
@@ -86,6 +105,10 @@ export default (state: LogsState = defaultState, action: Action) => {
       return removeFilter(state, action)
     case ActionTypes.ChangeFilter:
       return changeFilter(state, action)
+    case ActionTypes.IncrementQueryCount:
+      return incrementQueryCount(state, action)
+    case ActionTypes.DecrementQueryCount:
+      return decrementQueryCount(state, action)
     default:
       return state
   }

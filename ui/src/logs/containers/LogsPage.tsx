@@ -47,6 +47,7 @@ interface Props {
   }
   searchTerm: string
   filters: Filter[]
+  queryCount: number
 }
 
 interface State {
@@ -88,7 +89,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   public render() {
     const {liveUpdating} = this.state
-    const {searchTerm, filters} = this.props
+    const {searchTerm, filters, queryCount} = this.props
 
     const count = getDeep(this.props, 'tableData.values.length', 0)
 
@@ -106,6 +107,7 @@ class LogsPage extends PureComponent<Props, State> {
             filters={filters || []}
             onDelete={this.handleFilterDelete}
             onFilterChange={this.handleFilterChange}
+            queryCount={queryCount}
           />
           <LogsTable
             data={this.props.tableData}
@@ -260,6 +262,7 @@ const mapStateToProps = ({
     tableData,
     searchTerm,
     filters,
+    queryCount,
   },
 }) => ({
   sources,
@@ -271,6 +274,7 @@ const mapStateToProps = ({
   tableData,
   searchTerm,
   filters,
+  queryCount,
 })
 
 const mapDispatchToProps = {
