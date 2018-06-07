@@ -1,7 +1,8 @@
 import React, {PureComponent} from 'react'
 
 interface Props {
-  name?: string
+  name: string
+  assignedToQuery: boolean
 }
 
 interface State {
@@ -10,7 +11,7 @@ interface State {
 
 export default class VariableName extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
-    name: '',
+    assignedToQuery: false,
   }
 
   constructor(props) {
@@ -22,7 +23,14 @@ export default class VariableName extends PureComponent<Props, State> {
   }
 
   public render() {
-    return <div className="variable-node">{this.nameElement}</div>
+    const {assignedToQuery} = this.props
+
+    return (
+      <div className="variable-node">
+        {assignedToQuery && <div className="variable-node--connector" />}
+        {this.nameElement}
+      </div>
+    )
   }
 
   private get nameElement(): JSX.Element {
@@ -42,7 +50,6 @@ export default class VariableName extends PureComponent<Props, State> {
     const varValue = this.props.name.replace(/^[^=]+=/, '')
 
     const valueIsString = varValue.endsWith('"')
-
     return (
       <>
         <span className="variable-node--name">{varName}</span>

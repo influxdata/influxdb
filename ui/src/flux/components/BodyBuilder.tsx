@@ -30,7 +30,7 @@ class BodyBuilder extends PureComponent<Props> {
           if (d.funcs) {
             return (
               <div className="declaration" key={i}>
-                <VariableName name={d.name} />
+                <VariableName name={d.name} assignedToQuery={true} />
                 <ExpressionNode
                   bodyID={b.id}
                   declarationID={d.id}
@@ -44,7 +44,7 @@ class BodyBuilder extends PureComponent<Props> {
 
           return (
             <div className="declaration" key={i}>
-              <VariableName name={b.source} />
+              <VariableName name={b.source} assignedToQuery={false} />
             </div>
           )
         })
