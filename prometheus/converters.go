@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	// measurementName is where all prometheus time series go to
-	measurementName = "_"
+	// defaultMeasurementName is where all prometheus time series default to without a __name__ label
+	defaultMeasurementName = "_"
 
 	// fieldName is the field all prometheus values get written to
 	fieldName = "f64"
@@ -49,6 +49,10 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 			// convert and append
 			t := time.Unix(0, s.TimestampMs*int64(time.Millisecond))
 			fields := map[string]interface{}{fieldName: s.Value}
+			measurementName := defaultMeasurementName
+			if name, ok := tags["__name__"]; ok {
+				measurementName = name
+			}
 			p, err := models.NewPoint(measurementName, models.NewTags(tags), fields, t)
 			if err != nil {
 				return nil, err
@@ -74,7 +78,7 @@ func ReadRequestToInfluxQLQuery(req *remote.ReadRequest, db, rp string) (*influx
 			{Expr: &influxql.VarRef{Val: fieldName}},
 		},
 		Sources: []influxql.Source{&influxql.Measurement{
-			Name:            measurementName,
+			Name:            defaultMeasurementName,
 			Database:        db,
 			RetentionPolicy: rp,
 		}},
