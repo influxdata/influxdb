@@ -76,8 +76,8 @@ export class FluxPage extends PureComponent<Props, State> {
     }
 
     this.debouncedASTResponse = _.debounce(script => {
-      this.getASTResponse(script)
-    }, 500)
+      this.getASTResponse(script, false)
+    }, 250)
   }
 
   public async componentDidMount() {
@@ -414,7 +414,7 @@ export class FluxPage extends PureComponent<Props, State> {
     }
   }
 
-  private getASTResponse = async (script: string) => {
+  private getASTResponse = async (script: string, update: boolean = true) => {
     const {links} = this.props
 
     if (!script) {
@@ -423,6 +423,11 @@ export class FluxPage extends PureComponent<Props, State> {
 
     try {
       const ast = await getAST({url: links.ast, body: script})
+
+      if (update) {
+        this.props.updateScript(script)
+      }
+
       const body = bodyNodes(ast, this.state.suggestions)
       const status = {type: 'success', text: ''}
       this.setState({ast, body, status})
