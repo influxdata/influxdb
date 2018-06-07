@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 import {Controlled as ReactCodeMirror, IInstance} from 'react-codemirror2'
-import {EditorChange} from 'codemirror'
+import {EditorChange, LineWidget} from 'codemirror'
 import {ShowHintOptions} from 'src/types/codemirror'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OnChangeScript, OnSubmitScript, Suggestion} from 'src/types/flux'
@@ -27,13 +27,22 @@ interface Props {
   suggestions: Suggestion[]
 }
 
+interface Widget extends LineWidget {
+  node: HTMLElement
+}
+
+interface State {
+  lineWidgets: Widget[]
+}
+
 interface EditorInstance extends IInstance {
   showHint: (options?: ShowHintOptions) => void
 }
 
 @ErrorHandling
-class TimeMachineEditor extends PureComponent<Props> {
+class TimeMachineEditor extends PureComponent<Props, State> {
   private editor: EditorInstance
+  private lineWidgets: Widget[] = []
 
   constructor(props) {
     super(props)
@@ -48,6 +57,7 @@ class TimeMachineEditor extends PureComponent<Props> {
 
     if (status.type !== 'error') {
       this.editor.clearGutter('error-gutter')
+      this.clearWidgets()
     }
 
     if (prevProps.visibility === visibility) {
@@ -98,21 +108,54 @@ class TimeMachineEditor extends PureComponent<Props> {
     this.editor.clearGutter('error-gutter')
     const lineNumbers = this.statusLine
     lineNumbers.forEach(({line, text}) => {
+      const lineNumber = line - 1
       this.editor.setGutterMarker(
-        line - 1,
+        lineNumber,
         'error-gutter',
-        this.errorMarker(text)
+        this.errorMarker(text, lineNumber)
       )
     })
 
     this.editor.refresh()
   }
 
-  private errorMarker(message: string): HTMLElement {
+  private errorMarker(message: string, line: number): HTMLElement {
     const span = document.createElement('span')
     span.className = 'icon stop error-warning'
     span.title = message
+    span.addEventListener('click', this.handleClickError(message, line))
     return span
+  }
+
+  private handleClickError = (text: string, line: number) => () => {
+    let widget = this.lineWidgets.find(w => w.node.textContent === text)
+
+    if (widget) {
+      return this.clearWidget(widget)
+    }
+
+    const errorDiv = document.createElement('div')
+    errorDiv.id = text
+    errorDiv.className = 'inline-error-message'
+    errorDiv.innerText = text
+    widget = this.editor.addLineWidget(line, errorDiv) as Widget
+
+    this.lineWidgets = [...this.lineWidgets, widget]
+  }
+
+  private clearWidget = (widget: Widget): void => {
+    widget.clear()
+    this.lineWidgets = this.lineWidgets.filter(
+      w => w.node.textContent !== widget.node.textContent
+    )
+  }
+
+  private clearWidgets = () => {
+    this.lineWidgets.forEach(w => {
+      w.clear()
+    })
+
+    this.lineWidgets = []
   }
 
   private get statusLine(): Gutter[] {
