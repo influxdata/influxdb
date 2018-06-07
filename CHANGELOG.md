@@ -8,6 +8,7 @@
 ### UI Improvements
 
 1.  [#3474](https://github.com/influxdata/chronograf/pull/3474): Sort task table on Manage Alert page alphabetically
+1.  [#3590](https://github.com/influxdata/chronograf/pull/3590): Redesign icons in side navigation
 
 ### Bug Fixes
 

@@ -71,7 +71,7 @@ class SideNav extends PureComponent<Props> {
         </div>
         <NavBlock
           highlightWhen={['hosts']}
-          icon="cubo-node"
+          icon="eye"
           link={`${sourcePrefix}/hosts`}
           location={location}
         >
@@ -90,7 +90,7 @@ class SideNav extends PureComponent<Props> {
         </NavBlock>
         <NavBlock
           highlightWhen={['dashboards']}
-          icon="dash-h"
+          icon="dash-j"
           link={`${sourcePrefix}/dashboards`}
           location={location}
         >
@@ -98,7 +98,7 @@ class SideNav extends PureComponent<Props> {
         </NavBlock>
         <NavBlock
           highlightWhen={['alerts', 'alert-rules', 'tickscript']}
-          icon="alert-triangle"
+          icon="triangle"
           link={`${sourcePrefix}/alert-rules`}
           location={location}
         >
@@ -114,8 +114,8 @@ class SideNav extends PureComponent<Props> {
         <FeatureFlag name="log-viewer">
           <NavBlock
             highlightWhen={['logs']}
-            icon="wood-log7"
-            link={'/logs'}
+            icon="wood"
+            link="/logs"
             location={location}
           >
             <NavHeader link={'/logs'} title="Log Viewer" />
@@ -127,7 +127,7 @@ class SideNav extends PureComponent<Props> {
           replaceWithIfNotUsingAuth={
             <NavBlock
               highlightWhen={['admin-influxdb']}
-              icon="crown2"
+              icon="crown-outline"
               link={`${sourcePrefix}/admin-influxdb/databases`}
               location={location}
             >
@@ -140,7 +140,7 @@ class SideNav extends PureComponent<Props> {
         >
           <NavBlock
             highlightWhen={['admin-chronograf', 'admin-influxdb']}
-            icon="crown2"
+            icon="crown-outline"
             link={`${sourcePrefix}/admin-chronograf/current-organization`}
             location={location}
           >
@@ -160,7 +160,7 @@ class SideNav extends PureComponent<Props> {
         </Authorized>
         <NavBlock
           highlightWhen={['manage-sources', 'kapacitors']}
-          icon="cog-thick"
+          icon="cog-outline"
           link={`${sourcePrefix}/manage-sources`}
           location={location}
         >
