@@ -76,19 +76,19 @@ export default class FuncArgsPreview extends PureComponent<Props> {
       case 'period':
       case 'duration':
       case 'array': {
-        return <span className="variable-value--number">{argument}</span>
+        return <span className="func-arg--number">{argument}</span>
       }
       case 'bool': {
-        return <span className="variable-value--boolean">{argument}</span>
+        return <span className="func-arg--boolean">{argument}</span>
       }
       case 'string': {
-        return <span className="variable-value--string">"{argument}"</span>
+        return <span className="func-arg--string">"{argument}"</span>
       }
       case 'object': {
-        return <span className="variable-value--object">{argument}</span>
+        return <span className="func-arg--object">{argument}</span>
       }
       case 'invalid': {
-        return <span className="variable-value--invalid">{argument}</span>
+        return <span className="func-arg--invalid">{argument}</span>
       }
       default: {
         return <span>{argument}</span>

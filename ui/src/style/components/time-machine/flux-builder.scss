@@ -1,18 +1,23 @@
+/*
+  Flux Builder Styles
+  ------------------------------------------------------------------------------
+*/
+
+$flux-builder-min-width: 440px;
 $flux-node-height: 30px;
 $flux-node-tooltip-gap: 4px;
-$flux-node-gap: 5px;
+$flux-connector-line: 2px;
+$flux-node-gap: 30px;
 $flux-node-padding: 10px;
 $flux-arg-min-width: 120px;
+
 $flux-number-color: $c-neutrino;
 $flux-object-color: $c-viridian;
 $flux-string-color: $c-honeydew;
 $flux-boolean-color: $c-viridian;
 $flux-invalid-color: $c-viridian;
-/*
-  Shared Node styles
-  ------------------
-*/
 
+// Shared Node styles
 %flux-node {
   min-height: $flux-node-height;
   border-radius: $radius;
@@ -22,66 +27,81 @@ $flux-invalid-color: $c-viridian;
   position: relative;
   background-color: $g4-onyx;
   transition: background-color 0.25s ease;
+  margin-bottom: $flux-node-tooltip-gap / 2;
+  margin-top: $flux-node-tooltip-gap / 2;
 
   &:hover {
+    cursor: pointer;
     background-color: $g6-smoke;
   }
 }
 
-.body-builder {
-  padding: 30px;
-  min-width: 440px;
-  overflow: hidden;
-  height: 100%;
-  width: 100%;
+.body-builder--container {
   background-color: $g1-raven;
+}
+.body-builder {
+  padding: $flux-node-height;
+  padding-bottom: 0;
+  min-width: $flux-builder-min-width;
+  width: 100%;
 }
 
 .declaration {
   width: 100%;
-  margin-bottom: 24px;
+  margin-bottom: $flux-node-gap;
+  padding-bottom: $flux-node-gap;
+  border-bottom: 2px solid $g2-kevlar;
   display: flex;
   flex-wrap: nowrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
 
   &:last-of-type {
     margin-bottom: 0;
+    border: 0;
   }
 }
 
-.variable-string {
+.variable-node {
   @extend %flux-node;
   color: $g11-sidewalk;
   line-height: $flux-node-height;
   white-space: nowrap;
   @include no-user-select();
+  margin-top: 0;
+
+  &:hover {
+    background-color: $g4-onyx;
+    cursor: default;
+  }
 }
 
-.variable-blank {
-  font-style: italic;
-}
-
-.variable-name {
+.variable-node--name {
   color: $c-pool;
 }
 
-.variable-value--string {
+.variable-node--string,
+.func-arg--string {
   color: $flux-string-color;
 }
 
-.variable-value--boolean {
+.variable-node--boolean,
+.func-arg--boolean {
   color: $flux-boolean-color;
 }
 
-.variable-value--number {
+.variable-node--number,
+.func-arg--number {
   color: $flux-number-color;
 }
 
-.variable-value--object {
+.variable-node--object,
+.func-arg--object {
   color: $flux-object-color;
 }
 
-.variable-value--invalid {
+.variable-node--invalid,
+.func-arg--invalid {
   color: $flux-invalid-color;
 }
 
@@ -92,21 +112,42 @@ $flux-invalid-color: $c-viridian;
 
   margin-left: $flux-node-gap;
 
-  // Connection Line
+  // Connection Lines
+  &:before,
   &:after {
     content: '';
-    height: 4px;
-    width: $flux-node-gap;
     background-color: $g4-onyx;
     position: absolute;
+  }
+  // Vertical Line
+  &:before {
+    width: $flux-connector-line;
+    height: calc(100% + #{$flux-node-tooltip-gap});
+    top: -$flux-node-tooltip-gap / 2;
+    left: -$flux-node-gap / 2;
+    transform: translateX(-50%);
+  }
+  // Horizontal Line
+  &:after {
+    height: $flux-connector-line;
+    width: $flux-node-gap / 2;
     top: 50%;
     left: 0;
     transform: translate(-100%, -50%);
   }
-
-  &:first-child:after {
-    content: none;
+  
+  // When there is no variable name for the declaration
+  &:first-child {
     margin-left: 0;
+
+    &:before {
+      left: $flux-node-gap / 2;
+      top: 100%;
+      height: $flux-node-tooltip-gap / 2;
+    }
+    &:after {
+      content: none;
+    }
   }
 }
 

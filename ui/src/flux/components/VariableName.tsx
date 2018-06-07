@@ -22,7 +22,7 @@ export default class VariableName extends PureComponent<Props, State> {
   }
 
   public render() {
-    return <div className="variable-string">{this.nameElement}</div>
+    return <div className="variable-node">{this.nameElement}</div>
   }
 
   private get nameElement(): JSX.Element {
@@ -32,7 +32,7 @@ export default class VariableName extends PureComponent<Props, State> {
       return this.colorizeSyntax
     }
 
-    return <span className="variable-name">{name}</span>
+    return <span className="variable-node--name">{name}</span>
   }
 
   private get colorizeSyntax(): JSX.Element {
@@ -45,11 +45,11 @@ export default class VariableName extends PureComponent<Props, State> {
 
     return (
       <>
-        <span className="variable-name">{varName}</span>
+        <span className="variable-node--name">{varName}</span>
         {' = '}
         <span
           className={
-            valueIsString ? 'variable-value--string' : 'variable-value--number'
+            valueIsString ? 'variable-node--string' : 'variable-node--number'
           }
         >
           {varValue}

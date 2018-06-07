@@ -10,25 +10,28 @@ $flux-func-selector--height: 30px;
   display: flex;
   align-items: center;
   position: relative;
+  flex-direction: column;
 
   &.open {
     z-index: 9999;
+    height: $flux-func-selector--height + $flux-func-selector--gap;
   }
 }
 
 .func-selector--connector {
-  width: $flux-func-selector--gap;
-  height: $flux-func-selector--height;
+  width: $flux-node-gap;
+  height: $flux-func-selector--gap;
   position: relative;
 
   &:after {
     content: '';
     position: absolute;
-    top: 50%;
-    width: 100%;
-    height: 4px;
-    transform: translateY(-50%);
-    @include gradient-h($g4-onyx, $c-pool);
+    top: -130%;
+    width: $flux-connector-line;
+    left: 50%;
+    height: 230%;
+    transform: translateX(-50%);
+    @include gradient-v($g4-onyx, $c-pool);
   }
 }
 
@@ -51,7 +54,7 @@ $flux-func-selector--height: 30px;
   top: 0;
 
   .func-selector--connector + & {
-    left: $flux-func-selector--gap;
+    top: $flux-func-selector--gap;
   }
 }
 
