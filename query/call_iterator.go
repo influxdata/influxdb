@@ -1529,3 +1529,55 @@ func newIntegralIterator(input Iterator, opt IteratorOptions, interval Interval)
 		return nil, fmt.Errorf("unsupported integral iterator type: %T", input)
 	}
 }
+
+// NewPercentageBetweenIterator returns an iterator for operating on a percentage_between() call.
+func NewPercentageBetweenIterator(input Iterator, opt IteratorOptions, percentageBottom float64, percentageTop float64) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatPercentageBetweenReducer(percentageBottom, percentageTop)
+			return fn, fn
+		}
+		return newFloatReduceFloatIterator(input, opt, createFn), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewIntegerPercentageBetweenReducer(percentageBottom, percentageTop)
+			return fn, fn
+		}
+		return newIntegerReduceFloatIterator(input, opt, createFn), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, FloatPointEmitter) {
+			fn := NewUnsignedPercentageBetweenReducer(percentageBottom, percentageTop)
+			return fn, fn
+		}
+		return newUnsignedReduceFloatIterator(input, opt, createFn), nil
+	default:
+		return nil, fmt.Errorf("unsupported percentage between iterator type: %T", input)
+	}
+}
+
+// NewCountBetweenIterator returns an iterator for operating on a count_between() call.
+func NewCountBetweenIterator(input Iterator, opt IteratorOptions, countBottom float64, countTop float64) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, IntegerPointEmitter) {
+			fn := NewFloatCountBetweenReducer(countBottom, countTop)
+			return fn, fn
+		}
+		return newFloatReduceIntegerIterator(input, opt, createFn), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerCountBetweenReducer(countBottom, countTop)
+			return fn, fn
+		}
+		return newIntegerReduceIntegerIterator(input, opt, createFn), nil
+	case UnsignedIterator:
+		createFn := func() (UnsignedPointAggregator, IntegerPointEmitter) {
+			fn := NewUnsignedCountBetweenReducer(countBottom, countTop)
+			return fn, fn
+		}
+		return newUnsignedReduceIntegerIterator(input, opt, createFn), nil
+	default:
+		return nil, fmt.Errorf("unsupported count between iterator type: %T", input)
+	}
+}

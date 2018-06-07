@@ -288,6 +288,10 @@ func (c *compiledField) compileExpr(expr influxql.Expr) error {
 		case "holt_winters", "holt_winters_with_fit":
 			withFit := expr.Name == "holt_winters_with_fit"
 			return c.compileHoltWinters(expr.Args, withFit)
+		case "percentage_between":
+			return c.compilePercentageBetween(expr.Args)
+		case "count_between":
+			return c.compileCountBetween(expr.Args)
 		default:
 			return c.compileFunction(expr)
 		}
@@ -935,6 +939,46 @@ func (c *compiledStatement) compileDimensions(stmt *influxql.SelectStatement) er
 		d.Expr = expr
 	}
 	return nil
+}
+
+func (c *compiledField) compilePercentageBetween(args []influxql.Expr) error {
+	if exp, got := 3, len(args); got != exp {
+		return fmt.Errorf("invalid number of arguments for percentage_between, expected %d, got %d", exp, got)
+	}
+
+	switch args[1].(type) {
+	case *influxql.IntegerLiteral:
+	case *influxql.NumberLiteral:
+	default:
+		return fmt.Errorf("expected float as second argument in percentage_between()")
+	}
+	switch args[2].(type) {
+	case *influxql.IntegerLiteral:
+	case *influxql.NumberLiteral:
+	default:
+		return fmt.Errorf("expected float as third argument in percentage_between()")
+	}
+	return c.compileSymbol("percentage_between", args[0])
+}
+
+func (c *compiledField) compileCountBetween(args []influxql.Expr) error {
+	if exp, got := 3, len(args); got != exp {
+		return fmt.Errorf("invalid number of arguments for count_between, expected %d, got %d", exp, got)
+	}
+
+	switch args[1].(type) {
+	case *influxql.IntegerLiteral:
+	case *influxql.NumberLiteral:
+	default:
+		return fmt.Errorf("expected float as second argument in count_between()")
+	}
+	switch args[2].(type) {
+	case *influxql.IntegerLiteral:
+	case *influxql.NumberLiteral:
+	default:
+		return fmt.Errorf("expected float as third argument in count_between()")
+	}
+	return c.compileSymbol("count_between", args[0])
 }
 
 // validateFields validates that the fields are mutually compatible with each other.

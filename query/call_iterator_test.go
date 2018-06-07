@@ -1068,6 +1068,225 @@ func TestCallIterator_Mode_Boolean(t *testing.T) {
 	}
 }
 
+// Ensure that a float iterator can be created for a count_between() call.
+func TestCallIterator_CountBetween_Float(t *testing.T) {
+	itr, _ := query.NewCountBetweenIterator(
+		&FloatIterator{Points: []query.FloatPoint{
+			{Time: 0, Value: 15.1, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 4, Value: 12.5, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10.9, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`count_between("value",0,15.05)`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+		0,
+		15.05,
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.IntegerPoint{Time: 0, Value: 3, Tags: ParseTags("host=hostA")}},
+		{&query.IntegerPoint{Time: 5, Value: 0, Tags: ParseTags("host=hostA")}},
+		{&query.IntegerPoint{Time: 0, Value: 1, Tags: ParseTags("host=hostB")}},
+		{&query.IntegerPoint{Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that a integer iterator can be created for a count_between() call.
+func TestCallIterator_CountBetween_Integer(t *testing.T) {
+	itr, _ := query.NewCountBetweenIterator(
+		&IntegerIterator{Points: []query.IntegerPoint{
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 4, Value: 12, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`count_between("value",0,15.05)`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+		0,
+		15.05,
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.IntegerPoint{Time: 0, Value: 4, Tags: ParseTags("host=hostA")}},
+		{&query.IntegerPoint{Time: 5, Value: 0, Tags: ParseTags("host=hostA")}},
+		{&query.IntegerPoint{Time: 0, Value: 1, Tags: ParseTags("host=hostB")}},
+		{&query.IntegerPoint{Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that a unsigned iterator can be created for a count_between() call.
+func TestCallIterator_CountBetween_Unsigned(t *testing.T) {
+	itr, _ := query.NewCountBetweenIterator(
+		&UnsignedIterator{Points: []query.UnsignedPoint{
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 4, Value: 12, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`count_between("value",0,15.05)`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+		0,
+		15.05,
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.IntegerPoint{Time: 0, Value: 4, Tags: ParseTags("host=hostA")}},
+		{&query.IntegerPoint{Time: 5, Value: 0, Tags: ParseTags("host=hostA")}},
+		{&query.IntegerPoint{Time: 0, Value: 1, Tags: ParseTags("host=hostB")}},
+		{&query.IntegerPoint{Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that a float iterator can be created for a percentage_between() call.
+func TestCallIterator_PercentageBetween_Float(t *testing.T) {
+	itr, _ := query.NewPercentageBetweenIterator(
+		&FloatIterator{Points: []query.FloatPoint{
+			{Time: 0, Value: 15.1, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 4, Value: 12.5, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10.9, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`percentage_between("value",0,10)`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+		0,
+		10,
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.FloatPoint{Time: 0, Value: 0.25, Tags: ParseTags("host=hostA")}},
+		{&query.FloatPoint{Time: 5, Value: 0, Tags: ParseTags("host=hostA")}},
+		{&query.FloatPoint{Time: 0, Value: 0, Tags: ParseTags("host=hostB")}},
+		{&query.FloatPoint{Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that a integer iterator can be created for a percentage_between() call.
+func TestCallIterator_PercentageBetween_Integer(t *testing.T) {
+	itr, _ := query.NewPercentageBetweenIterator(
+		&IntegerIterator{Points: []query.IntegerPoint{
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 4, Value: 12, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 21, Value: 15, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 22, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 10, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 24, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`percentage_between("value",0,11)`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+		0,
+		11,
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.FloatPoint{Time: 0, Value: 0.5, Tags: ParseTags("host=hostA")}},
+		{&query.FloatPoint{Time: 5, Value: 0, Tags: ParseTags("host=hostA")}},
+		{&query.FloatPoint{Time: 0, Value: 1, Tags: ParseTags("host=hostB")}},
+		{&query.FloatPoint{Time: 20, Value: 0.75, Tags: ParseTags("host=hostB")}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
+// Ensure that a unsigned iterator can be created for a percentage_between() call.
+func TestCallIterator_PercentageBetween_Unsigned(t *testing.T) {
+	itr, _ := query.NewPercentageBetweenIterator(
+		&UnsignedIterator{Points: []query.UnsignedPoint{
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 4, Value: 12, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+			{Time: 5, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		query.IteratorOptions{
+			Expr:       MustParseExpr(`percentage_between("value",0,10)`),
+			Dimensions: []string{"host"},
+			Interval:   query.Interval{Duration: 5 * time.Nanosecond},
+			Ordered:    true,
+			Ascending:  true,
+		},
+		0,
+		10,
+	)
+
+	if a, err := Iterators([]query.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if diff := cmp.Diff(a, [][]query.Point{
+		{&query.FloatPoint{Time: 0, Value: 0.5, Tags: ParseTags("host=hostA")}},
+		{&query.FloatPoint{Time: 5, Value: 0, Tags: ParseTags("host=hostA")}},
+		{&query.FloatPoint{Time: 0, Value: 0, Tags: ParseTags("host=hostB")}},
+		{&query.FloatPoint{Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
+	}); diff != "" {
+		t.Fatalf("unexpected points:\n%s", diff)
+	}
+}
+
 func TestNewCallIterator_UnsupportedExprName(t *testing.T) {
 	_, err := query.NewCallIterator(
 		&FloatIterator{},

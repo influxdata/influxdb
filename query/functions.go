@@ -2135,3 +2135,201 @@ func (r *UnsignedBottomReducer) Emit() []UnsignedPoint {
 	sort.Sort(sort.Reverse(&h))
 	return points
 }
+
+// FloatCountBetweenReducer calculates the Count of the aggregated points.
+type FloatCountBetweenReducer struct {
+	dotsInRange int64
+	bottom      float64
+	top         float64
+}
+
+// NewFloatCountBetweenReducer creates a new FloatCountBetweenReducer.
+func NewFloatCountBetweenReducer(countBottom float64, countTop float64) *FloatCountBetweenReducer {
+	return &FloatCountBetweenReducer{bottom: countBottom, top: countTop}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *FloatCountBetweenReducer) AggregateFloat(p *FloatPoint) {
+	var dots uint32 = 1
+	if p.Aggregated >= 2 {
+		dots = p.Aggregated
+	}
+
+	if p.Value >= r.bottom && p.Value <= r.top {
+		r.dotsInRange += int64(dots)
+	}
+}
+
+// Emit emits the mean of the aggregated points as a single point.
+func (r *FloatCountBetweenReducer) Emit() []IntegerPoint {
+	return []IntegerPoint{{
+		Time:  ZeroTime,
+		Value: r.dotsInRange,
+	}}
+}
+
+// IntegerCountReducer calculates the mean of the aggregated points.
+type IntegerCountBetweenReducer struct {
+	dotsInRange int64
+	bottom      float64
+	top         float64
+}
+
+// NewIntegerCountBetweenReducer creates a new IntegerCountBetweenReducer.
+func NewIntegerCountBetweenReducer(countBottom float64, countTop float64) *IntegerCountBetweenReducer {
+	return &IntegerCountBetweenReducer{bottom: countBottom, top: countTop}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *IntegerCountBetweenReducer) AggregateInteger(p *IntegerPoint) {
+	var dots uint32 = 1
+	if p.Aggregated >= 2 {
+		dots = p.Aggregated
+	}
+
+	if float64(p.Value) >= r.bottom && float64(p.Value) <= r.top {
+		r.dotsInRange += int64(dots)
+	}
+}
+
+// Emit emits the mean of the aggregated points as a single point.
+func (r *IntegerCountBetweenReducer) Emit() []IntegerPoint {
+	return []IntegerPoint{{
+		Time:  ZeroTime,
+		Value: r.dotsInRange,
+	}}
+}
+
+// UnsignedCountBetweenReducer calculates the Count of the aggregated points.
+type UnsignedCountBetweenReducer struct {
+	dotsInRange int64
+	bottom      float64
+	top         float64
+}
+
+// NewUnsignedCountBetweenReducer creates a new UnsignedCountBetweenReducer.
+func NewUnsignedCountBetweenReducer(countBottom float64, countTop float64) *UnsignedCountBetweenReducer {
+	return &UnsignedCountBetweenReducer{bottom: countBottom, top: countTop}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *UnsignedCountBetweenReducer) AggregateUnsigned(p *UnsignedPoint) {
+	var dots uint32 = 1
+	if p.Aggregated >= 2 {
+		dots = p.Aggregated
+	}
+
+	if float64(p.Value) >= r.bottom && float64(p.Value) <= r.top {
+		r.dotsInRange += int64(dots)
+	}
+}
+
+// Emit emits the mean of the aggregated points as a single point.
+func (r *UnsignedCountBetweenReducer) Emit() []IntegerPoint {
+	return []IntegerPoint{{
+		Time:  ZeroTime,
+		Value: r.dotsInRange,
+	}}
+}
+
+// FloatPercentageBetweenReducer calculates the percentage of the aggregated points.
+type FloatPercentageBetweenReducer struct {
+	dotsInRange uint64
+	count       uint64
+	bottom      float64
+	top         float64
+}
+
+// NewFloatPercentageBetweenReducer creates a new FloatPercentageBetweenReducer.
+func NewFloatPercentageBetweenReducer(percentageBottom float64, percentageTop float64) *FloatPercentageBetweenReducer {
+	return &FloatPercentageBetweenReducer{bottom: percentageBottom, top: percentageTop}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *FloatPercentageBetweenReducer) AggregateFloat(p *FloatPoint) {
+	var dots uint32 = 1
+	if p.Aggregated >= 2 {
+		dots = p.Aggregated
+	}
+
+	if p.Value >= r.bottom && p.Value <= r.top {
+		r.dotsInRange += uint64(dots)
+	}
+	r.count += uint64(dots)
+}
+
+// Emit emits the percentage of the aggregated points as a single point.
+func (r *FloatPercentageBetweenReducer) Emit() []FloatPoint {
+	return []FloatPoint{{
+		Time:  ZeroTime,
+		Value: float64(r.dotsInRange) / float64(r.count),
+	}}
+}
+
+// IntegerPercentageBetweenReducer calculates the mean of the aggregated points.
+type IntegerPercentageBetweenReducer struct {
+	dotsInRange uint64
+	count       uint64
+	bottom      float64
+	top         float64
+}
+
+// NewIntegerPercentageBetweenReducer creates a new IntegerPercentageBetweenReducer.
+func NewIntegerPercentageBetweenReducer(percentageBottom float64, percentageTop float64) *IntegerPercentageBetweenReducer {
+	return &IntegerPercentageBetweenReducer{bottom: percentageBottom, top: percentageTop}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *IntegerPercentageBetweenReducer) AggregateInteger(p *IntegerPoint) {
+	var dots uint32 = 1
+	if p.Aggregated >= 2 {
+		dots = p.Aggregated
+	}
+
+	if float64(p.Value) >= r.bottom && float64(p.Value) <= r.top {
+		r.dotsInRange += uint64(dots)
+	}
+	r.count += uint64(dots)
+}
+
+// Emit emits the percentage of the aggregated points as a single point.
+func (r *IntegerPercentageBetweenReducer) Emit() []FloatPoint {
+	return []FloatPoint{{
+		Time:  ZeroTime,
+		Value: float64(r.dotsInRange) / float64(r.count),
+	}}
+}
+
+// UnsignedPercentageBetweenReducer calculates the percentage of the aggregated points.
+type UnsignedPercentageBetweenReducer struct {
+	dotsInRange uint64
+	count       uint64
+	bottom      float64
+	top         float64
+}
+
+// NewUnsignedPercentageBetweenReducer creates a new UnsignedPercentageBetweenReducer.
+func NewUnsignedPercentageBetweenReducer(percentageBottom float64, percentageTop float64) *UnsignedPercentageBetweenReducer {
+	return &UnsignedPercentageBetweenReducer{bottom: percentageBottom, top: percentageTop}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *UnsignedPercentageBetweenReducer) AggregateUnsigned(p *UnsignedPoint) {
+	var dots uint32 = 1
+	if p.Aggregated >= 2 {
+		dots = p.Aggregated
+	}
+
+	if float64(p.Value) >= r.bottom && float64(p.Value) <= r.top {
+		r.dotsInRange += uint64(dots)
+	}
+	r.count += uint64(dots)
+}
+
+// Emit emits the mean of the aggregated points as a single point.
+func (r *UnsignedPercentageBetweenReducer) Emit() []FloatPoint {
+	return []FloatPoint{{
+		Time:  ZeroTime,
+		Value: float64(r.dotsInRange) / float64(r.count),
+	}}
+}

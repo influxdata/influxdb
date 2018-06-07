@@ -551,6 +551,50 @@ func (b *exprIteratorBuilder) buildCallIterator(ctx context.Context, expr *influ
 				percentile = float64(arg.Val)
 			}
 			return newPercentileIterator(input, opt, percentile)
+		case "percentage_between":
+			input, err := buildExprIterator(ctx, expr.Args[0].(*influxql.VarRef), b.ic, b.sources, opt, false, false)
+			if err != nil {
+				return nil, err
+			}
+			var percentageBottom float64
+			var percentageTop float64
+
+			switch arg := expr.Args[1].(type) {
+			case *influxql.NumberLiteral:
+				percentageBottom = arg.Val
+			case *influxql.IntegerLiteral:
+				percentageBottom = float64(arg.Val)
+			}
+
+			switch arg := expr.Args[2].(type) {
+			case *influxql.NumberLiteral:
+				percentageTop = arg.Val
+			case *influxql.IntegerLiteral:
+				percentageTop = float64(arg.Val)
+			}
+			return NewPercentageBetweenIterator(input, opt, percentageBottom, percentageTop)
+		case "count_between":
+			input, err := buildExprIterator(ctx, expr.Args[0].(*influxql.VarRef), b.ic, b.sources, opt, false, false)
+			if err != nil {
+				return nil, err
+			}
+			var countBottom float64
+			var countTop float64
+
+			switch arg := expr.Args[1].(type) {
+			case *influxql.NumberLiteral:
+				countBottom = arg.Val
+			case *influxql.IntegerLiteral:
+				countBottom = float64(arg.Val)
+			}
+
+			switch arg := expr.Args[2].(type) {
+			case *influxql.NumberLiteral:
+				countTop = arg.Val
+			case *influxql.IntegerLiteral:
+				countTop = float64(arg.Val)
+			}
+			return NewCountBetweenIterator(input, opt, countBottom, countTop)
 		default:
 			return nil, fmt.Errorf("unsupported call: %s", expr.Name)
 		}

@@ -65,6 +65,8 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT max(bottom) FROM (SELECT bottom(value, host, 1) FROM cpu) GROUP BY region`,
 		`SELECT percentile(value, 75) FROM cpu`,
 		`SELECT percentile(value, 75.0) FROM cpu`,
+		`SELECT percentage_between(value, 0, 75.0) FROM cpu`,
+		`SELECT count_between(value, 0, 75.0) FROM cpu`,
 		`SELECT sample(value, 2) FROM cpu`,
 		`SELECT sample(*, 2) FROM cpu`,
 		`SELECT sample(/val/, 2) FROM cpu`,
@@ -360,6 +362,12 @@ func TestCompile_Failures(t *testing.T) {
 		{s: `SELECT atan2(value, 3, 3) FROM cpu`, err: `invalid number of arguments for atan2, expected 2, got 3`},
 		{s: `SELECT sin(1.3) FROM cpu`, err: `field must contain at least one variable`},
 		{s: `SELECT nofunc(1.3) FROM cpu`, err: `undefined function nofunc()`},
+		{s: `SELECT percentage_between(value, 1.3) FROM cpu`, err: `invalid number of arguments for percentage_between, expected 3, got 2`},
+		{s: `SELECT percentage_between(value, '10.1',1) FROM cpu`, err: `expected float as second argument in percentage_between()`},
+		{s: `SELECT percentage_between(value, 10.1,'stuff') FROM cpu`, err: `expected float as third argument in percentage_between()`},
+		{s: `SELECT count_between(value, 1.3) FROM cpu`, err: `invalid number of arguments for count_between, expected 3, got 2`},
+		{s: `SELECT count_between(value, '10.1',1) FROM cpu`, err: `expected float as second argument in count_between()`},
+		{s: `SELECT count_between(value, 10.1,'stuff') FROM cpu`, err: `expected float as third argument in count_between()`},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)
