@@ -7,7 +7,7 @@ import {getDeep} from 'src/utils/wrappers'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const ROW_HEIGHT = 26
-const CHAR_WIDTH = 8
+const CHAR_WIDTH = 9
 interface Props {
   data: {
     columns: string[]
@@ -151,6 +151,7 @@ class LogsTable extends Component<Props, State> {
       facility: 120,
       severity: 22,
       severity_1: 120,
+      host: 300,
     }
   }
 
@@ -185,12 +186,18 @@ class LogsTable extends Component<Props, State> {
     }
   }
 
+  private get rowCharLimit(): number {
+    return Math.floor(this.messageWidth / CHAR_WIDTH)
+  }
+
+  private get columns(): string[] {
+    return getDeep<string[]>(this.props, 'data.columns', [])
+  }
+
   private calculateMessageHeight = (index: number): number => {
-    const columns = getDeep(this.props, 'data.columns', [])
-    const columnIndex = columns.indexOf('message')
+    const columnIndex = this.columns.indexOf('message')
     const value = getDeep(this.props, `data.values.${index}.${columnIndex}`, '')
-    const ROW_CHAR_LIMIT = Math.floor(this.messageWidth / CHAR_WIDTH)
-    const lines = Math.ceil(value.length / ROW_CHAR_LIMIT)
+    const lines = Math.round(value.length / this.rowCharLimit + 0.25)
 
     return Math.max(lines, 1) * (ROW_HEIGHT - 14) + 14
   }
@@ -287,7 +294,9 @@ class LogsTable extends Component<Props, State> {
         value = moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
         break
       case 'message':
-        value = _.replace(value, '\\n', '')
+        if (value.indexOf(' ') > this.rowCharLimit - 5) {
+          value = _.truncate(value, {length: this.rowCharLimit - 5})
+        }
         break
       case 'severity':
         value = (
@@ -306,7 +315,7 @@ class LogsTable extends Component<Props, State> {
     if (this.isClickable(column)) {
       return (
         <div
-          className={classnames('logs-viewer--cell', {
+          className={classnames(`logs-viewer--cell`, {
             highlight: highlightRow,
           })}
           title={`Filter by "${value}"`}
@@ -319,6 +328,8 @@ class LogsTable extends Component<Props, State> {
             data-tag-key={column}
             data-tag-value={value}
             onClick={this.handleTagClick}
+            data-index={rowIndex}
+            onMouseOver={this.handleMouseEnter}
             className="logs-viewer--clickable"
           >
             {value}
@@ -329,7 +340,9 @@ class LogsTable extends Component<Props, State> {
 
     return (
       <div
-        className={classnames('logs-viewer--cell', {highlight: highlightRow})}
+        className={classnames(`logs-viewer--cell  ${column}--cell`, {
+          highlight: highlightRow,
+        })}
         key={key}
         style={style}
         onMouseOver={this.handleMouseEnter}

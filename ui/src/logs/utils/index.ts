@@ -155,7 +155,7 @@ const computeSeconds = (range: TimeRange) => {
 
 const createGroupBy = (range: TimeRange) => {
   const seconds = computeSeconds(range)
-  const time = `${Math.floor(seconds / BIN_COUNT)}s`
+  const time = `${Math.max(Math.floor(seconds / BIN_COUNT), 1)}s`
   const tags = []
 
   return {time, tags}

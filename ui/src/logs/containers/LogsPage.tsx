@@ -119,13 +119,19 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
+  private get isSpecificTimeRange(): boolean {
+    return !!this.props.timeRange.upper
+  }
+
   private startUpdating = () => {
     if (this.interval) {
       clearInterval(this.interval)
     }
 
-    this.interval = setInterval(this.handleInterval, 10000)
-    this.setState({liveUpdating: true})
+    if (!this.isSpecificTimeRange) {
+      this.interval = setInterval(this.handleInterval, 10000)
+      this.setState({liveUpdating: true})
+    }
   }
 
   private handleScrollToTop = () => {
@@ -180,7 +186,7 @@ class LogsPage extends PureComponent<Props, State> {
 
     return (
       <LogViewerHeader
-        liveUpdating={liveUpdating}
+        liveUpdating={liveUpdating && !this.isSpecificTimeRange}
         availableSources={sources}
         timeRange={timeRange}
         onChooseSource={this.handleChooseSource}
