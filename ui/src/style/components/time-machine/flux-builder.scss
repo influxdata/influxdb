@@ -228,8 +228,7 @@ $flux-invalid-color: $c-viridian;
   }
 }
 
-.func-node--tooltip,
-.variable-name--tooltip {
+.func-node--tooltip {
   background-color: $g3-castle;
   border-radius: $radius;
   padding: 10px;
@@ -237,28 +236,31 @@ $flux-invalid-color: $c-viridian;
   align-items: stretch;
   flex-direction: column;
   position: absolute;
-  top: calc(100% + #{$flux-node-tooltip-gap});
-  left: 0;
+  top: 0;
+  left: calc(100% + #{$flux-node-tooltip-gap});
   z-index: 9999;
-  box-shadow: 0 0 10px 2px $g2-kevlar; // Caret
+  box-shadow: 0 0 10px 2px $g2-kevlar;
+
+  // Caret
   &:before {
     content: '';
     border-width: 9px;
     border-style: solid;
     border-color: transparent;
-    border-bottom-color: $g3-castle;
+    border-right-color: $g3-castle;
     position: absolute;
-    top: 0;
-    left: $flux-node-padding + 3px;
-    transform: translate(-50%, -100%);
-  } // Invisible block to continue hovering
+    top: $flux-node-height / 2;
+    left: 0;
+    transform: translate(-100%, -50%);
+  }
+  // Invisible block to continue hovering
   &:after {
     content: '';
-    width: 80%;
-    height: 7px;
+    height: 50%;
+    width: $flux-node-tooltip-gap * 3;
     position: absolute;
-    top: -7px;
-    left: 0;
+    top: 0;
+    left: -$flux-node-tooltip-gap * 3;
   }
 }
 
@@ -299,26 +301,6 @@ $flux-invalid-color: $c-viridian;
 .func-arg--textarea {
   overflow: hidden;
   width: 300px;
-}
-
-.variable-name--tooltip {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
-}
-
-.variable-name--input {
-  width: 140px;
-}
-
-.variable-name--operator {
-  width: 20px;
-  height: 30px;
-  text-align: center;
-  line-height: 30px;
-  font-weight: 600;
-  @include no-user-select();
 }
 
 /*
