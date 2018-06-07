@@ -18,6 +18,7 @@ interface Props {
   onGenerateScript: () => void
   onDeleteFunc: (e: MouseEvent<HTMLElement>) => void
   declarationsFromBody: string[]
+  onStopPropagation: (e: MouseEvent<HTMLElement>) => void
 }
 
 @ErrorHandling

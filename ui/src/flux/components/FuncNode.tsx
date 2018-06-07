@@ -36,6 +36,7 @@ export default class FuncNode extends PureComponent<Props, State> {
 
   constructor(props) {
     super(props)
+
     this.state = {
       isExpanded: false,
     }
@@ -63,6 +64,7 @@ export default class FuncNode extends PureComponent<Props, State> {
         <div className="func-node--connector" />
         <div className="func-node--name">{func.name}</div>
         <FuncArgsPreview func={func} />
+
         {isExpanded && (
           <FuncArgs
             func={func}
@@ -73,6 +75,7 @@ export default class FuncNode extends PureComponent<Props, State> {
             onGenerateScript={onGenerateScript}
             onDeleteFunc={this.handleDelete}
             declarationsFromBody={declarationsFromBody}
+            onStopPropagation={this.handleClickArgs}
           />
         )}
       </div>
@@ -104,5 +107,8 @@ export default class FuncNode extends PureComponent<Props, State> {
     const {onToggleYield, index, bodyID, declarationID} = this.props
 
     onToggleYield(bodyID, declarationID, index)
+  }
+  private handleClickArgs = (e: MouseEvent<HTMLElement>): void => {
+    e.stopPropagation()
   }
 }
