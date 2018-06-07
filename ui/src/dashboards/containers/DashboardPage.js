@@ -50,6 +50,8 @@ import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 
+import {getDeep} from 'src/utils/wrappers'
+
 @ErrorHandling
 class DashboardPage extends Component {
   constructor(props) {
@@ -67,18 +69,13 @@ class DashboardPage extends Component {
   async componentDidMount() {
     const {
       params: {dashboardID},
-      dashboardActions: {
-        getDashboardWithHydratedAndSyncedTempVarsAsync,
-        putDashboardByID,
-      },
+      dashboardActions: {putDashboardByID},
       source,
       meRole,
       isUsingAuth,
-      router,
       getAnnotationsAsync,
       timeRange,
       autoRefresh,
-      location,
     } = this.props
 
     const annotationRange = millisecondTimeRange(timeRange)
@@ -92,12 +89,7 @@ class DashboardPage extends Component {
 
     window.addEventListener('resize', this.handleWindowResize, true)
 
-    await getDashboardWithHydratedAndSyncedTempVarsAsync(
-      dashboardID,
-      source,
-      router,
-      location
-    )
+    await this.getDashboard()
 
     // If using auth and role is Viewer, temp vars will be stale until dashboard
     // is refactored so as not to require a write operation (a PUT in this case)
@@ -122,6 +114,18 @@ class DashboardPage extends Component {
     }
   }
 
+  componentDidUpdate(prevProps) {
+    const prevSelfLink = getDeep(prevProps.dashboard, 'links.self', null)
+    const thisSelfLink = getDeep(this.props.dashboard, 'links.self', null)
+
+    if (prevSelfLink && thisSelfLink) {
+      const isDifferentDashboard = prevSelfLink !== thisSelfLink
+      if (isDifferentDashboard) {
+        this.getDashboard()
+      }
+    }
+  }
+
   handleWindowResize = () => {
     this.setState({windowHeight: window.innerHeight})
   }
@@ -131,6 +135,23 @@ class DashboardPage extends Component {
     this.intervalID = false
     window.removeEventListener('resize', this.handleWindowResize, true)
     this.props.handleDismissEditingAnnotation()
+  }
+
+  async getDashboard() {
+    const {
+      params: {dashboardID},
+      dashboardActions: {getDashboardWithHydratedAndSyncedTempVarsAsync},
+      source,
+      router,
+      location,
+    } = this.props
+
+    return await getDashboardWithHydratedAndSyncedTempVarsAsync(
+      dashboardID,
+      source,
+      router,
+      location
+    )
   }
 
   async getDashboardsNames() {
@@ -522,6 +543,7 @@ DashboardPage.propTypes = {
   dashboardActions: shape({
     putDashboard: func.isRequired,
     getDashboardsAsync: func.isRequired,
+    getDashboardWithHydratedAndSyncedTempVarsAsync: func.isRequired,
     setTimeRange: func.isRequired,
     addDashboardCellAsync: func.isRequired,
     editDashboardCell: func.isRequired,
