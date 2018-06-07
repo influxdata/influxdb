@@ -52,11 +52,11 @@ class TagValueListItem extends PureComponent<Props, State> {
 
     return (
       <div className={this.className} onClick={this.handleClick}>
-        <div className="flux-schema-item">
+        <div className="flux-schema--item">
           <div className="flex-schema-item-group">
-            <div className="flux-schema-item-toggle" />
+            <div className="flux-schema--expander" />
             {value}
-            <span className="flux-schema-type">Tag Value</span>
+            <span className="flux-schema--type">Tag Value</span>
           </div>
           <CopyToClipboard text={value} onCopy={this.handleCopyAttempt}>
             <div className="flux-schema-copy" onClick={this.handleClickCopy}>
@@ -73,7 +73,7 @@ class TagValueListItem extends PureComponent<Props, State> {
                 {!!this.tags.length && (
                   <div className="flux-schema--filter">
                     <input
-                      className="form-control input-sm"
+                      className="form-control input-xs"
                       placeholder={`Filter within ${value}`}
                       type="text"
                       spellCheck={false}
@@ -132,7 +132,7 @@ class TagValueListItem extends PureComponent<Props, State> {
     const {isOpen} = this.state
     const openClass = isOpen ? 'expanded' : ''
 
-    return `flux-schema-tree flux-tree-node ${openClass}`
+    return `flux-schema-tree flux-schema--child ${openClass}`
   }
 
   private handleInputClick = (e: MouseEvent<HTMLInputElement>) => {

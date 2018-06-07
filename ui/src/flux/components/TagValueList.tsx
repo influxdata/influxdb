@@ -47,8 +47,8 @@ export default class TagValueList extends PureComponent<Props> {
           </NotificationContext.Consumer>
         ))}
         {shouldShowMoreValues && (
-          <div className="flux-schema-tree flux-tree-node">
-            <div className="flux-schema-item no-hover">
+          <div className="flux-schema-tree flux-schema--child">
+            <div className="flux-schema--item no-hover">
               <button
                 className="btn btn-xs btn-default increase-values-limit"
                 onClick={this.handleClick}

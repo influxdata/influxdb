@@ -51,11 +51,11 @@ class DatabaseListItem extends PureComponent<Props, State> {
 
     return (
       <div className={this.className} onClick={this.handleClick}>
-        <div className="flux-schema-item">
+        <div className="flux-schema--item">
           <div className="flex-schema-item-group">
-            <div className="flux-schema-item-toggle" />
+            <div className="flux-schema--expander" />
             {db}
-            <span className="flux-schema-type">Bucket</span>
+            <span className="flux-schema--type">Bucket</span>
           </div>
           <CopyToClipboard text={db} onCopy={this.handleCopyAttempt}>
             <div className="flux-schema-copy" onClick={this.handleClickCopy}>
@@ -90,7 +90,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
         <>
           <div className="flux-schema--filter">
             <input
-              className="form-control input-sm"
+              className="form-control input-xs"
               placeholder={`Filter within ${db}`}
               type="text"
               spellCheck={false}

@@ -68,11 +68,11 @@ export default class TagListItem extends PureComponent<Props, State> {
 
     return (
       <div className={this.className}>
-        <div className="flux-schema-item" onClick={this.handleClick}>
+        <div className="flux-schema--item" onClick={this.handleClick}>
           <div className="flex-schema-item-group">
-            <div className="flux-schema-item-toggle" />
+            <div className="flux-schema--expander" />
             {tagKey}
-            <span className="flux-schema-type">Tag Key</span>{' '}
+            <span className="flux-schema--type">Tag Key</span>
           </div>
           <CopyToClipboard text={tagKey} onCopy={this.handleCopyAttempt}>
             <div className="flux-schema-copy" onClick={this.handleClickCopy}>
@@ -84,12 +84,12 @@ export default class TagListItem extends PureComponent<Props, State> {
         {this.state.isOpen && (
           <>
             <div
-              className="tag-value-list--header"
+              className="flux-schema--header"
               onClick={this.handleInputClick}
             >
               <div className="flux-schema--filter">
                 <input
-                  className="form-control input-sm"
+                  className="form-control input-xs"
                   placeholder={`Filter within ${tagKey}`}
                   type="text"
                   spellCheck={false}
@@ -101,7 +101,7 @@ export default class TagListItem extends PureComponent<Props, State> {
                   <LoadingSpinner style={this.spinnerStyle} />
                 )}
               </div>
-              {!!count && `${count} total`}
+              {this.count}
             </div>
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
@@ -125,11 +125,29 @@ export default class TagListItem extends PureComponent<Props, State> {
     )
   }
 
+  private get count(): JSX.Element {
+    const {count} = this.state
+
+    if (!count) {
+      return
+    }
+
+    let pluralizer = 's'
+
+    if (count === 1) {
+      pluralizer = ''
+    }
+
+    return (
+      <div className="flux-schema--count">{`${count} Tag Value${pluralizer}`}</div>
+    )
+  }
+
   private get spinnerStyle(): CSSProperties {
     return {
       position: 'absolute',
-      right: '15px',
-      top: '6px',
+      right: '18px',
+      top: '11px',
     }
   }
 
@@ -305,6 +323,6 @@ export default class TagListItem extends PureComponent<Props, State> {
     const {isOpen} = this.state
     const openClass = isOpen ? 'expanded' : ''
 
-    return `flux-schema-tree flux-tree-node ${openClass}`
+    return `flux-schema-tree flux-schema--child ${openClass}`
   }
 }

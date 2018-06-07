@@ -47,8 +47,8 @@ export default class TagList extends PureComponent<Props, State> {
     }
 
     return (
-      <div className="flux-schema-tree flux-tree-node">
-        <div className="flux-schema-item no-hover" onClick={this.handleClick}>
+      <div className="flux-schema-tree flux-schema--child">
+        <div className="flux-schema--item no-hover" onClick={this.handleClick}>
           <div className="no-results">No more tag keys.</div>
         </div>
       </div>
