@@ -1,5 +1,5 @@
 import {bindActionCreators} from 'redux'
-import {push} from 'react-router-redux'
+import {replace} from 'react-router-redux'
 import _ from 'lodash'
 import queryString from 'query-string'
 
@@ -427,7 +427,7 @@ export const syncURLQueryFromQueriesObject = (
     ...updatedSearch,
   }
 
-  dispatch(push(updatedLocation))
+  dispatch(replace(updatedLocation))
 }
 
 export const syncURLQueryFromTempVars = (
