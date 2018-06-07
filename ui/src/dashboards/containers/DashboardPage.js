@@ -252,7 +252,6 @@ class DashboardPage extends Component {
     dashboardActions.deleteDashboardCellAsync(dashboard, cell)
   }
 
-  // TODO: make this a thunk
   handleSelectTemplate = templateID => value => {
     const {
       dashboardActions,
