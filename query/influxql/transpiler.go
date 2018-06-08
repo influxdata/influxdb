@@ -92,6 +92,11 @@ func (t *transpilerState) Transpile(ctx context.Context) (*query.Spec, error) {
 	return t.spec, nil
 }
 
+func (t *transpilerState) mapType(ref *influxql.VarRef) influxql.DataType {
+	// TODO(jsternberg): Actually evaluate the type against the schema.
+	return influxql.Tag
+}
+
 func (t *transpilerState) op(name string, spec query.OperationSpec, parents ...query.OperationID) query.OperationID {
 	op := query.Operation{
 		ID:   query.OperationID(fmt.Sprintf("%s%d", name, t.nextID[name])),
