@@ -89,6 +89,7 @@ const flattenGroupBySeries = (
         },
       ],
       responseIndex,
+      isGroupBy: true,
     },
   ]
 
@@ -142,10 +143,11 @@ const constructResults = (
 
 const constructSerieses = (results: Result[]): Series[] => {
   return _.flatten(
-    fastMap<Result, Series[]>(results, ({series, responseIndex}) =>
+    fastMap<Result, Series[]>(results, ({series, responseIndex, isGroupBy}) =>
       fastMap<TimeSeriesSeries, Series>(series, (s, index) => ({
         ...s,
         responseIndex,
+        isGroupBy,
         seriesIndex: index,
       }))
     )
