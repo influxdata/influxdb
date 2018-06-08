@@ -13,6 +13,7 @@ import {
   templateVariableSelected,
   editTemplateVariableValues,
   templateVariablesSelectedByName,
+  setActiveCell,
 } from 'src/dashboards/actions'
 
 let state
@@ -126,6 +127,15 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboards[0].templates[1].values[0].selected).toBe(false)
     expect(actual.dashboards[0].templates[1].values[1].selected).toBe(true)
     expect(actual.dashboards[0].templates[1].values[2].selected).toBe(false)
+  })
+
+  describe('SET_ACTIVE_CELL', () => {
+    it('can set the active cell', () => {
+      const activeCellID = '1'
+      const actual = reducer(initialState, setActiveCell(activeCellID))
+
+      expect(actual.activeCellID).toEqual(activeCellID)
+    })
   })
 
   describe('EDIT_TEMPLATE_VARIABLE_VALUES', () => {

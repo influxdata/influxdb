@@ -19,7 +19,7 @@ import {
 } from 'shared/constants/actionTypes'
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
-export default function ui(state = initialState, action) {
+const ui = (state = initialState, action) => {
   switch (action.type) {
     case 'LOAD_DASHBOARDS': {
       const {dashboards} = action.payload
@@ -255,3 +255,5 @@ export default function ui(state = initialState, action) {
 
   return state
 }
+
+export default ui
