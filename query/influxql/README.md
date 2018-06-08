@@ -64,13 +64,7 @@ After creating the base cursors, each of them is joined into a single stream usi
     val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_system")
     inner_join(tables: {val1: val1, val2: val2}, except: ["_field"], fn: (tables) => {val1: tables.val1, val2: tables.val2})
 
-If there is only one cursor, then we need to exclude the `_field` column from the table so the table schema matches and we can perform another join later. The `_field` property is not needed after the initial cursor creation.
-
-**TODO(jsternberg):** This step can probably be done by a drop column function when/if it exists.
-
-    > SELECT usage_user FROM telegraf..cpu WHERE time >= now() - 5m
-    val1 = create_cursor(db: "telegraf", start: -5m, m: "cpu", f: "usage_user")
-    val1 |> group(except: ["_field"])
+If there is only one cursor, then nothing needs to be done.
 
 ### <a name="evaluate-condition"></a> Evaluate the condition
 
