@@ -80,7 +80,7 @@ interface Props {
   onCancel: () => void
   onSave: (cell: Cell) => void
   source: Source
-  dashboardID: string
+  dashboardID: number
   queryStatus: QueryStatus
   autoRefresh: number
   templates: Template[]

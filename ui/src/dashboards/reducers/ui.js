@@ -4,7 +4,7 @@ import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
-const initialState = {
+export const initialState = {
   dashboards: [],
   timeRange: {lower, upper},
   isEditMode: false,
@@ -71,23 +71,6 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'UPDATE_DASHBOARD_CELLS': {
-      const {cells, dashboard} = action.payload
-
-      const newDashboard = {
-        ...dashboard,
-        cells,
-      }
-
-      const newState = {
-        dashboards: state.dashboards.map(
-          d => (d.id === dashboard.id ? newDashboard : d)
-        ),
-      }
-
-      return {...state, ...newState}
-    }
-
     case 'ADD_DASHBOARD_CELL': {
       const {cell, dashboard} = action.payload
       const {dashboards} = state
@@ -98,30 +81,6 @@ export default function ui(state = initialState, action) {
         d => (d.id === dashboard.id ? newDashboard : d)
       )
       const newState = {dashboards: newDashboards}
-
-      return {...state, ...newState}
-    }
-
-    case 'EDIT_DASHBOARD_CELL': {
-      const {x, y, isEditing, dashboard} = action.payload
-
-      const cell = dashboard.cells.find(c => c.x === x && c.y === y)
-
-      const newCell = {
-        ...cell,
-        isEditing,
-      }
-
-      const newDashboard = {
-        ...dashboard,
-        cells: dashboard.cells.map(c => (c.x === x && c.y === y ? newCell : c)),
-      }
-
-      const newState = {
-        dashboards: state.dashboards.map(
-          d => (d.id === dashboard.id ? newDashboard : d)
-        ),
-      }
 
       return {...state, ...newState}
     }
@@ -145,24 +104,6 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'CANCEL_EDIT_CELL': {
-      const {dashboardID, cellID} = action.payload
-
-      const dashboards = state.dashboards.map(
-        d =>
-          d.id === dashboardID
-            ? {
-                ...d,
-                cells: d.cells.map(
-                  c => (c.i === cellID ? {...c, isEditing: false} : c)
-                ),
-              }
-            : d
-      )
-
-      return {...state, dashboards}
-    }
-
     case 'SYNC_DASHBOARD_CELL': {
       const {cell, dashboard} = action.payload
 
@@ -171,30 +112,6 @@ export default function ui(state = initialState, action) {
         cells: dashboard.cells.map(
           c => (c.x === cell.x && c.y === cell.y ? cell : c)
         ),
-      }
-
-      const newState = {
-        dashboards: state.dashboards.map(
-          d => (d.id === dashboard.id ? newDashboard : d)
-        ),
-      }
-
-      return {...state, ...newState}
-    }
-
-    case 'RENAME_DASHBOARD_CELL': {
-      const {x, y, name, dashboard} = action.payload
-
-      const cell = dashboard.cells.find(c => c.x === x && c.y === y)
-
-      const newCell = {
-        ...cell,
-        name,
-      }
-
-      const newDashboard = {
-        ...dashboard,
-        cells: dashboard.cells.map(c => (c.x === x && c.y === y ? newCell : c)),
       }
 
       const newState = {

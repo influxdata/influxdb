@@ -24,7 +24,7 @@ const setup = (override = {}) => {
     cell,
     timeRange,
     autoRefresh: 0,
-    dashboardID: '9',
+    dashboardID: 9,
     queryStatus: {
       queryID: null,
       status: null,
