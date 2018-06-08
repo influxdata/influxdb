@@ -51,6 +51,7 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
 import {Dashboard, TimeRange, Cell, Template} from 'src/types'
+import {DashboardName} from 'src/types/dashboard'
 
 interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
@@ -462,6 +463,31 @@ export const getDashboardsAsync = () => async (
     } = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
     return dashboards
+  } catch (error) {
+    console.error(error)
+    dispatch(errorThrown(error))
+  }
+}
+
+// gets update-to-date names of dashboards, but does not dispatch action
+// in order to avoid duplicate and out-of-sync state problems in redux
+export const getDashboardsNamesAsync = sourceID => async (
+  dispatch
+): Promise<DashboardName[] | void> => {
+  try {
+    // TODO: change this from getDashboardsAJAX to getDashboardsNamesAJAX
+    // to just get dashboard names (and links) as api view call when that
+    // view API is implemented (issue #3594), rather than getting whole
+    // dashboard for each
+    const {
+      data: {dashboards},
+    } = await getDashboardsAJAX()
+    const dashboardsNames = dashboards.map(({id, name}) => ({
+      id,
+      name,
+      link: `/sources/${sourceID}/dashboards/${id}`,
+    }))
+    return dashboardsNames
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))

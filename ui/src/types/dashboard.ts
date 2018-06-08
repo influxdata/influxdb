@@ -137,6 +137,12 @@ export interface Dashboard {
   links?: DashboardLinks
 }
 
+export interface DashboardName {
+  id: number
+  name: string
+  link: string
+}
+
 interface DashboardFileMetaSection {
   chronografVersion?: string
 }

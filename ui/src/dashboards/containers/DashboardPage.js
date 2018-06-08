@@ -115,14 +115,11 @@ class DashboardPage extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    const prevSelfLink = getDeep(prevProps.dashboard, 'links.self', null)
-    const thisSelfLink = getDeep(this.props.dashboard, 'links.self', null)
+    const prevPath = getDeep(prevProps.location, 'pathname', null)
+    const thisPath = getDeep(this.props.location, 'pathname', null)
 
-    if (prevSelfLink && thisSelfLink) {
-      const isDifferentDashboard = prevSelfLink !== thisSelfLink
-      if (isDifferentDashboard) {
-        this.getDashboard()
-      }
+    if (prevPath && thisPath && prevPath !== thisPath) {
+      this.getDashboard()
     }
   }
 
@@ -157,14 +154,10 @@ class DashboardPage extends Component {
   async getDashboardsNames() {
     const {
       params: {sourceID},
-      dashboardActions: {getDashboardsAsync},
+      dashboardActions: {getDashboardsNamesAsync},
     } = this.props
 
-    const dashboards = await getDashboardsAsync()
-    const dashboardsNames = dashboards.map(d => ({
-      name: d.name,
-      link: `/sources/${sourceID}/dashboards/${d.id}`,
-    }))
+    const dashboardsNames = await getDashboardsNamesAsync(sourceID)
     this.setState({dashboardsNames})
   }
 
@@ -542,7 +535,7 @@ DashboardPage.propTypes = {
   dashboard: shape({}),
   dashboardActions: shape({
     putDashboard: func.isRequired,
-    getDashboardsAsync: func.isRequired,
+    getDashboardsNamesAsync: func.isRequired,
     getDashboardWithHydratedAndSyncedTempVarsAsync: func.isRequired,
     setTimeRange: func.isRequired,
     addDashboardCellAsync: func.isRequired,
