@@ -17,8 +17,6 @@ import (
 	"github.com/influxdata/platform/query/semantic"
 )
 
-var passThroughProperties = []*semantic.Property{}
-
 func TestTranspiler(t *testing.T) {
 	for _, tt := range []struct {
 		s    string
@@ -207,6 +205,12 @@ func TestTranspiler(t *testing.T) {
 						},
 					},
 					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
+						},
+					},
+					{
 						ID: "map0",
 						Spec: &functions.MapOpSpec{
 							Fn: &semantic.FunctionExpression{
@@ -257,7 +261,8 @@ func TestTranspiler(t *testing.T) {
 				Edges: []query.Edge{
 					{Parent: "from0", Child: "range0"},
 					{Parent: "range0", Child: "filter0"},
-					{Parent: "filter0", Child: "map0"},
+					{Parent: "filter0", Child: "group0"},
+					{Parent: "group0", Child: "map0"},
 					{Parent: "map0", Child: "yield0"},
 				},
 			},
@@ -412,7 +417,7 @@ func TestTranspiler(t *testing.T) {
 												Object: &semantic.IdentifierExpression{
 													Name: "tables",
 												},
-												Property: "val0",
+												Property: "t0",
 											},
 										},
 										{
@@ -421,15 +426,15 @@ func TestTranspiler(t *testing.T) {
 												Object: &semantic.IdentifierExpression{
 													Name: "tables",
 												},
-												Property: "val1",
+												Property: "t1",
 											},
 										},
 									},
 								},
 							},
 							TableNames: map[query.OperationID]string{
-								"mean0": "val0",
-								"max0":  "val1",
+								"mean0": "t0",
+								"max0":  "t1",
 							},
 						},
 					},
@@ -626,7 +631,7 @@ func TestTranspiler(t *testing.T) {
 												Object: &semantic.IdentifierExpression{
 													Name: "tables",
 												},
-												Property: "val0",
+												Property: "t0",
 											},
 										},
 										{
@@ -635,16 +640,22 @@ func TestTranspiler(t *testing.T) {
 												Object: &semantic.IdentifierExpression{
 													Name: "tables",
 												},
-												Property: "val1",
+												Property: "t1",
 											},
 										},
 									},
 								},
 							},
 							TableNames: map[query.OperationID]string{
-								"filter0": "val0",
-								"filter1": "val1",
+								"filter0": "t0",
+								"filter1": "t1",
 							},
+						},
+					},
+					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
 						},
 					},
 					{
@@ -711,7 +722,8 @@ func TestTranspiler(t *testing.T) {
 					{Parent: "range1", Child: "filter1"},
 					{Parent: "filter0", Child: "join0"},
 					{Parent: "filter1", Child: "join0"},
-					{Parent: "join0", Child: "map0"},
+					{Parent: "join0", Child: "group0"},
+					{Parent: "group0", Child: "map0"},
 					{Parent: "map0", Child: "yield0"},
 				},
 			},
