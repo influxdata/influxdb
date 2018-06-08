@@ -66,7 +66,14 @@ export default class TagListItem extends PureComponent<Props, State> {
 
   public render() {
     const {tagKey, db, service, filter} = this.props
-    const {tagValues, searchTerm, loadingMore, count, limit} = this.state
+    const {
+      tagValues,
+      searchTerm,
+      loadingMore,
+      count,
+      limit,
+      isOpen,
+    } = this.state
 
     return (
       <div className={this.className}>
@@ -83,46 +90,37 @@ export default class TagListItem extends PureComponent<Props, State> {
             </div>
           </CopyToClipboard>
         </div>
-        {this.state.isOpen && (
-          <>
-            <div
-              className="flux-schema--header"
-              onClick={this.handleInputClick}
-            >
-              <div className="flux-schema--filter">
-                <input
-                  className="form-control input-xs"
-                  placeholder={`Filter within ${tagKey}`}
-                  type="text"
-                  spellCheck={false}
-                  autoComplete="off"
-                  value={searchTerm}
-                  onChange={this.onSearch}
-                />
-                {this.isSearching && (
-                  <LoadingSpinner style={this.spinnerStyle} />
-                )}
-              </div>
-              {this.count}
+        <div className={`flux-schema--children ${isOpen ? '' : 'hidden'}`}>
+          <div className="flux-schema--header" onClick={this.handleInputClick}>
+            <div className="flux-schema--filter">
+              <input
+                className="form-control input-xs"
+                placeholder={`Filter within ${tagKey}`}
+                type="text"
+                spellCheck={false}
+                autoComplete="off"
+                value={searchTerm}
+                onChange={this.onSearch}
+              />
+              {this.isSearching && <LoadingSpinner style={this.spinnerStyle} />}
             </div>
-            {this.isLoading && <LoaderSkeleton />}
-            {!this.isLoading && (
-              <>
-                <TagValueList
-                  db={db}
-                  service={service}
-                  values={tagValues}
-                  tagKey={tagKey}
-                  filter={filter}
-                  onLoadMoreValues={this.handleLoadMoreValues}
-                  isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
-                  shouldShowMoreValues={limit < count}
-                  loadMoreCount={this.loadMoreCount}
-                />
-              </>
-            )}
-          </>
-        )}
+            {this.count}
+          </div>
+          {this.isLoading && <LoaderSkeleton />}
+          {!this.isLoading && (
+            <TagValueList
+              db={db}
+              service={service}
+              values={tagValues}
+              tagKey={tagKey}
+              filter={filter}
+              onLoadMoreValues={this.handleLoadMoreValues}
+              isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
+              shouldShowMoreValues={limit < count}
+              loadMoreCount={this.loadMoreCount}
+            />
+          )}
+        </div>
       </div>
     )
   }
@@ -315,7 +313,7 @@ export default class TagListItem extends PureComponent<Props, State> {
     return (
       !isOpen &&
       (loadingAll === RemoteDataState.NotStarted ||
-        loadingAll !== RemoteDataState.Error)
+        loadingAll === RemoteDataState.Error)
     )
   }
 
