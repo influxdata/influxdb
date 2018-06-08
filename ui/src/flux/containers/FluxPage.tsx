@@ -368,11 +368,10 @@ export class FluxPage extends PureComponent<Props, State> {
       let funcs = bodyFuncs
 
       if (!_.isEmpty(declarations)) {
-        funcs = _.flatMap(declarations, d => d.funcs)
+        funcs = _.flatMap(declarations, d => _.get(d, 'funcs', []))
       }
 
       const yields = funcs.filter(f => f.name === 'yield')
-
       const bodyMax = yields.reduce((max, y) => {
         const yieldArg = _.get(y, 'args.0.value')
 
