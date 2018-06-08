@@ -133,28 +133,33 @@ class Threesizer extends Component<Props, State> {
         onMouseMove={this.handleDrag}
         ref={r => (this.containerRef = r)}
       >
-        {divisions.map((d, i) => (
-          <Division
-            key={d.id}
-            id={d.id}
-            name={d.name}
-            size={d.size}
-            style={d.style}
-            offset={this.offset}
-            draggable={i > 0}
-            orientation={orientation}
-            handlePixels={d.handlePixels}
-            handleDisplay={d.handleDisplay}
-            activeHandleID={activeHandleID}
-            onMaximize={this.handleMaximize}
-            onMinimize={this.handleMinimize}
-            onDoubleClick={this.handleDoubleClick}
-            render={this.props.divisions[i].render}
-            onHandleStartDrag={this.handleStartDrag}
-            menuOptions={this.props.divisions[i].menuOptions}
-            headerButtons={this.props.divisions[i].headerButtons}
-          />
-        ))}
+        {divisions.map((d, i) => {
+          const headerOrientation = _.get(d, 'headerOrientation', orientation)
+
+          return (
+            <Division
+              key={d.id}
+              id={d.id}
+              name={d.name}
+              size={d.size}
+              style={d.style}
+              offset={this.offset}
+              draggable={i > 0}
+              orientation={orientation}
+              handlePixels={d.handlePixels}
+              handleDisplay={d.handleDisplay}
+              activeHandleID={activeHandleID}
+              onMaximize={this.handleMaximize}
+              onMinimize={this.handleMinimize}
+              headerOrientation={headerOrientation}
+              onDoubleClick={this.handleDoubleClick}
+              render={this.props.divisions[i].render}
+              onHandleStartDrag={this.handleStartDrag}
+              menuOptions={this.props.divisions[i].menuOptions}
+              headerButtons={this.props.divisions[i].headerButtons}
+            />
+          )
+        })}
       </div>
     )
   }

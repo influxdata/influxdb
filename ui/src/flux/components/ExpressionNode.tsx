@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 import {FluxContext} from 'src/flux/containers/FluxPage'
 import FuncSelector from 'src/flux/components/FuncSelector'
 import FuncNode from 'src/flux/components/FuncNode'
+import YieldFuncNode from 'src/flux/components/YieldFuncNode'
 
 import {Func} from 'src/types/flux'
 
@@ -24,6 +25,7 @@ class ExpressionNode extends PureComponent<Props> {
       funcs,
       declarationsFromBody,
     } = this.props
+
     return (
       <FluxContext.Consumer>
         {({
@@ -33,24 +35,39 @@ class ExpressionNode extends PureComponent<Props> {
           onGenerateScript,
           onToggleYield,
           service,
+          data,
         }) => {
           return (
             <>
-              {funcs.map((func, i) => (
-                <FuncNode
-                  key={i}
-                  index={i}
-                  func={func}
-                  bodyID={bodyID}
-                  service={service}
-                  onChangeArg={onChangeArg}
-                  onDelete={onDeleteFuncNode}
-                  onToggleYield={onToggleYield}
-                  declarationID={declarationID}
-                  onGenerateScript={onGenerateScript}
-                  declarationsFromBody={declarationsFromBody}
-                />
-              ))}
+              {funcs.map((func, i) => {
+                if (func.name === 'yield') {
+                  return (
+                    <YieldFuncNode
+                      index={i}
+                      key={i}
+                      func={func}
+                      data={data}
+                      bodyID={bodyID}
+                      declarationID={declarationID}
+                    />
+                  )
+                }
+                return (
+                  <FuncNode
+                    key={i}
+                    index={i}
+                    func={func}
+                    bodyID={bodyID}
+                    service={service}
+                    onChangeArg={onChangeArg}
+                    onDelete={onDeleteFuncNode}
+                    onToggleYield={onToggleYield}
+                    declarationID={declarationID}
+                    onGenerateScript={onGenerateScript}
+                    declarationsFromBody={declarationsFromBody}
+                  />
+                )
+              })}
               <FuncSelector
                 bodyID={bodyID}
                 funcs={funcNames}

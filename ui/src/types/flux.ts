@@ -30,6 +30,7 @@ export interface Context {
   onGenerateScript: OnGenerateScript
   onToggleYield: OnToggleYield
   service: Service
+  data: FluxTable[]
 }
 
 export interface DeleteFuncNodeArgs {

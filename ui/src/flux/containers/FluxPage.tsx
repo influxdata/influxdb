@@ -95,7 +95,7 @@ export class FluxPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {suggestions, data, body, status} = this.state
+    const {suggestions, body, status} = this.state
     const {script} = this.props
 
     return (
@@ -104,7 +104,6 @@ export class FluxPage extends PureComponent<Props, State> {
           <div className="page hosts-list-page">
             {this.header}
             <TimeMachine
-              data={data}
               body={body}
               script={script}
               status={status}
@@ -148,6 +147,7 @@ export class FluxPage extends PureComponent<Props, State> {
       onGenerateScript: this.handleGenerateScript,
       onToggleYield: this.handleToggleYield,
       service: this.service,
+      data: this.state.data,
     }
   }
 
@@ -366,6 +366,7 @@ export class FluxPage extends PureComponent<Props, State> {
       const {funcs: bodyFuncs, declarations} = body
 
       let funcs = bodyFuncs
+
       if (!_.isEmpty(declarations)) {
         funcs = _.flatMap(declarations, d => d.funcs)
       }

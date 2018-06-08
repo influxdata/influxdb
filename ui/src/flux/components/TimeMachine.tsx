@@ -1,8 +1,7 @@
-import React, {PureComponent, CSSProperties} from 'react'
+import React, {PureComponent} from 'react'
 import SchemaExplorer from 'src/flux/components/SchemaExplorer'
 import BodyBuilder from 'src/flux/components/BodyBuilder'
 import TimeMachineEditor from 'src/flux/components/TimeMachineEditor'
-import TimeMachineVis from 'src/flux/components/TimeMachineVis'
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import {
   Suggestion,
@@ -10,7 +9,6 @@ import {
   OnSubmitScript,
   FlatBody,
   ScriptStatus,
-  FluxTable,
 } from 'src/types/flux'
 
 import {Service} from 'src/types'
@@ -19,7 +17,6 @@ import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
   service: Service
-  data: FluxTable[]
   script: string
   body: Body[]
   status: ScriptStatus
@@ -40,15 +37,14 @@ class TimeMachine extends PureComponent<Props> {
   public render() {
     return (
       <Threesizer
-        orientation={HANDLE_HORIZONTAL}
-        divisions={this.mainSplit}
+        orientation={HANDLE_VERTICAL}
+        divisions={this.verticals}
         containerClass="page-contents"
       />
     )
   }
 
-  private get mainSplit() {
-    const {data} = this.props
+  private get verticals() {
     return [
       {
         handleDisplay: 'none',
@@ -56,31 +52,40 @@ class TimeMachine extends PureComponent<Props> {
         headerButtons: [],
         render: () => (
           <Threesizer
-            divisions={this.divisions}
-            orientation={HANDLE_VERTICAL}
+            divisions={this.scriptAndExplorer}
+            orientation={HANDLE_HORIZONTAL}
           />
         ),
       },
-      {
-        handlePixels: 8,
-        menuOptions: [],
-        headerButtons: [],
-        style: {overflow: 'visible'} as CSSProperties,
-        render: () => <TimeMachineVis data={data} />,
-      },
+      this.builder,
     ]
   }
 
-  private get divisions() {
+  private get builder() {
+    const {body, service, suggestions, onAppendFrom, onAppendJoin} = this.props
+
+    return {
+      name: 'Build',
+      headerButtons: [],
+      menuOptions: [],
+      render: () => (
+        <BodyBuilder
+          body={body}
+          service={service}
+          suggestions={suggestions}
+          onAppendFrom={onAppendFrom}
+          onAppendJoin={onAppendJoin}
+        />
+      ),
+    }
+  }
+  private get scriptAndExplorer() {
     const {
-      body,
       script,
       status,
       service,
       onAnalyze,
       suggestions,
-      onAppendFrom,
-      onAppendJoin,
       onChangeScript,
       onSubmitScript,
     } = this.props
@@ -91,9 +96,11 @@ class TimeMachine extends PureComponent<Props> {
         headerButtons: [],
         menuOptions: [],
         render: () => <SchemaExplorer service={service} />,
+        headerOrientation: HANDLE_VERTICAL,
       },
       {
         name: 'Script',
+        headerOrientation: HANDLE_VERTICAL,
         headerButtons: [
           <div
             key="analyze"
@@ -112,20 +119,6 @@ class TimeMachine extends PureComponent<Props> {
             suggestions={suggestions}
             onChangeScript={onChangeScript}
             onSubmitScript={onSubmitScript}
-          />
-        ),
-      },
-      {
-        name: 'Build',
-        headerButtons: [],
-        menuOptions: [],
-        render: () => (
-          <BodyBuilder
-            body={body}
-            service={service}
-            suggestions={suggestions}
-            onAppendFrom={onAppendFrom}
-            onAppendJoin={onAppendJoin}
           />
         ),
       },
