@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/influxdata/influxql"
@@ -25,52 +26,52 @@ func (t *Transpiler) Transpile(ctx context.Context, txt string) (*query.Spec, er
 		return nil, err
 	}
 
-	if len(q.Statements) != 1 {
-		// TODO(jsternberg): Handle queries with multiple statements.
-		return nil, errors.New("unimplemented: only one statement is allowed")
+	transpiler := newTranspilerState()
+	for i, s := range q.Statements {
+		stmt, ok := s.(*influxql.SelectStatement)
+		if !ok {
+			// TODO(jsternberg): Support meta queries.
+			return nil, errors.New("only supports select statements")
+		} else if err := transpiler.Transpile(ctx, i, stmt); err != nil {
+			return nil, err
+		}
 	}
-
-	s, ok := q.Statements[0].(*influxql.SelectStatement)
-	if !ok {
-		// TODO(jsternberg): Support meta queries.
-		return nil, errors.New("only supports select statements")
-	}
-
-	transpiler := newTranspilerState(s)
-	return transpiler.Transpile(ctx)
+	return transpiler.spec, nil
 }
 
 type transpilerState struct {
+	id     int
 	stmt   *influxql.SelectStatement
 	spec   *query.Spec
 	nextID map[string]int
 	now    time.Time
 }
 
-func newTranspilerState(stmt *influxql.SelectStatement) *transpilerState {
+func newTranspilerState() *transpilerState {
 	state := &transpilerState{
-		stmt:   stmt.Clone(),
 		spec:   &query.Spec{},
 		nextID: make(map[string]int),
 		now:    time.Now(),
 	}
-	// Omit the time from the cloned statement so it doesn't show up in
-	// the list of column names.
-	state.stmt.OmitTime = true
 	return state
 }
 
-func (t *transpilerState) Transpile(ctx context.Context) (*query.Spec, error) {
+func (t *transpilerState) Transpile(ctx context.Context, id int, stmt *influxql.SelectStatement) error {
+	// Clone the select statement and omit the time from the list of column names.
+	t.stmt = stmt.Clone()
+	t.stmt.OmitTime = true
+	t.id = id
+
 	groups := identifyGroups(t.stmt)
 	if len(groups) == 0 {
-		return nil, errors.New("no fields")
+		return errors.New("no fields")
 	}
 
 	cursors := make([]cursor, 0, len(groups))
 	for _, gr := range groups {
 		cur, err := gr.createCursor(t)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		cursors = append(cursors, cur)
 	}
@@ -82,14 +83,14 @@ func (t *transpilerState) Transpile(ctx context.Context) (*query.Spec, error) {
 	// Map each of the fields into another cursor. This evaluates any lingering expressions.
 	cur, err := t.mapFields(cur)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Yield the cursor from the last cursor to a stream with the name of the statement id.
 	// TODO(jsternberg): Include the statement id in the transpiler state when we create
 	// the state so we can yield to something other than zero.
-	t.op("yield", &functions.YieldOpSpec{Name: "0"}, cur.ID())
-	return t.spec, nil
+	t.op("yield", &functions.YieldOpSpec{Name: strconv.Itoa(t.id)}, cur.ID())
+	return nil
 }
 
 func (t *transpilerState) mapType(ref *influxql.VarRef) influxql.DataType {
