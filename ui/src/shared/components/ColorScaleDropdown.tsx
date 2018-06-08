@@ -7,6 +7,7 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import {ColorNumber} from 'src/types/colors'
 import {LINE_COLOR_SCALES} from 'src/shared/constants/graphColorPalettes'
+import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -61,7 +62,11 @@ export default class ColorScaleDropdown extends Component<Props, State> {
 
     return (
       <div className="color-dropdown--menu">
-        <FancyScrollbar autoHide={false} autoHeight={true}>
+        <FancyScrollbar
+          autoHide={false}
+          autoHeight={true}
+          maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
+        >
           {LINE_COLOR_SCALES.map(colorScale => (
             <div
               className={

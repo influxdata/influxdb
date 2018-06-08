@@ -15,7 +15,7 @@ const FuncSelectorInput: SFC<Props> = ({
   onFilterKeyPress,
 }) => (
   <input
-    className="form-control input-sm ifql-func--input"
+    className="form-control input-sm flux-func--input"
     type="text"
     autoFocus={true}
     placeholder="Add a Function..."

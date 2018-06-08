@@ -100,8 +100,9 @@ type NewDefaultDashboard = Pick<
     cells: NewDefaultCell[]
   }
 >
+export const DEFAULT_DASHBOARD_NAME = 'Name This Dashboard'
 export const NEW_DASHBOARD: NewDefaultDashboard = {
-  name: 'Name This Dashboard',
+  name: DEFAULT_DASHBOARD_NAME,
   cells: [NEW_DEFAULT_DASHBOARD_CELL],
 }
 
@@ -141,7 +142,15 @@ export const TEMPLATE_VARIABLE_TYPES = {
   tagValues: 'tagValue',
 }
 
-export const TEMPLATE_VARIABLE_QUERIES = {
+interface TemplateVariableQueries {
+  databases: string
+  measurements: string
+  fieldKeys: string
+  tagKeys: string
+  tagValues: string
+}
+
+export const TEMPLATE_VARIABLE_QUERIES: TemplateVariableQueries = {
   databases: 'SHOW DATABASES',
   measurements: 'SHOW MEASUREMENTS ON :database:',
   fieldKeys: 'SHOW FIELD KEYS ON :database: FROM :measurement:',
@@ -172,7 +181,7 @@ export const removeUnselectedTemplateValues = templates => {
 
 export const TYPE_QUERY_CONFIG: string = 'queryConfig'
 export const TYPE_SHIFTED: string = 'shifted queryConfig'
-export const TYPE_IFQL: string = 'ifql'
+export const TYPE_FLUX: string = 'flux'
 export const DASHBOARD_NAME_MAX_LENGTH: number = 50
 export const TEMPLATE_RANGE: TimeRange = {
   upper: null,

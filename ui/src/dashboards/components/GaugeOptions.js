@@ -72,12 +72,12 @@ class GaugeOptions extends Component {
     onResetFocus()
   }
 
-  handleChooseColor = threshold => chosenColor => {
+  handleChooseColor = threshold => {
     const {handleUpdateGaugeColors} = this.props
     const gaugeColors = this.props.gaugeColors.map(
       color =>
         color.id === threshold.id
-          ? {...color, hex: chosenColor.hex, name: chosenColor.name}
+          ? {...color, hex: threshold.hex, name: threshold.name}
           : color
     )
 

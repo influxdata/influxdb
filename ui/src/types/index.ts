@@ -1,7 +1,7 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
 import {AuthLinks, Organization, Role, User, Me} from './auth'
-import {Template, Cell, CellQuery, Legend, Axes} from './dashboard'
+import {Template, Cell, CellQuery, Legend, Axes, Dashboard} from './dashboard'
 import {
   GroupBy,
   Query,
@@ -21,8 +21,12 @@ import {
 import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem} from './shared'
-import {Notification, NotificationFunc} from './notifications'
-import {ScriptResult, ScriptStatus} from './ifql'
+import {
+  Notification,
+  NotificationFunc,
+  NotificationAction,
+} from './notifications'
+import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
 
 export {
   Me,
@@ -57,11 +61,15 @@ export {
   Task,
   Notification,
   NotificationFunc,
+  NotificationAction,
   Axes,
+  Dashboard,
   Service,
   NewService,
   LayoutCell,
   LayoutQuery,
-  ScriptResult,
+  FluxTable,
   ScriptStatus,
+  SchemaFilter,
+  RemoteDataState,
 }

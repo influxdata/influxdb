@@ -102,13 +102,15 @@ export interface TemplateValue {
   selected: boolean
 }
 
-interface TemplateQuery {
+export interface TemplateQuery {
   command: string
-  db?: string
+  db: string
+  database?: string
   rp?: string
   measurement: string
   tagKey: string
   fieldKey: string
+  influxql: string
 }
 
 export interface Template {
@@ -133,4 +135,13 @@ export interface Dashboard {
   name: string
   organization: string
   links?: DashboardLinks
+}
+
+interface DashboardFileMetaSection {
+  chronografVersion?: string
+}
+
+export interface DashboardFile {
+  meta?: DashboardFileMetaSection
+  dashboard: Dashboard
 }

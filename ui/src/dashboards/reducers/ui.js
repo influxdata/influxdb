@@ -59,6 +59,14 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'CREATE_DASHBOARD': {
+      const {dashboard} = action.payload
+      const newState = {
+        dashboards: [...state.dashboards, dashboard],
+      }
+      return {...state, ...newState}
+    }
+
     case 'DELETE_DASHBOARD': {
       const {dashboard} = action.payload
       const newState = {

@@ -79,3 +79,10 @@ $form-md-font: 15px;
 $form-lg-height: 46px;
 $form-lg-padding: 17px;
 $form-lg-font: 17px;
+
+// Drag & Drop
+$drag-and-drop--z-dropzone: 9000;
+$drag-and-drop--z-form: $drag-and-drop--z-dropzone + 10;
+
+// Overlays
+$overlay-dismiss--z: $drag-and-drop--z-dropzone + 10;

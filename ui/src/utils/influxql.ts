@@ -5,18 +5,12 @@ import {NULL_STRING} from 'src/shared/constants/queryFillOptions'
 import {
   TYPE_QUERY_CONFIG,
   TYPE_SHIFTED,
-  TYPE_IFQL,
+  TYPE_FLUX,
 } from 'src/dashboards/constants'
 import {shiftTimeRange} from 'src/shared/query/helpers'
-import {QueryConfig, Field, GroupBy, TimeShift} from 'src/types'
+import {QueryConfig, Field, GroupBy, TimeShift, TimeRange} from 'src/types'
 
-export const quoteIfTimestamp = ({
-  lower,
-  upper,
-}: {
-  lower: string
-  upper: string
-}): {lower: string; upper: string} => {
+export const quoteIfTimestamp = ({lower, upper}: TimeRange): TimeRange => {
   if (lower && lower.includes('Z') && !lower.includes("'")) {
     lower = `'${lower}'`
   }
@@ -29,7 +23,7 @@ export const quoteIfTimestamp = ({
 }
 
 export default function buildInfluxQLQuery(
-  timeRange,
+  timeRange: TimeRange,
   config: QueryConfig,
   shift: string = ''
 ): string {
@@ -48,7 +42,7 @@ export default function buildInfluxQLQuery(
   return `${select}${condition}${dimensions}${fillClause}`
 }
 
-function buildSelect(
+export function buildSelect(
   {fields, database, retentionPolicy, measurement}: QueryConfig,
   shift: string | null = null
 ): string {
@@ -63,10 +57,10 @@ function buildSelect(
   return statement
 }
 
-// type arg will reason about new query types i.e. IFQL, GraphQL, or queryConfig
+// type arg will reason about new query types i.e. Flux, GraphQL, or queryConfig
 export const buildQuery = (
   type: string,
-  timeRange: object,
+  timeRange: TimeRange,
   config: QueryConfig,
   shift: TimeShift | null = null
 ): string => {
@@ -83,8 +77,8 @@ export const buildQuery = (
       )
     }
 
-    case TYPE_IFQL: {
-      // build query usining IFQL here
+    case TYPE_FLUX: {
+      // build query usining FLUX here
     }
   }
 
@@ -128,7 +122,7 @@ function buildFields(fieldFuncs: Field[], shift = ''): string {
     .join(', ')
 }
 
-function buildWhereClause({
+export function buildWhereClause({
   lower,
   upper,
   tags,
@@ -169,7 +163,7 @@ function buildWhereClause({
   return ` WHERE ${subClauses.join(' AND ')}`
 }
 
-function buildGroupBy(groupBy: GroupBy): string {
+export function buildGroupBy(groupBy: GroupBy): string {
   return `${buildGroupByTime(groupBy)}${buildGroupByTags(groupBy)}`
 }
 
@@ -197,9 +191,11 @@ function buildGroupByTags(groupBy: GroupBy): string {
   return ` GROUP BY ${tags}`
 }
 
-function buildFill(fill: string): string {
+export function buildFill(fill: string): string {
   return ` FILL(${fill})`
 }
 
-export const buildRawText = (config: QueryConfig, timeRange: object): string =>
-  config.rawText || buildInfluxQLQuery(timeRange, config) || ''
+export const buildRawText = (
+  config: QueryConfig,
+  timeRange: TimeRange
+): string => config.rawText || buildInfluxQLQuery(timeRange, config) || ''

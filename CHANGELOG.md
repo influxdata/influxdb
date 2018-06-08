@@ -1,12 +1,19 @@
 ## v1.5.1.0 [unreleased]
 
 ### Features
+
 1.  [#3522](https://github.com/influxdata/chronograf/pull/3522): Add support for Template Variables in Cell Titles
+1.  [#3559](https://github.com/influxdata/chronograf/pull/3559): Add ability to export and import dashboards
 
 ### UI Improvements
 
 1.  [#3474](https://github.com/influxdata/chronograf/pull/3474): Sort task table on Manage Alert page alphabetically
+1.  [#3590](https://github.com/influxdata/chronograf/pull/3590): Redesign icons in side navigation
+
 ### Bug Fixes
+
+1.  [#3527](https://github.com/influxdata/chronograf/pull/3527): Ensure cell queries use constraints from TimeSelector
+1.  [#3573](https://github.com/influxdata/chronograf/pull/3573): Fix Gauge color selection bug
 
 ## v1.5.0.0 [2018-05-15-RC]
 

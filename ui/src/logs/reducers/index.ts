@@ -1,18 +1,59 @@
-import {Source, Namespace, TimeRange} from 'src/types'
-import {ActionTypes, Action} from 'src/logs/actions'
+import _ from 'lodash'
+import {
+  ActionTypes,
+  Action,
+  RemoveFilterAction,
+  AddFilterAction,
+  ChangeFilterAction,
+} from 'src/logs/actions'
+import {LogsState} from 'src/types/logs'
 
-interface LogsState {
-  currentSource: Source | null
-  currentNamespaces: Namespace[]
-  currentNamespace: Namespace | null
-  timeRange: TimeRange
-}
-
-const defaultState = {
+const defaultState: LogsState = {
   currentSource: null,
   currentNamespaces: [],
   timeRange: {lower: 'now() - 1m', upper: null},
   currentNamespace: null,
+  histogramQueryConfig: null,
+  tableQueryConfig: null,
+  tableData: [],
+  histogramData: [],
+  searchTerm: null,
+  filters: [],
+}
+
+const removeFilter = (
+  state: LogsState,
+  action: RemoveFilterAction
+): LogsState => {
+  const {id} = action.payload
+  const filters = _.filter(
+    _.get(state, 'filters', []),
+    filter => filter.id !== id
+  )
+
+  return {...state, filters}
+}
+
+const addFilter = (state: LogsState, action: AddFilterAction): LogsState => {
+  const {filter} = action.payload
+
+  return {...state, filters: [..._.get(state, 'filters', []), filter]}
+}
+
+const changeFilter = (
+  state: LogsState,
+  action: ChangeFilterAction
+): LogsState => {
+  const {id, operator, value} = action.payload
+
+  const mappedFilters = _.map(_.get(state, 'filters', []), f => {
+    if (f.id === id) {
+      return {...f, operator, value}
+    }
+    return f
+  })
+
+  return {...state, filters: mappedFilters}
 }
 
 export default (state: LogsState = defaultState, action: Action) => {
@@ -25,6 +66,26 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, timeRange: action.payload.timeRange}
     case ActionTypes.SetNamespace:
       return {...state, currentNamespace: action.payload.namespace}
+    case ActionTypes.SetHistogramQueryConfig:
+      return {...state, histogramQueryConfig: action.payload.queryConfig}
+    case ActionTypes.SetHistogramData:
+      return {...state, histogramData: action.payload.data}
+    case ActionTypes.SetTableQueryConfig:
+      return {...state, tableQueryConfig: action.payload.queryConfig}
+    case ActionTypes.SetTableData:
+      return {...state, tableData: action.payload.data}
+    case ActionTypes.ChangeZoom:
+      const {timeRange, data} = action.payload
+      return {...state, timeRange, histogramData: data}
+    case ActionTypes.SetSearchTerm:
+      const {searchTerm} = action.payload
+      return {...state, searchTerm}
+    case ActionTypes.AddFilter:
+      return addFilter(state, action)
+    case ActionTypes.RemoveFilter:
+      return removeFilter(state, action)
+    case ActionTypes.ChangeFilter:
+      return changeFilter(state, action)
     default:
       return state
   }
