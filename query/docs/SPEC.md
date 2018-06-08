@@ -1,13 +1,13 @@
-# IFQL Specification
+# Flux Specification
 
-The following document specifies the IFQL language and query execution.
+The following document specifies the Flux language and query execution.
 
-This document is a living document and does not represent the current implementation of IFQL.
+This document is a living document and does not represent the current implementation of Flux.
 Any section that is not currently implemented is commented with a IMPL#XXX where XXX is an issue number tracking discussion and progress towards implementation.
 
 ## Language
 
-The IFQL language is centered on querying and manipulating time series data.
+The Flux language is centered on querying and manipulating time series data.
 
 ### Notation
 
@@ -49,7 +49,7 @@ The following terms are used to denote specific Unicode character classes:
     unicode_digit  = /* a Unicode code point classified as "Number, decimal digit" */ .
 
 In The Unicode Standard 8.0, Section 4.5 "General Category" defines a set of character categories.
-IFQL treats all characters in any of the Letter categories Lu, Ll, Lt, Lm, or Lo as Unicode letters, and those in the Number category Nd as Unicode digits.
+Flux treats all characters in any of the Letter categories Lu, Ll, Lt, Lm, or Lo as Unicode letters, and those in the Number category Nd as Unicode digits.
 
 #### Letters and digits
 
@@ -70,7 +70,7 @@ Comments act like newlines.
 
 #### Tokens
 
-IFQL is built up from tokens.
+Flux is built up from tokens.
 There are several classes of tokens: _identifiers_, _keywords_, _operators_, and _literals_.
 _White space_, formed from spaces, horizontal tabs, carriage returns, and newlines, is ignored except as it separates tokens that would otherwise combine into a single token.
 While breaking the input into tokens, the next token is the longest sequence of characters that form a valid token.
@@ -378,9 +378,9 @@ A _block_ is a possibly empty sequence of statements within matching brace brack
 
 In addition to explicit blocks in the source code, there are implicit blocks:
 
-1. The _universe block_ encompasses all IFQL source text.
-2. Each package has a _package block_ containing all IFQL source text for that package.
-3. Each file has a _file block_ containing all IFQL source text in that file.
+1. The _universe block_ encompasses all Flux source text.
+2. Each package has a _package block_ containing all Flux source text for that package.
+3. Each file has a _file block_ containing all Flux source text in that file.
 4. Each function literal has its own _function block_ even if not explicitly declared.
 
 Blocks nest and influence scoping.
@@ -392,7 +392,7 @@ Every identifier in a program must be assigned.
 An identifier may not change type via assignment within the same block.
 An identifier may change value via assignment within the same block.
 
-IFQL is lexically scoped using blocks:
+Flux is lexically scoped using blocks:
 
 1. The scope of a preassigned identifier is in the universe block.
 2. The scope of an identifier denoting a variable or function at the top level (outside any function) is the package block.
@@ -625,10 +625,10 @@ Top and Bottom sort a table and limits the table to only n records.
 
 ## Query engine
 
-The execution of a query is separate and distinct from the execution of IFQL the language.
+The execution of a query is separate and distinct from the execution of Flux the language.
 The input into the query engine is a query specification.
 
-The output of an IFQL program is a query specification, which then may be passed into the query execution engine.
+The output of an Flux program is a query specification, which then may be passed into the query execution engine.
 
 ### Query specification
 
@@ -1327,7 +1327,7 @@ The following parameters are supported:
 
 | Parameter | Description                                                                                                                                       |
 | --------- | -----------                                                                                                                                       |
-| query     | Query is IFQL text describing the query to run.  Only one of `query` or `spec` may be specified. This parameter may be passed as a URL parameter. |
+| query     | Query is Flux text describing the query to run.  Only one of `query` or `spec` may be specified. This parameter may be passed as a URL parameter. |
 | spec      | Spec is a query specification. Only one of `query` or `spec` may be specified.                                                                    |
 | dialect   | Dialect is an object defining the options to use when encoding the response.                                                                      |
 
@@ -1484,7 +1484,7 @@ The subsequent columns contain the value of the annotation for the respective co
 The `datatype` annotation specifies the data types of the remaining columns.
 The possible data types are:
 
-| Datatype     | IFQL type | Description                                                                          |
+| Datatype     | Flux type | Description                                                                          |
 | --------     | --------- | -----------                                                                          |
 | boolean      | bool      | a truth value, one of "true" or "false"                                              |
 | unsignedLong | uint      | an unsigned 64-bit integer                                                           |

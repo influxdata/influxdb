@@ -44,10 +44,10 @@ func init() {
 	}
 
 	// TODO(jsternberg): Connect directly to the storage hosts. There's no need to require proxying
-	// the requests through ifqld for this service.
-	transpileCmd.PersistentFlags().String("ifqld-hosts", "http://localhost:8093", "scheme://host:port address of the ifqld server.")
-	viper.BindEnv("IFQLD_HOSTS")
-	viper.BindPFlag("IFQLD_HOSTS", transpileCmd.PersistentFlags().Lookup("ifqld-hosts"))
+	// the requests through fluxd for this service.
+	transpileCmd.PersistentFlags().String("fluxd-hosts", "http://localhost:8093", "scheme://host:port address of the fluxd server.")
+	viper.BindEnv("FLUXD_HOSTS")
+	viper.BindPFlag("FLUXD_HOSTS", transpileCmd.PersistentFlags().Lookup("fluxd-hosts"))
 
 	// TODO(jsternberg): Determine how we are going to identify the organization id in open source.
 	transpileCmd.PersistentFlags().StringP("org-id", "", "0000000000000000", "id of the organization that owns the bucket")
@@ -60,7 +60,7 @@ func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 	if err != nil {
 		return err
 	} else if len(hosts) == 0 {
-		return errors.New("no ifqld hosts found")
+		return errors.New("no fluxd hosts found")
 	}
 
 	// Retrieve the organization that we are using.
@@ -71,7 +71,7 @@ func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 
 	// TODO(nathanielc): Allow QueryService to use multiple hosts.
 
-	logger.Info("Using ifqld service", zap.Strings("hosts", hosts), zap.Stringer("org-id", id))
+	logger.Info("Using fluxd service", zap.Strings("hosts", hosts), zap.Stringer("org-id", id))
 	transpileHandler := http.NewTranspilerQueryHandler(id)
 	transpileHandler.QueryService = &http.QueryService{
 		Addr: hosts[0],
@@ -118,9 +118,9 @@ func getOrganization() (platform.ID, error) {
 }
 
 func discoverHosts() ([]string, error) {
-	ifqldHosts, err := getStrList("IFQLD_HOSTS")
+	fluxdHosts, err := getStrList("FLUXD_HOSTS")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get ifqld hosts")
+		return nil, errors.Wrap(err, "failed to get fluxd hosts")
 	}
-	return ifqldHosts, nil
+	return fluxdHosts, nil
 }

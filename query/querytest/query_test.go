@@ -18,7 +18,7 @@ import (
 var skipTests = map[string]string{
 	"derivative":                "derivative not supported by influxql (https://github.com/influxdata/platform/issues/93)",
 	"filter_by_tags":            "arbitrary filtering not supported by influxql (https://github.com/influxdata/platform/issues/94)",
-	"group_ungroup":             "influxql/ifql disagreement on keycols (https://github.com/influxdata/platform/issues/95)",
+	"group_ungroup":             "influxql/flux disagreement on keycols (https://github.com/influxdata/platform/issues/95)",
 	"window":                    "ordering of results differs between queries (https://github.com/influxdata/platform/issues/96)",
 	"window_group_mean_ungroup": "error in influxql: failed to run query: timeValue column \"_start\" does not exist (https://github.com/influxdata/platform/issues/97)",
 }
@@ -37,14 +37,14 @@ func Test_QueryEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ifqlFiles, err := filepath.Glob(filepath.Join(path, "*.ifql"))
+	fluxFiles, err := filepath.Glob(filepath.Join(path, "*.flux"))
 	if err != nil {
-		t.Fatalf("error searching for ifql files: %s", err)
+		t.Fatalf("error searching for Flux files: %s", err)
 	}
 
-	for _, ifqlFile := range ifqlFiles {
-		ext := filepath.Ext(ifqlFile)
-		prefix := ifqlFile[0 : len(ifqlFile)-len(ext)]
+	for _, fluxFile := range fluxFiles {
+		ext := filepath.Ext(fluxFile)
+		prefix := fluxFile[0 : len(fluxFile)-len(ext)]
 
 		_, caseName := filepath.Split(prefix)
 		if reason, ok := skipTests[caseName]; ok {
@@ -54,10 +54,10 @@ func Test_QueryEndToEnd(t *testing.T) {
 			continue
 		}
 
-		ifqlName := caseName + ".ifql"
+		fluxName := caseName + ".flux"
 		influxqlName := caseName + ".influxql"
-		t.Run(ifqlName, func(t *testing.T) {
-			queryTester(t, qs, prefix, ".ifql")
+		t.Run(fluxName, func(t *testing.T) {
+			queryTester(t, qs, prefix, ".flux")
 		})
 		t.Run(influxqlName, func(t *testing.T) {
 			queryTranspileTester(t, influxqlTranspiler, qs, prefix, ".influxql")

@@ -34,10 +34,10 @@ func main() {
 	var err error
 	if len(os.Args) == 3 {
 		path = os.Args[1]
-		fnames = append(fnames, filepath.Join(path, os.Args[2])+".ifql")
+		fnames = append(fnames, filepath.Join(path, os.Args[2])+".flux")
 	} else if len(os.Args) == 2 {
 		path = os.Args[1]
-		fnames, err = filepath.Glob(filepath.Join(path, "*.ifql"))
+		fnames, err = filepath.Glob(filepath.Join(path, "*.flux"))
 		if err != nil {
 			return
 		}
@@ -47,7 +47,7 @@ func main() {
 	}
 
 	for _, fname := range fnames {
-		ext := ".ifql"
+		ext := ".flux"
 		testName := fname[0 : len(fname)-len(ext)]
 		incsv := testName + ".in.csv"
 		indata, err := ioutil.ReadFile(incsv)

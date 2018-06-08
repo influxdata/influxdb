@@ -1,6 +1,6 @@
 # InfluxQL Transpiler
 
-The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent query in IFQL. The transpiler works off of a few simple rules that match with the equivalent method of constructing queries in InfluxDB.
+The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent query in Flux. The transpiler works off of a few simple rules that match with the equivalent method of constructing queries in InfluxDB.
 
 **NOTE:** The transpiler code is not finished and may not necessarily reflect what is in this document. When they conflict, this document is considered to be the correct way to do it. If you wish to change how the transpiler works, modify this file first.
 

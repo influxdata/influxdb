@@ -106,8 +106,8 @@ join(tables:{a:a,b:b}, on:["host"], fn: (t) => t.a["_value"] + t.b["_value"])`,
 		{
 			Name: "from with join with complex ast",
 			Raw: `
-				a = from(db:"ifql") |> range(start:-1h)
-				b = from(db:"ifql") |> range(start:-1h)
+				a = from(db:"flux") |> range(start:-1h)
+				b = from(db:"flux") |> range(start:-1h)
 				join(tables:{a:a,b:b}, on:["t1"], fn: (t) => (t.a["_value"]-t.b["_value"])/t.b["_value"])
 			`,
 			Want: &query.Spec{
@@ -115,7 +115,7 @@ join(tables:{a:a,b:b}, on:["host"], fn: (t) => t.a["_value"] + t.b["_value"])`,
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "ifql",
+							Database: "flux",
 						},
 					},
 					{
@@ -133,7 +133,7 @@ join(tables:{a:a,b:b}, on:["host"], fn: (t) => t.a["_value"] + t.b["_value"])`,
 					{
 						ID: "from2",
 						Spec: &functions.FromOpSpec{
-							Database: "ifql",
+							Database: "flux",
 						},
 					},
 					{

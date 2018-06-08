@@ -39,7 +39,7 @@ func TestToHTTP_NewQuery(t *testing.T) {
 							ValueColumns: []string{execute.DefaultValueColLabel},
 							Headers: map[string]string{
 								"Content-Type": "application/vnd.influx",
-								"User-Agent":   "ifqld/dev",
+								"User-Agent":   "fluxd/dev",
 							},
 						},
 					},

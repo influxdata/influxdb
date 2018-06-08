@@ -2,18 +2,18 @@
 
 package parser
 
-//go:generate pigeon -optimize-grammar -o ifql.go ifql.peg
+//go:generate pigeon -optimize-grammar -o flux.go flux.peg
 
 import (
 	"github.com/influxdata/platform/query/ast"
 )
 
-// NewAST parses ifql query and produces an ast.Program
-func NewAST(ifql string, opts ...Option) (*ast.Program, error) {
+// NewAST parses Flux query and produces an ast.Program
+func NewAST(flux string, opts ...Option) (*ast.Program, error) {
 	// Turn on Debugging
 	opts = append(opts, Debug(true))
 
-	f, err := Parse("", []byte(ifql), opts...)
+	f, err := Parse("", []byte(flux), opts...)
 	if err != nil {
 		return nil, err
 	}

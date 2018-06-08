@@ -23,8 +23,8 @@ func init() {
 	staticResultID.DecodeFromString("1")
 }
 
-// wrapController is needed to make *ifql.Controller implement platform.AsyncQueryService.
-// TODO(nathanielc/adam): copied from ifqlde main.go, in which there's a note to remove this type by a better design
+// wrapController is needed to make *control.Controller implement platform.AsyncQueryService.
+// TODO(nathanielc/adam): copied from queryd main.go, in which there's a note to remove this type by a better design
 type wrapController struct {
 	*control.Controller
 }

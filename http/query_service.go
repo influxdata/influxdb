@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/query"
-	ifql "github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/csv"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
@@ -109,11 +108,11 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 }
 
 type postQueryRequest struct {
-	Spec *ifql.Spec `json:"spec"`
+	Spec *query.Spec `json:"spec"`
 }
 
 func decodePostQueryRequest(ctx context.Context, r *http.Request) (*postQueryRequest, error) {
-	s := new(ifql.Spec)
+	s := new(query.Spec)
 	if err := json.NewDecoder(r.Body).Decode(s); err != nil {
 		return nil, err
 	}
@@ -129,7 +128,7 @@ type QueryService struct {
 	InsecureSkipVerify bool
 }
 
-func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *ifql.Spec) (query.ResultIterator, error) {
+func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (query.ResultIterator, error) {
 	u, err := newURL(s.Addr, queryPath)
 	if err != nil {
 		return nil, err
