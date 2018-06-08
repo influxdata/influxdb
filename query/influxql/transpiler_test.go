@@ -728,6 +728,297 @@ func TestTranspiler(t *testing.T) {
 				},
 			},
 		},
+		{
+			s: `SELECT mean(value) FROM db0..cpu WHERE host = 'server01'`,
+			spec: &query.Spec{
+				Operations: []*query.Operation{
+					{
+						ID: "from0",
+						Spec: &functions.FromOpSpec{
+							Database: "db0",
+						},
+					},
+					{
+						ID: "range0",
+						Spec: &functions.RangeOpSpec{
+							Start: query.Time{Absolute: time.Unix(0, influxqllib.MinTime)},
+							Stop:  query.Time{Absolute: time.Unix(0, influxqllib.MaxTime)},
+						},
+					},
+					{
+						ID: "filter0",
+						Spec: &functions.FilterOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{
+									{Key: &semantic.Identifier{Name: "r"}},
+								},
+								Body: &semantic.LogicalExpression{
+									Operator: ast.AndOperator,
+									Left: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_measurement",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "cpu",
+										},
+									},
+									Right: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_field",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "value",
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "filter1",
+						Spec: &functions.FilterOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{
+									{Key: &semantic.Identifier{Name: "r"}},
+								},
+								Body: &semantic.BinaryExpression{
+									Operator: ast.EqualOperator,
+									Left: &semantic.MemberExpression{
+										Object: &semantic.IdentifierExpression{
+											Name: "r",
+										},
+										Property: "host",
+									},
+									Right: &semantic.StringLiteral{
+										Value: "server01",
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
+						},
+					},
+					{
+						ID: "mean0",
+						Spec: &functions.MeanOpSpec{
+							AggregateConfig: execute.AggregateConfig{
+								TimeSrc: execute.DefaultStartColLabel,
+								TimeDst: execute.DefaultTimeColLabel,
+								Columns: []string{execute.DefaultValueColLabel},
+							},
+						},
+					},
+					{
+						ID: "map0",
+						Spec: &functions.MapOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{{
+									Key: &semantic.Identifier{Name: "r"},
+								}},
+								Body: &semantic.ObjectExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "time"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_time",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "_measurement"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "mean"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_value",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
+				},
+				Edges: []query.Edge{
+					{Parent: "from0", Child: "range0"},
+					{Parent: "range0", Child: "filter0"},
+					{Parent: "filter0", Child: "filter1"},
+					{Parent: "filter1", Child: "group0"},
+					{Parent: "group0", Child: "mean0"},
+					{Parent: "mean0", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
+				},
+			},
+		},
+		{
+			s: `SELECT value FROM db0..cpu WHERE host = 'server01'`,
+			spec: &query.Spec{
+				Operations: []*query.Operation{
+					{
+						ID: "from0",
+						Spec: &functions.FromOpSpec{
+							Database: "db0",
+						},
+					},
+					{
+						ID: "range0",
+						Spec: &functions.RangeOpSpec{
+							Start: query.Time{Absolute: time.Unix(0, influxqllib.MinTime)},
+							Stop:  query.Time{Absolute: time.Unix(0, influxqllib.MaxTime)},
+						},
+					},
+					{
+						ID: "filter0",
+						Spec: &functions.FilterOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{
+									{Key: &semantic.Identifier{Name: "r"}},
+								},
+								Body: &semantic.LogicalExpression{
+									Operator: ast.AndOperator,
+									Left: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_measurement",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "cpu",
+										},
+									},
+									Right: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_field",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "value",
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "filter1",
+						Spec: &functions.FilterOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{
+									{Key: &semantic.Identifier{Name: "r"}},
+								},
+								Body: &semantic.BinaryExpression{
+									Operator: ast.EqualOperator,
+									Left: &semantic.MemberExpression{
+										Object: &semantic.IdentifierExpression{
+											Name: "r",
+										},
+										Property: "host",
+									},
+									Right: &semantic.StringLiteral{
+										Value: "server01",
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
+						},
+					},
+					{
+						ID: "map0",
+						Spec: &functions.MapOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{{
+									Key: &semantic.Identifier{Name: "r"},
+								}},
+								Body: &semantic.ObjectExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "time"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_time",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "_measurement"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "value"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_value",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
+				},
+				Edges: []query.Edge{
+					{Parent: "from0", Child: "range0"},
+					{Parent: "range0", Child: "filter0"},
+					{Parent: "filter0", Child: "filter1"},
+					{Parent: "filter1", Child: "group0"},
+					{Parent: "group0", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
+				},
+			},
+		},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			if err := tt.spec.Validate(); err != nil {

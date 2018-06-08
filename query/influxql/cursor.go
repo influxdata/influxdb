@@ -55,12 +55,9 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 	})
 
 	valuer := influxql.NowValuer{Now: t.now}
-	cond, tr, err := influxql.ConditionExpr(t.stmt.Condition, &valuer)
+	_, tr, err := influxql.ConditionExpr(t.stmt.Condition, &valuer)
 	if err != nil {
 		return nil, err
-	} else if cond != nil {
-		// TODO(jsternberg): Handle conditions.
-		return nil, errors.New("unimplemented: conditions have not been implemented yet")
 	}
 
 	range_ := t.op("range", &functions.RangeOpSpec{
@@ -120,3 +117,12 @@ func (c *varRefCursor) Value(expr influxql.Expr) (string, bool) {
 	}
 	return "", false
 }
+
+// opCursor wraps a cursor with a new id while delegating all calls to the
+// wrapped cursor.
+type opCursor struct {
+	id query.OperationID
+	cursor
+}
+
+func (c *opCursor) ID() query.OperationID { return c.id }
