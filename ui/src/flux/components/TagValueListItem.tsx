@@ -48,7 +48,7 @@ class TagValueListItem extends PureComponent<Props, State> {
 
   public render() {
     const {db, service, value} = this.props
-    const {searchTerm} = this.state
+    const {searchTerm, isOpen} = this.state
 
     return (
       <div className={this.className} onClick={this.handleClick}>
@@ -65,35 +65,33 @@ class TagValueListItem extends PureComponent<Props, State> {
             </div>
           </CopyToClipboard>
         </div>
-        {this.state.isOpen && (
-          <div className="flux-schema--children">
-            {this.isLoading && <LoaderSkeleton />}
-            {!this.isLoading && (
-              <>
-                {!!this.tags.length && (
-                  <div className="flux-schema--filter">
-                    <input
-                      className="form-control input-xs"
-                      placeholder={`Filter within ${value}`}
-                      type="text"
-                      spellCheck={false}
-                      autoComplete="off"
-                      value={searchTerm}
-                      onClick={this.handleInputClick}
-                      onChange={this.onSearch}
-                    />
-                  </div>
-                )}
-                <TagList
-                  db={db}
-                  service={service}
-                  tags={this.tags}
-                  filter={this.filter}
-                />
-              </>
-            )}
-          </div>
-        )}
+        <div className={`flux-schema--children ${isOpen ? '' : 'hidden'}`}>
+          {this.isLoading && <LoaderSkeleton />}
+          {!this.isLoading && (
+            <>
+              {!!this.tags.length && (
+                <div className="flux-schema--filter">
+                  <input
+                    className="form-control input-xs"
+                    placeholder={`Filter within ${value}`}
+                    type="text"
+                    spellCheck={false}
+                    autoComplete="off"
+                    value={searchTerm}
+                    onClick={this.handleInputClick}
+                    onChange={this.onSearch}
+                  />
+                </div>
+              )}
+              <TagList
+                db={db}
+                service={service}
+                tags={this.tags}
+                filter={this.filter}
+              />
+            </>
+          )}
+        </div>
       </div>
     )
   }
@@ -177,7 +175,7 @@ class TagValueListItem extends PureComponent<Props, State> {
     return (
       !isOpen &&
       (loading === RemoteDataState.NotStarted ||
-        loading !== RemoteDataState.Error)
+        loading === RemoteDataState.Error)
     )
   }
 }

@@ -85,25 +85,23 @@ class DatabaseListItem extends PureComponent<Props, State> {
     const {db, service} = this.props
     const {isOpen, searchTerm} = this.state
 
-    if (isOpen) {
-      return (
-        <div className="flux-schema--children">
-          <div className="flux-schema--filter">
-            <input
-              className="form-control input-xs"
-              placeholder={`Filter within ${db}`}
-              type="text"
-              spellCheck={false}
-              autoComplete="off"
-              value={searchTerm}
-              onClick={this.handleInputClick}
-              onChange={this.onSearch}
-            />
-          </div>
-          <TagList db={db} service={service} tags={this.tags} filter={[]} />
+    return (
+      <div className={`flux-schema--children ${isOpen ? '' : 'hidden'}`}>
+        <div className="flux-schema--filter">
+          <input
+            className="form-control input-xs"
+            placeholder={`Filter within ${db}`}
+            type="text"
+            spellCheck={false}
+            autoComplete="off"
+            value={searchTerm}
+            onClick={this.handleInputClick}
+            onChange={this.onSearch}
+          />
         </div>
-      )
-    }
+        <TagList db={db} service={service} tags={this.tags} filter={[]} />
+      </div>
+    )
   }
 
   private handleClickCopy = e => {

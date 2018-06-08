@@ -27,6 +27,10 @@ $flux-tree-gutter: 11px;
   }
 }
 
+.flux-schema--children.hidden {
+  display: none;
+}
+
 .flux-schema-tree__empty {
   height: $flux-tree-indent;
   display: flex;
