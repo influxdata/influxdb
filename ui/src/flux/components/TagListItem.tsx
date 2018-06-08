@@ -84,7 +84,7 @@ export default class TagListItem extends PureComponent<Props, State> {
           </CopyToClipboard>
         </div>
         {this.state.isOpen && (
-          <>
+          <div className="flux-schema--children">
             <div
               className="flux-schema--header"
               onClick={this.handleInputClick}
@@ -107,21 +107,19 @@ export default class TagListItem extends PureComponent<Props, State> {
             </div>
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
-              <>
-                <TagValueList
-                  db={db}
-                  service={service}
-                  values={tagValues}
-                  tagKey={tagKey}
-                  filter={filter}
-                  onLoadMoreValues={this.handleLoadMoreValues}
-                  isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
-                  shouldShowMoreValues={limit < count}
-                  loadMoreCount={this.loadMoreCount}
-                />
-              </>
+              <TagValueList
+                db={db}
+                service={service}
+                values={tagValues}
+                tagKey={tagKey}
+                filter={filter}
+                onLoadMoreValues={this.handleLoadMoreValues}
+                isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
+                shouldShowMoreValues={limit < count}
+                loadMoreCount={this.loadMoreCount}
+              />
             )}
-          </>
+          </div>
         )}
       </div>
     )

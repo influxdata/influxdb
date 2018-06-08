@@ -66,7 +66,7 @@ class TagValueListItem extends PureComponent<Props, State> {
           </CopyToClipboard>
         </div>
         {this.state.isOpen && (
-          <>
+          <div className="flux-schema--children">
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
               <>
@@ -92,7 +92,7 @@ class TagValueListItem extends PureComponent<Props, State> {
                 />
               </>
             )}
-          </>
+          </div>
         )}
       </div>
     )

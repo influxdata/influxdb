@@ -87,7 +87,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
 
     if (isOpen) {
       return (
-        <>
+        <div className="flux-schema--children">
           <div className="flux-schema--filter">
             <input
               className="form-control input-xs"
@@ -101,7 +101,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
             />
           </div>
           <TagList db={db} service={service} tags={this.tags} filter={[]} />
-        </>
+        </div>
       )
     }
   }

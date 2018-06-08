@@ -22,7 +22,7 @@ $flux-tree-gutter: 11px;
   flex-direction: column;
   align-items: stretch;
   padding-left: 0;
-  > .flux-schema-tree {
+  > .flux-schema--children > .flux-schema-tree {
     padding-left: $flux-tree-indent;
   }
 }
