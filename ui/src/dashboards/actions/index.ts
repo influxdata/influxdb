@@ -50,7 +50,7 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
-import {Dashboard, TimeRange, Cell, Query, Template} from 'src/types'
+import {Dashboard, TimeRange, Cell, Template} from 'src/types'
 
 interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
@@ -379,22 +379,25 @@ export const templateVariableSelected = (
   },
 })
 
+interface URLQueries {
+  [key: string]: string
+}
 interface TemplateVariablesSelectedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
     dashboardID: string
-    query: Query
+    queries: URLQueries
   }
 }
 
 export const templateVariablesSelectedByName = (
   dashboardID: string,
-  query: Query
+  queries: URLQueries
 ): TemplateVariablesSelectedByNameAction => ({
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
   payload: {
     dashboardID,
-    query,
+    queries,
   },
 })
 
