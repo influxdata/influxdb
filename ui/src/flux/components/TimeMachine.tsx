@@ -92,13 +92,6 @@ class TimeMachine extends PureComponent<Props> {
 
     return [
       {
-        name: 'Explore',
-        headerButtons: [],
-        menuOptions: [],
-        render: () => <SchemaExplorer service={service} />,
-        headerOrientation: HANDLE_VERTICAL,
-      },
-      {
         name: 'Script',
         headerOrientation: HANDLE_VERTICAL,
         headerButtons: [
@@ -121,6 +114,13 @@ class TimeMachine extends PureComponent<Props> {
             onSubmitScript={onSubmitScript}
           />
         ),
+      },
+      {
+        name: 'Explore',
+        headerButtons: [],
+        menuOptions: [],
+        render: () => <SchemaExplorer service={service} />,
+        headerOrientation: HANDLE_VERTICAL,
       },
     ]
   }
