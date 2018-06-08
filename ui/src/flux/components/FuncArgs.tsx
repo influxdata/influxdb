@@ -21,55 +21,82 @@ interface Props {
 @ErrorHandling
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
+    const {onDeleteFunc} = this.props
+
+    return (
+      <div className="func-node--tooltip">
+        <div className="func-args">{this.renderJoinOrArgs}</div>
+        <div className="func-arg--buttons">
+          <div
+            className="btn btn-sm btn-danger btn-square"
+            onClick={onDeleteFunc}
+          >
+            <span className="icon trash" />
+          </div>
+          {this.build}
+        </div>
+      </div>
+    )
+  }
+
+  get renderJoinOrArgs(): JSX.Element | JSX.Element[] {
+    const {func} = this.props
+    const {name: funcName} = func
+
+    if (funcName === funcNames.JOIN) {
+      return this.renderJoin
+    }
+
+    return this.renderArguments
+  }
+
+  get renderArguments(): JSX.Element | JSX.Element[] {
     const {
       func,
       bodyID,
       service,
       onChangeArg,
-      onDeleteFunc,
+      declarationID,
+      onGenerateScript,
+    } = this.props
+    const {name: funcName, id: funcID} = func
+
+    return func.args.map(({key, value, type}) => (
+      <FuncArg
+        key={key}
+        type={type}
+        argKey={key}
+        value={value}
+        bodyID={bodyID}
+        funcID={funcID}
+        funcName={funcName}
+        service={service}
+        onChangeArg={onChangeArg}
+        declarationID={declarationID}
+        onGenerateScript={onGenerateScript}
+      />
+    ))
+  }
+
+  get renderJoin(): JSX.Element {
+    const {
+      func,
+      bodyID,
+      onChangeArg,
       declarationID,
       onGenerateScript,
       declarationsFromBody,
     } = this.props
-    const {name: funcName, id: funcID} = func
+
     return (
-      <div className="func-node--tooltip">
-        {funcName === funcNames.JOIN ? (
-          <Join
-            func={func}
-            bodyID={bodyID}
-            declarationID={declarationID}
-            onChangeArg={onChangeArg}
-            declarationsFromBody={declarationsFromBody}
-            onGenerateScript={onGenerateScript}
-          />
-        ) : (
-          func.args.map(({key, value, type}) => (
-            <FuncArg
-              key={key}
-              type={type}
-              argKey={key}
-              value={value}
-              bodyID={bodyID}
-              funcID={funcID}
-              funcName={funcName}
-              service={service}
-              onChangeArg={onChangeArg}
-              declarationID={declarationID}
-              onGenerateScript={onGenerateScript}
-            />
-          ))
-        )}
-        <div className="func-node--buttons">
-          <div
-            className="btn btn-sm btn-danger func-node--delete"
-            onClick={onDeleteFunc}
-          >
-            Delete
-          </div>
-          {this.build}
-        </div>
-      </div>
+      <Join
+        func={func}
+        bodyID={bodyID}
+        declarationID={declarationID}
+        onChangeArg={onChangeArg}
+        declarationsFromBody={declarationsFromBody}
+        onGenerateScript={onGenerateScript}
+      />
     )
   }
 
