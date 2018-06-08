@@ -63,7 +63,11 @@ export const saveToLocalStorage = ({
     const appPersisted = {app: {persisted}}
     const dashTimeV1 = {ranges: normalizer(ranges)}
 
-    const minimalLogs = _.omit(logs, ['tableData', 'histogramData'])
+    const minimalLogs = _.omit(logs, [
+      'tableData',
+      'histogramData',
+      'queryCount',
+    ])
 
     window.localStorage.setItem(
       'state',
@@ -75,7 +79,7 @@ export const saveToLocalStorage = ({
         dataExplorer,
         dataExplorerQueryConfigs,
         script,
-        logs: {...minimalLogs, histogramData: [], tableData: {}},
+        logs: {...minimalLogs, histogramData: [], tableData: {}, queryCount: 0},
       })
     )
   } catch (err) {

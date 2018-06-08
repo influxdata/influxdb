@@ -26,7 +26,7 @@ class LogsSearchBar extends PureComponent<Props, State> {
         <div className="logs-viewer--search-input">
           <input
             type="text"
-            placeholder="Search logs using Keywords or Regular Expressions..."
+            placeholder="Search logs using keywords or regular expressions..."
             value={searchTerm}
             onChange={this.handleChange}
             onKeyDown={this.handleInputKeyDown}

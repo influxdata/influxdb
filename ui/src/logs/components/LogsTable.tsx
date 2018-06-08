@@ -7,9 +7,7 @@ import {getDeep} from 'src/utils/wrappers'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 const ROW_HEIGHT = 26
-const ROW_CHAR_LIMIT = 100
-const CHAR_WIDTH = 7
-
+const CHAR_WIDTH = 9
 interface Props {
   data: {
     columns: string[]
@@ -46,11 +44,14 @@ class LogsTable extends Component<Props, State> {
   }
 
   private grid: React.RefObject<Grid>
+  private headerGrid: React.RefObject<Grid>
+  private currentMessageWidth: number | null
 
   constructor(props: Props) {
     super(props)
 
     this.grid = React.createRef()
+    this.headerGrid = React.createRef()
 
     this.state = {
       scrollTop: 0,
@@ -61,6 +62,15 @@ class LogsTable extends Component<Props, State> {
 
   public componentDidUpdate() {
     this.grid.current.recomputeGridSize()
+    this.headerGrid.current.recomputeGridSize()
+  }
+
+  public componentDidMount() {
+    window.addEventListener('resize', this.handleWindowResize)
+  }
+
+  public componentWillUnmount() {
+    window.removeEventListener('resize', this.handleWindowResize)
   }
 
   public render() {
@@ -75,6 +85,7 @@ class LogsTable extends Component<Props, State> {
         <AutoSizer>
           {({width}) => (
             <Grid
+              ref={this.headerGrid}
               height={ROW_HEIGHT}
               rowHeight={ROW_HEIGHT}
               rowCount={1}
@@ -120,6 +131,12 @@ class LogsTable extends Component<Props, State> {
     )
   }
 
+  private handleWindowResize = () => {
+    this.currentMessageWidth = null
+    this.grid.current.recomputeGridSize()
+    this.headerGrid.current.recomputeGridSize()
+  }
+
   private handleHeaderScroll = ({scrollLeft}) => this.setState({scrollLeft})
 
   private handleScrollbarScroll = (e: MouseEvent<JSX.Element>) => {
@@ -127,15 +144,62 @@ class LogsTable extends Component<Props, State> {
     this.handleScroll(target)
   }
 
+  private get widthMapping() {
+    return {
+      timestamp: 160,
+      procid: 80,
+      facility: 120,
+      severity: 22,
+      severity_1: 120,
+      host: 300,
+    }
+  }
+
+  private get messageWidth() {
+    if (this.currentMessageWidth) {
+      return this.currentMessageWidth
+    }
+
+    const columns = getDeep<string[]>(this.props, 'data.columns', [])
+    const otherWidth = columns.reduce((acc, col) => {
+      if (col === 'message' || col === 'time') {
+        return acc
+      }
+
+      return acc + _.get(this.widthMapping, col, 200)
+    }, 0)
+
+    const calculatedWidth = window.innerWidth - (otherWidth + 180)
+    this.currentMessageWidth = Math.max(100 * CHAR_WIDTH, calculatedWidth)
+
+    return this.currentMessageWidth - CHAR_WIDTH
+  }
+
+  private getColumnWidth = ({index}: {index: number}) => {
+    const column = getDeep<string>(this.props, `data.columns.${index + 1}`, '')
+
+    switch (column) {
+      case 'message':
+        return this.messageWidth
+      default:
+        return _.get(this.widthMapping, column, 200)
+    }
+  }
+
+  private get rowCharLimit(): number {
+    return Math.floor(this.messageWidth / CHAR_WIDTH)
+  }
+
+  private get columns(): string[] {
+    return getDeep<string[]>(this.props, 'data.columns', [])
+  }
+
   private calculateMessageHeight = (index: number): number => {
-    const columnIndex = this.props.data.columns.indexOf('message')
-    const height =
-      (Math.floor(
-        this.props.data.values[index][columnIndex].length / ROW_CHAR_LIMIT
-      ) +
-        1) *
-      ROW_HEIGHT
-    return height
+    const columnIndex = this.columns.indexOf('message')
+    const value = getDeep(this.props, `data.values.${index}.${columnIndex}`, '')
+    const lines = Math.round(value.length / this.rowCharLimit + 0.25)
+
+    return Math.max(lines, 1) * (ROW_HEIGHT - 14) + 14
   }
 
   private calculateTotalHeight = (): number => {
@@ -178,27 +242,6 @@ class LogsTable extends Component<Props, State> {
         return 'Informational'
       default:
         return _.capitalize(value)
-    }
-  }
-
-  private getColumnWidth = ({index}: {index: number}) => {
-    const column = getDeep<string>(this.props, `data.columns.${index + 1}`, '')
-
-    switch (column) {
-      case 'message':
-        return ROW_CHAR_LIMIT * CHAR_WIDTH
-      case 'timestamp':
-        return 160
-      case 'procid':
-        return 80
-      case 'facility':
-        return 120
-      case 'severity_1':
-        return 80
-      case 'severity':
-        return 22
-      default:
-        return 200
     }
   }
 
@@ -251,7 +294,9 @@ class LogsTable extends Component<Props, State> {
         value = moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
         break
       case 'message':
-        value = _.replace(value, '\\n', '')
+        if (value.indexOf(' ') > this.rowCharLimit - 5) {
+          value = _.truncate(value, {length: this.rowCharLimit - 5})
+        }
         break
       case 'severity':
         value = (
@@ -283,6 +328,8 @@ class LogsTable extends Component<Props, State> {
             data-tag-key={column}
             data-tag-value={value}
             onClick={this.handleTagClick}
+            data-index={rowIndex}
+            onMouseOver={this.handleMouseEnter}
             className="logs-viewer--clickable"
           >
             {value}
@@ -293,7 +340,9 @@ class LogsTable extends Component<Props, State> {
 
     return (
       <div
-        className={classnames('logs-viewer--cell', {highlight: highlightRow})}
+        className={classnames(`logs-viewer--cell  ${column}--cell`, {
+          highlight: highlightRow,
+        })}
         key={key}
         style={style}
         onMouseOver={this.handleMouseEnter}

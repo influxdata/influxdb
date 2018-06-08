@@ -52,6 +52,16 @@ export enum ActionTypes {
   AddFilter = 'LOGS_ADD_FILTER',
   RemoveFilter = 'LOGS_REMOVE_FILTER',
   ChangeFilter = 'LOGS_CHANGE_FILTER',
+  IncrementQueryCount = 'LOGS_INCREMENT_QUERY_COUNT',
+  DecrementQueryCount = 'LOGS_DECREMENT_QUERY_COUNT',
+}
+
+export interface IncrementQueryCountAction {
+  type: ActionTypes.IncrementQueryCount
+}
+
+export interface DecrementQueryCountAction {
+  type: ActionTypes.DecrementQueryCount
 }
 
 export interface AddFilterAction {
@@ -161,6 +171,8 @@ export type Action =
   | AddFilterAction
   | RemoveFilterAction
   | ChangeFilterAction
+  | DecrementQueryCountAction
+  | IncrementQueryCountAction
 
 const getTimeRange = (state: State): TimeRange | null =>
   getDeep<TimeRange | null>(state, 'logs.timeRange', null)
@@ -257,9 +269,26 @@ export const executeTableQueryAsync = () => async (
   }
 }
 
+export const decrementQueryCount = () => ({
+  type: ActionTypes.DecrementQueryCount,
+})
+
+export const incrementQueryCount = () => ({
+  type: ActionTypes.IncrementQueryCount,
+})
+
 export const executeQueriesAsync = () => async dispatch => {
-  dispatch(executeHistogramQueryAsync())
-  dispatch(executeTableQueryAsync())
+  dispatch(incrementQueryCount())
+  try {
+    await Promise.all([
+      dispatch(executeHistogramQueryAsync()),
+      dispatch(executeTableQueryAsync()),
+    ])
+  } catch (ex) {
+    console.error('Could not make query requests')
+  } finally {
+    dispatch(decrementQueryCount())
+  }
 }
 
 export const setSearchTermAsync = (searchTerm: string) => async dispatch => {

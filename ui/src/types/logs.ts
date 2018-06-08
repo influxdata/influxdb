@@ -18,4 +18,5 @@ export interface LogsState {
   tableData: object[]
   searchTerm: string | null
   filters: Filter[]
+  queryCount: number
 }
