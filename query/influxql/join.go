@@ -58,10 +58,10 @@ func Join(t *transpilerState, cursors []cursor, on, except []string) cursor {
 		}
 	}
 
-	// Retrieve the parent tables from the tables map.
+	// Retrieve the parent ids from the cursors.
 	parents := make([]query.OperationID, 0, len(tables))
-	for id := range tables {
-		parents = append(parents, id)
+	for _, cur := range cursors {
+		parents = append(parents, cur.ID())
 	}
 	id := t.op("join", &functions.JoinOpSpec{
 		TableNames: tables,
