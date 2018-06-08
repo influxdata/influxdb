@@ -315,7 +315,7 @@ class LogsTable extends Component<Props, State> {
     if (this.isClickable(column)) {
       return (
         <div
-          className={classnames(`logs-viewer--cell`, {
+          className={classnames('logs-viewer--cell', {
             highlight: highlightRow,
           })}
           title={`Filter by "${value}"`}

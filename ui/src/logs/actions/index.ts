@@ -279,11 +279,16 @@ export const incrementQueryCount = () => ({
 
 export const executeQueriesAsync = () => async dispatch => {
   dispatch(incrementQueryCount())
-  await Promise.all([
-    dispatch(executeHistogramQueryAsync()),
-    dispatch(executeTableQueryAsync()),
-  ])
-  dispatch(decrementQueryCount())
+  try {
+    await Promise.all([
+      dispatch(executeHistogramQueryAsync()),
+      dispatch(executeTableQueryAsync()),
+    ])
+  } catch (ex) {
+    console.error('Could not make query requests')
+  } finally {
+    dispatch(decrementQueryCount())
+  }
 }
 
 export const setSearchTermAsync = (searchTerm: string) => async dispatch => {

@@ -122,7 +122,7 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private get isSpecificTimeRange(): boolean {
-    return !!this.props.timeRange.upper
+    return !!getDeep(this.props, 'timeRange.upper', false)
   }
 
   private startUpdating = () => {
