@@ -202,11 +202,6 @@ export const notifyJSONFeedFailed = url => ({
   message: `Failed to fetch JSON Feed for News Feed from '${url}'`,
 })
 
-export const notifyViewerUnauthorizedToSetTempVars = () => ({
-  ...defaultErrorNotification,
-  message: `Viewer role unauthorized to override template variable values from URL.`,
-})
-
 //  Chronograf Admin Notifications
 //  ----------------------------------------------------------------------------
 export const notifyMappingDeleted = (id, scheme) => ({
@@ -485,6 +480,11 @@ export const notifyInvalidZoomedTimeRangeValueInURLQuery = () => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
+})
+
+export const notifyViewerUnauthorizedToSetTempVars = () => ({
+  ...defaultErrorNotification,
+  message: `Viewer role unauthorized to override template variable values from URL.`,
 })
 
 //  Rule Builder Notifications
