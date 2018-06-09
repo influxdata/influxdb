@@ -1,8 +1,7 @@
 import _ from 'lodash'
 
 import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
-import {Template, TemplateQuery} from 'src/types/dashboard'
-import {URLQueries} from 'src/types'
+import {Template, TemplateQuery, URLQueries} from 'src/types/tempVars'
 
 interface PartialTemplateWithQuery {
   query: string

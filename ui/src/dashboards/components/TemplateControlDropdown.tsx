@@ -3,7 +3,7 @@ import React, {SFC} from 'react'
 import Dropdown from 'src/shared/components/Dropdown'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
-import {Template} from 'src/types/dashboard'
+import {Template} from 'src/types/tempVars'
 
 interface Props {
   template: Template

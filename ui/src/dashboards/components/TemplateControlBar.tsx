@@ -6,7 +6,7 @@ import uuid from 'uuid'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import TemplateControlDropdown from 'src/dashboards/components/TemplateControlDropdown'
-import {Template} from 'src/types/dashboard'
+import {Template} from 'src/types/tempVars'
 
 interface Props {
   meRole: string

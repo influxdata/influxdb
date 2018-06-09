@@ -1,5 +1,6 @@
 import {QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
+import {Template} from 'src/types/tempVars'
 
 interface Axis {
   bounds: [string, string]
@@ -94,32 +95,6 @@ export enum CellType {
   Alerts = 'alerts',
   News = 'news',
   Guide = 'guide',
-}
-
-export interface TemplateValue {
-  value: string
-  type: string
-  selected: boolean
-}
-
-export interface TemplateQuery {
-  command: string
-  db: string
-  database?: string
-  rp?: string
-  measurement: string
-  tagKey: string
-  fieldKey: string
-  influxql: string
-}
-
-export interface Template {
-  id: string
-  tempVar: string
-  values: TemplateValue[]
-  type: string
-  label: string
-  query?: TemplateQuery
 }
 
 interface DashboardLinks {

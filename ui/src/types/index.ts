@@ -1,7 +1,8 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
 import {AuthLinks, Organization, Role, User, Me} from './auth'
-import {Template, Cell, CellQuery, Legend, Axes, Dashboard} from './dashboard'
+import {Cell, CellQuery, Legend, Axes, Dashboard} from './dashboard'
+import {Template, URLQueries} from './tempVars'
 import {
   GroupBy,
   Query,
@@ -20,7 +21,7 @@ import {
 } from './query'
 import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
-import {DropdownAction, DropdownItem, URLQueries} from './shared'
+import {DropdownAction, DropdownItem} from './shared'
 import {
   Notification,
   NotificationFunc,
