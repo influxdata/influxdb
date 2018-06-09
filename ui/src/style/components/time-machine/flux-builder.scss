@@ -140,7 +140,10 @@ $flux-invalid-color: $c-viridian;
   top: 0;
   left: 0;
   transform: translateX(-100%);
-  z-index: 0; // Connection Lines
+  z-index: 0;
+  pointer-events: none;
+
+  // Connection Lines
   &:before,
   &:after {
     content: '';

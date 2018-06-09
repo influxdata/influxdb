@@ -11,6 +11,7 @@ import NoResults from 'src/flux/components/NoResults'
 
 interface Props {
   data: FluxTable[]
+  yieldName: string
 }
 
 enum VisType {
@@ -44,8 +45,8 @@ class TimeMachineVis extends PureComponent<Props, State> {
     const {visType} = this.state
 
     return (
-      <div className="time-machine-visualization">
-        <div className="time-machine-visualization--settings">
+      <>
+        <div className="yield-node--controls">
           <VisHeaderTabs
             view={visType}
             views={[VisType.Table, VisType.Line]}
@@ -53,10 +54,8 @@ class TimeMachineVis extends PureComponent<Props, State> {
             onToggleView={this.selectVisType}
           />
         </div>
-        <div className="time-machine-visualization--visualization">
-          {this.vis}
-        </div>
-      </div>
+        <div className="yield-node--visualization">{this.vis}</div>
+      </>
     )
   }
 
@@ -80,7 +79,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
             onSelectResult={this.handleSelectResult}
           />
         )}
-        <div className="time-machine--vis">
+        <div className="yield-node--table">
           {this.shouldShowTable && (
             <TimeMachineTable table={this.selectedResult} />
           )}

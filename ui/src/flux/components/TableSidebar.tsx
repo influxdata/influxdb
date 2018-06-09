@@ -1,11 +1,10 @@
-import React, {PureComponent, CSSProperties, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 import {FluxTable} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import TableSidebarItem from 'src/flux/components/TableSidebarItem'
-import {vis} from 'src/flux/constants'
 
 interface Props {
   data: FluxTable[]
@@ -32,26 +31,20 @@ export default class TableSidebar extends PureComponent<Props, State> {
     const {searchTerm} = this.state
 
     return (
-      <div className="time-machine--sidebar">
+      <div className="yield-node--sidebar">
         {!this.isDataEmpty && (
-          <div
-            className="time-machine-sidebar--heading"
-            style={this.headingStyle}
-          >
-            Tables
-            <div className="time-machine-sidebar--filter">
-              <input
-                type="text"
-                className="form-control input-xs"
-                onChange={this.handleSearch}
-                placeholder="Filter tables"
-                value={searchTerm}
-              />
-            </div>
+          <div className="yield-node--sidebar-heading">
+            <input
+              type="text"
+              className="form-control input-xs yield-node--sidebar-filter"
+              onChange={this.handleSearch}
+              placeholder="Filter tables"
+              value={searchTerm}
+            />
           </div>
         )}
         <FancyScrollbar>
-          <div className="time-machine-vis--sidebar query-builder--list">
+          <div className="yield-node--tabs">
             {this.data.map(({partitionKey, id}) => {
               return (
                 <TableSidebarItem
@@ -79,14 +72,6 @@ export default class TableSidebar extends PureComponent<Props, State> {
     const {searchTerm} = this.state
 
     return data.filter(d => d.name.includes(searchTerm))
-  }
-
-  get headingStyle(): CSSProperties {
-    return {
-      height: `${vis.TABLE_ROW_HEADER_HEIGHT + 4}px`,
-      backgroundColor: '#31313d',
-      borderBottom: '2px solid #383846', // $g5-pepper
-    }
   }
 
   get isDataEmpty(): boolean {

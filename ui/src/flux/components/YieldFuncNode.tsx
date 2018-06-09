@@ -44,9 +44,9 @@ class YieldFuncNode extends PureComponent<Props, State> {
     const yieldName = _.get(func, 'args.0.value', 'result')
 
     return (
-      <div style={{width: '1000px', height: '1000px'}}>
-        <span>{yieldName}</span>
-        <TimeMachineVis data={data} />
+      <div className="yield-node">
+        <div className="func-node--connector" />
+        <TimeMachineVis data={data} yieldName={yieldName} />
       </div>
     )
   }
