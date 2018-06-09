@@ -1,4 +1,6 @@
 import {bindActionCreators} from 'redux'
+import {InjectedRouter} from 'react-router'
+import {Location} from 'history'
 import {replace} from 'react-router-redux'
 import _ from 'lodash'
 import queryString from 'query-string'
@@ -45,7 +47,6 @@ import {
   notifyViewerUnauthorizedToSetTempVars,
 } from 'src/shared/copy/notifications'
 
-import {CellType} from 'src/types/dashboard'
 import {makeQueryForTemplate} from 'src/dashboards/utils/tempVars'
 import parsers from 'src/shared/parsing'
 import {getDeep} from 'src/utils/wrappers'
@@ -54,8 +55,15 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
-import {Dashboard, TimeRange, Cell, Template, URLQueries} from 'src/types'
-import {DashboardName} from 'src/types/dashboard'
+import {
+  Dashboard,
+  TimeRange,
+  Cell,
+  Source,
+  Template,
+  URLQueries,
+} from 'src/types'
+import {CellType, DashboardName} from 'src/types/dashboard'
 
 interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
@@ -85,12 +93,12 @@ export const loadDashboard = dashboard => ({
 interface SetDashTimeV1Action {
   type: 'SET_DASHBOARD_TIME_V1'
   payload: {
-    dashboardID: string
+    dashboardID: number
     timeRange: TimeRange
   }
 }
 export const setDashTimeV1 = (
-  dashboardID: string,
+  dashboardID: number,
   timeRange: TimeRange
 ): SetDashTimeV1Action => ({
   type: 'SET_DASHBOARD_TIME_V1',
@@ -387,12 +395,12 @@ export const templateVariableSelected = (
 interface TemplateVariablesSelectedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
-    dashboardID: string
+    dashboardID: number
     queries: URLQueries
   }
 }
 export const templateVariablesSelectedByName = (
-  dashboardID: string,
+  dashboardID: number,
   queries: URLQueries
 ): TemplateVariablesSelectedByNameAction => ({
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
@@ -468,7 +476,7 @@ export const getDashboardsAsync = () => async (
 
 // gets update-to-date names of dashboards, but does not dispatch action
 // in order to avoid duplicate and out-of-sync state problems in redux
-export const getDashboardsNamesAsync = sourceID => async (
+export const getDashboardsNamesAsync = (sourceID: string) => async (
   dispatch
 ): Promise<DashboardName[] | void> => {
   try {
@@ -491,7 +499,9 @@ export const getDashboardsNamesAsync = sourceID => async (
   }
 }
 
-export const getDashboardAsync = dashboardID => async dispatch => {
+export const getDashboardAsync = (dashboardID: string) => async (
+  dispatch
+): Promise<Dashboard | null> => {
   try {
     const {data: dashboard} = await getDashboardAJAX(dashboardID)
     dispatch(loadDashboard(dashboard))
@@ -691,10 +701,10 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
   }
 }
 
-export const hydrateTempVarValuesAsync = (dashboardID, source) => async (
-  dispatch,
-  getState
-) => {
+export const hydrateTempVarValuesAsync = (
+  dashboardID: number,
+  source: Source
+) => async (dispatch, getState): Promise<void> => {
   try {
     const dashboard = getState().dashboardUI.dashboards.find(
       d => d.id === dashboardID
@@ -727,10 +737,10 @@ export const hydrateTempVarValuesAsync = (dashboardID, source) => async (
 const removeNullValues = obj => _.pickBy(obj, o => o)
 
 export const syncURLQueryFromQueriesObject = (
-  location,
-  updatedURLQueries,
-  deletedURLQueries = {}
-) => dispatch => {
+  location: Location,
+  updatedURLQueries: URLQueries,
+  deletedURLQueries: URLQueries = {}
+) => (dispatch): void => {
   const updatedLocationQuery = removeNullValues({
     ...location.query,
     ...updatedURLQueries,
@@ -752,15 +762,18 @@ export const syncURLQueryFromQueriesObject = (
 }
 
 export const syncURLQueryFromTempVars = (
-  location,
-  tempVars,
-  deletedTempVars = [],
-  timeRange = {}
-) => dispatch => {
+  location: Location,
+  tempVars: Template[],
+  deletedTempVars: Template[] = [],
+  urlQueriesTimeRanges: URLQueries = {}
+) => (dispatch): void => {
   const updatedURLQueries = generateURLQueriesFromTempVars(tempVars)
   const deletedURLQueries = generateURLQueriesFromTempVars(deletedTempVars)
 
-  const updatedURLQueriesWithTimeRange = {...updatedURLQueries, ...timeRange}
+  const updatedURLQueriesWithTimeRange = {
+    ...updatedURLQueries,
+    ...urlQueriesTimeRanges,
+  }
 
   dispatch(
     syncURLQueryFromQueriesObject(
@@ -771,10 +784,10 @@ export const syncURLQueryFromTempVars = (
   )
 }
 
-const syncDashboardTempVarsFromURLQueries = (dashboardID, urlQueries) => (
-  dispatch,
-  getState
-) => {
+const syncDashboardTempVarsFromURLQueries = (
+  dashboardID: number,
+  urlQueries: URLQueries
+) => (dispatch, getState): void => {
   const {
     dashboardUI,
     auth: {isUsingAuth, me},
@@ -805,10 +818,10 @@ const syncDashboardTempVarsFromURLQueries = (dashboardID, urlQueries) => (
 }
 
 const syncDashboardTimeRangeFromURLQueries = (
-  dashboardID,
-  urlQueries,
-  location
-) => (dispatch, getState) => {
+  dashboardID: number,
+  urlQueries: URLQueries,
+  location: Location
+) => (dispatch, getState): void => {
   const {
     dashboardUI: {dashboards},
     dashTimeV1,
@@ -864,9 +877,11 @@ const syncDashboardTimeRangeFromURLQueries = (
   )
 }
 
-const syncDashboardFromURLQueries = (dashboardID, location) => dispatch => {
+const syncDashboardFromURLQueries = (
+  dashboardID: number,
+  location: Location
+) => (dispatch): void => {
   const urlQueries = queryString.parse(window.location.search)
-
   dispatch(syncDashboardTempVarsFromURLQueries(dashboardID, urlQueries))
   dispatch(
     syncDashboardTimeRangeFromURLQueries(dashboardID, urlQueries, location)
@@ -874,11 +889,11 @@ const syncDashboardFromURLQueries = (dashboardID, location) => dispatch => {
 }
 
 export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
-  dashboardID,
-  source,
-  router,
-  location
-) => async dispatch => {
+  dashboardID: string,
+  source: Source,
+  router: InjectedRouter,
+  location: Location
+) => async (dispatch): Promise<void> => {
   const dashboard = await bindActionCreators(getDashboardAsync, dispatch)(
     dashboardID
   )
@@ -897,9 +912,9 @@ export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
 }
 
 export const setZoomedTimeRangeAsync = (
-  zoomedTimeRange,
-  location
-) => async dispatch => {
+  zoomedTimeRange: TimeRange,
+  location: Location
+) => async (dispatch): Promise<void> => {
   dispatch(setZoomedTimeRange(zoomedTimeRange))
   const urlQueryZoomedTimeRange = {
     zoomedLower: zoomedTimeRange.lower,
