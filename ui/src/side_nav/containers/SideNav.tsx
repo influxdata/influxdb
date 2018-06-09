@@ -84,7 +84,10 @@ class SideNav extends PureComponent<Props> {
           location={location}
         >
           <NavHeader link={dataExplorerLink} title="Data Explorer" />
-          <NavHeader link={`${sourcePrefix}/delorean`} title="Flux Query Interface" />
+          <NavHeader
+            link={`${sourcePrefix}/delorean`}
+            title="Flux Query Interface"
+          />
         </NavBlock>
         <NavBlock
           highlightWhen={['dashboards']}
