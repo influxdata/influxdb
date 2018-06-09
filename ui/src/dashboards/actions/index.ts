@@ -100,7 +100,15 @@ export const setDashTimeV1 = (
   },
 })
 
-export const pruneDashTimeV1 = dashboardIDs => ({
+interface PruneDashTimeV1Action {
+  type: 'PRUNE_DASHBOARD_TIME_V1'
+  payload: {
+    dashboardIDs: string[]
+  }
+}
+export const pruneDashTimeV1 = (
+  dashboardIDs: string[]
+): PruneDashTimeV1Action => ({
   type: 'PRUNE_DASHBOARD_TIME_V1',
   payload: {dashboardIDs},
 })
@@ -118,7 +126,15 @@ export const setTimeRange = (timeRange: TimeRange): SetTimeRangeAction => ({
   },
 })
 
-export const setZoomedTimeRange = zoomedTimeRange => ({
+interface SetZoomedTimeRangeAction {
+  type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE'
+  payload: {
+    zoomedTimeRange: TimeRange
+  }
+}
+export const setZoomedTimeRange = (
+  zoomedTimeRange: TimeRange
+): SetZoomedTimeRangeAction => ({
   type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
   payload: {
     zoomedTimeRange,
