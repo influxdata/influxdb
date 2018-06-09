@@ -64,7 +64,6 @@ interface LoadDashboardsAction {
     dashboardID: string
   }
 }
-
 export const loadDashboards = (
   dashboards: Dashboard[],
   dashboardID?: string
@@ -90,7 +89,6 @@ interface SetDashTimeV1Action {
     timeRange: TimeRange
   }
 }
-
 export const setDashTimeV1 = (
   dashboardID: string,
   timeRange: TimeRange
@@ -113,7 +111,6 @@ interface SetTimeRangeAction {
     timeRange: TimeRange
   }
 }
-
 export const setTimeRange = (timeRange: TimeRange): SetTimeRangeAction => ({
   type: 'SET_DASHBOARD_TIME_RANGE',
   payload: {
@@ -134,7 +131,6 @@ interface UpdateDashboardAction {
     dashboard: Dashboard
   }
 }
-
 export const updateDashboard = (
   dashboard: Dashboard
 ): UpdateDashboardAction => ({
@@ -150,7 +146,6 @@ interface CreateDashboardAction {
     dashboard: Dashboard
   }
 }
-
 export const createDashboard = (
   dashboard: Dashboard
 ): CreateDashboardAction => ({
@@ -167,7 +162,6 @@ interface DeleteDashboardAction {
     dashboardID: number
   }
 }
-
 export const deleteDashboard = (
   dashboard: Dashboard
 ): DeleteDashboardAction => ({
@@ -184,7 +178,6 @@ interface DeleteDashboardFailedAction {
     dashboard: Dashboard
   }
 }
-
 export const deleteDashboardFailed = (
   dashboard: Dashboard
 ): DeleteDashboardFailedAction => ({
@@ -201,7 +194,6 @@ interface UpdateDashboardCellsAction {
     cells: Cell[]
   }
 }
-
 export const updateDashboardCells = (
   dashboard: Dashboard,
   cells: Cell[]
@@ -220,7 +212,6 @@ interface SyncDashboardCellAction {
     cell: Cell
   }
 }
-
 export const syncDashboardCell = (
   dashboard: Dashboard,
   cell: Cell
@@ -239,7 +230,6 @@ interface AddDashboardCellAction {
     cell: Cell
   }
 }
-
 export const addDashboardCell = (
   dashboard: Dashboard,
   cell: Cell
@@ -260,7 +250,6 @@ interface EditDashboardCellAction {
     isEditing: boolean
   }
 }
-
 export const editDashboardCell = (
   dashboard: Dashboard,
   x: number,
@@ -287,7 +276,6 @@ interface CancelEditCellAction {
     cellID: string
   }
 }
-
 export const cancelEditCell = (
   dashboardID: string,
   cellID: string
@@ -308,7 +296,6 @@ interface RenameDashboardCellAction {
     name: string
   }
 }
-
 export const renameDashboardCell = (
   dashboard: Dashboard,
   x: number,
@@ -331,7 +318,6 @@ interface DeleteDashboardCellAction {
     cell: Cell
   }
 }
-
 export const deleteDashboardCell = (
   dashboard: Dashboard,
   cell: Cell
@@ -350,7 +336,6 @@ interface EditCellQueryStatusAction {
     status: string
   }
 }
-
 export const editCellQueryStatus = (
   queryID: string,
   status: string
@@ -370,7 +355,6 @@ interface TemplateVariableSelectedAction {
     values: any[]
   }
 }
-
 export const templateVariableSelected = (
   dashboardID: string,
   templateID: string,
@@ -391,7 +375,6 @@ interface TemplateVariablesSelectedByNameAction {
     queries: URLQueries
   }
 }
-
 export const templateVariablesSelectedByName = (
   dashboardID: string,
   queries: URLQueries
@@ -411,7 +394,6 @@ interface EditTemplateVariableValuesAction {
     values: any[]
   }
 }
-
 export const editTemplateVariableValues = (
   dashboardID: number,
   templateID: string,
@@ -431,7 +413,6 @@ interface SetHoverTimeAction {
     hoverTime: string
   }
 }
-
 export const setHoverTime = (hoverTime: string): SetHoverTimeAction => ({
   type: 'SET_HOVER_TIME',
   payload: {
@@ -445,7 +426,6 @@ interface SetActiveCellAction {
     activeCellID: string
   }
 }
-
 export const setActiveCell = (activeCellID: string): SetActiveCellAction => ({
   type: 'SET_ACTIVE_CELL',
   payload: {
