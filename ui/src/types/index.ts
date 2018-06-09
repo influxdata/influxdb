@@ -20,7 +20,7 @@ import {
 } from './query'
 import {AlertRule, Kapacitor, Task} from './kapacitor'
 import {Source, SourceLinks} from './sources'
-import {DropdownAction, DropdownItem} from './shared'
+import {DropdownAction, DropdownItem, URLQueries} from './shared'
 import {
   Notification,
   NotificationFunc,
@@ -72,4 +72,5 @@ export {
   ScriptStatus,
   SchemaFilter,
   RemoteDataState,
+  URLQueries,
 }

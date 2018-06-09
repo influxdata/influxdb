@@ -16,3 +16,7 @@ export interface PageSection {
   component: ReactNode
   enabled: boolean
 }
+
+export interface URLQueries {
+  [key: string]: string
+}

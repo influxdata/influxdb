@@ -22,7 +22,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {errorThrown} from 'src/shared/actions/errors'
 
 import {
-  generateURLQueryFromTempVars,
+  generateURLQueriesFromTempVars,
   findUpdatedTempVarsInURLQuery,
   findInvalidTempVarsInURLQuery,
 } from 'src/dashboards/utils/tempVars'
@@ -54,7 +54,7 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
-import {Dashboard, TimeRange, Cell, Template} from 'src/types'
+import {Dashboard, TimeRange, Cell, Template, URLQueries} from 'src/types'
 import {DashboardName} from 'src/types/dashboard'
 
 interface LoadDashboardsAction {
@@ -384,9 +384,6 @@ export const templateVariableSelected = (
   },
 })
 
-interface URLQueries {
-  [key: string]: string
-}
 interface TemplateVariablesSelectedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
@@ -764,8 +761,8 @@ export const syncURLQueryFromTempVars = (
   deletedTempVars = [],
   timeRange = {}
 ) => dispatch => {
-  const updatedURLQueries = generateURLQueryFromTempVars(tempVars)
-  const deletedURLQueries = generateURLQueryFromTempVars(deletedTempVars)
+  const updatedURLQueries = generateURLQueriesFromTempVars(tempVars)
+  const deletedURLQueries = generateURLQueriesFromTempVars(deletedTempVars)
 
   const updatedURLQueriesWithTimeRange = {...updatedURLQueries, ...timeRange}
 

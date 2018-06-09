@@ -2,6 +2,7 @@ import _ from 'lodash'
 
 import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
 import {Template, TemplateQuery} from 'src/types/dashboard'
+import {URLQueries} from 'src/types'
 
 interface PartialTemplateWithQuery {
   query: string
@@ -75,7 +76,9 @@ export const makeQueryForTemplate = ({
 export const stripTempVar = tempVarName =>
   tempVarName.substr(1, tempVarName.length - 2)
 
-export const generateURLQueryFromTempVars = tempVars => {
+export const generateURLQueriesFromTempVars = (
+  tempVars: Template[]
+): URLQueries => {
   const urlQueries = {}
 
   tempVars.forEach(({tempVar, values}) => {
