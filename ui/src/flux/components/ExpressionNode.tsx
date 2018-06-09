@@ -36,18 +36,23 @@ class ExpressionNode extends PureComponent<Props> {
           onToggleYield,
           service,
           data,
+          scriptUpToYield,
         }) => {
           return (
             <>
               {funcs.map((func, i) => {
                 if (func.name === 'yield') {
+                  const script = scriptUpToYield(bodyID, declarationID, i)
+
                   return (
                     <YieldFuncNode
                       index={i}
                       key={i}
                       func={func}
                       data={data}
+                      script={script}
                       bodyID={bodyID}
+                      service={service}
                       declarationID={declarationID}
                     />
                   )

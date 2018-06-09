@@ -15,6 +15,11 @@ export type OnToggleYield = (
 export type OnGenerateScript = (script: string) => void
 export type OnChangeScript = (script: string) => void
 export type OnSubmitScript = () => void
+export type ScriptUpToYield = (
+  bodyID: string,
+  declarationID: string,
+  yieldNodeIndex: number
+) => string
 
 export interface ScriptStatus {
   type: string
@@ -31,6 +36,7 @@ export interface Context {
   onToggleYield: OnToggleYield
   service: Service
   data: FluxTable[]
+  scriptUpToYield: ScriptUpToYield
 }
 
 export interface DeleteFuncNodeArgs {
