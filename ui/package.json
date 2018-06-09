@@ -48,6 +48,7 @@
     "@types/react-dnd": "^2.0.36",
     "@types/react-dnd-html5-backend": "^2.1.9",
     "@types/react-router": "^3.0.15",
+    "@types/react-router-redux": "4",
     "@types/react-virtualized": "^9.18.3",
     "@types/text-encoding": "^0.0.32",
     "@types/uuid": "^3.4.3",
