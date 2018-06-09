@@ -73,7 +73,7 @@ export const makeQueryForTemplate = ({
     .replace(':measurement:', `"${measurement}"`)
     .replace(':tagKey:', `"${tagKey}"`)
 
-export const stripTempVar = tempVarName =>
+export const stripTempVar = (tempVarName: string): string =>
   tempVarName.substr(1, tempVarName.length - 2)
 
 export const generateURLQueriesFromTempVars = (
