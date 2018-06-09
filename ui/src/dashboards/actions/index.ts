@@ -3,6 +3,8 @@ import {replace} from 'react-router-redux'
 import _ from 'lodash'
 import queryString from 'query-string'
 
+import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
+
 import {
   getDashboards as getDashboardsAJAX,
   getDashboard as getDashboardAJAX,
@@ -21,6 +23,7 @@ import {errorThrown} from 'src/shared/actions/errors'
 
 import {
   generateURLQueryFromTempVars,
+  findUpdatedTempVarsInURLQuery,
   findInvalidTempVarsInURLQuery,
 } from 'src/dashboards/utils/tempVars'
 import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
@@ -39,6 +42,7 @@ import {
   notifyInvalidTempVarValueInURLQuery,
   notifyInvalidZoomedTimeRangeValueInURLQuery,
   notifyInvalidTimeRangeValueInURLQuery,
+  notifyViewerUnauthorizedToSetTempVars,
 } from 'src/shared/copy/notifications'
 
 import {CellType} from 'src/types/dashboard'
@@ -778,9 +782,23 @@ const syncDashboardTempVarsFromURLQueries = (dashboardID, urlQueries) => (
   dispatch,
   getState
 ) => {
-  const dashboard = getState().dashboardUI.dashboards.find(
-    d => d.id === dashboardID
-  )
+  const {
+    dashboardUI,
+    auth: {isUsingAuth, me},
+  } = getState()
+  const dashboard = dashboardUI.dashboards.find(d => d.id === dashboardID)
+
+  // viewers are not currently allowed to select temp vars and/or use overrides
+  if (isUsingAuth && !isUserAuthorized(me.role, EDITOR_ROLE)) {
+    const urlQueryTempVarsWithUpdatedValues = findUpdatedTempVarsInURLQuery(
+      dashboard.templates,
+      urlQueries
+    )
+    if (urlQueryTempVarsWithUpdatedValues.length) {
+      dispatch(notify(notifyViewerUnauthorizedToSetTempVars()))
+      return
+    }
+  }
 
   const urlQueryTempVarsWithInvalidValues = findInvalidTempVarsInURLQuery(
     dashboard.templates,

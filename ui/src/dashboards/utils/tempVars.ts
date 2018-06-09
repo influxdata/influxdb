@@ -134,6 +134,29 @@ export const applyDashboardTempVarOverrides = (
   ),
 })
 
+export const findUpdatedTempVarsInURLQuery = (tempVars, urlQueries) => {
+  const urlQueryTempVarsWithInvalidValues = _.reduce(
+    urlQueries,
+    (acc, v, k) => {
+      const matchedTempVar = tempVars.find(
+        ({tempVar}) => stripTempVar(tempVar) === k
+      )
+      if (matchedTempVar) {
+        const isDifferentTempVarValue = !!matchedTempVar.values.find(
+          ({value, selected}) => selected && value !== v
+        )
+        if (isDifferentTempVarValue) {
+          acc.push({key: k, value: v})
+        }
+      }
+      return acc
+    },
+    []
+  )
+
+  return urlQueryTempVarsWithInvalidValues
+}
+
 export const findInvalidTempVarsInURLQuery = (tempVars, urlQueries) => {
   const urlQueryTempVarsWithInvalidValues = _.reduce(
     urlQueries,
