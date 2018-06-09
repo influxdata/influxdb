@@ -24,6 +24,11 @@ export interface Template {
   query?: TemplateQuery
 }
 
+export interface TemplateUpdate {
+  key: string
+  value: string
+}
+
 export interface URLQueries {
   [key: string]: string
 }

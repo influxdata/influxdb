@@ -1,7 +1,14 @@
 import _ from 'lodash'
 
 import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
-import {Template, TemplateQuery, URLQueries} from 'src/types/tempVars'
+import {
+  Dashboard,
+  Template,
+  TemplateQuery,
+  TemplateValue,
+  URLQueries,
+} from 'src/types'
+import {TemplateUpdate} from 'src/types/tempVars'
 
 interface PartialTemplateWithQuery {
   query: string
@@ -90,10 +97,15 @@ export const generateURLQueriesFromTempVars = (
   return urlQueries
 }
 
-export const isValidTempVarOverride = (values, overrideValue) =>
-  !!values.find(({value}) => value === overrideValue)
+export const isValidTempVarOverride = (
+  values: TemplateValue[],
+  overrideValue: string
+): boolean => !!values.find(({value}) => value === overrideValue)
 
-const reconcileTempVarsWithOverrides = (currentTempVars, tempVarOverrides) => {
+const reconcileTempVarsWithOverrides = (
+  currentTempVars: Template[],
+  tempVarOverrides: URLQueries
+): Template[] => {
   if (!tempVarOverrides) {
     return currentTempVars
   }
@@ -126,9 +138,9 @@ const reconcileTempVarsWithOverrides = (currentTempVars, tempVarOverrides) => {
 }
 
 export const applyDashboardTempVarOverrides = (
-  dashboard,
-  tempVarOverrides
-) => ({
+  dashboard: Dashboard,
+  tempVarOverrides: URLQueries
+): Dashboard => ({
   ...dashboard,
   templates: reconcileTempVarsWithOverrides(
     dashboard.templates,
@@ -136,7 +148,10 @@ export const applyDashboardTempVarOverrides = (
   ),
 })
 
-export const findUpdatedTempVarsInURLQuery = (tempVars, urlQueries) => {
+export const findUpdatedTempVarsInURLQuery = (
+  tempVars: Template[],
+  urlQueries: URLQueries
+): TemplateUpdate[] => {
   const urlQueryTempVarsWithInvalidValues = _.reduce(
     urlQueries,
     (acc, v, k) => {
@@ -159,7 +174,10 @@ export const findUpdatedTempVarsInURLQuery = (tempVars, urlQueries) => {
   return urlQueryTempVarsWithInvalidValues
 }
 
-export const findInvalidTempVarsInURLQuery = (tempVars, urlQueries) => {
+export const findInvalidTempVarsInURLQuery = (
+  tempVars: Template[],
+  urlQueries: URLQueries
+): TemplateUpdate[] => {
   const urlQueryTempVarsWithInvalidValues = _.reduce(
     urlQueries,
     (acc, v, k) => {

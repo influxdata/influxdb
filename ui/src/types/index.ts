@@ -2,7 +2,7 @@ import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
 import {AuthLinks, Organization, Role, User, Me} from './auth'
 import {Cell, CellQuery, Legend, Axes, Dashboard} from './dashboard'
-import {Template, URLQueries} from './tempVars'
+import {Template, TemplateQuery, TemplateValue, URLQueries} from './tempVars'
 import {
   GroupBy,
   Query,
@@ -36,6 +36,8 @@ export {
   User,
   Organization,
   Template,
+  TemplateQuery,
+  TemplateValue,
   Cell,
   CellQuery,
   Legend,
