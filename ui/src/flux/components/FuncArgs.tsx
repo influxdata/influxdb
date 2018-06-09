@@ -4,8 +4,10 @@ import {OnChangeArg} from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Func} from 'src/types/flux'
 import {funcNames} from 'src/flux/constants'
-import Join from 'src/flux/components/Join'
+import JoinArgs from 'src/flux/components/JoinArgs'
+import FilterArgs from 'src/flux/components/FilterArgs'
 import {Service} from 'src/types'
+import {getDeep} from 'src/utils/wrappers'
 
 interface Props {
   func: Func
@@ -25,7 +27,7 @@ export default class FuncArgs extends PureComponent<Props> {
 
     return (
       <div className="func-node--tooltip">
-        <div className="func-args">{this.renderJoinOrArgs}</div>
+        <div className="func-args">{this.renderArguments}</div>
         <div className="func-arg--buttons">
           <div
             className="btn btn-sm btn-danger btn-square"
@@ -39,7 +41,7 @@ export default class FuncArgs extends PureComponent<Props> {
     )
   }
 
-  get renderJoinOrArgs(): JSX.Element | JSX.Element[] {
+  get renderArguments(): JSX.Element | JSX.Element[] {
     const {func} = this.props
     const {name: funcName} = func
 
@@ -47,10 +49,14 @@ export default class FuncArgs extends PureComponent<Props> {
       return this.renderJoin
     }
 
-    return this.renderArguments
+    if (funcName === funcNames.FILTER) {
+      return this.renderFilter
+    }
+
+    return this.renderGeneralArguments
   }
 
-  get renderArguments(): JSX.Element | JSX.Element[] {
+  get renderGeneralArguments(): JSX.Element | JSX.Element[] {
     const {
       func,
       bodyID,
@@ -59,6 +65,7 @@ export default class FuncArgs extends PureComponent<Props> {
       declarationID,
       onGenerateScript,
     } = this.props
+
     const {name: funcName, id: funcID} = func
 
     return func.args.map(({key, value, type}) => (
@@ -78,6 +85,31 @@ export default class FuncArgs extends PureComponent<Props> {
     ))
   }
 
+  get renderFilter(): JSX.Element {
+    const {
+      func,
+      bodyID,
+      service,
+      onChangeArg,
+      declarationID,
+      onGenerateScript,
+    } = this.props
+    const value = getDeep<string>(func.args, '0.value', '')
+
+    return (
+      <FilterArgs
+        value={value}
+        func={func}
+        bodyID={bodyID}
+        declarationID={declarationID}
+        onChangeArg={onChangeArg}
+        onGenerateScript={onGenerateScript}
+        service={service}
+        db={'telegraf'}
+      />
+    )
+  }
+
   get renderJoin(): JSX.Element {
     const {
       func,
@@ -89,7 +121,7 @@ export default class FuncArgs extends PureComponent<Props> {
     } = this.props
 
     return (
-      <Join
+      <JoinArgs
         func={func}
         bodyID={bodyID}
         declarationID={declarationID}

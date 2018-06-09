@@ -4,7 +4,7 @@ import FuncArgInput from 'src/flux/components/FuncArgInput'
 import FuncArgTextArea from 'src/flux/components/FuncArgTextArea'
 import FuncArgBool from 'src/flux/components/FuncArgBool'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import From from 'src/flux/components/From'
+import FromDatabaseDropdown from 'src/flux/components/FromDatabaseDropdown'
 
 import {funcNames, argTypes} from 'src/flux/constants'
 import {OnChangeArg} from 'src/types/flux'
@@ -41,7 +41,7 @@ class FuncArg extends PureComponent<Props> {
 
     if (funcName === funcNames.FROM) {
       return (
-        <From
+        <FromDatabaseDropdown
           service={service}
           argKey={argKey}
           funcID={funcID}

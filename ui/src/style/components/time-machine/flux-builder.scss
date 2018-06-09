@@ -10,13 +10,11 @@ $flux-connector-line: 2px;
 $flux-node-gap: 30px;
 $flux-node-padding: 10px;
 $flux-arg-min-width: 120px;
-
 $flux-number-color: $c-neutrino;
 $flux-object-color: $c-viridian;
 $flux-string-color: $c-honeydew;
 $flux-boolean-color: $c-viridian;
 $flux-invalid-color: $c-viridian;
-
 // Shared Node styles
 %flux-node {
   min-height: $flux-node-height;
@@ -29,7 +27,6 @@ $flux-invalid-color: $c-viridian;
   transition: background-color 0.25s ease;
   margin-bottom: $flux-node-tooltip-gap / 2;
   margin-top: $flux-node-tooltip-gap / 2;
-
   &:hover {
     cursor: pointer;
     background-color: $g6-smoke;
@@ -39,6 +36,7 @@ $flux-invalid-color: $c-viridian;
 .body-builder--container {
   background-color: $g1-raven;
 }
+
 .body-builder {
   padding: $flux-node-height;
   padding-bottom: 0;
@@ -55,7 +53,6 @@ $flux-invalid-color: $c-viridian;
   flex-wrap: nowrap;
   flex-direction: column;
   align-items: flex-start;
-
   &:last-of-type {
     margin-bottom: 0;
     border: 0;
@@ -69,7 +66,6 @@ $flux-invalid-color: $c-viridian;
   white-space: nowrap;
   @include no-user-select();
   margin-top: 0;
-
   &:hover {
     background-color: $g4-onyx;
     cursor: default;
@@ -86,7 +82,6 @@ $flux-invalid-color: $c-viridian;
   top: 50%;
   left: $flux-node-gap / 2;
   transform: translate(-50%, -50%);
-
   &:before {
     content: '';
     position: absolute;
@@ -101,8 +96,7 @@ $flux-invalid-color: $c-viridian;
 
 .variable-node--name {
   color: $c-pool;
-
-  .variable-node--connector + & {
+  .variable-node--connector+& {
     margin-left: $flux-node-gap - $flux-node-padding;
   }
 }
@@ -146,24 +140,20 @@ $flux-invalid-color: $c-viridian;
   top: 0;
   left: 0;
   transform: translateX(-100%);
-  z-index: 0;
-
-  // Connection Lines
+  z-index: 0; // Connection Lines
   &:before,
   &:after {
     content: '';
     background-color: $g4-onyx;
     position: absolute;
-  }
-  // Vertical Line
+  } // Vertical Line
   &:before {
     width: $flux-connector-line;
     height: calc(100% + #{$flux-node-tooltip-gap});
     top: -$flux-node-tooltip-gap / 2;
     left: $flux-node-gap / 2;
     transform: translateX(-50%);
-  }
-  // Horizontal Line
+  } // Horizontal Line
   &:after {
     height: $flux-connector-line;
     width: $flux-node-gap / 2;
@@ -172,22 +162,19 @@ $flux-invalid-color: $c-viridian;
     transform: translateY(-50%);
   }
 }
+
 // When a query exists unassigned to a variable
 .func-node:first-child {
   margin-left: 0;
   padding-left: $flux-node-gap;
-
   .func-node--connector {
     transform: translateX(0);
-    z-index: 2;
-
-    // Vertical Line
+    z-index: 2; // Vertical Line
     &:before {
       height: $flux-node-gap;
       top: $flux-node-gap / 2;
       @include gradient-v($c-comet, $g4-onyx);
-    }
-    // Dot
+    } // Dot
     &:after {
       width: 8px;
       height: 8px;
@@ -238,9 +225,7 @@ $flux-invalid-color: $c-viridian;
   top: 0;
   left: calc(100% + #{$flux-node-tooltip-gap});
   z-index: 9999;
-  box-shadow: 0 0 10px 2px $g2-kevlar;
-
-  // Caret
+  box-shadow: 0 0 10px 2px $g2-kevlar; // Caret
   &:before {
     content: '';
     border-width: 9px;
@@ -251,8 +236,7 @@ $flux-invalid-color: $c-viridian;
     top: $flux-node-height / 2;
     left: 0;
     transform: translate(-100%, -50%);
-  }
-  // Invisible block to continue hovering
+  } // Invisible block to continue hovering
   &:after {
     content: '';
     height: 50%;
@@ -286,7 +270,6 @@ $flux-invalid-color: $c-viridian;
   flex-wrap: nowrap;
   align-items: center;
   margin-bottom: 4px;
-
   &:last-of-type {
     margin-bottom: 0;
   }
@@ -340,16 +323,16 @@ $flux-filter-parens: $g5-pepper;
   padding: 0 ($flux-filter-gap / 2);
 }
 
-.flux-filter--value + .flux-filter--operator,
-.flux-filter--paren-close + .flux-filter--operator {
+.flux-filter--value+.flux-filter--operator,
+.flux-filter--paren-close+.flux-filter--operator {
   padding: 0 $flux-filter-gap;
 }
 
-.flux-filter--key + .flux-filter--operator {
+.flux-filter--key+.flux-filter--operator {
   background-color: $flux-filter-expression;
 }
 
-.flux-filter--key + .flux-filter--operator + .flux-filter--value {
+.flux-filter--key+.flux-filter--operator+.flux-filter--value {
   background-color: $flux-filter-expression;
   border-radius: 0 3px 3px 0;
 }
@@ -374,8 +357,7 @@ $flux-filter-parens: $g5-pepper;
   height: $flux-filter-unit-wrapped;
   width: ($flux-filter-unit-wrapped - $flux-filter-unit) / 2;
   background-color: $flux-filter-parens;
-  border: (($flux-filter-unit-wrapped - $flux-filter-unit) / 2) solid
-    $flux-filter-expression;
+  border: (($flux-filter-unit-wrapped - $flux-filter-unit) / 2) solid $flux-filter-expression;
 }
 
 .flux-filter--paren-open {
@@ -424,4 +406,17 @@ $flux-filter-parens: $g5-pepper;
   background-color: $flux-filter-expression;
   height: $flux-filter-unit-wrapped;
   line-height: $flux-filter-unit-wrapped;
+}
+
+.flux-filter--fancyscroll {
+  min-width: 300px;
+  min-height: 250px;
+}
+
+.flux-filter--helper-text {
+  @include no-user-select();
+  color: $g13-mist;
+  font-size: 12px;
+  font-weight: 500;
+  padding-left: 20px;
 }

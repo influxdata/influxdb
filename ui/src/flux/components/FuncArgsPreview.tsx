@@ -4,7 +4,6 @@ import _ from 'lodash'
 
 import {Func} from 'src/types/flux'
 import {funcNames} from 'src/flux/constants'
-import Filter from 'src/flux/components/Filter'
 import FilterPreview from 'src/flux/components/FilterPreview'
 
 import {getDeep} from 'src/utils/wrappers'
@@ -32,14 +31,10 @@ export default class FuncArgsPreview extends PureComponent<Props> {
         return this.colorizedArguments
       }
 
-      return <Filter value={value} render={this.filterPreview} />
+      return <FilterPreview filterString={value} />
     }
 
     return this.colorizedArguments
-  }
-
-  private filterPreview = nodes => {
-    return <FilterPreview nodes={nodes} />
   }
 
   private get colorizedArguments(): JSX.Element | JSX.Element[] {

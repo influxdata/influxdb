@@ -1,66 +1,58 @@
 import React, {PureComponent} from 'react'
-import {BinaryExpressionNode, MemberExpressionNode} from 'src/types/flux'
-
-type FilterNode = BinaryExpressionNode & MemberExpressionNode
+import {connect} from 'react-redux'
+import {getAST} from 'src/flux/apis'
+import {Links, FilterNode} from 'src/types/flux'
+import Walker from 'src/flux/ast/walker'
+import FilterConditions from 'src/flux/components/FilterConditions'
 
 interface Props {
+  filterString?: string
+  links: Links
+}
+
+interface State {
   nodes: FilterNode[]
+  ast: object
 }
 
-class FilterPreview extends PureComponent<Props> {
-  public render() {
-    return (
-      <>
-        {this.props.nodes.map((n, i) => <FilterPreviewNode node={n} key={i} />)}
-      </>
-    )
-  }
-}
-
-interface FilterPreviewNodeProps {
-  node: FilterNode
-}
-
-/* tslint:disable */
-class FilterPreviewNode extends PureComponent<FilterPreviewNodeProps> {
-  public render() {
-    return this.className
+export class FilterPreview extends PureComponent<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    filterString: '',
   }
 
-  private get className(): JSX.Element {
-    const {node} = this.props
-
-    switch (node.type) {
-      case 'ObjectExpression': {
-        return <div className="flux-filter--key">{node.source}</div>
-      }
-      case 'MemberExpression': {
-        return <div className="flux-filter--key">{node.property.name}</div>
-      }
-      case 'OpenParen': {
-        return <div className="flux-filter--paren-open" />
-      }
-      case 'CloseParen': {
-        return <div className="flux-filter--paren-close" />
-      }
-      case 'NumberLiteral':
-      case 'IntegerLiteral': {
-        return <div className="flux-filter--value number">{node.source}</div>
-      }
-      case 'BooleanLiteral': {
-        return <div className="flux-filter--value boolean">{node.source}</div>
-      }
-      case 'StringLiteral': {
-        return <div className="flux-filter--value string">{node.source}</div>
-      }
-      case 'Operator': {
-        return <div className="flux-filter--operator">{node.source}</div>
-      }
-      default: {
-        return <div />
-      }
+  constructor(props) {
+    super(props)
+    this.state = {
+      nodes: [],
+      ast: {},
     }
   }
+
+  public async componentDidMount() {
+    this.convertStringToNodes()
+  }
+
+  public async componentDidUpdate(prevProps, __) {
+    if (this.props.filterString !== prevProps.filterString) {
+      this.convertStringToNodes()
+    }
+  }
+
+  public async convertStringToNodes() {
+    const {links, filterString} = this.props
+
+    const ast = await getAST({url: links.ast, body: filterString})
+    const nodes = new Walker(ast).inOrderExpression
+    this.setState({nodes, ast})
+  }
+
+  public render() {
+    return <FilterConditions nodes={this.state.nodes} />
+  }
 }
 
-export default FilterPreview
+const mapStateToProps = ({links}) => {
+  return {links: links.flux}
+}
+
+export default connect(mapStateToProps, null)(FilterPreview)
