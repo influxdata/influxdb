@@ -291,7 +291,7 @@ class DashboardPage extends Component {
       params: {dashboardID},
       location,
     } = this.props
-    // TODO: block viewer from doing this
+
     const currentTempVar = dashboard.templates.find(
       tempVar => tempVar.id === templateID
     )
