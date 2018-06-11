@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, Fragment} from 'react'
 
 import {FluxContext} from 'src/flux/containers/FluxPage'
 import FuncSelector from 'src/flux/components/FuncSelector'
@@ -16,8 +16,22 @@ interface Props {
   isLastBody: boolean
 }
 
+interface State {
+  nonYieldableIndexesToggled: {
+    [x: number]: boolean
+  }
+}
+
 // an Expression is a group of one or more functions
-class ExpressionNode extends PureComponent<Props> {
+class ExpressionNode extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      nonYieldableIndexesToggled: {},
+    }
+  }
+
   public render() {
     const {
       declarationID,
@@ -26,6 +40,8 @@ class ExpressionNode extends PureComponent<Props> {
       funcs,
       declarationsFromBody,
     } = this.props
+
+    const {nonYieldableIndexesToggled} = this.state
 
     return (
       <FluxContext.Consumer>
@@ -54,7 +70,7 @@ class ExpressionNode extends PureComponent<Props> {
                 }
 
                 if (func.name === 'yield') {
-                  const script = scriptUpToYield(bodyID, declarationID, i)
+                  const script = scriptUpToYield(bodyID, declarationID, i, true)
 
                   return (
                     <YieldFuncNode
@@ -69,7 +85,8 @@ class ExpressionNode extends PureComponent<Props> {
                     />
                   )
                 }
-                return (
+
+                const funcNode = (
                   <FuncNode
                     key={i}
                     index={i}
@@ -84,8 +101,35 @@ class ExpressionNode extends PureComponent<Props> {
                     declarationID={declarationID}
                     onGenerateScript={onGenerateScript}
                     declarationsFromBody={declarationsFromBody}
+                    onToggleYieldWithLast={this.handleToggleYieldWithLast}
                   />
                 )
+
+                if (nonYieldableIndexesToggled[i]) {
+                  const script = scriptUpToYield(
+                    bodyID,
+                    declarationID,
+                    i,
+                    false
+                  )
+
+                  return (
+                    <Fragment key={`${i}-notInScript`}>
+                      {funcNode}
+                      <YieldFuncNode
+                        index={i}
+                        func={func}
+                        data={data}
+                        script={script}
+                        bodyID={bodyID}
+                        service={service}
+                        declarationID={declarationID}
+                      />
+                    </Fragment>
+                  )
+                } else {
+                  return funcNode
+                }
               })}
               <FuncSelector
                 bodyID={bodyID}
@@ -118,6 +162,26 @@ class ExpressionNode extends PureComponent<Props> {
     }
 
     return false
+  }
+
+  // if funcNode is not yieldable, add last before yield()
+  private handleToggleYieldWithLast = (funcNodeIndex: number) => {
+    this.setState(({nonYieldableIndexesToggled}) => {
+      let isFuncYieldToggled = !!nonYieldableIndexesToggled[funcNodeIndex]
+
+      if (isFuncYieldToggled) {
+        isFuncYieldToggled = false
+      } else {
+        isFuncYieldToggled = true
+      }
+
+      return {
+        nonYieldableIndexesToggled: {
+          ...nonYieldableIndexesToggled,
+          [funcNodeIndex]: isFuncYieldToggled,
+        },
+      }
+    })
   }
 }
 

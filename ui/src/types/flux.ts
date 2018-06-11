@@ -18,7 +18,8 @@ export type OnSubmitScript = () => void
 export type ScriptUpToYield = (
   bodyID: string,
   declarationID: string,
-  yieldNodeIndex: number
+  yieldNodeIndex: number,
+  isYieldable: boolean
 ) => string
 
 export interface ScriptStatus {

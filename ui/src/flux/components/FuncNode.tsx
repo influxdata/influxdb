@@ -22,6 +22,7 @@ interface Props {
   onToggleYield: OnToggleYield
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
+  onToggleYieldWithLast: (funcNodeIndex: number) => void
   declarationsFromBody: string[]
   isYielding: boolean
   isYieldable: boolean
@@ -118,10 +119,13 @@ export default class FuncNode extends PureComponent<Props, State> {
       bodyID,
       declarationID,
       isYieldable,
+      onToggleYieldWithLast,
     } = this.props
 
     if (isYieldable) {
       onToggleYield(bodyID, declarationID, index)
+    } else {
+      onToggleYieldWithLast(index)
     }
   }
   private handleClickArgs = (e: MouseEvent<HTMLElement>): void => {

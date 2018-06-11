@@ -336,7 +336,8 @@ export class FluxPage extends PureComponent<Props, State> {
   private scriptUpToYield = (
     bodyID: string,
     declarationID: string,
-    funcNodeIndex: number
+    funcNodeIndex: number,
+    isYieldable: boolean
   ) => {
     const {body: bodies} = this.state
 
@@ -354,7 +355,15 @@ export class FluxPage extends PureComponent<Props, State> {
 
     const bodiesForScript = [...bodiesBeforeYield, body]
 
-    return this.getBodyToScript(bodiesForScript)
+    let script = this.getBodyToScript(bodiesForScript)
+
+    if (!isYieldable) {
+      const regex: RegExp = /\n{2}$/
+      script = script.replace(regex, '\n\t|> last()\n\t|> yield()$&')
+      return script
+    }
+
+    return script
   }
 
   private prepBodyForYield(
