@@ -13,6 +13,7 @@ interface Props {
   funcs: Func[]
   declarationID?: string
   declarationsFromBody: string[]
+  isLastBody: boolean
 }
 
 // an Expression is a group of one or more functions
@@ -67,6 +68,7 @@ class ExpressionNode extends PureComponent<Props> {
                     onChangeArg={onChangeArg}
                     onDelete={onDeleteFuncNode}
                     onToggleYield={onToggleYield}
+                    isYielding={this.isNextFuncYield(i)}
                     declarationID={declarationID}
                     onGenerateScript={onGenerateScript}
                     declarationsFromBody={declarationsFromBody}
@@ -84,6 +86,26 @@ class ExpressionNode extends PureComponent<Props> {
         }}
       </FluxContext.Consumer>
     )
+  }
+
+  private isNextFuncYield = (funcIndex: number): boolean => {
+    const {funcs, isLastBody} = this.props
+
+    if (funcIndex === funcs.length - 1 && isLastBody) {
+      return true
+    }
+
+    if (funcIndex === funcs.length - 1) {
+      return false
+    }
+
+    const nextFunc = funcs[funcIndex + 1]
+
+    if (nextFunc.name === 'yield') {
+      return true
+    }
+
+    return false
   }
 }
 

@@ -19,7 +19,7 @@ export default class TableSidebarItem extends PureComponent<Props> {
   public render() {
     return (
       <div
-        className={`time-machine-sidebar--item ${this.active}`}
+        className={`yield-node--tab ${this.active}`}
         onClick={this.handleClick}
       >
         {this.name}
