@@ -405,3 +405,9 @@ export type ServiceProperties =
   | VictorOpsProperties
 
 export type SpecificConfigOptions = Partial<SlackProperties>
+
+export interface RuleValues {
+  value?: string | null
+  rangeValue?: string | null
+  operator?: string
+}

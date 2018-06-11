@@ -483,3 +483,5 @@ export const HANDLE_NONE = 'none'
 export const HANDLE_PIXELS = 20
 export const MAX_SIZE = 1
 export const MIN_SIZE = 0
+
+// Dygraph

@@ -1,10 +1,12 @@
 import {fastMap, fastReduce} from 'src/utils/fast'
 import {groupByTimeSeriesTransform} from 'src/utils/groupByTimeSeriesTransform'
 
-import {TimeSeriesServerResponse, TimeSeries} from 'src/types/series'
-import {TimeSeriesValue} from 'src/types/series'
-
-export type DygraphValue = string | number | Date | null
+import {
+  TimeSeriesServerResponse,
+  TimeSeries,
+  TimeSeriesValue,
+} from 'src/types/series'
+import {DygraphSeries, DygraphValue} from 'src/types'
 
 interface Label {
   label: string
@@ -21,12 +23,6 @@ interface TimeSeriesToDyGraphReturnType {
 interface TimeSeriesToTableGraphReturnType {
   data: TimeSeriesValue[][]
   sortedLabels: Label[]
-}
-
-export interface DygraphSeries {
-  [x: string]: {
-    axis: string
-  }
 }
 
 export const timeSeriesToDygraph = (

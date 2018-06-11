@@ -72,7 +72,6 @@ class LineGraph extends Component {
       displayOptions,
       staticLegend,
       underlayCallback,
-      overrideLineColors,
       isFetchingInitially,
       handleSetHoverTime,
     } = this.props
@@ -129,7 +128,6 @@ class LineGraph extends Component {
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
           handleSetHoverTime={handleSetHoverTime}
-          overrideLineColors={overrideLineColors}
           containerStyle={containerStyle}
           staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
@@ -169,7 +167,6 @@ const {array, arrayOf, bool, func, number, shape, string} = PropTypes
 LineGraph.defaultProps = {
   underlayCallback: () => {},
   isGraphFilled: true,
-  overrideLineColors: null,
   staticLegend: false,
 }
 
@@ -194,7 +191,6 @@ LineGraph.propTypes = {
   isGraphFilled: bool,
   isBarGraph: bool,
   staticLegend: bool,
-  overrideLineColors: array,
   showSingleStat: bool,
   displayOptions: shape({
     stepPlot: bool,

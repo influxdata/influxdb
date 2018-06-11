@@ -1,6 +1,5 @@
 import _ from 'lodash'
-import {FluxTable} from 'src/types'
-import {DygraphValue} from 'src/utils/timeSeriesTransformers'
+import {FluxTable, DygraphValue} from 'src/types'
 
 export const fluxTablesToDygraph = (data: FluxTable[]): DygraphValue[][] => {
   interface V {
