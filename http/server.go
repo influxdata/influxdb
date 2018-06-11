@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap"
 )
 
@@ -77,7 +78,7 @@ func (s *Server) serve(listener net.Listener) <-chan error {
 }
 
 func (s *Server) shutdown(signalCh <-chan os.Signal) error {
-	s.logger.Info("Shutting down server", zap.Duration("timeout", s.ShutdownTimeout))
+	s.logger.Info("Shutting down server", logger.DurationLiteral("timeout", s.ShutdownTimeout))
 
 	// The shutdown needs to succeed in 20 seconds or less.
 	ctx, cancel := context.WithTimeout(context.Background(), s.ShutdownTimeout)
