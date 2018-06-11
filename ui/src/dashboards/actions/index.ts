@@ -83,7 +83,13 @@ export const loadDashboards = (
   },
 })
 
-export const loadDashboard = dashboard => ({
+interface LoadDashboardAction {
+  type: 'LOAD_DASHBOARD'
+  payload: {
+    dashboard: Dashboard
+  }
+}
+export const loadDashboard = (dashboard: Dashboard): LoadDashboardAction => ({
   type: 'LOAD_DASHBOARD',
   payload: {
     dashboard,
