@@ -1,6 +1,7 @@
 package influx
 
 import (
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,13 +50,30 @@ func RenderTemplate(query string, t chronograf.TemplateVar, now time.Time) (stri
 		return query, nil
 	}
 
+	var q string
+
+	// First render template variable usages appearing within an InfluxQL regular expression (value should appear unquoted)
+	switch t.Values[0].Type {
+	case "tagKey", "fieldKey", "measurement", "tagValue":
+		r, err := regexp.Compile(`(/[.^/]*)(` + regexp.QuoteMeta(t.Var) + `)([.^/]*/)`)
+
+		if err != nil {
+			return "", err
+		}
+
+		q = r.ReplaceAllString(query, `${1}`+t.Values[0].Value+`${3}`)
+	default:
+		q = query
+	}
+
+	// Then render template variable usages not appearing in an InfluxQL regular expression (values may be quoted)
 	switch t.Values[0].Type {
 	case "tagKey", "fieldKey", "measurement", "database":
-		return strings.Replace(query, t.Var, `"`+t.Values[0].Value+`"`, -1), nil
+		return strings.Replace(q, t.Var, `"`+t.Values[0].Value+`"`, -1), nil
 	case "tagValue", "timeStamp":
-		return strings.Replace(query, t.Var, `'`+t.Values[0].Value+`'`, -1), nil
+		return strings.Replace(q, t.Var, `'`+t.Values[0].Value+`'`, -1), nil
 	case "csv", "constant":
-		return strings.Replace(query, t.Var, t.Values[0].Value, -1), nil
+		return strings.Replace(q, t.Var, t.Values[0].Value, -1), nil
 	}
 
 	tv := map[string]string{}

@@ -297,6 +297,32 @@ func TestTemplateReplace(t *testing.T) {
 			},
 			want: `SHOW DATABASES`,
 		},
+		{
+			name:  "query with some tagValue template variables inside a regex",
+			query: `SELECT "usage_active" FROM "cpu" WHERE host =~ /:host:/ AND time > :dashboardTime: FILL(null)`,
+			vars: []chronograf.TemplateVar{
+				{
+					Var: ":host:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value: "my-host.local",
+							Type:  "tagValue",
+						},
+					},
+				},
+				{
+					Var: ":dashboardTime:",
+					Values: []chronograf.TemplateValue{
+						{
+							Value:    "now() - 1h",
+							Type:     "constant",
+							Selected: true,
+						},
+					},
+				},
+			},
+			want: `SELECT "usage_active" FROM "cpu" WHERE host =~ /my-host.local/ AND time > now() - 1h FILL(null)`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
