@@ -487,8 +487,6 @@ DashboardPage.propTypes = {
     getDashboardsAsync: func.isRequired,
     setTimeRange: func.isRequired,
     addDashboardCellAsync: func.isRequired,
-    editDashboardCell: func.isRequired,
-    cancelEditCell: func.isRequired,
   }).isRequired,
   dashboards: arrayOf(
     shape({

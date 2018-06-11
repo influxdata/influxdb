@@ -102,7 +102,7 @@ export default class LayoutCell extends Component<Props> {
 
     if (this.queries.length) {
       const child = React.Children.only(children)
-      return React.cloneElement(child, {cellID: cell.id})
+      return React.cloneElement(child, {cellID: cell.i})
     }
 
     return this.emptyGraph

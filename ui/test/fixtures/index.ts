@@ -161,7 +161,7 @@ export const decimalPlaces: DecimalPlaces = {
 }
 
 export const cell: Cell = {
-  id: '67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
+  i: '67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
   x: 0,
   y: 0,
   w: 8,

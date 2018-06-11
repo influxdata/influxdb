@@ -1,4 +1,4 @@
-import {Source} from 'src/types'
+import {Source, Template, Dashboard, Cell, CellType} from 'src/types'
 import {SourceLinks} from 'src/types/sources'
 
 export const role = {
@@ -585,4 +585,84 @@ export const hosts = {
     cpu: 0,
     load: 0,
   },
+}
+
+// Dashboards
+export const template: Template = {
+  id: '1',
+  type: 'tagKeys',
+  label: 'test query',
+  tempVar: ':region:',
+  query: {
+    db: 'db1',
+    command: '',
+    rp: 'rp1',
+    tagKey: 'tk1',
+    fieldKey: 'fk1',
+    measurement: 'm1',
+    influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
+  },
+  values: [
+    {value: 'us-west', type: 'tagKey', selected: false},
+    {value: 'us-east', type: 'tagKey', selected: true},
+    {value: 'us-mount', type: 'tagKey', selected: false},
+  ],
+}
+
+export const dashboard: Dashboard = {
+  id: 1,
+  cells: [],
+  name: 'd1',
+  templates: [],
+  organization: 'thebestorg',
+}
+
+export const cell: Cell = {
+  x: 0,
+  y: 0,
+  w: 4,
+  h: 4,
+  i: '0246e457-916b-43e3-be99-211c4cbc03e8',
+  name: 'Apache Bytes/Second',
+  queries: [],
+  axes: {
+    x: {
+      bounds: ['', ''],
+      label: '',
+      prefix: '',
+      suffix: '',
+      base: '',
+      scale: '',
+    },
+    y: {
+      bounds: ['', ''],
+      label: '',
+      prefix: '',
+      suffix: '',
+      base: '',
+      scale: '',
+    },
+  },
+  type: CellType.Line,
+  colors: [],
+  tableOptions: {
+    verticalTimeAxis: true,
+    sortBy: {
+      internalName: '',
+      displayName: '',
+      visible: true,
+    },
+    fixFirstColumn: true,
+  },
+  fieldOptions: [],
+  timeFormat: '',
+  decimalPlaces: {
+    isEnforced: false,
+    digits: 1,
+  },
+  links: {
+    self:
+      '/chronograf/v1/dashboards/10/cells/8b3b7897-49b1-422c-9443-e9b778bcbf12',
+  },
+  legend: {},
 }
