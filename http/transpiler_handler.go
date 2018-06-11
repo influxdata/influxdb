@@ -50,11 +50,12 @@ func (h *TranspilerQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.
 		return
 	}
 
-	//TODO(nathanielc): Get database and rp information if needed.
-
+	// Create a new transpiler from the http request.
 	ce := influxqlCE
+	transpiler := ce.transpiler(r)
 
-	results, err := query.QueryWithTranspile(ctx, h.OrgID, queryStr, h.QueryService, ce.transpiler)
+	// Run the transpiler against the query service.
+	results, err := query.QueryWithTranspile(ctx, h.OrgID, queryStr, h.QueryService, transpiler)
 	if err != nil {
 		kerrors.EncodeHTTP(ctx, err, w)
 		return
@@ -68,15 +69,21 @@ func (h *TranspilerQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.
 	}
 }
 
-// crossExecute contains the components needed to execute a transpiled query and encode results
+// crossExecute contains the components needed to execute a transpiled query and encode results.
 type crossExecute struct {
-	transpiler  query.Transpiler
+	transpiler  func(req *http.Request) query.Transpiler
 	encoder     query.MultiResultEncoder
 	contentType string
 }
 
 var influxqlCE = crossExecute{
-	transpiler:  influxql.NewTranspiler(),
+	transpiler: func(req *http.Request) query.Transpiler {
+		config := influxql.Config{
+			DefaultDatabase:        req.FormValue("db"),
+			DefaultRetentionPolicy: req.FormValue("rp"),
+		}
+		return influxql.NewTranspilerWithConfig(config)
+	},
 	encoder:     influxql.NewMultiResultEncoder(),
 	contentType: "application/json",
 }
