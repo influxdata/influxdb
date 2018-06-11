@@ -1,4 +1,5 @@
 import React, {PureComponent, MouseEvent} from 'react'
+import classnames from 'classnames'
 
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
@@ -22,6 +23,7 @@ interface Props {
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
   declarationsFromBody: string[]
+  isYielding: boolean
 }
 
 interface State {
@@ -56,7 +58,7 @@ export default class FuncNode extends PureComponent<Props, State> {
 
     return (
       <div
-        className="func-node"
+        className={this.nodeClassName}
         onMouseEnter={this.handleMouseEnter}
         onMouseLeave={this.handleMouseLeave}
         onClick={this.handleClick}
@@ -80,6 +82,11 @@ export default class FuncNode extends PureComponent<Props, State> {
         )}
       </div>
     )
+  }
+
+  private get nodeClassName(): string {
+    const {isYielding} = this.props
+    return classnames('func-node', {active: isYielding})
   }
 
   private handleDelete = (e: MouseEvent<HTMLElement>): void => {

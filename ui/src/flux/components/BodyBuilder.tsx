@@ -37,6 +37,7 @@ class BodyBuilder extends PureComponent<Props> {
                   funcNames={this.funcNames}
                   funcs={d.funcs}
                   declarationsFromBody={this.declarationsFromBody}
+                  isLastBody={this.isLastBody(i)}
                 />
               </div>
             )
@@ -57,6 +58,7 @@ class BodyBuilder extends PureComponent<Props> {
             funcs={b.funcs}
             funcNames={this.funcNames}
             declarationsFromBody={this.declarationsFromBody}
+            isLastBody={this.isLastBody(i)}
           />
         </div>
       )
@@ -78,6 +80,12 @@ class BodyBuilder extends PureComponent<Props> {
         </div>
       </FancyScrollbar>
     )
+  }
+
+  private isLastBody = (bodyIndex: number): boolean => {
+    const {body} = this.props
+
+    return bodyIndex === body.length - 1
   }
 
   private get newDeclarationFuncs(): string[] {
