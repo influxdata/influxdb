@@ -114,16 +114,16 @@ export const setDashTimeV1 = (
   },
 })
 
-interface PruneDashTimeV1Action {
-  type: 'PRUNE_DASHBOARD_TIME_V1'
+interface RetainRangesDashTimeV1Action {
+  type: 'RETAIN_RANGES_DASHBOARD_TIME_V1'
   payload: {
     dashboardIDs: string[]
   }
 }
-export const pruneDashTimeV1 = (
+export const retainRangesDashTimeV1 = (
   dashboardIDs: string[]
-): PruneDashTimeV1Action => ({
-  type: 'PRUNE_DASHBOARD_TIME_V1',
+): RetainRangesDashTimeV1Action => ({
+  type: 'RETAIN_RANGES_DASHBOARD_TIME_V1',
   payload: {dashboardIDs},
 })
 

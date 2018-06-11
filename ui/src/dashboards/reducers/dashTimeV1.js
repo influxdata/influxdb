@@ -11,7 +11,7 @@ const dashTimeV1 = (state = initialState, action) => {
 
       return {...state, ranges}
     }
-    case 'PRUNE_DASHBOARD_TIME_V1': {
+    case 'RETAIN_RANGES_DASHBOARD_TIME_V1': {
       const {dashboardIDs} = action.payload
       const ranges = state.ranges.filter(r =>
         dashboardIDs.includes(r.dashboardID)
