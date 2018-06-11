@@ -39,9 +39,20 @@ class ExpressionNode extends PureComponent<Props> {
           data,
           scriptUpToYield,
         }) => {
+          let isAfterRange = false
+          let isAfterFilter = false
+
           return (
             <>
               {funcs.map((func, i) => {
+                if (func.name === 'range') {
+                  isAfterRange = true
+                }
+
+                if (func.name === 'filter') {
+                  isAfterFilter = true
+                }
+
                 if (func.name === 'yield') {
                   const script = scriptUpToYield(bodyID, declarationID, i)
 
@@ -68,6 +79,7 @@ class ExpressionNode extends PureComponent<Props> {
                     onChangeArg={onChangeArg}
                     onDelete={onDeleteFuncNode}
                     onToggleYield={onToggleYield}
+                    isYieldable={isAfterFilter && isAfterRange}
                     isYielding={this.isNextFuncYield(i)}
                     declarationID={declarationID}
                     onGenerateScript={onGenerateScript}

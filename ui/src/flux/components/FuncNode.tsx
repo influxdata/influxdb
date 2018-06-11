@@ -24,6 +24,7 @@ interface Props {
   onGenerateScript: () => void
   declarationsFromBody: string[]
   isYielding: boolean
+  isYieldable: boolean
 }
 
 interface State {
@@ -111,9 +112,17 @@ export default class FuncNode extends PureComponent<Props, State> {
   private handleClick = (e: MouseEvent<HTMLElement>): void => {
     e.stopPropagation()
 
-    const {onToggleYield, index, bodyID, declarationID} = this.props
+    const {
+      onToggleYield,
+      index,
+      bodyID,
+      declarationID,
+      isYieldable,
+    } = this.props
 
-    onToggleYield(bodyID, declarationID, index)
+    if (isYieldable) {
+      onToggleYield(bodyID, declarationID, index)
+    }
   }
   private handleClickArgs = (e: MouseEvent<HTMLElement>): void => {
     e.stopPropagation()
