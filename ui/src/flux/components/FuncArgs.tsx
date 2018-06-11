@@ -24,10 +24,10 @@ interface Props {
 @ErrorHandling
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
-    const {onDeleteFunc} = this.props
+    const {onDeleteFunc, onStopPropagation} = this.props
 
     return (
-      <div className="func-node--tooltip">
+      <div className="func-node--tooltip" onClick={onStopPropagation}>
         <div className="func-args">{this.renderArguments}</div>
         <div className="func-arg--buttons">
           <div
