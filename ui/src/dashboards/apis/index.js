@@ -1,9 +1,6 @@
 import AJAX from 'utils/ajax'
 import {proxy} from 'utils/queryUrlGenerator'
 
-// import {Source} from 'src/types'
-// import {TemplateQuery} from 'src/types/dashboard'
-
 export function getDashboards() {
   return AJAX({
     method: 'GET',
@@ -102,11 +99,6 @@ export const editTemplateVariables = async templateVariable => {
   }
 }
 
-// /**
-//  * @param {Source} source
-//  * @param {TemplateQuery} templateQuery
-//  * @returns {Promise<TimeSeriesSuccessfulResult>}
-//  */
 export const getTempVarValuesBySourceQuery = async (source, templateQuery) => {
   const {
     query,
