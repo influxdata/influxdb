@@ -22,7 +22,6 @@ interface Props {
   onCloneCell: (cell: Cell) => void
   onSummonOverlayTechnologies: (cell: Cell) => void
   isEditable: boolean
-  onCancelEditCell: () => void
   cellData: TimeSeriesServerResponse[]
   templates: Template[]
   resolution: number
