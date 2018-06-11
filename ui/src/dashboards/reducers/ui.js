@@ -14,7 +14,6 @@ export const initialState = {
   cellQueryStatus: {queryID: null, status: null},
   hoverTime: NULL_HOVER_TIME,
   activeCellID: '',
-  tempVarOverrides: {},
 }
 
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
