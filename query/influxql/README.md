@@ -49,7 +49,7 @@ If a wildcard is identified, then the schema must be consulted for all of the fi
 
 The base cursor for each variable is generated using the following template:
 
-    create_cursor = (db, rp="autogen", start, stop=now(), m, f) => from(db: db+"/"+rp)
+    create_cursor = (db, rp="autogen", start, stop=now(), m, f) => from(bucket: db+"/"+rp)
         |> range(start: start, stop: stop)
         |> filter(fn: (r) => r._measurement == m and r._field == f)
 
