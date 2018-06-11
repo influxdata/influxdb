@@ -110,6 +110,7 @@ class LogsPage extends PureComponent<Props, State> {
             queryCount={queryCount}
           />
           <LogsTable
+            count={this.histogramTotal}
             data={this.props.tableData}
             onScrollVertical={this.handleVerticalScroll}
             onScrolledToTop={this.handleScrollToTop}
@@ -164,8 +165,21 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.executeQueriesAsync()
   }
 
+  private get histogramTotal(): number {
+    const {histogramData} = this.props
+
+    const values = getDeep<Array<[number, number]>>(
+      histogramData,
+      '0.response.results.0.series.0.values',
+      []
+    )
+
+    return values.reduce((acc, v) => acc + v[1], 0)
+  }
+
   private get chart(): JSX.Element {
     const {histogramData, timeRange} = this.props
+
     return (
       <LogViewerChart
         timeRange={timeRange}
