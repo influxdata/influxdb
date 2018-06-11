@@ -2,6 +2,7 @@ const path = require('path')
 const webpack = require('webpack')
 const packages = require('../package.json')
 const dependencies = packages.dependencies
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 
 module.exports = {
   node: {
@@ -22,6 +23,7 @@ module.exports = {
     library: '[name]',
   },
   plugins: [
+    new ProgressBarPlugin(),
     new webpack.DllPlugin({
       name: '[name]',
       path: './build/[name].dll.json',

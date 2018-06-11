@@ -1,13 +1,15 @@
 const path = require('path')
 const fs = require('fs')
 const webpack = require('webpack')
-const ExtractTextPlugin = require('extract-text-webpack-plugin')
+// const ExtractTextPlugin = require('extract-text-webpack-plugin')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const WebpackOnBuildPlugin = require('on-build-webpack')
 const HtmlWebpackIncludeAssetsPlugin = require('html-webpack-include-assets-plugin')
 const keys = require('lodash/keys')
 const difference = require('lodash/difference')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 
 const buildDir = path.resolve(__dirname, '../build')
 
@@ -38,6 +40,7 @@ const stats = {
 }
 
 module.exports = {
+  mode: 'development',
   stats,
   node: {
     fs: 'empty',
@@ -95,22 +98,23 @@ module.exports = {
       },
       {
         test: /\.scss$/,
-        loader: ExtractTextPlugin.extract({
-          fallback: 'style-loader',
-          use: [
-            'css-loader',
-            'sass-loader',
-            'resolve-url-loader',
-            'sass-loader?sourceMap',
-          ],
-        }),
-      },
-      {
-        test: /\.css$/,
-        loader: ExtractTextPlugin.extract({
-          fallback: 'style-loader',
-          use: ['css-loader', 'postcss-loader'],
-        }),
+        use: [
+          'style-loader',
+          MiniCssExtractPlugin.loader,
+          'css-loader',
+          {
+            loader: 'postcss-loader',
+            options: {
+              sourceMap: true,
+              plugins() {
+                return []
+              },
+            },
+          },
+          'sass-loader',
+          'resolve-url-loader',
+          'sass-loader?sourceMap',
+        ],
       },
       {
         test: /\.(ico|png|cur|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
@@ -157,6 +161,7 @@ module.exports = {
     ],
   },
   plugins: [
+    new ProgressBarPlugin(),
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('development'),
     }),
@@ -180,7 +185,9 @@ module.exports = {
       },
     }),
     new webpack.HotModuleReplacementPlugin(),
-    new ExtractTextPlugin('chronograf.css'),
+    new MiniCssExtractPlugin({
+      filename: 'style.[contenthash].css',
+    }),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
       inject: 'body',
