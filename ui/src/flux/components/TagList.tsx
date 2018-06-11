@@ -12,17 +12,7 @@ interface Props {
   filter: SchemaFilter[]
 }
 
-interface State {
-  isOpen: boolean
-}
-
-export default class TagList extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-
-    this.state = {isOpen: false}
-  }
-
+export default class TagList extends PureComponent<Props> {
   public render() {
     const {db, service, tags, filter} = this.props
 

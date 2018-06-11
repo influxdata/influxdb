@@ -1,6 +1,13 @@
+/*
+  Flux Builder Styles
+  ------------------------------------------------------------------------------
+*/
+
+$flux-builder-min-width: 440px;
 $flux-node-height: 30px;
 $flux-node-tooltip-gap: 4px;
-$flux-node-gap: 5px;
+$flux-connector-line: 2px;
+$flux-node-gap: 30px;
 $flux-node-padding: 10px;
 $flux-arg-min-width: 120px;
 $flux-number-color: $c-neutrino;
@@ -8,11 +15,7 @@ $flux-object-color: $c-viridian;
 $flux-string-color: $c-honeydew;
 $flux-boolean-color: $c-viridian;
 $flux-invalid-color: $c-viridian;
-/*
-  Shared Node styles
-  ------------------
-*/
-
+// Shared Node styles
 %flux-node {
   min-height: $flux-node-height;
   border-radius: $radius;
@@ -22,66 +25,104 @@ $flux-invalid-color: $c-viridian;
   position: relative;
   background-color: $g4-onyx;
   transition: background-color 0.25s ease;
-
+  margin-bottom: $flux-node-tooltip-gap / 2;
+  margin-top: $flux-node-tooltip-gap / 2;
   &:hover {
+    cursor: pointer;
     background-color: $g6-smoke;
   }
 }
 
-.body-builder {
-  padding: 30px;
-  min-width: 440px;
-  overflow: hidden;
-  height: 100%;
-  width: 100%;
+.body-builder--container {
   background-color: $g1-raven;
+}
+
+.body-builder {
+  padding: $flux-node-height;
+  padding-bottom: 0;
+  min-width: $flux-builder-min-width;
+  width: 100%;
 }
 
 .declaration {
   width: 100%;
-  margin-bottom: 24px;
+  margin-bottom: $flux-node-gap;
+  padding-bottom: $flux-node-gap;
+  border-bottom: 2px solid $g2-kevlar;
   display: flex;
   flex-wrap: nowrap;
-  align-items: center;
-
+  flex-direction: column;
+  align-items: flex-start;
   &:last-of-type {
     margin-bottom: 0;
+    border: 0;
   }
 }
 
-.variable-string {
+.variable-node {
   @extend %flux-node;
   color: $g11-sidewalk;
   line-height: $flux-node-height;
   white-space: nowrap;
   @include no-user-select();
+  margin-top: 0;
+  &:hover {
+    background-color: $g4-onyx;
+    cursor: default;
+  }
 }
 
-.variable-blank {
-  font-style: italic;
+.variable-node--connector {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: $c-pool;
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: $flux-node-gap / 2;
+  transform: translate(-50%, -50%);
+  &:before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: $flux-connector-line;
+    height: $flux-node-gap;
+    @include gradient-v($c-pool, $g4-onyx);
+    transform: translateX(-50%);
+  }
 }
 
-.variable-name {
+.variable-node--name {
   color: $c-pool;
+  .variable-node--connector+& {
+    margin-left: $flux-node-gap - $flux-node-padding;
+  }
 }
 
-.variable-value--string {
+.variable-node--string,
+.func-arg--string {
   color: $flux-string-color;
 }
 
-.variable-value--boolean {
+.variable-node--boolean,
+.func-arg--boolean {
   color: $flux-boolean-color;
 }
 
-.variable-value--number {
+.variable-node--number,
+.func-arg--number {
   color: $flux-number-color;
 }
 
-.variable-value--object {
+.variable-node--object,
+.func-arg--object {
   color: $flux-object-color;
 }
 
-.variable-value--invalid {
+.variable-node--invalid,
+.func-arg--invalid {
   color: $flux-invalid-color;
 }
 
@@ -89,24 +130,59 @@ $flux-invalid-color: $c-viridian;
   @extend %flux-node;
   display: flex;
   align-items: center;
-
   margin-left: $flux-node-gap;
+}
 
-  // Connection Line
+.func-node--connector {
+  width: $flux-node-gap;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-100%);
+  z-index: 0; // Connection Lines
+  &:before,
   &:after {
     content: '';
-    height: 4px;
-    width: $flux-node-gap;
     background-color: $g4-onyx;
     position: absolute;
+  } // Vertical Line
+  &:before {
+    width: $flux-connector-line;
+    height: calc(100% + #{$flux-node-tooltip-gap});
+    top: -$flux-node-tooltip-gap / 2;
+    left: $flux-node-gap / 2;
+    transform: translateX(-50%);
+  } // Horizontal Line
+  &:after {
+    height: $flux-connector-line;
+    width: $flux-node-gap / 2;
     top: 50%;
-    left: 0;
-    transform: translate(-100%, -50%);
+    left: $flux-node-gap / 2;
+    transform: translateY(-50%);
   }
+}
 
-  &:first-child:after {
-    content: none;
-    margin-left: 0;
+// When a query exists unassigned to a variable
+.func-node:first-child {
+  margin-left: 0;
+  padding-left: $flux-node-gap;
+  .func-node--connector {
+    transform: translateX(0);
+    z-index: 2; // Vertical Line
+    &:before {
+      height: $flux-node-gap;
+      top: $flux-node-gap / 2;
+      @include gradient-v($c-comet, $g4-onyx);
+    } // Dot
+    &:after {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: $c-comet;
+      top: $flux-node-gap / 2;
+      transform: translate(-50%, -50%);
+    }
   }
 }
 
@@ -139,17 +215,15 @@ $flux-invalid-color: $c-viridian;
   }
 }
 
-.func-node--tooltip,
-.variable-name--tooltip {
+.func-node--tooltip {
   background-color: $g3-castle;
   border-radius: $radius;
   padding: 10px;
   display: flex;
   align-items: stretch;
-  flex-direction: column;
   position: absolute;
-  top: calc(100% + #{$flux-node-tooltip-gap});
-  left: 0;
+  top: 0;
+  left: calc(100% + #{$flux-node-tooltip-gap});
   z-index: 9999;
   box-shadow: 0 0 10px 2px $g2-kevlar; // Caret
   &:before {
@@ -157,33 +231,40 @@ $flux-invalid-color: $c-viridian;
     border-width: 9px;
     border-style: solid;
     border-color: transparent;
-    border-bottom-color: $g3-castle;
+    border-right-color: $g3-castle;
     position: absolute;
-    top: 0;
-    left: $flux-node-padding + 3px;
-    transform: translate(-50%, -100%);
+    top: $flux-node-height / 2;
+    left: 0;
+    transform: translate(-100%, -50%);
   } // Invisible block to continue hovering
   &:after {
     content: '';
-    width: 80%;
-    height: 7px;
+    height: 50%;
+    width: $flux-node-tooltip-gap * 3;
     position: absolute;
-    top: -7px;
-    left: 0;
+    top: 0;
+    left: -$flux-node-tooltip-gap * 3;
   }
 }
 
-.func-node--buttons {
+.func-arg--buttons {
   display: flex;
-  margin-top: 12px;
+  flex-direction: column;
+  justify-content: center;
+  margin-left: 8px;
 }
 
-.func-node--delete,
 .func-node--build {
   width: 60px;
+  margin-top: 4px;
 }
 
-.func-node--sub .func-arg {
+.func-args {
+  display: flex;
+  flex-direction: column;
+}
+
+.func-arg {
   min-width: $flux-arg-min-width;
   display: flex;
   flex-wrap: nowrap;
@@ -210,26 +291,6 @@ $flux-invalid-color: $c-viridian;
 .func-arg--textarea {
   overflow: hidden;
   width: 300px;
-}
-
-.variable-name--tooltip {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
-}
-
-.variable-name--input {
-  width: 140px;
-}
-
-.variable-name--operator {
-  width: 20px;
-  height: 30px;
-  text-align: center;
-  line-height: 30px;
-  font-weight: 600;
-  @include no-user-select();
 }
 
 /*
@@ -262,16 +323,16 @@ $flux-filter-parens: $g5-pepper;
   padding: 0 ($flux-filter-gap / 2);
 }
 
-.flux-filter--value + .flux-filter--operator,
-.flux-filter--paren-close + .flux-filter--operator {
+.flux-filter--value+.flux-filter--operator,
+.flux-filter--paren-close+.flux-filter--operator {
   padding: 0 $flux-filter-gap;
 }
 
-.flux-filter--key + .flux-filter--operator {
+.flux-filter--key+.flux-filter--operator {
   background-color: $flux-filter-expression;
 }
 
-.flux-filter--key + .flux-filter--operator + .flux-filter--value {
+.flux-filter--key+.flux-filter--operator+.flux-filter--value {
   background-color: $flux-filter-expression;
   border-radius: 0 3px 3px 0;
 }
@@ -296,8 +357,7 @@ $flux-filter-parens: $g5-pepper;
   height: $flux-filter-unit-wrapped;
   width: ($flux-filter-unit-wrapped - $flux-filter-unit) / 2;
   background-color: $flux-filter-parens;
-  border: (($flux-filter-unit-wrapped - $flux-filter-unit) / 2) solid
-    $flux-filter-expression;
+  border: (($flux-filter-unit-wrapped - $flux-filter-unit) / 2) solid $flux-filter-expression;
 }
 
 .flux-filter--paren-open {
@@ -346,4 +406,17 @@ $flux-filter-parens: $g5-pepper;
   background-color: $flux-filter-expression;
   height: $flux-filter-unit-wrapped;
   line-height: $flux-filter-unit-wrapped;
+}
+
+.flux-filter--fancyscroll {
+  min-width: 300px;
+  min-height: 250px;
+}
+
+.flux-filter--helper-text {
+  @include no-user-select();
+  color: $g13-mist;
+  font-size: 12px;
+  font-weight: 500;
+  padding-left: 20px;
 }

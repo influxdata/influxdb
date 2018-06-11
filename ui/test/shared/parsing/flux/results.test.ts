@@ -4,6 +4,7 @@ import {
   RESPONSE_METADATA,
   MULTI_SCHEMA_RESPONSE,
   EXPECTED_COLUMNS,
+  TRUNCATED_RESPONSE,
 } from 'test/shared/parsing/flux/constants'
 
 describe('Flux results parser', () => {
@@ -35,6 +36,14 @@ describe('Flux results parser', () => {
         host: 'WattsInfluxDB',
       }
       expect(actual).toEqual(expected)
+    })
+  })
+
+  describe('partial responses', () => {
+    it('should discard tables without any non-annotation rows', () => {
+      const actual = parseResponse(TRUNCATED_RESPONSE)
+
+      expect(actual).toHaveLength(2)
     })
   })
 })

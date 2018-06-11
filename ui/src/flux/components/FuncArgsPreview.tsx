@@ -4,7 +4,6 @@ import _ from 'lodash'
 
 import {Func} from 'src/types/flux'
 import {funcNames} from 'src/flux/constants'
-import Filter from 'src/flux/components/Filter'
 import FilterPreview from 'src/flux/components/FilterPreview'
 
 import {getDeep} from 'src/utils/wrappers'
@@ -32,14 +31,10 @@ export default class FuncArgsPreview extends PureComponent<Props> {
         return this.colorizedArguments
       }
 
-      return <Filter value={value} render={this.filterPreview} />
+      return <FilterPreview filterString={value} />
     }
 
     return this.colorizedArguments
-  }
-
-  private filterPreview = nodes => {
-    return <FilterPreview nodes={nodes} />
   }
 
   private get colorizedArguments(): JSX.Element | JSX.Element[] {
@@ -76,19 +71,19 @@ export default class FuncArgsPreview extends PureComponent<Props> {
       case 'period':
       case 'duration':
       case 'array': {
-        return <span className="variable-value--number">{argument}</span>
+        return <span className="func-arg--number">{argument}</span>
       }
       case 'bool': {
-        return <span className="variable-value--boolean">{argument}</span>
+        return <span className="func-arg--boolean">{argument}</span>
       }
       case 'string': {
-        return <span className="variable-value--string">"{argument}"</span>
+        return <span className="func-arg--string">"{argument}"</span>
       }
       case 'object': {
-        return <span className="variable-value--object">{argument}</span>
+        return <span className="func-arg--object">{argument}</span>
       }
       case 'invalid': {
-        return <span className="variable-value--invalid">{argument}</span>
+        return <span className="func-arg--invalid">{argument}</span>
       }
       default: {
         return <span>{argument}</span>

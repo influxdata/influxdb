@@ -51,7 +51,7 @@ export const FORMAT_OPTIONS: Array<{text: string}> = [
 
 export type NewDefaultCell = Pick<
   Cell,
-  Exclude<keyof Cell, 'id' | 'axes' | 'colors' | 'links' | 'legend'>
+  Exclude<keyof Cell, 'i' | 'axes' | 'colors' | 'links' | 'legend'>
 >
 export const NEW_DEFAULT_DASHBOARD_CELL: NewDefaultCell = {
   x: 0,

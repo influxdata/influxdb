@@ -84,9 +84,10 @@ class SideNav extends PureComponent<Props> {
           location={location}
         >
           <NavHeader link={dataExplorerLink} title="Data Explorer" />
-          <FeatureFlag name="time-machine">
-            <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" />
-          </FeatureFlag>
+          <NavHeader
+            link={`${sourcePrefix}/delorean`}
+            title="Flux Query Interface"
+          />
         </NavBlock>
         <NavBlock
           highlightWhen={['dashboards']}

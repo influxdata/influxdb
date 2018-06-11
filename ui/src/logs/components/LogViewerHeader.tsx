@@ -99,7 +99,16 @@ class LogViewerHeader extends PureComponent<Props> {
       return ''
     }
 
-    return this.sourceDropDownItems[0].text
+    const id = _.get(this.props, 'currentSource.id', '')
+    const currentItem = _.find(this.sourceDropDownItems, item => {
+      return item.id === id
+    })
+
+    if (currentItem) {
+      return currentItem.text
+    }
+
+    return ''
   }
 
   private get selectedNamespace(): string {

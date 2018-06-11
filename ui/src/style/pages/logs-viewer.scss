@@ -242,6 +242,10 @@ $logs-viewer-gutter: 60px;
   }
 }
 
+.message--cell {
+  word-break: break-all;
+}
+
 // Table Cell Styles
 .logs-viewer--cell {
   font-size: 12px;

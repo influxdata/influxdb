@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import ExpressionNode from 'src/flux/components/ExpressionNode'
 import VariableName from 'src/flux/components/VariableName'
 import FuncSelector from 'src/flux/components/FuncSelector'
@@ -29,7 +30,7 @@ class BodyBuilder extends PureComponent<Props> {
           if (d.funcs) {
             return (
               <div className="declaration" key={i}>
-                <VariableName name={d.name} />
+                <VariableName name={d.name} assignedToQuery={true} />
                 <ExpressionNode
                   bodyID={b.id}
                   declarationID={d.id}
@@ -43,7 +44,7 @@ class BodyBuilder extends PureComponent<Props> {
 
           return (
             <div className="declaration" key={i}>
-              <VariableName name={b.source} />
+              <VariableName name={b.source} assignedToQuery={false} />
             </div>
           )
         })
@@ -62,18 +63,20 @@ class BodyBuilder extends PureComponent<Props> {
     })
 
     return (
-      <div className="body-builder">
-        {_.flatten(bodybuilder)}
-        <div className="declaration">
-          <FuncSelector
-            bodyID="fake-body-id"
-            declarationID="fake-declaration-id"
-            onAddNode={this.createNewBody}
-            funcs={this.newDeclarationFuncs}
-            connectorVisible={false}
-          />
+      <FancyScrollbar className="body-builder--container" autoHide={true}>
+        <div className="body-builder">
+          {_.flatten(bodybuilder)}
+          <div className="declaration">
+            <FuncSelector
+              bodyID="fake-body-id"
+              declarationID="fake-declaration-id"
+              onAddNode={this.createNewBody}
+              funcs={this.newDeclarationFuncs}
+              connectorVisible={false}
+            />
+          </div>
         </div>
-      </div>
+      </FancyScrollbar>
     )
   }
 

@@ -52,6 +52,7 @@ export default class FuncNode extends PureComponent<Props, State> {
         onMouseEnter={this.handleMouseEnter}
         onMouseLeave={this.handleMouseLeave}
       >
+        <div className="func-node--connector" />
         <div className="func-node--name">{func.name}</div>
         <FuncArgsPreview func={func} />
         {isExpanded && (

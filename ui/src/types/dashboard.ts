@@ -65,7 +65,7 @@ export interface DecimalPlaces {
 }
 
 export interface Cell {
-  id: string
+  i: string
   x: number
   y: number
   w: number

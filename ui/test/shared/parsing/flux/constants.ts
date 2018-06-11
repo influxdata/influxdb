@@ -134,3 +134,15 @@ export const CSV_TO_DYGRAPH_MISMATCHED = `
 ,,1,2018-06-04T17:12:21.025984999Z,2018-06-04T17:13:00Z,2018-06-05T17:12:25Z,10,available,mem,bertrand.local
 ,,1,2018-06-04T17:12:21.025984999Z,2018-06-04T17:13:00Z,2018-06-05T17:12:35Z,11,available,mem,bertrand.local
 `
+
+export const TRUNCATED_RESPONSE = `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
+#partition,false,false,false,false,false,false,true,true,true,true
+#default,_result,,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
+,,0,1677-09-21T00:12:43.145224192Z,2018-05-22T22:39:17.042276772Z,2018-05-22T22:39:12.584Z,0,usage_guest,cpu,cpu-total,WattsInfluxDB
+,,1,1677-09-21T00:12:43.145224192Z,2018-05-22T22:39:17.042276772Z,2018-05-22T22:39:12.584Z,0,usage_guest_nice,cpu,cpu-total,WattsInfluxDB
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string,string,string,string
+#partition,false,false,false,false,false,false,true,true,true,true,true,true,true
+#default,_result,,,,,,,,,,,,`

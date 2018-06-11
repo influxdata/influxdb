@@ -69,12 +69,12 @@ interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
   payload: {
     dashboards: Dashboard[]
-    dashboardID: string
+    dashboardID: number
   }
 }
 export const loadDashboards = (
   dashboards: Dashboard[],
-  dashboardID?: string
+  dashboardID?: number
 ): LoadDashboardsAction => ({
   type: 'LOAD_DASHBOARDS',
   payload: {
@@ -211,24 +211,6 @@ export const deleteDashboardFailed = (
   },
 })
 
-interface UpdateDashboardCellsAction {
-  type: 'UPDATE_DASHBOARD_CELLS'
-  payload: {
-    dashboard: Dashboard
-    cells: Cell[]
-  }
-}
-export const updateDashboardCells = (
-  dashboard: Dashboard,
-  cells: Cell[]
-): UpdateDashboardCellsAction => ({
-  type: 'UPDATE_DASHBOARD_CELLS',
-  payload: {
-    dashboard,
-    cells,
-  },
-})
-
 interface SyncDashboardCellAction {
   type: 'SYNC_DASHBOARD_CELL'
   payload: {
@@ -262,76 +244,6 @@ export const addDashboardCell = (
   payload: {
     dashboard,
     cell,
-  },
-})
-
-interface EditDashboardCellAction {
-  type: 'EDIT_DASHBOARD_CELL'
-  payload: {
-    dashboard: Dashboard
-    x: number
-    y: number
-    isEditing: boolean
-  }
-}
-export const editDashboardCell = (
-  dashboard: Dashboard,
-  x: number,
-  y: number,
-  isEditing: boolean
-): EditDashboardCellAction => ({
-  type: 'EDIT_DASHBOARD_CELL',
-  // x and y coords are used as a alternative to cell ids, which are not
-  // universally unique, and cannot be because React depends on a
-  // quasi-predictable ID for keys. Since cells cannot overlap, coordinates act
-  // as a suitable id
-  payload: {
-    dashboard,
-    x, // x-coord of the cell to be edited
-    y, // y-coord of the cell to be edited
-    isEditing,
-  },
-})
-
-interface CancelEditCellAction {
-  type: 'CANCEL_EDIT_CELL'
-  payload: {
-    dashboardID: string
-    cellID: string
-  }
-}
-export const cancelEditCell = (
-  dashboardID: string,
-  cellID: string
-): CancelEditCellAction => ({
-  type: 'CANCEL_EDIT_CELL',
-  payload: {
-    dashboardID,
-    cellID,
-  },
-})
-
-interface RenameDashboardCellAction {
-  type: 'RENAME_DASHBOARD_CELL'
-  payload: {
-    dashboard: Dashboard
-    x: number
-    y: number
-    name: string
-  }
-}
-export const renameDashboardCell = (
-  dashboard: Dashboard,
-  x: number,
-  y: number,
-  name: string
-): RenameDashboardCellAction => ({
-  type: 'RENAME_DASHBOARD_CELL',
-  payload: {
-    dashboard,
-    x, // x-coord of the cell to be renamed
-    y, // y-coord of the cell to be renamed
-    name,
   },
 })
 
@@ -374,13 +286,13 @@ export const editCellQueryStatus = (
 interface TemplateVariableSelectedAction {
   type: 'TEMPLATE_VARIABLE_SELECTED'
   payload: {
-    dashboardID: string
+    dashboardID: number
     templateID: string
     values: any[]
   }
 }
 export const templateVariableSelected = (
-  dashboardID: string,
+  dashboardID: number,
   templateID: string,
   values
 ): TemplateVariableSelectedAction => ({
@@ -566,7 +478,7 @@ export const putDashboard = (dashboard: Dashboard) => async (
   }
 }
 
-export const putDashboardByID = (dashboardID: string) => async (
+export const putDashboardByID = (dashboardID: number) => async (
   dispatch,
   getState
 ): Promise<void> => {
