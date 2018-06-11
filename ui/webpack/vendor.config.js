@@ -5,6 +5,7 @@ const dependencies = packages.dependencies
 const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 
 module.exports = {
+  mode: 'development',
   node: {
     fs: 'empty',
     module: 'empty',

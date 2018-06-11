@@ -94,7 +94,6 @@
     "json-loader": "^0.5.7",
     "mini-css-extract-plugin": "^0.4.0",
     "node-sass": "^4.5.3",
-    "on-build-webpack": "^0.1.0",
     "postcss-browser-reporter": "^0.4.0",
     "postcss-calc": "^5.2.0",
     "postcss-loader": "^2.1.5",
@@ -119,7 +118,7 @@
     "webpack": "^4.12.0",
     "webpack-bundle-analyzer": "^2.10.1",
     "webpack-cli": "^3.0.3",
-    "webpack-dev-server": "^2.11.1"
+    "webpack-dev-server": "^3.1.4"
   },
   "dependencies": {
     "axios": "^0.18.0",
