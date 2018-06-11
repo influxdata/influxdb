@@ -26,7 +26,7 @@ const SourceIndicator: SFC<Props> = (
       data-for={uuidTooltip}
       data-tip={sourceNameTooltip}
     >
-      <span className="icon server2" />
+      <span className="icon disks" />
       <ReactTooltip
         id={uuidTooltip}
         effect="solid"

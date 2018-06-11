@@ -42,7 +42,7 @@ class DashboardSwitcher extends Component {
           className="btn btn-square btn-default btn-sm dropdown-toggle"
           onClick={this.handleToggleMenu}
         >
-          <span className="icon dash-f" />
+          <span className="icon dash-h" />
         </button>
         <ul className="dropdown-menu">
           <FancyScrollbar

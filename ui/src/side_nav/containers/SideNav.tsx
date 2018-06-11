@@ -78,16 +78,20 @@ class SideNav extends PureComponent<Props> {
           <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
         </NavBlock>
         <NavBlock
-          highlightWhen={['data-explorer', 'delorean']}
-          icon="graphline"
+          highlightWhen={['data-explorer']}
+          icon="graphline-2"
           link={dataExplorerLink}
           location={location}
         >
           <NavHeader link={dataExplorerLink} title="Data Explorer" />
-          <NavHeader
-            link={`${sourcePrefix}/delorean`}
-            title="Flux Query Interface"
-          />
+        </NavBlock>
+        <NavBlock
+          highlightWhen={['delorean']}
+          icon="capacitor2"
+          link={`${sourcePrefix}/delorean`}
+          location={location}
+        >
+          <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" />
         </NavBlock>
         <NavBlock
           highlightWhen={['dashboards']}
@@ -99,7 +103,7 @@ class SideNav extends PureComponent<Props> {
         </NavBlock>
         <NavBlock
           highlightWhen={['alerts', 'alert-rules', 'tickscript']}
-          icon="triangle"
+          icon="alerts"
           link={`${sourcePrefix}/alert-rules`}
           location={location}
         >
@@ -161,7 +165,7 @@ class SideNav extends PureComponent<Props> {
         </Authorized>
         <NavBlock
           highlightWhen={['manage-sources', 'kapacitors']}
-          icon="cog-outline"
+          icon="wrench"
           link={`${sourcePrefix}/manage-sources`}
           location={location}
         >
