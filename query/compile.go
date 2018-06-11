@@ -36,7 +36,7 @@ type options struct {
 	verbose bool
 }
 
-// Compile evaluates an IFQL script producing a query Spec.
+// Compile evaluates a Flux script producing a query Spec.
 func Compile(ctx context.Context, q string, opts ...Option) (*Spec, error) {
 	o := new(options)
 	for _, opt := range opts {

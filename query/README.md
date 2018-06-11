@@ -1,22 +1,25 @@
-# IFQL (Influx Query Language)
+# Flux - Influx data language
 
-`ifqld` is an HTTP server for running **IFQL** queries to one or more InfluxDB
+`fluxd` is an HTTP server for running **Flux** queries to one or more InfluxDB
 servers.
 
-`ifqld` runs on port `8093` by default
+`fluxd` runs on port `8093` by default
 
 ### Specification
-Here is the rough design specification for details until we get documentation up: http://bit.ly/platform/query-spec
+
+A complete specification can be found in [SPEC.md](./SPEC.md).
 
 ### INSTALLATION
-1. Upgrade to InfluxDB >= 1.4.1
-https://portal.influxdata.com/downloads
+
+1. Use InfluxDB nightly builds, which can be found here: https://portal.influxdata.com/downloads .
 
 
-2. Update the InfluxDB configuration file to enable **IFQL** processing; restart
-the InfluxDB server. InfluxDB will open port `8082` to accept **IFQL** queries.
+2. Update the InfluxDB configuration file to enable **Flux** processing; restart
+the InfluxDB server. InfluxDB will open port `8082` to accept **Flux** queries.
 
 > **This port has no authentication.**
+
+> **The config uses the name `ifql` which is an older name for Flux.**
 
 ```
 [ifql]
@@ -25,49 +28,39 @@ the InfluxDB server. InfluxDB will open port `8082` to accept **IFQL** queries.
   bind-address = ":8082"
 ```
 
-3. Download `ifqld` and install from https://github.com/influxdata/platform/query/releases
+3. Download `fluxd` from nightly builds: https://portal.influxdata.com/downloads .
 
-4. Start `ifqld` with the InfluxDB host and port of `8082`. To run in federated
-mode (see below), add the `--host` option for each InfluxDB host.
+4. Start `fluxd` with the InfluxDB host and port of `8082`.
+To run in federated mode (see below), add the `--host` option for each InfluxDB host.
 
 ```sh
-ifqld --verbose --host localhost:8082
+fluxd --verbose --host localhost:8082
 ```
 
-5. To run a query POST an **IFQL** query string to `/query` as the `q` parameter:
+5. To run a query POST an **Flux** query string to `/v1/query` as the `q` parameter:
 ```sh
 curl -XPOST --data-urlencode \
 'q=from(db:"telegraf")
     |> filter(fn: (r) => r["_measurement"] == "cpu" AND r["_field"] == "usage_user")
     |> range(start:-170h)
     |> sum()' \
-http://localhost:8093/query
+http://localhost:8093/v1/query
 ```
-
-#### docker compose
-
-To spin up a testing environment you can run:
-
-```
-docker-compose up
-```
-
-Inside the `root` directory. It will spin up an `influxdb` and `ifqld` daemon
-ready to be used. `influxd` is exposed on port `8086` and port `8082`.
-
 
 ### Prometheus metrics
+
 Metrics are exposed on `/metrics`.
-`ifqld` records the number of queries and the number of different functions within **IFQL** queries
+`fluxd` records the number of queries and the number of different functions within **Flux** queries
 
 ### Federated Mode
-By passing the `--host` option multiple times `ifqld` will query multiple
+
+By passing the `--host` option multiple times `fluxd` will query multiple
 InfluxDB servers.
 
 For example:
 
 ```sh
-ifqld --host influxdb1:8082 --host influxdb2:8082
+fluxd --host influxdb1:8082 --host influxdb2:8082
 ```
 
 The results from multiple InfluxDB are merged together as if there was
@@ -75,7 +68,7 @@ one server.
 
 ### Basic Syntax
 
-IFQL constructs a query by starting with a table of data and passing the table through transformations steps to describe the desired query operations.
+Flux constructs a query by starting with a table of data and passing the table through transformations steps to describe the desired query operations.
 Transformations are represented as functions which take a table of data as an input argument and return a new table that has been transformed.
 There is a special function `from` which is a source function, meaning it does not accept a table as input, but rather produces a table.
 All other transformation functions accept at least one table and return a table as a result.
@@ -558,7 +551,7 @@ from(db:"foo")
 
 ### Custom Functions
 
-IFQL also allows the user to define their own functions.
+Flux also allows the user to define their own functions.
 The function syntax is:
 
 ```

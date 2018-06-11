@@ -1344,11 +1344,11 @@ join(tables:[a,b], on:["host"], fn: (a,b) => a["_field"] + b["_field"])`,
 		{
 			name: "from with join with complex expression",
 			raw: `
-a = from(db:"ifql")
+a = from(db:"Flux")
 	|> filter(fn: (r) => r["_measurement"] == "a")
 	|> range(start:-1h)
 
-b = from(db:"ifql")
+b = from(db:"Flux")
 	|> filter(fn: (r) => r["_measurement"] == "b")
 	|> range(start:-1h)
 
@@ -1370,7 +1370,7 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 												Properties: []*ast.Property{
 													{
 														Key:   &ast.Identifier{Name: "db"},
-														Value: &ast.StringLiteral{Value: "ifql"},
+														Value: &ast.StringLiteral{Value: "Flux"},
 													},
 												},
 											},
@@ -1433,7 +1433,7 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 												Properties: []*ast.Property{
 													{
 														Key:   &ast.Identifier{Name: "db"},
-														Value: &ast.StringLiteral{Value: "ifql"},
+														Value: &ast.StringLiteral{Value: "Flux"},
 													},
 												},
 											},
@@ -1544,12 +1544,12 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 		},
 		{
 			name:    "parse error extra gibberish",
-			raw:     `from(db:"ifql") &^*&H#IUJBN`,
+			raw:     `from(db:"Flux") &^*&H#IUJBN`,
 			wantErr: true,
 		},
 		{
 			name:    "parse error extra gibberish and valid content",
-			raw:     `from(db:"ifql") &^*&H#IUJBN from(db:"other")`,
+			raw:     `from(db:"Flux") &^*&H#IUJBN from(db:"other")`,
 			wantErr: true,
 		},
 	}
@@ -1561,14 +1561,14 @@ join(tables:[a,b], on:["t1"], fn: (a,b) => (a["_field"] - b["_field"]) / b["_fie
 			// to turn on parser debugging as it is turned off by default.
 			got, err := parser.NewAST(tt.raw)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ifql.NewAST() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("parser.NewAST() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if tt.wantErr {
 				return
 			}
 			if !cmp.Equal(tt.want, got, asttest.CompareOptions...) {
-				t.Errorf("ifql.NewAST() = -want/+got %s", cmp.Diff(tt.want, got, asttest.CompareOptions...))
+				t.Errorf("parser.NewAST() = -want/+got %s", cmp.Diff(tt.want, got, asttest.CompareOptions...))
 			}
 		})
 	}

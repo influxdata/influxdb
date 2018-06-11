@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	// ToKafkaKind is the Kind for the ToKafka ifql function
+	// ToKafkaKind is the Kind for the ToKafka Flux function
 	ToKafkaKind = "toKafka"
 )
 

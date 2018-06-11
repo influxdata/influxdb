@@ -10,6 +10,6 @@ idpdb.bolt
 # Project binaries.
 /influx
 /idpd
-/ifqld
+/fluxd
 /transpilerd
 /bin

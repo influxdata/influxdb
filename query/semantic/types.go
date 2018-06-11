@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-// Type is the representation of an IFQL type.
+// Type is the representation of a Flux type.
 //
 // Type values are comparable and as such can be used as map keys and directly comparison using the == operator.
 // Two types are equal if they represent identical types.

@@ -17,9 +17,9 @@ builds:
         goarch: 386
       - goos: windows
         goarch: 386
-    main: ./cmd/ifqld/
+    main: ./cmd/fluxd/
     ldflags: -s -w -X main.commit={{.Commit}}
-    binary: ifqld
+    binary: fluxd
 
 
 archive:
@@ -43,4 +43,4 @@ s3:
   -
     bucket: dl.influxdata.com
     region: us-east-1
-    folder: "ifql/nightlies/"
+    folder: "flux/nightlies/"

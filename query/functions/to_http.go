@@ -28,7 +28,7 @@ const (
 )
 
 // DefaultToHTTPUserAgent is the default user agent used by ToHttp
-var DefaultToHTTPUserAgent = "ifqld/dev"
+var DefaultToHTTPUserAgent = "fluxd/dev"
 
 func newToHTTPClient() *http.Client {
 	return &http.Client{

@@ -1,6 +1,6 @@
 # Learning Resources
 
-This documents contains a list of papers articles etc. that are useful for understanding the design of IFQL.
+This documents contains a list of papers articles etc. that are useful for understanding the design of Flux.
 
 ## Stream Processing
 

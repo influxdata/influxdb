@@ -28,13 +28,13 @@ func NewQueryTestHelper(t *testing.T, tc NewQueryTestCase) {
 
 	got, err := query.Compile(context.Background(), tc.Raw)
 	if (err != nil) != tc.WantErr {
-		t.Errorf("ifql.NewQuery() error = %v, wantErr %v", err, tc.WantErr)
+		t.Errorf("query.NewQuery() error = %v, wantErr %v", err, tc.WantErr)
 		return
 	}
 	if tc.WantErr {
 		return
 	}
 	if !cmp.Equal(tc.Want, got, opts...) {
-		t.Errorf("ifql.NewQuery() = -want/+got %s", cmp.Diff(tc.Want, got, opts...))
+		t.Errorf("query.NewQuery() = -want/+got %s", cmp.Diff(tc.Want, got, opts...))
 	}
 }

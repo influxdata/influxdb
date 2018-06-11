@@ -14,7 +14,7 @@ func FromBucketService(srv platform.BucketService) *BucketLookup {
 	}
 }
 
-// BucketLookup converts IFQL bucket lookups into platform.BucketService calls.
+// BucketLookup converts Flux bucket lookups into platform.BucketService calls.
 type BucketLookup struct {
 	BucketService platform.BucketService
 }

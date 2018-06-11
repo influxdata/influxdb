@@ -1,10 +1,10 @@
-# IFQL
+# Flux
 
 This process provides an implementation of the idpe.Query interface via the network.
 
 # Exposed Metrics
 
-The `ifqld` process exposes a Prometheus endpoint on port `8093` by default.
+The `fluxd` process exposes a Prometheus endpoint on port `8093` by default.
 
 The following metrics are exposed:
 

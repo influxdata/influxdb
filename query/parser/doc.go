@@ -1,3 +1,3 @@
-// Package parser provides a PEG parser for parsing IFQL.
-// Parsing an IFQL script produces an AST.
+// Package parser provides a PEG parser for parsing Flux.
+// Parsing an Flux script produces an AST.
 package parser

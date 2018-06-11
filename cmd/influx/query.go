@@ -13,19 +13,19 @@ import (
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
-	ifqlid "github.com/influxdata/platform/query/id"
+	qid "github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/repl"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var queryCmd = &cobra.Command{
-	Use:   "query [query literal or @/path/to/query.ifql]",
-	Short: "Execute an IFQL query",
-	Long: `Execute a literal IFQL query provided as a string,
-		or execute a literal IFQL query contained in a file by specifying the file prefixed with an @ sign.`,
+	Use:   "query [query literal or @/path/to/query.flux]",
+	Short: "Execute an Flux query",
+	Long: `Execute a literal Flux query provided as a string,
+		or execute a literal Flux query contained in a file by specifying the file prefixed with an @ sign.`,
 	Args: cobra.ExactArgs(1),
-	Run:  ifqlQueryF,
+	Run:  fluxQueryF,
 }
 
 var queryFlags struct {
@@ -54,7 +54,7 @@ func init() {
 	}
 }
 
-func ifqlQueryF(cmd *cobra.Command, args []string) {
+func fluxQueryF(cmd *cobra.Command, args []string) {
 	q, err := repl.LoadQuery(args[0])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -79,7 +79,7 @@ func ifqlQueryF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	r, err := getIFQLREPL(hosts, buckets, org, queryFlags.Verbose)
+	r, err := getFluxREPL(hosts, buckets, org, queryFlags.Verbose)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -113,8 +113,8 @@ func bucketService(addr, token string) (platform.BucketService, error) {
 	}, nil
 }
 
-func orgID(org string) (ifqlid.ID, error) {
-	var oid ifqlid.ID
+func orgID(org string) (qid.ID, error) {
+	var oid qid.ID
 	err := oid.DecodeFromString(org)
 	return oid, err
 }

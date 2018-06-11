@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions/storage"
-	ifqlid "github.com/influxdata/platform/query/id"
+	qid "github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/repl"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -70,7 +70,7 @@ func replF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	r, err := getIFQLREPL(hosts, buckets, org, replFlags.Verbose)
+	r, err := getFluxREPL(hosts, buckets, org, replFlags.Verbose)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -79,7 +79,7 @@ func replF(cmd *cobra.Command, args []string) {
 	r.Run()
 }
 
-func getIFQLREPL(storageHosts storage.Reader, buckets platform.BucketService, org ifqlid.ID, verbose bool) (*repl.REPL, error) {
+func getFluxREPL(storageHosts storage.Reader, buckets platform.BucketService, org qid.ID, verbose bool) (*repl.REPL, error) {
 	conf := control.Config{
 		ExecutorDependencies: make(execute.Dependencies),
 		ConcurrencyQuota:     runtime.NumCPU() * 2,

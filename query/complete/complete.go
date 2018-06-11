@@ -18,7 +18,7 @@ type FunctionSuggestion struct {
 	Params map[string]string
 }
 
-// Completer provides methods for suggestions in IFQL queries
+// Completer provides methods for suggestions in Flux queries
 type Completer struct {
 	scope        *interpreter.Scope
 	declarations semantic.DeclarationScope

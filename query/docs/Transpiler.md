@@ -1,6 +1,6 @@
 # Transpiler Design
 
-IFQL will support transpiling various other languages into query specification that can be executed.
+Flux will support transpiling various other languages into query specification that can be executed.
 
 Executing a transpiled query involes two steps outside the normal execution process.
 
@@ -21,11 +21,11 @@ type ResultWriter interface {
 
 Each different language/system need only implement a query transpiler and result writer.
 
-## Producing IFQL txt via transpilation
+## Producing Flux txt via transpilation
 
 The various transpilers only define the `somelang txt -> spec` transformation.
-In general the reverse process will be possible, `spec -> ifql txt`.
-Once any transpiler has been implemented then IFQL txt can be produced from that source language.
+In general the reverse process will be possible, `spec -> Flux txt`.
+Once any transpiler has been implemented then Flux txt can be produced from that source language.
 
 
 ## InfluxQL
@@ -55,5 +55,5 @@ With this extra information the transpiler should be able to process any InfluxQ
 
  * Does a query spec contain enough information to convert 2.0 results into InfluxQL 1.x result JSON?
      The final table wil contain the correct column names etc to produce the correct JSON output.
-     IFQL Table -> InfluxQL JSON
+     Flux Table -> InfluxQL JSON
 

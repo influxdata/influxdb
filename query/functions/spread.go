@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/platform/query/semantic"
 )
 
-// SpreadKind is the registration name for ifql, query, plan, and execution.
+// SpreadKind is the registration name for Flux, query, plan, and execution.
 const SpreadKind = "spread"
 
 func init() {
@@ -35,7 +35,7 @@ func newSpreadOp() query.OperationSpec {
 	return new(SpreadOpSpec)
 }
 
-// SpreadOpSpec defines the required arguments for IFQL.  Currently,
+// SpreadOpSpec defines the required arguments for Flux.  Currently,
 // spread takes no arguments.
 type SpreadOpSpec struct {
 	execute.AggregateConfig

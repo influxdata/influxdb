@@ -71,7 +71,7 @@ func (r *REPL) Run() {
 		r.input,
 		r.completer,
 		prompt.OptionPrefix("> "),
-		prompt.OptionTitle("ifql"),
+		prompt.OptionTitle("flux"),
 	)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT)
@@ -113,9 +113,9 @@ func (r *REPL) completer(d prompt.Document) []prompt.Suggest {
 	}
 	if d.Text == "" || strings.HasPrefix(d.Text, "@") {
 		root := "./" + strings.TrimPrefix(d.Text, "@")
-		ifqlFiles, err := getIfqlFiles(root)
+		fluxFiles, err := getFluxFiles(root)
 		if err == nil {
-			for _, fName := range ifqlFiles {
+			for _, fName := range fluxFiles {
 				s = append(s, prompt.Suggest{Text: "@" + fName})
 			}
 		}
@@ -235,8 +235,8 @@ func (r *REPL) doQuery(spec *query.Spec) error {
 	return nil
 }
 
-func getIfqlFiles(path string) ([]string, error) {
-	return filepath.Glob(path + "*.ifql")
+func getFluxFiles(path string) ([]string, error) {
+	return filepath.Glob(path + "*.flux")
 }
 
 func getDirs(path string) ([]string, error) {
@@ -254,7 +254,7 @@ func getDirs(path string) ([]string, error) {
 	return dirs, nil
 }
 
-// LoadQuery returns the ifql query q, except for two special cases:
+// LoadQuery returns the Flux query q, except for two special cases:
 // if q is exactly "-", the query will be read from stdin;
 // and if the first character of q is "@",
 // the @ prefix is removed and the contents of the file specified by the rest of q are returned.

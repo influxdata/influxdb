@@ -688,16 +688,16 @@ components:
           ]
         owner:
           $ref: "#/components/schemas/User"
-        ifql:
-          description: The ifql to run for this task.
+        flux:
+          description: The Flux script to run for this task.
           type: string
         every:
           readOnly: true
-          description: A simple task repetition schedule; parsed from ifql.
+          description: A simple task repetition schedule; parsed from Flux.
           type: string
         cron:
           readOnly: true
-          description: A task repetition schedule in the form '* * * * * *'; parsed from ifql.
+          description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
           type: string
         last:
           $ref: "#/components/schemas/Run"

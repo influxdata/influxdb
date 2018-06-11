@@ -8,8 +8,8 @@ There are several different concepts that make up the complete query engine.
 
 * Query - A query defines work to be performed on time series data and a result.
     A query is represented as a directed acyclic graph (DAG).
-* IFQL - Functional Language for defining a query to execute.
-* Parser - Parses an IFQL script and produces a query.
+* Flux - Functional Language for defining a query to execute.
+* Parser - Parses a Flux script and produces a query.
 * Data Frame - A data frame is a matrix of time series data where one dimension is time and the other is series.
 * Query Node - A query node represents a single step in the DAG of a query.
 * Planner - The planner creates a plan of execution from a query.
@@ -36,7 +36,7 @@ Below is a high level description, using the Go language, of the relations betwe
 ```go
 
 type Parser interface {
-    Parse(ifql string) Query
+    Parse(flux string) Query
 }
 
 // Query defines work to be performed on time series data and a result.

@@ -32,11 +32,11 @@ var (
 	commit string
 )
 
-var ifqlCmd = &cobra.Command{
-	Use:     "ifqld",
-	Short:   "IFQL Server",
+var fluxdCmd = &cobra.Command{
+	Use:     "fluxd",
+	Short:   "Flux Server",
 	Version: commit,
-	Run:     ifqlF,
+	Run:     fluxF,
 }
 
 var (
@@ -46,41 +46,41 @@ var (
 )
 
 func init() {
-	viper.SetEnvPrefix("IFQLD")
+	viper.SetEnvPrefix("FLUXD")
 
-	ifqlCmd.PersistentFlags().BoolP("verbose", "v", false, "Whether the server should be verbose.")
+	fluxdCmd.PersistentFlags().BoolP("verbose", "v", false, "Whether the server should be verbose.")
 	viper.BindEnv("VERBOSE")
-	viper.BindPFlag("verbose", ifqlCmd.PersistentFlags().Lookup("verbose"))
+	viper.BindPFlag("verbose", fluxdCmd.PersistentFlags().Lookup("verbose"))
 
-	ifqlCmd.PersistentFlags().StringVar(&bindAddr, "bind-addr", ":8093", "The bind address for this daemon.")
+	fluxdCmd.PersistentFlags().StringVar(&bindAddr, "bind-addr", ":8093", "The bind address for this daemon.")
 	viper.BindEnv("BIND_ADDR")
-	viper.BindPFlag("bind_addr", ifqlCmd.PersistentFlags().Lookup("bind-addr"))
+	viper.BindPFlag("bind_addr", fluxdCmd.PersistentFlags().Lookup("bind-addr"))
 
-	ifqlCmd.PersistentFlags().IntVar(&concurrencyQuota, "concurrency", runtime.NumCPU()*2, "The concurrency quota capacity for this daemon.")
+	fluxdCmd.PersistentFlags().IntVar(&concurrencyQuota, "concurrency", runtime.NumCPU()*2, "The concurrency quota capacity for this daemon.")
 	viper.BindEnv("CONCURRENCY")
-	viper.BindPFlag("concurrency", ifqlCmd.PersistentFlags().Lookup("cuncurrency"))
+	viper.BindPFlag("concurrency", fluxdCmd.PersistentFlags().Lookup("cuncurrency"))
 
-	ifqlCmd.PersistentFlags().IntVar(&memoryBytesQuota, "mem-bytes", 0, "The memory-bytes quota capacity for this daemon.")
+	fluxdCmd.PersistentFlags().IntVar(&memoryBytesQuota, "mem-bytes", 0, "The memory-bytes quota capacity for this daemon.")
 	viper.BindEnv("MEM_BYTES")
-	viper.BindPFlag("mem_bytes", ifqlCmd.PersistentFlags().Lookup("mem-bytes"))
+	viper.BindPFlag("mem_bytes", fluxdCmd.PersistentFlags().Lookup("mem-bytes"))
 
-	ifqlCmd.PersistentFlags().String("storage-hosts", "localhost:8082", "host:port address of the storage server.")
+	fluxdCmd.PersistentFlags().String("storage-hosts", "localhost:8082", "host:port address of the storage server.")
 	viper.BindEnv("STORAGE_HOSTS")
-	viper.BindPFlag("STORAGE_HOSTS", ifqlCmd.PersistentFlags().Lookup("storage-hosts"))
+	viper.BindPFlag("STORAGE_HOSTS", fluxdCmd.PersistentFlags().Lookup("storage-hosts"))
 
-	ifqlCmd.PersistentFlags().String("bucket-name", "defaultbucket", "The bucket to access. ")
+	fluxdCmd.PersistentFlags().String("bucket-name", "defaultbucket", "The bucket to access. ")
 	viper.BindEnv("BUCKET_NAME")
-	viper.BindPFlag("BUCKET_NAME", ifqlCmd.PersistentFlags().Lookup("bucket-name"))
+	viper.BindPFlag("BUCKET_NAME", fluxdCmd.PersistentFlags().Lookup("bucket-name"))
 
-	ifqlCmd.PersistentFlags().String("organization-name", "defaultorgname", "The organization name to use.")
+	fluxdCmd.PersistentFlags().String("organization-name", "defaultorgname", "The organization name to use.")
 	viper.BindEnv("ORGANIZATION_NAME")
-	viper.BindPFlag("ORGANIZATION_NAME", ifqlCmd.PersistentFlags().Lookup("organization-name"))
+	viper.BindPFlag("ORGANIZATION_NAME", fluxdCmd.PersistentFlags().Lookup("organization-name"))
 
 }
 
 var logger *zap.Logger
 
-func ifqlF(cmd *cobra.Command, args []string) {
+func fluxF(cmd *cobra.Command, args []string) {
 	// Create top level logger
 	logger = influxlogger.New(os.Stdout)
 
@@ -151,14 +151,14 @@ func injectDeps(deps execute.Dependencies) error {
 }
 
 func main() {
-	if err := ifqlCmd.Execute(); err != nil {
+	if err := fluxdCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-// wrapController is needed to make *ifql.Controller implement platform.AsyncQueryService.
-// TODO(nathanielc): Remove this type and make ifql.Controller implement the platform.AsyncQueryService directly.
+// wrapController is needed to make *query.Controller implement platform.AsyncQueryService.
+// TODO(nathanielc): Remove this type and make query.Controller implement the platform.AsyncQueryService directly.
 type wrapController struct {
 	*control.Controller
 }

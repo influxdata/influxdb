@@ -26,7 +26,7 @@ SOURCES := $(shell find . -name '*.go' -not -name '*_test.go')
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
 
 # List of binary cmds to build
-CMDS := bin/influx bin/idpd bin/ifqld bin/transpilerd
+CMDS := bin/influx bin/idpd bin/fluxd bin/transpilerd
 
 # List of utilities to build as part of the build process
 UTILS := bin/pigeon bin/cmpgen bin/goreleaser
@@ -46,8 +46,8 @@ subdirs: $(SUBDIRS)
 # Define targets for commands
 #
 
-bin/ifqld: $(SOURCES)
-	$(GO_BUILD) -i -o bin/ifqld ./cmd/ifqld
+bin/fluxd: $(SOURCES)
+	$(GO_BUILD) -i -o bin/fluxd ./cmd/fluxd
 
 bin/influx: $(SOURCES)
 	$(GO_BUILD) -i -o bin/influx ./cmd/influx
