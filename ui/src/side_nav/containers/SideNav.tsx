@@ -84,7 +84,6 @@ class SideNav extends PureComponent<Props> {
           location={location}
         >
           <NavHeader link={dataExplorerLink} title="Data Explorer" />
-          {/* <NavHeader link={`${sourcePrefix}/delorean`} title="Time Machine" /> */}
         </NavBlock>
         <NavBlock
           highlightWhen={['delorean']}

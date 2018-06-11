@@ -6,28 +6,29 @@ import React, {
 } from 'react'
 
 import _ from 'lodash'
-import {CopyToClipboard} from 'react-copy-to-clipboard'
 
 import {Service, SchemaFilter, RemoteDataState} from 'src/types'
 import {tagValues as fetchTagValues} from 'src/shared/apis/flux/metaQueries'
 import {explorer} from 'src/flux/constants'
+import {
+  SetFilterTagValue,
+  SetEquality,
+  FilterTagCondition,
+} from 'src/types/flux'
 import parseValuesColumn from 'src/shared/parsing/flux/values'
-import TagValueList from 'src/flux/components/TagValueList'
+import FilterTagValueList from 'src/flux/components/FilterTagValueList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 import LoadingSpinner from 'src/flux/components/LoadingSpinner'
-import {
-  notifyCopyToClipboardSuccess,
-  notifyCopyToClipboardFailed,
-} from 'src/shared/copy/notifications'
-
-import {NotificationAction} from 'src/types'
 
 interface Props {
   tagKey: string
+  onSetEquality: SetEquality
+  onChangeValue: SetFilterTagValue
+  conditions: FilterTagCondition[]
+  operator: string
   db: string
   service: Service
   filter: SchemaFilter[]
-  notify: NotificationAction
 }
 
 interface State {
@@ -41,9 +42,7 @@ interface State {
   count: number | null
 }
 
-export default class TagListItem extends PureComponent<Props, State> {
-  private debouncedOnSearch: () => void
-
+export default class FilterTagListItem extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -64,16 +63,35 @@ export default class TagListItem extends PureComponent<Props, State> {
     }, 250)
   }
 
+  public renderEqualitySwitcher() {
+    const {operator} = this.props
+
+    if (!this.state.isOpen) {
+      return null
+    }
+
+    return (
+      <ul className="nav nav-tablist nav-tablist-xs">
+        <li
+          className={operator === '==' ? 'active' : ''}
+          onClick={this.setEquality(true)}
+        >
+          =
+        </li>
+        <li
+          className={operator === '!=' ? 'active' : ''}
+          onClick={this.setEquality(false)}
+        >
+          !=
+        </li>
+      </ul>
+    )
+  }
+
   public render() {
     const {tagKey, db, service, filter} = this.props
-    const {
-      tagValues,
-      searchTerm,
-      loadingMore,
-      count,
-      limit,
-      isOpen,
-    } = this.state
+    const {tagValues, searchTerm, loadingMore, count, limit} = this.state
+    const selectedValues = this.props.conditions.map(c => c.value)
 
     return (
       <div className={this.className}>
@@ -83,71 +101,71 @@ export default class TagListItem extends PureComponent<Props, State> {
             {tagKey}
             <span className="flux-schema--type">Tag Key</span>
           </div>
-          <CopyToClipboard text={tagKey} onCopy={this.handleCopyAttempt}>
-            <div className="flux-schema-copy" onClick={this.handleClickCopy}>
-              <span className="icon duplicate" title="copy to clipboard" />
-              Copy
-            </div>
-          </CopyToClipboard>
+          {this.renderEqualitySwitcher()}
         </div>
-        <div className={`flux-schema--children ${isOpen ? '' : 'hidden'}`}>
-          <div className="flux-schema--header" onClick={this.handleInputClick}>
-            <div className="flux-schema--filter">
-              <input
-                className="form-control input-xs"
-                placeholder={`Filter within ${tagKey}`}
-                type="text"
-                spellCheck={false}
-                autoComplete="off"
-                value={searchTerm}
-                onChange={this.onSearch}
-              />
-              {this.isSearching && <LoadingSpinner style={this.spinnerStyle} />}
+        {this.state.isOpen && (
+          <>
+            <div
+              className="flux-schema--header"
+              onClick={this.handleInputClick}
+            >
+              <div className="flux-schema--filter">
+                <input
+                  className="form-control input-sm"
+                  placeholder={`Filter within ${tagKey}`}
+                  type="text"
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={searchTerm}
+                  onChange={this.onSearch}
+                />
+                {this.isSearching && (
+                  <LoadingSpinner style={this.spinnerStyle} />
+                )}
+              </div>
+
+              {!!count && (
+                <div className="flux-schema--count">{`${count} Tag Values`}</div>
+              )}
             </div>
-            {this.count}
-          </div>
-          {this.isLoading && <LoaderSkeleton />}
-          {!this.isLoading && (
-            <TagValueList
-              db={db}
-              service={service}
-              values={tagValues}
-              tagKey={tagKey}
-              filter={filter}
-              onLoadMoreValues={this.handleLoadMoreValues}
-              isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
-              shouldShowMoreValues={limit < count}
-              loadMoreCount={this.loadMoreCount}
-            />
-          )}
-        </div>
+            {this.isLoading && <LoaderSkeleton />}
+            {!this.isLoading && (
+              <>
+                <FilterTagValueList
+                  db={db}
+                  service={service}
+                  values={tagValues}
+                  selectedValues={selectedValues}
+                  tagKey={tagKey}
+                  onChangeValue={this.props.onChangeValue}
+                  filter={filter}
+                  onLoadMoreValues={this.handleLoadMoreValues}
+                  isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
+                  shouldShowMoreValues={limit < count}
+                  loadMoreCount={this.loadMoreCount}
+                />
+              </>
+            )}
+          </>
+        )}
       </div>
     )
   }
 
-  private get count(): JSX.Element {
-    const {count} = this.state
+  private setEquality(equal: boolean) {
+    return (e): void => {
+      e.stopPropagation()
 
-    if (!count) {
-      return
+      const {tagKey} = this.props
+      this.props.onSetEquality(tagKey, equal)
     }
-
-    let pluralizer = 's'
-
-    if (count === 1) {
-      pluralizer = ''
-    }
-
-    return (
-      <div className="flux-schema--count">{`${count} Tag Value${pluralizer}`}</div>
-    )
   }
 
   private get spinnerStyle(): CSSProperties {
     return {
       position: 'absolute',
-      right: '18px',
-      top: '11px',
+      right: '15px',
+      top: '6px',
     }
   }
 
@@ -166,6 +184,8 @@ export default class TagListItem extends PureComponent<Props, State> {
       this.debouncedOnSearch()
     )
   }
+
+  private debouncedOnSearch() {} // See constructor
 
   private handleInputClick = (e: MouseEvent<HTMLDivElement>): void => {
     e.stopPropagation()
@@ -252,22 +272,6 @@ export default class TagListItem extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickCopy = e => {
-    e.stopPropagation()
-  }
-
-  private handleCopyAttempt = (
-    copiedText: string,
-    isSuccessful: boolean
-  ): void => {
-    const {notify} = this.props
-    if (isSuccessful) {
-      notify(notifyCopyToClipboardSuccess(copiedText))
-    } else {
-      notify(notifyCopyToClipboardFailed(copiedText))
-    }
-  }
-
   private async getCount() {
     const {service, db, filter, tagKey} = this.props
     const {limit, searchTerm} = this.state
@@ -313,7 +317,7 @@ export default class TagListItem extends PureComponent<Props, State> {
     return (
       !isOpen &&
       (loadingAll === RemoteDataState.NotStarted ||
-        loadingAll === RemoteDataState.Error)
+        loadingAll !== RemoteDataState.Error)
     )
   }
 
@@ -321,6 +325,6 @@ export default class TagListItem extends PureComponent<Props, State> {
     const {isOpen} = this.state
     const openClass = isOpen ? 'expanded' : ''
 
-    return `flux-schema-tree flux-schema--child ${openClass}`
+    return `flux-schema-tree ${openClass}`
   }
 }

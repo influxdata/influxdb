@@ -537,10 +537,6 @@ class TableGraph extends Component<Props, State> {
         cellType: 'table',
       })
 
-      // Argument of type '{ colors: ColorString; lastValue: ReactText; cellType: "table"; }' is not assignable to parameter of type '{ colors: any; lastValue: any; cellType?: CellType; }'.
-      //   Types of property 'cellType' are incompatible.
-      //     Type '"table"' is not assignable to type 'CellType'.
-
       cellStyle = {
         ...style,
         backgroundColor: bgColor,

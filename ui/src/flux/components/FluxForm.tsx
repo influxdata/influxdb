@@ -24,6 +24,7 @@ class FluxForm extends PureComponent<Props> {
             value={this.url}
             placeholder={this.url}
             onChange={onInputChange}
+            customClass="col-sm-6"
           />
           <Input
             name="name"
@@ -32,6 +33,7 @@ class FluxForm extends PureComponent<Props> {
             placeholder={service.name}
             onChange={onInputChange}
             maxLength={33}
+            customClass="col-sm-6"
           />
           <div className="form-group form-group-submit col-xs-12 text-center">
             <button

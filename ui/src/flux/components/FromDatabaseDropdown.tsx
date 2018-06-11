@@ -25,7 +25,7 @@ interface DropdownItem {
   text: string
 }
 
-class From extends PureComponent<Props, State> {
+class FromDatabaseDropdown extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -82,4 +82,4 @@ class From extends PureComponent<Props, State> {
   }
 }
 
-export default From
+export default FromDatabaseDropdown

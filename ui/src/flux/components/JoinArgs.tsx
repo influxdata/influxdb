@@ -22,7 +22,7 @@ interface DropdownItem {
   text: string
 }
 
-class Join extends PureComponent<Props> {
+class JoinArgs extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
   }
@@ -151,4 +151,4 @@ class Join extends PureComponent<Props> {
   }
 }
 
-export default Join
+export default JoinArgs

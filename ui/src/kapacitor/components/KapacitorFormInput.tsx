@@ -39,7 +39,6 @@ const KapacitorFormInput: SFC<Props> = ({
 
 KapacitorFormInput.defaultProps = {
   inputType: '',
-  customClass: 'col-sm-6',
 }
 
 export default KapacitorFormInput

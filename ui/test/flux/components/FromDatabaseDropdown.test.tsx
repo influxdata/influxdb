@@ -1,6 +1,6 @@
 import React from 'react'
 import {shallow} from 'enzyme'
-import From from 'src/flux/components/From'
+import FromDatabaseDropdown from 'src/flux/components/FromDatabaseDropdown'
 import {service} from 'test/resources'
 
 jest.mock('src/shared/apis/metaQuery', () => require('mocks/flux/apis'))
@@ -16,14 +16,14 @@ const setup = () => {
     onChangeArg: () => {},
   }
 
-  const wrapper = shallow(<From {...props} />)
+  const wrapper = shallow(<FromDatabaseDropdown {...props} />)
 
   return {
     wrapper,
   }
 }
 
-describe('Flux.Components.From', () => {
+describe('Flux.Components.FromDatabaseDropdown', () => {
   describe('rendering', () => {
     it('renders without errors', () => {
       const {wrapper} = setup()
