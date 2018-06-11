@@ -5,9 +5,9 @@ import {enablePresentationMode} from 'src/shared/actions/app'
 
 export const queryStringConfig = () => dispatch => action => {
   dispatch(action)
-  const urlQueries = queryString.parse(window.location.search)
+  const urlQueryParams = queryString.parse(window.location.search)
 
-  if (urlQueries.present === 'true') {
+  if (urlQueryParams.present === 'true') {
     dispatch(enablePresentationMode())
   }
 }

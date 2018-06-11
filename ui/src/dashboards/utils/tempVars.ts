@@ -6,7 +6,7 @@ import {
   Template,
   TemplateQuery,
   TemplateValue,
-  URLQueries,
+  URLQueryParams,
 } from 'src/types'
 import {TemplateUpdate} from 'src/types/tempVars'
 
@@ -82,19 +82,19 @@ export const makeQueryForTemplate = ({
 export const stripTempVar = (tempVarName: string): string =>
   tempVarName.substr(1, tempVarName.length - 2)
 
-export const generateURLQueriesFromTempVars = (
+export const generateURLQueryParamsFromTempVars = (
   tempVars: Template[]
-): URLQueries => {
-  const urlQueries = {}
+): URLQueryParams => {
+  const urlQueryParams = {}
 
   tempVars.forEach(({tempVar, values}) => {
     const selected = values.find(value => value.selected === true)
     const strippedTempVar = stripTempVar(tempVar)
 
-    urlQueries[strippedTempVar] = selected.value
+    urlQueryParams[strippedTempVar] = selected.value
   })
 
-  return urlQueries
+  return urlQueryParams
 }
 
 export const isValidTempVarOverride = (
@@ -104,7 +104,7 @@ export const isValidTempVarOverride = (
 
 const reconcileTempVarsWithOverrides = (
   currentTempVars: Template[],
-  tempVarOverrides: URLQueries
+  tempVarOverrides: URLQueryParams
 ): Template[] => {
   if (!tempVarOverrides) {
     return currentTempVars
@@ -139,7 +139,7 @@ const reconcileTempVarsWithOverrides = (
 
 export const applyDashboardTempVarOverrides = (
   dashboard: Dashboard,
-  tempVarOverrides: URLQueries
+  tempVarOverrides: URLQueryParams
 ): Dashboard => ({
   ...dashboard,
   templates: reconcileTempVarsWithOverrides(
@@ -148,12 +148,12 @@ export const applyDashboardTempVarOverrides = (
   ),
 })
 
-export const findUpdatedTempVarsInURLQuery = (
+export const findUpdatedTempVarsInURLQueryParams = (
   tempVars: Template[],
-  urlQueries: URLQueries
+  urlQueryParams: URLQueryParams
 ): TemplateUpdate[] => {
-  const urlQueryTempVarsWithInvalidValues = _.reduce(
-    urlQueries,
+  const urlQueryParamsTempVarsWithInvalidValues = _.reduce(
+    urlQueryParams,
     (acc, v, k) => {
       const matchedTempVar = tempVars.find(
         ({tempVar}) => stripTempVar(tempVar) === k
@@ -171,15 +171,15 @@ export const findUpdatedTempVarsInURLQuery = (
     []
   )
 
-  return urlQueryTempVarsWithInvalidValues
+  return urlQueryParamsTempVarsWithInvalidValues
 }
 
 export const findInvalidTempVarsInURLQuery = (
   tempVars: Template[],
-  urlQueries: URLQueries
+  urlQueryParams: URLQueryParams
 ): TemplateUpdate[] => {
-  const urlQueryTempVarsWithInvalidValues = _.reduce(
-    urlQueries,
+  const urlQueryParamsTempVarsWithInvalidValues = _.reduce(
+    urlQueryParams,
     (acc, v, k) => {
       const matchedTempVar = tempVars.find(
         ({tempVar}) => stripTempVar(tempVar) === k
@@ -197,7 +197,7 @@ export const findInvalidTempVarsInURLQuery = (
     []
   )
 
-  return urlQueryTempVarsWithInvalidValues
+  return urlQueryParamsTempVarsWithInvalidValues
 }
 
 export default generateTemplateVariableQuery

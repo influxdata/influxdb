@@ -24,8 +24,8 @@ import {notify} from 'src/shared/actions/notifications'
 import {errorThrown} from 'src/shared/actions/errors'
 
 import {
-  generateURLQueriesFromTempVars,
-  findUpdatedTempVarsInURLQuery,
+  generateURLQueryParamsFromTempVars,
+  findUpdatedTempVarsInURLQueryParams,
   findInvalidTempVarsInURLQuery,
 } from 'src/dashboards/utils/tempVars'
 import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
@@ -61,7 +61,7 @@ import {
   Cell,
   Source,
   Template,
-  URLQueries,
+  URLQueryParams,
 } from 'src/types'
 import {CellType, DashboardName} from 'src/types/dashboard'
 
@@ -314,17 +314,17 @@ interface TemplateVariablesSelectedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
     dashboardID: number
-    queries: URLQueries
+    queryParams: URLQueryParams
   }
 }
 export const templateVariablesSelectedByName = (
   dashboardID: number,
-  queries: URLQueries
+  queryParams: URLQueryParams
 ): TemplateVariablesSelectedByNameAction => ({
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
   payload: {
     dashboardID,
-    queries,
+    queryParams,
   },
 })
 
@@ -654,17 +654,17 @@ export const hydrateTempVarValuesAsync = (
 
 const removeNullValues = obj => _.pickBy(obj, o => o)
 
-export const syncURLQueryFromQueriesObject = (
+export const syncURLQueryParamsFromQueryParamsObject = (
   location: Location,
-  updatedURLQueries: URLQueries,
-  deletedURLQueries: URLQueries = {}
+  updatedURLQueryParams: URLQueryParams,
+  deletedURLQueryParams: URLQueryParams = {}
 ) => (dispatch): void => {
   const updatedLocationQuery = removeNullValues({
     ...location.query,
-    ...updatedURLQueries,
+    ...updatedURLQueryParams,
   })
 
-  _.each(deletedURLQueries, (__, k) => {
+  _.each(deletedURLQueryParams, (__, k) => {
     delete updatedLocationQuery[k]
   })
 
@@ -683,28 +683,30 @@ export const syncURLQueryFromTempVars = (
   location: Location,
   tempVars: Template[],
   deletedTempVars: Template[] = [],
-  urlQueriesTimeRanges: URLQueries = {}
+  urlQueryParamsTimeRanges: URLQueryParams = {}
 ) => (dispatch): void => {
-  const updatedURLQueries = generateURLQueriesFromTempVars(tempVars)
-  const deletedURLQueries = generateURLQueriesFromTempVars(deletedTempVars)
+  const updatedURLQueryParams = generateURLQueryParamsFromTempVars(tempVars)
+  const deletedURLQueryParams = generateURLQueryParamsFromTempVars(
+    deletedTempVars
+  )
 
-  const updatedURLQueriesWithTimeRange = {
-    ...updatedURLQueries,
-    ...urlQueriesTimeRanges,
+  const updatedURLQueryParamsWithTimeRange = {
+    ...updatedURLQueryParams,
+    ...urlQueryParamsTimeRanges,
   }
 
   dispatch(
-    syncURLQueryFromQueriesObject(
+    syncURLQueryParamsFromQueryParamsObject(
       location,
-      updatedURLQueriesWithTimeRange,
-      deletedURLQueries
+      updatedURLQueryParamsWithTimeRange,
+      deletedURLQueryParams
     )
   )
 }
 
-const syncDashboardTempVarsFromURLQueries = (
+const syncDashboardTempVarsFromURLQueryParams = (
   dashboardID: number,
-  urlQueries: URLQueries
+  urlQueryParams: URLQueryParams
 ) => (dispatch, getState): void => {
   const {
     dashboardUI,
@@ -714,30 +716,30 @@ const syncDashboardTempVarsFromURLQueries = (
 
   // viewers are not currently allowed to select temp vars and/or use overrides
   if (isUsingAuth && !isUserAuthorized(me.role, EDITOR_ROLE)) {
-    const urlQueryTempVarsWithUpdatedValues = findUpdatedTempVarsInURLQuery(
+    const urlQueryParamsTempVarsWithUpdatedValues = findUpdatedTempVarsInURLQueryParams(
       dashboard.templates,
-      urlQueries
+      urlQueryParams
     )
-    if (urlQueryTempVarsWithUpdatedValues.length) {
+    if (urlQueryParamsTempVarsWithUpdatedValues.length) {
       dispatch(notify(notifyViewerUnauthorizedToSetTempVars()))
       return
     }
   }
 
-  const urlQueryTempVarsWithInvalidValues = findInvalidTempVarsInURLQuery(
+  const urlQueryParamsTempVarsWithInvalidValues = findInvalidTempVarsInURLQuery(
     dashboard.templates,
-    urlQueries
+    urlQueryParams
   )
-  urlQueryTempVarsWithInvalidValues.forEach(invalidURLQuery => {
+  urlQueryParamsTempVarsWithInvalidValues.forEach(invalidURLQuery => {
     dispatch(notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery)))
   })
 
-  dispatch(templateVariablesSelectedByName(dashboardID, urlQueries))
+  dispatch(templateVariablesSelectedByName(dashboardID, urlQueryParams))
 }
 
-const syncDashboardTimeRangeFromURLQueries = (
+const syncDashboardTimeRangeFromURLQueryParams = (
   dashboardID: number,
-  urlQueries: URLQueries,
+  urlQueryParams: URLQueryParams,
   location: Location
 ) => (dispatch, getState): void => {
   const {
@@ -747,12 +749,12 @@ const syncDashboardTimeRangeFromURLQueries = (
   const dashboard = dashboards.find(d => d.id === dashboardID)
 
   const timeRangeFromQueries = {
-    lower: urlQueries.lower,
-    upper: urlQueries.upper,
+    lower: urlQueryParams.lower,
+    upper: urlQueryParams.upper,
   }
   const zoomedTimeRangeFromQueries = {
-    lower: urlQueries.zoomedLower,
-    upper: urlQueries.zoomedUpper,
+    lower: urlQueryParams.zoomedLower,
+    upper: urlQueryParams.zoomedUpper,
   }
 
   let validatedTimeRange = validTimeRange(timeRangeFromQueries)
@@ -774,12 +776,12 @@ const syncDashboardTimeRangeFromURLQueries = (
   )
   if (
     !validatedZoomedTimeRange.lower &&
-    (urlQueries.zoomedLower || urlQueries.zoomedUpper)
+    (urlQueryParams.zoomedLower || urlQueryParams.zoomedUpper)
   ) {
     dispatch(notify(notifyInvalidZoomedTimeRangeValueInURLQuery()))
   }
   dispatch(setZoomedTimeRange(validatedZoomedTimeRange))
-  const urlQueryTimeRanges = {
+  const urlQueryParamsTimeRanges = {
     lower: validatedTimeRange.lower,
     upper: validatedTimeRange.upper,
     zoomedLower: validatedZoomedTimeRange.lower,
@@ -790,19 +792,23 @@ const syncDashboardTimeRangeFromURLQueries = (
       location,
       dashboard.templates,
       [],
-      urlQueryTimeRanges
+      urlQueryParamsTimeRanges
     )
   )
 }
 
-const syncDashboardFromURLQueries = (
+const syncDashboardFromURLQueryParams = (
   dashboardID: number,
   location: Location
 ) => (dispatch): void => {
-  const urlQueries = queryString.parse(window.location.search)
-  dispatch(syncDashboardTempVarsFromURLQueries(dashboardID, urlQueries))
+  const urlQueryParams = queryString.parse(window.location.search)
+  dispatch(syncDashboardTempVarsFromURLQueryParams(dashboardID, urlQueryParams))
   dispatch(
-    syncDashboardTimeRangeFromURLQueries(dashboardID, urlQueries, location)
+    syncDashboardTimeRangeFromURLQueryParams(
+      dashboardID,
+      urlQueryParams,
+      location
+    )
   )
 }
 
@@ -826,7 +832,7 @@ export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
     source
   )
 
-  dispatch(syncDashboardFromURLQueries(+dashboardID, location))
+  dispatch(syncDashboardFromURLQueryParams(+dashboardID, location))
 }
 
 export const setZoomedTimeRangeAsync = (
@@ -834,9 +840,14 @@ export const setZoomedTimeRangeAsync = (
   location: Location
 ) => async (dispatch): Promise<void> => {
   dispatch(setZoomedTimeRange(zoomedTimeRange))
-  const urlQueryZoomedTimeRange = {
+  const urlQueryParamsZoomedTimeRange = {
     zoomedLower: zoomedTimeRange.lower,
     zoomedUpper: zoomedTimeRange.upper,
   }
-  dispatch(syncURLQueryFromQueriesObject(location, urlQueryZoomedTimeRange))
+  dispatch(
+    syncURLQueryParamsFromQueryParamsObject(
+      location,
+      urlQueryParamsZoomedTimeRange
+    )
+  )
 }

@@ -29,6 +29,6 @@ export interface TemplateUpdate {
   value: string
 }
 
-export interface URLQueries {
+export interface URLQueryParams {
   [key: string]: string
 }

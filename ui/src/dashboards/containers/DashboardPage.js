@@ -224,7 +224,7 @@ class DashboardPage extends Component {
       format: FORMAT_INFLUXQL,
     })
 
-    dashboardActions.syncURLQueryFromQueriesObject(location, {
+    dashboardActions.syncURLQueryParamsFromQueryParamsObject(location, {
       lower: timeRange.lower,
       upper: timeRange.upper,
     })
@@ -302,7 +302,7 @@ class DashboardPage extends Component {
       const updatedQueryParam = {
         [strippedTempVar]: value.value,
       }
-      dashboardActions.syncURLQueryFromQueriesObject(
+      dashboardActions.syncURLQueryParamsFromQueryParamsObject(
         location,
         updatedQueryParam
       )

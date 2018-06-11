@@ -174,12 +174,12 @@ const ui = (state = initialState, action) => {
     }
 
     case 'TEMPLATE_VARIABLES_SELECTED_BY_NAME': {
-      const {dashboardID, queries} = action.payload
+      const {dashboardID, queryParams} = action.payload
 
       const newDashboards = state.dashboards.map(
         oldDashboard =>
           oldDashboard.id === dashboardID
-            ? applyDashboardTempVarOverrides(oldDashboard, queries)
+            ? applyDashboardTempVarOverrides(oldDashboard, queryParams)
             : oldDashboard
       )
 
