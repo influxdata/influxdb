@@ -5,7 +5,7 @@ import {fluxTablesToDygraph} from 'src/shared/parsing/flux/dygraph'
 
 import Dygraph from 'src/shared/components/Dygraph'
 import {FluxTable} from 'src/types'
-import {DygraphSeries, DygraphValue} from 'src/utils/timeSeriesTransformers'
+import {DygraphSeries, DygraphValue} from 'src/types'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {setHoverTime as setHoverTimeAction} from 'src/dashboards/actions'
 

@@ -1,6 +1,6 @@
 import {DEFAULT_TABLE_OPTIONS} from 'src/dashboards/constants'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
-import {CellType} from 'src/types/dashboard'
+import {CellType, Axis} from 'src/types/dashboard'
 import {ColorString, ColorNumber} from 'src/types/colors'
 
 export const initializeOptions = (cellType: CellType) => {
@@ -17,6 +17,16 @@ export const AXES_SCALE_OPTIONS = {
   LOG: 'log',
   BASE_2: '2',
   BASE_10: '10',
+}
+
+type DefaultAxis = Pick<Axis, Exclude<keyof Axis, 'bounds'>>
+
+export const DEFAULT_AXIS: DefaultAxis = {
+  prefix: '',
+  suffix: '',
+  base: AXES_SCALE_OPTIONS.BASE_10,
+  scale: AXES_SCALE_OPTIONS.LINEAR,
+  label: '',
 }
 
 export const TOOLTIP_Y_VALUE_FORMAT =

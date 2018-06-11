@@ -1,7 +1,7 @@
 import {QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
 
-interface Axis {
+export interface Axis {
   bounds: [string, string]
   label: string
   prefix: string
@@ -39,6 +39,7 @@ export interface Sort {
 export interface Axes {
   x: Axis
   y: Axis
+  y2?: Axis
 }
 
 interface CellLinks {

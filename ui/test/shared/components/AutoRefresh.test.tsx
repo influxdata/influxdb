@@ -30,7 +30,6 @@ const defaultProps = {
   editQueryStatus: () => {},
   grabDataForDownload: () => {},
   data: [],
-  setResolution: () => {},
   isFetchingInitially: false,
   isRefreshing: false,
   queryASTs: [],
