@@ -8,8 +8,14 @@ interface Props {
 class QueryResults extends PureComponent<Props> {
   public render() {
     const {count} = this.props
+
     if (this.isPending) {
-      return <label className="logs-viewer--results-text">Querying ...</label>
+      return (
+        <>
+          <div className="logs-viewer--results-spinner" />
+          <label className="logs-viewer--results-text">Querying...</label>
+        </>
+      )
     }
 
     return (

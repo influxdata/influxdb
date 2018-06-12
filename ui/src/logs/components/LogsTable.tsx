@@ -2,9 +2,25 @@ import _ from 'lodash'
 import moment from 'moment'
 import classnames from 'classnames'
 import React, {Component, MouseEvent} from 'react'
-import {Grid, AutoSizer} from 'react-virtualized'
-import {getDeep} from 'src/utils/wrappers'
+import {Grid, AutoSizer, InfiniteLoader} from 'react-virtualized'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import {getDeep} from 'src/utils/wrappers'
+
+import {
+  getColumnFromData,
+  getValueFromData,
+  getValuesFromData,
+  isClickable,
+  formatColumnValue,
+  header,
+  getColumnWidth,
+  getMessageWidth,
+  getColumnsFromData,
+} from 'src/logs/utils/table'
+
+import timeRanges from 'src/logs/data/timeRanges'
+
+import {TimeRange} from 'src/types'
 
 const ROW_HEIGHT = 26
 const CHAR_WIDTH = 9
@@ -17,56 +33,84 @@ interface Props {
   onScrollVertical: () => void
   onScrolledToTop: () => void
   onTagSelection: (selection: {tag: string; key: string}) => void
+  fetchMore: (queryTimeEnd: string, time: number) => Promise<void>
+  count: number
+  timeRange: TimeRange
 }
 
 interface State {
   scrollLeft: number
   scrollTop: number
   currentRow: number
+  currentMessageWidth: number
+  lastQueryTime: number
 }
 
 class LogsTable extends Component<Props, State> {
-  public static getDerivedStateFromProps(props, state) {
+  public static getDerivedStateFromProps(props, state): State {
     const {isScrolledToTop} = props
 
+    let lastQueryTime = _.get(state, 'lastQueryTime', null)
     let scrollTop = _.get(state, 'scrollTop', 0)
     if (isScrolledToTop) {
+      lastQueryTime = null
       scrollTop = 0
     }
 
     const scrollLeft = _.get(state, 'scrollLeft', 0)
 
     return {
+      ...state,
+      isQuerying: false,
+      lastQueryTime,
       scrollTop,
       scrollLeft,
       currentRow: -1,
+      currentMessageWidth: getMessageWidth(props.data),
     }
   }
 
-  private grid: React.RefObject<Grid>
+  private grid: Grid | null
   private headerGrid: React.RefObject<Grid>
-  private currentMessageWidth: number | null
 
   constructor(props: Props) {
     super(props)
 
-    this.grid = React.createRef()
+    this.grid = null
     this.headerGrid = React.createRef()
 
     this.state = {
       scrollTop: 0,
       scrollLeft: 0,
       currentRow: -1,
+      currentMessageWidth: 0,
+      lastQueryTime: null,
     }
   }
 
   public componentDidUpdate() {
-    this.grid.current.recomputeGridSize()
-    this.headerGrid.current.recomputeGridSize()
+    if (this.isTableEmpty) {
+      return
+    }
+
+    if (this.grid) {
+      this.grid.recomputeGridSize()
+    }
+
+    if (this.headerGrid.current) {
+      this.headerGrid.current.recomputeGridSize()
+    }
   }
 
   public componentDidMount() {
     window.addEventListener('resize', this.handleWindowResize)
+    if (this.grid) {
+      this.grid.recomputeGridSize()
+    }
+
+    if (this.headerGrid.current) {
+      this.headerGrid.current.recomputeGridSize()
+    }
   }
 
   public componentWillUnmount() {
@@ -74,8 +118,14 @@ class LogsTable extends Component<Props, State> {
   }
 
   public render() {
-    const rowCount = getDeep(this.props, 'data.values.length', 0)
-    const columnCount = getDeep(this.props, 'data.columns.length', 1) - 1
+    const columnCount = Math.max(
+      getColumnsFromData(this.props.data).length - 1,
+      0
+    )
+
+    if (this.isTableEmpty) {
+      return this.emptyTable
+    }
 
     return (
       <div
@@ -98,113 +148,130 @@ class LogsTable extends Component<Props, State> {
             />
           )}
         </AutoSizer>
-        <AutoSizer>
-          {({width, height}) => (
-            <FancyScrollbar
-              style={{
-                width,
-                height,
-                marginTop: `${ROW_HEIGHT}px`,
-              }}
-              setScrollTop={this.handleScrollbarScroll}
-              scrollTop={this.state.scrollTop}
-              autoHide={false}
-            >
-              <Grid
-                height={height}
-                rowHeight={this.calculateRowHeight}
-                rowCount={rowCount}
-                width={width}
-                scrollLeft={this.state.scrollLeft}
-                scrollTop={this.state.scrollTop}
-                onScroll={this.handleScroll}
-                cellRenderer={this.cellRenderer}
-                columnCount={columnCount}
-                columnWidth={this.getColumnWidth}
-                ref={this.grid}
-                style={{height: this.calculateTotalHeight()}}
-              />
-            </FancyScrollbar>
+        <InfiniteLoader
+          isRowLoaded={this.isRowLoaded}
+          loadMoreRows={this.loadMoreRows}
+          rowCount={this.props.count}
+        >
+          {({registerChild, onRowsRendered}) => (
+            <AutoSizer>
+              {({width, height}) => (
+                <FancyScrollbar
+                  style={{
+                    width,
+                    height,
+                    marginTop: `${ROW_HEIGHT}px`,
+                  }}
+                  setScrollTop={this.handleScrollbarScroll}
+                  scrollTop={this.state.scrollTop}
+                  autoHide={false}
+                >
+                  <Grid
+                    height={height}
+                    rowHeight={this.calculateRowHeight}
+                    rowCount={getValuesFromData(this.props.data).length}
+                    width={width}
+                    scrollLeft={this.state.scrollLeft}
+                    scrollTop={this.state.scrollTop}
+                    onScroll={this.handleGridScroll}
+                    cellRenderer={this.cellRenderer}
+                    onSectionRendered={this.handleRowRender(onRowsRendered)}
+                    columnCount={columnCount}
+                    columnWidth={this.getColumnWidth}
+                    ref={(ref: Grid) => {
+                      registerChild(ref)
+                      this.grid = ref
+                    }}
+                    style={{height: this.calculateTotalHeight()}}
+                  />
+                </FancyScrollbar>
+              )}
+            </AutoSizer>
           )}
-        </AutoSizer>
+        </InfiniteLoader>
       </div>
     )
   }
 
+  private handleGridScroll = ({scrollLeft}) => {
+    this.handleScroll({scrollLeft, scrollTop: this.state.scrollTop})
+  }
+
+  private handleRowRender = onRowsRendered => ({
+    rowStartIndex,
+    rowStopIndex,
+  }) => {
+    onRowsRendered({startIndex: rowStartIndex, stopIndex: rowStopIndex})
+  }
+
+  private loadMoreRows = async () => {
+    const data = getValuesFromData(this.props.data)
+    const {timeRange} = this.props
+    const lastTime = getDeep(
+      data,
+      `${data.length - 1}.0`,
+      new Date().getTime() / 1000
+    )
+    const upper = getDeep<string>(timeRange, 'upper', null)
+    const lower = getDeep<string>(timeRange, 'lower', null)
+
+    if (this.state.lastQueryTime && this.state.lastQueryTime <= lastTime) {
+      return
+    }
+    const firstQueryTime = getDeep<number>(data, '0.0', null)
+    let queryTimeEnd = lower
+    if (!upper) {
+      const foundTimeRange = timeRanges.find(range => range.lower === lower)
+      queryTimeEnd = moment(firstQueryTime)
+        .subtract(foundTimeRange.seconds, 'seconds')
+        .toISOString()
+    }
+
+    this.setState({lastQueryTime: lastTime})
+    await this.props.fetchMore(queryTimeEnd, lastTime)
+  }
+
+  private isRowLoaded = ({index}) => {
+    return !!getValuesFromData(this.props.data)[index]
+  }
+
   private handleWindowResize = () => {
-    this.currentMessageWidth = null
-    this.grid.current.recomputeGridSize()
-    this.headerGrid.current.recomputeGridSize()
+    this.setState({currentMessageWidth: getMessageWidth(this.props.data)})
   }
 
-  private handleHeaderScroll = ({scrollLeft}) => this.setState({scrollLeft})
+  private handleHeaderScroll = ({scrollLeft}): void =>
+    this.setState({scrollLeft})
 
-  private handleScrollbarScroll = (e: MouseEvent<JSX.Element>) => {
-    const {target} = e
-    this.handleScroll(target)
+  private handleScrollbarScroll = (e: MouseEvent<JSX.Element>): void => {
+    const target = e.target as HTMLElement
+
+    this.handleScroll({
+      scrollTop: target.scrollTop,
+      scrollLeft: this.state.scrollLeft,
+    })
   }
 
-  private get widthMapping() {
-    return {
-      timestamp: 160,
-      procid: 80,
-      facility: 120,
-      severity: 22,
-      severity_1: 120,
-      host: 300,
-    }
-  }
-
-  private get messageWidth() {
-    if (this.currentMessageWidth) {
-      return this.currentMessageWidth
-    }
-
-    const columns = getDeep<string[]>(this.props, 'data.columns', [])
-    const otherWidth = columns.reduce((acc, col) => {
-      if (col === 'message' || col === 'time') {
-        return acc
-      }
-
-      return acc + _.get(this.widthMapping, col, 200)
-    }, 0)
-
-    const calculatedWidth = window.innerWidth - (otherWidth + 180)
-    this.currentMessageWidth = Math.max(100 * CHAR_WIDTH, calculatedWidth)
-
-    return this.currentMessageWidth - CHAR_WIDTH
-  }
-
-  private getColumnWidth = ({index}: {index: number}) => {
-    const column = getDeep<string>(this.props, `data.columns.${index + 1}`, '')
+  private getColumnWidth = ({index}: {index: number}): number => {
+    const column = getColumnFromData(this.props.data, index + 1)
+    const {currentMessageWidth} = this.state
 
     switch (column) {
       case 'message':
-        return this.messageWidth
+        return currentMessageWidth
       default:
-        return _.get(this.widthMapping, column, 200)
+        return getColumnWidth(column)
     }
   }
 
   private get rowCharLimit(): number {
-    return Math.floor(this.messageWidth / CHAR_WIDTH)
-  }
-
-  private get columns(): string[] {
-    return getDeep<string[]>(this.props, 'data.columns', [])
-  }
-
-  private calculateMessageHeight = (index: number): number => {
-    const columnIndex = this.columns.indexOf('message')
-    const value = getDeep(this.props, `data.values.${index}.${columnIndex}`, '')
-    const lines = Math.round(value.length / this.rowCharLimit + 0.25)
-
-    return Math.max(lines, 1) * (ROW_HEIGHT - 14) + 14
+    const {currentMessageWidth} = this.state
+    return Math.floor(currentMessageWidth / CHAR_WIDTH)
   }
 
   private calculateTotalHeight = (): number => {
+    const data = getValuesFromData(this.props.data)
     return _.reduce(
-      this.props.data.values,
+      data,
       (acc, __, index) => {
         return acc + this.calculateMessageHeight(index)
       },
@@ -212,8 +279,22 @@ class LogsTable extends Component<Props, State> {
     )
   }
 
-  private calculateRowHeight = (d: {index: number}): number => {
-    return this.calculateMessageHeight(d.index)
+  private calculateMessageHeight = (index: number): number => {
+    const columns = getColumnsFromData(this.props.data)
+    const columnIndex = columns.indexOf('message')
+    const value = getValueFromData(this.props.data, index, columnIndex)
+
+    if (!value) {
+      return ROW_HEIGHT
+    }
+
+    const lines = Math.round(value.length / this.rowCharLimit + 0.25)
+
+    return Math.max(lines, 1) * (ROW_HEIGHT - 14) + 14
+  }
+
+  private calculateRowHeight = ({index}: {index: number}): number => {
+    return this.calculateMessageHeight(index)
   }
 
   private handleScroll = scrollInfo => {
@@ -228,97 +309,44 @@ class LogsTable extends Component<Props, State> {
     this.setState({scrollLeft, scrollTop})
   }
 
-  private severityLevel(value: string): string {
-    switch (value) {
-      case 'emerg':
-        return 'Emergency'
-      case 'alert':
-        return 'Alert'
-      case 'crit':
-        return 'Critical'
-      case 'err':
-        return 'Error'
-      case 'info':
-        return 'Informational'
-      default:
-        return _.capitalize(value)
-    }
-  }
-
-  private header(key: string): string {
-    return getDeep<string>(
-      {
-        timestamp: 'Timestamp',
-        procid: 'Proc ID',
-        message: 'Message',
-        appname: 'Application',
-        severity: '',
-        severity_1: 'Severity',
-      },
-      key,
-      _.capitalize(key)
-    )
-  }
-
   private headerRenderer = ({key, style, columnIndex}) => {
-    const value = getDeep<string>(
-      this.props,
-      `data.columns.${columnIndex + 1}`,
-      ''
-    )
+    const column = getColumnFromData(this.props.data, columnIndex + 1)
+    const classes = 'logs-viewer--cell logs-viewer--cell-header'
 
     return (
-      <div
-        className="logs-viewer--cell logs-viewer--cell-header"
-        style={style}
-        key={key}
-      >
-        {this.header(value)}
+      <div className={classes} style={style} key={key}>
+        {header(column)}
       </div>
     )
   }
 
   private cellRenderer = ({key, style, rowIndex, columnIndex}) => {
-    const column = getDeep<string>(
-      this.props,
-      `data.columns.${columnIndex + 1}`,
-      ''
-    )
+    const column = getColumnFromData(this.props.data, columnIndex + 1)
+    const value = getValueFromData(this.props.data, rowIndex, columnIndex + 1)
 
-    let value: string | JSX.Element = this.props.data.values[rowIndex][
-      columnIndex + 1
-    ]
-
-    switch (column) {
-      case 'timestamp':
-        value = moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
-        break
-      case 'message':
-        if (value.indexOf(' ') > this.rowCharLimit - 5) {
-          value = _.truncate(value, {length: this.rowCharLimit - 5})
-        }
-        break
-      case 'severity':
-        value = (
-          <div
-            className={`logs-viewer--dot ${value}-severity`}
-            title={this.severityLevel(value)}
-            onMouseOver={this.handleMouseEnter}
-            data-index={rowIndex}
-          />
-        )
-        break
+    let formattedValue: string | JSX.Element
+    if (column === 'severity') {
+      formattedValue = (
+        <div
+          className={`logs-viewer--dot ${value}-severity`}
+          title={value}
+          onMouseOver={this.handleMouseEnter}
+          data-index={rowIndex}
+        />
+      )
+    } else {
+      formattedValue = formatColumnValue(column, value, this.rowCharLimit)
     }
 
-    const highlightRow = rowIndex === this.state.currentRow && columnIndex >= 0
+    const highlightRow = rowIndex === this.state.currentRow
 
-    if (this.isClickable(column)) {
+    if (isClickable(column)) {
       return (
         <div
           className={classnames('logs-viewer--cell', {
             highlight: highlightRow,
           })}
-          title={`Filter by "${value}"`}
+          title={`Filter by "${formattedValue}"`}
           style={{...style, padding: '5px'}}
           key={key}
           data-index={rowIndex}
@@ -332,7 +360,7 @@ class LogsTable extends Component<Props, State> {
             onMouseOver={this.handleMouseEnter}
             className="logs-viewer--clickable"
           >
-            {value}
+            {formattedValue}
           </div>
         </div>
       )
@@ -348,7 +376,7 @@ class LogsTable extends Component<Props, State> {
         onMouseOver={this.handleMouseEnter}
         data-index={rowIndex}
       >
-        {value}
+        {formattedValue}
       </div>
     )
   }
@@ -373,11 +401,22 @@ class LogsTable extends Component<Props, State> {
     this.setState({currentRow: -1})
   }
 
-  private isClickable(key): boolean {
-    return _.includes(
-      ['appname', 'facility', 'host', 'hostname', 'severity_1'],
-      key
+  private get emptyTable(): JSX.Element {
+    return (
+      <div className="logs-viewer--table-container generic-empty-state">
+        <h4>No logs to display</h4>
+        <p>
+          Try changing the <strong>time range</strong> or{' '}
+          <strong>removing filters</strong>
+        </p>
+      </div>
     )
+  }
+
+  private get isTableEmpty(): boolean {
+    const rowCount = getDeep(this.props, 'data.values.length', 0)
+
+    return rowCount === 0
   }
 }
 

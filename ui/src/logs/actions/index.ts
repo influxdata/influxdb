@@ -1,3 +1,4 @@
+import moment from 'moment'
 import _ from 'lodash'
 import {Source, Namespace, TimeRange, QueryConfig} from 'src/types'
 import {getSource} from 'src/shared/apis'
@@ -10,14 +11,9 @@ import {
 import {getDeep} from 'src/utils/wrappers'
 import buildQuery from 'src/utils/influxql'
 import {executeQueryAsync} from 'src/logs/api'
-import {LogsState, Filter} from 'src/types/logs'
+import {LogsState, Filter, TableData} from 'src/types/logs'
 
-interface TableData {
-  columns: string[]
-  values: string[]
-}
-
-const defaultTableData = {
+const defaultTableData: TableData = {
   columns: [
     'time',
     'severity',
@@ -54,6 +50,14 @@ export enum ActionTypes {
   ChangeFilter = 'LOGS_CHANGE_FILTER',
   IncrementQueryCount = 'LOGS_INCREMENT_QUERY_COUNT',
   DecrementQueryCount = 'LOGS_DECREMENT_QUERY_COUNT',
+  ConcatMoreLogs = 'LOGS_CONCAT_MORE_LOGS',
+}
+
+export interface ConcatMoreLogsAction {
+  type: ActionTypes.ConcatMoreLogs
+  payload: {
+    series: TableData
+  }
 }
 
 export interface IncrementQueryCountAction {
@@ -173,6 +177,7 @@ export type Action =
   | ChangeFilterAction
   | DecrementQueryCountAction
   | IncrementQueryCountAction
+  | ConcatMoreLogsAction
 
 const getTimeRange = (state: State): TimeRange | null =>
   getDeep<TimeRange | null>(state, 'logs.timeRange', null)
@@ -243,7 +248,7 @@ export const executeHistogramQueryAsync = () => async (
 
 const setTableData = (series: TableData): SetTableData => ({
   type: ActionTypes.SetTableData,
-  payload: {data: {columns: series.columns, values: _.reverse(series.values)}},
+  payload: {data: {columns: series.columns, values: series.values}},
 })
 
 export const executeTableQueryAsync = () => async (
@@ -261,7 +266,11 @@ export const executeTableQueryAsync = () => async (
 
   if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
     const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
-    const response = await executeQueryAsync(proxyLink, namespace, query)
+    const response = await executeQueryAsync(
+      proxyLink,
+      namespace,
+      `${query} ORDER BY time DESC LIMIT 1000`
+    )
 
     const series = getDeep(response, 'results.0.series.0', defaultTableData)
 
@@ -347,6 +356,42 @@ export const setTableQueryConfigAsync = () => async (
     dispatch(executeTableQueryAsync())
   }
 }
+
+export const fetchMoreAsync = (
+  queryTimeEnd: string,
+  lastTime: number
+) => async (dispatch, getState): Promise<void> => {
+  const state = getState()
+  const tableQueryConfig = getTableQueryConfig(state)
+  const time = moment(lastTime).toISOString()
+  const timeRange = {lower: queryTimeEnd, upper: time}
+  const newQueryConfig = {
+    ...tableQueryConfig,
+    range: timeRange,
+  }
+  const namespace = getNamespace(state)
+  const proxyLink = getProxyLink(state)
+  const searchTerm = getSearchTerm(state)
+  const filters = getFilters(state)
+  const params = [namespace, proxyLink, tableQueryConfig]
+
+  if (_.every(params)) {
+    const query = buildLogQuery(timeRange, newQueryConfig, filters, searchTerm)
+    const response = await executeQueryAsync(
+      proxyLink,
+      namespace,
+      `${query} ORDER BY time DESC LIMIT 1000`
+    )
+
+    const series = getDeep(response, 'results.0.series.0', defaultTableData)
+    await dispatch(ConcatMoreLogs(series))
+  }
+}
+
+export const ConcatMoreLogs = (series: TableData): ConcatMoreLogsAction => ({
+  type: ActionTypes.ConcatMoreLogs,
+  payload: {series},
+})
 
 export const setNamespaceAsync = (namespace: Namespace) => async (
   dispatch
