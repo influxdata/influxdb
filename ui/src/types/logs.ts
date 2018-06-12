@@ -9,7 +9,7 @@ export interface Filter {
 
 export interface TableData {
   columns: string[]
-  values: object[]
+  values: string[]
 }
 
 export interface LogsState {

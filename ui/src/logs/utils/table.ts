@@ -1,23 +1,33 @@
 import _ from 'lodash'
 import moment from 'moment'
 import {getDeep} from 'src/utils/wrappers'
+import {TableData} from 'src/types/logs'
 
 const CHAR_WIDTH = 9
 
-export const getValuesFromData = data => getDeep(data, 'values', [])
+export const getValuesFromData = (data: TableData): string[][] =>
+  getDeep(data, 'values', [])
 
-export const getValueFromData = (data, row, column) =>
-  getDeep(data, `values.${row}.${column}`, '')
+export const getValueFromData = (
+  data: TableData,
+  row: number,
+  column: number
+): string => getDeep(data, `values.${row}.${column}`, '')
 
-export const getColumnsFromData = data => getDeep<string[]>(data, 'columns', [])
+export const getColumnsFromData = (data: TableData): string[] =>
+  getDeep<string[]>(data, 'columns', [])
 
-export const getColumnFromData = (data, index) =>
+export const getColumnFromData = (data: TableData, index: number): string =>
   getDeep(data, `columns.${index}`, '')
 
-export const isClickable = column =>
+export const isClickable = (column: string): boolean =>
   _.includes(['appname', 'facility', 'host', 'hostname', 'severity_1'], column)
 
-export const formatColumnValue = (column, value, charLimit) => {
+export const formatColumnValue = (
+  column: string,
+  value: string,
+  charLimit: number
+): string => {
   switch (column) {
     case 'timestamp':
       return moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
@@ -61,7 +71,7 @@ export const getColumnWidth = (column: string): number => {
   )
 }
 
-export const getMessageWidth = data => {
+export const getMessageWidth = (data: TableData): number => {
   const columns = getColumnsFromData(data)
   const otherWidth = columns.reduce((acc, col) => {
     if (col === 'message' || col === 'time') {

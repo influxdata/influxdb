@@ -227,7 +227,7 @@ class LogsTable extends Component<Props, State> {
         .toISOString()
     }
 
-    await this.setState({lastQueryTime: lastTime})
+    this.setState({lastQueryTime: lastTime})
     await this.props.fetchMore(queryTimeEnd, lastTime)
   }
 

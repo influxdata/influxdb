@@ -231,6 +231,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   private handleSubmitSearch = (value: string): void => {
     this.props.setSearchTermAsync(value)
+    this.setState({liveUpdating: true})
   }
 
   private handleFilterDelete = (id: string): void => {
