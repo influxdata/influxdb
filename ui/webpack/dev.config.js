@@ -40,6 +40,19 @@ const stats = {
 module.exports = {
   mode: 'development',
   stats,
+  optimization: {
+    concatenateModules: true,
+    splitChunks: {
+      cacheGroups: {
+        styles: {
+          name: 'chronograf',
+          test: /\.scss$/,
+          chunks: 'all',
+          enforce: true,
+        },
+      },
+    },
+  },
   node: {
     fs: 'empty',
     module: 'empty',
@@ -180,7 +193,7 @@ module.exports = {
     }),
     new webpack.HotModuleReplacementPlugin(),
     new MiniCssExtractPlugin({
-      filename: 'chronograf.css',
+      filename: '[name].css',
       chunkFilename: '[id].css',
     }),
     new HtmlWebpackPlugin({
