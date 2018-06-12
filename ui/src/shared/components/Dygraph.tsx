@@ -1,9 +1,9 @@
 import React, {
   Component,
-  ReactNode,
   CSSProperties,
   MouseEvent,
   ReactElement,
+  Children,
 } from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
@@ -70,7 +70,6 @@ interface Props {
   dygraphRef?: (r: HTMLDivElement) => void
   onZoom?: (u: number | string, l: number | string) => void
   mode?: string
-  children?: ReactNode
 }
 
 interface State {
@@ -308,7 +307,7 @@ class Dygraph extends Component<Props, State> {
   private get isGraphNested(): boolean {
     const {children} = this.props
 
-    return _.get(children, '0', false)
+    return Children.count(children) > 0
   }
 
   private get dygraphStyle(): CSSProperties {
