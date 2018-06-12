@@ -137,14 +137,14 @@ $rd-cell-size: 30px;
   left: 0;
   &:after {
     left: calc(50% - 1px);
-    content: "\e90c";
+    content: "\e901";
   }
 }
 .rd-next {
   left: calc(100% - #{$custom-time-arrow});
   &:after {
     left: calc(50% + 1px);
-    content: "\e911";
+    content: "\e903";
   }
 }
 .rd-month-label {
