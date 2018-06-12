@@ -1,4 +1,5 @@
 import React, {PureComponent, Fragment} from 'react'
+import _ from 'lodash'
 
 import {FluxContext} from 'src/flux/containers/FluxPage'
 import FuncSelector from 'src/flux/components/FuncSelector'
@@ -20,6 +21,7 @@ interface State {
   nonYieldableIndexesToggled: {
     [x: number]: boolean
   }
+  isImplicitYieldToggled: boolean
 }
 
 // an Expression is a group of one or more functions
@@ -29,6 +31,7 @@ class ExpressionNode extends PureComponent<Props, State> {
 
     this.state = {
       nonYieldableIndexesToggled: {},
+      isImplicitYieldToggled: this.isImplicitYieldToggled,
     }
   }
 
@@ -127,6 +130,38 @@ class ExpressionNode extends PureComponent<Props, State> {
                       />
                     </Fragment>
                   )
+                } else if (this.isEndOfScript(i)) {
+                  const script = scriptUpToYield(bodyID, declarationID, i, true)
+
+                  return (
+                    <Fragment key={`${i}-notInScript`}>
+                      <FuncNode
+                        key={i}
+                        index={i}
+                        func={func}
+                        bodyID={bodyID}
+                        service={service}
+                        onChangeArg={onChangeArg}
+                        onDelete={onDeleteFuncNode}
+                        onToggleYield={this.handleHideImplicitYield}
+                        isYieldable={isAfterFilter && isAfterRange}
+                        isYielding={this.isNextFuncYield(i)}
+                        declarationID={declarationID}
+                        onGenerateScript={onGenerateScript}
+                        declarationsFromBody={declarationsFromBody}
+                        onToggleYieldWithLast={this.handleToggleYieldWithLast}
+                      />
+                      <YieldFuncNode
+                        index={i}
+                        func={func}
+                        data={data}
+                        script={script}
+                        bodyID={bodyID}
+                        service={service}
+                        declarationID={declarationID}
+                      />
+                    </Fragment>
+                  )
                 } else {
                   return funcNode
                 }
@@ -146,8 +181,13 @@ class ExpressionNode extends PureComponent<Props, State> {
 
   private isNextFuncYield = (funcIndex: number): boolean => {
     const {funcs, isLastBody} = this.props
+    const {isImplicitYieldToggled} = this.state
 
-    if (funcIndex === funcs.length - 1 && isLastBody) {
+    if (
+      funcIndex === funcs.length - 1 &&
+      isLastBody &&
+      isImplicitYieldToggled
+    ) {
       return true
     }
 
@@ -164,24 +204,44 @@ class ExpressionNode extends PureComponent<Props, State> {
     return false
   }
 
+  private get isImplicitYieldToggled(): boolean {
+    const {isLastBody} = this.props
+
+    return isLastBody && this.isLastFuncYield
+  }
+
+  private get isLastFuncYield(): boolean {
+    const {funcs} = this.props
+
+    return _.get(funcs, `${funcs.length - 1}.name`) !== 'yield'
+  }
+
   // if funcNode is not yieldable, add last before yield()
   private handleToggleYieldWithLast = (funcNodeIndex: number) => {
     this.setState(({nonYieldableIndexesToggled}) => {
-      let isFuncYieldToggled = !!nonYieldableIndexesToggled[funcNodeIndex]
-
-      if (isFuncYieldToggled) {
-        isFuncYieldToggled = false
-      } else {
-        isFuncYieldToggled = true
-      }
+      const isFuncYieldToggled = !!nonYieldableIndexesToggled[funcNodeIndex]
 
       return {
         nonYieldableIndexesToggled: {
           ...nonYieldableIndexesToggled,
-          [funcNodeIndex]: isFuncYieldToggled,
+          [funcNodeIndex]: !isFuncYieldToggled,
         },
       }
     })
+  }
+
+  private handleHideImplicitYield = () => {
+    this.setState(() => ({
+      isImplicitYieldToggled: false,
+    }))
+  }
+
+  private isEndOfScript(index: number): boolean {
+    const {isLastBody, funcs} = this.props
+    const {isImplicitYieldToggled} = this.state
+    const isLastScriptFunc = isLastBody && index === funcs.length - 1
+
+    return isLastScriptFunc && isImplicitYieldToggled
   }
 }
 
