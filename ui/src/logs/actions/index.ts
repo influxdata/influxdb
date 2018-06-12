@@ -427,14 +427,23 @@ export const setTimeRangeAsync = (timeRange: TimeRange) => async (
   dispatch(setTableQueryConfigAsync())
 }
 
-export const populateNamespacesAsync = (proxyLink: string) => async (
-  dispatch
-): Promise<void> => {
+export const populateNamespacesAsync = (
+  proxyLink: string,
+  source: Source = null
+) => async (dispatch): Promise<void> => {
   const namespaces = await getDatabasesWithRetentionPolicies(proxyLink)
 
   if (namespaces && namespaces.length > 0) {
     dispatch(setNamespaces(namespaces))
-    dispatch(setNamespaceAsync(namespaces[0]))
+    if (source) {
+      const defaultNamespace = namespaces.find(
+        namespace => namespace.database === source.telegraf
+      )
+
+      dispatch(setNamespaceAsync(defaultNamespace))
+    } else {
+      dispatch(setNamespaceAsync(namespaces[0]))
+    }
   }
 }
 
@@ -448,7 +457,7 @@ export const getSourceAndPopulateNamespacesAsync = (sourceID: string) => async (
 
   if (proxyLink) {
     dispatch(setSource(source))
-    dispatch(populateNamespacesAsync(proxyLink))
+    dispatch(populateNamespacesAsync(proxyLink, source))
   }
 }
 
