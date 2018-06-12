@@ -66,6 +66,10 @@
   name = "github.com/prometheus/client_golang"
   revision = "661e31bf844dfca9aeba15f27ea8aa0d485ad212"
 
+[[constraint]]
+  name = "github.com/klauspost/pgzip"
+  revision = "0bf5dcad4ada2814c3c00f996a982270bb81a506"
+
 [prune]
   go-tests = true
   unused-packages = true
