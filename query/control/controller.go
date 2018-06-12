@@ -134,8 +134,8 @@ func (c *Controller) enqueueQuery(q *Query) error {
 }
 
 func (c *Controller) nextID() QueryID {
-	c.queriesMu.RLock()
-	defer c.queriesMu.RUnlock()
+	c.queriesMu.Lock()
+	defer c.queriesMu.Unlock()
 	ok := true
 	for ok {
 		c.lastID++
