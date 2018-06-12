@@ -166,6 +166,9 @@ type EngineOptions struct {
 	// Limits the concurrent number of TSM files that can be loaded at once.
 	OpenLimiter limiter.Fixed
 
+	// CompactionDisabled specifies shards should not schedule compactions.
+	// This option is intended for offline tooling.
+	CompactionDisabled          bool
 	CompactionPlannerCreator    CompactionPlannerCreator
 	CompactionLimiter           limiter.Fixed
 	CompactionThroughputLimiter limiter.Rate
