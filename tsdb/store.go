@@ -190,9 +190,9 @@ func (s *Store) Open() error {
 	}
 
 	s.opened = true
-	s.wg.Add(1)
 
 	if !s.EngineOptions.MonitorDisabled {
+		s.wg.Add(1)
 		go s.monitorShards()
 	}
 
