@@ -42,6 +42,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {yieldName} = this.props
     const {visType} = this.state
 
     return (
@@ -53,6 +54,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
             currentView={visType}
             onToggleView={this.selectVisType}
           />
+          <span>{yieldName}</span>
         </div>
         <div className="yield-node--visualization">{this.vis}</div>
       </>
