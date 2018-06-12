@@ -263,8 +263,12 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 	srv.Handler.BuildType = "OSS"
-	srv.Handler.Store.MetaClient = s.MetaClient
-	srv.Handler.Store.TSDBStore = s.TSDBStore
+
+	// Wire up storage service for Prometheus endpoints.
+	storageStore := storage.NewStore()
+	storageStore.MetaClient = s.MetaClient
+	storageStore.TSDBStore = s.TSDBStore
+	srv.Handler.Store = storageStore
 
 	s.Services = append(s.Services, srv)
 }
@@ -422,7 +426,7 @@ func (s *Server) Open() error {
 		return fmt.Errorf("open tsdb store: %s", err)
 	}
 
-	// Open the subcriber service
+	// Open the subscriber service
 	if err := s.Subscriber.Open(); err != nil {
 		return fmt.Errorf("open subscriber: %s", err)
 	}

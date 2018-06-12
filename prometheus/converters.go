@@ -27,7 +27,7 @@ const (
 	prometheusNameTag = "__name__"
 
 	// measurementTagKey is the tag key that all measurement names use in the new storage processor
-	measurementTagKey = "_measurement"
+	measurementTagKey = "_m"
 )
 
 var ErrNaNDropped = errors.New("dropped NaN from Prometheus since they are not supported")
@@ -75,37 +75,6 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 	return points, droppedNaN
 }
 
-// ReadRequestToInfluxQLQuery converts a Prometheus remote read request to an equivalent InfluxQL
-// query that will return the requested data when executed
-func ReadRequestToInfluxQLQuery(req *remote.ReadRequest, db, rp string) (*influxql.Query, error) {
-	if len(req.Queries) != 1 {
-		return nil, errors.New("Prometheus read endpoint currently only supports one query at a time")
-	}
-	promQuery := req.Queries[0]
-
-	stmt := &influxql.SelectStatement{
-		IsRawQuery: true,
-		Fields: []*influxql.Field{
-			{Expr: &influxql.VarRef{Val: fieldName}},
-		},
-		Sources: []influxql.Source{&influxql.Measurement{
-			Name:            measurementName,
-			Database:        db,
-			RetentionPolicy: rp,
-		}},
-		Dimensions: []*influxql.Dimension{{Expr: &influxql.Wildcard{}}},
-	}
-
-	cond, err := condFromMatchers(promQuery, promQuery.Matchers)
-	if err != nil {
-		return nil, err
-	}
-
-	stmt.Condition = cond
-
-	return &influxql.Query{Statements: []influxql.Statement{stmt}}, nil
-}
-
 // ReadRequestToInfluxStorageRequest converts a Prometheus remote read request into one using the
 // new storage API that IFQL uses.
 func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (*storage.ReadRequest, error) {
@@ -124,6 +93,7 @@ func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (
 			Start: time.Unix(0, q.StartTimestampMs*int64(time.Millisecond)).UnixNano(),
 			End:   time.Unix(0, q.EndTimestampMs*int64(time.Millisecond)).UnixNano(),
 		},
+		PointsLimit: math.MaxInt64,
 	}
 
 	pred, err := predicateFromMatchers(q.Matchers)
@@ -132,7 +102,6 @@ func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (
 	}
 
 	sreq.Predicate = pred
-
 	return sreq, nil
 }
 

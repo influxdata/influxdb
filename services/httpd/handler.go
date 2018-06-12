@@ -110,10 +110,14 @@ type Handler struct {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
 
+	Store interface {
+		Read(ctx context.Context, req *storage.ReadRequest) (storage.Results, error)
+		WithLogger(log *zap.Logger)
+	}
+
 	Config    *Config
 	Logger    *zap.Logger
 	CLFLogger *log.Logger
-	Store     *storage.Store
 	accessLog *os.File
 	stats     *Statistics
 
@@ -971,8 +975,8 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	h.writeHeader(w, http.StatusNoContent)
 }
 
-// servePromRead will convert a Prometheus remote read request into an InfluxQL query and
-// return data in Prometheus remote read protobuf format.
+// servePromRead will convert a Prometheus remote read request into a storage
+// query and returns data in Prometheus remote read protobuf format.
 func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user meta.User) {
 	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -1005,13 +1009,12 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	ctx := context.Background()
 	rs, err := h.Store.Read(ctx, readRequest)
 	if err != nil {
-		h.Logger.Error("Store.Read failed", zap.Error(err))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if rs == nil {
-		h.Logger.Error("Store.Read nil", zap.Error(errors.New("no store to read")))
+		err = errors.New("no store to read")
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -1020,7 +1023,6 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	resp := &remote.ReadResponse{
 		Results: []*remote.QueryResult{{}},
 	}
-
 	for rs.Next() {
 		cur := rs.Cursor()
 		if cur == nil {
@@ -1029,12 +1031,8 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		}
 
 		tags := prometheus.RemoveInfluxSystemTags(rs.Tags())
-
+		var unsupportedCursor string
 		switch cur := cur.(type) {
-		case tsdb.IntegerBatchCursor:
-			h.Logger.Info("Prometheus can't read int64 cursors: ",
-				zap.Stringer("series", tags),
-			)
 		case tsdb.FloatBatchCursor:
 			series := &remote.TimeSeries{
 				Labels: prometheus.ModelTagsToLabelPairs(tags),
@@ -1048,7 +1046,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 
 				for i, ts := range ts {
 					series.Samples = append(series.Samples, &remote.Sample{
-						TimestampMs: ts / int64(time.Millisecond) / int64(time.Nanosecond),
+						TimestampMs: ts / int64(time.Millisecond),
 						Value:       vs[i],
 					})
 				}
@@ -1056,23 +1054,25 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 			cur.Close()
 
 			resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, series)
+		case tsdb.IntegerBatchCursor:
+			unsupportedCursor = "int64"
 		case tsdb.UnsignedBatchCursor:
-			h.Logger.Info("Prometheus can't read uint cursors: ",
-				zap.Stringer("series", tags),
-			)
+			unsupportedCursor = "uint"
 		case tsdb.BooleanBatchCursor:
-			h.Logger.Info("Prometheus can't read bool cursors: ",
-				zap.Stringer("series", tags),
-			)
+			unsupportedCursor = "bool"
 		case tsdb.StringBatchCursor:
-			h.Logger.Info("Prometheus can't read string cursors: ",
-				zap.Stringer("series", tags),
-			)
+			unsupportedCursor = "string"
 		default:
 			panic(fmt.Sprintf("unreachable: %T", cur))
 		}
-	}
 
+		if len(unsupportedCursor) > 0 {
+			h.Logger.Info("Prometheus can't read cursor",
+				zap.String("cursor_type", unsupportedCursor),
+				zap.Stringer("series", tags),
+			)
+		}
+	}
 	data, err := proto.Marshal(resp)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)

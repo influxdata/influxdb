@@ -18,6 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/influxdata/influxdb/logger"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
@@ -27,6 +31,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -599,10 +604,11 @@ func TestHandler_PromRead(t *testing.T) {
 	req := &remote.ReadRequest{
 		Queries: []*remote.Query{{
 			Matchers: []*remote.LabelMatcher{
-				{Type: remote.MatchType_EQUAL, Name: "eq", Value: "a"},
-				{Type: remote.MatchType_NOT_EQUAL, Name: "neq", Value: "b"},
-				{Type: remote.MatchType_REGEX_MATCH, Name: "regex", Value: "c"},
-				{Type: remote.MatchType_REGEX_NO_MATCH, Name: "neqregex", Value: "d"},
+				{
+					Type:  remote.MatchType_EQUAL,
+					Name:  "__name__",
+					Value: "value",
+				},
 			},
 			StartTimestampMs: 1,
 			EndTimestampMs:   2,
@@ -614,27 +620,43 @@ func TestHandler_PromRead(t *testing.T) {
 	}
 	compressed := snappy.Encode(nil, data)
 	b := bytes.NewReader(compressed)
-
 	h := NewHandler(false)
-	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
-		if stmt.String() != `SELECT f64 FROM foo.._ WHERE eq = 'a' AND neq != 'b' AND regex =~ /c/ AND neqregex !~ /d/ AND time >= '1970-01-01T00:00:00.001Z' AND time <= '1970-01-01T00:00:00.002Z' GROUP BY *` {
-			t.Fatalf("unexpected query: %s", stmt.String())
-		} else if ctx.Database != `foo` {
-			t.Fatalf("unexpected db: %s", ctx.Database)
-		}
-		row := &models.Row{
-			Name:    "_",
-			Tags:    map[string]string{"foo": "bar"},
-			Columns: []string{"time", "f64"},
-			Values:  [][]interface{}{{time.Unix(23, 0), 1.2}},
-		}
-		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{row})}
-		return nil
-	}
-
 	w := httptest.NewRecorder()
 
-	h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo", b))
+	// Number of results in the result set
+	var i int64
+	h.Store.ResultSet.NextFn = func() bool {
+		i++
+		return i <= 2
+	}
+
+	// data for each cursor.
+	h.Store.ResultSet.CursorFn = func() tsdb.Cursor {
+		cursor := internal.NewFloatBatchCursorMock()
+
+		var i int64
+		cursor.NextFn = func() ([]int64, []float64) {
+			i++
+			ts := []int64{22000000 * i, 10000000000 * i}
+			vs := []float64{2.3, 2992.33}
+			if i > 2 {
+				ts, vs = nil, nil
+			}
+			return ts, vs
+		}
+
+		return cursor
+	}
+
+	// Tags for each cursor.
+	h.Store.ResultSet.TagsFn = func() models.Tags {
+		return models.NewTags(map[string]string{
+			"host": fmt.Sprintf("server-%d", i),
+			"_m":   "mem",
+		})
+	}
+
+	h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo&rp=bar", b))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
 	}
@@ -649,16 +671,134 @@ func TestHandler_PromRead(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	expLabels := []*remote.LabelPair{{Name: "foo", Value: "bar"}}
-	expSamples := []*remote.Sample{{TimestampMs: 23000, Value: 1.2}}
-
-	ts := resp.Results[0].Timeseries[0]
-
-	if !reflect.DeepEqual(expLabels, ts.Labels) {
-		t.Fatalf("unexpected labels\n\texp: %v\n\tgot: %v", expLabels, ts.Labels)
+	expResults := []*remote.QueryResult{
+		{
+			Timeseries: []*remote.TimeSeries{
+				{
+					Labels: []*remote.LabelPair{
+						{Name: "host", Value: "server-1"},
+					},
+					Samples: []*remote.Sample{
+						{TimestampMs: 22, Value: 2.3},
+						{TimestampMs: 10000, Value: 2992.33},
+						{TimestampMs: 44, Value: 2.3},
+						{TimestampMs: 20000, Value: 2992.33},
+					},
+				},
+				{
+					Labels: []*remote.LabelPair{
+						{Name: "host", Value: "server-2"},
+					},
+					Samples: []*remote.Sample{
+						{TimestampMs: 22, Value: 2.3},
+						{TimestampMs: 10000, Value: 2992.33},
+						{TimestampMs: 44, Value: 2.3},
+						{TimestampMs: 20000, Value: 2992.33},
+					},
+				},
+			},
+		},
 	}
-	if !reflect.DeepEqual(expSamples, ts.Samples) {
-		t.Fatalf("unexpectd samples\n\texp: %v\n\tgot: %v", expSamples, ts.Samples)
+
+	if !reflect.DeepEqual(resp.Results, expResults) {
+		t.Fatalf("Results differ:\n%v", cmp.Diff(resp.Results, expResults))
+	}
+}
+
+func TestHandler_PromRead_NoResults(t *testing.T) {
+	req := &remote.ReadRequest{Queries: []*remote.Query{&remote.Query{
+		Matchers: []*remote.LabelMatcher{
+			{
+				Type:  remote.MatchType_EQUAL,
+				Name:  "__name__",
+				Value: "value",
+			},
+		},
+		StartTimestampMs: 0,
+		EndTimestampMs:   models.MaxNanoTime / int64(time.Millisecond),
+	}}}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+
+	b := bytes.NewReader(compressed)
+	h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo", b))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+	reqBuf, err := snappy.Decode(nil, w.Body.Bytes())
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	var resp remote.ReadResponse
+	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
+func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
+	req := &remote.ReadRequest{Queries: []*remote.Query{&remote.Query{
+		Matchers: []*remote.LabelMatcher{
+			{
+				Type:  remote.MatchType_EQUAL,
+				Name:  "__name__",
+				Value: "value",
+			},
+		},
+		StartTimestampMs: 0,
+		EndTimestampMs:   models.MaxNanoTime / int64(time.Millisecond),
+	}}}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+
+	unsupported := []tsdb.Cursor{
+		internal.NewIntegerBatchCursorMock(),
+		internal.NewBooleanBatchCursorMock(),
+		internal.NewUnsignedBatchCursorMock(),
+		internal.NewStringBatchCursorMock(),
+	}
+
+	for _, cursor := range unsupported {
+		h := NewHandler(false)
+		w := httptest.NewRecorder()
+		var lb bytes.Buffer
+		h.Logger = logger.New(&lb)
+
+		more := true
+		h.Store.ResultSet.NextFn = func() bool { defer func() { more = false }(); return more }
+
+		// Set the cursor type that will be returned while iterating over
+		// the mock store.
+		h.Store.ResultSet.CursorFn = func() tsdb.Cursor {
+			return cursor
+		}
+
+		b := bytes.NewReader(compressed)
+		h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo", b))
+		if w.Code != http.StatusOK {
+			t.Fatalf("unexpected status: %d", w.Code)
+		}
+		reqBuf, err := snappy.Decode(nil, w.Body.Bytes())
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		var resp remote.ReadResponse
+		if err := proto.Unmarshal(reqBuf, &resp); err != nil {
+			t.Fatal(err.Error())
+		}
+
+		if !strings.Contains(lb.String(), "cursor_type=") {
+			t.Fatalf("got log message %q, expected to contain \"cursor_type\"", lb.String())
+		}
 	}
 }
 
@@ -1031,6 +1171,7 @@ type Handler struct {
 	StatementExecutor HandlerStatementExecutor
 	QueryAuthorizer   HandlerQueryAuthorizer
 	PointsWriter      HandlerPointsWriter
+	Store             *internal.StorageStoreMock
 }
 
 // NewHandler returns a new instance of Handler.
@@ -1047,14 +1188,23 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	}
 
 	h.MetaClient = &internal.MetaClientMock{}
+	h.Store = internal.NewStorageStoreMock()
 
 	h.Handler.MetaClient = h.MetaClient
+	h.Handler.Store = h.Store
 	h.Handler.QueryExecutor = query.NewExecutor()
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
 	h.Handler.PointsWriter = &h.PointsWriter
 	h.Handler.Version = "0.0.0"
 	h.Handler.BuildType = "OSS"
+
+	if testing.Verbose() {
+		l := logger.New(os.Stdout)
+		h.Handler.Logger = l
+		h.Handler.Store.WithLogger(l)
+	}
+
 	return h
 }
 
