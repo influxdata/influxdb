@@ -15,7 +15,7 @@
   right: 0;
   border-radius: $radius;
   z-index: 1000;
-  box-shadow: 0 2px 5px 0.6px rgba(15, 14, 21, 0.2);
+  @extend %drop-shadow;
 }
 .custom-time--wrap,
 .custom-time--moving-dates {
@@ -257,7 +257,7 @@ $rd-cell-size: 30px;
   @include custom-scrollbar-round($c-pool, $c-laser);
   @include gradient-h($c-ocean, $c-pool);
   border-radius: $radius;
-  box-shadow: 0 2px 5px 0.6px rgba(15, 14, 21, 0.2);
+  @extend %drop-shadow;
 }
 
 .rd-time-option {
