@@ -6,6 +6,7 @@
 $logs-viewer-graph-height: 180px;
 $logs-viewer-search-height: 46px; 
 $logs-viewer-filter-height: 42px;
+$logs-viewer-results-text-indent: 33px;
 $logs-viewer-gutter: 60px;
 
 .logs-viewer {
@@ -77,19 +78,46 @@ $logs-viewer-gutter: 60px;
   padding: 0 $logs-viewer-gutter;
   height: $logs-viewer-filter-height;
   background-color: $g3-castle;
+  position: relative;
 }
 
 .logs-viewer--results-text {
-  margin: 0 12px 0 33px;
+  margin: 0 12px 0 $logs-viewer-results-text-indent;
   padding: 0;
   font-size: 13px;
   line-height: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: $g9-mountain;
+  transition: color 0.25s ease;
 
   strong {
     color: $g15-platinum;
-    font-weight: 700;
+    font-weight: 900;
+  }
+}
+
+@keyframes resultsSpinner {
+  0% {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  100% {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+.logs-viewer--results-spinner {
+  position: absolute;
+  top: 50%;
+  left: $logs-viewer-gutter + 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid $c-pool;
+  border-bottom-color: transparent;
+  animation: resultsSpinner 0.75s linear infinite;
+
+  & + .logs-viewer--results-text {
+    color: $c-pool;
   }
 }
 
