@@ -82,7 +82,14 @@ func (s *Store) validateArgs(database string, start, end int64) (string, string,
 	return database, rp, start, end, nil
 }
 
-func (s *Store) Read(ctx context.Context, req *ReadRequest) (*ResultSet, error) {
+type Results interface {
+	Close()
+	Next() bool
+	Cursor() tsdb.Cursor
+	Tags() models.Tags
+}
+
+func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
 	if len(req.GroupKeys) > 0 {
 		panic("Read: len(Grouping) > 0")
 	}
