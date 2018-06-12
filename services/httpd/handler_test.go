@@ -651,8 +651,8 @@ func TestHandler_PromRead(t *testing.T) {
 	// Tags for each cursor.
 	h.Store.ResultSet.TagsFn = func() models.Tags {
 		return models.NewTags(map[string]string{
-			"host": fmt.Sprintf("server-%d", i),
-			"_measurement":   "mem",
+			"host":         fmt.Sprintf("server-%d", i),
+			"_measurement": "mem",
 		})
 	}
 
@@ -663,7 +663,7 @@ func TestHandler_PromRead(t *testing.T) {
 
 	reqBuf, err := snappy.Decode(nil, w.Body.Bytes())
 	if err != nil {
-		t.Fatal(err))
+		t.Fatal(err)
 	}
 
 	var resp remote.ReadResponse

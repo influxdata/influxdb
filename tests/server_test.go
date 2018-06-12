@@ -9519,9 +9519,12 @@ func TestServer_Prometheus_Read(t *testing.T) {
 	}
 
 	writes := []string{
-		`mem,host=server-1 value=2.34 120000000000`,
-		`mem,host=server-2 value=1.1 121000000000`,
-		`mem,host=server-20 value=18.2 122000000000`,
+		`mem,host=server-1,region=west value=2.34 119000000000`,
+		`mem,host=server-1,region=west value=988.0 119500000000`,
+		`mem,host=server-1,region=south value=121.2 120000000000`,
+		`mem,host=server-2,region=east value=1.1 120000000000`,
+		`cpu,region=south value=200 119000000000`,
+		`mem,host=server-1,region=north value=10.00 121000000000`,
 	}
 
 	test := NewTest("db0", "rp0")
@@ -9541,21 +9544,23 @@ func TestServer_Prometheus_Read(t *testing.T) {
 					Name:  "__name__",
 					Value: "mem",
 				},
+				// TODO(edd): awaiting negation bugfix in tsdb.IndexSet.
+				// {
+				// 	Type: remote.MatchType_NOT_EQUAL,
+				// 	Name: "host",
+				// 	Value: "server-2",
+				// },
 				{
-					Type: remote.MatchType_NOT_EQUAL,
-					Name: "host",
-					Value: "server-5",
+					Type:  remote.MatchType_REGEX_MATCH,
+					Name:  "host",
+					Value: "server-1$",
 				},
-				{
-					Type: remote.MatchType_REGEX_MATCH,
-					Name: "host",
-					Value: "server-.*",
-				},
-				{
-					Type: remote.MatchType_REGEX_NO_MATCH,
-					Name: "host",
-					Value: "server-2",
-				},
+				// TODO(edd): awaiting negation bugfix in tsdb.IndexSet.
+				// {
+				// 	Type: remote.MatchType_REGEX_NO_MATCH,
+				// 	Name: "region",
+				// 	Value: "south",
+				// },
 			},
 			StartTimestampMs: 119000,
 			EndTimestampMs:   120010,
@@ -9568,7 +9573,7 @@ func TestServer_Prometheus_Read(t *testing.T) {
 	compressed := snappy.Encode(nil, data)
 	b := bytes.NewReader(compressed)
 
-	resp, err := http.Post(s.URL()+"/api/v1/prom/read?db=db0", "", b)
+	resp, err := http.Post(s.URL()+"/api/v1/prom/read?db=db0&rp=rp0", "", b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -9594,9 +9599,20 @@ func TestServer_Prometheus_Read(t *testing.T) {
 				{
 					Labels: []*remote.LabelPair{
 						{Name: "host", Value: "server-1"},
+						{Name: "region", Value: "south"},
 					},
 					Samples: []*remote.Sample{
-						{TimestampMs: 120000, Value: 2.34},
+						{TimestampMs: 120000, Value: 121.2},
+					},
+				},
+				{
+					Labels: []*remote.LabelPair{
+						{Name: "host", Value: "server-1"},
+						{Name: "region", Value: "west"},
+					},
+					Samples: []*remote.Sample{
+						{TimestampMs: 119000, Value: 2.34},
+						{TimestampMs: 119500, Value: 988.00},
 					},
 				},
 			},
@@ -9604,7 +9620,7 @@ func TestServer_Prometheus_Read(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(promResp.Results, expResults) {
-		t.Fatalf("Results differ:\n%v", cmp.Diff(promResp.Results, expResults))
+		t.Fatalf("Results differ:\n%v", cmp.Diff(expResults, promResp.Results))
 	}
 }
 

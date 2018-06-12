@@ -1034,14 +1034,18 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		var unsupportedCursor string
 		switch cur := cur.(type) {
 		case tsdb.FloatBatchCursor:
-			series := &remote.TimeSeries{
-				Labels: prometheus.ModelTagsToLabelPairs(tags),
-			}
-
+			var series *remote.TimeSeries
 			for {
 				ts, vs := cur.Next()
 				if len(ts) == 0 {
 					break
+				}
+
+				// We have some data for this series.
+				if series == nil {
+					series = &remote.TimeSeries{
+						Labels: prometheus.ModelTagsToLabelPairs(tags),
+					}
 				}
 
 				for i, ts := range ts {
@@ -1053,7 +1057,10 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 			}
 			cur.Close()
 
-			resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, series)
+			// There was data for the series.
+			if series != nil {
+				resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, series)
+			}
 		case tsdb.IntegerBatchCursor:
 			unsupportedCursor = "int64"
 		case tsdb.UnsignedBatchCursor:
