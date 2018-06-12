@@ -581,7 +581,7 @@ func TestHandler_PromWrite(t *testing.T) {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
-		expFields := models.Fields{"f64": 1.2}
+		expFields := models.Fields{"value": 1.2}
 		if !reflect.DeepEqual(fields, expFields) {
 			t.Fatalf("fields don't match\n\texp: %v\n\tgot: %v", expFields, fields)
 		}

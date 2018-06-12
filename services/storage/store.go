@@ -104,14 +104,14 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
 		return nil, err
 	}
 	if len(shardIDs) == 0 {
-		return nil, nil
+		return (*ResultSet)(nil), nil
 	}
 
 	var cur seriesCursor
 	if ic, err := newIndexSeriesCursor(ctx, req.Predicate, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
 	} else if ic == nil {
-		return nil, nil
+		return (*ResultSet)(nil), nil
 	} else {
 		cur = ic
 	}
