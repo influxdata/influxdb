@@ -1,10 +1,12 @@
-/* eslint-disable no-var */
 const webpack = require('webpack')
 const path = require('path')
-const ExtractTextPlugin = require('extract-text-webpack-plugin')
+const get = require('lodash/get')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
+const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin')
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 
 const pkg = require('../package.json')
 const dependencies = pkg.dependencies
@@ -19,6 +21,26 @@ const babelLoader = {
 }
 
 const config = {
+  mode: 'production',
+  stats: 'errors-only',
+  optimization: {
+    concatenateModules: true,
+    splitChunks: {
+      name: 'vendor',
+      minChunks: 2,
+    },
+    minimizer: [
+      new UglifyJsPlugin({
+        cache: true,
+        parallel: true,
+        sourceMap: true, // set to true if you want JS source maps
+        uglifyOptions: {
+          ie8: false,
+        },
+      }),
+      new OptimizeCSSAssetsPlugin({}),
+    ],
+  },
   node: {
     fs: 'empty',
     module: 'empty',
@@ -54,7 +76,7 @@ const config = {
         'memoizerific.js'
       ),
     ],
-    loaders: [
+    rules: [
       {
         test: /\.ts(x?)$/,
         exclude: /node_modules/,
@@ -72,23 +94,14 @@ const config = {
         enforce: 'pre',
       },
       {
-        test: /\.scss$/,
-        loader: ExtractTextPlugin.extract({
-          fallback: 'style-loader',
-          use: [
-            'css-loader',
-            'sass-loader',
-            'resolve-url-loader',
-            'sass-loader?sourceMap',
-          ],
-        }),
-      },
-      {
-        test: /\.css$/,
-        loader: ExtractTextPlugin.extract({
-          fallback: 'style-loader',
-          use: ['css-loader', 'postcss-loader'],
-        }),
+        test: /\.(sa|sc|c)ss$/,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader',
+          'sass-loader',
+          'resolve-url-loader',
+          'sass-loader?sourceMap',
+        ],
       },
       {
         test: /\.(ico|png|cur|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
@@ -124,9 +137,7 @@ const config = {
   plugins: [
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
-      'process.env.NODE_ENV': JSON.stringify('production'),
     }),
-    new webpack.optimize.ModuleConcatenationPlugin(),
     new ForkTsCheckerWebpackPlugin({
       checkSyntacticErrors: true,
     }),
@@ -139,25 +150,9 @@ const config = {
         },
       },
     }),
-    new webpack.ProvidePlugin({
-      $: 'jquery',
-      jQuery: 'jquery',
-    }),
-    new ExtractTextPlugin('chronograf.css'),
-    new UglifyJsPlugin({
-      parallel: true,
-      uglifyOptions: {
-        ie8: false,
-      },
-    }),
-    new webpack.optimize.CommonsChunkPlugin({
-      name: 'vendor',
-      minChunks(module) {
-        return module.context && module.context.indexOf('node_modules') >= 0
-      },
-    }),
-    new webpack.optimize.CommonsChunkPlugin({
-      name: 'manifest',
+    new MiniCssExtractPlugin({
+      filename: 'chronograf.[chunkhash].css',
+      chunkFilename: '[id].css',
     }),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
@@ -165,17 +160,20 @@ const config = {
       chunksSortMode: 'dependency',
       favicon: 'assets/images/favicon.ico',
     }),
-    function() {
-      /* Webpack does not exit with non-zero status if error. */
-      this.plugin('done', function(stats) {
-        const {compilation: {errors}} = stats
+    {
+      apply: compiler => {
+        compiler.hooks.afterEmit.tap('AfterEmitPlugin', ({compilation}) => {
+          /* Webpack does not exit with non-zero status if error. */
+          const errors = get(compilation, 'errors', [])
 
-        if (errors && errors.length) {
-          errors.forEach(err => console.error(err))
-          process.exit(1)
-        }
-      })
+          if (errors.length) {
+            errors.forEach(err => console.error(err))
+            process.exit(1)
+          }
+        })
+      },
     },
+    new ProgressBarPlugin(),
   ],
   target: 'web',
 }

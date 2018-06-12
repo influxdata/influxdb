@@ -33,7 +33,6 @@ const stats = {
   children: false,
   modules: false,
   version: false,
-  warnings: false,
   assetsSort: '!size',
   excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
 }

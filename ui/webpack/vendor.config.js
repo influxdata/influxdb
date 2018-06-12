@@ -4,8 +4,18 @@ const packages = require('../package.json')
 const dependencies = packages.dependencies
 const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 
+const stats = {
+  colors: true,
+  children: false,
+  modules: false,
+  version: false,
+  warnings: false,
+  assetsSort: '!size',
+}
+
 module.exports = {
   mode: 'development',
+  stats,
   node: {
     fs: 'empty',
     module: 'empty',
