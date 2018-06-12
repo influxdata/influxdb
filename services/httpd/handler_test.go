@@ -652,23 +652,23 @@ func TestHandler_PromRead(t *testing.T) {
 	h.Store.ResultSet.TagsFn = func() models.Tags {
 		return models.NewTags(map[string]string{
 			"host": fmt.Sprintf("server-%d", i),
-			"_m":   "mem",
+			"_measurement":   "mem",
 		})
 	}
 
-	h.ServeHTTP(w, MustNewJSONRequest("POST", "/api/v1/prom/read?db=foo&rp=bar", b))
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/read?db=foo&rp=bar", b))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
 	}
 
 	reqBuf, err := snappy.Decode(nil, w.Body.Bytes())
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err))
 	}
 
 	var resp remote.ReadResponse
 	if err := proto.Unmarshal(reqBuf, &resp); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	expResults := []*remote.QueryResult{

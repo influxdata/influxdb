@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -90,6 +91,10 @@ type Results interface {
 }
 
 func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
+	fmt.Printf("%#v\n", req)
+	if req != nil {
+		fmt.Printf("%s\n", req.Predicate.String())
+	}
 	if len(req.GroupKeys) > 0 {
 		panic("Read: len(Grouping) > 0")
 	}
@@ -137,6 +142,10 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
 }
 
 func (s *Store) GroupRead(ctx context.Context, req *ReadRequest) (*groupResultSet, error) {
+	fmt.Printf("%#v\n", req)
+	if req != nil {
+		fmt.Printf("%s\n", req.Predicate.String())
+	}
 	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
 		return nil, errors.New("GroupRead: SeriesLimit and SeriesOffset not supported when Grouping")
 	}

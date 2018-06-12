@@ -27,7 +27,7 @@ const (
 	prometheusNameTag = "__name__"
 
 	// measurementTagKey is the tag key that all measurement names use in the new storage processor
-	measurementTagKey = "_m"
+	measurementTagKey = "_measurement"
 )
 
 var ErrNaNDropped = errors.New("dropped NaN from Prometheus since they are not supported")
