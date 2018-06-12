@@ -29,6 +29,15 @@ deployment:
         --platform all
         --arch all
         --upload
+        --nightly
+      - >
+        ./etc/scripts/docker/run.sh
+        --debug
+        --clean
+        --package
+        --platform all
+        --arch all
+        --upload
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
       - cp build/linux/static_amd64/chronograf .
       - cp build/linux/static_amd64/chronoctl .
@@ -36,6 +45,8 @@ deployment:
       - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
       - docker push quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+      - docker tag chronograf quay.io/influxdb/chronograf:nightly
+      - docker push quay.io/influxdb/chronograf:nightly
       - mv ./build/* $CIRCLE_ARTIFACTS
   pre-release:
     tag: /^[0-9]+(\.[0-9]+)*(\S*)([a|rc|beta]([0-9]+))+$/
