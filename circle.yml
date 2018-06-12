@@ -30,6 +30,7 @@ deployment:
         --arch all
         --upload
         --nightly
+        --bucket=dl.influxdata.com/chronograf/releases
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
       - cp build/linux/static_amd64/chronograf .
       - cp build/linux/static_amd64/chronoctl .
