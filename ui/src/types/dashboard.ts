@@ -18,15 +18,9 @@ export interface FieldOption {
   visible: boolean
 }
 
-export interface FieldName {
-  internalName: string
-  displayName: string
-  visible: boolean
-}
-
 export interface TableOptions {
   verticalTimeAxis: boolean
-  sortBy: FieldName
+  sortBy: FieldOption
   wrapping?: string
   fixFirstColumn: boolean
 }
@@ -76,7 +70,7 @@ export interface Cell {
   axes: Axes
   colors: ColorString[]
   tableOptions: TableOptions
-  fieldOptions: FieldName[]
+  fieldOptions: FieldOption[]
   timeFormat: string
   decimalPlaces: DecimalPlaces
   links: CellLinks

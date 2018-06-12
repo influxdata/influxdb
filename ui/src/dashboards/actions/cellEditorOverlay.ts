@@ -1,7 +1,12 @@
 import {Cell} from 'src/types'
 import {CellType} from 'src/types/dashboard'
 import {ColorNumber, ColorString} from 'src/types/colors'
-import {Axes, DecimalPlaces, FieldName, TableOptions} from 'src/types/dashboard'
+import {
+  Axes,
+  DecimalPlaces,
+  FieldOption,
+  TableOptions,
+} from 'src/types/dashboard'
 
 interface ShowCellEditorOverlayAction {
   type: 'SHOW_CELL_EDITOR_OVERLAY'
@@ -172,11 +177,11 @@ export const changeDecimalPlaces = (
 interface UpdateFieldOptionsAction {
   type: 'UPDATE_FIELD_OPTIONS'
   payload: {
-    fieldOptions: FieldName[]
+    fieldOptions: FieldOption[]
   }
 }
 export const updateFieldOptions = (
-  fieldOptions: FieldName[]
+  fieldOptions: FieldOption[]
 ): UpdateFieldOptionsAction => ({
   type: 'UPDATE_FIELD_OPTIONS',
   payload: {

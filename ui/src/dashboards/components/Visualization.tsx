@@ -13,7 +13,7 @@ import {TimeRange, QueryConfig, Axes, Template, Source} from 'src/types'
 import {
   TableOptions,
   DecimalPlaces,
-  FieldName,
+  FieldOption,
   CellType,
 } from 'src/types/dashboard'
 import {ColorString, ColorNumber} from 'src/types/colors'
@@ -29,7 +29,7 @@ interface Props {
   tableOptions: TableOptions
   timeFormat: string
   decimalPlaces: DecimalPlaces
-  fieldOptions: FieldName[]
+  fieldOptions: FieldOption[]
   resizerTopHeight: number
   thresholdsListColors: ColorNumber[]
   gaugeColors: ColorNumber[]
