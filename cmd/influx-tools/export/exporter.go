@@ -61,6 +61,8 @@ func newExporter(server server.Interface, cfg *exporterConfig) (*exporter, error
 	if server.Logger() != nil {
 		store.WithLogger(server.Logger())
 	}
+	store.EngineOptions.MonitorDisabled = true
+	store.EngineOptions.CompactionDisabled = true
 	store.EngineOptions.Config = server.TSDBConfig()
 	store.EngineOptions.EngineVersion = server.TSDBConfig().Engine
 	store.EngineOptions.IndexVersion = server.TSDBConfig().Index
