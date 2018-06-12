@@ -1,0 +1,153 @@
+$padding: 20px 30px;
+
+.edit-temp-var {
+  margin: 0 auto;
+  width: 650px;
+}
+
+.edit-temp-var--header {
+  background-color: $g0-obsidian;
+  padding: $padding;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.edit-temp-var--header-controls > button {
+  display: inline-block;
+  margin: 0 5px;
+}
+
+.edit-temp-var--body {
+  @include gradient-v($g3-castle, $g1-raven);
+  padding: $padding;
+
+  .delete {
+    margin: 20px auto 10px auto;
+    width: 90px;
+  }
+}
+
+.edit-temp-var--body-row {
+  display: flex;
+
+  .name {
+    flex: 1 1 50%;
+    padding-right: 10px;
+
+    input {
+      color: $c-potassium;
+      font-weight: bold;
+    }
+
+  }
+
+  .template-type {
+    flex: 1 1 50%;
+    padding-left: 10px;
+  }
+
+  .dropdown {
+    display: block;
+    width: 100%;
+  }
+
+  .dropdown-toggle, .dropdown-placeholder {
+    width: 100%;
+  }
+}
+
+.temp-builder {
+  width: 100%;
+}
+
+.temp-builder--mq-controls {
+  background: $g3-castle;
+  border-radius: $radius-small;
+  display: flex;
+  padding: 10px 10px 0 10px;
+
+  &:last-child {
+    padding-bottom: 10px;
+  }
+
+  > .temp-builder--mq-text, > .dropdown, .dropdown-placeholder {
+    margin-right: 5px;
+    flex-grow: 1;
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+}
+
+.temp-builder--mq-text {
+  @include no-user-select();
+  background-color: $g5-pepper;
+  border-radius: $radius-small;
+  padding: 8px;
+  white-space: nowrap;
+  color: $c-pool;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: $code-font;
+}
+
+.temp-builder .temp-builder-results {
+  margin-top: 30px;
+}
+
+@keyframes pulse {
+  0% {
+    color: $g19-ghost;
+  }
+
+  50% {
+    color: $g12-forge;
+  }
+
+  100% {
+    color: $g19-ghost;
+  }
+}
+
+.temp-builder-results > p {
+  text-align: center;
+  font-weight: bold;
+  color: $g19-ghost;
+  margin: 15px 0;
+
+  &.error {
+    color: $c-fire;
+  }
+
+  &.warning {
+    color: $c-pineapple;
+  }
+
+  &.loading {
+    animation: pulse 1.5s ease infinite;
+  }
+
+  > strong {
+    color: $c-potassium;
+  }
+}
+
+.temp-builder-results--list {
+  max-height: 250px;
+  padding: 0;
+  margin: 0;
+
+  li {
+    background-color: $g3-castle;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    border-radius: $radius-small;
+    margin: 0; 
+    color: $g19-ghost;
+    font-weight: bold;
+    list-style: none;
+  }
+}

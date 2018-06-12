@@ -1,6 +1,6 @@
 import _ from 'lodash'
 import {fetchTimeSeriesAsync} from 'src/shared/actions/timeSeries'
-import {removeUnselectedTemplateValues} from 'src/dashboards/constants'
+import {removeUnselectedTemplateValues} from 'src/tempVars/constants'
 
 import {intervalValuesPoints} from 'src/shared/constants'
 

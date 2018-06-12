@@ -11,9 +11,8 @@ import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import Dashboard from 'src/dashboards/components/Dashboard'
-import TemplateVariableManager from 'src/dashboards/components/template_variables/TemplateVariableManager'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
-import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
+import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
 
 import {errorThrown as errorThrownAction} from 'shared/actions/errors'
 import {notify as notifyAction} from 'shared/actions/notifications'
@@ -48,7 +47,6 @@ import {FORMAT_INFLUXQL, defaultTimeRange} from 'src/shared/data/timeRanges'
 
 import {colorsStringSchema, colorsNumberSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 
 import {getDeep} from 'src/utils/wrappers'
 
@@ -174,31 +172,6 @@ class DashboardPage extends Component {
     return topInView && bottomInView
   }
 
-  handleOpenTemplateManager = () => {
-    const {handleShowOverlay, dashboard, source} = this.props
-    const options = {
-      dismissOnClickOutside: false,
-      dismissOnEscape: false,
-    }
-
-    handleShowOverlay(
-      <OverlayContext.Consumer>
-        {({onDismissOverlay}) => {
-          return (
-            <TemplateVariableManager
-              source={source}
-              templates={dashboard.templates}
-              onDismissOverlay={onDismissOverlay}
-              onRunQueryFailure={this.handleRunQueryFailure}
-              onEditTemplateVariables={this.handleEditTemplateVariables}
-            />
-          )
-        }}
-      </OverlayContext.Consumer>,
-      options
-    )
-  }
-
   handleSaveEditedCell = newCell => {
     const {
       dashboardActions,
@@ -311,10 +284,7 @@ class DashboardPage extends Component {
     dashboardActions.putDashboardByID(dashboardID)
   }
 
-  handleEditTemplateVariables = (
-    templates,
-    onSaveTemplatesSuccess
-  ) => async () => {
+  handleSaveTemplateVariables = async templates => {
     const {location, dashboardActions, dashboard} = this.props
 
     try {
@@ -322,7 +292,6 @@ class DashboardPage extends Component {
         ...dashboard,
         templates,
       })
-      onSaveTemplatesSuccess()
       const deletedTempVars = dashboard.templates.filter(
         ({tempVar: oldTempVar}) =>
           !templates.find(({tempVar: newTempVar}) => oldTempVar === newTempVar)
@@ -481,9 +450,10 @@ class DashboardPage extends Component {
             templates={dashboard && dashboard.templates}
             meRole={meRole}
             isUsingAuth={isUsingAuth}
+            onSaveTemplates={this.handleSaveTemplateVariables}
             onSelectTemplate={this.handleSelectTemplate}
-            onOpenTemplateManager={this.handleOpenTemplateManager}
             isOpen={showTemplateControlBar}
+            source={source}
           />
         )}
         {dashboard ? (
@@ -504,7 +474,6 @@ class DashboardPage extends Component {
             onDeleteCell={this.handleDeleteDashboardCell}
             onCloneCell={this.handleCloneCell}
             showTemplateControlBar={showTemplateControlBar}
-            onOpenTemplateManager={this.handleOpenTemplateManager}
             templatesIncludingDashTime={templatesIncludingDashTime}
             onSummonOverlayTechnologies={handleShowCellEditorOverlay}
           />

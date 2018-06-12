@@ -1,8 +1,10 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import TemplateControlBar from 'src/dashboards/components/TemplateControlBar'
-import TemplateControlDropdown from 'src/dashboards/components/TemplateControlDropdown'
+import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
+import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
+import {TemplateType, TemplateValueType} from 'src/types'
+import {source} from 'test/resources'
 
 const defaultProps = {
   isOpen: true,
@@ -11,16 +13,16 @@ const defaultProps = {
       id: '000',
       tempVar: ':alpha:',
       label: '',
-      type: 'constant',
+      type: TemplateType.Constant,
       values: [
         {
           value: 'firstValue',
-          type: 'constant',
+          type: TemplateValueType.Constant,
           selected: false,
         },
         {
           value: 'secondValue',
-          type: 'constant',
+          type: TemplateValueType.Constant,
           selected: false,
         },
       ],
@@ -30,6 +32,9 @@ const defaultProps = {
   isUsingAuth: true,
   onOpenTemplateManager: () => {},
   onSelectTemplate: () => {},
+  onSaveTemplates: () => {},
+  onCreateTemplateVariable: () => {},
+  source,
 }
 
 const setup = (override = {}) => {
