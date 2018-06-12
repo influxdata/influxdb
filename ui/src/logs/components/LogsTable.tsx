@@ -89,13 +89,17 @@ class LogsTable extends Component<Props, State> {
   }
 
   public componentDidUpdate() {
-    if (this.grid) {
-      this.grid.recomputeGridSize()
-    }
     if (this.isTableEmpty) {
       return
     }
-    this.headerGrid.current.recomputeGridSize()
+
+    if (this.grid) {
+      this.grid.recomputeGridSize()
+    }
+
+    if (this.headerGrid.current) {
+      this.headerGrid.current.recomputeGridSize()
+    }
   }
 
   public componentDidMount() {
@@ -103,7 +107,10 @@ class LogsTable extends Component<Props, State> {
     if (this.grid) {
       this.grid.recomputeGridSize()
     }
-    this.headerGrid.current.recomputeGridSize()
+
+    if (this.headerGrid.current) {
+      this.headerGrid.current.recomputeGridSize()
+    }
   }
 
   public componentWillUnmount() {
