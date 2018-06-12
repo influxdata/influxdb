@@ -24,7 +24,7 @@ class FluxHeader extends PureComponent<Props> {
       <div className="page-header full-width">
         <div className="page-header__container">
           <div className="page-header__left">
-            <h1 className="page-header__title">Time Machine</h1>
+            <h1 className="page-header__title">Flux Editor</h1>
           </div>
           <div className="page-header__right">
             <button onClick={this.overlay} className="btn btn-sm btn-default">
