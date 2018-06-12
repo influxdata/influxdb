@@ -50,6 +50,7 @@ class TimeMachine extends PureComponent<Props> {
         handleDisplay: 'none',
         menuOptions: [],
         headerButtons: [],
+        size: 0.33,
         render: () => (
           <Threesizer
             divisions={this.scriptAndExplorer}
@@ -68,6 +69,7 @@ class TimeMachine extends PureComponent<Props> {
       name: 'Build',
       headerButtons: [],
       menuOptions: [],
+      size: 0.67,
       render: () => (
         <BodyBuilder
           body={body}
@@ -79,6 +81,7 @@ class TimeMachine extends PureComponent<Props> {
       ),
     }
   }
+
   private get scriptAndExplorer() {
     const {
       script,

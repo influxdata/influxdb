@@ -35,6 +35,7 @@ interface DivisionProps {
   handleDisplay?: string
   handlePixels?: number
   style?: CSSProperties
+  size?: number
   headerButtons?: JSX.Element[]
   menuOptions: MenuItem[]
   render: (visibility?: string) => ReactElement<any>
@@ -135,7 +136,6 @@ class Threesizer extends Component<Props, State> {
       >
         {divisions.map((d, i) => {
           const headerOrientation = _.get(d, 'headerOrientation', orientation)
-
           return (
             <Division
               key={d.id}
@@ -191,11 +191,10 @@ class Threesizer extends Component<Props, State> {
     const {divisions} = this.props
 
     const size = 1 / divisions.length
-
     return divisions.map(d => ({
       ...d,
       id: uuid.v4(),
-      size,
+      size: d.size || size,
       handlePixels: d.handlePixels || HANDLE_PIXELS,
     }))
   }
