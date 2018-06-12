@@ -129,6 +129,7 @@ $rd-cell-size: 30px;
     font-size: 16px;
   }
   &:hover {
+    cursor: pointer;
     background-color: $g6-smoke;
     color: $g20-white;
   }
@@ -156,6 +157,7 @@ $rd-cell-size: 30px;
   width: calc(100% - #{($custom-time-arrow * 2)});
 }
 .rd-days {
+  font-size: 13px;
   margin-top: ($custom-time-arrow + 8px);
   background-color: transparent;
   border-radius: $radius-small;
@@ -177,7 +179,7 @@ $rd-cell-size: 30px;
     max-width: $rd-cell-size !important;
     vertical-align: middle;
     text-align: center;
-    border: 2px solid $g5-pepper !important;
+    border: 0 !important;
   }
   thead.rd-days-head th.rd-day-head {
     color: $g15-platinum !important;
@@ -190,7 +192,7 @@ $rd-cell-size: 30px;
     transition: background-color 0.25s ease, color 0.25s ease;
     color: $g13-mist !important;
     background-color: $g3-castle;
-    border-radius: 5px;
+    border-radius: $radius;
 
     &:hover {
       cursor: pointer;
