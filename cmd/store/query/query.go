@@ -448,7 +448,11 @@ func mapOpToComparison(op influxql.Token) storage.Node_Comparison {
 	switch op {
 	case influxql.EQ:
 		return storage.ComparisonEqual
+	case influxql.EQREGEX:
+		return storage.ComparisonRegex
 	case influxql.NEQ:
+		return storage.ComparisonNotEqual
+	case influxql.NEQREGEX:
 		return storage.ComparisonNotEqual
 	case influxql.LT:
 		return storage.ComparisonLess
@@ -555,8 +559,14 @@ func (v *exprToNodeVisitor) Visit(node influxql.Node) influxql.Visitor {
 		})
 		return nil
 
+	case *influxql.RegexLiteral:
+		v.nodes = append(v.nodes, &storage.Node{
+			NodeType: storage.NodeTypeLiteral,
+			Value:    &storage.Node_RegexValue{RegexValue: n.Val.String()},
+		})
+		return nil
 	default:
-		v.err = errors.New("unsupported expression")
+		v.err = fmt.Errorf("unsupported expression %T", n)
 		return nil
 	}
 }
