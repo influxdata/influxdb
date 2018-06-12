@@ -7,6 +7,11 @@ export interface Filter {
   operator: string
 }
 
+export interface TableData {
+  columns: string[]
+  values: object[]
+}
+
 export interface LogsState {
   currentSource: Source | null
   currentNamespaces: Namespace[]
@@ -15,7 +20,7 @@ export interface LogsState {
   histogramQueryConfig: QueryConfig | null
   histogramData: object[]
   tableQueryConfig: QueryConfig | null
-  tableData: object[]
+  tableData: TableData
   searchTerm: string | null
   filters: Filter[]
   queryCount: number

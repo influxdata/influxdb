@@ -11,6 +11,7 @@ import {
   addFilter,
   removeFilter,
   changeFilter,
+  fetchMoreAsync,
 } from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
@@ -36,6 +37,7 @@ interface Props {
   changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
   setSearchTermAsync: (searchTerm: string) => void
+  fetchMoreAsync: (queryTimeEnd: string, lastTime: number) => Promise<void>
   addFilter: (filter: Filter) => void
   removeFilter: (id: string) => void
   changeFilter: (id: string, operator: string, value: string) => void
@@ -77,7 +79,7 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.getSources()
 
     if (this.props.currentNamespace) {
-      this.props.executeQueriesAsync()
+      this.fetchNewDataset()
     }
 
     this.startUpdating()
@@ -89,9 +91,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   public render() {
     const {liveUpdating} = this.state
-    const {searchTerm, filters, queryCount} = this.props
-
-    const count = getDeep(this.props, 'tableData.values.length', 0)
+    const {searchTerm, filters, queryCount, timeRange} = this.props
 
     return (
       <div className="page">
@@ -103,7 +103,7 @@ class LogsPage extends PureComponent<Props, State> {
             onSearch={this.handleSubmitSearch}
           />
           <FilterBar
-            numResults={count}
+            numResults={this.histogramTotal}
             filters={filters || []}
             onDelete={this.handleFilterDelete}
             onFilterChange={this.handleFilterChange}
@@ -116,6 +116,8 @@ class LogsPage extends PureComponent<Props, State> {
             onScrolledToTop={this.handleScrollToTop}
             isScrolledToTop={liveUpdating}
             onTagSelection={this.handleTagSelection}
+            fetchMore={this.props.fetchMoreAsync}
+            timeRange={timeRange}
           />
         </div>
       </div>
@@ -158,11 +160,11 @@ class LogsPage extends PureComponent<Props, State> {
       value: selection.tag,
       operator: '==',
     })
-    this.props.executeQueriesAsync()
+    this.fetchNewDataset()
   }
 
   private handleInterval = () => {
-    this.props.executeQueriesAsync()
+    this.fetchNewDataset()
   }
 
   private get histogramTotal(): number {
@@ -233,7 +235,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   private handleFilterDelete = (id: string): void => {
     this.props.removeFilter(id)
-    this.props.executeQueriesAsync()
+    this.fetchNewDataset()
   }
 
   private handleFilterChange = (
@@ -242,12 +244,13 @@ class LogsPage extends PureComponent<Props, State> {
     value: string
   ) => {
     this.props.changeFilter(id, operator, value)
+    this.fetchNewDataset()
     this.props.executeQueriesAsync()
   }
 
   private handleChooseTimerange = (timeRange: TimeRange) => {
     this.props.setTimeRangeAsync(timeRange)
-    this.props.executeQueriesAsync()
+    this.fetchNewDataset()
   }
 
   private handleChooseSource = (sourceID: string) => {
@@ -261,7 +264,13 @@ class LogsPage extends PureComponent<Props, State> {
   private handleChartZoom = (lower, upper) => {
     if (lower) {
       this.props.changeZoomAsync({lower, upper})
+      this.setState({liveUpdating: true})
     }
+  }
+
+  private fetchNewDataset() {
+    this.props.executeQueriesAsync()
+    this.setState({liveUpdating: true})
   }
 }
 
@@ -302,6 +311,7 @@ const mapDispatchToProps = {
   addFilter,
   removeFilter,
   changeFilter,
+  fetchMoreAsync,
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(LogsPage)

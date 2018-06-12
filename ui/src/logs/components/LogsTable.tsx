@@ -1,8 +1,10 @@
 import _ from 'lodash'
+import moment from 'moment'
 import classnames from 'classnames'
 import React, {Component, MouseEvent} from 'react'
-import {Grid, AutoSizer} from 'react-virtualized'
+import {Grid, AutoSizer, InfiniteLoader} from 'react-virtualized'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import {getDeep} from 'src/utils/wrappers'
 
 import {
   getColumnFromData,
@@ -16,6 +18,10 @@ import {
   getColumnsFromData,
 } from 'src/logs/utils/table'
 
+import timeRanges from 'src/logs/data/timeRanges'
+
+import {TimeRange} from 'src/types'
+
 const ROW_HEIGHT = 26
 const CHAR_WIDTH = 9
 interface Props {
@@ -27,7 +33,9 @@ interface Props {
   onScrollVertical: () => void
   onScrolledToTop: () => void
   onTagSelection: (selection: {tag: string; key: string}) => void
+  fetchMore: (queryTimeEnd: string, time: number) => Promise<void>
   count: number
+  timeRange: TimeRange
 }
 
 interface State {
@@ -35,20 +43,26 @@ interface State {
   scrollTop: number
   currentRow: number
   currentMessageWidth: number
+  lastQueryTime: number
 }
 
 class LogsTable extends Component<Props, State> {
   public static getDerivedStateFromProps(props, state): State {
     const {isScrolledToTop} = props
 
+    let lastQueryTime = _.get(state, 'lastQueryTime', null)
     let scrollTop = _.get(state, 'scrollTop', 0)
     if (isScrolledToTop) {
+      lastQueryTime = null
       scrollTop = 0
     }
 
     const scrollLeft = _.get(state, 'scrollLeft', 0)
 
     return {
+      ...state,
+      isQuerying: false,
+      lastQueryTime,
       scrollTop,
       scrollLeft,
       currentRow: -1,
@@ -56,13 +70,13 @@ class LogsTable extends Component<Props, State> {
     }
   }
 
-  private grid: React.RefObject<Grid>
+  private grid: Grid | null
   private headerGrid: React.RefObject<Grid>
 
   constructor(props: Props) {
     super(props)
 
-    this.grid = React.createRef()
+    this.grid = null
     this.headerGrid = React.createRef()
 
     this.state = {
@@ -70,17 +84,22 @@ class LogsTable extends Component<Props, State> {
       scrollLeft: 0,
       currentRow: -1,
       currentMessageWidth: 0,
+      lastQueryTime: null,
     }
   }
 
   public componentDidUpdate() {
-    this.grid.current.recomputeGridSize()
+    if (this.grid) {
+      this.grid.recomputeGridSize()
+    }
     this.headerGrid.current.recomputeGridSize()
   }
 
   public componentDidMount() {
     window.addEventListener('resize', this.handleWindowResize)
-    this.grid.current.recomputeGridSize()
+    if (this.grid) {
+      this.grid.recomputeGridSize()
+    }
     this.headerGrid.current.recomputeGridSize()
   }
 
@@ -115,37 +134,87 @@ class LogsTable extends Component<Props, State> {
             />
           )}
         </AutoSizer>
-        <AutoSizer>
-          {({width, height}) => (
-            <FancyScrollbar
-              style={{
-                width,
-                height,
-                marginTop: `${ROW_HEIGHT}px`,
-              }}
-              setScrollTop={this.handleScrollbarScroll}
-              scrollTop={this.state.scrollTop}
-              autoHide={false}
-            >
-              <Grid
-                height={height}
-                rowHeight={this.calculateRowHeight}
-                rowCount={getValuesFromData(this.props.data).length}
-                width={width}
-                scrollLeft={this.state.scrollLeft}
-                scrollTop={this.state.scrollTop}
-                onScroll={this.handleScroll}
-                cellRenderer={this.cellRenderer}
-                columnCount={columnCount}
-                columnWidth={this.getColumnWidth}
-                ref={this.grid}
-                style={{height: this.calculateTotalHeight()}}
-              />
-            </FancyScrollbar>
+        <InfiniteLoader
+          isRowLoaded={this.isRowLoaded}
+          loadMoreRows={this.loadMoreRows}
+          rowCount={this.props.count}
+        >
+          {({registerChild, onRowsRendered}) => (
+            <AutoSizer>
+              {({width, height}) => (
+                <FancyScrollbar
+                  style={{
+                    width,
+                    height,
+                    marginTop: `${ROW_HEIGHT}px`,
+                  }}
+                  setScrollTop={this.handleScrollbarScroll}
+                  scrollTop={this.state.scrollTop}
+                  autoHide={false}
+                >
+                  <Grid
+                    height={height}
+                    rowHeight={this.calculateRowHeight}
+                    rowCount={getValuesFromData(this.props.data).length}
+                    width={width}
+                    scrollLeft={this.state.scrollLeft}
+                    scrollTop={this.state.scrollTop}
+                    onScroll={this.handleScroll}
+                    cellRenderer={this.cellRenderer}
+                    onSectionRendered={this.handleRowRender(onRowsRendered)}
+                    columnCount={columnCount}
+                    columnWidth={this.getColumnWidth}
+                    ref={(ref: Grid) => {
+                      registerChild(ref)
+                      this.grid = ref
+                    }}
+                    style={{height: this.calculateTotalHeight()}}
+                  />
+                </FancyScrollbar>
+              )}
+            </AutoSizer>
           )}
-        </AutoSizer>
+        </InfiniteLoader>
       </div>
     )
+  }
+
+  private handleRowRender = onRowsRendered => ({
+    rowStartIndex,
+    rowStopIndex,
+  }) => {
+    onRowsRendered({startIndex: rowStartIndex, stopIndex: rowStopIndex})
+  }
+
+  private loadMoreRows = async () => {
+    const data = getValuesFromData(this.props.data)
+    const {timeRange} = this.props
+    const lastTime = getDeep(
+      data,
+      `${data.length - 1}.0`,
+      new Date().getTime() / 1000
+    )
+    const upper = getDeep<string>(timeRange, 'upper', null)
+    const lower = getDeep<string>(timeRange, 'lower', null)
+
+    if (this.state.lastQueryTime && this.state.lastQueryTime <= lastTime) {
+      return
+    }
+    const firstQueryTime = getDeep<number>(data, '0.0', null)
+    let queryTimeEnd = lower
+    if (!upper) {
+      const foundTimeRange = timeRanges.find(range => range.lower === lower)
+      queryTimeEnd = moment(firstQueryTime)
+        .subtract(foundTimeRange.seconds, 'seconds')
+        .toISOString()
+    }
+
+    await this.setState({lastQueryTime: lastTime})
+    await this.props.fetchMore(queryTimeEnd, lastTime)
+  }
+
+  private isRowLoaded = ({index}) => {
+    return !!getValuesFromData(this.props.data)[index]
   }
 
   private handleWindowResize = () => {
@@ -178,8 +247,9 @@ class LogsTable extends Component<Props, State> {
   }
 
   private calculateTotalHeight = (): number => {
+    const data = getValuesFromData(this.props.data)
     return _.reduce(
-      getValuesFromData(this.props.data),
+      data,
       (acc, __, index) => {
         return acc + this.calculateMessageHeight(index)
       },

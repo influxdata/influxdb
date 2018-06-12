@@ -7,6 +7,7 @@ import {
   ChangeFilterAction,
   DecrementQueryCountAction,
   IncrementQueryCountAction,
+  ConcatMoreLogsAction,
 } from 'src/logs/actions'
 import {LogsState} from 'src/types/logs'
 
@@ -17,9 +18,9 @@ const defaultState: LogsState = {
   currentNamespace: null,
   histogramQueryConfig: null,
   tableQueryConfig: null,
-  tableData: [],
+  tableData: {columns: [], values: []},
   histogramData: [],
-  searchTerm: null,
+  searchTerm: '',
   filters: [],
   queryCount: 0,
 }
@@ -75,6 +76,24 @@ const incrementQueryCount = (
   return {...state, queryCount: queryCount + 1}
 }
 
+const concatMoreLogs = (
+  state: LogsState,
+  action: ConcatMoreLogsAction
+): LogsState => {
+  const {
+    series: {values},
+  } = action.payload
+  const {tableData} = state
+  const vals = [...tableData.values, ...values]
+  return {
+    ...state,
+    tableData: {
+      columns: tableData.columns,
+      values: vals,
+    },
+  }
+}
+
 export default (state: LogsState = defaultState, action: Action) => {
   switch (action.type) {
     case ActionTypes.SetSource:
@@ -109,6 +128,8 @@ export default (state: LogsState = defaultState, action: Action) => {
       return incrementQueryCount(state, action)
     case ActionTypes.DecrementQueryCount:
       return decrementQueryCount(state, action)
+    case ActionTypes.ConcatMoreLogs:
+      return concatMoreLogs(state, action)
     default:
       return state
   }
