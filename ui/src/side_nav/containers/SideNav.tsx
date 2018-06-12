@@ -6,7 +6,6 @@ import {connect} from 'react-redux'
 import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
 
 import UserNavBlock from 'src/side_nav/components/UserNavBlock'
-import FeatureFlag from 'src/shared/components/FeatureFlag'
 
 import {
   NavBlock,
@@ -112,16 +111,14 @@ class SideNav extends PureComponent<Props> {
           </NavListItem>
         </NavBlock>
 
-        <FeatureFlag name="log-viewer">
-          <NavBlock
-            highlightWhen={['logs']}
-            icon="wood"
-            link="/logs"
-            location={location}
-          >
-            <NavHeader link={'/logs'} title="Log Viewer" />
-          </NavBlock>
-        </FeatureFlag>
+        <NavBlock
+          highlightWhen={['logs']}
+          icon="wood"
+          link="/logs"
+          location={location}
+        >
+          <NavHeader link={'/logs'} title="Log Viewer" />
+        </NavBlock>
 
         <Authorized
           requiredRole={ADMIN_ROLE}
