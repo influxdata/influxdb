@@ -4,13 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/services/storage"
-	"github.com/influxdata/influxql"
 )
 
 const (
@@ -238,80 +236,6 @@ func nodeFromMatcher(m *remote.LabelMatcher) (*storage.Node, error) {
 		NodeType: storage.NodeTypeComparisonExpression,
 		Value:    &storage.Node_Comparison_{Comparison: op},
 		Children: children,
-	}, nil
-}
-
-// condFromMatcher converts a Prometheus LabelMatcher into an equivalent InfluxQL BinaryExpr
-func condFromMatcher(m *remote.LabelMatcher) (*influxql.BinaryExpr, error) {
-	var op influxql.Token
-	var rhs influxql.Expr
-
-	switch m.Type {
-	case remote.MatchType_EQUAL:
-		op = influxql.EQ
-	case remote.MatchType_NOT_EQUAL:
-		op = influxql.NEQ
-	case remote.MatchType_REGEX_MATCH:
-		op = influxql.EQREGEX
-	case remote.MatchType_REGEX_NO_MATCH:
-		op = influxql.NEQREGEX
-	default:
-		return nil, fmt.Errorf("unknown match type %v", m.Type)
-	}
-
-	if op == influxql.EQREGEX || op == influxql.NEQREGEX {
-		re, err := regexp.Compile(m.Value)
-		if err != nil {
-			return nil, err
-		}
-
-		// Convert regex values to InfluxDB format.
-		rhs = &influxql.RegexLiteral{Val: re}
-	} else {
-		rhs = &influxql.StringLiteral{Val: m.Value}
-	}
-
-	return &influxql.BinaryExpr{
-		Op:  op,
-		LHS: &influxql.VarRef{Val: m.Name},
-		RHS: rhs,
-	}, nil
-}
-
-// condFromMatchers converts a Prometheus remote query and a collection of Prometheus label matchers
-// into an equivalent influxql.BinaryExpr. This assume a schema that is written via the Prometheus
-// remote write endpoint, which uses a measurement name of _ and a field name of f64. Tags and labels
-// are kept equivalent.
-func condFromMatchers(q *remote.Query, matchers []*remote.LabelMatcher) (*influxql.BinaryExpr, error) {
-	if len(matchers) > 0 {
-		lhs, err := condFromMatcher(matchers[0])
-		if err != nil {
-			return nil, err
-		}
-		rhs, err := condFromMatchers(q, matchers[1:])
-		if err != nil {
-			return nil, err
-		}
-
-		return &influxql.BinaryExpr{
-			Op:  influxql.AND,
-			LHS: lhs,
-			RHS: rhs,
-		}, nil
-	}
-
-	return &influxql.BinaryExpr{
-		Op: influxql.AND,
-		LHS: &influxql.BinaryExpr{
-			Op:  influxql.GTE,
-			LHS: &influxql.VarRef{Val: "time"},
-			RHS: &influxql.TimeLiteral{Val: time.Unix(0, q.StartTimestampMs*int64(time.Millisecond))},
-		},
-		RHS: &influxql.BinaryExpr{
-			Op:  influxql.LTE,
-			LHS: &influxql.VarRef{Val: "time"},
-			RHS: &influxql.TimeLiteral{Val: time.Unix(0, q.EndTimestampMs*int64(time.Millisecond))},
-		},
 	}, nil
 }
 
