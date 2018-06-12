@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/influxdata/influxdb/cmd"
+	"github.com/influxdata/influxdb/cmd/influx-tools/compact"
 	"github.com/influxdata/influxdb/cmd/influx-tools/export"
 	"github.com/influxdata/influxdb/cmd/influx-tools/help"
 	"github.com/influxdata/influxdb/cmd/influx-tools/importer"
@@ -53,6 +54,11 @@ func (m *Main) Run(args ...string) error {
 		if err := help.NewCommand().Run(args...); err != nil {
 			return fmt.Errorf("help: %s", err)
 		}
+	case "compact-shard":
+		c := compact.NewCommand(&ossServer{logger: zap.NewNop(), noClient: true})
+		if err := c.Run(args); err != nil {
+			return fmt.Errorf("compact-shard: %s", err)
+		}
 	case "export":
 		c := export.NewCommand(&ossServer{logger: zap.NewNop()})
 		if err := c.Run(args); err != nil {
@@ -71,9 +77,10 @@ func (m *Main) Run(args ...string) error {
 }
 
 type ossServer struct {
-	logger *zap.Logger
-	config *run.Config
-	client *meta.Client
+	logger   *zap.Logger
+	config   *run.Config
+	noClient bool
+	client   *meta.Client
 }
 
 func (s *ossServer) Open(path string) (err error) {
@@ -85,6 +92,10 @@ func (s *ossServer) Open(path string) (err error) {
 	// Validate the configuration.
 	if err = s.config.Validate(); err != nil {
 		return fmt.Errorf("validate config: %s", err)
+	}
+
+	if s.noClient {
+		return nil
 	}
 
 	s.client = meta.NewClient(s.config.Meta)
