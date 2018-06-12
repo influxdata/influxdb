@@ -9624,6 +9624,84 @@ func TestServer_Prometheus_Read(t *testing.T) {
 	}
 }
 
+func TestServer_Prometheus_Write(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	now := now().Round(time.Millisecond)
+	test.addQueries(
+		&Query{
+			name:    "selecting the data should return it",
+			command: `SELECT * FROM db0.rp0.cpu`,
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[["%s","a",100],["%s","b",200]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(10*time.Millisecond).Format(time.RFC3339Nano)),
+		},
+	)
+
+	req := &remote.WriteRequest{
+		Timeseries: []*remote.TimeSeries{
+			{
+				Labels: []*remote.LabelPair{
+					{Name: "__name__", Value: "cpu"},
+					{Name: "host", Value: "a"},
+				},
+				Samples: []*remote.Sample{
+					{TimestampMs: now.UnixNano() / int64(time.Millisecond), Value: 100.0},
+				},
+			},
+			{
+				Labels: []*remote.LabelPair{
+					{Name: "__name__", Value: "cpu"},
+					{Name: "host", Value: "b"},
+				},
+				Samples: []*remote.Sample{
+					{TimestampMs: now.UnixNano()/int64(time.Millisecond) + 10, Value: 200.0},
+				},
+			},
+		},
+	}
+
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+	b := bytes.NewReader(compressed)
+
+	resp, err := http.Post(s.URL()+"/api/v1/prom/write?db=db0&rp=rp0", "", b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d. Body: %s", resp.StatusCode, MustReadAll(resp.Body))
+	}
+
+	for i, query := range test.queries {
+		t.Run(query.name, func(t *testing.T) {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
+			}
+			if query.skip {
+				t.Skipf("SKIP:: %s", query.name)
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		})
+	}
+}
+
 func init() {
 	// Force uint support to be enabled for testing.
 	models.EnableUintSupport()

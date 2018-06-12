@@ -48,9 +48,10 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 
 		tags := make(map[string]string, len(ts.Labels))
 		for _, l := range ts.Labels {
-			tags[l.Name] = l.Value
 			if l.Name == prometheusNameTag {
 				measurement = l.Value
+			} else {
+				tags[l.Name] = l.Value
 			}
 		}
 
