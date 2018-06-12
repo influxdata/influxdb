@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influx-tools/internal/errlist"
+	"github.com/influxdata/influxdb/cmd/influx-tools/internal/shard"
 	"github.com/influxdata/influxdb/cmd/influx-tools/server"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -26,7 +27,7 @@ type importer struct {
 	log          *zap.Logger
 	skipShard    bool
 	currentShard uint64
-	sh           *shardWriter
+	sh           *shard.Writer
 	sfile        *tsdb.SeriesFile
 	sw           *seriesWriter
 	buildTsi     bool
@@ -146,7 +147,7 @@ func (i *importer) StartShardGroup(start int64, end int64) error {
 	}
 
 	i.skipShard = false
-	i.sh = newShardWriter(shardID, shardsPath)
+	i.sh = shard.NewWriter(shardID, shardsPath)
 	i.currentShard = shardID
 
 	i.startSeriesFile()
@@ -171,9 +172,9 @@ func (i *importer) Write(key []byte, values tsm1.Values) error {
 		return errors.New("importer not currently writing a shard")
 	}
 	i.sh.Write(key, values)
-	if i.sh.err != nil {
+	if i.sh.Err() != nil {
 		el := errlist.NewErrorList()
-		el.Add(i.sh.err)
+		el.Add(i.sh.Err())
 		el.Add(i.CloseShardGroup())
 		el.Add(i.removeShardGroup(i.rpi.Name, i.currentShard))
 		i.sh = nil
@@ -191,8 +192,8 @@ func (i *importer) CloseShardGroup() error {
 	el := errlist.NewErrorList()
 	el.Add(i.closeSeriesFile())
 	i.sh.Close()
-	if i.sh.err != nil {
-		el.Add(i.sh.err)
+	if i.sh.Err() != nil {
+		el.Add(i.sh.Err())
 	}
 	i.sh = nil
 	return el.Err()
@@ -209,9 +210,9 @@ func (i *importer) startSeriesFile() error {
 
 	var err error
 	if i.buildTsi {
-		i.sw, err = newTSI1SeriesWriter(i.sfile, i.db, dataPath, shardPath, int(i.sh.id))
+		i.sw, err = newTSI1SeriesWriter(i.sfile, i.db, dataPath, shardPath, int(i.sh.ShardID()))
 	} else {
-		i.sw, err = newInMemSeriesWriter(i.sfile, i.db, dataPath, shardPath, int(i.sh.id), i.seriesBuf)
+		i.sw, err = newInMemSeriesWriter(i.sfile, i.db, dataPath, shardPath, int(i.sh.ShardID()), i.seriesBuf)
 	}
 
 	if err != nil {
