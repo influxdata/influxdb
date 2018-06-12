@@ -179,7 +179,7 @@ class ExpressionNode extends PureComponent<Props, State> {
     )
   }
 
-  private isNextFuncYield = (funcIndex: number): boolean => {
+  private isNextFuncYield(funcIndex: number): boolean {
     const {funcs, isLastBody} = this.props
     const {isImplicitYieldToggled} = this.state
 

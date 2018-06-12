@@ -146,7 +146,7 @@ export class FluxPage extends PureComponent<Props, State> {
       onToggleYield: this.handleToggleYield,
       service: this.service,
       data: this.state.data,
-      scriptUpToYield: this.scriptUpToYield,
+      scriptUpToYield: this.handleScriptUpToYield,
     }
   }
 
@@ -331,7 +331,7 @@ export class FluxPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private scriptUpToYield = (
+  private handleScriptUpToYield = (
     bodyID: string,
     declarationID: string,
     funcNodeIndex: number,
@@ -475,10 +475,7 @@ export class FluxPage extends PureComponent<Props, State> {
     return `${yieldNamePrefix}${yieldsMaxResultNumber + 1}`
   }
 
-  private addOrRemoveYieldFunc = (
-    funcs: Func[],
-    funcNodeIndex: number
-  ): string => {
+  private addOrRemoveYieldFunc(funcs: Func[], funcNodeIndex: number): string {
     if (funcNodeIndex < funcs.length - 1) {
       const funcAfterNode = funcs[funcNodeIndex + 1]
 
@@ -490,7 +487,7 @@ export class FluxPage extends PureComponent<Props, State> {
     return this.insertYieldFunc(funcs, funcNodeIndex)
   }
 
-  private removeYieldFunc = (funcs: Func[], funcAfterNode: Func): string => {
+  private removeYieldFunc(funcs: Func[], funcAfterNode: Func): string {
     const filteredFuncs = funcs.filter(f => f.id !== funcAfterNode.id)
 
     return `${this.funcsToScript(filteredFuncs)}\n\n`
@@ -500,7 +497,7 @@ export class FluxPage extends PureComponent<Props, State> {
     return `${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
   }
 
-  private insertYieldFunc = (funcs: Func[], index: number): string => {
+  private insertYieldFunc(funcs: Func[], index: number): string {
     const funcsBefore = funcs.slice(0, index + 1)
     const funcsBeforeScript = this.funcsToScript(funcsBefore)
 
