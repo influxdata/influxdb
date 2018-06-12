@@ -159,7 +159,7 @@ class LogsTable extends Component<Props, State> {
                     width={width}
                     scrollLeft={this.state.scrollLeft}
                     scrollTop={this.state.scrollTop}
-                    onScroll={this.handleScroll}
+                    onScroll={this.handleGridScroll}
                     cellRenderer={this.cellRenderer}
                     onSectionRendered={this.handleRowRender(onRowsRendered)}
                     columnCount={columnCount}
@@ -177,6 +177,10 @@ class LogsTable extends Component<Props, State> {
         </InfiniteLoader>
       </div>
     )
+  }
+
+  private handleGridScroll = ({scrollLeft}) => {
+    this.handleScroll({scrollLeft, scrollTop: this.state.scrollTop})
   }
 
   private handleRowRender = onRowsRendered => ({
@@ -225,8 +229,12 @@ class LogsTable extends Component<Props, State> {
     this.setState({scrollLeft})
 
   private handleScrollbarScroll = (e: MouseEvent<JSX.Element>): void => {
-    const {target} = e
-    this.handleScroll(target)
+    const target = e.target as HTMLElement
+
+    this.handleScroll({
+      scrollTop: target.scrollTop,
+      scrollLeft: this.state.scrollLeft,
+    })
   }
 
   private getColumnWidth = ({index}: {index: number}): number => {
@@ -261,6 +269,11 @@ class LogsTable extends Component<Props, State> {
     const columns = getColumnsFromData(this.props.data)
     const columnIndex = columns.indexOf('message')
     const value = getValueFromData(this.props.data, index, columnIndex)
+
+    if (!value) {
+      return ROW_HEIGHT
+    }
+
     const lines = Math.round(value.length / this.rowCharLimit + 0.25)
 
     return Math.max(lines, 1) * (ROW_HEIGHT - 14) + 14
