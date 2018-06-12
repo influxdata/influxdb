@@ -344,6 +344,7 @@ func (s *Store) loadShards() error {
 
 					// Disable compactions, writes and queries until all shards are loaded
 					shard.EnableOnOpen = false
+					shard.CompactionDisabled = s.EngineOptions.CompactionDisabled
 					shard.WithLogger(s.baseLogger)
 
 					err = shard.Open()

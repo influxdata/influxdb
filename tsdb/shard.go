@@ -147,6 +147,10 @@ type Shard struct {
 	logger     *zap.Logger
 
 	EnableOnOpen bool
+
+	// CompactionDisabled specifies the shard should not schedule compactions.
+	// This option is intended for offline tooling.
+	CompactionDisabled bool
 }
 
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
@@ -201,7 +205,7 @@ func (s *Shard) SetEnabled(enabled bool) {
 	s.mu.Lock()
 	// Prevent writes and queries
 	s.enabled = enabled
-	if s._engine != nil {
+	if s._engine != nil && !s.CompactionDisabled {
 		// Disable background compactions and snapshotting
 		s._engine.SetEnabled(enabled)
 	}
