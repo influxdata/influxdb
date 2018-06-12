@@ -1,3 +1,8 @@
+import {TimeRange} from 'src/types/query'
+import moment from 'moment'
+
+import {timeRanges} from 'src/shared/data/timeRanges'
+
 interface InputTimeRange {
   seconds?: number
   lower?: string
@@ -27,4 +32,39 @@ export const millisecondTimeRange = ({
     until = Date.parse(upper)
   }
   return {since, until}
+}
+
+const nullTimeRange: TimeRange = {lower: null, upper: null}
+
+const validRelativeTimeRange = (timeRange: TimeRange): TimeRange => {
+  const validatedTimeRange = timeRanges.find(t => t.lower === timeRange.lower)
+
+  if (validatedTimeRange) {
+    return validatedTimeRange
+  }
+
+  return nullTimeRange
+}
+
+export const validAbsoluteTimeRange = (timeRange: TimeRange): TimeRange => {
+  if (timeRange.lower && timeRange.upper) {
+    if (moment(timeRange.lower).isValid()) {
+      if (
+        timeRange.upper === 'now()' ||
+        (moment(timeRange.upper).isValid() &&
+          moment(timeRange.lower).isBefore(moment(timeRange.upper)))
+      ) {
+        return timeRange
+      }
+    }
+  }
+  return nullTimeRange
+}
+
+export const validTimeRange = (timeRange: TimeRange): TimeRange => {
+  const validatedTimeRange = validRelativeTimeRange(timeRange)
+  if (validatedTimeRange.lower) {
+    return validatedTimeRange
+  }
+  return validAbsoluteTimeRange(timeRange)
 }

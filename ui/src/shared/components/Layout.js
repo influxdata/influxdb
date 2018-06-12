@@ -77,7 +77,6 @@ const Layout = (
     manualRefresh,
     onDeleteCell,
     onSetResolution,
-    onCancelEditCell,
     onStopAddAnnotation,
     onSummonOverlayTechnologies,
     grabDataForDownload,
@@ -93,7 +92,6 @@ const Layout = (
     onEditCell={onEditCell}
     onCloneCell={onCloneCell}
     onDeleteCell={onDeleteCell}
-    onCancelEditCell={onCancelEditCell}
     onSummonOverlayTechnologies={onSummonOverlayTechnologies}
   >
     {cell.isWidget ? (
@@ -199,7 +197,6 @@ const propTypes = {
   onSummonOverlayTechnologies: func,
   isStatusPage: bool,
   isEditable: bool,
-  onCancelEditCell: func,
   onZoom: func,
   sources: arrayOf(shape()),
 }

@@ -463,6 +463,31 @@ export const notifyBuilderDisabled = () => ({
   message: `Your query contains a user-defined Template Variable. The Schema Explorer cannot render the query and is disabled.`,
 })
 
+//  Template Variables & URL Queries
+//  ----------------------------------------------------------------------------
+export const notifyInvalidTempVarValueInURLQuery = ({key, value}) => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Invalid URL query value of '${value}' supplied for template variable '${key}'.`,
+})
+
+export const notifyInvalidTimeRangeValueInURLQuery = () => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Invalid URL query value supplied for lower or upper time range.`,
+})
+
+export const notifyInvalidZoomedTimeRangeValueInURLQuery = () => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
+})
+
+export const notifyViewerUnauthorizedToSetTempVars = () => ({
+  ...defaultErrorNotification,
+  message: `Viewer role unauthorized to override template variable values from URL.`,
+})
+
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
 export const notifyAlertRuleCreated = () => ({

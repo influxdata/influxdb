@@ -2,21 +2,20 @@ import _ from 'lodash'
 import {timeRanges} from 'shared/data/timeRanges'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
+import {applyDashboardTempVarOverrides} from 'src/dashboards/utils/tempVars'
+
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
 export const initialState = {
   dashboards: [],
   timeRange: {lower, upper},
+  zoomedTimeRange: {lower: null, upper: null},
   isEditMode: false,
   cellQueryStatus: {queryID: null, status: null},
   hoverTime: NULL_HOVER_TIME,
   activeCellID: '',
 }
 
-import {
-  TEMPLATE_VARIABLE_SELECTED,
-  TEMPLATE_VARIABLES_SELECTED_BY_NAME,
-} from 'shared/constants/actionTypes'
 import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
 
 const ui = (state = initialState, action) => {
@@ -30,10 +29,23 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
+    case 'LOAD_DASHBOARD': {
+      const {dashboard} = action.payload
+      const newDashboards = _.unionBy([dashboard], state.dashboards, 'id')
+
+      return {...state, dashboards: newDashboards}
+    }
+
     case 'SET_DASHBOARD_TIME_RANGE': {
       const {timeRange} = action.payload
 
       return {...state, timeRange}
+    }
+
+    case 'SET_DASHBOARD_ZOOMED_TIME_RANGE': {
+      const {zoomedTimeRange} = action.payload
+
+      return {...state, zoomedTimeRange}
     }
 
     case 'UPDATE_DASHBOARD': {
@@ -129,7 +141,7 @@ const ui = (state = initialState, action) => {
       return {...state, cellQueryStatus: {queryID, status}}
     }
 
-    case TEMPLATE_VARIABLE_SELECTED: {
+    case 'TEMPLATE_VARIABLE_SELECTED': {
       const {
         dashboardID,
         templateID,
@@ -160,43 +172,13 @@ const ui = (state = initialState, action) => {
       return {...state, dashboards: newDashboards}
     }
 
-    case TEMPLATE_VARIABLES_SELECTED_BY_NAME: {
-      const {dashboardID, query} = action.payload
-
-      const selecteds = Object.keys(query).map(k => ({
-        tempVar: `:${k}:`,
-        selectedValue: query[k],
-      }))
-
-      const makeNewValue = (value, selected) => ({...value, selected})
-
-      const makeNewValues = template => ({
-        ...template,
-        values: template.values.map(
-          value =>
-            selecteds.find(({selectedValue}) => selectedValue === value.value)
-              ? makeNewValue(value, true)
-              : makeNewValue(value, false)
-        ),
-      })
-
-      const makeNewTemplates = templates =>
-        templates.map(
-          template =>
-            selecteds.find(({tempVar}) => tempVar === template.tempVar)
-              ? makeNewValues(template)
-              : template
-        )
-
-      const makeNewDashboard = dashboard => ({
-        ...dashboard,
-        templates: makeNewTemplates(dashboard.templates),
-      })
+    case 'TEMPLATE_VARIABLES_SELECTED_BY_NAME': {
+      const {dashboardID, queryParams} = action.payload
 
       const newDashboards = state.dashboards.map(
         oldDashboard =>
           oldDashboard.id === dashboardID
-            ? makeNewDashboard(oldDashboard)
+            ? applyDashboardTempVarOverrides(oldDashboard, queryParams)
             : oldDashboard
       )
 

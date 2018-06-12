@@ -1,13 +1,21 @@
+import {bindActionCreators} from 'redux'
+import {InjectedRouter} from 'react-router'
+import {Location} from 'history'
+import {replace} from 'react-router-redux'
 import _ from 'lodash'
+import queryString from 'query-string'
+
+import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 
 import {
   getDashboards as getDashboardsAJAX,
+  getDashboard as getDashboardAJAX,
   updateDashboard as updateDashboardAJAX,
   deleteDashboard as deleteDashboardAJAX,
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
-  runTemplateVariableQuery,
+  getTempVarValuesBySourceQuery,
   createDashboard as createDashboardAJAX,
 } from 'src/dashboards/apis'
 import {getMe} from 'src/shared/apis/auth'
@@ -15,6 +23,12 @@ import {getMe} from 'src/shared/apis/auth'
 import {notify} from 'src/shared/actions/notifications'
 import {errorThrown} from 'src/shared/actions/errors'
 
+import {
+  generateURLQueryParamsFromTempVars,
+  findUpdatedTempVarsInURLQueryParams,
+  findInvalidTempVarsInURLQuery,
+} from 'src/dashboards/utils/tempVars'
+import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
 import {
   getNewDashboardCell,
   getClonedDashboardCell,
@@ -26,18 +40,30 @@ import {
   notifyCellDeleted,
   notifyDashboardImportFailed,
   notifyDashboardImported,
+  notifyDashboardNotFound,
+  notifyInvalidTempVarValueInURLQuery,
+  notifyInvalidZoomedTimeRangeValueInURLQuery,
+  notifyInvalidTimeRangeValueInURLQuery,
+  notifyViewerUnauthorizedToSetTempVars,
 } from 'src/shared/copy/notifications'
 
-import {
-  TEMPLATE_VARIABLE_SELECTED,
-  TEMPLATE_VARIABLES_SELECTED_BY_NAME,
-} from 'src/shared/constants/actionTypes'
-import {CellType} from 'src/types/dashboard'
-import {makeQueryForTemplate} from 'src/dashboards/utils/templateVariableQueryGenerator'
+import {makeQueryForTemplate} from 'src/dashboards/utils/tempVars'
 import parsers from 'src/shared/parsing'
 import {getDeep} from 'src/utils/wrappers'
 
-import {Dashboard, TimeRange, Cell, Source, Template} from 'src/types'
+import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
+
+import {defaultTimeRange} from 'src/shared/data/timeRanges'
+
+import {
+  Dashboard,
+  TimeRange,
+  Cell,
+  Source,
+  Template,
+  URLQueryParams,
+} from 'src/types'
+import {CellType, DashboardName} from 'src/types/dashboard'
 
 interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
@@ -46,7 +72,6 @@ interface LoadDashboardsAction {
     dashboardID: number
   }
 }
-
 export const loadDashboards = (
   dashboards: Dashboard[],
   dashboardID?: number
@@ -58,38 +83,16 @@ export const loadDashboards = (
   },
 })
 
-interface LoadDeafaultDashTimeV1Action {
-  type: 'ADD_DASHBOARD_TIME_V1'
+interface LoadDashboardAction {
+  type: 'LOAD_DASHBOARD'
   payload: {
-    dashboardID: number
+    dashboard: Dashboard
   }
 }
-
-export const loadDeafaultDashTimeV1 = (
-  dashboardID: number
-): LoadDeafaultDashTimeV1Action => ({
-  type: 'ADD_DASHBOARD_TIME_V1',
+export const loadDashboard = (dashboard: Dashboard): LoadDashboardAction => ({
+  type: 'LOAD_DASHBOARD',
   payload: {
-    dashboardID,
-  },
-})
-
-interface AddDashTimeV1Action {
-  type: 'ADD_DASHBOARD_TIME_V1'
-  payload: {
-    dashboardID: number
-    timeRange: TimeRange
-  }
-}
-
-export const addDashTimeV1 = (
-  dashboardID: number,
-  timeRange: TimeRange
-): AddDashTimeV1Action => ({
-  type: 'ADD_DASHBOARD_TIME_V1',
-  payload: {
-    dashboardID,
-    timeRange,
+    dashboard,
   },
 })
 
@@ -100,7 +103,6 @@ interface SetDashTimeV1Action {
     timeRange: TimeRange
   }
 }
-
 export const setDashTimeV1 = (
   dashboardID: number,
   timeRange: TimeRange
@@ -112,17 +114,44 @@ export const setDashTimeV1 = (
   },
 })
 
+interface RetainRangesDashTimeV1Action {
+  type: 'RETAIN_RANGES_DASHBOARD_TIME_V1'
+  payload: {
+    dashboardIDs: string[]
+  }
+}
+export const retainRangesDashTimeV1 = (
+  dashboardIDs: string[]
+): RetainRangesDashTimeV1Action => ({
+  type: 'RETAIN_RANGES_DASHBOARD_TIME_V1',
+  payload: {dashboardIDs},
+})
+
 interface SetTimeRangeAction {
   type: 'SET_DASHBOARD_TIME_RANGE'
   payload: {
     timeRange: TimeRange
   }
 }
-
 export const setTimeRange = (timeRange: TimeRange): SetTimeRangeAction => ({
   type: 'SET_DASHBOARD_TIME_RANGE',
   payload: {
     timeRange,
+  },
+})
+
+interface SetZoomedTimeRangeAction {
+  type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE'
+  payload: {
+    zoomedTimeRange: TimeRange
+  }
+}
+export const setZoomedTimeRange = (
+  zoomedTimeRange: TimeRange
+): SetZoomedTimeRangeAction => ({
+  type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
+  payload: {
+    zoomedTimeRange,
   },
 })
 
@@ -132,7 +161,6 @@ interface UpdateDashboardAction {
     dashboard: Dashboard
   }
 }
-
 export const updateDashboard = (
   dashboard: Dashboard
 ): UpdateDashboardAction => ({
@@ -148,7 +176,6 @@ interface CreateDashboardAction {
     dashboard: Dashboard
   }
 }
-
 export const createDashboard = (
   dashboard: Dashboard
 ): CreateDashboardAction => ({
@@ -165,7 +192,6 @@ interface DeleteDashboardAction {
     dashboardID: number
   }
 }
-
 export const deleteDashboard = (
   dashboard: Dashboard
 ): DeleteDashboardAction => ({
@@ -182,7 +208,6 @@ interface DeleteDashboardFailedAction {
     dashboard: Dashboard
   }
 }
-
 export const deleteDashboardFailed = (
   dashboard: Dashboard
 ): DeleteDashboardFailedAction => ({
@@ -199,7 +224,6 @@ interface SyncDashboardCellAction {
     cell: Cell
   }
 }
-
 export const syncDashboardCell = (
   dashboard: Dashboard,
   cell: Cell
@@ -218,7 +242,6 @@ interface AddDashboardCellAction {
     cell: Cell
   }
 }
-
 export const addDashboardCell = (
   dashboard: Dashboard,
   cell: Cell
@@ -237,7 +260,6 @@ interface DeleteDashboardCellAction {
     cell: Cell
   }
 }
-
 export const deleteDashboardCell = (
   dashboard: Dashboard,
   cell: Cell
@@ -256,7 +278,6 @@ interface EditCellQueryStatusAction {
     status: string
   }
 }
-
 export const editCellQueryStatus = (
   queryID: string,
   status: string
@@ -276,13 +297,12 @@ interface TemplateVariableSelectedAction {
     values: any[]
   }
 }
-
 export const templateVariableSelected = (
   dashboardID: number,
   templateID: string,
   values
 ): TemplateVariableSelectedAction => ({
-  type: TEMPLATE_VARIABLE_SELECTED,
+  type: 'TEMPLATE_VARIABLE_SELECTED',
   payload: {
     dashboardID,
     templateID,
@@ -290,15 +310,21 @@ export const templateVariableSelected = (
   },
 })
 
-// This is limited in typing as it will be changed soon
+interface TemplateVariablesSelectedByNameAction {
+  type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
+  payload: {
+    dashboardID: number
+    queryParams: URLQueryParams
+  }
+}
 export const templateVariablesSelectedByName = (
   dashboardID: number,
-  query: any
-) => ({
-  type: TEMPLATE_VARIABLES_SELECTED_BY_NAME,
+  queryParams: URLQueryParams
+): TemplateVariablesSelectedByNameAction => ({
+  type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
   payload: {
     dashboardID,
-    query,
+    queryParams,
   },
 })
 
@@ -310,7 +336,6 @@ interface EditTemplateVariableValuesAction {
     values: any[]
   }
 }
-
 export const editTemplateVariableValues = (
   dashboardID: number,
   templateID: string,
@@ -330,7 +355,6 @@ interface SetHoverTimeAction {
     hoverTime: string
   }
 }
-
 export const setHoverTime = (hoverTime: string): SetHoverTimeAction => ({
   type: 'SET_HOVER_TIME',
   payload: {
@@ -344,7 +368,6 @@ interface SetActiveCellAction {
     activeCellID: string
   }
 }
-
 export const setActiveCell = (activeCellID: string): SetActiveCellAction => ({
   type: 'SET_ACTIVE_CELL',
   payload: {
@@ -366,6 +389,45 @@ export const getDashboardsAsync = () => async (
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
+  }
+}
+
+// gets update-to-date names of dashboards, but does not dispatch action
+// in order to avoid duplicate and out-of-sync state problems in redux
+export const getDashboardsNamesAsync = (sourceID: string) => async (
+  dispatch
+): Promise<DashboardName[] | void> => {
+  try {
+    // TODO: change this from getDashboardsAJAX to getDashboardsNamesAJAX
+    // to just get dashboard names (and links) as api view call when that
+    // view API is implemented (issue #3594), rather than getting whole
+    // dashboard for each
+    const {
+      data: {dashboards},
+    } = await getDashboardsAJAX()
+    const dashboardsNames = dashboards.map(({id, name}) => ({
+      id,
+      name,
+      link: `/sources/${sourceID}/dashboards/${id}`,
+    }))
+    return dashboardsNames
+  } catch (error) {
+    console.error(error)
+    dispatch(errorThrown(error))
+  }
+}
+
+export const getDashboardAsync = (dashboardID: string) => async (
+  dispatch
+): Promise<Dashboard | null> => {
+  try {
+    const {data: dashboard} = await getDashboardAJAX(dashboardID)
+    dispatch(loadDashboard(dashboard))
+    return dashboard
+  } catch (error) {
+    console.error(error)
+    dispatch(errorThrown(error))
+    return null
   }
 }
 
@@ -515,37 +577,6 @@ export const deleteDashboardCellAsync = (
   }
 }
 
-export const updateTempVarValues = (
-  source: Source,
-  dashboard: Dashboard
-) => async (dispatch): Promise<void> => {
-  try {
-    const tempsWithQueries = dashboard.templates.filter(
-      ({query}) => !!_.get(query, 'influxql')
-    )
-
-    const asyncQueries = tempsWithQueries.map(({query}) =>
-      runTemplateVariableQuery(source, {
-        query: makeQueryForTemplate(query),
-        db: null,
-        tempVars: null,
-      })
-    )
-
-    const results = await Promise.all(asyncQueries)
-
-    results.forEach(({data}, i) => {
-      const {type, query, id} = tempsWithQueries[i]
-      const parsed = parsers[type](data, query.tagKey || query.measurement)
-      const vals = parsed[type]
-      dispatch(editTemplateVariableValues(dashboard.id, id, vals))
-    })
-  } catch (error) {
-    console.error(error)
-    dispatch(errorThrown(error))
-  }
-}
-
 export const importDashboardAsync = (dashboard: Dashboard) => async (
   dispatch
 ): Promise<void> => {
@@ -586,4 +617,237 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
     console.error(error)
     dispatch(errorThrown(error))
   }
+}
+
+export const hydrateTempVarValuesAsync = (
+  dashboardID: number,
+  source: Source
+) => async (dispatch, getState): Promise<void> => {
+  try {
+    const dashboard = getState().dashboardUI.dashboards.find(
+      d => d.id === dashboardID
+    )
+
+    const tempsWithQueries = dashboard.templates.filter(
+      ({query}) => !!query.influxql
+    )
+
+    const asyncQueries = tempsWithQueries.map(({query}) =>
+      getTempVarValuesBySourceQuery(source, {
+        query: makeQueryForTemplate(query),
+      })
+    )
+
+    const results = await Promise.all(asyncQueries)
+
+    results.forEach(({data}, i) => {
+      const {type, query, id} = tempsWithQueries[i]
+      const parsed = parsers[type](data, query.tagKey || query.measurement)
+      const vals = parsed[type]
+      dispatch(editTemplateVariableValues(+dashboard.id, id, vals))
+    })
+  } catch (error) {
+    console.error(error)
+    dispatch(errorThrown(error))
+  }
+}
+
+const removeNullValues = obj => _.pickBy(obj, o => o)
+
+export const syncURLQueryParamsFromQueryParamsObject = (
+  location: Location,
+  updatedURLQueryParams: URLQueryParams,
+  deletedURLQueryParams: URLQueryParams = {}
+) => (dispatch): void => {
+  const updatedLocationQuery = removeNullValues({
+    ...location.query,
+    ...updatedURLQueryParams,
+  })
+
+  _.each(deletedURLQueryParams, (__, k) => {
+    delete updatedLocationQuery[k]
+  })
+
+  const updatedSearchString = queryString.stringify(updatedLocationQuery)
+  const updatedSearch = {search: updatedSearchString}
+  const updatedLocation = {
+    ...location,
+    query: updatedLocationQuery,
+    ...updatedSearch,
+  }
+
+  dispatch(replace(updatedLocation))
+}
+
+export const syncURLQueryFromTempVars = (
+  location: Location,
+  tempVars: Template[],
+  deletedTempVars: Template[] = [],
+  urlQueryParamsTimeRanges: URLQueryParams = {}
+) => (dispatch): void => {
+  const updatedURLQueryParams = generateURLQueryParamsFromTempVars(tempVars)
+  const deletedURLQueryParams = generateURLQueryParamsFromTempVars(
+    deletedTempVars
+  )
+
+  const updatedURLQueryParamsWithTimeRange = {
+    ...updatedURLQueryParams,
+    ...urlQueryParamsTimeRanges,
+  }
+
+  dispatch(
+    syncURLQueryParamsFromQueryParamsObject(
+      location,
+      updatedURLQueryParamsWithTimeRange,
+      deletedURLQueryParams
+    )
+  )
+}
+
+const syncDashboardTempVarsFromURLQueryParams = (
+  dashboardID: number,
+  urlQueryParams: URLQueryParams
+) => (dispatch, getState): void => {
+  const {
+    dashboardUI,
+    auth: {isUsingAuth, me},
+  } = getState()
+  const dashboard = dashboardUI.dashboards.find(d => d.id === dashboardID)
+
+  // viewers are not currently allowed to select temp vars and/or use overrides
+  if (isUsingAuth && !isUserAuthorized(me.role, EDITOR_ROLE)) {
+    const urlQueryParamsTempVarsWithUpdatedValues = findUpdatedTempVarsInURLQueryParams(
+      dashboard.templates,
+      urlQueryParams
+    )
+    if (urlQueryParamsTempVarsWithUpdatedValues.length) {
+      dispatch(notify(notifyViewerUnauthorizedToSetTempVars()))
+      return
+    }
+  }
+
+  const urlQueryParamsTempVarsWithInvalidValues = findInvalidTempVarsInURLQuery(
+    dashboard.templates,
+    urlQueryParams
+  )
+  urlQueryParamsTempVarsWithInvalidValues.forEach(invalidURLQuery => {
+    dispatch(notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery)))
+  })
+
+  dispatch(templateVariablesSelectedByName(dashboardID, urlQueryParams))
+}
+
+const syncDashboardTimeRangeFromURLQueryParams = (
+  dashboardID: number,
+  urlQueryParams: URLQueryParams,
+  location: Location
+) => (dispatch, getState): void => {
+  const {
+    dashboardUI: {dashboards},
+    dashTimeV1,
+  } = getState()
+  const dashboard = dashboards.find(d => d.id === dashboardID)
+
+  const timeRangeFromQueries = {
+    lower: urlQueryParams.lower,
+    upper: urlQueryParams.upper,
+  }
+  const zoomedTimeRangeFromQueries = {
+    lower: urlQueryParams.zoomedLower,
+    upper: urlQueryParams.zoomedUpper,
+  }
+
+  let validatedTimeRange = validTimeRange(timeRangeFromQueries)
+  if (!validatedTimeRange.lower) {
+    const dashboardTimeRange = dashTimeV1.ranges.find(
+      r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
+    )
+
+    validatedTimeRange = dashboardTimeRange || defaultTimeRange
+
+    if (timeRangeFromQueries.lower || timeRangeFromQueries.upper) {
+      dispatch(notify(notifyInvalidTimeRangeValueInURLQuery()))
+    }
+  }
+  dispatch(setDashTimeV1(dashboardID, validatedTimeRange))
+
+  const validatedZoomedTimeRange = validAbsoluteTimeRange(
+    zoomedTimeRangeFromQueries
+  )
+  if (
+    !validatedZoomedTimeRange.lower &&
+    (urlQueryParams.zoomedLower || urlQueryParams.zoomedUpper)
+  ) {
+    dispatch(notify(notifyInvalidZoomedTimeRangeValueInURLQuery()))
+  }
+  dispatch(setZoomedTimeRange(validatedZoomedTimeRange))
+  const urlQueryParamsTimeRanges = {
+    lower: validatedTimeRange.lower,
+    upper: validatedTimeRange.upper,
+    zoomedLower: validatedZoomedTimeRange.lower,
+    zoomedUpper: validatedZoomedTimeRange.upper,
+  }
+  dispatch(
+    syncURLQueryFromTempVars(
+      location,
+      dashboard.templates,
+      [],
+      urlQueryParamsTimeRanges
+    )
+  )
+}
+
+const syncDashboardFromURLQueryParams = (
+  dashboardID: number,
+  location: Location
+) => (dispatch): void => {
+  const urlQueryParams = queryString.parse(window.location.search)
+  dispatch(syncDashboardTempVarsFromURLQueryParams(dashboardID, urlQueryParams))
+  dispatch(
+    syncDashboardTimeRangeFromURLQueryParams(
+      dashboardID,
+      urlQueryParams,
+      location
+    )
+  )
+}
+
+export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
+  dashboardID: string,
+  source: Source,
+  router: InjectedRouter,
+  location: Location
+) => async (dispatch): Promise<void> => {
+  const dashboard = await bindActionCreators(getDashboardAsync, dispatch)(
+    dashboardID
+  )
+  if (!dashboard) {
+    router.push(`/sources/${source.id}/dashboards`)
+    dispatch(notify(notifyDashboardNotFound(dashboardID)))
+    return
+  }
+
+  await bindActionCreators(hydrateTempVarValuesAsync, dispatch)(
+    +dashboardID,
+    source
+  )
+
+  dispatch(syncDashboardFromURLQueryParams(+dashboardID, location))
+}
+
+export const setZoomedTimeRangeAsync = (
+  zoomedTimeRange: TimeRange,
+  location: Location
+) => async (dispatch): Promise<void> => {
+  dispatch(setZoomedTimeRange(zoomedTimeRange))
+  const urlQueryParamsZoomedTimeRange = {
+    zoomedLower: zoomedTimeRange.lower,
+    zoomedUpper: zoomedTimeRange.upper,
+  }
+  dispatch(
+    syncURLQueryParamsFromQueryParamsObject(
+      location,
+      urlQueryParamsZoomedTimeRange
+    )
+  )
 }

@@ -13,6 +13,7 @@ import {
   deleteDashboardAsync,
   getChronografVersion,
   importDashboardAsync,
+  retainRangesDashTimeV1 as retainRangesDashTimeV1Action,
 } from 'src/dashboards/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
@@ -30,18 +31,21 @@ import {DashboardFile} from 'src/types/dashboard'
 interface Props {
   source: Source
   router: InjectedRouter
-  handleGetDashboards: () => void
+  handleGetDashboards: () => Dashboard[]
   handleGetChronografVersion: () => string
   handleDeleteDashboard: (dashboard: Dashboard) => void
   handleImportDashboard: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
+  retainRangesDashTimeV1: (dashboardIDs: number[]) => void
   dashboards: Dashboard[]
 }
 
 @ErrorHandling
 class DashboardsPage extends PureComponent<Props> {
-  public componentDidMount() {
-    this.props.handleGetDashboards()
+  public async componentDidMount() {
+    const dashboards = await this.props.handleGetDashboards()
+    const dashboardIDs = dashboards.map(d => d.id)
+    this.props.retainRangesDashTimeV1(dashboardIDs)
   }
 
   public render() {
@@ -139,6 +143,7 @@ const mapDispatchToProps = {
   handleGetChronografVersion: getChronografVersion,
   handleImportDashboard: importDashboardAsync,
   notify: notifyAction,
+  retainRangesDashTimeV1: retainRangesDashTimeV1Action,
 }
 
 export default withRouter(

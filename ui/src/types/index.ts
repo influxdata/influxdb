@@ -1,15 +1,13 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
 import {AuthLinks, Organization, Role, User, Me} from './auth'
+import {Cell, CellQuery, Legend, Axes, Dashboard, CellType} from './dashboard'
 import {
   Template,
-  Cell,
-  CellQuery,
-  Legend,
-  Axes,
-  Dashboard,
-  CellType,
-} from './dashboard'
+  TemplateQuery,
+  TemplateValue,
+  URLQueryParams,
+} from './tempVars'
 import {
   GroupBy,
   Query,
@@ -51,6 +49,8 @@ export {
   Organization,
   Constructable,
   Template,
+  TemplateQuery,
+  TemplateValue,
   Cell,
   CellQuery,
   CellType,
@@ -95,4 +95,5 @@ export {
   ScriptStatus,
   SchemaFilter,
   RemoteDataState,
+  URLQueryParams,
 }

@@ -8,6 +8,18 @@ export function getDashboards() {
   })
 }
 
+export const getDashboard = async dashboardID => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url: `/chronograf/v1/dashboards/${dashboardID}`,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export function updateDashboard(dashboard) {
   return AJAX({
     method: 'PUT',
@@ -87,15 +99,13 @@ export const editTemplateVariables = async templateVariable => {
   }
 }
 
-export const runTemplateVariableQuery = async (
-  source,
-  {
+export const getTempVarValuesBySourceQuery = async (source, templateQuery) => {
+  const {
     query,
     db,
     // rp, TODO
     tempVars,
-  }
-) => {
+  } = templateQuery
   try {
     // TODO: add rp as argument to proxy
     return await proxy({source: source.links.proxy, query, db, tempVars})
