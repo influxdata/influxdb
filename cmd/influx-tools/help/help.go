@@ -33,7 +33,8 @@ Usage: influx-tools command [arguments]
 
 The commands are:
 
-    export               downloads a snapshot of a data node and saves it to disk
+    export               reshapes existing shards to a new shard duration
+    compact-shard        fully compacts the specified shard
     help                 display this help message
 
 Use "influx-tools command -help" for more information about a command.
