@@ -113,6 +113,56 @@ const tagsetFilter = (filter: SchemaFilter[]): string => {
   return `|> filter(fn: (r) => ${predicates.join(' and ')} )`
 }
 
+interface CanceledResolvedValue<T> {
+  isCanceled: boolean
+  value: T | null
+}
+
+interface CanceledRejectedValue {
+  isCanceled: boolean
+  error: Error | null
+}
+
+type PossiblyCanceledValue<T> = CanceledResolvedValue<T> | CanceledRejectedValue
+
+interface WrappedCancelablePromise<T> {
+  promise: Promise<PossiblyCanceledValue<T>>
+  cancel: () => void
+}
+
+export const makeCancelable = <T>(
+  promise: Promise<T>
+): WrappedCancelablePromise<T> => {
+  let isCanceled = false
+
+  const wrappedPromise = new Promise<PossiblyCanceledValue<T>>(
+    async (resolve, reject) => {
+      try {
+        const value = await promise
+
+        if (isCanceled) {
+          reject({isCanceled, value: null})
+        } else {
+          resolve({isCanceled, value})
+        }
+      } catch (error) {
+        if (isCanceled) {
+          reject({isCanceled, error: null})
+        } else {
+          reject({isCanceled, error})
+        }
+      }
+    }
+  )
+
+  return {
+    promise: wrappedPromise,
+    cancel() {
+      isCanceled = true
+    },
+  }
+}
+
 const proxy = async (service: Service, script: string) => {
   const and = encodeURIComponent('&')
   const mark = encodeURIComponent('?')
