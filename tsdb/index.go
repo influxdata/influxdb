@@ -1111,6 +1111,16 @@ type IndexSet struct {
 	fieldSets  []*MeasurementFieldSet // field sets for _all_ indexes in this set's DB.
 }
 
+// HasInmemIndex returns true if any in-memory index is in use.
+func (is IndexSet) HasInmemIndex() bool {
+	for _, idx := range is.Indexes {
+		if idx.Type() == "inmem" {
+			return true
+		}
+	}
+	return false
+}
+
 // Database returns the database name of the first index.
 func (is IndexSet) Database() string {
 	if len(is.Indexes) == 0 {
@@ -1562,6 +1572,10 @@ func (is IndexSet) tagValueIterator(name, key []byte) (TagValueIterator, error) 
 // TagKeyHasAuthorizedSeries determines if there exists an authorized series for
 // the provided measurement name and tag key.
 func (is IndexSet) TagKeyHasAuthorizedSeries(auth query.Authorizer, name, tagKey []byte) (bool, error) {
+	if !is.HasInmemIndex() && query.AuthorizerIsOpen(auth) {
+		return true, nil
+	}
+
 	release := is.SeriesFile.Retain()
 	defer release()
 
