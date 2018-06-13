@@ -6,7 +6,7 @@ interface Props {
   pageTitle?: string
   renderTitle?: () => ReactElement<any>
   renderOptions?: () => ReactElement<any>
-  fullWidth: boolean
+  fullWidth?: boolean
 }
 
 const PageHeader: SFC<Props> = ({
