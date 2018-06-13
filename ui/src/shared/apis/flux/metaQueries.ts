@@ -113,21 +113,17 @@ const tagsetFilter = (filter: SchemaFilter[]): string => {
   return `|> filter(fn: (r) => ${predicates.join(' and ')} )`
 }
 
-interface CanceledResolvedValue<T> {
-  isCanceled: boolean
-  value: T | null
-}
-
-interface CanceledRejectedValue {
-  isCanceled: boolean
-  error: Error | null
-}
-
-type PossiblyCanceledValue<T> = CanceledResolvedValue<T> | CanceledRejectedValue
+type CancelablePromiseResult<T> = T | CanceledPromiseError | Error
 
 interface WrappedCancelablePromise<T> {
-  promise: Promise<PossiblyCanceledValue<T>>
+  promise: Promise<CancelablePromiseResult<T>>
   cancel: () => void
+}
+
+class CanceledPromiseError extends Error {
+  constructor() {
+    super('Canceled Promise')
+  }
 }
 
 export const makeCancelable = <T>(
@@ -135,21 +131,21 @@ export const makeCancelable = <T>(
 ): WrappedCancelablePromise<T> => {
   let isCanceled = false
 
-  const wrappedPromise = new Promise<PossiblyCanceledValue<T>>(
+  const wrappedPromise = new Promise<CancelablePromiseResult<T>>(
     async (resolve, reject) => {
       try {
         const value = await promise
 
         if (isCanceled) {
-          reject({isCanceled, value: null})
+          reject(new CanceledPromiseError())
         } else {
-          resolve({isCanceled, value})
+          resolve(value)
         }
       } catch (error) {
         if (isCanceled) {
-          reject({isCanceled, error: null})
+          reject(new CanceledPromiseError())
         } else {
-          reject({isCanceled, error})
+          reject(error)
         }
       }
     }
