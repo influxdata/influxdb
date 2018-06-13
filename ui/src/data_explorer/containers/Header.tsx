@@ -27,11 +27,11 @@ class Header extends PureComponent<Props> {
     } = this.props
     return (
       <div className="page-header full-width">
-        <div className="page-header__container">
-          <div className="page-header__left">
-            <h1 className="page-header__title">Data Explorer</h1>
+        <div className="page-header--container">
+          <div className="page-header--left">
+            <h1 className="page-header--title">Data Explorer</h1>
           </div>
-          <div className="page-header__right">
+          <div className="page-header--right">
             <GraphTips />
             <SourceIndicator />
             <div

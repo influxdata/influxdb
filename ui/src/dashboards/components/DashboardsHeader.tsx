@@ -4,11 +4,11 @@ import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 const DashboardsHeader = (): JSX.Element => (
   <div className="page-header">
-    <div className="page-header__container">
-      <div className="page-header__left">
-        <h1 className="page-header__title">Dashboards</h1>
+    <div className="page-header--container">
+      <div className="page-header--left">
+        <h1 className="page-header--title">Dashboards</h1>
       </div>
-      <div className="page-header__right">
+      <div className="page-header--right">
         <SourceIndicator />
       </div>
     </div>

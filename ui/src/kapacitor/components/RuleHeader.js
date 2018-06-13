@@ -14,9 +14,9 @@ class RuleHeader extends Component {
 
     return (
       <div className="page-header">
-        <div className="page-header__container">
-          <div className="page-header__left">
-            <h1 className="page-header__title">Alert Rule Builder</h1>
+        <div className="page-header--container">
+          <div className="page-header--left">
+            <h1 className="page-header--title">Alert Rule Builder</h1>
           </div>
           <RuleHeaderSave
             source={source}

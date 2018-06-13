@@ -209,17 +209,17 @@ class SourcePage extends Component {
       <div className={`${isInitialSource ? '' : 'page'}`}>
         <Notifications />
         <div className="page-header">
-          <div className="page-header__container page-header__source-page">
+          <div className="page-header--container page-header__source-page">
             <div className="page-header__col-md-8">
-              <div className="page-header__left">
-                <h1 className="page-header__title">
+              <div className="page-header--left">
+                <h1 className="page-header--title">
                   {editMode
                     ? 'Configure InfluxDB Connection'
                     : 'Add a New InfluxDB Connection'}
                 </h1>
               </div>
               {isInitialSource ? null : (
-                <div className="page-header__right">
+                <div className="page-header--right">
                   <SourceIndicator />
                 </div>
               )}

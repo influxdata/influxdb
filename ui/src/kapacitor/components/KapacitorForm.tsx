@@ -39,9 +39,9 @@ class KapacitorForm extends PureComponent<Props> {
     return (
       <div className="page">
         <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">{this.headerText}</h1>
+          <div className="page-header--container">
+            <div className="page-header--left">
+              <h1 className="page-header--title">{this.headerText}</h1>
             </div>
           </div>
         </div>

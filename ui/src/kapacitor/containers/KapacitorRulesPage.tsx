@@ -90,11 +90,11 @@ interface PageContentsProps {
 const PageContents: SFC<PageContentsProps> = ({children}) => (
   <div className="page">
     <div className="page-header">
-      <div className="page-header__container">
-        <div className="page-header__left">
-          <h1 className="page-header__title">Manage Tasks</h1>
+      <div className="page-header--container">
+        <div className="page-header--left">
+          <h1 className="page-header--title">Manage Tasks</h1>
         </div>
-        <div className="page-header__right">
+        <div className="page-header--right">
           <QuestionMarkTooltip
             tipID="manage-tasks--tooltip"
             tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."

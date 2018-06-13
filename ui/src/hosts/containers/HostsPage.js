@@ -120,11 +120,11 @@ export class HostsPage extends Component {
     return (
       <div className="page hosts-list-page">
         <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Host List</h1>
+          <div className="page-header--container">
+            <div className="page-header--left">
+              <h1 className="page-header--title">Host List</h1>
             </div>
-            <div className="page-header__right">
+            <div className="page-header--right">
               <SourceIndicator />
               <AutoRefreshDropdown
                 iconName="refresh"

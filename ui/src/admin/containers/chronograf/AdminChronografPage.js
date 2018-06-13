@@ -50,9 +50,9 @@ const sections = me => [
 const AdminChronografPage = ({me, source, params: {tab}}) => (
   <div className="page">
     <div className="page-header">
-      <div className="page-header__container">
-        <div className="page-header__left">
-          <h1 className="page-header__title">Chronograf Admin</h1>
+      <div className="page-header--container">
+        <div className="page-header--left">
+          <h1 className="page-header--title">Chronograf Admin</h1>
         </div>
       </div>
     </div>

@@ -27,9 +27,9 @@ const TickscriptHeader: SFC<Props> = ({
   onToggleLogsVisibility,
 }) => (
   <div className="page-header full-width">
-    <div className="page-header__container">
-      <div className="page-header__left">
-        <h1 className="page-header__title">TICKscript Editor</h1>
+    <div className="page-header--container">
+      <div className="page-header--left">
+        <h1 className="page-header--title">TICKscript Editor</h1>
       </div>
       {areLogsEnabled && (
         <LogsToggle
@@ -37,7 +37,7 @@ const TickscriptHeader: SFC<Props> = ({
           onToggleLogsVisibility={onToggleLogsVisibility}
         />
       )}
-      <div className="page-header__right">
+      <div className="page-header--right">
         <SourceIndicator />
         <TickscriptSave
           task={task}

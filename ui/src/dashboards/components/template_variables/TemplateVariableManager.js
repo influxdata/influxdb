@@ -22,10 +22,10 @@ const TemplateVariableManager = ({
 }) => (
   <div className="template-variable-manager">
     <div className="template-variable-manager--header">
-      <div className="page-header__left">
-        <h1 className="page-header__title">Template Variables</h1>
+      <div className="page-header--left">
+        <h1 className="page-header--title">Template Variables</h1>
       </div>
-      <div className="page-header__right">
+      <div className="page-header--right">
         <button
           className="btn btn-primary btn-sm"
           type="button"

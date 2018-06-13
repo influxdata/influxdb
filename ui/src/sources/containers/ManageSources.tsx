@@ -50,11 +50,11 @@ class ManageSources extends PureComponent<Props> {
     return (
       <div className="page" id="manage-sources-page">
         <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Configuration</h1>
+          <div className="page-header--container">
+            <div className="page-header--left">
+              <h1 className="page-header--title">Configuration</h1>
             </div>
-            <div className="page-header__right">
+            <div className="page-header--right">
               <SourceIndicator />
             </div>
           </div>

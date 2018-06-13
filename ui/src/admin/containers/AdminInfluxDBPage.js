@@ -224,11 +224,11 @@ class AdminInfluxDBPage extends Component {
     return (
       <div className="page">
         <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">InfluxDB Admin</h1>
+          <div className="page-header--container">
+            <div className="page-header--left">
+              <h1 className="page-header--title">InfluxDB Admin</h1>
             </div>
-            <div className="page-header__right">
+            <div className="page-header--right">
               <SourceIndicator />
             </div>
           </div>

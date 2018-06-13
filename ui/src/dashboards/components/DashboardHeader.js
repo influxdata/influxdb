@@ -33,12 +33,12 @@ const DashboardHeader = ({
 }) =>
   isHidden ? null : (
     <div className="page-header full-width">
-      <div className="page-header__container">
+      <div className="page-header--container">
         <div
           className={
             dashboard
-              ? 'page-header__left page-header__dash-editable'
-              : 'page-header__left'
+              ? 'page-header--left page-header__dash-editable'
+              : 'page-header--left'
           }
         >
           {names && names.length > 1 ? (
@@ -51,7 +51,7 @@ const DashboardHeader = ({
             <Authorized
               requiredRole={EDITOR_ROLE}
               replaceWithIfNotAuthorized={
-                <h1 className="page-header__title">{activeDashboard}</h1>
+                <h1 className="page-header--title">{activeDashboard}</h1>
               }
             >
               <DashboardHeaderEdit
@@ -63,10 +63,10 @@ const DashboardHeader = ({
               />
             </Authorized>
           ) : (
-            <h1 className="page-header__title">{activeDashboard}</h1>
+            <h1 className="page-header--title">{activeDashboard}</h1>
           )}
         </div>
-        <div className="page-header__right">
+        <div className="page-header--right">
           <GraphTips />
           <SourceIndicator />
           {dashboard ? (

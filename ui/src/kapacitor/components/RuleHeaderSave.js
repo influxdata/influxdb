@@ -4,7 +4,7 @@ import ReactTooltip from 'react-tooltip'
 import SourceIndicator from 'shared/components/SourceIndicator'
 
 const RuleHeaderSave = ({onSave, validationError}) => (
-  <div className="page-header__right">
+  <div className="page-header--right">
     <SourceIndicator />
     {validationError ? (
       <button

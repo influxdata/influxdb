@@ -1,6 +1,6 @@
 /*
-    Page Header
-    ----------------------------------------------
+  Page Header
+  ------------------------------------------------------------------------------
 */
 $page-header-size: 19px;
 $page-header-weight: 400 !important;
@@ -19,10 +19,10 @@ $page-header-weight: 400 !important;
   border: none;
   margin: 0;
 }
-.page-header.full-width .page-header__container {
+.page-header.full-width .page-header--container {
   max-width: 100%;
 }
-.page-header__container {
+.page-header--container {
   position: relative;
   width: 100%;
   display: flex;
@@ -32,7 +32,7 @@ $page-header-weight: 400 !important;
   width: 100%;
   max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
 }
-.page-header__container.page-header__source-page {
+.page-header--container.page-header__source-page {
   justify-content: center;
 }
 .page-header__col-md-8 {
@@ -52,18 +52,18 @@ $page-header-weight: 400 !important;
     width: 66.66667%;
   }
 }
-.page-header__left,
-.page-header__right {
+.page-header--left,
+.page-header--right {
   display: flex;
   align-items: center;
 }
-.page-header__left {
+.page-header--left {
   justify-content: flex-start;
   > * {
     margin: 0 4px 0 0;
   }
 }
-.page-header__right {
+.page-header--right {
   justify-content: flex-end;
   > * {
     margin: 0 0 0 4px !important;
@@ -73,7 +73,7 @@ $page-header-weight: 400 !important;
     }
   }
 }
-.page-header__title {
+.page-header--title {
   letter-spacing: 0;
   text-transform: none;
   font-size: $page-header-size;

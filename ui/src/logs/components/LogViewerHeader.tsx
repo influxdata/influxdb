@@ -30,14 +30,14 @@ class LogViewerHeader extends PureComponent<Props> {
     const {timeRange} = this.props
     return (
       <div className="page-header full-width">
-        <div className="page-header__container">
-          <div className="page-header__left">
+        <div className="page-header--container">
+          <div className="page-header--left">
             {this.status}
-            <h1 className="page-header__title logs-viewer-header-title">
+            <h1 className="page-header--title logs-viewer-header-title">
               Log Viewer
             </h1>
           </div>
-          <div className="page-header__right">
+          <div className="page-header--right">
             <Dropdown
               className="dropdown-300"
               items={this.sourceDropDownItems}

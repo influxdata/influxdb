@@ -19,11 +19,11 @@ class FluxHeader extends PureComponent<Props> {
   public render() {
     return (
       <div className="page-header full-width">
-        <div className="page-header__container">
-          <div className="page-header__left">
-            <h1 className="page-header__title">Flux Editor</h1>
+        <div className="page-header--container">
+          <div className="page-header--left">
+            <h1 className="page-header--title">Flux Editor</h1>
           </div>
-          <div className="page-header__right">
+          <div className="page-header--right">
             <button onClick={this.overlay} className="btn btn-sm btn-default">
               Edit Connection
             </button>
