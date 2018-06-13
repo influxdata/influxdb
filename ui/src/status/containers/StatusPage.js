@@ -5,6 +5,7 @@ import {connect} from 'react-redux'
 import SourceIndicator from 'shared/components/SourceIndicator'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import LayoutRenderer from 'shared/components/LayoutRenderer'
+import PageHeader from 'shared/components/PageHeader'
 
 import {fixtureStatusPageCells} from 'src/status/fixtures'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -57,16 +58,11 @@ class StatusPage extends Component {
 
     return (
       <div className="page">
-        <div className="page-header full-width">
-          <div className="page-header--container">
-            <div className="page-header--left">
-              <h1 className="page-header--title">Status</h1>
-            </div>
-            <div className="page-header--right">
-              <SourceIndicator />
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Status"
+          fullWidth={true}
+          renderOptions={this.renderHeaderOptions}
+        />
         <FancyScrollbar className="page-contents">
           <div className="dashboard container-fluid full-width">
             {cells.length ? (
@@ -87,6 +83,10 @@ class StatusPage extends Component {
         </FancyScrollbar>
       </div>
     )
+  }
+
+  renderHeaderOptions = () => {
+    return <SourceIndicator />
   }
 }
 
