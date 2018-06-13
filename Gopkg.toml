@@ -68,7 +68,7 @@
 
 [[constraint]]
   name = "github.com/klauspost/pgzip"
-  revision = "0bf5dcad4ada2814c3c00f996a982270bb81a506"
+  version = "1.1.0"
 
 [prune]
   go-tests = true
