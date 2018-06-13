@@ -16,7 +16,7 @@ interface Props {
   isUsingAuth: boolean
   deleteKapacitor: DeleteKapacitor
   setActiveKapacitor: SetActiveKapacitor
-  onDeleteSource: (source: Source) => () => void
+  onDeleteSource: (source: Source) => void
 }
 
 class InfluxTable extends PureComponent<Props> {
