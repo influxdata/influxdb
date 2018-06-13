@@ -1,19 +1,22 @@
 import React, {SFC, ReactElement} from 'react'
 import classnames from 'classnames'
 import Title from 'src/shared/components/PageHeaderTitle'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 interface Props {
   title?: string
   renderTitle?: () => ReactElement<any>
   renderOptions?: () => ReactElement<any>
   fullWidth?: boolean
+  sourceIndicator?: boolean
 }
 
 const PageHeader: SFC<Props> = ({
   title,
+  fullWidth,
   renderTitle,
   renderOptions,
-  fullWidth,
+  sourceIndicator,
 }) => {
   if (!title && !renderTitle) {
     console.error('PageHeader requires either title or RenderTitle props')
@@ -30,9 +33,10 @@ const PageHeader: SFC<Props> = ({
     <div className={className}>
       <div className="page-header--container">
         <div className="page-header--left">{renderLeft()}</div>
-        {renderOptions && (
-          <div className="page-header--right">{renderOptions()}</div>
-        )}
+        <div className="page-header--right">
+          {sourceIndicator && <SourceIndicator />}
+          {renderOptions && renderOptions()}
+        </div>
       </div>
     </div>
   )
