@@ -31,6 +31,8 @@ func NewTaskHandler() *TaskHandler {
 	h.HandlerFunc("DELETE", "/v1/tasks/:tid", h.handleDeleteTask)
 
 	h.HandlerFunc("GET", "/v1/tasks/:tid/logs", h.handleGetLogs)
+	h.HandlerFunc("GET", "/v1/tasks/:tid/runs/:rid/logs", h.handleGetLogs)
+
 	h.HandlerFunc("GET", "/v1/tasks/:tid/runs", h.handleGetRuns)
 	h.HandlerFunc("GET", "/v1/tasks/:tid/runs/:rid", h.handleGetRun)
 	h.HandlerFunc("POST", "/v1/tasks/:tid/runs/:rid/retry", h.handleRetryRun)
@@ -294,9 +296,7 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest
 		return nil, err
 	}
 
-	qp := r.URL.Query()
-
-	if id := qp.Get("run"); id != "" {
+	if id := params.ByName("rid"); id != "" {
 		req.filter.Run = &platform.ID{}
 		if err := req.filter.Run.DecodeFromString(id); err != nil {
 			return nil, err
@@ -367,12 +367,12 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 	}
 
 	if time := qp.Get("afterTime"); time != "" {
-		// TODO (jm): verify format is correct, once we've decided on a format
+		// TODO (jm): verify valid RFC3339
 		req.filter.AfterTime = time
 	}
 
 	if time := qp.Get("beforeTime"); time != "" {
-		// TODO (jm): verify format is correct, once we've decided on a format
+		// TODO (jm): verify valid RFC3339
 		req.filter.BeforeTime = time
 	}
 

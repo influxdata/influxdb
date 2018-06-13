@@ -727,7 +727,6 @@ components:
           ]
         owner:
           $ref: "#/components/schemas/User"
-<<<<<<< HEAD
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -738,18 +737,6 @@ components:
         cron:
           readOnly: true
           description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
-=======
-        query:
-          description: The ifql query to run for this task.
-          type: string
-        every:
-          readOnly: true
-          description: A simple task repetition schedule; parsed from query.
-          type: string
-        cron:
-          readOnly: true
-          description: A task repetition schedule in the form '* * * * * *'; parsed from query.
->>>>>>> update swagger
           type: string
         last:
           $ref: "#/components/schemas/Run"
