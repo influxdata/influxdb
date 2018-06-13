@@ -258,6 +258,7 @@ class Dygraph extends Component<Props, State> {
                 dygraph={this.dygraph}
                 dWidth={this.dygraph.width_}
                 staticLegendHeight={staticLegendHeight}
+                xAxisRange={this.dygraph.xAxisRange()}
               />
             )}
             <DygraphLegend

@@ -1,11 +1,8 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import Annotation from 'src/shared/components/Annotation'
 import NewAnnotation from 'src/shared/components/NewAnnotation'
-import * as schema from 'src/shared/schemas'
 
 import {ADDING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
@@ -19,13 +16,31 @@ import {
 import {visibleAnnotations} from 'src/shared/annotations/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {AnnotationInterface, DygraphClass} from 'src/types'
+
+interface Props {
+  dygraph: DygraphClass
+  dWidth: number
+  xAxisRange: number[]
+  staticLegendHeight: number
+  annotations: AnnotationInterface[]
+  mode: string
+  isTempHovering: boolean
+  handleUpdateAnnotation: () => void
+  handleDismissAddingAnnotation: () => void
+  handleAddingAnnotationSuccess: () => void
+  handleMouseEnterTempAnnotation: () => void
+  handleMouseLeaveTempAnnotation: () => void
+}
+
 @ErrorHandling
-class Annotations extends Component {
-  render() {
+class Annotations extends Component<Props> {
+  public render() {
     const {
       mode,
       dWidth,
       dygraph,
+      xAxisRange,
       isTempHovering,
       handleUpdateAnnotation,
       handleDismissAddingAnnotation,
@@ -34,7 +49,7 @@ class Annotations extends Component {
       handleMouseLeaveTempAnnotation,
       staticLegendHeight,
     } = this.props
-
+    console.log('rendering annotations')
     return (
       <div className="annotations-container">
         {mode === ADDING &&
@@ -58,6 +73,7 @@ class Annotations extends Component {
             annotation={a}
             dygraph={dygraph}
             dWidth={dWidth}
+            xAxisRange={xAxisRange}
             staticLegendHeight={staticLegendHeight}
           />
         ))}
@@ -67,7 +83,7 @@ class Annotations extends Component {
 
   get annotations() {
     return visibleAnnotations(
-      this.props.dygraph,
+      this.props.xAxisRange,
       this.props.annotations
     ).filter(a => a.id !== TEMP_ANNOTATION.id)
   }
@@ -77,48 +93,18 @@ class Annotations extends Component {
   }
 }
 
-const {arrayOf, bool, func, number, shape, string} = PropTypes
-
-Annotations.propTypes = {
-  annotations: arrayOf(schema.annotation),
-  dygraph: shape({}).isRequired,
-  dWidth: number.isRequired,
-  mode: string,
-  isTempHovering: bool,
-  handleUpdateAnnotation: func.isRequired,
-  handleDismissAddingAnnotation: func.isRequired,
-  handleAddingAnnotationSuccess: func.isRequired,
-  handleMouseEnterTempAnnotation: func.isRequired,
-  handleMouseLeaveTempAnnotation: func.isRequired,
-  staticLegendHeight: number,
-}
-
-const mapStateToProps = ({
-  annotations: {annotations, mode, isTempHovering},
-}) => ({
+const mstp = ({annotations: {annotations, mode, isTempHovering}}) => ({
   annotations,
   mode: mode || 'NORMAL',
   isTempHovering,
 })
 
-const mapDispatchToProps = dispatch => ({
-  handleAddingAnnotationSuccess: bindActionCreators(
-    addingAnnotationSuccess,
-    dispatch
-  ),
-  handleDismissAddingAnnotation: bindActionCreators(
-    dismissAddingAnnotation,
-    dispatch
-  ),
-  handleMouseEnterTempAnnotation: bindActionCreators(
-    mouseEnterTempAnnotation,
-    dispatch
-  ),
-  handleMouseLeaveTempAnnotation: bindActionCreators(
-    mouseLeaveTempAnnotation,
-    dispatch
-  ),
-  handleUpdateAnnotation: bindActionCreators(updateAnnotation, dispatch),
-})
+const mdtp = {
+  handleAddingAnnotationSuccess: addingAnnotationSuccess,
+  handleDismissAddingAnnotation: dismissAddingAnnotation,
+  handleMouseEnterTempAnnotation: mouseEnterTempAnnotation,
+  handleMouseLeaveTempAnnotation: mouseLeaveTempAnnotation,
+  handleUpdateAnnotation: updateAnnotation,
+}
 
-export default connect(mapStateToProps, mapDispatchToProps)(Annotations)
+export default connect(mstp, mdtp)(Annotations)

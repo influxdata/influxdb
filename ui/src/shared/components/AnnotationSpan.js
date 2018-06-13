@@ -217,7 +217,7 @@ class AnnotationSpan extends React.Component {
   }
 }
 
-const {func, number, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 AnnotationSpan.defaultProps = {
   staticLegendHeight: 0,
@@ -230,6 +230,7 @@ AnnotationSpan.propTypes = {
   staticLegendHeight: number,
   updateAnnotationAsync: func.isRequired,
   updateAnnotation: func.isRequired,
+  xAxisRange: arrayOf(number),
 }
 
 const mapDispatchToProps = {

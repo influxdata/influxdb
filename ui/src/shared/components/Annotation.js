@@ -10,6 +10,7 @@ const Annotation = ({
   mode,
   dygraph,
   dWidth,
+  xAxisRange,
   annotation,
   staticLegendHeight,
 }) => (
@@ -21,6 +22,7 @@ const Annotation = ({
         annotation={annotation}
         dWidth={dWidth}
         staticLegendHeight={staticLegendHeight}
+        xAxisRange={xAxisRange}
       />
     ) : (
       <AnnotationSpan
@@ -29,16 +31,18 @@ const Annotation = ({
         annotation={annotation}
         dWidth={dWidth}
         staticLegendHeight={staticLegendHeight}
+        xAxisRange={xAxisRange}
       />
     )}
   </div>
 )
 
-const {number, shape, string} = PropTypes
+const {arrayOf, number, shape, string} = PropTypes
 
 Annotation.propTypes = {
   mode: string,
   dWidth: number,
+  xAxisRange: arrayOf(number),
   annotation: schema.annotation.isRequired,
   dygraph: shape({}).isRequired,
   staticLegendHeight: number,

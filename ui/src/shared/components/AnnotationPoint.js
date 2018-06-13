@@ -139,7 +139,7 @@ class AnnotationPoint extends React.Component {
   }
 }
 
-const {func, number, shape, string} = PropTypes
+const {arrayOf, func, number, shape, string} = PropTypes
 
 AnnotationPoint.defaultProps = {
   staticLegendHeight: 0,
@@ -148,6 +148,7 @@ AnnotationPoint.defaultProps = {
 AnnotationPoint.propTypes = {
   annotation: schema.annotation.isRequired,
   mode: string.isRequired,
+  xAxisRange: arrayOf(number),
   dygraph: shape({}).isRequired,
   updateAnnotation: func.isRequired,
   updateAnnotationAsync: func.isRequired,
