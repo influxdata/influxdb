@@ -193,7 +193,10 @@ func (s *Store) Open() error {
 
 	if !s.EngineOptions.MonitorDisabled {
 		s.wg.Add(1)
-		go s.monitorShards()
+		go func() {
+			s.wg.Done()
+			s.monitorShards()
+		}()
 	}
 
 	return nil
@@ -1739,7 +1742,6 @@ func mergeTagValues(valueIdxs [][2]int, tvs ...tagValues) TagValues {
 }
 
 func (s *Store) monitorShards() {
-	defer s.wg.Done()
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
 	t2 := time.NewTicker(time.Minute)
