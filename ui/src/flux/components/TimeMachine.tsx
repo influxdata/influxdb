@@ -96,6 +96,7 @@ class TimeMachine extends PureComponent<Props> {
     return [
       {
         name: 'Script',
+        handlePixels: 44,
         headerOrientation: HANDLE_VERTICAL,
         headerButtons: [
           <div
@@ -120,6 +121,7 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         name: 'Explore',
+        handlePixels: 44,
         headerButtons: [],
         menuOptions: [],
         render: () => <SchemaExplorer service={service} />,
