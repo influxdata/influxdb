@@ -16,10 +16,6 @@ $logs-viewer-gutter: 60px;
   flex-wrap: nowrap;
 }
 
-.logs-viewer-header-title {
-  margin-left: 10px;
-}
-
 .logs-viewer--graph-container {
   padding: 22px ($logs-viewer-gutter - 16px) 10px ($logs-viewer-gutter - 16px);
   height: $logs-viewer-graph-height;
@@ -268,6 +264,8 @@ $logs-viewer-gutter: 60px;
     width: 26px;
     justify-content: center;
   }
+  
+  margin-right: 10px;
 }
 
 .message--cell {
