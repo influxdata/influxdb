@@ -4,6 +4,7 @@ import SourceIndicator from 'src/shared/components/SourceIndicator'
 import AlertsTable from 'src/alerts/components/AlertsTable'
 import NoKapacitorError from 'src/shared/components/NoKapacitorError'
 import CustomTimeRangeDropdown from 'src/shared/components/CustomTimeRangeDropdown'
+import PageHeader from 'src/shared/components/PageHeader'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {getAlerts} from 'src/alerts/apis'
@@ -85,7 +86,7 @@ class AlertsApp extends PureComponent<Props, State> {
   }
   public render() {
     const {isWidget, source} = this.props
-    const {loading, timeRange} = this.state
+    const {loading} = this.state
 
     if (loading || !source) {
       return <div className="page-spinner" />
@@ -95,20 +96,10 @@ class AlertsApp extends PureComponent<Props, State> {
       this.renderSubComponents()
     ) : (
       <div className="page alert-history-page">
-        <div className="page-header">
-          <div className="page-header--container">
-            <div className="page-header--left">
-              <h1 className="page-header--title">Alert History</h1>
-            </div>
-            <div className="page-header--right">
-              <SourceIndicator />
-              <CustomTimeRangeDropdown
-                onApplyTimeRange={this.handleApplyTime}
-                timeRange={timeRange}
-              />
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Alert History"
+          renderOptions={this.renderHeaderOptions}
+        />
         <div className="page-contents">
           <div className="container-fluid">
             <div className="row">
@@ -117,6 +108,20 @@ class AlertsApp extends PureComponent<Props, State> {
           </div>
         </div>
       </div>
+    )
+  }
+
+  private renderHeaderOptions = (): JSX.Element => {
+    const {timeRange} = this.state
+
+    return (
+      <>
+        <SourceIndicator />
+        <CustomTimeRangeDropdown
+          onApplyTimeRange={this.handleApplyTime}
+          timeRange={timeRange}
+        />
+      </>
     )
   }
 
