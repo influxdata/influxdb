@@ -744,11 +744,12 @@ func (c *CommandLine) Insert(stmt string) error {
 // query creates a query struct to be used with the client.
 func (c *CommandLine) query(query string) client.Query {
 	return client.Query{
-		Command:   query,
-		Database:  c.Database,
-		Chunked:   c.Chunked,
-		ChunkSize: c.ChunkSize,
-		NodeID:    c.NodeID,
+		Command:         query,
+		Database:        c.Database,
+		RetentionPolicy: c.RetentionPolicy,
+		Chunked:         c.Chunked,
+		ChunkSize:       c.ChunkSize,
+		NodeID:          c.NodeID,
 	}
 }
 
