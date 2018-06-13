@@ -60,4 +60,4 @@ export const EXCLUDED_KEYS = [
 ]
 
 export const DEFAULT_SCRIPT =
-  'fil = (r) => r._measurement == "cpu"\ntele = from(db: "telegraf") \n\t\t|> filter(fn: fil)\n        |> range(start: -1m)\n        |> sum()\n\n'
+  'from(db: "pick a db")\n\t|> filter(fn: (r) => r._measurement == "your value here")\n\t|> range(start: -1m)\n\t|> yield(name: "Results")\n\n'

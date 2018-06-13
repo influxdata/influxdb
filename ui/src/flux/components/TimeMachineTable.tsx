@@ -50,7 +50,7 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
     const {scrollLeft, filteredTable} = this.state
 
     return (
-      <div style={{flex: '1 1 auto'}}>
+      <>
         <AutoSizer>
           {({width}) => (
             <ColumnSizer
@@ -100,7 +100,7 @@ export default class TimeMachineTable extends PureComponent<Props, State> {
             </ColumnSizer>
           )}
         </AutoSizer>
-      </div>
+      </>
     )
   }
 

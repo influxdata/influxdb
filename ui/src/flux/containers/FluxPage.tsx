@@ -95,7 +95,7 @@ export class FluxPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {suggestions, data, body, status} = this.state
+    const {suggestions, body, status} = this.state
     const {script} = this.props
 
     return (
@@ -104,7 +104,6 @@ export class FluxPage extends PureComponent<Props, State> {
           <div className="page hosts-list-page">
             {this.header}
             <TimeMachine
-              data={data}
               body={body}
               script={script}
               status={status}
@@ -129,9 +128,7 @@ export class FluxPage extends PureComponent<Props, State> {
       return null
     }
 
-    return (
-      <FluxHeader service={this.service} onGetTimeSeries={this.getTimeSeries} />
-    )
+    return <FluxHeader service={this.service} />
   }
 
   private get service(): Service {
@@ -146,7 +143,10 @@ export class FluxPage extends PureComponent<Props, State> {
       onChangeScript: this.handleChangeScript,
       onDeleteFuncNode: this.handleDeleteFuncNode,
       onGenerateScript: this.handleGenerateScript,
+      onToggleYield: this.handleToggleYield,
       service: this.service,
+      data: this.state.data,
+      scriptUpToYield: this.handleScriptUpToYield,
     }
   }
 
@@ -226,7 +226,11 @@ export class FluxPage extends PureComponent<Props, State> {
   }
 
   private get bodyToScript(): string {
-    return this.state.body.reduce((acc, b) => {
+    return this.getBodyToScript(this.state.body)
+  }
+
+  private getBodyToScript(body: Body[]): string {
+    return body.reduce((acc, b) => {
       if (b.declarations.length) {
         const declaration = _.get(b, 'declarations.0', false)
         if (!declaration) {
@@ -327,8 +331,186 @@ export class FluxPage extends PureComponent<Props, State> {
     this.getASTResponse(script)
   }
 
-  private appendFunc = (funcs, name): string => {
+  private handleScriptUpToYield = (
+    bodyID: string,
+    declarationID: string,
+    funcNodeIndex: number,
+    isYieldable: boolean
+  ) => {
+    const {body: bodies} = this.state
+
+    const bodyIndex = bodies.findIndex(b => b.id === bodyID)
+
+    const bodiesBeforeYield = bodies
+      .slice(0, bodyIndex)
+      .map(b => this.removeYieldFuncFromBody(b))
+
+    const body = this.prepBodyForYield(
+      bodies[bodyIndex],
+      declarationID,
+      funcNodeIndex
+    )
+
+    const bodiesForScript = [...bodiesBeforeYield, body]
+
+    let script = this.getBodyToScript(bodiesForScript)
+
+    if (!isYieldable) {
+      const regex: RegExp = /\n{2}$/
+      script = script.replace(regex, '\n\t|> last()\n\t|> yield()$&')
+      return script
+    }
+
+    return script
+  }
+
+  private prepBodyForYield(
+    body: Body,
+    declarationID: string,
+    yieldNodeIndex: number
+  ) {
+    const funcs = this.getFuncs(body, declarationID)
+    const funcsUpToYield = funcs.slice(0, yieldNodeIndex)
+    const yieldNode = funcs[yieldNodeIndex]
+    const funcsWithoutYields = funcsUpToYield.filter(f => f.name !== 'yield')
+    const funcsForBody = [...funcsWithoutYields, yieldNode]
+
+    if (declarationID) {
+      const declaration = body.declarations.find(d => d.id === declarationID)
+      const declarations = [{...declaration, funcs: funcsForBody}]
+      return {...body, declarations}
+    }
+
+    return {...body, funcs: funcsForBody}
+  }
+
+  private getFuncs(body: Body, declarationID: string): Func[] {
+    const declaration = body.declarations.find(d => d.id === declarationID)
+
+    if (declaration) {
+      return _.get(declaration, 'funcs', [])
+    }
+    return _.get(body, 'funcs', [])
+  }
+
+  private removeYieldFuncFromBody(body: Body): Body {
+    const declarationID = _.get(body, 'declarations.0.id')
+    const funcs = this.getFuncs(body, declarationID)
+
+    if (_.isEmpty(funcs)) {
+      return body
+    }
+
+    const funcsWithoutYields = funcs.filter(f => f.name !== 'yield')
+
+    if (declarationID) {
+      const declaration = _.get(body, 'declarations.0')
+      const declarations = [{...declaration, funcs: funcsWithoutYields}]
+      return {...body, declarations}
+    }
+
+    return {...body, funcs: funcsWithoutYields}
+  }
+
+  private handleToggleYield = (
+    bodyID: string,
+    declarationID: string,
+    funcNodeIndex: number
+  ): void => {
+    const script = this.state.body.reduce((acc, body) => {
+      const {id, source, funcs} = body
+
+      if (id === bodyID) {
+        const declaration = body.declarations.find(d => d.id === declarationID)
+
+        if (declaration) {
+          return `${acc}${declaration.name} = ${this.addOrRemoveYieldFunc(
+            declaration.funcs,
+            funcNodeIndex
+          )}`
+        }
+
+        return `${acc}${this.addOrRemoveYieldFunc(funcs, funcNodeIndex)}`
+      }
+
+      return `${acc}${this.formatSource(source)}`
+    }, '')
+
+    this.getASTResponse(script)
+  }
+
+  private getNextYieldName = (): string => {
+    const yieldNamePrefix = 'results_'
+    const yieldNamePattern = `${yieldNamePrefix}(\\d+)`
+    const regex = new RegExp(yieldNamePattern)
+
+    const MIN = -1
+
+    const yieldsMaxResultNumber = this.state.body.reduce((scriptMax, body) => {
+      const {funcs: bodyFuncs, declarations} = body
+
+      let funcs = bodyFuncs
+
+      if (!_.isEmpty(declarations)) {
+        funcs = _.flatMap(declarations, d => _.get(d, 'funcs', []))
+      }
+
+      const yields = funcs.filter(f => f.name === 'yield')
+      const bodyMax = yields.reduce((max, y) => {
+        const yieldArg = _.get(y, 'args.0.value')
+
+        if (!yieldArg) {
+          return max
+        }
+
+        const yieldNumberString = _.get(yieldArg.match(regex), '1', `${MIN}`)
+        const yieldNumber = parseInt(yieldNumberString, 10)
+
+        return Math.max(yieldNumber, max)
+      }, scriptMax)
+
+      return Math.max(scriptMax, bodyMax)
+    }, MIN)
+
+    return `${yieldNamePrefix}${yieldsMaxResultNumber + 1}`
+  }
+
+  private addOrRemoveYieldFunc(funcs: Func[], funcNodeIndex: number): string {
+    if (funcNodeIndex < funcs.length - 1) {
+      const funcAfterNode = funcs[funcNodeIndex + 1]
+
+      if (funcAfterNode.name === 'yield') {
+        return this.removeYieldFunc(funcs, funcAfterNode)
+      }
+    }
+
+    return this.insertYieldFunc(funcs, funcNodeIndex)
+  }
+
+  private removeYieldFunc(funcs: Func[], funcAfterNode: Func): string {
+    const filteredFuncs = funcs.filter(f => f.id !== funcAfterNode.id)
+
+    return `${this.funcsToScript(filteredFuncs)}\n\n`
+  }
+
+  private appendFunc = (funcs: Func[], name: string): string => {
     return `${this.funcsToScript(funcs)}\n\t|> ${name}()\n\n`
+  }
+
+  private insertYieldFunc(funcs: Func[], index: number): string {
+    const funcsBefore = funcs.slice(0, index + 1)
+    const funcsBeforeScript = this.funcsToScript(funcsBefore)
+
+    const funcsAfter = funcs.slice(index + 1)
+    const funcsAfterScript = this.funcsToScript(funcsAfter)
+
+    const funcSeparator = '\n\t|> '
+
+    if (funcsAfterScript) {
+      return `${funcsBeforeScript}${funcSeparator}yield(name: "${this.getNextYieldName()}")${funcSeparator}${funcsAfterScript}\n\n`
+    }
+
+    return `${funcsBeforeScript}${funcSeparator}yield(name: "${this.getNextYieldName()}")\n\n`
   }
 
   private handleDeleteFuncNode = (ids: DeleteFuncNodeArgs): void => {

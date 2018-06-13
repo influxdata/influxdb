@@ -25,6 +25,7 @@ interface Props {
   draggable: boolean
   orientation: string
   activeHandleID: string
+  headerOrientation: string
   render: (visibility: string) => ReactElement<any>
   onHandleStartDrag: (id: string, e: MouseEvent<HTMLElement>) => void
   onDoubleClick: (id: string) => void
@@ -191,8 +192,8 @@ class Division extends PureComponent<Props> {
   }
 
   private get contentsClass(): string {
-    const {orientation, size} = this.props
-    return classnames(`threesizer--contents ${orientation}`, {
+    const {headerOrientation, size} = this.props
+    return classnames(`threesizer--contents ${headerOrientation}`, {
       'no-shadows': !size,
     })
   }

@@ -13,13 +13,10 @@ import {Service} from 'src/types'
 interface Props {
   showOverlay: ShowOverlay
   service: Service
-  onGetTimeSeries: () => void
 }
 
 class FluxHeader extends PureComponent<Props> {
   public render() {
-    const {onGetTimeSeries} = this.props
-
     return (
       <div className="page-header full-width">
         <div className="page-header__container">
@@ -29,12 +26,6 @@ class FluxHeader extends PureComponent<Props> {
           <div className="page-header__right">
             <button onClick={this.overlay} className="btn btn-sm btn-default">
               Edit Connection
-            </button>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={onGetTimeSeries}
-            >
-              Get Data!
             </button>
           </div>
         </div>
