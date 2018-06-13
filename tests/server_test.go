@@ -9639,7 +9639,7 @@ func TestServer_Prometheus_Write(t *testing.T) {
 		&Query{
 			name:    "selecting the data should return it",
 			command: `SELECT * FROM db0.rp0.cpu`,
-			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","host","value"],"values":[["%s","a",100],["%s","b",200]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(10*time.Millisecond).Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","__name__","host","value"],"values":[["%s","cpu","a",100],["%s","cpu","b",200]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(10*time.Millisecond).Format(time.RFC3339Nano)),
 		},
 	)
 
