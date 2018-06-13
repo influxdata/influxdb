@@ -110,10 +110,7 @@ type Handler struct {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
 
-	Store interface {
-		Read(ctx context.Context, req *storage.ReadRequest) (storage.Results, error)
-		WithLogger(log *zap.Logger)
-	}
+	Store Store
 
 	Config    *Config
 	Logger    *zap.Logger
@@ -1049,7 +1046,6 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 					})
 				}
 			}
-			cur.Close()
 
 			// There was data for the series.
 			if series != nil {
@@ -1066,6 +1062,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		default:
 			panic(fmt.Sprintf("unreachable: %T", cur))
 		}
+		cur.Close()
 
 		if len(unsupportedCursor) > 0 {
 			h.Logger.Info("Prometheus can't read cursor",
@@ -1590,6 +1587,12 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 		inner.ServeHTTP(l, r)
 	})
+}
+
+// Store describes the behaviour of the storage packages Store type.
+type Store interface {
+	Read(ctx context.Context, req *storage.ReadRequest) (storage.Results, error)
+	WithLogger(log *zap.Logger)
 }
 
 // Response represents a list of statement results.
