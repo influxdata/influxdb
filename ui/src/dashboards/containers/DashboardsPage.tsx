@@ -4,8 +4,9 @@ import {connect} from 'react-redux'
 import download from 'src/external/download'
 import _ from 'lodash'
 
-import DashboardsHeader from 'src/dashboards/components/DashboardsHeader'
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
+import PageHeader from 'src/shared/components/PageHeader'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 import {createDashboard} from 'src/dashboards/apis'
 import {
@@ -54,7 +55,10 @@ class DashboardsPage extends PureComponent<Props> {
 
     return (
       <div className="page">
-        <DashboardsHeader />
+        <PageHeader
+          title="Dashboards"
+          renderOptions={this.renderHeaderOptions}
+        />
         <DashboardsContents
           dashboardLink={dashboardLink}
           dashboards={dashboards}
@@ -67,6 +71,10 @@ class DashboardsPage extends PureComponent<Props> {
         />
       </div>
     )
+  }
+
+  private renderHeaderOptions = (): JSX.Element => {
+    return <SourceIndicator />
   }
 
   private handleCreateDashboard = async (): Promise<void> => {
