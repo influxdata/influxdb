@@ -1,3 +1,10 @@
+v1.7.0 [unreleased]
+-------------------
+
+### Features
+
+-	[#9964](https://github.com/influxdata/influxdb/pull/9964): Enable the storage service by default.
+
 v1.6.0 [unreleased]
 -------------------
 

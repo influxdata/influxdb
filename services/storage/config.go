@@ -19,7 +19,7 @@ type Config struct {
 // NewConfig returns a new Config with default settings.
 func NewConfig() Config {
 	return Config{
-		Enabled:     false,
+		Enabled:     true,
 		LogEnabled:  true,
 		BindAddress: DefaultBindAddress,
 	}

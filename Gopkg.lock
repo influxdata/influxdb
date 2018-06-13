@@ -136,7 +136,7 @@
     "status",
     "yarpcproto"
   ]
-  revision = "f0da2db138cad2fb425541938fc28dd5a5bc6918"
+  revision = "3f4e3d295981d5e8fca0a9930a4f92f9f34bc639"
 
 [[projects]]
   name = "github.com/jsternberg/zap-logfmt"
