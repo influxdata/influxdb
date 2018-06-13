@@ -8,7 +8,7 @@ type Task struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	Owner  User   `json:"owner"`
-	IFQL   string `json:"ifql"`
+	Flux   string `json:"flux"`
 	Every  string `json:"every,omitempty"`
 	Cron   string `json:"cron,omitempty"`
 	Last   Run    `json:"last,omitempty"`
@@ -29,6 +29,7 @@ type Log string
 
 // TaskService represents a service for managing one-off and recurring tasks.
 type TaskService interface {
+	// Returns a single task
 	FindTaskByID(ctx context.Context, id ID) (*Task, error)
 
 	// Returns a list of tasks that match a filter (limit 100) and the total count
@@ -50,6 +51,7 @@ type TaskService interface {
 	// Returns a list of runs that match a filter and the total count of returned runs.
 	FindRuns(ctx context.Context, filter RunFilter) ([]*Run, int, error)
 
+	// Returns a single run
 	FindRunByID(ctx context.Context, id ID) (*Run, error)
 
 	// Creates and returns a new run (which is a retry of another run)
@@ -58,7 +60,7 @@ type TaskService interface {
 
 // TaskUpdate represents updates to a task
 type TaskUpdate struct {
-	Name *string `json:"name"`
+	Flux *string `json:"flux"`
 }
 
 // TaskFilter represents a set of filters that restrict the returned results

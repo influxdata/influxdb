@@ -199,7 +199,7 @@ func decodeUpdateTaskRequest(ctx context.Context, r *http.Request) (*updateTaskR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("tid")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
 
 	var i platform.ID
@@ -243,7 +243,7 @@ func decodeDeleteTaskRequest(ctx context.Context, r *http.Request) (*deleteTaskR
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("tid")
 	if id == "" {
-		return nil, kerrors.InvalidDataf("url missing id")
+		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
 
 	var i platform.ID
@@ -282,15 +282,19 @@ type getLogsRequest struct {
 }
 
 func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest, error) {
-	qp := r.URL.Query()
-	req := &getLogsRequest{}
-
-	if id := qp.Get("task"); id != "" {
-		req.filter.Task = &platform.ID{}
-		if err := req.filter.Task.DecodeFromString(id); err != nil {
-			return nil, err
-		}
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("tid")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
+
+	req := &getLogsRequest{}
+	req.filter.Task = &platform.ID{}
+	if err := req.filter.Task.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	qp := r.URL.Query()
 
 	if id := qp.Get("run"); id != "" {
 		req.filter.Run = &platform.ID{}
@@ -328,15 +332,19 @@ type getRunsRequest struct {
 }
 
 func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest, error) {
-	qp := r.URL.Query()
-	req := &getRunsRequest{}
-
-	if id := qp.Get("task"); id != "" {
-		req.filter.Task = &platform.ID{}
-		if err := req.filter.Task.DecodeFromString(id); err != nil {
-			return nil, err
-		}
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("tid")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("you must provide a task ID")
 	}
+
+	req := &getRunsRequest{}
+	req.filter.Task = &platform.ID{}
+	if err := req.filter.Task.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	qp := r.URL.Query()
 
 	if id := qp.Get("after"); id != "" {
 		req.filter.After = &platform.ID{}
