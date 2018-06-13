@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -1297,13 +1298,161 @@ func TestTranspiler(t *testing.T) {
 				},
 			},
 		},
+		{
+			s: `SELECT mean(value) FROM db0..cpu WHERE time >= now() - 10m GROUP BY time(1m)`,
+			spec: &query.Spec{
+				Operations: []*query.Operation{
+					{
+						ID: "from0",
+						Spec: &functions.FromOpSpec{
+							Bucket: "db0/autogen",
+						},
+					},
+					{
+						ID: "range0",
+						Spec: &functions.RangeOpSpec{
+							Start: query.Time{Absolute: mustParseTime("2010-09-15T08:50:00Z")},
+							Stop:  query.Time{Absolute: mustParseTime("2010-09-15T09:00:00Z")},
+						},
+					},
+					{
+						ID: "filter0",
+						Spec: &functions.FilterOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{
+									{Key: &semantic.Identifier{Name: "r"}},
+								},
+								Body: &semantic.LogicalExpression{
+									Operator: ast.AndOperator,
+									Left: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_measurement",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "cpu",
+										},
+									},
+									Right: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_field",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "value",
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
+						},
+					},
+					{
+						ID: "window0",
+						Spec: &functions.WindowOpSpec{
+							Every:              query.Duration(time.Minute),
+							Period:             query.Duration(time.Minute),
+							IgnoreGlobalBounds: true,
+							TimeCol:            execute.DefaultTimeColLabel,
+							StartColLabel:      execute.DefaultStartColLabel,
+							StopColLabel:       execute.DefaultStopColLabel,
+						},
+					},
+					{
+						ID: "mean0",
+						Spec: &functions.MeanOpSpec{
+							AggregateConfig: execute.AggregateConfig{
+								TimeSrc: execute.DefaultStartColLabel,
+								TimeDst: execute.DefaultTimeColLabel,
+								Columns: []string{execute.DefaultValueColLabel},
+							},
+						},
+					},
+					{
+						ID: "window1",
+						Spec: &functions.WindowOpSpec{
+							Every:              query.Duration(math.MaxInt64),
+							Period:             query.Duration(math.MaxInt64),
+							IgnoreGlobalBounds: true,
+							TimeCol:            execute.DefaultTimeColLabel,
+							StartColLabel:      execute.DefaultStartColLabel,
+							StopColLabel:       execute.DefaultStopColLabel,
+						},
+					},
+					{
+						ID: "map0",
+						Spec: &functions.MapOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{{
+									Key: &semantic.Identifier{Name: "r"},
+								}},
+								Body: &semantic.ObjectExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "_time"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_time",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "mean"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_value",
+											},
+										},
+									},
+								},
+							},
+							MergeKey: true,
+						},
+					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
+				},
+				Edges: []query.Edge{
+					{Parent: "from0", Child: "range0"},
+					{Parent: "range0", Child: "filter0"},
+					{Parent: "filter0", Child: "group0"},
+					{Parent: "group0", Child: "window0"},
+					{Parent: "window0", Child: "mean0"},
+					{Parent: "mean0", Child: "window1"},
+					{Parent: "window1", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
+				},
+			},
+		},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			if err := tt.spec.Validate(); err != nil {
 				t.Fatalf("expected spec is not valid: %s", err)
 			}
 
-			transpiler := influxql.NewTranspiler()
+			transpiler := influxql.NewTranspilerWithConfig(influxql.Config{
+				NowFn: func() time.Time {
+					return mustParseTime("2010-09-15T09:00:00Z")
+				},
+			})
 			spec, err := transpiler.Transpile(context.Background(), tt.s)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
@@ -1465,7 +1614,7 @@ func TestTranspiler_Compile(t *testing.T) {
 		{s: `SELECT value FROM cpu GROUP BY time()`, err: `time dimension expected 1 or 2 arguments`},
 		{s: `SELECT value FROM cpu GROUP BY time(5m, 30s, 1ms)`, err: `time dimension expected 1 or 2 arguments`},
 		{s: `SELECT value FROM cpu GROUP BY time('unexpected')`, err: `time dimension must have duration argument`},
-		{s: `SELECT value FROM cpu GROUP BY time(5m), time(1m)`, err: `multiple time dimensions not allowed`, skip: true},
+		{s: `SELECT value FROM cpu GROUP BY time(5m), time(1m)`, err: `multiple time dimensions not allowed`},
 		{s: `SELECT value FROM cpu GROUP BY time(5m, unexpected())`, err: `time dimension offset function must be now()`, skip: true},
 		{s: `SELECT value FROM cpu GROUP BY time(5m, now(1m))`, err: `time dimension offset now() function requires no arguments`, skip: true},
 		{s: `SELECT value FROM cpu GROUP BY time(5m, 'unexpected')`, err: `time dimension offset must be duration or now()`, skip: true},
@@ -1538,7 +1687,7 @@ func TestTranspiler_Compile(t *testing.T) {
 		{s: `SELECT count(value) FROM foo group by 'time'`, err: `only time and tag dimensions allowed`},
 		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time()`, err: `time dimension expected 1 or 2 arguments`},
 		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(b)`, err: `time dimension must have duration argument`},
-		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(1s), time(2s)`, err: `multiple time dimensions not allowed`, skip: true},
+		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(1s), time(2s)`, err: `multiple time dimensions not allowed`},
 		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(1s, b)`, err: `time dimension offset must be duration or now()`, skip: true},
 		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(1s, '5s')`, err: `time dimension offset must be duration or now()`, skip: true},
 		{s: `SELECT distinct(field1), sum(field1) FROM myseries`, err: `aggregate function distinct() cannot be combined with other functions or fields`, skip: true},

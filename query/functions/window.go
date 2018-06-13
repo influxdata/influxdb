@@ -360,6 +360,12 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 }
 
 func (t *fixedWindowTransformation) getWindowBounds(now execute.Time) []execute.Bounds {
+	if t.w.Every == infinityVar.Duration() {
+		return []execute.Bounds{
+			{Start: execute.MinTime, Stop: execute.MaxTime},
+		}
+	}
+
 	stop := now.Truncate(t.w.Every) + execute.Time(t.offset)
 	if now >= stop {
 		stop += execute.Time(t.w.Every)

@@ -18,7 +18,7 @@ type Transpiler struct {
 }
 
 func NewTranspiler() *Transpiler {
-	return new(Transpiler)
+	return &Transpiler{}
 }
 
 func NewTranspilerWithConfig(cfg Config) *Transpiler {
@@ -60,11 +60,16 @@ func newTranspilerState(config *Config) *transpilerState {
 	state := &transpilerState{
 		spec:   &query.Spec{},
 		nextID: make(map[string]int),
-		now:    time.Now(),
 	}
 	if config != nil {
 		state.config = *config
 	}
+	if state.config.NowFn == nil {
+		state.config.NowFn = time.Now
+	}
+
+	// Stamp the current time using the now function from the config or the default.
+	state.now = state.config.NowFn()
 	return state
 }
 

@@ -1,17 +1,11 @@
-#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,string,string,string,string,dateTime:RFC3339,long
-#partition,false,false,true,true,true,true,true,true,false,false
-#default,0,,,,,,,,,
-,result,table,_start,_stop,_field,_measurement,host,name,_time,io_time
-,,0,2018-05-22T19:53:26Z,2018-05-22T19:53:27Z,io_time,diskio,host.local,disk0,2018-05-22T19:53:26Z,15204688
-,,1,2018-05-22T19:53:26Z,2018-05-22T19:53:27Z,io_time,diskio,host.local,disk2,2018-05-22T19:53:26Z,648
-,,2,2018-05-22T19:53:36Z,2018-05-22T19:53:37Z,io_time,diskio,host.local,disk0,2018-05-22T19:53:36Z,15204894
-,,3,2018-05-22T19:53:36Z,2018-05-22T19:53:37Z,io_time,diskio,host.local,disk2,2018-05-22T19:53:36Z,648
-,,4,2018-05-22T19:53:46Z,2018-05-22T19:53:47Z,io_time,diskio,host.local,disk0,2018-05-22T19:53:46Z,15205102
-,,5,2018-05-22T19:53:46Z,2018-05-22T19:53:47Z,io_time,diskio,host.local,disk2,2018-05-22T19:53:46Z,648
-,,6,2018-05-22T19:53:56Z,2018-05-22T19:53:57Z,io_time,diskio,host.local,disk0,2018-05-22T19:53:56Z,15205226
-,,7,2018-05-22T19:53:56Z,2018-05-22T19:53:57Z,io_time,diskio,host.local,disk2,2018-05-22T19:53:56Z,648
-,,8,2018-05-22T19:54:06Z,2018-05-22T19:54:07Z,io_time,diskio,host.local,disk0,2018-05-22T19:54:06Z,15205499
-,,9,2018-05-22T19:54:06Z,2018-05-22T19:54:07Z,io_time,diskio,host.local,disk2,2018-05-22T19:54:06Z,648
-,,10,2018-05-22T19:54:16Z,2018-05-22T19:54:17Z,io_time,diskio,host.local,disk0,2018-05-22T19:54:16Z,15205755
-,,11,2018-05-22T19:54:16Z,2018-05-22T19:54:17Z,io_time,diskio,host.local,disk2,2018-05-22T19:54:16Z,648
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,string,dateTime:RFC3339,double
+#partition,false,false,true,true,true,false,false
+#default,0,,,,,,
+,result,table,_start,_stop,_measurement,_time,mean
+,,0,1677-09-21T00:12:43.145224192Z,2262-04-11T23:47:16.854775807Z,diskio,2018-05-22T19:53:26Z,7602668
+,,0,1677-09-21T00:12:43.145224192Z,2262-04-11T23:47:16.854775807Z,diskio,2018-05-22T19:53:36Z,7602771
+,,0,1677-09-21T00:12:43.145224192Z,2262-04-11T23:47:16.854775807Z,diskio,2018-05-22T19:53:46Z,7602875
+,,0,1677-09-21T00:12:43.145224192Z,2262-04-11T23:47:16.854775807Z,diskio,2018-05-22T19:53:56Z,7602937
+,,0,1677-09-21T00:12:43.145224192Z,2262-04-11T23:47:16.854775807Z,diskio,2018-05-22T19:54:06Z,7603073.5
+,,0,1677-09-21T00:12:43.145224192Z,2262-04-11T23:47:16.854775807Z,diskio,2018-05-22T19:54:16Z,7603201.5
 
