@@ -76,7 +76,7 @@ class ManageSources extends PureComponent<Props> {
     )
   }
 
-  private handleDeleteSource = (source: Source) => () => {
+  private handleDeleteSource = (source: Source) => {
     const {notify} = this.props
 
     try {
