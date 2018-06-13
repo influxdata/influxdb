@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 
-import SourceIndicator from 'src/shared/components/SourceIndicator'
 import AlertsTable from 'src/alerts/components/AlertsTable'
 import NoKapacitorError from 'src/shared/components/NoKapacitorError'
 import CustomTimeRangeDropdown from 'src/shared/components/CustomTimeRangeDropdown'
@@ -99,6 +98,7 @@ class AlertsApp extends PureComponent<Props, State> {
         <PageHeader
           title="Alert History"
           renderOptions={this.renderHeaderOptions}
+          sourceIndicator={true}
         />
         <div className="page-contents">
           <div className="container-fluid">
@@ -115,13 +115,10 @@ class AlertsApp extends PureComponent<Props, State> {
     const {timeRange} = this.state
 
     return (
-      <>
-        <SourceIndicator />
-        <CustomTimeRangeDropdown
-          onApplyTimeRange={this.handleApplyTime}
-          timeRange={timeRange}
-        />
-      </>
+      <CustomTimeRangeDropdown
+        onApplyTimeRange={this.handleApplyTime}
+        timeRange={timeRange}
+      />
     )
   }
 

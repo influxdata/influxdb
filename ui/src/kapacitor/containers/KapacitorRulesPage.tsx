@@ -7,7 +7,6 @@ import {getActiveKapacitor} from 'src/shared/apis'
 import * as kapacitorActionCreators from '../actions/view'
 
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
 import PageHeader from 'src/shared/components/PageHeader'
@@ -90,7 +89,11 @@ interface PageContentsProps {
 
 const PageContents: SFC<PageContentsProps> = ({children}) => (
   <div className="page">
-    <PageHeader title="Manage Tasks" renderOptions={renderHeaderOptions} />
+    <PageHeader
+      title="Manage Tasks"
+      renderOptions={renderHeaderOptions}
+      sourceIndicator={true}
+    />
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
         <div className="row">
@@ -103,13 +106,10 @@ const PageContents: SFC<PageContentsProps> = ({children}) => (
 
 const renderHeaderOptions = (): JSX.Element => {
   return (
-    <>
-      <QuestionMarkTooltip
-        tipID="manage-tasks--tooltip"
-        tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."
-      />
-      <SourceIndicator />{' '}
-    </>
+    <QuestionMarkTooltip
+      tipID="manage-tasks--tooltip"
+      tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."
+    />
   )
 }
 

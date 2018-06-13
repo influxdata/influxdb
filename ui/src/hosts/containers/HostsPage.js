@@ -1,11 +1,10 @@
-import React, {Fragment, Component} from 'react'
+import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 
 import HostsTable from 'src/hosts/components/HostsTable'
-import SourceIndicator from 'shared/components/SourceIndicator'
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import PageHeader from 'src/shared/components/PageHeader'
@@ -118,6 +117,7 @@ export class HostsPage extends Component {
         <PageHeader
           title="Host List"
           renderOptions={this.renderHeaderOptions}
+          sourceIndicator={true}
         />
         <div className="page-contents">
           <div className="container-fluid">
@@ -141,15 +141,12 @@ export class HostsPage extends Component {
     const {autoRefresh, onChooseAutoRefresh, onManualRefresh} = this.props
 
     return (
-      <Fragment>
-        <SourceIndicator />
-        <AutoRefreshDropdown
-          iconName="refresh"
-          selected={autoRefresh}
-          onChoose={onChooseAutoRefresh}
-          onManualRefresh={onManualRefresh}
-        />
-      </Fragment>
+      <AutoRefreshDropdown
+        iconName="refresh"
+        selected={autoRefresh}
+        onChoose={onChooseAutoRefresh}
+        onManualRefresh={onManualRefresh}
+      />
     )
   }
 

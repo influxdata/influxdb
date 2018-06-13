@@ -17,7 +17,6 @@ import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
 import GraphTips from 'src/shared/components/GraphTips'
 import PageHeader from 'src/shared/components/PageHeader'
 
@@ -121,6 +120,7 @@ export class DataExplorer extends PureComponent<Props, State> {
           title="Data Explorer"
           fullWidth={true}
           renderOptions={this.renderHeaderOptions}
+          sourceIndicator={true}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -197,7 +197,6 @@ export class DataExplorer extends PureComponent<Props, State> {
     return (
       <>
         <GraphTips />
-        <SourceIndicator />
         <div
           className="btn btn-sm btn-default"
           onClick={this.handleOpenWriteData}
