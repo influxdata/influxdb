@@ -144,9 +144,16 @@ func injectDeps(deps execute.Dependencies) error {
 	}
 	bucketSvc := StaticBucketService{Name: bucketName[0]}
 
+	orgName, err := getStrList("ORGANIZATION_NAME")
+	if err != nil {
+		return errors.Wrap(err, "failed to get organization name")
+	}
+	orgSvc := StaticOrganizationService{Name: orgName[0]}
+
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
-		Reader:       sr,
-		BucketLookup: query.FromBucketService(&bucketSvc),
+		Reader:             sr,
+		BucketLookup:       query.FromBucketService(&bucketSvc),
+		OrganizationLookup: query.FromOrganizationService(&orgSvc),
 	})
 }
 

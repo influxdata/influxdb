@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/id"
@@ -21,14 +22,25 @@ type BucketLookup interface {
 	Lookup(orgID id.ID, name string) (id.ID, bool)
 }
 
+type OrganizationLookup interface {
+	Lookup(ctx context.Context, name string) (platform.ID, bool)
+}
+
 type Dependencies struct {
-	Reader       Reader
-	BucketLookup BucketLookup
+	Reader             Reader
+	BucketLookup       BucketLookup
+	OrganizationLookup OrganizationLookup
 }
 
 func (d Dependencies) Validate() error {
 	if d.Reader == nil {
 		return errors.New("missing reader dependency")
+	}
+	if d.BucketLookup == nil {
+		return errors.New("missing bucket lookup dependency")
+	}
+	if d.OrganizationLookup == nil {
+		return errors.New("missing organization lookup dependency")
 	}
 	return nil
 }

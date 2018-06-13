@@ -79,7 +79,13 @@ func fluxQueryF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	r, err := getFluxREPL(hosts, buckets, org, queryFlags.Verbose)
+	orgs, err := orgService(flags.host, flags.token)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	r, err := getFluxREPL(hosts, buckets, orgs, org, queryFlags.Verbose)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -91,10 +97,11 @@ func fluxQueryF(cmd *cobra.Command, args []string) {
 	}
 }
 
-func injectDeps(deps execute.Dependencies, hosts storage.Reader, buckets platform.BucketService) error {
+func injectDeps(deps execute.Dependencies, hosts storage.Reader, buckets platform.BucketService, orgs platform.OrganizationService) error {
 	return functions.InjectFromDependencies(deps, storage.Dependencies{
-		Reader:       hosts,
-		BucketLookup: query.FromBucketService(buckets),
+		Reader:             hosts,
+		BucketLookup:       query.FromBucketService(buckets),
+		OrganizationLookup: query.FromOrganizationService(orgs),
 	})
 }
 
@@ -108,6 +115,17 @@ func bucketService(addr, token string) (platform.BucketService, error) {
 	}
 
 	return &http.BucketService{
+		Addr:  addr,
+		Token: token,
+	}, nil
+}
+
+func orgService(addr, token string) (platform.OrganizationService, error) {
+	if addr == "" {
+		return nil, fmt.Errorf("organization host address required")
+	}
+
+	return &http.OrganizationService{
 		Addr:  addr,
 		Token: token,
 	}, nil

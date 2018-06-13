@@ -32,3 +32,26 @@ func (b *BucketLookup) Lookup(orgID id.ID, name string) (id.ID, bool) {
 	}
 	return id.ID(bucket.ID), true
 }
+
+// FromOrganizationService wraps a platform.OrganizationService in the OrganizationLookup interface.
+func FromOrganizationService(srv platform.OrganizationService) *OrganizationLookup {
+	return &OrganizationLookup{OrganizationService: srv}
+}
+
+// OrganizationLookup converts organization name lookups into platform.OrganizationService calls.
+type OrganizationLookup struct {
+	OrganizationService platform.OrganizationService
+}
+
+// Lookup returns the organization ID and its existence given an organization name.
+func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (platform.ID, bool) {
+	org, err := o.OrganizationService.FindOrganization(
+		ctx,
+		platform.OrganizationFilter{Name: &name},
+	)
+
+	if err != nil {
+		return nil, false
+	}
+	return org.ID, true
+}
