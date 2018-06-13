@@ -1361,7 +1361,6 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 				}
 				if !valEqual(ve) {
 					continue
-
 				}
 
 				tagMatch = true
