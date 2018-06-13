@@ -135,7 +135,11 @@ $flux-builder-yield-tabs-max-width: 400px;
   flex: 1 0 0;
   background-color: $g3-castle;
   overflow: hidden;
-  border-radius: 0 $radius $radius 0;
+  border-radius: 0 0 $radius $radius;
+
+  &:only-child {
+    border: 0;
+  }
 }
 
 // Line Graph
