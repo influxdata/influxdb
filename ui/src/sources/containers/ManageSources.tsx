@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import * as actions from 'src/shared/actions/sources'
@@ -92,22 +91,16 @@ class ManageSources extends PureComponent<Props> {
   }
 }
 
-const mapStateToProps = ({sources}) => ({
+const mstp = ({sources}) => ({
   sources,
 })
 
-const mapDispatchToProps = dispatch => ({
-  removeAndLoadSources: bindActionCreators(
-    actions.removeAndLoadSources,
-    dispatch
-  ),
-  fetchKapacitors: bindActionCreators(actions.fetchKapacitorsAsync, dispatch),
-  setActiveKapacitor: bindActionCreators(
-    actions.setActiveKapacitorAsync,
-    dispatch
-  ),
-  deleteKapacitor: bindActionCreators(actions.deleteKapacitorAsync, dispatch),
-  notify: bindActionCreators(notifyAction, dispatch),
-})
+const mdtp = {
+  removeAndLoadSources: actions.removeAndLoadSources,
+  fetchKapacitors: actions.fetchKapacitorsAsync,
+  setActiveKapacitor: actions.setActiveKapacitorAsync,
+  deleteKapacitor: actions.deleteKapacitorAsync,
+  notify: notifyAction,
+}
 
-export default connect(mapStateToProps, mapDispatchToProps)(ManageSources)
+export default connect(mstp, mdtp)(ManageSources)
