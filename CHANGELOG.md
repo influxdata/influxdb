@@ -10,6 +10,7 @@
 
 1.  [#3474](https://github.com/influxdata/chronograf/pull/3474): Sort task table on Manage Alert page alphabetically
 1.  [#3590](https://github.com/influxdata/chronograf/pull/3590): Redesign icons in side navigation
+1.  [#3659](https://github.com/influxdata/chronograf/pull/3659): Upgrade Data Explorer query text field with syntax highlighting and partial multi-line support
 
 ### Bug Fixes
 
