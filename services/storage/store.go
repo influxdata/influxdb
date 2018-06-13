@@ -82,7 +82,14 @@ func (s *Store) validateArgs(database string, start, end int64) (string, string,
 	return database, rp, start, end, nil
 }
 
-func (s *Store) Read(ctx context.Context, req *ReadRequest) (*ResultSet, error) {
+type Results interface {
+	Close()
+	Next() bool
+	Cursor() tsdb.Cursor
+	Tags() models.Tags
+}
+
+func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
 	if len(req.GroupKeys) > 0 {
 		panic("Read: len(Grouping) > 0")
 	}
@@ -97,14 +104,14 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (*ResultSet, error) 
 		return nil, err
 	}
 	if len(shardIDs) == 0 {
-		return nil, nil
+		return (*ResultSet)(nil), nil
 	}
 
 	var cur seriesCursor
 	if ic, err := newIndexSeriesCursor(ctx, req.Predicate, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
 	} else if ic == nil {
-		return nil, nil
+		return (*ResultSet)(nil), nil
 	} else {
 		cur = ic
 	}

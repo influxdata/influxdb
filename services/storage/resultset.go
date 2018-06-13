@@ -22,12 +22,21 @@ type ResultSet struct {
 	mb  *multiShardBatchCursors
 }
 
+// Close closes the result set. Close is idempotent.
 func (r *ResultSet) Close() {
+	if r == nil {
+		return // Nothing to do.
+	}
 	r.row.query = nil
 	r.cur.Close()
 }
 
+// Next returns true if there are more results available.
 func (r *ResultSet) Next() bool {
+	if r == nil {
+		return false
+	}
+
 	row := r.cur.Next()
 	if row == nil {
 		return false

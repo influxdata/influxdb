@@ -4,20 +4,28 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/prometheus/remote"
-	"github.com/influxdata/influxql"
+	"github.com/influxdata/influxdb/services/storage"
 )
 
 const (
-	// measurementName is where all prometheus time series go to
-	measurementName = "_"
+	// measurementName is the default name used if no Prometheus name can be found on write
+	measurementName = "prom_metric_not_specified"
 
 	// fieldName is the field all prometheus values get written to
-	fieldName = "f64"
+	fieldName = "value"
+
+	// fieldTagKey is the tag key that all field names use in the new storage processor
+	fieldTagKey = "_field"
+
+	// prometheusNameTag is the tag key that Prometheus uses for metric names
+	prometheusNameTag = "__name__"
+
+	// measurementTagKey is the tag key that all measurement names use in the new storage processor
+	measurementTagKey = "_measurement"
 )
 
 var ErrNaNDropped = errors.New("dropped NaN from Prometheus since they are not supported")
@@ -34,9 +42,14 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 	var droppedNaN error
 
 	for _, ts := range req.Timeseries {
+		measurement := measurementName
+
 		tags := make(map[string]string, len(ts.Labels))
 		for _, l := range ts.Labels {
 			tags[l.Name] = l.Value
+			if l.Name == prometheusNameTag {
+				measurement = l.Value
+			}
 		}
 
 		for _, s := range ts.Samples {
@@ -49,7 +62,7 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 			// convert and append
 			t := time.Unix(0, s.TimestampMs*int64(time.Millisecond))
 			fields := map[string]interface{}{fieldName: s.Value}
-			p, err := models.NewPoint(measurementName, models.NewTags(tags), fields, t)
+			p, err := models.NewPoint(measurement, models.NewTags(tags), fields, t)
 			if err != nil {
 				return nil, err
 			}
@@ -60,109 +73,184 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 	return points, droppedNaN
 }
 
-// ReadRequestToInfluxQLQuery converts a Prometheus remote read request to an equivalent InfluxQL
-// query that will return the requested data when executed
-func ReadRequestToInfluxQLQuery(req *remote.ReadRequest, db, rp string) (*influxql.Query, error) {
+// ReadRequestToInfluxStorageRequest converts a Prometheus remote read request into one using the
+// new storage API that IFQL uses.
+func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (*storage.ReadRequest, error) {
 	if len(req.Queries) != 1 {
 		return nil, errors.New("Prometheus read endpoint currently only supports one query at a time")
 	}
-	promQuery := req.Queries[0]
+	q := req.Queries[0]
 
-	stmt := &influxql.SelectStatement{
-		IsRawQuery: true,
-		Fields: []*influxql.Field{
-			{Expr: &influxql.VarRef{Val: fieldName}},
-		},
-		Sources: []influxql.Source{&influxql.Measurement{
-			Name:            measurementName,
-			Database:        db,
-			RetentionPolicy: rp,
-		}},
-		Dimensions: []*influxql.Dimension{{Expr: &influxql.Wildcard{}}},
+	if rp != "" {
+		db = db + "/" + rp
 	}
 
-	cond, err := condFromMatchers(promQuery, promQuery.Matchers)
+	sreq := &storage.ReadRequest{
+		Database: db,
+		TimestampRange: storage.TimestampRange{
+			Start: time.Unix(0, q.StartTimestampMs*int64(time.Millisecond)).UnixNano(),
+			End:   time.Unix(0, q.EndTimestampMs*int64(time.Millisecond)).UnixNano(),
+		},
+		PointsLimit: math.MaxInt64,
+	}
+
+	pred, err := predicateFromMatchers(q.Matchers)
 	if err != nil {
 		return nil, err
 	}
 
-	stmt.Condition = cond
-
-	return &influxql.Query{Statements: []influxql.Statement{stmt}}, nil
+	sreq.Predicate = pred
+	return sreq, nil
 }
 
-// condFromMatcher converts a Prometheus LabelMatcher into an equivalent InfluxQL BinaryExpr
-func condFromMatcher(m *remote.LabelMatcher) (*influxql.BinaryExpr, error) {
-	var op influxql.Token
-	var rhs influxql.Expr
+// RemoveInfluxSystemTags will remove tags that are Influx internal (_measurement and _field)
+func RemoveInfluxSystemTags(tags models.Tags) models.Tags {
+	var t models.Tags
+	for _, tt := range tags {
+		if string(tt.Key) == measurementTagKey || string(tt.Key) == fieldTagKey {
+			continue
+		}
+		t = append(t, tt)
+	}
 
+	return t
+}
+
+// predicateFromMatchers takes Prometheus label matchers and converts them to a storage
+// predicate that works with the schema that is written in, which assumes a single field
+// named value
+func predicateFromMatchers(matchers []*remote.LabelMatcher) (*storage.Predicate, error) {
+	left, err := nodeFromMatchers(matchers)
+	if err != nil {
+		return nil, err
+	}
+	right := fieldNode()
+
+	return &storage.Predicate{
+		Root: &storage.Node{
+			NodeType: storage.NodeTypeLogicalExpression,
+			Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
+			Children: []*storage.Node{left, right},
+		},
+	}, nil
+}
+
+// fieldNode returns a storage.Node that will match that the fieldTagKey == fieldName
+// which matches how Prometheus data is fed into the system
+func fieldNode() *storage.Node {
+	children := []*storage.Node{
+		&storage.Node{
+			NodeType: storage.NodeTypeTagRef,
+			Value: &storage.Node_TagRefValue{
+				TagRefValue: fieldTagKey,
+			},
+		},
+		&storage.Node{
+			NodeType: storage.NodeTypeLiteral,
+			Value: &storage.Node_StringValue{
+				StringValue: fieldName,
+			},
+		},
+	}
+
+	return &storage.Node{
+		NodeType: storage.NodeTypeComparisonExpression,
+		Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonEqual},
+		Children: children,
+	}
+}
+
+func nodeFromMatchers(matchers []*remote.LabelMatcher) (*storage.Node, error) {
+	if len(matchers) == 0 {
+		return nil, errors.New("expected matcher")
+	} else if len(matchers) == 1 {
+		return nodeFromMatcher(matchers[0])
+	}
+
+	left, err := nodeFromMatcher(matchers[0])
+	if err != nil {
+		return nil, err
+	}
+
+	right, err := nodeFromMatchers(matchers[1:])
+	if err != nil {
+		return nil, err
+	}
+
+	children := []*storage.Node{left, right}
+	return &storage.Node{
+		NodeType: storage.NodeTypeLogicalExpression,
+		Value:    &storage.Node_Logical_{Logical: storage.LogicalAnd},
+		Children: children,
+	}, nil
+}
+
+func nodeFromMatcher(m *remote.LabelMatcher) (*storage.Node, error) {
+	var op storage.Node_Comparison
 	switch m.Type {
 	case remote.MatchType_EQUAL:
-		op = influxql.EQ
+		op = storage.ComparisonEqual
 	case remote.MatchType_NOT_EQUAL:
-		op = influxql.NEQ
+		op = storage.ComparisonNotEqual
 	case remote.MatchType_REGEX_MATCH:
-		op = influxql.EQREGEX
+		op = storage.ComparisonRegex
 	case remote.MatchType_REGEX_NO_MATCH:
-		op = influxql.NEQREGEX
+		op = storage.ComparisonNotRegex
 	default:
 		return nil, fmt.Errorf("unknown match type %v", m.Type)
 	}
 
-	if op == influxql.EQREGEX || op == influxql.NEQREGEX {
-		re, err := regexp.Compile(m.Value)
-		if err != nil {
-			return nil, err
-		}
-
-		// Convert regex values to InfluxDB format.
-		rhs = &influxql.RegexLiteral{Val: re}
-	} else {
-		rhs = &influxql.StringLiteral{Val: m.Value}
+	name := m.Name
+	if m.Name == prometheusNameTag {
+		name = measurementTagKey
 	}
 
-	return &influxql.BinaryExpr{
-		Op:  op,
-		LHS: &influxql.VarRef{Val: m.Name},
-		RHS: rhs,
+	left := &storage.Node{
+		NodeType: storage.NodeTypeTagRef,
+		Value: &storage.Node_TagRefValue{
+			TagRefValue: name,
+		},
+	}
+
+	var right *storage.Node
+
+	if op == storage.ComparisonRegex || op == storage.ComparisonNotRegex {
+		right = &storage.Node{
+			NodeType: storage.NodeTypeLiteral,
+			Value: &storage.Node_RegexValue{
+				RegexValue: m.Value,
+			},
+		}
+	} else {
+		right = &storage.Node{
+			NodeType: storage.NodeTypeLiteral,
+			Value: &storage.Node_StringValue{
+				StringValue: m.Value,
+			},
+		}
+	}
+
+	children := []*storage.Node{left, right}
+	return &storage.Node{
+		NodeType: storage.NodeTypeComparisonExpression,
+		Value:    &storage.Node_Comparison_{Comparison: op},
+		Children: children,
 	}, nil
 }
 
-// condFromMatchers converts a Prometheus remote query and a collection of Prometheus label matchers
-// into an equivalent influxql.BinaryExpr. This assume a schema that is written via the Prometheus
-// remote write endpoint, which uses a measurement name of _ and a field name of f64. Tags and labels
-// are kept equivalent.
-func condFromMatchers(q *remote.Query, matchers []*remote.LabelMatcher) (*influxql.BinaryExpr, error) {
-	if len(matchers) > 0 {
-		lhs, err := condFromMatcher(matchers[0])
-		if err != nil {
-			return nil, err
+// ModelTagsToLabelPairs converts models.Tags to a slice of Prometheus label pairs
+func ModelTagsToLabelPairs(tags models.Tags) []*remote.LabelPair {
+	pairs := make([]*remote.LabelPair, 0, len(tags))
+	for _, t := range tags {
+		if string(t.Value) == "" {
+			continue
 		}
-		rhs, err := condFromMatchers(q, matchers[1:])
-		if err != nil {
-			return nil, err
-		}
-
-		return &influxql.BinaryExpr{
-			Op:  influxql.AND,
-			LHS: lhs,
-			RHS: rhs,
-		}, nil
+		pairs = append(pairs, &remote.LabelPair{
+			Name:  string(t.Key),
+			Value: string(t.Value),
+		})
 	}
-
-	return &influxql.BinaryExpr{
-		Op: influxql.AND,
-		LHS: &influxql.BinaryExpr{
-			Op:  influxql.GTE,
-			LHS: &influxql.VarRef{Val: "time"},
-			RHS: &influxql.TimeLiteral{Val: time.Unix(0, q.StartTimestampMs*int64(time.Millisecond))},
-		},
-		RHS: &influxql.BinaryExpr{
-			Op:  influxql.LTE,
-			LHS: &influxql.VarRef{Val: "time"},
-			RHS: &influxql.TimeLiteral{Val: time.Unix(0, q.EndTimestampMs*int64(time.Millisecond))},
-		},
-	}, nil
+	return pairs
 }
 
 // TagsToLabelPairs converts a map of Influx tags into a slice of Prometheus label pairs

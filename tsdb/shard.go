@@ -818,7 +818,6 @@ func (s *Shard) CreateIterator(ctx context.Context, m *influxql.Measurement, opt
 	if err != nil {
 		return nil, err
 	}
-
 	switch m.SystemIterator {
 	case "_fieldKeys":
 		return NewFieldKeysIterator(s, opt)
