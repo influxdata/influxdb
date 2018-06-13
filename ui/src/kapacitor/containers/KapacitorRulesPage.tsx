@@ -10,6 +10,7 @@ import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
+import PageHeader from 'src/shared/components/PageHeader'
 
 import {Source, Kapacitor, AlertRule} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -89,20 +90,7 @@ interface PageContentsProps {
 
 const PageContents: SFC<PageContentsProps> = ({children}) => (
   <div className="page">
-    <div className="page-header">
-      <div className="page-header--container">
-        <div className="page-header--left">
-          <h1 className="page-header--title">Manage Tasks</h1>
-        </div>
-        <div className="page-header--right">
-          <QuestionMarkTooltip
-            tipID="manage-tasks--tooltip"
-            tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."
-          />
-          <SourceIndicator />
-        </div>
-      </div>
-    </div>
+    <PageHeader title="Manage Tasks" renderOptions={renderHeaderOptions} />
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
       <div className="container-fluid">
         <div className="row">
@@ -112,6 +100,18 @@ const PageContents: SFC<PageContentsProps> = ({children}) => (
     </FancyScrollbar>
   </div>
 )
+
+const renderHeaderOptions = (): JSX.Element => {
+  return (
+    <>
+      <QuestionMarkTooltip
+        tipID="manage-tasks--tooltip"
+        tipContent="<b>Alert Rules</b> generate a TICKscript for<br/>you using our Builder UI.<br/><br/>Not all TICKscripts can be edited<br/>using the Builder."
+      />
+      <SourceIndicator />{' '}
+    </>
+  )
+}
 
 const mapStateToProps = state => {
   return {
