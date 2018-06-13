@@ -22,6 +22,7 @@ v1.6.0 [unreleased]
 -	[#9649](https://github.com/influxdata/influxdb/pull/9649): Allow math functions to be used in the condition.
 -	[#9822](https://github.com/influxdata/influxdb/pull/9822): Implement SHOW STATS FOR 'indexes'.
 -	[#9832](https://github.com/influxdata/influxdb/pull/9832): Add dumptsmwal command to influx_inspect.
+-	[#9967](https://github.com/influxdata/influxdb/pull/9967): Use storage package for Prometheus remote read.
 
 ### Bugfixes
 
