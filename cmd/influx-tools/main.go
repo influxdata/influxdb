@@ -52,22 +52,22 @@ func (m *Main) Run(args ...string) error {
 	switch name {
 	case "", "help":
 		if err := help.NewCommand().Run(args...); err != nil {
-			return fmt.Errorf("help: %s", err)
+			return fmt.Errorf("help failed: %s", err)
 		}
 	case "compact-shard":
 		c := compact.NewCommand(&ossServer{logger: zap.NewNop(), noClient: true})
 		if err := c.Run(args); err != nil {
-			return fmt.Errorf("compact-shard: %s", err)
+			return fmt.Errorf("compact-shard failed: %s", err)
 		}
 	case "export":
 		c := export.NewCommand(&ossServer{logger: zap.NewNop()})
 		if err := c.Run(args); err != nil {
-			return fmt.Errorf("export: %s", err)
+			return fmt.Errorf("export failed: %s", err)
 		}
 	case "import":
 		cmd := importer.NewCommand(&ossServer{logger: zap.NewNop()})
 		if err := cmd.Run(args); err != nil {
-			return fmt.Errorf("import: %s", err)
+			return fmt.Errorf("import failed: %s", err)
 		}
 	default:
 		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influx-tools help' for usage`+"\n\n", name)

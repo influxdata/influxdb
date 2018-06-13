@@ -1,14 +1,13 @@
 package compact
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-
-	"bufio"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -56,10 +55,6 @@ func NewCommand(server server.Interface) *Command {
 	}
 }
 
-func (cmd *Command) fmtError(msg string) error {
-	return errors.New("compact-shard failed: " + msg)
-}
-
 // Run executes the export command using the specified args.
 func (cmd *Command) Run(args []string) (err error) {
 	err = cmd.parseFlags(args)
@@ -80,7 +75,7 @@ func (cmd *Command) Run(args []string) (err error) {
 	defer cmd.closeStore()
 
 	if sh := cmd.getShard(); sh == nil {
-		return fmt.Errorf(fmt.Sprintf("shard %d does not exist", cmd.shardID))
+		return fmt.Errorf("shard %d does not exist", cmd.shardID)
 	} else if sh.IsIdle() {
 		fmt.Printf("shard %d is fully compacted\n", cmd.shardID)
 		return nil
@@ -106,7 +101,7 @@ func (cmd *Command) Run(args []string) (err error) {
 		scan := bufio.NewScanner(os.Stdin)
 		scan.Scan()
 		if scan.Err() != nil {
-			return cmd.fmtError(fmt.Sprintf("error reading STDIN: %v", scan.Err()))
+			return fmt.Errorf("error reading STDIN: %v", scan.Err())
 		}
 
 		if strings.ToLower(scan.Text()) != "y" {
@@ -119,14 +114,14 @@ func (cmd *Command) Run(args []string) (err error) {
 		sort.Strings(files.tsm)
 		gen, _, err = tsm1.DefaultParseFileName(files.tsm[len(files.tsm)-1])
 		if err != nil {
-			return cmd.fmtError(fmt.Sprintf("failed to parse tsm file %q: %v", files.tsm[len(files.tsm)-1], err))
+			return fmt.Errorf("failed to parse tsm file %q: %v", files.tsm[len(files.tsm)-1], err)
 		}
 		gen++
 	}
 
 	rs, err := cmd.read()
 	if err != nil {
-		return cmd.fmtError(fmt.Sprintf("read error: %v\n", err))
+		return fmt.Errorf("read error: %v\n", err)
 	}
 
 	if rs == nil {
@@ -142,7 +137,16 @@ func (cmd *Command) Run(args []string) (err error) {
 	var keyFieldSeparatorBytes = []byte("#!~#")
 
 	makeKey := func(name []byte, tags models.Tags, field []byte) []byte {
-		key := models.MakeKey(name, tags)
+		sz := 0 +
+			len(name) +
+			1 + // name delimiter
+			tags.Size() + // total size of tags in bytes
+			len(tags) - 1 + // tag delimiters
+			len(keyFieldSeparatorBytes) +
+			len(field)
+
+		key := make([]byte, sz)
+		models.AppendMakeKey(key, name, tags)
 		key = append(key, keyFieldSeparatorBytes...)
 		key = append(key, field...)
 		return key
@@ -221,7 +225,6 @@ func (cmd *Command) Run(args []string) (err error) {
 				continue
 			default:
 				panic(fmt.Sprintf("unreachable: %T", c))
-
 			}
 			cur.Close()
 		}
@@ -243,7 +246,7 @@ func (cmd *Command) Run(args []string) (err error) {
 	newFiles, err := files.replace(sw.Files())
 	if err != nil {
 		fmt.Printf("Compaction failed: unable to replace files\n%v", err)
-		return cmd.fmtError("unable to replace files")
+		return errors.New("unable to replace files")
 	}
 
 	fmt.Println("Compaction succeeded. New files:")
