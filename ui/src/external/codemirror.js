@@ -1,4 +1,8 @@
-import {modeFlux, modeTickscript} from 'src/shared/constants/codeMirrorModes'
+import {
+  modeFlux,
+  modeTickscript,
+  modeInfluxQL,
+} from 'src/shared/constants/codeMirrorModes'
 import 'codemirror/addon/hint/show-hint'
 
 /* eslint-disable */
@@ -315,3 +319,4 @@ function indentFunction(states, meta) {
 // Modes
 CodeMirror.defineSimpleMode('flux', modeFlux)
 CodeMirror.defineSimpleMode('tickscript', modeTickscript)
+CodeMirror.defineSimpleMode('influxQL', modeInfluxQL)
