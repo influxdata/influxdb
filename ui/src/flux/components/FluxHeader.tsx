@@ -3,6 +3,7 @@ import {connect} from 'react-redux'
 
 import FluxOverlay from 'src/flux/components/FluxOverlay'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
+import PageHeader from 'src/shared/components/PageHeader'
 import {
   showOverlay as showOverlayAction,
   ShowOverlay,
@@ -18,18 +19,19 @@ interface Props {
 class FluxHeader extends PureComponent<Props> {
   public render() {
     return (
-      <div className="page-header full-width">
-        <div className="page-header--container">
-          <div className="page-header--left">
-            <h1 className="page-header--title">Flux Editor</h1>
-          </div>
-          <div className="page-header--right">
-            <button onClick={this.overlay} className="btn btn-sm btn-default">
-              Edit Connection
-            </button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Flux Editor"
+        fullWidth={true}
+        renderOptions={this.renderOptions}
+      />
+    )
+  }
+
+  private renderOptions = (): JSX.Element => {
+    return (
+      <button onClick={this.overlay} className="btn btn-sm btn-default">
+        Edit Connection
+      </button>
     )
   }
 
