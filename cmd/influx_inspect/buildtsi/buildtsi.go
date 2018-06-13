@@ -209,7 +209,7 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 
 	// Write out wal files.
 	cmd.Logger.Info("building cache from wal files")
-	cache := tsm1.NewCache(tsdb.DefaultCacheMaxMemorySize, "")
+	cache := tsm1.NewCache(tsdb.DefaultCacheMaxMemorySize)
 	loader := tsm1.NewCacheLoader(walPaths)
 	loader.WithLogger(cmd.Logger)
 	if err := loader.Load(cache); err != nil {

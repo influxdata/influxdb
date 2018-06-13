@@ -208,7 +208,7 @@ type Cache struct {
 
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
 // Only used for engine caches, never for snapshots.
-func NewCache(maxSize uint64, path string) *Cache {
+func NewCache(maxSize uint64) *Cache {
 	c := &Cache{
 		maxSize:      maxSize,
 		store:        emptyStore{},
