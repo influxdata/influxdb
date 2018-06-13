@@ -6,7 +6,7 @@ import * as actions from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import PageHeader from 'src/shared/components/PageHeader'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
 import {
@@ -49,16 +49,7 @@ class ManageSources extends PureComponent<Props> {
 
     return (
       <div className="page" id="manage-sources-page">
-        <div className="page-header">
-          <div className="page-header--container">
-            <div className="page-header--left">
-              <h1 className="page-header--title">Configuration</h1>
-            </div>
-            <div className="page-header--right">
-              <SourceIndicator />
-            </div>
-          </div>
-        </div>
+        <PageHeader title="Configuration" sourceIndicator={true} />
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <InfluxTable
