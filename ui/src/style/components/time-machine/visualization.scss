@@ -27,6 +27,17 @@ $flux-builder-yield-tabs-max-width: 400px;
   background-color: $g3-castle;
   padding: $flux-node-padding;
   border-radius: $radius $radius 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.yield-node--name {
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 6px;
+  @include no-user-select();
+  color: $c-honeydew;
 }
 
 .yield-node--visualization {
