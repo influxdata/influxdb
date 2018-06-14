@@ -157,13 +157,17 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
   letter-spacing: 0.05em;
   color: $g11-sidewalk;
   padding-left: 4px;
-  padding-right: 6px;
+  padding-right: 2px;
 }
 
 .threesizer--header-controls {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
+
+  > * {
+    margin-left: 4px;
+  }
 }
 
 .threesizer--body {
@@ -183,10 +187,6 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
   display: flex;
   justify-content: flex-end;
   margin-top: 10px;
-}
-
-.analyze--button {
-  margin-right: 3px
 }
 
 .dash-graph-context--button {
