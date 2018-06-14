@@ -10,7 +10,7 @@ import * as actions from 'src/dashboards/actions'
 import {SeriesLegendData} from 'src/types/dygraphs'
 import DygraphLegendSort from 'src/shared/components/DygraphLegendSort'
 
-import {makeLegendStyles, removeMeasurement} from 'src/shared/graphs/helpers'
+import {makeLegendStyles} from 'src/shared/graphs/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {NO_CELL} from 'src/shared/constants'
 
@@ -38,7 +38,6 @@ interface State {
   sortType: string
   isAscending: boolean
   filterText: string
-  isSnipped: boolean
   isFilterVisible: boolean
   legendStyles: object
   pageX: number | null
@@ -67,7 +66,6 @@ class DygraphLegend extends PureComponent<Props, State> {
       sortType: 'numeric',
       isAscending: false,
       filterText: '',
-      isSnipped: false,
       isFilterVisible: false,
       legendStyles: {},
       pageX: null,
@@ -85,13 +83,7 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      legend,
-      filterText,
-      isSnipped,
-      isAscending,
-      isFilterVisible,
-    } = this.state
+    const {legend, filterText, isAscending, isFilterVisible} = this.state
 
     return (
       <div
@@ -117,7 +109,7 @@ class DygraphLegend extends PureComponent<Props, State> {
             onSort={this.handleSortLegend('numeric')}
           />
           <button
-            className={classnames('btn btn-square btn-sm', {
+            className={classnames('btn btn-square btn-xs', {
               'btn-default': !isFilterVisible,
               'btn-primary': isFilterVisible,
             })}
@@ -125,19 +117,10 @@ class DygraphLegend extends PureComponent<Props, State> {
           >
             <span className="icon search" />
           </button>
-          <button
-            className={classnames('btn btn-sm', {
-              'btn-default': !isSnipped,
-              'btn-primary': isSnipped,
-            })}
-            onClick={this.handleSnipLabel}
-          >
-            Snip
-          </button>
         </div>
         {isFilterVisible && (
           <input
-            className="dygraph-legend--filter form-control input-sm"
+            className="dygraph-legend--filter form-control input-xs"
             type="text"
             value={filterText}
             onChange={this.handleLegendInputChange}
@@ -145,7 +128,6 @@ class DygraphLegend extends PureComponent<Props, State> {
             autoFocus={true}
           />
         )}
-        <div className="dygraph-legend--divider" />
         <div className="dygraph-legend--contents">
           {this.filtered.map(({label, color, yHTML, isHighlighted}) => {
             const seriesClass = isHighlighted
@@ -153,9 +135,7 @@ class DygraphLegend extends PureComponent<Props, State> {
               : 'dygraph-legend--row'
             return (
               <div key={uuid.v4()} className={seriesClass}>
-                <span style={{color}}>
-                  {isSnipped ? removeMeasurement(label) : label}
-                </span>
+                <span style={{color}}>{label}</span>
                 <figure>{yHTML || 'no value'}</figure>
               </div>
             )
@@ -175,10 +155,6 @@ class DygraphLegend extends PureComponent<Props, State> {
       isFilterVisible: !this.state.isFilterVisible,
       filterText: '',
     })
-  }
-
-  private handleSnipLabel = (): void => {
-    this.setState({isSnipped: !this.state.isSnipped})
   }
 
   private handleLegendInputChange = (
