@@ -100,7 +100,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                     onDelete={onDeleteFuncNode}
                     onToggleYield={onToggleYield}
                     isYieldable={isAfterFilter && isAfterRange}
-                    isYielding={this.isNextFuncYield(i)}
+                    isYielding={this.isBeforeFuncYield(i)}
                     declarationID={declarationID}
                     onGenerateScript={onGenerateScript}
                     declarationsFromBody={declarationsFromBody}
@@ -145,7 +145,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                         onDelete={onDeleteFuncNode}
                         onToggleYield={this.handleHideImplicitYield}
                         isYieldable={isAfterFilter && isAfterRange}
-                        isYielding={this.isNextFuncYield(i)}
+                        isYielding={this.isBeforeFuncYield(i)}
                         declarationID={declarationID}
                         onGenerateScript={onGenerateScript}
                         declarationsFromBody={declarationsFromBody}
@@ -179,7 +179,7 @@ class ExpressionNode extends PureComponent<Props, State> {
     )
   }
 
-  private isNextFuncYield(funcIndex: number): boolean {
+  private isBeforeFuncYield(funcIndex: number): boolean {
     const {funcs, isLastBody} = this.props
     const {isImplicitYieldToggled} = this.state
 
