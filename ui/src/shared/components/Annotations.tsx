@@ -17,6 +17,7 @@ import {visibleAnnotations} from 'src/shared/annotations/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {AnnotationInterface, DygraphClass} from 'src/types'
+import {UpdateAnnotationAction} from 'src/shared/actions/annotations'
 
 interface Props {
   dygraph: DygraphClass
@@ -26,7 +27,9 @@ interface Props {
   annotations: AnnotationInterface[]
   mode: string
   isTempHovering: boolean
-  handleUpdateAnnotation: () => void
+  handleUpdateAnnotation: (
+    annotation: AnnotationInterface
+  ) => UpdateAnnotationAction
   handleDismissAddingAnnotation: () => void
   handleAddingAnnotationSuccess: () => void
   handleMouseEnterTempAnnotation: () => void
