@@ -52,7 +52,7 @@ export const getTimeSeries = async (
   const and = encodeURIComponent('&')
   const mark = encodeURIComponent('?')
   const garbage = script.replace(/\s/g, '') // server cannot handle whitespace
-  const url = `${
+  const url = `${window.basepath}${
     service.links.proxy
   }?path=/v1/query${mark}orgName=defaulorgname${and}q=${garbage}`
 
