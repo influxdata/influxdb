@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
 
 import FuncArgInput from 'src/flux/components/FuncArgInput'
 import FuncArgTextArea from 'src/flux/components/FuncArgTextArea'
@@ -7,7 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import FromDatabaseDropdown from 'src/flux/components/FromDatabaseDropdown'
 
 import {funcNames, argTypes} from 'src/flux/constants'
-import {OnChangeArg} from 'src/types/flux'
+import {OnChangeArg, Arg} from 'src/types/flux'
 import {Service} from 'src/types'
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
   funcName: string
   funcID: string
   argKey: string
+  args: Arg[]
   value: string | boolean | {[x: string]: string}
   type: string
   bodyID: string
@@ -73,6 +75,7 @@ class FuncArg extends PureComponent<Props> {
             onChangeArg={onChangeArg}
             declarationID={declarationID}
             onGenerateScript={onGenerateScript}
+            autoFocus={this.isFirstArg}
           />
         )
       }
@@ -130,6 +133,14 @@ class FuncArg extends PureComponent<Props> {
 
   private get boolValue(): boolean {
     return this.props.value === true
+  }
+
+  private get isFirstArg(): boolean {
+    const {args, argKey} = this.props
+
+    const firstArg = _.first(args)
+
+    return firstArg.key === argKey
   }
 }
 

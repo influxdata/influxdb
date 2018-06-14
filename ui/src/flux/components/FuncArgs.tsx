@@ -59,11 +59,12 @@ export default class FuncArgs extends PureComponent<Props> {
       onGenerateScript,
     } = this.props
 
-    const {name: funcName, id: funcID} = func
+    const {name: funcName, id: funcID, args} = func
 
-    return func.args.map(({key, value, type}) => (
+    return args.map(({key, value, type}) => (
       <FuncArg
         key={key}
+        args={args}
         type={type}
         argKey={key}
         value={value}
