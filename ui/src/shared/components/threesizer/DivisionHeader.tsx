@@ -13,17 +13,25 @@ interface Props {
 
 class DivisionHeader extends PureComponent<Props> {
   public render() {
-    const {name} = this.props
-
     return (
       <div className="threesizer--header">
-        {name && <div className="threesizer--header-name">{name}</div>}
+        {this.renderName}
         <div className="threesizer--header-controls">
           {this.props.buttons.map(b => b)}
           <DivisionMenu menuItems={this.menuItems} />
         </div>
       </div>
     )
+  }
+
+  private get renderName(): JSX.Element {
+    const {name} = this.props
+
+    if (!name) {
+      return
+    }
+
+    return <div className="threesizer--header-name">{name}</div>
   }
 
   private get menuItems(): MenuItem[] {
