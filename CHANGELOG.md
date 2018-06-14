@@ -10,6 +10,7 @@
 
 1.  [#3474](https://github.com/influxdata/chronograf/pull/3474): Sort task table on Manage Alert page alphabetically
 1.  [#3590](https://github.com/influxdata/chronograf/pull/3590): Redesign icons in side navigation
+1.  [#3671](https://github.com/influxdata/chronograf/pull/3671): Remove Snip functionality in hover legend
 
 ### Bug Fixes
 
