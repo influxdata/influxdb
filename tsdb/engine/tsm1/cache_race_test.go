@@ -26,7 +26,7 @@ func TestCacheCheckConcurrentReadsAreSafe(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000, "")
+	c := tsm1.NewCache(1000000)
 
 	ch := make(chan struct{})
 	for _, s := range series {
@@ -71,7 +71,7 @@ func TestCacheRace(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000, "")
+	c := tsm1.NewCache(1000000)
 
 	ch := make(chan struct{})
 	for _, s := range series {
@@ -136,7 +136,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-	c := tsm1.NewCache(1000000, "")
+	c := tsm1.NewCache(1000000)
 
 	ch := make(chan struct{})
 	for _, s := range series {
@@ -181,7 +181,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 			c.ClearSnapshot(true)
 			mu.Lock()
 			defer mu.Unlock()
-			for k, _ := range myFiles {
+			for k := range myFiles {
 				if _, ok := mapFiles[k]; !ok {
 					errC <- fmt.Errorf("something else deleted one of my files")
 					return
