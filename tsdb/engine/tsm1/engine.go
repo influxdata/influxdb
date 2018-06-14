@@ -208,7 +208,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	if opt.FileStoreObserver != nil {
 		fs.WithObserver(opt.FileStoreObserver)
 	}
-	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
+	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
 
 	c := NewCompactor()
 	c.Dir = path
@@ -1901,7 +1901,7 @@ func (e *Engine) compactCache() {
 
 		case <-t.C:
 			e.Cache.UpdateAge()
-			if e.ShouldCompactCache() {
+			if e.ShouldCompactCache(time.Now()) {
 				start := time.Now()
 				e.traceLogger.Info("Compacting cache", zap.String("path", e.path))
 				err := e.WriteSnapshot()
@@ -1919,7 +1919,7 @@ func (e *Engine) compactCache() {
 
 // ShouldCompactCache returns true if the Cache is over its flush threshold
 // or if the passed in lastWriteTime is older than the write cold threshold.
-func (e *Engine) ShouldCompactCache() bool {
+func (e *Engine) ShouldCompactCache(t time.Time) bool {
 	sz := e.Cache.Size()
 
 	if sz == 0 {
@@ -1930,7 +1930,7 @@ func (e *Engine) ShouldCompactCache() bool {
 		return true
 	}
 
-	return e.WALEnabled && time.Since(e.WAL.LastWriteTime()) > e.CacheFlushWriteColdDuration
+	return t.Sub(e.Cache.LastWriteTime()) > e.CacheFlushWriteColdDuration
 }
 
 func (e *Engine) compact(wg *sync.WaitGroup) {
