@@ -16,7 +16,6 @@ interface Props {
   onChangeArg: OnChangeArg
   declarationID: string
   onGenerateScript: () => void
-  onDeleteFunc: (e: MouseEvent<HTMLElement>) => void
   declarationsFromBody: string[]
   onStopPropagation: (e: MouseEvent<HTMLElement>) => void
 }
@@ -24,20 +23,13 @@ interface Props {
 @ErrorHandling
 export default class FuncArgs extends PureComponent<Props> {
   public render() {
-    const {onDeleteFunc, onStopPropagation} = this.props
+    const {onStopPropagation} = this.props
 
     return (
-      <div className="func-node--tooltip" onClick={onStopPropagation}>
+      <div className="func-node--editor" onClick={onStopPropagation}>
+        <div className="func-node--connector" />
         <div className="func-args">{this.renderArguments}</div>
-        <div className="func-arg--buttons">
-          <div
-            className="btn btn-sm btn-danger btn-square"
-            onClick={onDeleteFunc}
-          >
-            <span className="icon trash" />
-          </div>
-          {this.build}
-        </div>
+        <div className="func-arg--buttons">{this.build}</div>
       </div>
     )
   }
