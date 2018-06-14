@@ -94,6 +94,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                     key={i}
                     index={i}
                     func={func}
+                    funcs={funcs}
                     bodyID={bodyID}
                     service={service}
                     onChangeArg={onChangeArg}
@@ -139,6 +140,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                         key={i}
                         index={i}
                         func={func}
+                        funcs={funcs}
                         bodyID={bodyID}
                         service={service}
                         onChangeArg={onChangeArg}
