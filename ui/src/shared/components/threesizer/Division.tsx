@@ -8,7 +8,11 @@ import classnames from 'classnames'
 import calculateSize from 'calculate-size'
 
 import DivisionHeader from 'src/shared/components/threesizer/DivisionHeader'
-import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
+import {
+  HANDLE_VERTICAL,
+  HANDLE_HORIZONTAL,
+  MIN_HANDLE_PIXELS,
+} from 'src/shared/constants/index'
 import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
 
 const NOOP = () => {}
@@ -156,7 +160,10 @@ class Division extends PureComponent<Props> {
       return
     }
 
-    if (orientation === HANDLE_HORIZONTAL && handlePixels >= 20) {
+    if (
+      orientation === HANDLE_HORIZONTAL &&
+      handlePixels >= MIN_HANDLE_PIXELS
+    ) {
       return (
         <DivisionHeader
           buttons={headerButtons}
@@ -168,7 +175,7 @@ class Division extends PureComponent<Props> {
       )
     }
 
-    if (handlePixels >= 20) {
+    if (handlePixels >= MIN_HANDLE_PIXELS) {
       return <div className={this.titleClass}>{name}</div>
     }
   }
