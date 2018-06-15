@@ -52,7 +52,7 @@ describe('Dashboards.Reducers.cellEditorOverlay', () => {
   })
 
   it('should hide cell editor overlay', () => {
-    const actual = reducer(initialState, hideCellEditorOverlay)
+    const actual = reducer(initialState, hideCellEditorOverlay())
     const expected = null
 
     expect(actual.cell).toBe(expected)

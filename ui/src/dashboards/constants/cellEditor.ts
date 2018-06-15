@@ -8,7 +8,7 @@ export const initializeOptions = (cellType: CellType) => {
     case 'table':
       return DEFAULT_TABLE_OPTIONS
     default:
-      return {}
+      return DEFAULT_TABLE_OPTIONS
   }
 }
 

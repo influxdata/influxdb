@@ -1,5 +1,6 @@
 import chroma from 'chroma-js'
 import uuid from 'uuid'
+import {LineColor} from 'src/types/colors'
 
 const COLOR_TYPE_SCALE = 'scale'
 
@@ -207,7 +208,10 @@ export const LINE_COLOR_SCALES = [
   return {name, colors, id}
 })
 
-export const validateLineColors = (colors, numSeries) => {
+export const validateLineColors = (
+  colors: LineColor[],
+  numSeries = 0
+): LineColor[] => {
   const multipleSeriesButOneColor = numSeries > 1 && colors.length < 2
   if (!colors || colors.length === 0 || multipleSeriesButOneColor) {
     return DEFAULT_LINE_COLORS
@@ -220,7 +224,10 @@ export const validateLineColors = (colors, numSeries) => {
   return testColorsTypes ? colors : DEFAULT_LINE_COLORS
 }
 
-export const getLineColorsHexes = (colors, numSeries) => {
+export const getLineColorsHexes = (
+  colors: LineColor[],
+  numSeries: number
+): string[] => {
   const validatedColors = validateLineColors(colors, numSeries) // ensures safe defaults
   const colorsHexArray = validatedColors.map(color => color.hex)
 
