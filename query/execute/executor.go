@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/pkg/errors"
 )
 
 type Executor interface {
-	Execute(ctx context.Context, orgID id.ID, p *plan.PlanSpec) (map[string]query.Result, error)
+	Execute(ctx context.Context, orgID platform.ID, p *plan.PlanSpec) (map[string]query.Result, error)
 }
 
 type executor struct {
@@ -30,7 +30,7 @@ type executionState struct {
 	p    *plan.PlanSpec
 	deps Dependencies
 
-	orgID id.ID
+	orgID platform.ID
 
 	alloc *Allocator
 
@@ -46,7 +46,7 @@ type executionState struct {
 	dispatcher *poolDispatcher
 }
 
-func (e *executor) Execute(ctx context.Context, orgID id.ID, p *plan.PlanSpec) (map[string]query.Result, error) {
+func (e *executor) Execute(ctx context.Context, orgID platform.ID, p *plan.PlanSpec) (map[string]query.Result, error) {
 	es, err := e.createExecutionState(ctx, orgID, p)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to initialize execute state")
@@ -62,7 +62,7 @@ func validatePlan(p *plan.PlanSpec) error {
 	return nil
 }
 
-func (e *executor) createExecutionState(ctx context.Context, orgID id.ID, p *plan.PlanSpec) (*executionState, error) {
+func (e *executor) createExecutionState(ctx context.Context, orgID platform.ID, p *plan.PlanSpec) (*executionState, error) {
 	if err := validatePlan(p); err != nil {
 		return nil, errors.Wrap(err, "invalid plan")
 	}
@@ -217,7 +217,7 @@ type executionContext struct {
 }
 
 // Satisfy the ExecutionContext interface
-func (ec executionContext) OrganizationID() id.ID {
+func (ec executionContext) OrganizationID() platform.ID {
 	return ec.es.orgID
 }
 

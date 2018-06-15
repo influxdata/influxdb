@@ -19,7 +19,6 @@ import (
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
-	"github.com/influxdata/platform/query/id"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -171,12 +170,12 @@ type wrapController struct {
 }
 
 func (c wrapController) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (query.Query, error) {
-	q, err := c.Controller.Query(ctx, id.ID(orgID), query)
+	q, err := c.Controller.Query(ctx, orgID, query)
 	return q, err
 }
 
 func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (query.Query, error) {
-	q, err := c.Controller.QueryWithCompile(ctx, id.ID(orgID), query)
+	q, err := c.Controller.QueryWithCompile(ctx, orgID, query)
 	return q, err
 }
 
@@ -184,7 +183,7 @@ type bucketLookup struct {
 	BucketService platform.BucketService
 }
 
-func (b bucketLookup) Lookup(orgID id.ID, name string) (id.ID, bool) {
+func (b bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
 	oid := platform.ID(orgID)
 	filter := platform.BucketFilter{
 		OrganizationID: &oid,
@@ -194,7 +193,7 @@ func (b bucketLookup) Lookup(orgID id.ID, name string) (id.ID, bool) {
 	if err != nil {
 		return nil, false
 	}
-	return id.ID(bucket.ID), true
+	return bucket.ID, true
 }
 
 var (

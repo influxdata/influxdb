@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/id"
 )
 
 var (
@@ -30,12 +29,12 @@ type wrapController struct {
 }
 
 func (c wrapController) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (query.Query, error) {
-	q, err := c.Controller.Query(ctx, id.ID(orgID), query)
+	q, err := c.Controller.Query(ctx, orgID, query)
 	return q, err
 }
 
 func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (query.Query, error) {
-	q, err := c.Controller.QueryWithCompile(ctx, id.ID(orgID), query)
+	q, err := c.Controller.QueryWithCompile(ctx, orgID, query)
 	return q, err
 }
 

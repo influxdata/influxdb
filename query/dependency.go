@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/query/id"
 )
 
 // FromBucketService wraps an platform.BucketService in the BucketLookup interface.
@@ -20,7 +19,7 @@ type BucketLookup struct {
 }
 
 // Lookup returns the bucket id and its existence given an org id and bucket name.
-func (b *BucketLookup) Lookup(orgID id.ID, name string) (id.ID, bool) {
+func (b *BucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
 	oid := platform.ID(orgID)
 	filter := platform.BucketFilter{
 		OrganizationID: &oid,
@@ -30,7 +29,7 @@ func (b *BucketLookup) Lookup(orgID id.ID, name string) (id.ID, bool) {
 	if err != nil {
 		return nil, false
 	}
-	return id.ID(bucket.ID), true
+	return bucket.ID, true
 }
 
 // FromOrganizationService wraps a platform.OrganizationService in the OrganizationLookup interface.

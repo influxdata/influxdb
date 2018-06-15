@@ -7,20 +7,20 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/ast"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
 	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
 	uuid "github.com/satori/go.uuid"
 )
 
 var epoch = time.Unix(0, 0)
-var orgID id.ID
+var orgID platform.ID
 
 func init() {
 	orgID.DecodeFromString("aaaa")

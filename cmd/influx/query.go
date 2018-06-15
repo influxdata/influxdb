@@ -13,7 +13,6 @@ import (
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
-	qid "github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/repl"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -131,8 +130,8 @@ func orgService(addr, token string) (platform.OrganizationService, error) {
 	}, nil
 }
 
-func orgID(org string) (qid.ID, error) {
-	var oid qid.ID
+func orgID(org string) (platform.ID, error) {
+	var oid platform.ID
 	err := oid.DecodeFromString(org)
 	return oid, err
 }

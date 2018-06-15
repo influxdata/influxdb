@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/plan"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -67,7 +67,7 @@ func New(c Config) *Controller {
 // QueryWithCompile submits a query for execution returning immediately.
 // The query will first be compiled before submitting for execution.
 // Done must be called on any returned Query objects.
-func (c *Controller) QueryWithCompile(ctx context.Context, orgID id.ID, queryStr string) (*Query, error) {
+func (c *Controller) QueryWithCompile(ctx context.Context, orgID platform.ID, queryStr string) (*Query, error) {
 	q := c.createQuery(ctx, orgID)
 	err := c.compileQuery(q, queryStr)
 	if err != nil {
@@ -80,14 +80,14 @@ func (c *Controller) QueryWithCompile(ctx context.Context, orgID id.ID, queryStr
 // Query submits a query for execution returning immediately.
 // The spec must not be modified while the query is still active.
 // Done must be called on any returned Query objects.
-func (c *Controller) Query(ctx context.Context, orgID id.ID, qSpec *query.Spec) (*Query, error) {
+func (c *Controller) Query(ctx context.Context, orgID platform.ID, qSpec *query.Spec) (*Query, error) {
 	q := c.createQuery(ctx, orgID)
 	q.spec = *qSpec
 	err := c.enqueueQuery(q)
 	return q, err
 }
 
-func (c *Controller) createQuery(ctx context.Context, orgID id.ID) *Query {
+func (c *Controller) createQuery(ctx context.Context, orgID platform.ID) *Query {
 	id := c.nextID()
 	cctx, cancel := context.WithCancel(ctx)
 	ready := make(chan map[string]query.Result, 1)
@@ -265,7 +265,7 @@ func (c *Controller) free(q *Query) {
 type Query struct {
 	id QueryID
 
-	orgID id.ID
+	orgID platform.ID
 
 	labelValues []string
 
@@ -306,7 +306,7 @@ func (q *Query) ID() QueryID {
 	return q.id
 }
 
-func (q *Query) OrganizationID() id.ID {
+func (q *Query) OrganizationID() platform.ID {
 	return q.orgID
 }
 

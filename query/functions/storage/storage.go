@@ -7,7 +7,6 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/semantic"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -19,7 +18,7 @@ type HostLookup interface {
 }
 
 type BucketLookup interface {
-	Lookup(orgID id.ID, name string) (id.ID, bool)
+	Lookup(orgID platform.ID, name string) (platform.ID, bool)
 }
 
 type OrganizationLookup interface {

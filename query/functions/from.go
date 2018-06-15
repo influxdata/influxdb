@@ -3,10 +3,10 @@ package functions
 import (
 	"fmt"
 
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions/storage"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/semantic"
@@ -189,7 +189,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 	deps := a.Dependencies()[FromKind].(storage.Dependencies)
 	orgID := a.OrganizationID()
 
-	var bucketID id.ID
+	var bucketID platform.ID
 	if spec.Database == "" {
 		b, ok := deps.BucketLookup.Lookup(orgID, spec.Bucket)
 		if !ok {
@@ -197,7 +197,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 		}
 		bucketID = b
 	} else {
-		bucketID = id.ID(spec.Database)
+		bucketID = platform.ID(spec.Database)
 	}
 
 	return storage.NewSource(

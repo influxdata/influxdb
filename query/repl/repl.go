@@ -15,11 +15,11 @@ import (
 	"path/filepath"
 
 	prompt "github.com/c-bata/go-prompt"
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/parser"
 	"github.com/influxdata/platform/query/semantic"
@@ -28,7 +28,7 @@ import (
 )
 
 type REPL struct {
-	orgID id.ID
+	orgID platform.ID
 
 	scope        *interpreter.Scope
 	declarations semantic.DeclarationScope
@@ -54,7 +54,7 @@ func addBuiltIn(script string, scope *interpreter.Scope, declarations semantic.D
 	return nil
 }
 
-func New(c *control.Controller, orgID id.ID) *REPL {
+func New(c *control.Controller, orgID platform.ID) *REPL {
 	scope, declarations := query.BuiltIns()
 	interpScope := interpreter.NewScopeWithValues(scope)
 	addBuiltIn("run = () => yield(table:_)", interpScope, declarations)
