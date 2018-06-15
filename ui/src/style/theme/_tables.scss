@@ -22,7 +22,6 @@ $table--highlight-color: $g4-onyx;
       font-family: $code-font;
       letter-spacing: 0;
     }
-
     &.text-left {
       text-align: left;
     }
@@ -31,6 +30,13 @@ $table--highlight-color: $g4-onyx;
     }
     &.text-right {
       text-align: right;
+    }
+    & > .text-ellipsis {
+      display: inline-block;
+      width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   }
 
