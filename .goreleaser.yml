@@ -20,6 +20,26 @@ builds:
     main: ./cmd/fluxd/
     ldflags: -s -w -X main.commit={{.Commit}}
     binary: fluxd
+  - goos:
+    - linux
+    - darwin
+    - windows
+    goarch:
+    - amd64
+    - 386
+    - arm
+    - arm64
+    goarm:
+    - 6
+    - 7
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: windows
+        goarch: 386
+    main: ./cmd/influx/
+    ldflags: -s -w -X main.commit={{.Commit}}
+    binary: influx
 
 
 archive:
