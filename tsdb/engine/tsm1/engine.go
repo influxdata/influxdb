@@ -279,6 +279,11 @@ func (e *Engine) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 
 // Digest returns a reader for the shard's digest.
 func (e *Engine) Digest() (io.ReadCloser, int64, error) {
+	log, logEnd := logger.NewOperation(e.logger, "Engine digest", "tsm1_digest")
+	defer logEnd()
+
+	log.Info("Starting digest", zap.String("tsm1_path", e.path))
+
 	digestPath := filepath.Join(e.path, "digest.tsd")
 
 	// See if there's an existing digest file on disk.
@@ -287,23 +292,35 @@ func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 		// There is an existing digest file. Now see if it is still fresh.
 		fi, err := f.Stat()
 		if err != nil {
+			log.Info("Digest aborted, can't stat existing digest", zap.Error(err))
 			f.Close()
 			return nil, 0, err
 		}
 
-		if !e.LastModified().After(fi.ModTime()) {
+		engineLastMod := e.LastModified()
+
+		if !engineLastMod.After(fi.ModTime()) {
 			// Existing digest is still fresh so return a reader for it.
 			fi, err := f.Stat()
 			if err != nil {
+				log.Info("Digest aborted, can't stat existing digest", zap.Error(err))
 				f.Close()
 				return nil, 0, err
 			}
+
+			log.Info("Digest cache fresh", zap.Time("engine_last_modified", engineLastMod),
+				zap.Time("digest_cache_last_modified", fi.ModTime()), zap.Int64("size", fi.Size()))
+
 			return f, fi.Size(), nil
 		}
 
 		if err := f.Close(); err != nil {
+			log.Info("Digest aborted, problem closing digest", zap.Error(err))
 			return nil, 0, err
 		}
+
+		log.Info("Digest cache stale", zap.Time("engine_last_modified", engineLastMod),
+			zap.Time("digest_cache_last_modified", fi.ModTime()), zap.Int64("size", fi.Size()))
 	}
 
 	// Either no digest existed or the existing one was stale
@@ -312,11 +329,13 @@ func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 	// Create a tmp file to write the digest to.
 	tf, err := os.Create(digestPath + ".tmp")
 	if err != nil {
+		log.Info("Digest aborted, problem creating tmp digest", zap.Error(err))
 		return nil, 0, err
 	}
 
 	// Write the new digest to the tmp file.
 	if err := Digest(e.path, tf); err != nil {
+		log.Info("Digest aborted, problem writing tmp digest", zap.Error(err))
 		tf.Close()
 		os.Remove(tf.Name())
 		return nil, 0, err
@@ -324,20 +343,25 @@ func (e *Engine) Digest() (io.ReadCloser, int64, error) {
 
 	// Rename the temporary digest file to the actual digest file.
 	if err := file.RenameFile(tf.Name(), digestPath); err != nil {
+		log.Info("Digest aborted, problem renaming tmp digest", zap.Error(err))
 		return nil, 0, err
 	}
 
 	// Create and return a reader for the new digest file.
 	f, err = os.Open(digestPath)
 	if err != nil {
+		log.Info("Digest aborted, opening new digest", zap.Error(err))
 		return nil, 0, err
 	}
 
 	fi, err := f.Stat()
 	if err != nil {
+		log.Info("Digest aborted, can't stat new digest", zap.Error(err))
 		f.Close()
 		return nil, 0, err
 	}
+
+	log.Info("Digest written", zap.String("tsm1_digest_path", digestPath), zap.Int64("size", fi.Size()))
 
 	return f, fi.Size(), nil
 }
