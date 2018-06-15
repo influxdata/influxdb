@@ -1,7 +1,12 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-const LogItemHTTP = ({logItem}) => (
+import {LogItem} from 'src/types/kapacitor'
+
+interface Props {
+  logItem: LogItem
+}
+
+const LogItemHTTP: SFC<Props> = ({logItem}) => (
   <div className="logs-table--row">
     <div className="logs-table--divider">
       <div className={`logs-table--level ${logItem.lvl}`} />
@@ -15,18 +20,5 @@ const LogItemHTTP = ({logItem}) => (
     </div>
   </div>
 )
-
-const {shape, string} = PropTypes
-
-LogItemHTTP.propTypes = {
-  logItem: shape({
-    lvl: string.isRequired,
-    ts: string.isRequired,
-    method: string.isRequired,
-    username: string.isRequired,
-    host: string.isRequired,
-    duration: string.isRequired,
-  }),
-}
 
 export default LogItemHTTP

@@ -1,20 +1,24 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+
 import {Controlled as CodeMirror} from 'react-codemirror2'
 import 'src/external/codemirror'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  onChangeScript: (tickscript: string) => void
+  script: string
+}
+
+const NOOP = () => {}
+
 @ErrorHandling
-class TickscriptEditor extends Component {
+class TickscriptEditor extends Component<Props> {
   constructor(props) {
     super(props)
   }
 
-  updateCode = (_, __, script) => {
-    this.props.onChangeScript(script)
-  }
-
-  render() {
+  public render() {
     const {script} = this.props
 
     const options = {
@@ -31,17 +35,15 @@ class TickscriptEditor extends Component {
           value={script}
           onBeforeChange={this.updateCode}
           options={options}
+          onTouchStart={NOOP}
         />
       </div>
     )
   }
-}
 
-const {func, string} = PropTypes
-
-TickscriptEditor.propTypes = {
-  onChangeScript: func,
-  script: string,
+  private updateCode = (_, __, script) => {
+    this.props.onChangeScript(script)
+  }
 }
 
 export default TickscriptEditor

@@ -1,7 +1,12 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-const LogItemHTTPError = ({logItem}) => (
+import {LogItem} from 'src/types/kapacitor'
+
+interface Props {
+  logItem: LogItem
+}
+
+const LogItemHTTPError: SFC<Props> = ({logItem}) => (
   <div className="logs-table--row" key={logItem.key}>
     <div className="logs-table--divider">
       <div className={`logs-table--level ${logItem.lvl}`} />
@@ -15,16 +20,5 @@ const LogItemHTTPError = ({logItem}) => (
     </div>
   </div>
 )
-
-const {shape, string} = PropTypes
-
-LogItemHTTPError.propTypes = {
-  logItem: shape({
-    key: string.isRequired,
-    lvl: string.isRequired,
-    ts: string.isRequired,
-    msg: string.isRequired,
-  }),
-}
 
 export default LogItemHTTPError

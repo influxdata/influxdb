@@ -1,7 +1,12 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-const LogItemSession = ({logItem}) => (
+import {LogItem} from 'src/types/kapacitor'
+
+interface Props {
+  logItem: LogItem
+}
+
+const LogItemSession: SFC<Props> = ({logItem}) => (
   <div className="logs-table--row">
     <div className="logs-table--divider">
       <div className={`logs-table--level ${logItem.lvl}`} />
@@ -12,15 +17,5 @@ const LogItemSession = ({logItem}) => (
     </div>
   </div>
 )
-
-const {shape, string} = PropTypes
-
-LogItemSession.propTypes = {
-  logItem: shape({
-    lvl: string.isRequired,
-    ts: string.isRequired,
-    msg: string.isRequired,
-  }),
-}
 
 export default LogItemSession

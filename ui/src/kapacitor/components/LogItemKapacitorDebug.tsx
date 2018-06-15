@@ -1,7 +1,12 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-const LogItemKapacitorDebug = ({logItem}) => (
+import {LogItem} from 'src/types/kapacitor'
+
+interface Props {
+  logItem: LogItem
+}
+
+const LogItemKapacitorDebug: SFC<Props> = ({logItem}) => (
   <div className="logs-table--row">
     <div className="logs-table--divider">
       <div className={`logs-table--level ${logItem.lvl}`} />
@@ -15,15 +20,5 @@ const LogItemKapacitorDebug = ({logItem}) => (
     </div>
   </div>
 )
-
-const {shape, string} = PropTypes
-
-LogItemKapacitorDebug.propTypes = {
-  logItem: shape({
-    lvl: string.isRequired,
-    ts: string.isRequired,
-    msg: string.isRequired,
-  }),
-}
 
 export default LogItemKapacitorDebug

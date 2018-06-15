@@ -1,7 +1,14 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-const TickscriptEditorConsole = ({consoleMessage, unsavedChanges}) => {
+interface Props {
+  consoleMessage: string
+  unsavedChanges: boolean
+}
+
+const TickscriptEditorConsole: SFC<Props> = ({
+  consoleMessage,
+  unsavedChanges,
+}) => {
   let consoleOutput = 'TICKscript is valid'
   let consoleClass = 'tickscript-console--valid'
 
@@ -18,13 +25,6 @@ const TickscriptEditorConsole = ({consoleMessage, unsavedChanges}) => {
       <p className={consoleClass}>{consoleOutput}</p>
     </div>
   )
-}
-
-const {bool, string} = PropTypes
-
-TickscriptEditorConsole.propTypes = {
-  consoleMessage: string,
-  unsavedChanges: bool,
 }
 
 export default TickscriptEditorConsole
