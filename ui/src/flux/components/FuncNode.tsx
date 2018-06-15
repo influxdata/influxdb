@@ -1,5 +1,6 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import classnames from 'classnames'
+import _ from 'lodash'
 
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
@@ -14,6 +15,7 @@ import {Service} from 'src/types'
 
 interface Props {
   func: Func
+  funcs: Func[]
   service: Service
   bodyID: string
   index: number
@@ -29,7 +31,7 @@ interface Props {
 }
 
 interface State {
-  isExpanded: boolean
+  editing: boolean
 }
 
 @ErrorHandling
@@ -42,53 +44,107 @@ export default class FuncNode extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      isExpanded: false,
+      editing: this.isLast,
     }
   }
 
   public render() {
+    const {func} = this.props
+
+    return (
+      <>
+        <div
+          className={this.nodeClassName}
+          onClick={this.handleToggleEdit}
+          title="Edit function arguments"
+        >
+          <div className="func-node--connector" />
+          <div className="func-node--name">{func.name}</div>
+          <FuncArgsPreview func={func} />
+          {this.funcMenu}
+        </div>
+        {this.funcArgs}
+      </>
+    )
+  }
+
+  private get funcArgs(): JSX.Element {
     const {
       func,
       bodyID,
       service,
+      isYielding,
       onChangeArg,
       declarationID,
       onGenerateScript,
       declarationsFromBody,
     } = this.props
-    const {isExpanded} = this.state
+    const {editing} = this.state
+
+    if (!editing || isYielding) {
+      return
+    }
 
     return (
-      <div
-        className={this.nodeClassName}
-        onMouseEnter={this.handleMouseEnter}
-        onMouseLeave={this.handleMouseLeave}
-        onClick={this.handleClick}
-      >
-        <div className="func-node--connector" />
-        <div className="func-node--name">{func.name}</div>
-        <FuncArgsPreview func={func} />
+      <FuncArgs
+        func={func}
+        bodyID={bodyID}
+        service={service}
+        onChangeArg={onChangeArg}
+        declarationID={declarationID}
+        onGenerateScript={onGenerateScript}
+        declarationsFromBody={declarationsFromBody}
+        onStopPropagation={this.handleClickArgs}
+      />
+    )
+  }
 
-        {isExpanded && (
-          <FuncArgs
-            func={func}
-            bodyID={bodyID}
-            service={service}
-            onChangeArg={onChangeArg}
-            declarationID={declarationID}
-            onGenerateScript={onGenerateScript}
-            onDeleteFunc={this.handleDelete}
-            declarationsFromBody={declarationsFromBody}
-            onStopPropagation={this.handleClickArgs}
-          />
-        )}
+  private get funcMenu(): JSX.Element {
+    return (
+      <div className="func-node--menu">
+        {this.yieldToggleButton}
+        <button
+          className="btn btn-sm btn-square btn-danger"
+          onClick={this.handleDelete}
+          title="Delete this Function"
+        >
+          <span className="icon trash" />
+        </button>
       </div>
+    )
+  }
+
+  private get yieldToggleButton(): JSX.Element {
+    const {isYielding} = this.props
+
+    if (isYielding) {
+      return (
+        <button
+          className="btn btn-sm btn-square btn-warning"
+          onClick={this.handleToggleYield}
+          title="Hide Data Table"
+        >
+          <span className="icon eye-closed" />
+        </button>
+      )
+    }
+
+    return (
+      <button
+        className="btn btn-sm btn-square btn-warning"
+        onClick={this.handleToggleYield}
+        title="See Data Table returned by this Function"
+      >
+        <span className="icon eye-open" />
+      </button>
     )
   }
 
   private get nodeClassName(): string {
     const {isYielding} = this.props
-    return classnames('func-node', {active: isYielding})
+    const {editing} = this.state
+
+    return classnames('func-node', {active: isYielding || editing})
   }
 
   private handleDelete = (e: MouseEvent<HTMLElement>): void => {
@@ -98,19 +154,11 @@ export default class FuncNode extends PureComponent<Props, State> {
     this.props.onDelete({funcID: func.id, bodyID, declarationID})
   }
 
-  private handleMouseEnter = (e: MouseEvent<HTMLElement>): void => {
-    e.stopPropagation()
-
-    this.setState({isExpanded: true})
+  private handleToggleEdit = (): void => {
+    this.setState({editing: !this.state.editing})
   }
 
-  private handleMouseLeave = (e: MouseEvent<HTMLElement>): void => {
-    e.stopPropagation()
-
-    this.setState({isExpanded: false})
-  }
-
-  private handleClick = (e: MouseEvent<HTMLElement>): void => {
+  private handleToggleYield = (e: MouseEvent<HTMLElement>): void => {
     e.stopPropagation()
 
     const {
@@ -128,7 +176,16 @@ export default class FuncNode extends PureComponent<Props, State> {
       onToggleYieldWithLast(index)
     }
   }
+
   private handleClickArgs = (e: MouseEvent<HTMLElement>): void => {
     e.stopPropagation()
+  }
+
+  private get isLast(): boolean {
+    const {funcs, func} = this.props
+
+    const lastFunc = _.last(funcs)
+
+    return lastFunc.id === func.id
   }
 }
