@@ -902,7 +902,7 @@ func (s *mergedStreams) determineNewKey() bool {
 			continue
 		}
 		k := stream.key()
-		if k.Less(minKey) {
+		if minIdx == -1 || k.Less(minKey) {
 			minIdx = i
 			minKey = k
 		}
