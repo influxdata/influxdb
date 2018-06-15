@@ -8,7 +8,7 @@ import {AnnotationInterface, DygraphClass} from 'src/types'
 interface Props {
   mode: string
   dWidth: number
-  xAxisRange: number[]
+  xAxisRange: [number, number]
   annotation: AnnotationInterface
   dygraph: DygraphClass
   staticLegendHeight: number

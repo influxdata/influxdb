@@ -20,12 +20,12 @@ import {AnnotationInterface, DygraphClass} from 'src/types'
 import {UpdateAnnotationAction} from 'src/shared/actions/annotations'
 
 interface Props {
-  dygraph: DygraphClass
   dWidth: number
-  xAxisRange: number[]
   staticLegendHeight: number
   annotations: AnnotationInterface[]
   mode: string
+  xAxisRange: [number, number]
+  dygraph: DygraphClass
   isTempHovering: boolean
   handleUpdateAnnotation: (
     annotation: AnnotationInterface
@@ -52,7 +52,6 @@ class Annotations extends Component<Props> {
       handleMouseLeaveTempAnnotation,
       staticLegendHeight,
     } = this.props
-    console.log('rendering annotations')
     return (
       <div className="annotations-container">
         {mode === ADDING &&
@@ -73,10 +72,10 @@ class Annotations extends Component<Props> {
           <Annotation
             key={a.id}
             mode={mode}
+            xAxisRange={xAxisRange}
             annotation={a}
             dygraph={dygraph}
             dWidth={dWidth}
-            xAxisRange={xAxisRange}
             staticLegendHeight={staticLegendHeight}
           />
         ))}

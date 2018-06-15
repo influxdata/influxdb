@@ -14,7 +14,7 @@ export const TEMP_ANNOTATION: AnnotationInterface = {
 }
 
 export const visibleAnnotations = (
-  xAxisRange: number[],
+  xAxisRange: [number, number],
   annotations: AnnotationInterface[] = []
 ): AnnotationInterface[] => {
   const [xStart, xEnd] = xAxisRange
