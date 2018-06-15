@@ -1,5 +1,5 @@
 import {Cell} from 'src/types'
-import {CellType} from 'src/types/dashboard'
+import {CellType, ThresholdType} from 'src/types/dashboard'
 import {ColorNumber, ColorString} from 'src/types/colors'
 import {
   Axes,
@@ -7,6 +7,21 @@ import {
   FieldOption,
   TableOptions,
 } from 'src/types/dashboard'
+
+export type Action =
+  | ShowCellEditorOverlayAction
+  | HideCellEditorOverlayAction
+  | ChangeCellTypeAction
+  | RenameCellAction
+  | UpdateThresholdsListColorsAction
+  | UpdateThresholdsListTypeAction
+  | UpdateGaugeColorsAction
+  | UpdateAxesAction
+  | UpdateTableOptionsAction
+  | UpdateLineColorsAction
+  | ChangeTimeFormatAction
+  | ChangeDecimalPlacesAction
+  | UpdateFieldOptionsAction
 
 interface ShowCellEditorOverlayAction {
   type: 'SHOW_CELL_EDITOR_OVERLAY'
@@ -36,6 +51,7 @@ interface ChangeCellTypeAction {
     cellType: CellType
   }
 }
+
 export const changeCellType = (cellType: CellType): ChangeCellTypeAction => ({
   type: 'CHANGE_CELL_TYPE',
   payload: {
@@ -74,11 +90,12 @@ export const updateThresholdsListColors = (
 interface UpdateThresholdsListTypeAction {
   type: 'UPDATE_THRESHOLDS_LIST_TYPE'
   payload: {
-    thresholdsListType: string
+    thresholdsListType: ThresholdType
   }
 }
+
 export const updateThresholdsListType = (
-  thresholdsListType: string
+  thresholdsListType: ThresholdType
 ): UpdateThresholdsListTypeAction => ({
   type: 'UPDATE_THRESHOLDS_LIST_TYPE',
   payload: {

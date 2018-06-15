@@ -14,7 +14,7 @@ import {
   FieldOption,
   DecimalPlaces,
 } from 'src/types/dashboard'
-import {ColorString, ColorNumber} from 'src/types/colors'
+import {LineColor, ColorNumber} from 'src/types/colors'
 import {CellType} from 'src/types/dashboard'
 
 export const sourceLinks: SourceLinks = {
@@ -131,7 +131,7 @@ export const tableOptions: TableOptions = {
   wrapping: 'truncate',
   fixFirstColumn: true,
 }
-export const lineColors: ColorString[] = [
+export const lineColors: LineColor[] = [
   {
     id: '574fb0a3-0a26-44d7-8d71-d4981756acb1',
     type: 'scale',

@@ -47,6 +47,7 @@ import {
   DygraphSeries,
   Constructable,
 } from 'src/types'
+import {LineColor} from 'src/types/colors'
 
 const Dygraphs = D as Constructable<DygraphClass>
 
@@ -59,7 +60,7 @@ interface Props {
   containerStyle: object // TODO
   dygraphSeries: DygraphSeries
   timeRange: TimeRange
-  colors: object
+  colors: LineColor[]
   handleSetHoverTime: (t: string) => void
   ruleValues?: RuleValues
   axes?: Axes
