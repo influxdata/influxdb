@@ -1,6 +1,18 @@
 import * as api from 'src/shared/apis/annotation'
-
 import {AnnotationInterface} from 'src/types'
+
+export type Action =
+  | EditingAnnotationAction
+  | DismissEditingAnnotationAction
+  | AddingAnnotationAction
+  | AddingAnnotationSuccessAction
+  | DismissAddingAnnotationAction
+  | MouseEnterTempAnnotationAction
+  | MouseLeaveTempAnnotationAction
+  | LoadAnnotationsAction
+  | UpdateAnnotationAction
+  | DeleteAnnotationAction
+  | AddAnnotationAction
 
 export interface EditingAnnotationAction {
   type: 'EDITING_ANNOTATION'
@@ -122,8 +134,8 @@ export const addAnnotationAsync = (
 }
 
 export interface AnnotationRange {
-  since: string
-  until: string
+  since: number
+  until: number
 }
 
 export const getAnnotationsAsync = (

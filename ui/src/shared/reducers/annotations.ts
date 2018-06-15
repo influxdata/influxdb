@@ -1,12 +1,24 @@
 import {ADDING, EDITING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
+import {Action} from 'src/shared/actions/annotations'
+import {AnnotationInterface} from 'src/types'
+
+export interface AnnotationState {
+  mode: string
+  isTempHovering: boolean
+  annotations: AnnotationInterface[]
+}
+
 const initialState = {
   mode: null,
   isTempHovering: false,
   annotations: [],
 }
 
-const annotationsReducer = (state = initialState, action) => {
+const annotationsReducer = (
+  state: AnnotationState = initialState,
+  action: Action
+) => {
   switch (action.type) {
     case 'EDITING_ANNOTATION': {
       return {

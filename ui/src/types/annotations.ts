@@ -4,4 +4,5 @@ export interface AnnotationInterface {
   endTime: number
   text: string
   type: string
+  links: {self: string}
 }

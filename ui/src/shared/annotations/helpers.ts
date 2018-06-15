@@ -11,6 +11,7 @@ export const TEMP_ANNOTATION: AnnotationInterface = {
   type: '',
   startTime: null,
   endTime: null,
+  links: {self: ''},
 }
 
 export const visibleAnnotations = (
