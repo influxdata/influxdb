@@ -103,6 +103,10 @@ class ConfirmButton extends PureComponent<Props, State> {
       return `confirm-button--tooltip ${position}`
     }
 
+    if (!this.buttonDiv || !this.tooltipDiv) {
+      return 'confirm-button--tooltip bottom'
+    }
+
     const windowWidth = window.innerWidth
     const buttonRect = this.buttonDiv.getBoundingClientRect()
     const tooltipRect = this.tooltipDiv.getBoundingClientRect()
