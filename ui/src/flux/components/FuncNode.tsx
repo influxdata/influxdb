@@ -2,6 +2,7 @@ import React, {PureComponent, MouseEvent} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
 import {
@@ -103,13 +104,7 @@ export default class FuncNode extends PureComponent<Props, State> {
     return (
       <div className="func-node--menu">
         {this.yieldToggleButton}
-        <button
-          className="btn btn-sm btn-square btn-danger"
-          onClick={this.handleDelete}
-          title="Delete this Function"
-        >
-          <span className="icon trash" />
-        </button>
+        {this.deleteButton}
       </div>
     )
   }
@@ -140,6 +135,32 @@ export default class FuncNode extends PureComponent<Props, State> {
     )
   }
 
+  private get deleteButton(): JSX.Element {
+    const {name} = this.props.func
+
+    if (name === 'from') {
+      return (
+        <ConfirmButton
+          icon="trash"
+          type="btn-danger"
+          confirmText="Delete this query"
+          square={true}
+          confirmAction={this.handleDelete}
+        />
+      )
+    }
+
+    return (
+      <button
+        className="btn btn-sm btn-square btn-danger"
+        onClick={this.handleDelete}
+        title="Delete this Function"
+      >
+        <span className="icon remove" />
+      </button>
+    )
+  }
+
   private get nodeClassName(): string {
     const {isYielding} = this.props
     const {editing} = this.state
@@ -147,14 +168,14 @@ export default class FuncNode extends PureComponent<Props, State> {
     return classnames('func-node', {active: isYielding || editing})
   }
 
-  private handleDelete = (e: MouseEvent<HTMLElement>): void => {
-    e.stopPropagation()
+  private handleDelete = (): void => {
     const {func, bodyID, declarationID} = this.props
 
     this.props.onDelete({funcID: func.id, bodyID, declarationID})
   }
 
-  private handleToggleEdit = (): void => {
+  private handleToggleEdit = (e: MouseEvent<HTMLElement>): void => {
+    e.stopPropagation()
     this.setState({editing: !this.state.editing})
   }
 

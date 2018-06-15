@@ -258,7 +258,8 @@ $flux-invalid-hover: $c-dreamsicle;
   opacity: 0;
   transition: opacity 0.25s ease;
 
-  > button.btn {
+  > button.btn,
+  > .confirm-button {
     margin-left: 4px;
   }
 }
