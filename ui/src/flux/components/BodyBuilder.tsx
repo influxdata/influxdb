@@ -9,7 +9,7 @@ import BodyDelete from 'src/flux/components/BodyDelete'
 import {funcNames} from 'src/flux/constants'
 
 import {Service} from 'src/types'
-import {FlatBody, Suggestion} from 'src/types/flux'
+import {Body, Suggestion} from 'src/types/flux'
 
 interface Props {
   service: Service
@@ -18,10 +18,6 @@ interface Props {
   onAppendFrom: () => void
   onAppendJoin: () => void
   onDeleteBody: (bodyID: string) => void
-}
-
-interface Body extends FlatBody {
-  id: string
 }
 
 class BodyBuilder extends PureComponent<Props> {

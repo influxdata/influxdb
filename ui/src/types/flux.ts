@@ -106,6 +106,9 @@ export interface FlatBody {
   funcs?: Func[]
   declarations?: FlatDeclaration[]
 }
+export interface Body extends FlatBody {
+  id: string
+}
 
 export interface Func {
   type: string
