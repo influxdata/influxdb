@@ -26,13 +26,10 @@ class BodyBuilder extends PureComponent<Props> {
 
     const bodybuilder = body.map((b, i) => {
       if (b.declarations.length) {
-        return b.declarations.map((d, dIndex) => {
+        return b.declarations.map(d => {
           if (d.funcs) {
             return (
               <div className="declaration" key={i}>
-                {!dIndex && (
-                  <BodyDelete bodyID={b.id} onDeleteBody={onDeleteBody} />
-                )}
                 <VariableNode name={d.name} assignedToQuery={true} />
                 <ExpressionNode
                   bodyID={b.id}
@@ -41,6 +38,7 @@ class BodyBuilder extends PureComponent<Props> {
                   funcs={d.funcs}
                   declarationsFromBody={this.declarationsFromBody}
                   isLastBody={this.isLastBody(i)}
+                  onDeleteBody={onDeleteBody}
                 />
               </div>
             )
@@ -65,13 +63,13 @@ class BodyBuilder extends PureComponent<Props> {
 
       return (
         <div className="declaration" key={i}>
-          <BodyDelete bodyID={b.id} onDeleteBody={onDeleteBody} />
           <ExpressionNode
             bodyID={b.id}
             funcs={b.funcs}
             funcNames={this.funcNames}
             declarationsFromBody={this.declarationsFromBody}
             isLastBody={this.isLastBody(i)}
+            onDeleteBody={onDeleteBody}
           />
         </div>
       )

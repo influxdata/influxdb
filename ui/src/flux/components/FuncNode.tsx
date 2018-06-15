@@ -2,7 +2,7 @@ import React, {PureComponent, MouseEvent} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
-import ConfirmButton from 'src/shared/components/ConfirmButton'
+import BodyDelete from 'src/flux/components/BodyDelete'
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
 import {
@@ -29,6 +29,7 @@ interface Props {
   declarationsFromBody: string[]
   isYielding: boolean
   isYieldable: boolean
+  onDeleteBody: (bodyID: string) => void
 }
 
 interface State {
@@ -138,19 +139,10 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   private get deleteButton(): JSX.Element {
-    const {name} = this.props.func
+    const {func, bodyID, onDeleteBody} = this.props
 
-    if (name === 'from') {
-      return (
-        <ConfirmButton
-          icon="trash"
-          type="btn-danger"
-          confirmText="Delete this query"
-          square={true}
-          confirmAction={this.handleDelete}
-          position="right"
-        />
-      )
+    if (func.name === 'from') {
+      return <BodyDelete onDeleteBody={onDeleteBody} bodyID={bodyID} />
     }
 
     return (
