@@ -69,14 +69,14 @@ export const notifySessionTimedOut = () => ({
   message: 'Your session has timed out. Log in again to continue.',
 })
 
-export const notifyServerError = () => ({
+export const notifyServerError = {
   ...defaultErrorNotification,
-  mesasage: 'Internal Server Error. Check API Logs.',
-})
+  message: 'Internal Server Error. Check API Logs.',
+}
 
 export const notifyCouldNotRetrieveKapacitors = sourceID => ({
   ...defaultErrorNotification,
-  mesasage: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
+  message: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
 })
 
 export const notifyCouldNotRetrieveKapacitorServices = kapacitor => ({

@@ -155,7 +155,7 @@ export const removeAndLoadSources = (source: Source) => async (
     } = await getSourcesAJAX()
     dispatch(loadSources(newSources))
   } catch (err) {
-    dispatch(notify(notifyServerError()))
+    dispatch(notify(notifyServerError))
   }
 }
 
