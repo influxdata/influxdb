@@ -15,7 +15,7 @@ import {UpdateScript} from 'src/flux/actions'
 
 import {bodyNodes} from 'src/flux/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/flux/apis'
-import {builder, argTypes} from 'src/flux/constants'
+import {builder, argTypes, emptyAST} from 'src/flux/constants'
 
 import {Source, Service, Notification, FluxTable} from 'src/types'
 import {
@@ -114,6 +114,7 @@ export class FluxPage extends PureComponent<Props, State> {
               onAppendJoin={this.handleAppendJoin}
               onChangeScript={this.handleChangeScript}
               onSubmitScript={this.handleSubmitScript}
+              onDeleteBody={this.handleDeleteBody}
             />
           </div>
         </KeyboardShortcuts>
@@ -327,6 +328,13 @@ export class FluxPage extends PureComponent<Props, State> {
 
       return `${acc}${this.formatSource(source)}`
     }, '')
+
+    this.getASTResponse(script)
+  }
+
+  private handleDeleteBody = (bodyID: string): void => {
+    const newBody = this.state.body.filter(b => b.id !== bodyID)
+    const script = this.getBodyToScript(newBody)
 
     this.getASTResponse(script)
   }
@@ -601,7 +609,8 @@ export class FluxPage extends PureComponent<Props, State> {
     const {links} = this.props
 
     if (!script) {
-      return
+      this.props.updateScript(script)
+      return this.setState({ast: emptyAST, body: []})
     }
 
     try {

@@ -5,6 +5,7 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import ExpressionNode from 'src/flux/components/ExpressionNode'
 import VariableName from 'src/flux/components/VariableName'
 import FuncSelector from 'src/flux/components/FuncSelector'
+import BodyDelete from 'src/flux/components/BodyDelete'
 import {funcNames} from 'src/flux/constants'
 
 import {Service} from 'src/types'
@@ -16,6 +17,7 @@ interface Props {
   suggestions: Suggestion[]
   onAppendFrom: () => void
   onAppendJoin: () => void
+  onDeleteBody: (bodyID: string) => void
 }
 
 interface Body extends FlatBody {
@@ -24,12 +26,17 @@ interface Body extends FlatBody {
 
 class BodyBuilder extends PureComponent<Props> {
   public render() {
-    const bodybuilder = this.props.body.map((b, i) => {
+    const {body, onDeleteBody} = this.props
+
+    const bodybuilder = body.map((b, i) => {
       if (b.declarations.length) {
-        return b.declarations.map(d => {
+        return b.declarations.map((d, dIndex) => {
           if (d.funcs) {
             return (
               <div className="declaration" key={i}>
+                {!dIndex && (
+                  <BodyDelete bodyID={b.id} onDeleteBody={onDeleteBody} />
+                )}
                 <VariableName name={d.name} assignedToQuery={true} />
                 <ExpressionNode
                   bodyID={b.id}
@@ -45,6 +52,7 @@ class BodyBuilder extends PureComponent<Props> {
 
           return (
             <div className="declaration" key={i}>
+              <BodyDelete bodyID={b.id} onDeleteBody={onDeleteBody} />
               <VariableName name={b.source} assignedToQuery={false} />
             </div>
           )
@@ -53,6 +61,7 @@ class BodyBuilder extends PureComponent<Props> {
 
       return (
         <div className="declaration" key={i}>
+          <BodyDelete bodyID={b.id} onDeleteBody={onDeleteBody} />
           <ExpressionNode
             bodyID={b.id}
             funcs={b.funcs}

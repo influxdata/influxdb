@@ -15,6 +15,7 @@ const setup = () => {
     onValidate: () => {},
     onAppendFrom: () => {},
     onAppendJoin: () => {},
+    onDeleteBody: () => {},
     status: {type: '', text: ''},
   }
 

@@ -21,6 +21,7 @@ export type ScriptUpToYield = (
   yieldNodeIndex: number,
   isYieldable: boolean
 ) => string
+export type OnDeleteBody = (bodyID: string) => void
 
 export interface ScriptStatus {
   type: string
