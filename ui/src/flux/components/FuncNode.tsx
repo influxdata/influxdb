@@ -54,14 +54,16 @@ export default class FuncNode extends PureComponent<Props, State> {
 
     return (
       <>
-        <div
-          className={this.nodeClassName}
-          onClick={this.handleToggleEdit}
-          title="Edit function arguments"
-        >
-          <div className="func-node--connector" />
-          <div className="func-node--name">{func.name}</div>
-          <FuncArgsPreview func={func} />
+        <div className="func-node--wrapper">
+          <div
+            className={this.nodeClassName}
+            onClick={this.handleToggleEdit}
+            title="Edit function arguments"
+          >
+            <div className="func-node--connector" />
+            <div className="func-node--name">{func.name}</div>
+            <FuncArgsPreview func={func} />
+          </div>
           {this.funcMenu}
         </div>
         {this.funcArgs}
@@ -146,6 +148,7 @@ export default class FuncNode extends PureComponent<Props, State> {
           confirmText="Delete this query"
           square={true}
           confirmAction={this.handleDelete}
+          position="right"
         />
       )
     }
