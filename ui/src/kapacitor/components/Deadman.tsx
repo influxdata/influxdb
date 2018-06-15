@@ -1,13 +1,24 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
+
 import {PERIODS} from 'src/kapacitor/constants'
-import Dropdown from 'shared/components/Dropdown'
+import Dropdown from 'src/shared/components/Dropdown'
+
+import {AlertRule} from 'src/types'
 
 const periods = PERIODS.map(text => {
   return {text}
 })
 
-const Deadman = ({rule, onChange}) => (
+interface Item {
+  text: string
+}
+
+interface Props {
+  rule: AlertRule
+  onChange: (item: Item) => void
+}
+
+const Deadman: SFC<Props> = ({rule, onChange}) => (
   <div className="rule-section--row rule-section--row-first rule-section--row-last">
     <p>Send Alert if Data is missing for</p>
     <Dropdown
@@ -19,16 +30,5 @@ const Deadman = ({rule, onChange}) => (
     />
   </div>
 )
-
-const {shape, string, func} = PropTypes
-
-Deadman.propTypes = {
-  rule: shape({
-    values: shape({
-      period: string,
-    }),
-  }),
-  onChange: func.isRequired,
-}
 
 export default Deadman

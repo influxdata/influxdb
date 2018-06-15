@@ -1,5 +1,5 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+
 import _ from 'lodash'
 import ReactTooltip from 'react-tooltip'
 
@@ -8,19 +8,22 @@ import CodeData from 'src/kapacitor/components/CodeData'
 import {RULE_MESSAGE_TEMPLATES} from 'src/kapacitor/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {RuleMessage} from 'src/types/kapacitor'
+import {AlertRule} from 'src/types'
+
+interface Props {
+  rule: AlertRule
+  updateMessage: (id: string, message: string) => void
+}
+
 // needs to be React Component for CodeData click handler to work
 @ErrorHandling
-class RuleMessageTemplates extends Component {
+class RuleMessageTemplates extends Component<Props> {
   constructor(props) {
     super(props)
   }
 
-  handleClickTemplate = template => () => {
-    const {updateMessage, rule} = this.props
-    updateMessage(rule.id, `${rule.message} ${template.label}`)
-  }
-
-  render() {
+  public render() {
     return (
       <div className="rule-section--row rule-section--row-last">
         <p>Templates:</p>
@@ -41,13 +44,11 @@ class RuleMessageTemplates extends Component {
       </div>
     )
   }
-}
 
-const {func, shape} = PropTypes
-
-RuleMessageTemplates.propTypes = {
-  rule: shape().isRequired,
-  updateMessage: func.isRequired,
+  private handleClickTemplate = (template: RuleMessage) => () => {
+    const {updateMessage, rule} = this.props
+    updateMessage(rule.id, `${rule.message} ${template.label}`)
+  }
 }
 
 export default RuleMessageTemplates

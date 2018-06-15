@@ -32,6 +32,7 @@ export interface AlertRule {
   error: string
   created: string
   modified: string
+  queryID?: string
   'last-enabled'?: string
 }
 
@@ -224,7 +225,7 @@ export interface RuleMessageTemplate {
   time: RuleMessage
 }
 
-interface RuleMessage {
+export interface RuleMessage {
   label: string
   text: string
 }

@@ -1,7 +1,13 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC, ChangeEvent} from 'react'
 
-const RuleMessageText = ({rule, updateMessage}) => (
+import {AlertRule} from 'src/types'
+
+interface Props {
+  rule: AlertRule
+  updateMessage: (e: ChangeEvent<HTMLTextAreaElement>) => void
+}
+
+const RuleMessageText: SFC<Props> = ({rule, updateMessage}) => (
   <div className="rule-builder--message">
     <textarea
       className="form-control input-sm form-malachite monotype"
@@ -12,12 +18,5 @@ const RuleMessageText = ({rule, updateMessage}) => (
     />
   </div>
 )
-
-const {func, shape} = PropTypes
-
-RuleMessageText.propTypes = {
-  rule: shape().isRequired,
-  updateMessage: func.isRequired,
-}
 
 export default RuleMessageText

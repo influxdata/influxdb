@@ -24,7 +24,7 @@ interface Props {
   query: QueryConfig
   isDeadman: boolean
   isKapacitorRule: boolean
-  onAddEvery: () => void
+  onAddEvery: (every?: string) => void
   timeRange: TimeRange
 }
 

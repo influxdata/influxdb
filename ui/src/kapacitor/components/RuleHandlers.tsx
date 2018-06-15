@@ -26,7 +26,7 @@ interface Props {
   rule: AlertRule
   ruleActions: RuleActions
   handlersFromConfig: Handler[]
-  onGoToConfig: () => void
+  onGoToConfig: (configName: string) => void
   validationError: string
 }
 
