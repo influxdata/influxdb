@@ -125,13 +125,17 @@ class LogsFilter extends PureComponent<Props, State> {
 
   private stopEditing(): void {
     const id = getDeep(this.props, 'filter.id', '')
-    const {operator, value} = this.state
+    const {operator, value, editing} = this.state
+    const {filter} = this.props
+
+    if (!editing || (filter.operator === operator && filter.value === value)) {
+      return
+    }
 
     let state = {}
     if (['!=', '==', '=~'].includes(operator) && value !== '') {
       this.props.onChangeFilter(id, operator, value)
     } else {
-      const {filter} = this.props
       state = {operator: filter.operator, value: filter.value}
     }
 

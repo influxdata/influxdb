@@ -10,11 +10,21 @@ $flux-connector-line: 2px;
 $flux-node-gap: 30px;
 $flux-node-padding: 10px;
 $flux-arg-min-width: 120px;
-$flux-number-color: $c-neutrino;
+
+$flux-func-color: $c-comet;
+$flux-number-color: $c-hydrogen;
 $flux-object-color: $c-viridian;
 $flux-string-color: $c-honeydew;
 $flux-boolean-color: $c-viridian;
-$flux-invalid-color: $c-viridian;
+$flux-invalid-color: $c-curacao;
+
+$flux-func-hover: $c-moonstone;
+$flux-number-hover: $c-neutrino;
+$flux-object-hover: $c-rainforest;
+$flux-string-hover: $c-wasabi;
+$flux-boolean-hover: $c-rainforest;
+$flux-invalid-hover: $c-dreamsicle;
+
 // Shared Node styles
 %flux-node {
   min-height: $flux-node-height;
@@ -131,6 +141,25 @@ $flux-invalid-color: $c-viridian;
   display: flex;
   align-items: center;
   margin-left: $flux-node-gap;
+
+  &:hover,
+  &.active {
+    .func-node--preview {
+      color: $g20-white;
+    }
+    .func-arg--string {
+      color: $flux-string-hover;
+    }
+    .func-arg--boolean {
+      color: $flux-boolean-hover;
+    }
+    .func-arg--number {
+      color: $flux-number-hover;
+    }
+    .func-arg--invalid {
+      color: $flux-invalid-hover;
+    }
+  }
 }
 
 .func-node--connector {
@@ -140,7 +169,10 @@ $flux-invalid-color: $c-viridian;
   top: 0;
   left: 0;
   transform: translateX(-100%);
-  z-index: 0; // Connection Lines
+  z-index: 0;
+  pointer-events: none;
+
+  // Connection Lines
   &:before,
   &:after {
     content: '';
@@ -198,9 +230,10 @@ $flux-invalid-color: $c-viridian;
 .func-node--name {
   height: $flux-node-height;
   line-height: $flux-node-height;
-  color: $c-comet;
-  .func-node:hover & {
-    color: $c-potassium;
+  color: $flux-func-color;
+  .func-node:hover &,
+  .func-node.active & {
+    color: $flux-func-hover;
   }
 }
 
@@ -215,35 +248,47 @@ $flux-invalid-color: $c-viridian;
   }
 }
 
-.func-node--tooltip {
+.func-node--menu {
+  display: flex;
+  align-items: center;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translate(100%, -50%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+
+  > button.btn {
+    margin-left: 4px;
+  }
+}
+
+.func-node:hover .func-node--menu,
+.func-node.editing .func-node--menu,
+.func-node.active .func-node--menu {
+  opacity: 1;
+}
+
+.func-node--editor {
+  position: relative;
+  margin-left: $flux-node-gap;
+  margin-bottom: $flux-node-gap;
+  margin-top: $flux-node-tooltip-gap / 2;
   background-color: $g3-castle;
   border-radius: $radius;
-  padding: 10px;
+  padding: 6px;
   display: flex;
   align-items: stretch;
-  position: absolute;
-  top: 0;
-  left: calc(100% + #{$flux-node-tooltip-gap});
-  z-index: 9999;
-  box-shadow: 0 0 10px 2px $g2-kevlar; // Caret
+}
+
+.func-node--editor .func-node--connector {
+   // Vertical Line
   &:before {
-    content: '';
-    border-width: 9px;
-    border-style: solid;
-    border-color: transparent;
-    border-right-color: $g3-castle;
-    position: absolute;
-    top: $flux-node-height / 2;
-    left: 0;
-    transform: translate(-100%, -50%);
-  } // Invisible block to continue hovering
+    height: calc(100% + #{($flux-node-tooltip-gap / 2) + $flux-node-gap});
+  }
+   // Horizontal Line
   &:after {
-    content: '';
-    height: 50%;
-    width: $flux-node-tooltip-gap * 3;
-    position: absolute;
-    top: 0;
-    left: -$flux-node-tooltip-gap * 3;
+    content: none;
   }
 }
 
@@ -251,7 +296,6 @@ $flux-invalid-color: $c-viridian;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  margin-left: 8px;
 }
 
 .func-node--build {
@@ -280,7 +324,7 @@ $flux-invalid-color: $c-viridian;
   font-size: 13px;
   font-weight: 600;
   color: $g10-wolf;
-  padding-right: 8px;
+  padding: 0 8px;
   @include no-user-select();
 }
 
@@ -303,11 +347,13 @@ $flux-filter-unit: 26px;
 $flux-filter-unit-wrapped: 34px;
 $flux-filter-expression: $g3-castle;
 $flux-filter-parens: $g5-pepper;
+
 %flux-filter-style {
   height: $flux-filter-unit;
   line-height: $flux-filter-unit;
   border-style: solid;
   border-width: 0;
+  transition: background-color 0.25s ease;
 }
 
 .flux-filter--key {
@@ -357,7 +403,9 @@ $flux-filter-parens: $g5-pepper;
   height: $flux-filter-unit-wrapped;
   width: ($flux-filter-unit-wrapped - $flux-filter-unit) / 2;
   background-color: $flux-filter-parens;
-  border: (($flux-filter-unit-wrapped - $flux-filter-unit) / 2) solid $flux-filter-expression;
+  border: (($flux-filter-unit-wrapped - $flux-filter-unit) / 2) solid
+    $flux-filter-expression;
+  transition: border-color 0.25s ease;
 }
 
 .flux-filter--paren-open {
@@ -374,6 +422,8 @@ $flux-filter-parens: $g5-pepper;
   position: relative;
   z-index: 2;
   background-color: $flux-filter-parens;
+  transition: background-color 0.25s ease;
+
   &:before {
     content: '';
     width: 100%;
@@ -386,6 +436,7 @@ $flux-filter-parens: $g5-pepper;
     border-color: $flux-filter-expression;
     z-index: -1;
     box-sizing: border-box;
+    transition: border-color 0.25s ease;
   }
 }
 
@@ -419,4 +470,54 @@ $flux-filter-parens: $g5-pepper;
   font-size: 12px;
   font-weight: 500;
   padding-left: 20px;
+}
+// Func Node Active State (When node is before a yield)
+.func-node.active {
+  background-color: $c-star;
+
+  .func-node--connector:after {
+    @include gradient-h($g3-castle, $c-star);
+  }
+
+  .flux-filter--value.number {
+    color: $flux-number-hover;
+  }
+  .flux-filter--value.string {
+    color: $flux-string-hover;
+  }
+  .flux-filter--value.boolean {
+    color: $flux-boolean-hover;
+  }
+
+  .flux-filter--key,
+  .flux-filter--key + .flux-filter--operator,
+  .flux-filter--key + .flux-filter--operator + .flux-filter--value {
+    background-color: $c-amethyst;
+  }
+
+  .flux-filter--paren-open,
+  .flux-filter--paren-close {
+    border-color: $c-amethyst;
+  }
+
+  .flux-filter--paren-open+.flux-filter--key,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value {
+    background-color: $c-star;
+
+    &:before {
+      border-color: $c-amethyst;
+    }
+  }
+
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator,
+  .flux-filter--paren-open+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator+.flux-filter--key+.flux-filter--operator+.flux-filter--value+.flux-filter--operator {
+    background-color: $c-amethyst;
+  }
 }

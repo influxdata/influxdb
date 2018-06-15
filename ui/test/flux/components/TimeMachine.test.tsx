@@ -12,7 +12,7 @@ const setup = () => {
     suggestions: [],
     onSubmitScript: () => {},
     onChangeScript: () => {},
-    onAnalyze: () => {},
+    onValidate: () => {},
     onAppendFrom: () => {},
     onAppendJoin: () => {},
     status: {type: '', text: ''},

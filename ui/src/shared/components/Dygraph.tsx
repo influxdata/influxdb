@@ -67,7 +67,6 @@ interface Props {
   isBarGraph?: boolean
   staticLegend?: boolean
   setResolution?: (w: number) => void
-  dygraphRef?: (r: HTMLDivElement) => void
   onZoom?: (u: number | string, l: number | string) => void
   mode?: string
 }
@@ -96,14 +95,13 @@ class Dygraph extends Component<Props, State> {
     },
     containerStyle: {},
     isGraphFilled: true,
-    dygraphRef: () => {},
     onZoom: () => {},
-    handleSetHoverTime: () => {},
     staticLegend: false,
     setResolution: () => {},
+    handleSetHoverTime: () => {},
   }
 
-  private graphRef: HTMLDivElement
+  private graphRef: React.RefObject<HTMLDivElement>
   private dygraph: DygraphClass
 
   constructor(props: Props) {
@@ -112,6 +110,8 @@ class Dygraph extends Component<Props, State> {
       staticLegendHeight: null,
       isMounted: false,
     }
+
+    this.graphRef = React.createRef<HTMLDivElement>()
   }
 
   public componentDidMount() {
@@ -124,7 +124,6 @@ class Dygraph extends Component<Props, State> {
     } = this.props
 
     const timeSeries = this.timeSeries
-    const graphRef = this.graphRef
 
     let defaultOptions = {
       ...options,
@@ -163,7 +162,7 @@ class Dygraph extends Component<Props, State> {
       }
     }
 
-    this.dygraph = new Dygraphs(graphRef, timeSeries, {
+    this.dygraph = new Dygraphs(this.graphRef.current, timeSeries, {
       ...defaultOptions,
       ...OPTIONS,
       ...options,
@@ -248,7 +247,7 @@ class Dygraph extends Component<Props, State> {
 
   public render() {
     const {staticLegendHeight} = this.state
-    const {staticLegend, children, cellID} = this.props
+    const {staticLegend, cellID} = this.props
 
     return (
       <div className="dygraph-child">
@@ -274,13 +273,9 @@ class Dygraph extends Component<Props, State> {
           </div>
         )}
         <div
-          onMouseEnter={this.handleShowLegend}
-          ref={r => {
-            this.graphRef = r
-            this.props.dygraphRef(r)
-          }}
           className="dygraph-child-container"
           style={this.dygraphStyle}
+          onMouseEnter={this.handleShowLegend}
         />
         {staticLegend && (
           <StaticLegend
@@ -292,9 +287,15 @@ class Dygraph extends Component<Props, State> {
           />
         )}
         {this.isGraphNested &&
-          React.cloneElement(children as ReactElement<any>, {
+          React.cloneElement(this.nestedGraph, {
             staticLegendHeight,
           })}
+        <div
+          className="dygraph-child-container"
+          ref={this.graphRef}
+          style={this.dygraphStyle}
+          onMouseEnter={this.handleShowLegend}
+        />
         <ReactResizeDetector
           handleWidth={true}
           handleHeight={true}
@@ -304,10 +305,17 @@ class Dygraph extends Component<Props, State> {
     )
   }
 
+  private get nestedGraph(): ReactElement<any> {
+    const {children} = this.props
+    const kids = Children.toArray(children)
+
+    return _.get(kids, '0', null)
+  }
+
   private get isGraphNested(): boolean {
     const {children} = this.props
 
-    return Children.count(children) > 0
+    return children && Children.count(children) > 0
   }
 
   private get dygraphStyle(): CSSProperties {
@@ -362,7 +370,9 @@ class Dygraph extends Component<Props, State> {
   private eventToTimestamp = ({
     pageX: pxBetweenMouseAndPage,
   }: MouseEvent<HTMLDivElement>): string => {
-    const {left: pxBetweenGraphAndPage} = this.graphRef.getBoundingClientRect()
+    const {
+      left: pxBetweenGraphAndPage,
+    } = this.graphRef.current.getBoundingClientRect()
     const graphXCoordinate = pxBetweenMouseAndPage - pxBetweenGraphAndPage
     const timestamp = this.dygraph.toDataXCoord(graphXCoordinate)
     const [xRangeStart] = this.dygraph.xAxisRange()
@@ -415,6 +425,15 @@ class Dygraph extends Component<Props, State> {
     return coloredDygraphSeries
   }
 
+  private get areAnnotationsVisible() {
+    if (!this.dygraph) {
+      return false
+    }
+
+    const [start, end] = this.dygraph && this.dygraph.xAxisRange()
+    return !!start && !!end
+  }
+
   private getLabel = (axis: string): string => {
     const {axes, queries} = this.props
     const label = getDeep<string>(axes, `${axis}.label`, '')
@@ -443,15 +462,6 @@ class Dygraph extends Component<Props, State> {
 
   private handleReceiveStaticLegendHeight = (staticLegendHeight: number) => {
     this.setState({staticLegendHeight})
-  }
-
-  private get areAnnotationsVisible() {
-    if (!this.dygraph) {
-      return false
-    }
-
-    const [start, end] = this.dygraph && this.dygraph.xAxisRange()
-    return !!start && !!end
   }
 }
 

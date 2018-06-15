@@ -17,13 +17,13 @@ interface Props {
 class FluxGraph extends PureComponent<Props> {
   public render() {
     const containerStyle = {
-      width: 'calc(100% - 50px)',
-      height: 'calc(100% - 70px)',
+      width: 'calc(100% - 32px)',
+      height: 'calc(100% - 16px)',
       position: 'absolute',
     }
 
     return (
-      <div className="flux-graph" style={{width: '100%', height: '100%'}}>
+      <div className="yield-node--graph">
         <Dygraph
           labels={this.labels}
           staticLegend={false}

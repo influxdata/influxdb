@@ -55,13 +55,16 @@
   text-align: center;
   align-items: center;
   justify-content: center;
-  color: $g12-forge;
-  padding: 20px 0;
+  color: $g10-wolf;
   @include no-user-select();
 
   h4,
   h5 {
     font-weight: 400;
+  }
+
+  strong {
+    color: $g14-chromium;
   }
 
   .icon {

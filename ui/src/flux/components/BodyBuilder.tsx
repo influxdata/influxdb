@@ -37,6 +37,7 @@ class BodyBuilder extends PureComponent<Props> {
                   funcNames={this.funcNames}
                   funcs={d.funcs}
                   declarationsFromBody={this.declarationsFromBody}
+                  isLastBody={this.isLastBody(i)}
                 />
               </div>
             )
@@ -57,6 +58,7 @@ class BodyBuilder extends PureComponent<Props> {
             funcs={b.funcs}
             funcNames={this.funcNames}
             declarationsFromBody={this.declarationsFromBody}
+            isLastBody={this.isLastBody(i)}
           />
         </div>
       )
@@ -70,7 +72,7 @@ class BodyBuilder extends PureComponent<Props> {
             <FuncSelector
               bodyID="fake-body-id"
               declarationID="fake-declaration-id"
-              onAddNode={this.createNewBody}
+              onAddNode={this.handleCreateNewBody}
               funcs={this.newDeclarationFuncs}
               connectorVisible={false}
             />
@@ -78,6 +80,12 @@ class BodyBuilder extends PureComponent<Props> {
         </div>
       </FancyScrollbar>
     )
+  }
+
+  private isLastBody(bodyIndex: number): boolean {
+    const {body} = this.props
+
+    return bodyIndex === body.length - 1
   }
 
   private get newDeclarationFuncs(): string[] {
@@ -103,7 +111,7 @@ class BodyBuilder extends PureComponent<Props> {
     return declarations
   }
 
-  private createNewBody = name => {
+  private handleCreateNewBody = name => {
     if (name === funcNames.FROM) {
       this.props.onAppendFrom()
     }
