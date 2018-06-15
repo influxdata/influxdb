@@ -490,14 +490,14 @@ export const notifyViewerUnauthorizedToSetTempVars = () => ({
 
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
-export const notifyAlertRuleCreated = () => ({
+export const notifyAlertRuleCreated = ruleName => ({
   ...defaultSuccessNotification,
-  message: 'Alert Rule created successfully.',
+  message: `${ruleName} created successfully.`,
 })
 
-export const notifyAlertRuleCreateFailed = () => ({
+export const notifyAlertRuleCreateFailed = (ruleName, errorMessage) => ({
   ...defaultErrorNotification,
-  message: 'Alert Rule could not be created.',
+  message: `There was a problem creating ${ruleName}: ${errorMessage}`,
 })
 
 export const notifyAlertRuleUpdated = ruleName => ({
