@@ -9,8 +9,8 @@ export const TEMP_ANNOTATION: AnnotationInterface = {
   id: 'tempAnnotation',
   text: 'Name Me',
   type: '',
-  startTime: '',
-  endTime: '',
+  startTime: null,
+  endTime: null,
 }
 
 export const visibleAnnotations = (
@@ -24,10 +24,13 @@ export const visibleAnnotations = (
   }
 
   return annotations.filter(a => {
+    if (a.startTime === null || a.endTime === null) {
+      return false
+    }
     if (a.endTime === a.startTime) {
-      return xStart <= +a.startTime && +a.startTime <= xEnd
+      return xStart <= a.startTime && a.startTime <= xEnd
     }
 
-    return !(+a.endTime < xStart || xEnd < +a.startTime)
+    return !(a.endTime < xStart || xEnd < a.startTime)
   })
 }

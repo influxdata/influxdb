@@ -1,7 +1,7 @@
 export interface AnnotationInterface {
   id: string
-  startTime: string
-  endTime: string
+  startTime: number
+  endTime: number
   text: string
   type: string
 }

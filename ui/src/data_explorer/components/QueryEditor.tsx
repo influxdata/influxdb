@@ -20,7 +20,7 @@ interface State {
 class QueryEditor extends PureComponent<Props, State> {
   private editor: React.RefObject<HTMLTextAreaElement>
 
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
     this.state = {
       value: this.props.query,

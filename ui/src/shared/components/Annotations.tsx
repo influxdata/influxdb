@@ -3,6 +3,7 @@ import {connect} from 'react-redux'
 
 import Annotation from 'src/shared/components/Annotation'
 import NewAnnotation from 'src/shared/components/NewAnnotation'
+import {SourceContext} from 'src/CheckSources'
 
 import {ADDING, TEMP_ANNOTATION} from 'src/shared/annotations/helpers'
 
@@ -16,7 +17,7 @@ import {
 import {visibleAnnotations} from 'src/shared/annotations/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {AnnotationInterface, DygraphClass} from 'src/types'
+import {AnnotationInterface, DygraphClass, Source} from 'src/types'
 import {UpdateAnnotationAction} from 'src/shared/actions/annotations'
 
 interface Props {
@@ -56,17 +57,22 @@ class Annotations extends Component<Props> {
       <div className="annotations-container">
         {mode === ADDING &&
           this.tempAnnotation && (
-            <NewAnnotation
-              dygraph={dygraph}
-              isTempHovering={isTempHovering}
-              tempAnnotation={this.tempAnnotation}
-              staticLegendHeight={staticLegendHeight}
-              onUpdateAnnotation={handleUpdateAnnotation}
-              onDismissAddingAnnotation={handleDismissAddingAnnotation}
-              onAddingAnnotationSuccess={handleAddingAnnotationSuccess}
-              onMouseEnterTempAnnotation={handleMouseEnterTempAnnotation}
-              onMouseLeaveTempAnnotation={handleMouseLeaveTempAnnotation}
-            />
+            <SourceContext.Consumer>
+              {(source: Source) => (
+                <NewAnnotation
+                  dygraph={dygraph}
+                  source={source}
+                  isTempHovering={isTempHovering}
+                  tempAnnotation={this.tempAnnotation}
+                  staticLegendHeight={staticLegendHeight}
+                  onUpdateAnnotation={handleUpdateAnnotation}
+                  onDismissAddingAnnotation={handleDismissAddingAnnotation}
+                  onAddingAnnotationSuccess={handleAddingAnnotationSuccess}
+                  onMouseEnterTempAnnotation={handleMouseEnterTempAnnotation}
+                  onMouseLeaveTempAnnotation={handleMouseLeaveTempAnnotation}
+                />
+              )}
+            </SourceContext.Consumer>
           )}
         {this.annotations.map(a => (
           <Annotation

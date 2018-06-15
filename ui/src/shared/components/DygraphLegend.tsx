@@ -1,6 +1,5 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import Dygraph from 'dygraphs'
 
 import _ from 'lodash'
 import classnames from 'classnames'
@@ -13,22 +12,19 @@ import DygraphLegendSort from 'src/shared/components/DygraphLegendSort'
 import {makeLegendStyles, removeMeasurement} from 'src/shared/graphs/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {NO_CELL} from 'src/shared/constants'
-
-interface ExtendedDygraph extends Dygraph {
-  graphDiv: HTMLElement
-}
+import {DygraphClass} from 'src/types'
 
 interface Props {
-  dygraph: ExtendedDygraph
+  dygraph: DygraphClass
   cellID: string
   onHide: () => void
-  onShow: (MouseEvent) => void
+  onShow: (e: MouseEvent) => void
   activeCellID: string
   setActiveCell: (cellID: string) => void
 }
 
 interface LegendData {
-  x: string | null
+  x: number
   series: SeriesLegendData[]
   xHTML: string
 }
@@ -49,7 +45,7 @@ interface State {
 class DygraphLegend extends PureComponent<Props, State> {
   private legendRef: HTMLElement | null = null
 
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
 
     this.props.dygraph.updateOptions({
@@ -199,7 +195,7 @@ class DygraphLegend extends PureComponent<Props, State> {
     this.setState({filterText})
   }
 
-  private handleSortLegend = sortType => () => {
+  private handleSortLegend = (sortType: string) => () => {
     this.setState({sortType, isAscending: !this.state.isAscending})
   }
 
@@ -209,7 +205,7 @@ class DygraphLegend extends PureComponent<Props, State> {
     this.props.onShow(e)
   }
 
-  private legendFormatter = legend => {
+  private legendFormatter = (legend: LegendData) => {
     if (!legend.x) {
       return ''
     }
@@ -229,7 +225,7 @@ class DygraphLegend extends PureComponent<Props, State> {
     return ''
   }
 
-  private unhighlightCallback = e => {
+  private unhighlightCallback = (e: MouseEvent) => {
     const {top, bottom, left, right} = this.legendRef.getBoundingClientRect()
 
     const mouseY = e.clientY
