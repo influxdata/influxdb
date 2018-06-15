@@ -30,7 +30,12 @@ class BodyBuilder extends PureComponent<Props> {
           if (d.funcs) {
             return (
               <div className="declaration" key={i}>
-                <VariableNode name={d.name} assignedToQuery={true} />
+                <div className="func-node--wrapper">
+                  <VariableNode name={d.name} assignedToQuery={true} />
+                  <div className="func-node--menu">
+                    <BodyDelete bodyID={b.id} onDeleteBody={onDeleteBody} />
+                  </div>
+                </div>
                 <ExpressionNode
                   bodyID={b.id}
                   declarationID={d.id}
