@@ -15,11 +15,25 @@ class BodyDelete extends PureComponent<Props> {
   }
 
   public render() {
+    const {type} = this.props
+
+    if (type === 'variable') {
+      return (
+        <button
+          className="btn btn-sm btn-square btn-danger"
+          title="Delete Variable"
+          onClick={this.handleDelete}
+        >
+          <span className="icon remove" />
+        </button>
+      )
+    }
+
     return (
       <ConfirmButton
         icon="trash"
         type="btn-danger"
-        confirmText={this.confirmText}
+        confirmText="Delete Query"
         square={true}
         confirmAction={this.handleDelete}
         position="right"
@@ -29,12 +43,6 @@ class BodyDelete extends PureComponent<Props> {
 
   private handleDelete = (): void => {
     this.props.onDeleteBody(this.props.bodyID)
-  }
-
-  private get confirmText(): string {
-    const {type} = this.props
-
-    return `Delete ${type}`
   }
 }
 
