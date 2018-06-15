@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 interface Props {
   bodyID: string
@@ -8,9 +9,14 @@ interface Props {
 class BodyDelete extends PureComponent<Props> {
   public render() {
     return (
-      <button className="btn btn-xs btn-danger" onClick={this.handleDelete}>
-        Delete
-      </button>
+      <ConfirmButton
+        icon="trash"
+        type="btn-danger"
+        confirmText="Delete this query"
+        square={true}
+        confirmAction={this.handleDelete}
+        position="right"
+      />
     )
   }
 
