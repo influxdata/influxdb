@@ -1,8 +1,8 @@
-import {initialState, notifications} from 'shared/reducers/notifications'
+import {initialState, notifications} from 'src/shared/reducers/notifications'
 
-import {notify, dismissNotification} from 'shared/actions/notifications'
+import {notify, dismissNotification} from 'src/shared/actions/notifications'
 
-import {FIVE_SECONDS} from 'shared/constants/index'
+import {FIVE_SECONDS} from 'src/shared/constants/index'
 
 const notificationID = '000'
 
