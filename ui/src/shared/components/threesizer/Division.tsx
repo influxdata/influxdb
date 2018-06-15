@@ -8,7 +8,11 @@ import classnames from 'classnames'
 import calculateSize from 'calculate-size'
 
 import DivisionHeader from 'src/shared/components/threesizer/DivisionHeader'
-import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants/index'
+import {
+  HANDLE_VERTICAL,
+  HANDLE_HORIZONTAL,
+  MIN_HANDLE_PIXELS,
+} from 'src/shared/constants/index'
 import {MenuItem} from 'src/shared/components/threesizer/DivisionMenu'
 
 const NOOP = () => {}
@@ -67,36 +71,39 @@ class Division extends PureComponent<Props> {
   }
 
   public render() {
-    const {name, render, draggable, menuOptions, headerButtons} = this.props
+    const {render} = this.props
     return (
       <div
         className={this.containerClass}
         style={this.containerStyle}
         ref={this.ref}
       >
-        <div
-          style={this.handleStyle}
-          title={this.title}
-          draggable={draggable}
-          onDragStart={this.drag}
-          className={this.handleClass}
-          onDoubleClick={this.handleDoubleClick}
-        >
-          <div className={this.titleClass}>{name}</div>
-        </div>
+        {this.renderDragHandle}
         <div className={this.contentsClass} style={this.contentStyle}>
-          {name && (
-            <DivisionHeader
-              buttons={headerButtons}
-              menuOptions={menuOptions}
-              onMinimize={this.handleMinimize}
-              onMaximize={this.handleMaximize}
-            />
-          )}
+          {this.renderHeader}
           <div className="threesizer--body">{render(this.visibility)}</div>
         </div>
       </div>
     )
+  }
+
+  private get renderHeader(): JSX.Element {
+    const {name, headerButtons, menuOptions, orientation} = this.props
+
+    if (!name) {
+      return null
+    }
+
+    if (orientation === HANDLE_VERTICAL) {
+      return (
+        <DivisionHeader
+          buttons={headerButtons}
+          menuOptions={menuOptions}
+          onMinimize={this.handleMinimize}
+          onMaximize={this.handleMaximize}
+        />
+      )
+    }
   }
 
   private get visibility(): string {
@@ -120,6 +127,56 @@ class Division extends PureComponent<Props> {
 
     return {
       width: `calc(100% - ${this.handlePixels}px)`,
+    }
+  }
+
+  private get renderDragHandle(): JSX.Element {
+    const {draggable} = this.props
+
+    return (
+      <div
+        style={this.handleStyle}
+        title={this.title}
+        draggable={draggable}
+        onDragStart={this.drag}
+        className={this.handleClass}
+        onDoubleClick={this.handleDoubleClick}
+      >
+        {this.renderDragHandleContents}
+      </div>
+    )
+  }
+
+  private get renderDragHandleContents(): JSX.Element {
+    const {
+      name,
+      handlePixels,
+      orientation,
+      headerButtons,
+      menuOptions,
+    } = this.props
+
+    if (!name) {
+      return
+    }
+
+    if (
+      orientation === HANDLE_HORIZONTAL &&
+      handlePixels >= MIN_HANDLE_PIXELS
+    ) {
+      return (
+        <DivisionHeader
+          buttons={headerButtons}
+          menuOptions={menuOptions}
+          onMinimize={this.handleMinimize}
+          onMaximize={this.handleMaximize}
+          name={name}
+        />
+      )
+    }
+
+    if (handlePixels >= MIN_HANDLE_PIXELS) {
+      return <div className={this.titleClass}>{name}</div>
     }
   }
 
@@ -178,7 +235,7 @@ class Division extends PureComponent<Props> {
   }
 
   private get handleClass(): string {
-    const {draggable, orientation} = this.props
+    const {draggable, orientation, name} = this.props
 
     const collapsed = orientation === HANDLE_VERTICAL && this.isTitleObscured
 
@@ -188,6 +245,7 @@ class Division extends PureComponent<Props> {
       dragging: this.isDragging,
       vertical: orientation === HANDLE_VERTICAL,
       horizontal: orientation === HANDLE_HORIZONTAL,
+      named: name,
     })
   }
 

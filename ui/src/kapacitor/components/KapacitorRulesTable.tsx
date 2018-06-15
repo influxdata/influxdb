@@ -102,7 +102,11 @@ export class RuleRow extends PureComponent<RuleRowProps> {
         <td style={{width: colTrigger, textTransform: 'capitalize'}}>
           {rule.trigger}
         </td>
-        <td style={{width: colMessage}}>{rule.message}</td>
+        <td style={{width: colMessage}}>
+          <span className="text-ellipsis" style={{maxWidth: colMessage}}>
+            {rule.message}
+          </span>
+        </td>
         <td style={{width: colAlerts}}>{parseAlertNodeList(rule)}</td>
         <td style={{width: colEnabled}} className="text-center">
           <div className="dark-checkbox">

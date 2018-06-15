@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 
 import {
-  analyzeSuccess,
+  validateSuccess,
   fluxTimeSeriesError,
   fluxResponseTruncatedError,
 } from 'src/shared/copy/notifications'
@@ -109,7 +109,7 @@ export class FluxPage extends PureComponent<Props, State> {
               status={status}
               service={this.service}
               suggestions={suggestions}
-              onAnalyze={this.handleAnalyze}
+              onValidate={this.handleValidate}
               onAppendFrom={this.handleAppendFrom}
               onAppendJoin={this.handleAppendJoin}
               onChangeScript={this.handleChangeScript}
@@ -581,14 +581,14 @@ export class FluxPage extends PureComponent<Props, State> {
     }, '')
   }
 
-  private handleAnalyze = async () => {
+  private handleValidate = async () => {
     const {links, notify, script} = this.props
 
     try {
       const ast = await getAST({url: links.ast, body: script})
       const body = bodyNodes(ast, this.state.suggestions)
       const status = {type: 'success', text: ''}
-      notify(analyzeSuccess)
+      notify(validateSuccess())
 
       this.setState({ast, body, status})
     } catch (error) {
