@@ -34,7 +34,7 @@ class BodyDelete extends PureComponent<Props> {
   private get confirmText(): string {
     const {type} = this.props
 
-    return `Delete this ${type}`
+    return `Delete ${type}`
   }
 }
 
