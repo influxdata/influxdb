@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"compress/gzip"
+	gzip "github.com/klauspost/pgzip"
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	tarstream "github.com/influxdata/influxdb/pkg/tar"
