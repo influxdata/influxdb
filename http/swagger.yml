@@ -374,11 +374,13 @@ paths:
           name: afterTime
           schema:
             type: string
+            format: date-time
           description: filter runs to those queued after this time
         - in: query
           name: beforeTime
           schema:
             type: string
+            format: date-time
           description: filter runs to those queued before this time
       responses:
         '200':
@@ -474,11 +476,6 @@ paths:
             type: string
           required: true
           description: ID of task to get logs for
-        - in: query
-          name: run
-          schema:
-            type: string
-          description: Filters logs to a specific run.
       responses:
         '200':
           description: all logs for a task
@@ -491,6 +488,48 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Link"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/tasks/{taskId}/runs/{runId}/logs':
+    get:
+      tags:
+        - Tasks
+      summary: Retrieve all logs for a run
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task to get logs for.
+        - in: path
+          name: runId
+          schema:
+            type: string
+          required: true
+          description: ID of run to get logs for.
+      responses:
+        '200':
+          description: all logs for a run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Link"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /users:
     get:
       tags:
@@ -655,15 +694,15 @@ components:
         queuedAt:
           readOnly: true
           type: string
-          format: dateTime
+          format: date-time
         startTime:
           readOnly: true
           type: string
-          format: dateTime
+          format: date-time
         endTime:
           readOnly: true
           type: string
-          format: dateTime
+          format: date-time
         error:
           $ref: "#/components/schemas/Error"
         log:
