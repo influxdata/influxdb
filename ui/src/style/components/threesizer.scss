@@ -149,6 +149,27 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
   }
 }
 
+.threesizer--header-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: $g11-sidewalk;
+  padding-left: 4px;
+  padding-right: 2px;
+}
+
+.threesizer--header-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+
+  > * {
+    margin-left: 4px;
+  }
+}
+
 .threesizer--body {
   .horizontal>&:only-child {
     width: 100%;
@@ -166,10 +187,6 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
   display: flex;
   justify-content: flex-end;
   margin-top: 10px;
-}
-
-.analyze--button {
-  margin-right: 3px
 }
 
 .dash-graph-context--button {
@@ -307,4 +324,25 @@ $threesizer-shadow-stop: fade-out($g0-obsidian, 1);
 // Hide Header children when collapsed
 .threesizer--handle.vertical.threesizer--collapsed+.threesizer--contents>.threesizer--header>* {
   display: none;
+}
+
+// When threesizer has horizontal handles, division headers appear inside
+// the drag handle and styles must adapt
+.threesizer--handle.horizontal.named {
+  background-color: transparent;
+  border: 0;
+
+  .threesizer--header {
+    border-right: 0;
+    border-bottom: 2px solid $g4-onyx;
+    width: 100%;
+    height: 100%;
+    justify-content: space-between;
+    transition: background-color 0.25s ease;
+  } 
+
+  &:hover .threesizer--header,
+  &.dragging .threesizer--header {
+    background-color: $g3-castle;
+  }
 }

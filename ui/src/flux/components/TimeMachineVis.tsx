@@ -54,7 +54,7 @@ class TimeMachineVis extends PureComponent<Props, State> {
             currentView={visType}
             onToggleView={this.selectVisType}
           />
-          <span>{yieldName}</span>
+          <div className="yield-node--name">{`"${yieldName}"`}</div>
         </div>
         <div className="yield-node--visualization">{this.vis}</div>
       </>

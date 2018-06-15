@@ -5,6 +5,7 @@
 */
 
 .cm-s-time-machine {
+  background-color: $g1-raven;
   color: $g11-sidewalk;
 
   .cm-variable {
@@ -45,5 +46,14 @@
   }
   .cm-comment {
     color: $g8-storm;
+  }
+
+  .CodeMirror-scrollbar-filler {
+    background-color: transparent;
+  }
+
+  .CodeMirror-vscrollbar,
+  .CodeMirror-hscrollbar {
+    @include custom-scrollbar-round($g1-raven, $g6-smoke);
   }
 }

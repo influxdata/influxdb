@@ -660,10 +660,10 @@ export const notifyKapacitorNotFound = () => ({
 })
 
 // Flux notifications
-export const analyzeSuccess = {
+export const validateSuccess = () => ({
   ...defaultSuccessNotification,
   message: 'No errors found. Happy Happy Joy Joy!',
-}
+})
 
 export const notifyCopyToClipboardSuccess = text => ({
   ...defaultSuccessNotification,

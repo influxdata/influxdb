@@ -25,7 +25,7 @@ interface Props {
   onSubmitScript: OnSubmitScript
   onAppendFrom: () => void
   onAppendJoin: () => void
-  onAnalyze: () => void
+  onValidate: () => void
 }
 
 interface Body extends FlatBody {
@@ -87,7 +87,7 @@ class TimeMachine extends PureComponent<Props> {
       script,
       status,
       service,
-      onAnalyze,
+      onValidate,
       suggestions,
       onChangeScript,
       onSubmitScript,
@@ -96,14 +96,15 @@ class TimeMachine extends PureComponent<Props> {
     return [
       {
         name: 'Script',
+        handlePixels: 44,
         headerOrientation: HANDLE_VERTICAL,
         headerButtons: [
           <div
-            key="analyze"
-            className="btn btn-default btn-xs analyze--button"
-            onClick={onAnalyze}
+            key="validate"
+            className="btn btn-default btn-xs validate--button"
+            onClick={onValidate}
           >
-            Analyze
+            Validate
           </div>,
         ],
         menuOptions: [],
@@ -120,6 +121,7 @@ class TimeMachine extends PureComponent<Props> {
       },
       {
         name: 'Explore',
+        handlePixels: 44,
         headerButtons: [],
         menuOptions: [],
         render: () => <SchemaExplorer service={service} />,

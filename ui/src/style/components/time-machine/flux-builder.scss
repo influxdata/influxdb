@@ -248,35 +248,47 @@ $flux-invalid-hover: $c-dreamsicle;
   }
 }
 
-.func-node--tooltip {
+.func-node--menu {
+  display: flex;
+  align-items: center;
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translate(100%, -50%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+
+  > button.btn {
+    margin-left: 4px;
+  }
+}
+
+.func-node:hover .func-node--menu,
+.func-node.editing .func-node--menu,
+.func-node.active .func-node--menu {
+  opacity: 1;
+}
+
+.func-node--editor {
+  position: relative;
+  margin-left: $flux-node-gap;
+  margin-bottom: $flux-node-gap;
+  margin-top: $flux-node-tooltip-gap / 2;
   background-color: $g3-castle;
   border-radius: $radius;
-  padding: 10px;
+  padding: 6px;
   display: flex;
   align-items: stretch;
-  position: absolute;
-  top: 0;
-  left: calc(100% + #{$flux-node-tooltip-gap});
-  z-index: 9999;
-  box-shadow: 0 0 10px 2px $g2-kevlar; // Caret
+}
+
+.func-node--editor .func-node--connector {
+   // Vertical Line
   &:before {
-    content: '';
-    border-width: 9px;
-    border-style: solid;
-    border-color: transparent;
-    border-right-color: $g3-castle;
-    position: absolute;
-    top: $flux-node-height / 2;
-    left: 0;
-    transform: translate(-100%, -50%);
-  } // Invisible block to continue hovering
+    height: calc(100% + #{($flux-node-tooltip-gap / 2) + $flux-node-gap});
+  }
+   // Horizontal Line
   &:after {
-    content: '';
-    height: 50%;
-    width: $flux-node-tooltip-gap * 3;
-    position: absolute;
-    top: 0;
-    left: -$flux-node-tooltip-gap * 3;
+    content: none;
   }
 }
 
@@ -284,7 +296,6 @@ $flux-invalid-hover: $c-dreamsicle;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  margin-left: 8px;
 }
 
 .func-node--build {
@@ -313,7 +324,7 @@ $flux-invalid-hover: $c-dreamsicle;
   font-size: 13px;
   font-weight: 600;
   color: $g10-wolf;
-  padding-right: 8px;
+  padding: 0 8px;
   @include no-user-select();
 }
 

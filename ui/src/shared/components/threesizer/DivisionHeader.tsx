@@ -8,16 +8,30 @@ interface Props {
   onMaximize: () => void
   buttons: JSX.Element[]
   menuOptions?: MenuItem[]
+  name?: string
 }
 
 class DivisionHeader extends PureComponent<Props> {
   public render() {
     return (
       <div className="threesizer--header">
-        {this.props.buttons.map(b => b)}
-        <DivisionMenu menuItems={this.menuItems} />
+        {this.renderName}
+        <div className="threesizer--header-controls">
+          {this.props.buttons.map(b => b)}
+          <DivisionMenu menuItems={this.menuItems} />
+        </div>
       </div>
     )
+  }
+
+  private get renderName(): JSX.Element {
+    const {name} = this.props
+
+    if (!name) {
+      return
+    }
+
+    return <div className="threesizer--header-name">{name}</div>
   }
 
   private get menuItems(): MenuItem[] {
