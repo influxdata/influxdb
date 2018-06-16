@@ -155,8 +155,10 @@ export const notifyUnableToRetrieveSources = () => 'Unable to retrieve sources.'
 export const notifyUnableToConnectSource = sourceName =>
   `Unable to connect to source ${sourceName}.`
 
-export const notifyErrorConnectingToSource = errorMessage =>
-  `Unable to connect to InfluxDB source: ${errorMessage}`
+export const notifyErrorConnectingToSource = errorMessage => ({
+  ...defaultErrorNotification,
+  message: `Unable to connect to InfluxDB source: ${errorMessage}`,
+})
 
 //  Multitenancy User Notifications
 //  ----------------------------------------------------------------------------
