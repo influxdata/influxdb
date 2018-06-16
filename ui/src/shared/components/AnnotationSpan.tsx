@@ -1,44 +1,83 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {Component, MouseEvent, DragEvent} from 'react'
 import {connect} from 'react-redux'
 
 import {
   DYGRAPH_CONTAINER_H_MARGIN,
   DYGRAPH_CONTAINER_V_MARGIN,
   DYGRAPH_CONTAINER_XLABEL_MARGIN,
-} from 'shared/constants'
-import {ANNOTATION_MIN_DELTA, EDITING} from 'shared/annotations/helpers'
-import * as schema from 'shared/schemas'
-import * as actions from 'shared/actions/annotations'
-import AnnotationTooltip from 'shared/components/AnnotationTooltip'
-import AnnotationWindow from 'shared/components/AnnotationWindow'
+} from 'src/shared/constants'
+
+import * as actions from 'src/shared/actions/annotations'
+import {ANNOTATION_MIN_DELTA, EDITING} from 'src/shared/annotations/helpers'
+import AnnotationTooltip from 'src/shared/components/AnnotationTooltip'
+import AnnotationWindow from 'src/shared/components/AnnotationWindow'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {AnnotationInterface, DygraphClass} from 'src/types'
+
+interface State {
+  isMouseOver: string
+  isDragging: string
+}
+
+interface Props {
+  annotation: AnnotationInterface
+  mode: string
+  dygraph: DygraphClass
+  staticLegendHeight: number
+  updateAnnotation: (a: AnnotationInterface) => void
+  updateAnnotationAsync: (a: AnnotationInterface) => void
+  xAxisRange: [number, number]
+}
+
 @ErrorHandling
-class AnnotationSpan extends React.Component {
-  state = {
+class AnnotationSpan extends Component<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    staticLegendHeight: 0,
+  }
+
+  public state: State = {
     isDragging: null,
     isMouseOver: null,
   }
 
-  handleMouseEnter = direction => () => {
+  public render() {
+    const {annotation, dygraph, staticLegendHeight} = this.props
+    const {isDragging} = this.state
+
+    return (
+      <div>
+        <AnnotationWindow
+          annotation={annotation}
+          dygraph={dygraph}
+          active={!!isDragging}
+          staticLegendHeight={staticLegendHeight}
+        />
+        {this.renderLeftMarker(annotation.startTime, dygraph)}
+        {this.renderRightMarker(annotation.endTime, dygraph)}
+      </div>
+    )
+  }
+
+  private handleMouseEnter = (direction: string) => () => {
     this.setState({isMouseOver: direction})
   }
 
-  handleMouseLeave = e => {
+  private handleMouseLeave = (e: MouseEvent<HTMLDivElement>) => {
     const {annotation} = this.props
-
-    if (e.relatedTarget.id === `tooltip-${annotation.id}`) {
-      return this.setState({isDragging: null})
+    if (e.relatedTarget instanceof Element) {
+      if (e.relatedTarget.id === `tooltip-${annotation.id}`) {
+        return this.setState({isDragging: null})
+      }
     }
     this.setState({isMouseOver: null})
   }
 
-  handleDragStart = direction => () => {
+  private handleDragStart = (direction: string) => () => {
     this.setState({isDragging: direction})
   }
 
-  handleDragEnd = () => {
+  private handleDragEnd = () => {
     const {annotation, updateAnnotationAsync} = this.props
     const [startTime, endTime] = [
       annotation.startTime,
@@ -54,7 +93,7 @@ class AnnotationSpan extends React.Component {
     this.setState({isDragging: null})
   }
 
-  handleDrag = timeProp => e => {
+  private handleDrag = (timeProp: string) => (e: DragEvent<HTMLDivElement>) => {
     if (this.props.mode !== EDITING) {
       return
     }
@@ -96,7 +135,10 @@ class AnnotationSpan extends React.Component {
     e.stopPropagation()
   }
 
-  renderLeftMarker(startTime, dygraph) {
+  private renderLeftMarker(
+    startTime: number,
+    dygraph: DygraphClass
+  ): JSX.Element {
     const isEditing = this.props.mode === EDITING
     const {isDragging, isMouseOver} = this.state
     const {annotation, staticLegendHeight} = this.props
@@ -147,7 +189,10 @@ class AnnotationSpan extends React.Component {
     )
   }
 
-  renderRightMarker(endTime, dygraph) {
+  private renderRightMarker(
+    endTime: number,
+    dygraph: DygraphClass
+  ): JSX.Element {
     const isEditing = this.props.mode === EDITING
     const {isDragging, isMouseOver} = this.state
     const {annotation, staticLegendHeight} = this.props
@@ -197,39 +242,6 @@ class AnnotationSpan extends React.Component {
       </div>
     )
   }
-
-  render() {
-    const {annotation, dygraph, staticLegendHeight} = this.props
-    const {isDragging} = this.state
-
-    return (
-      <div>
-        <AnnotationWindow
-          annotation={annotation}
-          dygraph={dygraph}
-          active={!!isDragging}
-          staticLegendHeight={staticLegendHeight}
-        />
-        {this.renderLeftMarker(annotation.startTime, dygraph)}
-        {this.renderRightMarker(annotation.endTime, dygraph)}
-      </div>
-    )
-  }
-}
-
-const {func, number, shape, string} = PropTypes
-
-AnnotationSpan.defaultProps = {
-  staticLegendHeight: 0,
-}
-
-AnnotationSpan.propTypes = {
-  annotation: schema.annotation.isRequired,
-  mode: string.isRequired,
-  dygraph: shape({}).isRequired,
-  staticLegendHeight: number,
-  updateAnnotationAsync: func.isRequired,
-  updateAnnotation: func.isRequired,
 }
 
 const mapDispatchToProps = {

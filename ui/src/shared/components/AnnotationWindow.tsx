@@ -1,14 +1,23 @@
 import React from 'react'
-import PropTypes from 'prop-types'
 
 import {
   DYGRAPH_CONTAINER_H_MARGIN,
   DYGRAPH_CONTAINER_V_MARGIN,
   DYGRAPH_CONTAINER_XLABEL_MARGIN,
-} from 'shared/constants'
-import * as schema from 'shared/schemas'
+} from 'src/shared/constants'
+import {AnnotationInterface, DygraphClass} from 'src/types'
 
-const windowDimensions = (anno, dygraph, staticLegendHeight) => {
+interface WindowDimensionsReturn {
+  left: string
+  width: string
+  height: string
+}
+
+const windowDimensions = (
+  anno: AnnotationInterface,
+  dygraph: DygraphClass,
+  staticLegendHeight: number
+): WindowDimensionsReturn => {
   // TODO: export and test this function
   const [startX, endX] = dygraph.xAxisRange()
   const startTime = Math.max(+anno.startTime, startX)
@@ -34,25 +43,23 @@ const windowDimensions = (anno, dygraph, staticLegendHeight) => {
   }
 }
 
+interface AnnotationWindowProps {
+  annotation: AnnotationInterface
+  dygraph: DygraphClass
+  active: boolean
+  staticLegendHeight: number
+}
+
 const AnnotationWindow = ({
   annotation,
   dygraph,
   active,
   staticLegendHeight,
-}) => (
+}: AnnotationWindowProps): JSX.Element => (
   <div
     className={`annotation-window${active ? ' active' : ''}`}
     style={windowDimensions(annotation, dygraph, staticLegendHeight)}
   />
 )
-
-const {bool, number, shape} = PropTypes
-
-AnnotationWindow.propTypes = {
-  annotation: schema.annotation.isRequired,
-  dygraph: shape({}).isRequired,
-  staticLegendHeight: number,
-  active: bool,
-}
 
 export default AnnotationWindow

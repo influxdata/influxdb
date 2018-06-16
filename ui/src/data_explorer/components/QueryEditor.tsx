@@ -23,7 +23,7 @@ interface State {
 
 @ErrorHandling
 class QueryEditor extends PureComponent<Props, State> {
-  constructor(props) {
+  constructor(props: Props) {
     super(props)
     this.state = {
       value: this.props.query,
