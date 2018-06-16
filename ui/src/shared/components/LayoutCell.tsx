@@ -78,7 +78,7 @@ export default class LayoutCell extends Component<Props> {
         (acc, template) => {
           const {tempVar} = template
           const templateValue = template.values.find(v => v.selected)
-          const value = templateValue.value
+          const value = _.get(templateValue, 'value', str)
           const regex = new RegExp(tempVar, 'g')
           return acc.replace(regex, value)
         },
