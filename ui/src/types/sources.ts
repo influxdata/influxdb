@@ -1,5 +1,7 @@
 import {Kapacitor, Service} from './'
 
+export type NewSource = Pick<Source, Exclude<keyof Source, 'id'>>
+
 export interface Source {
   id: string
   name: string

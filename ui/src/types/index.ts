@@ -25,7 +25,7 @@ import {
   TagValues,
 } from './query'
 import {AlertRule, Kapacitor, Task, RuleValues} from './kapacitor'
-import {Source, SourceLinks} from './sources'
+import {NewSource, Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem, Constructable} from './shared'
 import {
   Notification,
@@ -70,6 +70,7 @@ export {
   TagValues,
   AlertRule,
   Kapacitor,
+  NewSource,
   Source,
   SourceLinks,
   DropdownAction,
