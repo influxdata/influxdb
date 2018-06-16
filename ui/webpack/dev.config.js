@@ -1,13 +1,13 @@
 const path = require('path')
 const fs = require('fs')
 const webpack = require('webpack')
-const ExtractTextPlugin = require('extract-text-webpack-plugin')
+const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
-const WebpackOnBuildPlugin = require('on-build-webpack')
 const HtmlWebpackIncludeAssetsPlugin = require('html-webpack-include-assets-plugin')
 const keys = require('lodash/keys')
 const difference = require('lodash/difference')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
+const ProgressBarPlugin = require('progress-bar-webpack-plugin')
 
 const buildDir = path.resolve(__dirname, '../build')
 
@@ -38,7 +38,21 @@ const stats = {
 }
 
 module.exports = {
+  mode: 'development',
   stats,
+  optimization: {
+    concatenateModules: true,
+    splitChunks: {
+      cacheGroups: {
+        styles: {
+          name: 'chronograf',
+          test: /\.scss$/,
+          chunks: 'all',
+          enforce: true,
+        },
+      },
+    },
+  },
   node: {
     fs: 'empty',
     module: 'empty',
@@ -95,22 +109,22 @@ module.exports = {
       },
       {
         test: /\.scss$/,
-        loader: ExtractTextPlugin.extract({
-          fallback: 'style-loader',
-          use: [
-            'css-loader',
-            'sass-loader',
-            'resolve-url-loader',
-            'sass-loader?sourceMap',
-          ],
-        }),
-      },
-      {
-        test: /\.css$/,
-        loader: ExtractTextPlugin.extract({
-          fallback: 'style-loader',
-          use: ['css-loader', 'postcss-loader'],
-        }),
+        use: [
+          'style-loader',
+          'css-loader',
+          {
+            loader: 'postcss-loader',
+            options: {
+              sourceMap: true,
+              plugins() {
+                return []
+              },
+            },
+          },
+          'sass-loader',
+          'resolve-url-loader',
+          'sass-loader?sourceMap',
+        ],
       },
       {
         test: /\.(ico|png|cur|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
@@ -157,9 +171,7 @@ module.exports = {
     ],
   },
   plugins: [
-    new webpack.DefinePlugin({
-      'process.env.NODE_ENV': JSON.stringify('development'),
-    }),
+    new ProgressBarPlugin(),
     new webpack.DllReferencePlugin({
       context: process.cwd(),
       manifest: require('../build/vendor.dll.json'),
@@ -180,7 +192,10 @@ module.exports = {
       },
     }),
     new webpack.HotModuleReplacementPlugin(),
-    new ExtractTextPlugin('chronograf.css'),
+    new MiniCssExtractPlugin({
+      filename: '[name].css',
+      chunkFilename: '[id].css',
+    }),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
       inject: 'body',
@@ -193,33 +208,37 @@ module.exports = {
     new webpack.DefinePlugin({
       VERSION: JSON.stringify(require('../package.json').version),
     }),
-    new WebpackOnBuildPlugin(webpackStats => {
-      const newlyCreatedAssets = webpackStats.compilation.assets
-      fs.readdir(buildDir, (readdirErr, buildDirFiles) => {
-        if (readdirErr) {
-          console.error('webpack build directory error')
-          return
-        }
+    {
+      apply: compiler => {
+        compiler.hooks.afterEmit.tap('AfterEmitPlugin', compilation => {
+          const newlyCreatedAssets = compilation.assets
+          fs.readdir(buildDir, (readdirErr, buildDirFiles) => {
+            if (readdirErr) {
+              console.error('webpack build directory error')
+              return
+            }
 
-        const assetFileNames = keys(newlyCreatedAssets)
-        const filesToRemove = difference(buildDirFiles, assetFileNames)
+            const assetFileNames = keys(newlyCreatedAssets)
+            const filesToRemove = difference(buildDirFiles, assetFileNames)
 
-        for (const file of filesToRemove) {
-          if (file.includes('dll')) {
-            return
-          }
-
-          const ext = path.extname(file)
-          if (['.js', '.json', '.map'].includes(ext)) {
-            fs.unlink(path.join(buildDir, file), unlinkErr => {
-              if (unlinkErr) {
-                console.error('webpack cleanup error', unlinkErr)
+            for (const file of filesToRemove) {
+              if (file.includes('dll')) {
+                return
               }
-            })
-          }
-        }
-      })
-    }),
+
+              const ext = path.extname(file)
+              if (['.js', '.json', '.map'].includes(ext)) {
+                fs.unlink(path.join(buildDir, file), unlinkErr => {
+                  if (unlinkErr) {
+                    console.error('webpack cleanup error', unlinkErr)
+                  }
+                })
+              }
+            }
+          })
+        })
+      },
+    },
   ],
   target: 'web',
   devServer: {

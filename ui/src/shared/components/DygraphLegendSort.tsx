@@ -14,7 +14,7 @@ class DygraphLegendSort extends PureComponent<Props> {
     const {isAscending, top, bottom, onSort, isActive} = this.props
     return (
       <div
-        className={classnames('sort-btn btn btn-sm btn-square', {
+        className={classnames('sort-btn btn btn-xs btn-square', {
           'btn-primary': isActive,
           'btn-default': !isActive,
           'sort-btn--asc': isAscending && isActive,
@@ -22,9 +22,10 @@ class DygraphLegendSort extends PureComponent<Props> {
         })}
         onClick={onSort}
       >
-        <div className="sort-btn--arrow" />
-        <div className="sort-btn--top">{top}</div>
-        <div className="sort-btn--bottom">{bottom}</div>
+        <div className="sort-btn--rotator">
+          <div className="sort-btn--top">{top}</div>
+          <div className="sort-btn--bottom">{bottom}</div>
+        </div>
       </div>
     )
   }

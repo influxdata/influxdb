@@ -1,7 +1,10 @@
 import uuid from 'uuid'
-export const initialState = []
+import {Action} from 'src/shared/actions/notifications'
+import {Notification} from 'src/types'
 
-export const notifications = (state = initialState, action) => {
+export const initialState: Notification[] = []
+
+export const notifications = (state = initialState, action: Action) => {
   switch (action.type) {
     case 'PUBLISH_NOTIFICATION': {
       const {notification} = action.payload

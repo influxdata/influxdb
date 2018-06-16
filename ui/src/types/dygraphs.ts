@@ -495,6 +495,7 @@ export declare class DygraphClass {
 
   // tslint:disable-next-line:variable-name
   public width_: number
+  public graphDiv: HTMLElement
 
   constructor(
     container: HTMLElement | string,

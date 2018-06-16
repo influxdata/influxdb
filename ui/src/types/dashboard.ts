@@ -121,3 +121,9 @@ export interface DashboardFile {
   meta?: DashboardFileMetaSection
   dashboard: Dashboard
 }
+
+export enum ThresholdType {
+  Text = 'text',
+  BG = 'background',
+  Base = 'base',
+}

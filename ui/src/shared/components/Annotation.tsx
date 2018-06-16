@@ -1,15 +1,24 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-import AnnotationPoint from 'shared/components/AnnotationPoint'
-import AnnotationSpan from 'shared/components/AnnotationSpan'
+import AnnotationPoint from 'src/shared/components/AnnotationPoint'
+import AnnotationSpan from 'src/shared/components/AnnotationSpan'
 
-import * as schema from 'shared/schemas'
+import {AnnotationInterface, DygraphClass} from 'src/types'
 
-const Annotation = ({
+interface Props {
+  mode: string
+  dWidth: number
+  xAxisRange: [number, number]
+  annotation: AnnotationInterface
+  dygraph: DygraphClass
+  staticLegendHeight: number
+}
+
+const Annotation: SFC<Props> = ({
   mode,
   dygraph,
   dWidth,
+  xAxisRange,
   annotation,
   staticLegendHeight,
 }) => (
@@ -21,6 +30,7 @@ const Annotation = ({
         annotation={annotation}
         dWidth={dWidth}
         staticLegendHeight={staticLegendHeight}
+        xAxisRange={xAxisRange}
       />
     ) : (
       <AnnotationSpan
@@ -29,19 +39,10 @@ const Annotation = ({
         annotation={annotation}
         dWidth={dWidth}
         staticLegendHeight={staticLegendHeight}
+        xAxisRange={xAxisRange}
       />
     )}
   </div>
 )
-
-const {number, shape, string} = PropTypes
-
-Annotation.propTypes = {
-  mode: string,
-  dWidth: number,
-  annotation: schema.annotation.isRequired,
-  dygraph: shape({}).isRequired,
-  staticLegendHeight: number,
-}
 
 export default Annotation

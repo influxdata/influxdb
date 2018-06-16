@@ -1,0 +1,42 @@
+/*
+  CodeMirror "InfluxQL" Theme
+  ------------------------------------------------------------------------------
+  Intended for use with the influxQL CodeMirror Mode
+*/
+
+.cm-s-influxql {
+  color: $g11-sidewalk;
+  font-weight: 600;
+
+  .cm-clause {
+    color: $c-pool;
+  }
+  .cm-meta {
+    color: $c-honeydew;
+  }
+  .cm-string {
+    color: $g15-platinum;
+  }
+  .cm-comment {
+    color: $g8-storm;
+  }
+  .cm-number {
+    color: $c-pineapple;
+  }
+  .cm-operator {
+    color: $c-pool;
+  }
+  .cm-temp-var {
+    color: $c-comet;
+  }
+  .cm-temp-system {
+    color: #ff4d9e ;
+  }
+  .cm-now {
+    color: $c-pineapple;
+  }
+  .cm-null {
+    color: $g8-storm;
+    font-style: italic;
+  }
+}

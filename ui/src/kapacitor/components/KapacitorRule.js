@@ -52,10 +52,10 @@ class KapacitorRule extends Component {
     createRule(kapacitor, newRule)
       .then(() => {
         router.push(pathname || `/sources/${source.id}/alert-rules`)
-        notify(notifyAlertRuleCreated())
+        notify(notifyAlertRuleCreated(newRule.name))
       })
-      .catch(() => {
-        notify(notifyAlertRuleCreateFailed())
+      .catch(e => {
+        notify(notifyAlertRuleCreateFailed(newRule.name, e.data.message))
       })
   }
 

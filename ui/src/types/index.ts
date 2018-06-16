@@ -40,6 +40,7 @@ import {
   DygraphClass,
   DygraphData,
 } from './dygraphs'
+import {AnnotationInterface} from './annotations'
 
 export {
   Me,
@@ -96,4 +97,5 @@ export {
   SchemaFilter,
   RemoteDataState,
   URLQueryParams,
+  AnnotationInterface,
 }

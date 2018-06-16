@@ -69,14 +69,14 @@ export const notifySessionTimedOut = () => ({
   message: 'Your session has timed out. Log in again to continue.',
 })
 
-export const notifyServerError = () => ({
+export const notifyServerError = {
   ...defaultErrorNotification,
-  mesasage: 'Internal Server Error. Check API Logs.',
-})
+  message: 'Internal Server Error. Check API Logs.',
+}
 
 export const notifyCouldNotRetrieveKapacitors = sourceID => ({
   ...defaultErrorNotification,
-  mesasage: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
+  message: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
 })
 
 export const notifyCouldNotRetrieveKapacitorServices = kapacitor => ({
@@ -490,14 +490,14 @@ export const notifyViewerUnauthorizedToSetTempVars = () => ({
 
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
-export const notifyAlertRuleCreated = () => ({
+export const notifyAlertRuleCreated = ruleName => ({
   ...defaultSuccessNotification,
-  message: 'Alert Rule created successfully.',
+  message: `${ruleName} created successfully.`,
 })
 
-export const notifyAlertRuleCreateFailed = () => ({
+export const notifyAlertRuleCreateFailed = (ruleName, errorMessage) => ({
   ...defaultErrorNotification,
-  message: 'Alert Rule could not be created.',
+  message: `There was a problem creating ${ruleName}: ${errorMessage}`,
 })
 
 export const notifyAlertRuleUpdated = ruleName => ({
