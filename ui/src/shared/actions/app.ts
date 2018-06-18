@@ -1,6 +1,9 @@
-import {Dispatch} from 'redux'
-
 import {PRESENTATION_MODE_ANIMATION_DELAY} from '../constants'
+
+import {notify} from 'src/shared/actions/notifications'
+import {notifyPresentationMode} from 'src/shared/copy/notifications'
+
+import {Dispatch} from 'redux'
 
 // ephemeral state action creators
 interface EnablePresentationModeAction {
@@ -17,14 +20,13 @@ export const disablePresentationMode = (): DisablePresentationModeAction => ({
   type: 'DISABLE_PRESENTATION_MODE',
 })
 
-export const delayEnablePresentationMode = (): ((
+export const delayEnablePresentationMode = async (
   dispatch: Dispatch<EnablePresentationModeAction>
-) => void) => (dispatch: Dispatch<EnablePresentationModeAction>): void => {
-  setTimeout(
-    () => dispatch(enablePresentationMode()),
-    PRESENTATION_MODE_ANIMATION_DELAY
-  )
-}
+): Promise<NodeJS.Timer> =>
+  setTimeout(() => {
+    dispatch(enablePresentationMode())
+    notify(notifyPresentationMode())
+  }, PRESENTATION_MODE_ANIMATION_DELAY)
 
 // persistent state action creators
 interface SetAutoRefreshAction {
