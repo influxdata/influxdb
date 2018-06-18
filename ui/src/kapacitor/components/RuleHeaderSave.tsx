@@ -1,9 +1,13 @@
-import React, {Fragment} from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 import ReactTooltip from 'react-tooltip'
 
-const RuleHeaderSave = ({onSave, validationError}) => (
-  <Fragment>
+interface Props {
+  onSave: () => void
+  validationError?: string
+}
+
+const RuleHeaderSave: SFC<Props> = ({onSave, validationError}) => (
+  <>
     {validationError ? (
       <button
         className="btn btn-success btn-sm disabled"
@@ -24,14 +28,7 @@ const RuleHeaderSave = ({onSave, validationError}) => (
       place="bottom"
       class="influx-tooltip kapacitor-tooltip"
     />
-  </Fragment>
+  </>
 )
-
-const {func, string} = PropTypes
-
-RuleHeaderSave.propTypes = {
-  onSave: func.isRequired,
-  validationError: string.isRequired,
-}
 
 export default RuleHeaderSave
