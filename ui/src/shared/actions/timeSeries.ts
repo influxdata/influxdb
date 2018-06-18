@@ -3,15 +3,38 @@ import {noop} from 'src/shared/actions/app'
 import _ from 'lodash'
 
 import {errorThrown} from 'src/shared/actions/errors'
+import {TimeSeriesResponse} from 'src/types/series'
 
-export const handleLoading = (query, editQueryStatus) => {
+interface Query {
+  host: string | string[]
+  text: string
+  id: string
+  database?: string
+  db?: string
+  rp?: string
+}
+
+interface Payload {
+  source: string
+  query: Query
+  tempVars: any[]
+  db?: string
+  rp?: string
+  resolution?: number
+}
+
+export const handleLoading = (query: Query, editQueryStatus) => {
   editQueryStatus(query.id, {
     loading: true,
   })
 }
 
 // {results: [{}]}
-export const handleSuccess = (data, query, editQueryStatus) => {
+export const handleSuccess = (
+  data: TimeSeriesResponse,
+  query: Query,
+  editQueryStatus
+) => {
   const {results} = data
   const error = _.get(results, ['0', 'error'], false)
   const series = _.get(results, ['0', 'series'], false)
@@ -49,24 +72,6 @@ export const handleError = (error, query, editQueryStatus) => {
   editQueryStatus(query.id, {
     error: message,
   })
-}
-
-interface Query {
-  host: string | string[]
-  text: string
-  id: string
-  database?: string
-  db?: string
-  rp?: string
-}
-
-interface Payload {
-  source: string
-  query: Query
-  tempVars: any[]
-  db?: string
-  rp?: string
-  resolution?: number
 }
 
 export const fetchTimeSeriesAsync = async (

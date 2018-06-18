@@ -1,9 +1,10 @@
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
 
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import LayoutRenderer from 'src/shared/components/LayoutRenderer'
+import {STATUS_PAGE_TIME_RANGE} from 'src/shared/data/timeRanges'
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 import {fixtureStatusPageCells} from 'src/status/fixtures'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -11,7 +12,7 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'src/shared/constants'
-import {Source, TimeRange, Cell} from 'src/types'
+import {Source, Cell} from 'src/types'
 
 interface State {
   cells: Cell[]
@@ -19,9 +20,10 @@ interface State {
 
 interface Props {
   source: Source
-  autoRefresh: number
-  timeRange: TimeRange
 }
+
+const autoRefresh = AUTOREFRESH_DEFAULT
+const timeRange = STATUS_PAGE_TIME_RANGE
 
 @ErrorHandling
 class StatusPage extends Component<Props, State> {
@@ -34,7 +36,7 @@ class StatusPage extends Component<Props, State> {
   }
 
   public render() {
-    const {source, autoRefresh, timeRange} = this.props
+    const {source} = this.props
     const {cells} = this.state
 
     const dashboardTime = {
@@ -100,9 +102,4 @@ class StatusPage extends Component<Props, State> {
   }
 }
 
-const mstp = ({statusUI: {autoRefresh, timeRange}}) => ({
-  autoRefresh,
-  timeRange,
-})
-
-export default connect(mstp, null)(StatusPage)
+export default StatusPage

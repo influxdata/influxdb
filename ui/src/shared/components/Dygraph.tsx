@@ -175,8 +175,10 @@ class Dygraph extends Component<Props, State> {
   }
 
   public componentWillUnmount() {
-    this.dygraph.destroy()
-    delete this.dygraph
+    if (this.dygraph) {
+      this.dygraph.destroy()
+      delete this.dygraph
+    }
   }
 
   public shouldComponentUpdate(nextProps: Props, nextState: State) {

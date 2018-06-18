@@ -40,6 +40,7 @@ import {
   DygraphClass,
   DygraphData,
 } from './dygraphs'
+import {JSONFeedData} from './status'
 
 export {
   Me,
@@ -96,4 +97,5 @@ export {
   SchemaFilter,
   RemoteDataState,
   URLQueryParams,
+  JSONFeedData,
 }

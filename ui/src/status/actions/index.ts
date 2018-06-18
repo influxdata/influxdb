@@ -7,6 +7,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {notifyJSONFeedFailed} from 'src/shared/copy/notifications'
 
 import {JSONFeedData} from 'src/types'
+import {AxiosResponse} from 'axios'
 
 export enum ActionTypes {
   FETCH_JSON_FEED_REQUESTED = 'FETCH_JSON_FEED_REQUESTED',
@@ -52,7 +53,7 @@ export const fetchJSONFeedAsync = (url: string) => async (
 ): Promise<void> => {
   dispatch(fetchJSONFeedRequested())
   try {
-    const {data} = await fetchJSONFeedAJAX(url)
+    const {data} = (await fetchJSONFeedAJAX(url)) as AxiosResponse<JSONFeedData>
     // data could be from a webpage, and thus would be HTML
     if (typeof data === 'string' || !data) {
       dispatch(fetchJSONFeedFailed())
