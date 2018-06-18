@@ -1,11 +1,9 @@
-import React from 'react'
+import React, {Fragment} from 'react'
 import PropTypes from 'prop-types'
 import ReactTooltip from 'react-tooltip'
-import SourceIndicator from 'shared/components/SourceIndicator'
 
 const RuleHeaderSave = ({onSave, validationError}) => (
-  <div className="page-header--right">
-    <SourceIndicator />
+  <Fragment>
     {validationError ? (
       <button
         className="btn btn-success btn-sm disabled"
@@ -26,7 +24,7 @@ const RuleHeaderSave = ({onSave, validationError}) => (
       place="bottom"
       class="influx-tooltip kapacitor-tooltip"
     />
-  </div>
+  </Fragment>
 )
 
 const {func, string} = PropTypes

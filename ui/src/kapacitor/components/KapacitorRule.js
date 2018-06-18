@@ -168,11 +168,8 @@ class KapacitorRule extends Component {
   }
 
   renderHeaderOptions = () => {
-    const {source} = this.props
-
     return (
       <RuleHeaderSave
-        source={source}
         onSave={this.handleSave}
         validationError={this.validationError()}
       />
