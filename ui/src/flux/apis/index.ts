@@ -52,7 +52,7 @@ export const getTimeSeries = async (
   const and = encodeURIComponent('&')
   const mark = encodeURIComponent('?')
   const garbage = script.replace(/\s/g, '') // server cannot handle whitespace
-  const url = `${
+  const url = `${window.basepath}${
     service.links.proxy
   }?path=/v1/query${mark}orgName=defaulorgname${and}q=${garbage}`
 
@@ -75,41 +75,6 @@ export const getTimeSeries = async (
 
     throw _.get(error, 'headers.x-influx-error', false) ||
       _.get(error, 'data.message', 'unknown error 🤷')
-  }
-}
-
-// TODO: replace with actual requests to Flux daemon
-export const getDatabases = async () => {
-  try {
-    const response = {data: {dbs: ['telegraf', 'chronograf', '_internal']}}
-    const {data} = await Promise.resolve(response)
-
-    return data.dbs
-  } catch (error) {
-    console.error('Could not get databases', error)
-    throw error
-  }
-}
-
-export const getTags = async () => {
-  try {
-    const response = {data: {tags: ['tk1', 'tk2', 'tk3']}}
-    const {data} = await Promise.resolve(response)
-    return data.tags
-  } catch (error) {
-    console.error('Could not get tags', error)
-    throw error
-  }
-}
-
-export const getTagValues = async () => {
-  try {
-    const response = {data: {values: ['tv1', 'tv2', 'tv3']}}
-    const {data} = await Promise.resolve(response)
-    return data.values
-  } catch (error) {
-    console.error('Could not get tag values', error)
-    throw error
   }
 }
 

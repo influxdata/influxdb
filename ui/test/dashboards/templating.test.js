@@ -1,4 +1,4 @@
-import {applyMasks, insertTempVar, unMask} from 'src/dashboards/constants'
+import {applyMasks, insertTempVar, unMask} from 'src/tempVars/constants'
 
 const masquerade = query => {
   const masked = applyMasks(query)

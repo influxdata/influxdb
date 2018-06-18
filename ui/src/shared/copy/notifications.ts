@@ -69,14 +69,14 @@ export const notifySessionTimedOut = () => ({
   message: 'Your session has timed out. Log in again to continue.',
 })
 
-export const notifyServerError = () => ({
+export const notifyServerError = {
   ...defaultErrorNotification,
-  mesasage: 'Internal Server Error. Check API Logs.',
-})
+  message: 'Internal Server Error. Check API Logs.',
+}
 
 export const notifyCouldNotRetrieveKapacitors = sourceID => ({
   ...defaultErrorNotification,
-  mesasage: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
+  message: `Internal Server Error. Could not retrieve Kapacitor Connections for source ${sourceID}.`,
 })
 
 export const notifyCouldNotRetrieveKapacitorServices = kapacitor => ({
@@ -155,8 +155,10 @@ export const notifyUnableToRetrieveSources = () => 'Unable to retrieve sources.'
 export const notifyUnableToConnectSource = sourceName =>
   `Unable to connect to source ${sourceName}.`
 
-export const notifyErrorConnectingToSource = errorMessage =>
-  `Unable to connect to InfluxDB source: ${errorMessage}`
+export const notifyErrorConnectingToSource = errorMessage => ({
+  ...defaultErrorNotification,
+  message: `Unable to connect to InfluxDB source: ${errorMessage}`,
+})
 
 //  Multitenancy User Notifications
 //  ----------------------------------------------------------------------------
@@ -490,14 +492,14 @@ export const notifyViewerUnauthorizedToSetTempVars = () => ({
 
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
-export const notifyAlertRuleCreated = () => ({
+export const notifyAlertRuleCreated = ruleName => ({
   ...defaultSuccessNotification,
-  message: 'Alert Rule created successfully.',
+  message: `${ruleName} created successfully.`,
 })
 
-export const notifyAlertRuleCreateFailed = () => ({
+export const notifyAlertRuleCreateFailed = (ruleName, errorMessage) => ({
   ...defaultErrorNotification,
-  message: 'Alert Rule could not be created.',
+  message: `There was a problem creating ${ruleName}: ${errorMessage}`,
 })
 
 export const notifyAlertRuleUpdated = ruleName => ({
@@ -660,10 +662,10 @@ export const notifyKapacitorNotFound = () => ({
 })
 
 // Flux notifications
-export const analyzeSuccess = {
+export const validateSuccess = () => ({
   ...defaultSuccessNotification,
   message: 'No errors found. Happy Happy Joy Joy!',
-}
+})
 
 export const notifyCopyToClipboardSuccess = text => ({
   ...defaultSuccessNotification,

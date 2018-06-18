@@ -47,6 +47,7 @@ import {
   DygraphSeries,
   Constructable,
 } from 'src/types'
+import {LineColor} from 'src/types/colors'
 
 const Dygraphs = D as Constructable<DygraphClass>
 
@@ -59,7 +60,7 @@ interface Props {
   containerStyle: object // TODO
   dygraphSeries: DygraphSeries
   timeRange: TimeRange
-  colors: object
+  colors: LineColor[]
   handleSetHoverTime: (t: string) => void
   ruleValues?: RuleValues
   axes?: Axes
@@ -74,6 +75,7 @@ interface Props {
 interface State {
   staticLegendHeight: null | number
   isMounted: boolean
+  xAxisRange: [number, number]
 }
 
 @ErrorHandling
@@ -109,6 +111,7 @@ class Dygraph extends Component<Props, State> {
     this.state = {
       staticLegendHeight: null,
       isMounted: false,
+      xAxisRange: [0, 0],
     }
 
     this.graphRef = React.createRef<HTMLDivElement>()
@@ -152,6 +155,7 @@ class Dygraph extends Component<Props, State> {
       },
       zoomCallback: (lower: number, upper: number) =>
         this.handleZoom(lower, upper),
+      drawCallback: () => this.handleDraw(),
       highlightCircleSize: 0,
     }
 
@@ -170,7 +174,7 @@ class Dygraph extends Component<Props, State> {
 
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
-    this.setState({isMounted: true})
+    this.setState({isMounted: true, xAxisRange: this.dygraph.xAxisRange()})
   }
 
   public componentWillUnmount() {
@@ -246,7 +250,7 @@ class Dygraph extends Component<Props, State> {
   }
 
   public render() {
-    const {staticLegendHeight} = this.state
+    const {staticLegendHeight, xAxisRange} = this.state
     const {staticLegend, cellID} = this.props
 
     return (
@@ -258,6 +262,7 @@ class Dygraph extends Component<Props, State> {
                 dygraph={this.dygraph}
                 dWidth={this.dygraph.width_}
                 staticLegendHeight={staticLegendHeight}
+                xAxisRange={xAxisRange}
               />
             )}
             <DygraphLegend
@@ -365,6 +370,12 @@ class Dygraph extends Component<Props, State> {
     }
 
     onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
+  }
+
+  private handleDraw = () => {
+    if (this.dygraph) {
+      this.setState({xAxisRange: this.dygraph.xAxisRange()})
+    }
   }
 
   private eventToTimestamp = ({

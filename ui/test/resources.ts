@@ -1,5 +1,5 @@
 import {Source, Template, Dashboard, Cell, CellType} from 'src/types'
-import {SourceLinks} from 'src/types/sources'
+import {SourceLinks, TemplateType, TemplateValueType} from 'src/types'
 
 export const role = {
   name: '',
@@ -590,12 +590,11 @@ export const hosts = {
 // Dashboards
 export const template: Template = {
   id: '1',
-  type: 'tagKeys',
+  type: TemplateType.TagKeys,
   label: 'test query',
   tempVar: ':region:',
   query: {
     db: 'db1',
-    command: '',
     rp: 'rp1',
     tagKey: 'tk1',
     fieldKey: 'fk1',
@@ -603,9 +602,9 @@ export const template: Template = {
     influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
   },
   values: [
-    {value: 'us-west', type: 'tagKey', selected: false},
-    {value: 'us-east', type: 'tagKey', selected: true},
-    {value: 'us-mount', type: 'tagKey', selected: false},
+    {value: 'us-west', type: TemplateValueType.TagKey, selected: false},
+    {value: 'us-east', type: TemplateValueType.TagKey, selected: true},
+    {value: 'us-mount', type: TemplateValueType.TagKey, selected: false},
   ],
 }
 

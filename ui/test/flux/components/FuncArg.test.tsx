@@ -10,6 +10,7 @@ const setup = () => {
     funcName: '',
     declarationID: '',
     argKey: '',
+    args: [],
     value: '',
     type: '',
     service,

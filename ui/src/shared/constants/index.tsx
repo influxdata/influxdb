@@ -1,5 +1,6 @@
 import _ from 'lodash'
 
+import {TemplateValueType, TemplateType} from 'src/types'
 import {CellType} from 'src/types/dashboard'
 
 export const NO_CELL = 'none'
@@ -440,12 +441,12 @@ export const DEFAULT_SOURCE = {
 
 export const defaultIntervalValue = '333'
 export const intervalValuesPoints = [
-  {value: defaultIntervalValue, type: 'points', selected: true},
+  {value: defaultIntervalValue, type: TemplateValueType.Points, selected: true},
 ]
 
 export const interval = {
   id: 'interval',
-  type: 'autoGroupBy',
+  type: TemplateType.AutoGroupBy,
   tempVar: TEMP_VAR_INTERVAL,
   label: 'automatically determine the best group by time',
   values: intervalValuesPoints,
@@ -481,6 +482,7 @@ export const HANDLE_VERTICAL = 'vertical'
 export const HANDLE_HORIZONTAL = 'horizontal'
 export const HANDLE_NONE = 'none'
 export const HANDLE_PIXELS = 20
+export const MIN_HANDLE_PIXELS = 20
 export const MAX_SIZE = 1
 export const MIN_SIZE = 0
 

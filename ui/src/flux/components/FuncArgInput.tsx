@@ -11,12 +11,13 @@ interface Props {
   declarationID: string
   onChangeArg: OnChangeArg
   onGenerateScript: () => void
+  autoFocus?: boolean
 }
 
 @ErrorHandling
 class FuncArgInput extends PureComponent<Props> {
   public render() {
-    const {argKey, value, type} = this.props
+    const {argKey, value, type, autoFocus} = this.props
 
     return (
       <div className="func-arg">
@@ -34,6 +35,7 @@ class FuncArgInput extends PureComponent<Props> {
             className="form-control input-sm"
             spellCheck={false}
             autoComplete="off"
+            autoFocus={autoFocus}
           />
         </div>
       </div>

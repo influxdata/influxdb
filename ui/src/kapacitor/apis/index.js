@@ -109,7 +109,7 @@ const kapacitorLogHeaders = {
 export const getLogStream = kapacitor => {
   // axios doesn't support the chunked transfer encoding response kapacitor uses for logs
   // AJAX adds basepath, but we need to supply it directly to fetch
-  const url = `${kapacitor.links.proxy}?pat=/kapacitor/v1preview/logs`
+  const url = `${kapacitor.links.proxy}?path=/kapacitor/v1preview/logs`
   const basepath = window.basepath || ''
 
   return fetch(`${basepath}${url}`, {

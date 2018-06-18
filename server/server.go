@@ -540,6 +540,6 @@ func clientUsage(values client.Values) *client.Usage {
 }
 
 func validBasepath(basepath string) bool {
-	re := regexp.MustCompile(`(\/{1}\w+)+`)
+	re := regexp.MustCompile(`(\/{1}[\w-]+)+`)
 	return re.ReplaceAllLiteralString(basepath, "") == ""
 }
