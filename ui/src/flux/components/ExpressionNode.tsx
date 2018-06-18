@@ -38,6 +38,17 @@ class ExpressionNode extends PureComponent<Props, State> {
     }
   }
 
+  public componentDidUpdate(prevProps) {
+    const {funcs: prevFuncs} = prevProps
+    const {funcs} = this.props
+
+    if (!_.isEqual(prevFuncs, funcs)) {
+      this.setState({
+        nonYieldableIndexesToggled: this.nonYieldableNodesFromScript,
+      })
+    }
+  }
+
   public render() {
     const {
       declarationID,
@@ -121,6 +132,10 @@ class ExpressionNode extends PureComponent<Props, State> {
                     i,
                     false
                   )
+
+                  if (this.isBeforeFuncYield(i)) {
+                    return funcNode
+                  }
 
                   return (
                     <Fragment key={`${i}-notInScript`}>

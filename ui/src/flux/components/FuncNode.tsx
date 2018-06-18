@@ -184,12 +184,17 @@ export default class FuncNode extends PureComponent<Props, State> {
       declarationID,
       isYieldable,
       onToggleYieldWithLast,
+      isYielding,
     } = this.props
 
     if (isYieldable) {
       onToggleYield(bodyID, declarationID, index)
     } else {
-      onToggleYieldWithLast(index)
+      if (isYielding) {
+        onToggleYield(bodyID, declarationID, index)
+      } else {
+        onToggleYieldWithLast(index)
+      }
     }
   }
 

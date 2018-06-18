@@ -3,7 +3,10 @@ import _ from 'lodash'
 import AJAX from 'src/utils/ajax'
 import {Service, FluxTable} from 'src/types'
 import {updateService} from 'src/shared/apis'
-import {parseResponse} from 'src/shared/parsing/flux/response'
+import {
+  parseResponse,
+  parseResponseError,
+} from 'src/shared/parsing/flux/response'
 import {MAX_RESPONSE_BYTES} from 'src/flux/constants'
 
 export const getSuggestions = async (url: string) => {
@@ -56,6 +59,9 @@ export const getTimeSeries = async (
     service.links.proxy
   }?path=/v1/query${mark}orgName=defaulorgname${and}q=${garbage}`
 
+  let responseBody: string
+  let responseByteLength: number
+
   try {
     // We are using the `fetch` API here since the `AJAX` utility lacks support
     // for limiting response size. The `AJAX` utility depends on
@@ -66,15 +72,27 @@ export const getTimeSeries = async (
     const resp = await fetch(url, {method: 'POST'})
     const {body, byteLength} = await decodeFluxRespWithLimit(resp)
 
-    return {
-      tables: parseResponse(body),
-      didTruncate: byteLength >= MAX_RESPONSE_BYTES,
-    }
+    responseBody = body
+    responseByteLength = byteLength
   } catch (error) {
     console.error('Problem fetching data', error)
 
     throw _.get(error, 'headers.x-influx-error', false) ||
       _.get(error, 'data.message', 'unknown error 🤷')
+  }
+
+  try {
+    return {
+      tables: parseResponse(responseBody),
+      didTruncate: responseByteLength >= MAX_RESPONSE_BYTES,
+    }
+  } catch (error) {
+    console.error('Could not parse response body', error)
+
+    return {
+      tables: parseResponseError(responseBody),
+      didTruncate: false,
+    }
   }
 }
 
