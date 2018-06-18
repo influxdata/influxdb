@@ -112,6 +112,13 @@ class NewAnnotation extends Component<Props, State> {
     )
   }
 
+  public handleClickOutside = () => {
+    const {onDismissAddingAnnotation, isTempHovering} = this.props
+    if (!isTempHovering) {
+      onDismissAddingAnnotation()
+    }
+  }
+
   private clampWithinGraphTimerange = (timestamp: number): number => {
     const [xRangeStart] = this.props.dygraph.xAxisRange()
     return Math.max(xRangeStart, timestamp)

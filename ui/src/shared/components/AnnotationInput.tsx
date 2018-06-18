@@ -45,6 +45,10 @@ class AnnotationInput extends Component<Props, State> {
       </div>
     )
   }
+  public handleClickOutside = () => {
+    this.props.onConfirmUpdate()
+    this.setState({isEditing: false})
+  }
 
   private handleInputClick = () => {
     this.setState({isEditing: true})
