@@ -134,7 +134,7 @@ class AlertTabs extends PureComponent<Props, State> {
       this.setState({services})
     } catch (error) {
       this.setState({services: null})
-      this.props.notify(notifyCouldNotRetrieveKapacitorServices(kapacitor))
+      this.props.notify(notifyCouldNotRetrieveKapacitorServices(kapacitor.name))
     }
   }
 

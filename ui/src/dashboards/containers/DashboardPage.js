@@ -526,7 +526,7 @@ DashboardPage.propTypes = {
   sources: arrayOf(shape({})).isRequired,
   params: shape({
     sourceID: string.isRequired,
-    dashboardID: string.isRequired,
+    dashboardID: number.isRequired,
   }).isRequired,
   location: shape({
     pathname: string.isRequired,

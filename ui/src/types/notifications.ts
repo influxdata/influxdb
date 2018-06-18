@@ -6,6 +6,6 @@ export interface Notification {
   message: string
 }
 
-export type NotificationFunc = (message: any) => Notification
+export type NotificationFunc = (message: string) => Notification
 
 export type NotificationAction = (message: Notification) => void

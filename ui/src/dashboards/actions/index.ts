@@ -417,7 +417,7 @@ export const getDashboardsNamesAsync = (sourceID: string) => async (
   }
 }
 
-export const getDashboardAsync = (dashboardID: string) => async (
+export const getDashboardAsync = (dashboardID: number) => async (
   dispatch
 ): Promise<Dashboard | null> => {
   try {
@@ -813,7 +813,7 @@ const syncDashboardFromURLQueryParams = (
 }
 
 export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
-  dashboardID: string,
+  dashboardID: number,
   source: Source,
   router: InjectedRouter,
   location: Location

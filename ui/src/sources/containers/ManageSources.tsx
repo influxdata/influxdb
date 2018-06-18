@@ -19,7 +19,7 @@ import {Source, NotificationFunc} from 'src/types'
 interface Props {
   source: Source
   sources: Source[]
-  notify: NotificationFunc
+  notify: (n: NotificationFunc) => void
   deleteKapacitor: actions.DeleteKapacitorAsync
   fetchKapacitors: actions.FetchKapacitorsAsync
   removeAndLoadSources: actions.RemoveAndLoadSources
