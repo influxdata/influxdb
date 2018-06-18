@@ -7,6 +7,10 @@ import {
   TemplateQuery,
   TemplateValue,
   URLQueryParams,
+  TemplateType,
+  TemplateValueType,
+  TemplateUpdate,
+  TemplateBuilderProps,
 } from './tempVars'
 import {
   GroupBy,
@@ -99,4 +103,8 @@ export {
   RemoteDataState,
   URLQueryParams,
   AnnotationInterface,
+  TemplateType,
+  TemplateValueType,
+  TemplateUpdate,
+  TemplateBuilderProps,
 }

@@ -1,6 +1,6 @@
 import {QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
-import {Template} from 'src/types/tempVars'
+import {Template} from 'src/types'
 
 export interface Axis {
   bounds: [string, string]

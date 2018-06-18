@@ -1,6 +1,5 @@
 import _ from 'lodash'
 
-import {TEMPLATE_VARIABLE_QUERIES} from 'src/dashboards/constants'
 import {
   Dashboard,
   Template,
@@ -8,65 +7,7 @@ import {
   TemplateValue,
   URLQueryParams,
 } from 'src/types'
-import {TemplateUpdate} from 'src/types/tempVars'
-
-interface PartialTemplateWithQuery {
-  query: string
-  tempVars: Array<Partial<Template>>
-}
-
-const generateTemplateVariableQuery = ({
-  type,
-  query: {
-    database,
-    // rp, TODO
-    measurement,
-    tagKey,
-  },
-}: Partial<Template>): PartialTemplateWithQuery => {
-  const tempVars = []
-
-  if (database) {
-    tempVars.push({
-      tempVar: ':database:',
-      values: [
-        {
-          type: 'database',
-          value: database,
-        },
-      ],
-    })
-  }
-  if (measurement) {
-    tempVars.push({
-      tempVar: ':measurement:',
-      values: [
-        {
-          type: 'measurement',
-          value: measurement,
-        },
-      ],
-    })
-  }
-  if (tagKey) {
-    tempVars.push({
-      tempVar: ':tagKey:',
-      values: [
-        {
-          type: 'tagKey',
-          value: tagKey,
-        },
-      ],
-    })
-  }
-
-  const query: string = TEMPLATE_VARIABLE_QUERIES[type]
-
-  return {
-    query,
-    tempVars,
-  }
-}
+import {TemplateUpdate} from 'src/types'
 
 export const makeQueryForTemplate = ({
   influxql,
@@ -97,7 +38,7 @@ export const generateURLQueryParamsFromTempVars = (
   return urlQueryParams
 }
 
-export const isValidTempVarOverride = (
+const isValidTempVarOverride = (
   values: TemplateValue[],
   overrideValue: string
 ): boolean => !!values.find(({value}) => value === overrideValue)
@@ -199,5 +140,3 @@ export const findInvalidTempVarsInURLQuery = (
 
   return urlQueryParamsTempVarsWithInvalidValues
 }
-
-export default generateTemplateVariableQuery
