@@ -55,11 +55,9 @@ class PageHeader extends PureComponent<Props> {
   private get renderCenter(): JSX.Element {
     const {renderCenter} = this.props
 
-    if (!renderCenter) {
-      return
+    if (renderCenter) {
+      return <div className="page-header--center">{renderCenter()}</div>
     }
-
-    return <div className="page-header--center">{renderCenter()}</div>
   }
 
   private get renderRight(): JSX.Element {
