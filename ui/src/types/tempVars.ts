@@ -36,6 +36,7 @@ export enum TemplateType {
   CSV = 'csv',
   Query = 'query',
   Databases = 'databases',
+  MetaQuery = 'metaQuery',
 }
 
 export interface Template {

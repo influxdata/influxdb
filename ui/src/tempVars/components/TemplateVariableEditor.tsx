@@ -18,6 +18,7 @@ import MeasurementsTemplateBuilder from 'src/tempVars/components/MeasurementsTem
 import FieldKeysTemplateBuilder from 'src/tempVars/components/FieldKeysTemplateBuilder'
 import TagKeysTemplateBuilder from 'src/tempVars/components/TagKeysTemplateBuilder'
 import TagValuesTemplateBuilder from 'src/tempVars/components/TagValuesTemplateBuilder'
+import MetaQueryTemplateBuilder from 'src/tempVars/components/MetaQueryTemplateBuilder'
 
 import {
   Template,
@@ -59,6 +60,7 @@ const TEMPLATE_BUILDERS = {
   [TemplateType.FieldKeys]: FieldKeysTemplateBuilder,
   [TemplateType.TagKeys]: TagKeysTemplateBuilder,
   [TemplateType.TagValues]: TagValuesTemplateBuilder,
+  [TemplateType.MetaQuery]: MetaQueryTemplateBuilder,
 }
 
 const formatName = name => `:${name.replace(/:/g, '')}:`

@@ -34,6 +34,10 @@ export const TEMPLATE_TYPES_LIST: TemplateTypesListItem[] = [
     text: 'CSV',
     type: TemplateType.CSV,
   },
+  {
+    text: 'Custom Meta Query',
+    type: TemplateType.MetaQuery,
+  },
 ]
 
 export const TEMPLATE_VARIABLE_TYPES = {
@@ -133,6 +137,18 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
       label: '',
       query: {
         influxql: TEMPLATE_VARIABLE_QUERIES[TemplateType.TagValues],
+      },
+    }
+  },
+  [TemplateType.MetaQuery]: () => {
+    return {
+      id: uuid.v4(),
+      tempVar: ':my-meta-query:',
+      values: [],
+      type: TemplateType.MetaQuery,
+      label: '',
+      query: {
+        influxql: '',
       },
     }
   },
