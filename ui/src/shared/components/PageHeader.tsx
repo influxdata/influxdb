@@ -1,4 +1,4 @@
-import React, {SFC, ReactElement} from 'react'
+import React, {PureComponent, ReactElement} from 'react'
 import classnames from 'classnames'
 import Title from 'src/shared/components/PageHeaderTitle'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
@@ -6,40 +6,77 @@ import SourceIndicator from 'src/shared/components/SourceIndicator'
 interface Props {
   title?: string
   renderTitle?: () => ReactElement<any>
+  renderCenter?: () => ReactElement<any>
   renderOptions?: () => ReactElement<any>
   fullWidth?: boolean
   sourceIndicator?: boolean
 }
 
-const PageHeader: SFC<Props> = ({
-  title,
-  fullWidth,
-  renderTitle,
-  renderOptions,
-  sourceIndicator,
-}) => {
-  if (!title && !renderTitle) {
-    console.error('PageHeader requires either title or RenderTitle props')
-  }
-
-  const className = classnames('page-header', {'full-width': fullWidth})
-  let renderLeft = renderTitle
-
-  if (!renderTitle) {
-    renderLeft = () => <Title title={title} />
-  }
-
-  return (
-    <div className={className}>
-      <div className="page-header--container">
-        <div className="page-header--left">{renderLeft()}</div>
-        <div className="page-header--right">
-          {sourceIndicator && <SourceIndicator />}
-          {renderOptions && renderOptions()}
+class PageHeader extends PureComponent<Props> {
+  public render() {
+    return (
+      <div className={this.className}>
+        <div className="page-header--container">
+          <div className="page-header--left">{this.renderLeft}</div>
+          {this.renderCenter}
+          <div className="page-header--right">
+            {this.sourceIndicator}
+            {this.renderRight}
+          </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  private get sourceIndicator(): JSX.Element {
+    const {sourceIndicator} = this.props
+
+    if (!sourceIndicator) {
+      return
+    }
+
+    return <SourceIndicator />
+  }
+
+  private get renderLeft(): JSX.Element {
+    const {title, renderTitle} = this.props
+
+    if (!title && !renderTitle) {
+      console.error('PageHeader requires either title or RenderTitle props')
+    }
+
+    if (!renderTitle) {
+      return <Title title={title} />
+    }
+
+    return renderTitle()
+  }
+
+  private get renderCenter(): JSX.Element {
+    const {renderCenter} = this.props
+
+    if (!renderCenter) {
+      return
+    }
+
+    return <div className="page-header--center">{renderCenter()}</div>
+  }
+
+  private get renderRight(): JSX.Element {
+    const {renderOptions} = this.props
+
+    if (!renderOptions) {
+      return
+    }
+
+    return renderOptions()
+  }
+
+  private get className(): string {
+    const {fullWidth} = this.props
+
+    return classnames('page-header', {'full-width': fullWidth})
+  }
 }
 
 export default PageHeader
