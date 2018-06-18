@@ -2,6 +2,7 @@ import React from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
+import PageHeader from 'src/shared/components/PageHeader'
 import SubSections from 'src/shared/components/SubSections'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 
@@ -49,13 +50,7 @@ const sections = me => [
 
 const AdminChronografPage = ({me, source, params: {tab}}) => (
   <div className="page">
-    <div className="page-header">
-      <div className="page-header--container">
-        <div className="page-header--left">
-          <h1 className="page-header--title">Chronograf Admin</h1>
-        </div>
-      </div>
-    </div>
+    <PageHeader title="Chronograf Admin" />
     <FancyScrollbar className="page-contents">
       <div className="container-fluid">
         <SubSections
