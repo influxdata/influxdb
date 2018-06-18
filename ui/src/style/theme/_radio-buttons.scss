@@ -47,6 +47,12 @@
         cursor: not-allowed;
       }
     }
+    &.disabled.active,
+    &[disabled="true"].active {
+      background-color: $g5-pepper;
+      color: $g10-wolf;
+    }
+
     &:last-child {margin-right: 0;}
   }
 }
@@ -99,6 +105,11 @@
         background-color: $g3-castle;
         color: $g7-graphite;
       }
+    }
+    &.disabled.active,
+    &[disabled="true"].active {
+      background-color: $g5-pepper;
+      color: $g10-wolf;
     }
   }
 }
