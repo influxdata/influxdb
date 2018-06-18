@@ -18,10 +18,12 @@ interface Props {
   onDeleteBody: (bodyID: string) => void
 }
 
+interface YieldToggles {
+  [x: number]: boolean
+}
+
 interface State {
-  nonYieldableIndexesToggled: {
-    [x: number]: boolean
-  }
+  nonYieldableIndexesToggled: YieldToggles
   isImplicitYieldToggled: boolean
 }
 
@@ -31,7 +33,7 @@ class ExpressionNode extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      nonYieldableIndexesToggled: {},
+      nonYieldableIndexesToggled: this.nonYieldableNodesFromScript,
       isImplicitYieldToggled: this.isImplicitYieldToggled,
     }
   }
@@ -208,6 +210,36 @@ class ExpressionNode extends PureComponent<Props, State> {
     }
 
     return false
+  }
+
+  private get nonYieldableNodesFromScript(): YieldToggles {
+    const {funcs} = this.props
+    let isBeforeFilter = true
+    let isBeforeRange = true
+
+    return _.reduce(
+      funcs,
+      (acc: YieldToggles, f, index) => {
+        if (f.name === 'range') {
+          isBeforeRange = false
+        }
+
+        if (f.name === 'filter') {
+          isBeforeFilter = false
+        }
+
+        if (isBeforeFilter || isBeforeRange) {
+          const nextNode = _.get(funcs, `${index + 1}`, null)
+
+          if (nextNode && nextNode.name === 'yield') {
+            return {...acc, [index]: true}
+          }
+        }
+
+        return acc
+      },
+      {}
+    )
   }
 
   private get isImplicitYieldToggled(): boolean {
