@@ -243,6 +243,44 @@
         }
       }
     },
+    "/sources/{id}/ldap": {
+      "get": {
+        "tags": ["sources", "ldap"],
+        "description":
+          "Determines if an enterprise node is configured to use ldap",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the data source",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description":
+              "Result of the query from the backend time series data source.",
+            "schema": {
+              "$ref": "#/definitions/LDAPResponse"
+            }
+          },
+          "404": {
+            "description":
+              "Could not find source or is not an enterprise instance",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
     "/sources/{id}/proxy": {
       "post": {
         "tags": ["sources", "proxy"],
@@ -3305,6 +3343,15 @@
     "KapacitorProxyResponse": {
       "description": "Entire response from the kapacitor backend.",
       "type": "object"
+    },
+    "LDAPResponse": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Influxdb has ldap configured"
+        }
+      }
     },
     "Rules": {
       "type": "object",

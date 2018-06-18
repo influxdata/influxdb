@@ -5,6 +5,10 @@ required = ["github.com/kevinburke/go-bindata","github.com/gogo/protobuf/proto",
   revision = "6710af535839f57c687b62c4c23d649f9545d885"
 
 [[constraint]]
+  name = "github.com/BurntSushi/toml"
+  revision = "a368813c5e648fee92e5f6c30e3944ff9d5e8895"
+
+[[constraint]]
   name = "github.com/Sirupsen/logrus"
   revision = "3ec0642a7fb6488f65b06f9040adc67e3990296a"
 

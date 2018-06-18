@@ -8,8 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+
+	"github.com/BurntSushi/toml"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
@@ -43,6 +46,30 @@ func NewMetaClient(url *url.URL, InsecureSkipVerify bool, authorizer influx.Auth
 		},
 		authorizer: authorizer,
 	}
+}
+
+type LDAPConfig struct {
+	Enabled bool `toml:"enabled"`
+}
+
+func (m *MetaClient) GetLDAPConfig(ctx context.Context) (*LDAPConfig, error) {
+	res, err := m.Do(ctx, "/ldap/v1/config", "GET", m.authorizer, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var config LDAPConfig
+	_, err = toml.Decode(string(result), &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
 }
 
 // ShowCluster returns the cluster configuration (not health)
@@ -498,6 +525,7 @@ func (m *MetaClient) Do(ctx context.Context, path, method string, authorizer inf
 		Response *http.Response
 		Err      error
 	}
+
 	resps := make(chan (result))
 	go func() {
 		resp, err := m.client.Do(m.URL, path, method, authorizer, params, body)
