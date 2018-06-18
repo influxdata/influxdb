@@ -3,9 +3,10 @@ import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
+import PageHeader from 'src/shared/components/PageHeader'
 import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
-import RuleHeader from 'src/kapacitor/components/RuleHeader'
+import RuleHeaderSave from 'src/kapacitor/components/RuleHeaderSave'
 import RuleHandlers from 'src/kapacitor/components/RuleHandlers'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
@@ -166,6 +167,18 @@ class KapacitorRule extends Component {
     ruleActions.updateRuleValues(rule.id, rule.trigger, {period: text})
   }
 
+  renderHeaderOptions = () => {
+    const {source} = this.props
+
+    return (
+      <RuleHeaderSave
+        source={source}
+        onSave={this.handleSave}
+        validationError={this.validationError()}
+      />
+    )
+  }
+
   render() {
     const {
       rule,
@@ -180,10 +193,10 @@ class KapacitorRule extends Component {
 
     return (
       <div className="page">
-        <RuleHeader
-          source={source}
-          onSave={this.handleSave}
-          validationError={this.validationError()}
+        <PageHeader
+          title="Alert Rule Builder"
+          renderOptions={this.renderHeaderOptions}
+          sourceIndicator={true}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
           <div className="container-fluid">
