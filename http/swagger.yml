@@ -635,8 +635,8 @@ components:
         id:
           readOnly: true
           type: string
-        organizationId:
-          type: string
+        owners:
+          $ref: "#/components/schemas/Owners"
         name:
           type: string
         retentionPeriod:
@@ -673,11 +673,19 @@ components:
           type: string
         name:
           type: string
+        owners:
+          $ref: "#/components/schemas/Owners"
       required: [name]
     Organizations:
       type: array
       items:
         $ref: "#/components/schemas/Organization"
+    Owners:
+      properties:
+        users:
+          $ref: "#/components/schemas/Users"
+        organizations:
+          $ref: "#/components/schemas/Organizations"
     Run:
       properties:
         id:
@@ -725,8 +733,8 @@ components:
             "enabled",
             "disabled"
           ]
-        owner:
-          $ref: "#/components/schemas/User"
+        owners:
+          $ref: "#/components/schemas/Owners"
         flux:
           description: The Flux script to run for this task.
           type: string
