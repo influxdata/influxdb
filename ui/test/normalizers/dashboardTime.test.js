@@ -30,7 +30,7 @@ describe('Normalizers.DashboardTime', () => {
   })
 
   it('can remove timeRanges with incorrect dashboardID', () => {
-    const ranges = [{dashboardID: 1, upper, lower}, timeRange]
+    const ranges = [{dashboardID: '1', upper, lower}, timeRange]
 
     const actual = normalizer(ranges)
     const expected = [timeRange]
