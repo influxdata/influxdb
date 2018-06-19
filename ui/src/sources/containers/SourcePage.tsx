@@ -1,5 +1,6 @@
-import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
+import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import _ from 'lodash'
 import {getSource} from 'src/shared/apis'
 import {createSource, updateSource} from 'src/shared/apis'
 import {
@@ -19,6 +20,9 @@ import SourceForm from 'src/sources/components/SourceForm'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 import {DEFAULT_SOURCE} from 'src/shared/constants'
+import {Source} from 'src/types'
+
+const INITIAL_PATH = '/sources/new'
 
 import {
   notifySourceUdpated,
@@ -28,10 +32,6 @@ import {
   notifySourceCreationSucceeded,
 } from 'src/shared/copy/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Source} from 'src/types'
-import {getDeep} from 'src/utils/wrappers'
-
-const INITIAL_PATH = '/sources/new'
 
 interface Props extends WithRouterProps {
   notify: PublishNotification
@@ -40,8 +40,8 @@ interface Props extends WithRouterProps {
 }
 
 interface State {
-  isLoading: boolean
   isCreated: boolean
+  isLoading: boolean
   source: Partial<Source>
   editMode: boolean
   isInitialSource: boolean
@@ -56,8 +56,8 @@ class SourcePage extends PureComponent<Props, State> {
       isLoading: true,
       isCreated: false,
       source: DEFAULT_SOURCE,
-      editMode: this.props.params.id !== undefined,
-      isInitialSource: this.props.location.pathname === INITIAL_PATH,
+      editMode: props.params.id !== undefined,
+      isInitialSource: props.router.location.pathname === INITIAL_PATH,
     }
   }
 
@@ -132,39 +132,7 @@ class SourcePage extends PureComponent<Props, State> {
     )
   }
 
-  private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    let val: string | boolean = e.target.value
-    const name = e.target.name
-
-    if (e.target.type === 'checkbox') {
-      val = e.target.checked
-    }
-
-    this.setState(prevState => {
-      const source = {
-        ...prevState.source,
-        [name]: val,
-      }
-
-      return {...prevState, source}
-    })
-  }
-
-  private handleBlurSourceURL = () => {
-    const {source, editMode} = this.state
-    if (editMode) {
-      this.setState(this.normalizeSource)
-      return
-    }
-
-    if (!source.url) {
-      return
-    }
-
-    this.setState(this.normalizeSource, this.createSourceOnBlur)
-  }
-
-  private handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  private handleSubmit = (e: MouseEvent<HTMLFormElement>): void => {
     e.preventDefault()
     const {isCreated, editMode} = this.state
     const isNewSource = !editMode
@@ -181,10 +149,8 @@ class SourcePage extends PureComponent<Props, State> {
     router.push('/purgatory')
   }
 
-  private normalizeSource() {
-    const {source} = this.state
-    // private normalizeSource({source}) {
-    // const url = source.url.trim()
+  private normalizeSource({source}) {
+    const url = source.url.trim()
     if (source.url.startsWith('http')) {
       return {source: {...source, url}}
     }
@@ -250,7 +216,11 @@ class SourcePage extends PureComponent<Props, State> {
     router.push(`/sources/${params.sourceID}/manage-sources`)
   }
 
-  private redirectToApp = (source: Source) => {
+  private parseError = (error): string => {
+    return _.get(error, ['data', 'message'], error)
+  }
+
+  private redirectToApp = source => {
     const {location, router} = this.props
     const {redirectPath} = location.query
 
@@ -265,8 +235,36 @@ class SourcePage extends PureComponent<Props, State> {
     return router.push(fixedPath)
   }
 
-  private parseError = error => {
-    return getDeep<string>(error, 'data.message', '')
+  private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value
+    const name = e.target.name
+
+    if (e.target.type === 'checkbox') {
+      val = e.target.checked as any
+    }
+
+    this.setState(prevState => {
+      const source = {
+        ...prevState.source,
+        [name]: val,
+      }
+
+      return {...prevState, source}
+    })
+  }
+
+  private handleBlurSourceURL = () => {
+    const {source, editMode} = this.state
+    if (editMode) {
+      this.setState(this.normalizeSource)
+      return
+    }
+
+    if (!source.url) {
+      return
+    }
+
+    this.setState(this.normalizeSource, this.createSourceOnBlur)
   }
 }
 
@@ -276,4 +274,4 @@ const mdtp = {
   updateSource: updateSourceAction,
 }
 
-export default withRouter(connect(null, mdtp)(SourcePage))
+export default connect(null, mdtp)(withRouter(SourcePage))

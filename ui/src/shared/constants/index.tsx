@@ -428,23 +428,7 @@ export const DYGRAPH_CONTAINER_H_MARGIN = 16
 export const DYGRAPH_CONTAINER_V_MARGIN = 8
 export const DYGRAPH_CONTAINER_XLABEL_MARGIN = 20
 
-export const DEFAULT_SOURCE_LINKS = {
-  self: '',
-  kapacitors: '',
-  proxy: '',
-  queries: '',
-  write: '',
-  permissions: '',
-  users: '',
-  roles: '',
-  databases: '',
-  annotations: '',
-  health: '',
-  services: '',
-}
-
 export const DEFAULT_SOURCE = {
-  id: '',
   url: 'http://localhost:8086',
   name: 'Influx 1',
   username: '',
@@ -453,11 +437,6 @@ export const DEFAULT_SOURCE = {
   telegraf: 'telegraf',
   insecureSkipVerify: false,
   metaUrl: '',
-  organization: '',
-  role: '',
-  defaultRP: '',
-  links: DEFAULT_SOURCE_LINKS,
-  type: '',
 }
 
 export const defaultIntervalValue = '333'
