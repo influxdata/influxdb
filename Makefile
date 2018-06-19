@@ -76,6 +76,7 @@ bin/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
 
 Gopkg.lock: Gopkg.toml
 	dep ensure -v
+	touch Gopkg.lock
 
 vendor/github.com/mna/pigeon/main.go: Gopkg.lock
 	dep ensure -v -vendor-only
