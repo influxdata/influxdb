@@ -15,7 +15,7 @@ func ValidTemplateRequest(template *chronograf.Template) error {
 	switch template.Type {
 	default:
 		return fmt.Errorf("Unknown template type %s", template.Type)
-	case "query", "constant", "csv", "fieldKeys", "tagKeys", "tagValues", "measurements", "databases":
+	case "query", "constant", "csv", "fieldKeys", "tagKeys", "tagValues", "measurements", "databases", "map":
 	}
 
 	for _, v := range template.Values {
@@ -23,6 +23,10 @@ func ValidTemplateRequest(template *chronograf.Template) error {
 		default:
 			return fmt.Errorf("Unknown template variable type %s", v.Type)
 		case "csv", "fieldKey", "tagKey", "tagValue", "measurement", "database", "constant":
+		}
+
+		if template.Type == "map" && v.Key == "" {
+			return fmt.Errorf("Templates of type 'map' require a 'key'")
 		}
 	}
 

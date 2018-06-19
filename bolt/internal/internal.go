@@ -341,6 +341,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 				Selected: v.Selected,
 				Type:     v.Type,
 				Value:    v.Value,
+				Key:      v.Key,
 			}
 		}
 
@@ -522,6 +523,7 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				Selected: v.Selected,
 				Type:     v.Type,
 				Value:    v.Value,
+				Key:      v.Key,
 			}
 		}
 
