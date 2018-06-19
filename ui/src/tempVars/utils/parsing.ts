@@ -6,7 +6,7 @@ import parseShowMeasurements from 'src/shared/parsing/showMeasurements'
 import parseShowSeries from 'src/shared/parsing/showSeries'
 
 export const parseMetaQuery = (metaQuery: string, response): string[] => {
-  const metaQueryStart = getMetaQueryStart(metaQuery)
+  const metaQueryStart = getMetaQueryPrefix(metaQuery)
 
   if (!metaQueryStart) {
     throw new Error('Could not find parser for meta query')
@@ -24,9 +24,9 @@ export const parseMetaQuery = (metaQuery: string, response): string[] => {
 }
 
 export const isInvalidMetaQuery = (metaQuery: string): boolean =>
-  !getMetaQueryStart(metaQuery)
+  !getMetaQueryPrefix(metaQuery)
 
-const getMetaQueryStart = (metaQuery: string): string | null => {
+const getMetaQueryPrefix = (metaQuery: string): string | null => {
   const words = metaQuery
     .trim()
     .toUpperCase()
@@ -34,12 +34,12 @@ const getMetaQueryStart = (metaQuery: string): string | null => {
   const firstTwoWords = words.slice(0, 2).join(' ')
   const firstThreeWords = words.slice(0, 3).join(' ')
 
-  return VALID_META_QUERY_STARTS.find(
+  return VALID_META_QUERY_PREFIXES.find(
     q => q === firstTwoWords || q === firstThreeWords
   )
 }
 
-const VALID_META_QUERY_STARTS = [
+const VALID_META_QUERY_PREFIXES = [
   'SHOW DATABASES',
   'SHOW MEASUREMENTS',
   'SHOW SERIES',
