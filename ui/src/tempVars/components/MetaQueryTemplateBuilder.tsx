@@ -12,8 +12,6 @@ import {
   TemplateValueType,
 } from 'src/types'
 
-// TODO: Ensure save is wired up to changes
-
 const DEBOUNCE_DELAY = 750
 
 interface State {
@@ -30,28 +28,29 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
 > {
   private handleMetaQueryChange: () => void = _.debounce(() => {
     const {metaQuery, metaQueryInput} = this.state
-    const {template, onUpdateTemplate} = this.props
 
     if (metaQuery === metaQueryInput) {
       return
     }
 
     this.setState({metaQuery: metaQueryInput}, this.executeQuery)
-
-    const nextTemplate = {...template, query: {influxql: metaQueryInput}}
-
-    onUpdateTemplate(nextTemplate)
   }, DEBOUNCE_DELAY)
 
   constructor(props) {
     super(props)
 
+    const metaQuery = _.get(props.template, 'query.influxql', '')
+
     this.state = {
-      metaQueryInput: '',
-      metaQuery: '',
+      metaQuery,
+      metaQueryInput: metaQuery,
       metaQueryResults: [],
       metaQueryResultsStatus: RemoteDataState.NotStarted,
     }
+  }
+
+  public componentDidMount() {
+    this.executeQuery()
   }
 
   public render() {
@@ -138,7 +137,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
 
       const nextValues = metaQueryResults.map(result => {
         return {
-          type: TemplateValueType.Constant,
+          type: TemplateValueType.MetaQuery,
           value: result,
           selected: false,
         }
@@ -151,6 +150,9 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
       const nextTemplate = {
         ...template,
         values: nextValues,
+        query: {
+          influxql: metaQuery,
+        },
       }
 
       onUpdateTemplate(nextTemplate)
