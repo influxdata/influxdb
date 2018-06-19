@@ -100,7 +100,9 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     return (
       <div className="edit-temp-var">
         <div className="edit-temp-var--header">
-          <h1 className="page-header__title">Edit Template Variable</h1>
+          <h1 className="page-header__title">
+            {isNew ? 'Create' : 'Edit'} Template Variable
+          </h1>
           <div className="edit-temp-var--header-controls">
             <button
               className="btn btn-default"
@@ -115,7 +117,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
               onClick={this.handleSave}
               disabled={!this.canSave}
             >
-              {this.isSaving ? 'Saving...' : 'Save'}
+              {this.saveButtonText}
             </button>
           </div>
         </div>
@@ -275,6 +277,24 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
       '0.text',
       ''
     )
+  }
+
+  private get saveButtonText(): string {
+    const {isNew} = this.state
+
+    if (this.isSaving && isNew) {
+      return 'Creating...'
+    }
+
+    if (this.isSaving && !isNew) {
+      return 'Saving...'
+    }
+
+    if (!this.isSaving && isNew) {
+      return 'Create'
+    }
+
+    return 'Save'
   }
 
   private handleDelete = (): void => {
