@@ -47,6 +47,7 @@ export const TEMPLATE_VARIABLE_TYPES = {
   [TemplateType.FieldKeys]: TemplateValueType.FieldKey,
   [TemplateType.TagKeys]: TemplateValueType.TagKey,
   [TemplateType.TagValues]: TemplateValueType.TagValue,
+  [TemplateType.MetaQuery]: TemplateValueType.MetaQuery,
 }
 
 export const TEMPLATE_VARIABLE_QUERIES = {

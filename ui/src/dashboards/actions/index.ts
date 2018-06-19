@@ -5,7 +5,9 @@ import {replace} from 'react-router-redux'
 import _ from 'lodash'
 import queryString from 'query-string'
 
+import {proxy} from 'src/utils/queryUrlGenerator'
 import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
+import {parseMetaQuery} from 'src/tempVars/utils/parsing'
 
 import {
   getDashboards as getDashboardsAJAX,
@@ -15,7 +17,6 @@ import {
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
-  getTempVarValuesBySourceQuery,
   createDashboard as createDashboardAJAX,
 } from 'src/dashboards/apis'
 import {getMe} from 'src/shared/apis/auth'
@@ -48,7 +49,6 @@ import {
 } from 'src/shared/copy/notifications'
 
 import {makeQueryForTemplate} from 'src/dashboards/utils/tempVars'
-import parsers from 'src/shared/parsing'
 import {getDeep} from 'src/utils/wrappers'
 
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
@@ -628,25 +628,21 @@ export const hydrateTempVarValuesAsync = (
     const dashboard = getState().dashboardUI.dashboards.find(
       d => d.id === dashboardID
     )
+    const templates: Template[] = dashboard.templates
+    const queries = templates
+      .filter(template => !!template.query.influxql)
+      .map(async template => {
+        const query = makeQueryForTemplate(template.query)
+        const response = await proxy({source: source.links.proxy, query})
+        const values = parseMetaQuery(query, response.data)
 
-    const tempsWithQueries = dashboard.templates.filter(
-      ({query}) => !!query.influxql
-    )
-
-    const asyncQueries = tempsWithQueries.map(({query}) =>
-      getTempVarValuesBySourceQuery(source, {
-        query: makeQueryForTemplate(query),
+        return {template, values}
       })
-    )
+    const results = await Promise.all(queries)
 
-    const results = await Promise.all(asyncQueries)
-
-    results.forEach(({data}, i) => {
-      const {type, query, id} = tempsWithQueries[i]
-      const parsed = parsers[type](data, query.tagKey || query.measurement)
-      const vals = parsed[type]
-      dispatch(editTemplateVariableValues(+dashboard.id, id, vals))
-    })
+    for (const {template, values} of results) {
+      dispatch(editTemplateVariableValues(+dashboard.id, template.id, values))
+    }
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
