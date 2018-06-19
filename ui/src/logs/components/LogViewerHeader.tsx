@@ -25,6 +25,7 @@ interface Props {
   onChooseNamespace: (namespace: Namespace) => void
   onChooseTimerange: (timeRange: TimeRange) => void
   onChangeLiveUpdatingStatus: () => void
+  onShowOptionsOverlay: () => void
 }
 
 class LogViewerHeader extends PureComponent<Props> {
