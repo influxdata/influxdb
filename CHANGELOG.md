@@ -10,6 +10,7 @@
 
 1.  [#3474](https://github.com/influxdata/chronograf/pull/3474): Sort task table on Manage Alert page alphabetically
 1.  [#3590](https://github.com/influxdata/chronograf/pull/3590): Redesign icons in side navigation
+1.  [#3696](https://github.com/influxdata/chronograf/pull/3696): Add ability to delete entire queries in Flux Editor
 
 ### Bug Fixes
 
