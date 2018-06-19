@@ -86,7 +86,7 @@
       position: absolute;
       top: 50%;
       right: 6px;
-      transform: translateY(-50%);
+      transform: translateY(-50%) rotate(180deg);
       font-size: 13px;
       opacity: 0;
       transition: opacity 0.25s ease, color 0.25s ease, transform 0.25s ease;
@@ -107,10 +107,10 @@
     }
   }
   &__sort-asc:before {
-    transform: translateY(-50%) rotate(0deg);
+    transform: translateY(-50%) rotate(180deg);
   }
   &__sort-desc:before {
-    transform: translateY(-50%) rotate(180deg);
+    transform: translateY(-50%) rotate(0deg);
   }
 }
 
