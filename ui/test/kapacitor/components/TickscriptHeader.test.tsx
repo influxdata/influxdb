@@ -4,6 +4,14 @@ import {mount} from 'enzyme'
 import PageHeader from 'src/shared/components/PageHeader'
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import TickscriptSave from 'src/kapacitor/components/TickscriptSave'
+import {source} from 'test/resources'
+
+const mockContext = jest.fn()
+jest.mock('src/CheckSources', () => ({
+  SourceContext: {
+    Consumer: ({children}) => children(mockContext()),
+  },
+}))
 
 const setup = (override?) => {
   const props = {
@@ -20,6 +28,8 @@ const setup = (override?) => {
     unsavedChanges: false,
     ...override,
   }
+
+  mockContext.mockReturnValue(source)
 
   const wrapper = mount(<TickscriptHeader {...props} />)
 
