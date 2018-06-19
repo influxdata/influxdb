@@ -16,7 +16,7 @@ export const initialState = {
   activeCellID: '',
 }
 
-import {TEMPLATE_VARIABLE_TYPES} from 'src/dashboards/constants'
+import {TEMPLATE_VARIABLE_TYPES} from 'src/tempVars/constants'
 
 const ui = (state = initialState, action) => {
   switch (action.type) {

@@ -7,6 +7,8 @@ import {
   TimeRange,
   Template,
   QueryConfig,
+  TemplateType,
+  TemplateValueType,
 } from 'src/types'
 import {
   Axes,
@@ -201,57 +203,57 @@ export const timeRange: TimeRange = {
 export const userDefinedTemplateVariables: Template[] = [
   {
     tempVar: ':fields:',
-    type: 'fieldKeys',
+    type: TemplateType.FieldKeys,
     label: '',
     values: [
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_guest',
       },
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_guest_nice',
       },
       {
         selected: true,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_idle',
       },
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_iowait',
       },
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_irq',
       },
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_nice',
       },
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_softirq',
       },
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_steal',
       },
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_system',
       },
       {
         selected: false,
-        type: 'fieldKey',
+        type: TemplateValueType.FieldKey,
         value: 'usage_user',
       },
     ],
@@ -259,42 +261,42 @@ export const userDefinedTemplateVariables: Template[] = [
   },
   {
     tempVar: ':measurements:',
-    type: 'measurements',
+    type: TemplateType.Measurements,
     label: '',
     values: [
       {
         selected: true,
-        type: 'measurement',
+        type: TemplateValueType.Measurement,
         value: 'cpu',
       },
       {
         selected: false,
-        type: 'measurement',
+        type: TemplateValueType.Measurement,
         value: 'disk',
       },
       {
         selected: false,
-        type: 'measurement',
+        type: TemplateValueType.Measurement,
         value: 'diskio',
       },
       {
         selected: false,
-        type: 'measurement',
+        type: TemplateValueType.Measurement,
         value: 'mem',
       },
       {
         selected: false,
-        type: 'measurement',
+        type: TemplateValueType.Measurement,
         value: 'processes',
       },
       {
         selected: false,
-        type: 'measurement',
+        type: TemplateValueType.Measurement,
         value: 'swap',
       },
       {
         selected: false,
-        type: 'measurement',
+        type: TemplateValueType.Measurement,
         value: 'system',
       },
     ],
@@ -305,11 +307,11 @@ export const userDefinedTemplateVariables: Template[] = [
 const dashtimeTempVar: Template = {
   id: 'dashtime',
   tempVar: ':dashboardTime:',
-  type: 'constant',
+  type: TemplateType.Constant,
   values: [
     {
       value: 'now() - 5m',
-      type: 'constant',
+      type: TemplateValueType.Constant,
       selected: true,
     },
   ],
@@ -318,11 +320,11 @@ const dashtimeTempVar: Template = {
 const upperdashtimeTempVar: Template = {
   id: 'upperdashtime',
   tempVar: ':upperDashboardTime:',
-  type: 'constant',
+  type: TemplateType.Constant,
   values: [
     {
       value: 'now()',
-      type: 'constant',
+      type: TemplateValueType.Constant,
       selected: true,
     },
   ],

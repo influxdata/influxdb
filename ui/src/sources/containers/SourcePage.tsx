@@ -1,72 +1,67 @@
-import React, {Component, ChangeEvent, FormEvent} from 'react'
-import {withRouter, InjectedRouter} from 'react-router'
-import {Location} from 'history'
+import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {getSource} from 'src/shared/apis'
 import {createSource, updateSource} from 'src/shared/apis'
 import {
   addSource as addSourceAction,
   updateSource as updateSourceAction,
+  AddSource,
+  UpdateSource,
 } from 'src/shared/actions/sources'
-import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {
+  notify as notifyAction,
+  PublishNotification,
+} from 'src/shared/actions/notifications'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import Notifications from 'src/shared/components/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 import {DEFAULT_SOURCE} from 'src/shared/constants'
-const initialPath = '/sources/new'
 
 import {
-  notifyErrorConnectingToSource,
-  notifySourceCreationSucceeded,
-  notifySourceCreationFailed,
   notifySourceUdpated,
   notifySourceUdpateFailed,
+  notifySourceCreationFailed,
+  notifyErrorConnectingToSource,
+  notifySourceCreationSucceeded,
 } from 'src/shared/copy/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Source, Notification, NotificationFunc} from 'src/types'
+import {Source} from 'src/types'
 import {getDeep} from 'src/utils/wrappers'
 
-interface Params {
-  id: string
-  hash: string
-  sourceID: string
-}
+const INITIAL_PATH = '/sources/new'
 
-interface Props {
-  location: Location
-  router: InjectedRouter
-  params: Params
-  notify: (notification: Notification | NotificationFunc) => void
-  addSource: (s: Source) => void
-  updateSource: (s: Source) => void
+interface Props extends WithRouterProps {
+  notify: PublishNotification
+  addSource: AddSource
+  updateSource: UpdateSource
 }
 
 interface State {
   isLoading: boolean
   isCreated: boolean
-  source: Source
+  source: Partial<Source>
   editMode: boolean
   isInitialSource: boolean
 }
 
 @ErrorHandling
-class SourcePage extends Component<Props, State> {
-  constructor(props: Props) {
+class SourcePage extends PureComponent<Props, State> {
+  constructor(props) {
     super(props)
 
     this.state = {
       isLoading: true,
       isCreated: false,
       source: DEFAULT_SOURCE,
-      editMode: props.params.id !== undefined,
-      isInitialSource: props.location.pathname === initialPath,
+      editMode: this.props.params.id !== undefined,
+      isInitialSource: this.props.location.pathname === INITIAL_PATH,
     }
   }
 
-  public componentDidMount() {
+  public async componentDidMount() {
     const {editMode} = this.state
     const {params, notify} = this.props
 
@@ -74,17 +69,16 @@ class SourcePage extends Component<Props, State> {
       return this.setState({isLoading: false})
     }
 
-    getSource(params.id)
-      .then(({data: source}) => {
-        this.setState({
-          source: {...DEFAULT_SOURCE, ...source},
-          isLoading: false,
-        })
+    try {
+      const source = await getSource(params.id)
+      this.setState({
+        source: {...DEFAULT_SOURCE, ...source},
+        isLoading: false,
       })
-      .catch(error => {
-        notify(notifyErrorConnectingToSource(this.parseError(error)))
-        this.setState({isLoading: false})
-      })
+    } catch (error) {
+      notify(notifyErrorConnectingToSource(this.parseError(error)))
+      this.setState({isLoading: false})
+    }
   }
 
   public render() {
@@ -182,70 +176,70 @@ class SourcePage extends Component<Props, State> {
     this.setState(this.normalizeSource, this.updateSource)
   }
 
-  private gotoPurgatory = () => {
+  private gotoPurgatory = (): void => {
     const {router} = this.props
     router.push('/purgatory')
   }
 
   private normalizeSource() {
     const {source} = this.state
-    const url = source.url.trim()
+    // private normalizeSource({source}) {
+    // const url = source.url.trim()
     if (source.url.startsWith('http')) {
       return {source: {...source, url}}
     }
     return {source: {...source, url: `http://${url}`}}
   }
 
-  private createSourceOnBlur = () => {
+  private createSourceOnBlur = async () => {
     const {source} = this.state
     // if there is a type on source it has already been created
     if (source.type) {
       return
     }
-    createSource(source)
-      .then(({data: sourceFromServer}) => {
-        this.props.addSource(sourceFromServer)
-        this.setState({
-          source: {...DEFAULT_SOURCE, ...sourceFromServer},
-          isCreated: true,
-        })
+
+    try {
+      const sourceFromServer = await createSource(source)
+      this.props.addSource(sourceFromServer)
+      this.setState({
+        source: {...DEFAULT_SOURCE, ...sourceFromServer},
+        isCreated: true,
       })
-      .catch(err => {
-        // dont want to flash this until they submit
-        const error = this.parseError(err)
-        console.error('Error creating InfluxDB connection: ', error)
-      })
+    } catch (err) {
+      // dont want to flash this until they submit
+      const error = this.parseError(err)
+      console.error('Error creating InfluxDB connection: ', error)
+    }
   }
 
-  private createSource = () => {
+  private createSource = async () => {
     const {source} = this.state
     const {notify} = this.props
-    createSource(source)
-      .then(({data: sourceFromServer}) => {
-        this.props.addSource(sourceFromServer)
-        this.redirect(sourceFromServer)
-        notify(notifySourceCreationSucceeded(source.name))
-      })
-      .catch(error => {
-        notify(notifySourceCreationFailed(source.name, this.parseError(error)))
-      })
+    try {
+      const sourceFromServer = await createSource(source)
+      this.props.addSource(sourceFromServer)
+      this.redirect(sourceFromServer)
+      notify(notifySourceCreationSucceeded(source.name))
+    } catch (err) {
+      // dont want to flash this until they submit
+      notify(notifySourceCreationFailed(source.name, this.parseError(err)))
+    }
   }
 
-  private updateSource = () => {
+  private updateSource = async () => {
     const {source} = this.state
     const {notify} = this.props
-    updateSource(source)
-      .then(({data: sourceFromServer}) => {
-        this.props.updateSource(sourceFromServer)
-        this.redirect(sourceFromServer)
-        notify(notifySourceUdpated(source.name))
-      })
-      .catch(error => {
-        notify(notifySourceUdpateFailed(source.name, this.parseError(error)))
-      })
+    try {
+      const sourceFromServer = await updateSource(source)
+      this.props.updateSource(sourceFromServer)
+      this.redirect(sourceFromServer)
+      notify(notifySourceUdpated(source.name))
+    } catch (error) {
+      notify(notifySourceUdpateFailed(source.name, this.parseError(error)))
+    }
   }
 
-  private redirect = (source: Source) => {
+  private redirect = source => {
     const {isInitialSource} = this.state
     const {params, router} = this.props
 
@@ -276,9 +270,10 @@ class SourcePage extends Component<Props, State> {
   }
 }
 
-const mapDispatchToProps = dispatch => ({
-  notify: bindActionCreators(notifyAction, dispatch),
-  addSource: bindActionCreators(addSourceAction, dispatch),
-  updateSource: bindActionCreators(updateSourceAction, dispatch),
-})
-export default withRouter(connect(null, mapDispatchToProps)(SourcePage))
+const mdtp = {
+  notify: notifyAction,
+  addSource: addSourceAction,
+  updateSource: updateSourceAction,
+}
+
+export default withRouter(connect(null, mdtp)(SourcePage))

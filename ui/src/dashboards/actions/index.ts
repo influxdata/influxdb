@@ -61,6 +61,7 @@ import {
   Cell,
   Source,
   Template,
+  TemplateType,
   URLQueryParams,
 } from 'src/types'
 import {CellType, DashboardName} from 'src/types/dashboard'
@@ -444,7 +445,7 @@ export const getChronografVersion = () => async (): Promise<string | void> => {
 const removeUnselectedTemplateValues = (dashboard: Dashboard): Template[] => {
   const templates = getDeep<Template[]>(dashboard, 'templates', []).map(
     template => {
-      if (template.type === 'csv') {
+      if (template.type === TemplateType.CSV) {
         return template
       }
 

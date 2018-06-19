@@ -3,6 +3,7 @@ import _ from 'lodash'
 import reducer from 'src/dashboards/reducers/ui'
 import {template, dashboard, cell} from 'test/resources'
 import {initialState} from 'src/dashboards/reducers/ui'
+import {TemplateType, TemplateValueType} from 'src/types'
 
 import {
   setTimeRange,
@@ -21,13 +22,13 @@ let state
 const t2 = {
   ...template,
   id: '2',
-  type: 'csv',
+  type: TemplateType.CSV,
   label: 'test csv',
   tempVar: ':temperature:',
   values: [
-    {value: '98.7', type: 'measurement', selected: false},
-    {value: '99.1', type: 'measurement', selected: false},
-    {value: '101.3', type: 'measurement', selected: true},
+    {value: '98.7', type: TemplateValueType.Measurement, selected: false},
+    {value: '99.1', type: TemplateValueType.Measurement, selected: false},
+    {value: '101.3', type: TemplateValueType.Measurement, selected: true},
   ],
 }
 

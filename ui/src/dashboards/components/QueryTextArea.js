@@ -12,7 +12,7 @@ import {
   applyMasks,
   insertTempVar,
   unMask,
-} from 'src/dashboards/constants'
+} from 'src/tempVars/constants'
 
 @ErrorHandling
 class QueryTextArea extends Component {

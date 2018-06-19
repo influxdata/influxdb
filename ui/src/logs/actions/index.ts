@@ -450,8 +450,7 @@ export const populateNamespacesAsync = (
 export const getSourceAndPopulateNamespacesAsync = (sourceID: string) => async (
   dispatch
 ): Promise<void> => {
-  const response = await getSource(sourceID)
-  const source = response.data
+  const source = await getSource(sourceID)
 
   const proxyLink = getDeep<string | null>(source, 'links.proxy', null)
 

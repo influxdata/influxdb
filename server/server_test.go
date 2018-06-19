@@ -44,6 +44,13 @@ func Test_validBasepath(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "Basepath can include numbers, hyphens, and underscores",
+			args: args{
+				basepath: "/3shishka-bob/-rus4s_rus-1_s-",
+			},
+			want: true,
+		},
+		{
 			name: "Basepath is not empty and invalid - no slashes",
 			args: args{
 				basepath: "russ",
