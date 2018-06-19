@@ -62,7 +62,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.Databases]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-databases:',
+      tempVar: '',
       values: [
         {
           value: '_internal',
@@ -80,7 +80,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.Measurements]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-measurements:',
+      tempVar: '',
       values: [],
       type: TemplateType.Measurements,
       label: '',
@@ -93,7 +93,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.CSV]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-values:',
+      tempVar: '',
       values: [],
       type: TemplateType.CSV,
       label: '',
@@ -103,7 +103,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.TagKeys]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-tag-keys:',
+      tempVar: '',
       values: [],
       type: TemplateType.TagKeys,
       label: '',
@@ -115,7 +115,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.FieldKeys]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-field-keys:',
+      tempVar: '',
       values: [],
       type: TemplateType.FieldKeys,
       label: '',
@@ -127,7 +127,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.TagValues]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-tag-values:',
+      tempVar: '',
       values: [],
       type: TemplateType.TagValues,
       label: '',

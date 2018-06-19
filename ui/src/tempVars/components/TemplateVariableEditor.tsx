@@ -182,10 +182,10 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private handleChooseType = ({type}) => {
     const {
-      nextTemplate: {id},
+      nextTemplate: {id, tempVar},
     } = this.state
 
-    const nextNextTemplate = {...DEFAULT_TEMPLATES[type](), id}
+    const nextNextTemplate = {...DEFAULT_TEMPLATES[type](), id, tempVar}
 
     this.setState({nextTemplate: nextNextTemplate})
   }
@@ -204,7 +204,12 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private formatName = (): void => {
     const {nextTemplate} = this.state
-    const tempVar = formatName(nextTemplate.tempVar)
+
+    let tempVar = formatName(nextTemplate.tempVar)
+
+    if (tempVar === '::') {
+      tempVar = ''
+    }
 
     this.setState({nextTemplate: {...nextTemplate, tempVar}})
   }
