@@ -60,6 +60,36 @@ func TestValidTemplateRequest(t *testing.T) {
 				Type: "query",
 			},
 		},
+		{
+			name: "Valid Map type",
+			template: &chronograf.Template{
+				Type: "map",
+				TemplateVar: chronograf.TemplateVar{
+					Values: []chronograf.TemplateValue{
+						{
+							Key:   "key",
+							Value: "value",
+							Type:  "constant",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Map without Key",
+			wantErr: true,
+			template: &chronograf.Template{
+				Type: "map",
+				TemplateVar: chronograf.TemplateVar{
+					Values: []chronograf.TemplateValue{
+						{
+							Value: "value",
+							Type:  "constant",
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
