@@ -2,6 +2,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 import {TickscriptPage} from 'src/kapacitor/containers/TickscriptPage'
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
+import PageHeader from 'src/shared/components/PageHeader'
 import TickscriptSave from 'src/kapacitor/components/TickscriptSave'
 import {source, kapacitorRules} from 'test/resources'
 
@@ -39,7 +40,7 @@ const setup = (override?) => {
   }
 }
 
-describe('Kapacitor.Containers.TickscriptPage', () => {
+describe.only('Kapacitor.Containers.TickscriptPage', () => {
   afterEach(() => {
     jest.clearAllMocks()
   })
@@ -72,7 +73,8 @@ describe('Kapacitor.Containers.TickscriptPage', () => {
         })
 
         const header = wrapper.dive().find(TickscriptHeader)
-        const save = header.dive().find(TickscriptSave)
+        const pageHeader = header.dive().find(PageHeader)
+        const save = pageHeader.dive().find(TickscriptSave)
 
         save.dive().simulate('click')
 
@@ -101,7 +103,8 @@ describe('Kapacitor.Containers.TickscriptPage', () => {
         })
 
         const header = wrapper.dive().find(TickscriptHeader)
-        const save = header.dive().find(TickscriptSave)
+        const pageHeader = header.dive().find(PageHeader)
+        const save = pageHeader.dive().find(TickscriptSave)
 
         save.dive().simulate('click')
 
