@@ -3,12 +3,13 @@ import _ from 'lodash'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import ExpressionNode from 'src/flux/components/ExpressionNode'
-import VariableName from 'src/flux/components/VariableName'
+import VariableNode from 'src/flux/components/VariableNode'
 import FuncSelector from 'src/flux/components/FuncSelector'
+import BodyDelete from 'src/flux/components/BodyDelete'
 import {funcNames} from 'src/flux/constants'
 
 import {Service} from 'src/types'
-import {FlatBody, Suggestion} from 'src/types/flux'
+import {Body, Suggestion} from 'src/types/flux'
 
 interface Props {
   service: Service
@@ -16,21 +17,25 @@ interface Props {
   suggestions: Suggestion[]
   onAppendFrom: () => void
   onAppendJoin: () => void
-}
-
-interface Body extends FlatBody {
-  id: string
+  onDeleteBody: (bodyID: string) => void
 }
 
 class BodyBuilder extends PureComponent<Props> {
   public render() {
-    const bodybuilder = this.props.body.map((b, i) => {
+    const {body, onDeleteBody} = this.props
+
+    const bodybuilder = body.map((b, i) => {
       if (b.declarations.length) {
         return b.declarations.map(d => {
           if (d.funcs) {
             return (
               <div className="declaration" key={i}>
-                <VariableName name={d.name} assignedToQuery={true} />
+                <div className="func-node--wrapper">
+                  <VariableNode name={d.name} assignedToQuery={true} />
+                  <div className="func-node--menu">
+                    <BodyDelete bodyID={b.id} onDeleteBody={onDeleteBody} />
+                  </div>
+                </div>
                 <ExpressionNode
                   bodyID={b.id}
                   declarationID={d.id}
@@ -38,6 +43,7 @@ class BodyBuilder extends PureComponent<Props> {
                   funcs={d.funcs}
                   declarationsFromBody={this.declarationsFromBody}
                   isLastBody={this.isLastBody(i)}
+                  onDeleteBody={onDeleteBody}
                 />
               </div>
             )
@@ -45,7 +51,16 @@ class BodyBuilder extends PureComponent<Props> {
 
           return (
             <div className="declaration" key={i}>
-              <VariableName name={b.source} assignedToQuery={false} />
+              <div className="func-node--wrapper">
+                <VariableNode name={b.source} assignedToQuery={false} />
+                <div className="func-node--menu">
+                  <BodyDelete
+                    bodyID={b.id}
+                    type="variable"
+                    onDeleteBody={onDeleteBody}
+                  />
+                </div>
+              </div>
             </div>
           )
         })
@@ -59,6 +74,7 @@ class BodyBuilder extends PureComponent<Props> {
             funcNames={this.funcNames}
             declarationsFromBody={this.declarationsFromBody}
             isLastBody={this.isLastBody(i)}
+            onDeleteBody={onDeleteBody}
           />
         </div>
       )

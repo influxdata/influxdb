@@ -144,6 +144,8 @@ $flux-invalid-hover: $c-dreamsicle;
 
   &:hover,
   &.active {
+    cursor: pointer !important;
+
     .func-node--preview {
       color: $g20-white;
     }
@@ -196,7 +198,7 @@ $flux-invalid-hover: $c-dreamsicle;
 }
 
 // When a query exists unassigned to a variable
-.func-node:first-child {
+.func-node--wrapper:first-child .func-node {
   margin-left: 0;
   padding-left: $flux-node-gap;
   .func-node--connector {
@@ -248,24 +250,26 @@ $flux-invalid-hover: $c-dreamsicle;
   }
 }
 
+.func-node--wrapper {
+  display: flex;
+  align-items: center;
+}
+
 .func-node--menu {
   display: flex;
   align-items: center;
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translate(100%, -50%);
   opacity: 0;
   transition: opacity 0.25s ease;
 
-  > button.btn {
+  > button.btn,
+  > .confirm-button {
     margin-left: 4px;
   }
 }
 
-.func-node:hover .func-node--menu,
-.func-node.editing .func-node--menu,
-.func-node.active .func-node--menu {
+.func-node--wrapper:hover .func-node--menu,
+.func-node.editing + .func-node--menu,
+.func-node.active + .func-node--menu {
   opacity: 1;
 }
 

@@ -7,6 +7,7 @@ import {
   Suggestion,
   OnChangeScript,
   OnSubmitScript,
+  OnDeleteBody,
   FlatBody,
   ScriptStatus,
 } from 'src/types/flux'
@@ -22,6 +23,7 @@ interface Props {
   status: ScriptStatus
   suggestions: Suggestion[]
   onChangeScript: OnChangeScript
+  onDeleteBody: OnDeleteBody
   onSubmitScript: OnSubmitScript
   onAppendFrom: () => void
   onAppendJoin: () => void
@@ -63,7 +65,14 @@ class TimeMachine extends PureComponent<Props> {
   }
 
   private get builder() {
-    const {body, service, suggestions, onAppendFrom, onAppendJoin} = this.props
+    const {
+      body,
+      service,
+      suggestions,
+      onAppendFrom,
+      onDeleteBody,
+      onAppendJoin,
+    } = this.props
 
     return {
       name: 'Build',
@@ -75,6 +84,7 @@ class TimeMachine extends PureComponent<Props> {
           body={body}
           service={service}
           suggestions={suggestions}
+          onDeleteBody={onDeleteBody}
           onAppendFrom={onAppendFrom}
           onAppendJoin={onAppendJoin}
         />

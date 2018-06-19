@@ -97,6 +97,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
       values: [],
       type: TemplateType.CSV,
       label: '',
+      query: {},
     }
   },
   [TemplateType.TagKeys]: () => {

@@ -5,9 +5,11 @@ import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
 import parseValuesColumn from 'src/shared/parsing/flux/values'
 import FilterTagList from 'src/flux/components/FilterTagList'
 import Walker from 'src/flux/ast/walker'
+import {makeCancelable} from 'src/utils/promises'
 
 import {Service} from 'src/types'
 import {Links, OnChangeArg, Func, FilterNode} from 'src/types/flux'
+import {WrappedCancelablePromise} from 'src/types/promises'
 
 interface Props {
   links: Links
@@ -28,6 +30,8 @@ interface State {
 }
 
 class FilterArgs extends PureComponent<Props, State> {
+  private fetchTagKeysResponse?: WrappedCancelablePromise<string>
+
   constructor(props) {
     super(props)
     this.state = {
@@ -52,15 +56,24 @@ class FilterArgs extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {db, service} = this.props
-
     try {
       this.convertStringToNodes()
-      const response = await fetchTagKeys(service, db, [])
+      const response = await this.getTagKeys()
       const tagKeys = parseValuesColumn(response)
-      this.setState({tagKeys})
+
+      this.setState({
+        tagKeys,
+      })
     } catch (error) {
-      console.error(error)
+      if (!error.isCanceled) {
+        console.error(error)
+      }
+    }
+  }
+
+  public componentWillUnmount() {
+    if (this.fetchTagKeysResponse) {
+      this.fetchTagKeysResponse.cancel()
     }
   }
 
@@ -90,6 +103,14 @@ class FilterArgs extends PureComponent<Props, State> {
         onGenerateScript={onGenerateScript}
       />
     )
+  }
+
+  private getTagKeys(): Promise<string> {
+    const {db, service} = this.props
+
+    this.fetchTagKeysResponse = makeCancelable(fetchTagKeys(service, db, []))
+
+    return this.fetchTagKeysResponse.promise
   }
 }
 

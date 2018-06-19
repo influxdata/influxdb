@@ -15,6 +15,7 @@ interface Props {
   declarationID?: string
   declarationsFromBody: string[]
   isLastBody: boolean
+  onDeleteBody: (bodyID: string) => void
 }
 
 interface State {
@@ -42,6 +43,7 @@ class ExpressionNode extends PureComponent<Props, State> {
       funcNames,
       funcs,
       declarationsFromBody,
+      onDeleteBody,
     } = this.props
 
     const {nonYieldableIndexesToggled} = this.state
@@ -106,6 +108,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                     onGenerateScript={onGenerateScript}
                     declarationsFromBody={declarationsFromBody}
                     onToggleYieldWithLast={this.handleToggleYieldWithLast}
+                    onDeleteBody={onDeleteBody}
                   />
                 )
 
@@ -152,6 +155,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                         onGenerateScript={onGenerateScript}
                         declarationsFromBody={declarationsFromBody}
                         onToggleYieldWithLast={this.handleToggleYieldWithLast}
+                        onDeleteBody={onDeleteBody}
                       />
                       <YieldFuncNode
                         index={i}
