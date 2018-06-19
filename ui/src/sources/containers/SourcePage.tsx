@@ -18,7 +18,7 @@ import {connect} from 'react-redux'
 import Notifications from 'src/shared/components/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import PageHeader from 'src/shared/components/PageHeader'
 import {DEFAULT_SOURCE} from 'src/shared/constants'
 import {Source} from 'src/types'
 
@@ -91,24 +91,7 @@ class SourcePage extends PureComponent<Props, State> {
     return (
       <div className={`${isInitialSource ? '' : 'page'}`}>
         <Notifications />
-        <div className="page-header">
-          <div className="page-header__container page-header__source-page">
-            <div className="page-header__col-md-8">
-              <div className="page-header__left">
-                <h1 className="page-header__title">
-                  {editMode
-                    ? 'Configure InfluxDB Connection'
-                    : 'Add a New InfluxDB Connection'}
-                </h1>
-              </div>
-              {isInitialSource ? null : (
-                <div className="page-header__right">
-                  <SourceIndicator />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <PageHeader title={this.pageTitle} />
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">
@@ -131,6 +114,7 @@ class SourcePage extends PureComponent<Props, State> {
       </div>
     )
   }
+
   private handleSubmit = (e: MouseEvent<HTMLFormElement>): void => {
     e.preventDefault()
     const {isCreated, editMode} = this.state
@@ -140,10 +124,12 @@ class SourcePage extends PureComponent<Props, State> {
     }
     this.setState(this.normalizeSource, this.updateSource)
   }
+
   private gotoPurgatory = (): void => {
     const {router} = this.props
     router.push('/purgatory')
   }
+
   private normalizeSource({source}) {
     const url = source.url.trim()
     if (source.url.startsWith('http')) {
@@ -260,6 +246,16 @@ class SourcePage extends PureComponent<Props, State> {
     }
 
     this.setState(this.normalizeSource, this.createSourceOnBlur)
+  }
+
+  private get pageTitle(): string {
+    const {editMode} = this.state
+
+    if (editMode) {
+      return 'Configure InfluxDB Connection'
+    }
+
+    return 'Add a New InfluxDB Connection'
   }
 }
 
