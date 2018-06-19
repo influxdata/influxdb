@@ -62,7 +62,7 @@ button.btn.template-control--manage {
   font-weight: 500;
   @include no-user-select();
 }
-.template-control--dropdown {
+.template-control--controls > .template-control--dropdown {
   flex: 0 1 auto;
   min-width: $template-control-dropdown-min-width;
   max-width: $template-control-dropdown-max-width;
@@ -71,29 +71,32 @@ button.btn.template-control--manage {
   align-items: stretch;
   margin: $template-control--margin;
 
-  .dropdown {
+  > .dropdown {
     order: 2;
     margin: 0;
     flex: 1 0 0%;
+
+    .dropdown-toggle {
+      border-radius: 0 0 $radius-small $radius-small;
+      width: 100%;
+      font-size: 12px;
+      font-family: $code-font;
+    }
+
+    .dropdown-menu .fancy-scroll--view li.dropdown-item a {
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow: hidden;
+      font-family: $code-font;
+      font-size: 12px;
+    }
   }
-  .dropdown-toggle {
-    border-radius: 0 0 $radius-small $radius-small;
-    width: 100%;
-    font-size: 12px;
-    font-family: $code-font;
-  }
-  .dropdown .dropdown-menu .fancy-scroll--view li.dropdown-item a {
-    white-space: pre-wrap;
-    word-break: break-all;
-    overflow: hidden;
-    font-family: $code-font;
-    font-size: 12px;
-  }
+
 }
 .template-control--label {
   @include no-user-select();
   order: 1;
-  height: 18px;
+  height: 22px;
   padding: 0 8px;
   margin: 0;
   font-size: 11px;
@@ -102,4 +105,13 @@ button.btn.template-control--manage {
   line-height: 18px;
   border-radius: $radius-small $radius-small 0 0;
   background-color: $g4-onyx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  > .icon {
+    padding-bottom: 1px;
+    color: $g11-sidewalk;
+    cursor: pointer;
+  }
 }

@@ -19,10 +19,8 @@ import {getQueryConfigAndStatus} from 'src/shared/apis'
 import {IS_STATIC_LEGEND} from 'src/shared/constants'
 import {nextSource} from 'src/dashboards/utils/sources'
 
-import {
-  removeUnselectedTemplateValues,
-  TYPE_QUERY_CONFIG,
-} from 'src/dashboards/constants'
+import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
+import {removeUnselectedTemplateValues} from 'src/tempVars/constants'
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {

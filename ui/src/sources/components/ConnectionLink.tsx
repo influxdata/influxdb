@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+import {stripPrefix} from 'src/utils/basepath'
 
 import {Source} from 'src/types'
 
@@ -19,7 +20,7 @@ class ConnectionLink extends PureComponent<Props> {
           replaceWithIfNotAuthorized={<strong>{source.name}</strong>}
         >
           <Link
-            to={`${location.pathname}/${source.id}/edit`}
+            to={`${stripPrefix(location.pathname)}/${source.id}/edit`}
             className={this.className}
           >
             <strong>{source.name}</strong>

@@ -1,0 +1,14 @@
+.dropdown-placeholder {
+  background-color: $g5-pepper;
+  border-radius: 4px;
+  flex-grow: 1;
+  flex-shrink: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: $form-md-height;
+
+  .loading-spinner .spinner div {
+    background-color: $g14-chromium;
+  }
+}

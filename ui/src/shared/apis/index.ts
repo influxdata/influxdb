@@ -9,29 +9,51 @@ export function getSources() {
   })
 }
 
-export function getSource(id) {
-  return AJAX({
-    url: null,
-    resource: 'sources',
-    id,
-  })
+export const getSource = async (id: string): Promise<Source> => {
+  try {
+    const {data: source} = await AJAX({
+      url: null,
+      resource: 'sources',
+      id,
+    })
+
+    return source
+  } catch (error) {
+    throw error
+  }
 }
 
-export function createSource(attributes) {
-  return AJAX({
-    url: null,
-    resource: 'sources',
-    method: 'POST',
-    data: attributes,
-  })
+export const createSource = async (
+  attributes: Partial<Source>
+): Promise<Source> => {
+  try {
+    const {data: source} = await AJAX({
+      url: null,
+      resource: 'sources',
+      method: 'POST',
+      data: attributes,
+    })
+
+    return source
+  } catch (error) {
+    throw error
+  }
 }
 
-export function updateSource(newSource) {
-  return AJAX({
-    url: newSource.links.self,
-    method: 'PATCH',
-    data: newSource,
-  })
+export const updateSource = async (
+  newSource: Partial<Source>
+): Promise<Source> => {
+  try {
+    const {data: source} = await AJAX({
+      url: newSource.links.self,
+      method: 'PATCH',
+      data: newSource,
+    })
+
+    return source
+  } catch (error) {
+    throw error
+  }
 }
 
 export function deleteSource(source) {

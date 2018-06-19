@@ -1,6 +1,6 @@
 import {QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
-import {Template} from 'src/types/tempVars'
+import {Template} from 'src/types'
 
 export interface Axis {
   bounds: [string, string]
@@ -120,4 +120,10 @@ interface DashboardFileMetaSection {
 export interface DashboardFile {
   meta?: DashboardFileMetaSection
   dashboard: Dashboard
+}
+
+export enum ThresholdType {
+  Text = 'text',
+  BG = 'background',
+  Base = 'base',
 }
