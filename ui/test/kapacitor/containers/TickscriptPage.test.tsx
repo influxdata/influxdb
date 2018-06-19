@@ -40,7 +40,7 @@ const setup = (override?) => {
   }
 }
 
-describe.only('Kapacitor.Containers.TickscriptPage', () => {
+describe('Kapacitor.Containers.TickscriptPage', () => {
   afterEach(() => {
     jest.clearAllMocks()
   })
