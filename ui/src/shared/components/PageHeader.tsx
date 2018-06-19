@@ -1,4 +1,4 @@
-import React, {PureComponent, ReactElement} from 'react'
+import React, {Component, ReactElement} from 'react'
 import classnames from 'classnames'
 import Title from 'src/shared/components/PageHeaderTitle'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
@@ -12,7 +12,7 @@ interface Props {
   sourceIndicator?: boolean
 }
 
-class PageHeader extends PureComponent<Props> {
+class PageHeader extends Component<Props> {
   public render() {
     return (
       <div className={this.className}>

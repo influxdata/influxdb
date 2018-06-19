@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import classnames from 'classnames'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
@@ -37,7 +37,7 @@ interface Props {
   names: DashboardName[]
 }
 
-class DashboardHeader extends PureComponent<Props> {
+class DashboardHeader extends Component<Props> {
   public static defaultProps: Partial<Props> = {
     zoomedTimeRange: {
       upper: null,
@@ -72,7 +72,7 @@ class DashboardHeader extends PureComponent<Props> {
       autoRefresh,
       handleChooseTimeRange,
       timeRange: {upper, lower},
-      zoomedTimeRange,
+      zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
       handleClickPresentationButton,
     } = this.props
 
@@ -90,8 +90,8 @@ class DashboardHeader extends PureComponent<Props> {
         <TimeRangeDropdown
           onChooseTimeRange={handleChooseTimeRange}
           selected={{
-            upper: zoomedTimeRange.upper || upper,
-            lower: zoomedTimeRange.lower || lower,
+            upper: zoomedUpper || upper,
+            lower: zoomedLower || lower,
           }}
         />
         <button
