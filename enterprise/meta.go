@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -52,24 +53,46 @@ type LDAPConfig struct {
 	Enabled bool `toml:"enabled"`
 }
 
+func (m *MetaClient) RequestLDAPChannel(ctx context.Context, errors chan error) chan *http.Response {
+	channel := make(chan *http.Response, 1)
+	go (func() {
+		res, err := m.Do(ctx, "/ldap/v1/config", "GET", m.authorizer, nil, nil)
+		if err != nil {
+			errors <- err
+		} else {
+			channel <- res
+		}
+	})()
+
+	return channel
+}
+
 func (m *MetaClient) GetLDAPConfig(ctx context.Context) (*LDAPConfig, error) {
-	res, err := m.Do(ctx, "/ldap/v1/config", "GET", m.authorizer, nil, nil)
-	if err != nil {
-		return nil, err
-	}
+	ctxt, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
 
-	result, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
+	errorCh := make(chan error, 1)
+	responseChannel := m.RequestLDAPChannel(ctxt, errorCh)
 
-	var config LDAPConfig
-	_, err = toml.Decode(string(result), &config)
-	if err != nil {
-		return nil, err
-	}
+	select {
+	case res := <-responseChannel:
+		result, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
 
-	return &config, nil
+		var config LDAPConfig
+		_, err = toml.Decode(string(result), &config)
+		if err != nil {
+			return nil, err
+		}
+
+		return &config, nil
+	case err := <-errorCh:
+		return nil, err
+	case <-ctxt.Done():
+		return nil, ctxt.Err()
+	}
 }
 
 // ShowCluster returns the cluster configuration (not health)
