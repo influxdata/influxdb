@@ -5,6 +5,104 @@ info:
 servers:
   - url: /v1
 paths:
+  /authorizations:
+    get:
+      tags:
+        - Authorizations
+      summary: List all authorizations
+      parameters:
+        - in: query
+          name: userID
+          schema:
+            type: string
+          description: filter authorizations belonging to a user id
+        - in: query
+          name: user
+          schema:
+            type: string
+          description: filter authorizations belonging to a user name
+      responses:
+        '200':
+          description: A list of authorizations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Authorizations"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Authorizations
+      summary: Create an authorization
+      requestBody:
+        description: authorization to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Authorization"
+      responses:
+        '201':
+          description: authorization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Authorization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /authorizations/{authId}:
+    get:
+      tags:
+        - Authorizations
+      summary: Retrieve an authorization
+      parameters:
+        - in: path
+          name: authId
+          schema:
+            type: string
+          required: true
+          description: ID of authorization to get
+      responses:
+        '200':
+          description: authorization details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Authorization"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Authorizations
+      summary: Delete a authorization
+      parameters:
+        - in: path
+          name: authId
+          schema:
+            type: string
+          required: true
+          description: ID of authorization to delete
+      responses:
+        '204':
+          description: authorization deleted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /buckets:
     get:
       tags:
@@ -630,6 +728,21 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   schemas:
+    Authorization:
+      properties:
+        id:
+          readOnly: true
+          type: string
+        token:
+          readOnly: true
+          type: string
+        owner:
+          $ref: "#/components/schemas/Owners"
+      required: [userID]
+    Authorizations:
+      type: array
+      items:
+        $ref: "#/components/schemas/Authorization"
     Bucket:
       properties:
         id:
