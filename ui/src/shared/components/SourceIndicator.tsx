@@ -11,16 +11,19 @@ interface Props {
   sourceOverride?: Source
 }
 
-const SourceIndicator: SFC<Props> = (
-  {sourceOverride},
-  {source: {name, url}}
-) => {
+const SourceIndicator: SFC<Props> = ({sourceOverride}, {source}) => {
+  if (!source) {
+    return null
+  }
+
+  const {name, url} = source
   const sourceName: string = _.get(sourceOverride, 'name', name)
   const sourceUrl: string = _.get(sourceOverride, 'url', url)
+
   const sourceNameTooltip: string = `<h1>Connected to Source:</h1><p><code>${sourceName} @ ${sourceUrl}</code></p>`
   const uuidTooltip: string = uuid.v4()
 
-  return sourceName ? (
+  return (
     <div
       className="source-indicator"
       data-for={uuidTooltip}
@@ -35,7 +38,7 @@ const SourceIndicator: SFC<Props> = (
         class="influx-tooltip"
       />
     </div>
-  ) : null
+  )
 }
 
 const {shape} = PropTypes
