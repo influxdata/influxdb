@@ -6,7 +6,7 @@ import {notifyPresentationMode} from 'src/shared/copy/notifications'
 import {Dispatch} from 'redux'
 
 // ephemeral state action creators
-interface EnablePresentationModeAction {
+export interface EnablePresentationModeAction {
   type: 'ENABLE_PRESENTATION_MODE'
 }
 export const enablePresentationMode = (): EnablePresentationModeAction => ({
@@ -29,7 +29,7 @@ export const delayEnablePresentationMode = async (
   }, PRESENTATION_MODE_ANIMATION_DELAY)
 
 // persistent state action creators
-interface SetAutoRefreshAction {
+export interface SetAutoRefreshAction {
   type: 'SET_AUTOREFRESH'
   payload: {
     milliseconds: number
@@ -42,7 +42,7 @@ export const setAutoRefresh = (milliseconds: number): SetAutoRefreshAction => ({
   },
 })
 
-interface TemplateControlBarVisibilityToggledAction {
+export interface TemplateControlBarVisibilityToggledAction {
   type: 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED'
 }
 export const templateControlBarVisibilityToggled = (): TemplateControlBarVisibilityToggledAction => ({

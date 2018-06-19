@@ -1,5 +1,5 @@
 import {TimeRange} from 'src/types/query'
-interface TimeRangeOption extends TimeRange {
+export interface TimeRangeOption extends TimeRange {
   defaultGroupBy: string
   seconds: number
   inputValue: string

@@ -1,6 +1,4 @@
 import {bindActionCreators} from 'redux'
-import {InjectedRouter} from 'react-router'
-import {Location} from 'history'
 import {replace} from 'react-router-redux'
 import _ from 'lodash'
 import queryString from 'query-string'
@@ -55,16 +53,24 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
+import {InjectedRouter} from 'react-router'
+import {Location} from 'history'
+import {Dispatch} from 'redux'
 import {
-  Dashboard,
-  TimeRange,
   Cell,
+  Dashboard,
+  Me,
   Source,
   Template,
   TemplateType,
+  TimeRange,
   URLQueryParams,
 } from 'src/types'
 import {CellType, DashboardName} from 'src/types/dashboard'
+import {TimeRangeOption} from 'src/shared/data/timeRanges'
+import {ActionPublishNotification} from 'src/shared/actions/notifications'
+import {ErrorThrownAction} from 'src/shared/actions/errors'
+import {LocationAction} from 'react-router-redux'
 
 interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
@@ -128,7 +134,7 @@ export const retainRangesDashTimeV1 = (
   payload: {dashboardIDs},
 })
 
-interface SetTimeRangeAction {
+export interface SetTimeRangeAction {
   type: 'SET_DASHBOARD_TIME_RANGE'
   payload: {
     timeRange: TimeRange
@@ -378,8 +384,14 @@ export const setActiveCell = (activeCellID: string): SetActiveCellAction => ({
 
 // Async Action Creators
 
-export const getDashboardsAsync = () => async (
-  dispatch
+type GetDashboardsDispatcher = () => GetDashboardsThunk
+
+type GetDashboardsThunk = (
+  dispatch: Dispatch<ErrorThrownAction>
+) => Promise<Dashboard[] | void>
+
+export const getDashboardsAsync = (): GetDashboardsThunk => async (
+  dispatch: Dispatch<LoadDashboardsAction | ErrorThrownAction>
 ): Promise<Dashboard[] | void> => {
   try {
     const {
@@ -393,10 +405,20 @@ export const getDashboardsAsync = () => async (
   }
 }
 
+export type GetDashboardsNamesDispatcher = (
+  sourceID: string
+) => GetDashboardsNamesThunk
+
+type GetDashboardsNamesThunk = (
+  dispatch: Dispatch<ErrorThrownAction>
+) => Promise<DashboardName[] | void>
+
 // gets update-to-date names of dashboards, but does not dispatch action
 // in order to avoid duplicate and out-of-sync state problems in redux
-export const getDashboardsNamesAsync = (sourceID: string) => async (
-  dispatch
+export const getDashboardsNamesAsync = (
+  sourceID: string
+): GetDashboardsNamesThunk => async (
+  dispatch: Dispatch<ErrorThrownAction>
 ): Promise<DashboardName[] | void> => {
   try {
     // TODO: change this from getDashboardsAJAX to getDashboardsNamesAJAX
@@ -458,8 +480,14 @@ const removeUnselectedTemplateValues = (dashboard: Dashboard): Template[] => {
   return templates
 }
 
-export const putDashboard = (dashboard: Dashboard) => async (
-  dispatch
+export type PutDashboardDispatcher = (dashboard: Dashboard) => PutDashboardThunk
+
+type PutDashboardThunk = (
+  dispatch: Dispatch<UpdateDashboardAction | ErrorThrownAction>
+) => Promise<void>
+
+export const putDashboard = (dashboard: Dashboard): PutDashboardThunk => async (
+  dispatch: Dispatch<UpdateDashboardAction | ErrorThrownAction>
 ): Promise<void> => {
   try {
     // save only selected template values to server
@@ -485,9 +513,24 @@ export const putDashboard = (dashboard: Dashboard) => async (
   }
 }
 
-export const putDashboardByID = (dashboardID: number) => async (
-  dispatch,
-  getState
+interface DashboardsReducerState {
+  dashboardUI: {dashboards: Dashboard[]}
+}
+
+type PutDashboardByIDThunk = (
+  dispatch: Dispatch<ErrorThrownAction>,
+  getState: () => DashboardsReducerState
+) => Promise<void>
+
+export type PutDashboardByIDDispatcher = (
+  dashboardID: number
+) => PutDashboardByIDThunk
+
+export const putDashboardByID = (
+  dashboardID: number
+): PutDashboardByIDThunk => async (
+  dispatch: Dispatch<ErrorThrownAction>,
+  getState: () => DashboardsReducerState
 ): Promise<void> => {
   try {
     const {
@@ -655,11 +698,23 @@ export const hydrateTempVarValuesAsync = (
 
 const removeNullValues = obj => _.pickBy(obj, o => o)
 
+type SyncURLQueryFromQueryParamsObjectDispatcher = (
+  location: Location,
+  updatedURLQueryParams: URLQueryParams,
+  deletedURLQueryParams: URLQueryParams
+) => SyncURLQueryFromQueryParamsObjectActionCreator
+
+type SyncURLQueryFromQueryParamsObjectActionCreator = (
+  dispatch: Dispatch<LocationAction>
+) => void
+
 export const syncURLQueryParamsFromQueryParamsObject = (
   location: Location,
   updatedURLQueryParams: URLQueryParams,
   deletedURLQueryParams: URLQueryParams = {}
-) => (dispatch): void => {
+): SyncURLQueryFromQueryParamsObjectActionCreator => (
+  dispatch: Dispatch<LocationAction>
+): void => {
   const updatedLocationQuery = removeNullValues({
     ...location.query,
     ...updatedURLQueryParams,
@@ -680,12 +735,21 @@ export const syncURLQueryParamsFromQueryParamsObject = (
   dispatch(replace(updatedLocation))
 }
 
+export type SyncURLQueryFromTempVarsDispatcher = (
+  location: Location,
+  tempVars: Template[],
+  deletedTempVars: Template[],
+  urlQueryParamsTimeRanges: URLQueryParams
+) => SyncURLQueryFromQueryParamsObjectActionCreator
+
 export const syncURLQueryFromTempVars = (
   location: Location,
   tempVars: Template[],
   deletedTempVars: Template[] = [],
   urlQueryParamsTimeRanges: URLQueryParams = {}
-) => (dispatch): void => {
+): SyncURLQueryFromQueryParamsObjectActionCreator => (
+  dispatch: Dispatch<SyncURLQueryFromQueryParamsObjectDispatcher>
+): void => {
   const updatedURLQueryParams = generateURLQueryParamsFromTempVars(tempVars)
   const deletedURLQueryParams = generateURLQueryParamsFromTempVars(
     deletedTempVars
@@ -696,19 +760,31 @@ export const syncURLQueryFromTempVars = (
     ...urlQueryParamsTimeRanges,
   }
 
-  dispatch(
-    syncURLQueryParamsFromQueryParamsObject(
-      location,
-      updatedURLQueryParamsWithTimeRange,
-      deletedURLQueryParams
-    )
-  )
+  syncURLQueryParamsFromQueryParamsObject(
+    location,
+    updatedURLQueryParamsWithTimeRange,
+    deletedURLQueryParams
+  )(dispatch)
 }
 
+interface AuthReducerState {
+  auth: {isUsingAuth: boolean; me: Me}
+}
+type SyncDashboardTempVarsFromURLQueryParamsDispatcher = (
+  dispatch: Dispatch<
+    ActionPublishNotification | TemplateVariableSelectedAction
+  >,
+  getState: () => DashboardsReducerState & AuthReducerState
+) => void
 const syncDashboardTempVarsFromURLQueryParams = (
   dashboardID: number,
   urlQueryParams: URLQueryParams
-) => (dispatch, getState): void => {
+): SyncDashboardTempVarsFromURLQueryParamsDispatcher => (
+  dispatch: Dispatch<
+    ActionPublishNotification | TemplateVariableSelectedAction
+  >,
+  getState: () => DashboardsReducerState & AuthReducerState
+): void => {
   const {
     dashboardUI,
     auth: {isUsingAuth, me},
@@ -738,11 +814,25 @@ const syncDashboardTempVarsFromURLQueryParams = (
   dispatch(templateVariablesSelectedByName(dashboardID, urlQueryParams))
 }
 
+type DashTimeV1Range = TimeRangeOption & {dashboardID: number}
+
+interface DashTimeV1ReducerState {
+  dashTimeV1: {ranges: DashTimeV1Range[]}
+}
+
+type SyncDashboardTimeRangeFromURLQueryParamsDispatcher = (
+  dispatch: Dispatch<ActionPublishNotification>,
+  getState: () => DashboardsReducerState & DashTimeV1ReducerState
+) => void
+
 const syncDashboardTimeRangeFromURLQueryParams = (
   dashboardID: number,
   urlQueryParams: URLQueryParams,
   location: Location
-) => (dispatch, getState): void => {
+): SyncDashboardTimeRangeFromURLQueryParamsDispatcher => (
+  dispatch: Dispatch<ActionPublishNotification>,
+  getState: () => DashboardsReducerState & DashTimeV1ReducerState
+): void => {
   const {
     dashboardUI: {dashboards},
     dashTimeV1,
@@ -788,37 +878,62 @@ const syncDashboardTimeRangeFromURLQueryParams = (
     zoomedLower: validatedZoomedTimeRange.lower,
     zoomedUpper: validatedZoomedTimeRange.upper,
   }
-  dispatch(
-    syncURLQueryFromTempVars(
-      location,
-      dashboard.templates,
-      [],
-      urlQueryParamsTimeRanges
-    )
-  )
+
+  syncURLQueryFromTempVars(
+    location,
+    dashboard.templates,
+    [],
+    urlQueryParamsTimeRanges
+  )(dispatch)
 }
 
+type SyncDashboardFromURLQueryParamsDispatcher = (
+  dispatch: Dispatch<
+    | SyncDashboardTempVarsFromURLQueryParamsDispatcher
+    | SyncDashboardTimeRangeFromURLQueryParamsDispatcher
+  >
+) => void
 const syncDashboardFromURLQueryParams = (
   dashboardID: number,
   location: Location
-) => (dispatch): void => {
+): SyncDashboardFromURLQueryParamsDispatcher => (
+  dispatch: Dispatch<
+    | SyncDashboardTempVarsFromURLQueryParamsDispatcher
+    | SyncDashboardTimeRangeFromURLQueryParamsDispatcher
+  >
+): void => {
   const urlQueryParams = queryString.parse(window.location.search)
-  dispatch(syncDashboardTempVarsFromURLQueryParams(dashboardID, urlQueryParams))
-  dispatch(
-    syncDashboardTimeRangeFromURLQueryParams(
-      dashboardID,
-      urlQueryParams,
-      location
-    )
+  bindActionCreators(syncDashboardTempVarsFromURLQueryParams, dispatch)(
+    dashboardID,
+    urlQueryParams
+  )
+
+  bindActionCreators(syncDashboardTimeRangeFromURLQueryParams, dispatch)(
+    dashboardID,
+    urlQueryParams,
+    location
   )
 }
+
+export type GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher = (
+  dashboardID: string,
+  source: Source,
+  router: InjectedRouter,
+  location: Location
+) => GetDashboardWithHydratedAndSyncedTempVarsAsyncActionCreator
+
+type GetDashboardWithHydratedAndSyncedTempVarsAsyncActionCreator = (
+  dispatch: Dispatch<ActionPublishNotification>
+) => Promise<void>
 
 export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
   dashboardID: string,
   source: Source,
   router: InjectedRouter,
   location: Location
-) => async (dispatch): Promise<void> => {
+): GetDashboardWithHydratedAndSyncedTempVarsAsyncActionCreator => async (
+  dispatch: Dispatch<ActionPublishNotification>
+): Promise<void> => {
   const dashboard = await bindActionCreators(getDashboardAsync, dispatch)(
     dashboardID
   )
@@ -833,7 +948,10 @@ export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
     source
   )
 
-  dispatch(syncDashboardFromURLQueryParams(+dashboardID, location))
+  bindActionCreators(syncDashboardFromURLQueryParams, dispatch)(
+    +dashboardID,
+    location
+  )
 }
 
 export const setZoomedTimeRangeAsync = (

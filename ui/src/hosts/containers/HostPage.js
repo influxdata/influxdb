@@ -19,8 +19,7 @@ import {
   getAllHosts,
 } from 'src/hosts/apis'
 
-import {setAutoRefresh} from 'shared/actions/app'
-import {presentationButtonDispatcher} from 'shared/dispatchers'
+import {setAutoRefresh, delayEnablePresentationMode} from 'shared/actions/app'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
@@ -247,7 +246,10 @@ const mapStateToProps = ({
 
 const mapDispatchToProps = dispatch => ({
   handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
-  handleClickPresentationButton: presentationButtonDispatcher(dispatch),
+  handleClickPresentationButton: bindActionCreators(
+    delayEnablePresentationMode,
+    dispatch
+  ),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(
