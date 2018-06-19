@@ -1,6 +1,5 @@
 import React, {Component, ReactElement} from 'react'
 import classnames from 'classnames'
-import {connect} from 'react-redux'
 
 import Title from 'src/shared/components/PageHeaderTitle'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
@@ -12,7 +11,7 @@ interface Props {
   renderOptions?: () => ReactElement<any>
   fullWidth?: boolean
   sourceIndicator?: boolean
-  inPresentationMode: boolean
+  inPresentationMode?: boolean
 }
 
 class PageHeader extends Component<Props> {
@@ -20,7 +19,7 @@ class PageHeader extends Component<Props> {
     const {inPresentationMode} = this.props
 
     if (inPresentationMode) {
-      return
+      return null
     }
 
     return (
@@ -86,12 +85,4 @@ class PageHeader extends Component<Props> {
   }
 }
 
-const mapStateToProps = ({
-  app: {
-    ephemeral: {inPresentationMode},
-  },
-}) => ({
-  inPresentationMode,
-})
-
-export default connect(mapStateToProps)(PageHeader)
+export default PageHeader

@@ -34,6 +34,7 @@ interface Props {
   onCancel: () => void
   onSave: () => void
   names: DashboardName[]
+  isHidden: boolean
 }
 
 class DashboardHeader extends Component<Props> {
@@ -45,12 +46,15 @@ class DashboardHeader extends Component<Props> {
   }
 
   public render() {
+    const {isHidden} = this.props
+
     return (
       <PageHeader
         fullWidth={true}
         sourceIndicator={true}
         renderTitle={this.title}
         renderOptions={this.options}
+        inPresentationMode={isHidden}
       />
     )
   }
