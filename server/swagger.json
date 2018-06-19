@@ -4090,6 +4090,10 @@
           "enum": ["csv", "tagKey", "tagValue", "fieldKey", "timeStamp"],
           "description":
             "The type will change the format of the output value. tagKey/fieldKey are double quoted; tagValue are single quoted; csv and timeStamp are not quoted."
+        },
+        "key": {
+          "type": "string",
+          "description":"This will be the key for a specific value of a template variable. Used if the templateVar type is 'map'"
         }
       }
     },
