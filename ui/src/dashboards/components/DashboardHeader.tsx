@@ -22,7 +22,6 @@ interface Props {
   onEditDashboard: () => void
   timeRange: TimeRange
   autoRefresh: number
-  isHidden: boolean
   isEditMode?: boolean
   handleChooseTimeRange: (timeRange: TimeRange) => void
   handleChooseAutoRefresh: () => void
