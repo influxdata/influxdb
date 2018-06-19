@@ -24,7 +24,6 @@ interface YieldToggles {
 
 interface State {
   nonYieldableIndexesToggled: YieldToggles
-  isImplicitYieldToggled: boolean
 }
 
 // an Expression is a group of one or more functions
@@ -34,7 +33,6 @@ class ExpressionNode extends PureComponent<Props, State> {
 
     this.state = {
       nonYieldableIndexesToggled: this.nonYieldableNodesFromScript,
-      isImplicitYieldToggled: this.isImplicitYieldToggled,
     }
   }
 
@@ -151,44 +149,8 @@ class ExpressionNode extends PureComponent<Props, State> {
                       />
                     </Fragment>
                   )
-                } else if (this.isEndOfScript(i)) {
-                  const script = scriptUpToYield(bodyID, declarationID, i, true)
-
-                  return (
-                    <Fragment key={`${i}-notInScript`}>
-                      <FuncNode
-                        key={i}
-                        index={i}
-                        func={func}
-                        funcs={funcs}
-                        bodyID={bodyID}
-                        service={service}
-                        onChangeArg={onChangeArg}
-                        onDelete={onDeleteFuncNode}
-                        onToggleYield={this.handleHideImplicitYield}
-                        isYieldable={isAfterFilter && isAfterRange}
-                        isYielding={this.isBeforeYielding(i)}
-                        isYieldedInScript={this.isYieldNodeIndex(i + 1)}
-                        declarationID={declarationID}
-                        onGenerateScript={onGenerateScript}
-                        declarationsFromBody={declarationsFromBody}
-                        onToggleYieldWithLast={this.handleToggleYieldWithLast}
-                        onDeleteBody={onDeleteBody}
-                      />
-                      <YieldFuncNode
-                        index={i}
-                        func={func}
-                        data={data}
-                        script={script}
-                        bodyID={bodyID}
-                        service={service}
-                        declarationID={declarationID}
-                      />
-                    </Fragment>
-                  )
-                } else {
-                  return funcNode
                 }
+                return funcNode
               })}
               <FuncSelector
                 bodyID={bodyID}
@@ -204,24 +166,11 @@ class ExpressionNode extends PureComponent<Props, State> {
   }
 
   private isBeforeYielding(funcIndex: number): boolean {
-    const {funcs, isLastBody} = this.props
-    const {isImplicitYieldToggled, nonYieldableIndexesToggled} = this.state
+    const {nonYieldableIndexesToggled} = this.state
     const beforeToggledLastYield = !!nonYieldableIndexesToggled[funcIndex]
 
     if (beforeToggledLastYield) {
       return true
-    }
-
-    if (
-      funcIndex === funcs.length - 1 &&
-      isLastBody &&
-      isImplicitYieldToggled
-    ) {
-      return true
-    }
-
-    if (funcIndex === funcs.length - 1) {
-      return false
     }
 
     return this.isYieldNodeIndex(funcIndex + 1)
@@ -255,9 +204,7 @@ class ExpressionNode extends PureComponent<Props, State> {
         }
 
         if (isBeforeFilter || isBeforeRange) {
-          const nextNode = _.get(funcs, `${index + 1}`, null)
-
-          if (nextNode && nextNode.name === 'yield') {
+          if (this.isYieldNodeIndex(index + 1)) {
             return {...acc, [index]: true}
           }
         }
@@ -266,18 +213,6 @@ class ExpressionNode extends PureComponent<Props, State> {
       },
       {}
     )
-  }
-
-  private get isImplicitYieldToggled(): boolean {
-    const {isLastBody} = this.props
-
-    return isLastBody && this.isLastFuncYield
-  }
-
-  private get isLastFuncYield(): boolean {
-    const {funcs} = this.props
-
-    return _.get(funcs, `${funcs.length - 1}.name`) !== 'yield'
   }
 
   // if funcNode is not yieldable, add last before yield()
@@ -292,20 +227,6 @@ class ExpressionNode extends PureComponent<Props, State> {
         },
       }
     })
-  }
-
-  private handleHideImplicitYield = () => {
-    this.setState(() => ({
-      isImplicitYieldToggled: false,
-    }))
-  }
-
-  private isEndOfScript(index: number): boolean {
-    const {isLastBody, funcs} = this.props
-    const {isImplicitYieldToggled} = this.state
-    const isLastScriptFunc = isLastBody && index === funcs.length - 1
-
-    return isLastScriptFunc && isImplicitYieldToggled
   }
 }
 
