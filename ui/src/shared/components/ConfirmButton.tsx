@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import classnames from 'classnames'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -88,12 +89,12 @@ class ConfirmButton extends PureComponent<Props, State> {
     const {type, size, square, disabled, customClass} = this.props
     const {expanded} = this.state
 
-    const customClassString = customClass ? ` ${customClass}` : ''
-    const squareString = square ? ' btn-square' : ''
-    const expandedString = expanded ? ' active' : ''
-    const disabledString = disabled ? ' disabled' : ''
-
-    return `confirm-button btn ${type} ${size}${customClassString}${squareString}${expandedString}${disabledString}`
+    return classnames(`confirm-button btn ${type} ${size}`, {
+      [customClass]: customClass,
+      'btn-square': square,
+      active: expanded,
+      disabled,
+    })
   }
 
   private get tooltipClassName(): string {
