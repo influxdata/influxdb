@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/tcp"
-        gzip "github.com/klauspost/pgzip"
+	gzip "github.com/klauspost/pgzip"
 )
 
 const (
