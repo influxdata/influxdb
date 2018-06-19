@@ -57,7 +57,7 @@ func TestValidTemplateRequest(t *testing.T) {
 			name:    "No query set",
 			wantErr: true,
 			template: &chronograf.Template{
-				Type: "query",
+				Type: "influxql",
 			},
 		},
 		{
