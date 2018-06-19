@@ -15,14 +15,14 @@ func ValidTemplateRequest(template *chronograf.Template) error {
 	switch template.Type {
 	default:
 		return fmt.Errorf("Unknown template type %s", template.Type)
-	case "query", "constant", "csv", "fieldKeys", "tagKeys", "tagValues", "measurements", "databases", "map":
+	case "query", "constant", "csv", "fieldKeys", "tagKeys", "tagValues", "measurements", "databases", "map", "influxql":
 	}
 
 	for _, v := range template.Values {
 		switch v.Type {
 		default:
 			return fmt.Errorf("Unknown template variable type %s", v.Type)
-		case "csv", "fieldKey", "tagKey", "tagValue", "measurement", "database", "constant":
+		case "csv", "fieldKey", "tagKey", "tagValue", "measurement", "database", "constant", "influxql":
 		}
 
 		if template.Type == "map" && v.Key == "" {
@@ -30,8 +30,8 @@ func ValidTemplateRequest(template *chronograf.Template) error {
 		}
 	}
 
-	if template.Type == "query" && template.Query == nil {
-		return fmt.Errorf("No query set for template of type 'query'")
+	if template.Type == "influxql" && template.Query == nil {
+		return fmt.Errorf("No query set for template of type 'influxql'")
 	}
 
 	return nil

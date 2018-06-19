@@ -34,9 +34,8 @@ export enum TemplateType {
   TagKeys = 'tagKeys',
   TagValues = 'tagValues',
   CSV = 'csv',
-  Query = 'query',
   Databases = 'databases',
-  MetaQuery = 'metaQuery',
+  MetaQuery = 'influxql',
 }
 
 export interface Template {
