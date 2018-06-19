@@ -11,16 +11,24 @@
     position: absolute;
     z-index: 1;
 
-
+    &.top {
+      bottom: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+    }
     &.bottom {
       top: calc(100% + 4px);
       left: 50%;
       transform: translateX(-50%);
     }
-
     &.left {
       top: 50%;
       right: calc(100% + 4px);
+      transform: translateY(-50%);
+    }
+    &.right {
+      top: 50%;
+      left: calc(100% + 4px);
       transform: translateY(-50%);
     }
   }
@@ -43,11 +51,7 @@
   &:after {
     content: '';
     border: 8px solid transparent;
-    border-bottom-color: $c-curacao;
     position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
     transition: border-color 0.25s ease;
     z-index: 100;
   }
@@ -56,28 +60,35 @@
     background-color: $c-dreamsicle;
     cursor: pointer;
   }
-  &:hover:after {
-    border-bottom-color: $c-dreamsicle;
-  }
-}
 
-.confirm-button--tooltip.bottom .confirm-button--confirmation:after {
-  bottom: 100%;
-  left: 50%;
-  border-bottom-color: $c-curacao;
-  transform: translateX(-50%);
-}
-.confirm-button--tooltip.bottom .confirm-button--confirmation:hover:after {
-  border-bottom-color: $c-dreamsicle;
-}
-.confirm-button--tooltip.left .confirm-button--confirmation:after {
-  left: 100%;
-  top: 50%;
-  border-left-color: $c-curacao;
-  transform: translateY(-50%);
-}
-.confirm-button--tooltip.left .confirm-button--confirmation:hover:after {
-  border-left-color: $c-dreamsicle;
+  .top &:after {
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-top-color: $c-curacao;
+  }
+  .top &:hover:after {border-top-color: $c-dreamsicle;}
+  .bottom &:after {
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-bottom-color: $c-curacao;
+  }
+  .bottom &:hover:after {border-bottom-color: $c-dreamsicle;}
+  .left &:after {
+    top: 50%;
+    left: 100%;
+    transform: translateY(-50%);
+    border-left-color: $c-curacao;
+  }
+  .left &:hover:after {border-left-color: $c-dreamsicle;}
+  .right &:after {
+    top: 50%;
+    right: 100%;
+    transform: translateY(-50%);
+    border-right-color: $c-curacao;
+  }
+  .right &:hover:after {border-right-color: $c-dreamsicle;}
 }
 
 .confirm-button.active {

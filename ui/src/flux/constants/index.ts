@@ -1,4 +1,4 @@
-import {ast} from 'src/flux/constants/ast'
+import {ast, emptyAST} from 'src/flux/constants/ast'
 import * as editor from 'src/flux/constants/editor'
 import * as argTypes from 'src/flux/constants/argumentTypes'
 import * as funcNames from 'src/flux/constants/funcNames'
@@ -10,6 +10,7 @@ const MAX_RESPONSE_BYTES = 1e7 // 10 MB
 
 export {
   ast,
+  emptyAST,
   funcNames,
   argTypes,
   editor,
