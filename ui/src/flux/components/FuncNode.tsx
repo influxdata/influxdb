@@ -30,6 +30,7 @@ interface Props {
   isYielding: boolean
   isYieldable: boolean
   onDeleteBody: (bodyID: string) => void
+  isYieldedInScript: boolean
 }
 
 interface State {
@@ -182,19 +183,14 @@ export default class FuncNode extends PureComponent<Props, State> {
       index,
       bodyID,
       declarationID,
-      isYieldable,
       onToggleYieldWithLast,
-      isYielding,
+      isYieldedInScript,
     } = this.props
 
-    if (isYieldable) {
+    if (isYieldedInScript) {
       onToggleYield(bodyID, declarationID, index)
     } else {
-      if (isYielding) {
-        onToggleYield(bodyID, declarationID, index)
-      } else {
-        onToggleYieldWithLast(index)
-      }
+      onToggleYieldWithLast(index)
     }
   }
 
