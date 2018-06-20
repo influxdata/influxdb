@@ -184,9 +184,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/sources/:id/annotations/:aid", EnsureEditor(service.RemoveAnnotation))
 	router.PATCH("/chronograf/v1/sources/:id/annotations/:aid", EnsureEditor(service.UpdateAnnotation))
 
-	// Query to see if ldap is enabled (Enterprise only)
-	router.GET("/chronograf/v1/sources/:id/ldap", EnsureViewer(service.LDAPEnabled))
-
 	// All possible permissions for users in this source
 	router.GET("/chronograf/v1/sources/:id/permissions", EnsureViewer(service.Permissions))
 
