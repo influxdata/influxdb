@@ -344,7 +344,7 @@ export class FluxPage extends PureComponent<Props, State> {
     declarationID: string,
     funcNodeIndex: number,
     isYieldable: boolean
-  ) => {
+  ): string => {
     const {body: bodies} = this.state
 
     const bodyIndex = bodies.findIndex(b => b.id === bodyID)

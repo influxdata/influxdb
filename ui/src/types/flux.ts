@@ -12,7 +12,7 @@ export type OnToggleYield = (
   declarationID: string,
   funcNodeIndex: number
 ) => void
-export type OnGenerateScript = (script: string) => void
+export type OnGenerateScript = () => void
 export type OnChangeScript = (script: string) => void
 export type OnSubmitScript = () => void
 export type ScriptUpToYield = (

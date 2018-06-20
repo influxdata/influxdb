@@ -1,12 +1,12 @@
 import React, {PureComponent, Fragment} from 'react'
-import _ from 'lodash'
 
 import {FluxContext} from 'src/flux/containers/FluxPage'
 import FuncSelector from 'src/flux/components/FuncSelector'
 import FuncNode from 'src/flux/components/FuncNode'
 import YieldFuncNode from 'src/flux/components/YieldFuncNode'
+import {getDeep} from 'src/utils/wrappers'
 
-import {Func} from 'src/types/flux'
+import {Func, Context} from 'src/types/flux'
 
 interface Props {
   funcNames: any[]
@@ -18,12 +18,10 @@ interface Props {
   onDeleteBody: (bodyID: string) => void
 }
 
-interface YieldToggles {
-  [x: number]: boolean
-}
-
 interface State {
-  nonYieldableIndexesToggled: YieldToggles
+  nonYieldableIndexesToggled: {
+    [x: number]: boolean
+  }
 }
 
 // an Expression is a group of one or more functions
@@ -32,18 +30,7 @@ class ExpressionNode extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      nonYieldableIndexesToggled: this.nonYieldableNodesFromScript,
-    }
-  }
-
-  public componentDidUpdate(prevProps) {
-    const {funcs: prevFuncs} = prevProps
-    const {funcs} = this.props
-
-    if (!_.isEqual(prevFuncs, funcs)) {
-      this.setState({
-        nonYieldableIndexesToggled: this.nonYieldableNodesFromScript,
-      })
+      nonYieldableIndexesToggled: {},
     }
   }
 
@@ -70,13 +57,17 @@ class ExpressionNode extends PureComponent<Props, State> {
           service,
           data,
           scriptUpToYield,
-        }) => {
+        }: Context) => {
           let isAfterRange = false
           let isAfterFilter = false
 
           return (
             <>
               {funcs.map((func, i) => {
+                if (func.name === 'yield') {
+                  return null
+                }
+
                 if (func.name === 'range') {
                   isAfterRange = true
                 }
@@ -85,22 +76,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                   isAfterFilter = true
                 }
 
-                if (func.name === 'yield') {
-                  const script = scriptUpToYield(bodyID, declarationID, i, true)
-
-                  return (
-                    <YieldFuncNode
-                      index={i}
-                      key={i}
-                      func={func}
-                      data={data}
-                      script={script}
-                      bodyID={bodyID}
-                      service={service}
-                      declarationID={declarationID}
-                    />
-                  )
-                }
+                const isYieldable = isAfterFilter && isAfterRange
 
                 const funcNode = (
                   <FuncNode
@@ -113,7 +89,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                     onChangeArg={onChangeArg}
                     onDelete={onDeleteFuncNode}
                     onToggleYield={onToggleYield}
-                    isYieldable={isAfterFilter && isAfterRange}
+                    isYieldable={isYieldable}
                     isYielding={this.isBeforeYielding(i)}
                     isYieldedInScript={this.isYieldNodeIndex(i + 1)}
                     declarationID={declarationID}
@@ -125,14 +101,14 @@ class ExpressionNode extends PureComponent<Props, State> {
                 )
 
                 if (
-                  nonYieldableIndexesToggled[i] &&
-                  !this.isYieldNodeIndex(i + 1)
+                  nonYieldableIndexesToggled[i] ||
+                  this.isYieldNodeIndex(i + 1)
                 ) {
-                  const script = scriptUpToYield(
+                  const script: string = scriptUpToYield(
                     bodyID,
                     declarationID,
                     i,
-                    false
+                    isYieldable
                   )
 
                   return (
@@ -150,6 +126,7 @@ class ExpressionNode extends PureComponent<Props, State> {
                     </Fragment>
                   )
                 }
+
                 return funcNode
               })}
               <FuncSelector
@@ -176,47 +153,15 @@ class ExpressionNode extends PureComponent<Props, State> {
     return this.isYieldNodeIndex(funcIndex + 1)
   }
 
-  private isYieldNodeIndex(funcIndex) {
+  private isYieldNodeIndex(funcIndex: number): boolean {
     const {funcs} = this.props
-    const nextFunc = _.get(funcs, `${funcIndex}`, null)
+    const funcName = getDeep<string>(funcs, `${funcIndex}.name`, '')
 
-    if (nextFunc && nextFunc.name === 'yield') {
-      return true
-    }
-
-    return false
-  }
-
-  private get nonYieldableNodesFromScript(): YieldToggles {
-    const {funcs} = this.props
-    let isBeforeFilter = true
-    let isBeforeRange = true
-
-    return _.reduce(
-      funcs,
-      (acc: YieldToggles, f, index) => {
-        if (f.name === 'range') {
-          isBeforeRange = false
-        }
-
-        if (f.name === 'filter') {
-          isBeforeFilter = false
-        }
-
-        if (isBeforeFilter || isBeforeRange) {
-          if (this.isYieldNodeIndex(index + 1)) {
-            return {...acc, [index]: true}
-          }
-        }
-
-        return acc
-      },
-      {}
-    )
+    return funcName === 'yield'
   }
 
   // if funcNode is not yieldable, add last before yield()
-  private handleToggleYieldWithLast = (funcNodeIndex: number) => {
+  private handleToggleYieldWithLast = (funcNodeIndex: number): void => {
     this.setState(({nonYieldableIndexesToggled}) => {
       const isFuncYieldToggled = !!nonYieldableIndexesToggled[funcNodeIndex]
 
