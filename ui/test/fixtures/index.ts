@@ -9,6 +9,7 @@ import {
   QueryConfig,
   TemplateType,
   TemplateValueType,
+  BuilderType,
 } from 'src/types'
 import {
   Axes,
@@ -204,6 +205,7 @@ export const userDefinedTemplateVariables: Template[] = [
   {
     tempVar: ':fields:',
     type: TemplateType.FieldKeys,
+    builderType: BuilderType.FieldKeys,
     label: '',
     values: [
       {
@@ -262,6 +264,7 @@ export const userDefinedTemplateVariables: Template[] = [
   {
     tempVar: ':measurements:',
     type: TemplateType.Measurements,
+    builderType: BuilderType.Measurements,
     label: '',
     values: [
       {
