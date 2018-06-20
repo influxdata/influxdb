@@ -134,10 +134,10 @@ paths:
           description: bucket is the query and write destination store
         - in: query
           name: precision
-          description: preciscion rounds the timestamp to the nearest unit
+          description: precision rounds the timestamp to the nearest unit
           schema:
             type: string
-            description: acceptable epochs define the time units returned in the query
+            description: precision define the time units returned in the query
             enum: [
               "n",
               "u",
