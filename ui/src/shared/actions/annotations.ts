@@ -1,5 +1,6 @@
 import * as api from 'src/shared/apis/annotation'
 import {AnnotationInterface} from 'src/types'
+import {Dispatch} from 'redux'
 
 export type Action =
   | EditingAnnotationAction
@@ -137,6 +138,14 @@ export interface AnnotationRange {
   since: number
   until: number
 }
+type GetAnnotationsThunk = (
+  dispatch: Dispatch<LoadAnnotationsAction>
+) => Promise<void>
+
+export type GetAnnotationsDispatcher = (
+  indexUrl: string,
+  annotationRange: AnnotationRange
+) => GetAnnotationsThunk
 
 export const getAnnotationsAsync = (
   indexUrl: string,

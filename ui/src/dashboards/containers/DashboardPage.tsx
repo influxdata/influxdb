@@ -67,6 +67,7 @@ import {
   GetDashboardsNamesDispatcher,
   GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher,
 } from 'src/dashboards/actions'
+import {GetAnnotationsDispatcher} from 'src/shared/actions/annotations'
 import {
   SetAutoRefreshAction,
   TemplateControlBarVisibilityToggledAction,
@@ -121,7 +122,7 @@ interface Props {
   isUsingAuth: boolean
   router: Router
   notify: () => void // TODO: double-check type
-  getAnnotationsAsync: () => void // TODO: double-check type
+  getAnnotationsAsync: GetAnnotationsDispatcher
   handleShowCellEditorOverlay: () => void // TODO: double-check type
   handleHideCellEditorOverlay: () => void // TODO: double-check type
   handleDismissEditingAnnotation: () => void // TODO: double-check type
