@@ -1,6 +1,7 @@
 // All copy for notifications should be stored here for easy editing
 // and ensuring stylistic consistency
 import {Notification} from 'src/types'
+import {TemplateUpdate} from 'src/types/tempVars'
 
 type NotificationExcludingMessage = Pick<
   Notification,
@@ -520,14 +521,10 @@ export const notifyBuilderDisabled = (): Notification => ({
 
 //  Template Variables & URL Queries
 //  ----------------------------------------------------------------------------
-interface KeyValueString {
-  key: string
-  value: string
-}
 export const notifyInvalidTempVarValueInURLQuery = ({
   key,
   value,
-}: KeyValueString): Notification => ({
+}: TemplateUpdate): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Invalid URL query value of '${value}' supplied for template variable '${key}'.`,

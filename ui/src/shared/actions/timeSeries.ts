@@ -1,9 +1,10 @@
 import {proxy} from 'src/utils/queryUrlGenerator'
 import {noop} from 'src/shared/actions/app'
-import _ from 'lodash'
 
 import {errorThrown} from 'src/shared/actions/errors'
-import {TimeSeriesResponse} from 'src/types/series'
+import {TimeSeriesResponse, TimeSeriesSeries} from 'src/types/series'
+import {Status} from 'src/types'
+import {getDeep} from 'src/utils/wrappers'
 
 interface Query {
   host: string | string[]
@@ -23,21 +24,24 @@ interface Payload {
   resolution?: number
 }
 
-export const handleLoading = (query: Query, editQueryStatus) => {
+type EditQueryStatusFunction = (queryID: string, status: Status) => void
+
+const handleLoading = (
+  query: Query,
+  editQueryStatus: EditQueryStatusFunction
+): void =>
   editQueryStatus(query.id, {
     loading: true,
   })
-}
 
-// {results: [{}]}
-export const handleSuccess = (
+const handleSuccess = (
   data: TimeSeriesResponse,
   query: Query,
-  editQueryStatus
-) => {
+  editQueryStatus: EditQueryStatusFunction
+): TimeSeriesResponse => {
   const {results} = data
-  const error = _.get(results, ['0', 'error'], false)
-  const series = _.get(results, ['0', 'series'], false)
+  const error = getDeep<string>(results, '0.error', null)
+  const series = getDeep<TimeSeriesSeries>(results, '0.series', null)
   // 200 from server and no results = warn
   if (!series && !error) {
     editQueryStatus(query.id, {
@@ -61,12 +65,14 @@ export const handleSuccess = (
   return data
 }
 
-export const handleError = (error, query, editQueryStatus) => {
-  const message = _.get(
-    error,
-    ['data', 'message'],
-    error.message || 'Could not retrieve data'
-  )
+const handleError = (
+  error,
+  query: Query,
+  editQueryStatus: EditQueryStatusFunction
+): void => {
+  const message =
+    getDeep<string>(error, 'data.message', '') ||
+    getDeep<string>(error, 'message', 'Could not retrieve data')
 
   // 400 from chrono server = fail
   editQueryStatus(query.id, {
@@ -76,8 +82,8 @@ export const handleError = (error, query, editQueryStatus) => {
 
 export const fetchTimeSeriesAsync = async (
   {source, db, rp, query, tempVars, resolution}: Payload,
-  editQueryStatus = noop
-) => {
+  editQueryStatus: EditQueryStatusFunction = noop
+): Promise<TimeSeriesResponse> => {
   handleLoading(query, editQueryStatus)
   try {
     const {data} = await proxy({

@@ -2,7 +2,7 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
 import {DEFAULT_AXIS} from 'src/dashboards/constants/cellEditor'
-import {Cell, CellQuery} from 'src/types'
+import {Cell, CellQuery, Axes} from 'src/types'
 import {CellType} from 'src/types/dashboard'
 
 const emptyQuery: CellQuery = {
@@ -21,18 +21,16 @@ const emptyQuery: CellQuery = {
   },
 }
 
-const emptyAxes = {
-  axes: {
-    x: DEFAULT_AXIS,
-    y: DEFAULT_AXIS,
-    y2: DEFAULT_AXIS,
-  },
+const emptyAxes: Axes = {
+  x: DEFAULT_AXIS,
+  y: DEFAULT_AXIS,
+  y2: DEFAULT_AXIS,
 }
 
 export const fixtureStatusPageCells: Cell[] = [
   {
     ...NEW_DEFAULT_DASHBOARD_CELL,
-    ...emptyAxes,
+    axes: emptyAxes,
     i: 'alerts-bar-graph',
     type: CellType.Bar,
     isWidget: false,
@@ -81,7 +79,7 @@ export const fixtureStatusPageCells: Cell[] = [
   },
   {
     ...NEW_DEFAULT_DASHBOARD_CELL,
-    ...emptyAxes,
+    axes: emptyAxes,
     i: 'recent-alerts',
     type: CellType.Alerts,
     isWidget: true,
@@ -97,7 +95,7 @@ export const fixtureStatusPageCells: Cell[] = [
   },
   {
     ...NEW_DEFAULT_DASHBOARD_CELL,
-    ...emptyAxes,
+    axes: emptyAxes,
     i: 'news-feed',
     type: CellType.News,
     isWidget: true,
@@ -113,7 +111,7 @@ export const fixtureStatusPageCells: Cell[] = [
   },
   {
     ...NEW_DEFAULT_DASHBOARD_CELL,
-    ...emptyAxes,
+    axes: emptyAxes,
     i: 'getting-started',
     type: CellType.Guide,
     isWidget: true,

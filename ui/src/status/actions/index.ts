@@ -1,5 +1,6 @@
 // he is a library for safely encoding and decoding HTML Entities
 import he from 'he'
+import {Dispatch} from 'redux'
 
 import {fetchJSONFeed as fetchJSONFeedAJAX} from 'src/status/apis'
 
@@ -49,7 +50,7 @@ const fetchJSONFeedFailed = (): FetchJSONFeedFailedAction => ({
 })
 
 export const fetchJSONFeedAsync = (url: string) => async (
-  dispatch
+  dispatch: Dispatch<Action>
 ): Promise<void> => {
   dispatch(fetchJSONFeedRequested())
   try {
