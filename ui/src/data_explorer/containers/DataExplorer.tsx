@@ -186,7 +186,7 @@ export class DataExplorer extends PureComponent<Props, State> {
     return buildRawText(this.activeQuery, timeRange)
   }
 
-  private renderPageControls = (): JSX.Element => {
+  private get renderPageControls(): JSX.Element {
     const {
       timeRange,
       autoRefresh,

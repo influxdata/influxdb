@@ -111,7 +111,7 @@ class AlertsApp extends PureComponent<Props, State> {
     )
   }
 
-  private renderPageControls = (): JSX.Element => {
+  private get renderPageControls(): JSX.Element {
     const {timeRange} = this.state
 
     return (

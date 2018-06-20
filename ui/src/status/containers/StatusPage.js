@@ -61,7 +61,7 @@ class StatusPage extends Component {
         <PageHeader
           title="Status"
           fullWidth={true}
-          renderPageControls={this.renderPageControls}
+          renderPageControls={this.renderPageControls()}
         />
         <FancyScrollbar className="page-contents">
           <div className="dashboard container-fluid full-width">

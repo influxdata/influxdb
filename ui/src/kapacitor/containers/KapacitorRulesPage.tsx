@@ -91,7 +91,7 @@ const PageContents: SFC<PageContentsProps> = ({children}) => (
   <div className="page">
     <PageHeader
       title="Manage Tasks"
-      renderPageControls={renderPageControls}
+      renderPageControls={renderHeaderOptions()}
       sourceIndicator={true}
     />
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
@@ -104,7 +104,7 @@ const PageContents: SFC<PageContentsProps> = ({children}) => (
   </div>
 )
 
-const renderPageControls = (): JSX.Element => {
+const renderHeaderOptions = (): JSX.Element => {
   return (
     <QuestionMarkTooltip
       tipID="manage-tasks--tooltip"

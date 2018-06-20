@@ -59,7 +59,7 @@ class DashboardHeader extends Component<Props> {
     )
   }
 
-  private renderPageTitle = (): JSX.Element => {
+  private get renderPageTitle(): JSX.Element {
     return (
       <>
         {this.dashboardSwitcher}
@@ -68,7 +68,7 @@ class DashboardHeader extends Component<Props> {
     )
   }
 
-  private renderPageControls = (): JSX.Element => {
+  private get renderPageControls(): JSX.Element {
     const {
       handleChooseAutoRefresh,
       onManualRefresh,

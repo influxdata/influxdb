@@ -38,7 +38,7 @@ class LogViewerHeader extends PureComponent<Props> {
     )
   }
 
-  private renderHeaderTitle = (): JSX.Element => {
+  private get renderHeaderTitle(): JSX.Element {
     return (
       <>
         {this.status}
@@ -47,7 +47,7 @@ class LogViewerHeader extends PureComponent<Props> {
     )
   }
 
-  private renderPageControls = (): JSX.Element => {
+  private get renderPageControls(): JSX.Element {
     const {timeRange} = this.props
 
     return (

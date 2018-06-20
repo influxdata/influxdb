@@ -6,8 +6,8 @@ import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 interface Props {
   title?: string
-  renderTitle?: () => ReactElement<any>
-  renderPageControls?: () => ReactElement<any>
+  renderTitle?: ReactElement<any>
+  renderPageControls?: ReactElement<any>
   fullWidth?: boolean
   sourceIndicator?: boolean
   inPresentationMode?: boolean
@@ -55,7 +55,7 @@ class PageHeader extends Component<Props> {
       return <Title title={title} />
     }
 
-    return renderTitle()
+    return renderTitle
   }
 
   private get renderRight(): JSX.Element {
@@ -65,7 +65,7 @@ class PageHeader extends Component<Props> {
       return
     }
 
-    return renderPageControls()
+    return renderPageControls
   }
 
   private get className(): string {

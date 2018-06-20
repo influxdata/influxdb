@@ -27,7 +27,7 @@ class FluxHeader extends PureComponent<Props> {
     )
   }
 
-  private renderPageControls = (): JSX.Element => {
+  private get renderPageControls(): JSX.Element {
     return (
       <button onClick={this.overlay} className="btn btn-sm btn-default">
         Edit Connection

@@ -28,7 +28,7 @@ class TickscriptHeader extends Component<Props> {
     )
   }
 
-  private renderPageControls = (): JSX.Element => {
+  private get renderPageControls(): JSX.Element {
     const {
       task,
       onSave,
