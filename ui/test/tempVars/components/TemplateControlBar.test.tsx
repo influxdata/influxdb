@@ -8,8 +8,18 @@ import {source} from 'test/resources'
 
 const defaultProps = {
   isOpen: true,
-  templates: [
-    {
+  templates: [],
+  meRole: 'EDITOR',
+  isUsingAuth: true,
+  onSelectTemplate: () => {},
+  onSaveTemplates: () => {},
+  onCreateTemplateVariable: () => {},
+  source,
+}
+
+describe('TemplateControlBar', () => {
+  it('renders component with variables', () => {
+    const template = {
       id: '000',
       tempVar: ':alpha:',
       label: '',
@@ -26,42 +36,23 @@ const defaultProps = {
           selected: false,
         },
       ],
-    },
-  ],
-  meRole: 'EDITOR',
-  isUsingAuth: true,
-  onOpenTemplateManager: () => {},
-  onSelectTemplate: () => {},
-  onSaveTemplates: () => {},
-  onCreateTemplateVariable: () => {},
-  source,
-}
+    }
+    const props = {...defaultProps, templates: [template]}
+    const wrapper = shallow(<TemplateControlBar {...props} />)
 
-const setup = (override = {}) => {
-  const props = {...defaultProps, ...override}
-  const wrapper = shallow(<TemplateControlBar {...props} />)
+    const dropdown = wrapper.find(TemplateControlDropdown)
+    expect(dropdown.exists()).toBe(true)
+  })
 
-  return {wrapper, props}
-}
+  it('renders component without variables', () => {
+    const props = {...defaultProps}
+    const wrapper = shallow(<TemplateControlBar {...props} />)
 
-describe('Dashboard.TemplateControlBar', () => {
-  describe('rendering', () => {
-    it('renders component with variables', () => {
-      const {wrapper} = setup()
+    const emptyState = wrapper.find({'data-test': 'empty-state'})
 
-      const dropdown = wrapper.find(TemplateControlDropdown)
-      expect(dropdown.exists()).toBe(true)
-    })
+    const dropdown = wrapper.find(TemplateControlDropdown)
 
-    it('renders component without variables', () => {
-      const {wrapper} = setup({...defaultProps, templates: []})
-
-      const emptyState = wrapper.find({'data-test': 'empty-state'})
-
-      const dropdown = wrapper.find(TemplateControlDropdown)
-
-      expect(dropdown.exists()).toBe(false)
-      expect(emptyState.exists()).toBe(true)
-    })
+    expect(dropdown.exists()).toBe(false)
+    expect(emptyState.exists()).toBe(true)
   })
 })
