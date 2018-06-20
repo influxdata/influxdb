@@ -167,7 +167,7 @@ class KapacitorRule extends Component {
     ruleActions.updateRuleValues(rule.id, rule.trigger, {period: text})
   }
 
-  renderPageControls = () => {
+  optionsComponents = () => {
     return (
       <RuleHeaderSave
         onSave={this.handleSave}
@@ -192,7 +192,7 @@ class KapacitorRule extends Component {
       <div className="page">
         <PageHeader
           title="Alert Rule Builder"
-          renderPageControls={this.renderPageControls}
+          optionsComponents={this.optionsComponents}
           sourceIndicator={true}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">

@@ -53,7 +53,7 @@ class DashboardHeader extends Component<Props> {
         fullWidth={true}
         sourceIndicator={true}
         titleComponents={this.renderPageTitle}
-        renderPageControls={this.renderPageControls}
+        optionsComponents={this.optionsComponents}
         inPresentationMode={isHidden}
       />
     )
@@ -68,7 +68,7 @@ class DashboardHeader extends Component<Props> {
     )
   }
 
-  private get renderPageControls(): JSX.Element {
+  private get optionsComponents(): JSX.Element {
     const {
       handleChooseAutoRefresh,
       onManualRefresh,

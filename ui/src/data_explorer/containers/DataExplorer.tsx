@@ -119,7 +119,7 @@ export class DataExplorer extends PureComponent<Props, State> {
         <PageHeader
           titleText="Data Explorer"
           fullWidth={true}
-          renderPageControls={this.renderPageControls}
+          optionsComponents={this.optionsComponents}
           sourceIndicator={true}
         />
         <ResizeContainer
@@ -186,7 +186,7 @@ export class DataExplorer extends PureComponent<Props, State> {
     return buildRawText(this.activeQuery, timeRange)
   }
 
-  private get renderPageControls(): JSX.Element {
+  private get optionsComponents(): JSX.Element {
     const {
       timeRange,
       autoRefresh,

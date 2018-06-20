@@ -91,7 +91,7 @@ const PageContents: SFC<PageContentsProps> = ({children}) => (
   <div className="page">
     <PageHeader
       titleText="Manage Tasks"
-      renderPageControls={renderHeaderOptions()}
+      optionsComponents={renderHeaderOptions()}
       sourceIndicator={true}
     />
     <FancyScrollbar className="page-contents fancy-scroll--kapacitor">

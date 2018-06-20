@@ -61,7 +61,7 @@ class StatusPage extends Component {
         <PageHeader
           title="Status"
           fullWidth={true}
-          renderPageControls={this.renderPageControls()}
+          optionsComponents={this.optionsComponents()}
         />
         <FancyScrollbar className="page-contents">
           <div className="dashboard container-fluid full-width">
@@ -85,7 +85,7 @@ class StatusPage extends Component {
     )
   }
 
-  renderPageControls = () => {
+  optionsComponents = () => {
     return <SourceIndicator />
   }
 }

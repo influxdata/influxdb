@@ -23,12 +23,12 @@ class TickscriptHeader extends Component<Props> {
         titleText="TICKscript Editor"
         fullWidth={true}
         sourceIndicator={true}
-        renderPageControls={this.renderPageControls}
+        optionsComponents={this.optionsComponents}
       />
     )
   }
 
-  private get renderPageControls(): JSX.Element {
+  private get optionsComponents(): JSX.Element {
     const {
       task,
       onSave,
