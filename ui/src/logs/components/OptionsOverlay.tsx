@@ -35,7 +35,7 @@ class OptionsOverlay extends Component<Props, State> {
     const {onDismissOverlay} = this.props
 
     return (
-      <Container maxWidth={600}>
+      <Container maxWidth={700}>
         <Heading title="Configure Log Viewer" onDismiss={onDismissOverlay} />
         <Body>
           <button
