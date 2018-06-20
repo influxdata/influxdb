@@ -29,10 +29,10 @@ class FluxOverlay extends PureComponent<Props> {
     return (
       <div className="flux-overlay">
         <div className="template-variable-manager--header">
-          <div className="page-header__left">
-            <h1 className="page-header__title">Connect to Flux</h1>
+          <div className="page-header--left">
+            <h1 className="page-header--title">Connect to Flux</h1>
           </div>
-          <div className="page-header__right">
+          <div className="page-header--right">
             <span
               className="page-header__dismiss"
               onClick={this.props.onDismiss}

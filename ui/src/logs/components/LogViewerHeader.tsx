@@ -3,6 +3,8 @@ import React, {PureComponent} from 'react'
 import {Source, Namespace} from 'src/types'
 import classnames from 'classnames'
 import Dropdown from 'src/shared/components/Dropdown'
+import PageHeader from 'src/shared/components/PageHeader'
+import PageHeaderTitle from 'src/shared/components/PageHeaderTitle'
 import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
 
 import {TimeRange} from 'src/types'
@@ -27,37 +29,47 @@ interface Props {
 
 class LogViewerHeader extends PureComponent<Props> {
   public render(): JSX.Element {
-    const {timeRange} = this.props
     return (
-      <div className="page-header full-width">
-        <div className="page-header__container">
-          <div className="page-header__left">
-            {this.status}
-            <h1 className="page-header__title logs-viewer-header-title">
-              Log Viewer
-            </h1>
-          </div>
-          <div className="page-header__right">
-            <Dropdown
-              className="dropdown-300"
-              items={this.sourceDropDownItems}
-              selected={this.selectedSource}
-              onChoose={this.handleChooseSource}
-            />
-            <Dropdown
-              className="dropdown-180"
-              iconName="disks"
-              items={this.namespaceDropDownItems}
-              selected={this.selectedNamespace}
-              onChoose={this.handleChooseNamespace}
-            />
-            <TimeRangeDropdown
-              onChooseTimeRange={this.handleChooseTimeRange}
-              selected={timeRange}
-            />
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        titleComponents={this.renderHeaderTitle}
+        fullWidth={true}
+        optionsComponents={this.optionsComponents}
+      />
+    )
+  }
+
+  private get renderHeaderTitle(): JSX.Element {
+    return (
+      <>
+        {this.status}
+        <PageHeaderTitle title="Logs Viewer" />
+      </>
+    )
+  }
+
+  private get optionsComponents(): JSX.Element {
+    const {timeRange} = this.props
+
+    return (
+      <>
+        <Dropdown
+          className="dropdown-300"
+          items={this.sourceDropDownItems}
+          selected={this.selectedSource}
+          onChoose={this.handleChooseSource}
+        />
+        <Dropdown
+          className="dropdown-180"
+          iconName="disks"
+          items={this.namespaceDropDownItems}
+          selected={this.selectedNamespace}
+          onChoose={this.handleChooseNamespace}
+        />
+        <TimeRangeDropdown
+          onChooseTimeRange={this.handleChooseTimeRange}
+          selected={timeRange}
+        />
+      </>
     )
   }
 

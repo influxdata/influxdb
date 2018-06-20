@@ -10,6 +10,7 @@
 
 1.  [#3474](https://github.com/influxdata/chronograf/pull/3474): Sort task table on Manage Alert page alphabetically
 1.  [#3590](https://github.com/influxdata/chronograf/pull/3590): Redesign icons in side navigation
+1.  [#3696](https://github.com/influxdata/chronograf/pull/3696): Add ability to delete entire queries in Flux Editor
 1.  [#3671](https://github.com/influxdata/chronograf/pull/3671): Remove Snip functionality in hover legend
 1.  [#3659](https://github.com/influxdata/chronograf/pull/3659): Upgrade Data Explorer query text field with syntax highlighting and partial multi-line support
 1.  [#3663](https://github.com/influxdata/chronograf/pull/3663): Truncate message preview in Alert Rules table
@@ -21,6 +22,7 @@
 1.  [#3649](https://github.com/influxdata/chronograf/pull/3649): Fix erroneous icons in Date Picker widget
 1.  [#3697](https://github.com/influxdata/chronograf/pull/3697): Fix allowing hyphens in basepath
 1.  [#3698](https://github.com/influxdata/chronograf/pull/3698): Fix error in cell when tempVar returns no values
+1.  [#3733](https://github.com/influxdata/chronograf/pull/3733): Change arrows in table columns so that ascending sort points up and descending points down
 
 ## v1.5.0.0 [2018-05-15-RC]
 

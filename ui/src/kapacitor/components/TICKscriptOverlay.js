@@ -6,10 +6,10 @@ const TICKscriptOverlay = ({tickscript, onClose}) => (
   <OverlayTechnologies>
     <div className="tick-script-overlay">
       <div className="write-data-form--header">
-        <div className="page-header__left">
-          <h1 className="page-header__title">Generated TICKscript</h1>
+        <div className="page-header--left">
+          <h1 className="page-header--title">Generated TICKscript</h1>
         </div>
-        <div className="page-header__right">
+        <div className="page-header--right">
           <span className="page-header__dismiss" onClick={onClose} />
         </div>
       </div>

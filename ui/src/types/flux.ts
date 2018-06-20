@@ -12,7 +12,7 @@ export type OnToggleYield = (
   declarationID: string,
   funcNodeIndex: number
 ) => void
-export type OnGenerateScript = (script: string) => void
+export type OnGenerateScript = () => void
 export type OnChangeScript = (script: string) => void
 export type OnSubmitScript = () => void
 export type ScriptUpToYield = (
@@ -21,6 +21,7 @@ export type ScriptUpToYield = (
   yieldNodeIndex: number,
   isYieldable: boolean
 ) => string
+export type OnDeleteBody = (bodyID: string) => void
 
 export interface ScriptStatus {
   type: string
@@ -104,6 +105,9 @@ export interface FlatBody {
   source: string
   funcs?: Func[]
   declarations?: FlatDeclaration[]
+}
+export interface Body extends FlatBody {
+  id: string
 }
 
 export interface Func {

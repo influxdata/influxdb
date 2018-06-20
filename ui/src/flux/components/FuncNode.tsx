@@ -2,9 +2,11 @@ import React, {PureComponent, MouseEvent} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
+import BodyDelete from 'src/flux/components/BodyDelete'
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
 import {
+  OnGenerateScript,
   OnDeleteFuncNode,
   OnChangeArg,
   OnToggleYield,
@@ -23,11 +25,13 @@ interface Props {
   onDelete: OnDeleteFuncNode
   onToggleYield: OnToggleYield
   onChangeArg: OnChangeArg
-  onGenerateScript: () => void
+  onGenerateScript: OnGenerateScript
   onToggleYieldWithLast: (funcNodeIndex: number) => void
   declarationsFromBody: string[]
   isYielding: boolean
   isYieldable: boolean
+  onDeleteBody: (bodyID: string) => void
+  isYieldedInScript: boolean
 }
 
 interface State {
@@ -53,14 +57,16 @@ export default class FuncNode extends PureComponent<Props, State> {
 
     return (
       <>
-        <div
-          className={this.nodeClassName}
-          onClick={this.handleToggleEdit}
-          title="Edit function arguments"
-        >
-          <div className="func-node--connector" />
-          <div className="func-node--name">{func.name}</div>
-          <FuncArgsPreview func={func} />
+        <div className="func-node--wrapper">
+          <div
+            className={this.nodeClassName}
+            onClick={this.handleToggleEdit}
+            title="Edit function arguments"
+          >
+            <div className="func-node--connector" />
+            <div className="func-node--name">{func.name}</div>
+            <FuncArgsPreview func={func} />
+          </div>
           {this.funcMenu}
         </div>
         {this.funcArgs}
@@ -103,13 +109,7 @@ export default class FuncNode extends PureComponent<Props, State> {
     return (
       <div className="func-node--menu">
         {this.yieldToggleButton}
-        <button
-          className="btn btn-sm btn-square btn-danger"
-          onClick={this.handleDelete}
-          title="Delete this Function"
-        >
-          <span className="icon trash" />
-        </button>
+        {this.deleteButton}
       </div>
     )
   }
@@ -140,6 +140,24 @@ export default class FuncNode extends PureComponent<Props, State> {
     )
   }
 
+  private get deleteButton(): JSX.Element {
+    const {func, bodyID, onDeleteBody} = this.props
+
+    if (func.name === 'from') {
+      return <BodyDelete onDeleteBody={onDeleteBody} bodyID={bodyID} />
+    }
+
+    return (
+      <button
+        className="btn btn-sm btn-square btn-danger"
+        onClick={this.handleDelete}
+        title="Delete this Function"
+      >
+        <span className="icon remove" />
+      </button>
+    )
+  }
+
   private get nodeClassName(): string {
     const {isYielding} = this.props
     const {editing} = this.state
@@ -147,14 +165,14 @@ export default class FuncNode extends PureComponent<Props, State> {
     return classnames('func-node', {active: isYielding || editing})
   }
 
-  private handleDelete = (e: MouseEvent<HTMLElement>): void => {
-    e.stopPropagation()
+  private handleDelete = (): void => {
     const {func, bodyID, declarationID} = this.props
 
     this.props.onDelete({funcID: func.id, bodyID, declarationID})
   }
 
-  private handleToggleEdit = (): void => {
+  private handleToggleEdit = (e: MouseEvent<HTMLElement>): void => {
+    e.stopPropagation()
     this.setState({editing: !this.state.editing})
   }
 
@@ -166,11 +184,12 @@ export default class FuncNode extends PureComponent<Props, State> {
       index,
       bodyID,
       declarationID,
-      isYieldable,
       onToggleYieldWithLast,
+      isYieldable,
+      isYieldedInScript,
     } = this.props
 
-    if (isYieldable) {
+    if (isYieldedInScript || isYieldable) {
       onToggleYield(bodyID, declarationID, index)
     } else {
       onToggleYieldWithLast(index)

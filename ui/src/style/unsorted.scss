@@ -390,7 +390,7 @@ $tick-script-overlay-margin: 30px;
 .dropdown.dashboard-switcher .btn.dropdown-toggle {
   justify-content: center;
 }
-.dropdown.dashboard-switcher + h1.page-header__title {
+.dropdown.dashboard-switcher + h1.page-header--title {
   margin-left: 6px;
 }
 
@@ -404,7 +404,7 @@ $tick-script-overlay-margin: 30px;
 */
 $dash-editable-header-padding: 7px;
 
-.page-header__left.page-header__dash-editable,
+.page-header--left.page-header__dash-editable,
 .dashboard-title,
 .dashboard-title input[type='text'].form-control.dashboard-title--input,
 .dashboard-title h1 {

@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import uuid from 'uuid'
@@ -18,7 +18,7 @@ import {
   Notification,
   NotificationFunc,
 } from 'src/types'
-
+import {LogItem, DBRP} from 'src/types/kapacitor'
 import {
   notifyTickscriptLoggingUnavailable,
   notifyTickscriptLoggingError,
@@ -76,7 +76,7 @@ interface State {
   task: Task
   consoleMessage: string
   isEditingID: boolean
-  logs: object[]
+  logs: LogItem[]
   areLogsVisible: boolean
   areLogsEnabled: boolean
   failStr: string
@@ -247,22 +247,22 @@ export class TickscriptPage extends PureComponent<Props, State> {
     return router.push(`/sources/${sourceID}/alert-rules`)
   }
 
-  private handleChangeScript = tickscript => {
+  private handleChangeScript = (tickscript: string) => {
     this.setState({
       task: {...this.state.task, tickscript},
       unsavedChanges: true,
     })
   }
 
-  private handleSelectDbrps = dbrps => {
+  private handleSelectDbrps = (dbrps: DBRP[]) => {
     this.setState({task: {...this.state.task, dbrps}, unsavedChanges: true})
   }
 
-  private handleChangeType = type => () => {
+  private handleChangeType = (type: string) => () => {
     this.setState({task: {...this.state.task, type}, unsavedChanges: true})
   }
 
-  private handleChangeID = e => {
+  private handleChangeID = (e: ChangeEvent<HTMLInputElement>) => {
     this.setState({
       task: {...this.state.task, id: e.target.value},
       unsavedChanges: true,

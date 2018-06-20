@@ -32,6 +32,7 @@ export interface AlertRule {
   error: string
   created: string
   modified: string
+  queryID?: string
   'last-enabled'?: string
 }
 
@@ -186,7 +187,7 @@ interface OpsGenie {
 }
 
 // Talk sends alerts to Jane Talk (https://jianliao.com/site)
-interface Talk {} // tslint:disable-line
+interface Talk { } // tslint:disable-line
 
 // TriggerValues specifies the alerting logic for a specific trigger type
 interface TriggerValues {
@@ -224,7 +225,7 @@ export interface RuleMessageTemplate {
   time: RuleMessage
 }
 
-interface RuleMessage {
+export interface RuleMessage {
   label: string
   text: string
 }
@@ -410,4 +411,21 @@ export interface RuleValues {
   value?: string | null
   rangeValue?: string | null
   operator?: string
+}
+
+export interface LogItem {
+  key: string
+  service: string
+  lvl: string
+  ts: string
+  msg: string
+  id: string
+  tags: string
+  method?: string
+  username?: string
+  host?: string
+  duration?: string
+  tag?: object
+  field?: object
+  cluster?: string
 }

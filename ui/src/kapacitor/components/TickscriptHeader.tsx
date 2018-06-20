@@ -1,6 +1,6 @@
-import React, {SFC} from 'react'
+import React, {Component} from 'react'
 
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import PageHeader from 'src/shared/components/PageHeader'
 import LogsToggle from 'src/kapacitor/components/LogsToggle'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import TickscriptSave, {Task} from 'src/kapacitor/components/TickscriptSave'
@@ -16,53 +16,70 @@ interface Props {
   onToggleLogsVisibility: () => void
 }
 
-const TickscriptHeader: SFC<Props> = ({
-  task,
-  onSave,
-  onExit,
-  unsavedChanges,
-  areLogsEnabled,
-  areLogsVisible,
-  isNewTickscript,
-  onToggleLogsVisibility,
-}) => (
-  <div className="page-header full-width">
-    <div className="page-header__container">
-      <div className="page-header__left">
-        <h1 className="page-header__title">TICKscript Editor</h1>
-      </div>
-      {areLogsEnabled && (
+class TickscriptHeader extends Component<Props> {
+  public render() {
+    return (
+      <PageHeader
+        titleText="TICKscript Editor"
+        fullWidth={true}
+        sourceIndicator={true}
+        optionsComponents={this.optionsComponents}
+      />
+    )
+  }
+
+  private get optionsComponents(): JSX.Element {
+    const {
+      task,
+      onSave,
+      unsavedChanges,
+      isNewTickscript,
+      areLogsEnabled,
+      areLogsVisible,
+      onToggleLogsVisibility,
+    } = this.props
+
+    return (
+      <>
         <LogsToggle
+          areLogsEnabled={areLogsEnabled}
           areLogsVisible={areLogsVisible}
           onToggleLogsVisibility={onToggleLogsVisibility}
         />
-      )}
-      <div className="page-header__right">
-        <SourceIndicator />
         <TickscriptSave
           task={task}
           onSave={onSave}
           unsavedChanges={unsavedChanges}
           isNewTickscript={isNewTickscript}
         />
-        {unsavedChanges ? (
-          <ConfirmButton
-            text="Exit"
-            confirmText="Discard unsaved changes?"
-            confirmAction={onExit}
-          />
-        ) : (
-          <button
-            className="btn btn-default btn-sm"
-            title="Return to Alert Rules"
-            onClick={onExit}
-          >
-            Exit
-          </button>
-        )}
-      </div>
-    </div>
-  </div>
-)
+        {this.saveButton}
+      </>
+    )
+  }
+
+  private get saveButton(): JSX.Element {
+    const {unsavedChanges, onExit} = this.props
+
+    if (unsavedChanges) {
+      return (
+        <ConfirmButton
+          text="Exit"
+          confirmText="Discard unsaved changes?"
+          confirmAction={onExit}
+        />
+      )
+    }
+
+    return (
+      <button
+        className="btn btn-default btn-sm"
+        title="Return to Alert Rules"
+        onClick={onExit}
+      >
+        Exit
+      </button>
+    )
+  }
+}
 
 export default TickscriptHeader

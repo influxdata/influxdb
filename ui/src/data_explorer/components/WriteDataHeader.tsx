@@ -24,8 +24,8 @@ class WriteDataHeader extends PureComponent<Props> {
 
     return (
       <div className="write-data-form--header">
-        <div className="page-header__left">
-          <h1 className="page-header__title">Write Data To</h1>
+        <div className="page-header--left">
+          <h1 className="page-header--title">Write Data To</h1>
           <DatabaseDropdown
             source={source}
             onSelectDatabase={handleSelectDatabase}
@@ -45,7 +45,7 @@ class WriteDataHeader extends PureComponent<Props> {
             </li>
           </ul>
         </div>
-        <div className="page-header__right">
+        <div className="page-header--right">
           <span className="page-header__dismiss" onClick={onClose} />
         </div>
       </div>

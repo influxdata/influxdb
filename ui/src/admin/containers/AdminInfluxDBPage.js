@@ -29,7 +29,7 @@ import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
 import QueriesPage from 'src/admin/containers/QueriesPage'
 import DatabaseManagerPage from 'src/admin/containers/DatabaseManagerPage'
-import SourceIndicator from 'shared/components/SourceIndicator'
+import PageHeader from 'shared/components/PageHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import SubSections from 'shared/components/SubSections'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -223,16 +223,7 @@ class AdminInfluxDBPage extends Component {
 
     return (
       <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">InfluxDB Admin</h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator />
-            </div>
-          </div>
-        </div>
+        <PageHeader title="InfluxDB Admin" sourceIndicator={true} />
         <FancyScrollbar className="page-contents">
           {users ? (
             <div className="container-fluid">

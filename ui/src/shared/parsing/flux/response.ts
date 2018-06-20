@@ -4,6 +4,19 @@ import uuid from 'uuid'
 
 import {FluxTable} from 'src/types'
 
+export const parseResponseError = (response: string): FluxTable[] => {
+  const data = Papa.parse(response.trim()).data as string[][]
+
+  return [
+    {
+      id: uuid.v4(),
+      name: 'Error',
+      partitionKey: {},
+      data,
+    },
+  ]
+}
+
 export const parseResponse = (response: string): FluxTable[] => {
   const trimmedReponse = response.trim()
 

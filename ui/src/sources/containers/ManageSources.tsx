@@ -6,7 +6,7 @@ import * as actions from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
+import PageHeader from 'src/shared/components/PageHeader'
 import InfluxTable from 'src/sources/components/InfluxTable'
 
 import {
@@ -14,12 +14,12 @@ import {
   notifySourceDeleteFailed,
 } from 'src/shared/copy/notifications'
 
-import {Source, NotificationFunc} from 'src/types'
+import {Source, Notification} from 'src/types'
 
 interface Props {
   source: Source
   sources: Source[]
-  notify: NotificationFunc
+  notify: (n: Notification) => void
   deleteKapacitor: actions.DeleteKapacitorAsync
   fetchKapacitors: actions.FetchKapacitorsAsync
   removeAndLoadSources: actions.RemoveAndLoadSources
@@ -49,16 +49,7 @@ class ManageSources extends PureComponent<Props> {
 
     return (
       <div className="page" id="manage-sources-page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Configuration</h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator />
-            </div>
-          </div>
-        </div>
+        <PageHeader titleText="Configuration" sourceIndicator={true} />
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <InfluxTable
