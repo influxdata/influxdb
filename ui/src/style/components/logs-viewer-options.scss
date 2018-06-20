@@ -19,3 +19,19 @@
 .logs-options--color-column {
   width: 50%;
 }
+
+.logs-options--label {
+  height: 30px;
+  border-radius: $radius;
+  background-color: $g3-castle;
+  padding: 0 11px;
+  line-height: 30px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: $g13-mist;
+  font-weight: 500;
+  font-size: 13px;
+  margin-right: 4px;
+  @include no-user-select();
+}

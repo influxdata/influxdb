@@ -38,14 +38,23 @@ class OptionsOverlay extends Component<Props, State> {
       <Container maxWidth={700}>
         <Heading title="Configure Log Viewer" onDismiss={onDismissOverlay} />
         <Body>
-          <button
-            className="btn btn-sm btn-default"
-            onClick={this.handleResetSeverity}
-          >
-            <span className="icon refresh" />
-            Reset to Defaults
-          </button>
-          {this.severityConfigs}
+          <div className="row">
+            <div className="col-sm-6">
+              <label className="form-label">Customize Severity Colors</label>
+              {this.severityConfigs}
+              <button
+                className="btn btn-sm btn-default btn-block"
+                onClick={this.handleResetSeverity}
+              >
+                <span className="icon refresh" />
+                Reset to Defaults
+              </button>
+            </div>
+            <div className="col-sm-6">
+              <label className="form-label">Order Table Columns</label>
+              <p>Column re-ordering goes here</p>
+            </div>
+          </div>
         </Body>
       </Container>
     )
@@ -58,7 +67,9 @@ class OptionsOverlay extends Component<Props, State> {
       <div className="logs-options--color-list">
         {workingSeverityConfigs.map(config => (
           <div key={uuid.v4()} className="logs-options--color-row">
-            <div className="logs-options--color-column">{config.severity}</div>
+            <div className="logs-options--color-column">
+              <div className="logs-options--label">{config.severity}</div>
+            </div>
             <div className="logs-options--color-column">
               <ColorDropdown
                 selected={config.override || config.default}
