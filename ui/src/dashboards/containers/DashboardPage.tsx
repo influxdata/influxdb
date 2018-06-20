@@ -1,7 +1,6 @@
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
-import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
 
@@ -575,7 +574,7 @@ class DashboardPage extends Component<Props, State> {
   }
 }
 
-const mapStateToProps = (state, {params: {dashboardID}}) => {
+const mstp = (state, {params: {dashboardID}}) => {
   const {
     app: {
       ephemeral: {inPresentationMode},
@@ -627,38 +626,18 @@ const mapStateToProps = (state, {params: {dashboardID}}) => {
   }
 }
 
-const mapDispatchToProps = dispatch => ({
-  handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
-  templateControlBarVisibilityToggled: bindActionCreators(
-    templateControlBarVisibilityToggledAction,
-    dispatch
-  ),
-  handleClickPresentationButton: bindActionCreators(
-    delayEnablePresentationMode,
-    dispatch
-  ),
-  dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
-  errorThrown: bindActionCreators(errorThrownAction, dispatch),
-  notify: bindActionCreators(notifyAction, dispatch),
-  getAnnotationsAsync: bindActionCreators(
-    annotationActions.getAnnotationsAsync,
-    dispatch
-  ),
-  handleShowCellEditorOverlay: bindActionCreators(
-    showCellEditorOverlay,
-    dispatch
-  ),
-  handleHideCellEditorOverlay: bindActionCreators(
-    hideCellEditorOverlay,
-    dispatch
-  ),
-  handleDismissEditingAnnotation: bindActionCreators(
-    dismissEditingAnnotation,
-    dispatch
-  ),
-  handleShowOverlay: bindActionCreators(showOverlay, dispatch),
-})
+const mdtp = {
+  handleChooseAutoRefresh: setAutoRefresh,
+  templateControlBarVisibilityToggled: templateControlBarVisibilityToggledAction,
+  handleClickPresentationButton: delayEnablePresentationMode,
+  dashboardActions: dashboardActionCreators,
+  errorThrown: errorThrownAction,
+  notify: notifyAction,
+  getAnnotationsAsync: annotationActions.getAnnotationsAsync,
+  handleShowCellEditorOverlay: showCellEditorOverlay,
+  handleHideCellEditorOverlay: hideCellEditorOverlay,
+  handleDismissEditingAnnotation: dismissEditingAnnotation,
+  handleShowOverlay: showOverlay,
+}
 
-export default connect(mapStateToProps, mapDispatchToProps)(
-  ManualRefresh(withRouter(DashboardPage))
-)
+export default connect(mstp, mdtp)(ManualRefresh(withRouter(DashboardPage)))
