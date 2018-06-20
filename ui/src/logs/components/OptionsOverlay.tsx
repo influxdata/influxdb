@@ -1,25 +1,28 @@
 import React, {Component} from 'react'
-import uuid from 'uuid'
+import _ from 'lodash'
+
 import Container from 'src/shared/components/overlay/OverlayContainer'
 import Heading from 'src/shared/components/overlay/OverlayHeading'
 import Body from 'src/shared/components/overlay/OverlayBody'
-import ColorDropdown, {Color} from 'src/logs/components/ColorDropdown'
+import {Color} from 'src/logs/components/ColorDropdown'
+import SeverityConfig from 'src/logs/components/SeverityConfig'
 
 import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
 
-interface SeverityConfig {
+interface SeverityItem {
   severity: string
   default: Color
   override?: Color
 }
 
 interface Props {
+  severityConfigs: SeverityItem[]
+  onUpdateConfigs: (updatedConfigs: SeverityItem[]) => void
   onDismissOverlay: () => void
-  severityConfigs: SeverityConfig[]
 }
 
 interface State {
-  workingSeverityConfigs: SeverityConfig[]
+  workingSeverityConfigs: SeverityItem[]
 }
 
 class OptionsOverlay extends Component<Props, State> {
@@ -32,23 +35,21 @@ class OptionsOverlay extends Component<Props, State> {
   }
 
   public render() {
-    const {onDismissOverlay} = this.props
+    const {workingSeverityConfigs} = this.state
 
     return (
       <Container maxWidth={700}>
-        <Heading title="Configure Log Viewer" onDismiss={onDismissOverlay} />
+        <Heading title="Configure Log Viewer">
+          {this.overlayActionButtons}
+        </Heading>
         <Body>
           <div className="row">
             <div className="col-sm-6">
-              <label className="form-label">Customize Severity Colors</label>
-              {this.severityConfigs}
-              <button
-                className="btn btn-sm btn-default btn-block"
-                onClick={this.handleResetSeverity}
-              >
-                <span className="icon refresh" />
-                Reset to Defaults
-              </button>
+              <SeverityConfig
+                configs={workingSeverityConfigs}
+                onReset={this.handleResetSeverityColors}
+                onChangeColor={this.handleChangeSeverityColor}
+              />
             </div>
             <div className="col-sm-6">
               <label className="form-label">Order Table Columns</label>
@@ -60,34 +61,51 @@ class OptionsOverlay extends Component<Props, State> {
     )
   }
 
-  private get severityConfigs(): JSX.Element {
-    const {workingSeverityConfigs} = this.state
+  private get overlayActionButtons(): JSX.Element {
+    const {onDismissOverlay} = this.props
 
     return (
-      <div className="logs-options--color-list">
-        {workingSeverityConfigs.map(config => (
-          <div key={uuid.v4()} className="logs-options--color-row">
-            <div className="logs-options--color-column">
-              <div className="logs-options--label">{config.severity}</div>
-            </div>
-            <div className="logs-options--color-column">
-              <ColorDropdown
-                selected={config.override || config.default}
-                onChoose={this.handleChangeColor(config.severity)}
-                stretchToFit={true}
-              />
-            </div>
-          </div>
-        ))}
+      <div>
+        <button className="btn btn-sm btn-default" onClick={onDismissOverlay}>
+          Cancel
+        </button>
+        <button
+          className="btn btn-sm btn-success"
+          onClick={this.handleSave}
+          disabled={this.isSaveDisabled}
+        >
+          Save
+        </button>
       </div>
     )
   }
 
-  private handleResetSeverity = (): void => {
+  private get isSaveDisabled(): boolean {
+    const {workingSeverityConfigs} = this.state
+    const {severityConfigs} = this.props
+
+    if (_.isEqual(workingSeverityConfigs, severityConfigs)) {
+      return true
+    }
+
+    return false
+  }
+
+  private handleSave = () => {
+    const {onUpdateConfigs, onDismissOverlay} = this.props
+    const {workingSeverityConfigs} = this.state
+
+    onUpdateConfigs(workingSeverityConfigs)
+    onDismissOverlay()
+  }
+
+  private handleResetSeverityColors = (): void => {
     this.setState({workingSeverityConfigs: DEFAULT_SEVERITY_LEVELS})
   }
 
-  private handleChangeColor = (severity: string) => (override: Color): void => {
+  private handleChangeSeverityColor = (severity: string) => (
+    override: Color
+  ): void => {
     const workingSeverityConfigs = this.state.workingSeverityConfigs.map(
       config => {
         if (config.severity === severity) {
