@@ -6,7 +6,7 @@ import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 interface Props {
   titleText?: string
-  renderTitle?: ReactElement<any>
+  titleComponents?: ReactElement<any>
   renderPageControls?: ReactElement<any>
   fullWidth?: boolean
   sourceIndicator?: boolean
@@ -45,17 +45,19 @@ class PageHeader extends Component<Props> {
   }
 
   private get renderLeft(): JSX.Element {
-    const {titleText, renderTitle} = this.props
+    const {titleText, titleComponents} = this.props
 
-    if (!titleText && !renderTitle) {
-      console.error('PageHeader requires either titleText or RenderTitle props')
+    if (!titleText && !titleComponents) {
+      console.error(
+        'PageHeader requires either titleText or titleComponents prop'
+      )
     }
 
-    if (!renderTitle) {
+    if (!titleComponents) {
       return <Title title={titleText} />
     }
 
-    return renderTitle
+    return titleComponents
   }
 
   private get renderRight(): JSX.Element {

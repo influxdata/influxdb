@@ -31,7 +31,7 @@ class LogViewerHeader extends PureComponent<Props> {
   public render(): JSX.Element {
     return (
       <PageHeader
-        renderTitle={this.renderHeaderTitle}
+        titleComponents={this.renderHeaderTitle}
         fullWidth={true}
         renderPageControls={this.renderPageControls}
       />

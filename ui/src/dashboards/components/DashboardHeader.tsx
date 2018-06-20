@@ -52,7 +52,7 @@ class DashboardHeader extends Component<Props> {
       <PageHeader
         fullWidth={true}
         sourceIndicator={true}
-        renderTitle={this.renderPageTitle}
+        titleComponents={this.renderPageTitle}
         renderPageControls={this.renderPageControls}
         inPresentationMode={isHidden}
       />
