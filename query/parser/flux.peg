@@ -25,10 +25,16 @@ SourceElement
 
 Statement
   = VariableStatement
+  / OptionStatement
   / ReturnStatement
   / ExpressionStatement
   / BlockStatement
 
+
+OptionStatement
+  = "option" __ id:Identifier __ "=" __ expr:Expr {
+    return optionstmt(id, expr, c.text, c.pos)
+  }
 
 VariableStatement
   = declaration:VariableDeclaration  {

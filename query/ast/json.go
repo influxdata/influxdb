@@ -138,6 +138,19 @@ func (s *ReturnStatement) UnmarshalJSON(data []byte) error {
 	s.Argument = e
 	return nil
 }
+
+func (s *OptionStatement) MarshalJSON() ([]byte, error) {
+	type Alias OptionStatement
+	raw := struct {
+		Type string `json:"type"`
+		*Alias
+	}{
+		Type:  s.Type(),
+		Alias: (*Alias)(s),
+	}
+	return json.Marshal(raw)
+}
+
 func (d *VariableDeclaration) MarshalJSON() ([]byte, error) {
 	type Alias VariableDeclaration
 	raw := struct {
@@ -830,6 +843,8 @@ func unmarshalNode(msg json.RawMessage) (Node, error) {
 		node = new(Program)
 	case "BlockStatement":
 		node = new(BlockStatement)
+	case "OptionStatement":
+		node = new(OptionStatement)
 	case "ExpressionStatement":
 		node = new(ExpressionStatement)
 	case "ReturnStatement":

@@ -36,6 +36,7 @@ func (*Program) node() {}
 func (*BlockStatement) node()      {}
 func (*ExpressionStatement) node() {}
 func (*ReturnStatement) node()     {}
+func (*OptionStatement) node()     {}
 func (*VariableDeclaration) node() {}
 func (*VariableDeclarator) node()  {}
 
@@ -102,6 +103,7 @@ func (*BlockStatement) stmt()      {}
 func (*ExpressionStatement) stmt() {}
 func (*ReturnStatement) stmt()     {}
 func (*VariableDeclaration) stmt() {}
+func (*OptionStatement) stmt()     {}
 
 // BlockStatement is a set of statements
 type BlockStatement struct {
@@ -162,6 +164,28 @@ func (s *ReturnStatement) Copy() Node {
 	*ns = *s
 
 	ns.Argument = s.Argument.Copy().(Expression)
+
+	return ns
+}
+
+// OptionStatement syntactically is a single variable declaration
+type OptionStatement struct {
+	*BaseNode
+	Declaration *VariableDeclarator `json:"declaration"`
+}
+
+// Type is the abstract type
+func (*OptionStatement) Type() string { return "OptionStatement" }
+
+// Copy returns a deep copy of an OptionStatement Node
+func (s *OptionStatement) Copy() Node {
+	if s == nil {
+		return s
+	}
+	ns := new(OptionStatement)
+	*ns = *s
+
+	ns.Declaration = s.Declaration.Copy().(*VariableDeclarator)
 
 	return ns
 }

@@ -55,6 +55,27 @@ func TestJSONMarshal(t *testing.T) {
 			want: `{"type":"ReturnStatement","argument":{"type":"StringLiteral","value":"hello"}}`,
 		},
 		{
+			name: "option statement",
+			node: &ast.OptionStatement{
+				Declaration: &ast.VariableDeclarator{
+					ID: &ast.Identifier{Name: "task"},
+					Init: &ast.ObjectExpression{
+						Properties: []*ast.Property{
+							{
+								Key:   &ast.Identifier{Name: "name"},
+								Value: &ast.StringLiteral{Value: "foo"},
+							},
+							{
+								Key:   &ast.Identifier{Name: "every"},
+								Value: &ast.DurationLiteral{Value: 10 * time.Minute},
+							},
+						},
+					},
+				},
+			},
+			want: `{"type":"OptionStatement","declaration":{"type":"VariableDeclarator","id":{"type":"Identifier","name":"task"},"init":{"type":"ObjectExpression","properties":[{"type":"Property","key":{"type":"Identifier","name":"name"},"value":{"type":"StringLiteral","value":"foo"}},{"type":"Property","key":{"type":"Identifier","name":"every"},"value":{"type":"DurationLiteral","value":"10m0s"}}]}}}`,
+		},
+		{
 			name: "variable declaration",
 			node: &ast.VariableDeclaration{
 				Declarations: []*ast.VariableDeclarator{
