@@ -11,7 +11,7 @@ import {
 } from 'src/shared/actions/sources'
 import {
   notify as notifyAction,
-  PubishNotification,
+  PublishNotification,
 } from 'src/shared/actions/notifications'
 import {connect} from 'react-redux'
 
@@ -34,7 +34,7 @@ import {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props extends WithRouterProps {
-  notify: PubishNotification
+  notify: PublishNotification
   addSource: AddSource
   updateSource: UpdateSource
 }

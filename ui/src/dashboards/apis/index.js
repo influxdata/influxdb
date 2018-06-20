@@ -1,5 +1,4 @@
 import AJAX from 'utils/ajax'
-import {proxy} from 'utils/queryUrlGenerator'
 
 export function getDashboards() {
   return AJAX({
@@ -93,22 +92,6 @@ export const editTemplateVariables = async templateVariable => {
       url: templateVariable.links.self,
       data: templateVariable,
     })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}
-
-export const getTempVarValuesBySourceQuery = async (source, templateQuery) => {
-  const {
-    query,
-    db,
-    // rp, TODO
-    tempVars,
-  } = templateQuery
-  try {
-    // TODO: add rp as argument to proxy
-    return await proxy({source: source.links.proxy, query, db, tempVars})
   } catch (error) {
     console.error(error)
     throw error

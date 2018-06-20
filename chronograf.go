@@ -158,9 +158,10 @@ type Range struct {
 
 // TemplateValue is a value use to replace a template in an InfluxQL query
 type TemplateValue struct {
-	Value    string `json:"value"`    // Value is the specific value used to replace a template in an InfluxQL query
-	Type     string `json:"type"`     // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant
-	Selected bool   `json:"selected"` // Selected states that this variable has been picked to use for replacement
+	Value    string `json:"value"`         // Value is the specific value used to replace a template in an InfluxQL query
+	Type     string `json:"type"`          // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant, influxql
+	Selected bool   `json:"selected"`      // Selected states that this variable has been picked to use for replacement
+	Key      string `json:"key,omitempty"` // Key is the key for the Value if the Template Type is 'map'
 }
 
 // TemplateVar is a named variable within an InfluxQL query to be replaced with Values
@@ -176,7 +177,7 @@ type TemplateID string
 type Template struct {
 	TemplateVar
 	ID    TemplateID     `json:"id"`              // ID is the unique ID associated with this template
-	Type  string         `json:"type"`            // Type can be fieldKeys, tagKeys, tagValues, CSV, constant, query, measurements, databases
+	Type  string         `json:"type"`            // Type can be fieldKeys, tagKeys, tagValues, CSV, constant, measurements, databases, map, influxql
 	Label string         `json:"label"`           // Label is a user-facing description of the Template
 	Query *TemplateQuery `json:"query,omitempty"` // Query is used to generate the choices for a template
 }

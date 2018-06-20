@@ -48,7 +48,7 @@ interface TabListProps {
   activeIndex?: number
   onActivate?: (index: number) => void
   isKapacitorTabs?: string
-  customClass: string
+  customClass?: string
 }
 
 export const TabList: SFC<TabListProps> = ({
@@ -97,7 +97,7 @@ TabList.defaultProps = {
 interface TabPanelsProps {
   children: JSX.Element[] | JSX.Element
   activeIndex?: number
-  customClass: string
+  customClass?: string
 }
 
 export const TabPanels: SFC<TabPanelsProps> = ({
@@ -120,7 +120,7 @@ export const TabPanel: SFC<TabPanelProps> = ({children}) => (
 interface TabsProps {
   children: JSX.Element[] | JSX.Element
   onSelect?: (activeIndex: number) => void
-  tabContentsClass: string
+  tabContentsClass?: string
   tabsClass?: string
   initialIndex?: number
 }

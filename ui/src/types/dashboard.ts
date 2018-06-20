@@ -3,12 +3,12 @@ import {ColorString} from 'src/types/colors'
 import {Template} from 'src/types'
 
 export interface Axis {
-  bounds: [string, string]
   label: string
   prefix: string
   suffix: string
   base: string
   scale: string
+  bounds?: [string, string]
 }
 
 export type TimeSeriesValue = string | number | null | undefined
@@ -76,6 +76,7 @@ export interface Cell {
   decimalPlaces: DecimalPlaces
   links: CellLinks
   legend: Legend
+  isWidget?: boolean
 }
 
 export enum CellType {

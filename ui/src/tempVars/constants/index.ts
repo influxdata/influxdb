@@ -34,6 +34,10 @@ export const TEMPLATE_TYPES_LIST: TemplateTypesListItem[] = [
     text: 'CSV',
     type: TemplateType.CSV,
   },
+  {
+    text: 'Custom Meta Query',
+    type: TemplateType.MetaQuery,
+  },
 ]
 
 export const TEMPLATE_VARIABLE_TYPES = {
@@ -43,6 +47,7 @@ export const TEMPLATE_VARIABLE_TYPES = {
   [TemplateType.FieldKeys]: TemplateValueType.FieldKey,
   [TemplateType.TagKeys]: TemplateValueType.TagKey,
   [TemplateType.TagValues]: TemplateValueType.TagValue,
+  [TemplateType.MetaQuery]: TemplateValueType.MetaQuery,
 }
 
 export const TEMPLATE_VARIABLE_QUERIES = {
@@ -62,7 +67,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.Databases]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-databases:',
+      tempVar: '',
       values: [
         {
           value: '_internal',
@@ -80,7 +85,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.Measurements]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-measurements:',
+      tempVar: '',
       values: [],
       type: TemplateType.Measurements,
       label: '',
@@ -93,7 +98,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.CSV]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-values:',
+      tempVar: '',
       values: [],
       type: TemplateType.CSV,
       label: '',
@@ -103,7 +108,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.TagKeys]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-tag-keys:',
+      tempVar: '',
       values: [],
       type: TemplateType.TagKeys,
       label: '',
@@ -115,7 +120,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.FieldKeys]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-field-keys:',
+      tempVar: '',
       values: [],
       type: TemplateType.FieldKeys,
       label: '',
@@ -127,12 +132,24 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
   [TemplateType.TagValues]: () => {
     return {
       id: uuid.v4(),
-      tempVar: ':my-tag-values:',
+      tempVar: '',
       values: [],
       type: TemplateType.TagValues,
       label: '',
       query: {
         influxql: TEMPLATE_VARIABLE_QUERIES[TemplateType.TagValues],
+      },
+    }
+  },
+  [TemplateType.MetaQuery]: () => {
+    return {
+      id: uuid.v4(),
+      tempVar: ':my-meta-query:',
+      values: [],
+      type: TemplateType.MetaQuery,
+      label: '',
+      query: {
+        influxql: '',
       },
     }
   },

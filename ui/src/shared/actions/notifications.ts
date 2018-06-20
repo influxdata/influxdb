@@ -3,7 +3,7 @@ import {Notification} from 'src/types'
 export type Action = ActionPublishNotification | ActionDismissNotification
 
 // Publish notification
-export type PubishNotification = (n: Notification) => ActionPublishNotification
+export type PublishNotification = (n: Notification) => ActionPublishNotification
 export interface ActionPublishNotification {
   type: 'PUBLISH_NOTIFICATION'
   payload: {

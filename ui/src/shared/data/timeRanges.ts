@@ -6,6 +6,8 @@ interface TimeRangeOption extends TimeRange {
   menuOption: string
 }
 
+const nowMinus30d = 'now() - 30d'
+
 export const timeRanges: TimeRangeOption[] = [
   {
     defaultGroupBy: '10s',
@@ -75,7 +77,7 @@ export const timeRanges: TimeRangeOption[] = [
     defaultGroupBy: '6h',
     seconds: 2592000,
     inputValue: 'Past 30d',
-    lower: 'now() - 30d',
+    lower: nowMinus30d,
     upper: null,
     menuOption: 'Past 30d',
   },
@@ -89,3 +91,7 @@ export const defaultTimeRange = {
   seconds: 900,
   format: FORMAT_INFLUXQL,
 }
+
+export const STATUS_PAGE_TIME_RANGE = timeRanges.find(
+  tr => tr.lower === nowMinus30d
+)
