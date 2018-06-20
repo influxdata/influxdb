@@ -97,7 +97,7 @@ class AlertsApp extends PureComponent<Props, State> {
       <div className="page alert-history-page">
         <PageHeader
           title="Alert History"
-          renderOptions={this.renderHeaderOptions}
+          renderPageControls={this.renderPageControls}
           sourceIndicator={true}
         />
         <div className="page-contents">
@@ -111,7 +111,7 @@ class AlertsApp extends PureComponent<Props, State> {
     )
   }
 
-  private renderHeaderOptions = (): JSX.Element => {
+  private renderPageControls = (): JSX.Element => {
     const {timeRange} = this.state
 
     return (

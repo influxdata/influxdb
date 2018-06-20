@@ -22,12 +22,12 @@ class FluxHeader extends PureComponent<Props> {
       <PageHeader
         title="Flux Editor"
         fullWidth={true}
-        renderOptions={this.renderOptions}
+        renderPageControls={this.renderPageControls}
       />
     )
   }
 
-  private renderOptions = (): JSX.Element => {
+  private renderPageControls = (): JSX.Element => {
     return (
       <button onClick={this.overlay} className="btn btn-sm btn-default">
         Edit Connection

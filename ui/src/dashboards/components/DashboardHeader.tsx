@@ -52,14 +52,14 @@ class DashboardHeader extends Component<Props> {
       <PageHeader
         fullWidth={true}
         sourceIndicator={true}
-        renderTitle={this.title}
-        renderOptions={this.options}
+        renderTitle={this.renderPageTitle}
+        renderPageControls={this.renderPageControls}
         inPresentationMode={isHidden}
       />
     )
   }
 
-  private title = (): JSX.Element => {
+  private renderPageTitle = (): JSX.Element => {
     return (
       <>
         {this.dashboardSwitcher}
@@ -68,7 +68,7 @@ class DashboardHeader extends Component<Props> {
     )
   }
 
-  private options = (): JSX.Element => {
+  private renderPageControls = (): JSX.Element => {
     const {
       handleChooseAutoRefresh,
       onManualRefresh,

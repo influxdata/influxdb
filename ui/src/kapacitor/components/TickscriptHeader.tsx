@@ -23,30 +23,31 @@ class TickscriptHeader extends PureComponent<Props> {
         title="TICKscript Editor"
         fullWidth={true}
         sourceIndicator={true}
-        renderCenter={this.logsToggle}
-        renderOptions={this.saveAndExit}
+        renderPageControls={this.renderPageControls}
       />
     )
   }
 
-  private logsToggle = (): JSX.Element => {
-    const {areLogsEnabled, areLogsVisible, onToggleLogsVisibility} = this.props
-
-    return (
-      <LogsToggle
-        areLogsEnabled={areLogsEnabled}
-        areLogsVisible={areLogsVisible}
-        onToggleLogsVisibility={onToggleLogsVisibility}
-      />
-    )
-  }
-
-  private saveAndExit = (): JSX.Element => {
-    const {task, onSave, onExit, unsavedChanges, isNewTickscript} = this.props
+  private renderPageControls = (): JSX.Element => {
+    const {
+      task,
+      onSave,
+      onExit,
+      unsavedChanges,
+      isNewTickscript,
+      areLogsEnabled,
+      areLogsVisible,
+      onToggleLogsVisibility,
+    } = this.props
 
     if (unsavedChanges) {
       return (
         <>
+          <LogsToggle
+            areLogsEnabled={areLogsEnabled}
+            areLogsVisible={areLogsVisible}
+            onToggleLogsVisibility={onToggleLogsVisibility}
+          />
           <TickscriptSave
             task={task}
             onSave={onSave}

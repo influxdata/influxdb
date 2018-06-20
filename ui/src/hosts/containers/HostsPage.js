@@ -116,7 +116,7 @@ export class HostsPage extends Component {
       <div className="page hosts-list-page">
         <PageHeader
           title="Host List"
-          renderOptions={this.renderHeaderOptions}
+          renderPageControls={this.renderPageControls}
           sourceIndicator={true}
         />
         <div className="page-contents">
@@ -137,7 +137,7 @@ export class HostsPage extends Component {
     )
   }
 
-  renderHeaderOptions = () => {
+  renderPageControls = () => {
     const {autoRefresh, onChooseAutoRefresh, onManualRefresh} = this.props
 
     return (
