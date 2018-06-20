@@ -1,7 +1,12 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
-const LogItemInfluxDBDebug = ({logItem}) => (
+import {LogItem} from 'src/types/kapacitor'
+
+interface Props {
+  logItem: LogItem
+}
+
+const LogItemInfluxDBDebug: SFC<Props> = ({logItem}) => (
   <div className="logs-table--row">
     <div className="logs-table--divider">
       <div className={`logs-table--level ${logItem.lvl}`} />
@@ -19,16 +24,5 @@ const LogItemInfluxDBDebug = ({logItem}) => (
     </div>
   </div>
 )
-
-const {shape, string} = PropTypes
-
-LogItemInfluxDBDebug.propTypes = {
-  logItem: shape({
-    lvl: string.isRequired,
-    ts: string.isRequired,
-    msg: string.isRequired,
-    cluster: string.isRequired,
-  }),
-}
 
 export default LogItemInfluxDBDebug

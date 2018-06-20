@@ -1,14 +1,18 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {Component, SFC, ChangeEvent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface TickscriptIDProps {
+  onChangeID: (e: ChangeEvent<HTMLInputElement>) => void
+  id: string
+}
+
 @ErrorHandling
-class TickscriptID extends Component {
+class TickscriptID extends Component<TickscriptIDProps> {
   constructor(props) {
     super(props)
   }
 
-  render() {
+  public render() {
     const {onChangeID, id} = this.props
 
     return (
@@ -25,19 +29,11 @@ class TickscriptID extends Component {
   }
 }
 
-export const TickscriptStaticID = ({id}) => (
+interface TickscriptStaticIDProps {
+  id: string
+}
+export const TickscriptStaticID: SFC<TickscriptStaticIDProps> = ({id}) => (
   <h1 className="tickscript-controls--name">{id}</h1>
 )
-
-const {func, string} = PropTypes
-
-TickscriptID.propTypes = {
-  onChangeID: func.isRequired,
-  id: string.isRequired,
-}
-
-TickscriptStaticID.propTypes = {
-  id: string.isRequired,
-}
 
 export default TickscriptID

@@ -1,15 +1,24 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+
 import RuleHeaderSave from 'src/kapacitor/components/RuleHeaderSave'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {Source} from 'src/types'
+
+interface Props {
+  source: Source
+  onSave: () => void
+  validationError: string
+}
+
 @ErrorHandling
-class RuleHeader extends Component {
-  constructor(props) {
+class RuleHeader extends Component<Props> {
+  constructor(props: Props) {
     super(props)
   }
 
-  render() {
+  public render() {
     const {source, onSave, validationError} = this.props
 
     return (
@@ -27,14 +36,6 @@ class RuleHeader extends Component {
       </div>
     )
   }
-}
-
-const {func, shape, string} = PropTypes
-
-RuleHeader.propTypes = {
-  source: shape({}).isRequired,
-  onSave: func.isRequired,
-  validationError: string.isRequired,
 }
 
 export default RuleHeader

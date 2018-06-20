@@ -1,5 +1,4 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 
 import LogItemSession from 'src/kapacitor/components/LogItemSession'
 import LogItemHTTP from 'src/kapacitor/components/LogItemHTTP'
@@ -9,7 +8,13 @@ import LogItemKapacitorError from 'src/kapacitor/components/LogItemKapacitorErro
 import LogItemKapacitorDebug from 'src/kapacitor/components/LogItemKapacitorDebug'
 import LogItemInfluxDBDebug from 'src/kapacitor/components/LogItemInfluxDBDebug'
 
-const LogsTableRow = ({logItem}) => {
+import {LogItem} from 'src/types/kapacitor'
+
+interface Props {
+  logItem: LogItem
+}
+
+const LogsTableRow: SFC<Props> = ({logItem}) => {
   if (logItem.service === 'sessions') {
     return <LogItemSession logItem={logItem} />
   }
@@ -49,17 +54,6 @@ const LogsTableRow = ({logItem}) => {
       </div>
     </div>
   )
-}
-
-const {shape, string} = PropTypes
-
-LogsTableRow.propTypes = {
-  logItem: shape({
-    key: string.isRequired,
-    ts: string.isRequired,
-    lvl: string.isRequired,
-    msg: string.isRequired,
-  }).isRequired,
 }
 
 export default LogsTableRow

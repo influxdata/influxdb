@@ -1,22 +1,24 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {Component, ChangeEvent} from 'react'
 
 import RuleMessageText from 'src/kapacitor/components/RuleMessageText'
 import RuleMessageTemplates from 'src/kapacitor/components/RuleMessageTemplates'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {AlertRule} from 'src/types'
+import {KapacitorRuleActions} from 'src/types/actions'
+
+interface Props {
+  rule: AlertRule
+  ruleActions: KapacitorRuleActions
+}
+
 @ErrorHandling
-class RuleMessage extends Component {
+class RuleMessage extends Component<Props> {
   constructor(props) {
     super(props)
   }
 
-  handleChangeMessage = e => {
-    const {ruleActions, rule} = this.props
-    ruleActions.updateMessage(rule.id, e.target.value)
-  }
-
-  render() {
+  public render() {
     const {rule, ruleActions} = this.props
 
     return (
@@ -35,15 +37,11 @@ class RuleMessage extends Component {
       </div>
     )
   }
-}
 
-const {func, shape} = PropTypes
-
-RuleMessage.propTypes = {
-  rule: shape().isRequired,
-  ruleActions: shape({
-    updateMessage: func.isRequired,
-  }).isRequired,
+  private handleChangeMessage = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const {ruleActions, rule} = this.props
+    ruleActions.updateMessage(rule.id, e.target.value)
+  }
 }
 
 export default RuleMessage
