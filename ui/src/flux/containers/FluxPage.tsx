@@ -522,7 +522,7 @@ export class FluxPage extends PureComponent<Props, State> {
   }
 
   private handleDeleteFuncNode = (ids: DeleteFuncNodeArgs): void => {
-    const {funcID, declarationID = '', bodyID} = ids
+    const {funcID, declarationID = '', bodyID, yieldNodeID = ''} = ids
 
     const script = this.state.body
       .map((body, bodyIndex) => {
@@ -541,7 +541,10 @@ export class FluxPage extends PureComponent<Props, State> {
             return
           }
 
-          const functions = declaration.funcs.filter(f => f.id !== funcID)
+          const functions = declaration.funcs.filter(
+            f => f.id !== funcID && f.id !== yieldNodeID
+          )
+
           const s = this.funcsToSource(functions)
           return `${declaration.name} = ${this.formatLastSource(s, isLast)}`
         }

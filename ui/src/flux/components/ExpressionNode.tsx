@@ -75,12 +75,11 @@ class ExpressionNode extends PureComponent<Props, State> {
                 if (func.name === 'filter') {
                   isAfterFilter = true
                 }
-
                 const isYieldable = isAfterFilter && isAfterRange
 
                 const funcNode = (
                   <FuncNode
-                    key={i}
+                    key={func.id}
                     index={i}
                     func={func}
                     funcs={funcs}
