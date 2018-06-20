@@ -2,6 +2,7 @@ import React, {PureComponent, MouseEvent} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
+import {getDeep} from 'src/utils/wrappers'
 import BodyDelete from 'src/flux/components/BodyDelete'
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
@@ -13,8 +14,8 @@ import {
   Func,
 } from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
 import {Service} from 'src/types'
-import {getDeep} from 'src/utils/wrappers'
 
 interface Props {
   func: Func
