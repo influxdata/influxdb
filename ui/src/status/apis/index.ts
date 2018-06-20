@@ -1,9 +1,10 @@
 import AJAX from 'src/utils/ajax'
+import {JSONFeedData} from 'src/types'
 
 const excludeBasepath = true // don't prefix route of external link with basepath/
 
-export const fetchJSONFeed = url =>
-  AJAX(
+export const fetchJSONFeed = (url: string) =>
+  AJAX<JSONFeedData>(
     {
       method: 'GET',
       url,

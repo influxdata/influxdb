@@ -1,15 +1,11 @@
 import React, {Component} from 'react'
 
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
 class GettingStarted extends Component {
-  constructor(props) {
-    super(props)
-  }
-
-  render() {
+  public render() {
     return (
       <FancyScrollbar className="getting-started--container">
         <div className="getting-started">

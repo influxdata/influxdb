@@ -77,7 +77,7 @@ export interface Namespace {
 }
 
 export interface Status {
-  loading?: string
+  loading?: boolean
   error?: string
   warn?: string
   success?: string

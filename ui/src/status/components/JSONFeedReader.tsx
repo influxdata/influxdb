@@ -1,9 +1,13 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
+import {JSONFeedData} from 'src/types'
 
 import moment from 'moment'
 
-const JSONFeedReader = ({data}) =>
+interface Props {
+  data: JSONFeedData
+}
+
+const JSONFeedReader: SFC<Props> = ({data}) =>
   data && data.items ? (
     <div className="newsfeed">
       {data.items
@@ -37,25 +41,5 @@ const JSONFeedReader = ({data}) =>
         : null}
     </div>
   ) : null
-
-const {arrayOf, shape, string} = PropTypes
-
-JSONFeedReader.propTypes = {
-  data: shape({
-    items: arrayOf(
-      shape({
-        author: shape({
-          name: string.isRequired,
-        }).isRequired,
-        content_text: string.isRequired,
-        date_published: string.isRequired,
-        id: string.isRequired,
-        image: string,
-        title: string.isRequired,
-        url: string.isRequired,
-      })
-    ),
-  }).isRequired,
-}
 
 export default JSONFeedReader

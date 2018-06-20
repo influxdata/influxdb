@@ -1,19 +1,30 @@
-import * as actionTypes from 'src/status/constants/actionTypes'
+import {JSONFeedData} from 'src/types'
+import {Action, ActionTypes} from 'src/status/actions'
 
-const initialState = {
+export interface JSONFeedReducerState {
+  hasCompletedFetchOnce: boolean
+  isFetching: boolean
+  isFailed: boolean
+  data: JSONFeedData
+}
+
+const initialState: JSONFeedReducerState = {
   hasCompletedFetchOnce: false,
   isFetching: false,
   isFailed: false,
   data: null,
 }
 
-const JSONFeedReducer = (state = initialState, action) => {
+const JSONFeedReducer = (
+  state: JSONFeedReducerState = initialState,
+  action: Action
+): JSONFeedReducerState => {
   switch (action.type) {
-    case actionTypes.FETCH_JSON_FEED_REQUESTED: {
+    case ActionTypes.FETCH_JSON_FEED_REQUESTED: {
       return {...state, isFetching: true, isFailed: false}
     }
 
-    case actionTypes.FETCH_JSON_FEED_COMPLETED: {
+    case ActionTypes.FETCH_JSON_FEED_COMPLETED: {
       const {data} = action.payload
 
       return {
@@ -25,7 +36,7 @@ const JSONFeedReducer = (state = initialState, action) => {
       }
     }
 
-    case actionTypes.FETCH_JSON_FEED_FAILED: {
+    case ActionTypes.FETCH_JSON_FEED_FAILED: {
       return {
         ...state,
         isFetching: false,

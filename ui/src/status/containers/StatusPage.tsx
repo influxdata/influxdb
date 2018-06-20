@@ -1,10 +1,10 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
-import {connect} from 'react-redux'
 
-import SourceIndicator from 'shared/components/SourceIndicator'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
-import LayoutRenderer from 'shared/components/LayoutRenderer'
+import SourceIndicator from 'src/shared/components/SourceIndicator'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import LayoutRenderer from 'src/shared/components/LayoutRenderer'
+import {STATUS_PAGE_TIME_RANGE} from 'src/shared/data/timeRanges'
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 import {fixtureStatusPageCells} from 'src/status/fixtures'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -12,10 +12,22 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'src/shared/constants'
+import {Source, Cell} from 'src/types'
+
+interface State {
+  cells: Cell[]
+}
+
+interface Props {
+  source: Source
+}
+
+const autoRefresh = AUTOREFRESH_DEFAULT
+const timeRange = STATUS_PAGE_TIME_RANGE
 
 @ErrorHandling
-class StatusPage extends Component {
-  constructor(props) {
+class StatusPage extends Component<Props, State> {
+  constructor(props: Props) {
     super(props)
 
     this.state = {
@@ -23,8 +35,8 @@ class StatusPage extends Component {
     }
   }
 
-  render() {
-    const {source, autoRefresh, timeRange} = this.props
+  public render() {
+    const {source} = this.props
     const {cells} = this.state
 
     const dashboardTime = {
@@ -90,24 +102,4 @@ class StatusPage extends Component {
   }
 }
 
-const {number, shape, string} = PropTypes
-
-StatusPage.propTypes = {
-  source: shape({
-    name: string.isRequired,
-    links: shape({
-      proxy: string.isRequired,
-    }).isRequired,
-  }).isRequired,
-  autoRefresh: number.isRequired,
-  timeRange: shape({
-    lower: string.isRequired,
-  }).isRequired,
-}
-
-const mapStateToProps = ({statusUI: {autoRefresh, timeRange}}) => ({
-  autoRefresh,
-  timeRange,
-})
-
-export default connect(mapStateToProps, null)(StatusPage)
+export default StatusPage

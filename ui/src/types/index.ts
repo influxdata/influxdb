@@ -44,6 +44,7 @@ import {
   DygraphClass,
   DygraphData,
 } from './dygraphs'
+import {JSONFeedData} from './status'
 import {AnnotationInterface} from './annotations'
 
 export {
@@ -102,6 +103,7 @@ export {
   SchemaFilter,
   RemoteDataState,
   URLQueryParams,
+  JSONFeedData,
   AnnotationInterface,
   TemplateType,
   TemplateValueType,

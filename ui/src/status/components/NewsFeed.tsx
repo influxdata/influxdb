@@ -1,23 +1,26 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import {fetchJSONFeedAsync} from 'src/status/actions'
 
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import JSONFeedReader from 'src/status/components/JSONFeedReader'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {JSONFeedData} from 'src/types'
+
+interface Props {
+  hasCompletedFetchOnce: boolean
+  isFetching: boolean
+  isFailed: boolean
+  data: JSONFeedData
+  fetchJSONFeed: (statusFeedURL: string) => void
+  statusFeedURL: string
+}
+
 @ErrorHandling
-class NewsFeed extends Component {
-  constructor(props) {
-    super(props)
-  }
-
-  // TODO: implement shouldComponentUpdate based on fetching conditions
-
-  render() {
+class NewsFeed extends Component<Props> {
+  public render() {
     const {hasCompletedFetchOnce, isFetching, isFailed, data} = this.props
 
     if (!hasCompletedFetchOnce) {
@@ -54,25 +57,13 @@ class NewsFeed extends Component {
   }
 
   // TODO: implement interval polling a la AutoRefresh
-  componentDidMount() {
+  public componentDidMount() {
     const {statusFeedURL, fetchJSONFeed} = this.props
 
     fetchJSONFeed(statusFeedURL)
   }
 }
-
-const {bool, func, shape, string} = PropTypes
-
-NewsFeed.propTypes = {
-  hasCompletedFetchOnce: bool.isRequired,
-  isFetching: bool.isRequired,
-  isFailed: bool.isRequired,
-  data: shape(),
-  fetchJSONFeed: func.isRequired,
-  statusFeedURL: string,
-}
-
-const mapStateToProps = ({
+const mstp = ({
   links: {
     external: {statusFeed: statusFeedURL},
   },
@@ -85,8 +76,8 @@ const mapStateToProps = ({
   statusFeedURL,
 })
 
-const mapDispatchToProps = dispatch => ({
-  fetchJSONFeed: bindActionCreators(fetchJSONFeedAsync, dispatch),
-})
+const mdtp = {
+  fetchJSONFeed: fetchJSONFeedAsync,
+}
 
-export default connect(mapStateToProps, mapDispatchToProps)(NewsFeed)
+export default connect(mstp, mdtp)(NewsFeed)

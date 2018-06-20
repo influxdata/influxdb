@@ -14,12 +14,12 @@ import {
   notifySourceDeleteFailed,
 } from 'src/shared/copy/notifications'
 
-import {Source, NotificationFunc} from 'src/types'
+import {Source, Notification} from 'src/types'
 
 interface Props {
   source: Source
   sources: Source[]
-  notify: NotificationFunc
+  notify: (n: Notification) => void
   deleteKapacitor: actions.DeleteKapacitorAsync
   fetchKapacitors: actions.FetchKapacitorsAsync
   removeAndLoadSources: actions.RemoveAndLoadSources

@@ -1,5 +1,5 @@
 import {proxy} from 'src/utils/queryUrlGenerator'
-import {TimeRange} from '../../types'
+import {TimeRange} from 'src/types'
 
 export const getAlerts = (
   source: string,
