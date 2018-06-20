@@ -3,8 +3,11 @@ import {shallow} from 'enzyme'
 
 import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
-import {TemplateType, TemplateValueType} from 'src/types'
+import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
+import SimpleOverlayTechnology from 'src/shared/components/SimpleOverlayTechnology'
 import {source} from 'test/resources'
+
+import {TemplateType, TemplateValueType} from 'src/types'
 
 const defaultProps = {
   isOpen: true,
@@ -54,5 +57,21 @@ describe('TemplateControlBar', () => {
 
     expect(dropdown.exists()).toBe(false)
     expect(emptyState.exists()).toBe(true)
+  })
+
+  it('renders an TemplateVariableEditor overlay when adding a template variable', () => {
+    const props = {...defaultProps}
+    const wrapper = shallow(<TemplateControlBar {...props} />)
+
+    expect(wrapper.find(SimpleOverlayTechnology)).toHaveLength(0)
+
+    wrapper.find('[data-test="add-template-variable"]').simulate('click')
+
+    const elements = wrapper
+      .find(SimpleOverlayTechnology)
+      .dive()
+      .find(TemplateVariableEditor)
+
+    expect(elements).toHaveLength(1)
   })
 })
