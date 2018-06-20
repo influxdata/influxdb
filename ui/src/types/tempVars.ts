@@ -9,6 +9,7 @@ export enum TemplateValueType {
   CSV = 'csv',
   Points = 'points',
   Constant = 'constant',
+  MetaQuery = 'influxql',
 }
 
 export interface TemplateValue {
@@ -34,8 +35,8 @@ export enum TemplateType {
   TagKeys = 'tagKeys',
   TagValues = 'tagValues',
   CSV = 'csv',
-  Query = 'query',
   Databases = 'databases',
+  MetaQuery = 'influxql',
 }
 
 export interface Template {

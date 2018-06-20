@@ -72,7 +72,7 @@ func RenderTemplate(query string, t chronograf.TemplateVar, now time.Time) (stri
 		return strings.Replace(q, t.Var, `"`+t.Values[0].Value+`"`, -1), nil
 	case "tagValue", "timeStamp":
 		return strings.Replace(q, t.Var, `'`+t.Values[0].Value+`'`, -1), nil
-	case "csv", "constant":
+	case "csv", "constant", "influxql":
 		return strings.Replace(q, t.Var, t.Values[0].Value, -1), nil
 	}
 
