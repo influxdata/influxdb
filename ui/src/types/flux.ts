@@ -45,6 +45,7 @@ export interface DeleteFuncNodeArgs {
   funcID: string
   bodyID: string
   declarationID?: string
+  yieldNodeID?: string
 }
 
 export interface InputArg {
