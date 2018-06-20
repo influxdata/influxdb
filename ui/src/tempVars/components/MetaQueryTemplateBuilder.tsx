@@ -37,7 +37,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
     this.setState({metaQuery: metaQueryInput}, this.executeQuery)
   }, DEBOUNCE_DELAY)
 
-  constructor(props) {
+  constructor(props: TemplateBuilderProps) {
     super(props)
 
     const metaQuery = getDeep<string>(props.template, 'query.influxql', '')
