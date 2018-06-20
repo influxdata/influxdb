@@ -299,6 +299,13 @@ func (f *LogFile) DeleteMeasurement(name []byte) error {
 		return err
 	}
 	f.execEntry(&e)
+
+	// Flush buffer & sync to disk.
+	if err := f.w.Flush(); err != nil {
+		return err
+	} else if err := f.file.Sync(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -414,6 +421,13 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 		return err
 	}
 	f.execEntry(&e)
+
+	// Flush buffer & sync to disk.
+	if err := f.w.Flush(); err != nil {
+		return err
+	} else if err := f.file.Sync(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -481,6 +495,13 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 		return err
 	}
 	f.execEntry(&e)
+
+	// Flush buffer & sync to disk.
+	if err := f.w.Flush(); err != nil {
+		return err
+	} else if err := f.file.Sync(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -527,6 +548,13 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 		f.execEntry(entry)
 		seriesSet.AddNoLock(entry.SeriesID)
 	}
+
+	// Flush buffer & sync to disk.
+	if err := f.w.Flush(); err != nil {
+		return err
+	} else if err := f.file.Sync(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -540,6 +568,13 @@ func (f *LogFile) DeleteSeriesID(id uint64) error {
 		return err
 	}
 	f.execEntry(&e)
+
+	// Flush buffer & sync to disk.
+	if err := f.w.Flush(); err != nil {
+		return err
+	} else if err := f.file.Sync(); err != nil {
+		return err
+	}
 	return nil
 }
 
