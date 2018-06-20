@@ -1,7 +1,14 @@
 enum AlertType {
   'info',
 }
-export interface ErrorThrownAction {
+
+export type ErrorThrownActionCreator = (
+  error: Error,
+  altText?: string,
+  alertType?: AlertType
+) => ErrorThrownAction
+
+interface ErrorThrownAction {
   type: 'ERROR_THROWN'
   error: Error
   altText?: string

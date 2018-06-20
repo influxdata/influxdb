@@ -23,13 +23,17 @@ export type Action =
   | ChangeDecimalPlacesAction
   | UpdateFieldOptionsAction
 
-export interface ShowCellEditorOverlayAction {
+export type ShowCellEditorOverlayActionCreator = (
+  cell: Cell
+) => ShowCellEditorOverlayAction
+
+interface ShowCellEditorOverlayAction {
   type: 'SHOW_CELL_EDITOR_OVERLAY'
   payload: {
     cell: Cell
   }
 }
-export const showCellEditorOverlay = (
+export const showCellEditorOverlay: ShowCellEditorOverlayActionCreator = (
   cell: Cell
 ): ShowCellEditorOverlayAction => ({
   type: 'SHOW_CELL_EDITOR_OVERLAY',
@@ -38,7 +42,9 @@ export const showCellEditorOverlay = (
   },
 })
 
-export interface HideCellEditorOverlayAction {
+export type HideCellEditorOverlayActionCreator = () => HideCellEditorOverlayAction
+
+interface HideCellEditorOverlayAction {
   type: 'HIDE_CELL_EDITOR_OVERLAY'
 }
 export const hideCellEditorOverlay = (): HideCellEditorOverlayAction => ({

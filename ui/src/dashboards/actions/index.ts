@@ -68,9 +68,14 @@ import {
 } from 'src/types'
 import {CellType, DashboardName} from 'src/types/dashboard'
 import {TimeRangeOption} from 'src/shared/data/timeRanges'
-import {ActionPublishNotification} from 'src/shared/actions/notifications'
-import {ErrorThrownAction} from 'src/shared/actions/errors'
+import {PublishNotificationActionCreator} from 'src/shared/actions/notifications'
+import * as ErrorActions from 'src/shared/actions/errors'
 import {LocationAction} from 'react-router-redux'
+
+export type LoadDashboardsActionCreator = (
+  dashboards: Dashboard[],
+  dashboardID?: number
+) => LoadDashboardsAction
 
 interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
@@ -79,7 +84,7 @@ interface LoadDashboardsAction {
     dashboardID: number
   }
 }
-export const loadDashboards = (
+export const loadDashboards: LoadDashboardsActionCreator = (
   dashboards: Dashboard[],
   dashboardID?: number
 ): LoadDashboardsAction => ({
@@ -388,14 +393,16 @@ export const setActiveCell = (activeCellID: string): SetActiveCellAction => ({
 
 // Async Action Creators
 
-type GetDashboardsDispatcher = () => GetDashboardsThunk
+export type GetDashboardsDispatcher = () => GetDashboardsThunk
 
 type GetDashboardsThunk = (
-  dispatch: Dispatch<ErrorThrownAction>
+  dispatch: Dispatch<ErrorActions.ErrorThrownActionCreator>
 ) => Promise<Dashboard[] | void>
 
 export const getDashboardsAsync = (): GetDashboardsThunk => async (
-  dispatch: Dispatch<LoadDashboardsAction | ErrorThrownAction>
+  dispatch: Dispatch<
+    LoadDashboardsActionCreator | ErrorActions.ErrorThrownActionCreator
+  >
 ): Promise<Dashboard[] | void> => {
   try {
     const {
@@ -414,7 +421,7 @@ export type GetDashboardsNamesDispatcher = (
 ) => GetDashboardsNamesThunk
 
 type GetDashboardsNamesThunk = (
-  dispatch: Dispatch<ErrorThrownAction>
+  dispatch: Dispatch<ErrorActions.ErrorThrownActionCreator>
 ) => Promise<DashboardName[] | void>
 
 // gets update-to-date names of dashboards, but does not dispatch action
@@ -422,7 +429,7 @@ type GetDashboardsNamesThunk = (
 export const getDashboardsNamesAsync = (
   sourceID: string
 ): GetDashboardsNamesThunk => async (
-  dispatch: Dispatch<ErrorThrownAction>
+  dispatch: Dispatch<ErrorActions.ErrorThrownActionCreator>
 ): Promise<DashboardName[] | void> => {
   try {
     // TODO: change this from getDashboardsAJAX to getDashboardsNamesAJAX
@@ -487,11 +494,15 @@ const removeUnselectedTemplateValues = (dashboard: Dashboard): Template[] => {
 export type PutDashboardDispatcher = (dashboard: Dashboard) => PutDashboardThunk
 
 type PutDashboardThunk = (
-  dispatch: Dispatch<UpdateDashboardAction | ErrorThrownAction>
+  dispatch: Dispatch<
+    UpdateDashboardAction | ErrorActions.ErrorThrownActionCreator
+  >
 ) => Promise<void>
 
 export const putDashboard = (dashboard: Dashboard): PutDashboardThunk => async (
-  dispatch: Dispatch<UpdateDashboardAction | ErrorThrownAction>
+  dispatch: Dispatch<
+    UpdateDashboardAction | ErrorActions.ErrorThrownActionCreator
+  >
 ): Promise<void> => {
   try {
     // save only selected template values to server
@@ -522,7 +533,7 @@ interface DashboardsReducerState {
 }
 
 type PutDashboardByIDThunk = (
-  dispatch: Dispatch<ErrorThrownAction>,
+  dispatch: Dispatch<ErrorActions.ErrorThrownActionCreator>,
   getState: () => DashboardsReducerState
 ) => Promise<void>
 
@@ -533,7 +544,7 @@ export type PutDashboardByIDDispatcher = (
 export const putDashboardByID = (
   dashboardID: number
 ): PutDashboardByIDThunk => async (
-  dispatch: Dispatch<ErrorThrownAction>,
+  dispatch: Dispatch<ErrorActions.ErrorThrownActionCreator>,
   getState: () => DashboardsReducerState
 ): Promise<void> => {
   try {
@@ -586,7 +597,9 @@ export type AddDashboardCellDispatcher = (
 
 type AddDashboardCellThunk = (
   dispatch: Dispatch<
-    AddDashboardCellAction | ActionPublishNotification | ErrorThrownAction
+    | AddDashboardCellAction
+    | PublishNotificationActionCreator
+    | ErrorActions.ErrorThrownActionCreator
   >
 ) => Promise<void>
 
@@ -595,7 +608,9 @@ export const addDashboardCellAsync = (
   cellType: CellType
 ): AddDashboardCellThunk => async (
   dispatch: Dispatch<
-    AddDashboardCellAction | ActionPublishNotification | ErrorThrownAction
+    | AddDashboardCellAction
+    | PublishNotificationActionCreator
+    | ErrorActions.ErrorThrownActionCreator
   >
 ): Promise<void> => {
   try {
@@ -789,7 +804,7 @@ interface AuthReducerState {
 }
 type SyncDashboardTempVarsFromURLQueryParamsDispatcher = (
   dispatch: Dispatch<
-    ActionPublishNotification | TemplateVariableSelectedAction
+    PublishNotificationActionCreator | TemplateVariableSelectedAction
   >,
   getState: () => DashboardsReducerState & AuthReducerState
 ) => void
@@ -798,7 +813,7 @@ const syncDashboardTempVarsFromURLQueryParams = (
   urlQueryParams: URLQueryParams
 ): SyncDashboardTempVarsFromURLQueryParamsDispatcher => (
   dispatch: Dispatch<
-    ActionPublishNotification | TemplateVariableSelectedAction
+    PublishNotificationActionCreator | TemplateVariableSelectedAction
   >,
   getState: () => DashboardsReducerState & AuthReducerState
 ): void => {
@@ -838,7 +853,7 @@ interface DashTimeV1ReducerState {
 }
 
 type SyncDashboardTimeRangeFromURLQueryParamsDispatcher = (
-  dispatch: Dispatch<ActionPublishNotification>,
+  dispatch: Dispatch<PublishNotificationActionCreator>,
   getState: () => DashboardsReducerState & DashTimeV1ReducerState
 ) => void
 
@@ -847,7 +862,7 @@ const syncDashboardTimeRangeFromURLQueryParams = (
   urlQueryParams: URLQueryParams,
   location: Location
 ): SyncDashboardTimeRangeFromURLQueryParamsDispatcher => (
-  dispatch: Dispatch<ActionPublishNotification>,
+  dispatch: Dispatch<PublishNotificationActionCreator>,
   getState: () => DashboardsReducerState & DashTimeV1ReducerState
 ): void => {
   const {
@@ -940,7 +955,7 @@ export type GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher = (
 ) => GetDashboardWithHydratedAndSyncedTempVarsAsyncActionCreator
 
 type GetDashboardWithHydratedAndSyncedTempVarsAsyncActionCreator = (
-  dispatch: Dispatch<ActionPublishNotification>
+  dispatch: Dispatch<PublishNotificationActionCreator>
 ) => Promise<void>
 
 export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
@@ -949,7 +964,7 @@ export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
   router: InjectedRouter,
   location: Location
 ): GetDashboardWithHydratedAndSyncedTempVarsAsyncActionCreator => async (
-  dispatch: Dispatch<ActionPublishNotification>
+  dispatch: Dispatch<PublishNotificationActionCreator>
 ): Promise<void> => {
   const dashboard = await bindActionCreators(getDashboardAsync, dispatch)(
     dashboardID

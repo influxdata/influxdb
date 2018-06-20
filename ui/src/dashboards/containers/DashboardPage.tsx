@@ -112,7 +112,7 @@ interface Props {
   meRole: string
   isUsingAuth: boolean
   router: Router
-  notify: NotificationActions.ActionCreatorPublishNotification
+  notify: NotificationActions.PublishNotificationActionCreator
   getAnnotationsAsync: AnnotationActions.GetAnnotationsDispatcher
   handleShowCellEditorOverlay: CellEditorOverlayActions.ShowCellEditorOverlayActionCreator
   handleHideCellEditorOverlay: CellEditorOverlayActions.HideCellEditorOverlayActionCreator

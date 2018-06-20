@@ -1,19 +1,22 @@
 import {Notification} from 'src/types'
 
-export type Action = ActionPublishNotification | ActionDismissNotification
+export type Action = PublishNotificationAction | ActionDismissNotification
 
 // Publish notification
-export type PublishNotification = (n: Notification) => ActionPublishNotification
-export interface ActionPublishNotification {
+export type PublishNotificationActionCreator = (
+  n: Notification
+) => PublishNotificationAction
+
+export interface PublishNotificationAction {
   type: 'PUBLISH_NOTIFICATION'
   payload: {
     notification: Notification
   }
 }
 
-export const notify = (
+export const notify: PublishNotificationActionCreator = (
   notification: Notification
-): ActionPublishNotification => ({
+): PublishNotificationAction => ({
   type: 'PUBLISH_NOTIFICATION',
   payload: {notification},
 })

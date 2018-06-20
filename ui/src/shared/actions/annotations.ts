@@ -22,7 +22,9 @@ export const editingAnnotation = (): EditingAnnotationAction => ({
   type: 'EDITING_ANNOTATION',
 })
 
-export interface DismissEditingAnnotationAction {
+export type DismissEditingAnnotationActionCreator = () => DismissEditingAnnotationAction
+
+interface DismissEditingAnnotationAction {
   type: 'DISMISS_EDITING_ANNOTATION'
 }
 export const dismissEditingAnnotation = (): DismissEditingAnnotationAction => ({
@@ -138,14 +140,15 @@ export interface AnnotationRange {
   since: number
   until: number
 }
-type GetAnnotationsThunk = (
-  dispatch: Dispatch<LoadAnnotationsAction>
-) => Promise<void>
 
 export type GetAnnotationsDispatcher = (
   indexUrl: string,
   annotationRange: AnnotationRange
 ) => GetAnnotationsThunk
+
+type GetAnnotationsThunk = (
+  dispatch: Dispatch<LoadAnnotationsAction>
+) => Promise<void>
 
 export const getAnnotationsAsync = (
   indexUrl: string,
