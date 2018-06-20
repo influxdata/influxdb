@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 
 import PageHeader from 'src/shared/components/PageHeader'
 import LogsToggle from 'src/kapacitor/components/LogsToggle'
@@ -16,7 +16,7 @@ interface Props {
   onToggleLogsVisibility: () => void
 }
 
-class TickscriptHeader extends PureComponent<Props> {
+class TickscriptHeader extends Component<Props> {
   public render() {
     return (
       <PageHeader
@@ -32,7 +32,6 @@ class TickscriptHeader extends PureComponent<Props> {
     const {
       task,
       onSave,
-      onExit,
       unsavedChanges,
       isNewTickscript,
       areLogsEnabled,
@@ -40,44 +39,45 @@ class TickscriptHeader extends PureComponent<Props> {
       onToggleLogsVisibility,
     } = this.props
 
-    if (unsavedChanges) {
-      return (
-        <>
-          <LogsToggle
-            areLogsEnabled={areLogsEnabled}
-            areLogsVisible={areLogsVisible}
-            onToggleLogsVisibility={onToggleLogsVisibility}
-          />
-          <TickscriptSave
-            task={task}
-            onSave={onSave}
-            unsavedChanges={unsavedChanges}
-            isNewTickscript={isNewTickscript}
-          />
-          <ConfirmButton
-            text="Exit"
-            confirmText="Discard unsaved changes?"
-            confirmAction={onExit}
-          />
-        </>
-      )
-    }
     return (
       <>
+        <LogsToggle
+          areLogsEnabled={areLogsEnabled}
+          areLogsVisible={areLogsVisible}
+          onToggleLogsVisibility={onToggleLogsVisibility}
+        />
         <TickscriptSave
           task={task}
           onSave={onSave}
           unsavedChanges={unsavedChanges}
           isNewTickscript={isNewTickscript}
         />
-        <button
-          className="btn btn-default btn-sm"
-          title="Return to Alert Rules"
-          onClick={onExit}
-        >
-          Exit
-        </button>
+        {this.saveButton}
       </>
+    )
+  }
+
+  private get saveButton(): JSX.Element {
+    const {unsavedChanges, onExit} = this.props
+
+    if (unsavedChanges) {
+      return (
+        <ConfirmButton
+          text="Exit"
+          confirmText="Discard unsaved changes?"
+          confirmAction={onExit}
+        />
+      )
+    }
+
+    return (
+      <button
+        className="btn btn-default btn-sm"
+        title="Return to Alert Rules"
+        onClick={onExit}
+      >
+        Exit
+      </button>
     )
   }
 }
