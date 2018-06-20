@@ -2,7 +2,7 @@ import React, {PureComponent, ReactElement, MouseEvent} from 'react'
 import FuncArg from 'src/flux/components/FuncArg'
 import {OnChangeArg} from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Func} from 'src/types/flux'
+import {Func, OnGenerateScript} from 'src/types/flux'
 import {funcNames} from 'src/flux/constants'
 import JoinArgs from 'src/flux/components/JoinArgs'
 import FilterArgs from 'src/flux/components/FilterArgs'
@@ -15,7 +15,7 @@ interface Props {
   bodyID: string
   onChangeArg: OnChangeArg
   declarationID: string
-  onGenerateScript: () => void
+  onGenerateScript: OnGenerateScript
   declarationsFromBody: string[]
   onStopPropagation: (e: MouseEvent<HTMLElement>) => void
 }

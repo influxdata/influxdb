@@ -8,7 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import FromDatabaseDropdown from 'src/flux/components/FromDatabaseDropdown'
 
 import {funcNames, argTypes} from 'src/flux/constants'
-import {OnChangeArg, Arg} from 'src/types/flux'
+import {OnChangeArg, Arg, OnGenerateScript} from 'src/types/flux'
 import {Service} from 'src/types'
 
 interface Props {
@@ -22,7 +22,7 @@ interface Props {
   bodyID: string
   declarationID: string
   onChangeArg: OnChangeArg
-  onGenerateScript: () => void
+  onGenerateScript: OnGenerateScript
 }
 
 @ErrorHandling

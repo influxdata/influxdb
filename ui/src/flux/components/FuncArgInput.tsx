@@ -1,6 +1,6 @@
 import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {OnChangeArg} from 'src/types/flux'
+import {OnChangeArg, OnGenerateScript} from 'src/types/flux'
 
 interface Props {
   funcID: string
@@ -10,7 +10,7 @@ interface Props {
   bodyID: string
   declarationID: string
   onChangeArg: OnChangeArg
-  onGenerateScript: () => void
+  onGenerateScript: OnGenerateScript
   autoFocus?: boolean
 }
 

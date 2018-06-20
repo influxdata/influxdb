@@ -6,6 +6,7 @@ import BodyDelete from 'src/flux/components/BodyDelete'
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
 import {
+  OnGenerateScript,
   OnDeleteFuncNode,
   OnChangeArg,
   OnToggleYield,
@@ -24,12 +25,13 @@ interface Props {
   onDelete: OnDeleteFuncNode
   onToggleYield: OnToggleYield
   onChangeArg: OnChangeArg
-  onGenerateScript: () => void
+  onGenerateScript: OnGenerateScript
   onToggleYieldWithLast: (funcNodeIndex: number) => void
   declarationsFromBody: string[]
   isYielding: boolean
   isYieldable: boolean
   onDeleteBody: (bodyID: string) => void
+  isYieldedInScript: boolean
 }
 
 interface State {
@@ -182,11 +184,12 @@ export default class FuncNode extends PureComponent<Props, State> {
       index,
       bodyID,
       declarationID,
-      isYieldable,
       onToggleYieldWithLast,
+      isYieldable,
+      isYieldedInScript,
     } = this.props
 
-    if (isYieldable) {
+    if (isYieldedInScript || isYieldable) {
       onToggleYield(bodyID, declarationID, index)
     } else {
       onToggleYieldWithLast(index)
