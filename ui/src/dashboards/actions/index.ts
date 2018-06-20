@@ -630,7 +630,9 @@ export const hydrateTempVarValuesAsync = (
     )
     const templates: Template[] = dashboard.templates
     const queries = templates
-      .filter(template => !!template.query.influxql)
+      .filter(
+        template => getDeep<string>(template, 'query.influxql', '') !== ''
+      )
       .map(async template => {
         const query = makeQueryForTemplate(template.query)
         const response = await proxy({source: source.links.proxy, query})

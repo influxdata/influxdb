@@ -5,6 +5,7 @@ import {proxy} from 'src/utils/queryUrlGenerator'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplateMetaQueryPreview from 'src/tempVars/components/TemplateMetaQueryPreview'
 import {parseMetaQuery, isInvalidMetaQuery} from 'src/tempVars/utils/parsing'
+import {getDeep} from 'src/utils/wrappers'
 
 import {
   TemplateBuilderProps,
@@ -39,7 +40,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
   constructor(props) {
     super(props)
 
-    const metaQuery = _.get(props.template, 'query.influxql', '')
+    const metaQuery = getDeep<string>(props.template, 'query.influxql', '')
 
     this.state = {
       metaQuery,

@@ -1,3 +1,5 @@
+import {getDeep} from 'src/utils/wrappers'
+
 interface ParseShowSeriesResponse {
   errors: string[]
   series: string[]
@@ -10,17 +12,15 @@ const parseShowSeries = (response): ParseShowSeriesResponse => {
     return {errors: [results.error], series: []}
   }
 
-  const series = results.series[0]
+  const seriesValues = getDeep<string[]>(results, 'series.0.values', [])
 
-  if (!series.values) {
+  if (!seriesValues.length) {
     return {errors: [], series: []}
   }
 
-  const seriesValues = series.values.map(s => {
-    return s[0]
-  })
+  const series = seriesValues.map(s => s[0])
 
-  return {errors: [], series: seriesValues}
+  return {series, errors: []}
 }
 
 export default parseShowSeries
