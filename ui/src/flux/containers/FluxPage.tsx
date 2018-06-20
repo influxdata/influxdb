@@ -549,7 +549,9 @@ export class FluxPage extends PureComponent<Props, State> {
           return `${declaration.name} = ${this.formatLastSource(s, isLast)}`
         }
 
-        const funcs = body.funcs.filter(f => f.id !== funcID)
+        const funcs = body.funcs.filter(
+          f => f.id !== funcID && f.id !== yieldNodeID
+        )
         const source = this.funcsToSource(funcs)
         return this.formatLastSource(source, isLast)
       })
