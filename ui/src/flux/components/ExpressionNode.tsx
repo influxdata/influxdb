@@ -79,7 +79,7 @@ class ExpressionNode extends PureComponent<Props, State> {
 
                 const funcNode = (
                   <FuncNode
-                    key={func.id}
+                    key={i}
                     index={i}
                     func={func}
                     funcs={funcs}
