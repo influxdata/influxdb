@@ -5,7 +5,7 @@ import uuid from 'uuid'
 import {FluxTable} from 'src/types'
 
 export const parseResponseError = (response: string): FluxTable[] => {
-  const {data} = Papa.parse(response.trim())
+  const data = Papa.parse(response.trim()).data as string[][]
 
   return [
     {
