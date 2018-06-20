@@ -1,8 +1,17 @@
 import React from 'react'
-import {shallow} from 'enzyme'
+import {mount} from 'enzyme'
 
+import PageHeader from 'src/shared/components/PageHeader'
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import TickscriptSave from 'src/kapacitor/components/TickscriptSave'
+import {source} from 'test/resources'
+
+const mockContext = jest.fn()
+jest.mock('src/CheckSources', () => ({
+  SourceContext: {
+    Consumer: ({children}) => children(mockContext()),
+  },
+}))
 
 const setup = (override?) => {
   const props = {
@@ -20,7 +29,9 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow(<TickscriptHeader {...props} />)
+  mockContext.mockReturnValue(source)
+
+  const wrapper = mount(<TickscriptHeader {...props} />)
 
   return {
     wrapper,
@@ -40,7 +51,8 @@ describe('Kapacitor.Components.TickscriptHeader', () => {
       it('is disabled if there are no changes', () => {
         const {wrapper} = setup({unsavedChanges: false})
 
-        const save = wrapper.find(TickscriptSave).dive()
+        const pageHeader = wrapper.find(PageHeader)
+        const save = pageHeader.find(TickscriptSave)
         const saveButton = save.find('button')
 
         expect(saveButton.props().disabled).toBe(true)
@@ -49,7 +61,8 @@ describe('Kapacitor.Components.TickscriptHeader', () => {
       it('is disabled if there are no dbrps', () => {
         const {wrapper} = setup({unsavedChanges: true})
 
-        const save = wrapper.find(TickscriptSave).dive()
+        const pageHeader = wrapper.find(PageHeader)
+        const save = pageHeader.find(TickscriptSave)
         const saveButton = save.find('button')
 
         expect(saveButton.props().disabled).toBe(true)
@@ -62,7 +75,8 @@ describe('Kapacitor.Components.TickscriptHeader', () => {
           const task = {id: '1', dbrps: []}
           const {wrapper} = setup({isNewTickscript: true, task})
 
-          const save = wrapper.find(TickscriptSave).dive()
+          const pageHeader = wrapper.find(PageHeader)
+          const save = pageHeader.find(TickscriptSave)
           const saveButton = save.find('button')
 
           expect(saveButton.props().disabled).toBe(true)
@@ -74,7 +88,8 @@ describe('Kapacitor.Components.TickscriptHeader', () => {
           const task = {id: '', dbrps: [{db: 'db1', rp: 'rp1'}]}
           const {wrapper} = setup({isNewTickscript: true, task})
 
-          const save = wrapper.find(TickscriptSave).dive()
+          const pageHeader = wrapper.find(PageHeader)
+          const save = pageHeader.find(TickscriptSave)
           const saveButton = save.find('button')
 
           expect(saveButton.props().disabled).toBe(true)

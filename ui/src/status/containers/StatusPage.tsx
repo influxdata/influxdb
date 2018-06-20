@@ -1,10 +1,10 @@
 import React, {Component} from 'react'
 
-import SourceIndicator from 'src/shared/components/SourceIndicator'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import LayoutRenderer from 'src/shared/components/LayoutRenderer'
 import {STATUS_PAGE_TIME_RANGE} from 'src/shared/data/timeRanges'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
+import PageHeader from 'src/shared/components/PageHeader'
 
 import {fixtureStatusPageCells} from 'src/status/fixtures'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -69,16 +69,11 @@ class StatusPage extends Component<Props, State> {
 
     return (
       <div className="page">
-        <div className="page-header full-width">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Status</h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator />
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          titleText="Status"
+          fullWidth={true}
+          sourceIndicator={true}
+        />
         <FancyScrollbar className="page-contents">
           <div className="dashboard container-fluid full-width">
             {cells.length ? (

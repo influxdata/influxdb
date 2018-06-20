@@ -5,9 +5,9 @@ import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 
 import HostsTable from 'src/hosts/components/HostsTable'
-import SourceIndicator from 'shared/components/SourceIndicator'
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
+import PageHeader from 'src/shared/components/PageHeader'
 
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 import {getEnv} from 'src/shared/apis/env'
@@ -110,31 +110,15 @@ export class HostsPage extends Component {
   }
 
   render() {
-    const {
-      source,
-      autoRefresh,
-      onChooseAutoRefresh,
-      onManualRefresh,
-    } = this.props
+    const {source} = this.props
     const {hosts, hostsLoading, hostsError} = this.state
     return (
       <div className="page hosts-list-page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">Host List</h1>
-            </div>
-            <div className="page-header__right">
-              <SourceIndicator />
-              <AutoRefreshDropdown
-                iconName="refresh"
-                selected={autoRefresh}
-                onChoose={onChooseAutoRefresh}
-                onManualRefresh={onManualRefresh}
-              />
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Host List"
+          optionsComponents={this.optionsComponents}
+          sourceIndicator={true}
+        />
         <div className="page-contents">
           <div className="container-fluid">
             <div className="row">
@@ -150,6 +134,19 @@ export class HostsPage extends Component {
           </div>
         </div>
       </div>
+    )
+  }
+
+  optionsComponents = () => {
+    const {autoRefresh, onChooseAutoRefresh, onManualRefresh} = this.props
+
+    return (
+      <AutoRefreshDropdown
+        iconName="refresh"
+        selected={autoRefresh}
+        onChoose={onChooseAutoRefresh}
+        onManualRefresh={onManualRefresh}
+      />
     )
   }
 

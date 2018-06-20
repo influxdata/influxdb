@@ -3,9 +3,10 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {InjectedRouter} from 'react-router'
 
+import PageHeader from 'src/shared/components/PageHeader'
 import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
-import RuleHeader from 'src/kapacitor/components/RuleHeader'
+import RuleHeaderSave from 'src/kapacitor/components/RuleHeaderSave'
 import RuleHandlers from 'src/kapacitor/components/RuleHandlers'
 import RuleMessage from 'src/kapacitor/components/RuleMessage'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
@@ -91,10 +92,10 @@ class KapacitorRule extends Component<Props, State> {
 
     return (
       <div className="page">
-        <RuleHeader
-          source={source}
-          onSave={this.handleSave}
-          validationError={this.validationError}
+        <PageHeader
+          titleText="Alert Rule Builder"
+          optionsComponents={this.optionsComponents}
+          sourceIndicator={true}
         />
         <FancyScrollbar className="page-contents fancy-scroll--kapacitor">
           <div className="container-fluid">
@@ -268,6 +269,15 @@ class KapacitorRule extends Component<Props, State> {
   private handleDeadmanChange = ({text}: Item) => {
     const {ruleActions, rule} = this.props
     ruleActions.updateRuleValues(rule.id, rule.trigger, {period: text})
+  }
+
+  private get optionsComponents(): JSX.Element {
+    return (
+      <RuleHeaderSave
+        onSave={this.handleSave}
+        validationError={this.validationError}
+      />
+    )
   }
 }
 

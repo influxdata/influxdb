@@ -3,6 +3,7 @@ import React, {ChangeEvent, MouseEvent, PureComponent} from 'react'
 import AlertOutputs from 'src/kapacitor/components/AlertOutputs'
 import Input from 'src/kapacitor/components/KapacitorFormInput'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import PageHeader from 'src/shared/components/PageHeader'
 import KapacitorFormSkipVerify from 'src/kapacitor/components/KapacitorFormSkipVerify'
 
 import {Kapacitor, Source, Notification, NotificationFunc} from 'src/types'
@@ -38,13 +39,7 @@ class KapacitorForm extends PureComponent<Props> {
 
     return (
       <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1 className="page-header__title">{this.headerText}</h1>
-            </div>
-          </div>
-        </div>
+        <PageHeader titleText={this.headerText} />
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">

@@ -1,6 +1,6 @@
 /*
-    Page Header
-    ----------------------------------------------
+  Page Header
+  ------------------------------------------------------------------------------
 */
 $page-header-size: 19px;
 $page-header-weight: 400 !important;
@@ -19,12 +19,8 @@ $page-header-weight: 400 !important;
   border: none;
   margin: 0;
 }
-.page-header.full-width .page-header__container {
-  max-width: 100%;
-}
-.page-header__container {
-  position: relative;
-  width: 100%;
+
+.page-header--container {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -32,7 +28,50 @@ $page-header-weight: 400 !important;
   width: 100%;
   max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
 }
-.page-header__container.page-header__source-page {
+
+// If specified as a full width page header
+.page-header.full-width .page-header--container {
+  max-width: 100%;
+}
+
+// Left, Center, and Right pieces of the page header
+.page-header--left,
+.page-header--right {
+  display: flex;
+  align-items: center;
+}
+.page-header--left {
+  justify-content: flex-start;
+  > * {
+    margin: 0 4px 0 0;
+  }
+}
+.page-header--right {
+  justify-content: flex-end;
+  > * {
+    margin: 0 0 0 4px !important;
+
+    &:only-child {
+      margin-right: 0 !important;
+    }
+  }
+}
+
+// Intended to be a <h1>
+.page-header--title {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  margin: 0;
+  display: inline-block;
+  vertical-align: middle;
+  @include no-user-select();
+  cursor: default;
+}
+
+// Misc styles to be refactors
+.page-header--container.page-header__source-page {
   justify-content: center;
 }
 .page-header__col-md-8 {
@@ -51,38 +90,6 @@ $page-header-weight: 400 !important;
   .page-header__col-md-8 {
     width: 66.66667%;
   }
-}
-.page-header__left,
-.page-header__right {
-  display: flex;
-  align-items: center;
-}
-.page-header__left {
-  justify-content: flex-start;
-  > * {
-    margin: 0 4px 0 0;
-  }
-}
-.page-header__right {
-  justify-content: flex-end;
-  > * {
-    margin: 0 0 0 4px !important;
-
-    &:only-child {
-      margin-right: 0 !important;
-    }
-  }
-}
-.page-header__title {
-  letter-spacing: 0;
-  text-transform: none;
-  font-size: $page-header-size;
-  font-weight: $page-header-weight;
-  margin: 0;
-  display: inline-block;
-  vertical-align: middle;
-  @include no-user-select();
-  cursor: default;
 }
 .page-header__dismiss {
   width: ($chronograf-page-header-height - 20px);

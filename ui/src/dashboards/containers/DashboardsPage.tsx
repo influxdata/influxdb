@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 import download from 'src/external/download'
 import _ from 'lodash'
 
-import DashboardsHeader from 'src/dashboards/components/DashboardsHeader'
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
+import PageHeader from 'src/shared/components/PageHeader'
 
 import {createDashboard} from 'src/dashboards/apis'
 import {
@@ -54,7 +54,7 @@ class DashboardsPage extends PureComponent<Props> {
 
     return (
       <div className="page">
-        <DashboardsHeader />
+        <PageHeader titleText="Dashboards" sourceIndicator={true} />
         <DashboardsContents
           dashboardLink={dashboardLink}
           dashboards={dashboards}

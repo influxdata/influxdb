@@ -12,10 +12,13 @@ import {stripPrefix} from 'src/utils/basepath'
 import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
-import Header from 'src/data_explorer/containers/Header'
 import ResizeContainer from 'src/shared/components/ResizeContainer'
 import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
+import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
+import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
+import GraphTips from 'src/shared/components/GraphTips'
+import PageHeader from 'src/shared/components/PageHeader'
 
 import {VIS_VIEWS, AUTO_GROUP_BY, TEMPLATES} from 'src/shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
@@ -93,11 +96,9 @@ export class DataExplorer extends PureComponent<Props, State> {
       autoRefresh,
       queryConfigs,
       manualRefresh,
-      onManualRefresh,
       errorThrownAction,
       writeLineProtocol,
       queryConfigActions,
-      handleChooseAutoRefresh,
     } = this.props
 
     const {showWriteForm} = this.state
@@ -115,13 +116,11 @@ export class DataExplorer extends PureComponent<Props, State> {
             />
           </OverlayTechnologies>
         ) : null}
-        <Header
-          timeRange={timeRange}
-          autoRefresh={autoRefresh}
-          showWriteForm={this.handleOpenWriteData}
-          onChooseTimeRange={this.handleChooseTimeRange}
-          onChooseAutoRefresh={handleChooseAutoRefresh}
-          onManualRefresh={onManualRefresh}
+        <PageHeader
+          titleText="Data Explorer"
+          fullWidth={true}
+          optionsComponents={this.optionsComponents}
+          sourceIndicator={true}
         />
         <ResizeContainer
           containerClass="page-contents"
@@ -185,6 +184,40 @@ export class DataExplorer extends PureComponent<Props, State> {
   get rawText(): string {
     const {timeRange} = this.props
     return buildRawText(this.activeQuery, timeRange)
+  }
+
+  private get optionsComponents(): JSX.Element {
+    const {
+      timeRange,
+      autoRefresh,
+      onManualRefresh,
+      handleChooseAutoRefresh,
+    } = this.props
+
+    return (
+      <>
+        <GraphTips />
+        <div
+          className="btn btn-sm btn-default"
+          onClick={this.handleOpenWriteData}
+          data-test="write-data-button"
+        >
+          <span className="icon pencil" />
+          Write Data
+        </div>
+        <AutoRefreshDropdown
+          iconName="refresh"
+          selected={autoRefresh}
+          onChoose={handleChooseAutoRefresh}
+          onManualRefresh={onManualRefresh}
+        />
+        <TimeRangeDropdown
+          selected={timeRange}
+          page="DataExplorer"
+          onChooseTimeRange={this.handleChooseTimeRange}
+        />
+      </>
+    )
   }
 }
 

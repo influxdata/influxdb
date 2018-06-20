@@ -3,8 +3,7 @@ import {shallow} from 'enzyme'
 
 import {HostsPage} from 'src/hosts/containers/HostsPage'
 import HostsTable from 'src/hosts/components/HostsTable'
-import SourceIndicator from 'src/shared/components/SourceIndicator'
-import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
+import PageHeader from 'src/shared/components/PageHeader'
 
 import {source} from 'test/resources'
 
@@ -33,12 +32,10 @@ describe('Hosts.Containers.HostsPage', () => {
   describe('rendering', () => {
     it('renders all children components', () => {
       const {wrapper} = setup()
-      const sourceIndicator = wrapper.find(SourceIndicator)
-      const autoRefreshDropdown = wrapper.find(AutoRefreshDropdown)
+      const pageHeader = wrapper.find(PageHeader)
       const hostsTable = wrapper.find(HostsTable)
 
-      expect(sourceIndicator.exists()).toBe(true)
-      expect(autoRefreshDropdown.exists()).toBe(true)
+      expect(pageHeader.exists()).toBe(true)
       expect(hostsTable.exists()).toBe(true)
     })
 
