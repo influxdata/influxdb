@@ -65,7 +65,7 @@ class OptionsOverlay extends Component<Props, State> {
     const {onDismissOverlay} = this.props
 
     return (
-      <div>
+      <div className="btn-group--right">
         <button className="btn btn-sm btn-default" onClick={onDismissOverlay}>
           Cancel
         </button>
