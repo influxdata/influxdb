@@ -20,7 +20,7 @@ class TickscriptHeader extends Component<Props> {
   public render() {
     return (
       <PageHeader
-        title="TICKscript Editor"
+        titleText="TICKscript Editor"
         fullWidth={true}
         sourceIndicator={true}
         renderPageControls={this.renderPageControls}

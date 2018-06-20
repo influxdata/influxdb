@@ -39,7 +39,7 @@ class KapacitorForm extends PureComponent<Props> {
 
     return (
       <div className="page">
-        <PageHeader title={this.headerText} />
+        <PageHeader titleText={this.headerText} />
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">

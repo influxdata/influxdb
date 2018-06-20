@@ -96,7 +96,7 @@ class AlertsApp extends PureComponent<Props, State> {
     ) : (
       <div className="page alert-history-page">
         <PageHeader
-          title="Alert History"
+          titleText="Alert History"
           renderPageControls={this.renderPageControls}
           sourceIndicator={true}
         />

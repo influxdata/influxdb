@@ -49,7 +49,7 @@ class ManageSources extends PureComponent<Props> {
 
     return (
       <div className="page" id="manage-sources-page">
-        <PageHeader title="Configuration" sourceIndicator={true} />
+        <PageHeader titleText="Configuration" sourceIndicator={true} />
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <InfluxTable

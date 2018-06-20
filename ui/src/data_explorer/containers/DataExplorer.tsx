@@ -117,7 +117,7 @@ export class DataExplorer extends PureComponent<Props, State> {
           </OverlayTechnologies>
         ) : null}
         <PageHeader
-          title="Data Explorer"
+          titleText="Data Explorer"
           fullWidth={true}
           renderPageControls={this.renderPageControls}
           sourceIndicator={true}

@@ -20,7 +20,7 @@ class FluxHeader extends PureComponent<Props> {
   public render() {
     return (
       <PageHeader
-        title="Flux Editor"
+        titleText="Flux Editor"
         fullWidth={true}
         renderPageControls={this.renderPageControls}
       />

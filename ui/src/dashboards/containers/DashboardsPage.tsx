@@ -54,7 +54,7 @@ class DashboardsPage extends PureComponent<Props> {
 
     return (
       <div className="page">
-        <PageHeader title="Dashboards" sourceIndicator={true} />
+        <PageHeader titleText="Dashboards" sourceIndicator={true} />
         <DashboardsContents
           dashboardLink={dashboardLink}
           dashboards={dashboards}

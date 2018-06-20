@@ -91,7 +91,7 @@ class SourcePage extends PureComponent<Props, State> {
     return (
       <div className={`${isInitialSource ? '' : 'page'}`}>
         <Notifications />
-        <PageHeader title={this.pageTitle} />
+        <PageHeader titleText={this.pageTitle} />
         <FancyScrollbar className="page-contents">
           <div className="container-fluid">
             <div className="row">

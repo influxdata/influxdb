@@ -90,7 +90,7 @@ interface PageContentsProps {
 const PageContents: SFC<PageContentsProps> = ({children}) => (
   <div className="page">
     <PageHeader
-      title="Manage Tasks"
+      titleText="Manage Tasks"
       renderPageControls={renderHeaderOptions()}
       sourceIndicator={true}
     />
