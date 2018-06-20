@@ -25,6 +25,8 @@ $grid--col-11: 91.66666667%;
 $grid--col-12: 100%;
 
 .row {
+  display: inline-block;
+  width: 100%;
   margin-left: -$grid--gutter;
   margin-right: -$grid--gutter;
 
