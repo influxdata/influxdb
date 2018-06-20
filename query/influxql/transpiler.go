@@ -98,6 +98,21 @@ func (t *transpilerState) mapType(ref *influxql.VarRef) influxql.DataType {
 	return influxql.Tag
 }
 
+func (t *transpilerState) from(m *influxql.Measurement) (query.OperationID, error) {
+	db, rp := m.Database, m.RetentionPolicy
+	if db == "" {
+		return "", errors.New("database is required")
+	}
+	if rp == "" {
+		rp = "autogen"
+	}
+
+	spec := &functions.FromOpSpec{
+		Bucket: fmt.Sprintf("%s/%s", db, rp),
+	}
+	return t.op("from", spec), nil
+}
+
 func (t *transpilerState) op(name string, spec query.OperationSpec, parents ...query.OperationID) query.OperationID {
 	op := query.Operation{
 		ID:   query.OperationID(fmt.Sprintf("%s%d", name, t.nextID[name])),

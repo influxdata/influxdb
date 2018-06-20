@@ -29,7 +29,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
@@ -157,7 +157,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
@@ -274,7 +274,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
@@ -340,7 +340,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from1",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
@@ -518,7 +518,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
@@ -568,7 +568,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from1",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
@@ -735,7 +735,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
@@ -886,7 +886,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
@@ -1121,6 +1121,123 @@ func TestTranspiler(t *testing.T) {
 					{Parent: "group1", Child: "max0"},
 					{Parent: "max0", Child: "map1"},
 					{Parent: "map1", Child: "yield1"},
+				},
+			},
+		},
+		{
+			s: `SELECT value FROM db0.alternate.cpu`,
+			spec: &query.Spec{
+				Operations: []*query.Operation{
+					{
+						ID: "from0",
+						Spec: &functions.FromOpSpec{
+							Bucket: "db0/alternate",
+						},
+					},
+					{
+						ID: "range0",
+						Spec: &functions.RangeOpSpec{
+							Start: query.Time{Absolute: time.Unix(0, influxqllib.MinTime)},
+							Stop:  query.Time{Absolute: time.Unix(0, influxqllib.MaxTime)},
+						},
+					},
+					{
+						ID: "filter0",
+						Spec: &functions.FilterOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{
+									{Key: &semantic.Identifier{Name: "r"}},
+								},
+								Body: &semantic.LogicalExpression{
+									Operator: ast.AndOperator,
+									Left: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_measurement",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "cpu",
+										},
+									},
+									Right: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_field",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "value",
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement"},
+						},
+					},
+					{
+						ID: "map0",
+						Spec: &functions.MapOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{{
+									Key: &semantic.Identifier{Name: "r"},
+								}},
+								Body: &semantic.ObjectExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "time"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_time",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "_measurement"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "value"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_value",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
+				},
+				Edges: []query.Edge{
+					{Parent: "from0", Child: "range0"},
+					{Parent: "range0", Child: "filter0"},
+					{Parent: "filter0", Child: "group0"},
+					{Parent: "group0", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
 				},
 			},
 		},
