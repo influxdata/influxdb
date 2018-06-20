@@ -37,6 +37,9 @@ import {Source, Namespace, TimeRange} from 'src/types'
 import {Filter} from 'src/types/logs'
 import {HistogramData, TimePeriod} from 'src/types/histogram'
 
+// Mock
+import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
+
 interface Props {
   sources: Source[]
   currentSource: Source | null
@@ -302,7 +305,10 @@ class LogsPage extends PureComponent<Props, State> {
     showOverlay(
       <OverlayContext.Consumer>
         {({onDismissOverlay}) => (
-          <OptionsOverlay onDismissOverlay={onDismissOverlay} />
+          <OptionsOverlay
+            onDismissOverlay={onDismissOverlay}
+            severityConfigs={DEFAULT_SEVERITY_LEVELS}
+          />
         )}
       </OverlayContext.Consumer>,
       options

@@ -80,3 +80,46 @@ export const SEVERITY_COLORS = [
     name: 'pearl',
   },
 ]
+
+export const DEFAULT_SEVERITY_LEVELS = [
+  {
+    severity: 'emergency',
+    default: SEVERITY_COLORS.find(c => c.name === 'ruby'),
+    override: null,
+  },
+  {
+    severity: 'alert',
+    default: SEVERITY_COLORS.find(c => c.name === 'fire'),
+    override: null,
+  },
+  {
+    severity: 'critical',
+    default: SEVERITY_COLORS.find(c => c.name === 'curacao'),
+    override: null,
+  },
+  {
+    severity: 'error',
+    default: SEVERITY_COLORS.find(c => c.name === 'tiger'),
+    override: null,
+  },
+  {
+    severity: 'warning',
+    default: SEVERITY_COLORS.find(c => c.name === 'pineapple'),
+    override: null,
+  },
+  {
+    severity: 'notice',
+    default: SEVERITY_COLORS.find(c => c.name === 'rainforest'),
+    override: null,
+  },
+  {
+    severity: 'info',
+    default: SEVERITY_COLORS.find(c => c.name === 'star'),
+    override: null,
+  },
+  {
+    severity: 'debug',
+    default: SEVERITY_COLORS.find(c => c.name === 'wolf'),
+    override: null,
+  },
+]
