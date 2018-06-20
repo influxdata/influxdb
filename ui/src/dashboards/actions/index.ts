@@ -134,7 +134,11 @@ export const retainRangesDashTimeV1 = (
   payload: {dashboardIDs},
 })
 
-export interface SetTimeRangeAction {
+export type SetTimeRangeActionCreator = (
+  timeRange: TimeRange
+) => SetTimeRangeAction
+
+interface SetTimeRangeAction {
   type: 'SET_DASHBOARD_TIME_RANGE'
   payload: {
     timeRange: TimeRange
@@ -575,10 +579,25 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
   }
 }
 
+export type AddDashboardCellDispatcher = (
+  dashboard: Dashboard,
+  cellType: CellType
+) => AddDashboardCellThunk
+
+type AddDashboardCellThunk = (
+  dispatch: Dispatch<
+    AddDashboardCellAction | ActionPublishNotification | ErrorThrownAction
+  >
+) => Promise<void>
+
 export const addDashboardCellAsync = (
   dashboard: Dashboard,
   cellType: CellType
-) => async (dispatch): Promise<void> => {
+): AddDashboardCellThunk => async (
+  dispatch: Dispatch<
+    AddDashboardCellAction | ActionPublishNotification | ErrorThrownAction
+  >
+): Promise<void> => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,

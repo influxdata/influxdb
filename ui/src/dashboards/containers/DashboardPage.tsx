@@ -49,7 +49,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {getDeep} from 'src/utils/wrappers'
 
 import {Location} from 'history'
-import {InjectedRouter} from 'react-router'
 import {Dispatch} from 'redux'
 import {
   Cell,
@@ -59,31 +58,22 @@ import {
   TimeRange,
 } from 'src/types'
 import {DashboardName} from 'src/types/dashboard'
-import {
-  SetTimeRangeAction,
-  PutDashboardDispatcher,
-  PutDashboardByIDDispatcher,
-  GetDashboardsNamesDispatcher,
-  GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher,
-} from 'src/dashboards/actions'
-import {GetAnnotationsDispatcher} from 'src/shared/actions/annotations'
-import {
-  SetAutoRefreshAction,
-  TemplateControlBarVisibilityToggledAction,
-  EnablePresentationModeAction,
-} from 'src/shared/actions/app'
 import {ColorNumber, ColorString} from 'src/types/colors'
+import * as AnnotationActions from 'src/shared/actions/annotations'
+import * as AppActions from 'src/shared/actions/app'
+import * as CellEditorOverlayActions from 'src/dashboards/actions/cellEditorOverlay'
+import * as DashboardActions from 'src/dashboards/actions'
+import * as ErrorActions from 'src/shared/actions/errors'
+import * as OverlayTechnologyActions from 'src/shared/actions/overlayTechnology'
+import * as NotificationActions from 'src/shared/actions/notifications'
 
 interface DashboardActions {
-  putDashboard: PutDashboardDispatcher
-  putDashboardByID: PutDashboardByIDDispatcher
-  getDashboardsNamesAsync: GetDashboardsNamesDispatcher
-  getDashboardWithHydratedAndSyncedTempVarsAsync: GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher
-  setTimeRange: (timeRange: TimeRange) => SetTimeRangeAction
-  addDashboardCellAsync: (
-    dashboard: IDashboard,
-    cellType: CellType
-  ) => Promise<void>
+  putDashboard: DashboardActions.PutDashboardDispatcher
+  putDashboardByID: DashboardActions.PutDashboardByIDDispatcher
+  getDashboardsNamesAsync: DashboardActions.GetDashboardsNamesDispatcher
+  getDashboardWithHydratedAndSyncedTempVarsAsync: DashboardActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher
+  setTimeRange: DashboardActions.SetTimeRangeActionCreator
+  addDashboardCellAsync: DashboardActions.AddDashboardCellDispatcher
 }
 interface Router {
   push: (path: string) => void
@@ -100,37 +90,39 @@ interface Props {
   dashboard: IDashboard
   dashboardActions: DashboardActions
   dashboards: IDashboard[]
-  handleChooseAutoRefresh: (milliseconds: number) => SetAutoRefreshAction
+  handleChooseAutoRefresh: (
+    milliseconds: number
+  ) => AppActions.SetAutoRefreshActionCreator
   autoRefresh: number
-  templateControlBarVisibilityToggled: () => TemplateControlBarVisibilityToggledAction
+  templateControlBarVisibilityToggled: () => AppActions.TemplateControlBarVisibilityToggledActionCreator
   timeRange: TimeRange
   zoomedTimeRange: TimeRange
   showTemplateControlBar: boolean
   inPresentationMode: boolean
   handleClickPresentationButton: (
-    dispatch: Dispatch<EnablePresentationModeAction>
+    dispatch: Dispatch<AppActions.EnablePresentationModeActionCreator>
   ) => Promise<void>
   cellQueryStatus: {
     queryID: string
     status: object
   }
-  errorThrown: () => void // TODO: double-check type
+  errorThrown: ErrorActions.ErrorThrownActionCreator
   manualRefresh: number
-  onManualRefresh: () => void // TODO: double-check type
+  onManualRefresh: () => void
   meRole: string
   isUsingAuth: boolean
   router: Router
-  notify: () => void // TODO: double-check type
-  getAnnotationsAsync: GetAnnotationsDispatcher
-  handleShowCellEditorOverlay: () => void // TODO: double-check type
-  handleHideCellEditorOverlay: () => void // TODO: double-check type
-  handleDismissEditingAnnotation: () => void // TODO: double-check type
+  notify: NotificationActions.ActionCreatorPublishNotification
+  getAnnotationsAsync: AnnotationActions.GetAnnotationsDispatcher
+  handleShowCellEditorOverlay: CellEditorOverlayActions.ShowCellEditorOverlayActionCreator
+  handleHideCellEditorOverlay: CellEditorOverlayActions.HideCellEditorOverlayActionCreator
+  handleDismissEditingAnnotation: AnnotationActions.DismissEditingAnnotationActionCreator
   selectedCell: Cell
   thresholdsListType: string
   thresholdsListColors: ColorNumber[]
   gaugeColors: ColorNumber[]
   lineColors: ColorString[]
-  handleShowOverlay: () => void // TODO: double-check type
+  handleShowOverlay: OverlayTechnologyActions.ShowOverlayActionCreator
 }
 
 interface State {
