@@ -7,7 +7,6 @@ import SourceIndicator from 'src/shared/components/SourceIndicator'
 interface Props {
   title?: string
   renderTitle?: () => ReactElement<any>
-  renderCenter?: () => ReactElement<any>
   renderOptions?: () => ReactElement<any>
   fullWidth?: boolean
   sourceIndicator?: boolean
@@ -26,7 +25,6 @@ class PageHeader extends Component<Props> {
       <div className={this.className}>
         <div className="page-header--container">
           <div className="page-header--left">{this.renderLeft}</div>
-          {this.renderCenter}
           <div className="page-header--right">
             {this.sourceIndicator}
             {this.renderRight}
@@ -58,14 +56,6 @@ class PageHeader extends Component<Props> {
     }
 
     return renderTitle()
-  }
-
-  private get renderCenter(): JSX.Element {
-    const {renderCenter} = this.props
-
-    if (renderCenter) {
-      return <div className="page-header--center">{renderCenter()}</div>
-    }
   }
 
   private get renderRight(): JSX.Element {

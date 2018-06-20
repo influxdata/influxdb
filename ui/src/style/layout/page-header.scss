@@ -21,8 +21,6 @@ $page-header-weight: 400 !important;
 }
 
 .page-header--container {
-  position: relative;
-  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -38,7 +36,6 @@ $page-header-weight: 400 !important;
 
 // Left, Center, and Right pieces of the page header
 .page-header--left,
-.page-header--center,
 .page-header--right {
   display: flex;
   align-items: center;
@@ -58,12 +55,6 @@ $page-header-weight: 400 !important;
       margin-right: 0 !important;
     }
   }
-}
-.page-header--center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
 }
 
 // Intended to be a <h1>
