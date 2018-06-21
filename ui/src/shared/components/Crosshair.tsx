@@ -34,9 +34,17 @@ class Crosshair extends PureComponent<Props> {
   }
 
   private get isVisible() {
-    const {hoverTime} = this.props
+    const {dygraph, hoverTime} = this.props
+    const timeRanges = dygraph.xAxisRange()
 
-    return hoverTime !== 0 && _.isFinite(hoverTime)
+    const minTimeRange = timeRanges[0]
+    const isBeforeMinTimeRange = hoverTime < minTimeRange
+
+    const maxTimeRange = timeRanges[1]
+    const isPastMaxTimeRange = hoverTime > maxTimeRange
+
+    const isValidHoverTime = !isBeforeMinTimeRange && !isPastMaxTimeRange
+    return hoverTime !== 0 && _.isFinite(hoverTime) && isValidHoverTime
   }
 
   private get crosshairLeft(): number {
