@@ -19,6 +19,92 @@ func TestParse(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "optional query metadata",
+			raw: `option task = {
+				name: "foo",
+				every: 1h,
+				delay: 10m,
+				cron: "0 2 * * *",
+				retry: 5,
+			  }`,
+			want: &ast.Program{
+				Body: []ast.Statement{
+					&ast.OptionStatement{
+						Declaration: &ast.VariableDeclarator{
+							ID: &ast.Identifier{Name: "task"},
+							Init: &ast.ObjectExpression{
+								Properties: []*ast.Property{
+									{
+										Key:   &ast.Identifier{Name: "name"},
+										Value: &ast.StringLiteral{Value: "foo"},
+									},
+									{
+										Key:   &ast.Identifier{Name: "every"},
+										Value: &ast.DurationLiteral{Value: 1 * time.Hour},
+									},
+									{
+										Key:   &ast.Identifier{Name: "delay"},
+										Value: &ast.DurationLiteral{Value: 10 * time.Minute},
+									},
+									{
+										Key:   &ast.Identifier{Name: "cron"},
+										Value: &ast.StringLiteral{Value: "0 2 * * *"},
+									},
+									{
+										Key:   &ast.Identifier{Name: "retry"},
+										Value: &ast.IntegerLiteral{Value: 5},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "optional query metadata preceding query text",
+			raw: `option task = {
+					name: "foo",  // Name of task
+					every: 1h,    // Execution frequency of task
+				}
+
+				// Task will execute the following query
+				from() |> count()`,
+			want: &ast.Program{
+				Body: []ast.Statement{
+					&ast.OptionStatement{
+						Declaration: &ast.VariableDeclarator{
+							ID: &ast.Identifier{Name: "task"},
+							Init: &ast.ObjectExpression{
+								Properties: []*ast.Property{
+									{
+										Key:   &ast.Identifier{Name: "name"},
+										Value: &ast.StringLiteral{Value: "foo"},
+									},
+									{
+										Key:   &ast.Identifier{Name: "every"},
+										Value: &ast.DurationLiteral{Value: 1 * time.Hour},
+									},
+								},
+							},
+						},
+					},
+					&ast.ExpressionStatement{
+						Expression: &ast.PipeExpression{
+							Argument: &ast.CallExpression{
+								Callee:    &ast.Identifier{Name: "from"},
+								Arguments: nil,
+							},
+							Call: &ast.CallExpression{
+								Callee:    &ast.Identifier{Name: "count"},
+								Arguments: nil,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "from",
 			raw:  `from()`,
 			want: &ast.Program{

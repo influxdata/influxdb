@@ -45,6 +45,16 @@ func blockstmt(body interface{}, text []byte, pos position) (*ast.BlockStatement
 	}, nil
 }
 
+func optionstmt(id, expr interface{}, text []byte, pos position) (*ast.OptionStatement, error) {
+	return &ast.OptionStatement{
+		BaseNode: base(text, pos),
+		Declaration: &ast.VariableDeclarator{
+			ID:   id.(*ast.Identifier),
+			Init: expr.(ast.Expression),
+		},
+	}, nil
+}
+
 func varstmt(declaration interface{}, text []byte, pos position) (*ast.VariableDeclaration, error) {
 	return &ast.VariableDeclaration{
 		Declarations: []*ast.VariableDeclarator{declaration.(*ast.VariableDeclarator)},
