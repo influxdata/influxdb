@@ -14,6 +14,7 @@ import {notify as notifyActionCreator} from 'src/shared/actions/notifications'
 
 import DatabasesTemplateBuilder from 'src/tempVars/components/DatabasesTemplateBuilder'
 import CSVManualTemplateBuilder from 'src/tempVars/components/CSVManualTemplateBuilder'
+import CSVFileTemplateBuilder from 'src/tempVars/components/CSVFileTemplateBuilder'
 import MeasurementsTemplateBuilder from 'src/tempVars/components/MeasurementsTemplateBuilder'
 import FieldKeysTemplateBuilder from 'src/tempVars/components/FieldKeysTemplateBuilder'
 import TagKeysTemplateBuilder from 'src/tempVars/components/TagKeysTemplateBuilder'
@@ -57,6 +58,7 @@ interface State {
 const TEMPLATE_BUILDERS = {
   [BuilderType.Databases]: DatabasesTemplateBuilder,
   [BuilderType.CSVManual]: CSVManualTemplateBuilder,
+  [BuilderType.CSVFile]: CSVFileTemplateBuilder,
   [BuilderType.Measurements]: MeasurementsTemplateBuilder,
   [BuilderType.FieldKeys]: FieldKeysTemplateBuilder,
   [BuilderType.TagKeys]: TagKeysTemplateBuilder,
@@ -278,11 +280,11 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private get dropdownSelection(): string {
     const {
-      nextTemplate: {type},
+      nextTemplate: {builderType},
     } = this.state
 
     return getDeep(
-      TEMPLATE_TYPES_LIST.filter(t => t.type === type),
+      TEMPLATE_TYPES_LIST.filter(t => t.builderType === builderType),
       '0.text',
       ''
     )

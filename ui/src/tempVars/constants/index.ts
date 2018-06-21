@@ -121,6 +121,17 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
       query: {},
     }
   },
+  [BuilderType.CSVFile]: () => {
+    return {
+      id: uuid.v4(),
+      tempVar: '',
+      values: [],
+      builderType: BuilderType.CSVFile,
+      type: TemplateType.CSV,
+      label: '',
+      query: {},
+    }
+  },
   [BuilderType.TagKeys]: () => {
     return {
       id: uuid.v4(),
