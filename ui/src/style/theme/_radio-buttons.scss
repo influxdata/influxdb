@@ -113,3 +113,14 @@
     }
   }
 }
+
+//  Stretch to Fit
+//  ----------------------------------------------------------------------------
+.nav-tablist.stretch {
+  width: 100%;
+
+  > li {
+    flex: 1 0 0;
+    justify-content: center;
+  }
+}
