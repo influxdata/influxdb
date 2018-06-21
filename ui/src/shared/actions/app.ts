@@ -22,7 +22,11 @@ export const disablePresentationMode = (): DisablePresentationModeAction => ({
   type: 'DISABLE_PRESENTATION_MODE',
 })
 
-export const delayEnablePresentationMode = async (
+export type DelayEnablePresentationModeThunk = (
+  dispatch: Dispatch<EnablePresentationModeAction>
+) => Promise<NodeJS.Timer>
+
+export const delayEnablePresentationMode: DelayEnablePresentationModeThunk = async (
   dispatch: Dispatch<EnablePresentationModeAction>
 ): Promise<NodeJS.Timer> =>
   setTimeout(() => {
@@ -41,7 +45,9 @@ interface SetAutoRefreshAction {
     milliseconds: number
   }
 }
-export const setAutoRefresh = (milliseconds: number): SetAutoRefreshAction => ({
+export const setAutoRefresh: SetAutoRefreshActionCreator = (
+  milliseconds: number
+): SetAutoRefreshAction => ({
   type: 'SET_AUTOREFRESH',
   payload: {
     milliseconds,

@@ -10,11 +10,10 @@ import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/GraphTips'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
-import {Dashboard, TimeRange} from 'src/types'
 
-interface DashboardName {
-  text: string
-}
+import {Dashboard, TimeRange} from 'src/types'
+import {DashboardName} from 'src/types/dashboard'
+import * as AppActions from 'src/shared/actions/app'
 
 interface Props {
   activeDashboard: string
@@ -24,15 +23,15 @@ interface Props {
   autoRefresh: number
   isEditMode?: boolean
   handleChooseTimeRange: (timeRange: TimeRange) => void
-  handleChooseAutoRefresh: () => void
+  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   onManualRefresh: () => void
-  handleClickPresentationButton: () => void
+  handleClickPresentationButton: AppActions.DelayEnablePresentationModeThunk
   onAddCell: () => void
   onToggleTempVarControls: () => void
   showTemplateControlBar: boolean
   zoomedTimeRange: TimeRange
   onCancel: () => void
-  onSave: () => void
+  onSave: (name: string) => Promise<void>
   names: DashboardName[]
   isHidden: boolean
 }

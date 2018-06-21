@@ -1,10 +1,4 @@
-import {TimeRange} from 'src/types/query'
-export interface TimeRangeOption extends TimeRange {
-  defaultGroupBy: string
-  seconds: number
-  inputValue: string
-  menuOption: string
-}
+import {TimeRangeOption} from 'src/types/dashboard'
 
 const nowMinus30d = 'now() - 30d'
 

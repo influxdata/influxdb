@@ -42,6 +42,7 @@ import {
   Status,
 } from 'src/types'
 import {ColorString, ColorNumber} from 'src/types/colors'
+import * as DashboardActions from 'src/dashboards/actions'
 import {SourceOption} from 'src/dashboards/components/OverlayControls'
 
 type QueryTransitions = typeof queryTransitions
@@ -74,7 +75,7 @@ interface QueryStatus {
 
 interface Props {
   sources: Source[]
-  editQueryStatus: () => void
+  editQueryStatus: DashboardActions.EditCellQueryStatusActionCreator
   onCancel: () => void
   onSave: (cell: Cell) => void
   source: Source
