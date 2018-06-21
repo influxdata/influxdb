@@ -223,7 +223,7 @@ export class DisconnectedAdminInfluxDBPage extends Component {
 
     return (
       <div className="page">
-        <PageHeader title="InfluxDB Admin" sourceIndicator={true} />
+        <PageHeader titleText="InfluxDB Admin" sourceIndicator={true} />
         <FancyScrollbar className="page-contents">
           {users ? (
             <div className="container-fluid">
