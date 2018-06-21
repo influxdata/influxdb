@@ -4,7 +4,7 @@ import _ from 'lodash'
 import Container from 'src/shared/components/overlay/OverlayContainer'
 import Heading from 'src/shared/components/overlay/OverlayHeading'
 import Body from 'src/shared/components/overlay/OverlayBody'
-import SeverityConfig from 'src/logs/components/SeverityConfig'
+import SeverityOptions from 'src/logs/components/SeverityOptions'
 import {SeverityLevel, SeverityColor} from 'src/types/logs'
 import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
 
@@ -38,7 +38,7 @@ class OptionsOverlay extends Component<Props, State> {
         <Body>
           <div className="row">
             <div className="col-sm-6">
-              <SeverityConfig
+              <SeverityOptions
                 configs={workingSeverityLevels}
                 onReset={this.handleResetSeverityLevels}
                 onChangeSeverityLevel={this.handleChangeSeverityLevel}
