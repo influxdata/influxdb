@@ -61,7 +61,6 @@ import {AxiosResponse} from 'axios'
 import {
   Cell,
   Dashboard,
-  Me,
   Source,
   Template,
   TemplateType,
@@ -72,6 +71,7 @@ import * as DashboardData from 'src/types/dashboard'
 import * as DashboardActions from 'src/types/actions/dashboard'
 import * as DashboardAPIs from 'src/types/apis/dashboard'
 import * as DashboardReducers from 'src/types/reducers/dashboard'
+import * as AuthReducers from 'src/types/reducers/auth'
 import {PublishNotificationActionCreator} from 'src/shared/actions/notifications'
 import * as ErrorActions from 'src/shared/actions/errors'
 import {LocationAction} from 'react-router-redux'
@@ -96,7 +96,7 @@ export const loadDashboard = (
   },
 })
 
-export const setDashTimeV1 = (
+export const setDashTimeV1: DashboardActions.SetDashTimeV1ActionCreator = (
   dashboardID: number,
   timeRange: TimeRange
 ): DashboardActions.SetDashTimeV1Action => ({
@@ -107,14 +107,14 @@ export const setDashTimeV1 = (
   },
 })
 
-export const retainRangesDashTimeV1 = (
+export const retainRangesDashTimeV1: DashboardActions.RetainRangesDashTimeV1ActionCreator = (
   dashboardIDs: string[]
 ): DashboardActions.RetainRangesDashTimeV1Action => ({
   type: 'RETAIN_RANGES_DASHBOARD_TIME_V1',
   payload: {dashboardIDs},
 })
 
-export const setTimeRange = (
+export const setTimeRange: DashboardActions.SetTimeRangeActionCreator = (
   timeRange: TimeRange
 ): DashboardActions.SetTimeRangeAction => ({
   type: 'SET_DASHBOARD_TIME_RANGE',
@@ -123,7 +123,7 @@ export const setTimeRange = (
   },
 })
 
-export const setZoomedTimeRange = (
+export const setZoomedTimeRange: DashboardActions.SetZoomedTimeRangeActionCreator = (
   zoomedTimeRange: TimeRange
 ): DashboardActions.SetZoomedTimeRangeAction => ({
   type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
@@ -132,7 +132,7 @@ export const setZoomedTimeRange = (
   },
 })
 
-export const updateDashboard = (
+export const updateDashboard: DashboardActions.UpdateDashboardActionCreator = (
   dashboard: Dashboard
 ): DashboardActions.UpdateDashboardAction => ({
   type: 'UPDATE_DASHBOARD',
@@ -141,7 +141,7 @@ export const updateDashboard = (
   },
 })
 
-export const createDashboard = (
+export const createDashboard: DashboardActions.CreateDashboardActionCreator = (
   dashboard: Dashboard
 ): DashboardActions.CreateDashboardAction => ({
   type: 'CREATE_DASHBOARD',
@@ -150,7 +150,7 @@ export const createDashboard = (
   },
 })
 
-export const deleteDashboard = (
+export const deleteDashboard: DashboardActions.DeleteDashboardActionCreator = (
   dashboard: Dashboard
 ): DashboardActions.DeleteDashboardAction => ({
   type: 'DELETE_DASHBOARD',
@@ -160,7 +160,7 @@ export const deleteDashboard = (
   },
 })
 
-export const deleteDashboardFailed = (
+export const deleteDashboardFailed: DashboardActions.DeleteDashboardFailedActionCreator = (
   dashboard: Dashboard
 ): DashboardActions.DeleteDashboardFailedAction => ({
   type: 'DELETE_DASHBOARD_FAILED',
@@ -169,7 +169,7 @@ export const deleteDashboardFailed = (
   },
 })
 
-export const syncDashboardCell = (
+export const syncDashboardCell: DashboardActions.SyncDashboardCellActionCreator = (
   dashboard: Dashboard,
   cell: Cell
 ): DashboardActions.SyncDashboardCellAction => ({
@@ -180,7 +180,7 @@ export const syncDashboardCell = (
   },
 })
 
-export const addDashboardCell = (
+export const addDashboardCell: DashboardActions.AddDashboardCellActionCreator = (
   dashboard: Dashboard,
   cell: Cell
 ): DashboardActions.AddDashboardCellAction => ({
@@ -191,7 +191,7 @@ export const addDashboardCell = (
   },
 })
 
-export const deleteDashboardCell = (
+export const deleteDashboardCell: DashboardActions.DeleteDashboardCellActionCreator = (
   dashboard: Dashboard,
   cell: Cell
 ): DashboardActions.DeleteDashboardCellAction => ({
@@ -202,7 +202,7 @@ export const deleteDashboardCell = (
   },
 })
 
-export const editCellQueryStatus = (
+export const editCellQueryStatus: DashboardActions.EditCellQueryStatusActionCreator = (
   queryID: string,
   status: string
 ): DashboardActions.EditCellQueryStatusAction => ({
@@ -213,7 +213,7 @@ export const editCellQueryStatus = (
   },
 })
 
-export const templateVariableSelected = (
+export const templateVariableSelected: DashboardActions.TemplateVariableSelectedActionCreator = (
   dashboardID: number,
   templateID: string,
   values
@@ -226,7 +226,7 @@ export const templateVariableSelected = (
   },
 })
 
-export const templateVariablesSelectedByName = (
+export const templateVariablesSelectedByName: DashboardActions.TemplateVariablesSelectedByNameActionCreator = (
   dashboardID: number,
   queryParams: URLQueryParams
 ): DashboardActions.TemplateVariablesSelectedByNameAction => ({
@@ -237,7 +237,7 @@ export const templateVariablesSelectedByName = (
   },
 })
 
-export const editTemplateVariableValues = (
+export const editTemplateVariableValues: DashboardActions.EditTemplateVariableValuesActionCreator = (
   dashboardID: number,
   templateID: string,
   values
@@ -250,7 +250,7 @@ export const editTemplateVariableValues = (
   },
 })
 
-export const setHoverTime = (
+export const setHoverTime: DashboardActions.SetHoverTimeActionCreator = (
   hoverTime: string
 ): DashboardActions.SetHoverTimeAction => ({
   type: 'SET_HOVER_TIME',
@@ -259,7 +259,7 @@ export const setHoverTime = (
   },
 })
 
-export const setActiveCell = (
+export const setActiveCell: DashboardActions.SetActiveCellActionCreator = (
   activeCellID: string
 ): DashboardActions.SetActiveCellAction => ({
   type: 'SET_ACTIVE_CELL',
@@ -270,7 +270,7 @@ export const setActiveCell = (
 
 // Async Action Creators
 
-export const getDashboardsAsync = (): DashboardActions.GetDashboardsThunk => async (
+export const getDashboardsAsync: DashboardActions.GetDashboardsDispatcher = (): DashboardActions.GetDashboardsThunk => async (
   dispatch: Dispatch<
     | DashboardActions.LoadDashboardsActionCreator
     | ErrorActions.ErrorThrownActionCreator
@@ -637,7 +637,7 @@ const syncDashboardTempVarsFromURLQueryParams = (
     | PublishNotificationActionCreator
     | DashboardActions.TemplateVariableSelectedAction
   >,
-  getState: () => DashboardReducers.Dashboards & AuthReducerState
+  getState: () => DashboardReducers.Dashboards & AuthReducers.Auth
 ): void => {
   const {
     dashboardUI,

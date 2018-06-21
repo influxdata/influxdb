@@ -150,10 +150,12 @@ type GetAnnotationsThunk = (
   dispatch: Dispatch<LoadAnnotationsAction>
 ) => Promise<void>
 
-export const getAnnotationsAsync = (
+export const getAnnotationsAsync: GetAnnotationsDispatcher = (
   indexUrl: string,
   {since, until}: AnnotationRange
-) => async dispatch => {
+): GetAnnotationsThunk => async (
+  dispatch: Dispatch<LoadAnnotationsAction>
+): Promise<void> => {
   const annotations = await api.getAnnotations(indexUrl, since, until)
   dispatch(loadAnnotations(annotations))
 }

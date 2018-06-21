@@ -8,6 +8,7 @@ import * as TempVarData from 'src/types/tempVars'
 import * as ErrorActions from 'src/shared/actions/errors'
 import * as NotificationActions from 'src/shared/actions/notifications'
 import * as DashboardReducers from 'src/types/reducers/dashboard'
+import {Location} from 'history'
 
 export type LoadDashboardsActionCreator = (
   dashboards: DashboardData.Dashboard[],
@@ -21,6 +22,11 @@ export interface LoadDashboardsAction {
     dashboardID: number
   }
 }
+
+export type LoadDashboardActionCreator = (
+  dashboards: DashboardData.Dashboard[],
+  dashboardID?: number
+) => LoadDashboardAction
 
 export interface LoadDashboardAction {
   type: 'LOAD_DASHBOARD'
@@ -37,12 +43,21 @@ export interface SetDashTimeV1Action {
   }
 }
 
+export type SetDashTimeV1ActionCreator = (
+  dashboardID: number,
+  timeRange: QueryData.TimeRange
+) => SetDashTimeV1Action
+
 export interface RetainRangesDashTimeV1Action {
   type: 'RETAIN_RANGES_DASHBOARD_TIME_V1'
   payload: {
     dashboardIDs: string[]
   }
 }
+
+export type RetainRangesDashTimeV1ActionCreator = (
+  dashboardIDs: string[]
+) => RetainRangesDashTimeV1Action
 
 export type SetTimeRangeActionCreator = (
   timeRange: QueryData.TimeRange
@@ -68,6 +83,10 @@ export interface UpdateDashboardAction {
     dashboard: DashboardData.Dashboard
   }
 }
+
+export type UpdateDashboardActionCreator = (
+  dashboard: DashboardData.Dashboard
+) => UpdateDashboardAction
 
 export interface CreateDashboardAction {
   type: 'CREATE_DASHBOARD'
@@ -196,14 +215,14 @@ export type PutDashboardThunk = (
   >
 ) => Promise<void>
 
+export type PutDashboardByIDDispatcher = (
+  dashboardID: number
+) => PutDashboardByIDThunk
+
 export type PutDashboardByIDThunk = (
   dispatch: Dispatch<ErrorActions.ErrorThrownActionCreator>,
   getState: () => DashboardReducers.Dashboards
 ) => Promise<void>
-
-export type PutDashboardByIDDispatcher = (
-  dashboardID: number
-) => PutDashboardByIDThunk
 
 export type UpdateDashboardCellDispatcher = (
   dashboard: DashboardData.Dashboard,
@@ -232,12 +251,8 @@ export type AddDashboardCellThunk = (
 export type SyncURLQueryFromQueryParamsObjectDispatcher = (
   location: Location,
   updatedURLQueryParams: TempVarData.URLQueryParams,
-  deletedURLQueryParams: TempVarData.URLQueryParams
+  deletedURLQueryParams?: TempVarData.URLQueryParams
 ) => SyncURLQueryFromQueryParamsObjectActionCreator
-
-export type SyncURLQueryFromQueryParamsObjectActionCreator = (
-  dispatch: Dispatch<LocationAction>
-) => void
 
 export type SyncURLQueryFromTempVarsDispatcher = (
   location: Location,
@@ -245,6 +260,10 @@ export type SyncURLQueryFromTempVarsDispatcher = (
   deletedTempVars: TempVarData.Template[],
   urlQueryParamsTimeRanges: TempVarData.URLQueryParams
 ) => SyncURLQueryFromQueryParamsObjectActionCreator
+
+export type SyncURLQueryFromQueryParamsObjectActionCreator = (
+  dispatch: Dispatch<LocationAction>
+) => void
 
 export type SyncDashboardTempVarsFromURLQueryParamsDispatcher = (
   dispatch: Dispatch<

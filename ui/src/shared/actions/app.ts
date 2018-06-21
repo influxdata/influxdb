@@ -22,11 +22,12 @@ export const disablePresentationMode = (): DisablePresentationModeAction => ({
   type: 'DISABLE_PRESENTATION_MODE',
 })
 
+export type DelayEnablePresentationModeDispatcher = () => DelayEnablePresentationModeThunk
 export type DelayEnablePresentationModeThunk = (
   dispatch: Dispatch<EnablePresentationModeAction>
 ) => Promise<NodeJS.Timer>
 
-export const delayEnablePresentationMode: DelayEnablePresentationModeThunk = async (
+export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher = () => async (
   dispatch: Dispatch<EnablePresentationModeAction>
 ): Promise<NodeJS.Timer> =>
   setTimeout(() => {

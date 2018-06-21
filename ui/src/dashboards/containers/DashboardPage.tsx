@@ -24,7 +24,6 @@ import {
   showCellEditorOverlay,
   hideCellEditorOverlay,
 } from 'src/dashboards/actions/cellEditorOverlay'
-import {showOverlay} from 'src/shared/actions/overlayTechnology'
 
 import {stripTempVar} from 'src/dashboards/utils/tempVars'
 
@@ -56,12 +55,14 @@ import {ColorNumber, ColorString} from 'src/types/colors'
 import * as AnnotationActions from 'src/shared/actions/annotations'
 import * as AppActions from 'src/shared/actions/app'
 import * as CellEditorOverlayActions from 'src/dashboards/actions/cellEditorOverlay'
-import * as DashboardActions from 'src/dashboards/actions'
+import * as DashboardActions from 'src/types/actions/dashboard'
 import * as ErrorActions from 'src/shared/actions/errors'
-import * as OverlayTechnologyActions from 'src/shared/actions/overlayTechnology'
 import * as NotificationActions from 'src/shared/actions/notifications'
 
 interface DashboardActions {
+  setDashTimeV1: DashboardActions.SetDashTimeV1ActionCreator
+  updateDashboard: DashboardActions.UpdateDashboardActionCreator
+  syncURLQueryParamsFromQueryParamsObject: DashboardActions.SyncURLQueryFromQueryParamsObjectDispatcher
   putDashboard: DashboardActions.PutDashboardDispatcher
   putDashboardByID: DashboardActions.PutDashboardByIDDispatcher
   getDashboardsNamesAsync: DashboardActions.GetDashboardsNamesDispatcher
@@ -91,7 +92,7 @@ interface Props {
   zoomedTimeRange: TimeRange
   showTemplateControlBar: boolean
   inPresentationMode: boolean
-  handleClickPresentationButton: AppActions.DelayEnablePresentationModeThunk
+  handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   cellQueryStatus: {
     queryID: string
     status: object
@@ -112,7 +113,6 @@ interface Props {
   thresholdsListColors: ColorNumber[]
   gaugeColors: ColorNumber[]
   lineColors: ColorString[]
-  handleShowOverlay: OverlayTechnologyActions.ShowOverlayActionCreator
 }
 
 interface State {
@@ -614,7 +614,6 @@ const mdtp = {
   handleShowCellEditorOverlay: showCellEditorOverlay,
   handleHideCellEditorOverlay: hideCellEditorOverlay,
   handleDismissEditingAnnotation: dismissEditingAnnotation,
-  handleShowOverlay: showOverlay,
 }
 
 export default connect(mstp, mdtp)(ManualRefresh(withRouter(DashboardPage)))

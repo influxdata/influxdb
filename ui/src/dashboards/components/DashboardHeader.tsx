@@ -25,7 +25,7 @@ interface Props {
   handleChooseTimeRange: (timeRange: TimeRange) => void
   handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   onManualRefresh: () => void
-  handleClickPresentationButton: AppActions.DelayEnablePresentationModeThunk
+  handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
   onToggleTempVarControls: () => void
   showTemplateControlBar: boolean
@@ -75,7 +75,6 @@ class DashboardHeader extends Component<Props> {
       handleChooseTimeRange,
       timeRange: {upper, lower},
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
-      handleClickPresentationButton,
     } = this.props
 
     return (
@@ -98,12 +97,15 @@ class DashboardHeader extends Component<Props> {
         />
         <button
           className="btn btn-default btn-sm btn-square"
-          onClick={handleClickPresentationButton}
+          onClick={this.handleClickPresentationButton}
         >
           <span className="icon expand-a" />
         </button>
       </>
     )
+  }
+  private handleClickPresentationButton = (): void => {
+    this.props.handleClickPresentationButton()
   }
 
   private get addCellButton(): JSX.Element {
