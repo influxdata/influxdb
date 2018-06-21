@@ -1036,27 +1036,32 @@ components:
             header:
               description: if true, the results will contain a header row
               type: boolean
+              default: true
             delimiter:
               description: separator between cells; the default is ,
               type: string
               default: ","
+              maxLength: 1
             quoteChar:
-              description: set the quoting char for strings
+              description: set the quoting char for strings; cannot be the same as delimiter
               type: string
               default: \"
+              maxLength: 1
             annotations:
               description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
               type: array
               items:
                 type: string
                 enum:
-                  - partition
+                  - group
                   - datatype
                   - default
+                uniqueItems: true
             commentPrefix:
               description: character prefixed to comment strings
               type: string
               default: \#
+              maxLength: 1
             dateTimeFormat:
               description: format of timestamps
               type: string
