@@ -2,6 +2,7 @@ import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
+import {notifyCSVUploadFailed} from 'src/shared/copy/notifications'
 
 import {TemplateBuilderProps, TemplateValueType, TemplateValue} from 'src/types'
 
@@ -50,21 +51,16 @@ class CSVFileTemplateBuilder extends PureComponent<
   }
 
   private handleUploadFile = (
-    uploadContent: string
-    // fileName: string
+    uploadContent: string,
+    fileName: string
   ): void => {
     const {template, onUpdateTemplate} = this.props
 
-    // const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
-    // if (!fileName.match(fileExtensionRegex)) {
-    //   // this.props.notify(
-    //   //   notifyDashboardImportFailed(
-    //   //     fileName,
-    //   //     `Please import a ${this.validFileExtension} file`
-    //   //   )
-    //   // )
-    //   return
-    // }
+    const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
+    if (!fileName.match(fileExtensionRegex)) {
+      this.props.notify(notifyCSVUploadFailed())
+      return
+    }
 
     let templateValues
 

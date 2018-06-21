@@ -5,6 +5,7 @@ import React, {
   KeyboardEvent,
 } from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import Dropdown from 'src/shared/components/Dropdown'
@@ -98,7 +99,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {source, onCancel} = this.props
+    const {source, onCancel, notify} = this.props
     const {nextTemplate, isNew} = this.state
     const TemplateBuilder = this.templateBuilder
 
@@ -156,6 +157,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
               template={nextTemplate}
               source={source}
               onUpdateTemplate={this.handleUpdateTemplate}
+              notify={notify}
             />
           </div>
           <ConfirmButton
@@ -270,11 +272,17 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private get canSave(): boolean {
     const {
-      nextTemplate: {tempVar},
+      nextTemplate: {tempVar, type, values},
     } = this.state
+
+    let canSaveValues = true
+    if (type === TemplateType.CSV && _.isEmpty(values)) {
+      canSaveValues = false
+    }
 
     return (
       tempVar !== '' &&
+      canSaveValues &&
       !RESERVED_TEMPLATE_NAMES.includes(formatName(tempVar)) &&
       !this.isSaving
     )

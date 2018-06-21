@@ -1,4 +1,5 @@
 import {Source} from 'src/types'
+import {Notification} from 'src/types/notifications'
 
 export enum TemplateValueType {
   Database = 'database',
@@ -75,4 +76,5 @@ export interface TemplateBuilderProps {
   template: Template
   source: Source
   onUpdateTemplate: (nextTemplate: Template) => void
+  notify?: (message: Notification) => void
 }
