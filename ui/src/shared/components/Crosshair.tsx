@@ -44,7 +44,7 @@ class Crosshair extends PureComponent<Props> {
     const isPastMaxTimeRange = hoverTime > maxTimeRange
 
     const isValidHoverTime = !isBeforeMinTimeRange && !isPastMaxTimeRange
-    return hoverTime !== 0 && _.isFinite(hoverTime) && isValidHoverTime
+    return isValidHoverTime && hoverTime !== 0 && _.isFinite(hoverTime)
   }
 
   private get crosshairLeft(): number {
