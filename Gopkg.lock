@@ -375,7 +375,6 @@
   revision = "1f58ded512de5feabbe30b60c7d33a7a896c5f16"
 
 [[projects]]
-  branch = "master"
   name = "github.com/influxdata/yarpc"
   packages = [
     ".",
@@ -383,7 +382,8 @@
     "status",
     "yarpcproto"
   ]
-  revision = "f0da2db138cad2fb425541938fc28dd5a5bc6918"
+  revision = "b13d74d757bf9ea3e5574a491eb6646bdc4e2a04"
+  version = "v0.0.1"
 
 [[projects]]
   name = "github.com/jmespath/go-jmespath"
