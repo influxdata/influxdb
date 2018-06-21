@@ -13,6 +13,13 @@ $padding: 20px 30px;
   justify-content: space-between;
 }
 
+.edit-temp-var--header > h1 {
+  color: #eeeff2;
+  letter-spacing: 0;
+  font-size: 19px;
+  font-weight: 400;
+}
+
 .edit-temp-var--header-controls > button {
   display: inline-block;
   margin: 0 5px;
