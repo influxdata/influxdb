@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 
-import {TemplateBuilderProps, TemplateValueType} from 'src/types'
+import {TemplateBuilderProps, TemplateValueType, TemplateValue} from 'src/types'
 
 interface State {
   templateValues: string[]
@@ -15,7 +15,7 @@ class CSVManualTemplateBuilder extends PureComponent<
   TemplateBuilderProps,
   State
 > {
-  public constructor(props) {
+  public constructor(props: TemplateBuilderProps) {
     super(props)
 
     const templateValues = props.template.values.map(v => v.value)
@@ -75,7 +75,7 @@ class CSVManualTemplateBuilder extends PureComponent<
 
     this.setState({templateValues})
 
-    const nextValues = templateValues.map(value => {
+    const nextValues = templateValues.map((value: string): TemplateValue => {
       return {
         type: TemplateValueType.CSV,
         value,

@@ -1,8 +1,9 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
+import DragAndDrop from 'src/shared/components/DragAndDrop'
 
-import {TemplateBuilderProps, TemplateValueType} from 'src/types'
+import {TemplateBuilderProps, TemplateValueType, TemplateValue} from 'src/types'
 
 interface State {
   templateValues: string[]
@@ -14,9 +15,8 @@ class CSVFileTemplateBuilder extends PureComponent<
   TemplateBuilderProps,
   State
 > {
-  public constructor(props) {
+  public constructor(props: TemplateBuilderProps) {
     super(props)
-
     const templateValues = props.template.values.map(v => v.value)
 
     this.state = {
@@ -26,22 +26,15 @@ class CSVFileTemplateBuilder extends PureComponent<
   }
 
   public render() {
-    const {templateValues, templateValuesString} = this.state
+    const {templateValues} = this.state
     const pluralizer = templateValues.length === 1 ? '' : 's'
-
     return (
-      <div className="temp-builder csv-temp-builder">
-        <div className="form-group">
-          <label>Comma Separated Values</label>
-          <div className="temp-builder--mq-controls">
-            <textarea
-              className="form-control"
-              value={templateValuesString}
-              onChange={this.handleChange}
-              onBlur={this.handleBlur}
-            />
-          </div>
-        </div>
+      <>
+        <DragAndDrop
+          submitText="Preview"
+          fileTypesToAccept={this.validFileExtension}
+          handleSubmit={this.handleUploadFile}
+        />
         <div className="temp-builder-results">
           <p>
             CSV contains <strong>{templateValues.length}</strong> value{
@@ -52,29 +45,40 @@ class CSVFileTemplateBuilder extends PureComponent<
             <TemplatePreviewList items={templateValues} />
           )}
         </div>
-      </div>
+      </>
     )
   }
 
-  private handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
-    this.setState({templateValuesString: e.target.value})
-  }
-
-  private handleBlur = (): void => {
+  private handleUploadFile = (
+    uploadContent: string
+    // fileName: string
+  ): void => {
     const {template, onUpdateTemplate} = this.props
-    const {templateValuesString} = this.state
+
+    // const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
+    // if (!fileName.match(fileExtensionRegex)) {
+    //   // this.props.notify(
+    //   //   notifyDashboardImportFailed(
+    //   //     fileName,
+    //   //     `Please import a ${this.validFileExtension} file`
+    //   //   )
+    //   // )
+    //   return
+    // }
 
     let templateValues
 
-    if (templateValuesString.trim() === '') {
+    if (uploadContent.trim() === '') {
       templateValues = []
     } else {
-      templateValues = templateValuesString.split(',').map(s => s.trim())
+      templateValues = uploadContent.split(',').map(s => s.trim())
     }
+    // account for newline separated values too.
+    // should return values be strings only.
 
     this.setState({templateValues})
 
-    const nextValues = templateValues.map(value => {
+    const nextValues = templateValues.map((value: string): TemplateValue => {
       return {
         type: TemplateValueType.CSV,
         value,
@@ -87,6 +91,10 @@ class CSVFileTemplateBuilder extends PureComponent<
     }
 
     onUpdateTemplate({...template, values: nextValues})
+  }
+
+  private get validFileExtension(): string {
+    return '.csv'
   }
 }
 

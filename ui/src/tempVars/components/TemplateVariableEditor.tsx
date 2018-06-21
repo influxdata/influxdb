@@ -111,12 +111,14 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
           <div className="edit-temp-var--header-controls">
             <button
               className="btn btn-default"
+              style={{zIndex: 9010}}
               type="button"
               onClick={onCancel}
             >
               Cancel
             </button>
             <button
+              style={{zIndex: 9010}}
               className="btn btn-success"
               type="button"
               onClick={this.handleSave}
@@ -126,9 +128,9 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
             </button>
           </div>
         </div>
-        <div className="edit-temp-var--body">
-          <div className="edit-temp-var--body-row">
-            <div className="form-group name">
+        <div className="edit-temp-var--body" style={{zIndex: 9010}}>
+          <div className="edit-temp-var--body-row" style={{zIndex: 9010}}>
+            <div style={{zIndex: 9010}} className="form-group name">
               <label>Name</label>
               <input
                 type="text"
@@ -139,7 +141,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
                 onBlur={this.formatName}
               />
             </div>
-            <div className="form-group template-type">
+            <div style={{zIndex: 9010}} className="form-group template-type">
               <label>Type</label>
               <Dropdown
                 items={TEMPLATE_TYPES_LIST}
