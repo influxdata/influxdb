@@ -9,7 +9,7 @@ interface Props {
   onReset: () => void
   onChangeSeverityLevel: (severity: string) => (override: SeverityColor) => void
   severityFormat: SeverityFormat
-  onUpdateSeverityFormat: (format: SeverityFormat) => () => void
+  onChangeSeverityFormat: (format: SeverityFormat) => () => void
 }
 
 const SeverityConfig: SFC<Props> = ({
@@ -17,7 +17,7 @@ const SeverityConfig: SFC<Props> = ({
   onReset,
   onChangeSeverityLevel,
   severityFormat,
-  onUpdateSeverityFormat,
+  onChangeSeverityFormat,
 }) => (
   <>
     <label className="form-label">Customize Severity Colors</label>
@@ -43,7 +43,7 @@ const SeverityConfig: SFC<Props> = ({
     </button>
     <SeverityColumnFormat
       format={severityFormat}
-      onChangeFormat={onUpdateSeverityFormat}
+      onChangeFormat={onChangeSeverityFormat}
     />
   </>
 )

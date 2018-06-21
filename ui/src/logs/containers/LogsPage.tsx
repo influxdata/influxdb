@@ -331,7 +331,7 @@ class LogsPage extends PureComponent<Props, State> {
     // Save these new configs here
   }
 
-  private handleUpdateSeverityFormat = (format: SeverityFormat) => () => {
+  private handleUpdateSeverityFormat = (format: SeverityFormat) => {
     console.log(format)
     // Save these new configs here
   }
