@@ -1050,6 +1050,7 @@ components:
             annotations:
               description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
               type: array
+              default: []
               items:
                 type: string
                 enum:
