@@ -309,6 +309,28 @@ paths:
               schema:
                   type: string
                   format: binary
+        default:
+          description: internal server error
+          headers:
+            X-Influx-Error:
+              description: error string describing the problem
+              schema:
+                type: string
+            X-Influx-Reference:
+              description: reference code unique to the error type
+              schema:
+                type: integer
+          content:
+            text/csv:
+              schema:
+                type: string
+                example: >
+                  error,reference
+                  Failed to parse query,897
+            application/vnd.influx.arrow:
+              schema:
+                  type: string
+                  format: binary
   /buckets:
     get:
       tags:
