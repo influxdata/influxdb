@@ -37,6 +37,15 @@ class YieldFuncNode extends PureComponent<Props, State> {
     this.getData()
   }
 
+  public componentDidUpdate(prevProps) {
+    const {script: prevScript} = prevProps
+    const {script: currentScript} = this.props
+
+    if (prevScript !== currentScript) {
+      this.getData()
+    }
+  }
+
   public render() {
     const {func} = this.props
     const {data} = this.state
