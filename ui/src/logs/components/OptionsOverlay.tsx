@@ -4,25 +4,18 @@ import _ from 'lodash'
 import Container from 'src/shared/components/overlay/OverlayContainer'
 import Heading from 'src/shared/components/overlay/OverlayHeading'
 import Body from 'src/shared/components/overlay/OverlayBody'
-import {Color} from 'src/logs/components/ColorDropdown'
 import SeverityConfig from 'src/logs/components/SeverityConfig'
-
+import {SeverityLevel, SeverityColor} from 'src/types/logs'
 import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
 
-interface SeverityItem {
-  severity: string
-  default: Color
-  override?: Color
-}
-
 interface Props {
-  severityConfigs: SeverityItem[]
-  onUpdateConfigs: (updatedConfigs: SeverityItem[]) => void
+  severityLevels: SeverityLevel[]
+  onUpdateSeverityLevels: (severityLevels: SeverityLevel[]) => void
   onDismissOverlay: () => void
 }
 
 interface State {
-  workingSeverityConfigs: SeverityItem[]
+  workingSeverityLevels: SeverityLevel[]
 }
 
 class OptionsOverlay extends Component<Props, State> {
@@ -30,12 +23,12 @@ class OptionsOverlay extends Component<Props, State> {
     super(props)
 
     this.state = {
-      workingSeverityConfigs: this.props.severityConfigs,
+      workingSeverityLevels: this.props.severityLevels,
     }
   }
 
   public render() {
-    const {workingSeverityConfigs} = this.state
+    const {workingSeverityLevels} = this.state
 
     return (
       <Container maxWidth={700}>
@@ -46,9 +39,9 @@ class OptionsOverlay extends Component<Props, State> {
           <div className="row">
             <div className="col-sm-6">
               <SeverityConfig
-                configs={workingSeverityConfigs}
-                onReset={this.handleResetSeverityColors}
-                onChangeColor={this.handleChangeSeverityColor}
+                configs={workingSeverityLevels}
+                onReset={this.handleResetSeverityLevels}
+                onChangeSeverityLevel={this.handleChangeSeverityLevel}
               />
             </div>
             <div className="col-sm-6">
@@ -81,10 +74,10 @@ class OptionsOverlay extends Component<Props, State> {
   }
 
   private get isSaveDisabled(): boolean {
-    const {workingSeverityConfigs} = this.state
-    const {severityConfigs} = this.props
+    const {workingSeverityLevels} = this.state
+    const {severityLevels} = this.props
 
-    if (_.isEqual(workingSeverityConfigs, severityConfigs)) {
+    if (_.isEqual(workingSeverityLevels, severityLevels)) {
       return true
     }
 
@@ -92,21 +85,21 @@ class OptionsOverlay extends Component<Props, State> {
   }
 
   private handleSave = () => {
-    const {onUpdateConfigs, onDismissOverlay} = this.props
-    const {workingSeverityConfigs} = this.state
+    const {onUpdateSeverityLevels, onDismissOverlay} = this.props
+    const {workingSeverityLevels} = this.state
 
-    onUpdateConfigs(workingSeverityConfigs)
+    onUpdateSeverityLevels(workingSeverityLevels)
     onDismissOverlay()
   }
 
-  private handleResetSeverityColors = (): void => {
-    this.setState({workingSeverityConfigs: DEFAULT_SEVERITY_LEVELS})
+  private handleResetSeverityLevels = (): void => {
+    this.setState({workingSeverityLevels: DEFAULT_SEVERITY_LEVELS})
   }
 
-  private handleChangeSeverityColor = (severity: string) => (
-    override: Color
+  private handleChangeSeverityLevel = (severity: string) => (
+    override: SeverityColor
   ): void => {
-    const workingSeverityConfigs = this.state.workingSeverityConfigs.map(
+    const workingSeverityLevels = this.state.workingSeverityLevels.map(
       config => {
         if (config.severity === severity) {
           return {...config, override}
@@ -116,7 +109,7 @@ class OptionsOverlay extends Component<Props, State> {
       }
     )
 
-    this.setState({workingSeverityConfigs})
+    this.setState({workingSeverityLevels})
   }
 }
 

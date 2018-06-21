@@ -7,16 +7,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 import {SEVERITY_COLORS} from 'src/logs/constants'
 
-export interface Color {
-  hex: string
-  name: string
-}
+import {SeverityColor} from 'src/types/logs'
 
 interface Props {
-  selected: Color
+  selected: SeverityColor
   disabled?: boolean
   stretchToFit?: boolean
-  onChoose: (colors: Color) => void
+  onChoose: (colors: SeverityColor) => void
 }
 
 interface State {
@@ -126,7 +123,7 @@ export default class ColorDropdown extends Component<Props, State> {
     this.setState({expanded: false})
   }
 
-  private handleColorClick = color => (): void => {
+  private handleColorClick = (color: SeverityColor) => (): void => {
     this.props.onChoose(color)
     this.setState({expanded: false})
   }

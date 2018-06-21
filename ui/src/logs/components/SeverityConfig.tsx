@@ -1,20 +1,19 @@
 import React, {SFC} from 'react'
 import uuid from 'uuid'
-import ColorDropdown, {Color} from 'src/logs/components/ColorDropdown'
-
-interface SeverityItem {
-  severity: string
-  default: Color
-  override?: Color
-}
+import ColorDropdown from 'src/logs/components/ColorDropdown'
+import {SeverityLevel, SeverityColor} from 'src/types/logs'
 
 interface Props {
-  configs: SeverityItem[]
+  configs: SeverityLevel[]
   onReset: () => void
-  onChangeColor: (severity: string) => (override: Color) => void
+  onChangeSeverityLevel: (severity: string) => (override: SeverityColor) => void
 }
 
-const SeverityConfig: SFC<Props> = ({configs, onReset, onChangeColor}) => (
+const SeverityConfig: SFC<Props> = ({
+  configs,
+  onReset,
+  onChangeSeverityLevel,
+}) => (
   <>
     <label className="form-label">Customize Severity Colors</label>
     <div className="logs-options--color-list">
@@ -26,7 +25,7 @@ const SeverityConfig: SFC<Props> = ({configs, onReset, onChangeColor}) => (
           <div className="logs-options--color-column">
             <ColorDropdown
               selected={config.override || config.default}
-              onChoose={onChangeColor(config.severity)}
+              onChoose={onChangeSeverityLevel(config.severity)}
               stretchToFit={true}
             />
           </div>

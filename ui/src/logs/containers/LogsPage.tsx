@@ -34,7 +34,7 @@ import {colorForSeverity} from 'src/logs/utils/colors'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 
 import {Source, Namespace, TimeRange} from 'src/types'
-import {Filter} from 'src/types/logs'
+import {Filter, SeverityLevel} from 'src/types/logs'
 import {HistogramData, TimePeriod} from 'src/types/histogram'
 
 // Mock
@@ -306,9 +306,9 @@ class LogsPage extends PureComponent<Props, State> {
       <OverlayContext.Consumer>
         {({onDismissOverlay}) => (
           <OptionsOverlay
+            severityLevels={DEFAULT_SEVERITY_LEVELS} // Todo: replace with real
+            onUpdateSeverityLevels={this.handleUpdateSeverityLevels}
             onDismissOverlay={onDismissOverlay}
-            severityConfigs={DEFAULT_SEVERITY_LEVELS} // Todo: replace with real
-            onUpdateConfigs={this.handleUpdateSeverityConfigs}
           />
         )}
       </OverlayContext.Consumer>,
@@ -316,8 +316,8 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleUpdateSeverityConfigs = configs => {
-    console.log(configs)
+  private handleUpdateSeverityLevels = (levels: SeverityLevel[]) => {
+    console.log(levels)
     // Save these new configs here
   }
 }
