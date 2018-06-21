@@ -999,7 +999,7 @@ func TestTranspiler(t *testing.T) {
 					{
 						ID: "from1",
 						Spec: &functions.FromOpSpec{
-							Database: "db0",
+							Bucket: "db0/autogen",
 						},
 					},
 					{
