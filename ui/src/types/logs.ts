@@ -36,3 +36,5 @@ export interface SeverityColor {
   hex: string
   name: string
 }
+
+export type SeverityFormat = 'dot' | 'dotText' | 'text'

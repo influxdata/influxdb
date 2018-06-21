@@ -1,23 +1,28 @@
 import React, {SFC} from 'react'
 import uuid from 'uuid'
 import ColorDropdown from 'src/logs/components/ColorDropdown'
-import {SeverityLevel, SeverityColor} from 'src/types/logs'
+import SeverityColumnFormat from 'src/logs/components/SeverityColumnFormat'
+import {SeverityLevel, SeverityColor, SeverityFormat} from 'src/types/logs'
 
 interface Props {
-  configs: SeverityLevel[]
+  severityLevels: SeverityLevel[]
   onReset: () => void
   onChangeSeverityLevel: (severity: string) => (override: SeverityColor) => void
+  severityFormat: SeverityFormat
+  onUpdateSeverityFormat: (format: SeverityFormat) => () => void
 }
 
 const SeverityConfig: SFC<Props> = ({
-  configs,
+  severityLevels,
   onReset,
   onChangeSeverityLevel,
+  severityFormat,
+  onUpdateSeverityFormat,
 }) => (
   <>
     <label className="form-label">Customize Severity Colors</label>
     <div className="logs-options--color-list">
-      {configs.map(config => (
+      {severityLevels.map(config => (
         <div key={uuid.v4()} className="logs-options--color-row">
           <div className="logs-options--color-column">
             <div className="logs-options--label">{config.severity}</div>
@@ -36,6 +41,10 @@ const SeverityConfig: SFC<Props> = ({
       <span className="icon refresh" />
       Reset to Defaults
     </button>
+    <SeverityColumnFormat
+      format={severityFormat}
+      onChangeFormat={onUpdateSeverityFormat}
+    />
   </>
 )
 

@@ -5,13 +5,15 @@ import Container from 'src/shared/components/overlay/OverlayContainer'
 import Heading from 'src/shared/components/overlay/OverlayHeading'
 import Body from 'src/shared/components/overlay/OverlayBody'
 import SeverityOptions from 'src/logs/components/SeverityOptions'
-import {SeverityLevel, SeverityColor} from 'src/types/logs'
+import {SeverityLevel, SeverityColor, SeverityFormat} from 'src/types/logs'
 import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
 
 interface Props {
   severityLevels: SeverityLevel[]
   onUpdateSeverityLevels: (severityLevels: SeverityLevel[]) => void
   onDismissOverlay: () => void
+  severityFormat: SeverityFormat
+  onUpdateSeverityFormat: (format: SeverityFormat) => () => void
 }
 
 interface State {
@@ -24,11 +26,13 @@ class OptionsOverlay extends Component<Props, State> {
 
     this.state = {
       workingSeverityLevels: this.props.severityLevels,
+      workingColumns: this.props.columns,
     }
   }
 
   public render() {
     const {workingSeverityLevels} = this.state
+    const {severityFormat, onUpdateSeverityFormat} = this.props
 
     return (
       <Container maxWidth={700}>
@@ -39,9 +43,11 @@ class OptionsOverlay extends Component<Props, State> {
           <div className="row">
             <div className="col-sm-6">
               <SeverityOptions
-                configs={workingSeverityLevels}
+                severityLevels={workingSeverityLevels}
                 onReset={this.handleResetSeverityLevels}
                 onChangeSeverityLevel={this.handleChangeSeverityLevel}
+                severityFormat={severityFormat}
+                onUpdateSeverityFormat={onUpdateSeverityFormat}
               />
             </div>
             <div className="col-sm-6">
