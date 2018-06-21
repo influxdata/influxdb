@@ -77,6 +77,37 @@ func (s *BlockStatement) UnmarshalJSON(data []byte) error {
 	}
 	return nil
 }
+func (s *OptionStatement) MarshalJSON() ([]byte, error) {
+	type Alias OptionStatement
+	raw := struct {
+		Type string `json:"type"`
+		*Alias
+	}{
+		Type:  s.NodeType(),
+		Alias: (*Alias)(s),
+	}
+	return json.Marshal(raw)
+}
+func (s *OptionStatement) UnmarshalJSON(data []byte) error {
+	type Alias OptionStatement
+	raw := struct {
+		*Alias
+		Declaration json.RawMessage `json:"declaration"`
+	}{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Alias != nil {
+		*s = *(*OptionStatement)(raw.Alias)
+	}
+
+	e, err := unmarshalVariableDeclaration(raw.Declaration)
+	if err != nil {
+		return err
+	}
+	s.Declaration = e
+	return nil
+}
 func (s *ExpressionStatement) MarshalJSON() ([]byte, error) {
 	type Alias ExpressionStatement
 	raw := struct {
@@ -772,6 +803,20 @@ func unmarshalExpression(msg json.RawMessage) (Expression, error) {
 	}
 	return e, nil
 }
+func unmarshalVariableDeclaration(msg json.RawMessage) (VariableDeclaration, error) {
+	if checkNullMsg(msg) {
+		return nil, nil
+	}
+	n, err := unmarshalNode(msg)
+	if err != nil {
+		return nil, err
+	}
+	v, ok := n.(VariableDeclaration)
+	if !ok {
+		return nil, fmt.Errorf("node %q is not a variable declaration", n.NodeType())
+	}
+	return v, nil
+}
 func unmarshalLiteral(msg json.RawMessage) (Literal, error) {
 	if checkNullMsg(msg) {
 		return nil, nil
@@ -806,6 +851,8 @@ func unmarshalNode(msg json.RawMessage) (Node, error) {
 		node = new(Program)
 	case "BlockStatement":
 		node = new(BlockStatement)
+	case "OptionStatement":
+		node = new(OptionStatement)
 	case "ExpressionStatement":
 		node = new(ExpressionStatement)
 	case "ReturnStatement":

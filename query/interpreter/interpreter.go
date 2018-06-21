@@ -30,6 +30,10 @@ func (itrp interpreter) eval(program *semantic.Program, scope *Scope) error {
 func (itrp interpreter) doStatement(stmt semantic.Statement, scope *Scope) error {
 	scope.SetReturn(values.InvalidValue)
 	switch s := stmt.(type) {
+	case *semantic.OptionStatement:
+		if err := itrp.doStatement(s.Declaration, scope); err != nil {
+			return err
+		}
 	case *semantic.NativeVariableDeclaration:
 		if err := itrp.doVariableDeclaration(s, scope); err != nil {
 			return err
@@ -584,6 +588,12 @@ func (f function) resolveIdentifiers(n semantic.Node) (semantic.Node, error) {
 			}
 			n.Body[i] = node.(semantic.Statement)
 		}
+	case *semantic.OptionStatement:
+		node, err := f.resolveIdentifiers(n.Declaration)
+		if err != nil {
+			return nil, err
+		}
+		n.Declaration = node.(semantic.VariableDeclaration)
 	case *semantic.ExpressionStatement:
 		node, err := f.resolveIdentifiers(n.Expression)
 		if err != nil {

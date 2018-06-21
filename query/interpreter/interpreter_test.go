@@ -249,6 +249,17 @@ func TestEval(t *testing.T) {
 			"abba" !~ /^a.*a$/ and fail()
 			`,
 		},
+		{
+			name: "options metadata before query",
+			query: `
+			option task = {
+				name: "foo",
+				repeat: 100,
+			}
+			task.name == "foo" or fail()
+			task.repeat == 100 or fail()
+			`,
+		},
 	}
 
 	for _, tc := range testCases {

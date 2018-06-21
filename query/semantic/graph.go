@@ -23,6 +23,7 @@ type Node interface {
 func (*Program) node() {}
 
 func (*BlockStatement) node()              {}
+func (*OptionStatement) node()             {}
 func (*ExpressionStatement) node()         {}
 func (*ReturnStatement) node()             {}
 func (*NativeVariableDeclaration) node()   {}
@@ -58,6 +59,7 @@ type Statement interface {
 }
 
 func (*BlockStatement) stmt()              {}
+func (*OptionStatement) stmt()             {}
 func (*ExpressionStatement) stmt()         {}
 func (*ReturnStatement) stmt()             {}
 func (*NativeVariableDeclaration) stmt()   {}
@@ -152,6 +154,24 @@ func (s *BlockStatement) Copy() Node {
 	return ns
 }
 
+type OptionStatement struct {
+	Declaration VariableDeclaration `json:"declaration"`
+}
+
+func (s *OptionStatement) NodeType() string { return "OptionStatement" }
+
+func (s *OptionStatement) Copy() Node {
+	if s == nil {
+		return s
+	}
+	ns := new(OptionStatement)
+	*ns = *s
+
+	ns.Declaration = s.Declaration.Copy().(VariableDeclaration)
+
+	return ns
+}
+
 type ExpressionStatement struct {
 	Expression Expression `json:"expression"`
 }
@@ -189,7 +209,7 @@ func (s *ReturnStatement) Copy() Node {
 }
 
 type VariableDeclaration interface {
-	Node
+	Statement
 	ID() *Identifier
 	InitType() Type
 }
@@ -835,6 +855,8 @@ func analyzeStatment(s ast.Statement, declarations DeclarationScope) (Statement,
 	switch s := s.(type) {
 	case *ast.BlockStatement:
 		return analyzeBlockStatement(s, declarations)
+	case *ast.OptionStatement:
+		return analyzeOptionStatement(s, declarations)
 	case *ast.ExpressionStatement:
 		return analyzeExpressionStatement(s, declarations)
 	case *ast.ReturnStatement:
@@ -867,6 +889,16 @@ func analyzeBlockStatement(block *ast.BlockStatement, declarations DeclarationSc
 		return nil, errors.New("missing return statement in block")
 	}
 	return b, nil
+}
+
+func analyzeOptionStatement(option *ast.OptionStatement, declarations DeclarationScope) (*OptionStatement, error) {
+	declaration, err := analyzeVariableDeclaration(option.Declaration, declarations)
+	if err != nil {
+		return nil, err
+	}
+	return &OptionStatement{
+		Declaration: declaration,
+	}, nil
 }
 
 func analyzeExpressionStatement(expr *ast.ExpressionStatement, declarations DeclarationScope) (*ExpressionStatement, error) {
