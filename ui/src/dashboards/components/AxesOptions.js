@@ -14,6 +14,7 @@ import {
   TOOLTIP_Y_VALUE_FORMAT,
 } from 'src/dashboards/constants/cellEditor'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
+import {getDeep} from 'src/utils/wrappers'
 
 import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -157,6 +158,11 @@ class AxesOptions extends Component {
               tipID="Y-Values's Format"
               tipContent={TOOLTIP_Y_VALUE_FORMAT}
             >
+              <Tab
+                text="Raw"
+                isActive={base === ''}
+                onClickTab={this.handleSetBase('')}
+              />
               <Tab
                 text="K/M/B"
                 isActive={base === BASE_10}
