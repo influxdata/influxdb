@@ -321,6 +321,10 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter plat
 
 // CreateOrganization creates an organization.
 func (s *OrganizationService) CreateOrganization(ctx context.Context, o *platform.Organization) error {
+	if o.Name == "" {
+		return kerrors.InvalidDataf("organization name is required")
+	}
+
 	url, err := newURL(s.Addr, organizationPath)
 	if err != nil {
 		return err
