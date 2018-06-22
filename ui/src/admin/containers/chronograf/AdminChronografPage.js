@@ -50,7 +50,7 @@ const sections = me => [
 
 const AdminChronografPage = ({me, source, params: {tab}}) => (
   <div className="page">
-    <PageHeader title="Chronograf Admin" />
+    <PageHeader titleText="Chronograf Admin" />
     <FancyScrollbar className="page-contents">
       <div className="container-fluid">
         <SubSections

@@ -137,7 +137,7 @@ export class HostsPage extends Component {
     )
   }
 
-  optionsComponents = () => {
+  get optionsComponents() {
     const {autoRefresh, onChooseAutoRefresh, onManualRefresh} = this.props
 
     return (
