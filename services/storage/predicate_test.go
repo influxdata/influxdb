@@ -102,6 +102,30 @@ func TestNodeToExpr(t *testing.T) {
 			e: `host = 'host1' AND region =~ /^us-west/`,
 		},
 		{
+			n: "optimisable regex",
+			r: &storage.Node{
+				NodeType: storage.NodeTypeComparisonExpression,
+				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
+				Children: []*storage.Node{
+					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "region"}},
+					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^us-east$"}},
+				},
+			},
+			e: `region = 'us-east'`,
+		},
+		{
+			n: "optimisable regex with or",
+			r: &storage.Node{
+				NodeType: storage.NodeTypeComparisonExpression,
+				Value:    &storage.Node_Comparison_{Comparison: storage.ComparisonRegex},
+				Children: []*storage.Node{
+					{NodeType: storage.NodeTypeTagRef, Value: &storage.Node_TagRefValue{TagRefValue: "region"}},
+					{NodeType: storage.NodeTypeLiteral, Value: &storage.Node_RegexValue{RegexValue: "^(us-east|us-west)$"}},
+				},
+			},
+			e: `region = 'us-east' OR region = 'us-west'`,
+		},
+		{
 			n: "remap _measurement -> _name",
 			r: &storage.Node{
 				NodeType: storage.NodeTypeComparisonExpression,
