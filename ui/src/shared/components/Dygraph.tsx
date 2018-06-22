@@ -1,10 +1,4 @@
-import React, {
-  Component,
-  CSSProperties,
-  MouseEvent,
-  ReactElement,
-  Children,
-} from 'react'
+import React, {Component, CSSProperties, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import NanoDate from 'nano-date'
@@ -74,7 +68,6 @@ interface Props {
 
 interface State {
   staticLegendHeight: null | number
-  isMounted: boolean
   xAxisRange: [number, number]
 }
 
@@ -110,7 +103,6 @@ class Dygraph extends Component<Props, State> {
     super(props)
     this.state = {
       staticLegendHeight: null,
-      isMounted: false,
       xAxisRange: [0, 0],
     }
 
@@ -174,7 +166,7 @@ class Dygraph extends Component<Props, State> {
 
     const {w} = this.dygraph.getArea()
     this.props.setResolution(w)
-    this.setState({isMounted: true, xAxisRange: this.dygraph.xAxisRange()})
+    this.setState({xAxisRange: this.dygraph.xAxisRange()})
   }
 
   public componentWillUnmount() {
@@ -182,12 +174,6 @@ class Dygraph extends Component<Props, State> {
       this.dygraph.destroy()
       delete this.dygraph
     }
-  }
-
-  public shouldComponentUpdate(nextProps: Props, nextState: State) {
-    const arePropsEqual = _.isEqual(this.props, nextProps)
-    const areStatesEqual = _.isEqual(this.state, nextState)
-    return !arePropsEqual || !areStatesEqual
   }
 
   public componentDidUpdate(prevProps: Props) {
@@ -275,7 +261,7 @@ class Dygraph extends Component<Props, State> {
             />
             <Crosshair
               dygraph={this.dygraph}
-              staticLegendHeight={staticLegendHeight}
+              stasticLegendHeight={staticLegendHeight}
             />
           </div>
         )}
@@ -293,7 +279,7 @@ class Dygraph extends Component<Props, State> {
             }
           />
         )}
-        {this.isGraphNested &&
+        {this.nestedGraph &&
           React.cloneElement(this.nestedGraph, {
             staticLegendHeight,
           })}
@@ -312,17 +298,17 @@ class Dygraph extends Component<Props, State> {
     )
   }
 
-  private get nestedGraph(): ReactElement<any> {
+  private get nestedGraph(): JSX.Element {
     const {children} = this.props
-    const kids = Children.toArray(children)
+    if (children) {
+      if (children[0]) {
+        return children[0]
+      }
 
-    return _.get(kids, '0', null)
-  }
+      return children as JSX.Element
+    }
 
-  private get isGraphNested(): boolean {
-    const {children} = this.props
-
-    return children && Children.count(children) > 0
+    return null
   }
 
   private get dygraphStyle(): CSSProperties {
@@ -375,8 +361,15 @@ class Dygraph extends Component<Props, State> {
   }
 
   private handleDraw = () => {
-    if (this.dygraph) {
-      this.setState({xAxisRange: this.dygraph.xAxisRange()})
+    if (!this.dygraph) {
+      return
+    }
+
+    const {xAxisRange} = this.state
+    const newXAxisRange = this.dygraph.xAxisRange()
+
+    if (!_.isEqual(xAxisRange, newXAxisRange)) {
+      this.setState({xAxisRange: newXAxisRange})
     }
   }
 
@@ -439,12 +432,7 @@ class Dygraph extends Component<Props, State> {
   }
 
   private get areAnnotationsVisible() {
-    if (!this.dygraph) {
-      return false
-    }
-
-    const [start, end] = this.dygraph && this.dygraph.xAxisRange()
-    return !!start && !!end
+    return !!this.dygraph
   }
 
   private getLabel = (axis: string): string => {
