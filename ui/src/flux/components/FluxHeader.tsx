@@ -5,14 +5,14 @@ import FluxOverlay from 'src/flux/components/FluxOverlay'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 import PageHeader from 'src/shared/components/PageHeader'
 import {
-  showOverlay as showOverlayAction,
-  ShowOverlay,
+  showOverlay as showOverlayActionCreator,
+  ShowOverlayActionCreator,
 } from 'src/shared/actions/overlayTechnology'
 
 import {Service} from 'src/types'
 
 interface Props {
-  showOverlay: ShowOverlay
+  showOverlay: ShowOverlayActionCreator
   service: Service
 }
 
@@ -54,7 +54,7 @@ class FluxHeader extends PureComponent<Props> {
 }
 
 const mdtp = {
-  showOverlay: showOverlayAction,
+  showOverlay: showOverlayActionCreator,
 }
 
 export default connect(null, mdtp)(FluxHeader)
