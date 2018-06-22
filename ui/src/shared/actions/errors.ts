@@ -10,12 +10,12 @@ export type ErrorThrownActionCreator = (
 
 interface ErrorThrownAction {
   type: 'ERROR_THROWN'
-  error: Error
+  error: ErrorDescription
   altText?: string
   alertType?: AlertType
 }
 export const errorThrown = (
-  error: Error,
+  error: ErrorDescription,
   altText?: string,
   alertType?: AlertType
 ): ErrorThrownAction => ({
@@ -24,3 +24,12 @@ export const errorThrown = (
   altText,
   alertType,
 })
+
+interface ErrorDescription {
+  status: number
+  auth: {
+    links: {
+      me: string
+    }
+  }
+}
