@@ -37,7 +37,7 @@ const setup = (override = {}) => {
     thresholdsListColors,
     gaugeColors,
     lineColors,
-    editQueryStatus: () => {},
+    editQueryStatus: () => null,
     onCancel: () => {},
     onSave: () => {},
     notify: () => {},
