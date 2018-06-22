@@ -6,6 +6,8 @@ import (
 	"net/http"
 )
 
+const errorHeaderMaxLength = 64
+
 // TODO: move to http directory
 
 // EncodeHTTP encodes err with the appropriate status code and format,
@@ -17,9 +19,14 @@ func EncodeHTTP(ctx context.Context, err error, w http.ResponseWriter) {
 	}
 	e, ok := err.(*Error)
 	if !ok {
+		errStr := err.Error()
+		if len(errStr) > errorHeaderMaxLength {
+			errStr = err.Error()[0:errorHeaderMaxLength]
+		}
+
 		e = &Error{
 			Reference: InternalError,
-			Err:       err.Error(),
+			Err:       errStr,
 		}
 	}
 	e.SetCode()
