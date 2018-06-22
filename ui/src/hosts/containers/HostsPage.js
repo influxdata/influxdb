@@ -115,7 +115,7 @@ export class HostsPage extends Component {
     return (
       <div className="page hosts-list-page">
         <PageHeader
-          title="Host List"
+          titleText="Host List"
           optionsComponents={this.optionsComponents}
           sourceIndicator={true}
         />

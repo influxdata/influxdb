@@ -52,7 +52,7 @@ const isValidRole = role => {
 }
 
 @ErrorHandling
-class AdminInfluxDBPage extends Component {
+export class DisconnectedAdminInfluxDBPage extends Component {
   constructor(props) {
     super(props)
   }
@@ -223,7 +223,7 @@ class AdminInfluxDBPage extends Component {
 
     return (
       <div className="page">
-        <PageHeader title="InfluxDB Admin" sourceIndicator={true} />
+        <PageHeader titleText="InfluxDB Admin" sourceIndicator={true} />
         <FancyScrollbar className="page-contents">
           {users ? (
             <div className="container-fluid">
@@ -245,7 +245,7 @@ class AdminInfluxDBPage extends Component {
 
 const {arrayOf, func, shape, string} = PropTypes
 
-AdminInfluxDBPage.propTypes = {
+DisconnectedAdminInfluxDBPage.propTypes = {
   source: shape({
     id: string.isRequired,
     links: shape({
@@ -317,4 +317,6 @@ const mapDispatchToProps = dispatch => ({
   notify: bindActionCreators(notifyAction, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(AdminInfluxDBPage)
+export default connect(mapStateToProps, mapDispatchToProps)(
+  DisconnectedAdminInfluxDBPage
+)
