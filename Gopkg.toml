@@ -31,10 +31,6 @@
   revision = "d9eb7a3d35ec988b8585d4a0068e462c27d28380"
 
 [[constraint]]
-  name = "github.com/influxdata/influxql"
-  revision = "145e0677ff6418fa00ee7e5dd434305631ab44ea"
-
-[[constraint]]
   name = "github.com/mattn/go-isatty"
   branch = "master"
 
