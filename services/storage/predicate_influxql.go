@@ -25,7 +25,13 @@ func NodeToExpr(node *Node, remap map[string]string) (influxql.Expr, error) {
 		return nil, nil
 	}
 
-	return v.exprs[0], nil
+	// TODO(edd): It would be preferable if RewriteRegexConditions was a
+	// package level function in influxql.
+	stmt := &influxql.SelectStatement{
+		Condition: v.exprs[0],
+	}
+	stmt.RewriteRegexConditions()
+	return stmt.Condition, nil
 }
 
 type nodeToExprVisitor struct {

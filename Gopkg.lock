@@ -108,12 +108,13 @@
   version = "v0.2.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/influxdata/influxql"
   packages = [
     ".",
     "internal"
   ]
-  revision = "8d2756c43bb02f5d3e505c51cf83a1ac9234c419"
+  revision = "5e999e6a81820d4450f2a1f35c5597b569258f01"
 
 [[projects]]
   branch = "master"
