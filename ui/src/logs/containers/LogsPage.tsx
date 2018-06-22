@@ -327,12 +327,12 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private handleUpdateSeverityLevels = (levels: SeverityLevel[]) => {
-    console.log(levels)
+    console.log(levels) // tslint:disable-line
     // Todo: Handle saving of these new severity colors here
   }
 
   private handleUpdateSeverityFormat = (format: SeverityFormat) => {
-    console.log(format)
+    console.log(format) // tslint:disable-line
     // Todo: Handle saving of the new format here
   }
 
@@ -345,7 +345,7 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private handleUpdateColumns = (columns: LogsTableColumn[]) => {
-    console.log(columns)
+    console.log(columns) // tslint:disable-line
     // Todo: Handle saving of column names, ordering, and visibility
   }
 }
