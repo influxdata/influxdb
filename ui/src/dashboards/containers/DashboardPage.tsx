@@ -87,7 +87,7 @@ interface DashboardActions {
   setZoomedTimeRangeAsync: DashboardActions.SetZoomedTimeRangeDispatcher
 }
 
-interface ContainerProps {
+interface Props extends ManualRefreshProps, WithRouterProps {
   source: Source
   sources: Source[]
   params: {
@@ -135,13 +135,11 @@ interface State {
   dashboardsNames: DashboardName[]
 }
 
-type ComposedProps = ContainerProps & ManualRefreshProps & WithRouterProps
-
 @ErrorHandling
-class DashboardPage extends Component<ComposedProps, State> {
+class DashboardPage extends Component<Props, State> {
   private intervalID: number
 
-  public constructor(props: ComposedProps) {
+  public constructor(props: Props) {
     super(props)
 
     this.state = {
@@ -188,7 +186,7 @@ class DashboardPage extends Component<ComposedProps, State> {
     this.getDashboardsNames()
   }
 
-  public componentWillReceiveProps(nextProps: ContainerProps) {
+  public componentWillReceiveProps(nextProps: Props) {
     const {source, getAnnotationsAsync, timeRange} = this.props
     if (this.props.autoRefresh !== nextProps.autoRefresh) {
       clearInterval(this.intervalID)
@@ -201,7 +199,7 @@ class DashboardPage extends Component<ComposedProps, State> {
     }
   }
 
-  public componentDidUpdate(prevProps: ContainerProps) {
+  public componentDidUpdate(prevProps: Props) {
     const prevPath = getDeep(prevProps.location, 'pathname', null)
     const thisPath = getDeep(this.props.location, 'pathname', null)
 
@@ -621,5 +619,5 @@ const mdtp = {
 }
 
 export default connect(mstp, mdtp)(
-  ManualRefresh<ComposedProps>(withRouter<ComposedProps>(DashboardPage))
+  ManualRefresh<Props>(withRouter<Props>(DashboardPage))
 )

@@ -9,11 +9,11 @@ interface ManualRefreshState {
   manualRefresh: number
 }
 
-const ManualRefresh = <P extends ManualRefreshProps>(
-  WrappedComponent: ComponentClass<P>
-): ComponentClass<P> =>
-  class extends Component<P, ManualRefreshState> {
-    public constructor(props: P) {
+function ManualRefresh<P>(
+  WrappedComponent: ComponentClass<P & ManualRefreshProps>
+): ComponentClass<P> {
+  return class extends Component<P & ManualRefreshProps, ManualRefreshState> {
+    public constructor(props: P & ManualRefreshProps) {
       super(props)
       this.state = {
         manualRefresh: Date.now(),
@@ -36,5 +36,6 @@ const ManualRefresh = <P extends ManualRefreshProps>(
       })
     }
   }
+}
 
 export default ManualRefresh
