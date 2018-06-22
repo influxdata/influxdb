@@ -7,6 +7,7 @@ interface Props {
   containerClass?: string
   handleSubmit: (uploadContent: string, fileName: string) => void
   submitText?: string
+  submitOnDrop?: boolean
 }
 
 interface State {
@@ -21,6 +22,7 @@ let dragCounter = 0
 class DragAndDrop extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     submitText: 'Write this File',
+    submitOnDrop: false,
   }
 
   private fileInput: HTMLInputElement
@@ -174,10 +176,20 @@ class DragAndDrop extends PureComponent<Props, State> {
     const reader = new FileReader()
     reader.readAsText(file)
     reader.onload = loadEvent => {
-      this.setState({
-        uploadContent: loadEvent.target.result,
-        fileName: file.name,
-      })
+      this.setState(
+        {
+          uploadContent: loadEvent.target.result,
+          fileName: file.name,
+        },
+        this.submitOnDrop
+      )
+    }
+  }
+
+  private submitOnDrop() {
+    const {submitOnDrop} = this.props
+    if (submitOnDrop) {
+      this.handleSubmit()
     }
   }
 

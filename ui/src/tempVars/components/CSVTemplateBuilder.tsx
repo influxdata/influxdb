@@ -32,6 +32,7 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
           submitText="Preview"
           fileTypesToAccept={this.validFileExtension}
           handleSubmit={this.handleUploadFile}
+          submitOnDrop={true}
         />
         <div className="temp-builder csv-temp-builder" style={{zIndex: 9010}}>
           <div className="form-group" style={{zIndex: 9010}}>
