@@ -47,6 +47,8 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {getDeep} from 'src/utils/wrappers'
 
+import {WithRouterProps} from 'react-router'
+import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import {InjectedRouter} from 'react-router'
 import {
@@ -85,7 +87,7 @@ interface DashboardActions {
   setZoomedTimeRangeAsync: DashboardActions.SetZoomedTimeRangeDispatcher
 }
 
-interface Props {
+interface ContainerProps {
   source: Source
   sources: Source[]
   params: {
@@ -110,8 +112,6 @@ interface Props {
     status: object
   }
   errorThrown: ErrorActions.ErrorThrownActionCreator
-  manualRefresh: number
-  onManualRefresh: () => void
   meRole: string
   isUsingAuth: boolean
   router: InjectedRouter
@@ -135,11 +135,13 @@ interface State {
   dashboardsNames: DashboardName[]
 }
 
+type ComposedProps = ContainerProps & ManualRefreshProps & WithRouterProps
+
 @ErrorHandling
-class DashboardPage extends Component<Props, State> {
+class DashboardPage extends Component<ComposedProps, State> {
   private intervalID: number
 
-  public constructor(props: Props) {
+  public constructor(props: ComposedProps) {
     super(props)
 
     this.state = {
@@ -186,7 +188,7 @@ class DashboardPage extends Component<Props, State> {
     this.getDashboardsNames()
   }
 
-  public componentWillReceiveProps(nextProps: Props) {
+  public componentWillReceiveProps(nextProps: ContainerProps) {
     const {source, getAnnotationsAsync, timeRange} = this.props
     if (this.props.autoRefresh !== nextProps.autoRefresh) {
       clearInterval(this.intervalID)
@@ -199,7 +201,7 @@ class DashboardPage extends Component<Props, State> {
     }
   }
 
-  public componentDidUpdate(prevProps: Props) {
+  public componentDidUpdate(prevProps: ContainerProps) {
     const prevPath = getDeep(prevProps.location, 'pathname', null)
     const thisPath = getDeep(this.props.location, 'pathname', null)
 
@@ -618,4 +620,6 @@ const mdtp = {
   handleDismissEditingAnnotation: dismissEditingAnnotation,
 }
 
-export default connect(mstp, mdtp)(ManualRefresh(withRouter(DashboardPage)))
+export default connect(mstp, mdtp)(
+  ManualRefresh<ComposedProps>(withRouter<ComposedProps>(DashboardPage))
+)
