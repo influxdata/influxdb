@@ -40,26 +40,12 @@ export enum TemplateType {
   MetaQuery = 'influxql',
 }
 
-export enum BuilderType {
-  AutoGroupBy = 'autoGroupBy',
-  Constant = 'constant',
-  FieldKeys = 'fieldKeys',
-  Measurements = 'measurements',
-  TagKeys = 'tagKeys',
-  TagValues = 'tagValues',
-  CSVManual = 'csvManual',
-  CSVFile = 'csvFile',
-  Databases = 'databases',
-  MetaQuery = 'influxql',
-}
-
 export interface Template {
   id: string
   tempVar: string
   values: TemplateValue[]
   type: TemplateType
   label: string
-  builderType?: BuilderType
   query?: TemplateQuery
 }
 

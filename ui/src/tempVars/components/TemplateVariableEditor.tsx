@@ -14,8 +14,7 @@ import {getDeep} from 'src/utils/wrappers'
 import {notify as notifyActionCreator} from 'src/shared/actions/notifications'
 
 import DatabasesTemplateBuilder from 'src/tempVars/components/DatabasesTemplateBuilder'
-import CSVManualTemplateBuilder from 'src/tempVars/components/CSVManualTemplateBuilder'
-import CSVFileTemplateBuilder from 'src/tempVars/components/CSVFileTemplateBuilder'
+import CSVTemplateBuilder from 'src/tempVars/components/CSVTemplateBuilder'
 import MeasurementsTemplateBuilder from 'src/tempVars/components/MeasurementsTemplateBuilder'
 import FieldKeysTemplateBuilder from 'src/tempVars/components/FieldKeysTemplateBuilder'
 import TagKeysTemplateBuilder from 'src/tempVars/components/TagKeysTemplateBuilder'
@@ -25,7 +24,6 @@ import MetaQueryTemplateBuilder from 'src/tempVars/components/MetaQueryTemplateB
 import {
   Template,
   TemplateType,
-  BuilderType,
   TemplateBuilderProps,
   Source,
   RemoteDataState,
@@ -57,14 +55,13 @@ interface State {
 }
 
 const TEMPLATE_BUILDERS = {
-  [BuilderType.Databases]: DatabasesTemplateBuilder,
-  [BuilderType.CSVManual]: CSVManualTemplateBuilder,
-  [BuilderType.CSVFile]: CSVFileTemplateBuilder,
-  [BuilderType.Measurements]: MeasurementsTemplateBuilder,
-  [BuilderType.FieldKeys]: FieldKeysTemplateBuilder,
-  [BuilderType.TagKeys]: TagKeysTemplateBuilder,
-  [BuilderType.TagValues]: TagValuesTemplateBuilder,
-  [BuilderType.MetaQuery]: MetaQueryTemplateBuilder,
+  [TemplateType.Databases]: DatabasesTemplateBuilder,
+  [TemplateType.CSV]: CSVTemplateBuilder,
+  [TemplateType.Measurements]: MeasurementsTemplateBuilder,
+  [TemplateType.FieldKeys]: FieldKeysTemplateBuilder,
+  [TemplateType.TagKeys]: TagKeysTemplateBuilder,
+  [TemplateType.TagValues]: TagValuesTemplateBuilder,
+  [TemplateType.MetaQuery]: MetaQueryTemplateBuilder,
 }
 
 const formatName = name => `:${name.replace(/:/g, '')}:`
@@ -175,15 +172,13 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private get templateBuilder(): ComponentClass<TemplateBuilderProps> {
     const {
-      nextTemplate: {builderType},
+      nextTemplate: {type},
     } = this.state
 
-    const component = TEMPLATE_BUILDERS[builderType]
+    const component = TEMPLATE_BUILDERS[type]
 
     if (!component) {
-      throw new Error(
-        `Could not find template builder for type "${builderType}"`
-      )
+      throw new Error(`Could not find template builder for type "${type}"`)
     }
 
     return component
@@ -193,13 +188,13 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     this.setState({nextTemplate})
   }
 
-  private handleChooseType = ({builderType}) => {
+  private handleChooseType = ({type}) => {
     const {
       nextTemplate: {id, tempVar},
     } = this.state
 
     const nextNextTemplate = {
-      ...DEFAULT_TEMPLATES[builderType](),
+      ...DEFAULT_TEMPLATES[type](),
       id,
       tempVar,
     }
@@ -290,11 +285,11 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private get dropdownSelection(): string {
     const {
-      nextTemplate: {builderType},
+      nextTemplate: {type},
     } = this.state
 
     return getDeep(
-      TEMPLATE_TYPES_LIST.filter(t => t.builderType === builderType),
+      TEMPLATE_TYPES_LIST.filter(t => t.type === type),
       '0.text',
       ''
     )

@@ -1,10 +1,5 @@
 import {Source, Template, Dashboard, Cell, CellType} from 'src/types'
-import {
-  SourceLinks,
-  TemplateType,
-  BuilderType,
-  TemplateValueType,
-} from 'src/types'
+import {SourceLinks, TemplateType, TemplateValueType} from 'src/types'
 
 export const role = {
   name: '',
@@ -596,7 +591,6 @@ export const hosts = {
 export const template: Template = {
   id: '1',
   type: TemplateType.TagKeys,
-  builderType: BuilderType.TagKeys,
   label: 'test query',
   tempVar: ':region:',
   query: {

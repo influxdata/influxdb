@@ -3,7 +3,7 @@ import {shallow} from 'enzyme'
 
 import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
-import {TemplateType, TemplateValueType, BuilderType} from 'src/types'
+import {TemplateType, TemplateValueType} from 'src/types'
 import {source} from 'test/resources'
 
 const defaultProps = {
@@ -14,7 +14,6 @@ const defaultProps = {
       tempVar: ':alpha:',
       label: '',
       type: TemplateType.Constant,
-      builderType: BuilderType.Constant,
       values: [
         {
           value: 'firstValue',
