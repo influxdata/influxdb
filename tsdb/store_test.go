@@ -533,6 +533,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer itr.Close()
 		fitr := itr.(query.FloatIterator)
 
 		// Read values from iterator. The host=serverA points should come first.

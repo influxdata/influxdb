@@ -23,6 +23,7 @@ v1.6.0 [unreleased]
 -	[#9888](https://github.com/influxdata/influxdb/pull/9888): HTTP Write Throttle.
 -	[#9822](https://github.com/influxdata/influxdb/pull/9822): Implement SHOW STATS FOR 'indexes'.
 -	[#9832](https://github.com/influxdata/influxdb/pull/9832): Add dumptsmwal command to influx_inspect.
+-	[#9959](https://github.com/influxdata/influxdb/pull/9959): Improve the number of regex patterns that are optimized to static OR conditions.
 
 ### Bugfixes
 
