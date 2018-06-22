@@ -34,12 +34,14 @@ import {colorForSeverity} from 'src/logs/utils/colors'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 
 import {Source, Namespace, TimeRange} from 'src/types'
-<<<<<<< HEAD
-import {Filter, SeverityLevel} from 'src/types/logs'
+
 import {HistogramData, TimePeriod} from 'src/types/histogram'
-=======
-import {Filter, SeverityLevel, SeverityFormat} from 'src/types/logs'
->>>>>>> Add UI for toggling severity format
+import {
+  Filter,
+  SeverityLevel,
+  SeverityFormat,
+  LogsTableColumn,
+} from 'src/types/logs'
 
 // Mock
 import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
@@ -300,10 +302,7 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private handleShowOptionsOverlay = (): void => {
-    const {
-      showOverlay,
-      tableData: {columns},
-    } = this.props
+    const {showOverlay} = this.props
     const options = {
       dismissOnClickOutside: false,
       dismissOnEscape: false,
@@ -316,7 +315,8 @@ class LogsPage extends PureComponent<Props, State> {
             severityLevels={DEFAULT_SEVERITY_LEVELS} // Todo: replace with real
             onUpdateSeverityLevels={this.handleUpdateSeverityLevels}
             onDismissOverlay={onDismissOverlay}
-            columns={columns}
+            columns={this.fakeColumns}
+            onUpdateColumns={this.handleUpdateColumns}
             onUpdateSeverityFormat={this.handleUpdateSeverityFormat}
             severityFormat="dotText" // Todo: repleace with real value
           />
@@ -328,12 +328,25 @@ class LogsPage extends PureComponent<Props, State> {
 
   private handleUpdateSeverityLevels = (levels: SeverityLevel[]) => {
     console.log(levels)
-    // Save these new configs here
+    // Todo: Handle saving of these new severity colors here
   }
 
   private handleUpdateSeverityFormat = (format: SeverityFormat) => {
     console.log(format)
-    // Save these new configs here
+    // Todo: Handle saving of the new format here
+  }
+
+  private get fakeColumns(): LogsTableColumn[] {
+    const {
+      tableData: {columns},
+    } = this.props
+
+    return columns.map(c => ({internalName: c, displayName: '', visible: true}))
+  }
+
+  private handleUpdateColumns = (columns: LogsTableColumn[]) => {
+    console.log(columns)
+    // Todo: Handle saving of column names, ordering, and visibility
   }
 }
 

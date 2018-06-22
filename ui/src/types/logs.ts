@@ -38,3 +38,9 @@ export interface SeverityColor {
 }
 
 export type SeverityFormat = 'dot' | 'dotText' | 'text'
+
+export interface LogsTableColumn {
+  internalName: string
+  displayName: string
+  visible: boolean
+}

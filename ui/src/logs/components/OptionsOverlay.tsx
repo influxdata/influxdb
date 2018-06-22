@@ -6,24 +6,32 @@ import Heading from 'src/shared/components/overlay/OverlayHeading'
 import Body from 'src/shared/components/overlay/OverlayBody'
 import SeverityOptions from 'src/logs/components/SeverityOptions'
 import ColumnsOptions from 'src/logs/components/ColumnsOptions'
-import {SeverityLevel, SeverityColor, SeverityFormat} from 'src/types/logs'
+import {
+  SeverityLevel,
+  SeverityColor,
+  SeverityFormat,
+  LogsTableColumn,
+} from 'src/types/logs'
 import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   severityLevels: SeverityLevel[]
   onUpdateSeverityLevels: (severityLevels: SeverityLevel[]) => void
   onDismissOverlay: () => void
-  columns: string[]
+  columns: LogsTableColumn[]
+  onUpdateColumns: (columns: LogsTableColumn[]) => void
   severityFormat: SeverityFormat
   onUpdateSeverityFormat: (format: SeverityFormat) => void
 }
 
 interface State {
   workingSeverityLevels: SeverityLevel[]
-  workingColumns: string[]
+  workingColumns: LogsTableColumn[]
   workingFormat: SeverityFormat
 }
 
+@ErrorHandling
 class OptionsOverlay extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
@@ -39,13 +47,13 @@ class OptionsOverlay extends Component<Props, State> {
     const {workingSeverityLevels, workingColumns, workingFormat} = this.state
 
     return (
-      <Container maxWidth={700}>
+      <Container maxWidth={800}>
         <Heading title="Configure Log Viewer">
           {this.overlayActionButtons}
         </Heading>
         <Body>
           <div className="row">
-            <div className="col-sm-6">
+            <div className="col-sm-5">
               <SeverityOptions
                 severityLevels={workingSeverityLevels}
                 onReset={this.handleResetSeverityLevels}
@@ -54,8 +62,12 @@ class OptionsOverlay extends Component<Props, State> {
                 onChangeSeverityFormat={this.handleChangeSeverityFormat}
               />
             </div>
-            <div className="col-sm-6">
-              <ColumnsOptions columns={workingColumns} />
+            <div className="col-sm-7">
+              <ColumnsOptions
+                columns={workingColumns}
+                onMoveColumn={this.handleMoveColumn}
+                onUpdateColumn={this.handleUpdateColumn}
+              />
             </div>
           </div>
         </Body>
@@ -102,11 +114,13 @@ class OptionsOverlay extends Component<Props, State> {
       onUpdateSeverityLevels,
       onDismissOverlay,
       onUpdateSeverityFormat,
+      onUpdateColumns,
     } = this.props
-    const {workingSeverityLevels, workingFormat} = this.state
+    const {workingSeverityLevels, workingFormat, workingColumns} = this.state
 
     onUpdateSeverityFormat(workingFormat)
     onUpdateSeverityLevels(workingSeverityLevels)
+    onUpdateColumns(workingColumns)
     onDismissOverlay()
   }
 
@@ -132,6 +146,37 @@ class OptionsOverlay extends Component<Props, State> {
 
   private handleChangeSeverityFormat = (format: SeverityFormat) => () => {
     this.setState({workingFormat: format})
+  }
+
+  private handleMoveColumn = (dragIndex, hoverIndex) => {
+    const {workingColumns} = this.state
+
+    const draggedField = workingColumns[dragIndex]
+
+    const columnsRemoved = _.concat(
+      _.slice(workingColumns, 0, dragIndex),
+      _.slice(workingColumns, dragIndex + 1)
+    )
+
+    const columnsAdded = _.concat(
+      _.slice(columnsRemoved, 0, hoverIndex),
+      [draggedField],
+      _.slice(columnsRemoved, hoverIndex)
+    )
+
+    this.setState({workingColumns: columnsAdded})
+  }
+
+  private handleUpdateColumn = (column: LogsTableColumn) => {
+    const workingColumns = this.state.workingColumns.map(wc => {
+      if (wc.internalName === column.internalName) {
+        return column
+      }
+
+      return wc
+    })
+
+    this.setState({workingColumns})
   }
 }
 

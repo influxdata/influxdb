@@ -20,12 +20,12 @@ const SeverityConfig: SFC<Props> = ({
   onChangeSeverityFormat,
 }) => (
   <>
-    <label className="form-label">Customize Severity Colors</label>
+    <label className="form-label">Severity Colors</label>
     <div className="logs-options--color-list">
       {severityLevels.map(config => (
         <div key={uuid.v4()} className="logs-options--color-row">
           <div className="logs-options--color-column">
-            <div className="logs-options--label">{config.severity}</div>
+            <div className="logs-options--color-label">{config.severity}</div>
           </div>
           <div className="logs-options--color-column">
             <ColorDropdown

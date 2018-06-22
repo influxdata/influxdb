@@ -20,7 +20,7 @@
   width: 50%;
 }
 
-.logs-options--label {
+.logs-options--color-label {
   height: 30px;
   border-radius: $radius;
   background-color: $g3-castle;
@@ -34,4 +34,10 @@
   font-size: 13px;
   margin-right: 4px;
   @include no-user-select();
+}
+
+// Not very clean way of slightly darkening the disabled state
+// of draggable columns in the overlay
+.logs-options--columns .customizable-field--label__hidden {
+  background-color: $g3-castle;
 }
