@@ -1,21 +1,26 @@
-import React, {Component} from 'react'
+import React, {Component, ComponentClass} from 'react'
 
-const ManualRefresh = WrappedComponent =>
-  class extends Component {
-    constructor(props) {
+export interface ManualRefreshProps {
+  manualRefresh: number
+  onManualRefresh: () => void
+}
+
+interface ManualRefreshState {
+  manualRefresh: number
+}
+
+const ManualRefresh = <P extends ManualRefreshProps>(
+  WrappedComponent: ComponentClass<P>
+): ComponentClass<P> =>
+  class extends Component<P, ManualRefreshState> {
+    public constructor(props: P) {
       super(props)
       this.state = {
         manualRefresh: Date.now(),
       }
     }
 
-    handleManualRefresh = () => {
-      this.setState({
-        manualRefresh: Date.now(),
-      })
-    }
-
-    render() {
+    public render() {
       return (
         <WrappedComponent
           {...this.props}
@@ -23,6 +28,12 @@ const ManualRefresh = WrappedComponent =>
           onManualRefresh={this.handleManualRefresh}
         />
       )
+    }
+
+    private handleManualRefresh = (): void => {
+      this.setState({
+        manualRefresh: Date.now(),
+      })
     }
   }
 
