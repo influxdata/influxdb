@@ -26,7 +26,7 @@ $grid--col-12: 100%;
 
 .row {
   display: inline-block;
-  width: 100%;
+  width: calc(100% + #{$grid--gutter * 2});
   margin-left: -$grid--gutter;
   margin-right: -$grid--gutter;
 
