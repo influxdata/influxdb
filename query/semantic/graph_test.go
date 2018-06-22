@@ -2,6 +2,7 @@ package semantic_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/query/ast"
@@ -46,6 +47,75 @@ func TestNew(t *testing.T) {
 					},
 					&semantic.ExpressionStatement{
 						Expression: &semantic.IdentifierExpression{Name: "a"},
+					},
+				},
+			},
+		},
+		{
+			name: "options declaration",
+			program: &ast.Program{
+				Body: []ast.Statement{
+					&ast.OptionStatement{
+						Declaration: &ast.VariableDeclarator{
+							ID: &ast.Identifier{Name: "task"},
+							Init: &ast.ObjectExpression{
+								Properties: []*ast.Property{
+									{
+										Key:   &ast.Identifier{Name: "name"},
+										Value: &ast.StringLiteral{Value: "foo"},
+									},
+									{
+										Key:   &ast.Identifier{Name: "every"},
+										Value: &ast.DurationLiteral{Value: 1 * time.Hour},
+									},
+									{
+										Key:   &ast.Identifier{Name: "delay"},
+										Value: &ast.DurationLiteral{Value: 10 * time.Minute},
+									},
+									{
+										Key:   &ast.Identifier{Name: "cron"},
+										Value: &ast.StringLiteral{Value: "0 2 * * *"},
+									},
+									{
+										Key:   &ast.Identifier{Name: "retry"},
+										Value: &ast.IntegerLiteral{Value: 5},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &semantic.Program{
+				Body: []semantic.Statement{
+					&semantic.OptionStatement{
+						Declaration: &semantic.NativeVariableDeclaration{
+							Identifier: &semantic.Identifier{Name: "task"},
+							Init: &semantic.ObjectExpression{
+								Properties: []*semantic.Property{
+									{
+										Key:   &semantic.Identifier{Name: "name"},
+										Value: &semantic.StringLiteral{Value: "foo"},
+									},
+									{
+										Key:   &semantic.Identifier{Name: "every"},
+										Value: &semantic.DurationLiteral{Value: 1 * time.Hour},
+									},
+									{
+										Key:   &semantic.Identifier{Name: "delay"},
+										Value: &semantic.DurationLiteral{Value: 10 * time.Minute},
+									},
+									{
+										Key:   &semantic.Identifier{Name: "cron"},
+										Value: &semantic.StringLiteral{Value: "0 2 * * *"},
+									},
+									{
+										Key:   &semantic.Identifier{Name: "retry"},
+										Value: &semantic.IntegerLiteral{Value: 5},
+									},
+								},
+							},
+						},
 					},
 				},
 			},

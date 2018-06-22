@@ -26,6 +26,11 @@ func walk(v Visitor, n Node) {
 				walk(w, s)
 			}
 		}
+	case *OptionStatement:
+		w := v.Visit(n)
+		if w != nil {
+			walk(w, n.Declaration)
+		}
 	case *ExpressionStatement:
 		w := v.Visit(n)
 		if w != nil {
