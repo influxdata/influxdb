@@ -177,7 +177,7 @@ class AxesOptions extends Component {
             <Tabber labelText="Scale">
               <Tab
                 text="Linear"
-                isActive={scale === LINEAR}
+                isActive={scale === LINEAR || scale === ''}
                 onClickTab={this.handleSetScale(LINEAR)}
               />
               <Tab
