@@ -49,7 +49,14 @@ import {getDeep} from 'src/utils/wrappers'
 
 import {Location} from 'history'
 import {InjectedRouter} from 'react-router'
-import {Cell, Dashboard as IDashboard, Source, TimeRange} from 'src/types'
+import {
+  Cell,
+  Dashboard as IDashboard,
+  Source,
+  Template,
+  TemplateValue,
+  TimeRange,
+} from 'src/types'
 import {DashboardName} from 'src/types/dashboard'
 import {ColorNumber, ColorString} from 'src/types/colors'
 import * as AnnotationActions from 'src/shared/actions/annotations'
@@ -71,6 +78,11 @@ interface DashboardActions {
   addDashboardCellAsync: DashboardActions.AddDashboardCellDispatcher
   editCellQueryStatus: DashboardActions.EditCellQueryStatusActionCreator
   updateDashboardCell: DashboardActions.UpdateDashboardCellDispatcher
+  cloneDashboardCellAsync: DashboardActions.CloneDashboardCellDispatcher
+  deleteDashboardCellAsync: DashboardActions.DeleteDashboardCellDispatcher
+  templateVariableSelected: DashboardActions.TemplateVariableSelectedActionCreator
+  syncURLQueryFromTempVars: DashboardActions.SyncURLQueryFromTempVarsDispatcher
+  setZoomedTimeRangeAsync: DashboardActions.SetZoomedTimeRangeDispatcher
 }
 
 interface Props {
@@ -174,7 +186,7 @@ class DashboardPage extends Component<Props, State> {
     this.getDashboardsNames()
   }
 
-  public componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps: Props) {
     const {source, getAnnotationsAsync, timeRange} = this.props
     if (this.props.autoRefresh !== nextProps.autoRefresh) {
       clearInterval(this.intervalID)
@@ -187,7 +199,7 @@ class DashboardPage extends Component<Props, State> {
     }
   }
 
-  public componentDidUpdate(prevProps) {
+  public componentDidUpdate(prevProps: Props) {
     const prevPath = getDeep(prevProps.location, 'pathname', null)
     const thisPath = getDeep(this.props.location, 'pathname', null)
 
@@ -214,7 +226,6 @@ class DashboardPage extends Component<Props, State> {
       zoomedTimeRange: {lower: zoomedLower, upper: zoomedUpper},
       showTemplateControlBar,
       dashboard,
-      dashboards,
       dashboardID,
       lineColors,
       gaugeColors,
@@ -231,7 +242,6 @@ class DashboardPage extends Component<Props, State> {
       handleShowCellEditorOverlay,
       handleHideCellEditorOverlay,
       handleClickPresentationButton,
-      params: {sourceID},
     } = this.props
     const {dashboardsNames} = this.state
 
@@ -388,7 +398,7 @@ class DashboardPage extends Component<Props, State> {
     this.setState({dashboardsNames})
   }
 
-  private inView = cell => {
+  private inView = (cell: Cell): boolean => {
     const {scrollTop, windowHeight} = this.state
     const bufferValue = 600
     const cellTop = cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT
@@ -401,18 +411,17 @@ class DashboardPage extends Component<Props, State> {
     return topInView && bottomInView
   }
 
-  private handleSaveEditedCell = newCell => {
+  private handleSaveEditedCell = async (newCell: Cell): Promise<void> => {
     const {
       dashboardActions,
       dashboard,
       handleHideCellEditorOverlay,
     } = this.props
-    dashboardActions
-      .updateDashboardCell(dashboard, newCell)
-      .then(handleHideCellEditorOverlay)
+    await dashboardActions.updateDashboardCell(dashboard, newCell)
+    handleHideCellEditorOverlay()
   }
 
-  private handleChooseTimeRange = timeRange => {
+  private handleChooseTimeRange = (timeRange: TimeRange): void => {
     const {
       dashboard,
       dashboardActions,
@@ -435,7 +444,7 @@ class DashboardPage extends Component<Props, State> {
     getAnnotationsAsync(source.links.annotations, annotationRange)
   }
 
-  private handleUpdatePosition = cells => {
+  private handleUpdatePosition = (cells: Cell[]): void => {
     const {dashboardActions, dashboard, meRole, isUsingAuth} = this.props
     const newDashboard = {...dashboard, cells}
 
@@ -448,21 +457,21 @@ class DashboardPage extends Component<Props, State> {
     }
   }
 
-  private handleAddCell = () => {
+  private handleAddCell = (): void => {
     const {dashboardActions, dashboard} = this.props
     dashboardActions.addDashboardCellAsync(dashboard)
   }
 
-  private handleCloneCell = cell => {
+  private handleCloneCell = (cell: Cell): void => {
     const {dashboardActions, dashboard} = this.props
     dashboardActions.cloneDashboardCellAsync(dashboard, cell)
   }
 
-  private handleEditDashboard = () => {
+  private handleEditDashboard = (): void => {
     this.setState({isEditMode: true})
   }
 
-  private handleCancelEditDashboard = () => {
+  private handleCancelEditDashboard = (): void => {
     this.setState({isEditMode: false})
   }
 
@@ -476,17 +485,14 @@ class DashboardPage extends Component<Props, State> {
     this.getDashboardsNames()
   }
 
-  private handleUpdateDashboardCell = newCell => () => {
-    const {dashboardActions, dashboard} = this.props
-    dashboardActions.updateDashboardCell(dashboard, newCell)
-  }
-
-  private handleDeleteDashboardCell = cell => {
+  private handleDeleteDashboardCell = (cell: Cell): void => {
     const {dashboardActions, dashboard} = this.props
     dashboardActions.deleteDashboardCellAsync(dashboard, cell)
   }
 
-  private handleSelectTemplate = templateID => value => {
+  private handleSelectTemplate = (
+    templateID: string
+  ): ((value: TemplateValue) => void) => (value: TemplateValue): void => {
     const {dashboardActions, dashboard, dashboardID, location} = this.props
 
     const currentTempVar = dashboard.templates.find(
@@ -508,7 +514,9 @@ class DashboardPage extends Component<Props, State> {
     dashboardActions.putDashboardByID(dashboardID)
   }
 
-  private handleSaveTemplateVariables = async templates => {
+  private handleSaveTemplateVariables = async (
+    templates: Template[]
+  ): Promise<void> => {
     const {location, dashboardActions, dashboard} = this.props
 
     try {
@@ -530,18 +538,12 @@ class DashboardPage extends Component<Props, State> {
     }
   }
 
-  private handleRunQueryFailure = error => {
-    console.error(error)
-    this.props.errorThrown(error)
-  }
-
-  private handleToggleTempVarControls = () => {
+  private handleToggleTempVarControls = (): void => {
     this.props.templateControlBarVisibilityToggled()
   }
 
-  private handleZoomedTimeRange = (zoomedLower, zoomedUpper) => {
+  private handleZoomedTimeRange = (zoomedTimeRange: TimeRange): void => {
     const {dashboardActions, location} = this.props
-    const zoomedTimeRange = {lower: zoomedLower, upper: zoomedUpper}
     dashboardActions.setZoomedTimeRangeAsync(zoomedTimeRange, location)
   }
 

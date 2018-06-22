@@ -1,4 +1,4 @@
-import {TimeRangeOption} from 'src/types/dashboard'
+import {TimeRangeOption} from 'src/types/query'
 
 const nowMinus30d = 'now() - 30d'
 

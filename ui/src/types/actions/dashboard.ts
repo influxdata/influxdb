@@ -24,8 +24,7 @@ export interface LoadDashboardsAction {
 }
 
 export type LoadDashboardActionCreator = (
-  dashboards: DashboardData.Dashboard[],
-  dashboardID?: number
+  dashboard: DashboardData.Dashboard
 ) => LoadDashboardAction
 
 export interface LoadDashboardAction {
@@ -70,6 +69,22 @@ export interface SetTimeRangeAction {
   }
 }
 
+export type SetZoomedTimeRangeDispatcher = (
+  zoomedTimeRange: QueryData.TimeRange,
+  location: Location
+) => SetZoomedTimeRangeThunk
+
+export type SetZoomedTimeRangeThunk = (
+  dispatch: Dispatch<
+    | SetZoomedTimeRangeActionCreator
+    | SyncURLQueryFromQueryParamsObjectDispatcher
+  >
+) => Promise<void>
+
+export type SetZoomedTimeRangeActionCreator = (
+  zoomedTimeRange: QueryData.TimeRange
+) => SetZoomedTimeRangeAction
+
 export interface SetZoomedTimeRangeAction {
   type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE'
   payload: {
@@ -88,6 +103,10 @@ export type UpdateDashboardActionCreator = (
   dashboard: DashboardData.Dashboard
 ) => UpdateDashboardAction
 
+export type CreateDashboardActionCreator = (
+  dashboard: DashboardData.Dashboard
+) => CreateDashboardAction
+
 export interface CreateDashboardAction {
   type: 'CREATE_DASHBOARD'
   payload: {
@@ -95,13 +114,20 @@ export interface CreateDashboardAction {
   }
 }
 
+export type DeleteDashboardActionCreator = (
+  dashboard: DashboardData.Dashboard
+) => DeleteDashboardAction
+
 export interface DeleteDashboardAction {
   type: 'DELETE_DASHBOARD'
   payload: {
     dashboard: DashboardData.Dashboard
-    dashboardID: number
   }
 }
+
+export type DeleteDashboardFailedActionCreator = (
+  dashboard: DashboardData.Dashboard
+) => DeleteDashboardFailedAction
 
 export interface DeleteDashboardFailedAction {
   type: 'DELETE_DASHBOARD_FAILED'
@@ -123,6 +149,24 @@ export interface SyncDashboardCellAction {
   }
 }
 
+export type AddDashboardCellDispatcher = (
+  dashboard: DashboardData.Dashboard,
+  cellType?: DashboardData.CellType
+) => AddDashboardCellThunk
+
+export type AddDashboardCellThunk = (
+  dispatch: Dispatch<
+    | AddDashboardCellAction
+    | NotificationActions.PublishNotificationActionCreator
+    | ErrorActions.ErrorThrownActionCreator
+  >
+) => Promise<void>
+
+export type AddDashboardCellActionCreator = (
+  dashboard: DashboardData.Dashboard,
+  cell: DashboardData.Cell
+) => AddDashboardCellAction
+
 export interface AddDashboardCellAction {
   type: 'ADD_DASHBOARD_CELL'
   payload: {
@@ -130,6 +174,38 @@ export interface AddDashboardCellAction {
     cell: DashboardData.Cell
   }
 }
+
+export type CloneDashboardCellDispatcher = (
+  dashboard: DashboardData.Dashboard,
+  cell: DashboardData.Cell
+) => CloneDashboardCellThunk
+
+export type CloneDashboardCellThunk = (
+  dispatch: Dispatch<
+    | AddDashboardCellAction
+    | NotificationActions.PublishNotificationActionCreator
+    | ErrorActions.ErrorThrownActionCreator
+  >
+) => Promise<void>
+
+export type DeleteDashboardCellDispatcher = (
+  dashboard: DashboardData.Dashboard,
+  cell: DashboardData.Cell
+) => DeleteDashboardCellThunk
+
+export type DeleteDashboardCellThunk = (
+  dispatch: Dispatch<
+    | DeleteDashboardCellActionCreator
+    | NotificationActions.PublishNotificationActionCreator
+    | ErrorActions.ErrorThrownActionCreator
+  >
+) => Promise<void>
+
+export type DeleteDashboardCellActionCreator = (
+  dashboard: DashboardData.Dashboard,
+  cell: DashboardData.Cell
+) => DeleteDashboardCellAction
+
 export interface DeleteDashboardCellAction {
   type: 'DELETE_DASHBOARD_CELL'
   payload: {
@@ -151,6 +227,12 @@ export interface EditCellQueryStatusAction {
   }
 }
 
+export type TemplateVariableSelectedActionCreator = (
+  dashboardID: number,
+  templateID: string,
+  values: any[]
+) => TemplateVariableSelectedAction
+
 export interface TemplateVariableSelectedAction {
   type: 'TEMPLATE_VARIABLE_SELECTED'
   payload: {
@@ -160,6 +242,11 @@ export interface TemplateVariableSelectedAction {
   }
 }
 
+export type TemplateVariablesSelectedByNameActionCreator = (
+  dashboardID: number,
+  queryParams: TempVarData.URLQueryParams
+) => TemplateVariablesSelectedByNameAction
+
 export interface TemplateVariablesSelectedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
@@ -167,6 +254,12 @@ export interface TemplateVariablesSelectedByNameAction {
     queryParams: TempVarData.URLQueryParams
   }
 }
+
+export type EditTemplateVariableValuesActionCreator = (
+  dashboardID: number,
+  templateID: string,
+  values: any[]
+) => EditTemplateVariableValuesAction
 
 export interface EditTemplateVariableValuesAction {
   type: 'EDIT_TEMPLATE_VARIABLE_VALUES'
@@ -177,12 +270,20 @@ export interface EditTemplateVariableValuesAction {
   }
 }
 
+export type SetHoverTimeActionCreator = (
+  hoverTime: string
+) => SetHoverTimeAction
+
 export interface SetHoverTimeAction {
   type: 'SET_HOVER_TIME'
   payload: {
     hoverTime: string
   }
 }
+
+export type SetActiveCellActionCreator = (
+  activeCellID: string
+) => SetActiveCellAction
 
 export interface SetActiveCellAction {
   type: 'SET_ACTIVE_CELL'
@@ -224,6 +325,19 @@ export type PutDashboardByIDThunk = (
   getState: () => DashboardReducers.Dashboards
 ) => Promise<void>
 
+export type DeleteDashboardDispatcher = (
+  dashboard: DashboardData.Dashboard
+) => DeleteDashboardThunk
+
+export type DeleteDashboardThunk = (
+  dispatch: Dispatch<
+    | DeleteDashboardActionCreator
+    | NotificationActions.PublishNotificationActionCreator
+    | ErrorActions.ErrorThrownActionCreator
+    | DeleteDashboardFailedActionCreator
+  >
+) => Promise<void>
+
 export type UpdateDashboardCellDispatcher = (
   dashboard: DashboardData.Dashboard,
   cell: DashboardData.Cell
@@ -232,19 +346,6 @@ export type UpdateDashboardCellDispatcher = (
 export type UpdateDashboardCellThunk = (
   dispatch: Dispatch<
     SyncDashboardCellActionCreator | ErrorActions.ErrorThrownActionCreator
-  >
-) => Promise<void>
-
-export type AddDashboardCellDispatcher = (
-  dashboard: DashboardData.Dashboard,
-  cellType: DashboardData.CellType
-) => AddDashboardCellThunk
-
-export type AddDashboardCellThunk = (
-  dispatch: Dispatch<
-    | AddDashboardCellAction
-    | NotificationActions.PublishNotificationActionCreator
-    | ErrorActions.ErrorThrownActionCreator
   >
 ) => Promise<void>
 
@@ -258,7 +359,7 @@ export type SyncURLQueryFromTempVarsDispatcher = (
   location: Location,
   tempVars: TempVarData.Template[],
   deletedTempVars: TempVarData.Template[],
-  urlQueryParamsTimeRanges: TempVarData.URLQueryParams
+  urlQueryParamsTimeRanges?: TempVarData.URLQueryParams
 ) => SyncURLQueryFromQueryParamsObjectActionCreator
 
 export type SyncURLQueryFromQueryParamsObjectActionCreator = (

@@ -55,7 +55,7 @@ const getNextAvailablePosition = (dashboard, newCell) => {
 
 export const getNewDashboardCell = (
   dashboard: Dashboard,
-  cellType: CellType
+  cellType?: CellType
 ): NewDefaultCell => {
   const type = cellType || CellType.Line
   const typedCell = {
