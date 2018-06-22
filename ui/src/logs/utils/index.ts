@@ -4,6 +4,7 @@ import uuid from 'uuid'
 import {Filter} from 'src/types/logs'
 import {TimeRange, Namespace, QueryConfig} from 'src/types'
 import {NULL_STRING} from 'src/shared/constants/queryFillOptions'
+import {getDeep} from 'src/utils/wrappers'
 import {
   quoteIfTimestamp,
   buildSelect,
@@ -11,6 +12,8 @@ import {
   buildGroupBy,
   buildFill,
 } from 'src/utils/influxql'
+
+import {HistogramData} from 'src/types/histogram'
 
 const BIN_COUNT = 30
 
@@ -156,7 +159,7 @@ const computeSeconds = (range: TimeRange) => {
 const createGroupBy = (range: TimeRange) => {
   const seconds = computeSeconds(range)
   const time = `${Math.max(Math.floor(seconds / BIN_COUNT), 1)}s`
-  const tags = []
+  const tags = ['severity']
 
   return {time, tags}
 }
@@ -196,4 +199,40 @@ export const buildTableQueryConfig = (
     fields: tableFields,
     fill: null,
   }
+}
+
+export const parseHistogramQueryResponse = (
+  response: object
+): HistogramData => {
+  const series = getDeep<any[]>(response, 'results.0.series', [])
+  const data = series.reduce((acc, current) => {
+    const group = getDeep<string>(current, 'tags.severity', '')
+
+    if (!current.columns || !current.values) {
+      return acc
+    }
+
+    const timeColIndex = current.columns.findIndex(v => v === 'time')
+    const countColIndex = current.columns.findIndex(v => v === 'count')
+
+    if (timeColIndex < 0 || countColIndex < 0) {
+      return acc
+    }
+
+    const vs = current.values.map(v => {
+      const time = v[timeColIndex]
+      const value = v[countColIndex]
+
+      return {
+        key: `${group} ${value} ${time}`,
+        time,
+        value,
+        group,
+      }
+    })
+
+    return [...acc, ...vs]
+  }, [])
+
+  return data
 }

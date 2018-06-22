@@ -1,6 +1,9 @@
 import React, {PureComponent} from 'react'
 import uuid from 'uuid'
+import _ from 'lodash'
 import {connect} from 'react-redux'
+import {AutoSizer} from 'react-virtualized'
+
 import {
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
@@ -15,15 +18,16 @@ import {
 } from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
-import Graph from 'src/logs/components/LogsGraph'
+import HistogramChart from 'src/shared/components/HistogramChart'
+import LogsGraphContainer from 'src/logs/components/LogsGraphContainer'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
-import LogViewerChart from 'src/logs/components/LogViewerChart'
 import LogsTable from 'src/logs/components/LogsTable'
 import {getDeep} from 'src/utils/wrappers'
 
-import {Source, Namespace, TimeRange} from 'src/types'
+import {Source, Namespace, TimeRange, RemoteDataState} from 'src/types'
 import {Filter} from 'src/types/logs'
+import {HistogramData, TimePeriod} from 'src/types/histogram'
 
 interface Props {
   sources: Source[]
@@ -42,7 +46,8 @@ interface Props {
   removeFilter: (id: string) => void
   changeFilter: (id: string, operator: string, value: string) => void
   timeRange: TimeRange
-  histogramData: object[]
+  histogramData: HistogramData
+  histogramDataStatus: RemoteDataState
   tableData: {
     columns: string[]
     values: string[]
@@ -97,7 +102,7 @@ class LogsPage extends PureComponent<Props, State> {
       <div className="page">
         {this.header}
         <div className="page-contents logs-viewer">
-          <Graph>{this.chart}</Graph>
+          <LogsGraphContainer>{this.chart}</LogsGraphContainer>
           <SearchBar
             searchString={searchTerm}
             onSearch={this.handleSubmitSearch}
@@ -170,24 +175,24 @@ class LogsPage extends PureComponent<Props, State> {
   private get histogramTotal(): number {
     const {histogramData} = this.props
 
-    const values = getDeep<Array<[number, number]>>(
-      histogramData,
-      '0.response.results.0.series.0.values',
-      []
-    )
-
-    return values.reduce((acc, v) => acc + v[1], 0)
+    return _.sumBy(histogramData, 'value')
   }
 
   private get chart(): JSX.Element {
-    const {histogramData, timeRange} = this.props
+    const {histogramData, histogramDataStatus} = this.props
 
     return (
-      <LogViewerChart
-        timeRange={timeRange}
-        data={histogramData}
-        onZoom={this.handleChartZoom}
-      />
+      <AutoSizer>
+        {({width, height}) => (
+          <HistogramChart
+            data={histogramData}
+            dataStatus={histogramDataStatus}
+            width={width}
+            height={height}
+            onZoom={this.handleChartZoom}
+          />
+        )}
+      </AutoSizer>
     )
   }
 
@@ -262,11 +267,15 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.setNamespaceAsync(namespace)
   }
 
-  private handleChartZoom = (timeRange: TimeRange) => {
-    if (timeRange.lower) {
-      this.props.changeZoomAsync(timeRange)
-      this.setState({liveUpdating: true})
+  private handleChartZoom = (t: TimePeriod) => {
+    const {start, end} = t
+    const timeRange = {
+      lower: new Date(start).toISOString(),
+      upper: new Date(end).toISOString(),
     }
+
+    this.props.changeZoomAsync(timeRange)
+    this.setState({liveUpdating: true})
   }
 
   private fetchNewDataset() {
@@ -283,6 +292,7 @@ const mapStateToProps = ({
     timeRange,
     currentNamespace,
     histogramData,
+    histogramDataStatus,
     tableData,
     searchTerm,
     filters,
@@ -295,6 +305,7 @@ const mapStateToProps = ({
   timeRange,
   currentNamespace,
   histogramData,
+  histogramDataStatus,
   tableData,
   searchTerm,
   filters,

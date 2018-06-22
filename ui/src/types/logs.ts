@@ -1,4 +1,10 @@
-import {QueryConfig, TimeRange, Namespace, Source} from 'src/types'
+import {
+  QueryConfig,
+  TimeRange,
+  Namespace,
+  Source,
+  RemoteDataState,
+} from 'src/types'
 
 export interface Filter {
   id: string
@@ -19,6 +25,7 @@ export interface LogsState {
   timeRange: TimeRange
   histogramQueryConfig: QueryConfig | null
   histogramData: object[]
+  histogramDataStatus: RemoteDataState
   tableQueryConfig: QueryConfig | null
   tableData: TableData
   searchTerm: string | null
