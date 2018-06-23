@@ -369,9 +369,9 @@ class DashboardPage extends Component<Props, State> {
     this.setState({windowHeight: window.innerHeight})
   }
 
-  private async getDashboard(): Promise<
+  private getDashboard = async (): Promise<
     DashboardActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk
-  > {
+  > => {
     const {
       dashboardID,
       dashboardActions: {getDashboardWithHydratedAndSyncedTempVarsAsync},
@@ -388,7 +388,7 @@ class DashboardPage extends Component<Props, State> {
     )
   }
 
-  private async getDashboardsNames(): Promise<void> {
+  private getDashboardsNames = async (): Promise<void> => {
     const {
       params: {sourceID},
       dashboardActions: {getDashboardsNamesAsync},
