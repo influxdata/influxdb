@@ -1,39 +1,38 @@
 import * as api from 'src/shared/apis/annotation'
 import {Dispatch} from 'redux'
-import * as AnnotationData from 'src/types/annotations'
-import * as AnnotationActions from 'src/types/actions/annotations'
+import * as Types from 'src/types/modules'
 
-export const editingAnnotation = (): AnnotationActions.EditingAnnotationAction => ({
+export const editingAnnotation = (): Types.Annotations.Actions.EditingAnnotationAction => ({
   type: 'EDITING_ANNOTATION',
 })
 
-export const dismissEditingAnnotation = (): AnnotationActions.DismissEditingAnnotationAction => ({
+export const dismissEditingAnnotation = (): Types.Annotations.Actions.DismissEditingAnnotationAction => ({
   type: 'DISMISS_EDITING_ANNOTATION',
 })
 
-export const addingAnnotation = (): AnnotationActions.AddingAnnotationAction => ({
+export const addingAnnotation = (): Types.Annotations.Actions.AddingAnnotationAction => ({
   type: 'ADDING_ANNOTATION',
 })
 
-export const addingAnnotationSuccess = (): AnnotationActions.AddingAnnotationSuccessAction => ({
+export const addingAnnotationSuccess = (): Types.Annotations.Actions.AddingAnnotationSuccessAction => ({
   type: 'ADDING_ANNOTATION_SUCCESS',
 })
 
-export const dismissAddingAnnotation = (): AnnotationActions.DismissAddingAnnotationAction => ({
+export const dismissAddingAnnotation = (): Types.Annotations.Actions.DismissAddingAnnotationAction => ({
   type: 'DISMISS_ADDING_ANNOTATION',
 })
 
-export const mouseEnterTempAnnotation = (): AnnotationActions.MouseEnterTempAnnotationAction => ({
+export const mouseEnterTempAnnotation = (): Types.Annotations.Actions.MouseEnterTempAnnotationAction => ({
   type: 'MOUSEENTER_TEMP_ANNOTATION',
 })
 
-export const mouseLeaveTempAnnotation = (): AnnotationActions.MouseLeaveTempAnnotationAction => ({
+export const mouseLeaveTempAnnotation = (): Types.Annotations.Actions.MouseLeaveTempAnnotationAction => ({
   type: 'MOUSELEAVE_TEMP_ANNOTATION',
 })
 
 export const loadAnnotations = (
-  annotations: AnnotationData.AnnotationInterface[]
-): AnnotationActions.LoadAnnotationsAction => ({
+  annotations: Types.Annotations.Data.AnnotationInterface[]
+): Types.Annotations.Actions.LoadAnnotationsAction => ({
   type: 'LOAD_ANNOTATIONS',
   payload: {
     annotations,
@@ -41,8 +40,8 @@ export const loadAnnotations = (
 })
 
 export const updateAnnotation = (
-  annotation: AnnotationData.AnnotationInterface
-): AnnotationActions.UpdateAnnotationAction => ({
+  annotation: Types.Annotations.Data.AnnotationInterface
+): Types.Annotations.Actions.UpdateAnnotationAction => ({
   type: 'UPDATE_ANNOTATION',
   payload: {
     annotation,
@@ -50,8 +49,8 @@ export const updateAnnotation = (
 })
 
 export const deleteAnnotation = (
-  annotation: AnnotationData.AnnotationInterface
-): AnnotationActions.DeleteAnnotationAction => ({
+  annotation: Types.Annotations.Data.AnnotationInterface
+): Types.Annotations.Actions.DeleteAnnotationAction => ({
   type: 'DELETE_ANNOTATION',
   payload: {
     annotation,
@@ -59,8 +58,8 @@ export const deleteAnnotation = (
 })
 
 export const addAnnotation = (
-  annotation: AnnotationData.AnnotationInterface
-): AnnotationActions.AddAnnotationAction => ({
+  annotation: Types.Annotations.Data.AnnotationInterface
+): Types.Annotations.Actions.AddAnnotationAction => ({
   type: 'ADD_ANNOTATION',
   payload: {
     annotation,
@@ -69,7 +68,7 @@ export const addAnnotation = (
 
 export const addAnnotationAsync = (
   createUrl: string,
-  annotation: AnnotationData.AnnotationInterface
+  annotation: Types.Annotations.Data.AnnotationInterface
 ) => async dispatch => {
   dispatch(addAnnotation(annotation))
   const savedAnnotation = await api.createAnnotation(createUrl, annotation)
@@ -77,25 +76,25 @@ export const addAnnotationAsync = (
   dispatch(deleteAnnotation(annotation))
 }
 
-export const getAnnotationsAsync: AnnotationActions.GetAnnotationsDispatcher = (
+export const getAnnotationsAsync: Types.Annotations.Actions.GetAnnotationsDispatcher = (
   indexUrl: string,
-  {since, until}: AnnotationData.AnnotationRange
-): AnnotationActions.GetAnnotationsThunk => async (
-  dispatch: Dispatch<AnnotationActions.LoadAnnotationsAction>
+  {since, until}: Types.Annotations.Data.AnnotationRange
+): Types.Annotations.Actions.GetAnnotationsThunk => async (
+  dispatch: Dispatch<Types.Annotations.Actions.LoadAnnotationsAction>
 ): Promise<void> => {
   const annotations = await api.getAnnotations(indexUrl, since, until)
   dispatch(loadAnnotations(annotations))
 }
 
 export const deleteAnnotationAsync = (
-  annotation: AnnotationData.AnnotationInterface
+  annotation: Types.Annotations.Data.AnnotationInterface
 ) => async dispatch => {
   await api.deleteAnnotation(annotation)
   dispatch(deleteAnnotation(annotation))
 }
 
 export const updateAnnotationAsync = (
-  annotation: AnnotationData.AnnotationInterface
+  annotation: Types.Annotations.Data.AnnotationInterface
 ) => async dispatch => {
   await api.updateAnnotation(annotation)
   dispatch(updateAnnotation(annotation))

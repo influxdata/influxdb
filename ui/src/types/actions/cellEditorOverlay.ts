@@ -1,6 +1,4 @@
-import {Cell} from 'src/types'
-import {ColorNumber, ColorString} from 'src/types/colors'
-import * as DashboardData from 'src/types/dashboards'
+import * as Types from 'src/types/modules'
 
 export type Action =
   | ShowCellEditorOverlayAction
@@ -18,13 +16,13 @@ export type Action =
   | UpdateFieldOptionsAction
 
 export type ShowCellEditorOverlayActionCreator = (
-  cell: Cell
+  cell: Types.Dashboards.Data.Cell
 ) => ShowCellEditorOverlayAction
 
 export interface ShowCellEditorOverlayAction {
   type: 'SHOW_CELL_EDITOR_OVERLAY'
   payload: {
-    cell: Cell
+    cell: Types.Dashboards.Data.Cell
   }
 }
 
@@ -37,7 +35,7 @@ export interface HideCellEditorOverlayAction {
 export interface ChangeCellTypeAction {
   type: 'CHANGE_CELL_TYPE'
   payload: {
-    cellType: DashboardData.CellType
+    cellType: Types.Dashboards.Data.CellType
   }
 }
 
@@ -51,42 +49,42 @@ export interface RenameCellAction {
 export interface UpdateThresholdsListColorsAction {
   type: 'UPDATE_THRESHOLDS_LIST_COLORS'
   payload: {
-    thresholdsListColors: ColorNumber[]
+    thresholdsListColors: Types.Colors.Data.ColorNumber[]
   }
 }
 
 export interface UpdateThresholdsListTypeAction {
   type: 'UPDATE_THRESHOLDS_LIST_TYPE'
   payload: {
-    thresholdsListType: DashboardData.ThresholdType
+    thresholdsListType: Types.Dashboards.Data.ThresholdType
   }
 }
 
 export interface UpdateGaugeColorsAction {
   type: 'UPDATE_GAUGE_COLORS'
   payload: {
-    gaugeColors: ColorNumber[]
+    gaugeColors: Types.Colors.Data.ColorNumber[]
   }
 }
 
 export interface UpdateAxesAction {
   type: 'UPDATE_AXES'
   payload: {
-    axes: DashboardData.Axes
+    axes: Types.Dashboards.Data.Axes
   }
 }
 
 export interface UpdateTableOptionsAction {
   type: 'UPDATE_TABLE_OPTIONS'
   payload: {
-    tableOptions: DashboardData.TableOptions
+    tableOptions: Types.Dashboards.Data.TableOptions
   }
 }
 
 export interface UpdateLineColorsAction {
   type: 'UPDATE_LINE_COLORS'
   payload: {
-    lineColors: ColorString[]
+    lineColors: Types.Colors.Data.ColorString[]
   }
 }
 
@@ -100,13 +98,13 @@ export interface ChangeTimeFormatAction {
 export interface ChangeDecimalPlacesAction {
   type: 'CHANGE_DECIMAL_PLACES'
   payload: {
-    decimalPlaces: DashboardData.DecimalPlaces
+    decimalPlaces: Types.Dashboards.Data.DecimalPlaces
   }
 }
 
 export interface UpdateFieldOptionsAction {
   type: 'UPDATE_FIELD_OPTIONS'
   payload: {
-    fieldOptions: DashboardData.FieldOption[]
+    fieldOptions: Types.Dashboards.Data.FieldOption[]
   }
 }

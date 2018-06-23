@@ -37,3 +37,7 @@ export interface SourceLinks {
   health: string
   services: string
 }
+
+export interface SourceOption extends Source {
+  text: string
+}

@@ -1,15 +1,14 @@
-import {Notification} from 'src/types'
-import * as NotificationActions from 'src/types/actions/notifications'
+import * as Types from 'src/types/modules'
 
-export const notify: NotificationActions.PublishNotificationActionCreator = (
-  notification: Notification
-): NotificationActions.PublishNotificationAction => ({
+export const notify: Types.Notifications.Actions.PublishNotificationActionCreator = (
+  notification: Types.Notifications.Data.Notification
+): Types.Notifications.Actions.PublishNotificationAction => ({
   type: 'PUBLISH_NOTIFICATION',
   payload: {notification},
 })
 export const dismissNotification = (
   id: string
-): NotificationActions.DismissNotificationAction => ({
+): Types.Notifications.Actions.DismissNotificationAction => ({
   type: 'DISMISS_NOTIFICATION',
   payload: {id},
 })
