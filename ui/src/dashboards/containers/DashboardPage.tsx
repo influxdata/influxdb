@@ -394,7 +394,9 @@ class DashboardPage extends Component<Props, State> {
       dashboardActions: {getDashboardsNamesAsync},
     } = this.props
 
-    const dashboardsNames = await getDashboardsNamesAsync(sourceID)
+    // TODO: remove any once react-redux connect is properly typed
+    const dashboardsNames = (await getDashboardsNamesAsync(sourceID)) as any
+
     this.setState({dashboardsNames})
   }
 
