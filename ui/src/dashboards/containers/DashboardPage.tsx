@@ -1,4 +1,4 @@
-import React, {Component} from 'react'
+import React, {Component, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
 
@@ -549,8 +549,10 @@ class DashboardPage extends Component<Props, State> {
     dashboardActions.setZoomedTimeRangeAsync(zoomedTimeRange, location)
   }
 
-  private setScrollTop = event => {
-    this.setState({scrollTop: event.target.scrollTop})
+  private setScrollTop = (e: MouseEvent<JSX.Element>): void => {
+    const target = e.target as HTMLElement
+
+    this.setState({scrollTop: target.scrollTop})
   }
 }
 
