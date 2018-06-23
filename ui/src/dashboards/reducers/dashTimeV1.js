@@ -6,8 +6,8 @@ const initialState = {
 const dashTimeV1 = (state = initialState, action) => {
   switch (action.type) {
     case 'DELETE_DASHBOARD': {
-      const {dashboardID} = action.payload
-      const ranges = state.ranges.filter(r => r.dashboardID !== dashboardID)
+      const {dashboard} = action.payload
+      const ranges = state.ranges.filter(r => r.dashboardID !== dashboard.id)
 
       return {...state, ranges}
     }
