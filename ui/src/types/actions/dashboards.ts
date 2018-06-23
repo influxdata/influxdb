@@ -6,7 +6,7 @@ import * as DashboardData from 'src/types/dashboards'
 import * as QueryData from 'src/types/query'
 import * as TempVarData from 'src/types/tempVars'
 import * as ErrorActions from 'src/types/actions/errors'
-import * as NotificationActions from 'src/shared/actions/notifications'
+import * as NotificationActions from 'src/types/actions/notifications'
 import * as DashboardReducers from 'src/types/reducers/dashboards'
 import {Location} from 'history'
 

@@ -66,7 +66,7 @@ import * as AppActions from 'src/shared/actions/app'
 import * as CellEditorOverlayActions from 'src/dashboards/actions/cellEditorOverlay'
 import * as DashboardActions from 'src/types/actions/dashboards'
 import * as ErrorActions from 'src/types/actions/errors'
-import * as NotificationActions from 'src/shared/actions/notifications'
+import * as NotificationActions from 'src/types/actions/notifications'
 
 interface DashboardActions {
   setDashTimeV1: DashboardActions.SetDashTimeV1ActionCreator

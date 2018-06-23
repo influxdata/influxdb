@@ -72,7 +72,7 @@ import * as DashboardActions from 'src/types/actions/dashboards'
 import * as DashboardAPIs from 'src/types/apis/dashboard'
 import * as DashboardReducers from 'src/types/reducers/dashboards'
 import * as AuthReducers from 'src/types/reducers/auth'
-import * as NotificationActions from 'src/shared/actions/notifications'
+import * as NotificationActions from 'src/types/actions/notifications'
 import * as ErrorActions from 'src/types/actions/errors'
 import {LocationAction} from 'react-router-redux'
 

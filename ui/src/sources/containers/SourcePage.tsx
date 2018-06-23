@@ -9,10 +9,7 @@ import {
   AddSource,
   UpdateSource,
 } from 'src/shared/actions/sources'
-import {
-  notify as notifyAction,
-  PublishNotificationActionCreator,
-} from 'src/shared/actions/notifications'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {connect} from 'react-redux'
 
 import Notifications from 'src/shared/components/Notifications'
@@ -20,7 +17,6 @@ import SourceForm from 'src/sources/components/SourceForm'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import PageHeader from 'src/shared/components/PageHeader'
 import {DEFAULT_SOURCE} from 'src/shared/constants'
-import {Source} from 'src/types'
 
 const INITIAL_PATH = '/sources/new'
 
@@ -33,8 +29,11 @@ import {
 } from 'src/shared/copy/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {Source} from 'src/types'
+import * as NotificationActions from 'src/types/actions/notifications'
+
 interface Props extends WithRouterProps {
-  notify: PublishNotificationActionCreator
+  notify: NotificationActions.PublishNotificationActionCreator
   addSource: AddSource
   updateSource: UpdateSource
 }
