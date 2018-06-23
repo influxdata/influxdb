@@ -72,6 +72,7 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
             <span
               className="icon cog-thick"
               onClick={this.handleShowSettings}
+              data-test="edit"
             />
           </label>
         </Authorized>

@@ -48,7 +48,7 @@ class PageHeader extends Component<Props> {
     const {titleText, titleComponents} = this.props
 
     if (!titleText && !titleComponents) {
-      console.error(
+      throw new Error(
         'PageHeader requires either titleText or titleComponents prop'
       )
     }

@@ -104,7 +104,7 @@ export default class FilterTagListItem extends PureComponent<Props, State> {
           {this.renderEqualitySwitcher()}
         </div>
         {this.state.isOpen && (
-          <>
+          <div className="flux-schema--children">
             <div
               className="flux-schema--header"
               onClick={this.handleInputClick}
@@ -130,23 +130,21 @@ export default class FilterTagListItem extends PureComponent<Props, State> {
             </div>
             {this.isLoading && <LoaderSkeleton />}
             {!this.isLoading && (
-              <>
-                <FilterTagValueList
-                  db={db}
-                  service={service}
-                  values={tagValues}
-                  selectedValues={selectedValues}
-                  tagKey={tagKey}
-                  onChangeValue={this.props.onChangeValue}
-                  filter={filter}
-                  onLoadMoreValues={this.handleLoadMoreValues}
-                  isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
-                  shouldShowMoreValues={limit < count}
-                  loadMoreCount={this.loadMoreCount}
-                />
-              </>
+              <FilterTagValueList
+                db={db}
+                service={service}
+                values={tagValues}
+                selectedValues={selectedValues}
+                tagKey={tagKey}
+                onChangeValue={this.props.onChangeValue}
+                filter={filter}
+                onLoadMoreValues={this.handleLoadMoreValues}
+                isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
+                shouldShowMoreValues={limit < count}
+                loadMoreCount={this.loadMoreCount}
+              />
             )}
-          </>
+          </div>
         )}
       </div>
     )

@@ -4,6 +4,7 @@ import {shallow} from 'enzyme'
 import {HostsPage} from 'src/hosts/containers/HostsPage'
 import HostsTable from 'src/hosts/components/HostsTable'
 import PageHeader from 'src/shared/components/PageHeader'
+import Title from 'src/shared/components/PageHeaderTitle'
 
 import {source} from 'test/resources'
 
@@ -32,11 +33,20 @@ describe('Hosts.Containers.HostsPage', () => {
   describe('rendering', () => {
     it('renders all children components', () => {
       const {wrapper} = setup()
-      const pageHeader = wrapper.find(PageHeader)
       const hostsTable = wrapper.find(HostsTable)
 
-      expect(pageHeader.exists()).toBe(true)
       expect(hostsTable.exists()).toBe(true)
+
+      const pageTitle = wrapper
+        .find(PageHeader)
+        .dive()
+        .find(Title)
+        .dive()
+        .find('h1')
+        .first()
+        .text()
+
+      expect(pageTitle).toBe('Host List')
     })
 
     describe('hosts', () => {

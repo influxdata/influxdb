@@ -3,13 +3,26 @@ import {shallow} from 'enzyme'
 
 import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
-import {TemplateType, TemplateValueType} from 'src/types'
+import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
+import SimpleOverlayTechnology from 'src/shared/components/SimpleOverlayTechnology'
 import {source} from 'test/resources'
+
+import {TemplateType, TemplateValueType} from 'src/types'
 
 const defaultProps = {
   isOpen: true,
-  templates: [
-    {
+  templates: [],
+  meRole: 'EDITOR',
+  isUsingAuth: true,
+  onSelectTemplate: () => {},
+  onSaveTemplates: () => {},
+  onCreateTemplateVariable: () => {},
+  source,
+}
+
+describe('TemplateControlBar', () => {
+  it('renders component with variables', () => {
+    const template = {
       id: '000',
       tempVar: ':alpha:',
       label: '',
@@ -26,42 +39,39 @@ const defaultProps = {
           selected: false,
         },
       ],
-    },
-  ],
-  meRole: 'EDITOR',
-  isUsingAuth: true,
-  onOpenTemplateManager: () => {},
-  onSelectTemplate: () => {},
-  onSaveTemplates: () => {},
-  onCreateTemplateVariable: () => {},
-  source,
-}
+    }
+    const props = {...defaultProps, templates: [template]}
+    const wrapper = shallow(<TemplateControlBar {...props} />)
 
-const setup = (override = {}) => {
-  const props = {...defaultProps, ...override}
-  const wrapper = shallow(<TemplateControlBar {...props} />)
+    const dropdown = wrapper.find(TemplateControlDropdown)
+    expect(dropdown.exists()).toBe(true)
+  })
 
-  return {wrapper, props}
-}
+  it('renders component without variables', () => {
+    const props = {...defaultProps}
+    const wrapper = shallow(<TemplateControlBar {...props} />)
 
-describe('Dashboard.TemplateControlBar', () => {
-  describe('rendering', () => {
-    it('renders component with variables', () => {
-      const {wrapper} = setup()
+    const emptyState = wrapper.find({'data-test': 'empty-state'})
 
-      const dropdown = wrapper.find(TemplateControlDropdown)
-      expect(dropdown.exists()).toBe(true)
-    })
+    const dropdown = wrapper.find(TemplateControlDropdown)
 
-    it('renders component without variables', () => {
-      const {wrapper} = setup({...defaultProps, templates: []})
+    expect(dropdown.exists()).toBe(false)
+    expect(emptyState.exists()).toBe(true)
+  })
 
-      const emptyState = wrapper.find({'data-test': 'empty-state'})
+  it('renders an TemplateVariableEditor overlay when adding a template variable', () => {
+    const props = {...defaultProps}
+    const wrapper = shallow(<TemplateControlBar {...props} />)
 
-      const dropdown = wrapper.find(TemplateControlDropdown)
+    expect(wrapper.find(SimpleOverlayTechnology)).toHaveLength(0)
 
-      expect(dropdown.exists()).toBe(false)
-      expect(emptyState.exists()).toBe(true)
-    })
+    wrapper.find('[data-test="add-template-variable"]').simulate('click')
+
+    const elements = wrapper
+      .find(SimpleOverlayTechnology)
+      .dive()
+      .find(TemplateVariableEditor)
+
+    expect(elements).toHaveLength(1)
   })
 })

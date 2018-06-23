@@ -2,6 +2,7 @@ import React, {PureComponent, MouseEvent} from 'react'
 import classnames from 'classnames'
 import _ from 'lodash'
 
+import {getDeep} from 'src/utils/wrappers'
 import BodyDelete from 'src/flux/components/BodyDelete'
 import FuncArgs from 'src/flux/components/FuncArgs'
 import FuncArgsPreview from 'src/flux/components/FuncArgsPreview'
@@ -13,6 +14,7 @@ import {
   Func,
 } from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
 import {Service} from 'src/types'
 
 interface Props {
@@ -166,9 +168,31 @@ export default class FuncNode extends PureComponent<Props, State> {
   }
 
   private handleDelete = (): void => {
-    const {func, bodyID, declarationID} = this.props
+    const {
+      func,
+      funcs,
+      index,
+      bodyID,
+      declarationID,
+      isYielding,
+      isYieldedInScript,
+      onToggleYieldWithLast,
+    } = this.props
 
-    this.props.onDelete({funcID: func.id, bodyID, declarationID})
+    let yieldFuncNodeID: string
+
+    if (isYieldedInScript) {
+      yieldFuncNodeID = getDeep<string>(funcs, `${index + 1}.id`, '')
+    } else if (isYielding) {
+      onToggleYieldWithLast(index)
+    }
+
+    this.props.onDelete({
+      funcID: func.id,
+      yieldNodeID: yieldFuncNodeID,
+      bodyID,
+      declarationID,
+    })
   }
 
   private handleToggleEdit = (e: MouseEvent<HTMLElement>): void => {

@@ -75,7 +75,6 @@ class ExpressionNode extends PureComponent<Props, State> {
                 if (func.name === 'filter') {
                   isAfterFilter = true
                 }
-
                 const isYieldable = isAfterFilter && isAfterRange
 
                 const funcNode = (
@@ -111,12 +110,18 @@ class ExpressionNode extends PureComponent<Props, State> {
                     isYieldable
                   )
 
+                  let yieldFunc = func
+
+                  if (this.isYieldNodeIndex(i + 1)) {
+                    yieldFunc = funcs[i + 1]
+                  }
+
                   return (
                     <Fragment key={`${i}-notInScript`}>
                       {funcNode}
                       <YieldFuncNode
                         index={i}
-                        func={func}
+                        func={yieldFunc}
                         data={data}
                         script={script}
                         bodyID={bodyID}
