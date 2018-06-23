@@ -87,7 +87,7 @@ interface DashboardActions {
   setZoomedTimeRangeAsync: DashboardActions.SetZoomedTimeRangeDispatcher
 }
 
-interface Props extends ManualRefreshProps, WithRouterProps {
+interface Props extends DashboardActions, ManualRefreshProps, WithRouterProps {
   source: Source
   sources: Source[]
   params: {
@@ -97,7 +97,6 @@ interface Props extends ManualRefreshProps, WithRouterProps {
   location: Location
   dashboardID: number
   dashboard: IDashboard
-  dashboardActions: DashboardActions
   dashboards: IDashboard[]
   handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   autoRefresh: number
@@ -154,7 +153,6 @@ class DashboardPage extends Component<Props, State> {
   public async componentDidMount() {
     const {
       dashboardID,
-      dashboardActions: {putDashboardByID},
       source,
       meRole,
       isUsingAuth,
@@ -180,7 +178,7 @@ class DashboardPage extends Component<Props, State> {
     // is refactored so as not to require a write operation (a PUT in this case)
     if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
       // putDashboardByID refreshes & persists influxql generated template variable values.
-      await putDashboardByID(dashboardID)
+      await this.props.putDashboardByID(dashboardID)
     }
 
     this.getDashboardsNames()
@@ -236,7 +234,7 @@ class DashboardPage extends Component<Props, State> {
       cellQueryStatus,
       thresholdsListType,
       thresholdsListColors,
-      dashboardActions,
+
       inPresentationMode,
       handleChooseAutoRefresh,
       handleShowCellEditorOverlay,
@@ -304,7 +302,7 @@ class DashboardPage extends Component<Props, State> {
             onSave={this.handleSaveEditedCell}
             onCancel={handleHideCellEditorOverlay}
             templates={templatesIncludingDashTime}
-            editQueryStatus={dashboardActions.editCellQueryStatus}
+            editQueryStatus={this.props.editCellQueryStatus}
             thresholdsListType={thresholdsListType}
             thresholdsListColors={thresholdsListColors}
             gaugeColors={gaugeColors}
@@ -372,15 +370,9 @@ class DashboardPage extends Component<Props, State> {
   private getDashboard = async (): Promise<
     DashboardActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk
   > => {
-    const {
-      dashboardID,
-      dashboardActions: {getDashboardWithHydratedAndSyncedTempVarsAsync},
-      source,
-      router,
-      location,
-    } = this.props
+    const {dashboardID, source, router, location} = this.props
 
-    return await getDashboardWithHydratedAndSyncedTempVarsAsync(
+    return await this.props.getDashboardWithHydratedAndSyncedTempVarsAsync(
       dashboardID,
       source,
       router,
@@ -391,11 +383,12 @@ class DashboardPage extends Component<Props, State> {
   private getDashboardsNames = async (): Promise<void> => {
     const {
       params: {sourceID},
-      dashboardActions: {getDashboardsNamesAsync},
     } = this.props
 
     // TODO: remove any once react-redux connect is properly typed
-    const dashboardsNames = (await getDashboardsNamesAsync(sourceID)) as any
+    const dashboardsNames = (await this.props.getDashboardsNamesAsync(
+      sourceID
+    )) as any
 
     this.setState({dashboardsNames})
   }
@@ -414,30 +407,26 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleSaveEditedCell = async (newCell: Cell): Promise<void> => {
-    const {
-      dashboardActions,
-      dashboard,
-      handleHideCellEditorOverlay,
-    } = this.props
-    await dashboardActions.updateDashboardCell(dashboard, newCell)
+    const {dashboard, handleHideCellEditorOverlay} = this.props
+    await this.props.updateDashboardCell(dashboard, newCell)
     handleHideCellEditorOverlay()
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
     const {
       dashboard,
-      dashboardActions,
+
       getAnnotationsAsync,
       source,
       location,
     } = this.props
 
-    dashboardActions.setDashTimeV1(dashboard.id, {
+    this.props.setDashTimeV1(dashboard.id, {
       ...timeRange,
       format: FORMAT_INFLUXQL,
     })
 
-    dashboardActions.syncURLQueryParamsFromQueryParamsObject(location, {
+    this.props.syncURLQueryParamsFromQueryParamsObject(location, {
       lower: timeRange.lower,
       upper: timeRange.upper,
     })
@@ -447,26 +436,26 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleUpdatePosition = (cells: Cell[]): void => {
-    const {dashboardActions, dashboard, meRole, isUsingAuth} = this.props
+    const {dashboard, meRole, isUsingAuth} = this.props
     const newDashboard = {...dashboard, cells}
 
     // GridLayout invokes onLayoutChange on first load, which bubbles up to
     // invoke handleUpdatePosition. If using auth, Viewer is not authorized to
     // PUT, so until the need for PUT is removed, this is prevented.
     if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
-      dashboardActions.updateDashboard(newDashboard)
-      dashboardActions.putDashboard(newDashboard)
+      this.props.updateDashboard(newDashboard)
+      this.props.putDashboard(newDashboard)
     }
   }
 
   private handleAddCell = (): void => {
-    const {dashboardActions, dashboard} = this.props
-    dashboardActions.addDashboardCellAsync(dashboard)
+    const {dashboard} = this.props
+    this.props.addDashboardCellAsync(dashboard)
   }
 
   private handleCloneCell = (cell: Cell): void => {
-    const {dashboardActions, dashboard} = this.props
-    dashboardActions.cloneDashboardCellAsync(dashboard, cell)
+    const {dashboard} = this.props
+    this.props.cloneDashboardCellAsync(dashboard, cell)
   }
 
   private handleEditDashboard = (): void => {
@@ -478,24 +467,24 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleRenameDashboard = async (name: string): Promise<void> => {
-    const {dashboardActions, dashboard} = this.props
+    const {dashboard} = this.props
     this.setState({isEditMode: false})
     const newDashboard = {...dashboard, name}
 
-    dashboardActions.updateDashboard(newDashboard)
-    await dashboardActions.putDashboard(newDashboard)
+    this.props.updateDashboard(newDashboard)
+    await this.props.putDashboard(newDashboard)
     this.getDashboardsNames()
   }
 
   private handleDeleteDashboardCell = (cell: Cell): void => {
-    const {dashboardActions, dashboard} = this.props
-    dashboardActions.deleteDashboardCellAsync(dashboard, cell)
+    const {dashboard} = this.props
+    this.props.deleteDashboardCellAsync(dashboard, cell)
   }
 
   private handleSelectTemplate = (
     templateID: string
   ): ((value: TemplateValue) => void) => (value: TemplateValue): void => {
-    const {dashboardActions, dashboard, dashboardID, location} = this.props
+    const {dashboard, dashboardID, location} = this.props
 
     const currentTempVar = dashboard.templates.find(
       tempVar => tempVar.id === templateID
@@ -507,22 +496,22 @@ class DashboardPage extends Component<Props, State> {
       const updatedQueryParam = {
         [strippedTempVar]: value.value,
       }
-      dashboardActions.syncURLQueryParamsFromQueryParamsObject(
+      this.props.syncURLQueryParamsFromQueryParamsObject(
         location,
         updatedQueryParam
       )
     }
-    dashboardActions.templateVariableSelected(dashboard.id, templateID, [value])
-    dashboardActions.putDashboardByID(dashboardID)
+    this.props.templateVariableSelected(dashboard.id, templateID, [value])
+    this.props.putDashboardByID(dashboardID)
   }
 
   private handleSaveTemplateVariables = async (
     templates: Template[]
   ): Promise<void> => {
-    const {location, dashboardActions, dashboard} = this.props
+    const {location, dashboard} = this.props
 
     try {
-      await dashboardActions.putDashboard({
+      await this.props.putDashboard({
         ...dashboard,
         templates,
       })
@@ -530,11 +519,7 @@ class DashboardPage extends Component<Props, State> {
         ({tempVar: oldTempVar}) =>
           !templates.find(({tempVar: newTempVar}) => oldTempVar === newTempVar)
       )
-      dashboardActions.syncURLQueryFromTempVars(
-        location,
-        templates,
-        deletedTempVars
-      )
+      this.props.syncURLQueryFromTempVars(location, templates, deletedTempVars)
     } catch (error) {
       console.error(error)
     }
@@ -545,8 +530,8 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleZoomedTimeRange = (zoomedTimeRange: TimeRange): void => {
-    const {dashboardActions, location} = this.props
-    dashboardActions.setZoomedTimeRangeAsync(zoomedTimeRange, location)
+    const {location} = this.props
+    this.props.setZoomedTimeRangeAsync(zoomedTimeRange, location)
   }
 
   private setScrollTop = (e: MouseEvent<JSX.Element>): void => {
@@ -613,7 +598,7 @@ const mdtp = {
   handleChooseAutoRefresh: setAutoRefresh,
   templateControlBarVisibilityToggled: templateControlBarVisibilityToggledAction,
   handleClickPresentationButton: delayEnablePresentationMode,
-  dashboardActions: dashboardActionCreators,
+  ...dashboardActionCreators,
   errorThrown: errorThrownAction,
   notify: notifyAction,
   getAnnotationsAsync: annotationActions.getAnnotationsAsync,
