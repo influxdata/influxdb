@@ -69,7 +69,7 @@ import {
 } from 'src/types'
 import * as DashboardData from 'src/types/dashboards'
 import * as DashboardActions from 'src/types/actions/dashboards'
-import * as DashboardAPIs from 'src/types/apis/dashboard'
+import * as DashboardAPIs from 'src/types/apis/dashboards'
 import * as DashboardReducers from 'src/types/reducers/dashboards'
 import * as AuthReducers from 'src/types/reducers/auth'
 import * as NotificationActions from 'src/types/actions/notifications'

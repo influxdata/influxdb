@@ -1,7 +1,7 @@
 import AJAX from 'src/utils/ajax'
 
 import {AxiosResponse} from 'axios'
-import {DashboardsResponse} from 'src/types/apis/dashboard'
+import {DashboardsResponse} from 'src/types/apis/dashboards'
 
 export const getDashboards = (): Promise<
   AxiosResponse<DashboardsResponse> | DashboardsResponse
