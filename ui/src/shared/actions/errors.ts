@@ -1,35 +1,13 @@
-enum AlertType {
-  'info',
-}
+import * as ErrorData from 'src/types/error'
+import * as ErrorActions from 'src/types/actions/error'
 
-export type ErrorThrownActionCreator = (
-  error: Error,
-  altText?: string,
-  alertType?: AlertType
-) => ErrorThrownAction
-
-interface ErrorThrownAction {
-  type: 'ERROR_THROWN'
-  error: ErrorDescription
-  altText?: string
-  alertType?: AlertType
-}
 export const errorThrown = (
-  error: ErrorDescription,
+  error: ErrorData.ErrorDescription,
   altText?: string,
-  alertType?: AlertType
-): ErrorThrownAction => ({
+  alertType?: ErrorData.AlertType
+): ErrorActions.ErrorThrownAction => ({
   type: 'ERROR_THROWN',
   error,
   altText,
   alertType,
 })
-
-interface ErrorDescription {
-  status: number
-  auth: {
-    links: {
-      me: string
-    }
-  }
-}

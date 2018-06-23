@@ -65,7 +65,7 @@ import * as AnnotationActions from 'src/shared/actions/annotations'
 import * as AppActions from 'src/shared/actions/app'
 import * as CellEditorOverlayActions from 'src/dashboards/actions/cellEditorOverlay'
 import * as DashboardActions from 'src/types/actions/dashboard'
-import * as ErrorActions from 'src/shared/actions/errors'
+import * as ErrorActions from 'src/types/actions/error'
 import * as NotificationActions from 'src/shared/actions/notifications'
 
 interface DashboardActions {
