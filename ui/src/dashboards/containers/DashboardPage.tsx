@@ -61,7 +61,7 @@ import {
 } from 'src/types'
 import {DashboardName} from 'src/types/dashboard'
 import {ColorNumber, ColorString} from 'src/types/colors'
-import * as AnnotationActions from 'src/shared/actions/annotations'
+import * as AnnotationActions from 'src/types/actions/annotations'
 import * as AppActions from 'src/shared/actions/app'
 import * as CellEditorOverlayActions from 'src/dashboards/actions/cellEditorOverlay'
 import * as DashboardActions from 'src/types/actions/dashboard'

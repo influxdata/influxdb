@@ -18,7 +18,7 @@ import {visibleAnnotations} from 'src/shared/annotations/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {AnnotationInterface, DygraphClass, Source} from 'src/types'
-import {UpdateAnnotationAction} from 'src/shared/actions/annotations'
+import {UpdateAnnotationAction} from 'src/types/actions/annotations'
 
 interface Props {
   dWidth: number
