@@ -41,82 +41,72 @@ import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import {InjectedRouter} from 'react-router'
-import * as SourceData from 'src/types/sources'
-import * as TempVarData from 'src/types/tempVars'
-import * as DashboardData from 'src/types/dashboards'
-import * as QueryData from 'src/types/query'
-import * as ColorData from 'src/types/colors'
-import * as AnnotationActions from 'src/types/actions/annotations'
-import * as AppActions from 'src/types/actions/app'
-import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
-import * as DashboardActions from 'src/types/actions/dashboards'
-import * as ErrorActions from 'src/types/actions/errors'
-import * as NotificationActions from 'src/types/actions/notifications'
+import * as Types from 'src/types/modules'
 
 interface DashboardActions {
-  setDashTimeV1: DashboardActions.SetDashTimeV1ActionCreator
-  updateDashboard: DashboardActions.UpdateDashboardActionCreator
-  syncURLQueryParamsFromQueryParamsObject: DashboardActions.SyncURLQueryFromQueryParamsObjectDispatcher
-  putDashboard: DashboardActions.PutDashboardDispatcher
-  putDashboardByID: DashboardActions.PutDashboardByIDDispatcher
-  getDashboardsNamesAsync: DashboardActions.GetDashboardsNamesDispatcher
-  getDashboardWithHydratedAndSyncedTempVarsAsync: DashboardActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher
-  setTimeRange: DashboardActions.SetTimeRangeActionCreator
-  addDashboardCellAsync: DashboardActions.AddDashboardCellDispatcher
-  editCellQueryStatus: DashboardActions.EditCellQueryStatusActionCreator
-  updateDashboardCell: DashboardActions.UpdateDashboardCellDispatcher
-  cloneDashboardCellAsync: DashboardActions.CloneDashboardCellDispatcher
-  deleteDashboardCellAsync: DashboardActions.DeleteDashboardCellDispatcher
-  templateVariableSelected: DashboardActions.TemplateVariableSelectedActionCreator
-  syncURLQueryFromTempVars: DashboardActions.SyncURLQueryFromTempVarsDispatcher
-  setZoomedTimeRangeAsync: DashboardActions.SetZoomedTimeRangeDispatcher
+  setDashTimeV1: Types.Dashboards.Actions.SetDashTimeV1ActionCreator
+  updateDashboard: Types.Dashboards.Actions.UpdateDashboardActionCreator
+  syncURLQueryParamsFromQueryParamsObject: Types.Dashboards.Actions.SyncURLQueryFromQueryParamsObjectDispatcher
+  putDashboard: Types.Dashboards.Actions.PutDashboardDispatcher
+  putDashboardByID: Types.Dashboards.Actions.PutDashboardByIDDispatcher
+  getDashboardsNamesAsync: Types.Dashboards.Actions.GetDashboardsNamesDispatcher
+  getDashboardWithHydratedAndSyncedTempVarsAsync: Types.Dashboards.Actions.GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher
+  setTimeRange: Types.Dashboards.Actions.SetTimeRangeActionCreator
+  addDashboardCellAsync: Types.Dashboards.Actions.AddDashboardCellDispatcher
+  editCellQueryStatus: Types.Dashboards.Actions.EditCellQueryStatusActionCreator
+  updateDashboardCell: Types.Dashboards.Actions.UpdateDashboardCellDispatcher
+  cloneDashboardCellAsync: Types.Dashboards.Actions.CloneDashboardCellDispatcher
+  deleteDashboardCellAsync: Types.Dashboards.Actions.DeleteDashboardCellDispatcher
+  templateVariableSelected: Types.Dashboards.Actions.TemplateVariableSelectedActionCreator
+  syncURLQueryFromTempVars: Types.Dashboards.Actions.SyncURLQueryFromTempVarsDispatcher
+  setZoomedTimeRangeAsync: Types.Dashboards.Actions.SetZoomedTimeRangeDispatcher
 }
 
 interface Props extends DashboardActions, ManualRefreshProps, WithRouterProps {
-  source: SourceData.Source
-  sources: SourceData.Source[]
+  source: Types.Sources.Data.Source
+  sources: Types.Sources.Data.Source[]
   params: {
     sourceID: string
     dashboardID: string
   }
   location: Location
   dashboardID: number
-  dashboard: DashboardData.Dashboard
-  dashboards: DashboardData.Dashboard[]
-  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
+  dashboard: Types.Dashboards.Data.Dashboard
+  dashboards: Types.Dashboards.Data.Dashboard[]
+  handleChooseAutoRefresh: Types.App.Actions.SetAutoRefreshActionCreator
   autoRefresh: number
-  templateControlBarVisibilityToggled: () => AppActions.TemplateControlBarVisibilityToggledActionCreator
-  timeRange: QueryData.TimeRange
-  zoomedTimeRange: QueryData.TimeRange
+  templateControlBarVisibilityToggled: () => Types.App.Actions.TemplateControlBarVisibilityToggledActionCreator
+  timeRange: Types.Queries.Data.TimeRange
+  zoomedTimeRange: Types.Queries.Data.TimeRange
   showTemplateControlBar: boolean
   inPresentationMode: boolean
-  handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
+  handleClickPresentationButton: Types.App.Actions.DelayEnablePresentationModeDispatcher
   cellQueryStatus: {
     queryID: string
     status: object
   }
-  errorThrown: ErrorActions.ErrorThrownActionCreator
+  errorThrown: Types.Errors.Actions.ErrorThrownActionCreator
   meRole: string
   isUsingAuth: boolean
   router: InjectedRouter
-  notify: NotificationActions.PublishNotificationActionCreator
-  getAnnotationsAsync: AnnotationActions.GetAnnotationsDispatcher
-  handleShowCellEditorOverlay: CellEditorOverlayActions.ShowCellEditorOverlayActionCreator
-  handleHideCellEditorOverlay: CellEditorOverlayActions.HideCellEditorOverlayActionCreator
-  handleDismissEditingAnnotation: AnnotationActions.DismissEditingAnnotationActionCreator
-  selectedCell: DashboardData.Cell
+  notify: Types.Notifications.Actions.PublishNotificationActionCreator
+  getAnnotationsAsync: Types.Annotations.Actions.GetAnnotationsDispatcher
+  handleShowCellEditorOverlay: Types.CellEditorOverlay.Actions.ShowCellEditorOverlayActionCreator
+  handleHideCellEditorOverlay: Types.CellEditorOverlay.Actions.HideCellEditorOverlayActionCreator
+  handleDismissEditingAnnotation: Types.Annotations.Actions.DismissEditingAnnotationActionCreator
+  selectedCell: Types.Dashboards.Data.Cell
   thresholdsListType: string
-  thresholdsListColors: ColorData.ColorNumber[]
-  gaugeColors: ColorData.ColorNumber[]
-  lineColors: ColorData.ColorString[]
+  thresholdsListColors: Types.Colors.Data.ColorNumber[]
+  gaugeColors: Types.Colors.Data.ColorNumber[]
+  lineColors: Types.Colors.Data.ColorString[]
 }
 
 interface State {
   isEditMode: boolean
-  selectedCell: DashboardData.Cell | null
+  selectedCell: Types.Dashboards.Data.Cell | null
   scrollTop: number
   windowHeight: number
-  dashboardsNames: DashboardData.DashboardName[]
+  dashboardsNames: Types.Dashboards.Data.DashboardName[]
 }
 
 @ErrorHandling
@@ -353,7 +343,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private getDashboard = async (): Promise<
-    DashboardActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk
+    Types.Dashboards.Actions.GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk
   > => {
     const {dashboardID, source, router, location} = this.props
 
@@ -378,7 +368,7 @@ class DashboardPage extends Component<Props, State> {
     this.setState({dashboardsNames})
   }
 
-  private inView = (cell: DashboardData.Cell): boolean => {
+  private inView = (cell: Types.Dashboards.Data.Cell): boolean => {
     const {scrollTop, windowHeight} = this.state
     const bufferValue = 600
     const cellTop = cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT
@@ -392,14 +382,16 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleSaveEditedCell = async (
-    newCell: DashboardData.Cell
+    newCell: Types.Dashboards.Data.Cell
   ): Promise<void> => {
     const {dashboard, handleHideCellEditorOverlay} = this.props
     await this.props.updateDashboardCell(dashboard, newCell)
     handleHideCellEditorOverlay()
   }
 
-  private handleChooseTimeRange = (timeRange: QueryData.TimeRange): void => {
+  private handleChooseTimeRange = (
+    timeRange: Types.Queries.Data.TimeRange
+  ): void => {
     const {
       dashboard,
 
@@ -422,7 +414,9 @@ class DashboardPage extends Component<Props, State> {
     getAnnotationsAsync(source.links.annotations, annotationRange)
   }
 
-  private handleUpdatePosition = (cells: DashboardData.Cell[]): void => {
+  private handleUpdatePosition = (
+    cells: Types.Dashboards.Data.Cell[]
+  ): void => {
     const {dashboard, meRole, isUsingAuth} = this.props
     const newDashboard = {...dashboard, cells}
 
@@ -440,7 +434,7 @@ class DashboardPage extends Component<Props, State> {
     this.props.addDashboardCellAsync(dashboard)
   }
 
-  private handleCloneCell = (cell: DashboardData.Cell): void => {
+  private handleCloneCell = (cell: Types.Dashboards.Data.Cell): void => {
     const {dashboard} = this.props
     this.props.cloneDashboardCellAsync(dashboard, cell)
   }
@@ -463,15 +457,17 @@ class DashboardPage extends Component<Props, State> {
     this.getDashboardsNames()
   }
 
-  private handleDeleteDashboardCell = (cell: DashboardData.Cell): void => {
+  private handleDeleteDashboardCell = (
+    cell: Types.Dashboards.Data.Cell
+  ): void => {
     const {dashboard} = this.props
     this.props.deleteDashboardCellAsync(dashboard, cell)
   }
 
   private handleSelectTemplate = (
     templateID: string
-  ): ((value: TempVarData.TemplateValue) => void) => (
-    value: TempVarData.TemplateValue
+  ): ((value: Types.TempVars.Data.TemplateValue) => void) => (
+    value: Types.TempVars.Data.TemplateValue
   ): void => {
     const {dashboard, dashboardID, location} = this.props
 
@@ -495,7 +491,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleSaveTemplateVariables = async (
-    templates: TempVarData.Template[]
+    templates: Types.TempVars.Data.Template[]
   ): Promise<void> => {
     const {location, dashboard} = this.props
 
@@ -519,7 +515,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleZoomedTimeRange = (
-    zoomedTimeRange: QueryData.TimeRange
+    zoomedTimeRange: Types.Queries.Data.TimeRange
   ): void => {
     const {location} = this.props
     this.props.setZoomedTimeRangeAsync(zoomedTimeRange, location)
