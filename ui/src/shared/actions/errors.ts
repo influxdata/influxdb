@@ -1,5 +1,5 @@
 import * as ErrorData from 'src/types/errors'
-import * as ErrorActions from 'src/types/actions/error'
+import * as ErrorActions from 'src/types/actions/errors'
 
 export const errorThrown = (
   error: ErrorData.ErrorDescription,

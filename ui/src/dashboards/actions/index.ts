@@ -73,7 +73,7 @@ import * as DashboardAPIs from 'src/types/apis/dashboard'
 import * as DashboardReducers from 'src/types/reducers/dashboards'
 import * as AuthReducers from 'src/types/reducers/auth'
 import * as NotificationActions from 'src/shared/actions/notifications'
-import * as ErrorActions from 'src/types/actions/error'
+import * as ErrorActions from 'src/types/actions/errors'
 import {LocationAction} from 'react-router-redux'
 
 export const loadDashboards: DashboardActions.LoadDashboardsActionCreator = (
