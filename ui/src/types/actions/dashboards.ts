@@ -7,7 +7,7 @@ import * as QueryData from 'src/types/query'
 import * as TempVarData from 'src/types/tempVars'
 import * as ErrorActions from 'src/types/actions/error'
 import * as NotificationActions from 'src/shared/actions/notifications'
-import * as DashboardReducers from 'src/types/reducers/dashboard'
+import * as DashboardReducers from 'src/types/reducers/dashboards'
 import {Location} from 'history'
 
 export type LoadDashboardsActionCreator = (
