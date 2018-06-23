@@ -49,7 +49,7 @@ import {notify} from 'src/shared/actions/notifications'
 import 'src/style/chronograf.scss'
 
 import {HEARTBEAT_INTERVAL} from 'src/shared/constants'
-import * as ErrorData from 'src/types/error'
+import * as ErrorData from 'src/types/errors'
 
 const errorsQueue = []
 

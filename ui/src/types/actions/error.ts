@@ -1,4 +1,4 @@
-import * as ErrorData from 'src/types/error'
+import * as ErrorData from 'src/types/errors'
 
 export type ErrorThrownActionCreator = (
   error: ErrorData.ErrorDescription,

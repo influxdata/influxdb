@@ -1,4 +1,4 @@
-import * as ErrorData from 'src/types/error'
+import * as ErrorData from 'src/types/errors'
 import * as ErrorActions from 'src/types/actions/error'
 
 export const errorThrown = (
