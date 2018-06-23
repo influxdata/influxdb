@@ -26,9 +26,24 @@ const t2 = {
   label: 'test csv',
   tempVar: ':temperature:',
   values: [
-    {value: '98.7', type: TemplateValueType.Measurement, selected: false},
-    {value: '99.1', type: TemplateValueType.Measurement, selected: false},
-    {value: '101.3', type: TemplateValueType.Measurement, selected: true},
+    {
+      value: '98.7',
+      type: TemplateValueType.Measurement,
+      selected: false,
+      default: true,
+    },
+    {
+      value: '99.1',
+      type: TemplateValueType.Measurement,
+      selected: false,
+      default: false,
+    },
+    {
+      value: '101.3',
+      type: TemplateValueType.Measurement,
+      selected: true,
+      default: false,
+    },
   ],
 }
 

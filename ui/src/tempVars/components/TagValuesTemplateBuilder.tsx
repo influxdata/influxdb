@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {getDeep} from 'src/utils/wrappers'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import Dropdown from 'src/shared/components/Dropdown'
@@ -64,6 +65,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
   }
 
   public render() {
+    const {onUpdateDefaultTemplateValue} = this.props
     const {
       databases,
       databasesStatus,
@@ -117,9 +119,17 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         <TemplateMetaQueryPreview
           items={tagValues}
           loadingStatus={tagValuesStatus}
+          defaultValue={this.defaultValue}
+          onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
         />
       </div>
     )
+  }
+
+  private get defaultValue(): string {
+    const {template} = this.props
+    const defaultTemplateValue = template.values.find(v => v.default)
+    return getDeep<string>(defaultTemplateValue, 'value', '')
   }
 
   private async loadDatabases(): Promise<void> {
@@ -229,6 +239,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
           type: TemplateValueType.TagValue,
           value,
           selected: false,
+          default: false,
         }
       })
 

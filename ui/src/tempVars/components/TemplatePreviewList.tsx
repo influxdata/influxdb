@@ -10,6 +10,8 @@ const RESULTS_TO_DISPLAY = 10
 
 interface Props {
   items: string[]
+  defaultValue: string
+  onUpdateDefaultTemplateValue: (v: string) => void
 }
 
 @ErrorHandling
@@ -23,22 +25,37 @@ class TemplatePreviewList extends PureComponent<Props> {
         style={{height: `${this.resultsListHeight}px`}}
       >
         <FancyScrollbar>
-          {items.map(db => {
+          {items.map(item => {
             return (
               <li
                 key={uuid.v4()}
                 style={{
                   height: `${LI_HEIGHT}px`,
                   marginBottom: `${LI_MARGIN_BOTTOM}px`,
+                  zIndex: 9010,
                 }}
+                onClick={this.selectDefault(item)}
               >
-                {db}
+                {item}
+                {this.defaultIndicator(item)}
               </li>
             )
           })}
         </FancyScrollbar>
       </ul>
     )
+  }
+
+  private selectDefault = item => () => {
+    const {onUpdateDefaultTemplateValue} = this.props
+    onUpdateDefaultTemplateValue(item)
+  }
+
+  private defaultIndicator(item: string): JSX.Element {
+    const {defaultValue} = this.props
+    if (item === defaultValue) {
+      return <div>{' ******'}</div>
+    }
   }
 
   private get resultsListHeight() {

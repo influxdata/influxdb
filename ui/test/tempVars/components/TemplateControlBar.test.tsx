@@ -19,11 +19,13 @@ const defaultProps = {
           value: 'firstValue',
           type: TemplateValueType.Constant,
           selected: false,
+          default: false,
         },
         {
           value: 'secondValue',
           type: TemplateValueType.Constant,
           selected: false,
+          default: false,
         },
       ],
     },

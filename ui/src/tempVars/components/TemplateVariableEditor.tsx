@@ -12,6 +12,7 @@ import Dropdown from 'src/shared/components/Dropdown'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {getDeep} from 'src/utils/wrappers'
 import {notify as notifyActionCreator} from 'src/shared/actions/notifications'
+import {reconcileDefaultAndSelectedValues} from 'src/dashboards/utils/tempVars'
 
 import DatabasesTemplateBuilder from 'src/tempVars/components/DatabasesTemplateBuilder'
 import CSVTemplateBuilder from 'src/tempVars/components/CSVTemplateBuilder'
@@ -155,6 +156,9 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
               source={source}
               onUpdateTemplate={this.handleUpdateTemplate}
               notify={notify}
+              onUpdateDefaultTemplateValue={
+                this.handleUpdateDefaultTemplateValue
+              }
             />
           </div>
           <ConfirmButton
@@ -184,8 +188,31 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     return component
   }
 
-  private handleUpdateTemplate = (nextTemplate: Template): void => {
-    this.setState({nextTemplate})
+  private handleUpdateDefaultTemplateValue = (value: string): void => {
+    const {
+      nextTemplate,
+      nextTemplate: {values},
+    } = this.state
+
+    const nextValues = values.map(v => {
+      if (v.value === value) {
+        return {...v, default: true}
+      } else {
+        return {...v, default: false}
+      }
+    })
+    this.setState({nextTemplate: {...nextTemplate, values: nextValues}})
+  }
+
+  private handleUpdateTemplate = (nextNextTemplate: Template): void => {
+    const {nextTemplate} = this.state
+
+    const TemplateWithDefaultAndSelected = reconcileDefaultAndSelectedValues(
+      nextTemplate,
+      nextNextTemplate
+    )
+
+    this.setState({nextTemplate: TemplateWithDefaultAndSelected})
   }
 
   private handleChooseType = ({type}) => {

@@ -1,4 +1,5 @@
 import _ from 'lodash'
+import {getDeep} from 'src/utils/wrappers'
 
 import {
   Dashboard,
@@ -139,4 +140,68 @@ export const findInvalidTempVarsInURLQuery = (
   )
 
   return urlQueryParamsTempVarsWithInvalidValues
+}
+
+const makeDefault = (template: Template, value: string): Template => {
+  const found = template.values.find(v => v.value === value)
+
+  let valueToChoose
+  if (found) {
+    valueToChoose = found.value
+  } else {
+    valueToChoose = getDeep<string>(template, 'values.0.value', '')
+  }
+
+  const valuesWithDefault = template.values.map(v => {
+    if (v.value === valueToChoose) {
+      return {...v, default: true}
+    } else {
+      return {...v, default: false}
+    }
+  })
+
+  return {...template, values: valuesWithDefault}
+}
+
+const makeSelected = (template: Template, value: string): Template => {
+  const found = template.values.find(v => v.value === value)
+  const defaultValue = template.values.find(v => v.default)
+
+  let valueToChoose
+  if (found) {
+    valueToChoose = found.value
+  } else if (defaultValue) {
+    valueToChoose = defaultValue
+  } else {
+    valueToChoose = getDeep<string>(template, 'values.0.value', '')
+  }
+
+  const valuesWithDefault = template.values.map(v => {
+    if (v.value === valueToChoose) {
+      return {...v, selected: true}
+    } else {
+      return {...v, selected: false}
+    }
+  })
+
+  return {...template, values: valuesWithDefault}
+}
+
+export const reconcileDefaultAndSelectedValues = (
+  nextTemplate: Template,
+  nextNextTemplate: Template
+): Template => {
+  const selectedValue = nextTemplate.values.find(v => v.selected)
+  const defaultValue = nextTemplate.values.find(v => v.default)
+  // make selected from default
+  const TemplateWithDefault = makeDefault(
+    nextNextTemplate,
+    getDeep<string>(defaultValue, 'value', '')
+  )
+
+  const TemplateWithDefaultAndSelected = makeSelected(
+    TemplateWithDefault,
+    getDeep<string>(selectedValue, 'value', '')
+  )
+  return TemplateWithDefaultAndSelected
 }
