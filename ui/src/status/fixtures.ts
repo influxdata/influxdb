@@ -3,7 +3,7 @@ import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
 import {DEFAULT_AXIS} from 'src/dashboards/constants/cellEditor'
 import {Cell, CellQuery, Axes} from 'src/types'
-import {CellType} from 'src/types/dashboard'
+import {CellType} from 'src/types/dashboards'
 
 const emptyQuery: CellQuery = {
   query: '',

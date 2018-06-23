@@ -1,12 +1,12 @@
 import {Cell} from 'src/types'
-import {CellType, ThresholdType} from 'src/types/dashboard'
+import {CellType, ThresholdType} from 'src/types/dashboards'
 import {ColorNumber, ColorString} from 'src/types/colors'
 import {
   Axes,
   DecimalPlaces,
   FieldOption,
   TableOptions,
-} from 'src/types/dashboard'
+} from 'src/types/dashboards'
 
 export type Action =
   | ShowCellEditorOverlayAction

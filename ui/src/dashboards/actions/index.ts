@@ -67,7 +67,7 @@ import {
   TimeRange,
   URLQueryParams,
 } from 'src/types'
-import * as DashboardData from 'src/types/dashboard'
+import * as DashboardData from 'src/types/dashboards'
 import * as DashboardActions from 'src/types/actions/dashboards'
 import * as DashboardAPIs from 'src/types/apis/dashboard'
 import * as DashboardReducers from 'src/types/reducers/dashboards'

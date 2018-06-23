@@ -16,7 +16,7 @@ import {
 import {initializeOptions} from 'src/dashboards/constants/cellEditor'
 import {Action} from 'src/dashboards/actions/cellEditorOverlay'
 import {CellType, Cell} from 'src/types'
-import {ThresholdType, TableOptions} from 'src/types/dashboard'
+import {ThresholdType, TableOptions} from 'src/types/dashboards'
 import {ThresholdColor, GaugeColor, LineColor} from 'src/types/colors'
 
 interface CEOInitialState {

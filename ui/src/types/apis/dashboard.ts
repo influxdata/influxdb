@@ -1,4 +1,4 @@
-import {Dashboard} from 'src/types/dashboard'
+import {Dashboard} from 'src/types/dashboards'
 
 export interface DashboardsResponse {
   dashboards: Dashboard[]

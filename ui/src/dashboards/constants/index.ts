@@ -3,7 +3,7 @@ import {
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
 import {Cell, QueryConfig} from 'src/types'
-import {CellType, Dashboard, DecimalPlaces} from 'src/types/dashboard'
+import {CellType, Dashboard, DecimalPlaces} from 'src/types/dashboards'
 
 export const UNTITLED_GRAPH: string = 'Untitled Graph'
 

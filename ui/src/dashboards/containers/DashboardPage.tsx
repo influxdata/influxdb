@@ -59,7 +59,7 @@ import {
   TemplateValue,
   TimeRange,
 } from 'src/types'
-import {DashboardName} from 'src/types/dashboard'
+import {DashboardName} from 'src/types/dashboards'
 import {ColorNumber, ColorString} from 'src/types/colors'
 import * as AnnotationActions from 'src/types/actions/annotations'
 import * as AppActions from 'src/shared/actions/app'

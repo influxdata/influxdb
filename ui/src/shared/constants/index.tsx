@@ -1,7 +1,7 @@
 import _ from 'lodash'
 
 import {TemplateValueType, TemplateType} from 'src/types'
-import {CellType} from 'src/types/dashboard'
+import {CellType} from 'src/types/dashboards'
 
 export const NO_CELL = 'none'
 
