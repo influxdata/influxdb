@@ -1,5 +1,8 @@
 import React, {PureComponent, ChangeEvent} from 'react'
+import {getDeep} from 'src/utils/wrappers'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
+
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import {notifyCSVUploadFailed} from 'src/shared/copy/notifications'
@@ -23,17 +26,18 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     }
   }
 
+  //   <DragAndDrop
+  //   submitText="Preview"
+  //   fileTypesToAccept={this.validFileExtension}
+  //   handleSubmit={this.handleUploadFile}
+  //   submitOnDrop={true}
+  // />
   public render() {
     const {templateValues, templateValuesString} = this.state
+    const {onUpdateDefaultTemplateValue} = this.props
     const pluralizer = templateValues.length === 1 ? '' : 's'
     return (
       <>
-        <DragAndDrop
-          submitText="Preview"
-          fileTypesToAccept={this.validFileExtension}
-          handleSubmit={this.handleUploadFile}
-          submitOnDrop={true}
-        />
         <div className="temp-builder csv-temp-builder" style={{zIndex: 9010}}>
           <div className="form-group" style={{zIndex: 9010}}>
             <label>Comma Separated Values</label>
@@ -54,7 +58,11 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
             }
           </p>
           {templateValues.length > 0 && (
-            <TemplatePreviewList items={templateValues} />
+            <TemplatePreviewList
+              items={templateValues}
+              defaultValue={this.defaultValue}
+              onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
+            />
           )}
         </div>
       </>
@@ -72,49 +80,12 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
       this.props.notify(notifyCSVUploadFailed())
       return
     }
-    // account for newline separated values too.
-    // should return values be strings only.
 
     this.setState({templateValuesString: uploadContent})
 
     const nextValues = this.getValuesFromString(uploadContent)
 
     onUpdateTemplate({...template, values: nextValues})
-  }
-
-  private get validFileExtension(): string {
-    return '.csv'
-  }
-
-  private handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
-    this.setState({templateValuesString: e.target.value})
-  }
-
-  private getValuesFromString(templateValuesString) {
-    // trim whitepsace, return array of values
-    let templateValues
-
-    if (templateValuesString.trim() === '') {
-      templateValues = []
-    } else {
-      templateValues = templateValuesString.split(',').map(s => s.trim())
-    }
-
-    this.setState({templateValues})
-
-    const nextValues = templateValues.map((value: string): TemplateValue => {
-      return {
-        type: TemplateValueType.CSV,
-        value,
-        selected: false,
-      }
-    })
-
-    if (nextValues.length > 0) {
-      nextValues[0].selected = true
-    }
-
-    return nextValues
   }
 
   private handleBlur = (): void => {
@@ -124,6 +95,47 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     const nextValues = this.getValuesFromString(templateValuesString)
 
     onUpdateTemplate({...template, values: nextValues})
+  }
+
+  private get validFileExtension(): string {
+    return '.csv'
+  }
+
+  private get defaultValue(): string {
+    const {template} = this.props
+    const defaultTemplateValue = template.values.find(v => v.default)
+    return getDeep<string>(defaultTemplateValue, 'value', '')
+  }
+
+  private handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    this.setState({templateValuesString: e.target.value})
+  }
+
+  private getValuesFromString(templateValuesString) {
+    let templateValues
+
+    if (templateValuesString.trim() === '') {
+      templateValues = []
+    } else {
+      templateValues = templateValuesString.split(',').map(s => s.trim())
+    }
+
+    // account for newline separated values too.
+    // de-duplicate entries
+    // remove empty strings.
+
+    this.setState({templateValues})
+
+    const nextValues = templateValues.map((value: string): TemplateValue => {
+      return {
+        type: TemplateValueType.CSV,
+        value,
+        selected: false,
+        default: false,
+      }
+    })
+
+    return nextValues
   }
 }
 

@@ -1,11 +1,11 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
+import {getDeep} from 'src/utils/wrappers'
 
 import {proxy} from 'src/utils/queryUrlGenerator'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplateMetaQueryPreview from 'src/tempVars/components/TemplateMetaQueryPreview'
 import {parseMetaQuery, isInvalidMetaQuery} from 'src/tempVars/utils/parsing'
-import {getDeep} from 'src/utils/wrappers'
 
 import {
   TemplateBuilderProps,
@@ -76,6 +76,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
   }
 
   private renderResults() {
+    const {onUpdateDefaultTemplateValue} = this.props
     const {metaQueryResults, metaQueryResultsStatus} = this.state
 
     if (this.showInvalidMetaQueryMessage) {
@@ -90,8 +91,15 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
       <TemplateMetaQueryPreview
         items={metaQueryResults}
         loadingStatus={metaQueryResultsStatus}
+        defaultValue={this.defaultValue}
+        onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
       />
     )
+  }
+  private get defaultValue(): string {
+    const {template} = this.props
+    const defaultTemplateValue = template.values.find(v => v.default)
+    return getDeep<string>(defaultTemplateValue, 'value', '')
   }
 
   private get showInvalidMetaQueryMessage(): boolean {
@@ -141,6 +149,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
           type: TemplateValueType.MetaQuery,
           value: result,
           selected: false,
+          default: false,
         }
       })
 

@@ -155,6 +155,9 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
               source={source}
               onUpdateTemplate={this.handleUpdateTemplate}
               notify={notify}
+              onUpdateDefaultTemplateValue={
+                this.handleUpdateDefaultTemplateValue
+              }
             />
           </div>
           <ConfirmButton
@@ -184,8 +187,94 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     return component
   }
 
-  private handleUpdateTemplate = (nextTemplate: Template): void => {
-    this.setState({nextTemplate})
+  private handleUpdateDefaultTemplateValue = (value: string): void => {
+    const {
+      nextTemplate,
+      nextTemplate: {values},
+    } = this.state
+
+    const nextValues = values.map(v => {
+      if (v.value === value) {
+        return {...v, default: true}
+      } else {
+        return {...v, default: false}
+      }
+    })
+    this.setState({nextTemplate: {...nextTemplate, values: nextValues}})
+  }
+
+  private makeDefault = (template: Template, value: string): Template => {
+    const found = template.values.find(v => v.value === value)
+    let valueToChoose
+    if (found) {
+      valueToChoose = found.value
+    } else {
+      valueToChoose = getDeep<string>(template, 'values.0.value', '')
+    }
+
+    const valuesWithDefault = template.values.map(v => {
+      if (v.value === valueToChoose) {
+        return {...v, default: true}
+      } else {
+        return {...v, default: false}
+      }
+    })
+
+    return {...template, values: valuesWithDefault}
+  }
+
+  private makeSelected = (template: Template, value: string): Template => {
+    const found = template.values.find(v => v.value === value)
+    let valueToChoose
+    const defaultValue = template.values.find(v => v.default)
+
+    if (found) {
+      valueToChoose = found.value
+    } else if (defaultValue) {
+      valueToChoose = defaultValue
+    } else {
+      valueToChoose = getDeep<string>(template, 'values.0.value', '')
+    }
+
+    const valuesWithDefault = template.values.map(v => {
+      if (v.value === valueToChoose) {
+        return {...v, selected: true}
+      } else {
+        return {...v, selected: false}
+      }
+    })
+
+    return {...template, values: valuesWithDefault}
+  }
+
+  private makeDefaultAndSelected(
+    nextTemplate: Template,
+    nextNextTemplate: Template
+  ): Template {
+    const selectedValue = nextTemplate.values.find(v => v.selected)
+    const defaultValue = nextTemplate.values.find(v => v.default)
+    // make selected from default
+    const TemplateWithDefault = this.makeDefault(
+      nextNextTemplate,
+      getDeep<string>(defaultValue, 'value', '')
+    )
+
+    const TemplateWithDefaultAndSelected = this.makeSelected(
+      TemplateWithDefault,
+      getDeep<string>(selectedValue, 'value', '')
+    )
+    return TemplateWithDefaultAndSelected
+  }
+
+  private handleUpdateTemplate = (nextNextTemplate: Template): void => {
+    const {nextTemplate} = this.state
+
+    const TemplateWithDefaultAndSelected = this.makeDefaultAndSelected(
+      nextTemplate,
+      nextNextTemplate
+    )
+
+    this.setState({nextTemplate: TemplateWithDefaultAndSelected})
   }
 
   private handleChooseType = ({type}) => {

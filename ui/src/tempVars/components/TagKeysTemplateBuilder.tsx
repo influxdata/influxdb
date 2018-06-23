@@ -24,7 +24,12 @@ export const fetchTagKeys = async (
 
 class TagKeysTemplateBuilder extends PureComponent<TemplateBuilderProps> {
   public render() {
-    const {template, source, onUpdateTemplate} = this.props
+    const {
+      template,
+      source,
+      onUpdateTemplate,
+      onUpdateDefaultTemplateValue,
+    } = this.props
 
     return (
       <KeysTemplateBuilder
@@ -34,6 +39,7 @@ class TagKeysTemplateBuilder extends PureComponent<TemplateBuilderProps> {
         template={template}
         source={source}
         onUpdateTemplate={onUpdateTemplate}
+        onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
       />
     )
   }

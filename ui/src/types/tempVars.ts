@@ -17,6 +17,7 @@ export interface TemplateValue {
   value: string
   type: TemplateValueType
   selected: boolean
+  default: boolean
 }
 
 export interface TemplateQuery {
@@ -62,5 +63,6 @@ export interface TemplateBuilderProps {
   template: Template
   source: Source
   onUpdateTemplate: (nextTemplate: Template) => void
+  onUpdateDefaultTemplateValue: (v: string) => void
   notify?: (message: Notification) => void
 }

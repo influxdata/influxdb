@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import {getDeep} from 'src/utils/wrappers'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {showDatabases} from 'src/shared/apis/metaQuery'
@@ -36,6 +37,7 @@ class DatabasesTemplateBuilder extends PureComponent<
 
   public render() {
     const {databases, databasesStatus} = this.state
+    const {onUpdateDefaultTemplateValue} = this.props
 
     return (
       <div className="temp-builder databases-temp-builder">
@@ -48,9 +50,16 @@ class DatabasesTemplateBuilder extends PureComponent<
         <TemplateMetaQueryPreview
           items={databases}
           loadingStatus={databasesStatus}
+          defaultValue={this.defaultValue}
+          onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
         />
       </div>
     )
+  }
+  private get defaultValue(): string {
+    const {template} = this.props
+    const defaultTemplateValue = template.values.find(v => v.default)
+    return getDeep<string>(defaultTemplateValue, 'value', '')
   }
 
   private async loadDatabases(): Promise<void> {
@@ -72,6 +81,7 @@ class DatabasesTemplateBuilder extends PureComponent<
           type: TemplateValueType.Database,
           value: db,
           selected: false,
+          default: false,
         }
       })
 
