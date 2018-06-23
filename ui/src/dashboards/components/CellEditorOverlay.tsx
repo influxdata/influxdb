@@ -42,7 +42,7 @@ import {
   Status,
 } from 'src/types'
 import {ColorString, ColorNumber} from 'src/types/colors'
-import * as DashboardActions from 'src/types/actions/dashboard'
+import * as DashboardActions from 'src/types/actions/dashboards'
 import {SourceOption} from 'src/dashboards/components/OverlayControls'
 
 type QueryTransitions = typeof queryTransitions

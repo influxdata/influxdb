@@ -68,7 +68,7 @@ import {
   URLQueryParams,
 } from 'src/types'
 import * as DashboardData from 'src/types/dashboard'
-import * as DashboardActions from 'src/types/actions/dashboard'
+import * as DashboardActions from 'src/types/actions/dashboards'
 import * as DashboardAPIs from 'src/types/apis/dashboard'
 import * as DashboardReducers from 'src/types/reducers/dashboard'
 import * as AuthReducers from 'src/types/reducers/auth'
