@@ -62,7 +62,7 @@ import {
 import {DashboardName} from 'src/types/dashboards'
 import {ColorNumber, ColorString} from 'src/types/colors'
 import * as AnnotationActions from 'src/types/actions/annotations'
-import * as AppActions from 'src/shared/actions/app'
+import * as AppActions from 'src/types/actions/app'
 import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
 import * as DashboardActions from 'src/types/actions/dashboards'
 import * as ErrorActions from 'src/types/actions/errors'

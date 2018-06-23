@@ -4,31 +4,20 @@ import {notify} from 'src/shared/actions/notifications'
 import {notifyPresentationMode} from 'src/shared/copy/notifications'
 
 import {Dispatch} from 'redux'
+import * as AppActions from 'src/types/actions/app'
 
 // ephemeral state action creators
-export type EnablePresentationModeActionCreator = () => EnablePresentationModeAction
 
-interface EnablePresentationModeAction {
-  type: 'ENABLE_PRESENTATION_MODE'
-}
-export const enablePresentationMode = (): EnablePresentationModeAction => ({
+export const enablePresentationMode = (): AppActions.EnablePresentationModeAction => ({
   type: 'ENABLE_PRESENTATION_MODE',
 })
 
-interface DisablePresentationModeAction {
-  type: 'DISABLE_PRESENTATION_MODE'
-}
-export const disablePresentationMode = (): DisablePresentationModeAction => ({
+export const disablePresentationMode = (): AppActions.DisablePresentationModeAction => ({
   type: 'DISABLE_PRESENTATION_MODE',
 })
 
-export type DelayEnablePresentationModeDispatcher = () => DelayEnablePresentationModeThunk
-export type DelayEnablePresentationModeThunk = (
-  dispatch: Dispatch<EnablePresentationModeAction>
-) => Promise<NodeJS.Timer>
-
-export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher = () => async (
-  dispatch: Dispatch<EnablePresentationModeAction>
+export const delayEnablePresentationMode: AppActions.DelayEnablePresentationModeDispatcher = () => async (
+  dispatch: Dispatch<AppActions.EnablePresentationModeAction>
 ): Promise<NodeJS.Timer> =>
   setTimeout(() => {
     dispatch(enablePresentationMode())
@@ -36,39 +25,21 @@ export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher 
   }, PRESENTATION_MODE_ANIMATION_DELAY)
 
 // persistent state action creators
-export type SetAutoRefreshActionCreator = (
-  milliseconds: number
-) => SetAutoRefreshAction
 
-interface SetAutoRefreshAction {
-  type: 'SET_AUTOREFRESH'
-  payload: {
-    milliseconds: number
-  }
-}
-export const setAutoRefresh: SetAutoRefreshActionCreator = (
+export const setAutoRefresh: AppActions.SetAutoRefreshActionCreator = (
   milliseconds: number
-): SetAutoRefreshAction => ({
+): AppActions.SetAutoRefreshAction => ({
   type: 'SET_AUTOREFRESH',
   payload: {
     milliseconds,
   },
 })
 
-export type TemplateControlBarVisibilityToggledActionCreator = () => TemplateControlBarVisibilityToggledAction
-
-interface TemplateControlBarVisibilityToggledAction {
-  type: 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED'
-}
-export const templateControlBarVisibilityToggled = (): TemplateControlBarVisibilityToggledAction => ({
+export const templateControlBarVisibilityToggled = (): AppActions.TemplateControlBarVisibilityToggledAction => ({
   type: 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED',
 })
 
-interface NoopAction {
-  type: 'NOOP'
-  payload: object
-}
-export const noop = (): NoopAction => ({
+export const noop = (): AppActions.NoopAction => ({
   type: 'NOOP',
   payload: {},
 })

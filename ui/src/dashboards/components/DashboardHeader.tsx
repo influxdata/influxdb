@@ -13,7 +13,7 @@ import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 
 import {Dashboard, TimeRange} from 'src/types'
 import {DashboardName} from 'src/types/dashboards'
-import * as AppActions from 'src/shared/actions/app'
+import * as AppActions from 'src/types/actions/app'
 
 interface Props {
   activeDashboard: string
