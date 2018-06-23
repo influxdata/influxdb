@@ -1,40 +1,33 @@
+// Libraries
 import React, {Component, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
-
 import _ from 'lodash'
 
+// Components
 import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
-
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import Dashboard from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
 
-import {errorThrown as errorThrownAction} from 'src/shared/actions/errors'
-import {notify as notifyAction} from 'src/shared/actions/notifications'
+// Actions
+import * as dashboardActions from 'src/dashboards/actions'
+import * as annotationActions from 'src/shared/actions/annotations'
+import * as cellEditorOverlayActions from 'src/dashboards/actions/cellEditorOverlay'
+import * as appActions from 'src/shared/actions/app'
+import * as errorActions from 'src/shared/actions/errors'
+import * as notifyActions from 'src/shared/actions/notifications'
+
+// Utils
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {millisecondTimeRange} from 'src/dashboards/utils/time'
-
-import * as dashboardActionCreators from 'src/dashboards/actions'
-import * as annotationActions from 'src/shared/actions/annotations'
-
-import {
-  showCellEditorOverlay,
-  hideCellEditorOverlay,
-} from 'src/dashboards/actions/cellEditorOverlay'
-
 import {stripTempVar} from 'src/dashboards/utils/tempVars'
+import {getDeep} from 'src/utils/wrappers'
 
-import {dismissEditingAnnotation} from 'src/shared/actions/annotations'
-
-import {
-  setAutoRefresh,
-  templateControlBarVisibilityToggled as templateControlBarVisibilityToggledAction,
-  delayEnablePresentationMode,
-} from 'src/shared/actions/app'
-
+// Constants
 import {
   interval,
   DASHBOARD_LAYOUT_ROW_HEIGHT,
@@ -43,24 +36,16 @@ import {
 } from 'src/shared/constants'
 import {FORMAT_INFLUXQL, defaultTimeRange} from 'src/shared/data/timeRanges'
 
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-import {getDeep} from 'src/utils/wrappers'
-
+// Types
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import {InjectedRouter} from 'react-router'
-import {
-  Cell,
-  Dashboard as IDashboard,
-  Source,
-  Template,
-  TemplateValue,
-  TimeRange,
-} from 'src/types'
-import {DashboardName} from 'src/types/dashboards'
-import {ColorNumber, ColorString} from 'src/types/colors'
+import * as SourceData from 'src/types/sources'
+import * as TempVarData from 'src/types/tempVars'
+import * as DashboardData from 'src/types/dashboards'
+import * as QueryData from 'src/types/query'
+import * as ColorData from 'src/types/colors'
 import * as AnnotationActions from 'src/types/actions/annotations'
 import * as AppActions from 'src/types/actions/app'
 import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
@@ -88,21 +73,21 @@ interface DashboardActions {
 }
 
 interface Props extends DashboardActions, ManualRefreshProps, WithRouterProps {
-  source: Source
-  sources: Source[]
+  source: SourceData.Source
+  sources: SourceData.Source[]
   params: {
     sourceID: string
     dashboardID: string
   }
   location: Location
   dashboardID: number
-  dashboard: IDashboard
-  dashboards: IDashboard[]
+  dashboard: DashboardData.Dashboard
+  dashboards: DashboardData.Dashboard[]
   handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   autoRefresh: number
   templateControlBarVisibilityToggled: () => AppActions.TemplateControlBarVisibilityToggledActionCreator
-  timeRange: TimeRange
-  zoomedTimeRange: TimeRange
+  timeRange: QueryData.TimeRange
+  zoomedTimeRange: QueryData.TimeRange
   showTemplateControlBar: boolean
   inPresentationMode: boolean
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
@@ -119,19 +104,19 @@ interface Props extends DashboardActions, ManualRefreshProps, WithRouterProps {
   handleShowCellEditorOverlay: CellEditorOverlayActions.ShowCellEditorOverlayActionCreator
   handleHideCellEditorOverlay: CellEditorOverlayActions.HideCellEditorOverlayActionCreator
   handleDismissEditingAnnotation: AnnotationActions.DismissEditingAnnotationActionCreator
-  selectedCell: Cell
+  selectedCell: DashboardData.Cell
   thresholdsListType: string
-  thresholdsListColors: ColorNumber[]
-  gaugeColors: ColorNumber[]
-  lineColors: ColorString[]
+  thresholdsListColors: ColorData.ColorNumber[]
+  gaugeColors: ColorData.ColorNumber[]
+  lineColors: ColorData.ColorString[]
 }
 
 interface State {
   isEditMode: boolean
-  selectedCell: Cell | null
+  selectedCell: DashboardData.Cell | null
   scrollTop: number
   windowHeight: number
-  dashboardsNames: DashboardName[]
+  dashboardsNames: DashboardData.DashboardName[]
 }
 
 @ErrorHandling
@@ -393,7 +378,7 @@ class DashboardPage extends Component<Props, State> {
     this.setState({dashboardsNames})
   }
 
-  private inView = (cell: Cell): boolean => {
+  private inView = (cell: DashboardData.Cell): boolean => {
     const {scrollTop, windowHeight} = this.state
     const bufferValue = 600
     const cellTop = cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT
@@ -406,13 +391,15 @@ class DashboardPage extends Component<Props, State> {
     return topInView && bottomInView
   }
 
-  private handleSaveEditedCell = async (newCell: Cell): Promise<void> => {
+  private handleSaveEditedCell = async (
+    newCell: DashboardData.Cell
+  ): Promise<void> => {
     const {dashboard, handleHideCellEditorOverlay} = this.props
     await this.props.updateDashboardCell(dashboard, newCell)
     handleHideCellEditorOverlay()
   }
 
-  private handleChooseTimeRange = (timeRange: TimeRange): void => {
+  private handleChooseTimeRange = (timeRange: QueryData.TimeRange): void => {
     const {
       dashboard,
 
@@ -435,7 +422,7 @@ class DashboardPage extends Component<Props, State> {
     getAnnotationsAsync(source.links.annotations, annotationRange)
   }
 
-  private handleUpdatePosition = (cells: Cell[]): void => {
+  private handleUpdatePosition = (cells: DashboardData.Cell[]): void => {
     const {dashboard, meRole, isUsingAuth} = this.props
     const newDashboard = {...dashboard, cells}
 
@@ -453,7 +440,7 @@ class DashboardPage extends Component<Props, State> {
     this.props.addDashboardCellAsync(dashboard)
   }
 
-  private handleCloneCell = (cell: Cell): void => {
+  private handleCloneCell = (cell: DashboardData.Cell): void => {
     const {dashboard} = this.props
     this.props.cloneDashboardCellAsync(dashboard, cell)
   }
@@ -476,14 +463,16 @@ class DashboardPage extends Component<Props, State> {
     this.getDashboardsNames()
   }
 
-  private handleDeleteDashboardCell = (cell: Cell): void => {
+  private handleDeleteDashboardCell = (cell: DashboardData.Cell): void => {
     const {dashboard} = this.props
     this.props.deleteDashboardCellAsync(dashboard, cell)
   }
 
   private handleSelectTemplate = (
     templateID: string
-  ): ((value: TemplateValue) => void) => (value: TemplateValue): void => {
+  ): ((value: TempVarData.TemplateValue) => void) => (
+    value: TempVarData.TemplateValue
+  ): void => {
     const {dashboard, dashboardID, location} = this.props
 
     const currentTempVar = dashboard.templates.find(
@@ -506,7 +495,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleSaveTemplateVariables = async (
-    templates: Template[]
+    templates: TempVarData.Template[]
   ): Promise<void> => {
     const {location, dashboard} = this.props
 
@@ -529,7 +518,9 @@ class DashboardPage extends Component<Props, State> {
     this.props.templateControlBarVisibilityToggled()
   }
 
-  private handleZoomedTimeRange = (zoomedTimeRange: TimeRange): void => {
+  private handleZoomedTimeRange = (
+    zoomedTimeRange: QueryData.TimeRange
+  ): void => {
     const {location} = this.props
     this.props.setZoomedTimeRangeAsync(zoomedTimeRange, location)
   }
@@ -595,16 +586,17 @@ const mstp = (state, {params: {dashboardID}}) => {
 }
 
 const mdtp = {
-  handleChooseAutoRefresh: setAutoRefresh,
-  templateControlBarVisibilityToggled: templateControlBarVisibilityToggledAction,
-  handleClickPresentationButton: delayEnablePresentationMode,
-  ...dashboardActionCreators,
-  errorThrown: errorThrownAction,
-  notify: notifyAction,
+  ...dashboardActions,
+  handleChooseAutoRefresh: appActions.setAutoRefresh,
+  templateControlBarVisibilityToggled:
+    appActions.templateControlBarVisibilityToggled,
+  handleClickPresentationButton: appActions.delayEnablePresentationMode,
+  errorThrown: errorActions.errorThrown,
+  notify: notifyActions.notify,
+  handleShowCellEditorOverlay: cellEditorOverlayActions.showCellEditorOverlay,
+  handleHideCellEditorOverlay: cellEditorOverlayActions.hideCellEditorOverlay,
   getAnnotationsAsync: annotationActions.getAnnotationsAsync,
-  handleShowCellEditorOverlay: showCellEditorOverlay,
-  handleHideCellEditorOverlay: hideCellEditorOverlay,
-  handleDismissEditingAnnotation: dismissEditingAnnotation,
+  handleDismissEditingAnnotation: annotationActions.dismissEditingAnnotation,
 }
 
 export default connect(mstp, mdtp)(
