@@ -103,7 +103,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 
 	queryHandler := http.NewQueryHandler()
 	queryHandler.QueryService = query.QueryServiceBridge{
-		AsyncQueryService: wrapController{Controller: c},
+		AsyncQueryService: c,
 	}
 	queryHandler.OrganizationService = &orgSvc
 
@@ -161,22 +161,6 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-// wrapController is needed to make *query.Controller implement platform.AsyncQueryService.
-// TODO(nathanielc): Remove this type and make query.Controller implement the platform.AsyncQueryService directly.
-type wrapController struct {
-	*control.Controller
-}
-
-func (c wrapController) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (query.Query, error) {
-	q, err := c.Controller.Query(ctx, orgID, query)
-	return q, err
-}
-
-func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (query.Query, error) {
-	q, err := c.Controller.QueryWithCompile(ctx, orgID, query)
-	return q, err
 }
 
 type bucketLookup struct {
