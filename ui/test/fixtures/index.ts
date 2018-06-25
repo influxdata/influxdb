@@ -15,9 +15,9 @@ import {
   TableOptions,
   FieldOption,
   DecimalPlaces,
+  CellType,
 } from 'src/types/dashboards'
 import {LineColor, ColorNumber} from 'src/types/colors'
-import {CellType} from 'src/types/dashboards'
 
 export const sourceLinks: SourceLinks = {
   services: '/chronograf/v1/sources/4',
