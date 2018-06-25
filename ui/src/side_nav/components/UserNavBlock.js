@@ -37,7 +37,7 @@ class UserNavBlock extends Component {
     return (
       <div className="sidebar--item">
         <div className="sidebar--square">
-          <div className="sidebar--icon icon user" />
+          <div className="sidebar--icon icon user-outline" />
           {isSuperAdmin ? (
             <span className="sidebar--icon sidebar--icon__superadmin icon crown2" />
           ) : null}
