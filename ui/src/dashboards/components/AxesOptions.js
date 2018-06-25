@@ -158,6 +158,11 @@ class AxesOptions extends Component {
               tipContent={TOOLTIP_Y_VALUE_FORMAT}
             >
               <Tab
+                text="Raw"
+                isActive={base === ''}
+                onClickTab={this.handleSetBase('')}
+              />
+              <Tab
                 text="K/M/B"
                 isActive={base === BASE_10}
                 onClickTab={this.handleSetBase(BASE_10)}
@@ -171,7 +176,7 @@ class AxesOptions extends Component {
             <Tabber labelText="Scale">
               <Tab
                 text="Linear"
-                isActive={scale === LINEAR}
+                isActive={scale === LINEAR || scale === ''}
                 onClickTab={this.handleSetScale(LINEAR)}
               />
               <Tab
