@@ -1,5 +1,8 @@
 # Top level Makefile for the entire project
 #
+# This Makefile encodes the "go generate" prerequeisites ensuring that the proper tooling is installed and
+# that the generate steps are executed when their prerequeisites files change.
+#
 # This Makefile follows a few conventions:
 #
 #    * All cmds must be added to this top level Makefile.
@@ -13,6 +16,7 @@ SUBDIRS := query
 GO_ARGS=-tags '$(GO_TAGS)'
 
 # Test vars can be used by all recursive Makefiles
+export GOOS=$(shell go env GOOS)
 export GO_BUILD=go build $(GO_ARGS)
 export GO_TEST=go test $(GO_ARGS)
 export GO_GENERATE=go generate $(GO_ARGS)
@@ -26,10 +30,17 @@ SOURCES := $(shell find . -name '*.go' -not -name '*_test.go')
 SOURCES_NO_VENDOR := $(shell find . -path ./vendor -prune -o -name "*.go" -not -name '*_test.go' -print)
 
 # List of binary cmds to build
-CMDS := bin/influx bin/idpd bin/fluxd bin/transpilerd
+CMDS := \
+	bin/$(GOOS)/influx \
+	bin/$(GOOS)/idpd \
+	bin/$(GOOS)/fluxd \
+	bin/$(GOOS)/transpilerd
 
 # List of utilities to build as part of the build process
-UTILS := bin/pigeon bin/cmpgen bin/goreleaser
+UTILS := \
+	bin/$(GOOS)/pigeon \
+	bin/$(GOOS)/cmpgen \
+	bin/$(GOOS)/goreleaser
 
 # Default target to build all commands.
 #
@@ -40,35 +51,26 @@ all: Gopkg.lock $(UTILS) subdirs $(CMDS)
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
 subdirs: $(SUBDIRS)
-	$(MAKE) -C $^ all
+	@for d in $^; do $(MAKE) -C $$d all; done
 
 #
 # Define targets for commands
 #
+$(CMDS): $(SOURCES)
+	$(GO_BUILD) -i -o $@ ./cmd/$(shell basename "$@")
 
-bin/fluxd: $(SOURCES)
-	$(GO_BUILD) -i -o bin/fluxd ./cmd/fluxd
-
-bin/influx: $(SOURCES)
-	$(GO_BUILD) -i -o bin/influx ./cmd/influx
-
-bin/idpd: $(SOURCES)
-	$(GO_BUILD) -i -o bin/idpd ./cmd/idpd
-
-bin/transpilerd: $(SOURCES)
-	$(GO_BUILD) -i -o bin/transpilerd ./cmd/transpilerd
 #
 # Define targets for utilities
 #
 
-bin/pigeon: ./vendor/github.com/mna/pigeon/main.go
-	go build -i -o bin/pigeon  ./vendor/github.com/mna/pigeon
+bin/$(GOOS)/pigeon: ./vendor/github.com/mna/pigeon/main.go
+	go build -i -o $@  ./vendor/github.com/mna/pigeon
 
-bin/cmpgen: ./query/ast/asttest/cmpgen/main.go
-	go build -i -o bin/cmpgen ./query/ast/asttest/cmpgen
+bin/$(GOOS)/cmpgen: ./query/ast/asttest/cmpgen/main.go
+	go build -i -o $@ ./query/ast/asttest/cmpgen
 
-bin/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
-	go build -i -o bin/goreleaser ./vendor/github.com/goreleaser/goreleaser
+bin/$(GOOS)/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
+	go build -i -o $@ ./vendor/github.com/goreleaser/goreleaser
 
 #
 # Define how source dependencies are managed
@@ -108,7 +110,7 @@ nightly: bin/goreleaser all
 
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
-	$(MAKE) -C $^ $(MAKECMDGOALS)
+	@for d in $^; do $(MAKE) -C $$d $(MAKECMDGOALS); done
 	rm -rf bin
 
 # .PHONY targets represent actions that do not create an actual file.
