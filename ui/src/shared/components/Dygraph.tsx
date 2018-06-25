@@ -148,7 +148,7 @@ class Dygraph extends Component<Props, State> {
       zoomCallback: (lower: number, upper: number) =>
         this.handleZoom(lower, upper),
       drawCallback: () => this.handleDraw(),
-      highlightCircleSize: 0,
+      highlightCircleSize: 3,
     }
 
     if (isBarGraph) {
@@ -242,7 +242,7 @@ class Dygraph extends Component<Props, State> {
     const {staticLegend, cellID} = this.props
 
     return (
-      <div className="dygraph-child">
+      <div className="dygraph-child" onMouseMove={this.handleShowLegend}>
         {this.dygraph && (
           <div className="dygraph-addons">
             {this.areAnnotationsVisible && (
@@ -265,11 +265,7 @@ class Dygraph extends Component<Props, State> {
             />
           </div>
         )}
-        <div
-          className="dygraph-child-container"
-          style={this.dygraphStyle}
-          onMouseEnter={this.handleShowLegend}
-        />
+        <div className="dygraph-child-container" style={this.dygraphStyle} />
         {staticLegend && (
           <StaticLegend
             dygraphSeries={this.colorDygraphSeries}
@@ -287,7 +283,6 @@ class Dygraph extends Component<Props, State> {
           className="dygraph-child-container"
           ref={this.graphRef}
           style={this.dygraphStyle}
-          onMouseEnter={this.handleShowLegend}
         />
         <ReactResizeDetector
           handleWidth={true}

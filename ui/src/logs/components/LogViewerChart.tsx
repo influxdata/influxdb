@@ -18,10 +18,10 @@ class LogViewerChart extends PureComponent<Props> {
         onZoom={onZoom}
         queries={[]}
         data={data}
-        displayOptions={{animatedZooms: false}}
-        setResolution={this.setResolution}
         isBarGraph={true}
         timeRange={timeRange}
+        displayOptions={{animatedZooms: false}}
+        setResolution={this.setResolution}
         colors={DEFAULT_LINE_COLORS}
       />
     )
