@@ -14,7 +14,6 @@ import {
   TOOLTIP_Y_VALUE_FORMAT,
 } from 'src/dashboards/constants/cellEditor'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
-import {getDeep} from 'src/utils/wrappers'
 
 import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
 import {ErrorHandling} from 'src/shared/decorators/errors'
