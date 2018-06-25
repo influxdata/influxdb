@@ -55,12 +55,11 @@ const getNextAvailablePosition = (dashboard, newCell) => {
 
 export const getNewDashboardCell = (
   dashboard: Dashboard,
-  cellType?: CellType
+  cellType: CellType = CellType.Line
 ): NewDefaultCell => {
-  const type = cellType || CellType.Line
   const typedCell = {
     ...NEW_DEFAULT_DASHBOARD_CELL,
-    type,
+    type: cellType,
     name: UNTITLED_GRAPH,
   }
 
