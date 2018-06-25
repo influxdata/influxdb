@@ -5,7 +5,7 @@ import FluxOverlay from 'src/flux/components/FluxOverlay'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 import PageHeader from 'src/shared/components/PageHeader'
 import {
-  showOverlay as showOverlayActionCreator,
+  showOverlay,
   ShowOverlayActionCreator,
 } from 'src/shared/actions/overlayTechnology'
 
@@ -36,9 +36,9 @@ class FluxHeader extends PureComponent<Props> {
   }
 
   private overlay = () => {
-    const {showOverlay, service} = this.props
+    const {service} = this.props
 
-    showOverlay(
+    this.props.showOverlay(
       <OverlayContext.Consumer>
         {({onDismissOverlay}) => (
           <FluxOverlay
@@ -54,7 +54,7 @@ class FluxHeader extends PureComponent<Props> {
 }
 
 const mdtp = {
-  showOverlay: showOverlayActionCreator,
+  showOverlay,
 }
 
 export default connect(null, mdtp)(FluxHeader)
