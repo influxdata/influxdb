@@ -47,7 +47,10 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
             }
           </p>
           {templateValues.length > 0 && (
-            <TemplatePreviewList items={templateValues} />
+            <TemplatePreviewList
+              items={templateValues}
+              onChoose={this.handleChooseCSVValue}
+            />
           )}
         </div>
       </div>
@@ -83,6 +86,21 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     if (nextValues.length > 0) {
       nextValues[0].selected = true
     }
+
+    onUpdateTemplate({...template, values: nextValues})
+  }
+
+  private handleChooseCSVValue = (csvValue: string) => {
+    const {template, onUpdateTemplate} = this.props
+    const {templateValues} = this.state
+
+    const nextValues = templateValues.map(value => {
+      return {
+        type: TemplateValueType.CSV,
+        value,
+        selected: value === csvValue,
+      }
+    })
 
     onUpdateTemplate({...template, values: nextValues})
   }

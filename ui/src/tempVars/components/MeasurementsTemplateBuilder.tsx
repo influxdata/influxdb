@@ -75,6 +75,7 @@ class MeasurementsTemplateBuilder extends PureComponent<
         <TemplateMetaQueryPreview
           items={measurements}
           loadingStatus={measurementsStatus}
+          onChoose={this.handleChooseMeasurementValue}
         />
       </div>
     )
@@ -141,6 +142,21 @@ class MeasurementsTemplateBuilder extends PureComponent<
       this.setState({measurementsStatus: RemoteDataState.Error})
       console.error(error)
     }
+  }
+
+  private handleChooseMeasurementValue = (measurementValue: string) => {
+    const {template, onUpdateTemplate} = this.props
+    const {measurements} = this.state
+
+    const nextValues = measurements.map(value => {
+      return {
+        type: TemplateValueType.Measurement,
+        value,
+        selected: value === measurementValue,
+      }
+    })
+
+    onUpdateTemplate({...template, values: nextValues})
   }
 
   private handleChooseDatabaseDropdown = ({text}) => {

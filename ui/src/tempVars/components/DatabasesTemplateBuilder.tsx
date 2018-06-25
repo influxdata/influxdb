@@ -48,6 +48,7 @@ class DatabasesTemplateBuilder extends PureComponent<
         <TemplateMetaQueryPreview
           items={databases}
           loadingStatus={databasesStatus}
+          onChoose={this.handleChooseDatabaseValue}
         />
       </div>
     )
@@ -88,6 +89,21 @@ class DatabasesTemplateBuilder extends PureComponent<
     } catch {
       this.setState({databasesStatus: RemoteDataState.Error})
     }
+  }
+
+  private handleChooseDatabaseValue = (dbValue: string) => {
+    const {template, onUpdateTemplate} = this.props
+    const {databases} = this.state
+
+    const nextValues = databases.map(value => {
+      return {
+        type: TemplateValueType.Database,
+        value,
+        selected: value === dbValue,
+      }
+    })
+
+    onUpdateTemplate({...template, values: nextValues})
   }
 }
 

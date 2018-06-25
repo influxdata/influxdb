@@ -90,6 +90,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
       <TemplateMetaQueryPreview
         items={metaQueryResults}
         loadingStatus={metaQueryResultsStatus}
+        onChoose={this.handleChooseQueryValue}
       />
     )
   }
@@ -163,6 +164,21 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
         metaQueryResultsStatus: RemoteDataState.Error,
       })
     }
+  }
+
+  private handleChooseQueryValue = (metaQueryResultValue: string) => {
+    const {template, onUpdateTemplate} = this.props
+    const {metaQueryResults} = this.state
+
+    const nextValues = metaQueryResults.map(value => {
+      return {
+        type: TemplateValueType.MetaQuery,
+        value,
+        selected: value === metaQueryResultValue,
+      }
+    })
+
+    onUpdateTemplate({...template, values: nextValues})
   }
 }
 

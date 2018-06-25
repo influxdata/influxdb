@@ -117,6 +117,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         <TemplateMetaQueryPreview
           items={tagValues}
           loadingStatus={tagValuesStatus}
+          onChoose={this.handleChooseTagValue}
         />
       </div>
     )
@@ -302,6 +303,21 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         tagKey,
       },
     })
+  }
+
+  private handleChooseTagValue = (tagValue: string) => {
+    const {template, onUpdateTemplate} = this.props
+    const {databases} = this.state
+
+    const nextValues = databases.map(value => {
+      return {
+        type: TemplateValueType.TagValue,
+        value,
+        selected: value === tagValue,
+      }
+    })
+
+    onUpdateTemplate({...template, values: nextValues})
   }
 }
 

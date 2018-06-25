@@ -101,7 +101,11 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
             </DropdownLoadingPlaceholder>
           </div>
         </div>
-        <TemplateMetaQueryPreview items={keys} loadingStatus={keysStatus} />
+        <TemplateMetaQueryPreview
+          items={keys}
+          loadingStatus={keysStatus}
+          onChoose={this.handleChooseKeyValue}
+        />
       </div>
     )
   }
@@ -200,6 +204,21 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
       this.setState({keysStatus: RemoteDataState.Error})
       console.error(error)
     }
+  }
+
+  private handleChooseKeyValue = (keyValue: string) => {
+    const {template, onUpdateTemplate, templateValueType} = this.props
+    const {keys} = this.state
+
+    const nextValues = keys.map(value => {
+      return {
+        type: templateValueType,
+        value,
+        selected: value === keyValue,
+      }
+    })
+
+    onUpdateTemplate({...template, values: nextValues})
   }
 
   private handleChooseDatabaseDropdown = ({text}) => {
