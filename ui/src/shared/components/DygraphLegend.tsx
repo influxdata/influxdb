@@ -176,7 +176,10 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 
   private highlightCallback = (e: MouseEvent) => {
-    this.props.setActiveCell(this.props.cellID)
+    if (this.props.activeCellID !== this.props.cellID) {
+      this.props.setActiveCell(this.props.cellID)
+    }
+
     this.setState({pageX: e.pageX})
     this.props.onShow(e)
   }

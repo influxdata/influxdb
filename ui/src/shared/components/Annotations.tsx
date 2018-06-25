@@ -92,8 +92,9 @@ class Annotations extends Component<Props> {
   get annotations() {
     return visibleAnnotations(
       this.props.xAxisRange,
-      this.props.annotations
-    ).filter(a => a.id !== TEMP_ANNOTATION.id)
+      this.props.annotations,
+      TEMP_ANNOTATION.id
+    )
   }
 
   get tempAnnotation() {
