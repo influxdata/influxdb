@@ -1,9 +1,9 @@
 import React, {Component} from 'react'
 import _ from 'lodash'
 
-import Container from 'src/shared/components/overlay/OverlayContainer'
-import Heading from 'src/shared/components/overlay/OverlayHeading'
-import Body from 'src/shared/components/overlay/OverlayBody'
+import Container from 'src/reusable_ui/components/overlays/OverlayContainer'
+import Heading from 'src/reusable_ui/components/overlays/OverlayHeading'
+import Body from 'src/reusable_ui/components/overlays/OverlayBody'
 import SeverityOptions from 'src/logs/components/SeverityOptions'
 import ColumnsOptions from 'src/logs/components/ColumnsOptions'
 import {
@@ -109,7 +109,7 @@ class OptionsOverlay extends Component<Props, State> {
     return true
   }
 
-  private handleSave = () => {
+  private handleSave = async () => {
     const {
       onUpdateSeverityLevels,
       onDismissOverlay,
@@ -118,9 +118,9 @@ class OptionsOverlay extends Component<Props, State> {
     } = this.props
     const {workingSeverityLevels, workingFormat, workingColumns} = this.state
 
-    onUpdateSeverityFormat(workingFormat)
-    onUpdateSeverityLevels(workingSeverityLevels)
-    onUpdateColumns(workingColumns)
+    await onUpdateSeverityFormat(workingFormat)
+    await onUpdateSeverityLevels(workingSeverityLevels)
+    await onUpdateColumns(workingColumns)
     onDismissOverlay()
   }
 

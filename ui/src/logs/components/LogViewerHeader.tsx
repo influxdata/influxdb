@@ -50,7 +50,7 @@ class LogViewerHeader extends PureComponent<Props> {
   }
 
   private get optionsComponents(): JSX.Element {
-    const {timeRange} = this.props
+    const {timeRange, onShowOptionsOverlay} = this.props
 
     return (
       <>

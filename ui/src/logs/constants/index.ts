@@ -123,3 +123,25 @@ export const DEFAULT_SEVERITY_LEVELS = [
     override: null,
   },
 ]
+
+export enum SeverityFormatOptions {
+  dot = 'dot',
+  dotText = 'dotText',
+  text = 'text',
+}
+
+export enum EncodingTypes {
+  visibility = 'visibility',
+  display = 'displayName',
+  label = 'label',
+}
+
+export enum EncodingLabelOptions {
+  text = 'text',
+  icon = 'icon',
+}
+
+export enum EncodingVisibilityOptions {
+  visible = 'visible',
+  hidden = 'hidden',
+}
