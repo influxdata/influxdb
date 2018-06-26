@@ -378,10 +378,11 @@ A _block_ is a possibly empty sequence of statements within matching brace brack
 
 In addition to explicit blocks in the source code, there are implicit blocks:
 
-1. The _universe block_ encompasses all Flux source text.
-2. Each package has a _package block_ containing all Flux source text for that package.
-3. Each file has a _file block_ containing all Flux source text in that file.
-4. Each function literal has its own _function block_ even if not explicitly declared.
+1. The _options block_ is the top-level block for all Flux programs. All option declarations are contained in this block.
+2. The _universe block_ encompasses all Flux source text aside from option statements. It is nested directly inside of the _options block_.
+3. Each package has a _package block_ containing all Flux source text for that package.
+4. Each file has a _file block_ containing all Flux source text in that file.
+5. Each function literal has its own _function block_ even if not explicitly declared.
 
 Blocks nest and influence scoping.
 
@@ -394,14 +395,20 @@ An identifier may change value via assignment within the same block.
 
 Flux is lexically scoped using blocks:
 
-1. The scope of a preassigned identifier is in the universe block.
-2. The scope of an identifier denoting a variable or function at the top level (outside any function) is the package block.
-3. The scope of a package name of an imported package is the file block of the file containing the import declaration.
-4. The scope of an identifier denoting a function argument is the function body.
-5. The scope of a variable assigned inside a function is the innermost containing block.
+1. The scope of an option identifier is the options block.
+2. The scope of a preassigned (non-option) identifier is in the universe block.
+3. The scope of an identifier denoting a variable or function at the top level (outside any function) is the package block.
+4. The scope of a package name of an imported package is the file block of the file containing the import declaration.
+5. The scope of an identifier denoting a function argument is the function body.
+6. The scope of a variable assigned inside a function is the innermost containing block.
 
-An identifier assigned in a block may be reassigned in an inner block.
+An identifier assigned in a block may be reassigned in an inner block with the exception of option identifiers.
 While the identifier of the inner assignment is in scope, it denotes the entity assigned by the inner assignment.
+
+Option identifiers have default assignments that are automatically defined in the _options block_.
+Because the _options block_ is the top-level block of a Flux program, options are visible/available to any and all other blocks.
+However option values may only be reassigned or overridden in the explicit block denoting the main (executable) package.
+Assignment of option identifiers in any non-executable package is strictly prohibited.
 
 The package clause is not a assignment; the package name does not appear in any scope.
 Its purpose is to identify the files belonging to the same package and to specify the default package name for import declarations.
@@ -508,8 +515,54 @@ Examples:
 
 A statement controls execution.
 
-    Statement = VarAssignment | ReturnStatement |
+    Statement = OptionStatement | VarAssignment | ReturnStatement |
                 ExpressionStatement | BlockStatment .
+
+#### Option statements
+
+Options specify a context in which a Flux query is to be run. They define variables
+that describe how to execute a Flux query. For example, the following Flux script sets
+the `task` option to schedule a query to run periodically every hour:
+
+    option task = {
+        name: "mean",
+        every: 1h,
+    }
+
+    from(db:"metrics")
+        |> range(start:-task.every)
+        |> group(by:["level"])
+        |> mean()
+        |> yield(name:"mean")
+
+All options are designed to be completely optional and have default values to be used when not specified.
+Grammatically, an option statement is just a variable assignment preceded by the "option" keyword.
+
+    OptionStatement = "option" VarAssignment
+
+Below is a list of all options that are currently implemented in the Flux language:
+
+* task
+* now
+
+##### task
+
+The `task` option is used by a scheduler to schedule the execution of a Flux query.
+
+    option task = {
+        name: "foo",        // name is required
+        every: 1h,          // task should be run at this interval
+        delay: 10m,         // delay scheduling this task by this duration
+        cron: "0 2 * * *",  // cron is a more sophisticated way to schedule. every and cron are mutually exclusive
+        retry: 5,           // number of times to retry a failed query
+    }
+
+##### now
+
+The `now` option is a function that returns a time value to be used as a proxy for the current system time.
+
+    // Query should execute as if the below time is the current system time
+    option now = () => 2006-01-02T15:04:05Z07:00
 
 #### Return statements
 
