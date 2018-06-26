@@ -2,6 +2,7 @@ package tsdb_test
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -137,6 +138,49 @@ func TestSeriesSegmentHeader(t *testing.T) {
 		t.Fatal(err)
 	} else if diff := cmp.Diff(hdr, other); diff != "" {
 		t.Fatal(diff)
+	}
+}
+
+func TestSeriesSegment_PartialWrite(t *testing.T) {
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	// Create a new initial segment (4mb) and initialize for writing.
+	segment, err := tsdb.CreateSeriesSegment(0, filepath.Join(dir, "0000"))
+	if err != nil {
+		t.Fatal(err)
+	} else if err := segment.InitForWrite(); err != nil {
+		t.Fatal(err)
+	}
+	defer segment.Close()
+
+	// Write two entries.
+	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 1, tsdb.AppendSeriesKey(nil, []byte("A"), nil))); err != nil {
+		t.Fatal(err)
+	} else if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2, tsdb.AppendSeriesKey(nil, []byte("B"), nil))); err != nil {
+		t.Fatal(err)
+	}
+	sz := segment.Size()
+	entrySize := len(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2, tsdb.AppendSeriesKey(nil, []byte("B"), nil)))
+
+	// Close segment.
+	if err := segment.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Truncate at each point and reopen.
+	for i := entrySize; i > 0; i-- {
+		if err := os.Truncate(filepath.Join(dir, "0000"), sz-int64(entrySize-i)); err != nil {
+			t.Fatal(err)
+		}
+		segment := tsdb.NewSeriesSegment(0, filepath.Join(dir, "0000"))
+		if err := segment.Open(); err != nil {
+			t.Fatal(err)
+		} else if err := segment.InitForWrite(); err != nil {
+			t.Fatal(err)
+		} else if err := segment.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
