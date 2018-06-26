@@ -299,14 +299,15 @@ class LogsTable extends Component<Props, State> {
 
   private handleScroll = scrollInfo => {
     const {scrollLeft, scrollTop} = scrollInfo
+    const previousScrolltop = this.state.scrollTop
+
+    this.setState({scrollLeft, scrollTop})
 
     if (scrollTop === 0) {
       this.props.onScrolledToTop()
-    } else if (scrollTop !== this.state.scrollTop) {
+    } else if (scrollTop !== previousScrolltop) {
       this.props.onScrollVertical()
     }
-
-    this.setState({scrollLeft, scrollTop})
   }
 
   private headerRenderer = ({key, style, columnIndex}) => {
@@ -346,7 +347,7 @@ class LogsTable extends Component<Props, State> {
           className={classnames('logs-viewer--cell', {
             highlight: highlightRow,
           })}
-          title={`Filter by "${formattedValue}"`}
+          title={`Filter by '${formattedValue}'`}
           style={{...style, padding: '5px'}}
           key={key}
           data-index={rowIndex}
