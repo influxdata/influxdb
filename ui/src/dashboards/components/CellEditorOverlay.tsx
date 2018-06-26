@@ -40,7 +40,7 @@ import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
 import * as ColorsModels from 'src/types/colors'
 import * as DashboardsActions from 'src/types/actions/dashboards'
 import * as DashboardsModels from 'src/types/dashboards'
-import * as QueriesModels from 'src/types/query'
+import * as QueriesModels from 'src/types/queries'
 import * as SourcesModels from 'src/types/sources'
 
 type QueryTransitions = typeof queryTransitions

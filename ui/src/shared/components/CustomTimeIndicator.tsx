@@ -2,7 +2,7 @@ import React, {SFC} from 'react'
 import _ from 'lodash'
 
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
-import {QueryConfig} from 'src/types/query'
+import {QueryConfig} from 'src/types/queries'
 
 interface Query {
   config: QueryConfig

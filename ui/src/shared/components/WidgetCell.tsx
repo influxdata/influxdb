@@ -6,7 +6,7 @@ import GettingStarted from 'src/status/components/GettingStarted'
 
 import {Cell} from 'src/types/dashboards'
 import {Source} from 'src/types/sources'
-import {TimeRange} from 'src/types/query'
+import {TimeRange} from 'src/types/queries'
 import {RECENT_ALERTS_LIMIT} from 'src/status/constants'
 
 interface Props {

@@ -1,4 +1,4 @@
-import {TimeRange} from 'src/types/query'
+import {TimeRange} from 'src/types/queries'
 import moment from 'moment'
 
 import {timeRanges} from 'src/shared/data/timeRanges'

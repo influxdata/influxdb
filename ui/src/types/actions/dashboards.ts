@@ -6,7 +6,7 @@ import {Location} from 'history'
 import * as DashboardsModels from 'src/types/dashboards'
 import * as DashboardsReducers from 'src/types/reducers/dashboards'
 import * as ErrorsActions from 'src/types/actions/errors'
-import * as QueriesModels from 'src/types/query'
+import * as QueriesModels from 'src/types/queries'
 import * as TempVarsModels from 'src/types/tempVars'
 import * as NotificationsActions from 'src/types/actions/notifications'
 

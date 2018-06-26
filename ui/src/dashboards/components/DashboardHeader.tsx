@@ -13,7 +13,7 @@ import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 
 import * as AppActions from 'src/types/actions/app'
 import * as DashboardsModels from 'src/types/dashboards'
-import * as QueriesModels from 'src/types/query'
+import * as QueriesModels from 'src/types/queries'
 
 interface Props {
   activeDashboard: string

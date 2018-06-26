@@ -4,7 +4,7 @@ import classnames from 'classnames'
 import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
 
-import * as QueriesModels from 'src/types/query'
+import * as QueriesModels from 'src/types/queries'
 import * as SourcesModels from 'src/types/sources'
 
 interface Props {

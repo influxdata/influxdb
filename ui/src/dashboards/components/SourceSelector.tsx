@@ -2,7 +2,7 @@ import React, {SFC} from 'react'
 
 import Dropdown from 'src/shared/components/Dropdown'
 
-import * as QueriesModels from 'src/types/query'
+import * as QueriesModels from 'src/types/queries'
 import * as SourcesModels from 'src/types/sources'
 
 interface Props {
