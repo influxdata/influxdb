@@ -1055,10 +1055,18 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool) (err err
 		return errCompactionInProgress{err: err}
 	}
 
+	// syncingWriter ensures that whatever we wrap the above file descriptor in
+	// it will always be able to be synced by the tsm writer, since it does
+	// type assertions to attempt to sync.
+	type syncingWriter interface {
+		io.Writer
+		Sync() error
+	}
+
 	// Create the write for the new TSM file.
 	var (
 		w           TSMWriter
-		limitWriter io.Writer = fd
+		limitWriter syncingWriter = fd
 	)
 
 	if c.RateLimit != nil && throttle {

@@ -740,7 +740,14 @@ func (t *tsmWriter) Flush() error {
 }
 
 func (t *tsmWriter) sync() error {
-	if f, ok := t.wrapped.(*os.File); ok {
+	// sync is a minimal interface to make sure we can sync the wrapped
+	// value. we use a minimal interface to be as robust as possible for
+	// syncing these files.
+	type sync interface {
+		Sync() error
+	}
+
+	if f, ok := t.wrapped.(sync); ok {
 		if err := f.Sync(); err != nil {
 			return err
 		}
@@ -769,7 +776,14 @@ func (t *tsmWriter) Remove() error {
 		return err
 	}
 
-	if f, ok := t.wrapped.(*os.File); ok {
+	// nameCloser is the most permissive interface we can close the wrapped
+	// value with.
+	type nameCloser interface {
+		io.Closer
+		Name() string
+	}
+
+	if f, ok := t.wrapped.(nameCloser); ok {
 		// Close the file handle to prevent leaking.  We ignore the error because
 		// we just want to cleanup and remove the file.
 		_ = f.Close()
