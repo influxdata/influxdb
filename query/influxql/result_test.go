@@ -3,11 +3,11 @@ package influxql_test
 import (
 	"bytes"
 	"errors"
-	"strings"
 	"testing"
 
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
@@ -47,15 +47,23 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 			out:  `{"error":"expected"}`,
 		},
 	} {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			// Add expected newline to end of output
+			tt.out += "\n"
+
 			var buf bytes.Buffer
 			enc := influxql.NewMultiResultEncoder()
-			if err := enc.Encode(&buf, tt.in); err != nil {
+			n, err := enc.Encode(&buf, tt.in)
+			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
 
-			if got, exp := strings.TrimSpace(buf.String()), tt.out; got != exp {
+			if got, exp := buf.String(), tt.out; got != exp {
 				t.Fatalf("unexpected output:\nexp=%s\ngot=%s", exp, got)
+			}
+			if g, w := n, int64(len(tt.out)); g != w {
+				t.Errorf("unexpected encoding count -want/+got:\n%s", cmp.Diff(w, g))
 			}
 		})
 	}

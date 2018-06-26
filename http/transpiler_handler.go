@@ -86,5 +86,6 @@ func encodeResult(w http.ResponseWriter, results query.ResultIterator, contentTy
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.WriteHeader(http.StatusOK)
 
-	return encoder.Encode(w, results)
+	_, err := encoder.Encode(w, results)
+	return err
 }

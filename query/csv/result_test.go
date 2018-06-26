@@ -517,13 +517,16 @@ func TestResultEncoder(t *testing.T) {
 			}
 			encoder := csv.NewResultEncoder(tc.encoderConfig)
 			var got bytes.Buffer
-			err := encoder.Encode(&got, tc.result)
+			n, err := encoder.Encode(&got, tc.result)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			if g, w := got.String(), string(tc.encoded); g != w {
 				t.Errorf("unexpected encoding -want/+got:\n%s", diff.LineDiff(w, g))
+			}
+			if g, w := n, int64(len(tc.encoded)); g != w {
+				t.Errorf("unexpected encoding count -want/+got:\n%s", cmp.Diff(w, g))
 			}
 		})
 	}
@@ -680,13 +683,16 @@ test error,
 		t.Run(tc.name, func(t *testing.T) {
 			encoder := csv.NewMultiResultEncoder(tc.config)
 			var got bytes.Buffer
-			err := encoder.Encode(&got, tc.results)
+			n, err := encoder.Encode(&got, tc.results)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			if g, w := got.String(), string(tc.encoded); g != w {
 				t.Errorf("unexpected encoding -want/+got:\n%s", diff.LineDiff(w, g))
+			}
+			if g, w := n, int64(len(tc.encoded)); g != w {
+				t.Errorf("unexpected encoding count -want/+got:\n%s", cmp.Diff(w, g))
 			}
 		})
 	}

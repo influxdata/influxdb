@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/iocounter"
 )
 
 // MultiResultEncoder encodes results as InfluxQL JSON format.
@@ -25,8 +26,9 @@ type MultiResultEncoder struct{}
 //  4.  All other columns are fields and will be output in the order they are found.
 //      TODO(jsternberg): This function currently requires the first column to be a time field, but this isn't
 //      a strict requirement and will be lifted when we begin to work on transpiling meta queries.
-func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) error {
+func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (int64, error) {
 	resp := Response{}
+	wc := &iocounter.Writer{Writer: w}
 
 	for results.More() {
 		res := results.Next()
@@ -146,7 +148,8 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) e
 		resp.error(err)
 	}
 
-	return json.NewEncoder(w).Encode(resp)
+	err := json.NewEncoder(wc).Encode(resp)
+	return wc.Count(), err
 }
 func NewMultiResultEncoder() *MultiResultEncoder {
 	return new(MultiResultEncoder)

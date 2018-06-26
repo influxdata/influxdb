@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/iocounter"
 	"github.com/influxdata/platform/query/values"
 	"github.com/pkg/errors"
 )
@@ -649,7 +650,7 @@ func (e *ResultEncoder) csvWriter(w io.Writer) *csv.Writer {
 	return writer
 }
 
-func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
+func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) {
 	tableID := 0
 	tableIDStr := "0"
 	metaCols := []colMeta{
@@ -657,12 +658,13 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
 		{ColMeta: query.ColMeta{Label: resultLabel, Type: query.TString}},
 		{ColMeta: query.ColMeta{Label: tableLabel, Type: query.TInt}},
 	}
-	writer := e.csvWriter(w)
+	writeCounter := &iocounter.Writer{Writer: w}
+	writer := e.csvWriter(writeCounter)
 
 	var lastCols []colMeta
 	var lastEmpty bool
 
-	return result.Blocks().Do(func(b query.Block) error {
+	err := result.Blocks().Do(func(b query.Block) error {
 		e.written = true
 		// Update cols with block cols
 		cols := metaCols
@@ -731,6 +733,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) error {
 		writer.Flush()
 		return writer.Error()
 	})
+	return writeCounter.Count(), err
 }
 
 func (e *ResultEncoder) EncodeError(w io.Writer, err error) error {
