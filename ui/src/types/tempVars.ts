@@ -61,4 +61,5 @@ export interface TemplateBuilderProps {
   template: Template
   source: Source
   onUpdateTemplate: (nextTemplate: Template) => void
+  onChooseValue: (item: TemplateValue) => void
 }

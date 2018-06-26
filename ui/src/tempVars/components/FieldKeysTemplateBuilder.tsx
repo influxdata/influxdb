@@ -21,7 +21,7 @@ const fetchKeys = async (source, db, measurement): Promise<string[]> => {
 
 class FieldKeysTemplateBuilder extends PureComponent<TemplateBuilderProps> {
   public render() {
-    const {template, source, onUpdateTemplate} = this.props
+    const {template, source, onUpdateTemplate, onChooseValue} = this.props
 
     return (
       <KeysTemplateBuilder
@@ -31,6 +31,7 @@ class FieldKeysTemplateBuilder extends PureComponent<TemplateBuilderProps> {
         template={template}
         source={source}
         onUpdateTemplate={onUpdateTemplate}
+        onChooseValue={onChooseValue}
       />
     )
   }

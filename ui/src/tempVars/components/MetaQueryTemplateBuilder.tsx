@@ -18,7 +18,6 @@ const DEBOUNCE_DELAY = 750
 interface State {
   metaQueryInput: string // bound to input
   metaQuery: string // debounced view of metaQueryInput
-  metaQueryResults: string[]
   metaQueryResultsStatus: RemoteDataState
 }
 
@@ -45,7 +44,6 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
     this.state = {
       metaQuery,
       metaQueryInput: metaQuery,
-      metaQueryResults: [],
       metaQueryResultsStatus: RemoteDataState.NotStarted,
     }
   }
@@ -76,7 +74,8 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
   }
 
   private renderResults() {
-    const {metaQueryResults, metaQueryResultsStatus} = this.state
+    const {template, onChooseValue} = this.props
+    const {metaQueryResultsStatus} = this.state
 
     if (this.showInvalidMetaQueryMessage) {
       return (
@@ -88,9 +87,9 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
 
     return (
       <TemplateMetaQueryPreview
-        items={metaQueryResults}
+        items={template.values}
         loadingStatus={metaQueryResultsStatus}
-        onChoose={this.handleChooseQueryValue}
+        onChoose={onChooseValue}
       />
     )
   }
@@ -132,10 +131,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
 
       const metaQueryResults = parseMetaQuery(metaQuery, data)
 
-      this.setState({
-        metaQueryResults,
-        metaQueryResultsStatus: RemoteDataState.Done,
-      })
+      this.setState({metaQueryResultsStatus: RemoteDataState.Done})
 
       const nextValues = metaQueryResults.map(result => {
         return {
@@ -160,25 +156,9 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
       onUpdateTemplate(nextTemplate)
     } catch {
       this.setState({
-        metaQueryResults: [],
         metaQueryResultsStatus: RemoteDataState.Error,
       })
     }
-  }
-
-  private handleChooseQueryValue = (metaQueryResultValue: string) => {
-    const {template, onUpdateTemplate} = this.props
-    const {metaQueryResults} = this.state
-
-    const nextValues = metaQueryResults.map(value => {
-      return {
-        type: TemplateValueType.MetaQuery,
-        value,
-        selected: value === metaQueryResultValue,
-      }
-    })
-
-    onUpdateTemplate({...template, values: nextValues})
   }
 }
 

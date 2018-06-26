@@ -6,7 +6,6 @@ import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 import {TemplateBuilderProps, TemplateValueType} from 'src/types'
 
 interface State {
-  templateValues: string[]
   templateValuesString: string
 }
 
@@ -18,14 +17,14 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     const templateValues = props.template.values.map(v => v.value)
 
     this.state = {
-      templateValues,
       templateValuesString: templateValues.join(', '),
     }
   }
 
   public render() {
-    const {templateValues, templateValuesString} = this.state
-    const pluralizer = templateValues.length === 1 ? '' : 's'
+    const {onChooseValue, template} = this.props
+    const {templateValuesString} = this.state
+    const pluralizer = template.values.length === 1 ? '' : 's'
 
     return (
       <div className="temp-builder csv-temp-builder">
@@ -42,14 +41,14 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         </div>
         <div className="temp-builder-results">
           <p>
-            CSV contains <strong>{templateValues.length}</strong> value{
+            CSV contains <strong>{template.values.length}</strong> value{
               pluralizer
             }
           </p>
-          {templateValues.length > 0 && (
+          {template.values.length > 0 && (
             <TemplatePreviewList
-              items={templateValues}
-              onChoose={this.handleChooseCSVValue}
+              items={template.values}
+              onChoose={onChooseValue}
             />
           )}
         </div>
@@ -73,8 +72,6 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
       templateValues = templateValuesString.split(',').map(s => s.trim())
     }
 
-    this.setState({templateValues})
-
     const nextValues = templateValues.map(value => {
       return {
         type: TemplateValueType.CSV,
@@ -86,21 +83,6 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     if (nextValues.length > 0) {
       nextValues[0].selected = true
     }
-
-    onUpdateTemplate({...template, values: nextValues})
-  }
-
-  private handleChooseCSVValue = (csvValue: string) => {
-    const {template, onUpdateTemplate} = this.props
-    const {templateValues} = this.state
-
-    const nextValues = templateValues.map(value => {
-      return {
-        type: TemplateValueType.CSV,
-        value,
-        selected: value === csvValue,
-      }
-    })
 
     onUpdateTemplate({...template, values: nextValues})
   }

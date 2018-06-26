@@ -12,7 +12,6 @@ import {
 } from 'src/types'
 
 interface State {
-  databases: string[]
   databasesStatus: RemoteDataState
 }
 
@@ -25,7 +24,6 @@ class DatabasesTemplateBuilder extends PureComponent<
     super(props)
 
     this.state = {
-      databases: [],
       databasesStatus: RemoteDataState.Loading,
     }
   }
@@ -35,7 +33,8 @@ class DatabasesTemplateBuilder extends PureComponent<
   }
 
   public render() {
-    const {databases, databasesStatus} = this.state
+    const {template, onChooseValue} = this.props
+    const {databasesStatus} = this.state
 
     return (
       <div className="temp-builder databases-temp-builder">
@@ -46,9 +45,9 @@ class DatabasesTemplateBuilder extends PureComponent<
           </div>
         </div>
         <TemplateMetaQueryPreview
-          items={databases}
+          items={template.values}
           loadingStatus={databasesStatus}
-          onChoose={this.handleChooseDatabaseValue}
+          onChoose={onChooseValue}
         />
       </div>
     )
@@ -63,10 +62,7 @@ class DatabasesTemplateBuilder extends PureComponent<
       const {data} = await showDatabases(source.links.proxy)
       const {databases} = parseShowDatabases(data)
 
-      this.setState({
-        databases,
-        databasesStatus: RemoteDataState.Done,
-      })
+      this.setState({databasesStatus: RemoteDataState.Done})
 
       const nextValues = databases.map(db => {
         return {
@@ -89,21 +85,6 @@ class DatabasesTemplateBuilder extends PureComponent<
     } catch {
       this.setState({databasesStatus: RemoteDataState.Error})
     }
-  }
-
-  private handleChooseDatabaseValue = (dbValue: string) => {
-    const {template, onUpdateTemplate} = this.props
-    const {databases} = this.state
-
-    const nextValues = databases.map(value => {
-      return {
-        type: TemplateValueType.Database,
-        value,
-        selected: value === dbValue,
-      }
-    })
-
-    onUpdateTemplate({...template, values: nextValues})
   }
 }
 

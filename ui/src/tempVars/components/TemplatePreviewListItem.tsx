@@ -1,8 +1,10 @@
 import React, {PureComponent} from 'react'
 
+import {TemplateValue} from 'src/types'
+
 interface Props {
-  item: string
-  onClick: (item: string) => void
+  item: TemplateValue
+  onClick: (item: TemplateValue) => void
   style: {
     height: string
     marginBottom: string
@@ -15,7 +17,7 @@ class TemplatePreviewListItem extends PureComponent<Props> {
 
     return (
       <li onClick={this.handleClick} style={style}>
-        {item}
+        {item.value}
       </li>
     )
   }

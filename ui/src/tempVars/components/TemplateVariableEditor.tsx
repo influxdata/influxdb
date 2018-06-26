@@ -23,6 +23,7 @@ import MetaQueryTemplateBuilder from 'src/tempVars/components/MetaQueryTemplateB
 import {
   Template,
   TemplateType,
+  TemplateValue,
   TemplateBuilderProps,
   Source,
   RemoteDataState,
@@ -148,6 +149,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
             <TemplateBuilder
               template={nextTemplate}
               source={source}
+              onChooseValue={this.handleChooseTemplateValue}
               onUpdateTemplate={this.handleUpdateTemplate}
             />
           </div>
@@ -180,6 +182,17 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private handleUpdateTemplate = (nextTemplate: Template): void => {
     this.setState({nextTemplate})
+  }
+
+  private handleChooseTemplateValue = (item: TemplateValue) => {
+    this.setState(({nextTemplate: template}) => {
+      const nextValues = template.values.map(t => ({
+        ...t,
+        selected: t.value === item.value,
+      }))
+
+      return {nextTemplate: {...template, values: nextValues}}
+    })
   }
 
   private handleChooseType = ({type}) => {

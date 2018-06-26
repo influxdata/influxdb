@@ -33,7 +33,6 @@ interface State {
   measurements: string[]
   measurementsStatus: RemoteDataState
   selectedMeasurement: string
-  keys: string[]
   keysStatus: RemoteDataState
 }
 
@@ -52,7 +51,6 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
       measurements: [],
       measurementsStatus: RemoteDataState.Loading,
       selectedMeasurement,
-      keys: [],
       keysStatus: RemoteDataState.Loading,
     }
   }
@@ -64,7 +62,7 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {queryPrefix} = this.props
+    const {queryPrefix, template, onChooseValue} = this.props
     const {
       databases,
       databasesStatus,
@@ -72,7 +70,6 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
       measurements,
       measurementsStatus,
       selectedMeasurement,
-      keys,
       keysStatus,
     } = this.state
 
@@ -102,9 +99,9 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
           </div>
         </div>
         <TemplateMetaQueryPreview
-          items={keys}
+          items={template.values}
           loadingStatus={keysStatus}
-          onChoose={this.handleChooseKeyValue}
+          onChoose={onChooseValue}
         />
       </div>
     )
@@ -182,10 +179,7 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
         selectedMeasurement
       )
 
-      this.setState({
-        keys,
-        keysStatus: RemoteDataState.Done,
-      })
+      this.setState({keysStatus: RemoteDataState.Done})
 
       const nextValues = keys.map(value => {
         return {
@@ -204,21 +198,6 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
       this.setState({keysStatus: RemoteDataState.Error})
       console.error(error)
     }
-  }
-
-  private handleChooseKeyValue = (keyValue: string) => {
-    const {template, onUpdateTemplate, templateValueType} = this.props
-    const {keys} = this.state
-
-    const nextValues = keys.map(value => {
-      return {
-        type: templateValueType,
-        value,
-        selected: value === keyValue,
-      }
-    })
-
-    onUpdateTemplate({...template, values: nextValues})
   }
 
   private handleChooseDatabaseDropdown = ({text}) => {

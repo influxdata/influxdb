@@ -3,12 +3,12 @@ import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, TemplateValue} from 'src/types'
 
 interface Props {
-  items: string[]
+  items: TemplateValue[]
   loadingStatus: RemoteDataState
-  onChoose: (item: string) => void
+  onChoose: (item: TemplateValue) => void
 }
 
 @ErrorHandling

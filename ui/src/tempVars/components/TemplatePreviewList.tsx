@@ -5,13 +5,15 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import TemplatePreviewListItem from 'src/tempVars/components/TemplatePreviewListItem'
 
+import {TemplateValue} from 'src/types'
+
 const LI_HEIGHT = 35
 const LI_MARGIN_BOTTOM = 3
 const RESULTS_TO_DISPLAY = 10
 
 interface Props {
-  items: string[]
-  onChoose: (item: string) => void
+  items: TemplateValue[]
+  onChoose: (item: TemplateValue) => void
 }
 
 @ErrorHandling

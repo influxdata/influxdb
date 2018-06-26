@@ -28,7 +28,6 @@ interface State {
   tagKeys: string[]
   tagKeysStatus: RemoteDataState
   selectedTagKey: string
-  tagValues: string[]
   tagValuesStatus: RemoteDataState
 }
 
@@ -51,7 +50,6 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
       tagKeys: [],
       tagKeysStatus: RemoteDataState.Loading,
       selectedTagKey,
-      tagValues: [],
       tagValuesStatus: RemoteDataState.Loading,
     }
   }
@@ -64,6 +62,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
   }
 
   public render() {
+    const {template, onChooseValue} = this.props
     const {
       databases,
       databasesStatus,
@@ -74,7 +73,6 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
       tagKeys,
       tagKeysStatus,
       selectedTagKey,
-      tagValues,
       tagValuesStatus,
     } = this.state
 
@@ -115,9 +113,9 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
           </div>
         </div>
         <TemplateMetaQueryPreview
-          items={tagValues}
+          items={template.values}
           loadingStatus={tagValuesStatus}
-          onChoose={this.handleChooseTagValue}
+          onChoose={onChooseValue}
         />
       </div>
     )
@@ -220,10 +218,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
       const {tags} = parseShowTagValues(data)
       const tagValues = _.get(Object.values(tags), 0, [])
 
-      this.setState({
-        tagValues,
-        tagValuesStatus: RemoteDataState.Done,
-      })
+      this.setState({tagValuesStatus: RemoteDataState.Done})
 
       const nextValues = tagValues.map(value => {
         return {
@@ -303,21 +298,6 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         tagKey,
       },
     })
-  }
-
-  private handleChooseTagValue = (tagValue: string) => {
-    const {template, onUpdateTemplate} = this.props
-    const {databases} = this.state
-
-    const nextValues = databases.map(value => {
-      return {
-        type: TemplateValueType.TagValue,
-        value,
-        selected: value === tagValue,
-      }
-    })
-
-    onUpdateTemplate({...template, values: nextValues})
   }
 }
 

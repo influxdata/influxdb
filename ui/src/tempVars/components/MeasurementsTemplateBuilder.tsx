@@ -19,7 +19,6 @@ interface State {
   databases: string[]
   databasesStatus: RemoteDataState
   selectedDatabase: string
-  measurements: string[]
   measurementsStatus: RemoteDataState
 }
 
@@ -37,7 +36,6 @@ class MeasurementsTemplateBuilder extends PureComponent<
       databases: [],
       databasesStatus: RemoteDataState.Loading,
       selectedDatabase,
-      measurements: [],
       measurementsStatus: RemoteDataState.Loading,
     }
   }
@@ -48,11 +46,11 @@ class MeasurementsTemplateBuilder extends PureComponent<
   }
 
   public render() {
+    const {template, onChooseValue} = this.props
     const {
       databases,
       databasesStatus,
       selectedDatabase,
-      measurements,
       measurementsStatus,
     } = this.state
 
@@ -73,9 +71,9 @@ class MeasurementsTemplateBuilder extends PureComponent<
           </div>
         </div>
         <TemplateMetaQueryPreview
-          items={measurements}
+          items={template.values}
           loadingStatus={measurementsStatus}
-          onChoose={this.handleChooseMeasurementValue}
+          onChoose={onChooseValue}
         />
       </div>
     )
@@ -120,10 +118,7 @@ class MeasurementsTemplateBuilder extends PureComponent<
 
       const measurements = _.get(measurementSets, '0.measurements', [])
 
-      this.setState({
-        measurements,
-        measurementsStatus: RemoteDataState.Done,
-      })
+      this.setState({measurementsStatus: RemoteDataState.Done})
 
       const nextValues = measurements.map(value => {
         return {
@@ -142,21 +137,6 @@ class MeasurementsTemplateBuilder extends PureComponent<
       this.setState({measurementsStatus: RemoteDataState.Error})
       console.error(error)
     }
-  }
-
-  private handleChooseMeasurementValue = (measurementValue: string) => {
-    const {template, onUpdateTemplate} = this.props
-    const {measurements} = this.state
-
-    const nextValues = measurements.map(value => {
-      return {
-        type: TemplateValueType.Measurement,
-        value,
-        selected: value === measurementValue,
-      }
-    })
-
-    onUpdateTemplate({...template, values: nextValues})
   }
 
   private handleChooseDatabaseDropdown = ({text}) => {
