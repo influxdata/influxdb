@@ -4,7 +4,7 @@ import PropTypes from 'prop-types'
 import _ from 'lodash'
 
 import {QueryConfig, Source} from 'src/types'
-import {Namespace} from 'src/types/query'
+import {Namespace} from 'src/types/queries'
 
 import DatabaseListItem from 'src/shared/components/DatabaseListItem'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'

@@ -10,30 +10,29 @@ import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/GraphTips'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
-import {Dashboard, TimeRange} from 'src/types'
 
-interface DashboardName {
-  text: string
-}
+import * as AppActions from 'src/types/actions/app'
+import * as DashboardsModels from 'src/types/dashboards'
+import * as QueriesModels from 'src/types/queries'
 
 interface Props {
   activeDashboard: string
-  dashboard: Dashboard
+  dashboard: DashboardsModels.Dashboard
   onEditDashboard: () => void
-  timeRange: TimeRange
+  timeRange: QueriesModels.TimeRange
   autoRefresh: number
   isEditMode?: boolean
-  handleChooseTimeRange: (timeRange: TimeRange) => void
-  handleChooseAutoRefresh: () => void
+  handleChooseTimeRange: (timeRange: QueriesModels.TimeRange) => void
+  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   onManualRefresh: () => void
-  handleClickPresentationButton: () => void
+  handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
   onToggleTempVarControls: () => void
   showTemplateControlBar: boolean
-  zoomedTimeRange: TimeRange
+  zoomedTimeRange: QueriesModels.TimeRange
   onCancel: () => void
-  onSave: () => void
-  names: DashboardName[]
+  onSave: (name: string) => Promise<void>
+  names: DashboardsModels.DashboardName[]
   isHidden: boolean
 }
 
@@ -76,7 +75,6 @@ class DashboardHeader extends Component<Props> {
       handleChooseTimeRange,
       timeRange: {upper, lower},
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
-      handleClickPresentationButton,
     } = this.props
 
     return (
@@ -99,12 +97,15 @@ class DashboardHeader extends Component<Props> {
         />
         <button
           className="btn btn-default btn-sm btn-square"
-          onClick={handleClickPresentationButton}
+          onClick={this.handleClickPresentationButton}
         >
           <span className="icon expand-a" />
         </button>
       </>
     )
+  }
+  private handleClickPresentationButton = (): void => {
+    this.props.handleClickPresentationButton()
   }
 
   private get addCellButton(): JSX.Element {

@@ -5,7 +5,7 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {TimeRange} from 'src/types'
 
 interface Props {
-  onZoom: (lower: string, upper: string) => void
+  onZoom: (timeRange: TimeRange) => void
   timeRange: TimeRange
   data: object[]
 }

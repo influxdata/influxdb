@@ -10,7 +10,7 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   showOverlay as showOverlayAction,
-  ShowOverlay,
+  ShowOverlayActionCreator,
 } from 'src/shared/actions/overlayTechnology'
 import {OverlayContext} from 'src/shared/components/OverlayTechnology'
 
@@ -27,7 +27,7 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => () => void
   onImportDashboard: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
-  showOverlay: ShowOverlay
+  showOverlay: ShowOverlayActionCreator
   dashboardLink: string
 }
 

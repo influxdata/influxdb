@@ -11,8 +11,8 @@ import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {EDITING} from 'src/shared/annotations/helpers'
 import {cellSupportsAnnotations} from 'src/shared/constants/index'
-import {Cell} from 'src/types/dashboard'
-import {QueryConfig} from 'src/types/query'
+import {Cell} from 'src/types/dashboards'
+import {QueryConfig} from 'src/types/queries'
 
 import {
   addingAnnotation,

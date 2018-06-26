@@ -16,7 +16,6 @@ interface Props {
   source: Source
   onSelectTemplate: (id: string) => void
   onSaveTemplates: (templates: Template[]) => void
-  onCreateTemplateVariable: () => void
 }
 
 interface State {

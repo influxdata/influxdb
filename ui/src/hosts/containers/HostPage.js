@@ -1,7 +1,6 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 import classnames from 'classnames'
 
@@ -19,8 +18,7 @@ import {
   getAllHosts,
 } from 'src/hosts/apis'
 
-import {setAutoRefresh} from 'shared/actions/app'
-import {presentationButtonDispatcher} from 'shared/dispatchers'
+import {setAutoRefresh, delayEnablePresentationMode} from 'shared/actions/app'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 @ErrorHandling
@@ -235,7 +233,7 @@ HostPage.propTypes = {
   handleClickPresentationButton: func,
 }
 
-const mapStateToProps = ({
+const mstp = ({
   app: {
     ephemeral: {inPresentationMode},
     persisted: {autoRefresh},
@@ -245,11 +243,9 @@ const mapStateToProps = ({
   autoRefresh,
 })
 
-const mapDispatchToProps = dispatch => ({
-  handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
-  handleClickPresentationButton: presentationButtonDispatcher(dispatch),
-})
+const mdtp = {
+  handleChooseAutoRefresh: setAutoRefresh,
+  handleClickPresentationButton: delayEnablePresentationMode,
+}
 
-export default connect(mapStateToProps, mapDispatchToProps)(
-  ManualRefresh(HostPage)
-)
+export default connect(mstp, mdtp)(ManualRefresh(HostPage))

@@ -7,7 +7,7 @@ import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'src/shared/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {ColorNumber} from 'src/types/colors'
-import {CellType} from 'src/types/dashboard'
+import {CellType} from 'src/types/dashboards'
 import {Data} from 'src/types/dygraphs'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

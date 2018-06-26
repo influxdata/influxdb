@@ -4,7 +4,7 @@ import {showDatabases, showRetentionPolicies} from 'src/shared/apis/metaQuery'
 import showDatabasesParser from 'src/shared/parsing/showDatabases'
 import showRetentionPoliciesParser from 'src/shared/parsing/showRetentionPolicies'
 
-import {Namespace} from 'src/types/query'
+import {Namespace} from 'src/types/queries'
 
 export const getDatabasesWithRetentionPolicies = async (
   proxy: string

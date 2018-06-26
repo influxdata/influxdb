@@ -1,122 +1,66 @@
 import * as api from 'src/shared/apis/annotation'
-import {AnnotationInterface} from 'src/types'
+import {Dispatch} from 'redux'
+import * as AnnotationsActions from 'src/types/actions/annotations'
+import * as AnnotationsModels from 'src/types/annotations'
 
-export type Action =
-  | EditingAnnotationAction
-  | DismissEditingAnnotationAction
-  | AddingAnnotationAction
-  | AddingAnnotationSuccessAction
-  | DismissAddingAnnotationAction
-  | MouseEnterTempAnnotationAction
-  | MouseLeaveTempAnnotationAction
-  | LoadAnnotationsAction
-  | UpdateAnnotationAction
-  | DeleteAnnotationAction
-  | AddAnnotationAction
-
-export interface EditingAnnotationAction {
-  type: 'EDITING_ANNOTATION'
-}
-export const editingAnnotation = (): EditingAnnotationAction => ({
+export const editingAnnotation = (): AnnotationsActions.EditingAnnotationAction => ({
   type: 'EDITING_ANNOTATION',
 })
 
-export interface DismissEditingAnnotationAction {
-  type: 'DISMISS_EDITING_ANNOTATION'
-}
-export const dismissEditingAnnotation = (): DismissEditingAnnotationAction => ({
+export const dismissEditingAnnotation = (): AnnotationsActions.DismissEditingAnnotationAction => ({
   type: 'DISMISS_EDITING_ANNOTATION',
 })
 
-export interface AddingAnnotationAction {
-  type: 'ADDING_ANNOTATION'
-}
-export const addingAnnotation = (): AddingAnnotationAction => ({
+export const addingAnnotation = (): AnnotationsActions.AddingAnnotationAction => ({
   type: 'ADDING_ANNOTATION',
 })
 
-export interface AddingAnnotationSuccessAction {
-  type: 'ADDING_ANNOTATION_SUCCESS'
-}
-export const addingAnnotationSuccess = (): AddingAnnotationSuccessAction => ({
+export const addingAnnotationSuccess = (): AnnotationsActions.AddingAnnotationSuccessAction => ({
   type: 'ADDING_ANNOTATION_SUCCESS',
 })
 
-export interface DismissAddingAnnotationAction {
-  type: 'DISMISS_ADDING_ANNOTATION'
-}
-export const dismissAddingAnnotation = (): DismissAddingAnnotationAction => ({
+export const dismissAddingAnnotation = (): AnnotationsActions.DismissAddingAnnotationAction => ({
   type: 'DISMISS_ADDING_ANNOTATION',
 })
 
-export interface MouseEnterTempAnnotationAction {
-  type: 'MOUSEENTER_TEMP_ANNOTATION'
-}
-export const mouseEnterTempAnnotation = (): MouseEnterTempAnnotationAction => ({
+export const mouseEnterTempAnnotation = (): AnnotationsActions.MouseEnterTempAnnotationAction => ({
   type: 'MOUSEENTER_TEMP_ANNOTATION',
 })
 
-export interface MouseLeaveTempAnnotationAction {
-  type: 'MOUSELEAVE_TEMP_ANNOTATION'
-}
-export const mouseLeaveTempAnnotation = (): MouseLeaveTempAnnotationAction => ({
+export const mouseLeaveTempAnnotation = (): AnnotationsActions.MouseLeaveTempAnnotationAction => ({
   type: 'MOUSELEAVE_TEMP_ANNOTATION',
 })
 
-export interface LoadAnnotationsAction {
-  type: 'LOAD_ANNOTATIONS'
-  payload: {
-    annotations: AnnotationInterface[]
-  }
-}
 export const loadAnnotations = (
-  annotations: AnnotationInterface[]
-): LoadAnnotationsAction => ({
+  annotations: AnnotationsModels.AnnotationInterface[]
+): AnnotationsActions.LoadAnnotationsAction => ({
   type: 'LOAD_ANNOTATIONS',
   payload: {
     annotations,
   },
 })
 
-export interface UpdateAnnotationAction {
-  type: 'UPDATE_ANNOTATION'
-  payload: {
-    annotation: AnnotationInterface
-  }
-}
 export const updateAnnotation = (
-  annotation: AnnotationInterface
-): UpdateAnnotationAction => ({
+  annotation: AnnotationsModels.AnnotationInterface
+): AnnotationsActions.UpdateAnnotationAction => ({
   type: 'UPDATE_ANNOTATION',
   payload: {
     annotation,
   },
 })
 
-export interface DeleteAnnotationAction {
-  type: 'DELETE_ANNOTATION'
-  payload: {
-    annotation: AnnotationInterface
-  }
-}
 export const deleteAnnotation = (
-  annotation: AnnotationInterface
-): DeleteAnnotationAction => ({
+  annotation: AnnotationsModels.AnnotationInterface
+): AnnotationsActions.DeleteAnnotationAction => ({
   type: 'DELETE_ANNOTATION',
   payload: {
     annotation,
   },
 })
 
-export interface AddAnnotationAction {
-  type: 'ADD_ANNOTATION'
-  payload: {
-    annotation: AnnotationInterface
-  }
-}
 export const addAnnotation = (
-  annotation: AnnotationInterface
-): AddAnnotationAction => ({
+  annotation: AnnotationsModels.AnnotationInterface
+): AnnotationsActions.AddAnnotationAction => ({
   type: 'ADD_ANNOTATION',
   payload: {
     annotation,
@@ -125,7 +69,7 @@ export const addAnnotation = (
 
 export const addAnnotationAsync = (
   createUrl: string,
-  annotation: AnnotationInterface
+  annotation: AnnotationsModels.AnnotationInterface
 ) => async dispatch => {
   dispatch(addAnnotation(annotation))
   const savedAnnotation = await api.createAnnotation(createUrl, annotation)
@@ -133,28 +77,25 @@ export const addAnnotationAsync = (
   dispatch(deleteAnnotation(annotation))
 }
 
-export interface AnnotationRange {
-  since: number
-  until: number
-}
-
-export const getAnnotationsAsync = (
+export const getAnnotationsAsync: AnnotationsActions.GetAnnotationsDispatcher = (
   indexUrl: string,
-  {since, until}: AnnotationRange
-) => async dispatch => {
+  {since, until}: AnnotationsModels.AnnotationRange
+): AnnotationsActions.GetAnnotationsThunk => async (
+  dispatch: Dispatch<AnnotationsActions.LoadAnnotationsAction>
+): Promise<void> => {
   const annotations = await api.getAnnotations(indexUrl, since, until)
   dispatch(loadAnnotations(annotations))
 }
 
 export const deleteAnnotationAsync = (
-  annotation: AnnotationInterface
+  annotation: AnnotationsModels.AnnotationInterface
 ) => async dispatch => {
   await api.deleteAnnotation(annotation)
   dispatch(deleteAnnotation(annotation))
 }
 
 export const updateAnnotationAsync = (
-  annotation: AnnotationInterface
+  annotation: AnnotationsModels.AnnotationInterface
 ) => async dispatch => {
   await api.updateAnnotation(annotation)
   dispatch(updateAnnotation(annotation))
