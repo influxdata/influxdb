@@ -163,15 +163,21 @@ const makeDefault = (template: Template, value: string): Template => {
   return {...template, values: valuesWithDefault}
 }
 
-const makeSelected = (template: Template, value: string): Template => {
+export const selectDefault = (template: Template): Template => {
+  const defaultValue = ''
+
+  return makeSelected(template, defaultValue)
+}
+
+export const makeSelected = (template: Template, value: string): Template => {
   const found = template.values.find(v => v.value === value)
   const defaultValue = template.values.find(v => v.default)
 
-  let valueToChoose
+  let valueToChoose: string
   if (found) {
     valueToChoose = found.value
   } else if (defaultValue) {
-    valueToChoose = defaultValue
+    valueToChoose = defaultValue.value
   } else {
     valueToChoose = getDeep<string>(template, 'values.0.value', '')
   }
