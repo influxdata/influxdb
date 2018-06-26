@@ -1,12 +1,27 @@
 import {Template, TemplateValueType, TemplateValue} from 'src/types/tempVars'
+import {TEMP_VAR_INTERVAL} from 'src/shared/constants'
 
-const templateReplace = (q: string, tempVars: Template[]) => {
-  const query = tempVars.reduce((acc, template) => {
-    const qu = renderTemplate(acc, template)
-    return qu
-  }, q)
+export const intervalReplace = (
+  query: string,
+  pixels: number,
+  durationMs: number
+) => {
+  if (!query.includes(TEMP_VAR_INTERVAL)) {
+    return query
+  }
 
-  return query
+  // duration / width of visualization in pixels
+  const msPerPixel = Math.floor(durationMs / pixels)
+
+  return replaceAll(query, TEMP_VAR_INTERVAL, `${msPerPixel}ms`)
+}
+
+const templateReplace = (query: string, tempVars: Template[]) => {
+  const replacedQuery = tempVars.reduce((acc, template) => {
+    return renderTemplate(acc, template)
+  }, query)
+
+  return replacedQuery
 }
 
 const renderTemplate = (query: string, template: Template): string => {
