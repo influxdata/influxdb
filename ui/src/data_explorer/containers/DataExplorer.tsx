@@ -13,7 +13,7 @@ import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import ResizeContainer from 'src/shared/components/ResizeContainer'
-import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
+import OverlayTechnology from 'src/shared/components/OverlayTechnology'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
@@ -105,17 +105,15 @@ export class DataExplorer extends PureComponent<Props, State> {
 
     return (
       <>
-        {showWriteForm ? (
-          <OverlayTechnologies>
-            <WriteDataForm
-              source={source}
-              errorThrown={errorThrownAction}
-              selectedDatabase={this.selectedDatabase}
-              onClose={this.handleCloseWriteData}
-              writeLineProtocol={writeLineProtocol}
-            />
-          </OverlayTechnologies>
-        ) : null}
+        <OverlayTechnology visible={showWriteForm}>
+          <WriteDataForm
+            source={source}
+            errorThrown={errorThrownAction}
+            selectedDatabase={this.selectedDatabase}
+            onClose={this.handleCloseWriteData}
+            writeLineProtocol={writeLineProtocol}
+          />
+        </OverlayTechnology>
         <PageHeader
           titleText="Data Explorer"
           fullWidth={true}
