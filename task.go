@@ -4,14 +4,15 @@ import "context"
 
 // Task is a task. 🎊
 type Task struct {
-	ID     ID     `json:"id,omitempty"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Owner  User   `json:"owner"`
-	Flux   string `json:"flux"`
-	Every  string `json:"every,omitempty"`
-	Cron   string `json:"cron,omitempty"`
-	Last   Run    `json:"last,omitempty"`
+	ID           ID     `json:"id,omitempty"`
+	Organization ID     `json:"organizationId"`
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	Owner        User   `json:"owner"`
+	Flux         string `json:"flux"`
+	Every        string `json:"every,omitempty"`
+	Cron         string `json:"cron,omitempty"`
+	Last         Run    `json:"last,omitempty"`
 }
 
 // Run is a record created when a run of a task is queued.

@@ -1178,6 +1178,9 @@ components:
         id:
           readOnly: true
           type: string
+        organization:
+          description: The ID of the organization that owns this Task.
+          type: string
         name:
           description: A modifiable description of the task.
           type: string
@@ -1203,6 +1206,7 @@ components:
           type: string
         last:
           $ref: "#/components/schemas/Run"
+      required: [name, organization, flux]
     Tasks:
       type: array
       items:
