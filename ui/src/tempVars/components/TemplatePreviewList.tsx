@@ -54,7 +54,7 @@ class TemplatePreviewList extends PureComponent<Props> {
   private defaultIndicator(item: string): JSX.Element {
     const {defaultValue} = this.props
     if (item === defaultValue) {
-      return <div>{' ******'}</div>
+      return <div>{' default'}</div>
     }
   }
 
