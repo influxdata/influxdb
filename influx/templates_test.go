@@ -449,6 +449,12 @@ func Test_RenderTemplate(t *testing.T) {
 			want:       "SELECT mean(usage_idle) FROM cpu WHERE time > '2017-07-24T15:33:42.994Z' and time < '2017-07-24T15:33:42.994Z' GROUP BY time(1ms)",
 		},
 		{
+			name:       "subqueries render :interval:",
+			query:      `SELECT last(sum) FROM (SELECT sum(rate) FROM (SELECT non_negative_derivative(max("counter"),1s) AS "rate" FROM "kube-infra"."monthly"."http_api_requests_total" WHERE path != '/metrics' and time > now() - 1d  GROUP BY time(:interval:),* FILL(null)) GROUP BY time(:interval:))`,
+			resolution: 333,
+			want:       `SELECT last(sum) FROM (SELECT sum(rate) FROM (SELECT non_negative_derivative(max("counter"),1s) AS "rate" FROM "kube-infra"."monthly"."http_api_requests_total" WHERE path != '/metrics' and time > now() - 1d GROUP BY time(25909s),* FILL(null)) GROUP BY time(259s))`,
+		},
+		{
 			name:  "query should be returned if there are no template variables",
 			query: "SHOW DATABASES",
 			want:  "SHOW DATABASES",

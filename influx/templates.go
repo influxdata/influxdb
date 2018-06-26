@@ -11,6 +11,7 @@ import (
 )
 
 // SortTemplates the templates by size, then type, then value.
+// :interval: needs to be the last template replacement
 func SortTemplates(ts []chronograf.TemplateVar) []chronograf.TemplateVar {
 	sort.Slice(ts, func(i, j int) bool {
 		if ts[i].Var == ":interval:" {

@@ -29,6 +29,7 @@ type QueriesRequest struct {
 // QueryResponse is the return result of a QueryRequest including
 // the raw query, the templated query, the queryConfig and the queryAST
 type QueryResponse struct {
+	Duration       int64                    `json:"durationMs"`
 	ID             string                   `json:"id"`
 	Query          string                   `json:"query"`
 	QueryConfig    chronograf.QueryConfig   `json:"queryConfig"`
@@ -88,6 +89,15 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 
 		if stmt, err := queries.ParseSelect(query); err == nil {
 			qr.QueryAST = stmt
+		}
+
+		if dur, err := influx.ParseTime(query, time.Now()); err == nil {
+			ms := dur.Nanoseconds() / int64(time.Millisecond)
+			if ms == 0 {
+				ms = 1
+			}
+
+			qr.Duration = ms
 		}
 
 		if len(req.TemplateVars) > 0 {
