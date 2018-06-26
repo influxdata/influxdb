@@ -27,7 +27,22 @@ interface Props {
   links: Links
 }
 
-export class CheckServices extends PureComponent<Props & WithRouterProps> {
+interface State {
+  showOverlay: boolean
+}
+
+export class CheckServices extends PureComponent<
+  Props & WithRouterProps,
+  State
+> {
+  constructor(props: Props & WithRouterProps) {
+    super(props)
+
+    this.state = {
+      showOverlay: false,
+    }
+  }
+
   public async componentDidMount() {
     const source = this.props.sources.find(
       s => s.id === this.props.params.sourceID
@@ -38,6 +53,10 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
     }
 
     await this.props.fetchServicesAsync(source)
+
+    if (!this.props.services.length) {
+      this.setState({showOverlay: true})
+    }
   }
 
   public render() {
@@ -69,13 +88,21 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
   }
 
   private get renderOverlay(): JSX.Element {
-    const {services} = this.props
+    const {showOverlay} = this.state
 
     return (
-      <OverlayTechnology visible={!services.length}>
-        <FluxOverlay mode="new" source={this.source} />
+      <OverlayTechnology visible={showOverlay}>
+        <FluxOverlay
+          mode="new"
+          source={this.source}
+          onDismiss={this.handleDismissOverlay}
+        />
       </OverlayTechnology>
     )
+  }
+
+  private handleDismissOverlay = (): void => {
+    this.setState({showOverlay: false})
   }
 }
 

@@ -18,7 +18,7 @@ interface Props {
   mode: string
   source?: Source
   service?: Service
-  onDismiss?: () => void
+  onDismiss: () => void
   notify: (message: Notification) => void
   createService: CreateServiceAsync
   updateService: UpdateServiceAsync
