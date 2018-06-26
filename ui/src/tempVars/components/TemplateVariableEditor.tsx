@@ -12,7 +12,11 @@ import Dropdown from 'src/shared/components/Dropdown'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {getDeep} from 'src/utils/wrappers'
 import {notify as notifyActionCreator} from 'src/shared/actions/notifications'
-import {reconcileDefaultAndSelectedValues} from 'src/dashboards/utils/tempVars'
+
+import {
+  reconcileDefaultAndSelectedValues,
+  selectDefault,
+} from 'src/dashboards/utils/tempVars'
 
 import DatabasesTemplateBuilder from 'src/tempVars/components/DatabasesTemplateBuilder'
 import CSVTemplateBuilder from 'src/tempVars/components/CSVTemplateBuilder'
@@ -269,7 +273,8 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
     try {
       if (isNew) {
-        await onCreate(nextTemplate)
+        const updatedTemplate = selectDefault(nextTemplate)
+        await onCreate(updatedTemplate)
       } else {
         await onUpdate(nextTemplate)
       }
