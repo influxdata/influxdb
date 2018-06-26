@@ -26,7 +26,7 @@ import {
 
 import {Source, Dashboard} from 'src/types'
 import {Notification} from 'src/types/notifications'
-import {DashboardFile} from 'src/types/dashboard'
+import {DashboardFile} from 'src/types/dashboards'
 
 interface Props {
   source: Source

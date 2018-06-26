@@ -262,9 +262,9 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.setNamespaceAsync(namespace)
   }
 
-  private handleChartZoom = (lower, upper) => {
-    if (lower) {
-      this.props.changeZoomAsync({lower, upper})
+  private handleChartZoom = (timeRange: TimeRange) => {
+    if (timeRange.lower) {
+      this.props.changeZoomAsync(timeRange)
       this.setState({liveUpdating: true})
     }
   }

@@ -32,11 +32,15 @@ export const formatColumnValue = (
     case 'timestamp':
       return moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
     case 'message':
-      if (value.indexOf(' ') > charLimit - 5) {
-        return _.truncate(value, {length: charLimit - 5}).replace('\\n', '')
-      } else {
-        return value.replace('\\n', '')
+      if (value) {
+        if (value.indexOf(' ') > charLimit - 5) {
+          return _.truncate(value, {length: charLimit - 5}).replace('\\n', '')
+        } else {
+          return value.replace('\\n', '')
+        }
       }
+      return ''
+
     default:
       return value
   }

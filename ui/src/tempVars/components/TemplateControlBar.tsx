@@ -16,7 +16,6 @@ interface Props {
   source: Source
   onSelectTemplate: (id: string) => void
   onSaveTemplates: (templates: Template[]) => void
-  onCreateTemplateVariable: () => void
 }
 
 interface State {
@@ -78,6 +77,7 @@ class TemplateControlBar extends Component<Props, State> {
           <Authorized requiredRole={EDITOR_ROLE}>
             <button
               className="btn btn-primary btn-sm template-control--manage"
+              data-test="add-template-variable"
               onClick={this.handleAddVariable}
             >
               <span className="icon plus" />

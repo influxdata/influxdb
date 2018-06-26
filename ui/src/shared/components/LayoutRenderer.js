@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
+import {fastMap} from 'src/utils/fast'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -105,7 +106,7 @@ class LayoutRenderer extends Component {
           isDraggable={isDashboard}
           isResizable={isDashboard}
         >
-          {cells.map(cell => (
+          {fastMap(cells, cell => (
             <div key={cell.i}>
               <Authorized
                 requiredRole={EDITOR_ROLE}

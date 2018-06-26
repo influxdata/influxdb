@@ -1,6 +1,6 @@
 import uuid from 'uuid'
 
-import {TimeRange} from 'src/types/query'
+import {TimeRange} from 'src/types/queries'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 import {Template, TemplateType, TemplateValueType} from 'src/types'
 

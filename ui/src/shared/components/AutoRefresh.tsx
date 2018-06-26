@@ -56,7 +56,7 @@ const AutoRefresh = (
       inView: true,
     }
 
-    private intervalID: NodeJS.Timer | null
+    private intervalID: number
 
     constructor(props: Props) {
       super(props)
@@ -199,7 +199,7 @@ const AutoRefresh = (
       this.executeQueries()
 
       if (autoRefresh) {
-        this.intervalID = setInterval(this.executeQueries, autoRefresh)
+        this.intervalID = window.setInterval(this.executeQueries, autoRefresh)
       }
     }
 

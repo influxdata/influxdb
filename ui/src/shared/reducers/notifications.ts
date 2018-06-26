@@ -1,5 +1,5 @@
 import uuid from 'uuid'
-import {Action} from 'src/shared/actions/notifications'
+import {Action} from 'src/types/actions/notifications'
 import {Notification} from 'src/types'
 
 export const initialState: Notification[] = []

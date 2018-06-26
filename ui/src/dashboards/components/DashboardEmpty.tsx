@@ -1,5 +1,5 @@
 import React, {Component} from 'react'
-import {Cell} from 'src/types/dashboard'
+import {Cell} from 'src/types/dashboards'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 

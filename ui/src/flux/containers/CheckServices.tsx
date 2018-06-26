@@ -23,7 +23,7 @@ interface Props {
   sources: Source[]
   services: Service[]
   children: ReactChildren
-  showOverlay: a.ShowOverlay
+  showOverlay: a.ShowOverlayActionCreator
   fetchServicesAsync: b.FetchServicesAsync
   notify: (message: Notification) => void
   updateScript: UpdateScript

@@ -18,7 +18,7 @@ import {visibleAnnotations} from 'src/shared/annotations/helpers'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {AnnotationInterface, DygraphClass, Source} from 'src/types'
-import {UpdateAnnotationAction} from 'src/shared/actions/annotations'
+import {UpdateAnnotationAction} from 'src/types/actions/annotations'
 
 interface Props {
   dWidth: number
@@ -92,8 +92,9 @@ class Annotations extends Component<Props> {
   get annotations() {
     return visibleAnnotations(
       this.props.xAxisRange,
-      this.props.annotations
-    ).filter(a => a.id !== TEMP_ANNOTATION.id)
+      this.props.annotations,
+      TEMP_ANNOTATION.id
+    )
   }
 
   get tempAnnotation() {

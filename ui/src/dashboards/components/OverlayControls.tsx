@@ -3,11 +3,9 @@ import classnames from 'classnames'
 
 import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
-import {QueryConfig, Source} from 'src/types'
 
-export interface SourceOption extends Source {
-  text: string
-}
+import * as QueriesModels from 'src/types/queries'
+import * as SourcesModels from 'src/types/sources'
 
 interface Props {
   onCancel: () => void
@@ -17,10 +15,10 @@ interface Props {
     displayOptions: boolean
   ) => (event: MouseEvent<HTMLLIElement>) => void
   isSavable: boolean
-  sources: SourceOption[]
-  onSetQuerySource: (source: Source) => void
+  sources: SourcesModels.SourceOption[]
+  onSetQuerySource: (source: SourcesModels.Source) => void
   selected: string
-  queries: QueryConfig[]
+  queries: QueriesModels.QueryConfig[]
 }
 
 const OverlayControls: SFC<Props> = ({

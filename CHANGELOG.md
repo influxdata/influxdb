@@ -23,6 +23,8 @@
 1.  [#3697](https://github.com/influxdata/chronograf/pull/3697): Fix allowing hyphens in basepath
 1.  [#3698](https://github.com/influxdata/chronograf/pull/3698): Fix error in cell when tempVar returns no values
 1.  [#3733](https://github.com/influxdata/chronograf/pull/3733): Change arrows in table columns so that ascending sort points up and descending points down
+1.  [#3751](https://github.com/influxdata/chronograf/pull/3751): Fix crosshairs moving passed the edges of graphs
+1.  [#3759](https://github.com/influxdata/chronograf/pull/3759): Change y-axis options to have valid defaults
 
 ## v1.5.0.0 [2018-05-15-RC]
 

@@ -16,7 +16,8 @@ export const TEMP_ANNOTATION: AnnotationInterface = {
 
 export const visibleAnnotations = (
   xAxisRange: [number, number],
-  annotations: AnnotationInterface[] = []
+  annotations: AnnotationInterface[] = [],
+  tempAnnotationID: string
 ): AnnotationInterface[] => {
   const [xStart, xEnd] = xAxisRange
 
@@ -25,6 +26,9 @@ export const visibleAnnotations = (
   }
 
   return annotations.filter(a => {
+    if (a.id === tempAnnotationID) {
+      return false
+    }
     if (a.startTime === null || a.endTime === null) {
       return false
     }
