@@ -1,4 +1,5 @@
 import React, {PureComponent} from 'react'
+import classNames from 'classnames'
 
 import {TemplateValue} from 'src/types'
 
@@ -16,10 +17,20 @@ class TemplatePreviewListItem extends PureComponent<Props> {
     const {item, style} = this.props
 
     return (
-      <li onClick={this.handleClick} style={style}>
+      <li
+        onClick={this.handleClick}
+        style={style}
+        className={classNames('temp-builder-results--list-item', {
+          active: this.isSelected,
+        })}
+      >
         {item.value}
       </li>
     )
+  }
+
+  private get isSelected() {
+    return this.props.item.selected
   }
 
   private handleClick = (): void => {
