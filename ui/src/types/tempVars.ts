@@ -1,4 +1,5 @@
 import {Source} from 'src/types'
+import {Notification} from 'src/types/notifications'
 
 export enum TemplateValueType {
   Database = 'database',
@@ -16,6 +17,7 @@ export interface TemplateValue {
   value: string
   type: TemplateValueType
   selected: boolean
+  default: boolean
 }
 
 export interface TemplateQuery {
@@ -61,5 +63,6 @@ export interface TemplateBuilderProps {
   template: Template
   source: Source
   onUpdateTemplate: (nextTemplate: Template) => void
-  onChooseValue: (item: TemplateValue) => void
+  onUpdateDefaultTemplateValue: (item: TemplateValue) => void
+  notify?: (message: Notification) => void
 }

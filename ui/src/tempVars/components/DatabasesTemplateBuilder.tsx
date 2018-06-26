@@ -33,7 +33,7 @@ class DatabasesTemplateBuilder extends PureComponent<
   }
 
   public render() {
-    const {template, onChooseValue} = this.props
+    const {template, onUpdateDefaultTemplateValue} = this.props
     const {databasesStatus} = this.state
 
     return (
@@ -47,7 +47,7 @@ class DatabasesTemplateBuilder extends PureComponent<
         <TemplateMetaQueryPreview
           items={template.values}
           loadingStatus={databasesStatus}
-          onChoose={onChooseValue}
+          onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
         />
       </div>
     )
@@ -69,6 +69,7 @@ class DatabasesTemplateBuilder extends PureComponent<
           type: TemplateValueType.Database,
           value: db,
           selected: false,
+          default: false,
         }
       })
 

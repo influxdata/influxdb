@@ -5,12 +5,14 @@ import React, {
   KeyboardEvent,
 } from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import Dropdown from 'src/shared/components/Dropdown'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {getDeep} from 'src/utils/wrappers'
 import {notify as notifyActionCreator} from 'src/shared/actions/notifications'
+import {reconcileDefaultAndSelectedValues} from 'src/dashboards/utils/tempVars'
 
 import DatabasesTemplateBuilder from 'src/tempVars/components/DatabasesTemplateBuilder'
 import CSVTemplateBuilder from 'src/tempVars/components/CSVTemplateBuilder'
@@ -96,7 +98,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {source, onCancel} = this.props
+    const {source, onCancel, notify} = this.props
     const {nextTemplate, isNew} = this.state
     const TemplateBuilder = this.templateBuilder
 
@@ -107,12 +109,14 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
           <div className="edit-temp-var--header-controls">
             <button
               className="btn btn-default"
+              style={{zIndex: 9010}}
               type="button"
               onClick={onCancel}
             >
               Cancel
             </button>
             <button
+              style={{zIndex: 9010}}
               className="btn btn-success"
               type="button"
               onClick={this.handleSave}
@@ -122,9 +126,9 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
             </button>
           </div>
         </div>
-        <div className="edit-temp-var--body">
-          <div className="edit-temp-var--body-row">
-            <div className="form-group name">
+        <div className="edit-temp-var--body" style={{zIndex: 9010}}>
+          <div className="edit-temp-var--body-row" style={{zIndex: 9010}}>
+            <div style={{zIndex: 9010}} className="form-group name">
               <label>Name</label>
               <input
                 type="text"
@@ -135,7 +139,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
                 onBlur={this.formatName}
               />
             </div>
-            <div className="form-group template-type">
+            <div style={{zIndex: 9010}} className="form-group template-type">
               <label>Type</label>
               <Dropdown
                 items={TEMPLATE_TYPES_LIST}
@@ -149,8 +153,11 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
             <TemplateBuilder
               template={nextTemplate}
               source={source}
-              onChooseValue={this.handleChooseTemplateValue}
               onUpdateTemplate={this.handleUpdateTemplate}
+              notify={notify}
+              onUpdateDefaultTemplateValue={
+                this.handleUpdateDefaultTemplateValue
+              }
             />
           </div>
           <ConfirmButton
@@ -180,19 +187,34 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     return component
   }
 
-  private handleUpdateTemplate = (nextTemplate: Template): void => {
-    this.setState({nextTemplate})
+  private handleUpdateDefaultTemplateValue = (
+    selected: TemplateValue
+  ): void => {
+    const {
+      nextTemplate,
+      nextTemplate: {values},
+    } = this.state
+
+    const nextValues = values.map(v => {
+      if (v.value === selected.value) {
+        return {...v, default: true}
+      } else {
+        return {...v, default: false}
+      }
+    })
+
+    this.setState({nextTemplate: {...nextTemplate, values: nextValues}})
   }
 
-  private handleChooseTemplateValue = (item: TemplateValue) => {
-    this.setState(({nextTemplate: template}) => {
-      const nextValues = template.values.map(t => ({
-        ...t,
-        selected: t.value === item.value,
-      }))
+  private handleUpdateTemplate = (nextNextTemplate: Template): void => {
+    const {nextTemplate} = this.state
 
-      return {nextTemplate: {...template, values: nextValues}}
-    })
+    const TemplateWithDefaultAndSelected = reconcileDefaultAndSelectedValues(
+      nextTemplate,
+      nextNextTemplate
+    )
+
+    this.setState({nextTemplate: TemplateWithDefaultAndSelected})
   }
 
   private handleChooseType = ({type}) => {
@@ -200,7 +222,11 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
       nextTemplate: {id, tempVar},
     } = this.state
 
-    const nextNextTemplate = {...DEFAULT_TEMPLATES[type](), id, tempVar}
+    const nextNextTemplate = {
+      ...DEFAULT_TEMPLATES[type](),
+      id,
+      tempVar,
+    }
 
     this.setState({nextTemplate: nextNextTemplate})
   }
@@ -270,11 +296,17 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private get canSave(): boolean {
     const {
-      nextTemplate: {tempVar},
+      nextTemplate: {tempVar, type, values},
     } = this.state
+
+    let canSaveValues = true
+    if (type === TemplateType.CSV && _.isEmpty(values)) {
+      canSaveValues = false
+    }
 
     return (
       tempVar !== '' &&
+      canSaveValues &&
       !RESERVED_TEMPLATE_NAMES.includes(formatName(tempVar)) &&
       !this.isSaving
     )

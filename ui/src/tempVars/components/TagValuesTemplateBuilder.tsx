@@ -62,7 +62,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
   }
 
   public render() {
-    const {template, onChooseValue} = this.props
+    const {template, onUpdateDefaultTemplateValue} = this.props
     const {
       databases,
       databasesStatus,
@@ -115,7 +115,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         <TemplateMetaQueryPreview
           items={template.values}
           loadingStatus={tagValuesStatus}
-          onChoose={onChooseValue}
+          onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
         />
       </div>
     )
@@ -225,6 +225,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
           type: TemplateValueType.TagValue,
           value,
           selected: false,
+          default: false,
         }
       })
 

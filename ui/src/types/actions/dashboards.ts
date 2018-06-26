@@ -10,7 +10,6 @@ import * as QueriesModels from 'src/types/queries'
 import * as TempVarsModels from 'src/types/tempVars'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
-
 export type LoadDashboardsActionCreator = (
   dashboards: DashboardsModels.Dashboard[],
   dashboardID?: number
@@ -345,7 +344,9 @@ export type UpdateDashboardCellDispatcher = (
 ) => UpdateDashboardCellThunk
 
 export type UpdateDashboardCellThunk = (
-  dispatch: Dispatch<SyncDashboardCellActionCreator | ErrorsActions.ErrorThrownActionCreator>
+  dispatch: Dispatch<
+    SyncDashboardCellActionCreator | ErrorsActions.ErrorThrownActionCreator
+  >
 ) => Promise<void>
 
 export type SyncURLQueryFromQueryParamsObjectDispatcher = (

@@ -18,19 +18,30 @@ class TemplatePreviewListItem extends PureComponent<Props> {
         onClick={this.handleClick}
         style={style}
         className={classNames('temp-builder-results--list-item', {
-          active: this.isSelected,
+          active: this.isDefault,
         })}
       >
         {item.value}
+        {this.renderIndicator()}
       </li>
     )
   }
 
-  private get isSelected() {
-    return this.props.item.selected
+  private get isDefault(): boolean {
+    return this.props.item.default
+  }
+
+  private renderIndicator(): JSX.Element {
+    if (this.isDefault) {
+      return <div>{' default'}</div>
+    }
   }
 
   private handleClick = (): void => {
+    if (this.isDefault) {
+      return
+    }
+
     this.props.onClick(this.props.item)
   }
 }

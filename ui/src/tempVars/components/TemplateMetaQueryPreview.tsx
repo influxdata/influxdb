@@ -8,13 +8,13 @@ import {RemoteDataState, TemplateValue} from 'src/types'
 interface Props {
   items: TemplateValue[]
   loadingStatus: RemoteDataState
-  onChoose: (item: TemplateValue) => void
+  onUpdateDefaultTemplateValue: (item: TemplateValue) => void
 }
 
 @ErrorHandling
 class TemplateMetaQueryPreview extends PureComponent<Props> {
   public render() {
-    const {items, loadingStatus, onChoose} = this.props
+    const {items, loadingStatus, onUpdateDefaultTemplateValue} = this.props
 
     if (loadingStatus === RemoteDataState.NotStarted) {
       return <div className="temp-builder-results" />
@@ -54,7 +54,10 @@ class TemplateMetaQueryPreview extends PureComponent<Props> {
           Meta Query returned <strong>{items.length}</strong> value{pluralizer}
         </p>
         {items.length > 0 && (
-          <TemplatePreviewList items={items} onChoose={onChoose} />
+          <TemplatePreviewList
+            items={items}
+            onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
+          />
         )}
       </div>
     )

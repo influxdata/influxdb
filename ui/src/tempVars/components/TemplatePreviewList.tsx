@@ -13,13 +13,13 @@ const RESULTS_TO_DISPLAY = 10
 
 interface Props {
   items: TemplateValue[]
-  onChoose: (item: TemplateValue) => void
+  onUpdateDefaultTemplateValue: (item: TemplateValue) => void
 }
 
 @ErrorHandling
 class TemplatePreviewList extends PureComponent<Props> {
   public render() {
-    const {items, onChoose} = this.props
+    const {items, onUpdateDefaultTemplateValue} = this.props
 
     return (
       <ul
@@ -31,10 +31,11 @@ class TemplatePreviewList extends PureComponent<Props> {
             return (
               <TemplatePreviewListItem
                 key={uuid.v4()}
-                onClick={onChoose}
+                onClick={onUpdateDefaultTemplateValue}
                 style={{
                   height: `${LI_HEIGHT}px`,
                   marginBottom: `${LI_MARGIN_BOTTOM}px`,
+                  zIndex: 9010,
                 }}
                 item={item}
               />

@@ -441,7 +441,12 @@ export const DEFAULT_SOURCE = {
 
 export const defaultIntervalValue = '333'
 export const intervalValuesPoints = [
-  {value: defaultIntervalValue, type: TemplateValueType.Points, selected: true},
+  {
+    value: defaultIntervalValue,
+    type: TemplateValueType.Points,
+    selected: true,
+    default: true,
+  },
 ]
 
 export const interval = {

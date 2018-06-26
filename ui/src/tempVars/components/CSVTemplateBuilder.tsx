@@ -1,9 +1,16 @@
 import React, {PureComponent, ChangeEvent} from 'react'
+import {getDeep} from 'src/utils/wrappers'
+import Papa from 'papaparse'
+import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 
-import {TemplateBuilderProps, TemplateValueType} from 'src/types'
+import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
+import DragAndDrop from 'src/shared/components/DragAndDrop'
+import {notifyCSVUploadFailed} from 'src/shared/copy/notifications'
+
+import {TemplateBuilderProps, TemplateValueType, TemplateValue} from 'src/types'
+import {trimAndRemoveQuotes} from 'src/tempVars/utils/parsing'
 
 interface State {
   templateValuesString: string
@@ -11,9 +18,8 @@ interface State {
 
 @ErrorHandling
 class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
-  public constructor(props) {
+  public constructor(props: TemplateBuilderProps) {
     super(props)
-
     const templateValues = props.template.values.map(v => v.value)
 
     this.state = {
@@ -22,21 +28,29 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
   }
 
   public render() {
-    const {onChooseValue, template} = this.props
+    const {onUpdateDefaultTemplateValue, template} = this.props
     const {templateValuesString} = this.state
     const pluralizer = template.values.length === 1 ? '' : 's'
 
     return (
-      <div className="temp-builder csv-temp-builder">
-        <div className="form-group">
-          <label>Comma Separated Values</label>
-          <div className="temp-builder--mq-controls">
-            <textarea
-              className="form-control"
-              value={templateValuesString}
-              onChange={this.handleChange}
-              onBlur={this.handleBlur}
-            />
+      <>
+        <DragAndDrop
+          submitText="Preview"
+          fileTypesToAccept={this.validFileExtension}
+          handleSubmit={this.handleUploadFile}
+          submitOnDrop={true}
+        />
+        <div className="temp-builder csv-temp-builder" style={{zIndex: 9010}}>
+          <div className="form-group" style={{zIndex: 9010}}>
+            <label>Comma Separated Values</label>
+            <div className="temp-builder--mq-controls">
+              <textarea
+                className="form-control"
+                value={templateValuesString}
+                onChange={this.handleChange}
+                onBlur={this.handleBlur}
+              />
+            </div>
           </div>
         </div>
         <div className="temp-builder-results">
@@ -48,43 +62,72 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
           {template.values.length > 0 && (
             <TemplatePreviewList
               items={template.values}
-              onChoose={onChooseValue}
+              onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
             />
           )}
         </div>
-      </div>
+      </>
     )
   }
 
-  private handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
-    this.setState({templateValuesString: e.target.value})
+  private handleUploadFile = (
+    uploadContent: string,
+    fileName: string
+  ): void => {
+    const {template, onUpdateTemplate} = this.props
+
+    const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
+    if (!fileName.match(fileExtensionRegex)) {
+      this.props.notify(notifyCSVUploadFailed())
+      return
+    }
+
+    this.setState({templateValuesString: uploadContent})
+
+    const nextValues = this.getValuesFromString(uploadContent)
+
+    onUpdateTemplate({...template, values: nextValues})
   }
 
   private handleBlur = (): void => {
     const {template, onUpdateTemplate} = this.props
     const {templateValuesString} = this.state
 
-    let templateValues
+    const nextValues = this.getValuesFromString(templateValuesString)
 
-    if (templateValuesString.trim() === '') {
-      templateValues = []
-    } else {
-      templateValues = templateValuesString.split(',').map(s => s.trim())
-    }
+    onUpdateTemplate({...template, values: nextValues})
+  }
 
-    const nextValues = templateValues.map(value => {
+  private get validFileExtension(): string {
+    return '.csv'
+  }
+
+  private handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    this.setState({templateValuesString: e.target.value})
+  }
+
+  private getValuesFromString(templateValuesString) {
+    const parsedTVS = Papa.parse(templateValuesString)
+    const templateValuesData = getDeep<string[][]>(parsedTVS, 'data', [[]])
+
+    const templateValues = _.filter(
+      _.map(_.uniq(_.flatten(templateValuesData)), elt =>
+        trimAndRemoveQuotes(elt)
+      ),
+      elt => elt !== ''
+    )
+
+    // check for too many errors in papa parse response
+    const nextValues = templateValues.map((value: string): TemplateValue => {
       return {
         type: TemplateValueType.CSV,
         value,
         selected: false,
+        default: false,
       }
     })
 
-    if (nextValues.length > 0) {
-      nextValues[0].selected = true
-    }
-
-    onUpdateTemplate({...template, values: nextValues})
+    return nextValues
   }
 }
 
