@@ -28,20 +28,20 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     const pluralizer = templateValues.length === 1 ? '' : 's'
 
     return (
-      <div className="temp-builder csv-temp-builder">
-        <div className="form-group">
+      <>
+        <div className="form-group col-xs-12">
           <label>Comma Separated Values</label>
           <div className="temp-builder--mq-controls">
             <textarea
-              className="form-control"
+              className="form-control input-sm"
               value={templateValuesString}
               onChange={this.handleChange}
               onBlur={this.handleBlur}
             />
           </div>
         </div>
-        <div className="temp-builder-results">
-          <p>
+        <div className="form-group col-xs-12 temp-builder--results">
+          <p className="temp-builder--validation">
             CSV contains <strong>{templateValues.length}</strong> value{
               pluralizer
             }
@@ -50,7 +50,7 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
             <TemplatePreviewList items={templateValues} />
           )}
         </div>
-      </div>
+      </>
     )
   }
 

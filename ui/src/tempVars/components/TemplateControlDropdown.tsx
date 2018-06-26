@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 
 import Dropdown from 'src/shared/components/Dropdown'
-import SimpleOverlayTechnology from 'src/shared/components/SimpleOverlayTechnology'
+import OverlayTechnology from 'src/shared/components/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 import Authorized, {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
@@ -76,18 +76,16 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
             />
           </label>
         </Authorized>
-        {isEditing && (
-          <SimpleOverlayTechnology>
-            <TemplateVariableEditor
-              template={template}
-              source={source}
-              onCreate={onCreateTemplate}
-              onUpdate={this.handleUpdateTemplate}
-              onDelete={this.handleDelete}
-              onCancel={this.handleHideSettings}
-            />
-          </SimpleOverlayTechnology>
-        )}
+        <OverlayTechnology visible={isEditing}>
+          <TemplateVariableEditor
+            template={template}
+            source={source}
+            onCreate={onCreateTemplate}
+            onUpdate={this.handleUpdateTemplate}
+            onDelete={this.handleDelete}
+            onCancel={this.handleHideSettings}
+          />
+        </OverlayTechnology>
       </div>
     )
   }
