@@ -1,10 +1,11 @@
-import * as Types from 'src/types/modules'
+import * as ErrorsActions from 'src/types/actions/errors'
+import * as ErrorsModels from 'src/types/errors'
 
 export const errorThrown = (
-  error: Types.Errors.Data.ErrorDescription,
+  error: ErrorsModels.ErrorDescription,
   altText?: string,
-  alertType?: Types.Errors.Data.AlertType
-): Types.Errors.Actions.ErrorThrownAction => ({
+  alertType?: ErrorsModels.AlertType
+): ErrorsActions.ErrorThrownAction => ({
   type: 'ERROR_THROWN',
   error,
   altText,

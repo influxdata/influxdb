@@ -11,26 +11,28 @@ import GraphTips from 'src/shared/components/GraphTips'
 import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 
-import * as Types from 'src/types/modules'
+import * as AppActions from 'src/types/actions/app'
+import * as DashboardsModels from 'src/types/dashboards'
+import * as QueriesModels from 'src/types/query'
 
 interface Props {
   activeDashboard: string
-  dashboard: Types.Dashboards.Data.Dashboard
+  dashboard: DashboardsModels.Dashboard
   onEditDashboard: () => void
-  timeRange: Types.Queries.Data.TimeRange
+  timeRange: QueriesModels.TimeRange
   autoRefresh: number
   isEditMode?: boolean
-  handleChooseTimeRange: (timeRange: Types.Queries.Data.TimeRange) => void
-  handleChooseAutoRefresh: Types.App.Actions.SetAutoRefreshActionCreator
+  handleChooseTimeRange: (timeRange: QueriesModels.TimeRange) => void
+  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   onManualRefresh: () => void
-  handleClickPresentationButton: Types.App.Actions.DelayEnablePresentationModeDispatcher
+  handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
   onToggleTempVarControls: () => void
   showTemplateControlBar: boolean
-  zoomedTimeRange: Types.Queries.Data.TimeRange
+  zoomedTimeRange: QueriesModels.TimeRange
   onCancel: () => void
   onSave: (name: string) => Promise<void>
-  names: Types.Dashboards.Data.DashboardName[]
+  names: DashboardsModels.DashboardName[]
   isHidden: boolean
 }
 

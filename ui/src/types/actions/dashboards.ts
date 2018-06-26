@@ -3,29 +3,35 @@ import {InjectedRouter} from 'react-router'
 import {LocationAction} from 'react-router-redux'
 import {Source} from 'src/types'
 import {Location} from 'history'
-import * as Types from 'src/types/modules'
+import * as DashboardsModels from 'src/types/dashboards'
+import * as DashboardsReducers from 'src/types/reducers/dashboards'
+import * as ErrorsActions from 'src/types/actions/errors'
+import * as QueriesModels from 'src/types/query'
+import * as TempVarsModels from 'src/types/tempVars'
+import * as NotificationsActions from 'src/types/actions/notifications'
+
 
 export type LoadDashboardsActionCreator = (
-  dashboards: Types.Dashboards.Data.Dashboard[],
+  dashboards: DashboardsModels.Dashboard[],
   dashboardID?: number
 ) => LoadDashboardsAction
 
 export interface LoadDashboardsAction {
   type: 'LOAD_DASHBOARDS'
   payload: {
-    dashboards: Types.Dashboards.Data.Dashboard[]
+    dashboards: DashboardsModels.Dashboard[]
     dashboardID: number
   }
 }
 
 export type LoadDashboardActionCreator = (
-  dashboard: Types.Dashboards.Data.Dashboard
+  dashboard: DashboardsModels.Dashboard
 ) => LoadDashboardAction
 
 export interface LoadDashboardAction {
   type: 'LOAD_DASHBOARD'
   payload: {
-    dashboard: Types.Dashboards.Data.Dashboard
+    dashboard: DashboardsModels.Dashboard
   }
 }
 
@@ -33,13 +39,13 @@ export interface SetDashTimeV1Action {
   type: 'SET_DASHBOARD_TIME_V1'
   payload: {
     dashboardID: number
-    timeRange: Types.Queries.Data.TimeRange
+    timeRange: QueriesModels.TimeRange
   }
 }
 
 export type SetDashTimeV1ActionCreator = (
   dashboardID: number,
-  timeRange: Types.Queries.Data.TimeRange
+  timeRange: QueriesModels.TimeRange
 ) => SetDashTimeV1Action
 
 export interface RetainRangesDashTimeV1Action {
@@ -54,18 +60,18 @@ export type RetainRangesDashTimeV1ActionCreator = (
 ) => RetainRangesDashTimeV1Action
 
 export type SetTimeRangeActionCreator = (
-  timeRange: Types.Queries.Data.TimeRange
+  timeRange: QueriesModels.TimeRange
 ) => SetTimeRangeAction
 
 export interface SetTimeRangeAction {
   type: 'SET_DASHBOARD_TIME_RANGE'
   payload: {
-    timeRange: Types.Queries.Data.TimeRange
+    timeRange: QueriesModels.TimeRange
   }
 }
 
 export type SetZoomedTimeRangeDispatcher = (
-  zoomedTimeRange: Types.Queries.Data.TimeRange,
+  zoomedTimeRange: QueriesModels.TimeRange,
   location: Location
 ) => SetZoomedTimeRangeThunk
 
@@ -77,135 +83,135 @@ export type SetZoomedTimeRangeThunk = (
 ) => Promise<void>
 
 export type SetZoomedTimeRangeActionCreator = (
-  zoomedTimeRange: Types.Queries.Data.TimeRange
+  zoomedTimeRange: QueriesModels.TimeRange
 ) => SetZoomedTimeRangeAction
 
 export interface SetZoomedTimeRangeAction {
   type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE'
   payload: {
-    zoomedTimeRange: Types.Queries.Data.TimeRange
+    zoomedTimeRange: QueriesModels.TimeRange
   }
 }
 
 export interface UpdateDashboardAction {
   type: 'UPDATE_DASHBOARD'
   payload: {
-    dashboard: Types.Dashboards.Data.Dashboard
+    dashboard: DashboardsModels.Dashboard
   }
 }
 
 export type UpdateDashboardActionCreator = (
-  dashboard: Types.Dashboards.Data.Dashboard
+  dashboard: DashboardsModels.Dashboard
 ) => UpdateDashboardAction
 
 export type CreateDashboardActionCreator = (
-  dashboard: Types.Dashboards.Data.Dashboard
+  dashboard: DashboardsModels.Dashboard
 ) => CreateDashboardAction
 
 export interface CreateDashboardAction {
   type: 'CREATE_DASHBOARD'
   payload: {
-    dashboard: Types.Dashboards.Data.Dashboard
+    dashboard: DashboardsModels.Dashboard
   }
 }
 
 export type DeleteDashboardActionCreator = (
-  dashboard: Types.Dashboards.Data.Dashboard
+  dashboard: DashboardsModels.Dashboard
 ) => DeleteDashboardAction
 
 export interface DeleteDashboardAction {
   type: 'DELETE_DASHBOARD'
   payload: {
-    dashboard: Types.Dashboards.Data.Dashboard
+    dashboard: DashboardsModels.Dashboard
   }
 }
 
 export type DeleteDashboardFailedActionCreator = (
-  dashboard: Types.Dashboards.Data.Dashboard
+  dashboard: DashboardsModels.Dashboard
 ) => DeleteDashboardFailedAction
 
 export interface DeleteDashboardFailedAction {
   type: 'DELETE_DASHBOARD_FAILED'
   payload: {
-    dashboard: Types.Dashboards.Data.Dashboard
+    dashboard: DashboardsModels.Dashboard
   }
 }
 
 export type SyncDashboardCellActionCreator = (
-  dashboard: Types.Dashboards.Data.Dashboard,
-  cell: Types.Dashboards.Data.Cell
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
 ) => SyncDashboardCellAction
 
 export interface SyncDashboardCellAction {
   type: 'SYNC_DASHBOARD_CELL'
   payload: {
-    dashboard: Types.Dashboards.Data.Dashboard
-    cell: Types.Dashboards.Data.Cell
+    dashboard: DashboardsModels.Dashboard
+    cell: DashboardsModels.Cell
   }
 }
 
 export type AddDashboardCellDispatcher = (
-  dashboard: Types.Dashboards.Data.Dashboard,
-  cellType?: Types.Dashboards.Data.CellType
+  dashboard: DashboardsModels.Dashboard,
+  cellType?: DashboardsModels.CellType
 ) => AddDashboardCellThunk
 
 export type AddDashboardCellThunk = (
   dispatch: Dispatch<
     | AddDashboardCellAction
-    | Types.Notifications.Actions.PublishNotificationActionCreator
-    | Types.Errors.Actions.ErrorThrownActionCreator
+    | NotificationsActions.PublishNotificationActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
   >
 ) => Promise<void>
 
 export type AddDashboardCellActionCreator = (
-  dashboard: Types.Dashboards.Data.Dashboard,
-  cell: Types.Dashboards.Data.Cell
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
 ) => AddDashboardCellAction
 
 export interface AddDashboardCellAction {
   type: 'ADD_DASHBOARD_CELL'
   payload: {
-    dashboard: Types.Dashboards.Data.Dashboard
-    cell: Types.Dashboards.Data.Cell
+    dashboard: DashboardsModels.Dashboard
+    cell: DashboardsModels.Cell
   }
 }
 
 export type CloneDashboardCellDispatcher = (
-  dashboard: Types.Dashboards.Data.Dashboard,
-  cell: Types.Dashboards.Data.Cell
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
 ) => CloneDashboardCellThunk
 
 export type CloneDashboardCellThunk = (
   dispatch: Dispatch<
     | AddDashboardCellAction
-    | Types.Notifications.Actions.PublishNotificationActionCreator
-    | Types.Errors.Actions.ErrorThrownActionCreator
+    | NotificationsActions.PublishNotificationActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
   >
 ) => Promise<void>
 
 export type DeleteDashboardCellDispatcher = (
-  dashboard: Types.Dashboards.Data.Dashboard,
-  cell: Types.Dashboards.Data.Cell
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
 ) => DeleteDashboardCellThunk
 
 export type DeleteDashboardCellThunk = (
   dispatch: Dispatch<
     | DeleteDashboardCellActionCreator
-    | Types.Notifications.Actions.PublishNotificationActionCreator
-    | Types.Errors.Actions.ErrorThrownActionCreator
+    | NotificationsActions.PublishNotificationActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
   >
 ) => Promise<void>
 
 export type DeleteDashboardCellActionCreator = (
-  dashboard: Types.Dashboards.Data.Dashboard,
-  cell: Types.Dashboards.Data.Cell
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
 ) => DeleteDashboardCellAction
 
 export interface DeleteDashboardCellAction {
   type: 'DELETE_DASHBOARD_CELL'
   payload: {
-    dashboard: Types.Dashboards.Data.Dashboard
-    cell: Types.Dashboards.Data.Cell
+    dashboard: DashboardsModels.Dashboard
+    cell: DashboardsModels.Cell
   }
 }
 
@@ -239,14 +245,14 @@ export interface TemplateVariableSelectedAction {
 
 export type TemplateVariablesSelectedByNameActionCreator = (
   dashboardID: number,
-  queryParams: Types.TempVars.Data.URLQueryParams
+  queryParams: TempVarsModels.URLQueryParams
 ) => TemplateVariablesSelectedByNameAction
 
 export interface TemplateVariablesSelectedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
     dashboardID: number
-    queryParams: Types.TempVars.Data.URLQueryParams
+    queryParams: TempVarsModels.URLQueryParams
   }
 }
 
@@ -290,24 +296,24 @@ export interface SetActiveCellAction {
 export type GetDashboardsDispatcher = () => GetDashboardsThunk
 
 export type GetDashboardsThunk = (
-  dispatch: Dispatch<Types.Errors.Actions.ErrorThrownActionCreator>
-) => Promise<Types.Dashboards.Data.Dashboard[] | void>
+  dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>
+) => Promise<DashboardsModels.Dashboard[] | void>
 
 export type GetDashboardsNamesDispatcher = (
   sourceID: string
 ) => GetDashboardsNamesThunk
 
 export type GetDashboardsNamesThunk = (
-  dispatch: Dispatch<Types.Errors.Actions.ErrorThrownActionCreator>
-) => Promise<Types.Dashboards.Data.DashboardName[] | void>
+  dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>
+) => Promise<DashboardsModels.DashboardName[] | void>
 
 export type PutDashboardDispatcher = (
-  dashboard: Types.Dashboards.Data.Dashboard
+  dashboard: DashboardsModels.Dashboard
 ) => PutDashboardThunk
 
 export type PutDashboardThunk = (
   dispatch: Dispatch<
-    UpdateDashboardAction | Types.Errors.Actions.ErrorThrownActionCreator
+    UpdateDashboardAction | ErrorsActions.ErrorThrownActionCreator
   >
 ) => Promise<void>
 
@@ -316,46 +322,43 @@ export type PutDashboardByIDDispatcher = (
 ) => PutDashboardByIDThunk
 
 export type PutDashboardByIDThunk = (
-  dispatch: Dispatch<Types.Errors.Actions.ErrorThrownActionCreator>,
-  getState: () => Types.Dashboards.Reducers.Dashboards
+  dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>,
+  getState: () => DashboardsReducers.Dashboards
 ) => Promise<void>
 
 export type DeleteDashboardDispatcher = (
-  dashboard: Types.Dashboards.Data.Dashboard
+  dashboard: DashboardsModels.Dashboard
 ) => DeleteDashboardThunk
 
 export type DeleteDashboardThunk = (
   dispatch: Dispatch<
     | DeleteDashboardActionCreator
-    | Types.Notifications.Actions.PublishNotificationActionCreator
-    | Types.Errors.Actions.ErrorThrownActionCreator
+    | NotificationsActions.PublishNotificationActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
     | DeleteDashboardFailedActionCreator
   >
 ) => Promise<void>
 
 export type UpdateDashboardCellDispatcher = (
-  dashboard: Types.Dashboards.Data.Dashboard,
-  cell: Types.Dashboards.Data.Cell
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
 ) => UpdateDashboardCellThunk
 
 export type UpdateDashboardCellThunk = (
-  dispatch: Dispatch<
-    | SyncDashboardCellActionCreator
-    | Types.Errors.Actions.ErrorThrownActionCreator
-  >
+  dispatch: Dispatch<SyncDashboardCellActionCreator | ErrorsActions.ErrorThrownActionCreator>
 ) => Promise<void>
 
 export type SyncURLQueryFromQueryParamsObjectDispatcher = (
   location: Location,
-  updatedURLQueryParams: Types.TempVars.Data.URLQueryParams,
-  deletedURLQueryParams?: Types.TempVars.Data.URLQueryParams
+  updatedURLQueryParams: TempVarsModels.URLQueryParams,
+  deletedURLQueryParams?: TempVarsModels.URLQueryParams
 ) => SyncURLQueryFromQueryParamsObjectActionCreator
 
 export type SyncURLQueryFromTempVarsDispatcher = (
   location: Location,
-  tempVars: Types.TempVars.Data.Template[],
-  deletedTempVars: Types.TempVars.Data.Template[],
-  urlQueryParamsTimeRanges?: Types.TempVars.Data.URLQueryParams
+  tempVars: TempVarsModels.Template[],
+  deletedTempVars: TempVarsModels.Template[],
+  urlQueryParamsTimeRanges?: TempVarsModels.URLQueryParams
 ) => SyncURLQueryFromQueryParamsObjectActionCreator
 
 export type SyncURLQueryFromQueryParamsObjectActionCreator = (
@@ -364,19 +367,15 @@ export type SyncURLQueryFromQueryParamsObjectActionCreator = (
 
 export type SyncDashboardTempVarsFromURLQueryParamsDispatcher = (
   dispatch: Dispatch<
-    | Types.Notifications.Actions.PublishNotificationActionCreator
+    | NotificationsActions.PublishNotificationActionCreator
     | TemplateVariableSelectedAction
   >,
-  getState: () => Types.Dashboards.Reducers.Dashboards &
-    Types.Dashboards.Reducers.Auth
+  getState: () => DashboardsReducers.Dashboards & DashboardsReducers.Auth
 ) => void
 
 export type SyncDashboardTimeRangeFromURLQueryParamsDispatcher = (
-  dispatch: Dispatch<
-    Types.Notifications.Actions.PublishNotificationActionCreator
-  >,
-  getState: () => Types.Dashboards.Reducers.Dashboards &
-    Types.Dashboards.Reducers.DashTimeV1
+  dispatch: Dispatch<NotificationsActions.PublishNotificationActionCreator>,
+  getState: () => DashboardsReducers.Dashboards & DashboardsReducers.DashTimeV1
 ) => void
 
 export type SyncDashboardFromURLQueryParamsDispatcher = (
@@ -394,7 +393,5 @@ export type GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher = (
 ) => GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk
 
 export type GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk = (
-  dispatch: Dispatch<
-    Types.Notifications.Actions.PublishNotificationActionCreator
-  >
+  dispatch: Dispatch<NotificationsActions.PublishNotificationActionCreator>
 ) => Promise<void>

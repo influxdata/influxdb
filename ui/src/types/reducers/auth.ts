@@ -1,8 +1,8 @@
-import * as Types from 'src/types/modules'
+import * as AuthModels from 'src/types/auth'
 
 export interface Auth {
   auth: {
     isUsingAuth: boolean
-    me: Types.Auth.Data.Me
+    me: AuthModels.Me
   }
 }

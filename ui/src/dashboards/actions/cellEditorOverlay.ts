@@ -1,21 +1,23 @@
-import * as Types from 'src/types/modules'
+import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
+import * as ColorsModels from 'src/types/colors'
+import * as DashboardsModels from 'src/types/dashboards'
 
-export const showCellEditorOverlay: Types.CellEditorOverlay.Actions.ShowCellEditorOverlayActionCreator = (
-  cell: Types.Dashboards.Data.Cell
-): Types.CellEditorOverlay.Actions.ShowCellEditorOverlayAction => ({
+export const showCellEditorOverlay: CellEditorOverlayActions.ShowCellEditorOverlayActionCreator = (
+  cell: DashboardsModels.Cell
+): CellEditorOverlayActions.ShowCellEditorOverlayAction => ({
   type: 'SHOW_CELL_EDITOR_OVERLAY',
   payload: {
     cell,
   },
 })
 
-export const hideCellEditorOverlay = (): Types.CellEditorOverlay.Actions.HideCellEditorOverlayAction => ({
+export const hideCellEditorOverlay = (): CellEditorOverlayActions.HideCellEditorOverlayAction => ({
   type: 'HIDE_CELL_EDITOR_OVERLAY',
 })
 
 export const changeCellType = (
-  cellType: Types.Dashboards.Data.CellType
-): Types.CellEditorOverlay.Actions.ChangeCellTypeAction => ({
+  cellType: DashboardsModels.CellType
+): CellEditorOverlayActions.ChangeCellTypeAction => ({
   type: 'CHANGE_CELL_TYPE',
   payload: {
     cellType,
@@ -24,7 +26,7 @@ export const changeCellType = (
 
 export const renameCell = (
   cellName: string
-): Types.CellEditorOverlay.Actions.RenameCellAction => ({
+): CellEditorOverlayActions.RenameCellAction => ({
   type: 'RENAME_CELL',
   payload: {
     cellName,
@@ -32,8 +34,8 @@ export const renameCell = (
 })
 
 export const updateThresholdsListColors = (
-  thresholdsListColors: Types.Colors.Data.ColorNumber[]
-): Types.CellEditorOverlay.Actions.UpdateThresholdsListColorsAction => ({
+  thresholdsListColors: ColorsModels.ColorNumber[]
+): CellEditorOverlayActions.UpdateThresholdsListColorsAction => ({
   type: 'UPDATE_THRESHOLDS_LIST_COLORS',
   payload: {
     thresholdsListColors,
@@ -41,8 +43,8 @@ export const updateThresholdsListColors = (
 })
 
 export const updateThresholdsListType = (
-  thresholdsListType: Types.Dashboards.Data.ThresholdType
-): Types.CellEditorOverlay.Actions.UpdateThresholdsListTypeAction => ({
+  thresholdsListType: DashboardsModels.ThresholdType
+): CellEditorOverlayActions.UpdateThresholdsListTypeAction => ({
   type: 'UPDATE_THRESHOLDS_LIST_TYPE',
   payload: {
     thresholdsListType,
@@ -50,8 +52,8 @@ export const updateThresholdsListType = (
 })
 
 export const updateGaugeColors = (
-  gaugeColors: Types.Colors.Data.ColorNumber[]
-): Types.CellEditorOverlay.Actions.UpdateGaugeColorsAction => ({
+  gaugeColors: ColorsModels.ColorNumber[]
+): CellEditorOverlayActions.UpdateGaugeColorsAction => ({
   type: 'UPDATE_GAUGE_COLORS',
   payload: {
     gaugeColors,
@@ -59,8 +61,8 @@ export const updateGaugeColors = (
 })
 
 export const updateAxes = (
-  axes: Types.Dashboards.Data.Axes
-): Types.CellEditorOverlay.Actions.UpdateAxesAction => ({
+  axes: DashboardsModels.Axes
+): CellEditorOverlayActions.UpdateAxesAction => ({
   type: 'UPDATE_AXES',
   payload: {
     axes,
@@ -68,8 +70,8 @@ export const updateAxes = (
 })
 
 export const updateTableOptions = (
-  tableOptions: Types.Dashboards.Data.TableOptions
-): Types.CellEditorOverlay.Actions.UpdateTableOptionsAction => ({
+  tableOptions: DashboardsModels.TableOptions
+): CellEditorOverlayActions.UpdateTableOptionsAction => ({
   type: 'UPDATE_TABLE_OPTIONS',
   payload: {
     tableOptions,
@@ -77,8 +79,8 @@ export const updateTableOptions = (
 })
 
 export const updateLineColors = (
-  lineColors: Types.Colors.Data.ColorString[]
-): Types.CellEditorOverlay.Actions.UpdateLineColorsAction => ({
+  lineColors: ColorsModels.ColorString[]
+): CellEditorOverlayActions.UpdateLineColorsAction => ({
   type: 'UPDATE_LINE_COLORS',
   payload: {
     lineColors,
@@ -87,7 +89,7 @@ export const updateLineColors = (
 
 export const changeTimeFormat = (
   timeFormat: string
-): Types.CellEditorOverlay.Actions.ChangeTimeFormatAction => ({
+): CellEditorOverlayActions.ChangeTimeFormatAction => ({
   type: 'CHANGE_TIME_FORMAT',
   payload: {
     timeFormat,
@@ -95,8 +97,8 @@ export const changeTimeFormat = (
 })
 
 export const changeDecimalPlaces = (
-  decimalPlaces: Types.Dashboards.Data.DecimalPlaces
-): Types.CellEditorOverlay.Actions.ChangeDecimalPlacesAction => ({
+  decimalPlaces: DashboardsModels.DecimalPlaces
+): CellEditorOverlayActions.ChangeDecimalPlacesAction => ({
   type: 'CHANGE_DECIMAL_PLACES',
   payload: {
     decimalPlaces,
@@ -104,8 +106,8 @@ export const changeDecimalPlaces = (
 })
 
 export const updateFieldOptions = (
-  fieldOptions: Types.Dashboards.Data.FieldOption[]
-): Types.CellEditorOverlay.Actions.UpdateFieldOptionsAction => ({
+  fieldOptions: DashboardsModels.FieldOption[]
+): CellEditorOverlayActions.UpdateFieldOptionsAction => ({
   type: 'UPDATE_FIELD_OPTIONS',
   payload: {
     fieldOptions,

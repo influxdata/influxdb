@@ -4,20 +4,21 @@ import {notify} from 'src/shared/actions/notifications'
 import {notifyPresentationMode} from 'src/shared/copy/notifications'
 
 import {Dispatch} from 'redux'
-import * as Types from 'src/types/modules'
+
+import * as AppActions from 'src/types/actions/app'
 
 // ephemeral state action creators
 
-export const enablePresentationMode = (): Types.App.Actions.EnablePresentationModeAction => ({
+export const enablePresentationMode = (): AppActions.EnablePresentationModeAction => ({
   type: 'ENABLE_PRESENTATION_MODE',
 })
 
-export const disablePresentationMode = (): Types.App.Actions.DisablePresentationModeAction => ({
+export const disablePresentationMode = (): AppActions.DisablePresentationModeAction => ({
   type: 'DISABLE_PRESENTATION_MODE',
 })
 
-export const delayEnablePresentationMode: Types.App.Actions.DelayEnablePresentationModeDispatcher = () => async (
-  dispatch: Dispatch<Types.App.Actions.EnablePresentationModeAction>
+export const delayEnablePresentationMode: AppActions.DelayEnablePresentationModeDispatcher = () => async (
+  dispatch: Dispatch<AppActions.EnablePresentationModeAction>
 ): Promise<NodeJS.Timer> =>
   setTimeout(() => {
     dispatch(enablePresentationMode())
@@ -26,20 +27,20 @@ export const delayEnablePresentationMode: Types.App.Actions.DelayEnablePresentat
 
 // persistent state action creators
 
-export const setAutoRefresh: Types.App.Actions.SetAutoRefreshActionCreator = (
+export const setAutoRefresh: AppActions.SetAutoRefreshActionCreator = (
   milliseconds: number
-): Types.App.Actions.SetAutoRefreshAction => ({
+): AppActions.SetAutoRefreshAction => ({
   type: 'SET_AUTOREFRESH',
   payload: {
     milliseconds,
   },
 })
 
-export const templateControlBarVisibilityToggled = (): Types.App.Actions.TemplateControlBarVisibilityToggledAction => ({
+export const templateControlBarVisibilityToggled = (): AppActions.TemplateControlBarVisibilityToggledAction => ({
   type: 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED',
 })
 
-export const noop = (): Types.App.Actions.NoopAction => ({
+export const noop = (): AppActions.NoopAction => ({
   type: 'NOOP',
   payload: {},
 })

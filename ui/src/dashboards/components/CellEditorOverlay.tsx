@@ -36,7 +36,12 @@ import {
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 
 // Types
-import * as Types from 'src/types/modules'
+import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
+import * as ColorsModels from 'src/types/colors'
+import * as DashboardsActions from 'src/types/actions/dashboards'
+import * as DashboardsModels from 'src/types/dashboards'
+import * as QueriesModels from 'src/types/query'
+import * as SourcesModels from 'src/types/sources'
 
 type QueryTransitions = typeof queryTransitions
 type EditRawTextAsyncFunc = (
@@ -52,7 +57,7 @@ export type CellEditorOverlayActions = QueryActions & {
   editRawTextAsync: EditRawTextAsyncFunc
 }
 
-const staticLegend: Types.Dashboards.Data.Legend = {
+const staticLegend: DashboardsModels.Legend = {
   type: 'static',
   orientation: 'bottom',
 }
@@ -63,40 +68,40 @@ interface Template {
 
 interface QueryStatus {
   queryID: string
-  status: Types.Queries.Data.Status
+  status: QueriesModels.Status
 }
 
 interface Props {
-  sources: Types.Sources.Data.Source[]
-  editQueryStatus: Types.Dashboards.Actions.EditCellQueryStatusActionCreator
+  sources: SourcesModels.Source[]
+  editQueryStatus: DashboardsActions.EditCellQueryStatusActionCreator
   onCancel: () => void
-  onSave: (cell: Types.Dashboards.Data.Cell) => void
-  source: Types.Sources.Data.Source
+  onSave: (cell: DashboardsModels.Cell) => void
+  source: SourcesModels.Source
   dashboardID: number
   queryStatus: QueryStatus
   autoRefresh: number
   templates: Template[]
-  timeRange: Types.Queries.Data.TimeRange
+  timeRange: QueriesModels.TimeRange
   thresholdsListType: string
-  thresholdsListColors: Types.Colors.Data.ColorNumber[]
-  gaugeColors: Types.Colors.Data.ColorNumber[]
-  lineColors: Types.Colors.Data.ColorString[]
-  cell: Types.Dashboards.Data.Cell
+  thresholdsListColors: ColorsModels.ColorNumber[]
+  gaugeColors: ColorsModels.ColorNumber[]
+  lineColors: ColorsModels.ColorString[]
+  cell: DashboardsModels.Cell
 }
 
 interface State {
-  queriesWorkingDraft: Types.Queries.Data.QueryConfig[]
+  queriesWorkingDraft: QueriesModels.QueryConfig[]
   activeQueryIndex: number
   isDisplayOptionsTabActive: boolean
   isStaticLegend: boolean
 }
 
 const createWorkingDraft = (
-  source: Types.Sources.Data.Source,
-  query: Types.Dashboards.Data.CellQuery
-): Types.Queries.Data.QueryConfig => {
+  source: SourcesModels.Source,
+  query: DashboardsModels.CellQuery
+): QueriesModels.QueryConfig => {
   const {queryConfig} = query
-  const draft: Types.Queries.Data.QueryConfig = {
+  const draft: QueriesModels.QueryConfig = {
     ...queryConfig,
     id: uuid.v4(),
     source,
@@ -106,11 +111,11 @@ const createWorkingDraft = (
 }
 
 const createWorkingDrafts = (
-  source: Types.Sources.Data.Source,
-  queries: Types.Dashboards.Data.CellQuery[]
-): Types.Queries.Data.QueryConfig[] =>
+  source: SourcesModels.Source,
+  queries: DashboardsModels.CellQuery[]
+): QueriesModels.QueryConfig[] =>
   _.cloneDeep(
-    queries.map((query: Types.Dashboards.Data.CellQuery) =>
+    queries.map((query: DashboardsModels.CellQuery) =>
       createWorkingDraft(source, query)
     )
   )
@@ -246,7 +251,7 @@ class CellEditorOverlay extends Component<Props, State> {
     )
   }
 
-  private get formattedSources(): Types.Sources.Data.SourceOption[] {
+  private get formattedSources(): SourcesModels.SourceOption[] {
     const {sources} = this.props
     return sources.map(s => ({
       ...s,
@@ -301,20 +306,18 @@ class CellEditorOverlay extends Component<Props, State> {
     const {queriesWorkingDraft, isStaticLegend} = this.state
     const {cell, thresholdsListColors, gaugeColors, lineColors} = this.props
 
-    const queries: Types.Dashboards.Data.CellQuery[] = queriesWorkingDraft.map(
-      q => {
-        const timeRange = q.range || {
-          upper: null,
-          lower: TEMP_VAR_DASHBOARD_TIME,
-        }
-        const source = getDeep<string | null>(q.source, 'links.self', null)
-        return {
-          queryConfig: q,
-          query: q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q),
-          source,
-        }
+    const queries: DashboardsModels.CellQuery[] = queriesWorkingDraft.map(q => {
+      const timeRange = q.range || {
+        upper: null,
+        lower: TEMP_VAR_DASHBOARD_TIME,
       }
-    )
+      const source = getDeep<string | null>(q.source, 'links.self', null)
+      return {
+        queryConfig: q,
+        query: q.rawText || buildQuery(TYPE_QUERY_CONFIG, timeRange, q),
+        source,
+      }
+    })
 
     const colors = getCellTypeColors({
       cellType: cell.type,
@@ -323,7 +326,7 @@ class CellEditorOverlay extends Component<Props, State> {
       lineColors,
     })
 
-    const newCell: Types.Dashboards.Data.Cell = {
+    const newCell: DashboardsModels.Cell = {
       ...cell,
       queries,
       colors,
@@ -345,8 +348,8 @@ class CellEditorOverlay extends Component<Props, State> {
     this.setState({isStaticLegend})
   }
 
-  private handleSetQuerySource = (source: Types.Sources.Data.Source): void => {
-    const queriesWorkingDraft: Types.Queries.Data.QueryConfig[] = this.state.queriesWorkingDraft.map(
+  private handleSetQuerySource = (source: SourcesModels.Source): void => {
+    const queriesWorkingDraft: QueriesModels.QueryConfig[] = this.state.queriesWorkingDraft.map(
       q => ({
         ..._.cloneDeep(q),
         source,
@@ -422,8 +425,8 @@ class CellEditorOverlay extends Component<Props, State> {
       )
 
       const config = data.queries.find(q => q.id === id)
-      const nextQueries: Types.Queries.Data.QueryConfig[] = this.state.queriesWorkingDraft.map(
-        (q: Types.Queries.Data.QueryConfig) => {
+      const nextQueries: QueriesModels.QueryConfig[] = this.state.queriesWorkingDraft.map(
+        (q: QueriesModels.QueryConfig) => {
           if (q.id === id) {
             const isQuerySupportedByExplorer = !isUsingUserDefinedTempVars
 
@@ -451,20 +454,20 @@ class CellEditorOverlay extends Component<Props, State> {
   private findSelectedSource = (): string => {
     const {source} = this.props
     const sources = this.formattedSources
-    const currentSource = getDeep<Types.Sources.Data.Source | null>(
+    const currentSource = getDeep<SourcesModels.Source | null>(
       this.state.queriesWorkingDraft,
       '0.source',
       null
     )
 
     if (!currentSource) {
-      const defaultSource: Types.Sources.Data.Source = sources.find(
+      const defaultSource: SourcesModels.Source = sources.find(
         s => s.id === source.id
       )
       return (defaultSource && defaultSource.text) || 'No sources'
     }
 
-    const selected: Types.Sources.Data.Source = sources.find(
+    const selected: SourcesModels.Source = sources.find(
       s => s.links.self === currentSource.links.self
     )
     return (selected && selected.text) || 'No sources'
@@ -508,7 +511,7 @@ class CellEditorOverlay extends Component<Props, State> {
     const {queriesWorkingDraft} = this.state
 
     return queriesWorkingDraft.every(
-      (query: Types.Queries.Data.QueryConfig) =>
+      (query: QueriesModels.QueryConfig) =>
         (!!query.measurement && !!query.database && !!query.fields.length) ||
         !!query.rawText
     )
@@ -528,7 +531,7 @@ class CellEditorOverlay extends Component<Props, State> {
     return result
   }
 
-  private get initialSource(): Types.Sources.Data.Source {
+  private get initialSource(): SourcesModels.Source {
     const {
       cell: {queries},
       source,
@@ -547,7 +550,7 @@ class CellEditorOverlay extends Component<Props, State> {
     return source
   }
 
-  private get source(): Types.Sources.Data.Source {
+  private get source(): SourcesModels.Source {
     const {source, sources} = this.props
     const query = _.get(this.state.queriesWorkingDraft, 0, {source: null})
 

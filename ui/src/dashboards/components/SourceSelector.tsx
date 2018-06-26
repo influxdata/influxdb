@@ -2,13 +2,14 @@ import React, {SFC} from 'react'
 
 import Dropdown from 'src/shared/components/Dropdown'
 
-import * as Types from 'src/types/modules'
+import * as QueriesModels from 'src/types/query'
+import * as SourcesModels from 'src/types/sources'
 
 interface Props {
-  sources: Types.Sources.Data.SourceOption[]
+  sources: SourcesModels.SourceOption[]
   selected: string
-  onSetQuerySource: (source: Types.Sources.Data.SourceOption) => void
-  queries: Types.Queries.Data.QueryConfig[]
+  onSetQuerySource: (source: SourcesModels.SourceOption) => void
+  queries: QueriesModels.QueryConfig[]
 }
 
 const SourceSelector: SFC<Props> = ({

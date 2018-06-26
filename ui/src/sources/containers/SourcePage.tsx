@@ -29,10 +29,11 @@ import {
 } from 'src/shared/copy/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import * as Types from 'src/types/modules'
+import * as SourcesModels from 'src/types/sources'
+import * as NotificationsActions from 'src/types/actions/notifications'
 
 interface Props extends WithRouterProps {
-  notify: Types.Notifications.Actions.PublishNotificationActionCreator
+  notify: NotificationsActions.PublishNotificationActionCreator
   addSource: AddSource
   updateSource: UpdateSource
 }
@@ -40,7 +41,7 @@ interface Props extends WithRouterProps {
 interface State {
   isCreated: boolean
   isLoading: boolean
-  source: Partial<Types.Sources.Data.Source>
+  source: Partial<SourcesModels.Source>
   editMode: boolean
   isInitialSource: boolean
 }

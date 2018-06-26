@@ -50,7 +50,7 @@ import 'src/style/chronograf.scss'
 
 import {HEARTBEAT_INTERVAL} from 'src/shared/constants'
 
-import * as Types from 'src/types/modules'
+import * as ErrorsModels from 'src/types/errors'
 
 const errorsQueue = []
 
@@ -191,7 +191,7 @@ class Root extends PureComponent<{}, State> {
             errorThrown(
               {status: 0, auth: null},
               error,
-              Types.Errors.Data.AlertType.Warning
+              ErrorsModels.AlertType.Warning
             )
           )
         }
