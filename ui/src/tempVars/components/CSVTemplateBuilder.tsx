@@ -1,5 +1,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {getDeep} from 'src/utils/wrappers'
+import Papa from 'papaparse'
+import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -8,6 +10,7 @@ import DragAndDrop from 'src/shared/components/DragAndDrop'
 import {notifyCSVUploadFailed} from 'src/shared/copy/notifications'
 
 import {TemplateBuilderProps, TemplateValueType, TemplateValue} from 'src/types'
+import {trimAndRemoveQuotes} from 'src/tempVars/utils/parsing'
 
 interface State {
   templateValues: string[]
@@ -112,17 +115,17 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
   }
 
   private getValuesFromString(templateValuesString) {
-    let templateValues
+    const parsedTVS = Papa.parse(templateValuesString)
+    const templateValuesData = getDeep<string[][]>(parsedTVS, 'data', [[]])
 
-    if (templateValuesString.trim() === '') {
-      templateValues = []
-    } else {
-      templateValues = templateValuesString.split(',').map(s => s.trim())
-    }
+    const templateValues = _.filter(
+      _.map(_.uniq(_.flatten(templateValuesData)), elt =>
+        trimAndRemoveQuotes(elt)
+      ),
+      elt => elt !== ''
+    )
 
-    // account for newline separated values.
-    // de-duplicate entries
-    // remove empty strings
+    // check for too many errors in papa parse response.
 
     this.setState({templateValues})
 
