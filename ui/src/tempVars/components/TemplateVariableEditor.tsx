@@ -212,16 +212,10 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     const {value} = e.target
     const {nextTemplate} = this.state
 
-    let tempVar = formatName(value)
-
-    if (tempVar === '::') {
-      tempVar = ''
-    }
-
     this.setState({
       nextTemplate: {
         ...nextTemplate,
-        tempVar,
+        tempVar: value,
       },
     })
   }
