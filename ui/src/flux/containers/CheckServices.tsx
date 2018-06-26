@@ -4,7 +4,7 @@ import {WithRouterProps} from 'react-router'
 
 import {FluxPage} from 'src/flux'
 import FluxOverlay from 'src/flux/components/FluxOverlay'
-import {OverlayContext} from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/shared/components/OverlayTechnology'
 import {Source, Service, Notification} from 'src/types'
 import {Links} from 'src/types/flux'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -12,19 +12,15 @@ import {
   updateScript as updateScriptAction,
   UpdateScript,
 } from 'src/flux/actions'
-import * as a from 'src/shared/actions/overlayTechnology'
-import * as b from 'src/shared/actions/services'
+import * as actions from 'src/shared/actions/services'
 
 export const NotificationContext = React.createContext()
-
-const actions = {...a, ...b}
 
 interface Props {
   sources: Source[]
   services: Service[]
   children: ReactChildren
-  showOverlay: a.ShowOverlayActionCreator
-  fetchServicesAsync: b.FetchServicesAsync
+  fetchServicesAsync: actions.FetchServicesAsync
   notify: (message: Notification) => void
   updateScript: UpdateScript
   script: string
@@ -42,10 +38,6 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
     }
 
     await this.props.fetchServicesAsync(source)
-
-    if (!this.props.services.length) {
-      this.overlay()
-    }
   }
 
   public render() {
@@ -65,6 +57,7 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
           notify={notify}
           updateScript={updateScript}
         />
+        {this.renderOverlay}
       </NotificationContext.Provider>
     )
   }
@@ -75,31 +68,19 @@ export class CheckServices extends PureComponent<Props & WithRouterProps> {
     return sources.find(s => s.id === params.sourceID)
   }
 
-  private overlay() {
-    const {showOverlay, services} = this.props
+  private get renderOverlay(): JSX.Element {
+    const {services} = this.props
 
-    if (services.length) {
-      return
-    }
-
-    showOverlay(
-      <OverlayContext.Consumer>
-        {({onDismissOverlay}) => (
-          <FluxOverlay
-            mode="new"
-            source={this.source}
-            onDismiss={onDismissOverlay}
-          />
-        )}
-      </OverlayContext.Consumer>,
-      {}
+    return (
+      <OverlayTechnology visible={!services.length}>
+        <FluxOverlay mode="new" source={this.source} />
+      </OverlayTechnology>
     )
   }
 }
 
 const mdtp = {
   fetchServicesAsync: actions.fetchServicesAsync,
-  showOverlay: actions.showOverlay,
   updateScript: updateScriptAction,
   notify: notifyAction,
 }
