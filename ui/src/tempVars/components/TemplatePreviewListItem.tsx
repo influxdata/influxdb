@@ -6,10 +6,7 @@ import {TemplateValue} from 'src/types'
 interface Props {
   item: TemplateValue
   onClick: (item: TemplateValue) => void
-  style: {
-    height: string
-    marginBottom: string
-  }
+  style: React.CSSProperties
 }
 
 class TemplatePreviewListItem extends PureComponent<Props> {
