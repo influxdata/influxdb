@@ -50,10 +50,14 @@ class OverlayTechnology extends Component<Props, State> {
     const {showChildren} = this.state
 
     if (showChildren) {
-      return <div className="overlay--dialog">{children}</div>
+      return (
+        <div className="overlay--dialog" data-test="overlay-children">
+          {children}
+        </div>
+      )
     }
 
-    return <div className="overlay--dialog" />
+    return <div className="overlay--dialog" data-test="overlay-children" />
   }
 
   private get overlayClass(): string {
