@@ -22,22 +22,6 @@ func init() {
 	staticResultID.DecodeFromString("1")
 }
 
-// wrapController is needed to make *control.Controller implement platform.AsyncQueryService.
-// TODO(nathanielc/adam): copied from queryd main.go, in which there's a note to remove this type by a better design
-type wrapController struct {
-	*control.Controller
-}
-
-func (c wrapController) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (query.Query, error) {
-	q, err := c.Controller.Query(ctx, orgID, query)
-	return q, err
-}
-
-func (c wrapController) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (query.Query, error) {
-	q, err := c.Controller.QueryWithCompile(ctx, orgID, query)
-	return q, err
-}
-
 func GetQueryServiceBridge() *query.QueryServiceBridge {
 	config := control.Config{
 		ConcurrencyQuota: 1,
@@ -47,7 +31,7 @@ func GetQueryServiceBridge() *query.QueryServiceBridge {
 	c := control.New(config)
 
 	return &query.QueryServiceBridge{
-		AsyncQueryService: wrapController{Controller: c},
+		AsyncQueryService: c,
 	}
 }
 

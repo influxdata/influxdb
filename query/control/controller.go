@@ -67,7 +67,7 @@ func New(c Config) *Controller {
 // QueryWithCompile submits a query for execution returning immediately.
 // The query will first be compiled before submitting for execution.
 // Done must be called on any returned Query objects.
-func (c *Controller) QueryWithCompile(ctx context.Context, orgID platform.ID, queryStr string) (*Query, error) {
+func (c *Controller) QueryWithCompile(ctx context.Context, orgID platform.ID, queryStr string) (query.Query, error) {
 	q := c.createQuery(ctx, orgID)
 	err := c.compileQuery(q, queryStr)
 	if err != nil {
@@ -80,7 +80,7 @@ func (c *Controller) QueryWithCompile(ctx context.Context, orgID platform.ID, qu
 // Query submits a query for execution returning immediately.
 // The spec must not be modified while the query is still active.
 // Done must be called on any returned Query objects.
-func (c *Controller) Query(ctx context.Context, orgID platform.ID, qSpec *query.Spec) (*Query, error) {
+func (c *Controller) Query(ctx context.Context, orgID platform.ID, qSpec *query.Spec) (query.Query, error) {
 	q := c.createQuery(ctx, orgID)
 	q.spec = *qSpec
 	err := c.enqueueQuery(q)
