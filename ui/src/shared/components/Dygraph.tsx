@@ -261,7 +261,7 @@ class Dygraph extends Component<Props, State> {
             />
             <Crosshair
               dygraph={this.dygraph}
-              stasticLegendHeight={staticLegendHeight}
+              staticLegendHeight={staticLegendHeight}
             />
           </div>
         )}
@@ -270,9 +270,8 @@ class Dygraph extends Component<Props, State> {
           <StaticLegend
             dygraphSeries={this.colorDygraphSeries}
             dygraph={this.dygraph}
-            handleReceiveStaticLegendHeight={
-              this.handleReceiveStaticLegendHeight
-            }
+            height={staticLegendHeight}
+            onUpdateHeight={this.handleUpdateStaticLegendHeight}
           />
         )}
         {this.nestedGraph &&
@@ -456,7 +455,7 @@ class Dygraph extends Component<Props, State> {
     return nanoDate.toISOString()
   }
 
-  private handleReceiveStaticLegendHeight = (staticLegendHeight: number) => {
+  private handleUpdateStaticLegendHeight = (staticLegendHeight: number) => {
     this.setState({staticLegendHeight})
   }
 }

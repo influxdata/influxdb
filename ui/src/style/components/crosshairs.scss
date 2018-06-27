@@ -3,17 +3,12 @@
   ------------------------------------------------------------------------------
 */
 
-%crosshair-styles {
-  position: absolute;
-  cursor: pointer;
-}
-
 .crosshair {
-  @extend %crosshair-styles;
   top: 0;
-  height: calc(100% - 20px);
-  width: 0.5px;
-  background-color: $g14-chromium;
-  pointer-events: none;
+  position: absolute;
+  width: 1px;
   z-index: 3;
+  background: linear-gradient(to bottom, fade-out($g14-chromium, 1) 0%,$g14-chromium 7%,$g14-chromium 93%,fade-out($g14-chromium, 1) 100%);
+  pointer-events: none;
+  min-height: 20px;
 }
