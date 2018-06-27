@@ -15,6 +15,7 @@ import {NO_CELL} from 'src/shared/constants'
 import {DygraphClass} from 'src/types'
 
 interface Props {
+  hoverTime: number
   dygraph: DygraphClass
   cellID: string
   onHide: () => void
@@ -256,10 +257,13 @@ class DygraphLegend extends PureComponent<Props, State> {
 
   private get styles() {
     const {
+      dygraph,
       dygraph: {graphDiv},
+      hoverTime,
     } = this.props
-    const {pageX} = this.state
-    return makeLegendStyles(graphDiv, this.legendRef, pageX)
+
+    const legendPosition = dygraph.toDomXCoord(hoverTime)
+    return makeLegendStyles(graphDiv, this.legendRef, legendPosition)
   }
 }
 
@@ -269,6 +273,7 @@ const mapDispatchToProps = {
 
 const mapStateToProps = ({dashboardUI}) => ({
   activeCellID: dashboardUI.activeCellID,
+  hoverTime: +dashboardUI.hoverTime,
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DygraphLegend)

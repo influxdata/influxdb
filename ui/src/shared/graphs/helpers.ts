@@ -114,8 +114,8 @@ export const barPlotter = e => {
   }
 }
 
-export const makeLegendStyles = (graph, legend, pageX) => {
-  if (!graph || !legend || pageX === null) {
+export const makeLegendStyles = (graph, legend, hoverTimeX) => {
+  if (!graph || !legend || hoverTimeX === null) {
     return {}
   }
 
@@ -131,21 +131,20 @@ export const makeLegendStyles = (graph, legend, pageX) => {
   const legendHeight = legendRect.height
   const screenHeight = window.innerHeight
   const legendMaxLeft = graphWidth - legendWidth / 2
-  const trueGraphX = pageX - graphRect.left
 
-  let legendLeft = trueGraphX
+  let legendLeft = hoverTimeX
 
   // Enforcing max & min legend offsets
-  if (trueGraphX < legendWidth / 2) {
+  if (hoverTimeX < legendWidth / 2) {
     legendLeft = legendWidth / 2
-  } else if (trueGraphX > legendMaxLeft) {
+  } else if (hoverTimeX > legendMaxLeft) {
     legendLeft = legendMaxLeft
   }
 
   // Disallow screen overflow of legend
   const isLegendBottomClipped = graphBottom + legendHeight > screenHeight
   const isLegendTopClipped = legendHeight > graphRect.top - chronografChromeSize
-  const willLegendFitLeft = pageX - chronografChromeSize > legendWidth
+  const willLegendFitLeft = hoverTimeX - chronografChromeSize > legendWidth
 
   let legendTop = graphHeight + 8
 
@@ -159,10 +158,10 @@ export const makeLegendStyles = (graph, legend, pageX) => {
     legendTop = 0
 
     if (willLegendFitLeft) {
-      legendLeft = trueGraphX - legendWidth / 2
+      legendLeft = hoverTimeX - legendWidth / 2
       legendLeft -= 8
     } else {
-      legendLeft = trueGraphX + legendWidth / 2
+      legendLeft = hoverTimeX + legendWidth / 2
       legendLeft += 32
     }
   }
