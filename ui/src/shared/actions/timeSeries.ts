@@ -7,7 +7,6 @@ import {Status} from 'src/types'
 import {getDeep} from 'src/utils/wrappers'
 
 interface Query {
-  host: string | string[]
   text: string
   id: string
   database?: string
@@ -18,7 +17,6 @@ interface Query {
 interface Payload {
   source: string
   query: Query
-  tempVars: any[]
   db?: string
   rp?: string
   resolution?: number
@@ -81,7 +79,7 @@ const handleError = (
 }
 
 export const fetchTimeSeriesAsync = async (
-  {source, db, rp, query, tempVars, resolution}: Payload,
+  {source, db, rp, query, resolution}: Payload,
   editQueryStatus: EditQueryStatusFunction = noop
 ): Promise<TimeSeriesResponse> => {
   handleLoading(query, editQueryStatus)
@@ -91,7 +89,6 @@ export const fetchTimeSeriesAsync = async (
       db,
       rp,
       query: query.text,
-      tempVars,
       resolution,
     })
     return handleSuccess(data, query, editQueryStatus)

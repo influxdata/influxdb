@@ -124,6 +124,7 @@ const Layout = (
           host
         )}
         onSetResolution={onSetResolution}
+        source={getSource(cell, source, sources, defaultSource)}
       />
     )}
   </LayoutCell>

@@ -4,6 +4,7 @@ import AutoRefresh, {
 } from 'src/shared/components/AutoRefresh'
 import React, {Component} from 'react'
 import {shallow} from 'enzyme'
+import {source} from 'test/resources'
 
 type ComponentProps = Props & OriginalProps
 
@@ -33,6 +34,7 @@ const defaultProps = {
   isFetchingInitially: false,
   isRefreshing: false,
   queryASTs: [],
+  source,
 }
 
 const setup = (overrides: Partial<ComponentProps> = {}) => {

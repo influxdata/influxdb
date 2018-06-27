@@ -71,6 +71,7 @@ const DashVisualization: SFC<Props> = ({
         <SourceContext.Consumer>
           {(source: Source) => (
             <RefreshingGraph
+              source={source}
               colors={colors}
               axes={axes}
               type={type}

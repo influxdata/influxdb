@@ -1,13 +1,21 @@
 import {Template, TemplateValueType, TemplateValue} from 'src/types/tempVars'
 import {TEMP_VAR_INTERVAL} from 'src/shared/constants'
 
-export const intervalReplace = (
+export const replaceInterval = (
   query: string,
   pixels: number,
   durationMs: number
 ) => {
   if (!query.includes(TEMP_VAR_INTERVAL)) {
     return query
+  }
+
+  if (!pixels) {
+    pixels = 333
+  }
+
+  if (!durationMs) {
+    durationMs = 1000
   }
 
   // duration / width of visualization in pixels
