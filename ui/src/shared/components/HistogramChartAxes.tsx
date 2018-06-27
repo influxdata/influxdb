@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import uuid from 'uuid'
 import {ScaleLinear, ScaleTime} from 'd3-scale'
 
 import {Margins} from 'src/types/histogram'
@@ -31,27 +30,22 @@ class HistogramChartAxes extends PureComponent<Props> {
   }
 
   private renderYTicks(yTickData) {
-    return yTickData.map(({x1, x2, y}) => (
-      <line className="y-tick" key={uuid.v4()} x1={x1} x2={x2} y1={y} y2={y} />
+    return yTickData.map(({x1, x2, y, key}) => (
+      <line className="y-tick" key={key} x1={x1} x2={x2} y1={y} y2={y} />
     ))
   }
 
   private renderYLabels(yTickData) {
-    return yTickData.map(({x1, y, label}) => (
-      <text
-        className="y-label"
-        key={uuid.v4()}
-        x={x1 - Y_TICK_PADDING_RIGHT}
-        y={y}
-      >
+    return yTickData.map(({x1, y, label, key}) => (
+      <text className="y-label" key={key} x={x1 - Y_TICK_PADDING_RIGHT} y={y}>
         {label}
       </text>
     ))
   }
 
   private renderXLabels(xTickData) {
-    return xTickData.map(({x, y, label}) => (
-      <text className="x-label" key={uuid.v4()} y={y} x={x}>
+    return xTickData.map(({x, y, label, key}) => (
+      <text className="x-label" key={key} y={y} x={x}>
         {label}
       </text>
     ))
@@ -73,12 +67,10 @@ class HistogramChartAxes extends PureComponent<Props> {
       })
       .map(val => {
         const x = xScale(val)
+        const label = formatTime(val)
+        const key = `${label}-${x}-${y}`
 
-        return {
-          x,
-          y,
-          label: formatTime(val),
-        }
+        return {label, x, y, key}
       })
   }
 
@@ -86,12 +78,13 @@ class HistogramChartAxes extends PureComponent<Props> {
     const {width, margins, yScale} = this.props
 
     return yScale.ticks(Y_TICK_COUNT).map(val => {
-      return {
-        label: val,
-        x1: margins.left,
-        x2: margins.left + width,
-        y: margins.top + yScale(val),
-      }
+      const label = val
+      const x1 = margins.left
+      const x2 = margins.left + width
+      const y = margins.top + yScale(val)
+      const key = `${label}-${x1}-${x2}-${y}`
+
+      return {label, x1, x2, y, key}
     })
   }
 }

@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import uuid from 'uuid'
 import _ from 'lodash'
 import {ScaleLinear, ScaleTime} from 'd3-scale'
 
@@ -65,11 +64,12 @@ class HistogramChartBars extends PureComponent<Props> {
     }
 
     return groups.map(group => {
-      const x = xScale(group[0].time) - barWidth / 2
+      const time = group[0].time
+      const x = xScale(time) - barWidth / 2
       const groupTotal = _.sumBy(group, 'value')
 
       const renderData = {
-        key: uuid.v4(),
+        key: `${time}-${groupTotal}-${x}`,
         clip: {
           x,
           y: yScale(groupTotal),

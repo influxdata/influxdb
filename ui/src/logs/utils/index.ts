@@ -224,7 +224,7 @@ export const parseHistogramQueryResponse = (
       const value = v[countColIndex]
 
       return {
-        key: `${group} ${value} ${time}`,
+        key: `${group}-${value}-${time}`,
         time,
         value,
         group,
