@@ -3,6 +3,7 @@ package query
 import (
 	"io"
 
+	"github.com/influxdata/platform/query/iocounter"
 	"github.com/influxdata/platform/query/values"
 )
 
@@ -117,7 +118,8 @@ type ResultDecoder interface {
 // ResultEncoder can encode a result into a writer.
 type ResultEncoder interface {
 	// Encode encodes data from the result into w.
-	Encode(w io.Writer, result Result) error
+	// Returns the number of bytes written to w and any error.
+	Encode(w io.Writer, result Result) (int64, error)
 }
 
 // MultiResultDecoder can decode multiple results from a reader.
@@ -129,7 +131,8 @@ type MultiResultDecoder interface {
 // MultiResultEncoder can encode multiple results into a writer.
 type MultiResultEncoder interface {
 	// Encode writes multiple results from r into w.
-	Encode(w io.Writer, results ResultIterator) error
+	// Returns the number of bytes written to w and any error.
+	Encode(w io.Writer, results ResultIterator) (int64, error)
 }
 
 // DelimitedMultiResultEncoder encodes multiple results using a trailing delimiter.
@@ -151,14 +154,15 @@ type flusher interface {
 	Flush()
 }
 
-func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator) error {
+func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator) (int64, error) {
+	wc := &iocounter.Writer{Writer: w}
 	for results.More() {
 		result := results.Next()
-		if err := e.Encoder.Encode(w, result); err != nil {
-			return err
+		if _, err := e.Encoder.Encode(wc, result); err != nil {
+			return wc.Count(), err
 		}
-		if _, err := w.Write(e.Delimiter); err != nil {
-			return err
+		if _, err := wc.Write(e.Delimiter); err != nil {
+			return wc.Count(), err
 		}
 		// Flush the writer after each result
 		if f, ok := w.(flusher); ok {
@@ -167,7 +171,8 @@ func (e *DelimitedMultiResultEncoder) Encode(w io.Writer, results ResultIterator
 	}
 	err := results.Err()
 	if err != nil {
-		return e.Encoder.EncodeError(w, err)
+		err := e.Encoder.EncodeError(wc, err)
+		return wc.Count(), err
 	}
-	return nil
+	return wc.Count(), nil
 }

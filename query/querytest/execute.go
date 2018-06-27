@@ -42,7 +42,7 @@ func GetQueryEncodedResults(qs query.QueryService, spec *query.Spec, inputFile s
 	}
 
 	buf := new(bytes.Buffer)
-	if err := enc.Encode(buf, results); err != nil {
+	if _, err := enc.Encode(buf, results); err != nil {
 		return "", err
 	}
 	return buf.String(), results.Err()
