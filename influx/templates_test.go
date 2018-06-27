@@ -450,9 +450,9 @@ func Test_RenderTemplate(t *testing.T) {
 		},
 		{
 			name:       "subqueries render :interval:",
-			query:      `SELECT last(sum) FROM (SELECT sum(rate) FROM (SELECT non_negative_derivative(max("counter"),1s) AS "rate" FROM "kube-infra"."monthly"."http_api_requests_total" WHERE path != '/metrics' and time > now() - 1d  GROUP BY time(:interval:),* FILL(null)) GROUP BY time(:interval:))`,
+			query:      `SELECT last(sum) FROM (SELECT sum(rate) FROM (SELECT non_negative_derivative(max("counter"),1s) AS "rate" FROM "kube-infra"."monthly"."http_api_requests_total" WHERE path != '/metrics' and time > now() - 1d GROUP BY time(:interval:),* FILL(null)) GROUP BY time(:interval:))`,
 			resolution: 333,
-			want:       `SELECT last(sum) FROM (SELECT sum(rate) FROM (SELECT non_negative_derivative(max("counter"),1s) AS "rate" FROM "kube-infra"."monthly"."http_api_requests_total" WHERE path != '/metrics' and time > now() - 1d GROUP BY time(25909s),* FILL(null)) GROUP BY time(259s))`,
+			want:       `SELECT last(sum) FROM (SELECT sum(rate) FROM (SELECT non_negative_derivative(max("counter"),1s) AS "rate" FROM "kube-infra"."monthly"."http_api_requests_total" WHERE path != '/metrics' and time > now() - 1d GROUP BY time(259s),* FILL(null)) GROUP BY time(259s))`,
 		},
 		{
 			name:  "query should be returned if there are no template variables",
