@@ -67,7 +67,7 @@ interface Props {
 }
 
 interface State {
-  staticLegendHeight: null | number
+  staticLegendHeight: number
   xAxisRange: [number, number]
 }
 
@@ -102,7 +102,7 @@ class Dygraph extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
     this.state = {
-      staticLegendHeight: null,
+      staticLegendHeight: 0,
       xAxisRange: [0, 0],
     }
 
