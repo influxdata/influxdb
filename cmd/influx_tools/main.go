@@ -1,4 +1,4 @@
-// The influx-tools command displays detailed information about InfluxDB data files.
+// The influx_tools command displays detailed information about InfluxDB data files.
 package main
 
 import (
@@ -8,11 +8,11 @@ import (
 	"os"
 
 	"github.com/influxdata/influxdb/cmd"
-	"github.com/influxdata/influxdb/cmd/influx-tools/compact"
-	"github.com/influxdata/influxdb/cmd/influx-tools/export"
-	"github.com/influxdata/influxdb/cmd/influx-tools/help"
-	"github.com/influxdata/influxdb/cmd/influx-tools/importer"
-	"github.com/influxdata/influxdb/cmd/influx-tools/server"
+	"github.com/influxdata/influxdb/cmd/influx_tools/compact"
+	"github.com/influxdata/influxdb/cmd/influx_tools/export"
+	"github.com/influxdata/influxdb/cmd/influx_tools/help"
+	"github.com/influxdata/influxdb/cmd/influx_tools/importer"
+	"github.com/influxdata/influxdb/cmd/influx_tools/server"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"

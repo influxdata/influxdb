@@ -8,9 +8,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/influxdata/influxdb/cmd/influx-tools/internal/format"
-	"github.com/influxdata/influxdb/cmd/influx-tools/internal/storage"
-	"github.com/influxdata/influxdb/cmd/influx-tools/server"
+	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format"
+	"github.com/influxdata/influxdb/cmd/influx_tools/internal/storage"
+	"github.com/influxdata/influxdb/cmd/influx_tools/server"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
