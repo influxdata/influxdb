@@ -244,7 +244,11 @@ class Dygraph extends Component<Props, State> {
     const {staticLegend, cellID} = this.props
 
     return (
-      <div className="dygraph-child" onMouseMove={this.handleShowLegend}>
+      <div
+        className="dygraph-child"
+        onMouseMove={this.handleShowLegend}
+        onMouseLeave={this.handleHideLegend}
+      >
         {this.dygraph && (
           <div className="dygraph-addons">
             {this.areAnnotationsVisible && (
