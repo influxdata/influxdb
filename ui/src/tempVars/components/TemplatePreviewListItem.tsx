@@ -6,18 +6,23 @@ import {TemplateValue} from 'src/types'
 interface Props {
   item: TemplateValue
   onClick: (item: TemplateValue) => void
-  style: React.CSSProperties
 }
+
+const LI_HEIGHT = 28
+const LI_MARGIN_BOTTOM = 2
 
 class TemplatePreviewListItem extends PureComponent<Props> {
   public render() {
-    const {item, style} = this.props
+    const {item} = this.props
 
     return (
       <li
         onClick={this.handleClick}
-        style={style}
-        className={classNames('temp-builder-results--list-item', {
+        style={{
+          height: `${LI_HEIGHT}px`,
+          marginBottom: `${LI_MARGIN_BOTTOM}px`,
+        }}
+        className={classNames('temp-builder--results-item', {
           active: this.isDefault,
         })}
       >

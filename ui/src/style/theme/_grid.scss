@@ -43,7 +43,7 @@ $grid--col-12: 100%;
 }
 
 .form-group-submit {
-  margin-top: 30px;
+  margin-top: 22px;
 }
 
 .col {
@@ -218,5 +218,70 @@ $grid--col-12: 100%;
     &-9 { margin-left: $grid--col-9; }
     &-10 { margin-left: $grid--col-10; }
     &-11 { margin-left: $grid--col-11; }
+  }
+}
+
+//  Wrapp form sets to ensure proper spacing
+//  ----------------------------------------------------------------------------
+div.faux-form {
+  width: calc(100% + 12px);
+  margin-left: -6px;
+  margin-right: -6px;
+  display: inline-block;
+
+  .form-group.col-xs-1,
+  .form-group.col-xs-2,
+  .form-group.col-xs-3,
+  .form-group.col-xs-4,
+  .form-group.col-xs-5,
+  .form-group.col-xs-6,
+  .form-group.col-xs-7,
+  .form-group.col-xs-8,
+  .form-group.col-xs-9,
+  .form-group.col-xs-10,
+  .form-group.col-xs-11,
+  .form-group.col-xs-12,
+  .form-group.col-sm-1,
+  .form-group.col-sm-2,
+  .form-group.col-sm-3,
+  .form-group.col-sm-4,
+  .form-group.col-sm-5,
+  .form-group.col-sm-6,
+  .form-group.col-sm-7,
+  .form-group.col-sm-8,
+  .form-group.col-sm-9,
+  .form-group.col-sm-10,
+  .form-group.col-sm-11,
+  .form-group.col-sm-12,
+  .form-group.col-md-1,
+  .form-group.col-md-2,
+  .form-group.col-md-3,
+  .form-group.col-md-4,
+  .form-group.col-md-5,
+  .form-group.col-md-6,
+  .form-group.col-md-7,
+  .form-group.col-md-8,
+  .form-group.col-md-9,
+  .form-group.col-md-10,
+  .form-group.col-md-11,
+  .form-group.col-md-12,
+  .form-group.col-lg-1,
+  .form-group.col-lg-2,
+  .form-group.col-lg-3,
+  .form-group.col-lg-4,
+  .form-group.col-lg-5,
+  .form-group.col-lg-6,
+  .form-group.col-lg-7,
+  .form-group.col-lg-8,
+  .form-group.col-lg-9,
+  .form-group.col-lg-10,
+  .form-group.col-lg-11,
+  .form-group.col-lg-12 {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  > *:last-child {
+    margin-bottom: 0;
   }
 }

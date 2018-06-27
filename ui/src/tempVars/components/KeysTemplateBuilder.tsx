@@ -74,8 +74,8 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
     } = this.state
 
     return (
-      <div className="temp-builder measurements-temp-builder">
-        <div className="form-group">
+      <>
+        <div className="form-group col-xs-12">
           <label>Meta Query</label>
           <div className="temp-builder--mq-controls">
             <div className="temp-builder--mq-text">{queryPrefix}</div>
@@ -84,7 +84,8 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
                 items={databases.map(text => ({text}))}
                 onChoose={this.handleChooseDatabaseDropdown}
                 selected={selectedDatabase}
-                buttonSize=""
+                buttonSize="btn-sm"
+                className="dropdown-stretch"
               />
             </DropdownLoadingPlaceholder>
             <div className="temp-builder--mq-text">FROM</div>
@@ -93,7 +94,8 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
                 items={measurements.map(text => ({text}))}
                 onChoose={this.handleChooseMeasurementDropdown}
                 selected={selectedMeasurement}
-                buttonSize=""
+                buttonSize="btn-sm"
+                className="dropdown-stretch"
               />
             </DropdownLoadingPlaceholder>
           </div>
@@ -103,7 +105,7 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
           loadingStatus={keysStatus}
           onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
         />
-      </div>
+      </>
     )
   }
 

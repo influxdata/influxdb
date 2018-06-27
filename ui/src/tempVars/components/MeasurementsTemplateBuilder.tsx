@@ -55,8 +55,8 @@ class MeasurementsTemplateBuilder extends PureComponent<
     } = this.state
 
     return (
-      <div className="temp-builder measurements-temp-builder">
-        <div className="form-group">
+      <>
+        <div className="form-group col-xs-12">
           <label>Meta Query</label>
           <div className="temp-builder--mq-controls">
             <div className="temp-builder--mq-text">SHOW MEASUREMENTS ON</div>
@@ -65,7 +65,8 @@ class MeasurementsTemplateBuilder extends PureComponent<
                 items={databases.map(text => ({text}))}
                 onChoose={this.handleChooseDatabaseDropdown}
                 selected={selectedDatabase}
-                buttonSize=""
+                buttonSize="btn-sm"
+                className="dropdown-stretch"
               />
             </DropdownLoadingPlaceholder>
           </div>
@@ -75,7 +76,7 @@ class MeasurementsTemplateBuilder extends PureComponent<
           loadingStatus={measurementsStatus}
           onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
         />
-      </div>
+      </>
     )
   }
 

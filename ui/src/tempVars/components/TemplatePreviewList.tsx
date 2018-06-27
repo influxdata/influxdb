@@ -7,9 +7,9 @@ import TemplatePreviewListItem from 'src/tempVars/components/TemplatePreviewList
 
 import {TemplateValue} from 'src/types'
 
-const LI_HEIGHT = 35
-const LI_MARGIN_BOTTOM = 3
 const RESULTS_TO_DISPLAY = 10
+const LI_HEIGHT = 28
+const LI_MARGIN_BOTTOM = 2
 
 interface Props {
   items: TemplateValue[]
@@ -22,27 +22,20 @@ class TemplatePreviewList extends PureComponent<Props> {
     const {items, onUpdateDefaultTemplateValue} = this.props
 
     return (
-      <ul
-        className="temp-builder-results--list"
+      <div
+        className="temp-builder--results-list"
         style={{height: `${this.resultsListHeight}px`}}
       >
-        <FancyScrollbar>
-          {items.map(item => {
-            return (
-              <TemplatePreviewListItem
-                key={uuid.v4()}
-                onClick={onUpdateDefaultTemplateValue}
-                style={{
-                  height: `${LI_HEIGHT}px`,
-                  marginBottom: `${LI_MARGIN_BOTTOM}px`,
-                  zIndex: 9010,
-                }}
-                item={item}
-              />
-            )
-          })}
+        <FancyScrollbar autoHide={false}>
+          {items.map(item => (
+            <TemplatePreviewListItem
+              key={uuid.v4()}
+              onClick={onUpdateDefaultTemplateValue}
+              item={item}
+            />
+          ))}
         </FancyScrollbar>
-      </ul>
+      </div>
     )
   }
 

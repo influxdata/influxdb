@@ -56,12 +56,12 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
     const {metaQueryInput} = this.state
 
     return (
-      <div className="temp-builder csv-temp-builder">
-        <div className="form-group">
+      <>
+        <div className="form-group col-xs-12">
           <label>Meta Query</label>
           <div className="temp-builder--mq-controls">
             <textarea
-              className="form-control"
+              className="form-control input-sm"
               value={metaQueryInput}
               onChange={this.handleMetaQueryInputChange}
               onBlur={this.handleMetaQueryChange}
@@ -69,7 +69,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
           </div>
         </div>
         {this.renderResults()}
-      </div>
+      </>
     )
   }
 
@@ -79,8 +79,10 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
 
     if (this.showInvalidMetaQueryMessage) {
       return (
-        <div className="temp-builder-results">
-          <p className="error">Meta Query is not valid.</p>
+        <div className="form-group col-xs-12 temp-builder--results">
+          <p className="temp-builder--validation error">
+            Meta Query is not valid.
+          </p>
         </div>
       )
     }

@@ -423,3 +423,42 @@ button.btn-link-alert {
     $c-thunder
   );
 }
+
+/*
+   Buttons Groups
+   -----------------------------------------------------------------------------
+*/
+
+.btn-group--left,
+.btn-group--center,
+.btn-group--right {
+  display: flex;
+  align-items: center;
+}
+
+.btn-group--left > .btn {
+  margin-right: 4px;
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+.btn-group--center > .btn {
+  margin-left: 2px;
+  margin-right: 2px;
+
+  &:first-child {
+    margin-left: 0;
+  }
+  
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+.btn-group--right > .btn {
+  margin-left: 4px;
+  &:first-child {
+    margin-left: 0;
+  }
+}

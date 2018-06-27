@@ -3,11 +3,28 @@
     ----------------------------------------------------------------------------
 */
 
-$logs-viewer-graph-height: 180px;
+$logs-viewer-graph-height: 220px;
 $logs-viewer-search-height: 46px; 
 $logs-viewer-filter-height: 42px;
 $logs-viewer-results-text-indent: 33px;
 $logs-viewer-gutter: 60px;
+
+$severity-emerg: $c-ruby;
+$severity-alert: $c-fire;
+$severity-crit: $c-curacao;
+$severity-err: $c-tiger;
+$severity-warning: $c-pineapple;
+$severity-notice: $c-rainforest;
+$severity-info: $c-star;
+$severity-debug: $g9-mountain;
+$severity-emerg-intense: $c-fire;
+$severity-alert-intense: $c-curacao;
+$severity-crit-intense: $c-tiger;
+$severity-err-intense: $c-pineapple;
+$severity-warning-intense: $c-thunder;
+$severity-notice-intense: $c-honeydew;
+$severity-info-intense: $c-comet;
+$severity-debug-intense: $g10-wolf;
 
 .logs-viewer {
   display: flex;
@@ -232,28 +249,28 @@ $logs-viewer-gutter: 60px;
   margin-left: 2px;
 
   &.emerg-severity {
-    @include gradient-diag-up($c-ruby, $c-fire);
+    @include gradient-diag-up($severity-emerg, $severity-emerg-intense);
   }
   &.alert-severity {
-    @include gradient-diag-up($c-fire, $c-curacao);
+    @include gradient-diag-up($severity-alert, $severity-alert-intense);
   }
   &.crit-severity {
-    @include gradient-diag-up($c-curacao, $c-tiger);
+    @include gradient-diag-up($severity-crit, $severity-crit-intense);
   }
   &.err-severity {
-    @include gradient-diag-up($c-tiger, $c-pineapple);
+    @include gradient-diag-up($severity-err, $severity-err-intense);
   }
   &.warning-severity {
-    @include gradient-diag-up($c-pineapple, $c-thunder);
+    @include gradient-diag-up($severity-warning, $severity-warning-intense);
   }
   &.notice-severity {
-    @include gradient-diag-up($c-rainforest, $c-honeydew);
+    @include gradient-diag-up($severity-notice, $severity-notice-intense);
   }
   &.info-severity {
-    @include gradient-diag-up($c-star, $c-comet);
+    @include gradient-diag-up($severity-info, $severity-info-intense);
   }
   &.debug-severity {
-    @include gradient-diag-up($g9-mountain, $g10-wolf);
+    @include gradient-diag-up($severity-debug, $severity-debug-intense);
   }
 }
 
@@ -308,5 +325,81 @@ $logs-viewer-gutter: 60px;
   &:active,
   &:active:hover {
     background-color: $c-laser;
+  }
+}
+
+.logs-viewer .histogram-chart-bars--bar, .logs-viewer .histogram-chart-tooltip {
+  &[data-group="emerg"] {
+    fill: $severity-emerg;
+    color: $severity-emerg;
+  }
+
+  &[data-group="alert"] {
+    fill: $severity-alert;
+    color: $severity-alert;
+  }
+
+  &[data-group="crit"] {
+    fill: $severity-crit;
+    color: $severity-crit;
+  }
+
+  &[data-group="err"] {
+    fill: $severity-err;
+    color: $severity-err;
+  }
+
+  &[data-group="warning"] {
+    fill: $severity-warning;
+    color: $severity-warning;
+  }
+
+  &[data-group="notice"] {
+    fill: $severity-notice;
+    color: $severity-notice;
+  }
+
+  &[data-group="info"] {
+    fill: $severity-info;
+    color: $severity-info;
+  }
+
+  &[data-group="debug"] {
+    fill: $severity-debug;
+    color: $severity-debug;
+  }
+}
+
+.logs-viewer .histogram-chart-bars--bar:hover {
+  &[data-group="emerg"] {
+    fill: $severity-emerg-intense;
+  }
+
+  &[data-group="alert"] {
+    fill: $severity-alert-intense;
+  }
+
+  &[data-group="crit"] {
+    fill: $severity-crit-intense;
+  }
+
+  &[data-group="err"] {
+    fill: $severity-err-intense;
+  }
+
+  &[data-group="warning"] {
+    fill: $severity-warning-intense;
+  }
+
+  &[data-group="notice"] {
+    fill: $severity-notice-intense;
+  }
+
+  &[data-group="info"] {
+    fill: $severity-info-intense;
+  }
+
+  &[data-group="debug"] {
+    fill: $severity-debug-intense;
   }
 }

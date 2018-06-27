@@ -17,29 +17,33 @@ class TemplateMetaQueryPreview extends PureComponent<Props> {
     const {items, loadingStatus, onUpdateDefaultTemplateValue} = this.props
 
     if (loadingStatus === RemoteDataState.NotStarted) {
-      return <div className="temp-builder-results" />
+      return null
     }
 
     if (loadingStatus === RemoteDataState.Loading) {
       return (
-        <div className="temp-builder-results">
-          <p className="loading">Loading meta query preview...</p>
+        <div className="form-group col-xs-12 temp-builder--results">
+          <p className="temp-builder--validation loading">
+            Loading Meta Query preview...
+          </p>
         </div>
       )
     }
 
     if (loadingStatus === RemoteDataState.Error) {
       return (
-        <div className="temp-builder-results">
-          <p className="error">Meta Query failed to execute</p>
+        <div className="form-group col-xs-12 temp-builder--results">
+          <p className="temp-builder--validation error">
+            Meta Query failed to execute
+          </p>
         </div>
       )
     }
 
     if (items.length === 0) {
       return (
-        <div className="temp-builder-results">
-          <p className="warning">
+        <div className="form-group col-xs-12 temp-builder--results">
+          <p className="temp-builder--validation warning">
             Meta Query is syntactically correct but returned no results
           </p>
         </div>
@@ -49,8 +53,8 @@ class TemplateMetaQueryPreview extends PureComponent<Props> {
     const pluralizer = items.length === 1 ? '' : 's'
 
     return (
-      <div className="temp-builder-results">
-        <p>
+      <div className="form-group col-xs-12 temp-builder--results">
+        <p className="temp-builder--validation">
           Meta Query returned <strong>{items.length}</strong> value{pluralizer}
         </p>
         {items.length > 0 && (
