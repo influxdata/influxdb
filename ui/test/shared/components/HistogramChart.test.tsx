@@ -13,6 +13,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Done,
       width: 600,
       height: 400,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 
@@ -27,6 +28,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Done,
       width: 0,
       height: 0,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 
@@ -45,6 +47,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Done,
       width: 600,
       height: 400,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 
@@ -63,6 +66,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Done,
       width: 600,
       height: 400,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 
@@ -70,9 +74,6 @@ describe('HistogramChart', () => {
 
     const fakeMouseOverEvent = {
       target: {
-        dataset: {
-          key: '0',
-        },
         getBoundingClientRect() {
           return {top: 10, right: 10, bottom: 5, left: 5}
         },
@@ -80,7 +81,7 @@ describe('HistogramChart', () => {
     }
 
     wrapper
-      .find('.histogram-chart')
+      .find('.histogram-chart-bars--bars')
       .first()
       .simulate('mouseover', fakeMouseOverEvent)
 
@@ -95,6 +96,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Loading,
       width: 600,
       height: 400,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 

@@ -86,12 +86,12 @@
   font-size: 12px;
   font-weight: 600;
   color: $g13-mist;
-  display: flex;
-  align-items: space-between;
   transform: translate(0, -50%);
   pointer-events: none;
+  display: flex;
+  justify-content: space-between;
+}
 
-  .histogram-chart-tooltip--value {
-    margin-right: 10px;
-  }
+.histogram-chart-tooltip--column:first-child {
+  margin-right: 12px;
 }

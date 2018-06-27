@@ -1,36 +1,43 @@
 import React, {SFC, CSSProperties} from 'react'
 
-import {HistogramDatum, TooltipAnchor} from 'src/types/histogram'
+import {HoverData, ColorScale} from 'src/types/histogram'
 
 interface Props {
-  datum: HistogramDatum
-  x: number
-  y: number
-  anchor?: TooltipAnchor
+  data: HoverData
+  colorScale: ColorScale
 }
 
 const HistogramChartTooltip: SFC<Props> = props => {
-  const {datum, x, y, anchor = 'left'} = props
+  const {colorScale} = props
+  const {data, x, y, anchor = 'left'} = props.data
 
-  if (!datum) {
-    return null
-  }
-
-  const style: CSSProperties = {
+  const tooltipStyle: CSSProperties = {
     position: 'fixed',
     top: y,
   }
 
   if (anchor === 'left') {
-    style.left = x
+    tooltipStyle.left = x
   } else {
-    style.right = x
+    tooltipStyle.right = x
   }
 
   return (
-    <div className="histogram-chart-tooltip" style={style}>
-      <div className="histogram-chart-tooltip--value">{datum.value}</div>
-      <div className="histogram-chart-tooltip--group">{datum.group}</div>
+    <div className="histogram-chart-tooltip" style={tooltipStyle}>
+      <div className="histogram-chart-tooltip--column">
+        {data.map(d => (
+          <div key={d.key} style={{color: colorScale(d.group)}}>
+            {d.value}
+          </div>
+        ))}
+      </div>
+      <div className="histogram-chart-tooltip--column">
+        {data.map(d => (
+          <div key={d.key} style={{color: colorScale(d.group)}}>
+            {d.group}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
