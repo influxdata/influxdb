@@ -154,7 +154,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
             />
             <div className="form-group text-center form-group-submit col-xs-12">
               <ConfirmButton
-                text={this.isDeleting ? 'Deleting...' : 'Delete'}
+                text={this.confirmText}
                 confirmAction={this.handleDelete}
                 type="btn-danger"
                 size="btn-sm"
@@ -166,6 +166,14 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
         </OverlayBody>
       </OverlayContainer>
     )
+  }
+
+  private get confirmText(): string {
+    if (this.isDeleting) {
+      return 'Deleting...'
+    }
+
+    return 'Delete'
   }
 
   private get title(): string {

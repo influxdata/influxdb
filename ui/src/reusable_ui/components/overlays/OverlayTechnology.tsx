@@ -1,4 +1,5 @@
 import React, {Component} from 'react'
+import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -63,7 +64,8 @@ class OverlayTechnology extends Component<Props, State> {
 
   private get overlayClass(): string {
     const {visible} = this.props
-    return `overlay-tech ${visible ? 'show' : ''}`
+
+    return classnames('overlay-tech', {show: visible})
   }
 
   private hideChildren = (): void => {
