@@ -69,6 +69,7 @@ interface Props {
 interface State {
   staticLegendHeight: number
   xAxisRange: [number, number]
+  isMouseInLegend: boolean
 }
 
 @ErrorHandling
@@ -104,6 +105,7 @@ class Dygraph extends Component<Props, State> {
     this.state = {
       staticLegendHeight: 0,
       xAxisRange: [0, 0],
+      isMouseInLegend: false,
     }
 
     this.graphRef = React.createRef<HTMLDivElement>()
@@ -258,6 +260,7 @@ class Dygraph extends Component<Props, State> {
               dygraph={this.dygraph}
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
+              onMouseEnter={this.handleMouseEnterLegend}
             />
             <Crosshair
               dygraph={this.dygraph}
@@ -381,10 +384,17 @@ class Dygraph extends Component<Props, State> {
   }
 
   private handleHideLegend = () => {
+    this.setState({isMouseInLegend: false})
     this.props.handleSetHoverTime(NULL_HOVER_TIME)
   }
 
   private handleShowLegend = (e: MouseEvent<HTMLDivElement>): void => {
+    const {isMouseInLegend} = this.state
+
+    if (isMouseInLegend) {
+      return
+    }
+
     const newTime = this.eventToTimestamp(e)
     this.props.handleSetHoverTime(newTime)
   }
@@ -457,6 +467,10 @@ class Dygraph extends Component<Props, State> {
 
   private handleUpdateStaticLegendHeight = (staticLegendHeight: number) => {
     this.setState({staticLegendHeight})
+  }
+
+  private handleMouseEnterLegend = () => {
+    this.setState({isMouseInLegend: true})
   }
 }
 

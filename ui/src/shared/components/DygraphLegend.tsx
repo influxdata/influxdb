@@ -22,6 +22,7 @@ interface Props {
   onShow: (e: MouseEvent) => void
   activeCellID: string
   setActiveCell: (cellID: string) => void
+  onMouseEnter: () => void
 }
 
 interface LegendData {
@@ -80,12 +81,14 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {onMouseEnter} = this.props
     const {legend, filterText, isAscending, isFilterVisible} = this.state
 
     return (
       <div
         className={`dygraph-legend ${this.hidden}`}
         ref={el => (this.legendRef = el)}
+        onMouseEnter={onMouseEnter}
         onMouseLeave={this.handleHide}
         style={this.styles}
       >
@@ -262,7 +265,8 @@ class DygraphLegend extends PureComponent<Props, State> {
       hoverTime,
     } = this.props
 
-    const legendPosition = dygraph.toDomXCoord(hoverTime)
+    const cursorOffset = 16
+    const legendPosition = dygraph.toDomXCoord(hoverTime) + cursorOffset
     return makeLegendStyles(graphDiv, this.legendRef, legendPosition)
   }
 }
