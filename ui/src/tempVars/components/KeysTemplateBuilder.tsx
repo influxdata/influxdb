@@ -186,7 +186,7 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
           type: templateValueType,
           value,
           selected: false,
-          default: false,
+          picked: false,
         }
       })
 

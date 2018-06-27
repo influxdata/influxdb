@@ -17,7 +17,7 @@ export interface TemplateValue {
   value: string
   type: TemplateValueType
   selected: boolean
-  default: boolean
+  picked: boolean
 }
 
 export interface TemplateQuery {

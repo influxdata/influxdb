@@ -14,8 +14,8 @@ import {getDeep} from 'src/utils/wrappers'
 import {notify as notifyActionCreator} from 'src/shared/actions/notifications'
 
 import {
-  reconcileDefaultAndSelectedValues,
-  selectDefault,
+  reconcileSelectedAndPickedValues,
+  pickSelected,
 } from 'src/dashboards/utils/tempVars'
 
 import DatabasesTemplateBuilder from 'src/tempVars/components/DatabasesTemplateBuilder'
@@ -160,7 +160,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
               onUpdateTemplate={this.handleUpdateTemplate}
               notify={notify}
               onUpdateDefaultTemplateValue={
-                this.handleUpdateDefaultTemplateValue
+                this.handleUpdateSelectedTemplateValue
               }
             />
           </div>
@@ -191,7 +191,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     return component
   }
 
-  private handleUpdateDefaultTemplateValue = (
+  private handleUpdateSelectedTemplateValue = (
     selected: TemplateValue
   ): void => {
     const {
@@ -201,9 +201,9 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
     const nextValues = values.map(v => {
       if (v.value === selected.value) {
-        return {...v, default: true}
+        return {...v, selected: true}
       } else {
-        return {...v, default: false}
+        return {...v, selected: false}
       }
     })
 
@@ -213,7 +213,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
   private handleUpdateTemplate = (nextNextTemplate: Template): void => {
     const {nextTemplate} = this.state
 
-    const TemplateWithDefaultAndSelected = reconcileDefaultAndSelectedValues(
+    const TemplateWithDefaultAndSelected = reconcileSelectedAndPickedValues(
       nextTemplate,
       nextNextTemplate
     )
@@ -272,7 +272,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
     try {
       if (isNew) {
-        const updatedTemplate = selectDefault(nextTemplate)
+        const updatedTemplate = pickSelected(nextTemplate)
         await onCreate(updatedTemplate)
       } else {
         await onUpdate(nextTemplate)

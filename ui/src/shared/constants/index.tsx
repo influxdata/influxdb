@@ -445,7 +445,7 @@ export const intervalValuesPoints = [
     value: defaultIntervalValue,
     type: TemplateValueType.Points,
     selected: true,
-    default: true,
+    picked: true,
   },
 ]
 

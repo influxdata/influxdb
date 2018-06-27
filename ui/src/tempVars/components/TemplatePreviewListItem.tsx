@@ -28,7 +28,7 @@ class TemplatePreviewListItem extends PureComponent<Props> {
   }
 
   private get isDefault(): boolean {
-    return this.props.item.default
+    return this.props.item.selected
   }
 
   private renderIndicator(): JSX.Element {

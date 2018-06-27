@@ -19,7 +19,7 @@ const defaultProps = {
         value: 'db0',
         type: TemplateValueType.Database,
         selected: true,
-        default: true,
+        picked: true,
       },
     ],
   },

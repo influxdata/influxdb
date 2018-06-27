@@ -142,7 +142,7 @@ export const findInvalidTempVarsInURLQuery = (
   return urlQueryParamsTempVarsWithInvalidValues
 }
 
-const makeDefault = (template: Template, value: string): Template => {
+const makeSelected = (template: Template, value: string): Template => {
   const found = template.values.find(v => v.value === value)
 
   let valueToChoose
@@ -152,39 +152,7 @@ const makeDefault = (template: Template, value: string): Template => {
     valueToChoose = getDeep<string>(template, 'values.0.value', '')
   }
 
-  const valuesWithDefault = template.values.map(v => {
-    if (v.value === valueToChoose) {
-      return {...v, default: true}
-    } else {
-      return {...v, default: false}
-    }
-  })
-
-  return {...template, values: valuesWithDefault}
-}
-
-export const selectDefault = (template: Template): Template => {
-  const defaultValue = ''
-
-  return makeSelected(template, defaultValue)
-}
-
-export const makeSelected = (template: Template, value: string): Template => {
-  const found = template.values.find(v => v.value === value)
-  const defaultValue = template.values.find(v => v.default)
-
-  let valueToChoose: string
-  if (found) {
-    valueToChoose = found.value
-  } else if (defaultValue) {
-    valueToChoose = defaultValue.value
-  } else {
-    valueToChoose = getDeep<string>(template, 'values.0.value', '')
-  }
-
-  console.log('Value to choose', valueToChoose)
-
-  const valuesWithDefault = template.values.map(v => {
+  const valuesWithSelected = template.values.map(v => {
     if (v.value === valueToChoose) {
       return {...v, selected: true}
     } else {
@@ -192,24 +160,55 @@ export const makeSelected = (template: Template, value: string): Template => {
     }
   })
 
-  return {...template, values: valuesWithDefault}
+  return {...template, values: valuesWithSelected}
 }
 
-export const reconcileDefaultAndSelectedValues = (
+export const pickSelected = (template: Template): Template => {
+  const selectedValue = ''
+
+  return makePicked(template, selectedValue)
+}
+
+export const makePicked = (template: Template, value: string): Template => {
+  const found = template.values.find(v => v.value === value)
+  const selectedValue = template.values.find(v => v.selected)
+
+  let valueToChoose: string
+  if (found) {
+    valueToChoose = found.value
+  } else if (selectedValue) {
+    valueToChoose = selectedValue.value
+  } else {
+    valueToChoose = getDeep<string>(template, 'values.0.value', '')
+  }
+
+  const valuesWithPicked = template.values.map(v => {
+    if (v.value === valueToChoose) {
+      return {...v, picked: true}
+    } else {
+      return {...v, picked: false}
+    }
+  })
+
+  return {...template, values: valuesWithPicked}
+}
+
+export const reconcileSelectedAndPickedValues = (
   nextTemplate: Template,
   nextNextTemplate: Template
 ): Template => {
+  const pickedValue = nextTemplate.values.find(v => v.picked)
   const selectedValue = nextTemplate.values.find(v => v.selected)
-  const defaultValue = nextTemplate.values.find(v => v.default)
-  // make selected from default
-  const TemplateWithDefault = makeDefault(
+  // make picked from selected
+  const TemplateWithPicked = makeSelected(
     nextNextTemplate,
-    getDeep<string>(defaultValue, 'value', '')
-  )
-
-  const TemplateWithDefaultAndSelected = makeSelected(
-    TemplateWithDefault,
     getDeep<string>(selectedValue, 'value', '')
   )
-  return TemplateWithDefaultAndSelected
+
+  const TemplateWithPickedAndSelected = makePicked(
+    TemplateWithPicked,
+    getDeep<string>(pickedValue, 'value', '')
+  )
+
+  return TemplateWithPickedAndSelected
 }

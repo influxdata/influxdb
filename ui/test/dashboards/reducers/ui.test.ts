@@ -30,19 +30,19 @@ const t2 = {
       value: '98.7',
       type: TemplateValueType.Measurement,
       selected: false,
-      default: true,
+      picked: true,
     },
     {
       value: '99.1',
       type: TemplateValueType.Measurement,
       selected: false,
-      default: false,
+      picked: false,
     },
     {
       value: '101.3',
       type: TemplateValueType.Measurement,
       selected: true,
-      default: false,
+      picked: false,
     },
   ],
 }

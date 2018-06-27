@@ -606,19 +606,19 @@ export const template: Template = {
       value: 'us-west',
       type: TemplateValueType.TagKey,
       selected: false,
-      default: false,
+      picked: false,
     },
     {
       value: 'us-east',
       type: TemplateValueType.TagKey,
       selected: true,
-      default: true,
+      picked: true,
     },
     {
       value: 'us-mount',
       type: TemplateValueType.TagKey,
       selected: false,
-      default: false,
+      picked: false,
     },
   ],
 }

@@ -123,7 +123,7 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         type: TemplateValueType.CSV,
         value,
         selected: false,
-        default: false,
+        picked: false,
       }
     })
 
