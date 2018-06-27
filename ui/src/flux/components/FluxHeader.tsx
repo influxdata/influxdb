@@ -11,7 +11,7 @@ interface Props {
 }
 
 interface State {
-  showOverlay: boolean
+  isOverlayVisible: boolean
 }
 
 class FluxHeader extends PureComponent<Props, State> {
@@ -19,7 +19,7 @@ class FluxHeader extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      showOverlay: false,
+      isOverlayVisible: false,
     }
   }
 
@@ -31,13 +31,13 @@ class FluxHeader extends PureComponent<Props, State> {
           fullWidth={true}
           optionsComponents={this.optionsComponents}
         />
-        {this.renderOverlay}
+        {this.overlay}
       </>
     )
   }
 
   private handleToggleOverlay = (): void => {
-    this.setState({showOverlay: !this.state.showOverlay})
+    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
   }
 
   private get optionsComponents(): JSX.Element {
@@ -51,12 +51,12 @@ class FluxHeader extends PureComponent<Props, State> {
     )
   }
 
-  private get renderOverlay(): JSX.Element {
+  private get overlay(): JSX.Element {
     const {service} = this.props
-    const {showOverlay} = this.state
+    const {isOverlayVisible} = this.state
 
     return (
-      <OverlayTechnology visible={showOverlay}>
+      <OverlayTechnology visible={isOverlayVisible}>
         <FluxOverlay
           mode="edit"
           service={service}

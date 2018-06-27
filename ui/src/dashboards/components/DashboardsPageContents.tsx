@@ -27,7 +27,7 @@ interface Props {
 
 interface State {
   searchTerm: string
-  showOverlay: boolean
+  isOverlayVisible: boolean
 }
 
 @ErrorHandling
@@ -37,7 +37,7 @@ class DashboardsPageContents extends Component<Props, State> {
 
     this.state = {
       searchTerm: '',
-      showOverlay: false,
+      isOverlayVisible: false,
     }
   }
 
@@ -136,15 +136,15 @@ class DashboardsPageContents extends Component<Props, State> {
   }
 
   private handleToggleOverlay = (): void => {
-    this.setState({showOverlay: !this.state.showOverlay})
+    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
   }
 
   private get renderImportOverlay(): JSX.Element {
     const {onImportDashboard, notify} = this.props
-    const {showOverlay} = this.state
+    const {isOverlayVisible} = this.state
 
     return (
-      <OverlayTechnology visible={showOverlay}>
+      <OverlayTechnology visible={isOverlayVisible}>
         <ImportDashboardOverlay
           onDismissOverlay={this.handleToggleOverlay}
           onImportDashboard={onImportDashboard}

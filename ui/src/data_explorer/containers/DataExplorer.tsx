@@ -49,7 +49,7 @@ interface Props {
 }
 
 interface State {
-  showWriteForm: boolean
+  isWriteFormVisible: boolean
 }
 
 @ErrorHandling
@@ -58,7 +58,7 @@ export class DataExplorer extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      showWriteForm: false,
+      isWriteFormVisible: false,
     }
   }
 
@@ -101,11 +101,11 @@ export class DataExplorer extends PureComponent<Props, State> {
       queryConfigActions,
     } = this.props
 
-    const {showWriteForm} = this.state
+    const {isWriteFormVisible} = this.state
 
     return (
       <>
-        <OverlayTechnology visible={showWriteForm}>
+        <OverlayTechnology visible={isWriteFormVisible}>
           <WriteDataForm
             source={source}
             errorThrown={errorThrownAction}
@@ -152,11 +152,11 @@ export class DataExplorer extends PureComponent<Props, State> {
   }
 
   private handleCloseWriteData = (): void => {
-    this.setState({showWriteForm: false})
+    this.setState({isWriteFormVisible: false})
   }
 
   private handleOpenWriteData = (): void => {
-    this.setState({showWriteForm: true})
+    this.setState({isWriteFormVisible: true})
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
