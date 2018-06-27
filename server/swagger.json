@@ -2864,6 +2864,112 @@
           }
         }
       }
+    },
+    "/chronograf/v1/config/ui": {
+      "get": {
+        "tags": ["config", "ui"],
+        "summary": "Returns all UI settings",
+        "description": "All UI section settings",
+        "responses": {
+          "200": {
+            "description": "Returns an object with all UI settings for the app",
+            "schema": {
+              "$ref": "#/definitions/UIConfig"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/chronograf/v1/config/ui/:section": {
+      "get": {
+        "tags": ["config", "ui"],
+        "summary": "Returns the UI settings for a specific section of the app",
+        "description": "All UI settings for a specific section of the app",
+        "responses": {
+          "200": {
+            "description": "Returns an object with the UI settings for a section of the app",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/LogViewerUISettings"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Could not find requested section",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["config", "ui"],
+        "summary": "Updates the UI settings for a specific section of the app",
+        "description": "Updates UI settings for a specific section of the app",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "type": "string",
+            "description": "Section name for the target UI section settings",
+            "required": true
+          },
+          {
+            "name": {
+              "enum": ["logViewer"]
+            },
+            "in": "body",
+            "description":
+              "UI section configuration update parameters",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/LogViewerUISettings"
+                }
+              ]
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns an object with the updated UI settings for a specific section",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/LogViewerUISettings"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Could not find requested section",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -5030,24 +5136,87 @@
         }
       }
     },
+    "SeverityColor": {
+      "type": "object",
+      "description":
+        "Color defines an encoding of a data value into color space",
+      "properties": {
+        "id": {
+          "description": "ID is the unique id of the cell color",
+          "readOnly": true,
+          "type": "string"
+        },
+        "type": {
+          "description": "Type is how the color is used",
+          "type": "string",
+          "enum": ["emergency", "alert", "critical", "error", "warning", "notice", "info", "debug"]
+        },
+        "hex": {
+          "description": "Hex is the hex number of the color",
+          "type": "string",
+          "maxLength": 7,
+          "minLength": 7
+        },
+        "name": {
+          "description": "Name is the user-facing name of the hex color",
+          "type": "string"
+        }
+      }
+    },
     "RenamableField": {
       "description":
-        "renamableField describes a field that can be renamed and made visible or invisible",
+        "Describes a field that can be renamed and made visible or invisible",
       "type": "object",
       "properties": {
         "internalName": {
-          "description": "internalName is the calculated name of a field",
+          "description": "This is the calculated name of a field",
+          "readOnly": true,
           "type": "string"
         },
         "displayName": {
           "description":
-            "displayName is the name that a field is renamed to by the user",
+            "This is the name that a field is renamed to by the user",
           "type": "string"
         },
         "visible": {
           "description":
-            "visible indicates whether this field should be visible on the table",
+            "Indicates whether this field should be visible on the table",
           "type": "boolean"
+        }
+      }
+    },
+    "LogViewerUISettings": {
+      "description": "Contains the settings for the log viewer page UI",
+      "type": "object",
+      "required": ["columns", "severityColors", "severityColumnFormat"],
+      "properties": {
+        "columns": {
+          "description": "Defines the order, names, and visibility of columns in the log viewer table",
+          "type": "array",
+            "items": {
+              "$ref": "#/definitions/RenamableField"
+            }
+        },
+        "severityColors": {
+          "description": "Defines the name and color associated with log severity levels",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SeverityColor"
+          }
+        },
+        "severityColumnFormat": {
+          "description": "Describes the format for displaying the log severity to the user",
+          "type": "string",
+          "enum": ["dot", "text", "dot-text"]
+        }
+      }
+    },
+    "UIConfig": {
+      "description": "UIConfig describes UI settings for chronograf",
+      "type": "object",
+      "properties": {
+        "logViewer": {
+          "$ref": "#/definitions/LogViewerUISettings"
         }
       }
     },
