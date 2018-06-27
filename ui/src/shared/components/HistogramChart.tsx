@@ -35,6 +35,7 @@ interface Props {
   dataStatus: RemoteDataState
   width: number
   height: number
+  colorScale: (group: string) => string
   onZoom: (TimePeriod) => void
 }
 
@@ -53,7 +54,7 @@ class HistogramChart extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {width, height, data} = this.props
+    const {width, height, data, colorScale} = this.props
     const {margins} = this
 
     if (width === 0 || height === 0) {
@@ -122,6 +123,8 @@ class HistogramChart extends PureComponent<Props, State> {
               data={data}
               xScale={xScale}
               yScale={yScale}
+              hoverDatum={hoverDatum}
+              colorScale={colorScale}
             />
           </g>
         </svg>

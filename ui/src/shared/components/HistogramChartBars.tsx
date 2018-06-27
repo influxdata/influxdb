@@ -1,11 +1,13 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {ScaleLinear, ScaleTime} from 'd3-scale'
+import {color} from 'd3-color'
 
 import {HistogramData, HistogramDatum} from 'src/types/histogram'
 
 const BAR_BORDER_RADIUS = 4
 const BAR_PADDING_SIDES = 4
+const HOVER_BRIGTHEN_FACTOR = 0.4
 
 interface Props {
   width: number
@@ -13,6 +15,8 @@ interface Props {
   data: HistogramData
   xScale: ScaleTime<number, number>
   yScale: ScaleLinear<number, number>
+  colorScale: (group: string) => string
+  hoverDatum?: HistogramDatum
 }
 
 class HistogramChartBars extends PureComponent<Props> {
@@ -42,6 +46,7 @@ class HistogramChartBars extends PureComponent<Props> {
               y={d.y}
               width={d.width}
               height={d.height}
+              fill={d.fill}
               clipPath={`url(#histogram-chart-bars--clip-${key})`}
               data-group={d.group}
               data-key={d.key}
@@ -53,7 +58,7 @@ class HistogramChartBars extends PureComponent<Props> {
   }
 
   private get renderData() {
-    const {data, xScale, yScale} = this.props
+    const {data, xScale, yScale, colorScale, hoverDatum} = this.props
     const {barWidth, sortFn} = this
 
     const visibleData = data.filter(d => d.value !== 0)
@@ -84,6 +89,14 @@ class HistogramChartBars extends PureComponent<Props> {
       group.forEach((d: HistogramDatum) => {
         const height = yScale(0) - yScale(d.value)
 
+        let fill = colorScale(d.group)
+
+        if (!!hoverDatum && hoverDatum.key === d.key) {
+          fill = color(fill)
+            .brighter(HOVER_BRIGTHEN_FACTOR)
+            .hex()
+        }
+
         renderData.bars.push({
           key: d.key,
           group: d.group,
@@ -91,6 +104,7 @@ class HistogramChartBars extends PureComponent<Props> {
           y: yScale(d.value) - offset,
           width: barWidth,
           height,
+          fill,
         })
 
         offset += height

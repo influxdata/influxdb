@@ -28,11 +28,7 @@ const HistogramChartTooltip: SFC<Props> = props => {
   }
 
   return (
-    <div
-      className="histogram-chart-tooltip"
-      style={style}
-      data-group={datum.group}
-    >
+    <div className="histogram-chart-tooltip" style={style}>
       <div className="histogram-chart-tooltip--value">{datum.value}</div>
       <div className="histogram-chart-tooltip--group">{datum.group}</div>
     </div>
