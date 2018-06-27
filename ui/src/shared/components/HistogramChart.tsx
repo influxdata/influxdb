@@ -16,6 +16,7 @@ import {
   HistogramData,
   Margins,
   HoverData,
+  ColorScale,
 } from 'src/types/histogram'
 
 const PADDING_TOP = 0.2
@@ -31,7 +32,7 @@ interface Props {
   dataStatus: RemoteDataState
   width: number
   height: number
-  colorScale: (group: string) => string
+  colorScale: ColorScale
   onZoom: (TimePeriod) => void
 }
 

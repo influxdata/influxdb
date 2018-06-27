@@ -10,6 +10,7 @@ import {
   HistogramDatum,
   HoverData,
   TooltipAnchor,
+  ColorScale,
 } from 'src/types/histogram'
 
 const BAR_BORDER_RADIUS = 4
@@ -139,7 +140,7 @@ interface Props {
   data: HistogramData
   xScale: ScaleTime<number, number>
   yScale: ScaleLinear<number, number>
-  colorScale: (group: string) => string
+  colorScale: ColorScale
   hoverData?: HoverData
   onHover: (h: HoverData) => void
 }
