@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"sort"
@@ -25,9 +24,10 @@ type seriesCursor interface {
 }
 
 type seriesRow struct {
+	sortKey   []byte
 	name      []byte      // measurement name
 	stags     models.Tags // unmodified series tags
-	field     string
+	field     field
 	tags      models.Tags
 	query     tsdb.CursorIterators
 	valueCond influxql.Expr
@@ -44,21 +44,19 @@ func (vs mapValuer) Value(key string) (interface{}, bool) {
 
 type indexSeriesCursor struct {
 	sqry            tsdb.SeriesCursor
-	fields          []string
-	nf              []string
+	fields          measurementFields
+	nf              []field
 	err             error
 	tags            models.Tags
-	filterset       mapValuer
 	cond            influxql.Expr
 	measurementCond influxql.Expr
 	row             seriesRow
 	eof             bool
 	hasFieldExpr    bool
 	hasValueExpr    bool
-	multiTenant     bool
 }
 
-func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
+func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
 	queries, err := tsdb.CreateCursorIterators(ctx, shards)
 	if err != nil {
 		return nil, err
@@ -82,22 +80,8 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 	}
 	p := &indexSeriesCursor{row: seriesRow{query: queries}}
 
-	var (
-		remap map[string]string
-		mi    tsdb.MeasurementIterator
-	)
-	if req.RequestType == ReadRequestTypeMultiTenant {
-		p.multiTenant = true
-		m := []byte(req.OrgID)
-		m = append(m, 0, 0)
-		m = append(m, req.Database...)
-		mi = tsdb.NewMeasurementSliceIterator([][]byte{m})
-	} else {
-		remap = measurementRemap
-	}
-
-	if root := req.Predicate.GetRoot(); root != nil {
-		if p.cond, err = NodeToExpr(root, remap); err != nil {
+	if root := predicate.GetRoot(); root != nil {
+		if p.cond, err = NodeToExpr(root, measurementRemap); err != nil {
 			return nil, err
 		}
 
@@ -119,7 +103,7 @@ func newIndexSeriesCursor(ctx context.Context, req *ReadRequest, shards []*tsdb.
 	}
 
 	sg := tsdb.Shards(shards)
-	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mi}, opt.Condition)
+	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{}, opt.Condition)
 	if p.sqry != nil && err == nil {
 		var (
 			itr query.Iterator
@@ -182,32 +166,22 @@ RETRY:
 		c.row.name = sr.Name
 		c.row.stags = sr.Tags
 		c.tags = copyTags(c.tags, sr.Tags)
+		c.tags.Set(measurementKey, sr.Name)
 
-		c.filterset = make(mapValuer)
-		for _, tag := range c.tags {
-			c.filterset[string(tag.Key)] = string(tag.Value)
-		}
-
-		if !c.multiTenant {
-			c.filterset["_name"] = string(sr.Name)
-			c.tags.Set(measurementKey, sr.Name)
-		}
-
-		c.nf = c.fields
+		c.nf = c.fields[string(sr.Name)]
 	}
 
 	c.row.field, c.nf = c.nf[0], c.nf[1:]
-	c.filterset["_field"] = c.row.field
 
-	if c.measurementCond != nil && !evalExprBool(c.measurementCond, c.filterset) {
+	if c.measurementCond != nil && !evalExprBool(c.measurementCond, c) {
 		goto RETRY
 	}
 
-	c.tags.Set(fieldKey, []byte(c.row.field))
+	c.tags.Set(fieldKey, c.row.field.nb)
 
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond
-		c.row.valueCond = influxql.Reduce(c.cond, c.filterset)
+		c.row.valueCond = influxql.Reduce(c.cond, c)
 		if isBooleanLiteral(c.row.valueCond) {
 			// we've reduced the expression to "true"
 			c.row.valueCond = nil
@@ -219,22 +193,34 @@ RETRY:
 	return &c.row
 }
 
+func (c *indexSeriesCursor) Value(key string) (interface{}, bool) {
+	switch key {
+	case "_name":
+		return c.row.name, true
+	case "_field":
+		return c.row.field.n, true
+	default:
+		res := c.row.stags.Get([]byte(key))
+		return res, res != nil
+	}
+}
+
 func (c *indexSeriesCursor) Err() error {
 	return c.err
 }
 
 type limitSeriesCursor struct {
 	seriesCursor
-	n, o, c uint64
+	n, o, c int64
 }
 
-func newLimitSeriesCursor(ctx context.Context, cur seriesCursor, n, o uint64) *limitSeriesCursor {
+func newLimitSeriesCursor(ctx context.Context, cur seriesCursor, n, o int64) *limitSeriesCursor {
 	return &limitSeriesCursor{seriesCursor: cur, o: o, n: n}
 }
 
 func (c *limitSeriesCursor) Next() *seriesRow {
 	if c.o > 0 {
-		for i := uint64(0); i < c.o; i++ {
+		for i := int64(0); i < c.o; i++ {
 			if c.seriesCursor.Next() == nil {
 				break
 			}
@@ -247,78 +233,6 @@ func (c *limitSeriesCursor) Next() *seriesRow {
 	}
 	c.c++
 	return c.seriesCursor.Next()
-}
-
-type groupSeriesCursor struct {
-	seriesCursor
-	ctx  context.Context
-	rows []seriesRow
-	keys [][]byte
-	f    bool
-}
-
-func newGroupSeriesCursor(ctx context.Context, cur seriesCursor, keys []string) *groupSeriesCursor {
-	g := &groupSeriesCursor{seriesCursor: cur, ctx: ctx}
-
-	g.keys = make([][]byte, 0, len(keys))
-	for _, k := range keys {
-		g.keys = append(g.keys, []byte(k))
-	}
-
-	return g
-}
-
-func (c *groupSeriesCursor) Next() *seriesRow {
-	if !c.f {
-		c.sort()
-	}
-
-	if len(c.rows) > 0 {
-		row := &c.rows[0]
-		c.rows = c.rows[1:]
-		return row
-	}
-
-	return nil
-}
-
-func (c *groupSeriesCursor) sort() {
-	span := opentracing.SpanFromContext(c.ctx)
-	if span != nil {
-		span = opentracing.StartSpan("group_series_cursor.sort", opentracing.ChildOf(span.Context()))
-		defer span.Finish()
-	}
-
-	var rows []seriesRow
-	row := c.seriesCursor.Next()
-	for row != nil {
-		rows = append(rows, *row)
-		row = c.seriesCursor.Next()
-	}
-
-	sort.Slice(rows, func(i, j int) bool {
-		for _, k := range c.keys {
-			ik := rows[i].tags.Get(k)
-			jk := rows[j].tags.Get(k)
-			cmp := bytes.Compare(ik, jk)
-			if cmp == 0 {
-				continue
-			}
-			return cmp == -1
-		}
-
-		return false
-	})
-
-	if span != nil {
-		span.SetTag("rows", len(rows))
-	}
-
-	c.rows = rows
-
-	// free early
-	c.seriesCursor.Close()
-	c.f = true
 }
 
 func isBooleanLiteral(expr influxql.Expr) bool {
@@ -335,31 +249,56 @@ func toFloatIterator(iter query.Iterator) (query.FloatIterator, error) {
 	return sitr, nil
 }
 
-func extractFields(itr query.FloatIterator) []string {
-	var a []string
+type measurementFields map[string][]field
+
+type field struct {
+	n  string
+	nb []byte
+	d  influxql.DataType
+}
+
+func extractFields(itr query.FloatIterator) measurementFields {
+	mf := make(measurementFields)
+
 	for {
 		p, err := itr.Next()
 		if err != nil {
 			return nil
 		} else if p == nil {
 			break
-		} else if f, ok := p.Aux[0].(string); ok {
-			a = append(a, f)
 		}
+
+		// Aux is populated by `fieldKeysIterator#Next`
+		fields := append(mf[p.Name], field{
+			n: p.Aux[0].(string),
+			d: influxql.DataTypeFromString(p.Aux[1].(string)),
+		})
+
+		mf[p.Name] = fields
 	}
 
-	if len(a) == 0 {
-		return a
+	if len(mf) == 0 {
+		return nil
 	}
 
-	sort.Strings(a)
-	i := 1
-	for j := 1; j < len(a); j++ {
-		if a[j] != a[j-1] {
-			a[i] = a[j]
-			i++
+	for k, fields := range mf {
+		sort.Slice(fields, func(i, j int) bool {
+			return fields[i].n < fields[j].n
+		})
+
+		// deduplicate
+		i := 1
+		fields[0].nb = []byte(fields[0].n)
+		for j := 1; j < len(fields); j++ {
+			if fields[j].n != fields[j-1].n {
+				fields[i] = fields[j]
+				fields[i].nb = []byte(fields[i].n)
+				i++
+			}
 		}
+
+		mf[k] = fields[:i]
 	}
 
-	return a[:i]
+	return mf
 }

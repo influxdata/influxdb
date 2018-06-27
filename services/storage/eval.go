@@ -247,6 +247,33 @@ func evalBinaryExpr(expr *influxql.BinaryExpr, m valuer) interface{} {
 			}
 			return !rhs.MatchString(lhs)
 		}
+	case []byte:
+		switch expr.Op {
+		case influxql.EQ:
+			rhs, ok := rhs.(string)
+			if !ok {
+				return nil
+			}
+			return string(lhs) == rhs
+		case influxql.NEQ:
+			rhs, ok := rhs.(string)
+			if !ok {
+				return nil
+			}
+			return string(lhs) != rhs
+		case influxql.EQREGEX:
+			rhs, ok := rhs.(*regexp.Regexp)
+			if !ok {
+				return nil
+			}
+			return rhs.Match(lhs)
+		case influxql.NEQREGEX:
+			rhs, ok := rhs.(*regexp.Regexp)
+			if !ok {
+				return nil
+			}
+			return !rhs.Match(lhs)
+		}
 	}
 	return nil
 }

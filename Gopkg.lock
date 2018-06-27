@@ -151,6 +151,30 @@
   revision = "b4e1701a28efcc637d9afcca7d38e495fe909a09"
 
 [[projects]]
+  name = "github.com/klauspost/compress"
+  packages = ["flate"]
+  revision = "6c8db69c4b49dd4df1fff66996cf556176d0b9bf"
+  version = "v1.2.1"
+
+[[projects]]
+  name = "github.com/klauspost/cpuid"
+  packages = ["."]
+  revision = "ae7887de9fa5d2db4eaa8174a7eff2c1ac00f2da"
+  version = "v1.1"
+
+[[projects]]
+  name = "github.com/klauspost/crc32"
+  packages = ["."]
+  revision = "cb6bfca970f6908083f26f39a79009d608efd5cd"
+  version = "v1.1"
+
+[[projects]]
+  name = "github.com/klauspost/pgzip"
+  packages = ["."]
+  revision = "0bf5dcad4ada2814c3c00f996a982270bb81a506"
+  version = "v1.1"
+
+[[projects]]
   branch = "master"
   name = "github.com/mattn/go-isatty"
   packages = ["."]
@@ -337,6 +361,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fb7298c7249cb96423be935420c9d376d8d5f69dfdfdfe0546d58504f3031aae"
+  inputs-digest = "29d0dda1e2bc6ade50ef76d6cf8b5c047e744a35f35d5c86d84806a1482d79d8"
   solver-name = "gps-cdcl"
   solver-version = 1

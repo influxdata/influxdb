@@ -3,13 +3,12 @@ package storage
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"strings"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/metrics"
-	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -67,7 +66,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		agg = req.Aggregate.Type
 	}
 	pred := truncateString(PredicateToExprString(req.Predicate))
-	groupKeys := truncateString(strings.Join(req.Grouping, ","))
+	groupKeys := truncateString(strings.Join(req.GroupKeys, ","))
 	span.
 		SetTag("predicate", pred).
 		SetTag("series_limit", req.SeriesLimit).
@@ -76,75 +75,74 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 		SetTag("start", req.TimestampRange.Start).
 		SetTag("end", req.TimestampRange.End).
 		SetTag("desc", req.Descending).
+		SetTag("group", req.Group.String()).
 		SetTag("group_keys", groupKeys).
 		SetTag("aggregate", agg.String())
 
+	log, logEnd := logger.NewOperation(r.Logger, "Read", "storage_read")
+	defer logEnd()
+	ctx = logger.NewContextWithLogger(ctx, log)
+
 	if r.loggingEnabled {
-		r.Logger.Info("request",
+		log.Info("Read request info",
 			zap.String("database", req.Database),
 			zap.String("predicate", pred),
-			zap.Uint64("series_limit", req.SeriesLimit),
-			zap.Uint64("series_offset", req.SeriesOffset),
-			zap.Uint64("points_limit", req.PointsLimit),
+			zap.String("hints", req.Hints.String()),
+			zap.Int64("series_limit", req.SeriesLimit),
+			zap.Int64("series_offset", req.SeriesOffset),
+			zap.Int64("points_limit", req.PointsLimit),
 			zap.Int64("start", req.TimestampRange.Start),
 			zap.Int64("end", req.TimestampRange.End),
 			zap.Bool("desc", req.Descending),
+			zap.String("group", req.Group.String()),
 			zap.String("group_keys", groupKeys),
 			zap.String("aggregate", agg.String()),
 		)
 	}
 
+	if req.Hints.NoPoints() {
+		req.PointsLimit = -1
+	}
+
 	if req.PointsLimit == 0 {
-		req.PointsLimit = math.MaxUint64
+		req.PointsLimit = math.MaxInt64
 	}
-
-	rs, err := r.Store.Read(ctx, req)
-	if err != nil {
-		r.Logger.Error("Store.Read failed", zap.Error(err))
-		return err
-	}
-
-	if rs == nil {
-		return nil
-	}
-	defer rs.Close()
 
 	w := &responseWriter{
 		stream: stream,
 		res:    &ReadResponse{Frames: make([]ReadResponse_Frame, 0, frameCount)},
-		logger: r.Logger,
+		logger: log,
+		hints:  req.Hints,
 	}
 
-	for rs.Next() {
-		cur := rs.Cursor()
-		if cur == nil {
-			// no data for series key + field combination
-			continue
+	switch req.Group {
+	case GroupBy, GroupExcept:
+		if len(req.GroupKeys) == 0 {
+			return errors.New("read: GroupKeys must not be empty when GroupBy or GroupExcept specified")
 		}
-
-		w.startSeries(rs.Tags())
-
-		switch cur := cur.(type) {
-		case tsdb.IntegerBatchCursor:
-			w.streamIntegerPoints(cur)
-		case tsdb.FloatBatchCursor:
-			w.streamFloatPoints(cur)
-		case tsdb.UnsignedBatchCursor:
-			w.streamUnsignedPoints(cur)
-		case tsdb.BooleanBatchCursor:
-			w.streamBooleanPoints(cur)
-		case tsdb.StringBatchCursor:
-			w.streamStringPoints(cur)
-		default:
-			panic(fmt.Sprintf("unreachable: %T", cur))
+	case GroupNone, GroupAll:
+		if len(req.GroupKeys) > 0 {
+			return errors.New("read: GroupKeys must be empty when GroupNone or GroupAll specified")
 		}
+	default:
+		return errors.New("read: unexpected value for Group")
+	}
 
-		if w.err != nil {
-			return w.err
-		}
+	if req.Group == GroupAll {
+		err = r.handleRead(ctx, req, w)
+	} else {
+		err = r.handleGroupRead(ctx, req, w)
+	}
+
+	if err != nil {
+		log.Error("Read failed", zap.Error(err))
 	}
 
 	w.flushFrames()
+
+	if r.loggingEnabled {
+		log.Info("Read completed", zap.Int("num_values", w.vc))
+	}
 
 	span.SetTag("num_values", w.vc)
 	grp := tsm1.MetricsGroupFromContext(ctx)
@@ -154,6 +152,71 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 			span.SetTag(m.Name(), m.Value())
 		}
 	})
+
+	return nil
+}
+func (r *rpcService) handleRead(ctx context.Context, req *ReadRequest, w *responseWriter) error {
+	rs, err := r.Store.Read(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if rs == nil {
+		return nil
+	}
+	defer rs.Close()
+
+	for rs.Next() {
+		cur := rs.Cursor()
+		if cur == nil {
+			// no data for series key + field combination
+			continue
+		}
+
+		w.startSeries(rs.Tags())
+		w.streamCursor(cur)
+		if w.err != nil {
+			cur.Close()
+			return w.err
+		}
+	}
+
+	return nil
+}
+
+func (r *rpcService) handleGroupRead(ctx context.Context, req *ReadRequest, w *responseWriter) error {
+	rs, err := r.Store.GroupRead(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	if rs == nil {
+		return nil
+	}
+	defer rs.Close()
+
+	gc := rs.Next()
+	for gc != nil {
+		w.startGroup(gc.Keys(), gc.PartitionKeyVals())
+		if !req.Hints.HintSchemaAllTime() {
+			for gc.Next() {
+				cur := gc.Cursor()
+				if cur == nil {
+					// no data for series key + field combination
+					continue
+				}
+
+				w.startSeries(gc.Tags())
+				w.streamCursor(cur)
+				if w.err != nil {
+					gc.Close()
+					return w.err
+				}
+			}
+		}
+		gc.Close()
+		gc = rs.Next()
+	}
 
 	return nil
 }

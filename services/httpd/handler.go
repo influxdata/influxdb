@@ -3,6 +3,7 @@ package httpd
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -32,6 +33,7 @@ import (
 	"github.com/influxdata/influxdb/prometheus/remote"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
@@ -108,6 +110,8 @@ type Handler struct {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
 
+	Store Store
+
 	Config    *Config
 	Logger    *zap.Logger
 	CLFLogger *log.Logger
@@ -125,6 +129,7 @@ func NewHandler(c Config) *Handler {
 		Config:         &c,
 		Logger:         zap.NewNop(),
 		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
+		Store:          storage.NewStore(),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
 	}
@@ -967,8 +972,8 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 	h.writeHeader(w, http.StatusNoContent)
 }
 
-// servePromRead will convert a Prometheus remote read request into an InfluxQL query and
-// return data in Prometheus remote read protobuf format.
+// servePromRead will convert a Prometheus remote read request into a storage
+// query and returns data in Prometheus remote read protobuf format.
 func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user meta.User) {
 	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -990,105 +995,82 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 
 	// Query the DB and create a ReadResponse for Prometheus
 	db := r.FormValue("db")
-	q, err := prometheus.ReadRequestToInfluxQLQuery(&req, db, r.FormValue("rp"))
+	rp := r.FormValue("rp")
+
+	readRequest, err := prometheus.ReadRequestToInfluxStorageRequest(&req, db, rp)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Check authorization.
-	if h.Config.AuthEnabled {
-		if err := h.QueryAuthorizer.AuthorizeQuery(user, q, db); err != nil {
-			if err, ok := err.(meta.ErrAuthorize); ok {
-				h.Logger.Info("Unauthorized request",
-					zap.String("user", err.User),
-					zap.Stringer("query", err.Query),
-					logger.Database(err.Database))
-			}
-			h.httpError(w, "error authorizing query: "+err.Error(), http.StatusForbidden)
-			return
-		}
+	ctx := context.Background()
+	rs, err := h.Store.Read(ctx, readRequest)
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
 	}
-
-	opts := query.ExecutionOptions{
-		Database:  db,
-		ChunkSize: DefaultChunkSize,
-		ReadOnly:  true,
-	}
-
-	if h.Config.AuthEnabled {
-		// The current user determines the authorized actions.
-		opts.Authorizer = user
-	} else {
-		// Auth is disabled, so allow everything.
-		opts.Authorizer = query.OpenAuthorizer
-	}
-
-	// Make sure if the client disconnects we signal the query to abort
-	closing := make(chan struct{})
-	if notifier, ok := w.(http.CloseNotifier); ok {
-		// CloseNotify() is not guaranteed to send a notification when the query
-		// is closed. Use this channel to signal that the query is finished to
-		// prevent lingering goroutines that may be stuck.
-		done := make(chan struct{})
-		defer close(done)
-
-		notify := notifier.CloseNotify()
-		go func() {
-			// Wait for either the request to finish
-			// or for the client to disconnect
-			select {
-			case <-done:
-			case <-notify:
-				close(closing)
-			}
-		}()
-		opts.AbortCh = done
-	} else {
-		defer close(closing)
-	}
-
-	// Execute query.
-	results := h.QueryExecutor.ExecuteQuery(q, opts, closing)
+	defer rs.Close()
 
 	resp := &remote.ReadResponse{
 		Results: []*remote.QueryResult{{}},
 	}
-
-	// pull all results from the channel
-	for r := range results {
-		// Ignore nil results.
-		if r == nil {
+	for rs.Next() {
+		cur := rs.Cursor()
+		if cur == nil {
+			// no data for series key + field combination
 			continue
 		}
 
-		// read the series data and convert into Prometheus samples
-		for _, s := range r.Series {
-			ts := &remote.TimeSeries{
-				Labels: prometheus.TagsToLabelPairs(s.Tags),
+		tags := prometheus.RemoveInfluxSystemTags(rs.Tags())
+		var unsupportedCursor string
+		switch cur := cur.(type) {
+		case tsdb.FloatBatchCursor:
+			var series *remote.TimeSeries
+			for {
+				ts, vs := cur.Next()
+				if len(ts) == 0 {
+					break
+				}
+
+				// We have some data for this series.
+				if series == nil {
+					series = &remote.TimeSeries{
+						Labels: prometheus.ModelTagsToLabelPairs(tags),
+					}
+				}
+
+				for i, ts := range ts {
+					series.Samples = append(series.Samples, &remote.Sample{
+						TimestampMs: ts / int64(time.Millisecond),
+						Value:       vs[i],
+					})
+				}
 			}
 
-			for _, v := range s.Values {
-				t, ok := v[0].(time.Time)
-				if !ok {
-					h.httpError(w, fmt.Sprintf("value %v wasn't a time", v[0]), http.StatusBadRequest)
-					return
-				}
-				val, ok := v[1].(float64)
-				if !ok {
-					h.httpError(w, fmt.Sprintf("value %v wasn't a float64", v[1]), http.StatusBadRequest)
-				}
-				timestamp := t.UnixNano() / int64(time.Millisecond) / int64(time.Nanosecond)
-				ts.Samples = append(ts.Samples, &remote.Sample{
-					TimestampMs: timestamp,
-					Value:       val,
-				})
+			// There was data for the series.
+			if series != nil {
+				resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, series)
 			}
+		case tsdb.IntegerBatchCursor:
+			unsupportedCursor = "int64"
+		case tsdb.UnsignedBatchCursor:
+			unsupportedCursor = "uint"
+		case tsdb.BooleanBatchCursor:
+			unsupportedCursor = "bool"
+		case tsdb.StringBatchCursor:
+			unsupportedCursor = "string"
+		default:
+			panic(fmt.Sprintf("unreachable: %T", cur))
+		}
+		cur.Close()
 
-			resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, ts)
+		if len(unsupportedCursor) > 0 {
+			h.Logger.Info("Prometheus can't read cursor",
+				zap.String("cursor_type", unsupportedCursor),
+				zap.Stringer("series", tags),
+			)
 		}
 	}
-
 	data, err := proto.Marshal(resp)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
@@ -1605,6 +1587,12 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 		inner.ServeHTTP(l, r)
 	})
+}
+
+// Store describes the behaviour of the storage packages Store type.
+type Store interface {
+	Read(ctx context.Context, req *storage.ReadRequest) (storage.Results, error)
+	WithLogger(log *zap.Logger)
 }
 
 // Response represents a list of statement results.

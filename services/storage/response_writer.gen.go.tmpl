@@ -26,6 +26,19 @@ func (w *responseWriter) put{{.Name}}PointsFrame(f *ReadResponse_Frame_{{.Name}}
 	w.buffer.{{.Name}} = append(w.buffer.{{.Name}}, f)
 }
 
+func (w *responseWriter) stream{{.Name}}Series(cur tsdb.{{.Name}}BatchCursor) {
+	w.sf.DataType = DataType{{.Name}}
+	ss := len(w.res.Frames) - 1
+	ts, _ := cur.Next()
+	if len(ts) == 0 {
+		w.sz -= w.sf.Size()
+		w.putSeriesFrame(w.res.Frames[ss].Data.(*ReadResponse_Frame_Series))
+		w.res.Frames = w.res.Frames[:ss]
+	} else if w.sz > writeSize {
+		w.flushFrames()
+	}
+}
+
 func (w *responseWriter) stream{{.Name}}Points(cur tsdb.{{.Name}}BatchCursor) {
 	w.sf.DataType = DataType{{.Name}}
 	ss := len(w.res.Frames) - 1
@@ -65,7 +78,6 @@ func (w *responseWriter) stream{{.Name}}Points(cur tsdb.{{.Name}}BatchCursor) {
 			w.res.Frames = append(w.res.Frames, ReadResponse_Frame{p})
 		}
 	}
-	cur.Close()
 
 	seriesValueCount += b
 	w.vc += seriesValueCount

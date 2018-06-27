@@ -1705,6 +1705,47 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	}
 }
 
+func TestEngine_ShouldCompactCache(t *testing.T) {
+	nowTime := time.Now()
+
+	e, err := NewEngine(inmem.IndexName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+	e.SetEnabled(false)
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+	defer e.Close()
+
+	e.CacheFlushMemorySizeThreshold = 1024
+	e.CacheFlushWriteColdDuration = time.Minute
+
+	if e.ShouldCompactCache(nowTime) {
+		t.Fatal("nothing written to cache, so should not compact")
+	}
+
+	if err := e.WritePointsString("m,k=v f=3i"); err != nil {
+		t.Fatal(err)
+	}
+
+	if e.ShouldCompactCache(nowTime) {
+		t.Fatal("cache size < flush threshold and nothing written to FileStore, so should not compact")
+	}
+
+	if !e.ShouldCompactCache(nowTime.Add(time.Hour)) {
+		t.Fatal("last compaction was longer than flush write cold threshold, so should compact")
+	}
+
+	e.CacheFlushMemorySizeThreshold = 1
+	if !e.ShouldCompactCache(nowTime) {
+		t.Fatal("cache size > flush threshold, so should compact")
+	}
+}
+
 // Ensure engine can create an ascending cursor for cache and tsm values.
 func TestEngine_CreateCursor_Ascending(t *testing.T) {
 	t.Parallel()
