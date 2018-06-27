@@ -13,10 +13,18 @@ import (
 )
 
 // Transpiler converts InfluxQL queries into a query spec.
-type Transpiler struct{}
+type Transpiler struct {
+	Config *Config
+}
 
 func NewTranspiler() *Transpiler {
 	return new(Transpiler)
+}
+
+func NewTranspilerWithConfig(cfg Config) *Transpiler {
+	return &Transpiler{
+		Config: &cfg,
+	}
 }
 
 func (t *Transpiler) Transpile(ctx context.Context, txt string) (*query.Spec, error) {
@@ -26,7 +34,7 @@ func (t *Transpiler) Transpile(ctx context.Context, txt string) (*query.Spec, er
 		return nil, err
 	}
 
-	transpiler := newTranspilerState()
+	transpiler := newTranspilerState(t.Config)
 	for i, s := range q.Statements {
 		stmt, ok := s.(*influxql.SelectStatement)
 		if !ok {
@@ -42,16 +50,20 @@ func (t *Transpiler) Transpile(ctx context.Context, txt string) (*query.Spec, er
 type transpilerState struct {
 	id     int
 	stmt   *influxql.SelectStatement
+	config Config
 	spec   *query.Spec
 	nextID map[string]int
 	now    time.Time
 }
 
-func newTranspilerState() *transpilerState {
+func newTranspilerState(config *Config) *transpilerState {
 	state := &transpilerState{
 		spec:   &query.Spec{},
 		nextID: make(map[string]int),
 		now:    time.Now(),
+	}
+	if config != nil {
+		state.config = *config
 	}
 	return state
 }
@@ -101,10 +113,17 @@ func (t *transpilerState) mapType(ref *influxql.VarRef) influxql.DataType {
 func (t *transpilerState) from(m *influxql.Measurement) (query.OperationID, error) {
 	db, rp := m.Database, m.RetentionPolicy
 	if db == "" {
-		return "", errors.New("database is required")
+		if t.config.DefaultDatabase == "" {
+			return "", errors.New("database is required")
+		}
+		db = t.config.DefaultDatabase
 	}
 	if rp == "" {
-		rp = "autogen"
+		if t.config.DefaultRetentionPolicy != "" {
+			rp = t.config.DefaultRetentionPolicy
+		} else {
+			rp = "autogen"
+		}
 	}
 
 	spec := &functions.FromOpSpec{

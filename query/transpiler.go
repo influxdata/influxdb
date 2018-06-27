@@ -8,6 +8,7 @@ import (
 
 // Transpiler can convert a query from a source lanague into a query spec.
 type Transpiler interface {
+	// Transpile will perform the transpilation.
 	Transpile(ctx context.Context, txt string) (*Spec, error)
 }
 
