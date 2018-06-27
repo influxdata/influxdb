@@ -24,7 +24,7 @@ class Crosshair extends PureComponent<Props> {
         <div
           className="crosshair"
           style={{
-            left: this.crosshairLeft,
+            transform: this.crosshairLeft,
             height: this.crosshairHeight,
           }}
         />
@@ -49,7 +49,7 @@ class Crosshair extends PureComponent<Props> {
   private get crosshairLeft(): string {
     const {dygraph, hoverTime} = this.props
     const cursorOffset = 16
-    return `${dygraph.toDomXCoord(hoverTime) + cursorOffset}px`
+    return `translateX(${dygraph.toDomXCoord(hoverTime) + cursorOffset}px)`
   }
 
   private get crosshairHeight(): string {
