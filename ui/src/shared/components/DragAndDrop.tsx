@@ -1,6 +1,5 @@
-import React, {PureComponent, ReactElement, DragEvent} from 'react'
+import React, {PureComponent, ReactElement} from 'react'
 import classnames from 'classnames'
-// import {notifyDashboardUploadFailed} from 'src/shared/copy/notifications'
 
 interface Props {
   fileTypesToAccept?: string
@@ -13,7 +12,6 @@ interface State {
   inputContent: string | null
   uploadContent: string
   fileName: string
-  progress: string
   dragClass: string
 }
 
@@ -32,53 +30,45 @@ class DragAndDrop extends PureComponent<Props, State> {
       inputContent: null,
       uploadContent: '',
       fileName: '',
-      progress: '',
       dragClass: 'drag-none',
     }
+  }
+
+  public componentDidMount() {
+    window.addEventListener('dragover', this.handleWindowDragOver)
+    window.addEventListener('drop', this.handleFileDrop)
+    window.addEventListener('dragenter', this.handleDragEnter)
+    window.addEventListener('dragleave', this.handleDragLeave)
+  }
+
+  public componentWillUnmount() {
+    window.removeEventListener('dragover', this.handleWindowDragOver)
+    window.removeEventListener('drop', this.handleFileDrop)
+    window.removeEventListener('dragenter', this.handleDragEnter)
+    window.removeEventListener('dragleave', this.handleDragLeave)
   }
 
   public render() {
     return (
       <div className={this.containerClass}>
-        {/* (Invisible, covers entire screen)
-        This div handles drag only*/}
-        <div
-          onDrop={this.handleFile(true)}
-          onDragOver={this.handleDragOver}
-          onDragEnter={this.handleDragEnter}
-          onDragExit={this.handleDragLeave}
-          onDragLeave={this.handleDragLeave}
-          className="drag-and-drop--dropzone"
-        />
-        {/* visible form, handles drag & click */}
-        {this.dragArea}
+        <div className={this.dragAreaClass} onClick={this.handleFileOpen}>
+          {this.dragAreaHeader}
+          <div className={this.infoClass} />
+          <input
+            type="file"
+            ref={r => (this.fileInput = r)}
+            className="drag-and-drop--input"
+            accept={this.fileTypesToAccept}
+            onChange={this.handleFileClick}
+          />
+          {this.buttons}
+        </div>
       </div>
     )
   }
 
-  private get dragArea(): ReactElement<HTMLDivElement> {
-    return (
-      <div
-        className={this.dragAreaClass}
-        onClick={this.handleFileOpen}
-        onDrop={this.handleFile(true)}
-        onDragOver={this.handleDragOver}
-        onDragEnter={this.handleDragEnter}
-        onDragExit={this.handleDragLeave}
-        onDragLeave={this.handleDragLeave}
-      >
-        {this.dragAreaHeader}
-        <div className={this.infoClass} />
-        <input
-          type="file"
-          ref={r => (this.fileInput = r)}
-          className="drag-and-drop--input"
-          accept={this.fileTypesToAccept}
-          onChange={this.handleFile(false)}
-        />
-        {this.buttons}
-      </div>
-    )
+  private handleWindowDragOver = (event: DragEvent) => {
+    event.preventDefault()
   }
 
   private get fileTypesToAccept(): string {
@@ -153,16 +143,31 @@ class DragAndDrop extends PureComponent<Props, State> {
     handleSubmit(uploadContent, fileName)
   }
 
-  private handleFile = (drop: boolean) => (e: any): void => {
-    let file
-    if (drop) {
-      file = e.dataTransfer.files[0]
-      this.setState({
-        dragClass: 'drag-none',
-      })
-    } else {
-      file = e.currentTarget.files[0]
+  private handleFileClick = (e: any): void => {
+    const file = e.currentTarget.files[0]
+
+    if (!file) {
+      return
     }
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    const reader = new FileReader()
+    reader.readAsText(file)
+    reader.onload = loadEvent => {
+      this.setState({
+        uploadContent: loadEvent.target.result,
+        fileName: file.name,
+      })
+    }
+  }
+
+  private handleFileDrop = (e: any): void => {
+    const file = e.dataTransfer.files[0]
+    this.setState({
+      dragClass: 'drag-none',
+    })
 
     if (!file) {
       return
@@ -193,18 +198,13 @@ class DragAndDrop extends PureComponent<Props, State> {
     this.fileInput.value = ''
   }
 
-  private handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }
-
-  private handleDragEnter = (e: DragEvent<HTMLDivElement>): void => {
+  private handleDragEnter = (e: DragEvent): void => {
     dragCounter += 1
     e.preventDefault()
     this.setState({dragClass: 'drag-over'})
   }
 
-  private handleDragLeave = (e: DragEvent<HTMLDivElement>): void => {
+  private handleDragLeave = (e: DragEvent): void => {
     dragCounter -= 1
     e.preventDefault()
     if (dragCounter === 0) {
