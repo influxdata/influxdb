@@ -4,7 +4,7 @@ import {shallow} from 'enzyme'
 import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
-import SimpleOverlayTechnology from 'src/shared/components/SimpleOverlayTechnology'
+import OverlayTechnology from 'src/shared/components/OverlayTechnology'
 import {source} from 'test/resources'
 
 import {TemplateType, TemplateValueType} from 'src/types'
@@ -61,14 +61,24 @@ describe('TemplateControlBar', () => {
 
   it('renders an TemplateVariableEditor overlay when adding a template variable', () => {
     const props = {...defaultProps}
-    const wrapper = shallow(<TemplateControlBar {...props} />)
+    const wrapper = shallow(<TemplateControlBar {...props} />, {
+      context: {
+        store: {},
+      },
+    })
 
-    expect(wrapper.find(SimpleOverlayTechnology)).toHaveLength(0)
+    const children = wrapper
+      .find(OverlayTechnology)
+      .dive()
+      .find("[data-test='overlay-children']")
+      .children()
+
+    expect(children).toHaveLength(0)
 
     wrapper.find('[data-test="add-template-variable"]').simulate('click')
 
     const elements = wrapper
-      .find(SimpleOverlayTechnology)
+      .find(OverlayTechnology)
       .dive()
       .find(TemplateVariableEditor)
 
