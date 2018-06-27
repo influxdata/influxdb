@@ -90,6 +90,17 @@ describe('templates.utils.replace', () => {
         },
         {
           ...emptyTemplate,
+          tempVar: ':region:',
+          values: [
+            {
+              type: TemplateValueType.TagValue,
+              value: 'north',
+              selected: true,
+            },
+          ],
+        },
+        {
+          ...emptyTemplate,
           tempVar: ':dashboardTime:',
           values: [
             {
@@ -101,8 +112,8 @@ describe('templates.utils.replace', () => {
         },
       ]
 
-      const query = `SELECT "usage_active" FROM "cpu" WHERE host =~ /^:host:$/ AND time > :dashboardTime: FILL(null)`
-      const expected = `SELECT "usage_active" FROM "cpu" WHERE host =~ /^my-host.local$/ AND time > now() - 1h FILL(null)`
+      const query = `SELECT "usage_active" FROM "cpu" WHERE host =~ /^:host:$/ AND host = :host: AND region =~ /:region:/ AND time > :dashboardTime: FILL(null)`
+      const expected = `SELECT "usage_active" FROM "cpu" WHERE host =~ /^my-host.local$/ AND host = 'my-host.local' AND region =~ /north/ AND time > now() - 1h FILL(null)`
       const actual = templateReplace(query, vars)
 
       expect(actual).toBe(expected)

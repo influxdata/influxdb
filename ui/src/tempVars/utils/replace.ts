@@ -82,14 +82,21 @@ const replaceAllRegex = (
   search: string,
   replacement: string
 ) => {
+  // check for presence of anythine between two forward slashes /[your stuff here]/
   const matches = query.match(/\/([^\/]*)\//gm)
-  const isReplaceable = !!matches && matches.some(m => m.includes(search))
 
-  if (!isReplaceable) {
+  if (!matches) {
     return query
   }
 
-  return replaceAll(query, search, replacement)
+  return matches.reduce((acc, m) => {
+    if (m.includes(search)) {
+      const replaced = m.replace(search, replacement)
+      return acc.split(m).join(replaced)
+    }
+
+    return acc
+  }, query)
 }
 
 const replaceAll = (query: string, search: string, replacement: string) => {
