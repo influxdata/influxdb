@@ -14,6 +14,7 @@
 1.  [#3671](https://github.com/influxdata/chronograf/pull/3671): Remove Snip functionality in hover legend
 1.  [#3659](https://github.com/influxdata/chronograf/pull/3659): Upgrade Data Explorer query text field with syntax highlighting and partial multi-line support
 1.  [#3663](https://github.com/influxdata/chronograf/pull/3663): Truncate message preview in Alert Rules table
+1.  [#3770](https://github.com/influxdata/chronograf/pull/3770): Improve performance of graph crosshairs
 
 ### Bug Fixes
 
