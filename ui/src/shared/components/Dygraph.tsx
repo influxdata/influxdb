@@ -268,7 +268,6 @@ class Dygraph extends Component<Props, State> {
             />
           </div>
         )}
-        <div className="dygraph-child-container" style={this.dygraphStyle} />
         {staticLegend && (
           <StaticLegend
             dygraphSeries={this.colorDygraphSeries}
