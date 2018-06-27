@@ -18,7 +18,7 @@ const HOVER_BRIGTHEN_FACTOR = 0.4
 const TOOLTIP_HORIZONTAL_MARGIN = 5
 const TOOLTIP_REFLECT_DIST = 100
 
-const getBarWidth = ({data, xScale, width}) => {
+const getBarWidth = ({data, xScale, width}): number => {
   const dataInView = data.filter(
     d => xScale(d.time) >= 0 && xScale(d.time) <= width
   )
@@ -27,7 +27,9 @@ const getBarWidth = ({data, xScale, width}) => {
   return Math.round(width / barCount - BAR_PADDING_SIDES)
 }
 
-const getSortFn = data => {
+type SortFn = (a: HistogramDatum, b: HistogramDatum) => number
+
+const getSortFn = (data: HistogramData): SortFn => {
   const counts = {}
 
   for (const d of data) {
@@ -41,6 +43,30 @@ const getSortFn = data => {
   return (a, b) => counts[b.group] - counts[a.group]
 }
 
+interface RenderDataBar {
+  key: string
+  group: string
+  x: number
+  y: number
+  width: number
+  height: number
+  fill: string
+}
+
+interface RenderDataGroup {
+  key: string
+  clip: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  bars: RenderDataBar[]
+  data: HistogramData
+}
+
+type RenderData = RenderDataGroup[]
+
 const getRenderData = ({
   data,
   width,
@@ -48,7 +74,7 @@ const getRenderData = ({
   yScale,
   colorScale,
   hoverData,
-}) => {
+}): RenderData => {
   const barWidth = getBarWidth({data, xScale, width})
   const sortFn = getSortFn(data)
   const visibleData = data.filter(d => d.value !== 0)
@@ -119,7 +145,7 @@ interface Props {
 }
 
 interface State {
-  renderData: any[]
+  renderData: RenderData
 }
 
 class HistogramChartBars extends PureComponent<Props, State> {
