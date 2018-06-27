@@ -4,9 +4,6 @@ import {emptyTemplate} from 'test/resources'
 
 describe('templates.utils.replace', () => {
   it('can replace select with parameters', () => {
-    const query =
-      ':method: field1, :field: FROM :measurement: WHERE temperature > :temperature:'
-
     const vars = [
       {
         ...emptyTemplate,
@@ -33,7 +30,8 @@ describe('templates.utils.replace', () => {
         values: [{type: TemplateValueType.CSV, value: `"cpu"`, selected: true}],
       },
     ]
-
+    const query =
+      ':method: field1, :field: FROM :measurement: WHERE temperature > :temperature:'
     const expected = `SELECT field1, "field2" FROM "cpu" WHERE temperature > 10`
 
     const actual = templateReplace(query, vars)
@@ -74,6 +72,41 @@ describe('templates.utils.replace', () => {
     const actual = templateReplace(query, vars)
 
     expect(actual).toBe(expected)
+  })
+
+  describe('queries with a regex', () => {
+    it('replaces properly', () => {
+      const vars = [
+        {
+          ...emptyTemplate,
+          tempVar: ':host:',
+          values: [
+            {
+              type: TemplateValueType.TagValue,
+              value: 'my-host.local',
+              selected: true,
+            },
+          ],
+        },
+        {
+          ...emptyTemplate,
+          tempVar: ':dashboardTime:',
+          values: [
+            {
+              value: 'now() - 1h',
+              type: TemplateValueType.Constant,
+              selected: true,
+            },
+          ],
+        },
+      ]
+
+      const query = `SELECT "usage_active" FROM "cpu" WHERE host =~ /^:host:$/ AND time > :dashboardTime: FILL(null)`
+      const expected = `SELECT "usage_active" FROM "cpu" WHERE host =~ /^my-host.local$/ AND time > now() - 1h FILL(null)`
+      const actual = templateReplace(query, vars)
+
+      expect(actual).toBe(expected)
+    })
   })
 
   describe('with no templates', () => {

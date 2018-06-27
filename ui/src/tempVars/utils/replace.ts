@@ -42,22 +42,54 @@ const renderTemplate = (query: string, template: Template): string => {
   const {tempVar} = template
   const {value, type} = templateValue
 
+  let q = ''
+
+  // First replace all template variable types in regular expressions.  Values should appear unquoted.
   switch (type) {
     case TemplateValueType.TagKey:
     case TemplateValueType.FieldKey:
     case TemplateValueType.Measurement:
     case TemplateValueType.Database:
-      return replaceAll(query, tempVar, `"${value}"`)
     case TemplateValueType.TagValue:
     case TemplateValueType.TimeStamp:
-      return replaceAll(query, tempVar, `'${value}'`)
+      q = replaceAllRegex(query, tempVar, value)
+      break
+    default:
+      q = query
+  }
+
+  // Then render template variables not in regular expressions
+  switch (type) {
+    case TemplateValueType.TagKey:
+    case TemplateValueType.FieldKey:
+    case TemplateValueType.Measurement:
+    case TemplateValueType.Database:
+      return replaceAll(q, tempVar, `"${value}"`)
+    case TemplateValueType.TagValue:
+    case TemplateValueType.TimeStamp:
+      return replaceAll(q, tempVar, `'${value}'`)
     case TemplateValueType.CSV:
     case TemplateValueType.Constant:
     case TemplateValueType.MetaQuery:
-      return replaceAll(query, tempVar, value)
+      return replaceAll(q, tempVar, value)
     default:
       return query
   }
+}
+
+const replaceAllRegex = (
+  query: string,
+  search: string,
+  replacement: string
+) => {
+  const matches = query.match(/\/([^\/]*)\//gm)
+  const isReplaceable = !!matches && matches.some(m => m.includes(search))
+
+  if (!isReplaceable) {
+    return query
+  }
+
+  return replaceAll(query, search, replacement)
 }
 
 const replaceAll = (query: string, search: string, replacement: string) => {
