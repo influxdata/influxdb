@@ -182,6 +182,8 @@ export const makeSelected = (template: Template, value: string): Template => {
     valueToChoose = getDeep<string>(template, 'values.0.value', '')
   }
 
+  console.log('Value to choose', valueToChoose)
+
   const valuesWithDefault = template.values.map(v => {
     if (v.value === valueToChoose) {
       return {...v, selected: true}
