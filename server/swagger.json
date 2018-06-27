@@ -5136,33 +5136,6 @@
         }
       }
     },
-    "SeverityColor": {
-      "type": "object",
-      "description":
-        "Color defines an encoding of a data value into color space",
-      "properties": {
-        "id": {
-          "description": "ID is the unique id of the cell color",
-          "readOnly": true,
-          "type": "string"
-        },
-        "type": {
-          "description": "Type is how the color is used",
-          "type": "string",
-          "enum": ["emergency", "alert", "critical", "error", "warning", "notice", "info", "debug"]
-        },
-        "hex": {
-          "description": "Hex is the hex number of the color",
-          "type": "string",
-          "maxLength": 7,
-          "minLength": 7
-        },
-        "name": {
-          "description": "Name is the user-facing name of the hex color",
-          "type": "string"
-        }
-      }
-    },
     "RenamableField": {
       "description":
         "Describes a field that can be renamed and made visible or invisible",
@@ -5188,7 +5161,7 @@
     "LogViewerUISettings": {
       "description": "Contains the settings for the log viewer page UI",
       "type": "object",
-      "required": ["columns", "severityColors", "severityColumnFormat"],
+      "required": ["columns", "columnOptions"],
       "properties": {
         "columns": {
           "description": "Defines the order, names, and visibility of columns in the log viewer table",
@@ -5197,17 +5170,36 @@
               "$ref": "#/definitions/RenamableField"
             }
         },
-        "severityColors": {
-          "description": "Defines the name and color associated with log severity levels",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SeverityColor"
+        "columnOptions": {
+          "type": "object",
+          "required": ["severity"],
+          "properties": {
+            "severity": {
+              "type": "object",
+              "required": ["displayFormat", "colors"],
+              "properties": {
+                "displayFormat": {
+                  "type": "string"
+                },
+                "colors": {
+                  "description": "Defines the display colors for each severity level",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["name", "value"],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                } 
+              }
+            }
           }
-        },
-        "severityColumnFormat": {
-          "description": "Describes the format for displaying the log severity to the user",
-          "type": "string",
-          "enum": ["dot", "text", "dot-text"]
         }
       }
     },
