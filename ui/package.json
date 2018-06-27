@@ -73,6 +73,7 @@
     "css-loader": "^0.28.11",
     "envify": "^3.4.0",
     "enzyme": "^3.3.0",
+    "enzyme-to-json": "^3.3.4",
     "eslint": "^3.14.1",
     "eslint-config-prettier": "^2.9.0",
     "eslint-loader": "^2.0.0",
