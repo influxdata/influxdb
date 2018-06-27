@@ -3,8 +3,8 @@ package execute
 import (
 	"fmt"
 
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/id"
 	"github.com/influxdata/platform/query/plan"
 )
 
@@ -17,7 +17,7 @@ type Transformation interface {
 }
 
 type Administration interface {
-	OrganizationID() id.ID
+	OrganizationID() platform.ID
 
 	ResolveTime(qt query.Time) Time
 	Bounds() Bounds
