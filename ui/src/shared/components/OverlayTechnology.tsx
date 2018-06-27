@@ -12,6 +12,14 @@ interface State {
 
 @ErrorHandling
 class OverlayTechnology extends Component<Props, State> {
+  public static getDerivedStateFromProps(props) {
+    if (props.visible) {
+      return {showChildren: true}
+    }
+
+    return {}
+  }
+
   private animationTimer: number
 
   constructor(props: Props) {
@@ -23,17 +31,10 @@ class OverlayTechnology extends Component<Props, State> {
   }
 
   public componentDidUpdate(prevProps) {
-    if (prevProps.visible === true && this.props.visible === false) {
+    if (prevProps.visible && !this.props.visible) {
+      clearTimeout(this.animationTimer)
       this.animationTimer = window.setTimeout(this.hideChildren, 300)
-      return
     }
-
-    if (prevProps.visible === false && this.props.visible === true) {
-      this.showChildren()
-      return
-    }
-
-    return
   }
 
   public render() {
@@ -65,13 +66,8 @@ class OverlayTechnology extends Component<Props, State> {
     return `overlay-tech ${visible ? 'show' : ''}`
   }
 
-  private showChildren = (): void => {
-    this.setState({showChildren: true})
-  }
-
   private hideChildren = (): void => {
     this.setState({showChildren: false})
-    clearTimeout(this.animationTimer)
   }
 }
 

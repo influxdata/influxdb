@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import SimpleOverlayTechnology from 'src/shared/components/SimpleOverlayTechnology'
+import OverlayTechnology from 'src/shared/components/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
 import {source} from 'test/resources'
@@ -33,14 +33,24 @@ const defaultProps = {
 
 describe('TemplateControlDropdown', () => {
   it('should show a TemplateVariableEditor overlay when the settings icon is clicked', () => {
-    const wrapper = shallow(<TemplateControlDropdown {...defaultProps} />)
+    const wrapper = shallow(<TemplateControlDropdown {...defaultProps} />, {
+      context: {
+        store: {},
+      },
+    })
 
-    expect(wrapper.find(SimpleOverlayTechnology)).toHaveLength(0)
+    const children = wrapper
+      .find(OverlayTechnology)
+      .dive()
+      .find("[data-test='overlay-children']")
+      .children()
+
+    expect(children).toHaveLength(0)
 
     wrapper.find("[data-test='edit']").simulate('click')
 
     const elements = wrapper
-      .find(SimpleOverlayTechnology)
+      .find(OverlayTechnology)
       .dive()
       .find(TemplateVariableEditor)
 
