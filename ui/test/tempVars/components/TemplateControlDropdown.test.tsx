@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 
-import OverlayTechnology from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
 import {source} from 'test/resources'

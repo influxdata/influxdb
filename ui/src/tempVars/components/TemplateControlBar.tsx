@@ -2,7 +2,7 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
-import OverlayTechnology from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 

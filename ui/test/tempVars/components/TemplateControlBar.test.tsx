@@ -4,7 +4,7 @@ import {shallow} from 'enzyme'
 import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
-import OverlayTechnology from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import {source} from 'test/resources'
 
 import {TemplateType, TemplateValueType} from 'src/types'

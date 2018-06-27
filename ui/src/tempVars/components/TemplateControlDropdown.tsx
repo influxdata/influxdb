@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 
 import Dropdown from 'src/shared/components/Dropdown'
-import OverlayTechnology from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 import Authorized, {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'

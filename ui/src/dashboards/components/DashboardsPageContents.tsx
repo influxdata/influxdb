@@ -7,7 +7,7 @@ import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOve
 import SearchBar from 'src/hosts/components/SearchBar'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OverlayTechnology from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 
 import {Dashboard} from 'src/types'
 import {Notification} from 'src/types/notifications'

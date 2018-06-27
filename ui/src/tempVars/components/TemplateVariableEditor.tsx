@@ -7,9 +7,9 @@ import React, {
 import {connect} from 'react-redux'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OverlayContainer from 'src/shared/components/overlay/OverlayContainer'
-import OverlayHeading from 'src/shared/components/overlay/OverlayHeading'
-import OverlayBody from 'src/shared/components/overlay/OverlayBody'
+import OverlayContainer from 'src/reusable_ui/components/overlays/OverlayContainer'
+import OverlayHeading from 'src/reusable_ui/components/overlays/OverlayHeading'
+import OverlayBody from 'src/reusable_ui/components/overlays/OverlayBody'
 import Dropdown from 'src/shared/components/Dropdown'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {getDeep} from 'src/utils/wrappers'

@@ -4,7 +4,7 @@ import {WithRouterProps} from 'react-router'
 
 import {FluxPage} from 'src/flux'
 import FluxOverlay from 'src/flux/components/FluxOverlay'
-import OverlayTechnology from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import {Source, Service, Notification} from 'src/types'
 import {Links} from 'src/types/flux'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
