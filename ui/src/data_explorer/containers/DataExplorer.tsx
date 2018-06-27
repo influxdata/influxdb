@@ -13,7 +13,7 @@ import QueryMaker from 'src/data_explorer/components/QueryMaker'
 import Visualization from 'src/data_explorer/components/Visualization'
 import WriteDataForm from 'src/data_explorer/components/WriteDataForm'
 import ResizeContainer from 'src/shared/components/ResizeContainer'
-import OverlayTechnologies from 'src/shared/components/OverlayTechnologies'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
@@ -49,7 +49,7 @@ interface Props {
 }
 
 interface State {
-  showWriteForm: boolean
+  isWriteFormVisible: boolean
 }
 
 @ErrorHandling
@@ -58,7 +58,7 @@ export class DataExplorer extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      showWriteForm: false,
+      isWriteFormVisible: false,
     }
   }
 
@@ -101,21 +101,19 @@ export class DataExplorer extends PureComponent<Props, State> {
       queryConfigActions,
     } = this.props
 
-    const {showWriteForm} = this.state
+    const {isWriteFormVisible} = this.state
 
     return (
       <>
-        {showWriteForm ? (
-          <OverlayTechnologies>
-            <WriteDataForm
-              source={source}
-              errorThrown={errorThrownAction}
-              selectedDatabase={this.selectedDatabase}
-              onClose={this.handleCloseWriteData}
-              writeLineProtocol={writeLineProtocol}
-            />
-          </OverlayTechnologies>
-        ) : null}
+        <OverlayTechnology visible={isWriteFormVisible}>
+          <WriteDataForm
+            source={source}
+            errorThrown={errorThrownAction}
+            selectedDatabase={this.selectedDatabase}
+            onClose={this.handleCloseWriteData}
+            writeLineProtocol={writeLineProtocol}
+          />
+        </OverlayTechnology>
         <PageHeader
           titleText="Data Explorer"
           fullWidth={true}
@@ -154,11 +152,11 @@ export class DataExplorer extends PureComponent<Props, State> {
   }
 
   private handleCloseWriteData = (): void => {
-    this.setState({showWriteForm: false})
+    this.setState({isWriteFormVisible: false})
   }
 
   private handleOpenWriteData = (): void => {
-    this.setState({showWriteForm: true})
+    this.setState({isWriteFormVisible: true})
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {

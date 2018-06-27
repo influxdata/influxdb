@@ -79,8 +79,8 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     } = this.state
 
     return (
-      <div className="temp-builder measurements-temp-builder">
-        <div className="form-group">
+      <>
+        <div className="form-group col-xs-12">
           <label>Meta Query</label>
           <div className="temp-builder--mq-controls">
             <div className="temp-builder--mq-text">SHOW TAG VALUES ON</div>
@@ -89,7 +89,8 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
                 items={databases.map(text => ({text}))}
                 onChoose={this.handleChooseDatabaseDropdown}
                 selected={selectedDatabase}
-                buttonSize=""
+                buttonSize="btn-sm"
+                className="dropdown-stretch"
               />
             </DropdownLoadingPlaceholder>
           </div>
@@ -100,7 +101,8 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
                 items={measurements.map(text => ({text}))}
                 onChoose={this.handleChooseMeasurementDropdown}
                 selected={selectedMeasurement}
-                buttonSize=""
+                buttonSize="btn-sm"
+                className="dropdown-stretch"
               />
             </DropdownLoadingPlaceholder>
             <div className="temp-builder--mq-text">WITH KEY</div>
@@ -109,7 +111,8 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
                 items={tagKeys.map(text => ({text}))}
                 onChoose={this.handleChooseTagKeyDropdown}
                 selected={selectedTagKey}
-                buttonSize=""
+                buttonSize="btn-sm"
+                className="dropdown-stretch"
               />
             </DropdownLoadingPlaceholder>
           </div>
@@ -118,7 +121,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
           items={tagValues}
           loadingStatus={tagValuesStatus}
         />
-      </div>
+      </>
     )
   }
 

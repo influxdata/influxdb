@@ -1,5 +1,4 @@
 import React, {Component, MouseEvent} from 'react'
-import {connect} from 'react-redux'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -8,11 +7,7 @@ import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOve
 import SearchBar from 'src/hosts/components/SearchBar'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  showOverlay as showOverlayAction,
-  ShowOverlayActionCreator,
-} from 'src/shared/actions/overlayTechnology'
-import {OverlayContext} from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 
 import {Dashboard} from 'src/types'
 import {Notification} from 'src/types/notifications'
@@ -27,12 +22,12 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => () => void
   onImportDashboard: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
-  showOverlay: ShowOverlayActionCreator
   dashboardLink: string
 }
 
 interface State {
   searchTerm: string
+  isOverlayVisible: boolean
 }
 
 @ErrorHandling
@@ -42,6 +37,7 @@ class DashboardsPageContents extends Component<Props, State> {
 
     this.state = {
       searchTerm: '',
+      isOverlayVisible: false,
     }
   }
 
@@ -83,31 +79,34 @@ class DashboardsPageContents extends Component<Props, State> {
     const {onCreateDashboard} = this.props
 
     return (
-      <div className="panel-heading">
-        <h2 className="panel-title">{this.panelTitle}</h2>
-        <div className="panel-controls">
-          <SearchBar
-            placeholder="Filter by Name..."
-            onSearch={this.filterDashboards}
-          />
-          <Authorized requiredRole={EDITOR_ROLE}>
-            <>
-              <button
-                className="btn btn-sm btn-default"
-                onClick={this.showImportOverlay}
-              >
-                <span className="icon import" /> Import Dashboard
-              </button>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={onCreateDashboard}
-              >
-                <span className="icon plus" /> Create Dashboard
-              </button>
-            </>
-          </Authorized>
+      <>
+        <div className="panel-heading">
+          <h2 className="panel-title">{this.panelTitle}</h2>
+          <div className="panel-controls">
+            <SearchBar
+              placeholder="Filter by Name..."
+              onSearch={this.filterDashboards}
+            />
+            <Authorized requiredRole={EDITOR_ROLE}>
+              <>
+                <button
+                  className="btn btn-sm btn-default"
+                  onClick={this.handleToggleOverlay}
+                >
+                  <span className="icon import" /> Import Dashboard
+                </button>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={onCreateDashboard}
+                >
+                  <span className="icon plus" /> Create Dashboard
+                </button>
+              </>
+            </Authorized>
+          </div>
         </div>
-      </div>
+        {this.renderImportOverlay}
+      </>
     )
   }
 
@@ -136,30 +135,24 @@ class DashboardsPageContents extends Component<Props, State> {
     this.setState({searchTerm})
   }
 
-  private showImportOverlay = (): void => {
-    const {showOverlay, onImportDashboard, notify} = this.props
-    const options = {
-      dismissOnClickOutside: false,
-      dismissOnEscape: false,
-    }
+  private handleToggleOverlay = (): void => {
+    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
+  }
 
-    showOverlay(
-      <OverlayContext.Consumer>
-        {({onDismissOverlay}) => (
-          <ImportDashboardOverlay
-            onDismissOverlay={onDismissOverlay}
-            onImportDashboard={onImportDashboard}
-            notify={notify}
-          />
-        )}
-      </OverlayContext.Consumer>,
-      options
+  private get renderImportOverlay(): JSX.Element {
+    const {onImportDashboard, notify} = this.props
+    const {isOverlayVisible} = this.state
+
+    return (
+      <OverlayTechnology visible={isOverlayVisible}>
+        <ImportDashboardOverlay
+          onDismissOverlay={this.handleToggleOverlay}
+          onImportDashboard={onImportDashboard}
+          notify={notify}
+        />
+      </OverlayTechnology>
     )
   }
 }
 
-const mapDispatchToProps = {
-  showOverlay: showOverlayAction,
-}
-
-export default connect(null, mapDispatchToProps)(DashboardsPageContents)
+export default DashboardsPageContents

@@ -551,12 +551,6 @@ $rule-builder--radius-lg: 5px;
     padding-bottom: $rule-builder--padding-lg;
   }
 }
-.endpoint-tab--parameters .faux-form {
-  margin-left: -6px;
-  margin-right: -6px;
-  width: calc(100% + 12px);
-  display: inline-block;
-}
 .endpoint-tab--parameters--empty {
   align-items: center;
   justify-content: center;

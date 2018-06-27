@@ -2,7 +2,7 @@ import React, {Component} from 'react'
 import classnames from 'classnames'
 
 import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
-import SimpleOverlayTechnology from 'src/shared/components/SimpleOverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
@@ -64,15 +64,13 @@ class TemplateControlBar extends Component<Props, State> {
                 <strong>Template Variables</strong>
               </div>
             )}
-            {isAdding && (
-              <SimpleOverlayTechnology>
-                <TemplateVariableEditor
-                  source={source}
-                  onCreate={this.handleCreateTemplate}
-                  onCancel={this.handleCancelAddVariable}
-                />
-              </SimpleOverlayTechnology>
-            )}
+            <OverlayTechnology visible={isAdding}>
+              <TemplateVariableEditor
+                source={source}
+                onCreate={this.handleCreateTemplate}
+                onCancel={this.handleCancelAddVariable}
+              />
+            </OverlayTechnology>
           </div>
           <Authorized requiredRole={EDITOR_ROLE}>
             <button
