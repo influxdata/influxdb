@@ -2,7 +2,7 @@ import React, {SFC} from 'react'
 
 import classnames from 'classnames'
 
-import {Namespace} from 'src/types/query'
+import {Namespace} from 'src/types/queries'
 
 export interface DatabaseListItemProps {
   isActive: boolean

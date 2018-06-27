@@ -24,8 +24,8 @@ import {
 import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {DecimalPlaces} from 'src/types/dashboard'
-import {QueryConfig} from 'src/types/query'
+import {DecimalPlaces} from 'src/types/dashboards'
+import {QueryConfig} from 'src/types/queries'
 
 interface DropdownOption {
   text: string

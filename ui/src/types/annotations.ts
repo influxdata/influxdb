@@ -6,3 +6,8 @@ export interface AnnotationInterface {
   type: string
   links: {self: string}
 }
+
+export interface AnnotationRange {
+  since: number
+  until: number
+}

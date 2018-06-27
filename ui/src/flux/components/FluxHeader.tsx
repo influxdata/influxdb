@@ -1,60 +1,70 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 import FluxOverlay from 'src/flux/components/FluxOverlay'
-import {OverlayContext} from 'src/shared/components/OverlayTechnology'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import PageHeader from 'src/shared/components/PageHeader'
-import {
-  showOverlay as showOverlayAction,
-  ShowOverlay,
-} from 'src/shared/actions/overlayTechnology'
 
 import {Service} from 'src/types'
 
 interface Props {
-  showOverlay: ShowOverlay
   service: Service
 }
 
-class FluxHeader extends PureComponent<Props> {
+interface State {
+  isOverlayVisible: boolean
+}
+
+class FluxHeader extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props)
+
+    this.state = {
+      isOverlayVisible: false,
+    }
+  }
+
   public render() {
     return (
-      <PageHeader
-        titleText="Flux Editor"
-        fullWidth={true}
-        optionsComponents={this.optionsComponents}
-      />
+      <>
+        <PageHeader
+          titleText="Flux Editor"
+          fullWidth={true}
+          optionsComponents={this.optionsComponents}
+        />
+        {this.overlay}
+      </>
     )
+  }
+
+  private handleToggleOverlay = (): void => {
+    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
   }
 
   private get optionsComponents(): JSX.Element {
     return (
-      <button onClick={this.overlay} className="btn btn-sm btn-default">
+      <button
+        onClick={this.handleToggleOverlay}
+        className="btn btn-sm btn-default"
+      >
         Edit Connection
       </button>
     )
   }
 
-  private overlay = () => {
-    const {showOverlay, service} = this.props
+  private get overlay(): JSX.Element {
+    const {service} = this.props
+    const {isOverlayVisible} = this.state
 
-    showOverlay(
-      <OverlayContext.Consumer>
-        {({onDismissOverlay}) => (
-          <FluxOverlay
-            mode="edit"
-            service={service}
-            onDismiss={onDismissOverlay}
-          />
-        )}
-      </OverlayContext.Consumer>,
-      {}
+    return (
+      <OverlayTechnology visible={isOverlayVisible}>
+        <FluxOverlay
+          mode="edit"
+          service={service}
+          onDismiss={this.handleToggleOverlay}
+        />
+      </OverlayTechnology>
     )
   }
 }
 
-const mdtp = {
-  showOverlay: showOverlayAction,
-}
-
-export default connect(null, mdtp)(FluxHeader)
+export default FluxHeader

@@ -4,8 +4,8 @@ import uuid from 'uuid'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
-const LI_HEIGHT = 35
-const LI_MARGIN_BOTTOM = 3
+const LI_HEIGHT = 28
+const LI_MARGIN_BOTTOM = 2
 const RESULTS_TO_DISPLAY = 10
 
 interface Props {
@@ -19,13 +19,14 @@ class TemplatePreviewList extends PureComponent<Props> {
 
     return (
       <ul
-        className="temp-builder-results--list"
+        className="temp-builder--results-list"
         style={{height: `${this.resultsListHeight}px`}}
       >
-        <FancyScrollbar>
+        <FancyScrollbar autoHide={false}>
           {items.map(db => {
             return (
               <li
+                className="temp-builder--results-item"
                 key={uuid.v4()}
                 style={{
                   height: `${LI_HEIGHT}px`,

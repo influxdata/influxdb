@@ -2,7 +2,6 @@ import appReducer from 'shared/reducers/app'
 import {
   enablePresentationMode,
   disablePresentationMode,
-  // delayEnablePresentationMode,
   setAutoRefresh,
   templateControlBarVisibilityToggled,
 } from 'shared/actions/app'

@@ -1,7 +1,7 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
 import {AuthLinks, Organization, Role, User, Me} from './auth'
-import {Cell, CellQuery, Legend, Axes, Dashboard, CellType} from './dashboard'
+import {Cell, CellQuery, Legend, Axes, Dashboard, CellType} from './dashboards'
 import {
   Template,
   TemplateQuery,
@@ -27,7 +27,7 @@ import {
   Tag,
   Tags,
   TagValues,
-} from './query'
+} from './queries'
 import {AlertRule, Kapacitor, Task, RuleValues} from './kapacitor'
 import {NewSource, Source, SourceLinks} from './sources'
 import {DropdownAction, DropdownItem, Constructable} from './shared'

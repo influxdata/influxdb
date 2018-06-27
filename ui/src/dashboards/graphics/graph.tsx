@@ -1,6 +1,6 @@
 import React, {ReactElement} from 'react'
 
-import {CellType} from 'src/types/dashboard'
+import {CellType} from 'src/types/dashboards'
 
 type Graphic = ReactElement<HTMLDivElement>
 

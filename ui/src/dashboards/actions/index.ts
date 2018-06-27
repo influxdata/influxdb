@@ -1,6 +1,4 @@
 import {bindActionCreators} from 'redux'
-import {InjectedRouter} from 'react-router'
-import {Location} from 'history'
 import {replace} from 'react-router-redux'
 import _ from 'lodash'
 import queryString from 'query-string'
@@ -55,28 +53,27 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 
 import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
-import {
-  Dashboard,
-  TimeRange,
-  Cell,
-  Source,
-  Template,
-  TemplateType,
-  URLQueryParams,
-} from 'src/types'
-import {CellType, DashboardName} from 'src/types/dashboard'
+// Types
+import {Dispatch} from 'redux'
+import {InjectedRouter} from 'react-router'
+import {Location} from 'history'
+import {AxiosResponse} from 'axios'
+import {LocationAction} from 'react-router-redux'
+import * as AuthReducers from 'src/types/reducers/auth'
+import * as DashboardsActions from 'src/types/actions/dashboards'
+import * as DashboardsApis from 'src/types/apis/dashboards'
+import * as DashboardsModels from 'src/types/dashboards'
+import * as DashboardsReducers from 'src/types/reducers/dashboards'
+import * as ErrorsActions from 'src/types/actions/errors'
+import * as QueriesModels from 'src/types/queries'
+import * as SourcesModels from 'src/types/sources'
+import * as TempVarsModels from 'src/types/tempVars'
+import * as NotificationsActions from 'src/types/actions/notifications'
 
-interface LoadDashboardsAction {
-  type: 'LOAD_DASHBOARDS'
-  payload: {
-    dashboards: Dashboard[]
-    dashboardID: number
-  }
-}
-export const loadDashboards = (
-  dashboards: Dashboard[],
+export const loadDashboards: DashboardsActions.LoadDashboardsActionCreator = (
+  dashboards: DashboardsModels.Dashboard[],
   dashboardID?: number
-): LoadDashboardsAction => ({
+): DashboardsActions.LoadDashboardsAction => ({
   type: 'LOAD_DASHBOARDS',
   payload: {
     dashboards,
@@ -84,30 +81,19 @@ export const loadDashboards = (
   },
 })
 
-interface LoadDashboardAction {
-  type: 'LOAD_DASHBOARD'
-  payload: {
-    dashboard: Dashboard
-  }
-}
-export const loadDashboard = (dashboard: Dashboard): LoadDashboardAction => ({
+export const loadDashboard: DashboardsActions.LoadDashboardActionCreator = (
+  dashboard: DashboardsModels.Dashboard
+): DashboardsActions.LoadDashboardAction => ({
   type: 'LOAD_DASHBOARD',
   payload: {
     dashboard,
   },
 })
 
-interface SetDashTimeV1Action {
-  type: 'SET_DASHBOARD_TIME_V1'
-  payload: {
-    dashboardID: number
-    timeRange: TimeRange
-  }
-}
-export const setDashTimeV1 = (
+export const setDashTimeV1: DashboardsActions.SetDashTimeV1ActionCreator = (
   dashboardID: number,
-  timeRange: TimeRange
-): SetDashTimeV1Action => ({
+  timeRange: QueriesModels.TimeRange
+): DashboardsActions.SetDashTimeV1Action => ({
   type: 'SET_DASHBOARD_TIME_V1',
   payload: {
     dashboardID,
@@ -115,120 +101,71 @@ export const setDashTimeV1 = (
   },
 })
 
-interface RetainRangesDashTimeV1Action {
-  type: 'RETAIN_RANGES_DASHBOARD_TIME_V1'
-  payload: {
-    dashboardIDs: string[]
-  }
-}
-export const retainRangesDashTimeV1 = (
+export const retainRangesDashTimeV1: DashboardsActions.RetainRangesDashTimeV1ActionCreator = (
   dashboardIDs: string[]
-): RetainRangesDashTimeV1Action => ({
+): DashboardsActions.RetainRangesDashTimeV1Action => ({
   type: 'RETAIN_RANGES_DASHBOARD_TIME_V1',
   payload: {dashboardIDs},
 })
 
-interface SetTimeRangeAction {
-  type: 'SET_DASHBOARD_TIME_RANGE'
-  payload: {
-    timeRange: TimeRange
-  }
-}
-export const setTimeRange = (timeRange: TimeRange): SetTimeRangeAction => ({
+export const setTimeRange: DashboardsActions.SetTimeRangeActionCreator = (
+  timeRange: QueriesModels.TimeRange
+): DashboardsActions.SetTimeRangeAction => ({
   type: 'SET_DASHBOARD_TIME_RANGE',
   payload: {
     timeRange,
   },
 })
 
-interface SetZoomedTimeRangeAction {
-  type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE'
-  payload: {
-    zoomedTimeRange: TimeRange
-  }
-}
-export const setZoomedTimeRange = (
-  zoomedTimeRange: TimeRange
-): SetZoomedTimeRangeAction => ({
+export const setZoomedTimeRange: DashboardsActions.SetZoomedTimeRangeActionCreator = (
+  zoomedTimeRange: QueriesModels.TimeRange
+): DashboardsActions.SetZoomedTimeRangeAction => ({
   type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
   payload: {
     zoomedTimeRange,
   },
 })
 
-interface UpdateDashboardAction {
-  type: 'UPDATE_DASHBOARD'
-  payload: {
-    dashboard: Dashboard
-  }
-}
-export const updateDashboard = (
-  dashboard: Dashboard
-): UpdateDashboardAction => ({
+export const updateDashboard: DashboardsActions.UpdateDashboardActionCreator = (
+  dashboard: DashboardsModels.Dashboard
+): DashboardsActions.UpdateDashboardAction => ({
   type: 'UPDATE_DASHBOARD',
   payload: {
     dashboard,
   },
 })
 
-interface CreateDashboardAction {
-  type: 'CREATE_DASHBOARD'
-  payload: {
-    dashboard: Dashboard
-  }
-}
-export const createDashboard = (
-  dashboard: Dashboard
-): CreateDashboardAction => ({
+export const createDashboard: DashboardsActions.CreateDashboardActionCreator = (
+  dashboard: DashboardsModels.Dashboard
+): DashboardsActions.CreateDashboardAction => ({
   type: 'CREATE_DASHBOARD',
   payload: {
     dashboard,
   },
 })
 
-interface DeleteDashboardAction {
-  type: 'DELETE_DASHBOARD'
-  payload: {
-    dashboard: Dashboard
-    dashboardID: number
-  }
-}
-export const deleteDashboard = (
-  dashboard: Dashboard
-): DeleteDashboardAction => ({
+export const deleteDashboard: DashboardsActions.DeleteDashboardActionCreator = (
+  dashboard: DashboardsModels.Dashboard
+): DashboardsActions.DeleteDashboardAction => ({
   type: 'DELETE_DASHBOARD',
   payload: {
     dashboard,
-    dashboardID: dashboard.id,
   },
 })
 
-interface DeleteDashboardFailedAction {
-  type: 'DELETE_DASHBOARD_FAILED'
-  payload: {
-    dashboard: Dashboard
-  }
-}
-export const deleteDashboardFailed = (
-  dashboard: Dashboard
-): DeleteDashboardFailedAction => ({
+export const deleteDashboardFailed: DashboardsActions.DeleteDashboardFailedActionCreator = (
+  dashboard: DashboardsModels.Dashboard
+): DashboardsActions.DeleteDashboardFailedAction => ({
   type: 'DELETE_DASHBOARD_FAILED',
   payload: {
     dashboard,
   },
 })
 
-interface SyncDashboardCellAction {
-  type: 'SYNC_DASHBOARD_CELL'
-  payload: {
-    dashboard: Dashboard
-    cell: Cell
-  }
-}
-export const syncDashboardCell = (
-  dashboard: Dashboard,
-  cell: Cell
-): SyncDashboardCellAction => ({
+export const syncDashboardCell: DashboardsActions.SyncDashboardCellActionCreator = (
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
+): DashboardsActions.SyncDashboardCellAction => ({
   type: 'SYNC_DASHBOARD_CELL',
   payload: {
     dashboard,
@@ -236,17 +173,10 @@ export const syncDashboardCell = (
   },
 })
 
-interface AddDashboardCellAction {
-  type: 'ADD_DASHBOARD_CELL'
-  payload: {
-    dashboard: Dashboard
-    cell: Cell
-  }
-}
-export const addDashboardCell = (
-  dashboard: Dashboard,
-  cell: Cell
-): AddDashboardCellAction => ({
+export const addDashboardCell: DashboardsActions.AddDashboardCellActionCreator = (
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
+): DashboardsActions.AddDashboardCellAction => ({
   type: 'ADD_DASHBOARD_CELL',
   payload: {
     dashboard,
@@ -254,17 +184,10 @@ export const addDashboardCell = (
   },
 })
 
-interface DeleteDashboardCellAction {
-  type: 'DELETE_DASHBOARD_CELL'
-  payload: {
-    dashboard: Dashboard
-    cell: Cell
-  }
-}
-export const deleteDashboardCell = (
-  dashboard: Dashboard,
-  cell: Cell
-): DeleteDashboardCellAction => ({
+export const deleteDashboardCell: DashboardsActions.DeleteDashboardCellActionCreator = (
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
+): DashboardsActions.DeleteDashboardCellAction => ({
   type: 'DELETE_DASHBOARD_CELL',
   payload: {
     dashboard,
@@ -272,17 +195,10 @@ export const deleteDashboardCell = (
   },
 })
 
-interface EditCellQueryStatusAction {
-  type: 'EDIT_CELL_QUERY_STATUS'
-  payload: {
-    queryID: string
-    status: string
-  }
-}
-export const editCellQueryStatus = (
+export const editCellQueryStatus: DashboardsActions.EditCellQueryStatusActionCreator = (
   queryID: string,
   status: string
-): EditCellQueryStatusAction => ({
+): DashboardsActions.EditCellQueryStatusAction => ({
   type: 'EDIT_CELL_QUERY_STATUS',
   payload: {
     queryID,
@@ -290,19 +206,11 @@ export const editCellQueryStatus = (
   },
 })
 
-interface TemplateVariableSelectedAction {
-  type: 'TEMPLATE_VARIABLE_SELECTED'
-  payload: {
-    dashboardID: number
-    templateID: string
-    values: any[]
-  }
-}
-export const templateVariableSelected = (
+export const templateVariableSelected: DashboardsActions.TemplateVariableSelectedActionCreator = (
   dashboardID: number,
   templateID: string,
   values
-): TemplateVariableSelectedAction => ({
+): DashboardsActions.TemplateVariableSelectedAction => ({
   type: 'TEMPLATE_VARIABLE_SELECTED',
   payload: {
     dashboardID,
@@ -311,17 +219,10 @@ export const templateVariableSelected = (
   },
 })
 
-interface TemplateVariablesSelectedByNameAction {
-  type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
-  payload: {
-    dashboardID: number
-    queryParams: URLQueryParams
-  }
-}
-export const templateVariablesSelectedByName = (
+export const templateVariablesSelectedByName: DashboardsActions.TemplateVariablesSelectedByNameActionCreator = (
   dashboardID: number,
-  queryParams: URLQueryParams
-): TemplateVariablesSelectedByNameAction => ({
+  queryParams: TempVarsModels.URLQueryParams
+): DashboardsActions.TemplateVariablesSelectedByNameAction => ({
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
   payload: {
     dashboardID,
@@ -329,19 +230,11 @@ export const templateVariablesSelectedByName = (
   },
 })
 
-interface EditTemplateVariableValuesAction {
-  type: 'EDIT_TEMPLATE_VARIABLE_VALUES'
-  payload: {
-    dashboardID: number
-    templateID: string
-    values: any[]
-  }
-}
-export const editTemplateVariableValues = (
+export const editTemplateVariableValues: DashboardsActions.EditTemplateVariableValuesActionCreator = (
   dashboardID: number,
   templateID: string,
   values
-): EditTemplateVariableValuesAction => ({
+): DashboardsActions.EditTemplateVariableValuesAction => ({
   type: 'EDIT_TEMPLATE_VARIABLE_VALUES',
   payload: {
     dashboardID,
@@ -350,26 +243,18 @@ export const editTemplateVariableValues = (
   },
 })
 
-interface SetHoverTimeAction {
-  type: 'SET_HOVER_TIME'
-  payload: {
-    hoverTime: string
-  }
-}
-export const setHoverTime = (hoverTime: string): SetHoverTimeAction => ({
+export const setHoverTime: DashboardsActions.SetHoverTimeActionCreator = (
+  hoverTime: string
+): DashboardsActions.SetHoverTimeAction => ({
   type: 'SET_HOVER_TIME',
   payload: {
     hoverTime,
   },
 })
 
-interface SetActiveCellAction {
-  type: 'SET_ACTIVE_CELL'
-  payload: {
-    activeCellID: string
-  }
-}
-export const setActiveCell = (activeCellID: string): SetActiveCellAction => ({
+export const setActiveCell: DashboardsActions.SetActiveCellActionCreator = (
+  activeCellID: string
+): DashboardsActions.SetActiveCellAction => ({
   type: 'SET_ACTIVE_CELL',
   payload: {
     activeCellID,
@@ -378,13 +263,18 @@ export const setActiveCell = (activeCellID: string): SetActiveCellAction => ({
 
 // Async Action Creators
 
-export const getDashboardsAsync = () => async (
-  dispatch
-): Promise<Dashboard[] | void> => {
+export const getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher = (): DashboardsActions.GetDashboardsThunk => async (
+  dispatch: Dispatch<
+    | DashboardsActions.LoadDashboardsActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
+  >
+): Promise<DashboardsModels.Dashboard[] | void> => {
   try {
     const {
       data: {dashboards},
-    } = await getDashboardsAJAX()
+    } = (await getDashboardsAJAX()) as AxiosResponse<
+      DashboardsApis.DashboardsResponse
+    >
     dispatch(loadDashboards(dashboards))
     return dashboards
   } catch (error) {
@@ -395,9 +285,11 @@ export const getDashboardsAsync = () => async (
 
 // gets update-to-date names of dashboards, but does not dispatch action
 // in order to avoid duplicate and out-of-sync state problems in redux
-export const getDashboardsNamesAsync = (sourceID: string) => async (
-  dispatch
-): Promise<DashboardName[] | void> => {
+export const getDashboardsNamesAsync: DashboardsActions.GetDashboardsNamesDispatcher = (
+  sourceID: string
+): DashboardsActions.GetDashboardsNamesThunk => async (
+  dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>
+): Promise<DashboardsModels.DashboardName[] | void> => {
   try {
     // TODO: change this from getDashboardsAJAX to getDashboardsNamesAJAX
     // to just get dashboard names (and links) as api view call when that
@@ -405,7 +297,9 @@ export const getDashboardsNamesAsync = (sourceID: string) => async (
     // dashboard for each
     const {
       data: {dashboards},
-    } = await getDashboardsAJAX()
+    } = (await getDashboardsAJAX()) as AxiosResponse<
+      DashboardsApis.DashboardsResponse
+    >
     const dashboardsNames = dashboards.map(({id, name}) => ({
       id,
       name,
@@ -420,7 +314,7 @@ export const getDashboardsNamesAsync = (sourceID: string) => async (
 
 export const getDashboardAsync = (dashboardID: number) => async (
   dispatch
-): Promise<Dashboard | null> => {
+): Promise<DashboardsModels.Dashboard | null> => {
   try {
     const {data: dashboard} = await getDashboardAJAX(dashboardID)
     dispatch(loadDashboard(dashboard))
@@ -442,24 +336,33 @@ export const getChronografVersion = () => async (): Promise<string | void> => {
   }
 }
 
-const removeUnselectedTemplateValues = (dashboard: Dashboard): Template[] => {
-  const templates = getDeep<Template[]>(dashboard, 'templates', []).map(
-    template => {
-      if (template.type === TemplateType.CSV) {
-        return template
-      }
-
-      const value = template.values.find(val => val.selected)
-      const values = value ? [value] : []
-
-      return {...template, values}
+const removeUnselectedTemplateValues = (
+  dashboard: DashboardsModels.Dashboard
+): TempVarsModels.Template[] => {
+  const templates = getDeep<TempVarsModels.Template[]>(
+    dashboard,
+    'templates',
+    []
+  ).map(template => {
+    if (template.type === TempVarsModels.TemplateType.CSV) {
+      return template
     }
-  )
+
+    const value = template.values.find(val => val.selected)
+    const values = value ? [value] : []
+
+    return {...template, values}
+  })
   return templates
 }
 
-export const putDashboard = (dashboard: Dashboard) => async (
-  dispatch
+export const putDashboard = (
+  dashboard: DashboardsModels.Dashboard
+): DashboardsActions.PutDashboardThunk => async (
+  dispatch: Dispatch<
+    | DashboardsActions.UpdateDashboardAction
+    | ErrorsActions.ErrorThrownActionCreator
+  >
 ): Promise<void> => {
   try {
     // save only selected template values to server
@@ -485,15 +388,19 @@ export const putDashboard = (dashboard: Dashboard) => async (
   }
 }
 
-export const putDashboardByID = (dashboardID: number) => async (
-  dispatch,
-  getState
+export const putDashboardByID: DashboardsActions.PutDashboardByIDDispatcher = (
+  dashboardID: number
+): DashboardsActions.PutDashboardByIDThunk => async (
+  dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>,
+  getState: () => DashboardsReducers.Dashboards
 ): Promise<void> => {
   try {
     const {
       dashboardUI: {dashboards},
     } = getState()
-    const dashboard: Dashboard = dashboards.find(d => d.id === +dashboardID)
+    const dashboard: DashboardsModels.Dashboard = dashboards.find(
+      d => d.id === +dashboardID
+    )
     const templates = removeUnselectedTemplateValues(dashboard)
     await updateDashboardAJAX({...dashboard, templates})
   } catch (error) {
@@ -502,8 +409,14 @@ export const putDashboardByID = (dashboardID: number) => async (
   }
 }
 
-export const updateDashboardCell = (dashboard: Dashboard, cell: Cell) => async (
-  dispatch
+export const updateDashboardCell: DashboardsActions.UpdateDashboardCellDispatcher = (
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
+): DashboardsActions.UpdateDashboardCellThunk => async (
+  dispatch: Dispatch<
+    | DashboardsActions.SyncDashboardCellActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
+  >
 ): Promise<void> => {
   try {
     const {data} = await updateDashboardCellAJAX(cell)
@@ -514,8 +427,15 @@ export const updateDashboardCell = (dashboard: Dashboard, cell: Cell) => async (
   }
 }
 
-export const deleteDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch
+export const deleteDashboardAsync: DashboardsActions.DeleteDashboardDispatcher = (
+  dashboard: DashboardsModels.Dashboard
+): DashboardsActions.DeleteDashboardThunk => async (
+  dispatch: Dispatch<
+    | DashboardsActions.DeleteDashboardActionCreator
+    | NotificationsActions.PublishNotificationActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
+    | DashboardsActions.DeleteDashboardFailedActionCreator
+  >
 ): Promise<void> => {
   dispatch(deleteDashboard(dashboard))
   try {
@@ -532,10 +452,16 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
   }
 }
 
-export const addDashboardCellAsync = (
-  dashboard: Dashboard,
-  cellType: CellType
-) => async (dispatch): Promise<void> => {
+export const addDashboardCellAsync: DashboardsActions.AddDashboardCellDispatcher = (
+  dashboard: DashboardsModels.Dashboard,
+  cellType?: DashboardsModels.CellType
+): DashboardsActions.AddDashboardCellThunk => async (
+  dispatch: Dispatch<
+    | DashboardsActions.AddDashboardCellAction
+    | NotificationsActions.PublishNotificationActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
+  >
+): Promise<void> => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
@@ -549,10 +475,16 @@ export const addDashboardCellAsync = (
   }
 }
 
-export const cloneDashboardCellAsync = (
-  dashboard: Dashboard,
-  cell: Cell
-) => async (dispatch): Promise<void> => {
+export const cloneDashboardCellAsync: DashboardsActions.CloneDashboardCellDispatcher = (
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
+): DashboardsActions.CloneDashboardCellThunk => async (
+  dispatch: Dispatch<
+    | DashboardsActions.AddDashboardCellActionCreator
+    | NotificationsActions.PublishNotificationActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
+  >
+): Promise<void> => {
   try {
     const clonedCell = getClonedDashboardCell(dashboard, cell)
     const {data} = await addDashboardCellAJAX(dashboard, clonedCell)
@@ -564,10 +496,16 @@ export const cloneDashboardCellAsync = (
   }
 }
 
-export const deleteDashboardCellAsync = (
-  dashboard: Dashboard,
-  cell: Cell
-) => async (dispatch): Promise<void> => {
+export const deleteDashboardCellAsync: DashboardsActions.DeleteDashboardCellDispatcher = (
+  dashboard: DashboardsModels.Dashboard,
+  cell: DashboardsModels.Cell
+): DashboardsActions.DeleteDashboardCellThunk => async (
+  dispatch: Dispatch<
+    | DashboardsActions.DeleteDashboardCellActionCreator
+    | NotificationsActions.PublishNotificationActionCreator
+    | ErrorsActions.ErrorThrownActionCreator
+  >
+): Promise<void> => {
   try {
     await deleteDashboardCellAJAX(cell)
     dispatch(deleteDashboardCell(dashboard, cell))
@@ -578,9 +516,9 @@ export const deleteDashboardCellAsync = (
   }
 }
 
-export const importDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch
-): Promise<void> => {
+export const importDashboardAsync = (
+  dashboard: DashboardsModels.Dashboard
+) => async (dispatch): Promise<void> => {
   try {
     // save only selected template values to server
     const templatesWithOnlySelectedValues = removeUnselectedTemplateValues(
@@ -604,7 +542,9 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
 
     const {
       data: {dashboards},
-    } = await getDashboardsAJAX()
+    } = (await getDashboardsAJAX()) as AxiosResponse<
+      DashboardsApis.DashboardsResponse
+    >
     dispatch(loadDashboards(dashboards))
 
     dispatch(notify(notifyDashboardImported(name)))
@@ -622,13 +562,13 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
 
 export const hydrateTempVarValuesAsync = (
   dashboardID: number,
-  source: Source
+  source: SourcesModels.Source
 ) => async (dispatch, getState): Promise<void> => {
   try {
     const dashboard = getState().dashboardUI.dashboards.find(
       d => d.id === dashboardID
     )
-    const templates: Template[] = dashboard.templates
+    const templates: TempVarsModels.Template[] = dashboard.templates
     const queries = templates
       .filter(
         template => getDeep<string>(template, 'query.influxql', '') !== ''
@@ -655,9 +595,11 @@ const removeNullValues = obj => _.pickBy(obj, o => o)
 
 export const syncURLQueryParamsFromQueryParamsObject = (
   location: Location,
-  updatedURLQueryParams: URLQueryParams,
-  deletedURLQueryParams: URLQueryParams = {}
-) => (dispatch): void => {
+  updatedURLQueryParams: TempVarsModels.URLQueryParams,
+  deletedURLQueryParams: TempVarsModels.URLQueryParams = {}
+): DashboardsActions.SyncURLQueryFromQueryParamsObjectActionCreator => (
+  dispatch: Dispatch<LocationAction>
+): void => {
   const updatedLocationQuery = removeNullValues({
     ...location.query,
     ...updatedURLQueryParams,
@@ -678,35 +620,49 @@ export const syncURLQueryParamsFromQueryParamsObject = (
   dispatch(replace(updatedLocation))
 }
 
-export const syncURLQueryFromTempVars = (
+export const syncURLQueryFromTempVars: DashboardsActions.SyncURLQueryFromTempVarsDispatcher = (
   location: Location,
-  tempVars: Template[],
-  deletedTempVars: Template[] = [],
-  urlQueryParamsTimeRanges: URLQueryParams = {}
-) => (dispatch): void => {
+  tempVars: TempVarsModels.Template[],
+  deletedTempVars: TempVarsModels.Template[] = [],
+  urlQueryParamsTimeRanges?: TempVarsModels.URLQueryParams
+): DashboardsActions.SyncURLQueryFromQueryParamsObjectActionCreator => (
+  dispatch: Dispatch<
+    DashboardsActions.SyncURLQueryFromQueryParamsObjectDispatcher
+  >
+): void => {
   const updatedURLQueryParams = generateURLQueryParamsFromTempVars(tempVars)
   const deletedURLQueryParams = generateURLQueryParamsFromTempVars(
     deletedTempVars
   )
 
-  const updatedURLQueryParamsWithTimeRange = {
+  let updatedURLQueryParamsWithTimeRange = {
     ...updatedURLQueryParams,
-    ...urlQueryParamsTimeRanges,
   }
 
-  dispatch(
-    syncURLQueryParamsFromQueryParamsObject(
-      location,
-      updatedURLQueryParamsWithTimeRange,
-      deletedURLQueryParams
-    )
-  )
+  if (urlQueryParamsTimeRanges) {
+    updatedURLQueryParamsWithTimeRange = {
+      ...updatedURLQueryParamsWithTimeRange,
+      ...urlQueryParamsTimeRanges,
+    }
+  }
+
+  syncURLQueryParamsFromQueryParamsObject(
+    location,
+    updatedURLQueryParamsWithTimeRange,
+    deletedURLQueryParams
+  )(dispatch)
 }
 
 const syncDashboardTempVarsFromURLQueryParams = (
   dashboardID: number,
-  urlQueryParams: URLQueryParams
-) => (dispatch, getState): void => {
+  urlQueryParams: TempVarsModels.URLQueryParams
+): DashboardsActions.SyncDashboardTempVarsFromURLQueryParamsDispatcher => (
+  dispatch: Dispatch<
+    | NotificationsActions.PublishNotificationActionCreator
+    | DashboardsActions.TemplateVariableSelectedAction
+  >,
+  getState: () => DashboardsReducers.Dashboards & AuthReducers.Auth
+): void => {
   const {
     dashboardUI,
     auth: {isUsingAuth, me},
@@ -738,9 +694,12 @@ const syncDashboardTempVarsFromURLQueryParams = (
 
 const syncDashboardTimeRangeFromURLQueryParams = (
   dashboardID: number,
-  urlQueryParams: URLQueryParams,
+  urlQueryParams: TempVarsModels.URLQueryParams,
   location: Location
-) => (dispatch, getState): void => {
+): DashboardsActions.SyncDashboardTimeRangeFromURLQueryParamsDispatcher => (
+  dispatch: Dispatch<NotificationsActions.PublishNotificationActionCreator>,
+  getState: () => DashboardsReducers.Dashboards & DashboardsReducers.DashTimeV1
+): void => {
   const {
     dashboardUI: {dashboards},
     dashTimeV1,
@@ -786,37 +745,45 @@ const syncDashboardTimeRangeFromURLQueryParams = (
     zoomedLower: validatedZoomedTimeRange.lower,
     zoomedUpper: validatedZoomedTimeRange.upper,
   }
-  dispatch(
-    syncURLQueryFromTempVars(
-      location,
-      dashboard.templates,
-      [],
-      urlQueryParamsTimeRanges
-    )
-  )
+
+  syncURLQueryFromTempVars(
+    location,
+    dashboard.templates,
+    [],
+    urlQueryParamsTimeRanges
+  )(dispatch)
 }
 
 const syncDashboardFromURLQueryParams = (
   dashboardID: number,
   location: Location
-) => (dispatch): void => {
+): DashboardsActions.SyncDashboardFromURLQueryParamsDispatcher => (
+  dispatch: Dispatch<
+    | DashboardsActions.SyncDashboardTempVarsFromURLQueryParamsDispatcher
+    | DashboardsActions.SyncDashboardTimeRangeFromURLQueryParamsDispatcher
+  >
+): void => {
   const urlQueryParams = queryString.parse(window.location.search)
-  dispatch(syncDashboardTempVarsFromURLQueryParams(dashboardID, urlQueryParams))
-  dispatch(
-    syncDashboardTimeRangeFromURLQueryParams(
-      dashboardID,
-      urlQueryParams,
-      location
-    )
+  bindActionCreators(syncDashboardTempVarsFromURLQueryParams, dispatch)(
+    dashboardID,
+    urlQueryParams
+  )
+
+  bindActionCreators(syncDashboardTimeRangeFromURLQueryParams, dispatch)(
+    dashboardID,
+    urlQueryParams,
+    location
   )
 }
 
-export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
+export const getDashboardWithHydratedAndSyncedTempVarsAsync: DashboardsActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher = (
   dashboardID: number,
-  source: Source,
+  source: SourcesModels.Source,
   router: InjectedRouter,
   location: Location
-) => async (dispatch): Promise<void> => {
+): DashboardsActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk => async (
+  dispatch: Dispatch<NotificationsActions.PublishNotificationActionCreator>
+): Promise<void> => {
   const dashboard = await bindActionCreators(getDashboardAsync, dispatch)(
     dashboardID
   )
@@ -831,22 +798,29 @@ export const getDashboardWithHydratedAndSyncedTempVarsAsync = (
     source
   )
 
-  dispatch(syncDashboardFromURLQueryParams(+dashboardID, location))
+  bindActionCreators(syncDashboardFromURLQueryParams, dispatch)(
+    +dashboardID,
+    location
+  )
 }
 
-export const setZoomedTimeRangeAsync = (
-  zoomedTimeRange: TimeRange,
+export const setZoomedTimeRangeAsync: DashboardsActions.SetZoomedTimeRangeDispatcher = (
+  zoomedTimeRange: QueriesModels.TimeRange,
   location: Location
-) => async (dispatch): Promise<void> => {
+): DashboardsActions.SetZoomedTimeRangeThunk => async (
+  dispatch: Dispatch<
+    | DashboardsActions.SetZoomedTimeRangeActionCreator
+    | DashboardsActions.SyncURLQueryFromQueryParamsObjectDispatcher
+  >
+): Promise<void> => {
   dispatch(setZoomedTimeRange(zoomedTimeRange))
   const urlQueryParamsZoomedTimeRange = {
     zoomedLower: zoomedTimeRange.lower,
     zoomedUpper: zoomedTimeRange.upper,
   }
-  dispatch(
-    syncURLQueryParamsFromQueryParamsObject(
-      location,
-      urlQueryParamsZoomedTimeRange
-    )
-  )
+
+  syncURLQueryParamsFromQueryParamsObject(
+    location,
+    urlQueryParamsZoomedTimeRange
+  )(dispatch)
 }

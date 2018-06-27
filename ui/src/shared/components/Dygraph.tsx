@@ -62,7 +62,7 @@ interface Props {
   isBarGraph?: boolean
   staticLegend?: boolean
   setResolution?: (w: number) => void
-  onZoom?: (u: number | string, l: number | string) => void
+  onZoom?: (timeRange: TimeRange) => void
   mode?: string
 }
 
@@ -354,10 +354,13 @@ class Dygraph extends Component<Props, State> {
     const {onZoom} = this.props
 
     if (this.dygraph.isZoomed() === false) {
-      return onZoom(null, null)
+      return onZoom({lower: null, upper: null})
     }
 
-    onZoom(this.formatTimeRange(lower), this.formatTimeRange(upper))
+    onZoom({
+      lower: this.formatTimeRange(lower),
+      upper: this.formatTimeRange(upper),
+    })
   }
 
   private handleDraw = () => {

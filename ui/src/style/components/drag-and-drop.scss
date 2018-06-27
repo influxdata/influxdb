@@ -3,16 +3,6 @@
   ------------------------------------------------------------------------------
 */
 
-.drag-and-drop--dropzone {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 1000%;
-  height: 1000%;
-  transform: translate(-50%, -50%);
-  z-index: $drag-and-drop--z-dropzone;
-}
-
 .drag-and-drop--form {
   position: relative;
   z-index: $drag-and-drop--z-form;
@@ -69,7 +59,9 @@ input[type='file'].drag-and-drop--input {
   flex-wrap: nowrap;
   margin-top: 18px;
 
-  > button.btn {margin: 0 4px;}
+  > button.btn {
+    margin: 0 4px;
+  }
 }
 
 /*

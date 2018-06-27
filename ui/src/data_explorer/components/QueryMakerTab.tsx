@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {QueryConfig} from 'src/types/query'
+import {QueryConfig} from 'src/types/queries'
 
 interface Props {
   isActive: boolean

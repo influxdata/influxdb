@@ -1,9 +1,9 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
-import Container from 'src/shared/components/overlay/OverlayContainer'
-import Heading from 'src/shared/components/overlay/OverlayHeading'
-import Body from 'src/shared/components/overlay/OverlayBody'
+import Container from 'src/reusable_ui/components/overlays/OverlayContainer'
+import Heading from 'src/reusable_ui/components/overlays/OverlayHeading'
+import Body from 'src/reusable_ui/components/overlays/OverlayBody'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import {notifyDashboardImportFailed} from 'src/shared/copy/notifications'
 

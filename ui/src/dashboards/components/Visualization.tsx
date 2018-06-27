@@ -15,7 +15,7 @@ import {
   DecimalPlaces,
   FieldOption,
   CellType,
-} from 'src/types/dashboard'
+} from 'src/types/dashboards'
 import {ColorString, ColorNumber} from 'src/types/colors'
 
 interface Props {

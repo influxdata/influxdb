@@ -38,8 +38,8 @@ class DatabasesTemplateBuilder extends PureComponent<
     const {databases, databasesStatus} = this.state
 
     return (
-      <div className="temp-builder databases-temp-builder">
-        <div className="form-group">
+      <>
+        <div className="form-group col-xs-12">
           <label>Meta Query</label>
           <div className="temp-builder--mq-controls">
             <div className="temp-builder--mq-text">SHOW DATABASES</div>
@@ -49,7 +49,7 @@ class DatabasesTemplateBuilder extends PureComponent<
           items={databases}
           loadingStatus={databasesStatus}
         />
-      </div>
+      </>
     )
   }
 

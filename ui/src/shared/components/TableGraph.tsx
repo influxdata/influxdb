@@ -36,7 +36,7 @@ import {
   FieldOption,
   DecimalPlaces,
   Sort,
-} from 'src/types/dashboard'
+} from 'src/types/dashboards'
 
 interface Label {
   label: string

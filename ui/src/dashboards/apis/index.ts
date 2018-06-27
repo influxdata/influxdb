@@ -1,6 +1,11 @@
-import AJAX from 'utils/ajax'
+import AJAX from 'src/utils/ajax'
 
-export function getDashboards() {
+import {AxiosResponse} from 'axios'
+import {DashboardsResponse} from 'src/types/apis/dashboards'
+
+export const getDashboards = (): Promise<
+  AxiosResponse<DashboardsResponse> | DashboardsResponse
+> => {
   return AJAX({
     method: 'GET',
     resource: 'dashboards',
@@ -19,7 +24,7 @@ export const getDashboard = async dashboardID => {
   }
 }
 
-export function updateDashboard(dashboard) {
+export const updateDashboard = dashboard => {
   return AJAX({
     method: 'PUT',
     url: dashboard.links.self,
@@ -27,7 +32,7 @@ export function updateDashboard(dashboard) {
   })
 }
 
-export function updateDashboardCell(cell) {
+export const updateDashboardCell = cell => {
   return AJAX({
     method: 'PUT',
     url: cell.links.self,
