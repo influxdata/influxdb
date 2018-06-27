@@ -1629,7 +1629,7 @@ func (is IndexSet) measurementSeriesIDIterator(name []byte) (SeriesIDIterator, e
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedSeriesIDIterator(is.SeriesFile, MergeSeriesIDIterators(a...)), nil
+	return MergeSeriesIDIterators(a...), nil
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement and applies
@@ -1700,7 +1700,7 @@ func (is IndexSet) tagKeySeriesIDIterator(name, key []byte) (SeriesIDIterator, e
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedSeriesIDIterator(is.SeriesFile, MergeSeriesIDIterators(a...)), nil
+	return MergeSeriesIDIterators(a...), nil
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
@@ -1724,7 +1724,7 @@ func (is IndexSet) tagValueSeriesIDIterator(name, key, value []byte) (SeriesIDIt
 			a = append(a, itr)
 		}
 	}
-	return FilterUndeletedSeriesIDIterator(is.SeriesFile, MergeSeriesIDIterators(a...)), nil
+	return MergeSeriesIDIterators(a...), nil
 }
 
 // MeasurementSeriesByExprIterator returns a series iterator for a measurement
@@ -1751,7 +1751,7 @@ func (is IndexSet) measurementSeriesByExprIterator(name []byte, expr influxql.Ex
 	if err != nil {
 		return nil, err
 	}
-	return FilterUndeletedSeriesIDIterator(is.SeriesFile, itr), nil
+	return itr, nil
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
