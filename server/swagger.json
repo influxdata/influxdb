@@ -2865,39 +2865,21 @@
         }
       }
     },
-    "/chronograf/v1/config/ui": {
+    "/chronograf/v1/config/:section": {
       "get": {
-        "tags": ["config", "ui"],
-        "summary": "Returns all UI settings",
-        "description": "All UI section settings",
+        "tags": ["config"],
+        "summary": "Returns the settings for a specific section of the app",
+        "description": "All settings for a specific section of the app",
         "responses": {
           "200": {
-            "description": "Returns an object with all UI settings for the app",
-            "schema": {
-              "$ref": "#/definitions/UIConfig"
-            }
-          },
-          "default": {
-            "description": "Unexpected internal server error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            }
-          }
-        }
-      }
-    },
-    "/chronograf/v1/config/ui/:section": {
-      "get": {
-        "tags": ["config", "ui"],
-        "summary": "Returns the UI settings for a specific section of the app",
-        "description": "All UI settings for a specific section of the app",
-        "responses": {
-          "200": {
-            "description": "Returns an object with the UI settings for a section of the app",
+            "description": "Returns an object with the settings for a section of the app",
             "schema": {
               "oneOf": [
                 {
-                  "$ref": "#/definitions/LogViewerUISettings"
+                  "$ref": "#/definitions/LogViewerUIConfig"
+                },
+                {
+                  "$ref": "#/definitions/AuthConfig"
                 }
               ]
             }
@@ -2917,28 +2899,31 @@
         }
       },
       "put": {
-        "tags": ["config", "ui"],
-        "summary": "Updates the UI settings for a specific section of the app",
-        "description": "Updates UI settings for a specific section of the app",
+        "tags": ["config"],
+        "summary": "Updates the settings for a specific section of the app",
+        "description": "Updates settings for a specific section of the app",
         "parameters": [
           {
             "name": "section",
             "in": "path",
             "type": "string",
-            "description": "Section name for the target UI section settings",
+            "description": "Section name for the target section settings",
             "required": true
           },
           {
             "name": {
-              "enum": ["logViewer"]
+              "enum": ["logViewer", "auth"]
             },
             "in": "body",
             "description":
-              "UI section configuration update parameters",
+              "Section configuration update parameters",
             "schema": {
               "oneOf": [
                 {
-                  "$ref": "#/definitions/LogViewerUISettings"
+                  "$ref": "#/definitions/LogViewerUIConfig"
+                },
+                {
+                  "$ref": "#/definitions/AuthConfig"
                 }
               ]
             },
@@ -2951,7 +2936,7 @@
             "schema": {
               "oneOf": [
                 {
-                  "$ref": "#/definitions/LogViewerUISettings"
+                  "$ref": "#/definitions/LogViewerUIConfig"
                 }
               ]
             }
@@ -5158,7 +5143,7 @@
         }
       }
     },
-    "LogViewerUISettings": {
+    "LogViewerUIConfig": {
       "description": "Contains the settings for the log viewer page UI",
       "type": "object",
       "required": ["columns", "columnOptions"],
@@ -5203,12 +5188,13 @@
         }
       }
     },
-    "UIConfig": {
-      "description": "UIConfig describes UI settings for chronograf",
+    "AuthConfig": {
       "type": "object",
+      "required": ["superAdminNewUsers"],
       "properties": {
-        "logViewer": {
-          "$ref": "#/definitions/LogViewerUISettings"
+        "superAdminNewUsers": {
+          "type": "boolean",
+          "default": true
         }
       }
     },
