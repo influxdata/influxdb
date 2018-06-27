@@ -108,7 +108,6 @@ export class CheckServices extends PureComponent<
   }
 
   private handleShowOverlay = (): void => {
-    console.log('toggleclick')
     this.setState({isOverlayShown: true})
   }
 
