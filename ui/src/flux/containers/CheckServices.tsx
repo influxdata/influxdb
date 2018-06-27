@@ -3,6 +3,7 @@ import {connect} from 'react-redux'
 import {WithRouterProps} from 'react-router'
 
 import {FluxPage} from 'src/flux'
+import EmptyFluxPage from 'src/flux/components/EmptyFluxPage'
 import FluxOverlay from 'src/flux/components/FluxOverlay'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import {Source, Service, Notification} from 'src/types'
@@ -28,7 +29,7 @@ interface Props {
 }
 
 interface State {
-  showOverlay: boolean
+  isOverlayShown: boolean
 }
 
 export class CheckServices extends PureComponent<
@@ -39,7 +40,7 @@ export class CheckServices extends PureComponent<
     super(props)
 
     this.state = {
-      showOverlay: false,
+      isOverlayShown: false,
     }
   }
 
@@ -55,7 +56,7 @@ export class CheckServices extends PureComponent<
     await this.props.fetchServicesAsync(source)
 
     if (!this.props.services.length) {
-      this.setState({showOverlay: true})
+      this.setState({isOverlayShown: true})
     }
   }
 
@@ -63,7 +64,12 @@ export class CheckServices extends PureComponent<
     const {services, notify, updateScript, links, script} = this.props
 
     if (!this.props.services.length) {
-      return null // put loading spinner here
+      return (
+        <EmptyFluxPage
+          onShowOverlay={this.handleShowOverlay}
+          overlay={this.renderOverlay}
+        />
+      )
     }
 
     return (
@@ -88,10 +94,10 @@ export class CheckServices extends PureComponent<
   }
 
   private get renderOverlay(): JSX.Element {
-    const {showOverlay} = this.state
+    const {isOverlayShown} = this.state
 
     return (
-      <OverlayTechnology visible={showOverlay}>
+      <OverlayTechnology visible={isOverlayShown}>
         <FluxOverlay
           mode="new"
           source={this.source}
@@ -101,8 +107,13 @@ export class CheckServices extends PureComponent<
     )
   }
 
+  private handleShowOverlay = (): void => {
+    console.log('toggleclick')
+    this.setState({isOverlayShown: true})
+  }
+
   private handleDismissOverlay = (): void => {
-    this.setState({showOverlay: false})
+    this.setState({isOverlayShown: false})
   }
 }
 
