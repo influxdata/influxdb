@@ -319,15 +319,26 @@ export function kapacitorProxy(kapacitor, method, path, body?) {
   })
 }
 
-export const getQueryConfigAndStatus = (url, queries, tempVars = []) => {
-  return AJAX({
-    url,
-    method: 'POST',
-    data: {queries, tempVars},
-  })
+export const getQueryConfigAndStatus = async (
+  url,
+  queries
+): Promise<AnalyzeQueriesObject[]> => {
+  try {
+    const {data} = await AJAX({
+      url,
+      method: 'POST',
+      data: {queries},
+    })
+
+    return data.queries
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
-interface AnalyzeQueriesResponse {
+interface AnalyzeQueriesObject {
+  id: string
   query: string
   duration: string
   queryConfig?: QueryConfig
@@ -336,7 +347,7 @@ interface AnalyzeQueriesResponse {
 export const analyzeQueries = async (
   url: string,
   queries: Array<{query: string}>
-): Promise<AnalyzeQueriesResponse> => {
+): Promise<AnalyzeQueriesObject[]> => {
   try {
     const {data} = await AJAX({
       url,

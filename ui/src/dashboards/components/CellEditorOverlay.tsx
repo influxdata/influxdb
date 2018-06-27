@@ -21,11 +21,11 @@ import * as queryTransitions from 'src/utils/queryTransitions'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'src/utils/influxql'
 import {nextSource} from 'src/dashboards/utils/sources'
+import replaceTemplate, {replaceInterval} from 'src/tempVars/utils/replace'
 
 // Constants
 import {IS_STATIC_LEGEND} from 'src/shared/constants'
 import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
-import {removeUnselectedTemplateValues} from 'src/tempVars/constants'
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {
@@ -42,6 +42,7 @@ import * as DashboardsActions from 'src/types/actions/dashboards'
 import * as DashboardsModels from 'src/types/dashboards'
 import * as QueriesModels from 'src/types/queries'
 import * as SourcesModels from 'src/types/sources'
+import {Template} from 'src/types/tempVars'
 
 type QueryTransitions = typeof queryTransitions
 type EditRawTextAsyncFunc = (
@@ -60,10 +61,6 @@ export type CellEditorOverlayActions = QueryActions & {
 const staticLegend: DashboardsModels.Legend = {
   type: 'static',
   orientation: 'bottom',
-}
-
-interface Template {
-  tempVar: string
 }
 
 interface QueryStatus {
@@ -397,6 +394,29 @@ class CellEditorOverlay extends Component<Props, State> {
     })
   }
 
+  private getConfig = async (
+    url,
+    id: string,
+    query: string,
+    templates: Template[]
+  ): Promise<QueriesModels.QueryConfig> => {
+    // replace all templates but :interval:
+    query = replaceTemplate(query, templates)
+
+    // get durationMs to calculate interval
+    let queries = await getQueryConfigAndStatus(url, [{query, id}])
+    const durationMs = _.get(queries, '0.durationMs', 1000)
+
+    // calc and replace :interval:
+    query = replaceInterval(query, 333, durationMs)
+
+    // fetch queryConfig for with all template variables replaced
+    queries = await getQueryConfigAndStatus(url, [{query, id}])
+    const {queryConfig} = queries.find(q => q.id === id)
+
+    return queryConfig
+  }
+
   // The schema explorer is not built to handle user defined template variables
   // in the query in a clear manner. If they are being used, we indicate that in
   // the query config in order to disable the fields column down stream because
@@ -406,44 +426,34 @@ class CellEditorOverlay extends Component<Props, State> {
     id: string,
     text: string
   ): Promise<void> => {
+    const {templates} = this.props
     const userDefinedTempVarsInQuery = this.findUserDefinedTempVarsInQuery(
       text,
-      this.props.templates
+      templates
     )
 
     const isUsingUserDefinedTempVars: boolean = !!userDefinedTempVarsInQuery.length
 
     try {
-      const selectedTempVars: Template[] = isUsingUserDefinedTempVars
-        ? removeUnselectedTemplateValues(userDefinedTempVarsInQuery)
-        : []
+      const queryConfig = await this.getConfig(url, id, text, templates)
 
-      const {data} = await getQueryConfigAndStatus(
-        url,
-        [{query: text, id}],
-        selectedTempVars
-      )
+      const nextQueries = this.state.queriesWorkingDraft.map(q => {
+        if (q.id === id) {
+          const isQuerySupportedByExplorer = !isUsingUserDefinedTempVars
 
-      const config = data.queries.find(q => q.id === id)
-      const nextQueries: QueriesModels.QueryConfig[] = this.state.queriesWorkingDraft.map(
-        (q: QueriesModels.QueryConfig) => {
-          if (q.id === id) {
-            const isQuerySupportedByExplorer = !isUsingUserDefinedTempVars
-
-            if (isUsingUserDefinedTempVars) {
-              return {...q, rawText: text, isQuerySupportedByExplorer}
-            }
-
-            return {
-              ...config.queryConfig,
-              source: q.source,
-              isQuerySupportedByExplorer,
-            }
+          if (isUsingUserDefinedTempVars) {
+            return {...q, rawText: text, isQuerySupportedByExplorer}
           }
 
-          return q
+          return {
+            ...queryConfig,
+            source: q.source,
+            isQuerySupportedByExplorer,
+          }
         }
-      )
+
+        return q
+      })
 
       this.setState({queriesWorkingDraft: nextQueries})
     } catch (error) {

@@ -393,13 +393,13 @@ export const editRawTextAsync = (
   text: string
 ) => async (dispatch): Promise<void> => {
   try {
-    const {data} = await getQueryConfigAndStatus(url, [
+    const queries = await getQueryConfigAndStatus(url, [
       {
         query: text,
         id,
       },
     ])
-    const config = data.queries.find(q => q.id === id)
+    const config = queries.find(q => q.id === id)
     dispatch(updateQueryConfig(config.queryConfig))
   } catch (error) {
     dispatch(errorThrown(error))
