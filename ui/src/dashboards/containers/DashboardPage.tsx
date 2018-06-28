@@ -475,25 +475,21 @@ class DashboardPage extends Component<Props, State> {
   ): ((value: TempVarsModels.TemplateValue) => void) => (
     value: TempVarsModels.TemplateValue
   ): void => {
-    const {dashboard, dashboardID, location} = this.props
+    const {dashboard, location} = this.props
 
     const currentTempVar = dashboard.templates.find(
       tempVar => tempVar.id === templateID
     )
     const strippedTempVar = stripTempVar(currentTempVar.tempVar)
-    const isTempVarInURLQuery = !!location.query[strippedTempVar]
 
-    if (isTempVarInURLQuery) {
-      const updatedQueryParam = {
-        [strippedTempVar]: value.value,
-      }
-      this.props.syncURLQueryParamsFromQueryParamsObject(
-        location,
-        updatedQueryParam
-      )
+    const updatedQueryParam = {
+      [strippedTempVar]: value.value,
     }
+    this.props.syncURLQueryParamsFromQueryParamsObject(
+      location,
+      updatedQueryParam
+    )
     this.props.templateVariablePicked(dashboard.id, templateID, [value])
-    // this.props.putDashboardByID(dashboardID)
   }
 
   private handleSaveTemplateVariables = async (

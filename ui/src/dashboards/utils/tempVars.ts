@@ -30,10 +30,10 @@ export const generateURLQueryParamsFromTempVars = (
   const urlQueryParams = {}
 
   tempVars.forEach(({tempVar, values}) => {
-    const selected = values.find(value => value.selected === true)
+    const picked = values.find(value => value.picked === true)
     const strippedTempVar = stripTempVar(tempVar)
 
-    urlQueryParams[strippedTempVar] = _.get(selected, 'value', '')
+    urlQueryParams[strippedTempVar] = _.get(picked, 'value', '')
   })
 
   return urlQueryParams
