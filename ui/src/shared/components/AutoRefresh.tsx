@@ -14,7 +14,6 @@ interface Axes {
 }
 
 interface Query {
-  host: string | string[]
   text: string
   database: string
   db: string
@@ -212,7 +211,7 @@ const AutoRefresh = (
     }
 
     private queryDifference = (left, right) => {
-      const mapper = q => `${q.host}${q.text}`
+      const mapper = q => `${q.text}`
       const leftStrs = left.map(mapper)
       const rightStrs = right.map(mapper)
       return _.difference(

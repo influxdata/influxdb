@@ -102,8 +102,8 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
   }
 
   private get queries(): Query[] {
-    const {source, queryConfigs, timeRange} = this.props
-    return buildQueries(source.links.proxy, queryConfigs, timeRange)
+    const {queryConfigs, timeRange} = this.props
+    return buildQueries(queryConfigs, timeRange)
   }
 
   private get query(): Query {
