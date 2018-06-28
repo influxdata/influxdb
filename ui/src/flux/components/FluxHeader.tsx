@@ -2,7 +2,7 @@ import React, {PureComponent} from 'react'
 
 import FluxOverlay from 'src/flux/components/FluxOverlay'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
 import {Service} from 'src/types'
 
