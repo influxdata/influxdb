@@ -5143,6 +5143,60 @@
         }
       }
     },
+    "LogViewerUIColumn": {
+      "description": "Contains the settings for the log viewer page UI",
+      "type": "object",
+      "required": [
+        "name",
+        "formatting",
+        "mappings"
+      ],
+      "properties": {
+        "name": {
+          "description": "Unique identifier name of the column",
+          "type": "string"
+        },
+        "formatting": {
+          "description": "Composable formatting options for the column",
+          "type": "array",
+          "items": {
+            "description":"Type and value of a formatting option",
+            "type": "object",
+            "required": ["type", "value"],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "mappings": {
+          "description": "Mapping from a arbitrary type and possibly name, to a value",
+          "type": "array",
+          "items": {
+            "description": "Type and value of a formatting option",
+            "type": "object",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+    },
     "LogViewerUIConfig": {
       "description": "Contains the settings for the log viewer page UI",
       "type": "object",
@@ -5152,39 +5206,8 @@
           "description": "Defines the order, names, and visibility of columns in the log viewer table",
           "type": "array",
             "items": {
-              "$ref": "#/definitions/RenamableField"
+              "$ref": "#/definitions/LogViewerUIColumn"
             }
-        },
-        "columnOptions": {
-          "type": "object",
-          "required": ["severity"],
-          "properties": {
-            "severity": {
-              "type": "object",
-              "required": ["displayFormat", "colors"],
-              "properties": {
-                "displayFormat": {
-                  "type": "string"
-                },
-                "colors": {
-                  "description": "Defines the display colors for each severity level",
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "required": ["name", "value"],
-                    "properties": {
-                      "name": {
-                        "type": "string"
-                      },
-                      "value": {
-                        "type": "string"
-                      }
-                    }
-                  }
-                } 
-              }
-            }
-          }
         }
       }
     },
