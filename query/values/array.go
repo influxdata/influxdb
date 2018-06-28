@@ -108,3 +108,21 @@ func (a *array) Object() Object {
 func (a *array) Function() Function {
 	panic(UnexpectedKind(semantic.Object, semantic.Function))
 }
+func (a *array) Equal(rhs Value) bool {
+	if a.Type() != rhs.Type() {
+		return false
+	}
+	r := rhs.Array()
+	if (a.Len() != r.Len()) {
+		return false
+	}
+	length := a.Len()
+	for i := 0; i < length; i++ {
+		aVal := a.Get(i)
+		rVal := r.Get(i)
+		if !aVal.Equal(rVal) {
+			return false
+		}
+	}
+	return true
+}

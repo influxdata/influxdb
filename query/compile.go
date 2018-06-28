@@ -61,7 +61,7 @@ func Compile(ctx context.Context, q string, opts ...Option) (*Spec, error) {
 		return nil, err
 	}
 
-	if err := interpreter.Eval(semProg, interpScope); err != nil {
+	if _, err := interpreter.Eval(semProg, interpScope); err != nil {
 		return nil, err
 	}
 	spec := qd.ToSpec()
@@ -92,11 +92,24 @@ func RegisterBuiltIn(name, script string) {
 // RegisterFunction adds a new builtin top level function.
 func RegisterFunction(name string, c CreateOperationSpec, sig semantic.FunctionSignature) {
 	f := function{
-		t:            semantic.NewFunctionType(sig),
-		name:         name,
-		createOpSpec: c,
+		t:             semantic.NewFunctionType(sig),
+		name:          name,
+		createOpSpec:  c,
+		hasSideEffect: false,
 	}
-	RegisterBuiltInValue(name, f)
+	RegisterBuiltInValue(name, &f)
+}
+
+// RegisterFunctionWithSideEffect adds a new builtin top level function that produces side effects.
+// For example, the builtin functions yield(), toKafka(), and toHTTP() all produce side effects.
+func RegisterFunctionWithSideEffect(name string, c CreateOperationSpec, sig semantic.FunctionSignature) {
+	f := function{
+		t:             semantic.NewFunctionType(sig),
+		name:          name,
+		createOpSpec:  c,
+		hasSideEffect: true,
+	}
+	RegisterBuiltInValue(name, &f)
 }
 
 // RegisterBuiltInValue adds the value to the builtin scope.
@@ -210,6 +223,23 @@ func (t TableObject) Array() values.Array {
 func (t TableObject) Object() values.Object {
 	return t
 }
+func (t TableObject) Equal(rhs values.Value) bool {
+	if t.Type() != rhs.Type() {
+		return false
+	}
+	r := rhs.Object()
+	if t.Len() != r.Len() {
+		return false
+	}
+	for _, k := range t.keys() {
+		val1, ok1 := t.Get(k)
+		val2, ok2 := r.Get(k)
+		if !ok1 || !ok2 || !val1.Equal(val2) {
+			return false
+		}
+	}
+	return true
+}
 func (t TableObject) Function() values.Function {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Function))
 }
@@ -225,6 +255,10 @@ func (t TableObject) Get(name string) (values.Value, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func (t TableObject) keys() []string {
+	return []string{tableIDKey, tableKindKey, tableParentsKey}
 }
 
 func (t TableObject) Set(name string, v values.Value) {
@@ -266,9 +300,12 @@ func builtIns(qd *queryDomain) (map[string]values.Value, semantic.DeclarationSco
 	scope := make(map[string]values.Value, len(builtinScope))
 	for k, v := range builtinScope {
 		if v.Type().Kind() == semantic.Function {
-			if f, ok := v.Function().(function); ok {
-				f.qd = qd
-				v = f
+			if f, ok := v.Function().(*function); ok {
+				// Must make separate copy of f. Otherwise function
+				// tests will modify same f and tests will break.
+				newfunc := f.copy()
+				newfunc.qd = qd
+				v = newfunc
 			}
 		}
 		scope[k] = v
@@ -284,7 +321,7 @@ func builtIns(qd *queryDomain) (map[string]values.Value, semantic.DeclarationSco
 			panic(errors.Wrapf(err, "failed to create semantic graph for builtin %q", name))
 		}
 
-		if err := interpreter.Eval(semProg, interpScope); err != nil {
+		if _, err := interpreter.Eval(semProg, interpScope); err != nil {
 			panic(errors.Wrapf(err, "failed to evaluate builtin %q", name))
 		}
 	}
@@ -368,55 +405,72 @@ func (d *queryDomain) ToSpec() *Spec {
 }
 
 type function struct {
-	name         string
-	t            semantic.Type
-	createOpSpec CreateOperationSpec
-	qd           *queryDomain
+	name          string
+	t             semantic.Type
+	createOpSpec  CreateOperationSpec
+	qd            *queryDomain
+	hasSideEffect bool
 }
 
-func (f function) Type() semantic.Type {
+func (f *function) copy() *function {
+	newfunc := new(function)
+	*newfunc = *f
+	return newfunc
+}
+
+func (f *function) Type() semantic.Type {
 	return f.t
 }
 
-func (f function) Str() string {
+func (f *function) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (f function) Int() int64 {
+func (f *function) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (f function) UInt() uint64 {
+func (f *function) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (f function) Float() float64 {
+func (f *function) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (f function) Bool() bool {
+func (f *function) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (f function) Time() values.Time {
+func (f *function) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Time))
 }
-func (f function) Duration() values.Duration {
+func (f *function) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Duration))
 }
-func (f function) Regexp() *regexp.Regexp {
+func (f *function) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Regexp))
 }
-func (f function) Array() values.Array {
+func (f *function) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Array))
 }
-func (f function) Object() values.Object {
+func (f *function) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Object))
 }
-func (f function) Function() values.Function {
+func (f *function) Function() values.Function {
 	return f
 }
+func (f *function) Equal(rhs values.Value) bool {
+	if f.Type() != rhs.Type() {
+		return false
+	}
+	v, ok := rhs.(*function)
+	return ok && (f == v)
+}
+func (f *function) HasSideEffect() bool {
+	return f.hasSideEffect
+}
 
-func (f function) Call(argsObj values.Object) (values.Value, error) {
+func (f *function) Call(argsObj values.Object) (values.Value, error) {
 	return interpreter.DoFunctionCall(f.call, argsObj)
 }
 
-func (f function) call(args interpreter.Arguments) (values.Value, error) {
+func (f *function) call(args interpreter.Arguments) (values.Value, error) {
 	id := f.qd.NewID(f.name)
 
 	a := newAdministration(id)

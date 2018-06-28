@@ -11,13 +11,13 @@ import (
 )
 
 func init() {
-	query.RegisterBuiltInValue("string", stringConv{})
-	query.RegisterBuiltInValue("int", intConv{})
-	query.RegisterBuiltInValue("uint", uintConv{})
-	query.RegisterBuiltInValue("float", floatConv{})
-	query.RegisterBuiltInValue("bool", boolConv{})
-	query.RegisterBuiltInValue("time", timeConv{})
-	query.RegisterBuiltInValue("duration", durationConv{})
+	query.RegisterBuiltInValue("string", &stringConv{})
+	query.RegisterBuiltInValue("int", &intConv{})
+	query.RegisterBuiltInValue("uint", &uintConv{})
+	query.RegisterBuiltInValue("float", &floatConv{})
+	query.RegisterBuiltInValue("bool", &boolConv{})
+	query.RegisterBuiltInValue("time", &timeConv{})
+	query.RegisterBuiltInValue("duration", &durationConv{})
 	query.RegisterBuiltIn("typeconv", `
 	toString = (table=<-) => table |> map(fn:(r) => string(v:r._value))
 	toInt = (table=<-) => table |> map(fn:(r) => int(v:r._value))
@@ -37,7 +37,7 @@ var missingArg = fmt.Errorf("missing argument %q", conversionArg)
 
 type stringConv struct{}
 
-func (c stringConv) Type() semantic.Type {
+func (c *stringConv) Type() semantic.Type {
 	return semantic.NewFunctionType(semantic.FunctionSignature{
 		// TODO: We need support for polymorphic function signatures and free type variables.
 		// Probably use a Hindley-Milner type inference system?
@@ -45,41 +45,51 @@ func (c stringConv) Type() semantic.Type {
 		ReturnType: semantic.String,
 	})
 }
-func (c stringConv) Str() string {
+func (c *stringConv) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (c stringConv) Int() int64 {
+func (c *stringConv) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (c stringConv) UInt() uint64 {
+func (c *stringConv) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (c stringConv) Float() float64 {
+func (c *stringConv) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (c stringConv) Bool() bool {
+func (c *stringConv) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (c stringConv) Time() values.Time {
+func (c *stringConv) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Time))
 }
-func (c stringConv) Duration() values.Duration {
+func (c *stringConv) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Duration))
 }
-func (c stringConv) Regexp() *regexp.Regexp {
+func (c *stringConv) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Regexp))
 }
-func (c stringConv) Array() values.Array {
+func (c *stringConv) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Array))
 }
-func (c stringConv) Object() values.Object {
+func (c *stringConv) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Object))
 }
-func (c stringConv) Function() values.Function {
+func (c *stringConv) Function() values.Function {
 	return c
 }
+func (c *stringConv) Equal(rhs values.Value) bool {
+	if c.Type() != rhs.Type() {
+		return false
+	}
+	f, ok := rhs.(*stringConv)
+	return ok && (c == f)
+}
+func (c *stringConv) HasSideEffect() bool {
+	return false
+}
 
-func (c stringConv) Call(args values.Object) (values.Value, error) {
+func (c *stringConv) Call(args values.Object) (values.Value, error) {
 	var str string
 	v, ok := args.Get(conversionArg)
 	if !ok {
@@ -108,7 +118,7 @@ func (c stringConv) Call(args values.Object) (values.Value, error) {
 
 type intConv struct{}
 
-func (c intConv) Type() semantic.Type {
+func (c *intConv) Type() semantic.Type {
 	return semantic.NewFunctionType(semantic.FunctionSignature{
 		// TODO: We need support for polymorphic function signatures and free type variables.
 		// Probably use a Hindley-Milner type inference system?
@@ -116,41 +126,51 @@ func (c intConv) Type() semantic.Type {
 		ReturnType: semantic.Int,
 	})
 }
-func (c intConv) Str() string {
+func (c *intConv) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (c intConv) Int() int64 {
+func (c *intConv) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (c intConv) UInt() uint64 {
+func (c *intConv) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (c intConv) Float() float64 {
+func (c *intConv) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (c intConv) Bool() bool {
+func (c *intConv) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (c intConv) Time() values.Time {
+func (c *intConv) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Time))
 }
-func (c intConv) Duration() values.Duration {
+func (c *intConv) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Duration))
 }
-func (c intConv) Regexp() *regexp.Regexp {
+func (c *intConv) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Regexp))
 }
-func (c intConv) Array() values.Array {
+func (c *intConv) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Array))
 }
-func (c intConv) Object() values.Object {
+func (c *intConv) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Object))
 }
-func (c intConv) Function() values.Function {
+func (c *intConv) Function() values.Function {
 	return c
 }
+func (c *intConv) Equal(rhs values.Value) bool {
+	if c.Type() != rhs.Type() {
+		return false
+	}
+	f, ok := rhs.(*intConv)
+	return ok && (c == f)
+}
+func (c *intConv) HasSideEffect() bool {
+	return false
+}
 
-func (c intConv) Call(args values.Object) (values.Value, error) {
+func (c *intConv) Call(args values.Object) (values.Value, error) {
 	var i int64
 	v, ok := args.Get(conversionArg)
 	if !ok {
@@ -187,7 +207,7 @@ func (c intConv) Call(args values.Object) (values.Value, error) {
 
 type uintConv struct{}
 
-func (c uintConv) Type() semantic.Type {
+func (c *uintConv) Type() semantic.Type {
 	return semantic.NewFunctionType(semantic.FunctionSignature{
 		// TODO: We need support for polymorphic function signatures and free type variables.
 		// Probably use a Hindley-Milner type inference system?
@@ -195,41 +215,51 @@ func (c uintConv) Type() semantic.Type {
 		ReturnType: semantic.UInt,
 	})
 }
-func (c uintConv) Str() string {
+func (c *uintConv) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (c uintConv) Int() int64 {
+func (c *uintConv) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (c uintConv) UInt() uint64 {
+func (c *uintConv) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (c uintConv) Float() float64 {
+func (c *uintConv) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (c uintConv) Bool() bool {
+func (c *uintConv) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (c uintConv) Time() values.Time {
+func (c *uintConv) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Time))
 }
-func (c uintConv) Duration() values.Duration {
+func (c *uintConv) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Duration))
 }
-func (c uintConv) Regexp() *regexp.Regexp {
+func (c *uintConv) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Regexp))
 }
-func (c uintConv) Array() values.Array {
+func (c *uintConv) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Array))
 }
-func (c uintConv) Object() values.Object {
+func (c *uintConv) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Object))
 }
-func (c uintConv) Function() values.Function {
+func (c *uintConv) Function() values.Function {
 	return c
 }
+func (c *uintConv) Equal(rhs values.Value) bool {
+	if c.Type() != rhs.Type() {
+		return false
+	}
+	f, ok := rhs.(*uintConv)
+	return ok && (c == f)
+}
+func (c *uintConv) HasSideEffect() bool {
+	return false
+}
 
-func (c uintConv) Call(args values.Object) (values.Value, error) {
+func (c *uintConv) Call(args values.Object) (values.Value, error) {
 	var i uint64
 	v, ok := args.Get(conversionArg)
 	if !ok {
@@ -266,7 +296,7 @@ func (c uintConv) Call(args values.Object) (values.Value, error) {
 
 type floatConv struct{}
 
-func (c floatConv) Type() semantic.Type {
+func (c *floatConv) Type() semantic.Type {
 	return semantic.NewFunctionType(semantic.FunctionSignature{
 		// TODO: We need support for polymorphic function signatures and free type variables.
 		// Probably use a Hindley-Milner type inference system?
@@ -274,41 +304,51 @@ func (c floatConv) Type() semantic.Type {
 		ReturnType: semantic.Float,
 	})
 }
-func (c floatConv) Str() string {
+func (c *floatConv) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (c floatConv) Int() int64 {
+func (c *floatConv) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (c floatConv) UInt() uint64 {
+func (c *floatConv) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (c floatConv) Float() float64 {
+func (c *floatConv) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (c floatConv) Bool() bool {
+func (c *floatConv) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (c floatConv) Time() values.Time {
+func (c *floatConv) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Time))
 }
-func (c floatConv) Duration() values.Duration {
+func (c *floatConv) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Duration))
 }
-func (c floatConv) Regexp() *regexp.Regexp {
+func (c *floatConv) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Regexp))
 }
-func (c floatConv) Array() values.Array {
+func (c *floatConv) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Array))
 }
-func (c floatConv) Object() values.Object {
+func (c *floatConv) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Object))
 }
-func (c floatConv) Function() values.Function {
+func (c *floatConv) Function() values.Function {
 	return c
 }
+func (c *floatConv) Equal(rhs values.Value) bool {
+	if c.Type() != rhs.Type() {
+		return false
+	}
+	f, ok := rhs.(*floatConv)
+	return ok && (c == f)
+}
+func (c *floatConv) HasSideEffect() bool {
+	return false
+}
 
-func (c floatConv) Call(args values.Object) (values.Value, error) {
+func (c *floatConv) Call(args values.Object) (values.Value, error) {
 	var float float64
 	v, ok := args.Get(conversionArg)
 	if !ok {
@@ -341,7 +381,7 @@ func (c floatConv) Call(args values.Object) (values.Value, error) {
 
 type boolConv struct{}
 
-func (c boolConv) Type() semantic.Type {
+func (c *boolConv) Type() semantic.Type {
 	return semantic.NewFunctionType(semantic.FunctionSignature{
 		// TODO: We need support for polymorphic function signatures and free type variables.
 		// Probably use a Hindley-Milner type inference system?
@@ -349,41 +389,51 @@ func (c boolConv) Type() semantic.Type {
 		ReturnType: semantic.Bool,
 	})
 }
-func (c boolConv) Str() string {
+func (c *boolConv) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (c boolConv) Int() int64 {
+func (c *boolConv) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (c boolConv) UInt() uint64 {
+func (c *boolConv) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (c boolConv) Float() float64 {
+func (c *boolConv) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (c boolConv) Bool() bool {
+func (c *boolConv) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (c boolConv) Time() values.Time {
+func (c *boolConv) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Time))
 }
-func (c boolConv) Duration() values.Duration {
+func (c *boolConv) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Duration))
 }
-func (c boolConv) Regexp() *regexp.Regexp {
+func (c *boolConv) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Regexp))
 }
-func (c boolConv) Array() values.Array {
+func (c *boolConv) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Array))
 }
-func (c boolConv) Object() values.Object {
+func (c *boolConv) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Object))
 }
-func (c boolConv) Function() values.Function {
+func (c *boolConv) Function() values.Function {
 	return c
 }
+func (c *boolConv) Equal(rhs values.Value) bool {
+	if c.Type() != rhs.Type() {
+		return false
+	}
+	f, ok := rhs.(*boolConv)
+	return ok && (c == f)
+}
+func (c boolConv) HasSideEffect() bool {
+	return false
+}
 
-func (c boolConv) Call(args values.Object) (values.Value, error) {
+func (c *boolConv) Call(args values.Object) (values.Value, error) {
 	var b bool
 	v, ok := args.Get(conversionArg)
 	if !ok {
@@ -436,7 +486,7 @@ func (c boolConv) Call(args values.Object) (values.Value, error) {
 
 type timeConv struct{}
 
-func (c timeConv) Type() semantic.Type {
+func (c *timeConv) Type() semantic.Type {
 	return semantic.NewFunctionType(semantic.FunctionSignature{
 		// TODO: We need support for polymorphic function signatures and free type variables.
 		// Probably use a Hindley-Milner type inference system?
@@ -444,41 +494,51 @@ func (c timeConv) Type() semantic.Type {
 		ReturnType: semantic.Time,
 	})
 }
-func (c timeConv) Str() string {
+func (c *timeConv) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (c timeConv) Int() int64 {
+func (c *timeConv) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (c timeConv) UInt() uint64 {
+func (c *timeConv) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (c timeConv) Float() float64 {
+func (c *timeConv) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (c timeConv) Bool() bool {
+func (c *timeConv) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (c timeConv) Time() values.Time {
+func (c *timeConv) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Time))
 }
-func (c timeConv) Duration() values.Duration {
+func (c *timeConv) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Duration))
 }
-func (c timeConv) Regexp() *regexp.Regexp {
+func (c *timeConv) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Regexp))
 }
-func (c timeConv) Array() values.Array {
+func (c *timeConv) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Array))
 }
-func (c timeConv) Object() values.Object {
+func (c *timeConv) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Object))
 }
-func (c timeConv) Function() values.Function {
+func (c *timeConv) Function() values.Function {
 	return c
 }
+func (c *timeConv) Equal(rhs values.Value) bool {
+	if c.Type() != rhs.Type() {
+		return false
+	}
+	f, ok := rhs.(*timeConv)
+	return ok && (c == f)
+}
+func (c timeConv) HasSideEffect() bool {
+	return false
+}
 
-func (c timeConv) Call(args values.Object) (values.Value, error) {
+func (c *timeConv) Call(args values.Object) (values.Value, error) {
 	var t values.Time
 	v, ok := args.Get(conversionArg)
 	if !ok {
@@ -503,7 +563,7 @@ func (c timeConv) Call(args values.Object) (values.Value, error) {
 
 type durationConv struct{}
 
-func (c durationConv) Type() semantic.Type {
+func (c *durationConv) Type() semantic.Type {
 	return semantic.NewFunctionType(semantic.FunctionSignature{
 		// TODO: We need support for polymorphic function signatures and free type variables.
 		// Probably use a Hindley-Milner type inference system?
@@ -511,41 +571,51 @@ func (c durationConv) Type() semantic.Type {
 		ReturnType: semantic.Duration,
 	})
 }
-func (c durationConv) Str() string {
+func (c *durationConv) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (c durationConv) Int() int64 {
+func (c *durationConv) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (c durationConv) UInt() uint64 {
+func (c *durationConv) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (c durationConv) Float() float64 {
+func (c *durationConv) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (c durationConv) Bool() bool {
+func (c *durationConv) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (c durationConv) Time() values.Time {
+func (c *durationConv) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Time))
 }
-func (c durationConv) Duration() values.Duration {
+func (c *durationConv) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Duration))
 }
-func (c durationConv) Regexp() *regexp.Regexp {
+func (c *durationConv) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Regexp))
 }
-func (c durationConv) Array() values.Array {
+func (c *durationConv) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Array))
 }
-func (c durationConv) Object() values.Object {
+func (c *durationConv) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Float, semantic.Object))
 }
-func (c durationConv) Function() values.Function {
+func (c *durationConv) Function() values.Function {
 	return c
 }
+func (c *durationConv) Equal(rhs values.Value) bool {
+	if c.Type() != rhs.Type() {
+		return false
+	}
+	f, ok := rhs.(*durationConv)
+	return ok && (c == f)
+}
+func (c durationConv) HasSideEffect() bool {
+	return false
+}
 
-func (c durationConv) Call(args values.Object) (values.Value, error) {
+func (c *durationConv) Call(args values.Object) (values.Value, error) {
 	var d values.Duration
 	v, ok := args.Get(conversionArg)
 	if !ok {

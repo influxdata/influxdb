@@ -38,7 +38,7 @@ type ToKafkaOpSpec struct {
 }
 
 func init() {
-	query.RegisterFunction(ToKafkaKind, createToKafkaOpSpec, ToKafkaSignature)
+	query.RegisterFunctionWithSideEffect(ToKafkaKind, createToKafkaOpSpec, ToKafkaSignature)
 	query.RegisterOpSpec(ToKafkaKind,
 		func() query.OperationSpec { return &ToKafkaOpSpec{} })
 	plan.RegisterProcedureSpec(ToKafkaKind, newToKafkaProcedure, ToKafkaKind)

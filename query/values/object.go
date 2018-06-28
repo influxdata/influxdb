@@ -92,3 +92,19 @@ func (o *object) Object() Object {
 func (o *object) Function() Function {
 	panic(UnexpectedKind(semantic.Object, semantic.Function))
 }
+func (o *object) Equal(rhs Value) bool {
+	if o.Type() != rhs.Type() {
+		return false
+	}
+	r := rhs.Object()
+	if o.Len() != r.Len() {
+		return false
+	}
+	for k, v := range o.values {
+		val, ok := r.Get(k)
+		if !ok || !v.Equal(val) {
+			return false
+		}
+	}
+	return true
+}

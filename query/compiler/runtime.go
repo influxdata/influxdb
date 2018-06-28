@@ -1065,7 +1065,7 @@ func (e *functionEvaluator) EvalObject(scope Scope) values.Object {
 	panic(values.UnexpectedKind(e.t.Kind(), semantic.Object))
 }
 func (e *functionEvaluator) EvalFunction(scope Scope) values.Function {
-	return functionValue{
+	return &functionValue{
 		t:      e.t,
 		body:   e.body,
 		params: e.params,
@@ -1086,45 +1086,55 @@ type functionParam struct {
 	Type    semantic.Type
 }
 
-func (f functionValue) Type() semantic.Type {
+func (f *functionValue) Type() semantic.Type {
 	return f.t
 }
 
-func (f functionValue) Str() string {
+func (f *functionValue) Str() string {
 	panic(values.UnexpectedKind(semantic.Function, semantic.String))
 }
-func (f functionValue) Int() int64 {
+func (f *functionValue) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Int))
 }
-func (f functionValue) UInt() uint64 {
+func (f *functionValue) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.UInt))
 }
-func (f functionValue) Float() float64 {
+func (f *functionValue) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Float))
 }
-func (f functionValue) Bool() bool {
+func (f *functionValue) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Bool))
 }
-func (f functionValue) Time() values.Time {
+func (f *functionValue) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Time))
 }
-func (f functionValue) Duration() values.Duration {
+func (f *functionValue) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Duration))
 }
-func (f functionValue) Regexp() *regexp.Regexp {
+func (f *functionValue) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Regexp))
 }
-func (f functionValue) Array() values.Array {
+func (f *functionValue) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Array))
 }
-func (f functionValue) Object() values.Object {
+func (f *functionValue) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Function, semantic.Object))
 }
-func (f functionValue) Function() values.Function {
+func (f *functionValue) Function() values.Function {
 	return f
 }
+func (f *functionValue) Equal(rhs values.Value) bool {
+	if f.Type() != rhs.Type() {
+		return false
+	}
+	v, ok := rhs.(*functionValue)
+	return ok && (f == v)
+}
+func (f *functionValue) HasSideEffect() bool {
+	return false
+}
 
-func (f functionValue) Call(args values.Object) (values.Value, error) {
+func (f *functionValue) Call(args values.Object) (values.Value, error) {
 	scope := f.scope.Copy()
 	for _, p := range f.params {
 		v, ok := args.Get(p.Key)

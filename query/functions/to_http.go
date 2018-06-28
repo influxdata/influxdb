@@ -69,7 +69,7 @@ type ToHTTPOpSpec struct {
 }
 
 func init() {
-	query.RegisterFunction(ToHTTPKind, createToHTTPOpSpec, ToHTTPSignature)
+	query.RegisterFunctionWithSideEffect(ToHTTPKind, createToHTTPOpSpec, ToHTTPSignature)
 	query.RegisterOpSpec(ToHTTPKind,
 		func() query.OperationSpec { return &ToHTTPOpSpec{} })
 	plan.RegisterProcedureSpec(ToHTTPKind, newToHTTPProcedure, ToHTTPKind)
