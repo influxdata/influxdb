@@ -8106,6 +8106,24 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"],["host","server02"]]},{"name":"gpu","columns":["key","value"],"values":[["host","server02"],["host","server03"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			name:    "show tag values with value filter",
+			command: "SHOW TAG VALUES WITH KEY = host WHERE value = 'server03'",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["key","value"],"values":[["host","server03"]]},{"name":"gpu","columns":["key","value"],"values":[["host","server03"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "show tag values with no matching value filter",
+			command: "SHOW TAG VALUES WITH KEY = host WHERE value = 'no_such_value'",
+			exp:     `{"results":[{"statement_id":0}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "show tag values with non-string value filter",
+			command: "SHOW TAG VALUES WITH KEY = host WHERE value = 5000",
+			exp:     `{"results":[{"statement_id":0}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	var once sync.Once

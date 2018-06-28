@@ -2196,6 +2196,21 @@ func (is IndexSet) TagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr) ([]map[string]struct{}, error) {
 	database := is.Database()
 
+	valueExpr := influxql.CloneExpr(expr)
+	valueExpr = influxql.Reduce(influxql.RewriteExpr(valueExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || tag.Val != "value" {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
 	itr, err := is.seriesByExprIterator(name, expr)
 	if err != nil {
 		return nil, err
@@ -2247,6 +2262,11 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 		for i := 0; i < tagN; i++ {
 			var key, value []byte
 			key, value, buf = ReadSeriesKeyTag(buf)
+			if valueExpr != nil {
+				if !influxql.EvalBool(valueExpr, map[string]interface{}{"value": string(value)}) {
+					continue
+				}
+			}
 
 			if idx, ok := keyIdxs[string(key)]; ok {
 				resultSet[idx][string(value)] = struct{}{}
