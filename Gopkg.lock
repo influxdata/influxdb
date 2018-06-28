@@ -140,7 +140,6 @@
 [[projects]]
   name = "github.com/gogo/protobuf"
   packages = [
-    "codec",
     "gogoproto",
     "proto",
     "protoc-gen-gogo/descriptor",
@@ -152,7 +151,13 @@
 
 [[projects]]
   name = "github.com/golang/protobuf"
-  packages = ["proto"]
+  packages = [
+    "proto",
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/timestamp"
+  ]
   revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
   version = "v1.1.0"
 
@@ -367,23 +372,6 @@
   name = "github.com/influxdata/tdigest"
   packages = ["."]
   revision = "617b83f940fd9acd207f712561a8a0590277fb38"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/influxdata/yamux"
-  packages = ["."]
-  revision = "1f58ded512de5feabbe30b60c7d33a7a896c5f16"
-
-[[projects]]
-  name = "github.com/influxdata/yarpc"
-  packages = [
-    ".",
-    "codes",
-    "status",
-    "yarpcproto"
-  ]
-  revision = "b13d74d757bf9ea3e5574a491eb6646bdc4e2a04"
-  version = "v0.0.1"
 
 [[projects]]
   name = "github.com/jmespath/go-jmespath"
@@ -647,7 +635,13 @@
   name = "golang.org/x/net"
   packages = [
     "context",
-    "context/ctxhttp"
+    "context/ctxhttp",
+    "http/httpguts",
+    "http2",
+    "http2/hpack",
+    "idna",
+    "internal/timeseries",
+    "trace"
   ]
   revision = "2491c5de3490fced2f6cff376127c667efeed857"
 
@@ -675,12 +669,20 @@
 [[projects]]
   name = "golang.org/x/text"
   packages = [
+    "collate",
+    "collate/build",
+    "internal/colltab",
     "internal/gen",
+    "internal/tag",
     "internal/triegen",
     "internal/ucd",
+    "language",
+    "secure/bidirule",
     "transform",
+    "unicode/bidi",
     "unicode/cldr",
-    "unicode/norm"
+    "unicode/norm",
+    "unicode/rangetable"
   ]
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   version = "v0.3.0"
@@ -710,6 +712,44 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  revision = "ff3583edef7de132f219f0efc00e097cabcc0ec0"
+
+[[projects]]
+  name = "google.golang.org/grpc"
+  packages = [
+    ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
+    "codes",
+    "connectivity",
+    "credentials",
+    "encoding",
+    "encoding/proto",
+    "grpclog",
+    "internal",
+    "internal/backoff",
+    "internal/channelz",
+    "internal/grpcrand",
+    "keepalive",
+    "metadata",
+    "naming",
+    "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
+    "stats",
+    "status",
+    "tap",
+    "transport"
+  ]
+  revision = "168a6198bcb0ef175f7dacec0b8691fc141dc9b8"
+  version = "v1.13.0"
+
+[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
@@ -718,6 +758,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8666620edf4d5f9d8ea8917eba18447194a86b306dead9083728b9df5dd5e391"
+  inputs-digest = "386ae3e065a4de07944b9c04b34a23918a3788df6788870e0a8ce5405205ff1f"
   solver-name = "gps-cdcl"
   solver-version = 1
