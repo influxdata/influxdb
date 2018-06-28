@@ -108,8 +108,38 @@
   align-items: center;
   border-radius: $radius;
   font-size: 12px;
-  margin: 0; 
+  margin: 0;
   color: $g13-mist;
   font-weight: 600;
   list-style: none;
+  transition: color 0.25s ease, background-color 0.25s ease;
+
+  &:hover {
+    cursor: pointer;
+  }
+
+  &:hover,
+  &.active {
+    background-color: $g5-pepper;
+    color: $g18-cloud;
+  }
+}
+
+.temp-builder--default {
+  color: $g9-mountain;
+  text-transform: uppercase;
+  font-size: 12px;
+  display: inline-block;
+  margin-left: 6px;
+  opacity: 0;
+  transition: color 0.25s ease, opacity 0.25s ease;
+}
+
+.temp-builder--results-item:hover .temp-builder--default {
+  opacity: 1;
+}
+
+.temp-builder--results-item.active .temp-builder--default {
+  color: $c-comet;
+  opacity: 1;
 }

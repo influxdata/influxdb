@@ -34,27 +34,29 @@ class CSVTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
 
     return (
       <>
-        <DragAndDrop
-          submitText="Preview"
-          fileTypesToAccept={this.validFileExtension}
-          handleSubmit={this.handleUploadFile}
-          submitOnDrop={true}
-        />
-        <div className="temp-builder csv-temp-builder" style={{zIndex: 9010}}>
-          <div className="form-group" style={{zIndex: 9010}}>
-            <label>Comma Separated Values</label>
-            <div className="temp-builder--mq-controls">
-              <textarea
-                className="form-control"
-                value={templateValuesString}
-                onChange={this.handleChange}
-                onBlur={this.handleBlur}
-              />
-            </div>
+        <div className="form-group col-xs-12">
+          <label>Upload a CSV File</label>
+          <DragAndDrop
+            submitText="Preview"
+            fileTypesToAccept={this.validFileExtension}
+            handleSubmit={this.handleUploadFile}
+            submitOnDrop={true}
+            compact={true}
+          />
+        </div>
+        <div className="form-group col-xs-12">
+          <label>Comma Separated Values</label>
+          <div className="temp-builder--mq-controls">
+            <textarea
+              className="form-control input-sm"
+              value={templateValuesString}
+              onChange={this.handleChange}
+              onBlur={this.handleBlur}
+            />
           </div>
         </div>
-        <div className="temp-builder-results">
-          <p>
+        <div className="form-group col-xs-12 temp-builder--results">
+          <p className="temp-builder--validation">
             CSV contains <strong>{template.values.length}</strong> value{
               pluralizer
             }

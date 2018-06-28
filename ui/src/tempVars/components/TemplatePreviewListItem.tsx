@@ -27,7 +27,7 @@ class TemplatePreviewListItem extends PureComponent<Props> {
         })}
       >
         {item.value}
-        {this.renderIndicator()}
+        {this.defaultIndicator()}
       </li>
     )
   }
@@ -36,10 +36,12 @@ class TemplatePreviewListItem extends PureComponent<Props> {
     return this.props.item.selected
   }
 
-  private renderIndicator(): JSX.Element {
+  private defaultIndicator(): JSX.Element {
     if (this.isDefault) {
-      return <div>{' default'}</div>
+      return <div className="temp-builder--default">DEFAULT</div>
     }
+
+    return <div className="temp-builder--default">SET AS DEFAULT</div>
   }
 
   private handleClick = (): void => {
