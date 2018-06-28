@@ -8,11 +8,11 @@ import (
 	"net/url"
 
 	"github.com/influxdata/platform"
-	kerrors "github.com/influxdata/platform/kit/errors"
+	"github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/csv"
 	"github.com/julienschmidt/httprouter"
-	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 const (
@@ -21,6 +21,8 @@ const (
 
 type QueryHandler struct {
 	*httprouter.Router
+
+	Logger *zap.Logger
 
 	csvEncoder query.MultiResultEncoder
 
@@ -47,7 +49,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	if id := r.FormValue("orgID"); id != "" {
 		err := orgID.DecodeFromString(id)
 		if err != nil {
-			kerrors.EncodeHTTP(ctx, errors.Wrap(err, "failed to decode orgID"), w)
+			EncodeError(ctx, errors.Wrap(err, "failed to decode orgID", errors.MalformedData), w)
 			return
 		}
 	}
@@ -56,14 +58,14 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 			Name: &name,
 		})
 		if err != nil {
-			kerrors.EncodeHTTP(ctx, errors.Wrap(err, "failed to load organization"), w)
+			EncodeError(ctx, errors.Wrap(err, "failed to load organization", errors.MalformedData), w)
 			return
 		}
 		orgID = org.ID
 	}
 
 	if len(orgID) == 0 {
-		kerrors.EncodeHTTP(ctx, errors.New("must pass organization name or ID as string in orgName or orgID parameter"), w)
+		EncodeError(ctx, errors.New("must pass organization name or ID as string in orgName or orgID parameter", errors.MalformedData), w)
 		return
 	}
 
@@ -71,25 +73,25 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Content-type") == "application/json" {
 		req, err := decodePostQueryRequest(ctx, r)
 		if err != nil {
-			kerrors.EncodeHTTP(ctx, err, w)
+			EncodeError(ctx, errors.Wrap(err, "Failed to decode query request", errors.MalformedData), w)
 			return
 		}
 
 		rs, err := h.QueryService.Query(ctx, orgID, req.Spec)
 		if err != nil {
-			kerrors.EncodeHTTP(ctx, err, w)
+			EncodeError(ctx, err, w)
 			return
 		}
 		results = rs
 	} else {
 		queryStr := r.FormValue("q")
 		if queryStr == "" {
-			kerrors.EncodeHTTP(ctx, errors.New("must pass query string in q parameter"), w)
+			EncodeError(ctx, errors.New("must pass query string in q parameter", errors.MalformedData), w)
 			return
 		}
 		rs, err := h.QueryService.QueryWithCompile(ctx, orgID, queryStr)
 		if err != nil {
-			kerrors.EncodeHTTP(ctx, err, w)
+			EncodeError(ctx, err, w)
 			return
 		}
 		results = rs
@@ -103,7 +105,16 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	case "text/csv":
 		fallthrough
 	default:
-		h.csvEncoder.Encode(w, results)
+		n, err := h.csvEncoder.Encode(w, results)
+		if err != nil {
+			if n == 0 {
+				EncodeError(ctx, err, w)
+				return
+			}
+			h.Logger.Info("Failed to encode client response",
+				zap.Error(err),
+			)
+		}
 	}
 }
 

@@ -40,17 +40,17 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 
 	req, err := decodePostBucketRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.BucketService.CreateBucket(ctx, req.Bucket); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.Bucket); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -76,18 +76,18 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 	req, err := decodeGetBucketRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	b, err := h.BucketService.FindBucketByID(ctx, req.BucketID)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -120,12 +120,12 @@ func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Reques
 
 	req, err := decodeDeleteBucketRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.BucketService.DeleteBucket(ctx, req.BucketID); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
@@ -160,18 +160,18 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 
 	req, err := decodeGetBucketsRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, bs); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -215,18 +215,18 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 
 	req, err := decodePatchBucketRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	b, err := h.BucketService.UpdateBucket(ctx, req.BucketID, req.Update)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }

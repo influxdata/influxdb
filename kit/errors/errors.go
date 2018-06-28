@@ -2,7 +2,6 @@ package errors
 
 import (
 	"fmt"
-	"net/http"
 )
 
 // TODO: move to base directory
@@ -25,23 +24,6 @@ type Error struct {
 	Err       string `json:"err"`
 }
 
-// SetCode sets the http status code for an error.
-func (e *Error) SetCode() {
-	switch e.Reference {
-	case InternalError:
-		e.Code = http.StatusInternalServerError
-	case InvalidData:
-		e.Code = http.StatusUnprocessableEntity
-	case MalformedData:
-		e.Code = http.StatusBadRequest
-	case Forbidden:
-		e.Code = http.StatusForbidden
-	default:
-		e.Reference = InternalError
-		e.Code = http.StatusInternalServerError
-	}
-}
-
 // Error implements the error interface.
 func (e Error) Error() string {
 	return fmt.Sprintf("%v (error reference code: %d)", e.Err, e.Reference)
@@ -49,9 +31,46 @@ func (e Error) Error() string {
 
 // Errorf constructs an Error with the given reference code and format.
 func Errorf(ref int, format string, i ...interface{}) error {
-	return &Error{
+	return Error{
 		Reference: ref,
 		Err:       fmt.Sprintf(format, i...),
+	}
+}
+
+func New(msg string, ref ...int) error {
+	refCode := InternalError
+	if len(ref) == 1 {
+		refCode = ref[0]
+	}
+	return Error{
+		Reference: refCode,
+		Err:       msg,
+	}
+}
+
+func Wrap(err error, msg string, ref ...int) error {
+	if err == nil {
+		return nil
+	}
+	e, ok := err.(Error)
+	if ok {
+		refCode := e.Reference
+		if len(ref) == 1 {
+			refCode = ref[0]
+		}
+		return Error{
+			Reference: refCode,
+			Code:      e.Code,
+			Err:       fmt.Sprintf("%s: %s", msg, e.Err),
+		}
+	}
+	refCode := InternalError
+	if len(ref) == 1 {
+		refCode = ref[0]
+	}
+	return Error{
+		Reference: refCode,
+		Err:       fmt.Sprintf("%s: %s", msg, err.Error()),
 	}
 }
 

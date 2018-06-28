@@ -45,18 +45,18 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetTasksRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	tasks, _, err := h.TaskService.FindTasks(ctx, req.filter)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, tasks); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -98,17 +98,17 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePostTaskRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.TaskService.CreateTask(ctx, req.Task); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.Task); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -132,18 +132,18 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetTaskRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	task, err := h.TaskService.FindTaskByID(ctx, req.TaskID)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, task); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -176,18 +176,18 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeUpdateTaskRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	task, err := h.TaskService.UpdateTask(ctx, req.TaskID, req.Update)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, task); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -225,12 +225,12 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeDeleteTaskRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.TaskService.DeleteTask(ctx, req.TaskID); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
@@ -263,18 +263,18 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetLogsRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	logs, _, err := h.TaskService.FindLogs(ctx, req.filter)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, logs); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -311,18 +311,18 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetRunsRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	runs, _, err := h.TaskService.FindRuns(ctx, req.filter)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, runs); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -384,18 +384,18 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetRunRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	run, err := h.TaskService.FindRunByID(ctx, req.RunID)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, run); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -426,18 +426,18 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeRetryRunRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	run, err := h.TaskService.RetryRun(ctx, req.RunID)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, run); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }

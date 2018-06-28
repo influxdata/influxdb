@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/influxdata/platform"
-	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/julienschmidt/httprouter"
@@ -46,7 +45,7 @@ func (h *TranspilerQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.
 
 	queryStr := r.FormValue("q")
 	if queryStr == "" {
-		kerrors.EncodeHTTP(ctx, errors.New("must pass query string in q parameter"), w)
+		EncodeError(ctx, errors.New("must pass query string in q parameter"), w)
 		return
 	}
 
@@ -57,7 +56,7 @@ func (h *TranspilerQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.
 	// Run the transpiler against the query service.
 	results, err := query.QueryWithTranspile(ctx, h.OrgID, queryStr, h.QueryService, transpiler)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 

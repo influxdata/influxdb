@@ -44,17 +44,17 @@ func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Re
 
 	req, err := decodePostDashboardRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.DashboardService.CreateDashboard(ctx, req.Dashboard); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.Dashboard); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -80,18 +80,18 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 
 	req, err := decodeGetDashboardRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	b, err := h.DashboardService.FindDashboardByID(ctx, req.DashboardID)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -124,12 +124,12 @@ func (h *DashboardHandler) handleDeleteDashboard(w http.ResponseWriter, r *http.
 
 	req, err := decodeDeleteDashboardRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.DashboardService.DeleteDashboard(ctx, req.DashboardID); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
@@ -164,18 +164,18 @@ func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Re
 
 	req, err := decodeGetDashboardsRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	bs, _, err := h.DashboardService.FindDashboards(ctx, req.filter)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, bs); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -215,18 +215,18 @@ func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.R
 
 	req, err := decodePatchDashboardRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	b, err := h.DashboardService.UpdateDashboard(ctx, req.DashboardID, req.Update)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -265,17 +265,17 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 
 	req, err := decodePostDashboardCellRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.DashboardService.AddDashboardCell(ctx, req.DashboardID, req.DashboardCell); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.DashboardCell); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -313,17 +313,17 @@ func (h *DashboardHandler) handlePutDashboardCell(w http.ResponseWriter, r *http
 
 	req, err := decodePutDashboardCellRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.DashboardService.ReplaceDashboardCell(ctx, req.DashboardID, req.Cell); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, req.Cell); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -372,12 +372,12 @@ func (h *DashboardHandler) handleDeleteDashboardCell(w http.ResponseWriter, r *h
 
 	req, err := decodeDeleteDashboardCellRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.DashboardService.RemoveDashboardCell(ctx, req.DashboardID, req.CellID); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
