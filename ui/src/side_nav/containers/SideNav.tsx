@@ -121,7 +121,7 @@ class SideNav extends PureComponent<Props> {
           link="/logs"
           location={location}
         >
-          <NavHeader link={'/logs'} title="Log Viewer" />
+          <NavHeader link={'/logs'} title="Logs Viewer" />
         </NavBlock>
 
         <Authorized
