@@ -44,17 +44,7 @@ const getSortFn = (data: HistogramData): SortFn => {
   return (a, b) => counts[b.group] - counts[a.group]
 }
 
-interface RenderDataBar {
-  key: string
-  group: string
-  x: number
-  y: number
-  width: number
-  height: number
-  fill: string
-}
-
-interface RenderDataGroup {
+interface BarGroup {
   key: string
   clip: {
     x: number
@@ -62,27 +52,33 @@ interface RenderDataGroup {
     width: number
     height: number
   }
-  bars: RenderDataBar[]
+  bars: Array<{
+    key: string
+    group: string
+    x: number
+    y: number
+    width: number
+    height: number
+    fill: string
+  }>
   data: HistogramData
 }
 
-type RenderData = RenderDataGroup[]
-
-const getRenderData = ({
+const getBarGroups = ({
   data,
   width,
   xScale,
   yScale,
   colorScale,
   hoverData,
-}): RenderData => {
+}): BarGroup[] => {
   const barWidth = getBarWidth({data, xScale, width})
   const sortFn = getSortFn(data)
   const visibleData = data.filter(d => d.value !== 0)
-  const groups = Object.values(_.groupBy(visibleData, 'time'))
+  const timeGroups = Object.values(_.groupBy(visibleData, 'time'))
 
-  for (const group of groups) {
-    group.sort(sortFn)
+  for (const timeGroup of timeGroups) {
+    timeGroup.sort(sortFn)
   }
 
   let hoverDataKeys = []
@@ -91,33 +87,33 @@ const getRenderData = ({
     hoverDataKeys = hoverData.data.map(h => h.key)
   }
 
-  return groups.map(group => {
-    const time = group[0].time
+  return timeGroups.map(timeGroup => {
+    const time = timeGroup[0].time
     const x = xScale(time) - barWidth / 2
-    const groupTotal = _.sumBy(group, 'value')
+    const total = _.sumBy(timeGroup, 'value')
 
-    const renderData = {
-      key: `${time}-${groupTotal}-${x}`,
+    const barGroup = {
+      key: `${time}-${total}-${x}`,
       clip: {
         x,
-        y: yScale(groupTotal),
+        y: yScale(total),
         width: barWidth,
-        height: yScale(0) - yScale(groupTotal) + BAR_BORDER_RADIUS,
+        height: yScale(0) - yScale(total) + BAR_BORDER_RADIUS,
       },
       bars: [],
-      data: group,
+      data: timeGroup,
     }
 
     let offset = 0
 
-    group.forEach((d: HistogramDatum) => {
+    timeGroup.forEach((d: HistogramDatum) => {
       const height = yScale(0) - yScale(d.value)
       const k = hoverDataKeys.includes(d.key) ? HOVER_BRIGTHEN_FACTOR : 0
       const fill = color(colorScale(d.group))
         .brighter(k)
         .hex()
 
-      renderData.bars.push({
+      barGroup.bars.push({
         key: d.key,
         group: d.group,
         x,
@@ -130,7 +126,7 @@ const getRenderData = ({
       offset += height
     })
 
-    return renderData
+    return barGroup
   })
 }
 
@@ -146,24 +142,24 @@ interface Props {
 }
 
 interface State {
-  renderData: RenderData
+  barGroups: BarGroup[]
 }
 
 class HistogramChartBars extends PureComponent<Props, State> {
   public static getDerivedStateFromProps(props) {
-    return {renderData: getRenderData(props)}
+    return {barGroups: getBarGroups(props)}
   }
 
   constructor(props) {
     super(props)
 
-    this.state = {renderData: []}
+    this.state = {barGroups: []}
   }
 
   public render() {
-    const {renderData} = this.state
+    const {barGroups} = this.state
 
-    return renderData.map(group => {
+    return barGroups.map(group => {
       const {key, clip, bars} = group
 
       return (
@@ -212,15 +208,14 @@ class HistogramChartBars extends PureComponent<Props, State> {
       return
     }
 
-    const {renderData} = this.state
-    const hoverGroup = renderData.find(d => d.key === groupKey)
+    const {barGroups} = this.state
+    const hoverGroup = barGroups.find(d => d.key === groupKey)
 
     if (!hoverGroup) {
       return
     }
 
     const {data} = hoverGroup
-
     const barGroup = e.currentTarget as SVGGElement
     const boundingRect = barGroup.getBoundingClientRect()
     const boundingRectHeight = boundingRect.bottom - boundingRect.top
