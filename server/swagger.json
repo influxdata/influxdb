@@ -5151,6 +5151,32 @@
         "formatting",
         "mappings"
       ],
+      "example": {
+        "name": "severity",
+        "formatting": [
+          {
+            "type": "text",
+            "value": "dotText"
+          }
+        ],
+        "mappings": [
+          {
+            "type": "color",
+            "name": "ruby",
+            "value": "emergency"
+          },
+          {
+            "type": "color",
+            "name": "rainforest",
+            "value": "info"
+          },
+          {
+            "type": "text",
+            "name": "displayName",
+            "value": "Severity"
+          }
+        ]
+      },
       "properties": {
         "name": {
           "description": "Unique identifier name of the column",
@@ -5201,6 +5227,46 @@
       "description": "Contains the settings for the log viewer page UI",
       "type": "object",
       "required": ["columns", "columnOptions"],
+      "example": {
+        "columns": [
+          {
+            "name": "severity",
+            "formatting": [
+              {
+                "type": "text",
+                "value": "dotText"
+              }
+            ],
+            "mappings": [
+              {
+                "type": "color",
+                "name": "ruby",
+                "value": "emergency"
+              },
+              {
+                "type": "color",
+                "name": "rainforest",
+                "value": "info"
+              },
+              {
+                "type": "text",
+                "name": "displayName",
+                "value": "Severity"
+              }
+            ]
+          },
+          {
+            "name": "messages",
+            "formatting": [],
+            "mappings": []
+          },
+          {
+            "name": "timestamp",
+            "formatting": [],
+            "mappings": []
+          }
+        ]
+      },
       "properties": {
         "columns": {
           "description": "Defines the order, names, and visibility of columns in the log viewer table",
