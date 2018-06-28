@@ -4,7 +4,7 @@ import {ScaleLinear, ScaleTime} from 'd3-scale'
 
 import {HistogramData, HistogramDatum} from 'src/types/histogram'
 
-const BAR_BORDER_RADIUS = 4
+const BAR_BORDER_RADIUS = 3
 const BAR_PADDING_SIDES = 4
 
 interface Props {

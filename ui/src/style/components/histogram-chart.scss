@@ -37,15 +37,15 @@
   shape-rendering: crispEdges;
   fill: $c-amethyst;
   opacity: 1;
-  pointer: cursor;
+  cursor: pointer;
   shape-rendering: crispEdges;
 }
 
 .histogram-chart--axes, .histogram-chart-skeleton {
   .x-label, .y-label {
-    fill: $g13-mist;
-    font-size: 12px;
-    font-weight: bold;
+    fill: $g11-sidewalk;
+    font-size: 11px;
+    font-weight: 600;
   }
 
   .x-label {
@@ -83,7 +83,7 @@
 .histogram-chart-tooltip {
   padding: 8px;
   background-color: $g0-obsidian;
-  border-radius: 3px;
+  border-radius: $radius-small;
   @extend %drop-shadow;
   font-size: 12px;
   font-weight: 600;
