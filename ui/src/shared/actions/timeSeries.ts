@@ -19,7 +19,6 @@ interface Payload {
   query: Query
   db?: string
   rp?: string
-  resolution?: number
 }
 
 type EditQueryStatusFunction = (queryID: string, status: Status) => void
@@ -79,7 +78,7 @@ const handleError = (
 }
 
 export const fetchTimeSeriesAsync = async (
-  {source, db, rp, query, resolution}: Payload,
+  {source, db, rp, query}: Payload,
   editQueryStatus: EditQueryStatusFunction = noop
 ): Promise<TimeSeriesResponse> => {
   handleLoading(query, editQueryStatus)
@@ -89,7 +88,6 @@ export const fetchTimeSeriesAsync = async (
       db,
       rp,
       query: query.text,
-      resolution,
     })
     return handleSuccess(data, query, editQueryStatus)
   } catch (error) {

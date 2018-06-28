@@ -34,7 +34,6 @@ export const fetchTimeSeries = async (
         db,
         rp,
         query: {...query, text},
-        resolution,
       }
 
       return fetchTimeSeriesAsync(payload, editQueryStatus)
