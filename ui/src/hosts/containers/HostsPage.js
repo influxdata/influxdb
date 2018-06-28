@@ -73,6 +73,7 @@ export class HostsPage extends Component {
 
   async componentDidMount() {
     const {notify, autoRefresh} = this.props
+    this.componentIsMounted = true
 
     this.setState({hostsLoading: true}) // Only print this once
     const results = await getLayouts()
@@ -88,7 +89,7 @@ export class HostsPage extends Component {
       return
     }
     await this.fetchHostsData()
-    if (autoRefresh) {
+    if (autoRefresh && this.componentIsMounted) {
       this.intervalID = setInterval(() => this.fetchHostsData(), autoRefresh)
     }
   }
@@ -151,6 +152,7 @@ export class HostsPage extends Component {
   }
 
   componentWillUnmount() {
+    this.componentIsMounted = false
     clearInterval(this.intervalID)
     this.intervalID = false
   }
