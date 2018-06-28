@@ -483,6 +483,5 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
 
   if (namespace && proxyLink) {
     await dispatch(setTimeRangeAsync(timeRange))
-    await dispatch(executeTableQueryAsync())
   }
 }
