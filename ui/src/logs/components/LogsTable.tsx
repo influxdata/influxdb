@@ -173,16 +173,19 @@ class LogsTable extends Component<Props, State> {
                     width={width}
                     scrollLeft={this.state.scrollLeft}
                     scrollTop={this.state.scrollTop}
-                    onScroll={this.handleGridScroll}
                     cellRenderer={this.cellRenderer}
                     onSectionRendered={this.handleRowRender(onRowsRendered)}
+                    onScroll={this.handleGridScroll}
                     columnCount={columnCount}
                     columnWidth={this.getColumnWidth}
                     ref={(ref: Grid) => {
                       registerChild(ref)
                       this.grid = ref
                     }}
-                    style={{height: this.calculateTotalHeight()}}
+                    style={{
+                      height: this.calculateTotalHeight(),
+                      overflowY: 'hidden',
+                    }}
                   />
                 </FancyScrollbar>
               )}
@@ -194,14 +197,45 @@ class LogsTable extends Component<Props, State> {
   }
 
   private handleGridScroll = ({scrollLeft}) => {
-    this.handleScroll({scrollLeft, scrollTop: this.state.scrollTop})
+    this.handleScroll({scrollLeft})
   }
 
-  private handleRowRender = onRowsRendered => ({
-    rowStartIndex,
-    rowStopIndex,
-  }) => {
-    onRowsRendered({startIndex: rowStartIndex, stopIndex: rowStopIndex})
+  private handleScrollbarScroll = (e: MouseEvent<JSX.Element>): void => {
+    e.stopPropagation()
+    e.preventDefault()
+    const {scrollTop, scrollLeft} = e.target as HTMLElement
+
+    this.handleScroll({
+      scrollTop,
+      scrollLeft,
+    })
+  }
+
+  private handleScroll = scrollInfo => {
+    if (_.has(scrollInfo, 'scrollTop')) {
+      const {scrollTop} = scrollInfo
+      const previousTop = this.state.scrollTop
+
+      this.setState({scrollTop})
+
+      if (scrollTop === 0) {
+        this.props.onScrolledToTop()
+      } else if (scrollTop !== previousTop) {
+        this.props.onScrollVertical()
+      }
+    }
+
+    if (_.has(scrollInfo, 'scrollLeft')) {
+      const {scrollLeft} = scrollInfo
+
+      this.setState({scrollLeft})
+    }
+  }
+
+  private handleRowRender = onRowsRendered => {
+    return ({rowStartIndex, rowStopIndex}) => {
+      onRowsRendered({startIndex: rowStartIndex, stopIndex: rowStopIndex})
+    }
   }
 
   private loadMoreRows = async () => {
@@ -242,15 +276,6 @@ class LogsTable extends Component<Props, State> {
   private handleHeaderScroll = ({scrollLeft}): void =>
     this.setState({scrollLeft})
 
-  private handleScrollbarScroll = (e: MouseEvent<JSX.Element>): void => {
-    const target = e.target as HTMLElement
-
-    this.handleScroll({
-      scrollTop: target.scrollTop,
-      scrollLeft: this.state.scrollLeft,
-    })
-  }
-
   private getColumnWidth = ({index}: {index: number}): number => {
     const column = getColumnFromData(this.props.data, index + 1)
     const {currentMessageWidth} = this.state
@@ -270,6 +295,7 @@ class LogsTable extends Component<Props, State> {
 
   private calculateTotalHeight = (): number => {
     const data = getValuesFromData(this.props.data)
+
     return _.reduce(
       data,
       (acc, __, index) => {
@@ -284,30 +310,17 @@ class LogsTable extends Component<Props, State> {
     const columnIndex = columns.indexOf('message')
     const value = getValueFromData(this.props.data, index, columnIndex)
 
-    if (!value) {
+    if (_.isEmpty(value)) {
       return ROW_HEIGHT
     }
 
-    const lines = Math.round(value.length / this.rowCharLimit + 0.25)
+    const lines = Math.ceil(value.length / (this.rowCharLimit * 0.95))
 
-    return Math.max(lines, 1) * (ROW_HEIGHT - 14) + 14
+    return Math.max(lines, 1) * ROW_HEIGHT + 4
   }
 
   private calculateRowHeight = ({index}: {index: number}): number => {
     return this.calculateMessageHeight(index)
-  }
-
-  private handleScroll = scrollInfo => {
-    const {scrollLeft, scrollTop} = scrollInfo
-    const previousScrolltop = this.state.scrollTop
-
-    this.setState({scrollLeft, scrollTop})
-
-    if (scrollTop === 0) {
-      this.props.onScrolledToTop()
-    } else if (scrollTop !== previousScrolltop) {
-      this.props.onScrollVertical()
-    }
   }
 
   private headerRenderer = ({key, style, columnIndex}) => {

@@ -32,18 +32,13 @@ export const formatColumnValue = (
     case 'timestamp':
       return moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
     case 'message':
-      if (value) {
-        if (value.indexOf(' ') > charLimit - 5) {
-          return _.truncate(value, {length: charLimit - 5}).replace('\\n', '')
-        } else {
-          return value.replace('\\n', '')
-        }
+      value = (value || 'No Message Provided').replace('\\n', '')
+      if (value.indexOf(' ') > charLimit - 5) {
+        value = _.truncate(value, {length: charLimit - 5})
       }
-      return ''
-
-    default:
       return value
   }
+  return value
 }
 export const header = (key: string): string => {
   return getDeep<string>(
