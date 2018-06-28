@@ -17,8 +17,6 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/errlist"
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/binary"
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/line"
-	"github.com/influxdata/influxdb/cmd/influx_tools/internal/storage"
-	"github.com/influxdata/influxdb/cmd/influx_tools/server"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -37,20 +35,16 @@ type Command struct {
 	Stdout io.Writer
 	Logger *zap.Logger
 
-	server server.Interface
-	store  *storage.Store
-
 	path    string
 	force   bool
 	verbose bool
 }
 
 // NewCommand returns a new instance of the export Command.
-func NewCommand(server server.Interface) *Command {
+func NewCommand() *Command {
 	return &Command{
 		Stderr: os.Stderr,
 		Stdout: os.Stdout,
-		server: server,
 	}
 }
 
@@ -70,20 +64,20 @@ func (cmd *Command) Run(args []string) (err error) {
 		}
 	}
 
-	fmt.Printf("opening shard at path %q\n\n", cmd.path)
+	fmt.Fprintf(cmd.Stdout, "opening shard at path %q\n\n", cmd.path)
 
 	sc, err := newShardCompactor(cmd.path, log)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println()
-	fmt.Println("The following files will be compacted:")
-	fmt.Println()
-	fmt.Println(sc.String())
+	fmt.Fprintln(cmd.Stdout)
+	fmt.Fprintln(cmd.Stdout, "The following files will be compacted:")
+	fmt.Fprintln(cmd.Stdout)
+	fmt.Fprintln(cmd.Stdout, sc.String())
 
 	if !cmd.force {
-		fmt.Print("Proceed? [N] ")
+		fmt.Fprint(cmd.Stdout, "Proceed? [N] ")
 		scan := bufio.NewScanner(os.Stdin)
 		scan.Scan()
 		if scan.Err() != nil {
@@ -95,16 +89,16 @@ func (cmd *Command) Run(args []string) (err error) {
 		}
 	}
 
-	fmt.Println("Compacting shard.")
+	fmt.Fprintln(cmd.Stdout, "Compacting shard.")
 
 	err = sc.CompactShard()
 	if err != nil {
 		return fmt.Errorf("compaction failed: %v", err)
 	}
 
-	fmt.Println("Compaction succeeded. New files:")
+	fmt.Fprintln(cmd.Stdout, "Compaction succeeded. New files:")
 	for _, f := range sc.newTSM {
-		fmt.Printf("  %s\n", f)
+		fmt.Fprintf(cmd.Stdout, "  %s\n", f)
 	}
 
 	return nil
@@ -137,37 +131,37 @@ type shardCompactor struct {
 	newTSM    []string
 }
 
-func newShardCompactor(path string, logger *zap.Logger) (fs *shardCompactor, err error) {
-	fs = &shardCompactor{
+func newShardCompactor(path string, logger *zap.Logger) (sc *shardCompactor, err error) {
+	sc = &shardCompactor{
 		logger: logger,
 		path:   path,
 		files:  make(map[string]*tsm1.TSMReader),
 	}
 
-	fs.tsm, err = filepath.Glob(filepath.Join(path, fmt.Sprintf("*.%s", tsm1.TSMFileExtension)))
+	sc.tsm, err = filepath.Glob(filepath.Join(path, fmt.Sprintf("*.%s", tsm1.TSMFileExtension)))
 	if err != nil {
 		return nil, fmt.Errorf("newFileStore: error reading tsm files at path %q: %v", path, err)
 	}
-	if len(fs.tsm) == 0 {
+	if len(sc.tsm) == 0 {
 		return nil, fmt.Errorf("newFileStore: no tsm files at path %q", path)
 	}
-	sort.Strings(fs.tsm)
+	sort.Strings(sc.tsm)
 
-	fs.tombstone, err = filepath.Glob(filepath.Join(path, fmt.Sprintf("*.%s", "tombstone")))
+	sc.tombstone, err = filepath.Glob(filepath.Join(path, fmt.Sprintf("*.%s", "tombstone")))
 	if err != nil {
 		return nil, fmt.Errorf("error reading tombstone files: %v", err)
 	}
 
-	fs.readers = make([]*tsm1.TSMReader, 0, len(fs.tsm))
-	err = fs.openFiles()
-	if err != nil {
+	if err := sc.openFiles(); err != nil {
 		return nil, err
 	}
 
-	return fs, nil
+	return sc, nil
 }
 
 func (sc *shardCompactor) openFiles() error {
+	sc.readers = make([]*tsm1.TSMReader, 0, len(sc.tsm))
+
 	// struct to hold the result of opening each reader in a goroutine
 	type res struct {
 		r   *tsm1.TSMReader

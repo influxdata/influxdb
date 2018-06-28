@@ -55,7 +55,7 @@ func (m *Main) Run(args ...string) error {
 			return fmt.Errorf("help failed: %s", err)
 		}
 	case "compact-shard":
-		c := compact.NewCommand(&ossServer{logger: zap.NewNop(), noClient: true})
+		c := compact.NewCommand()
 		if err := c.Run(args); err != nil {
 			return fmt.Errorf("compact-shard failed: %s", err)
 		}
