@@ -31,5 +31,6 @@ export const getDatabasesWithRetentionPolicies = async (
     return sorted
   } catch (err) {
     console.error(err)
+    return []
   }
 }
