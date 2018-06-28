@@ -2864,6 +2864,97 @@
           }
         }
       }
+    },
+    "/chronograf/v1/config/:section": {
+      "get": {
+        "tags": ["config"],
+        "summary": "Returns the settings for a specific section of the app",
+        "description": "All settings for a specific section of the app",
+        "responses": {
+          "200": {
+            "description": "Returns an object with the settings for a section of the app",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/LogViewerUIConfig"
+                },
+                {
+                  "$ref": "#/definitions/AuthConfig"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Could not find requested section",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["config"],
+        "summary": "Updates the settings for a specific section of the app",
+        "description": "Updates settings for a specific section of the app",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "type": "string",
+            "description": "Section name for the target section settings",
+            "required": true
+          },
+          {
+            "name": {
+              "enum": ["logViewer", "auth"]
+            },
+            "in": "body",
+            "description":
+              "Section configuration update parameters",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/LogViewerUIConfig"
+                },
+                {
+                  "$ref": "#/definitions/AuthConfig"
+                }
+              ]
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns an object with the updated UI settings for a specific section",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/LogViewerUIConfig"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Could not find requested section",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -5032,22 +5123,163 @@
     },
     "RenamableField": {
       "description":
-        "renamableField describes a field that can be renamed and made visible or invisible",
+        "Describes a field that can be renamed and made visible or invisible",
       "type": "object",
       "properties": {
         "internalName": {
-          "description": "internalName is the calculated name of a field",
+          "description": "This is the calculated name of a field",
+          "readOnly": true,
           "type": "string"
         },
         "displayName": {
           "description":
-            "displayName is the name that a field is renamed to by the user",
+            "This is the name that a field is renamed to by the user",
           "type": "string"
         },
         "visible": {
           "description":
-            "visible indicates whether this field should be visible on the table",
+            "Indicates whether this field should be visible on the table",
           "type": "boolean"
+        }
+      }
+    },
+    "LogViewerUIColumn": {
+      "description": "Contains the settings for the log viewer page UI",
+      "type": "object",
+      "required": [
+        "name",
+        "encoding",
+        "position"
+      ],
+      "properties": {
+        "name": {
+          "description": "Unique identifier name of the column",
+          "type": "string"
+        },
+        "position": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "encoding": {
+          "description": "Composable encoding options for the column",
+          "type": "array",
+          "items": {
+            "description":"Type and value and optional name of an encoding",
+            "type": "object",
+            "required": ["type", "value"],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "example": {
+          "name": "severity",
+          "position": 0,
+          "encoding": [
+            {
+              "type": "label",
+              "value": "icon"
+            },
+            {
+              "type": "label",
+              "value": "text"
+            },
+            {
+              "type": "visibility",
+              "value": "visible"
+            },
+            {
+              "type": "color",
+              "name": "ruby",
+              "value": "emergency"
+            },
+            {
+              "type": "color",
+              "name": "rainforest",
+              "value": "info"
+            },
+            {
+              "type": "displayName",
+              "value": "Log Severity!"
+            }
+          ]
+        }
+      },
+      "LogViewerUIConfig": {
+      "description": "Contains the settings for the log viewer page UI",
+      "type": "object",
+      "required": ["columns"],
+      "properties": {
+        "columns": {
+          "description": "Defines the order, names, and visibility of columns in the log viewer table",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LogViewerUIColumn"
+          }
+        }
+      },
+      "example": {
+        "columns": [
+          {
+            "name": "severity",
+            "position": 0,
+            "encoding": [
+              {
+                "type": "label",
+                "value": "icon"
+              },
+              {
+                "type": "label",
+                "value": "text"
+              },
+              {
+                "type": "visibility",
+                "value": "visible"
+              },
+              {
+                "type": "color",
+                "name": "ruby",
+                "value": "emergency"
+              },
+              {
+                "type": "color",
+                "name": "rainforest",
+                "value": "info"
+              },
+              {
+                "type": "displayName",
+                "value": "Log Severity!"
+              }
+            ]
+          },
+          {
+            "name": "messages",
+            "position": 1,
+            "encoding": [
+              {
+                "type": "visibility",
+                "value": "hidden"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "AuthConfig": {
+      "type": "object",
+      "required": ["superAdminNewUsers"],
+      "properties": {
+        "superAdminNewUsers": {
+          "type": "boolean",
+          "default": true
         }
       }
     },
