@@ -93,7 +93,6 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			qr.Duration = ms
 		}
 
-		qr.QueryConfig.RawText = &qr.Query
 		qr.QueryConfig.ID = q.ID
 		res.Queries[i] = qr
 	}
