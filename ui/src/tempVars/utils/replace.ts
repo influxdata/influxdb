@@ -94,7 +94,7 @@ const replaceAllRegex = (
   search: string,
   replacement: string
 ) => {
-  // check for presence of anythine between two forward slashes /[your stuff here]/
+  // check for presence of anything between two forward slashes /[your stuff here]/
   const matches = query.match(/\/([^\/]*)\//gm)
 
   if (!matches) {

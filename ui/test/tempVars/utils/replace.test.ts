@@ -38,7 +38,7 @@ describe('templates.utils.replace', () => {
     expect(actual).toBe(expected)
   })
 
-  it('can replace all in a select with paramaters and aggregates', () => {
+  it('can replace all in a select with parameters and aggregates', () => {
     const vars = [
       {
         ...emptyTemplate,
