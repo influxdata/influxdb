@@ -29,16 +29,21 @@ class StaticLegend extends Component {
 
   componentDidMount = () => {
     const {height} = this.staticLegendRef.getBoundingClientRect()
-    this.props.handleReceiveStaticLegendHeight(height)
+    this.props.onUpdateHeight(height)
   }
 
-  componentDidUpdate = () => {
+  componentDidUpdate = prevProps => {
     const {height} = this.staticLegendRef.getBoundingClientRect()
-    this.props.handleReceiveStaticLegendHeight(height)
+
+    if (prevProps.height === height) {
+      return
+    }
+
+    this.props.onUpdateHeight(height)
   }
 
   componentWillUnmount = () => {
-    this.props.handleReceiveStaticLegendHeight(null)
+    this.props.onUpdateHeight(0)
   }
 
   handleClick = i => e => {
@@ -96,12 +101,13 @@ class StaticLegend extends Component {
   }
 }
 
-const {shape, func} = PropTypes
+const {shape, func, number} = PropTypes
 
 StaticLegend.propTypes = {
   dygraphSeries: shape({}),
   dygraph: shape({}),
-  handleReceiveStaticLegendHeight: func.isRequired,
+  height: number.isRequired,
+  onUpdateHeight: func.isRequired,
 }
 
 export default StaticLegend

@@ -589,8 +589,12 @@ class TableGraph extends Component<Props, State> {
   }
 }
 
+const mstp = ({dashboardUI}) => ({
+  hoverTime: dashboardUI.hoverTime,
+})
+
 const mapDispatchToProps = dispatch => ({
   handleUpdateFieldOptions: bindActionCreators(updateFieldOptions, dispatch),
 })
 
-export default connect(null, mapDispatchToProps)(TableGraph)
+export default connect(mstp, mapDispatchToProps)(TableGraph)

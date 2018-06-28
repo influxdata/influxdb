@@ -67,8 +67,9 @@ interface Props {
 }
 
 interface State {
-  staticLegendHeight: null | number
+  staticLegendHeight: number
   xAxisRange: [number, number]
+  isMouseInLegend: boolean
 }
 
 @ErrorHandling
@@ -102,8 +103,9 @@ class Dygraph extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
     this.state = {
-      staticLegendHeight: null,
+      staticLegendHeight: 0,
       xAxisRange: [0, 0],
+      isMouseInLegend: false,
     }
 
     this.graphRef = React.createRef<HTMLDivElement>()
@@ -148,7 +150,7 @@ class Dygraph extends Component<Props, State> {
       zoomCallback: (lower: number, upper: number) =>
         this.handleZoom(lower, upper),
       drawCallback: () => this.handleDraw(),
-      highlightCircleSize: 0,
+      highlightCircleSize: 3,
     }
 
     if (isBarGraph) {
@@ -242,7 +244,11 @@ class Dygraph extends Component<Props, State> {
     const {staticLegend, cellID} = this.props
 
     return (
-      <div className="dygraph-child">
+      <div
+        className="dygraph-child"
+        onMouseMove={this.handleShowLegend}
+        onMouseLeave={this.handleHideLegend}
+      >
         {this.dygraph && (
           <div className="dygraph-addons">
             {this.areAnnotationsVisible && (
@@ -258,25 +264,20 @@ class Dygraph extends Component<Props, State> {
               dygraph={this.dygraph}
               onHide={this.handleHideLegend}
               onShow={this.handleShowLegend}
+              onMouseEnter={this.handleMouseEnterLegend}
             />
             <Crosshair
               dygraph={this.dygraph}
-              stasticLegendHeight={staticLegendHeight}
+              staticLegendHeight={staticLegendHeight}
             />
           </div>
         )}
-        <div
-          className="dygraph-child-container"
-          style={this.dygraphStyle}
-          onMouseEnter={this.handleShowLegend}
-        />
         {staticLegend && (
           <StaticLegend
             dygraphSeries={this.colorDygraphSeries}
             dygraph={this.dygraph}
-            handleReceiveStaticLegendHeight={
-              this.handleReceiveStaticLegendHeight
-            }
+            height={staticLegendHeight}
+            onUpdateHeight={this.handleUpdateStaticLegendHeight}
           />
         )}
         {this.nestedGraph &&
@@ -287,7 +288,6 @@ class Dygraph extends Component<Props, State> {
           className="dygraph-child-container"
           ref={this.graphRef}
           style={this.dygraphStyle}
-          onMouseEnter={this.handleShowLegend}
         />
         <ReactResizeDetector
           handleWidth={true}
@@ -390,10 +390,17 @@ class Dygraph extends Component<Props, State> {
   }
 
   private handleHideLegend = () => {
+    this.setState({isMouseInLegend: false})
     this.props.handleSetHoverTime(NULL_HOVER_TIME)
   }
 
   private handleShowLegend = (e: MouseEvent<HTMLDivElement>): void => {
+    const {isMouseInLegend} = this.state
+
+    if (isMouseInLegend) {
+      return
+    }
+
     const newTime = this.eventToTimestamp(e)
     this.props.handleSetHoverTime(newTime)
   }
@@ -464,8 +471,12 @@ class Dygraph extends Component<Props, State> {
     return nanoDate.toISOString()
   }
 
-  private handleReceiveStaticLegendHeight = (staticLegendHeight: number) => {
+  private handleUpdateStaticLegendHeight = (staticLegendHeight: number) => {
     this.setState({staticLegendHeight})
+  }
+
+  private handleMouseEnterLegend = () => {
+    this.setState({isMouseInLegend: true})
   }
 }
 

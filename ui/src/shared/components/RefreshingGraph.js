@@ -31,7 +31,6 @@ const RefreshingGraph = ({
   onZoom,
   cellID,
   queries,
-  hoverTime,
   tableOptions,
   templates,
   timeRange,
@@ -106,7 +105,7 @@ const RefreshingGraph = ({
         cellID={cellID}
         colors={colors}
         inView={inView}
-        hoverTime={hoverTime}
+        isInCEO={isInCEO}
         key={manualRefresh}
         queries={queries}
         templates={templates}
@@ -120,7 +119,6 @@ const RefreshingGraph = ({
         resizerTopHeight={resizerTopHeight}
         grabDataForDownload={grabDataForDownload}
         handleSetHoverTime={handleSetHoverTime}
-        isInCEO={isInCEO}
         onSetResolution={onSetResolution}
       />
     )
@@ -199,7 +197,6 @@ RefreshingGraph.propTypes = {
     isEnforced: bool.isRequired,
     digits: number.isRequired,
   }).isRequired,
-  hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
   isInCEO: bool,
   onSetResolution: func,
@@ -213,9 +210,8 @@ RefreshingGraph.defaultProps = {
   decimalPlaces: DEFAULT_DECIMAL_PLACES,
 }
 
-const mapStateToProps = ({dashboardUI, annotations: {mode}}) => ({
+const mapStateToProps = ({annotations: {mode}}) => ({
   mode,
-  hoverTime: dashboardUI.hoverTime,
 })
 
 const mapDispatchToProps = dispatch => ({
