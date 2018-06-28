@@ -1,15 +1,20 @@
 import React, {PureComponent} from 'react'
 import classNames from 'classnames'
+import {TEMPLATE_PREVIEW_LIST_DIMENSIONS as DIMENSIONS} from 'src/tempVars/constants'
 
 import {TemplateValue} from 'src/types'
+
+const {LI_HEIGHT, LI_MARGIN_BOTTOM} = DIMENSIONS
+
+const ITEM_STYLE = {
+  height: `${LI_HEIGHT}px`,
+  marginBottom: `${LI_MARGIN_BOTTOM}px`,
+}
 
 interface Props {
   item: TemplateValue
   onClick: (item: TemplateValue) => void
 }
-
-const LI_HEIGHT = 28
-const LI_MARGIN_BOTTOM = 2
 
 class TemplatePreviewListItem extends PureComponent<Props> {
   public render() {
@@ -18,10 +23,7 @@ class TemplatePreviewListItem extends PureComponent<Props> {
     return (
       <li
         onClick={this.handleClick}
-        style={{
-          height: `${LI_HEIGHT}px`,
-          marginBottom: `${LI_MARGIN_BOTTOM}px`,
-        }}
+        style={ITEM_STYLE}
         className={classNames('temp-builder--results-item', {
           active: this.isDefault,
         })}

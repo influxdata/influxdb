@@ -4,12 +4,11 @@ import uuid from 'uuid'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import TemplatePreviewListItem from 'src/tempVars/components/TemplatePreviewListItem'
+import {TEMPLATE_PREVIEW_LIST_DIMENSIONS as DIMENSIONS} from 'src/tempVars/constants'
 
 import {TemplateValue} from 'src/types'
 
-const RESULTS_TO_DISPLAY = 10
-const LI_HEIGHT = 28
-const LI_MARGIN_BOTTOM = 2
+const {RESULTS_TO_DISPLAY, LI_HEIGHT, LI_MARGIN_BOTTOM} = DIMENSIONS
 
 interface Props {
   items: TemplateValue[]
