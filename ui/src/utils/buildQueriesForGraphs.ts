@@ -1,5 +1,4 @@
 import _ from 'lodash'
-import {getDeep} from 'src/utils/wrappers'
 import {buildQuery} from 'src/utils/influxql'
 import {TYPE_QUERY_CONFIG, TYPE_SHIFTED} from 'src/dashboards/constants'
 
@@ -11,11 +10,7 @@ interface Statement {
   text: string
 }
 
-const buildQueries = (
-  proxy: string,
-  queryConfigs: QueryConfig[],
-  tR: TimeRange
-): Query[] => {
+const buildQueries = (queryConfigs: QueryConfig[], tR: TimeRange): Query[] => {
   const statements: Statement[] = queryConfigs.map((query: QueryConfig) => {
     const {rawText, range, id, shifts, database, measurement, fields} = query
     const timeRange: TimeRange = range || tR
@@ -42,11 +37,7 @@ const buildQueries = (
   const queries: Query[] = statements
     .filter(s => s.text !== null)
     .map(({queryConfig, text, id}) => {
-      const queryProxy = getDeep<string>(queryConfig, 'source.links.proxy', '')
-      const host: string[] = [queryProxy || proxy]
-
       return {
-        host,
         text,
         id,
         queryConfig,

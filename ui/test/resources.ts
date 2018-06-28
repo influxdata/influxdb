@@ -608,6 +608,15 @@ export const template: Template = {
   ],
 }
 
+export const emptyTemplate: Template = {
+  id: '1',
+  type: TemplateType.CSV,
+  label: '',
+  tempVar: '',
+  query: {},
+  values: [],
+}
+
 export const dashboard: Dashboard = {
   id: 1,
   cells: [],

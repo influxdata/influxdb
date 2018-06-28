@@ -44,6 +44,7 @@ const RuleGraph = ({
         />
       </div>
       <RefreshingLineGraph
+        source={source}
         queries={queries}
         isGraphFilled={false}
         ruleValues={rule.values}

@@ -1,6 +1,5 @@
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import buildQueries from 'src/utils/buildQueriesForGraphs'
@@ -71,15 +70,12 @@ const DashVisualization: SFC<Props> = ({
         <SourceContext.Consumer>
           {(source: Source) => (
             <RefreshingGraph
+              source={source}
               colors={colors}
               axes={axes}
               type={type}
               tableOptions={tableOptions}
-              queries={buildQueries(
-                _.get(source, 'links.proxy'),
-                queryConfigs,
-                timeRange
-              )}
+              queries={buildQueries(queryConfigs, timeRange)}
               templates={templates}
               autoRefresh={autoRefresh}
               editQueryStatus={editQueryStatus}

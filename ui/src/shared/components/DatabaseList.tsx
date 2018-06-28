@@ -52,17 +52,12 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
 
   public componentDidUpdate({
     querySource: prevSource,
-    query: prevQuery,
   }: {
     querySource?: Source
     query: QueryConfig
   }) {
     const {querySource: nextSource, query: nextQuery} = this.props
     const differentSource = !_.isEqual(prevSource, nextSource)
-
-    if (prevQuery.rawText === nextQuery.rawText) {
-      return
-    }
 
     const newMetaQuery =
       nextQuery.rawText && nextQuery.rawText.match(/^(create|drop)/i)
