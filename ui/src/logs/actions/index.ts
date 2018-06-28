@@ -237,13 +237,20 @@ export const executeHistogramQueryAsync = () => async (
   const searchTerm = getSearchTerm(state)
   const filters = getFilters(state)
 
-  if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
-    const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
+  if (!_.every([queryConfig, timeRange, namespace, proxyLink])) {
+    return
+  }
 
+  try {
+    dispatch(incrementQueryCount())
+
+    const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
     const response = await executeQueryAsync(proxyLink, namespace, query)
     const data = parseHistogramQueryResponse(response)
 
     dispatch(setHistogramData(data))
+  } finally {
+    dispatch(decrementQueryCount())
   }
 }
 
@@ -265,7 +272,13 @@ export const executeTableQueryAsync = () => async (
   const searchTerm = getSearchTerm(state)
   const filters = getFilters(state)
 
-  if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
+  if (!_.every([queryConfig, timeRange, namespace, proxyLink])) {
+    return
+  }
+
+  try {
+    dispatch(incrementQueryCount())
+
     const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
     const response = await executeQueryAsync(
       proxyLink,
@@ -276,6 +289,8 @@ export const executeTableQueryAsync = () => async (
     const series = getDeep(response, 'results.0.series.0', defaultTableData)
 
     dispatch(setTableData(series))
+  } finally {
+    dispatch(decrementQueryCount())
   }
 }
 
@@ -288,16 +303,13 @@ export const incrementQueryCount = () => ({
 })
 
 export const executeQueriesAsync = () => async dispatch => {
-  dispatch(incrementQueryCount())
   try {
     await Promise.all([
       dispatch(executeHistogramQueryAsync()),
       dispatch(executeTableQueryAsync()),
     ])
-  } catch (ex) {
+  } catch {
     console.error('Could not make query requests')
-  } finally {
-    dispatch(decrementQueryCount())
   }
 }
 
