@@ -1,5 +1,9 @@
 import {Template, TemplateValueType, TemplateValue} from 'src/types/tempVars'
-import {TEMP_VAR_INTERVAL} from 'src/shared/constants'
+import {
+  TEMP_VAR_INTERVAL,
+  DEFAULT_PIXELS,
+  DEFAULT_DURATION_MS,
+} from 'src/shared/constants'
 
 export const replaceInterval = (
   query: string,
@@ -11,11 +15,11 @@ export const replaceInterval = (
   }
 
   if (!pixels) {
-    pixels = 333
+    pixels = DEFAULT_PIXELS
   }
 
   if (!durationMs) {
-    durationMs = 1000
+    durationMs = DEFAULT_DURATION_MS
   }
 
   // duration / width of visualization in pixels

@@ -2,6 +2,7 @@ import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 import {fetchTimeSeriesAsync} from 'src/shared/actions/timeSeries'
 import {analyzeQueries} from 'src/shared/apis'
+import {DEFAULT_DURATION_MS} from 'src/shared/constants'
 import replaceTemplates, {replaceInterval} from 'src/tempVars/utils/replace'
 import {Source} from 'src/types'
 
@@ -65,7 +66,7 @@ const replace = async (
 const duration = async (query: string, source: Source): Promise<number> => {
   try {
     const analysis = await analyzeQueries(source.links.queries, [{query}])
-    return getDeep<number>(analysis, '0.durationMs', 1000)
+    return getDeep<number>(analysis, '0.durationMs', DEFAULT_DURATION_MS)
   } catch (error) {
     console.error(error)
     throw error

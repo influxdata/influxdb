@@ -32,6 +32,8 @@ import {
   AUTO_GROUP_BY,
   PREDEFINED_TEMP_VARS,
   TEMP_VAR_DASHBOARD_TIME,
+  DEFAULT_DURATION_MS,
+  DEFAULT_PIXELS,
 } from 'src/shared/constants'
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 
@@ -405,10 +407,10 @@ class CellEditorOverlay extends Component<Props, State> {
 
     // get durationMs to calculate interval
     let queries = await getQueryConfigAndStatus(url, [{query, id}])
-    const durationMs = _.get(queries, '0.durationMs', 1000)
+    const durationMs = _.get(queries, '0.durationMs', DEFAULT_DURATION_MS)
 
     // calc and replace :interval:
-    query = replaceInterval(query, 333, durationMs)
+    query = replaceInterval(query, DEFAULT_PIXELS, durationMs)
 
     // fetch queryConfig for with all template variables replaced
     queries = await getQueryConfigAndStatus(url, [{query, id}])
