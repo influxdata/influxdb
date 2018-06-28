@@ -10,7 +10,6 @@ import XBrush from 'src/shared/components/XBrush'
 
 import extentBy from 'src/utils/extentBy'
 
-import {RemoteDataState} from 'src/types'
 import {
   TimePeriod,
   HistogramData,
@@ -29,7 +28,6 @@ const PERIOD_DIGIT_WIDTH = 4
 
 interface Props {
   data: HistogramData
-  dataStatus: RemoteDataState
   width: number
   height: number
   colorScale: ColorScale
@@ -66,22 +64,11 @@ class HistogramChart extends PureComponent<Props, State> {
     }
 
     const {hoverData} = this.state
-    const {
-      xScale,
-      yScale,
-      adjustedWidth,
-      adjustedHeight,
-      bodyTransform,
-      loadingClass,
-    } = this
+    const {xScale, yScale, adjustedWidth, adjustedHeight, bodyTransform} = this
 
     return (
       <>
-        <svg
-          width={width}
-          height={height}
-          className={`histogram-chart ${loadingClass}`}
-        >
+        <svg width={width} height={height} className="histogram-chart">
           <defs>
             <clipPath id="histogram-chart--bars-clip">
               <rect x="0" y="0" width={adjustedWidth} height={adjustedHeight} />
@@ -187,12 +174,6 @@ class HistogramChart extends PureComponent<Props, State> {
     )
 
     return Math.max(...counts)
-  }
-
-  private get loadingClass(): string {
-    const {dataStatus} = this.props
-
-    return dataStatus === RemoteDataState.Loading ? 'loading' : ''
   }
 
   private handleBrush = (t: TimePeriod): void => {

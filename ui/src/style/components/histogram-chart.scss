@@ -1,36 +1,5 @@
-@keyframes blur-in {
-  from {
-    filter: blur(0);
-  }
-
-  to {
-    filter: blur(2px);
-  }
-}
-
-@keyframes blur-out {
-  from {
-    filter: blur(2px);
-  }
-
-  to {
-    filter: blur(0);
-  }
-}
-
 .histogram-chart {
   user-select: none;
-
-  &:not(.loading) {
-    animation-duration: 0.1s;
-    animation-name: blur-out;
-  }
-
-  &.loading {
-    animation-duration: 0.3s;
-    animation-name: blur-in;
-    animation-fill-mode: forwards;
-  }
 }
 
 .histogram-chart-bars--bar {
@@ -64,7 +33,7 @@
 }
 
 
-.histogram-chart-skeleton, .histogram-chart:not(.loading) .x-brush--area {
+.histogram-chart-skeleton, .histogram-chart .x-brush--area {
   cursor: crosshair;
 }
 
