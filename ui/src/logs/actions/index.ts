@@ -1,12 +1,6 @@
 import moment from 'moment'
 import _ from 'lodash'
-import {
-  Source,
-  Namespace,
-  TimeRange,
-  QueryConfig,
-  RemoteDataState,
-} from 'src/types'
+import {Source, Namespace, TimeRange, QueryConfig} from 'src/types'
 import {getSource} from 'src/shared/apis'
 import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
 import {
@@ -47,7 +41,6 @@ export enum ActionTypes {
   SetNamespace = 'LOGS_SET_NAMESPACE',
   SetHistogramQueryConfig = 'LOGS_SET_HISTOGRAM_QUERY_CONFIG',
   SetHistogramData = 'LOGS_SET_HISTOGRAM_DATA',
-  SetHistogramDataStatus = 'LOGS_SET_HISTOGRAM_DATA_STATUS',
   SetTableQueryConfig = 'LOGS_SET_TABLE_QUERY_CONFIG',
   SetTableData = 'LOGS_SET_TABLE_DATA',
   ChangeZoom = 'LOGS_CHANGE_ZOOM',
@@ -139,11 +132,6 @@ interface SetHistogramData {
   }
 }
 
-interface SetHistogramDataStatus {
-  type: ActionTypes.SetHistogramDataStatus
-  payload: RemoteDataState
-}
-
 interface SetTableQueryConfig {
   type: ActionTypes.SetTableQueryConfig
   payload: {
@@ -179,7 +167,6 @@ export type Action =
   | SetNamespaceAction
   | SetHistogramQueryConfig
   | SetHistogramData
-  | SetHistogramDataStatus
   | ChangeZoomAction
   | SetTableData
   | SetTableQueryConfig
@@ -237,13 +224,6 @@ const setHistogramData = (data): SetHistogramData => ({
   payload: {data},
 })
 
-const setHistogramDataStatus = (
-  status: RemoteDataState
-): SetHistogramDataStatus => ({
-  type: ActionTypes.SetHistogramDataStatus,
-  payload: status,
-})
-
 export const executeHistogramQueryAsync = () => async (
   dispatch,
   getState: GetState
@@ -257,20 +237,20 @@ export const executeHistogramQueryAsync = () => async (
   const searchTerm = getSearchTerm(state)
   const filters = getFilters(state)
 
-  if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
+  if (!_.every([queryConfig, timeRange, namespace, proxyLink])) {
+    return
+  }
+
+  try {
+    dispatch(incrementQueryCount())
+
     const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
+    const response = await executeQueryAsync(proxyLink, namespace, query)
+    const data = parseHistogramQueryResponse(response)
 
-    try {
-      dispatch(setHistogramDataStatus(RemoteDataState.Loading))
-
-      const response = await executeQueryAsync(proxyLink, namespace, query)
-      const data = parseHistogramQueryResponse(response)
-
-      dispatch(setHistogramData(data))
-      dispatch(setHistogramDataStatus(RemoteDataState.Done))
-    } catch {
-      dispatch(setHistogramDataStatus(RemoteDataState.Error))
-    }
+    dispatch(setHistogramData(data))
+  } finally {
+    dispatch(decrementQueryCount())
   }
 }
 
@@ -292,7 +272,13 @@ export const executeTableQueryAsync = () => async (
   const searchTerm = getSearchTerm(state)
   const filters = getFilters(state)
 
-  if (_.every([queryConfig, timeRange, namespace, proxyLink])) {
+  if (!_.every([queryConfig, timeRange, namespace, proxyLink])) {
+    return
+  }
+
+  try {
+    dispatch(incrementQueryCount())
+
     const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
     const response = await executeQueryAsync(
       proxyLink,
@@ -303,6 +289,8 @@ export const executeTableQueryAsync = () => async (
     const series = getDeep(response, 'results.0.series.0', defaultTableData)
 
     dispatch(setTableData(series))
+  } finally {
+    dispatch(decrementQueryCount())
   }
 }
 
@@ -315,16 +303,13 @@ export const incrementQueryCount = () => ({
 })
 
 export const executeQueriesAsync = () => async dispatch => {
-  dispatch(incrementQueryCount())
   try {
     await Promise.all([
       dispatch(executeHistogramQueryAsync()),
       dispatch(executeTableQueryAsync()),
     ])
-  } catch (ex) {
+  } catch {
     console.error('Could not make query requests')
-  } finally {
-    dispatch(decrementQueryCount())
   }
 }
 
@@ -498,6 +483,5 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
 
   if (namespace && proxyLink) {
     await dispatch(setTimeRangeAsync(timeRange))
-    await dispatch(executeTableQueryAsync())
   }
 }

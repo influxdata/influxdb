@@ -174,7 +174,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
   width={600}
 >
   <svg
-    className="histogram-chart "
+    className="histogram-chart"
     height={400}
     width={600}
   >
