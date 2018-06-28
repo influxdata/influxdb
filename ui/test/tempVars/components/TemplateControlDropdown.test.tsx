@@ -26,7 +26,7 @@ const defaultProps = {
   meRole: 'EDITOR',
   isUsingAuth: true,
   source,
-  onSelectTemplate: () => Promise.resolve(),
+  onPickTemplate: () => Promise.resolve(),
   onCreateTemplate: () => Promise.resolve(),
   onUpdateTemplate: () => Promise.resolve(),
   onDeleteTemplate: () => Promise.resolve(),

@@ -67,7 +67,7 @@ interface DashboardActions {
   updateDashboardCell: DashboardsActions.UpdateDashboardCellDispatcher
   cloneDashboardCellAsync: DashboardsActions.CloneDashboardCellDispatcher
   deleteDashboardCellAsync: DashboardsActions.DeleteDashboardCellDispatcher
-  templateVariableSelected: DashboardsActions.TemplateVariableSelectedActionCreator
+  templateVariablePicked: DashboardsActions.TemplateVariablePickedActionCreator
   syncURLQueryFromTempVars: DashboardsActions.SyncURLQueryFromTempVarsDispatcher
   setZoomedTimeRangeAsync: DashboardsActions.SetZoomedTimeRangeDispatcher
 }
@@ -320,7 +320,7 @@ class DashboardPage extends Component<Props, State> {
             meRole={meRole}
             isUsingAuth={isUsingAuth}
             onSaveTemplates={this.handleSaveTemplateVariables}
-            onSelectTemplate={this.handleSelectTemplate}
+            onPickTemplate={this.handlePickTemplate}
             isOpen={showTemplateControlBar}
             source={source}
           />
@@ -470,7 +470,7 @@ class DashboardPage extends Component<Props, State> {
     this.props.deleteDashboardCellAsync(dashboard, cell)
   }
 
-  private handleSelectTemplate = (
+  private handlePickTemplate = (
     templateID: string
   ): ((value: TempVarsModels.TemplateValue) => void) => (
     value: TempVarsModels.TemplateValue
@@ -492,8 +492,8 @@ class DashboardPage extends Component<Props, State> {
         updatedQueryParam
       )
     }
-    this.props.templateVariableSelected(dashboard.id, templateID, [value])
-    this.props.putDashboardByID(dashboardID)
+    this.props.templateVariablePicked(dashboard.id, templateID, [value])
+    // this.props.putDashboardByID(dashboardID)
   }
 
   private handleSaveTemplateVariables = async (

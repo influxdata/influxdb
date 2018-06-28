@@ -11,7 +11,7 @@ import {
   deleteDashboard,
   syncDashboardCell,
   deleteDashboardFailed,
-  templateVariableSelected,
+  templateVariablePicked,
   editTemplateVariableValues,
   templateVariablesSelectedByName,
   setActiveCell,
@@ -117,7 +117,7 @@ describe('DataExplorer.Reducers.UI', () => {
     const value = dash.templates[0].values[2].value
     const actual = reducer(
       state,
-      templateVariableSelected(dash.id, dash.templates[0].id, [{value}])
+      templateVariablePicked(dash.id, dash.templates[0].id, [{value}])
     )
 
     expect(actual.dashboards[0].templates[0].values[0].selected).toBe(false)

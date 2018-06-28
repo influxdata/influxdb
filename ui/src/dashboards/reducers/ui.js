@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import {timeRanges} from 'shared/data/timeRanges'
+import {timeRanges} from 'src/shared/data/timeRanges'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
 import {applyDashboardTempVarOverrides} from 'src/dashboards/utils/tempVars'
@@ -141,25 +141,26 @@ const ui = (state = initialState, action) => {
       return {...state, cellQueryStatus: {queryID, status}}
     }
 
-    case 'TEMPLATE_VARIABLE_SELECTED': {
+    case 'TEMPLATE_VARIABLE_PICKED': {
       const {
         dashboardID,
         templateID,
         values: updatedSelectedValues,
       } = action.payload
+
       const newDashboards = state.dashboards.map(dashboard => {
         if (dashboard.id === dashboardID) {
           const newTemplates = dashboard.templates.map(staleTemplate => {
             if (staleTemplate.id === templateID) {
               const newValues = staleTemplate.values.map(staleValue => {
-                let selected = false
+                let picked = false
                 for (let i = 0; i < updatedSelectedValues.length; i++) {
                   if (updatedSelectedValues[i].value === staleValue.value) {
-                    selected = true
+                    picked = true
                     break
                   }
                 }
-                return {...staleValue, selected}
+                return {...staleValue, picked}
               })
               return {...staleTemplate, values: newValues}
             }
@@ -174,7 +175,6 @@ const ui = (state = initialState, action) => {
 
     case 'TEMPLATE_VARIABLES_SELECTED_BY_NAME': {
       const {dashboardID, queryParams} = action.payload
-
       const newDashboards = state.dashboards.map(
         oldDashboard =>
           oldDashboard.id === dashboardID
@@ -192,25 +192,34 @@ const ui = (state = initialState, action) => {
         if (dashboard.id !== dashboardID) {
           return dashboard
         }
-
         const templates = dashboard.templates.map(template => {
-          if (template.id !== templateID || template.type === 'csv') {
+          if (template.id !== templateID) {
             return template
           }
-
-          const selectedValue = _.get(template, 'values', []).find(
-            v => v.selected
-          )
-
-          const v = values.map(value => ({
-            selected: _.get(selectedValue, 'value') === value,
-            value,
-            type: TEMPLATE_VARIABLE_TYPES[template.type],
-          }))
+          // || template.type === 'csv'
+          // get this to run for csvs?
+          const pickedValue = _.get(template, 'values', []).find(v => v.picked)
+          let val
+          if (pickedValue) {
+            val = values.map(value => ({
+              picked: _.get(pickedValue, 'value') === value,
+              value,
+              type: TEMPLATE_VARIABLE_TYPES[template.type],
+            }))
+          } else {
+            const selectedValue = _.get(template, 'values', []).find(
+              v => v.selected
+            )
+            val = values.map(value => ({
+              picked: _.get(selectedValue, 'value') === value,
+              value,
+              type: TEMPLATE_VARIABLE_TYPES[template.type],
+            }))
+          }
 
           return {
             ...template,
-            values: v,
+            values: val,
           }
         })
 

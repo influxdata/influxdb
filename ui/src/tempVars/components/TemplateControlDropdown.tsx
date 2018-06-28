@@ -13,7 +13,7 @@ interface Props {
   meRole: string
   isUsingAuth: boolean
   source: Source
-  onSelectTemplate: (id: string) => void
+  onPickTemplate: (id: string) => void
   onCreateTemplate: (template: Template) => Promise<void>
   onUpdateTemplate: (template: Template) => Promise<void>
   onDeleteTemplate: (template: Template) => Promise<void>
@@ -38,7 +38,7 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
       isUsingAuth,
       meRole,
       source,
-      onSelectTemplate,
+      onPickTemplate,
       onCreateTemplate,
     } = this.props
     const {isEditing} = this.state
@@ -64,7 +64,7 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
           useAutoComplete={true}
           selected={pickedItem.text}
           disabled={isUsingAuth && !isUserAuthorized(meRole, EDITOR_ROLE)}
-          onChoose={onSelectTemplate(template.id)}
+          onChoose={onPickTemplate(template.id)}
         />
         <Authorized requiredRole={EDITOR_ROLE}>
           <label className="template-control--label">

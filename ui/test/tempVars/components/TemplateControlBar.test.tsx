@@ -14,7 +14,7 @@ const defaultProps = {
   templates: [],
   meRole: 'EDITOR',
   isUsingAuth: true,
-  onSelectTemplate: () => {},
+  onPickTemplate: () => {},
   onSaveTemplates: () => {},
   onCreateTemplateVariable: () => {},
   source,

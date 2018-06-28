@@ -55,21 +55,19 @@ const reconcileTempVarsWithOverrides = (
     const {tempVar: name, values} = tempVar
     const strippedTempVar = stripTempVar(name)
     const overrideValue = tempVarOverrides[strippedTempVar]
-
     if (overrideValue) {
       const isValid = isValidTempVarOverride(values, overrideValue)
-
       if (isValid) {
         const overriddenValues = values.map(tempVarValue => {
           const {value} = tempVarValue
           if (value === overrideValue) {
-            return {...tempVarValue, selected: true}
+            return {...tempVarValue, picked: true}
           }
-          return {...tempVarValue, selected: false}
+          return {...tempVarValue, picked: false}
         })
         return {...tempVar, values: overriddenValues}
       }
-
+      // or pick selected value.
       return tempVar
     }
 

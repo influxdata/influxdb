@@ -206,12 +206,12 @@ export const editCellQueryStatus: DashboardsActions.EditCellQueryStatusActionCre
   },
 })
 
-export const templateVariableSelected: DashboardsActions.TemplateVariableSelectedActionCreator = (
+export const templateVariablePicked: DashboardsActions.TemplateVariablePickedActionCreator = (
   dashboardID: number,
   templateID: string,
   values
-): DashboardsActions.TemplateVariableSelectedAction => ({
-  type: 'TEMPLATE_VARIABLE_SELECTED',
+): DashboardsActions.TemplateVariablePickedAction => ({
+  type: 'TEMPLATE_VARIABLE_PICKED',
   payload: {
     dashboardID,
     templateID,
@@ -659,7 +659,7 @@ const syncDashboardTempVarsFromURLQueryParams = (
 ): DashboardsActions.SyncDashboardTempVarsFromURLQueryParamsDispatcher => (
   dispatch: Dispatch<
     | NotificationsActions.PublishNotificationActionCreator
-    | DashboardsActions.TemplateVariableSelectedAction
+    | DashboardsActions.TemplateVariablePickedAction
   >,
   getState: () => DashboardsReducers.Dashboards & AuthReducers.Auth
 ): void => {
@@ -794,12 +794,12 @@ export const getDashboardWithHydratedAndSyncedTempVarsAsync: DashboardsActions.G
   }
 
   await bindActionCreators(hydrateTempVarValuesAsync, dispatch)(
-    +dashboardID,
+    dashboardID,
     source
   )
 
   bindActionCreators(syncDashboardFromURLQueryParams, dispatch)(
-    +dashboardID,
+    dashboardID,
     location
   )
 }
