@@ -178,13 +178,6 @@ export const insertTempVar = (query, tempVar) => {
 export const unMask = query => {
   return query.replace(/😸/g, ':')
 }
-export const removeUnselectedTemplateValues = templates => {
-  return templates.map(template => {
-    const selectedValues = template.values.filter(value => value.selected)
-    return {...template, values: selectedValues}
-  })
-}
-
 export const TEMPLATE_RANGE: TimeRange = {
   upper: null,
   lower: TEMP_VAR_DASHBOARD_TIME,
