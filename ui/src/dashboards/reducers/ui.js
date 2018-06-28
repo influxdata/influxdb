@@ -196,30 +196,25 @@ const ui = (state = initialState, action) => {
           if (template.id !== templateID) {
             return template
           }
-          // || template.type === 'csv'
-          // get this to run for csvs?
           const pickedValue = _.get(template, 'values', []).find(v => v.picked)
-          let val
-          if (pickedValue) {
-            val = values.map(value => ({
-              picked: _.get(pickedValue, 'value') === value,
-              value,
-              type: TEMPLATE_VARIABLE_TYPES[template.type],
-            }))
-          } else {
-            const selectedValue = _.get(template, 'values', []).find(
-              v => v.selected
-            )
-            val = values.map(value => ({
-              picked: _.get(selectedValue, 'value') === value,
-              value,
-              type: TEMPLATE_VARIABLE_TYPES[template.type],
-            }))
-          }
+          const selectedValue = _.get(template, 'values', []).find(
+            v => v.selected
+          )
 
+          const newValues = values.map(value => {
+            const isPicked = _.get(pickedValue, 'value', null) === value
+            const isSelected = _.get(selectedValue, 'value', null) === value
+            const newValue = {
+              picked: pickedValue ? isPicked : isSelected,
+              selected: isSelected,
+              value,
+              type: TEMPLATE_VARIABLE_TYPES[template.type],
+            }
+            return newValue
+          })
           return {
             ...template,
-            values: val,
+            values: newValues,
           }
         })
 
