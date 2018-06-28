@@ -404,16 +404,29 @@ class CellEditorOverlay extends Component<Props, State> {
   ): Promise<QueriesModels.QueryConfig> => {
     // replace all templates but :interval:
     query = replaceTemplate(query, templates)
+    let queries = []
+    let durationMs = DEFAULT_DURATION_MS
 
-    // get durationMs to calculate interval
-    let queries = await getQueryConfigAndStatus(url, [{query, id}])
-    const durationMs = _.get(queries, '0.durationMs', DEFAULT_DURATION_MS)
+    try {
+      // get durationMs to calculate interval
+      queries = await getQueryConfigAndStatus(url, [{query, id}])
+      durationMs = _.get(queries, '0.durationMs', DEFAULT_DURATION_MS)
 
-    // calc and replace :interval:
-    query = replaceInterval(query, DEFAULT_PIXELS, durationMs)
+      // calc and replace :interval:
+      query = replaceInterval(query, DEFAULT_PIXELS, durationMs)
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
 
-    // fetch queryConfig for with all template variables replaced
-    queries = await getQueryConfigAndStatus(url, [{query, id}])
+    try {
+      // fetch queryConfig for with all template variables replaced
+      queries = await getQueryConfigAndStatus(url, [{query, id}])
+    } catch (error) {
+      console.error(error)
+      throw error
+    }
+
     const {queryConfig} = queries.find(q => q.id === id)
 
     return queryConfig
@@ -438,7 +451,6 @@ class CellEditorOverlay extends Component<Props, State> {
 
     try {
       const queryConfig = await this.getConfig(url, id, text, templates)
-
       const nextQueries = this.state.queriesWorkingDraft.map(q => {
         if (q.id === id) {
           const isQuerySupportedByExplorer = !isUsingUserDefinedTempVars
@@ -449,6 +461,7 @@ class CellEditorOverlay extends Component<Props, State> {
 
           return {
             ...queryConfig,
+            rawText: text,
             source: q.source,
             isQuerySupportedByExplorer,
           }
