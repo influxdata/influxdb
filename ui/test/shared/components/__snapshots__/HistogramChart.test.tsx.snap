@@ -2,6 +2,7 @@
 
 exports[`HistogramChart displays a HistogramChartSkeleton if empty data is passed 1`] = `
 <HistogramChart
+  colorScale={[Function]}
   data={Array []}
   dataStatus="Done"
   height={400}
@@ -72,38 +73,60 @@ exports[`HistogramChart displays a HistogramChartSkeleton if empty data is passe
 
 exports[`HistogramChart displays a HistogramChartTooltip when hovering over bars 1`] = `
 <HistogramChartTooltip
-  anchor="left"
-  datum={
+  colorScale={[Function]}
+  data={
     Object {
-      "group": "a",
-      "key": "0",
-      "time": 0,
-      "value": 0,
+      "anchor": "left",
+      "data": Array [
+        Object {
+          "group": "a",
+          "key": "1",
+          "time": 1,
+          "value": 1,
+        },
+      ],
+      "x": 5,
+      "y": 0,
     }
   }
-  x={15}
-  y={7.5}
 >
   <div
     className="histogram-chart-tooltip"
-    data-group="a"
     style={
       Object {
-        "left": 15,
+        "left": 5,
         "position": "fixed",
-        "top": 7.5,
+        "top": 0,
       }
     }
   >
     <div
-      className="histogram-chart-tooltip--value"
+      className="histogram-chart-tooltip--column"
     >
-      0
+      <div
+        key="1"
+        style={
+          Object {
+            "color": "blue",
+          }
+        }
+      >
+        1
+      </div>
     </div>
     <div
-      className="histogram-chart-tooltip--group"
+      className="histogram-chart-tooltip--column"
     >
-      a
+      <div
+        key="1"
+        style={
+          Object {
+            "color": "blue",
+          }
+        }
+      >
+        a
+      </div>
     </div>
   </div>
 </HistogramChartTooltip>
@@ -111,6 +134,7 @@ exports[`HistogramChart displays a HistogramChartTooltip when hovering over bars
 
 exports[`HistogramChart displays a nothing if passed width and height of 0 1`] = `
 <HistogramChart
+  colorScale={[Function]}
   data={Array []}
   dataStatus="Done"
   height={0}
@@ -121,6 +145,7 @@ exports[`HistogramChart displays a nothing if passed width and height of 0 1`] =
 
 exports[`HistogramChart displays the visualization with bars if nonempty data is passed 1`] = `
 <HistogramChart
+  colorScale={[Function]}
   data={
     Array [
       Object {
@@ -151,8 +176,6 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
   <svg
     className="histogram-chart "
     height={400}
-    onMouseOut={[Function]}
-    onMouseOver={[Function]}
     width={600}
   >
     <defs>
@@ -307,6 +330,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
       transform="translate(25, 5)"
     >
       <HistogramChartBars
+        colorScale={[Function]}
         data={
           Array [
             Object {
@@ -330,13 +354,17 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
           ]
         }
         height={375}
+        onHover={[Function]}
         width={575}
         xScale={[Function]}
         yScale={[Function]}
       >
         <g
           className="histogram-chart-bars--bars"
+          data-key="1-1-193.5"
           key="1-1-193.5"
+          onMouseOut={[Function]}
+          onMouseOver={[Function]}
         >
           <defs>
             <clipPath
@@ -357,6 +385,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
             clipPath="url(#histogram-chart-bars--clip-1-1-193.5)"
             data-group="a"
             data-key="1"
+            fill="#0000ff"
             height={156.25}
             key="1"
             width={188}
@@ -366,7 +395,10 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
         </g>
         <g
           className="histogram-chart-bars--bars"
+          data-key="2-2-481"
           key="2-2-481"
+          onMouseOut={[Function]}
+          onMouseOver={[Function]}
         >
           <defs>
             <clipPath
@@ -387,6 +419,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
             clipPath="url(#histogram-chart-bars--clip-2-2-481)"
             data-group="b"
             data-key="2"
+            fill="#0000ff"
             height={312.5}
             key="2"
             width={188}
@@ -397,10 +430,5 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
       </HistogramChartBars>
     </g>
   </svg>
-  <HistogramChartTooltip
-    anchor="left"
-    x={-1}
-    y={-1}
-  />
 </HistogramChart>
 `;

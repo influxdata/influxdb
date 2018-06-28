@@ -24,6 +24,7 @@ import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogsTable from 'src/logs/components/LogsTable'
 import {getDeep} from 'src/utils/wrappers'
+import {colorForSeverity} from 'src/logs/utils/colors'
 
 import {Source, Namespace, TimeRange, RemoteDataState} from 'src/types'
 import {Filter} from 'src/types/logs'
@@ -189,6 +190,7 @@ class LogsPage extends PureComponent<Props, State> {
             dataStatus={histogramDataStatus}
             width={width}
             height={height}
+            colorScale={colorForSeverity}
             onZoom={this.handleChartZoom}
           />
         )}

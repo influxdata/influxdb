@@ -1,11 +1,14 @@
 import _ from 'lodash'
 import moment from 'moment'
 import classnames from 'classnames'
-import React, {Component, MouseEvent} from 'react'
+import React, {Component, MouseEvent, CSSProperties} from 'react'
 import {Grid, AutoSizer, InfiniteLoader} from 'react-virtualized'
+import {color} from 'd3-color'
+
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {getDeep} from 'src/utils/wrappers'
 
+import {colorForSeverity} from 'src/logs/utils/colors'
 import {
   getColumnFromData,
   getValueFromData,
@@ -346,6 +349,7 @@ class LogsTable extends Component<Props, State> {
           title={value}
           onMouseOver={this.handleMouseEnter}
           data-index={rowIndex}
+          style={this.severityDotStyle(value)}
         />
       )
     } else {
@@ -393,6 +397,17 @@ class LogsTable extends Component<Props, State> {
         {formattedValue}
       </div>
     )
+  }
+
+  private severityDotStyle = (severity: string): CSSProperties => {
+    const severityColor = colorForSeverity(severity)
+    const brightSeverityColor = color(severityColor)
+      .brighter(0.5)
+      .hex()
+
+    return {
+      background: `linear-gradient(45deg, ${severityColor}, ${brightSeverityColor}`,
+    }
   }
 
   private handleMouseEnter = (e: MouseEvent<HTMLElement>): void => {
