@@ -210,7 +210,7 @@ type TemplateQuery struct {
 	Command     string `json:"influxql"`     // Command is the query itself
 	DB          string `json:"db,omitempty"` // DB is optional and if empty will not be used.
 	RP          string `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
-	Measurement string `json:"measurement"`  // Measurement is the optinally selected measurement for the query
+	Measurement string `json:"measurement"`  // Measurement is the optionally selected measurement for the query
 	TagKey      string `json:"tagKey"`       // TagKey is the optionally selected tag key for the query
 	FieldKey    string `json:"fieldKey"`     // FieldKey is the optionally selected field key for the query
 }
