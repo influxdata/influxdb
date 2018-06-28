@@ -669,18 +669,6 @@ const syncDashboardTempVarsFromURLQueryParams = (
   } = getState()
   const dashboard = dashboardUI.dashboards.find(d => d.id === dashboardID)
 
-  // viewers are not currently allowed to select temp vars and/or use overrides
-  if (isUsingAuth && !isUserAuthorized(me.role, EDITOR_ROLE)) {
-    const urlQueryParamsTempVarsWithUpdatedValues = findUpdatedTempVarsInURLQueryParams(
-      dashboard.templates,
-      urlQueryParams
-    )
-    if (urlQueryParamsTempVarsWithUpdatedValues.length) {
-      dispatch(notify(notifyViewerUnauthorizedToSetTempVars()))
-      return
-    }
-  }
-
   const urlQueryParamsTempVarsWithInvalidValues = findInvalidTempVarsInURLQuery(
     dashboard.templates,
     urlQueryParams
