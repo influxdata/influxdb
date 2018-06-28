@@ -280,35 +280,6 @@ export const getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher = ():
   }
 }
 
-// gets update-to-date names of dashboards, but does not dispatch action
-// in order to avoid duplicate and out-of-sync state problems in redux
-export const getDashboardsNamesAsync: DashboardsActions.GetDashboardsNamesDispatcher = (
-  sourceID: string
-): DashboardsActions.GetDashboardsNamesThunk => async (
-  dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>
-): Promise<DashboardsModels.DashboardName[] | void> => {
-  try {
-    // TODO: change this from getDashboardsAJAX to getDashboardsNamesAJAX
-    // to just get dashboard names (and links) as api view call when that
-    // view API is implemented (issue #3594), rather than getting whole
-    // dashboard for each
-    const {
-      data: {dashboards},
-    } = (await getDashboardsAJAX()) as AxiosResponse<
-      DashboardsApis.DashboardsResponse
-    >
-    const dashboardsNames = dashboards.map(({id, name}) => ({
-      id,
-      name,
-      link: `/sources/${sourceID}/dashboards/${id}`,
-    }))
-    return dashboardsNames
-  } catch (error) {
-    console.error(error)
-    dispatch(errorThrown(error))
-  }
-}
-
 export const getDashboardAsync = (dashboardID: number) => async (
   dispatch
 ): Promise<DashboardsModels.Dashboard | null> => {

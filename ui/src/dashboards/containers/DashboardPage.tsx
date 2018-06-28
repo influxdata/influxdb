@@ -58,7 +58,7 @@ interface DashboardActions {
   syncURLQueryParamsFromQueryParamsObject: DashboardsActions.SyncURLQueryFromQueryParamsObjectDispatcher
   putDashboard: DashboardsActions.PutDashboardDispatcher
   putDashboardByID: DashboardsActions.PutDashboardByIDDispatcher
-  getDashboardsNamesAsync: DashboardsActions.GetDashboardsNamesDispatcher
+  getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher
   getDashboardWithHydratedAndSyncedTempVarsAsync: DashboardsActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher
   setTimeRange: DashboardsActions.SetTimeRangeActionCreator
   addDashboardCellAsync: DashboardsActions.AddDashboardCellDispatcher
@@ -135,7 +135,13 @@ class DashboardPage extends Component<Props, State> {
   }
 
   public async componentDidMount() {
-    const {source, getAnnotationsAsync, timeRange, autoRefresh} = this.props
+    const {
+      source,
+      getAnnotationsAsync,
+      timeRange,
+      autoRefresh,
+      getDashboardsAsync,
+    } = this.props
 
     const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
@@ -150,7 +156,10 @@ class DashboardPage extends Component<Props, State> {
 
     await this.getDashboard()
 
-    this.getDashboardsNames()
+    // We populate all dashboards in the redux store so that we can consume
+    // them in `this.dashboardLinks`. See
+    // https://github.com/influxdata/chronograf/issues/3594
+    getDashboardsAsync()
   }
 
   public componentWillReceiveProps(nextProps: Props) {
@@ -212,8 +221,6 @@ class DashboardPage extends Component<Props, State> {
       handleHideCellEditorOverlay,
       handleClickPresentationButton,
     } = this.props
-    const {dashboardsNames} = this.state
-
     const low = zoomedLower || lower
     const up = zoomedUpper || upper
 
@@ -283,7 +290,6 @@ class DashboardPage extends Component<Props, State> {
           />
         ) : null}
         <DashboardHeader
-          names={dashboardsNames}
           dashboard={dashboard}
           timeRange={timeRange}
           isEditMode={isEditMode}
@@ -295,6 +301,8 @@ class DashboardPage extends Component<Props, State> {
           onSave={this.handleRenameDashboard}
           onCancel={this.handleCancelEditDashboard}
           onEditDashboard={this.handleEditDashboard}
+          dashboardLinks={this.dashboardLinks}
+          activeDashboardLink={this.activeDashboardLink}
           activeDashboard={dashboard ? dashboard.name : ''}
           showTemplateControlBar={showTemplateControlBar}
           handleChooseAutoRefresh={handleChooseAutoRefresh}
@@ -351,19 +359,6 @@ class DashboardPage extends Component<Props, State> {
       router,
       location
     )
-  }
-
-  private getDashboardsNames = async (): Promise<void> => {
-    const {
-      params: {sourceID},
-    } = this.props
-
-    // TODO: remove any once react-redux connect is properly typed
-    const dashboardsNames = (await this.props.getDashboardsNamesAsync(
-      sourceID
-    )) as any
-
-    this.setState({dashboardsNames})
   }
 
   private inView = (cell: DashboardsModels.Cell): boolean => {
@@ -445,7 +440,6 @@ class DashboardPage extends Component<Props, State> {
 
     this.props.updateDashboard(newDashboard)
     await this.props.putDashboard(newDashboard)
-    this.getDashboardsNames()
   }
 
   private handleDeleteDashboardCell = (cell: DashboardsModels.Cell): void => {
@@ -510,6 +504,30 @@ class DashboardPage extends Component<Props, State> {
     const target = e.target as HTMLElement
 
     this.setState({scrollTop: target.scrollTop})
+  }
+
+  private get dashboardLinks(): DashboardsModels.DashboardSwitcherLink[] {
+    const {dashboards, source} = this.props
+
+    return dashboards.map(d => {
+      return {
+        key: String(d.id),
+        text: d.name,
+        to: `/sources/${source.id}/dashboards/${d.id}`,
+      }
+    })
+  }
+
+  private get activeDashboardLink(): DashboardsModels.DashboardSwitcherLink | null {
+    const {dashboard} = this.props
+
+    if (!dashboard) {
+      return null
+    }
+
+    const {dashboardLinks} = this
+
+    return dashboardLinks.find(link => link.key === String(dashboard.id))
   }
 }
 

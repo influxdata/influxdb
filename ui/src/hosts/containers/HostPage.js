@@ -168,21 +168,16 @@ class HostPage extends Component {
     const {
       autoRefresh,
       onManualRefresh,
-      params: {hostID, sourceID},
+      params: {hostID},
       inPresentationMode,
       handleChooseAutoRefresh,
       handleClickPresentationButton,
     } = this.props
-    const {timeRange, hosts} = this.state
-    const names = _.map(hosts, ({name}) => ({
-      name,
-      link: `/sources/${sourceID}/hosts/${name}`,
-    }))
+    const {timeRange} = this.state
 
     return (
       <div className="page">
         <DashboardHeader
-          names={names}
           timeRange={timeRange}
           activeDashboard={hostID}
           autoRefresh={autoRefresh}
@@ -191,6 +186,8 @@ class HostPage extends Component {
           handleChooseAutoRefresh={handleChooseAutoRefresh}
           handleChooseTimeRange={this.handleChooseTimeRange}
           handleClickPresentationButton={handleClickPresentationButton}
+          dashboardLinks={this.dashboardLinks}
+          activeDashboardLink={this.activeDashboardLink}
         />
         <FancyScrollbar
           className={classnames({
@@ -204,6 +201,32 @@ class HostPage extends Component {
         </FancyScrollbar>
       </div>
     )
+  }
+
+  get dashboardLinks() {
+    const {
+      params: {sourceID},
+    } = this.props
+    const {hosts} = this.state
+
+    if (!sourceID || !hosts) {
+      return []
+    }
+
+    return Object.values(hosts).map(({name}) => ({
+      key: name,
+      text: name,
+      to: `/sources/${sourceID}/hosts/${name}`,
+    }))
+  }
+
+  get activeDashboardLink() {
+    const {
+      params: {hostID},
+    } = this.props
+    const {dashboardLinks} = this
+
+    return dashboardLinks.find(d => d.key === hostID)
   }
 }
 

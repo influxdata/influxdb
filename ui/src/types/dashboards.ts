@@ -128,3 +128,9 @@ export enum ThresholdType {
   BG = 'background',
   Base = 'base',
 }
+
+export interface DashboardSwitcherLink {
+  key: string
+  text: string
+  to: string
+}
