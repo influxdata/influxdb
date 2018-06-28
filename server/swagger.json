@@ -5148,67 +5148,20 @@
       "type": "object",
       "required": [
         "name",
-        "formatting",
-        "mappings"
+        "encoding"
       ],
-      "example": {
-        "name": "severity",
-        "formatting": [
-          {
-            "type": "text",
-            "value": "dotText"
-          }
-        ],
-        "mappings": [
-          {
-            "type": "color",
-            "name": "ruby",
-            "value": "emergency"
-          },
-          {
-            "type": "color",
-            "name": "rainforest",
-            "value": "info"
-          },
-          {
-            "type": "text",
-            "name": "displayName",
-            "value": "Severity"
-          }
-        ]
-      },
       "properties": {
         "name": {
           "description": "Unique identifier name of the column",
           "type": "string"
         },
-        "formatting": {
-          "description": "Composable formatting options for the column",
+        "encoding": {
+          "description": "Composable encoding options for the column",
           "type": "array",
           "items": {
-            "description":"Type and value of a formatting option",
+            "description":"Type and value and optional name of an encoding",
             "type": "object",
             "required": ["type", "value"],
-            "properties": {
-              "type": {
-                "type": "string"
-              },
-              "value": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "mappings": {
-          "description": "Mapping from a arbitrary type and possibly name, to a value",
-          "type": "array",
-          "items": {
-            "description": "Type and value of a formatting option",
-            "type": "object",
-            "required": [
-              "type",
-              "value"
-            ],
             "properties": {
               "type": {
                 "type": "string"
@@ -5221,23 +5174,69 @@
               }
             }
           }
+        },
+        "example": {
+          "name": "severity",
+          "encoding": [
+            {
+              "type": "label",
+              "value": "icon"
+            },
+            {
+              "type": "label",
+              "value": "text"
+            },
+            {
+              "type": "visibility",
+              "value": "visible"
+            },
+            {
+              "type": "color",
+              "name": "ruby",
+              "value": "emergency"
+            },
+            {
+              "type": "color",
+              "name": "rainforest",
+              "value": "info"
+            },
+            {
+              "type": "displayName",
+              "value": "Log Severity!"
+            }
+          ]
         }
-    },
-    "LogViewerUIConfig": {
+      },
+      "LogViewerUIConfig": {
       "description": "Contains the settings for the log viewer page UI",
       "type": "object",
-      "required": ["columns", "columnOptions"],
+      "required": ["columns"],
+      "properties": {
+        "columns": {
+          "description": "Defines the order, names, and visibility of columns in the log viewer table",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LogViewerUIColumn"
+          }
+        }
+      },
       "example": {
         "columns": [
           {
             "name": "severity",
-            "formatting": [
+            "encoding": [
               {
-                "type": "text",
-                "value": "dotText"
-              }
-            ],
-            "mappings": [
+                "type": "label",
+                "value": "icon"
+              },
+              {
+                "type": "label",
+                "value": "text"
+              },
+              {
+                "type": "visibility",
+                "value": "visible"
+              },
               {
                 "type": "color",
                 "name": "ruby",
@@ -5249,32 +5248,20 @@
                 "value": "info"
               },
               {
-                "type": "text",
-                "name": "displayName",
-                "value": "Severity"
+                "type": "displayName",
+                "value": "Log Severity!"
               }
             ]
           },
           {
             "name": "messages",
-            "formatting": [],
-            "mappings": []
+            "encoding": []
           },
           {
             "name": "timestamp",
-            "formatting": [],
-            "mappings": []
+            "encoding": []
           }
         ]
-      },
-      "properties": {
-        "columns": {
-          "description": "Defines the order, names, and visibility of columns in the log viewer table",
-          "type": "array",
-            "items": {
-              "$ref": "#/definitions/LogViewerUIColumn"
-            }
-        }
       }
     },
     "AuthConfig": {
