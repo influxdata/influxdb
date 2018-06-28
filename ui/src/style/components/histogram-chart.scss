@@ -48,12 +48,12 @@
 
   .x-label {
     text-anchor: middle;
-    alignment-baseline: hanging;
+    dominant-baseline: hanging;
   }
 
   .y-label {
     text-anchor: end;
-    alignment-baseline: middle;
+    dominant-baseline: middle;
   }
 
   .y-tick {
