@@ -5,7 +5,7 @@ import download from 'src/external/download'
 import _ from 'lodash'
 
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
 import {createDashboard} from 'src/dashboards/apis'
 import {

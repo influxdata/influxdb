@@ -3,8 +3,8 @@ import classnames from 'classnames'
 
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
-import PageHeader from 'src/shared/components/PageHeader'
-import PageHeaderTitle from 'src/shared/components/PageHeaderTitle'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/GraphTips'

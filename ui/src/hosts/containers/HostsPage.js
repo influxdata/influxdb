@@ -7,7 +7,7 @@ import _ from 'lodash'
 import HostsTable from 'src/hosts/components/HostsTable'
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 import {getEnv} from 'src/shared/apis/env'

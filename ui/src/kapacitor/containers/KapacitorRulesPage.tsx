@@ -9,7 +9,7 @@ import * as kapacitorActionCreators from '../actions/view'
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import QuestionMarkTooltip from 'src/shared/components/QuestionMarkTooltip'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
 import {Source, Kapacitor, AlertRule} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'

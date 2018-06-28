@@ -1,7 +1,7 @@
 import React, {Component, ReactElement} from 'react'
 import classnames from 'classnames'
 
-import Title from 'src/shared/components/PageHeaderTitle'
+import Title from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 import SourceIndicator from 'src/shared/components/SourceIndicator'
 
 interface Props {

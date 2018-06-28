@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {InjectedRouter} from 'react-router'
 
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import NameSection from 'src/kapacitor/components/NameSection'
 import ValuesSection from 'src/kapacitor/components/ValuesSection'
 import RuleHeaderSave from 'src/kapacitor/components/RuleHeaderSave'

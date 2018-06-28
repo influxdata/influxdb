@@ -15,7 +15,7 @@ import {connect} from 'react-redux'
 import Notifications from 'src/shared/components/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import {DEFAULT_SOURCE} from 'src/shared/constants'
 
 const INITIAL_PATH = '/sources/new'

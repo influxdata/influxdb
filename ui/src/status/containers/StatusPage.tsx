@@ -4,7 +4,7 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import LayoutRenderer from 'src/shared/components/LayoutRenderer'
 import {STATUS_PAGE_TIME_RANGE} from 'src/shared/data/timeRanges'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
 import {fixtureStatusPageCells} from 'src/status/fixtures'
 import {ErrorHandling} from 'src/shared/decorators/errors'
