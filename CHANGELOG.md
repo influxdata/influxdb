@@ -60,6 +60,7 @@ v1.6.0 [unreleased]
 -	[#9969](https://github.com/influxdata/influxdb/pull/9969): Add retention policy flag to CLI queries.
 -	[#9972](https://github.com/influxdata/influxdb/pull/9972): TSM: Fix ShouldCompactCache without WAL.
 -	[#10002](https://github.com/influxdata/influxdb/pull/10002): Improve series segment recovery.
+-	[#9977](https://github.com/influxdata/influxdb/pull/9977): Allow value filtering on SHOW TAG VALUES.
 
 v1.5.0 [2018-03-06]
 -------------------
