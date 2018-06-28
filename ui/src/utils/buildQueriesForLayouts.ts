@@ -8,7 +8,7 @@ import {
 } from 'src/shared/constants'
 import {timeRanges} from 'src/shared/data/timeRanges'
 
-import {Cell, CellQuery, LayoutQuery, Source, TimeRange} from 'src/types'
+import {Cell, CellQuery, LayoutQuery, TimeRange} from 'src/types'
 
 const buildCannedDashboardQuery = (
   query: LayoutQuery | CellQuery,
@@ -84,7 +84,6 @@ const addTimeBoundsToRawText = (rawText: string): string => {
 
 export const buildQueriesForLayouts = (
   cell: Cell,
-  source: Source,
   timeRange: TimeRange,
   host: string
 ): CellQuery[] => {
@@ -117,6 +116,6 @@ export const buildQueriesForLayouts = (
       queryText = buildCannedDashboardQuery(query, timeRange, host)
     }
 
-    return {...query, host: source.links.proxy, text: queryText}
+    return {...query, text: queryText}
   })
 }

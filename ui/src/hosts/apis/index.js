@@ -1,4 +1,5 @@
 import {proxy} from 'utils/queryUrlGenerator'
+import replaceTemplate from 'src/tempVars/utils/replace'
 import AJAX from 'utils/ajax'
 import _ from 'lodash'
 
@@ -8,15 +9,20 @@ export const getCpuAndLoadForHosts = (
   telegrafSystemInterval,
   tempVars
 ) => {
-  return proxy({
-    source: proxyLink,
-    query: `SELECT mean("usage_user") FROM \":db:\".\":rp:\".\"cpu\" WHERE "cpu" = 'cpu-total' AND time > now() - 10m GROUP BY host;
+  const query = replaceTemplate(
+    `SELECT mean("usage_user") FROM \":db:\".\":rp:\".\"cpu\" WHERE "cpu" = 'cpu-total' AND time > now() - 10m GROUP BY host;
       SELECT mean("load1") FROM \":db:\".\":rp:\".\"system\" WHERE time > now() - 10m GROUP BY host;
       SELECT non_negative_derivative(mean(uptime)) AS deltaUptime FROM \":db:\".\":rp:\".\"system\" WHERE time > now() - ${telegrafSystemInterval} * 10 GROUP BY host, time(${telegrafSystemInterval}) fill(0);
       SELECT mean("Percent_Processor_Time") FROM \":db:\".\":rp:\".\"win_cpu\" WHERE time > now() - 10m GROUP BY host;
       SELECT mean("Processor_Queue_Length") FROM \":db:\".\":rp:\".\"win_system\" WHERE time > now() - 10s GROUP BY host;
       SELECT non_negative_derivative(mean("System_Up_Time")) AS winDeltaUptime FROM \":db:\".\":rp:\".\"win_system\" WHERE time > now() - ${telegrafSystemInterval} * 10 GROUP BY host, time(${telegrafSystemInterval}) fill(0);
       SHOW TAG VALUES WITH KEY = "host";`,
+    tempVars
+  )
+
+  return proxy({
+    source: proxyLink,
+    query,
     db: telegrafDB,
     tempVars,
   }).then(resp => {

@@ -31,6 +31,7 @@ const RefreshingGraph = ({
   onZoom,
   cellID,
   queries,
+  source,
   tableOptions,
   templates,
   timeRange,
@@ -61,6 +62,7 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
+        source={source}
         type={type}
         colors={colors}
         key={manualRefresh}
@@ -80,6 +82,7 @@ const RefreshingGraph = ({
   if (type === 'gauge') {
     return (
       <RefreshingGaugeChart
+        source={source}
         type={type}
         colors={colors}
         key={manualRefresh}
@@ -102,6 +105,7 @@ const RefreshingGraph = ({
     return (
       <RefreshingTableGraph
         type={type}
+        source={source}
         cellID={cellID}
         colors={colors}
         inView={inView}
@@ -133,6 +137,7 @@ const RefreshingGraph = ({
     <RefreshingLineGraph
       type={type}
       axes={axes}
+      source={source}
       cellID={cellID}
       colors={colors}
       onZoom={onZoom}
@@ -200,6 +205,7 @@ RefreshingGraph.propTypes = {
   handleSetHoverTime: func.isRequired,
   isInCEO: bool,
   onSetResolution: func,
+  source: shape().isRequired,
 }
 
 RefreshingGraph.defaultProps = {

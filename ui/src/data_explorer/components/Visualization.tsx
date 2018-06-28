@@ -59,6 +59,7 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
   public render() {
     const {
       views,
+      source,
       templates,
       autoRefresh,
       manualRefresh,
@@ -73,6 +74,7 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
         <VisHeader
           view={view}
           views={views}
+          source={source}
           query={this.query}
           errorThrown={errorThrown}
           onToggleView={this.handleToggleView}
@@ -102,8 +104,8 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
   }
 
   private get queries(): Query[] {
-    const {source, queryConfigs, timeRange} = this.props
-    return buildQueries(source.links.proxy, queryConfigs, timeRange)
+    const {queryConfigs, timeRange} = this.props
+    return buildQueries(queryConfigs, timeRange)
   }
 
   private get query(): Query {

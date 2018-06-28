@@ -3,6 +3,9 @@ import _ from 'lodash'
 import {TemplateValueType, TemplateType} from 'src/types'
 import {CellType} from 'src/types/dashboards'
 
+export const DEFAULT_DURATION_MS = 1000
+export const DEFAULT_PIXELS = 333
+
 export const NO_CELL = 'none'
 
 export const PERMISSIONS = {
@@ -439,9 +442,8 @@ export const DEFAULT_SOURCE = {
   metaUrl: '',
 }
 
-export const defaultIntervalValue = '333'
 export const intervalValuesPoints = [
-  {value: defaultIntervalValue, type: TemplateValueType.Points, selected: true},
+  {value: `${DEFAULT_PIXELS}`, type: TemplateValueType.Points, selected: true},
 ]
 
 export const interval = {

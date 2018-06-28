@@ -1,6 +1,6 @@
 import AJAX from 'src/utils/ajax'
 import {AlertTypes} from 'src/kapacitor/constants'
-import {Kapacitor, Source, Service, NewService} from 'src/types'
+import {Kapacitor, Source, Service, NewService, QueryConfig} from 'src/types'
 
 export function getSources() {
   return AJAX({
@@ -319,12 +319,48 @@ export function kapacitorProxy(kapacitor, method, path, body?) {
   })
 }
 
-export const getQueryConfigAndStatus = (url, queries, tempVars = []) =>
-  AJAX({
-    url,
-    method: 'POST',
-    data: {queries, tempVars},
-  })
+export const getQueryConfigAndStatus = async (
+  url,
+  queries
+): Promise<AnalyzeQueriesObject[]> => {
+  try {
+    const {data} = await AJAX({
+      url,
+      method: 'POST',
+      data: {queries},
+    })
+
+    return data.queries
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+interface AnalyzeQueriesObject {
+  id: string
+  query: string
+  duration: string
+  queryConfig?: QueryConfig
+}
+
+export const analyzeQueries = async (
+  url: string,
+  queries: Array<{query: string}>
+): Promise<AnalyzeQueriesObject[]> => {
+  try {
+    const {data} = await AJAX({
+      url,
+      method: 'POST',
+      data: {queries},
+    })
+
+    return data.queries
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
 
 export const getServices = async (url: string): Promise<Service[]> => {
   try {

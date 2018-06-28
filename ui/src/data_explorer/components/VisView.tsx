@@ -3,8 +3,9 @@ import React, {SFC} from 'react'
 import Table from './Table'
 import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
+import {SourceContext} from 'src/CheckSources'
 
-import {Query, Template} from 'src/types'
+import {Source, Query, Template} from 'src/types'
 
 interface Props {
   view: string
@@ -38,15 +39,20 @@ const DataExplorerVisView: SFC<Props> = ({
   }
 
   return (
-    <RefreshingGraph
-      type="line-graph"
-      queries={queries}
-      templates={templates}
-      autoRefresh={autoRefresh}
-      colors={DEFAULT_LINE_COLORS}
-      manualRefresh={manualRefresh}
-      editQueryStatus={editQueryStatus}
-    />
+    <SourceContext.Consumer>
+      {(source: Source) => (
+        <RefreshingGraph
+          type="line-graph"
+          source={source}
+          queries={queries}
+          templates={templates}
+          autoRefresh={autoRefresh}
+          colors={DEFAULT_LINE_COLORS}
+          manualRefresh={manualRefresh}
+          editQueryStatus={editQueryStatus}
+        />
+      )}
+    </SourceContext.Consumer>
   )
 }
 

@@ -7,7 +7,6 @@ import {Table, Column, Cell} from 'fixed-data-table-2'
 import Dropdown from 'src/shared/components/Dropdown'
 import CustomCell from 'src/data_explorer/components/CustomCell'
 import TabItem from 'src/data_explorer/components/TableTabItem'
-import {TEMPLATES} from 'src/shared/constants'
 
 import {fetchTimeSeriesAsync} from 'src/shared/actions/timeSeries'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -226,7 +225,6 @@ class ChronoTable extends PureComponent<Props, State> {
       const {results} = await fetchTimeSeriesAsync({
         source: this.source,
         query,
-        tempVars: TEMPLATES,
       })
 
       this.setState({
