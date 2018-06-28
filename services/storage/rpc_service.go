@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:generate protoc -I$GOPATH/src/github.com/influxdata/influxdb/vendor -I. --plugin=protoc-gen-yarpc=$GOPATH/bin/protoc-gen-yarpc --yarpc_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types:. storage.proto predicate.proto
+//go:generate protoc -I$GOPATH/src/github.com/influxdata/influxdb/vendor -I. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,plugins=grpc:. storage.proto predicate.proto
 //go:generate tmpl -data=@batch_cursor.gen.go.tmpldata batch_cursor.gen.go.tmpl
 //go:generate tmpl -data=@batch_cursor.gen.go.tmpldata response_writer.gen.go.tmpl
 
@@ -55,8 +55,7 @@ func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
 
 	ext.DBInstance.Set(span, req.Database)
 
-	// TODO(sgc): use yarpc stream.Context() once implemented
-	ctx := context.Background()
+	ctx := stream.Context()
 	ctx = opentracing.ContextWithSpan(ctx, span)
 	// TODO(sgc): this should be available via a generic API, such as tsdb.Store
 	ctx = tsm1.NewContextWithMetricsGroup(ctx)

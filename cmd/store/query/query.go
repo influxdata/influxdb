@@ -17,8 +17,8 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxql"
-	"github.com/influxdata/yarpc"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 // Command represents the program execution for "store query".
@@ -142,7 +142,7 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
-	conn, err := yarpc.Dial(cmd.addr)
+	conn, err := grpc.Dial(cmd.addr, grpc.WithInsecure())
 	if err != nil {
 		return err
 	}

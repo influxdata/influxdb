@@ -16,7 +16,7 @@ type StorageMetaClient interface {
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
 	addr           string
-	yarpc          *yarpcServer
+	grpc           *grpcServer
 	loggingEnabled bool
 	logger         *zap.Logger
 
@@ -50,25 +50,25 @@ func (s *Service) Open() error {
 	store.MetaClient = s.MetaClient
 	store.Logger = s.logger
 
-	yarpc := &yarpcServer{
+	grpc := &grpcServer{
 		addr:           s.addr,
 		loggingEnabled: s.loggingEnabled,
 		logger:         s.logger,
 		store:          store,
 	}
-	if err := yarpc.Open(); err != nil {
+	if err := grpc.Open(); err != nil {
 		return err
 	}
 
-	s.yarpc = yarpc
+	s.grpc = grpc
 
 	return nil
 }
 
 func (s *Service) Close() error {
-	if s.yarpc != nil {
-		s.yarpc.Close()
-		s.yarpc = nil
+	if s.grpc != nil {
+		s.grpc.Close()
+		s.grpc = nil
 	}
 
 	return nil
