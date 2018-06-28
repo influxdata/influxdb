@@ -1,5 +1,5 @@
 import React from 'react'
-import {mount, shallow} from 'enzyme'
+import {mount} from 'enzyme'
 
 import HistogramChart from 'src/shared/components/HistogramChart'
 import HistogramChartTooltip from 'src/shared/components/HistogramChartTooltip'
@@ -88,20 +88,5 @@ describe('HistogramChart', () => {
     const tooltip = wrapper.find(HistogramChartTooltip)
 
     expect(tooltip).toMatchSnapshot()
-  })
-
-  test('has a "loading" class if data is reloading', () => {
-    const props = {
-      data: [{key: '', time: 0, value: 0, group: ''}],
-      dataStatus: RemoteDataState.Loading,
-      width: 600,
-      height: 400,
-      colorScale: () => 'blue',
-      onZoom: () => {},
-    }
-
-    const wrapper = shallow(<HistogramChart {...props} />)
-
-    expect(wrapper.find('.histogram-chart').hasClass('loading')).toBe(true)
   })
 })
