@@ -69,7 +69,11 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 	// TODO(jsternberg): Determine which of these cursors are from fields and which are tags.
 	var cursors []cursor
 	if gr.call != nil {
-		ref := gr.call.Args[0].(*influxql.VarRef)
+		ref, ok := gr.call.Args[0].(*influxql.VarRef)
+		if !ok {
+			// TODO(jsternberg): This should be validated and figured out somewhere else.
+			return nil, errors.New("first argument to a function call must be a variable")
+		}
 		cur, err := createVarRefCursor(t, ref)
 		if err != nil {
 			return nil, err
