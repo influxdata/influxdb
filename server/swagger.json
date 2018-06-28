@@ -5148,12 +5148,17 @@
       "type": "object",
       "required": [
         "name",
-        "encoding"
+        "encoding",
+        "position"
       ],
       "properties": {
         "name": {
           "description": "Unique identifier name of the column",
           "type": "string"
+        },
+        "position": {
+          "type": "integer",
+          "format": "int32"
         },
         "encoding": {
           "description": "Composable encoding options for the column",
@@ -5177,6 +5182,7 @@
         },
         "example": {
           "name": "severity",
+          "position": 0,
           "encoding": [
             {
               "type": "label",
@@ -5224,6 +5230,7 @@
         "columns": [
           {
             "name": "severity",
+            "position": 0,
             "encoding": [
               {
                 "type": "label",
@@ -5255,11 +5262,13 @@
           },
           {
             "name": "messages",
-            "encoding": []
-          },
-          {
-            "name": "timestamp",
-            "encoding": []
+            "position": 1,
+            "encoding": [
+              {
+                "type": "visibility",
+                "value": "hidden"
+              }
+            ]
           }
         ]
       }
