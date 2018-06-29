@@ -52,7 +52,7 @@ const Layout = (
     host,
     cell,
     cell: {
-      h,
+      h: cellHeight,
       axes,
       type,
       colors,
@@ -100,7 +100,7 @@ const Layout = (
       <RefreshingGraph
         axes={axes}
         type={type}
-        cellHeight={h}
+        cellHeight={cellHeight}
         onZoom={onZoom}
         colors={colors}
         sources={sources}

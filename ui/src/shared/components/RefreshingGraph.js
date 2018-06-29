@@ -69,6 +69,7 @@ const RefreshingGraph = ({
         queries={[queries[0]]}
         templates={templates}
         autoRefresh={autoRefresh}
+        cellHeight={cellHeight}
         editQueryStatus={editQueryStatus}
         prefix={prefix}
         suffix={suffix}
@@ -145,6 +146,7 @@ const RefreshingGraph = ({
       key={manualRefresh}
       templates={templates}
       timeRange={timeRange}
+      cellHeight={cellHeight}
       autoRefresh={autoRefresh}
       isBarGraph={type === 'bar'}
       staticLegend={staticLegend}

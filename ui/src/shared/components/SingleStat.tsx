@@ -1,7 +1,9 @@
 import React, {PureComponent, CSSProperties} from 'react'
+import classnames from 'classnames'
 import getLastValues from 'src/shared/parsing/lastValues'
 import _ from 'lodash'
 
+import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'src/shared/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {ColorNumber} from 'src/types/colors'
@@ -11,7 +13,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   isFetchingInitially: boolean
-  // cellHeight: number
+  cellHeight: number
   colors: ColorNumber[]
   prefix?: string
   suffix?: string
@@ -41,7 +43,6 @@ class SingleStat extends PureComponent<Props> {
     return (
       <div className="single-stat" style={this.containerStyle}>
         {this.resizerBox}
-        <span className="single-stat--value">{this.renderShadow}</span>
       </div>
     )
   }
@@ -119,7 +120,21 @@ class SingleStat extends PureComponent<Props> {
   }
 
   private get resizerBox(): JSX.Element {
+    const {lineGraph, cellHeight} = this.props
     const {color} = this.coloration
+
+    if (lineGraph) {
+      const className = classnames('single-stat--value', {
+        small: cellHeight <= SMALL_CELL_HEIGHT,
+      })
+
+      return (
+        <span className={className} style={{color}}>
+          {this.prefixSuffixValue}
+          {this.renderShadow}
+        </span>
+      )
+    }
 
     const viewBox = `0 0 ${this.prefixSuffixValue.length * 55} 100`
 
