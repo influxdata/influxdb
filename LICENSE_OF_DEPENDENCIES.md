@@ -19,8 +19,6 @@
 - github.com/google/go-cmp [BSD LICENSE](https://github.com/google/go-cmp/blob/master/LICENSE)
 - github.com/influxdata/influxql [MIT LICENSE](https://github.com/influxdata/influxql/blob/master/LICENSE)
 - github.com/influxdata/usage-client [MIT LICENSE](https://github.com/influxdata/usage-client/blob/master/LICENSE.txt)
-- github.com/influxdata/yamux [MOZILLA PUBLIC LICENSE](https://github.com/influxdata/yamux/blob/master/LICENSE)
-- github.com/influxdata/yarpc [MIT LICENSE](https://github.com/influxdata/yarpc/blob/master/LICENSE)
 - github.com/jsternberg/zap-logfmt [MIT LICENSE](https://github.com/jsternberg/zap-logfmt/blob/master/LICENSE)
 - github.com/jwilder/encoding [MIT LICENSE](https://github.com/jwilder/encoding/blob/master/LICENSE)
 - github.com/klauspost/pgzip [MIT LICENSE](https://github.com/klauspost/pgzip/blob/master/LICENSE)

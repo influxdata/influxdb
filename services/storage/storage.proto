@@ -4,7 +4,6 @@ option go_package = "storage";
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
-import "github.com/influxdata/yarpc/yarpcproto/yarpc.proto";
 import "predicate.proto";
 
 option (gogoproto.marshaler_all) = true;
@@ -13,21 +12,13 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 service Storage {
-  option (yarpcproto.yarpc_service_index) = 0x00;
-
   // Read performs a read operation using the given ReadRequest
-  rpc Read (ReadRequest) returns (stream ReadResponse) {
-    option (yarpcproto.yarpc_method_index) = 0x00;
-  }
+  rpc Read (ReadRequest) returns (stream ReadResponse);
 
   // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
-  rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse) {
-    option (yarpcproto.yarpc_method_index) = 0x01;
-  }
+  rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
 
-  rpc Hints (google.protobuf.Empty) returns (HintsResponse) {
-    option (yarpcproto.yarpc_method_index) = 0x02;
-  }
+  rpc Hints (google.protobuf.Empty) returns (HintsResponse);
 
   // Explain describes the costs associated with executing a given Read request
   // rpc Explain(google.protobuf.Empty) returns (ExplainResponse){}
