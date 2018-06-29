@@ -82,6 +82,7 @@ class DataExplorerVisualization extends PureComponent<Props, State> {
         <div className={this.visualizationClass}>
           <VisView
             view={view}
+            source={source}
             query={this.query}
             templates={templates}
             queries={this.queries}

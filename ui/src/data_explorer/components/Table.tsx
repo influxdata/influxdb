@@ -20,8 +20,9 @@ import {
   defaultColumnWidth,
 } from 'src/data_explorer/constants/table'
 
+import {Source} from 'src/types'
+
 interface DataExplorerTableQuery {
-  host: string[]
   text: string
   id: string
 }
@@ -42,6 +43,7 @@ interface Props {
   editQueryStatus: () => void
   containerHeight: number
   containerWidth: number
+  source: Source
 }
 
 interface State {
@@ -208,10 +210,6 @@ class ChronoTable extends PureComponent<Props, State> {
     return _.get(series, `${activeSeriesIndex}`, emptySeries)
   }
 
-  private get source(): string {
-    return _.get(this.props.query, 'host.0', '')
-  }
-
   private fetchCellData = async (query: DataExplorerTableQuery) => {
     if (!query || !query.text) {
       return
@@ -223,7 +221,7 @@ class ChronoTable extends PureComponent<Props, State> {
 
     try {
       const {results} = await fetchTimeSeriesAsync({
-        source: this.source,
+        source: this.props.source.links.proxy,
         query,
       })
 
