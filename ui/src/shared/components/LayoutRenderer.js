@@ -33,20 +33,37 @@ class LayoutRenderer extends Component {
     if (!this.props.onPositionChange) {
       return
     }
+
+    let changed = false
+
     const newCells = this.props.cells.map(cell => {
       const l = layout.find(ly => ly.i === cell.i)
+
+      if (
+        cell.x !== l.x ||
+        cell.y !== l.y ||
+        cell.h !== l.h ||
+        cell.w !== l.w
+      ) {
+        changed = true
+      }
+
       const newLayout = {
         x: l.x,
         y: l.y,
         h: l.h,
         w: l.w,
       }
+
       return {
         ...cell,
         ...newLayout,
       }
     })
-    this.props.onPositionChange(newCells)
+
+    if (changed) {
+      this.props.onPositionChange(newCells)
+    }
   }
 
   // ensures that Status Page height fits the window

@@ -5,7 +5,6 @@ import {withRouter} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
@@ -136,15 +135,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   public async componentDidMount() {
-    const {
-      dashboardID,
-      source,
-      meRole,
-      isUsingAuth,
-      getAnnotationsAsync,
-      timeRange,
-      autoRefresh,
-    } = this.props
+    const {source, getAnnotationsAsync, timeRange, autoRefresh} = this.props
 
     const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
@@ -158,13 +149,6 @@ class DashboardPage extends Component<Props, State> {
     window.addEventListener('resize', this.handleWindowResize, true)
 
     await this.getDashboard()
-
-    // If using auth and role is Viewer, temp vars will be stale until dashboard
-    // is refactored so as not to require a write operation (a PUT in this case)
-    if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
-      // putDashboardByID refreshes & persists influxql generated template variable values.
-      await this.props.putDashboardByID(dashboardID)
-    }
 
     this.getDashboardsNames()
   }
@@ -425,16 +409,11 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleUpdatePosition = (cells: DashboardsModels.Cell[]): void => {
-    const {dashboard, meRole, isUsingAuth} = this.props
+    const {dashboard} = this.props
     const newDashboard = {...dashboard, cells}
 
-    // GridLayout invokes onLayoutChange on first load, which bubbles up to
-    // invoke handleUpdatePosition. If using auth, Viewer is not authorized to
-    // PUT, so until the need for PUT is removed, this is prevented.
-    if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
-      this.props.updateDashboard(newDashboard)
-      this.props.putDashboard(newDashboard)
-    }
+    this.props.updateDashboard(newDashboard)
+    this.props.putDashboard(newDashboard)
   }
 
   private handleAddCell = (): void => {

@@ -4,7 +4,6 @@ import _ from 'lodash'
 import queryString from 'query-string'
 
 import {proxy} from 'src/utils/queryUrlGenerator'
-import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 import {parseMetaQuery} from 'src/tempVars/utils/parsing'
 
 import {
@@ -24,7 +23,6 @@ import {errorThrown} from 'src/shared/actions/errors'
 
 import {
   generateURLQueryParamsFromTempVars,
-  findUpdatedTempVarsInURLQueryParams,
   findInvalidTempVarsInURLQuery,
 } from 'src/dashboards/utils/tempVars'
 import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
@@ -43,7 +41,6 @@ import {
   notifyInvalidTempVarValueInURLQuery,
   notifyInvalidZoomedTimeRangeValueInURLQuery,
   notifyInvalidTimeRangeValueInURLQuery,
-  notifyViewerUnauthorizedToSetTempVars,
 } from 'src/shared/copy/notifications'
 
 import {makeQueryForTemplate} from 'src/dashboards/utils/tempVars'
@@ -663,10 +660,7 @@ const syncDashboardTempVarsFromURLQueryParams = (
   >,
   getState: () => DashboardsReducers.Dashboards & AuthReducers.Auth
 ): void => {
-  const {
-    dashboardUI,
-    auth: {isUsingAuth, me},
-  } = getState()
+  const {dashboardUI} = getState()
   const dashboard = dashboardUI.dashboards.find(d => d.id === dashboardID)
 
   const urlQueryParamsTempVarsWithInvalidValues = findInvalidTempVarsInURLQuery(

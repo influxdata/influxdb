@@ -204,14 +204,17 @@ const ui = (state = initialState, action) => {
           const newValues = values.map(value => {
             const isPicked = _.get(pickedValue, 'value', null) === value
             const isSelected = _.get(selectedValue, 'value', null) === value
+
             const newValue = {
               picked: pickedValue ? isPicked : isSelected,
               selected: isSelected,
               value,
               type: TEMPLATE_VARIABLE_TYPES[template.type],
             }
+
             return newValue
           })
+
           return {
             ...template,
             values: newValues,
