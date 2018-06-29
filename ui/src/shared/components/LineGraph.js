@@ -62,7 +62,6 @@ class LineGraph extends Component {
       onZoom,
       queries,
       timeRange,
-      cellHeight,
       ruleValues,
       isBarGraph,
       isRefreshing,
@@ -138,7 +137,6 @@ class LineGraph extends Component {
               data={data}
               lineGraph={true}
               colors={colors}
-              cellHeight={cellHeight}
             />
           )}
         </Dygraph>
@@ -202,7 +200,6 @@ LineGraph.propTypes = {
   }),
   isInDataExplorer: bool,
   setResolution: func,
-  cellHeight: number,
   onZoom: func,
   queries: arrayOf(shape({}).isRequired).isRequired,
   data: arrayOf(shape({}).isRequired).isRequired,

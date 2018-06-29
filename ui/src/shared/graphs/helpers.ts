@@ -17,8 +17,6 @@ export const LINE_COLORS = [
   '#a0725b',
 ]
 
-export const SMALL_CELL_HEIGHT = 1
-
 export const darkenColor = colorStr => {
   // Defined in dygraph-utils.js
   const color = toRGB_(colorStr)

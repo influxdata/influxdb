@@ -69,7 +69,6 @@ const RefreshingGraph = ({
         queries={[queries[0]]}
         templates={templates}
         autoRefresh={autoRefresh}
-        cellHeight={cellHeight}
         editQueryStatus={editQueryStatus}
         prefix={prefix}
         suffix={suffix}

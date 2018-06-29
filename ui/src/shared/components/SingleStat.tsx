@@ -1,9 +1,7 @@
-import React, {PureComponent} from 'react'
-import classnames from 'classnames'
+import React, {PureComponent, CSSProperties} from 'react'
 import getLastValues from 'src/shared/parsing/lastValues'
 import _ from 'lodash'
 
-import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'src/shared/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {ColorNumber} from 'src/types/colors'
@@ -13,7 +11,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   isFetchingInitially: boolean
-  cellHeight: number
+  // cellHeight: number
   colors: ColorNumber[]
   prefix?: string
   suffix?: string
@@ -41,11 +39,9 @@ class SingleStat extends PureComponent<Props> {
     }
 
     return (
-      <div className="single-stat" style={this.styles}>
-        <span className={this.className}>
-          {this.completeValue}
-          {this.renderShadow}
-        </span>
+      <div className="single-stat" style={this.containerStyle}>
+        {this.resizerBox}
+        <span className="single-stat--value">{this.renderShadow}</span>
       </div>
     )
   }
@@ -56,7 +52,7 @@ class SingleStat extends PureComponent<Props> {
     return lineGraph && <div className="single-stat--shadow" />
   }
 
-  private get completeValue(): string {
+  private get prefixSuffixValue(): string {
     const {prefix, suffix} = this.props
 
     return `${prefix}${this.roundedLastValue}${suffix}`
@@ -78,8 +74,28 @@ class SingleStat extends PureComponent<Props> {
     return `${roundedValue}`
   }
 
-  private get styles() {
-    const {data, colors, lineGraph, staticLegendHeight} = this.props
+  private get containerStyle(): CSSProperties {
+    const {staticLegendHeight} = this.props
+
+    const height = `calc(100% - ${staticLegendHeight +
+      DYGRAPH_CONTAINER_V_MARGIN * 2}px)`
+
+    const {backgroundColor} = this.coloration
+
+    if (staticLegendHeight) {
+      return {
+        backgroundColor,
+        height,
+      }
+    }
+
+    return {
+      backgroundColor,
+    }
+  }
+
+  private get coloration(): CSSProperties {
+    const {data, colors, lineGraph} = this.props
 
     const {lastValues, series} = getLastValues(data)
     const firstAlphabeticalSeriesName = _.sortBy(series)[0]
@@ -96,30 +112,34 @@ class SingleStat extends PureComponent<Props> {
       cellType: lineGraph ? CellType.LinePlusSingleStat : CellType.SingleStat,
     })
 
-    const backgroundColor = bgColor
-    const color = textColor
-
-    const height = `calc(100% - ${staticLegendHeight +
-      DYGRAPH_CONTAINER_V_MARGIN * 2}px)`
-
-    return staticLegendHeight
-      ? {
-          backgroundColor,
-          color,
-          height,
-        }
-      : {
-          backgroundColor,
-          color,
-        }
+    return {
+      backgroundColor: bgColor,
+      color: textColor,
+    }
   }
 
-  private get className(): string {
-    const {cellHeight} = this.props
+  private get resizerBox(): JSX.Element {
+    const {color} = this.coloration
 
-    return classnames('single-stat--value', {
-      'single-stat--small': cellHeight === SMALL_CELL_HEIGHT,
-    })
+    const viewBox = `0 0 ${this.prefixSuffixValue.length * 55} 100`
+
+    return (
+      <div className="single-stat--resizer">
+        <svg width="100%" height="100%" viewBox={viewBox}>
+          <text
+            className="single-stat--text"
+            fontSize="100"
+            y="59%"
+            x="50%"
+            dominantBaseline="middle"
+            textAnchor="middle"
+            style={{fill: color}}
+          >
+            {this.prefixSuffixValue}
+          </text>
+        </svg>
+      </div>
+    )
   }
 }
 
