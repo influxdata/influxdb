@@ -202,6 +202,7 @@ class CellEditorOverlay extends Component<Props, State> {
           initialBottomHeight={INITIAL_HEIGHTS.queryMaker}
         >
           <Visualization
+            source={this.source}
             timeRange={timeRange}
             templates={templates}
             autoRefresh={autoRefresh}

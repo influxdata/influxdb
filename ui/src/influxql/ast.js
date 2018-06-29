@@ -85,8 +85,6 @@ export const toString = ast => {
       dimensions.push(`time(${_.compact([interval, offset]).join(', ')})`)
     }
 
-    // console.log("THING THING", dimensions.concat(tags), tags, dimensions.concat(tags).join(','))
-
     if (tags) {
       strs.push(dimensions.concat(tags).join(','))
     } else {

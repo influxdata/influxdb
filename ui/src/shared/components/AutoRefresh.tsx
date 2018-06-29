@@ -190,11 +190,13 @@ const AutoRefresh = (
     }
 
     private isPropsDifferent(nextProps: Props) {
+      const isSourceDifferent = !_.isEqual(this.props.source, nextProps.source)
       return (
         this.props.inView !== nextProps.inView ||
         !!this.queryDifference(this.props.queries, nextProps.queries).length ||
         !_.isEqual(this.props.templates, nextProps.templates) ||
-        this.props.autoRefresh !== nextProps.autoRefresh
+        this.props.autoRefresh !== nextProps.autoRefresh ||
+        isSourceDifferent
       )
     }
 
