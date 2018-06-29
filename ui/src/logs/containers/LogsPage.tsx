@@ -24,8 +24,9 @@ import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogsTable from 'src/logs/components/LogsTable'
 import {getDeep} from 'src/utils/wrappers'
+import {colorForSeverity} from 'src/logs/utils/colors'
 
-import {Source, Namespace, TimeRange, RemoteDataState} from 'src/types'
+import {Source, Namespace, TimeRange} from 'src/types'
 import {Filter} from 'src/types/logs'
 import {HistogramData, TimePeriod} from 'src/types/histogram'
 
@@ -47,7 +48,6 @@ interface Props {
   changeFilter: (id: string, operator: string, value: string) => void
   timeRange: TimeRange
   histogramData: HistogramData
-  histogramDataStatus: RemoteDataState
   tableData: {
     columns: string[]
     values: string[]
@@ -179,16 +179,16 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private get chart(): JSX.Element {
-    const {histogramData, histogramDataStatus} = this.props
+    const {histogramData} = this.props
 
     return (
       <AutoSizer>
         {({width, height}) => (
           <HistogramChart
             data={histogramData}
-            dataStatus={histogramDataStatus}
             width={width}
             height={height}
+            colorScale={colorForSeverity}
             onZoom={this.handleChartZoom}
           />
         )}
@@ -292,7 +292,6 @@ const mapStateToProps = ({
     timeRange,
     currentNamespace,
     histogramData,
-    histogramDataStatus,
     tableData,
     searchTerm,
     filters,
@@ -305,7 +304,6 @@ const mapStateToProps = ({
   timeRange,
   currentNamespace,
   histogramData,
-  histogramDataStatus,
   tableData,
   searchTerm,
   filters,

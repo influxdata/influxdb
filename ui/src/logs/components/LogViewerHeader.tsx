@@ -3,8 +3,8 @@ import React, {PureComponent} from 'react'
 import {Source, Namespace} from 'src/types'
 import classnames from 'classnames'
 import Dropdown from 'src/shared/components/Dropdown'
-import PageHeader from 'src/shared/components/PageHeader'
-import PageHeaderTitle from 'src/shared/components/PageHeaderTitle'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
 
 import {TimeRange} from 'src/types'
@@ -42,7 +42,7 @@ class LogViewerHeader extends PureComponent<Props> {
     return (
       <>
         {this.status}
-        <PageHeaderTitle title="Logs Viewer" />
+        <PageHeaderTitle title="Log Viewer" />
       </>
     )
   }

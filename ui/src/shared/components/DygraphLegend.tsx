@@ -15,12 +15,14 @@ import {NO_CELL} from 'src/shared/constants'
 import {DygraphClass} from 'src/types'
 
 interface Props {
+  hoverTime: number
   dygraph: DygraphClass
   cellID: string
   onHide: () => void
   onShow: (e: MouseEvent) => void
   activeCellID: string
   setActiveCell: (cellID: string) => void
+  onMouseEnter: () => void
 }
 
 interface LegendData {
@@ -79,12 +81,14 @@ class DygraphLegend extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {onMouseEnter} = this.props
     const {legend, filterText, isAscending, isFilterVisible} = this.state
 
     return (
       <div
         className={`dygraph-legend ${this.hidden}`}
         ref={el => (this.legendRef = el)}
+        onMouseEnter={onMouseEnter}
         onMouseLeave={this.handleHide}
         style={this.styles}
       >
@@ -256,10 +260,14 @@ class DygraphLegend extends PureComponent<Props, State> {
 
   private get styles() {
     const {
+      dygraph,
       dygraph: {graphDiv},
+      hoverTime,
     } = this.props
-    const {pageX} = this.state
-    return makeLegendStyles(graphDiv, this.legendRef, pageX)
+
+    const cursorOffset = 16
+    const legendPosition = dygraph.toDomXCoord(hoverTime) + cursorOffset
+    return makeLegendStyles(graphDiv, this.legendRef, legendPosition)
   }
 }
 
@@ -269,6 +277,7 @@ const mapDispatchToProps = {
 
 const mapStateToProps = ({dashboardUI}) => ({
   activeCellID: dashboardUI.activeCellID,
+  hoverTime: +dashboardUI.hoverTime,
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DygraphLegend)

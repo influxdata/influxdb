@@ -6,7 +6,6 @@ import download from 'src/external/download'
 import {proxy} from 'src/utils/queryUrlGenerator'
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 import {dataToCSV} from 'src/shared/parsing/dataToCSV'
-import {TEMPLATES} from 'src/shared/constants'
 import {Source, QueryConfig} from 'src/types'
 
 export const writeLineProtocol = async (
@@ -28,14 +27,14 @@ interface DeprecatedQuery {
 }
 
 export const getDataForCSV = (
+  source: Source,
   query: DeprecatedQuery,
   errorThrown
 ) => async () => {
   try {
     const response = await fetchTimeSeriesForCSV({
-      source: query.host,
+      source: source.links.proxy,
       query: query.text,
-      tempVars: TEMPLATES,
     })
 
     const {data} = timeSeriesToTableGraph([{response}])
@@ -47,9 +46,9 @@ export const getDataForCSV = (
   }
 }
 
-const fetchTimeSeriesForCSV = async ({source, query, tempVars}) => {
+const fetchTimeSeriesForCSV = async ({source, query}) => {
   try {
-    const {data} = await proxy({source, query, tempVars})
+    const {data} = await proxy({source, query})
     return data
   } catch (error) {
     console.error(error)

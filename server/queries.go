@@ -29,12 +29,12 @@ type QueriesRequest struct {
 // QueryResponse is the return result of a QueryRequest including
 // the raw query, the templated query, the queryConfig and the queryAST
 type QueryResponse struct {
+	Duration       int64                    `json:"durationMs"`
 	ID             string                   `json:"id"`
 	Query          string                   `json:"query"`
 	QueryConfig    chronograf.QueryConfig   `json:"queryConfig"`
 	QueryAST       *queries.SelectStatement `json:"queryAST,omitempty"`
 	QueryTemplated *string                  `json:"queryTemplated,omitempty"`
-	TemplateVars   []chronograf.TemplateVar `json:"tempVars,omitempty"`
 }
 
 // QueriesResponse is the response for a QueriesRequest
@@ -72,13 +72,7 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 			Query: q.Query,
 		}
 
-		query, err := influx.TemplateReplace(q.Query, req.TemplateVars, time.Now())
-		if err != nil {
-			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
-			return
-		}
-
-		qc := ToQueryConfig(query)
+		qc := ToQueryConfig(q.Query)
 		if err := s.DefaultRP(ctx, &qc, &src); err != nil {
 			Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 			return
@@ -86,14 +80,17 @@ func (s *Service) Queries(w http.ResponseWriter, r *http.Request) {
 		qc.Shifts = []chronograf.TimeShift{}
 		qr.QueryConfig = qc
 
-		if stmt, err := queries.ParseSelect(query); err == nil {
+		if stmt, err := queries.ParseSelect(q.Query); err == nil {
 			qr.QueryAST = stmt
 		}
 
-		if len(req.TemplateVars) > 0 {
-			qr.TemplateVars = req.TemplateVars
-			qr.QueryConfig.RawText = &qr.Query
-			qr.QueryTemplated = &query
+		if dur, err := influx.ParseTime(q.Query, time.Now()); err == nil {
+			ms := dur.Nanoseconds() / int64(time.Millisecond)
+			if ms == 0 {
+				ms = 1
+			}
+
+			qr.Duration = ms
 		}
 
 		qr.QueryConfig.ID = q.ID

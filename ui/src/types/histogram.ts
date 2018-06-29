@@ -22,3 +22,12 @@ export interface Margins {
   bottom: number
   left: number
 }
+
+export interface HoverData {
+  data: HistogramData
+  x: number
+  y: number
+  anchor: TooltipAnchor
+}
+
+export type ColorScale = (color: string) => string

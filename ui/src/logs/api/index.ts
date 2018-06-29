@@ -13,8 +13,6 @@ export const executeQueryAsync = async (
       db: namespace.database,
       rp: namespace.retentionPolicy,
       query,
-      tempVars: [],
-      resolution: null,
     })
 
     return data

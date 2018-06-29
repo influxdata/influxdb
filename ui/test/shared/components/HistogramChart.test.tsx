@@ -1,5 +1,5 @@
 import React from 'react'
-import {mount, shallow} from 'enzyme'
+import {mount} from 'enzyme'
 
 import HistogramChart from 'src/shared/components/HistogramChart'
 import HistogramChartTooltip from 'src/shared/components/HistogramChartTooltip'
@@ -13,6 +13,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Done,
       width: 600,
       height: 400,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 
@@ -27,6 +28,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Done,
       width: 0,
       height: 0,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 
@@ -45,6 +47,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Done,
       width: 600,
       height: 400,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 
@@ -63,6 +66,7 @@ describe('HistogramChart', () => {
       dataStatus: RemoteDataState.Done,
       width: 600,
       height: 400,
+      colorScale: () => 'blue',
       onZoom: () => {},
     }
 
@@ -70,9 +74,6 @@ describe('HistogramChart', () => {
 
     const fakeMouseOverEvent = {
       target: {
-        dataset: {
-          key: '0',
-        },
         getBoundingClientRect() {
           return {top: 10, right: 10, bottom: 5, left: 5}
         },
@@ -80,26 +81,12 @@ describe('HistogramChart', () => {
     }
 
     wrapper
-      .find('.histogram-chart')
+      .find('.histogram-chart-bars--bars')
       .first()
       .simulate('mouseover', fakeMouseOverEvent)
 
     const tooltip = wrapper.find(HistogramChartTooltip)
 
     expect(tooltip).toMatchSnapshot()
-  })
-
-  test('has a "loading" class if data is reloading', () => {
-    const props = {
-      data: [{key: '', time: 0, value: 0, group: ''}],
-      dataStatus: RemoteDataState.Loading,
-      width: 600,
-      height: 400,
-      onZoom: () => {},
-    }
-
-    const wrapper = shallow(<HistogramChart {...props} />)
-
-    expect(wrapper.find('.histogram-chart').hasClass('loading')).toBe(true)
   })
 })

@@ -157,6 +157,7 @@ class DashboardPage extends Component<Props, State> {
     const {source, getAnnotationsAsync, timeRange} = this.props
     if (this.props.autoRefresh !== nextProps.autoRefresh) {
       clearInterval(this.intervalID)
+      this.intervalID = null
       const annotationRange = millisecondTimeRange(timeRange)
       if (nextProps.autoRefresh) {
         this.intervalID = window.setInterval(() => {
@@ -177,6 +178,7 @@ class DashboardPage extends Component<Props, State> {
 
   public componentWillUnmount() {
     clearInterval(this.intervalID)
+    this.intervalID = null
     window.removeEventListener('resize', this.handleWindowResize, true)
     this.props.handleDismissEditingAnnotation()
   }

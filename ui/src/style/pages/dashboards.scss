@@ -211,6 +211,12 @@ $dash-graph-options-arrow: 8px;
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.dash-graph:hover .dash-graph-context {
+  opacity: 1;
 }
 
 .dash-graph-context.dash-graph-context__open {

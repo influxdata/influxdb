@@ -3,7 +3,7 @@ import React, {ChangeEvent, MouseEvent, PureComponent} from 'react'
 import AlertOutputs from 'src/kapacitor/components/AlertOutputs'
 import Input from 'src/kapacitor/components/KapacitorFormInput'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import KapacitorFormSkipVerify from 'src/kapacitor/components/KapacitorFormSkipVerify'
 
 import {Kapacitor, Source, Notification, NotificationFunc} from 'src/types'

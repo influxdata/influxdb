@@ -2,8 +2,10 @@ import React, {PureComponent} from 'react'
 import {getDataForCSV} from 'src/data_explorer/apis'
 import VisHeaderTabs from 'src/data_explorer/components/VisHeaderTabs'
 import {OnToggleView} from 'src/data_explorer/components/VisHeaderTab'
+import {Source} from 'src/types'
 
 interface Props {
+  source: Source
   views: string[]
   view: string
   query: any
@@ -13,7 +15,7 @@ interface Props {
 
 class VisHeader extends PureComponent<Props> {
   public render() {
-    const {views, view, onToggleView, query, errorThrown} = this.props
+    const {source, views, view, onToggleView, query, errorThrown} = this.props
 
     return (
       <div className="graph-heading">
@@ -28,7 +30,7 @@ class VisHeader extends PureComponent<Props> {
         {query && (
           <div
             className="btn btn-sm btn-default dlcsv"
-            onClick={getDataForCSV(query, errorThrown)}
+            onClick={getDataForCSV(source, query, errorThrown)}
           >
             <span className="icon download dlcsv" />
             .csv

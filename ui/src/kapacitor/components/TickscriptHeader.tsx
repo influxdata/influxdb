@@ -1,6 +1,6 @@
 import React, {Component} from 'react'
 
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import LogsToggle from 'src/kapacitor/components/LogsToggle'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import TickscriptSave, {Task} from 'src/kapacitor/components/TickscriptSave'

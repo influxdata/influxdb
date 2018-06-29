@@ -11,6 +11,7 @@ export enum TemplateValueType {
   Points = 'points',
   Constant = 'constant',
   MetaQuery = 'influxql',
+  TimeStamp = 'timeStamp',
 }
 
 export interface TemplateValue {

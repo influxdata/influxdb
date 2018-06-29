@@ -2,7 +2,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 import {TickscriptPage} from 'src/kapacitor/containers/TickscriptPage'
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import TickscriptSave from 'src/kapacitor/components/TickscriptSave'
 import {source, kapacitorRules} from 'test/resources'
 

@@ -1,4 +1,4 @@
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {scaleLinear, scaleTime, ScaleLinear, ScaleTime} from 'd3-scale'
 
@@ -9,20 +9,16 @@ import HistogramChartSkeleton from 'src/shared/components/HistogramChartSkeleton
 import XBrush from 'src/shared/components/XBrush'
 
 import extentBy from 'src/utils/extentBy'
-import {getDeep} from 'src/utils/wrappers'
 
-import {RemoteDataState} from 'src/types'
 import {
   TimePeriod,
   HistogramData,
-  HistogramDatum,
   Margins,
-  TooltipAnchor,
+  HoverData,
+  ColorScale,
 } from 'src/types/histogram'
 
 const PADDING_TOP = 0.2
-const TOOLTIP_HORIZONTAL_MARGIN = 5
-const TOOLTIP_REFLECT_DIST = 100
 
 // Rather than use these magical constants, we could also render a digit and
 // capture its measured width with as state before rendering anything else.
@@ -32,28 +28,25 @@ const PERIOD_DIGIT_WIDTH = 4
 
 interface Props {
   data: HistogramData
-  dataStatus: RemoteDataState
   width: number
   height: number
+  colorScale: ColorScale
   onZoom: (TimePeriod) => void
 }
 
 interface State {
-  hoverX: number
-  hoverY: number
-  hoverDatum?: HistogramDatum
-  hoverAnchor: TooltipAnchor
+  hoverData?: HoverData
 }
 
 class HistogramChart extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
-    this.state = {hoverX: -1, hoverY: -1, hoverAnchor: 'left'}
+    this.state = {}
   }
 
   public render() {
-    const {width, height, data} = this.props
+    const {width, height, data, colorScale} = this.props
     const {margins} = this
 
     if (width === 0 || height === 0) {
@@ -70,25 +63,12 @@ class HistogramChart extends PureComponent<Props, State> {
       )
     }
 
-    const {hoverDatum, hoverX, hoverY, hoverAnchor} = this.state
-    const {
-      xScale,
-      yScale,
-      adjustedWidth,
-      adjustedHeight,
-      bodyTransform,
-      loadingClass,
-    } = this
+    const {hoverData} = this.state
+    const {xScale, yScale, adjustedWidth, adjustedHeight, bodyTransform} = this
 
     return (
       <>
-        <svg
-          width={width}
-          height={height}
-          className={`histogram-chart ${loadingClass}`}
-          onMouseOver={this.handleMouseMove}
-          onMouseOut={this.handleMouseOut}
-        >
+        <svg width={width} height={height} className="histogram-chart">
           <defs>
             <clipPath id="histogram-chart--bars-clip">
               <rect x="0" y="0" width={adjustedWidth} height={adjustedHeight} />
@@ -122,15 +102,15 @@ class HistogramChart extends PureComponent<Props, State> {
               data={data}
               xScale={xScale}
               yScale={yScale}
+              colorScale={colorScale}
+              hoverData={hoverData}
+              onHover={this.handleHover}
             />
           </g>
         </svg>
-        <HistogramChartTooltip
-          datum={hoverDatum}
-          x={hoverX}
-          y={hoverY}
-          anchor={hoverAnchor}
-        />
+        {hoverData && (
+          <HistogramChartTooltip data={hoverData} colorScale={colorScale} />
+        )}
       </>
     )
   }
@@ -196,49 +176,13 @@ class HistogramChart extends PureComponent<Props, State> {
     return Math.max(...counts)
   }
 
-  private get loadingClass(): string {
-    const {dataStatus} = this.props
-
-    return dataStatus === RemoteDataState.Loading ? 'loading' : ''
-  }
-
   private handleBrush = (t: TimePeriod): void => {
     this.props.onZoom(t)
-    this.setState({hoverDatum: null})
+    this.setState({hoverData: null})
   }
 
-  private handleMouseMove = (e: MouseEvent<SVGElement>): void => {
-    const key = getDeep<string>(e, 'target.dataset.key', '')
-
-    if (!key) {
-      return
-    }
-
-    const {data} = this.props
-    const hoverDatum = data.find(d => d.key === key)
-
-    if (!hoverDatum) {
-      return
-    }
-
-    const bar = e.target as SVGRectElement
-    const barRect = bar.getBoundingClientRect()
-    const barRectHeight = barRect.bottom - barRect.top
-    const hoverY = barRect.top + barRectHeight / 2
-
-    let hoverX = barRect.right + TOOLTIP_HORIZONTAL_MARGIN
-    let hoverAnchor: TooltipAnchor = 'left'
-
-    if (hoverX >= window.innerWidth - TOOLTIP_REFLECT_DIST) {
-      hoverX = window.innerWidth - barRect.left + TOOLTIP_HORIZONTAL_MARGIN
-      hoverAnchor = 'right'
-    }
-
-    this.setState({hoverDatum, hoverX, hoverY, hoverAnchor})
-  }
-
-  private handleMouseOut = (): void => {
-    this.setState({hoverDatum: null})
+  private handleHover = (hoverData: HoverData): void => {
+    this.setState({hoverData})
   }
 }
 

@@ -1,61 +1,28 @@
-@keyframes blur-in {
-  from {
-    filter: blur(0);
-  }
-
-  to {
-    filter: blur(2px);
-  }
-}
-
-@keyframes blur-out {
-  from {
-    filter: blur(2px);
-  }
-
-  to {
-    filter: blur(0);
-  }
-}
-
 .histogram-chart {
   user-select: none;
-
-  &:not(.loading) {
-    animation-duration: 0.1s;
-    animation-name: blur-out;
-  }
-
-  &.loading {
-    animation-duration: 0.3s;
-    animation-name: blur-in;
-    animation-fill-mode: forwards;
-  }
 }
 
 .histogram-chart-bars--bar {
   shape-rendering: crispEdges;
-  fill: $c-amethyst;
   opacity: 1;
-  pointer: cursor;
-  shape-rendering: crispEdges;
+  cursor: pointer;
 }
 
 .histogram-chart--axes, .histogram-chart-skeleton {
   .x-label, .y-label {
-    fill: $g13-mist;
-    font-size: 12px;
-    font-weight: bold;
+    fill: $g11-sidewalk;
+    font-size: 11px;
+    font-weight: 600;
   }
 
   .x-label {
     text-anchor: middle;
-    alignment-baseline: hanging;
+    dominant-baseline: hanging;
   }
 
   .y-label {
     text-anchor: end;
-    alignment-baseline: middle;
+    dominant-baseline: middle;
   }
 
   .y-tick {
@@ -66,7 +33,7 @@
 }
 
 
-.histogram-chart-skeleton, .histogram-chart:not(.loading) .x-brush--area {
+.histogram-chart-skeleton, .histogram-chart .x-brush--area {
   cursor: crosshair;
 }
 
@@ -83,17 +50,17 @@
 .histogram-chart-tooltip {
   padding: 8px;
   background-color: $g0-obsidian;
-  border-radius: 3px;
+  border-radius: $radius-small;
   @extend %drop-shadow;
   font-size: 12px;
   font-weight: 600;
   color: $g13-mist;
-  display: flex;
-  align-items: space-between;
   transform: translate(0, -50%);
   pointer-events: none;
+  display: flex;
+  justify-content: space-between;
+}
 
-  .histogram-chart-tooltip--value {
-    margin-right: 10px;
-  }
+.histogram-chart-tooltip--column:first-child {
+  margin-right: 12px;
 }

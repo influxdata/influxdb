@@ -1,7 +1,7 @@
 import React from 'react'
 import {mount} from 'enzyme'
 
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import TickscriptHeader from 'src/kapacitor/components/TickscriptHeader'
 import TickscriptSave from 'src/kapacitor/components/TickscriptSave'
 import {source} from 'test/resources'

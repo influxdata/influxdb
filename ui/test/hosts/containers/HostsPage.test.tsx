@@ -3,8 +3,8 @@ import {shallow} from 'enzyme'
 
 import {HostsPage} from 'src/hosts/containers/HostsPage'
 import HostsTable from 'src/hosts/components/HostsTable'
-import PageHeader from 'src/shared/components/PageHeader'
-import Title from 'src/shared/components/PageHeaderTitle'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import Title from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 
 import {source} from 'test/resources'
 

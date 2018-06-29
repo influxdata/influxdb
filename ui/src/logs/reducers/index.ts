@@ -10,7 +10,6 @@ import {
   ConcatMoreLogsAction,
 } from 'src/logs/actions'
 
-import {RemoteDataState} from 'src/types'
 import {LogsState} from 'src/types/logs'
 
 const defaultState: LogsState = {
@@ -22,7 +21,6 @@ const defaultState: LogsState = {
   tableQueryConfig: null,
   tableData: {columns: [], values: []},
   histogramData: [],
-  histogramDataStatus: RemoteDataState.NotStarted,
   searchTerm: '',
   filters: [],
   queryCount: 0,
@@ -111,8 +109,6 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, histogramQueryConfig: action.payload.queryConfig}
     case ActionTypes.SetHistogramData:
       return {...state, histogramData: action.payload.data}
-    case ActionTypes.SetHistogramDataStatus:
-      return {...state, histogramDataStatus: action.payload}
     case ActionTypes.SetTableQueryConfig:
       return {...state, tableQueryConfig: action.payload.queryConfig}
     case ActionTypes.SetTableData:

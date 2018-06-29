@@ -31,7 +31,7 @@ const RefreshingGraph = ({
   onZoom,
   cellID,
   queries,
-  hoverTime,
+  source,
   tableOptions,
   templates,
   timeRange,
@@ -62,6 +62,7 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
+        source={source}
         type={type}
         colors={colors}
         key={manualRefresh}
@@ -81,6 +82,7 @@ const RefreshingGraph = ({
   if (type === 'gauge') {
     return (
       <RefreshingGaugeChart
+        source={source}
         type={type}
         colors={colors}
         key={manualRefresh}
@@ -103,10 +105,11 @@ const RefreshingGraph = ({
     return (
       <RefreshingTableGraph
         type={type}
+        source={source}
         cellID={cellID}
         colors={colors}
         inView={inView}
-        hoverTime={hoverTime}
+        isInCEO={isInCEO}
         key={manualRefresh}
         queries={queries}
         templates={templates}
@@ -120,7 +123,6 @@ const RefreshingGraph = ({
         resizerTopHeight={resizerTopHeight}
         grabDataForDownload={grabDataForDownload}
         handleSetHoverTime={handleSetHoverTime}
-        isInCEO={isInCEO}
         onSetResolution={onSetResolution}
       />
     )
@@ -135,6 +137,7 @@ const RefreshingGraph = ({
     <RefreshingLineGraph
       type={type}
       axes={axes}
+      source={source}
       cellID={cellID}
       colors={colors}
       onZoom={onZoom}
@@ -199,10 +202,10 @@ RefreshingGraph.propTypes = {
     isEnforced: bool.isRequired,
     digits: number.isRequired,
   }).isRequired,
-  hoverTime: string.isRequired,
   handleSetHoverTime: func.isRequired,
   isInCEO: bool,
   onSetResolution: func,
+  source: shape().isRequired,
 }
 
 RefreshingGraph.defaultProps = {
@@ -213,9 +216,8 @@ RefreshingGraph.defaultProps = {
   decimalPlaces: DEFAULT_DECIMAL_PLACES,
 }
 
-const mapStateToProps = ({dashboardUI, annotations: {mode}}) => ({
+const mapStateToProps = ({annotations: {mode}}) => ({
   mode,
-  hoverTime: dashboardUI.hoverTime,
 })
 
 const mapDispatchToProps = dispatch => ({

@@ -16,7 +16,7 @@ interface Props {
 class Crosshair extends PureComponent<Props> {
   public render() {
     if (!this.isVisible) {
-      return null
+      return <div className="crosshair-container" />
     }
 
     return (
@@ -24,9 +24,8 @@ class Crosshair extends PureComponent<Props> {
         <div
           className="crosshair"
           style={{
-            left: this.crosshairLeft,
+            transform: this.crosshairLeft,
             height: this.crosshairHeight,
-            width: '1px',
           }}
         />
       </div>
@@ -47,10 +46,10 @@ class Crosshair extends PureComponent<Props> {
     return isValidHoverTime && hoverTime !== 0 && _.isFinite(hoverTime)
   }
 
-  private get crosshairLeft(): number {
+  private get crosshairLeft(): string {
     const {dygraph, hoverTime} = this.props
     const cursorOffset = 16
-    return dygraph.toDomXCoord(hoverTime) + cursorOffset
+    return `translateX(${dygraph.toDomXCoord(hoverTime) + cursorOffset}px)`
   }
 
   private get crosshairHeight(): string {

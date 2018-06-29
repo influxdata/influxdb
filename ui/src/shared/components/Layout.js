@@ -98,42 +98,34 @@ const Layout = (
       <WidgetCell cell={cell} timeRange={timeRange} source={source} />
     ) : (
       <RefreshingGraph
-        colors={colors}
-        inView={cell.inView}
         axes={axes}
         type={type}
-        isDragging={isDragging}
-        tableOptions={tableOptions}
-        fieldOptions={fieldOptions}
-        timeFormat={timeFormat}
-        decimalPlaces={decimalPlaces}
-        staticLegend={IS_STATIC_LEGEND(legend)}
         cellHeight={h}
         onZoom={onZoom}
+        colors={colors}
         sources={sources}
+        inView={cell.inView}
         timeRange={timeRange}
         templates={templates}
+        isDragging={isDragging}
+        timeFormat={timeFormat}
         autoRefresh={autoRefresh}
+        tableOptions={tableOptions}
+        fieldOptions={fieldOptions}
+        decimalPlaces={decimalPlaces}
         manualRefresh={manualRefresh}
+        onSetResolution={onSetResolution}
+        staticLegend={IS_STATIC_LEGEND(legend)}
         onStopAddAnnotation={onStopAddAnnotation}
         grabDataForDownload={grabDataForDownload}
-        queries={buildQueriesForLayouts(
-          cell,
-          getSource(cell, source, sources, defaultSource),
-          timeRange,
-          host
-        )}
-        onSetResolution={onSetResolution}
+        queries={buildQueriesForLayouts(cell, timeRange, host)}
+        source={getSource(cell, source, sources, defaultSource)}
       />
     )}
   </LayoutCell>
 )
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
-
-Layout.contextTypes = {
-  source: shape(),
-}
 
 const propTypes = {
   isDragging: bool,

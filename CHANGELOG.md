@@ -14,6 +14,8 @@
 1.  [#3671](https://github.com/influxdata/chronograf/pull/3671): Remove Snip functionality in hover legend
 1.  [#3659](https://github.com/influxdata/chronograf/pull/3659): Upgrade Data Explorer query text field with syntax highlighting and partial multi-line support
 1.  [#3663](https://github.com/influxdata/chronograf/pull/3663): Truncate message preview in Alert Rules table
+1.  [#3770](https://github.com/influxdata/chronograf/pull/3770): Improve performance of graph crosshairs
+1.  [#3790](https://github.com/influxdata/chronograf/pull/3790): Hide dashboard cell menu until mouse over cell
 
 ### Bug Fixes
 
@@ -25,6 +27,7 @@
 1.  [#3733](https://github.com/influxdata/chronograf/pull/3733): Change arrows in table columns so that ascending sort points up and descending points down
 1.  [#3751](https://github.com/influxdata/chronograf/pull/3751): Fix crosshairs moving passed the edges of graphs
 1.  [#3759](https://github.com/influxdata/chronograf/pull/3759): Change y-axis options to have valid defaults
+1.  [#3793](https://github.com/influxdata/chronograf/pull/3793): Stop making requests for old sources after changing sources
 
 ## v1.5.0.0 [2018-05-15-RC]
 

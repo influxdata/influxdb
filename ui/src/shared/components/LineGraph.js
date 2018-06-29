@@ -18,6 +18,7 @@ const validateTimeSeries = timeseries => {
     )
   )
 }
+
 @ErrorHandlingWith(InvalidData)
 class LineGraph extends Component {
   constructor(props) {
@@ -60,7 +61,6 @@ class LineGraph extends Component {
       cellID,
       onZoom,
       queries,
-      hoverTime,
       timeRange,
       cellHeight,
       ruleValues,
@@ -120,7 +120,6 @@ class LineGraph extends Component {
           labels={labels}
           queries={queries}
           options={options}
-          hoverTime={hoverTime}
           timeRange={timeRange}
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
@@ -182,7 +181,6 @@ LineGraph.propTypes = {
       label: string,
     }),
   }),
-  hoverTime: string,
   handleSetHoverTime: func,
   title: string,
   isFetchingInitially: bool,

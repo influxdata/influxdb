@@ -7,7 +7,7 @@ import _ from 'lodash'
 import HostsTable from 'src/hosts/components/HostsTable'
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
-import PageHeader from 'src/shared/components/PageHeader'
+import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
 import {getCpuAndLoadForHosts, getLayouts, getAppsForHosts} from '../apis'
 import {getEnv} from 'src/shared/apis/env'
@@ -73,6 +73,7 @@ export class HostsPage extends Component {
 
   async componentDidMount() {
     const {notify, autoRefresh} = this.props
+    this.componentIsMounted = true
 
     this.setState({hostsLoading: true}) // Only print this once
     const results = await getLayouts()
@@ -88,7 +89,7 @@ export class HostsPage extends Component {
       return
     }
     await this.fetchHostsData()
-    if (autoRefresh) {
+    if (autoRefresh && this.componentIsMounted) {
       this.intervalID = setInterval(() => this.fetchHostsData(), autoRefresh)
     }
   }
@@ -151,6 +152,7 @@ export class HostsPage extends Component {
   }
 
   componentWillUnmount() {
+    this.componentIsMounted = false
     clearInterval(this.intervalID)
     this.intervalID = false
   }

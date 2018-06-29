@@ -4,7 +4,7 @@ import _ from 'lodash'
 import {fetchTimeSeries} from 'src/shared/apis/query'
 import {DEFAULT_TIME_SERIES} from 'src/shared/constants/series'
 import {TimeSeriesServerResponse, TimeSeriesResponse} from 'src/types/series'
-import {Template} from 'src/types'
+import {Template, Source} from 'src/types'
 
 interface Axes {
   bounds: {
@@ -14,7 +14,6 @@ interface Axes {
 }
 
 interface Query {
-  host: string | string[]
   text: string
   database: string
   db: string
@@ -23,15 +22,16 @@ interface Query {
 }
 
 export interface Props {
-  type: string
-  autoRefresh: number
-  inView: boolean
-  templates: Template[]
-  queries: Query[]
+  source: Source
   axes: Axes
+  type: string
+  inView: boolean
+  queries: Query[]
+  autoRefresh: number
+  templates: Template[]
   editQueryStatus: () => void
-  grabDataForDownload: (timeSeries: TimeSeriesServerResponse[]) => void
   onSetResolution?: (resolution: number) => void
+  grabDataForDownload: (timeSeries: TimeSeriesServerResponse[]) => void
 }
 
 interface State {
@@ -80,7 +80,13 @@ const AutoRefresh = (
     }
 
     public executeQueries = async () => {
-      const {editQueryStatus, grabDataForDownload, inView, queries} = this.props
+      const {
+        source,
+        editQueryStatus,
+        grabDataForDownload,
+        inView,
+        queries,
+      } = this.props
       const {resolution} = this.state
 
       if (!inView) {
@@ -97,6 +103,7 @@ const AutoRefresh = (
 
       try {
         const timeSeries = await fetchTimeSeries(
+          source,
           queries,
           resolution,
           templates,
@@ -204,7 +211,7 @@ const AutoRefresh = (
     }
 
     private queryDifference = (left, right) => {
-      const mapper = q => `${q.host}${q.text}`
+      const mapper = q => `${q.text}`
       const leftStrs = left.map(mapper)
       const rightStrs = right.map(mapper)
       return _.difference(
