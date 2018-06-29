@@ -13,7 +13,7 @@ import {
   ColorScale,
 } from 'src/types/histogram'
 
-const BAR_BORDER_RADIUS = 4
+const BAR_BORDER_RADIUS = 3
 const BAR_PADDING_SIDES = 4
 const HOVER_BRIGTHEN_FACTOR = 0.4
 const TOOLTIP_HORIZONTAL_MARGIN = 5

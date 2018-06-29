@@ -4,7 +4,7 @@ import {ScaleLinear, ScaleTime} from 'd3-scale'
 import {Margins} from 'src/types/histogram'
 
 const Y_TICK_COUNT = 5
-const Y_TICK_PADDING_RIGHT = 5
+const Y_TICK_PADDING_RIGHT = 7
 const X_TICK_COUNT = 10
 const X_TICK_PADDING_TOP = 8
 

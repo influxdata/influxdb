@@ -42,7 +42,7 @@ class LogViewerHeader extends PureComponent<Props> {
     return (
       <>
         {this.status}
-        <PageHeaderTitle title="Logs Viewer" />
+        <PageHeaderTitle title="Log Viewer" />
       </>
     )
   }
