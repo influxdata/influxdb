@@ -13,7 +13,7 @@ import {
   deleteDashboardFailed,
   templateVariablePicked,
   editTemplateVariableValues,
-  templateVariablesSelectedByName,
+  templateVariablesPickedByName,
   setActiveCell,
 } from 'src/dashboards/actions'
 
@@ -108,7 +108,7 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboards[0].cells[0].name).toBe(newCellName)
   })
 
-  it('can select a different template variable', () => {
+  it('can pick a different template variable', () => {
     const dash = _.cloneDeep(d1)
     state = {
       dashboards: [dash],
@@ -120,9 +120,9 @@ describe('DataExplorer.Reducers.UI', () => {
       templateVariablePicked(dash.id, dash.templates[0].id, [{value}])
     )
 
-    expect(actual.dashboards[0].templates[0].values[0].selected).toBe(false)
-    expect(actual.dashboards[0].templates[0].values[1].selected).toBe(false)
-    expect(actual.dashboards[0].templates[0].values[2].selected).toBe(true)
+    expect(actual.dashboards[0].templates[0].values[0].picked).toBe(false)
+    expect(actual.dashboards[0].templates[0].values[1].picked).toBe(false)
+    expect(actual.dashboards[0].templates[0].values[2].picked).toBe(true)
   })
 
   it('can select template variable values by name', () => {
@@ -131,18 +131,18 @@ describe('DataExplorer.Reducers.UI', () => {
       dashboards: [dash],
     }
 
-    const selected = {region: 'us-west', temperature: '99.1'}
+    const picked = {region: 'us-west', temperature: '99.1'}
     const actual = reducer(
       state,
-      templateVariablesSelectedByName(dash.id, selected)
+      templateVariablesPickedByName(dash.id, picked)
     )
 
-    expect(actual.dashboards[0].templates[0].values[0].selected).toBe(true)
-    expect(actual.dashboards[0].templates[0].values[1].selected).toBe(false)
-    expect(actual.dashboards[0].templates[0].values[2].selected).toBe(false)
-    expect(actual.dashboards[0].templates[1].values[0].selected).toBe(false)
-    expect(actual.dashboards[0].templates[1].values[1].selected).toBe(true)
-    expect(actual.dashboards[0].templates[1].values[2].selected).toBe(false)
+    expect(actual.dashboards[0].templates[0].values[0].picked).toBe(true)
+    expect(actual.dashboards[0].templates[0].values[1].picked).toBe(false)
+    expect(actual.dashboards[0].templates[0].values[2].picked).toBe(false)
+    expect(actual.dashboards[0].templates[1].values[0].picked).toBe(false)
+    expect(actual.dashboards[0].templates[1].values[1].picked).toBe(true)
+    expect(actual.dashboards[0].templates[1].values[2].picked).toBe(false)
   })
 
   describe('SET_ACTIVE_CELL', () => {
@@ -163,11 +163,13 @@ describe('DataExplorer.Reducers.UI', () => {
 
       const expected = [
         {
+          picked: false,
           selected: false,
           value: 'v1',
           type: 'tagKey',
         },
         {
+          picked: false,
           selected: false,
           value: 'v2',
           type: 'tagKey',
@@ -188,11 +190,13 @@ describe('DataExplorer.Reducers.UI', () => {
 
       const expected = [
         {
+          picked: false,
           selected: false,
           value: 'v1',
           type: 'tagKey',
         },
         {
+          picked: false,
           selected: false,
           value: 'v2',
           type: 'tagKey',

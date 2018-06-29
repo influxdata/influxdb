@@ -242,12 +242,12 @@ export interface TemplateVariablePickedAction {
   }
 }
 
-export type TemplateVariablesSelectedByNameActionCreator = (
+export type TemplateVariablesPickedByNameActionCreator = (
   dashboardID: number,
   queryParams: TempVarsModels.URLQueryParams
-) => TemplateVariablesSelectedByNameAction
+) => TemplateVariablesPickedByNameAction
 
-export interface TemplateVariablesSelectedByNameAction {
+export interface TemplateVariablesPickedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
     dashboardID: number

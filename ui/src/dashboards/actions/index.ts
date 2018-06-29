@@ -216,10 +216,10 @@ export const templateVariablePicked: DashboardsActions.TemplateVariablePickedAct
   },
 })
 
-export const templateVariablesSelectedByName: DashboardsActions.TemplateVariablesSelectedByNameActionCreator = (
+export const templateVariablesPickedByName: DashboardsActions.TemplateVariablesPickedByNameActionCreator = (
   dashboardID: number,
   queryParams: TempVarsModels.URLQueryParams
-): DashboardsActions.TemplateVariablesSelectedByNameAction => ({
+): DashboardsActions.TemplateVariablesPickedByNameAction => ({
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
   payload: {
     dashboardID,
@@ -671,7 +671,7 @@ const syncDashboardTempVarsFromURLQueryParams = (
     dispatch(notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery)))
   })
 
-  dispatch(templateVariablesSelectedByName(dashboardID, urlQueryParams))
+  dispatch(templateVariablesPickedByName(dashboardID, urlQueryParams))
 }
 
 const syncDashboardTimeRangeFromURLQueryParams = (

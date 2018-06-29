@@ -228,6 +228,7 @@ class DashboardPage extends Component<Props, State> {
           value: low,
           type: lowerType,
           selected: true,
+          picked: true,
         },
       ],
     }
@@ -241,6 +242,7 @@ class DashboardPage extends Component<Props, State> {
           value: up || 'now()',
           type: upperType,
           selected: true,
+          picked: true,
         },
       ],
     }

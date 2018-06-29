@@ -8,26 +8,50 @@ describe('templates.utils.replace', () => {
       {
         ...emptyTemplate,
         tempVar: ':temperature:',
-        values: [{type: TemplateValueType.CSV, value: '10', selected: true}],
+        values: [
+          {
+            type: TemplateValueType.CSV,
+            value: '10',
+            selected: false,
+            picked: true,
+          },
+        ],
       },
       {
         ...emptyTemplate,
         tempVar: ':field:',
         values: [
-          {type: TemplateValueType.FieldKey, value: 'field2', selected: true},
+          {
+            type: TemplateValueType.FieldKey,
+            value: 'field2',
+            selected: true,
+            picked: false,
+          },
         ],
       },
       {
         ...emptyTemplate,
         tempVar: ':method:',
         values: [
-          {type: TemplateValueType.CSV, value: 'SELECT', selected: true},
+          {
+            type: TemplateValueType.CSV,
+            value: 'SELECT',
+            selected: true,
+            picked: false,
+          },
         ],
       },
       {
         ...emptyTemplate,
         tempVar: ':measurement:',
-        values: [{type: TemplateValueType.CSV, value: `"cpu"`, selected: true}],
+        values: [
+          {
+            type: TemplateValueType.CSV,
+            value: `"cpu"`,
+            selected: false,
+            picked: true,
+          },
+        ],
       },
     ]
     const query =
@@ -47,7 +71,14 @@ describe('templates.utils.replace', () => {
           {
             type: TemplateValueType.TagValue,
             value: 'howdy.com',
-            selected: true,
+            selected: false,
+            picked: true,
+          },
+          {
+            type: TemplateValueType.TagValue,
+            value: 'nope',
+            selected: false,
+            picked: false,
           },
         ],
       },
@@ -55,14 +86,36 @@ describe('templates.utils.replace', () => {
         ...emptyTemplate,
         tempVar: ':tag:',
         values: [
-          {type: TemplateValueType.TagKey, value: 'host', selected: true},
+          {
+            type: TemplateValueType.TagKey,
+            value: 'host',
+            selected: false,
+            picked: true,
+          },
+          {
+            type: TemplateValueType.TagKey,
+            value: 'nope',
+            selected: false,
+            picked: false,
+          },
         ],
       },
       {
         ...emptyTemplate,
         tempVar: ':field:',
         values: [
-          {type: TemplateValueType.FieldKey, value: 'field', selected: true},
+          {
+            type: TemplateValueType.FieldKey,
+            value: 'field',
+            selected: true,
+            picked: false,
+          },
+          {
+            type: TemplateValueType.FieldKey,
+            value: 'nope',
+            selected: false,
+            picked: false,
+          },
         ],
       },
     ]
@@ -85,6 +138,13 @@ describe('templates.utils.replace', () => {
               type: TemplateValueType.TagValue,
               value: 'my-host.local',
               selected: true,
+              picked: false,
+            },
+            {
+              type: TemplateValueType.TagValue,
+              value: 'my-host.urban',
+              selected: false,
+              picked: false,
             },
           ],
         },
@@ -95,7 +155,14 @@ describe('templates.utils.replace', () => {
             {
               type: TemplateValueType.TagValue,
               value: 'north',
-              selected: true,
+              selected: false,
+              picked: true,
+            },
+            {
+              type: TemplateValueType.TagValue,
+              value: 'south',
+              selected: false,
+              picked: false,
             },
           ],
         },
@@ -106,7 +173,14 @@ describe('templates.utils.replace', () => {
             {
               value: 'now() - 1h',
               type: TemplateValueType.Constant,
-              selected: true,
+              selected: false,
+              picked: true,
+            },
+            {
+              value: 'now() - 2h',
+              type: TemplateValueType.Constant,
+              selected: false,
+              picked: false,
             },
           ],
         },
@@ -180,6 +254,13 @@ describe('templates.utils.replace', () => {
                 type: TemplateValueType.Constant,
                 value: 'now() - 24h',
                 selected: true,
+                picked: false,
+              },
+              {
+                type: TemplateValueType.Constant,
+                value: 'now() - 5h',
+                selected: false,
+                picked: false,
               },
             ],
           },
@@ -205,6 +286,13 @@ describe('templates.utils.replace', () => {
                 type: TemplateValueType.Constant,
                 value: 'now() - 1h',
                 selected: true,
+                picked: false,
+              },
+              {
+                type: TemplateValueType.Constant,
+                value: 'now() - 2h',
+                selected: false,
+                picked: false,
               },
             ],
           },
