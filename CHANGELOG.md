@@ -16,6 +16,7 @@
 1.  [#3663](https://github.com/influxdata/chronograf/pull/3663): Truncate message preview in Alert Rules table
 1.  [#3770](https://github.com/influxdata/chronograf/pull/3770): Improve performance of graph crosshairs
 1.  [#3790](https://github.com/influxdata/chronograf/pull/3790): Hide dashboard cell menu until mouse over cell
+1.  [#3803](https://github.com/influxdata/chronograf/pull/3803): Auto-Scale single-stat text to match cell dimensions
 
 ### Bug Fixes
 
