@@ -106,6 +106,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 		AsyncQueryService: c,
 	}
 	queryHandler.OrganizationService = &orgSvc
+	queryHandler.Logger = logger.With(zap.String("handler", "query"))
 
 	handler := http.NewHandler("query")
 	handler.Handler = queryHandler
