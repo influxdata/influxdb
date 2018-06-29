@@ -19,13 +19,13 @@
 }
 .dygraph-axis-label-y {
   padding: 0 9px 0 0 !important;
-  text-align: left !important;
+  text-align: right !important;
   left: 0 !important;
   user-select: none;
 }
 .dygraph-axis-label-y2 {
   padding: 0 0 0 9px !important;
-  text-align: right !important;
+  text-align: left !important;
   user-select: none;
 }
 
@@ -55,10 +55,10 @@
 
 .graph--hasYLabel {
   .dygraph-axis-label-y {
-    padding: 0 1px 0 16px !important;
+    padding: 0 4px 0 0 !important;
   }
   .dygraph-axis-label-y2 {
-    padding: 0 16px 0 1px !important;
+    padding: 0 0 0 4px !important;
   }
 }
 

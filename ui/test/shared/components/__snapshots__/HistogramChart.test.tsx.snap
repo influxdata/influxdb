@@ -250,7 +250,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
         <text
           className="y-label"
           key="0-25-625-380"
-          x={20}
+          x={18}
           y={380}
         >
           0
@@ -258,7 +258,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
         <text
           className="y-label"
           key="0.5-25-625-301.875"
-          x={20}
+          x={18}
           y={301.875}
         >
           0.5
@@ -266,7 +266,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
         <text
           className="y-label"
           key="1-25-625-223.75"
-          x={20}
+          x={18}
           y={223.75}
         >
           1
@@ -274,7 +274,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
         <text
           className="y-label"
           key="1.5-25-625-145.625"
-          x={20}
+          x={18}
           y={145.625}
         >
           1.5
@@ -282,7 +282,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
         <text
           className="y-label"
           key="2-25-625-67.5"
-          x={20}
+          x={18}
           y={67.5}
         >
           2
@@ -371,9 +371,9 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
               id="histogram-chart-bars--clip-1-1-193.5"
             >
               <rect
-                height={160.25}
-                rx={4}
-                ry={4}
+                height={159.25}
+                rx={3}
+                ry={3}
                 width={188}
                 x={193.5}
                 y={218.75}
@@ -405,9 +405,9 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
               id="histogram-chart-bars--clip-2-2-481"
             >
               <rect
-                height={316.5}
-                rx={4}
-                ry={4}
+                height={315.5}
+                rx={3}
+                ry={3}
                 width={188}
                 x={481}
                 y={62.5}
