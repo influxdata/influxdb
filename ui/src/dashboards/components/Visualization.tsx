@@ -4,7 +4,6 @@ import {connect} from 'react-redux'
 import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import buildQueries from 'src/utils/buildQueriesForGraphs'
 import VisualizationName from 'src/dashboards/components/VisualizationName'
-import {SourceContext} from 'src/CheckSources'
 
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 
@@ -19,6 +18,7 @@ import {ColorString, ColorNumber} from 'src/types/colors'
 
 interface Props {
   type: CellType
+  source: Source
   autoRefresh: number
   templates: Template[]
   timeRange: TimeRange
@@ -40,21 +40,22 @@ interface Props {
 const DashVisualization: SFC<Props> = ({
   axes,
   type,
+  source,
+  isInCEO,
   templates,
   timeRange,
   lineColors,
+  timeFormat,
   autoRefresh,
   gaugeColors,
+  fieldOptions,
   queryConfigs,
+  staticLegend,
+  tableOptions,
+  decimalPlaces,
   editQueryStatus,
   resizerTopHeight,
-  staticLegend,
   thresholdsListColors,
-  tableOptions,
-  timeFormat,
-  decimalPlaces,
-  fieldOptions,
-  isInCEO,
 }) => {
   const colors: ColorString[] = getCellTypeColors({
     cellType: type,
@@ -67,27 +68,24 @@ const DashVisualization: SFC<Props> = ({
     <div className="graph">
       <VisualizationName />
       <div className="graph-container">
-        <SourceContext.Consumer>
-          {(source: Source) => (
-            <RefreshingGraph
-              source={source}
-              colors={colors}
-              axes={axes}
-              type={type}
-              tableOptions={tableOptions}
-              queries={buildQueries(queryConfigs, timeRange)}
-              templates={templates}
-              autoRefresh={autoRefresh}
-              editQueryStatus={editQueryStatus}
-              resizerTopHeight={resizerTopHeight}
-              staticLegend={staticLegend}
-              timeFormat={timeFormat}
-              decimalPlaces={decimalPlaces}
-              fieldOptions={fieldOptions}
-              isInCEO={isInCEO}
-            />
-          )}
-        </SourceContext.Consumer>
+        <RefreshingGraph
+          source={source}
+          colors={colors}
+          axes={axes}
+          type={type}
+          tableOptions={tableOptions}
+          queries={buildQueries(queryConfigs, timeRange)}
+          templates={templates}
+          autoRefresh={autoRefresh}
+          editQueryStatus={editQueryStatus}
+          resizerTopHeight={resizerTopHeight}
+          staticLegend={staticLegend}
+          timeFormat={timeFormat}
+          decimalPlaces={decimalPlaces}
+          fieldOptions={fieldOptions}
+          isInCEO={isInCEO}
+        />
+        )}
       </div>
     </div>
   )
