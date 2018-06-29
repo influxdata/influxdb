@@ -11,8 +11,8 @@ import (
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/values"
-	"github.com/influxdata/yarpc"
 	"github.com/pkg/errors"
+	"google.golang.org/grpc"
 )
 
 func NewReader(hl storage.HostLookup) (*reader, error) {
@@ -20,7 +20,7 @@ func NewReader(hl storage.HostLookup) (*reader, error) {
 	hosts := hl.Hosts()
 	conns := make([]connection, len(hosts))
 	for i, h := range hosts {
-		conn, err := yarpc.Dial(h)
+		conn, err := grpc.Dial(h, grpc.WithInsecure())
 		if err != nil {
 			return nil, err
 		}
@@ -41,7 +41,7 @@ type reader struct {
 
 type connection struct {
 	host   string
-	conn   *yarpc.ClientConn
+	conn   *grpc.ClientConn
 	client StorageClient
 }
 
