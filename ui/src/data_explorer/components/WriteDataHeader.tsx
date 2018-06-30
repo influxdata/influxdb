@@ -1,18 +1,16 @@
 import React, {PureComponent} from 'react'
 import DatabaseDropdown from 'src/shared/components/DatabaseDropdown'
-import RadioButtons, {
-  RadioButton,
-} from 'src/reusable_ui/components/radio_buttons/RadioButtons'
+import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
 import {Source, DropdownItem} from 'src/types'
+import {WRITE_DATA_FILE, WRITE_DATA_MANUAL} from 'src/shared/constants'
 
 interface Props {
   handleSelectDatabase: (item: DropdownItem) => void
   selectedDatabase: string
-  onToggleMode: (mode: RadioButton) => void
+  onToggleMode: (mode: string) => void
   errorThrown: () => void
   onClose: () => void
-  mode: RadioButton
-  modes: RadioButton[]
+  mode: string
   source: Source
 }
 
@@ -46,7 +44,8 @@ class WriteDataHeader extends PureComponent<Props> {
   }
 
   private get modeSelector(): JSX.Element {
-    const {mode, modes} = this.props
+    const {mode} = this.props
+    const modes = [WRITE_DATA_FILE, WRITE_DATA_MANUAL]
 
     return (
       <RadioButtons
@@ -57,10 +56,10 @@ class WriteDataHeader extends PureComponent<Props> {
     )
   }
 
-  private handleRadioButtonClick = (button: RadioButton): void => {
+  private handleRadioButtonClick = (mode: string): void => {
     const {onToggleMode} = this.props
 
-    onToggleMode(button)
+    onToggleMode(mode)
   }
 }
 

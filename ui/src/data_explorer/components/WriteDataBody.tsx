@@ -6,9 +6,8 @@ import React, {
   DragEvent,
   ReactElement,
 } from 'react'
-import _ from 'lodash'
 import WriteDataFooter from 'src/data_explorer/components/WriteDataFooter'
-import {RadioButton} from 'src/reusable_ui/components/radio_buttons/RadioButtons'
+import {WRITE_DATA_FILE} from 'src/shared/constants'
 
 interface Props {
   handleCancelFile: (e: MouseEvent<HTMLButtonElement>) => void
@@ -19,8 +18,7 @@ interface Props {
   inputContent: string
   uploadContent: string
   fileName: string
-  mode: RadioButton
-  modes: RadioButton[]
+  mode: string
   fileInput: (ref: any) => any
   handleFileOpen: () => void
   isUploading: boolean
@@ -41,7 +39,8 @@ class WriteDataBody extends PureComponent<Props> {
   }
 
   private get input(): JSX.Element {
-    if (this.isUploadFileMode) {
+    const {mode} = this.props
+    if (mode === WRITE_DATA_FILE) {
       return this.dragArea
     }
 
@@ -137,9 +136,9 @@ class WriteDataBody extends PureComponent<Props> {
   }
 
   private get footer(): JSX.Element | null {
-    const {isUploading, inputContent, handleSubmit} = this.props
+    const {isUploading, inputContent, handleSubmit, mode} = this.props
 
-    if (this.isUploadFileMode) {
+    if (mode === WRITE_DATA_FILE) {
       return null
     }
 
@@ -150,12 +149,6 @@ class WriteDataBody extends PureComponent<Props> {
         handleSubmit={handleSubmit}
       />
     )
-  }
-
-  private get isUploadFileMode(): boolean {
-    const {mode, modes} = this.props
-
-    return _.isEqual(mode, modes[0])
   }
 }
 

@@ -5,19 +5,17 @@ import React, {
   KeyboardEvent,
 } from 'react'
 import classnames from 'classnames'
-import _ from 'lodash'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
 import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
 import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
+import {WRITE_DATA_FILE} from 'src/shared/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Source, DropdownItem} from 'src/types'
-import {RadioButton} from 'src/reusable_ui/components/radio_buttons/RadioButtons'
 
 let dragCounter = 0
-const writeDataModes = [{text: 'File Upload'}, {text: 'Manual Entry'}]
 
 interface Props {
   source: Source
@@ -33,7 +31,7 @@ interface State {
   uploadContent: string
   fileName: string
   progress: string
-  mode: RadioButton
+  mode: string
   dragClass: string
   isUploading: boolean
 }
@@ -50,7 +48,7 @@ class WriteDataForm extends PureComponent<Props, State> {
       uploadContent: '',
       fileName: '',
       progress: '',
-      mode: writeDataModes[0],
+      mode: WRITE_DATA_FILE,
       dragClass: 'drag-none',
       isUploading: false,
     }
@@ -74,14 +72,12 @@ class WriteDataForm extends PureComponent<Props, State> {
             {...this.state}
             source={source}
             onClose={onClose}
-            modes={writeDataModes}
             errorThrown={errorThrown}
             onToggleMode={this.handleToggleMode}
             handleSelectDatabase={this.handleSelectDatabase}
           />
           <WriteDataBody
             {...this.state}
-            modes={writeDataModes}
             fileInput={this.handleFileInputRef}
             handleEdit={this.handleEdit}
             handleFile={this.handleFile}
@@ -95,7 +91,7 @@ class WriteDataForm extends PureComponent<Props, State> {
     )
   }
 
-  private handleToggleMode = (mode: RadioButton) => {
+  private handleToggleMode = (mode: string) => {
     this.setState({mode})
   }
 
@@ -116,7 +112,7 @@ class WriteDataForm extends PureComponent<Props, State> {
     const {inputContent, uploadContent, selectedDatabase, mode} = this.state
     let content = inputContent
 
-    if (_.isEqual(mode, writeDataModes[0])) {
+    if (mode === 'File Upload') {
       content = uploadContent
     }
     this.setState({isUploading: true})
