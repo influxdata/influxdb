@@ -1,6 +1,8 @@
 import React, {PureComponent} from 'react'
 import {getDataForCSV} from 'src/data_explorer/apis'
-import VisHeaderTabs from 'src/data_explorer/components/VisHeaderTabs'
+import RadioButtons, {
+  RadioButton,
+} from 'src/reusable_ui/components/radio_buttons/RadioButtons'
 import {OnToggleView} from 'src/data_explorer/components/VisHeaderTab'
 import {Source} from 'src/types'
 
@@ -15,29 +17,57 @@ interface Props {
 
 class VisHeader extends PureComponent<Props> {
   public render() {
-    const {source, views, view, onToggleView, query, errorThrown} = this.props
-
     return (
       <div className="graph-heading">
-        {!!views.length && (
-          <VisHeaderTabs
-            view={view}
-            views={views}
-            currentView={view}
-            onToggleView={onToggleView}
-          />
-        )}
-        {query && (
-          <div
-            className="btn btn-sm btn-default dlcsv"
-            onClick={getDataForCSV(source, query, errorThrown)}
-          >
-            <span className="icon download dlcsv" />
-            .csv
-          </div>
-        )}
+        {this.visTypeToggle}
+        {this.downloadButton}
       </div>
     )
+  }
+
+  private handleChangeVisType = (visType: RadioButton) => {
+    const {onToggleView} = this.props
+    const {text} = visType
+
+    onToggleView(text)
+  }
+
+  private get visTypeToggle(): JSX.Element {
+    const {views, view} = this.props
+
+    const buttons = views.map(v => ({text: v}))
+
+    const activeButton = {text: view}
+
+    if (views.length) {
+      return (
+        <RadioButtons
+          buttons={buttons}
+          activeButton={activeButton}
+          onChange={this.handleChangeVisType}
+        />
+      )
+    }
+
+    return null
+  }
+
+  private get downloadButton(): JSX.Element {
+    const {query, source, errorThrown} = this.props
+
+    if (query) {
+      return (
+        <div
+          className="btn btn-sm btn-default dlcsv"
+          onClick={getDataForCSV(source, query, errorThrown)}
+        >
+          <span className="icon download dlcsv" />
+          .CSV
+        </div>
+      )
+    }
+
+    return null
   }
 }
 
