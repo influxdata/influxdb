@@ -3,11 +3,11 @@ import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {FluxTable} from 'src/types'
-import VisHeaderTabs from 'src/data_explorer/components/VisHeaderTabs'
 import TableSidebar from 'src/flux/components/TableSidebar'
 import TimeMachineTable from 'src/flux/components/TimeMachineTable'
 import FluxGraph from 'src/flux/components/FluxGraph'
 import NoResults from 'src/flux/components/NoResults'
+import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
 
 interface Props {
   data: FluxTable[]
@@ -48,11 +48,10 @@ class TimeMachineVis extends PureComponent<Props, State> {
     return (
       <>
         <div className="yield-node--controls">
-          <VisHeaderTabs
-            view={visType}
-            views={[VisType.Table, VisType.Line]}
-            currentView={visType}
-            onToggleView={this.selectVisType}
+          <RadioButtons
+            buttons={[VisType.Table, VisType.Line]}
+            activeButton={visType}
+            onChange={this.selectVisType}
           />
           <div className="yield-node--name">{`"${yieldName}"`}</div>
         </div>
