@@ -8,7 +8,7 @@ import {TEMPLATE_PREVIEW_LIST_DIMENSIONS as DIMENSIONS} from 'src/tempVars/const
 
 import {TemplateValue} from 'src/types'
 
-const {RESULTS_TO_DISPLAY, LI_HEIGHT, LI_MARGIN_BOTTOM} = DIMENSIONS
+const {RESULTS_TO_DISPLAY, LI_HEIGHT, LI_MARGIN_BOTTOM, OFFSET} = DIMENSIONS
 
 interface Props {
   items: TemplateValue[]
@@ -21,11 +21,12 @@ class TemplatePreviewList extends PureComponent<Props> {
     const {items, onUpdateDefaultTemplateValue} = this.props
 
     return (
-      <div
-        className="temp-builder--results-list"
-        style={{height: `${this.resultsListHeight}px`}}
-      >
-        <FancyScrollbar autoHide={false}>
+      <div className="temp-builder--results-list">
+        <FancyScrollbar
+          autoHide={false}
+          autoHeight={true}
+          maxHeight={this.resultsListHeight}
+        >
           {items.map(item => (
             <TemplatePreviewListItem
               key={uuid.v4()}
@@ -42,7 +43,7 @@ class TemplatePreviewList extends PureComponent<Props> {
     const {items} = this.props
     const count = Math.min(items.length, RESULTS_TO_DISPLAY)
 
-    return count * (LI_HEIGHT + LI_MARGIN_BOTTOM)
+    return count * (LI_HEIGHT + LI_MARGIN_BOTTOM) - OFFSET
   }
 }
 
