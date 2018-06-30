@@ -5,6 +5,7 @@ import React, {
   KeyboardEvent,
 } from 'react'
 import classnames from 'classnames'
+import _ from 'lodash'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
 import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
@@ -13,7 +14,10 @@ import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Source, DropdownItem} from 'src/types'
+import {RadioButton} from 'src/reusable_ui/components/radio_buttons/RadioButtons'
+
 let dragCounter = 0
+const writeDataModes = [{text: 'File Upload'}, {text: 'Manual Entry'}]
 
 interface Props {
   source: Source
@@ -29,7 +33,7 @@ interface State {
   uploadContent: string
   fileName: string
   progress: string
-  isManual: boolean
+  mode: RadioButton
   dragClass: string
   isUploading: boolean
 }
@@ -46,7 +50,7 @@ class WriteDataForm extends PureComponent<Props, State> {
       uploadContent: '',
       fileName: '',
       progress: '',
-      isManual: false,
+      mode: writeDataModes[0],
       dragClass: 'drag-none',
       isUploading: false,
     }
@@ -70,12 +74,14 @@ class WriteDataForm extends PureComponent<Props, State> {
             {...this.state}
             source={source}
             onClose={onClose}
+            modes={writeDataModes}
             errorThrown={errorThrown}
-            toggleWriteView={this.toggleWriteView}
+            onToggleMode={this.handleToggleMode}
             handleSelectDatabase={this.handleSelectDatabase}
           />
           <WriteDataBody
             {...this.state}
+            modes={writeDataModes}
             fileInput={this.handleFileInputRef}
             handleEdit={this.handleEdit}
             handleFile={this.handleFile}
@@ -89,8 +95,8 @@ class WriteDataForm extends PureComponent<Props, State> {
     )
   }
 
-  private toggleWriteView = (isManual: boolean) => {
-    this.setState({isManual})
+  private handleToggleMode = (mode: RadioButton) => {
+    this.setState({mode})
   }
 
   private handleSelectDatabase = (item: DropdownItem): void => {
@@ -107,8 +113,12 @@ class WriteDataForm extends PureComponent<Props, State> {
 
   private handleSubmit = async () => {
     const {onClose, source, writeLineProtocol} = this.props
-    const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
-    const content = isManual ? inputContent : uploadContent
+    const {inputContent, uploadContent, selectedDatabase, mode} = this.state
+    let content = inputContent
+
+    if (_.isEqual(mode, writeDataModes[0])) {
+      content = uploadContent
+    }
     this.setState({isUploading: true})
 
     try {

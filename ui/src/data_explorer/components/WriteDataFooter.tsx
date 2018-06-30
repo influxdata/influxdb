@@ -1,40 +1,25 @@
 import React, {PureComponent, MouseEvent} from 'react'
-import {
-  WRITE_DATA_DOCS_LINK,
-  DATA_IMPORT_DOCS_LINK,
-} from 'src/data_explorer/constants'
-
-const submitButton = 'btn btn-sm btn-success write-data-form--submit'
-const spinner = 'btn-spinner'
+import classnames from 'classnames'
+import {WRITE_DATA_DOCS_LINK} from 'src/data_explorer/constants'
 
 interface Props {
-  isManual: boolean
   isUploading: boolean
-  uploadContent: string
   inputContent: string
   handleSubmit: (e: MouseEvent<HTMLButtonElement>) => void
 }
 
 class WriteDataFooter extends PureComponent<Props> {
   public render() {
-    const {isManual, handleSubmit} = this.props
+    const {handleSubmit} = this.props
 
     return (
       <div className="write-data-form--footer">
-        {isManual ? (
-          <span className="write-data-form--helper">
-            Need help writing InfluxDB Line Protocol? -&nbsp;
-            <a href={WRITE_DATA_DOCS_LINK} target="_blank">
-              See Documentation
-            </a>
-          </span>
-        ) : (
-          <span className="write-data-form--helper">
-            <a href={DATA_IMPORT_DOCS_LINK} target="_blank">
-              File Upload Documentation
-            </a>
-          </span>
-        )}
+        <span className="write-data-form--helper">
+          Need help writing InfluxDB Line Protocol? -&nbsp;
+          <a href={WRITE_DATA_DOCS_LINK} target="_blank">
+            See Documentation
+          </a>
+        </span>
         <button
           className={this.buttonClass}
           onClick={handleSubmit}
@@ -48,22 +33,21 @@ class WriteDataFooter extends PureComponent<Props> {
   }
 
   get buttonDisabled(): boolean {
-    const {inputContent, isManual, uploadContent, isUploading} = this.props
-    return (
-      (!inputContent && isManual) ||
-      (!uploadContent && !isManual) ||
-      isUploading
-    )
+    const {inputContent} = this.props
+
+    if (inputContent) {
+      return false
+    }
+
+    return true
   }
 
   get buttonClass(): string {
     const {isUploading} = this.props
 
-    if (isUploading) {
-      return `${submitButton} ${spinner}`
-    }
-
-    return submitButton
+    return classnames('btn btn-sm btn-success write-data-form--submit', {
+      'btn-spinner': isUploading,
+    })
   }
 }
 

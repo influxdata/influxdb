@@ -140,5 +140,3 @@ export const QUERY_TEMPLATES: Template[] = [
 
 export const WRITE_DATA_DOCS_LINK =
   'https://docs.influxdata.com/influxdb/latest/write_protocols/line_protocol_tutorial/'
-export const DATA_IMPORT_DOCS_LINK =
-  'https://docs.influxdata.com/influxdb/v1.2//tools/shell/#import-data-from-a-file-with-import'
