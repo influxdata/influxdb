@@ -39,7 +39,7 @@ class QueryTextArea extends Component {
   }
 
   handleMouseOverTempVar = template => () => {
-    this.handleTemplateReplace(template)
+    this.handleTemplateReplace(template, true)
   }
 
   handleClickTempVar = template => () => {
