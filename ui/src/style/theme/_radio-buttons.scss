@@ -3,6 +3,153 @@
    -----------------------------------------------------------------------------
 */
 
+.radio-buttons {
+  display: inline-flex;
+  align-items: stretch;
+  border: $ix-border solid $g5-pepper;
+  background-color: $g5-pepper;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.radio-button {
+  font-weight: 600;
+  margin-right: 2px;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  background-color: $g2-kevlar;
+  color: $g11-sidewalk;
+
+  &:last-child {
+    margin-right: 0;
+  }
+  &:hover {
+    background-color: $g4-onyx;
+    color: $g15-platinum;
+    cursor: pointer;
+  }
+  &.active {
+    background-color: $g5-pepper;
+  }
+  &[disabled="true"] {
+    &, &:hover {
+      background-color: $g2-kevlar;
+      font-style: italic;
+      color: $g7-graphite;
+    }
+  }
+  &[disabled="true"].active {
+    background-color: $g5-pepper;
+    color: $g10-wolf;
+  }
+}
+
+/*  Size Modifiers */
+.radio-buttons {
+  &.radio-buttons-xs {
+    height: $form-xs-height;
+
+    .radio-button {
+      padding: 0 $form-xs-padding;
+      font-size: $form-xs-font;
+    }
+  }
+
+  &.radio-buttons-sm {
+    height: $form-sm-height;
+
+    .radio-button {
+      padding: 0 $form-sm-padding;
+      font-size: $form-sm-font;
+    }
+  }
+
+  &.radio-buttons-md {
+    height: $form-md-height;
+
+    .radio-button {
+      padding: 0 $form-md-padding;
+      font-size: $form-md-font;
+    }
+  }
+
+  &.radio-buttons-lg {
+    height: $form-lg-height;
+
+    .radio-button {
+      padding: 0 $form-lg-padding;
+      font-size: $form-lg-font;
+    }
+  }
+}
+
+/* Color Modifiers */
+.radio-buttons {
+  &.radio-buttons-default {
+    .radio-button.active {
+      color: $g18-cloud;
+    }
+  }
+  &.radio-buttons-primary {
+    .radio-button.active {
+      color: $c-pool;
+    }
+  }
+  &.radio-buttons-success {
+    .radio-button.active {
+      color: $c-rainforest;
+    }
+  }
+  &.radio-buttons-warning {
+    .radio-button.active {
+      color: $c-comet;
+    }
+  }
+  &.radio-buttons-danger {
+    .radio-button.active {
+      color: $c-dreamsicle;
+    }
+  }
+  &.radio-buttons-alert {
+    .radio-button.active {
+      color: $c-pineapple;
+    }
+  }
+}
+
+/* Shape Modifiers */
+.radio-buttons.radio-buttons-square {
+  &.radio-buttons-xs .radio-button {
+    width: $form-xs-height - 4px;
+  }
+  
+  &.radio-buttons-sm .radio-button {
+    width: $form-sm-height - 4px;
+  }
+  
+  &.radio-buttons-md .radio-button {
+    width: $form-md-height - 4px;
+  }
+
+  &.radio-buttons-lg .radio-button {
+    width: $form-lg-height - 4px;
+  }
+}
+
+.radio-buttons.radio-buttons-stretch {
+  width: 100%;
+
+  .radio-button {
+    flex: 1 0 0;
+    justify-content: center;
+  }
+}
+
+
+/*
+   Todo: Replace all instances of these styles with new pattern then
+   delete these styles
+   -----------------------------------------------------------------------------
+*/
 .nav-tablist {
   display: inline-flex;
   align-items: stretch;
