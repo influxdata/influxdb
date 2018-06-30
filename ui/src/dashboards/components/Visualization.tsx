@@ -85,7 +85,6 @@ const DashVisualization: SFC<Props> = ({
           fieldOptions={fieldOptions}
           isInCEO={isInCEO}
         />
-        )}
       </div>
     </div>
   )
