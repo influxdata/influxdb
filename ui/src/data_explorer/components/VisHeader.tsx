@@ -1,7 +1,6 @@
 import React, {PureComponent} from 'react'
 import {getDataForCSV} from 'src/data_explorer/apis'
 import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
-import {OnToggleView} from 'src/data_explorer/components/VisHeaderTab'
 import {Source} from 'src/types'
 
 interface Props {
@@ -9,7 +8,7 @@ interface Props {
   views: string[]
   view: string
   query: any
-  onToggleView: OnToggleView
+  onToggleView: (view: string) => void
   errorThrown: () => void
 }
 
