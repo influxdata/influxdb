@@ -38,14 +38,13 @@ class RadioButtons extends Component<Props> {
     const {buttons} = this.props
 
     return buttons.map(button => (
-      <button
+      <div
         key={button.text}
         className={this.buttonClassName(button)}
         onClick={this.handleButtonClick(button)}
-        disabled={button.disabled}
       >
         {button.text}
-      </button>
+      </div>
     ))
   }
 

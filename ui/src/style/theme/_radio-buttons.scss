@@ -34,14 +34,13 @@
   &.active {
     background-color: $g5-pepper;
   }
-  &[disabled="true"] {
-    &, &:hover {
-      background-color: $g2-kevlar;
-      font-style: italic;
-      color: $g7-graphite;
-    }
+  &.disabled,
+  &.disabled:hover {
+    background-color: $g2-kevlar;
+    font-style: italic;
+    color: $g7-graphite;
   }
-  &[disabled="true"].active {
+  &.disabled.active {
     background-color: $g5-pepper;
     color: $g10-wolf;
   }
@@ -53,6 +52,7 @@
     height: $form-xs-height;
 
     .radio-button {
+      line-height: $form-xs-height - 4px;
       padding: 0 $form-xs-padding;
       font-size: $form-xs-font;
     }
@@ -62,6 +62,7 @@
     height: $form-sm-height;
 
     .radio-button {
+      line-height: $form-sm-height - 4px;
       padding: 0 $form-sm-padding;
       font-size: $form-sm-font;
     }
@@ -71,6 +72,7 @@
     height: $form-md-height;
 
     .radio-button {
+      line-height: $form-sm-height - 4px;
       padding: 0 $form-md-padding;
       font-size: $form-md-font;
     }
@@ -80,6 +82,7 @@
     height: $form-lg-height;
 
     .radio-button {
+      line-height: $form-lg-height - 4px;
       padding: 0 $form-lg-padding;
       font-size: $form-lg-font;
     }
