@@ -24,6 +24,111 @@ func TestConfig_Get(t *testing.T) {
 					Auth: chronograf.AuthConfig{
 						SuperAdminNewUsers: false,
 					},
+					LogViewerUI: chronograf.LogViewerUIConfig{
+						Columns: []chronograf.LogViewerUIColumn{
+							{
+								Name:     "time",
+								Position: 0,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "hidden",
+									},
+								},
+							},
+							{
+								Name:     "severity",
+								Position: 1,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "label",
+										Value: "icon",
+									},
+									{
+										Type:  "label",
+										Value: "text",
+									},
+								},
+							},
+							{
+								Name:     "timestamp",
+								Position: 2,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "message",
+								Position: 3,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "facility",
+								Position: 4,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "procid",
+								Position: 5,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "displayName",
+										Value: "Proc ID",
+									},
+								},
+							},
+							{
+								Name:     "appname",
+								Position: 6,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "displayName",
+										Value: "Application",
+									},
+								},
+							},
+							{
+								Name:     "host",
+								Position: 7,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -67,12 +172,214 @@ func TestConfig_Update(t *testing.T) {
 					Auth: chronograf.AuthConfig{
 						SuperAdminNewUsers: false,
 					},
+					LogViewerUI: chronograf.LogViewerUIConfig{
+						Columns: []chronograf.LogViewerUIColumn{
+							{
+								Name:     "time",
+								Position: 1,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "severity",
+								Position: 0,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "label",
+										Value: "text",
+									},
+								},
+							},
+							{
+								Name:     "timestamp",
+								Position: 2,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "message",
+								Position: 3,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "facility",
+								Position: 4,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "procid",
+								Position: 5,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "displayName",
+										Value: "Milkshake",
+									},
+								},
+							},
+							{
+								Name:     "appname",
+								Position: 6,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "displayName",
+										Value: "Application",
+									},
+								},
+							},
+							{
+								Name:     "host",
+								Position: 7,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			wants: wants{
 				config: &chronograf.Config{
 					Auth: chronograf.AuthConfig{
 						SuperAdminNewUsers: false,
+					},
+					LogViewerUI: chronograf.LogViewerUIConfig{
+						Columns: []chronograf.LogViewerUIColumn{
+							{
+								Name:     "time",
+								Position: 1,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "severity",
+								Position: 0,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "label",
+										Value: "text",
+									},
+								},
+							},
+							{
+								Name:     "timestamp",
+								Position: 2,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "message",
+								Position: 3,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "facility",
+								Position: 4,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+							{
+								Name:     "procid",
+								Position: 5,
+								Encoding: []chronograf.ColumnEncoding{
+
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "displayName",
+										Value: "Milkshake",
+									},
+								},
+							},
+							{
+								Name:     "appname",
+								Position: 6,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+									{
+										Type:  "displayName",
+										Value: "Application",
+									},
+								},
+							},
+							{
+								Name:     "host",
+								Position: 7,
+								Encoding: []chronograf.ColumnEncoding{
+									{
+										Type:  "visibility",
+										Value: "visible",
+									},
+								},
+							},
+						},
 					},
 				},
 			},

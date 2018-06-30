@@ -736,20 +736,35 @@ type OrganizationsStore interface {
 	DefaultOrganization(ctx context.Context) (*Organization, error)
 }
 
-// AuthConfig is the global application config section for auth parameters
-type AuthConfig struct {
-	// SuperAdminNewUsers should be true by default to give a seamless upgrade to
-	// 1.4.0 for legacy users. It means that all new users will by default receive
-	// SuperAdmin status. If a SuperAdmin wants to change this behavior, they
-	// can toggle it off via the Chronograf UI, in which case newly authenticating
-	// users will simply receive whatever role they would otherwise receive.
-	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
-}
-
 // Config is the global application Config for parameters that can be set via
 // API, with different sections, such as Auth
 type Config struct {
-	Auth AuthConfig `json:"auth"`
+	Auth        AuthConfig        `json:"auth"`
+	LogViewerUI LogViewerUIConfig `json:"logViewerUI"`
+}
+
+// AuthConfig is the global application config section for auth parameters
+type AuthConfig struct {
+	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
+}
+
+// LogViewerUIConfig is the config sections for log viewer section of the application
+type LogViewerUIConfig struct {
+	Columns []LogViewerUIColumn `json:"columns"`
+}
+
+// LogViewerUIColumn is a specific column of the log viewer UI
+type LogViewerUIColumn struct {
+	Name     string           `json:"name"`
+	Position int32            `json:"position"`
+	Encoding []ColumnEncoding `json:"encoding"`
+}
+
+// ColumnEncoding is the settings for a specific column of the log viewer UI
+type ColumnEncoding struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+	Name  string `json:"name,omitempty"`
 }
 
 // ConfigStore is the storage and retrieval of global application Config

@@ -36,13 +36,37 @@ func TestConfig(t *testing.T) {
 						Auth: chronograf.AuthConfig{
 							SuperAdminNewUsers: false,
 						},
+						LogViewerUI: chronograf.LogViewerUIConfig{
+							Columns: []chronograf.LogViewerUIColumn{
+								{
+									Name:     "severity",
+									Position: 0,
+									Encoding: []chronograf.ColumnEncoding{
+										{
+											Type:  "color",
+											Value: "emergency",
+											Name:  "ruby",
+										},
+										{
+											Type:  "color",
+											Value: "info",
+											Name:  "rainforest",
+										},
+										{
+											Type:  "displayName",
+											Value: "Log Severity",
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"auth": {"superAdminNewUsers": false}, "links": {"self": "/chronograf/v1/config"}}`,
+				body:        `{"links":{"self":"/chronograf/v1/config"},"auth":{"superAdminNewUsers":false},"logViewerUI":{"columns":[{"name":"severity","position":0,"encoding":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}}`,
 			},
 		},
 	}
@@ -115,6 +139,47 @@ func TestConfigSection(t *testing.T) {
 				statusCode:  200,
 				contentType: "application/json",
 				body:        `{"superAdminNewUsers": false, "links": {"self": "/chronograf/v1/config/auth"}}`,
+			},
+		},
+		{
+			name: "Get log viewer configuration",
+			fields: fields{
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						LogViewerUI: chronograf.LogViewerUIConfig{
+							Columns: []chronograf.LogViewerUIColumn{
+								{
+									Name:     "severity",
+									Position: 0,
+									Encoding: []chronograf.ColumnEncoding{
+										{
+											Type:  "color",
+											Value: "emergency",
+											Name:  "ruby",
+										},
+										{
+											Type:  "color",
+											Value: "info",
+											Name:  "rainforest",
+										},
+										{
+											Type:  "displayName",
+											Value: "Log Severity",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				section: "logViewer",
+			},
+			wants: wants{
+				statusCode:  200,
+				contentType: "application/json",
+				body:        `{"links":{"self":"/chronograf/v1/config/logViewer"},"columns":[{"name":"severity","position":0,"encoding":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}`,
 			},
 		},
 		{
@@ -219,6 +284,68 @@ func TestReplaceConfigSection(t *testing.T) {
 				statusCode:  200,
 				contentType: "application/json",
 				body:        `{"superAdminNewUsers": true, "links": {"self": "/chronograf/v1/config/auth"}}`,
+			},
+		},
+		{
+			name: "Set log viewer configuration",
+			fields: fields{
+				ConfigStore: &mocks.ConfigStore{
+					Config: &chronograf.Config{
+						LogViewerUI: chronograf.LogViewerUIConfig{
+							Columns: []chronograf.LogViewerUIColumn{
+								{
+									Name:     "severity",
+									Position: 0,
+									Encoding: []chronograf.ColumnEncoding{
+										{
+											Type:  "color",
+											Value: "info",
+											Name:  "rainforest",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				section: "logViewer",
+				payload: chronograf.LogViewerUIConfig{
+					Columns: []chronograf.LogViewerUIColumn{
+						{
+							Name:     "severity",
+							Position: 1,
+							Encoding: []chronograf.ColumnEncoding{
+								{
+									Type:  "color",
+									Value: "info",
+									Name:  "pineapple",
+								},
+								{
+									Type:  "color",
+									Value: "emergency",
+									Name:  "ruby",
+								},
+							},
+						},
+						{
+							Name:     "messages",
+							Position: 0,
+							Encoding: []chronograf.ColumnEncoding{
+								{
+									Type:  "displayName",
+									Value: "Log Messages",
+								},
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  200,
+				contentType: "application/json",
+				body:        `{"links":{"self":"/chronograf/v1/config/logViewer"},"columns":[{"name":"severity","position":1,"encoding":[{"type":"color","value":"info","name":"pineapple"},{"type":"color","value":"emergency","name":"ruby"}]},{"name":"messages","position":0,"encoding":[{"type":"displayName","value":"Log Messages"}]}]}`,
 			},
 		},
 		{

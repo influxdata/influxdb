@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
@@ -34,6 +35,20 @@ func newAuthConfigResponse(config chronograf.Config) *authConfigResponse {
 			Self: "/chronograf/v1/config/auth",
 		},
 		AuthConfig: config.Auth,
+	}
+}
+
+type logViewerUIResponse struct {
+	Links selfLinks `json:"links"`
+	chronograf.LogViewerUIConfig
+}
+
+func newLogViewerUIConfigResponse(config chronograf.Config) *logViewerUIResponse {
+	return &logViewerUIResponse{
+		Links: selfLinks{
+			Self: "/chronograf/v1/config/logViewer",
+		},
+		LogViewerUIConfig: config.LogViewerUI,
 	}
 }
 
@@ -70,11 +85,14 @@ func (s *Service) ConfigSection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	section := httprouter.GetParamFromContext(ctx, "section")
+	_, section := path.Split(r.URL.String())
+
 	var res interface{}
 	switch section {
 	case "auth":
 		res = newAuthConfigResponse(*config)
+	case "logViewer":
+		res = newLogViewerUIConfigResponse(*config)
 	default:
 		Error(w, http.StatusBadRequest, fmt.Sprintf("received unknown section %q", section), s.Logger)
 		return
@@ -109,6 +127,14 @@ func (s *Service) ReplaceConfigSection(w http.ResponseWriter, r *http.Request) {
 		}
 		config.Auth = authConfig
 		res = newAuthConfigResponse(*config)
+	case "logViewer":
+		var logViewerUIConfig chronograf.LogViewerUIConfig
+		if err := json.NewDecoder(r.Body).Decode(&logViewerUIConfig); err != nil {
+			invalidJSON(w, s.Logger)
+			return
+		}
+		config.LogViewerUI = logViewerUIConfig
+		res = newLogViewerUIConfigResponse(*config)
 	default:
 		Error(w, http.StatusBadRequest, fmt.Sprintf("received unknown section %q", section), s.Logger)
 		return
