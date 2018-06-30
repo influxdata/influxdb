@@ -57,12 +57,10 @@ class TemplateMetaQueryPreview extends PureComponent<Props> {
         <p className="temp-builder--validation">
           Meta Query returned <strong>{items.length}</strong> value{pluralizer}
         </p>
-        {items.length > 0 && (
-          <TemplatePreviewList
-            items={items}
-            onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
-          />
-        )}
+        <TemplatePreviewList
+          items={items}
+          onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
+        />
       </div>
     )
   }
