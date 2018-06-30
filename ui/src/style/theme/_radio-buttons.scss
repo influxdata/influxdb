@@ -4,6 +4,7 @@
 */
 
 .radio-buttons {
+  @include no-user-select();
   display: inline-flex;
   align-items: stretch;
   border: $ix-border solid $g5-pepper;
@@ -18,6 +19,9 @@
   transition: background-color 0.25s ease, color 0.25s ease;
   background-color: $g2-kevlar;
   color: $g11-sidewalk;
+  text-transform: capitalize;
+  outline: none;
+  border: 0;
 
   &:last-child {
     margin-right: 0;
