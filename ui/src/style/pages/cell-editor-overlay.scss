@@ -57,15 +57,11 @@ $overlay-controls-bg: $g2-kevlar;
     border: 0;
     background-color: $g2-kevlar;
   }
-  .overlay-controls .nav-tablist {
+  
+  .overlay-controls--tabs {
     width: 230px;
-
-    li {
-      white-space: nowrap;
-      justify-content: center;
-      flex: 1 0 50%;
-     }
   }
+
   .overlay-controls--right {
     display: flex;
     align-items: center;
