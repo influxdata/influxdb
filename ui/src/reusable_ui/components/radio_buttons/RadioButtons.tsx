@@ -9,17 +9,13 @@ import {
   BUTTON_SHAPES,
 } from 'src/reusable_ui/constants'
 
-export interface RadioButton {
-  text: string
-  disabled?: boolean
-}
-
 interface Props {
   color?: ComponentColor
   size?: ComponentSize
   shape?: ButtonShape
-  buttons: RadioButton[]
-  activeButton: RadioButton
+  disabled?: boolean
+  buttons: string[]
+  activeButton: string
   onChange: (RadioButton) => void
 }
 
@@ -28,6 +24,7 @@ class RadioButtons extends Component<Props> {
     color: COMPONENT_COLORS.default,
     size: COMPONENT_SIZES.small,
     shape: BUTTON_SHAPES.none,
+    disabled: false,
   }
 
   public render() {
@@ -39,11 +36,11 @@ class RadioButtons extends Component<Props> {
 
     return buttons.map(button => (
       <div
-        key={button.text}
+        key={button}
         className={this.buttonClassName(button)}
         onClick={this.handleButtonClick(button)}
       >
-        {button.text}
+        {button}
       </div>
     ))
   }
@@ -60,18 +57,17 @@ class RadioButtons extends Component<Props> {
     )
   }
 
-  private buttonClassName = (button: RadioButton): string => {
+  private buttonClassName = (button: string): string => {
     const {activeButton} = this.props
 
     return classnames('radio-button', {
-      disabled: button.disabled,
       active: _.isEqual(button, activeButton),
     })
   }
 
-  private handleButtonClick = (button: RadioButton) => () => {
-    const {onChange} = this.props
-    if (button.disabled) {
+  private handleButtonClick = (button: string) => () => {
+    const {onChange, disabled} = this.props
+    if (disabled) {
       return
     }
 

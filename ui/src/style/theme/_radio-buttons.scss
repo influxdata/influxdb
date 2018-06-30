@@ -34,16 +34,6 @@
   &.active {
     background-color: $g5-pepper;
   }
-  &.disabled,
-  &.disabled:hover {
-    background-color: $g2-kevlar;
-    font-style: italic;
-    color: $g7-graphite;
-  }
-  &.disabled.active {
-    background-color: $g5-pepper;
-    color: $g10-wolf;
-  }
 }
 
 /*  Size Modifiers */
@@ -148,6 +138,20 @@
   .radio-button {
     flex: 1 0 0;
     justify-content: center;
+  }
+}
+
+/* Disabled State */
+.radio-buttons.disabled {
+  .radio-button,
+  .radio-button:hover {
+    background-color: $g2-kevlar;
+    font-style: italic;
+    color: $g7-graphite;
+  }
+  .radio-button.active {
+    background-color: $g5-pepper;
+    color: $g10-wolf;
   }
 }
 
