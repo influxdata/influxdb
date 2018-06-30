@@ -9,7 +9,7 @@ import {
   BUTTON_SHAPES,
 } from 'src/reusable_ui/constants'
 
-interface RadioButton {
+export interface RadioButton {
   text: string
   disabled?: boolean
 }
