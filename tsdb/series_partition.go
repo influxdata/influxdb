@@ -389,7 +389,7 @@ func (p *SeriesPartition) EnableCompactions() {
 	if p.compactionsEnabled() {
 		return
 	}
-	p.compactionsDisabled++
+	p.compactionsDisabled--
 }
 
 func (p *SeriesPartition) compactionsEnabled() bool {
