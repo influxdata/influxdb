@@ -17,7 +17,7 @@ import {getDeep} from 'src/utils/wrappers'
 import {notify as notifyActionCreator} from 'src/shared/actions/notifications'
 
 import {
-  reconcileSelectedAndPickedValues,
+  reconcileSelectedAndLocalSelectedValues,
   pickSelected,
 } from 'src/dashboards/utils/tempVars'
 
@@ -235,12 +235,12 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
   private handleUpdateTemplate = (nextNextTemplate: Template): void => {
     const {nextTemplate} = this.state
 
-    const TemplateWithSelectedAndPicked = reconcileSelectedAndPickedValues(
+    const TemplateWithSelectedAndLocalSelected = reconcileSelectedAndLocalSelectedValues(
       nextTemplate,
       nextNextTemplate
     )
 
-    this.setState({nextTemplate: TemplateWithSelectedAndPicked})
+    this.setState({nextTemplate: TemplateWithSelectedAndLocalSelected})
   }
 
   private handleChooseType = ({type}) => {

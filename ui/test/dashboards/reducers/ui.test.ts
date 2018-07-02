@@ -11,9 +11,9 @@ import {
   deleteDashboard,
   syncDashboardCell,
   deleteDashboardFailed,
-  templateVariablePicked,
+  templateVariableLocalSelected,
   editTemplateVariableValues,
-  templateVariablesPickedByName,
+  templateVariablesLocalSelectedByName,
   setActiveCell,
 } from 'src/dashboards/actions'
 
@@ -30,19 +30,19 @@ const t2 = {
       value: '98.7',
       type: TemplateValueType.Measurement,
       selected: false,
-      picked: true,
+      localSelected: true,
     },
     {
       value: '99.1',
       type: TemplateValueType.Measurement,
       selected: false,
-      picked: false,
+      localSelected: false,
     },
     {
       value: '101.3',
       type: TemplateValueType.Measurement,
       selected: true,
-      picked: false,
+      localSelected: false,
     },
   ],
 }
@@ -117,12 +117,16 @@ describe('DataExplorer.Reducers.UI', () => {
     const value = dash.templates[0].values[2].value
     const actual = reducer(
       state,
-      templateVariablePicked(dash.id, dash.templates[0].id, [{value}])
+      templateVariableLocalSelected(dash.id, dash.templates[0].id, [{value}])
     )
 
-    expect(actual.dashboards[0].templates[0].values[0].picked).toBe(false)
-    expect(actual.dashboards[0].templates[0].values[1].picked).toBe(false)
-    expect(actual.dashboards[0].templates[0].values[2].picked).toBe(true)
+    expect(actual.dashboards[0].templates[0].values[0].localSelected).toBe(
+      false
+    )
+    expect(actual.dashboards[0].templates[0].values[1].localSelected).toBe(
+      false
+    )
+    expect(actual.dashboards[0].templates[0].values[2].localSelected).toBe(true)
   })
 
   it('can select template variable values by name', () => {
@@ -131,18 +135,26 @@ describe('DataExplorer.Reducers.UI', () => {
       dashboards: [dash],
     }
 
-    const picked = {region: 'us-west', temperature: '99.1'}
+    const localSelected = {region: 'us-west', temperature: '99.1'}
     const actual = reducer(
       state,
-      templateVariablesPickedByName(dash.id, picked)
+      templateVariablesLocalSelectedByName(dash.id, localSelected)
     )
 
-    expect(actual.dashboards[0].templates[0].values[0].picked).toBe(true)
-    expect(actual.dashboards[0].templates[0].values[1].picked).toBe(false)
-    expect(actual.dashboards[0].templates[0].values[2].picked).toBe(false)
-    expect(actual.dashboards[0].templates[1].values[0].picked).toBe(false)
-    expect(actual.dashboards[0].templates[1].values[1].picked).toBe(true)
-    expect(actual.dashboards[0].templates[1].values[2].picked).toBe(false)
+    expect(actual.dashboards[0].templates[0].values[0].localSelected).toBe(true)
+    expect(actual.dashboards[0].templates[0].values[1].localSelected).toBe(
+      false
+    )
+    expect(actual.dashboards[0].templates[0].values[2].localSelected).toBe(
+      false
+    )
+    expect(actual.dashboards[0].templates[1].values[0].localSelected).toBe(
+      false
+    )
+    expect(actual.dashboards[0].templates[1].values[1].localSelected).toBe(true)
+    expect(actual.dashboards[0].templates[1].values[2].localSelected).toBe(
+      false
+    )
   })
 
   describe('SET_ACTIVE_CELL', () => {
@@ -163,13 +175,13 @@ describe('DataExplorer.Reducers.UI', () => {
 
       const expected = [
         {
-          picked: false,
+          localSelected: false,
           selected: false,
           value: 'v1',
           type: 'tagKey',
         },
         {
-          picked: false,
+          localSelected: false,
           selected: false,
           value: 'v2',
           type: 'tagKey',
@@ -190,13 +202,13 @@ describe('DataExplorer.Reducers.UI', () => {
 
       const expected = [
         {
-          picked: false,
+          localSelected: false,
           selected: false,
           value: 'v1',
           type: 'tagKey',
         },
         {
-          picked: false,
+          localSelected: false,
           selected: false,
           value: 'v2',
           type: 'tagKey',

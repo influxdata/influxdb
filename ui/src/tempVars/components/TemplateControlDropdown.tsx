@@ -52,7 +52,7 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
       ? {minWidth: calculateDropdownWidth(template.values)}
       : null
 
-    const pickedItem = dropdownItems.find(item => item.picked) ||
+    const localSelectedItem = dropdownItems.find(item => item.localSelected) ||
       dropdownItems[0] || {text: '(No values)'}
 
     return (
@@ -62,7 +62,7 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
           buttonSize="btn-xs"
           menuClass="dropdown-astronaut"
           useAutoComplete={true}
-          selected={pickedItem.text}
+          selected={localSelectedItem.text}
           disabled={isUsingAuth && !isUserAuthorized(meRole, EDITOR_ROLE)}
           onChoose={onPickTemplate(template.id)}
         />

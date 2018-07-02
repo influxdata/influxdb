@@ -30,10 +30,10 @@ export const generateURLQueryParamsFromTempVars = (
   const urlQueryParams = {}
 
   tempVars.forEach(({tempVar, values}) => {
-    const picked = values.find(value => value.picked === true)
+    const localSelected = values.find(value => value.localSelected === true)
     const strippedTempVar = stripTempVar(tempVar)
 
-    urlQueryParams[strippedTempVar] = _.get(picked, 'value', '')
+    urlQueryParams[strippedTempVar] = _.get(localSelected, 'value', '')
   })
 
   return urlQueryParams
@@ -59,18 +59,18 @@ const reconcileTempVarsWithOverrides = (
       const overriddenValues = values.map(tempVarValue => {
         const {value} = tempVarValue
         if (value === overrideValue) {
-          return {...tempVarValue, picked: true}
+          return {...tempVarValue, localSelected: true}
         }
-        return {...tempVarValue, picked: false}
+        return {...tempVarValue, localSelected: false}
       })
       return {...tempVar, values: overriddenValues}
     } else {
       // or pick selected value.
-      const valuesWithPicked = values.map(tempVarValue => {
+      const valuesWithLocalSelected = values.map(tempVarValue => {
         const isSelected = tempVarValue.selected
-        return {...tempVarValue, picked: isSelected}
+        return {...tempVarValue, localSelected: isSelected}
       })
-      return {...tempVar, values: valuesWithPicked}
+      return {...tempVar, values: valuesWithLocalSelected}
     }
   })
 
@@ -164,10 +164,13 @@ const makeSelected = (template: Template, value: string): Template => {
 export const pickSelected = (template: Template): Template => {
   const selectedValue = ''
 
-  return makePicked(template, selectedValue)
+  return makeLocalSelected(template, selectedValue)
 }
 
-export const makePicked = (template: Template, value: string): Template => {
+export const makeLocalSelected = (
+  template: Template,
+  value: string
+): Template => {
   const found = template.values.find(v => v.value === value)
   const selectedValue = template.values.find(v => v.selected)
 
@@ -180,33 +183,32 @@ export const makePicked = (template: Template, value: string): Template => {
     valueToChoose = getDeep<string>(template, 'values.0.value', '')
   }
 
-  const valuesWithPicked = template.values.map(v => {
+  const valuesWithLocalSelected = template.values.map(v => {
     if (v.value === valueToChoose) {
-      return {...v, picked: true}
+      return {...v, localSelected: true}
     } else {
-      return {...v, picked: false}
+      return {...v, localSelected: false}
     }
   })
 
-  return {...template, values: valuesWithPicked}
+  return {...template, values: valuesWithLocalSelected}
 }
 
-export const reconcileSelectedAndPickedValues = (
+export const reconcileSelectedAndLocalSelectedValues = (
   nextTemplate: Template,
   nextNextTemplate: Template
 ): Template => {
-  const pickedValue = nextTemplate.values.find(v => v.picked)
+  const localSelectedValue = nextTemplate.values.find(v => v.localSelected)
   const selectedValue = nextTemplate.values.find(v => v.selected)
-  // make picked from selected
-  const TemplateWithPicked = makeSelected(
+  const TemplateWithLocalSelected = makeSelected(
     nextNextTemplate,
     getDeep<string>(selectedValue, 'value', '')
   )
 
-  const TemplateWithPickedAndSelected = makePicked(
-    TemplateWithPicked,
-    getDeep<string>(pickedValue, 'value', '')
+  const TemplateWithLocalSelectedAndSelected = makeLocalSelected(
+    TemplateWithLocalSelected,
+    getDeep<string>(localSelectedValue, 'value', '')
   )
 
-  return TemplateWithPickedAndSelected
+  return TemplateWithLocalSelectedAndSelected
 }

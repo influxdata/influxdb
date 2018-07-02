@@ -1,9 +1,4 @@
-import {
-  QueryConfig,
-  TimeRange,
-  Namespace,
-  Source,
-} from 'src/types'
+import {QueryConfig, TimeRange, Namespace, Source} from 'src/types'
 
 export interface Filter {
   id: string

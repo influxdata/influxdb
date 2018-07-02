@@ -203,12 +203,12 @@ export const editCellQueryStatus: DashboardsActions.EditCellQueryStatusActionCre
   },
 })
 
-export const templateVariablePicked: DashboardsActions.TemplateVariablePickedActionCreator = (
+export const templateVariableLocalSelected: DashboardsActions.TemplateVariableLocalSelectedActionCreator = (
   dashboardID: number,
   templateID: string,
   values
-): DashboardsActions.TemplateVariablePickedAction => ({
-  type: 'TEMPLATE_VARIABLE_PICKED',
+): DashboardsActions.TemplateVariableLocalSelectedAction => ({
+  type: 'TEMPLATE_VARIABLE_LOCAL_SELECTED',
   payload: {
     dashboardID,
     templateID,
@@ -216,10 +216,10 @@ export const templateVariablePicked: DashboardsActions.TemplateVariablePickedAct
   },
 })
 
-export const templateVariablesPickedByName: DashboardsActions.TemplateVariablesPickedByNameActionCreator = (
+export const templateVariablesLocalSelectedByName: DashboardsActions.TemplateVariablesLocalSelectedByNameActionCreator = (
   dashboardID: number,
   queryParams: TempVarsModels.URLQueryParams
-): DashboardsActions.TemplateVariablesPickedByNameAction => ({
+): DashboardsActions.TemplateVariablesLocalSelectedByNameAction => ({
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
   payload: {
     dashboardID,
@@ -656,7 +656,7 @@ const syncDashboardTempVarsFromURLQueryParams = (
 ): DashboardsActions.SyncDashboardTempVarsFromURLQueryParamsDispatcher => (
   dispatch: Dispatch<
     | NotificationsActions.PublishNotificationActionCreator
-    | DashboardsActions.TemplateVariablePickedAction
+    | DashboardsActions.TemplateVariableLocalSelectedAction
   >,
   getState: () => DashboardsReducers.Dashboards & AuthReducers.Auth
 ): void => {
@@ -671,7 +671,7 @@ const syncDashboardTempVarsFromURLQueryParams = (
     dispatch(notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery)))
   })
 
-  dispatch(templateVariablesPickedByName(dashboardID, urlQueryParams))
+  dispatch(templateVariablesLocalSelectedByName(dashboardID, urlQueryParams))
 }
 
 const syncDashboardTimeRangeFromURLQueryParams = (

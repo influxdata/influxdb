@@ -66,7 +66,7 @@ interface DashboardActions {
   updateDashboardCell: DashboardsActions.UpdateDashboardCellDispatcher
   cloneDashboardCellAsync: DashboardsActions.CloneDashboardCellDispatcher
   deleteDashboardCellAsync: DashboardsActions.DeleteDashboardCellDispatcher
-  templateVariablePicked: DashboardsActions.TemplateVariablePickedActionCreator
+  templateVariableLocalSelected: DashboardsActions.TemplateVariableLocalSelectedActionCreator
   syncURLQueryFromTempVars: DashboardsActions.SyncURLQueryFromTempVarsDispatcher
   setZoomedTimeRangeAsync: DashboardsActions.SetZoomedTimeRangeDispatcher
 }
@@ -228,7 +228,7 @@ class DashboardPage extends Component<Props, State> {
           value: low,
           type: lowerType,
           selected: true,
-          picked: true,
+          localSelected: true,
         },
       ],
     }
@@ -242,7 +242,7 @@ class DashboardPage extends Component<Props, State> {
           value: up || 'now()',
           type: upperType,
           selected: true,
-          picked: true,
+          localSelected: true,
         },
       ],
     }
@@ -472,7 +472,7 @@ class DashboardPage extends Component<Props, State> {
       location,
       updatedQueryParam
     )
-    this.props.templateVariablePicked(dashboard.id, templateID, [value])
+    this.props.templateVariableLocalSelected(dashboard.id, templateID, [value])
   }
 
   private handleSaveTemplateVariables = async (

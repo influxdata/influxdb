@@ -228,7 +228,7 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
           type: TemplateValueType.TagValue,
           value,
           selected: false,
-          picked: false,
+          localSelected: false,
         }
       })
 

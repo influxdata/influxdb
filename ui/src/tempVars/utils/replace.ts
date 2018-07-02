@@ -45,12 +45,14 @@ const renderTemplate = (query: string, template: Template): string => {
     return query
   }
 
-  const pickedTemplateValue: TemplateValue = template.values.find(v => v.picked)
+  const localSelectedTemplateValue: TemplateValue = template.values.find(
+    v => v.localSelected
+  )
   const selectedTemplateValue: TemplateValue = template.values.find(
     v => v.selected
   )
 
-  const templateValue = pickedTemplateValue || selectedTemplateValue
+  const templateValue = localSelectedTemplateValue || selectedTemplateValue
   if (!templateValue) {
     return query
   }

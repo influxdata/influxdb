@@ -139,7 +139,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
           type: TemplateValueType.MetaQuery,
           value: result,
           selected: false,
-          picked: false,
+          localSelected: false,
         }
       })
 

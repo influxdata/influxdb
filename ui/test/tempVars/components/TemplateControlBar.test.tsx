@@ -32,13 +32,13 @@ describe('TemplateControlBar', () => {
           value: 'firstValue',
           type: TemplateValueType.Constant,
           selected: false,
-          picked: false,
+          localSelected: false,
         },
         {
           value: 'secondValue',
           type: TemplateValueType.Constant,
           selected: false,
-          picked: false,
+          localSelected: false,
         },
       ],
     }

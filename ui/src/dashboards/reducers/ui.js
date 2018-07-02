@@ -141,7 +141,7 @@ const ui = (state = initialState, action) => {
       return {...state, cellQueryStatus: {queryID, status}}
     }
 
-    case 'TEMPLATE_VARIABLE_PICKED': {
+    case 'TEMPLATE_VARIABLE_LOCAL_SELECTED': {
       const {
         dashboardID,
         templateID,
@@ -153,14 +153,14 @@ const ui = (state = initialState, action) => {
           const newTemplates = dashboard.templates.map(staleTemplate => {
             if (staleTemplate.id === templateID) {
               const newValues = staleTemplate.values.map(staleValue => {
-                let picked = false
+                let localSelected = false
                 for (let i = 0; i < updatedSelectedValues.length; i++) {
                   if (updatedSelectedValues[i].value === staleValue.value) {
-                    picked = true
+                    localSelected = true
                     break
                   }
                 }
-                return {...staleValue, picked}
+                return {...staleValue, localSelected}
               })
               return {...staleTemplate, values: newValues}
             }
@@ -196,17 +196,20 @@ const ui = (state = initialState, action) => {
           if (template.id !== templateID) {
             return template
           }
-          const pickedValue = _.get(template, 'values', []).find(v => v.picked)
+          const localSelectedValue = _.get(template, 'values', []).find(
+            v => v.localSelected
+          )
           const selectedValue = _.get(template, 'values', []).find(
             v => v.selected
           )
 
           const newValues = values.map(value => {
-            const isPicked = _.get(pickedValue, 'value', null) === value
+            const isLocalSelected =
+              _.get(localSelectedValue, 'value', null) === value
             const isSelected = _.get(selectedValue, 'value', null) === value
 
             const newValue = {
-              picked: pickedValue ? isPicked : isSelected,
+              localSelected: localSelectedValue ? isLocalSelected : isSelected,
               selected: isSelected,
               value,
               type: TEMPLATE_VARIABLE_TYPES[template.type],

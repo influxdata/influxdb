@@ -227,14 +227,14 @@ export interface EditCellQueryStatusAction {
   }
 }
 
-export type TemplateVariablePickedActionCreator = (
+export type TemplateVariableLocalSelectedActionCreator = (
   dashboardID: number,
   templateID: string,
   values: any[]
-) => TemplateVariablePickedAction
+) => TemplateVariableLocalSelectedAction
 
-export interface TemplateVariablePickedAction {
-  type: 'TEMPLATE_VARIABLE_PICKED'
+export interface TemplateVariableLocalSelectedAction {
+  type: 'TEMPLATE_VARIABLE_LOCAL_SELECTED'
   payload: {
     dashboardID: number
     templateID: string
@@ -242,12 +242,12 @@ export interface TemplateVariablePickedAction {
   }
 }
 
-export type TemplateVariablesPickedByNameActionCreator = (
+export type TemplateVariablesLocalSelectedByNameActionCreator = (
   dashboardID: number,
   queryParams: TempVarsModels.URLQueryParams
-) => TemplateVariablesPickedByNameAction
+) => TemplateVariablesLocalSelectedByNameAction
 
-export interface TemplateVariablesPickedByNameAction {
+export interface TemplateVariablesLocalSelectedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
     dashboardID: number
@@ -369,7 +369,7 @@ export type SyncURLQueryFromQueryParamsObjectActionCreator = (
 export type SyncDashboardTempVarsFromURLQueryParamsDispatcher = (
   dispatch: Dispatch<
     | NotificationsActions.PublishNotificationActionCreator
-    | TemplateVariablePickedAction
+    | TemplateVariableLocalSelectedAction
   >,
   getState: () => DashboardsReducers.Dashboards & DashboardsReducers.Auth
 ) => void

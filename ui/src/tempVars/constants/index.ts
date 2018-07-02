@@ -73,7 +73,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
           value: '_internal',
           type: TemplateValueType.Database,
           selected: true,
-          picked: true,
+          localSelected: true,
         },
       ],
       type: TemplateType.Databases,

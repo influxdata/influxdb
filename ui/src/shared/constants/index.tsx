@@ -447,7 +447,7 @@ export const intervalValuesPoints = [
     value: `${DEFAULT_PIXELS}`,
     type: TemplateValueType.Points,
     selected: true,
-    picked: true,
+    localSelected: true,
   },
 ]
 

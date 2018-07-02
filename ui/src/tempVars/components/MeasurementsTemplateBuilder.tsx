@@ -126,7 +126,7 @@ class MeasurementsTemplateBuilder extends PureComponent<
           type: TemplateValueType.Measurement,
           value,
           selected: false,
-          picked: false,
+          localSelected: false,
         }
       })
 

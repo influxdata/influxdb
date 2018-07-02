@@ -69,7 +69,7 @@ class DatabasesTemplateBuilder extends PureComponent<
           type: TemplateValueType.Database,
           value: db,
           selected: false,
-          picked: false,
+          localSelected: false,
         }
       })
 
