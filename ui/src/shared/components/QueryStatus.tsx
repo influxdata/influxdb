@@ -5,7 +5,7 @@ import {Status} from 'src/types'
 
 interface Props {
   status: Status
-  children: ReactNode
+  children?: ReactNode
 }
 
 const QueryStatus: SFC<Props> = ({status, children}) => {
