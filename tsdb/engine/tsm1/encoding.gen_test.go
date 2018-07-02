@@ -172,10 +172,14 @@ func BenchmarkIntegerValues_ExcludeLast_10000(b *testing.B) {
 }
 
 func benchInclude(b *testing.B, vals IntegerValues, min, max int64) {
+	tmp := append(IntegerValues{}, vals...)
+	n := len(vals)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		vals.Include(min, max)
+		vals = vals[:n]
+		copy(vals, tmp)
 	}
 }
 
