@@ -105,8 +105,8 @@ vet: all
 bench: all
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
-nightly: bin/goreleaser all
-	PATH=./bin:${PATH} goreleaser --snapshot --rm-dist
+nightly: bin/$(GOOS)/goreleaser all
+	PATH=./bin/$(GOOS):${PATH} goreleaser --snapshot --rm-dist
 
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
