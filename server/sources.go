@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/influxdata/chronograf/enterprise"
 	"github.com/influxdata/chronograf/organizations"
 
 	"github.com/bouk/httprouter"
@@ -31,14 +32,49 @@ type sourceLinks struct {
 
 type sourceResponse struct {
 	chronograf.Source
-	Links sourceLinks `json:"links"`
+	AuthenticationMethod string      `json:"authentication"`
+	Links                sourceLinks `json:"links"`
 }
 
-func newSourceResponse(src chronograf.Source) sourceResponse {
+type authenticationResponse struct {
+	ID                   int
+	AuthenticationMethod string
+}
+
+func sourceAuthenticationMethod(ctx context.Context, src chronograf.Source) authenticationResponse {
+	ldapEnabled := false
+	if src.MetaURL != "" {
+		authorizer := influx.DefaultAuthorization(&src)
+		metaURL, err := url.Parse(src.MetaURL)
+
+		if err == nil {
+			client := enterprise.NewMetaClient(metaURL, src.InsecureSkipVerify, authorizer)
+			config, err := client.GetLDAPConfig(ctx)
+
+			if err == nil {
+				ldapEnabled = config.Structured.Enabled
+			}
+		}
+	}
+
+	if ldapEnabled {
+		return authenticationResponse{ID: src.ID, AuthenticationMethod: "ldap"}
+	} else if src.Username != "" && src.Password != "" {
+		return authenticationResponse{ID: src.ID, AuthenticationMethod: "basic"}
+	} else if src.SharedSecret != "" {
+		return authenticationResponse{ID: src.ID, AuthenticationMethod: "shared"}
+	} else {
+		return authenticationResponse{ID: src.ID, AuthenticationMethod: "unknown"}
+	}
+}
+
+func newSourceResponse(ctx context.Context, src chronograf.Source) sourceResponse {
 	// If telegraf is not set, we'll set it to the default value.
 	if src.Telegraf == "" {
 		src.Telegraf = "telegraf"
 	}
+
+	authMethod := sourceAuthenticationMethod(ctx, src)
 
 	// Omit the password and shared secret on response
 	src.Password = ""
@@ -46,7 +82,8 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 
 	httpAPISrcs := "/chronograf/v1/sources"
 	res := sourceResponse{
-		Source: src,
+		Source:               src,
+		AuthenticationMethod: authMethod.AuthenticationMethod,
 		Links: sourceLinks{
 			Self:        fmt.Sprintf("%s/%d", httpAPISrcs, src.ID),
 			Kapacitors:  fmt.Sprintf("%s/%d/kapacitors", httpAPISrcs, src.ID),
@@ -109,7 +146,7 @@ func (s *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newSourceResponse(src)
+	res := newSourceResponse(ctx, src)
 	location(w, res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
@@ -142,9 +179,12 @@ func (s *Service) Sources(w http.ResponseWriter, r *http.Request) {
 		Sources: make([]sourceResponse, len(srcs)),
 	}
 
-	for i, src := range srcs {
-		res.Sources[i] = newSourceResponse(src)
+	var sources []sourceResponse
+	for _, src := range srcs {
+		sources = append(sources, newSourceResponse(ctx, src))
 	}
+
+	res.Sources = sources
 
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
@@ -164,7 +204,7 @@ func (s *Service) SourcesID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newSourceResponse(src)
+	res := newSourceResponse(ctx, src)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -329,7 +369,7 @@ func (s *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
 	}
-	encodeJSON(w, http.StatusOK, newSourceResponse(src), s.Logger)
+	encodeJSON(w, http.StatusOK, newSourceResponse(context.Background(), src), s.Logger)
 }
 
 // ValidSourceRequest checks if name, url, type, and role are valid

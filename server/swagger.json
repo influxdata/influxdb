@@ -3960,6 +3960,7 @@
         "telegraf": "telegraf",
         "defaultRP": "customRP",
         "organization": "default",
+        "authentication": "basic",
         "role": "viewer",
         "links": {
           "self": "/chronograf/v1/sources/4",

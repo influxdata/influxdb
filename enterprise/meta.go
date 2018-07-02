@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
@@ -42,6 +44,58 @@ func NewMetaClient(url *url.URL, InsecureSkipVerify bool, authorizer influx.Auth
 			InsecureSkipVerify: InsecureSkipVerify,
 		},
 		authorizer: authorizer,
+	}
+}
+
+type jsonLDAPConfig struct {
+	Enabled bool `json:"enabled"`
+}
+
+// LDAPConfig represents the configuration for ldap from influxdb
+type LDAPConfig struct {
+	Structured jsonLDAPConfig `json:"structured"`
+}
+
+func (m *MetaClient) requestLDAPChannel(ctx context.Context, errors chan error) chan *http.Response {
+	channel := make(chan *http.Response, 1)
+	go (func() {
+		res, err := m.Do(ctx, "/ldap/v1/config", "GET", m.authorizer, nil, nil)
+		if err != nil {
+			errors <- err
+		} else {
+			channel <- res
+		}
+	})()
+
+	return channel
+}
+
+// GetLDAPConfig get the current ldap config response from influxdb enterprise
+func (m *MetaClient) GetLDAPConfig(ctx context.Context) (*LDAPConfig, error) {
+	ctxt, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	errorCh := make(chan error, 1)
+	responseChannel := m.requestLDAPChannel(ctxt, errorCh)
+
+	select {
+	case res := <-responseChannel:
+		result, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var config LDAPConfig
+		err = json.Unmarshal(result, &config)
+		if err != nil {
+			return nil, err
+		}
+
+		return &config, nil
+	case err := <-errorCh:
+		return nil, err
+	case <-ctxt.Done():
+		return nil, ctxt.Err()
 	}
 }
 
@@ -498,6 +552,7 @@ func (m *MetaClient) Do(ctx context.Context, path, method string, authorizer inf
 		Response *http.Response
 		Err      error
 	}
+
 	resps := make(chan (result))
 	go func() {
 		resp, err := m.client.Do(m.URL, path, method, authorizer, params, body)
