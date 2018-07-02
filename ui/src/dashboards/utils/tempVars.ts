@@ -65,7 +65,6 @@ const reconcileTempVarsWithOverrides = (
       })
       return {...tempVar, values: overriddenValues}
     } else {
-      // or pick selected value.
       const valuesWithLocalSelected = values.map(tempVarValue => {
         const isSelected = tempVarValue.selected
         return {...tempVarValue, localSelected: isSelected}
