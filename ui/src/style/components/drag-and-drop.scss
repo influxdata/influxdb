@@ -74,3 +74,45 @@ input[type='file'].drag-and-drop--input {
   background-color: $g4-onyx;
   border-color: $g6-smoke;
 }
+
+/*
+  Compact display mode
+  ------------------------------------------------------------------------------
+*/
+
+.drag-and-drop.compact .drag-and-drop--form {
+  flex-direction: row;
+
+  .drag-and-drop--graphic,
+  .drag-and-drop--buttons {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .drag-and-drop--graphic {
+    left: 20px;
+    width: 50px;
+    height: 50px;
+  }
+
+  .drag-and-drop--header {
+    font-size: 15px;
+    margin-bottom: 0;
+    margin-right: 80px;
+    margin-left: 80px;
+    word-break: break-all;
+    white-space: pre-wrap;
+  }
+
+  .drag-and-drop--buttons {
+    margin-top: 0;
+    right: 20px;
+    flex-direction: column;
+    align-items: stretch;
+
+    > button.btn {
+      margin: 2px 0;
+    }
+  }
+}

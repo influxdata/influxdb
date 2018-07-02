@@ -3,42 +3,39 @@ import uuid from 'uuid'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import TemplatePreviewListItem from 'src/tempVars/components/TemplatePreviewListItem'
+import {TEMPLATE_PREVIEW_LIST_DIMENSIONS as DIMENSIONS} from 'src/tempVars/constants'
 
-const LI_HEIGHT = 28
-const LI_MARGIN_BOTTOM = 2
-const RESULTS_TO_DISPLAY = 10
+import {TemplateValue} from 'src/types'
+
+const {RESULTS_TO_DISPLAY, LI_HEIGHT, LI_MARGIN_BOTTOM, OFFSET} = DIMENSIONS
 
 interface Props {
-  items: string[]
+  items: TemplateValue[]
+  onUpdateDefaultTemplateValue: (item: TemplateValue) => void
 }
 
 @ErrorHandling
 class TemplatePreviewList extends PureComponent<Props> {
   public render() {
-    const {items} = this.props
+    const {items, onUpdateDefaultTemplateValue} = this.props
 
     return (
-      <ul
-        className="temp-builder--results-list"
-        style={{height: `${this.resultsListHeight}px`}}
-      >
-        <FancyScrollbar autoHide={false}>
-          {items.map(db => {
-            return (
-              <li
-                className="temp-builder--results-item"
-                key={uuid.v4()}
-                style={{
-                  height: `${LI_HEIGHT}px`,
-                  marginBottom: `${LI_MARGIN_BOTTOM}px`,
-                }}
-              >
-                {db}
-              </li>
-            )
-          })}
+      <div className="temp-builder--results-list">
+        <FancyScrollbar
+          autoHide={false}
+          autoHeight={true}
+          maxHeight={this.resultsListHeight}
+        >
+          {items.map(item => (
+            <TemplatePreviewListItem
+              key={uuid.v4()}
+              onClick={onUpdateDefaultTemplateValue}
+              item={item}
+            />
+          ))}
         </FancyScrollbar>
-      </ul>
+      </div>
     )
   }
 
@@ -46,7 +43,7 @@ class TemplatePreviewList extends PureComponent<Props> {
     const {items} = this.props
     const count = Math.min(items.length, RESULTS_TO_DISPLAY)
 
-    return count * (LI_HEIGHT + LI_MARGIN_BOTTOM)
+    return count * (LI_HEIGHT + LI_MARGIN_BOTTOM) - OFFSET
   }
 }
 

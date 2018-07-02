@@ -5,7 +5,6 @@ import {withRouter} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
@@ -67,7 +66,7 @@ interface DashboardActions {
   updateDashboardCell: DashboardsActions.UpdateDashboardCellDispatcher
   cloneDashboardCellAsync: DashboardsActions.CloneDashboardCellDispatcher
   deleteDashboardCellAsync: DashboardsActions.DeleteDashboardCellDispatcher
-  templateVariableSelected: DashboardsActions.TemplateVariableSelectedActionCreator
+  templateVariableLocalSelected: DashboardsActions.TemplateVariableLocalSelectedActionCreator
   syncURLQueryFromTempVars: DashboardsActions.SyncURLQueryFromTempVarsDispatcher
   setZoomedTimeRangeAsync: DashboardsActions.SetZoomedTimeRangeDispatcher
 }
@@ -136,15 +135,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   public async componentDidMount() {
-    const {
-      dashboardID,
-      source,
-      meRole,
-      isUsingAuth,
-      getAnnotationsAsync,
-      timeRange,
-      autoRefresh,
-    } = this.props
+    const {source, getAnnotationsAsync, timeRange, autoRefresh} = this.props
 
     const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
@@ -158,13 +149,6 @@ class DashboardPage extends Component<Props, State> {
     window.addEventListener('resize', this.handleWindowResize, true)
 
     await this.getDashboard()
-
-    // If using auth and role is Viewer, temp vars will be stale until dashboard
-    // is refactored so as not to require a write operation (a PUT in this case)
-    if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
-      // putDashboardByID refreshes & persists influxql generated template variable values.
-      await this.props.putDashboardByID(dashboardID)
-    }
 
     this.getDashboardsNames()
   }
@@ -244,6 +228,7 @@ class DashboardPage extends Component<Props, State> {
           value: low,
           type: lowerType,
           selected: true,
+          localSelected: true,
         },
       ],
     }
@@ -257,6 +242,7 @@ class DashboardPage extends Component<Props, State> {
           value: up || 'now()',
           type: upperType,
           selected: true,
+          localSelected: true,
         },
       ],
     }
@@ -322,7 +308,7 @@ class DashboardPage extends Component<Props, State> {
             meRole={meRole}
             isUsingAuth={isUsingAuth}
             onSaveTemplates={this.handleSaveTemplateVariables}
-            onSelectTemplate={this.handleSelectTemplate}
+            onPickTemplate={this.handlePickTemplate}
             isOpen={showTemplateControlBar}
             source={source}
           />
@@ -427,16 +413,11 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleUpdatePosition = (cells: DashboardsModels.Cell[]): void => {
-    const {dashboard, meRole, isUsingAuth} = this.props
+    const {dashboard} = this.props
     const newDashboard = {...dashboard, cells}
 
-    // GridLayout invokes onLayoutChange on first load, which bubbles up to
-    // invoke handleUpdatePosition. If using auth, Viewer is not authorized to
-    // PUT, so until the need for PUT is removed, this is prevented.
-    if (!isUsingAuth || isUserAuthorized(meRole, EDITOR_ROLE)) {
-      this.props.updateDashboard(newDashboard)
-      this.props.putDashboard(newDashboard)
-    }
+    this.props.updateDashboard(newDashboard)
+    this.props.putDashboard(newDashboard)
   }
 
   private handleAddCell = (): void => {
@@ -472,30 +453,26 @@ class DashboardPage extends Component<Props, State> {
     this.props.deleteDashboardCellAsync(dashboard, cell)
   }
 
-  private handleSelectTemplate = (
+  private handlePickTemplate = (
     templateID: string
   ): ((value: TempVarsModels.TemplateValue) => void) => (
     value: TempVarsModels.TemplateValue
   ): void => {
-    const {dashboard, dashboardID, location} = this.props
+    const {dashboard, location} = this.props
 
     const currentTempVar = dashboard.templates.find(
       tempVar => tempVar.id === templateID
     )
     const strippedTempVar = stripTempVar(currentTempVar.tempVar)
-    const isTempVarInURLQuery = !!location.query[strippedTempVar]
 
-    if (isTempVarInURLQuery) {
-      const updatedQueryParam = {
-        [strippedTempVar]: value.value,
-      }
-      this.props.syncURLQueryParamsFromQueryParamsObject(
-        location,
-        updatedQueryParam
-      )
+    const updatedQueryParam = {
+      [strippedTempVar]: value.value,
     }
-    this.props.templateVariableSelected(dashboard.id, templateID, [value])
-    this.props.putDashboardByID(dashboardID)
+    this.props.syncURLQueryParamsFromQueryParamsObject(
+      location,
+      updatedQueryParam
+    )
+    this.props.templateVariableLocalSelected(dashboard.id, templateID, [value])
   }
 
   private handleSaveTemplateVariables = async (

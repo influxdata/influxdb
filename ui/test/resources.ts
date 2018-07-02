@@ -602,9 +602,24 @@ export const template: Template = {
     influxql: 'SHOW TAGS WHERE CHRONOGIRAFFE = "friend"',
   },
   values: [
-    {value: 'us-west', type: TemplateValueType.TagKey, selected: false},
-    {value: 'us-east', type: TemplateValueType.TagKey, selected: true},
-    {value: 'us-mount', type: TemplateValueType.TagKey, selected: false},
+    {
+      value: 'us-west',
+      type: TemplateValueType.TagKey,
+      selected: false,
+      localSelected: false,
+    },
+    {
+      value: 'us-east',
+      type: TemplateValueType.TagKey,
+      selected: true,
+      localSelected: true,
+    },
+    {
+      value: 'us-mount',
+      type: TemplateValueType.TagKey,
+      selected: false,
+      localSelected: false,
+    },
   ],
 }
 

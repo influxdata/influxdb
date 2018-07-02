@@ -1,11 +1,11 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
+import {getDeep} from 'src/utils/wrappers'
 
 import {proxy} from 'src/utils/queryUrlGenerator'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplateMetaQueryPreview from 'src/tempVars/components/TemplateMetaQueryPreview'
 import {parseMetaQuery, isInvalidMetaQuery} from 'src/tempVars/utils/parsing'
-import {getDeep} from 'src/utils/wrappers'
 
 import {
   TemplateBuilderProps,
@@ -18,7 +18,6 @@ const DEBOUNCE_DELAY = 750
 interface State {
   metaQueryInput: string // bound to input
   metaQuery: string // debounced view of metaQueryInput
-  metaQueryResults: string[]
   metaQueryResultsStatus: RemoteDataState
 }
 
@@ -45,7 +44,6 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
     this.state = {
       metaQuery,
       metaQueryInput: metaQuery,
-      metaQueryResults: [],
       metaQueryResultsStatus: RemoteDataState.NotStarted,
     }
   }
@@ -76,7 +74,8 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
   }
 
   private renderResults() {
-    const {metaQueryResults, metaQueryResultsStatus} = this.state
+    const {template, onUpdateDefaultTemplateValue} = this.props
+    const {metaQueryResultsStatus} = this.state
 
     if (this.showInvalidMetaQueryMessage) {
       return (
@@ -90,8 +89,9 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
 
     return (
       <TemplateMetaQueryPreview
-        items={metaQueryResults}
+        items={template.values}
         loadingStatus={metaQueryResultsStatus}
+        onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
       />
     )
   }
@@ -104,7 +104,6 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
 
   private get isInvalidMetaQuery(): boolean {
     const {metaQuery} = this.state
-
     return isInvalidMetaQuery(metaQuery)
   }
 
@@ -133,16 +132,14 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
 
       const metaQueryResults = parseMetaQuery(metaQuery, data)
 
-      this.setState({
-        metaQueryResults,
-        metaQueryResultsStatus: RemoteDataState.Done,
-      })
+      this.setState({metaQueryResultsStatus: RemoteDataState.Done})
 
       const nextValues = metaQueryResults.map(result => {
         return {
           type: TemplateValueType.MetaQuery,
           value: result,
           selected: false,
+          localSelected: false,
         }
       })
 
@@ -161,7 +158,6 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
       onUpdateTemplate(nextTemplate)
     } catch {
       this.setState({
-        metaQueryResults: [],
         metaQueryResultsStatus: RemoteDataState.Error,
       })
     }

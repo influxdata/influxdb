@@ -14,7 +14,7 @@ interface Props {
   templates: Template[]
   isOpen: boolean
   source: Source
-  onSelectTemplate: (id: string) => void
+  onPickTemplate: (id: string) => void
   onSaveTemplates: (templates: Template[]) => void
 }
 
@@ -33,7 +33,7 @@ class TemplateControlBar extends Component<Props, State> {
     const {
       isOpen,
       templates,
-      onSelectTemplate,
+      onPickTemplate,
       meRole,
       isUsingAuth,
       source,
@@ -52,7 +52,7 @@ class TemplateControlBar extends Component<Props, State> {
                   isUsingAuth={isUsingAuth}
                   template={template}
                   source={source}
-                  onSelectTemplate={onSelectTemplate}
+                  onPickTemplate={onPickTemplate}
                   onCreateTemplate={this.handleCreateTemplate}
                   onUpdateTemplate={this.handleUpdateTemplate}
                   onDeleteTemplate={this.handleDeleteTemplate}

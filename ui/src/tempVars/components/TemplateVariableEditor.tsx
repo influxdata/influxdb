@@ -5,6 +5,7 @@ import React, {
   KeyboardEvent,
 } from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OverlayContainer from 'src/reusable_ui/components/overlays/OverlayContainer'
@@ -14,6 +15,11 @@ import Dropdown from 'src/shared/components/Dropdown'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import {getDeep} from 'src/utils/wrappers'
 import {notify as notifyActionCreator} from 'src/shared/actions/notifications'
+
+import {
+  reconcileSelectedAndLocalSelectedValues,
+  pickSelected,
+} from 'src/dashboards/utils/tempVars'
 
 import DatabasesTemplateBuilder from 'src/tempVars/components/DatabasesTemplateBuilder'
 import CSVTemplateBuilder from 'src/tempVars/components/CSVTemplateBuilder'
@@ -26,6 +32,7 @@ import MetaQueryTemplateBuilder from 'src/tempVars/components/MetaQueryTemplateB
 import {
   Template,
   TemplateType,
+  TemplateValue,
   TemplateBuilderProps,
   Source,
   RemoteDataState,
@@ -98,7 +105,7 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {source, onCancel} = this.props
+    const {source, onCancel, notify} = this.props
     const {nextTemplate, isNew} = this.state
     const TemplateBuilder = this.templateBuilder
 
@@ -151,6 +158,10 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
               template={nextTemplate}
               source={source}
               onUpdateTemplate={this.handleUpdateTemplate}
+              notify={notify}
+              onUpdateDefaultTemplateValue={
+                this.handleUpdateSelectedTemplateValue
+              }
             />
             <div className="form-group text-center form-group-submit col-xs-12">
               <ConfirmButton
@@ -202,8 +213,34 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     return component
   }
 
-  private handleUpdateTemplate = (nextTemplate: Template): void => {
-    this.setState({nextTemplate})
+  private handleUpdateSelectedTemplateValue = (
+    selected: TemplateValue
+  ): void => {
+    const {
+      nextTemplate,
+      nextTemplate: {values},
+    } = this.state
+
+    const nextValues = values.map(v => {
+      if (v.value === selected.value) {
+        return {...v, selected: true}
+      } else {
+        return {...v, selected: false}
+      }
+    })
+
+    this.setState({nextTemplate: {...nextTemplate, values: nextValues}})
+  }
+
+  private handleUpdateTemplate = (nextNextTemplate: Template): void => {
+    const {nextTemplate} = this.state
+
+    const templateWithSelectedAndLocalSelected = reconcileSelectedAndLocalSelectedValues(
+      nextTemplate,
+      nextNextTemplate
+    )
+
+    this.setState({nextTemplate: templateWithSelectedAndLocalSelected})
   }
 
   private handleChooseType = ({type}) => {
@@ -211,7 +248,11 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
       nextTemplate: {id, tempVar},
     } = this.state
 
-    const nextNextTemplate = {...DEFAULT_TEMPLATES[type](), id, tempVar}
+    const nextNextTemplate = {
+      ...DEFAULT_TEMPLATES[type](),
+      id,
+      tempVar,
+    }
 
     this.setState({nextTemplate: nextNextTemplate})
   }
@@ -244,7 +285,6 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
     if (!this.canSave) {
       return
     }
-
     const {onUpdate, onCreate, notify} = this.props
     const {nextTemplate, isNew} = this.state
 
@@ -254,7 +294,8 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
     try {
       if (isNew) {
-        await onCreate(nextTemplate)
+        const updatedTemplate = pickSelected(nextTemplate)
+        await onCreate(updatedTemplate)
       } else {
         await onUpdate(nextTemplate)
       }
@@ -281,11 +322,17 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
 
   private get canSave(): boolean {
     const {
-      nextTemplate: {tempVar},
+      nextTemplate: {tempVar, type, values},
     } = this.state
+
+    let canSaveValues = true
+    if (type === TemplateType.CSV && _.isEmpty(values)) {
+      canSaveValues = false
+    }
 
     return (
       tempVar !== '' &&
+      canSaveValues &&
       !RESERVED_TEMPLATE_NAMES.includes(formatName(tempVar)) &&
       !this.isSaving
     )

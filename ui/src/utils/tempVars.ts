@@ -1,32 +1,32 @@
-interface Source {
-  telegraf: string
-  defaultRP: string
-}
+import {Source, Template, TemplateValueType, TemplateType} from 'src/types'
 
-interface Value {
-  value: string
-  type: string
-  selected: boolean
-}
-
-interface TempVar {
-  tempVar: string
-  id: string
-  type: string
-  values: Value[]
-}
-
-export const generateForHosts = (source: Source): TempVar[] => [
+export const generateForHosts = (source: Source): Template[] => [
   {
     tempVar: ':db:',
     id: 'db',
-    type: 'constant',
-    values: [{value: source.telegraf, type: 'constant', selected: true}],
+    type: TemplateType.Constant,
+    label: '',
+    values: [
+      {
+        value: source.telegraf,
+        type: TemplateValueType.Constant,
+        selected: true,
+        localSelected: true,
+      },
+    ],
   },
   {
     tempVar: ':rp:',
     id: 'rp',
-    type: 'constant',
-    values: [{value: source.defaultRP, type: 'constant', selected: true}],
+    type: TemplateType.Constant,
+    label: '',
+    values: [
+      {
+        value: source.defaultRP,
+        type: TemplateValueType.Constant,
+        selected: true,
+        localSelected: true,
+      },
+    ],
   },
 ]

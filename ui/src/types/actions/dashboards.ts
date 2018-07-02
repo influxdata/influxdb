@@ -10,7 +10,6 @@ import * as QueriesModels from 'src/types/queries'
 import * as TempVarsModels from 'src/types/tempVars'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
-
 export type LoadDashboardsActionCreator = (
   dashboards: DashboardsModels.Dashboard[],
   dashboardID?: number
@@ -228,14 +227,14 @@ export interface EditCellQueryStatusAction {
   }
 }
 
-export type TemplateVariableSelectedActionCreator = (
+export type TemplateVariableLocalSelectedActionCreator = (
   dashboardID: number,
   templateID: string,
   values: any[]
-) => TemplateVariableSelectedAction
+) => TemplateVariableLocalSelectedAction
 
-export interface TemplateVariableSelectedAction {
-  type: 'TEMPLATE_VARIABLE_SELECTED'
+export interface TemplateVariableLocalSelectedAction {
+  type: 'TEMPLATE_VARIABLE_LOCAL_SELECTED'
   payload: {
     dashboardID: number
     templateID: string
@@ -243,12 +242,12 @@ export interface TemplateVariableSelectedAction {
   }
 }
 
-export type TemplateVariablesSelectedByNameActionCreator = (
+export type TemplateVariablesLocalSelectedByNameActionCreator = (
   dashboardID: number,
   queryParams: TempVarsModels.URLQueryParams
-) => TemplateVariablesSelectedByNameAction
+) => TemplateVariablesLocalSelectedByNameAction
 
-export interface TemplateVariablesSelectedByNameAction {
+export interface TemplateVariablesLocalSelectedByNameAction {
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
   payload: {
     dashboardID: number
@@ -345,7 +344,9 @@ export type UpdateDashboardCellDispatcher = (
 ) => UpdateDashboardCellThunk
 
 export type UpdateDashboardCellThunk = (
-  dispatch: Dispatch<SyncDashboardCellActionCreator | ErrorsActions.ErrorThrownActionCreator>
+  dispatch: Dispatch<
+    SyncDashboardCellActionCreator | ErrorsActions.ErrorThrownActionCreator
+  >
 ) => Promise<void>
 
 export type SyncURLQueryFromQueryParamsObjectDispatcher = (
@@ -368,7 +369,7 @@ export type SyncURLQueryFromQueryParamsObjectActionCreator = (
 export type SyncDashboardTempVarsFromURLQueryParamsDispatcher = (
   dispatch: Dispatch<
     | NotificationsActions.PublishNotificationActionCreator
-    | TemplateVariableSelectedAction
+    | TemplateVariableLocalSelectedAction
   >,
   getState: () => DashboardsReducers.Dashboards & DashboardsReducers.Auth
 ) => void

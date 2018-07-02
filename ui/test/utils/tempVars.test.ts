@@ -1,27 +1,45 @@
 import {generateForHosts} from 'src/utils/tempVars'
+import {TemplateValueType, TemplateType} from 'src/types'
+import {source} from 'test/resources'
 
 describe('utils.tempVars', () => {
   describe('generateForHosts', () => {
     it('should return template variables', () => {
       const telegraf = 'bob'
       const defaultRP = '1h10m'
-      const source = {telegraf, defaultRP}
+      const thisSource = {...source, telegraf, defaultRP}
 
       const expected = [
         {
           tempVar: ':db:',
           id: 'db',
-          type: 'constant',
-          values: [{value: telegraf, type: 'constant', selected: true}],
+          label: '',
+          type: TemplateType.Constant,
+          values: [
+            {
+              value: telegraf,
+              type: TemplateValueType.Constant,
+              selected: true,
+              localSelected: true,
+            },
+          ],
         },
         {
           tempVar: ':rp:',
           id: 'rp',
-          type: 'constant',
-          values: [{value: defaultRP, type: 'constant', selected: true}],
+          label: '',
+          type: TemplateType.Constant,
+          values: [
+            {
+              value: defaultRP,
+              type: TemplateValueType.Constant,
+              selected: true,
+              localSelected: true,
+            },
+          ],
         },
       ]
-      const actual = generateForHosts(source)
+      const actual = generateForHosts(thisSource)
 
       expect(actual).toEqual(expected)
     })
@@ -30,23 +48,39 @@ describe('utils.tempVars', () => {
       it('should return an empty rention policy variable', () => {
         const telegraf = 'bob'
         const defaultRP = ''
-        const source = {telegraf, defaultRP}
+        const thisSource = {...source, telegraf, defaultRP}
 
         const expected = [
           {
             tempVar: ':db:',
             id: 'db',
-            type: 'constant',
-            values: [{value: telegraf, type: 'constant', selected: true}],
+            label: '',
+            type: TemplateType.Constant,
+            values: [
+              {
+                value: telegraf,
+                type: TemplateValueType.Constant,
+                selected: true,
+                localSelected: true,
+              },
+            ],
           },
           {
             tempVar: ':rp:',
             id: 'rp',
-            type: 'constant',
-            values: [{value: '', type: 'constant', selected: true}],
+            label: '',
+            type: TemplateType.Constant,
+            values: [
+              {
+                value: '',
+                type: TemplateValueType.Constant,
+                selected: true,
+                localSelected: true,
+              },
+            ],
           },
         ]
-        const actual = generateForHosts(source)
+        const actual = generateForHosts(thisSource)
 
         expect(actual).toEqual(expected)
       })

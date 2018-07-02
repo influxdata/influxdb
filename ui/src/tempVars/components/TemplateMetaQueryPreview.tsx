@@ -3,17 +3,18 @@ import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, TemplateValue} from 'src/types'
 
 interface Props {
-  items: string[]
+  items: TemplateValue[]
   loadingStatus: RemoteDataState
+  onUpdateDefaultTemplateValue: (item: TemplateValue) => void
 }
 
 @ErrorHandling
 class TemplateMetaQueryPreview extends PureComponent<Props> {
   public render() {
-    const {items, loadingStatus} = this.props
+    const {items, loadingStatus, onUpdateDefaultTemplateValue} = this.props
 
     if (loadingStatus === RemoteDataState.NotStarted) {
       return null
@@ -56,7 +57,10 @@ class TemplateMetaQueryPreview extends PureComponent<Props> {
         <p className="temp-builder--validation">
           Meta Query returned <strong>{items.length}</strong> value{pluralizer}
         </p>
-        {items.length > 0 && <TemplatePreviewList items={items} />}
+        <TemplatePreviewList
+          items={items}
+          onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
+        />
       </div>
     )
   }

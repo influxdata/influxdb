@@ -14,7 +14,7 @@ const defaultProps = {
   templates: [],
   meRole: 'EDITOR',
   isUsingAuth: true,
-  onSelectTemplate: () => {},
+  onPickTemplate: () => {},
   onSaveTemplates: () => {},
   onCreateTemplateVariable: () => {},
   source,
@@ -32,11 +32,13 @@ describe('TemplateControlBar', () => {
           value: 'firstValue',
           type: TemplateValueType.Constant,
           selected: false,
+          localSelected: false,
         },
         {
           value: 'secondValue',
           type: TemplateValueType.Constant,
           selected: false,
+          localSelected: false,
         },
       ],
     }

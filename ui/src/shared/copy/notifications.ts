@@ -109,6 +109,11 @@ export const notifyCSVDownloadFailed = (): Notification => ({
   message: 'Unable to download .CSV file',
 })
 
+export const notifyCSVUploadFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Please upload a .csv file',
+})
+
 //  Hosts Page Notifications
 //  ----------------------------------------------------------------------------
 export const notifyUnableToGetHosts = (): Notification => ({
@@ -540,11 +545,6 @@ export const notifyInvalidZoomedTimeRangeValueInURLQuery = (): Notification => (
   ...defaultErrorNotification,
   icon: 'cube',
   message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
-})
-
-export const notifyViewerUnauthorizedToSetTempVars = (): Notification => ({
-  ...defaultErrorNotification,
-  message: `Viewer role unauthorized to override template variable values from URL.`,
 })
 
 //  Rule Builder Notifications

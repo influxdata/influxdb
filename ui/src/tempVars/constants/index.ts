@@ -73,6 +73,7 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
           value: '_internal',
           type: TemplateValueType.Database,
           selected: true,
+          localSelected: true,
         },
       ],
       type: TemplateType.Databases,
@@ -181,4 +182,17 @@ export const unMask = query => {
 export const TEMPLATE_RANGE: TimeRange = {
   upper: null,
   lower: TEMP_VAR_DASHBOARD_TIME,
+}
+
+interface PreviewListDimensions {
+  [index: string]: number
+}
+
+export const TEMPLATE_PREVIEW_LIST_DIMENSIONS: Readonly<
+  PreviewListDimensions
+> = {
+  RESULTS_TO_DISPLAY: 9,
+  LI_HEIGHT: 28,
+  LI_MARGIN_BOTTOM: 2,
+  OFFSET: 14,
 }

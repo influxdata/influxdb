@@ -1,4 +1,5 @@
 import _ from 'lodash'
+import {getDeep} from 'src/utils/wrappers'
 
 import {
   Dashboard,
@@ -29,10 +30,10 @@ export const generateURLQueryParamsFromTempVars = (
   const urlQueryParams = {}
 
   tempVars.forEach(({tempVar, values}) => {
-    const selected = values.find(value => value.selected === true)
+    const localSelected = values.find(value => value.localSelected === true)
     const strippedTempVar = stripTempVar(tempVar)
 
-    urlQueryParams[strippedTempVar] = _.get(selected, 'value', '')
+    urlQueryParams[strippedTempVar] = _.get(localSelected, 'value', '')
   })
 
   return urlQueryParams
@@ -54,25 +55,22 @@ const reconcileTempVarsWithOverrides = (
     const {tempVar: name, values} = tempVar
     const strippedTempVar = stripTempVar(name)
     const overrideValue = tempVarOverrides[strippedTempVar]
-
-    if (overrideValue) {
-      const isValid = isValidTempVarOverride(values, overrideValue)
-
-      if (isValid) {
-        const overriddenValues = values.map(tempVarValue => {
-          const {value} = tempVarValue
-          if (value === overrideValue) {
-            return {...tempVarValue, selected: true}
-          }
-          return {...tempVarValue, selected: false}
-        })
-        return {...tempVar, values: overriddenValues}
-      }
-
-      return tempVar
+    if (overrideValue && isValidTempVarOverride(values, overrideValue)) {
+      const overriddenValues = values.map(tempVarValue => {
+        const {value} = tempVarValue
+        if (value === overrideValue) {
+          return {...tempVarValue, localSelected: true}
+        }
+        return {...tempVarValue, localSelected: false}
+      })
+      return {...tempVar, values: overriddenValues}
+    } else {
+      const valuesWithLocalSelected = values.map(tempVarValue => {
+        const isSelected = tempVarValue.selected
+        return {...tempVarValue, localSelected: isSelected}
+      })
+      return {...tempVar, values: valuesWithLocalSelected}
     }
-
-    return tempVar
   })
 
   return reconciledTempVars
@@ -139,4 +137,77 @@ export const findInvalidTempVarsInURLQuery = (
   )
 
   return urlQueryParamsTempVarsWithInvalidValues
+}
+
+const makeSelected = (template: Template, value: string): Template => {
+  const found = template.values.find(v => v.value === value)
+
+  let valueToChoose
+  if (found) {
+    valueToChoose = found.value
+  } else {
+    valueToChoose = getDeep<string>(template, 'values.0.value', '')
+  }
+
+  const valuesWithSelected = template.values.map(v => {
+    if (v.value === valueToChoose) {
+      return {...v, selected: true}
+    } else {
+      return {...v, selected: false}
+    }
+  })
+
+  return {...template, values: valuesWithSelected}
+}
+
+export const pickSelected = (template: Template): Template => {
+  const selectedValue = ''
+
+  return makeLocalSelected(template, selectedValue)
+}
+
+export const makeLocalSelected = (
+  template: Template,
+  value: string
+): Template => {
+  const found = template.values.find(v => v.value === value)
+  const selectedValue = template.values.find(v => v.selected)
+
+  let valueToChoose: string
+  if (found) {
+    valueToChoose = found.value
+  } else if (selectedValue) {
+    valueToChoose = selectedValue.value
+  } else {
+    valueToChoose = getDeep<string>(template, 'values.0.value', '')
+  }
+
+  const valuesWithLocalSelected = template.values.map(v => {
+    if (v.value === valueToChoose) {
+      return {...v, localSelected: true}
+    } else {
+      return {...v, localSelected: false}
+    }
+  })
+
+  return {...template, values: valuesWithLocalSelected}
+}
+
+export const reconcileSelectedAndLocalSelectedValues = (
+  nextTemplate: Template,
+  nextNextTemplate: Template
+): Template => {
+  const localSelectedValue = nextTemplate.values.find(v => v.localSelected)
+  const selectedValue = nextTemplate.values.find(v => v.selected)
+  const templateWithLocalSelected = makeSelected(
+    nextNextTemplate,
+    getDeep<string>(selectedValue, 'value', '')
+  )
+
+  const templateWithLocalSelectedAndSelected = makeLocalSelected(
+    templateWithLocalSelected,
+    getDeep<string>(localSelectedValue, 'value', '')
+  )
+
+  return templateWithLocalSelectedAndSelected
 }

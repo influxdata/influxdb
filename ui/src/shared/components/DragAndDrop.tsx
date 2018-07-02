@@ -6,6 +6,8 @@ interface Props {
   containerClass?: string
   handleSubmit: (uploadContent: string, fileName: string) => void
   submitText?: string
+  submitOnDrop?: boolean
+  compact?: boolean
 }
 
 interface State {
@@ -19,6 +21,8 @@ let dragCounter = 0
 class DragAndDrop extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     submitText: 'Write this File',
+    submitOnDrop: false,
+    compact: false,
   }
 
   private fileInput: HTMLInputElement
@@ -83,8 +87,9 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   private get containerClass(): string {
     const {dragClass} = this.state
+    const {compact} = this.props
 
-    return `drag-and-drop ${dragClass}`
+    return classnames('drag-and-drop', {compact, [dragClass]: true})
   }
 
   private get infoClass(): string {
@@ -115,10 +120,23 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   private get buttons(): ReactElement<HTMLSpanElement> | null {
     const {uploadContent} = this.state
-    const {submitText} = this.props
+    const {submitText, submitOnDrop} = this.props
 
     if (!uploadContent) {
       return null
+    }
+
+    if (submitOnDrop) {
+      return (
+        <span className="drag-and-drop--buttons">
+          <button
+            className="btn btn-sm btn-default"
+            onClick={this.handleCancelFile}
+          >
+            Cancel
+          </button>
+        </span>
+      )
     }
 
     return (
@@ -179,10 +197,20 @@ class DragAndDrop extends PureComponent<Props, State> {
     const reader = new FileReader()
     reader.readAsText(file)
     reader.onload = loadEvent => {
-      this.setState({
-        uploadContent: loadEvent.target.result,
-        fileName: file.name,
-      })
+      this.setState(
+        {
+          uploadContent: loadEvent.target.result,
+          fileName: file.name,
+        },
+        this.submitOnDrop
+      )
+    }
+  }
+
+  private submitOnDrop() {
+    const {submitOnDrop} = this.props
+    if (submitOnDrop) {
+      this.handleSubmit()
     }
   }
 

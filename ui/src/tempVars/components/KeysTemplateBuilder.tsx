@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
-
 import {getDeep} from 'src/utils/wrappers'
+
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import Dropdown from 'src/shared/components/Dropdown'
 import {showDatabases, showMeasurements} from 'src/shared/apis/metaQuery'
@@ -33,7 +33,6 @@ interface State {
   measurements: string[]
   measurementsStatus: RemoteDataState
   selectedMeasurement: string
-  keys: string[]
   keysStatus: RemoteDataState
 }
 
@@ -52,7 +51,6 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
       measurements: [],
       measurementsStatus: RemoteDataState.Loading,
       selectedMeasurement,
-      keys: [],
       keysStatus: RemoteDataState.Loading,
     }
   }
@@ -64,7 +62,7 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {queryPrefix} = this.props
+    const {queryPrefix, template, onUpdateDefaultTemplateValue} = this.props
     const {
       databases,
       databasesStatus,
@@ -72,7 +70,6 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
       measurements,
       measurementsStatus,
       selectedMeasurement,
-      keys,
       keysStatus,
     } = this.state
 
@@ -103,7 +100,11 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
             </DropdownLoadingPlaceholder>
           </div>
         </div>
-        <TemplateMetaQueryPreview items={keys} loadingStatus={keysStatus} />
+        <TemplateMetaQueryPreview
+          items={template.values}
+          loadingStatus={keysStatus}
+          onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}
+        />
       </>
     )
   }
@@ -180,16 +181,14 @@ class KeysTemplateBuilder extends PureComponent<Props, State> {
         selectedMeasurement
       )
 
-      this.setState({
-        keys,
-        keysStatus: RemoteDataState.Done,
-      })
+      this.setState({keysStatus: RemoteDataState.Done})
 
       const nextValues = keys.map(value => {
         return {
           type: templateValueType,
           value,
           selected: false,
+          localSelected: false,
         }
       })
 

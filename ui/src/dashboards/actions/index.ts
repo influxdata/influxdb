@@ -4,7 +4,6 @@ import _ from 'lodash'
 import queryString from 'query-string'
 
 import {proxy} from 'src/utils/queryUrlGenerator'
-import {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 import {parseMetaQuery} from 'src/tempVars/utils/parsing'
 
 import {
@@ -24,7 +23,6 @@ import {errorThrown} from 'src/shared/actions/errors'
 
 import {
   generateURLQueryParamsFromTempVars,
-  findUpdatedTempVarsInURLQueryParams,
   findInvalidTempVarsInURLQuery,
 } from 'src/dashboards/utils/tempVars'
 import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
@@ -43,7 +41,6 @@ import {
   notifyInvalidTempVarValueInURLQuery,
   notifyInvalidZoomedTimeRangeValueInURLQuery,
   notifyInvalidTimeRangeValueInURLQuery,
-  notifyViewerUnauthorizedToSetTempVars,
 } from 'src/shared/copy/notifications'
 
 import {makeQueryForTemplate} from 'src/dashboards/utils/tempVars'
@@ -206,12 +203,12 @@ export const editCellQueryStatus: DashboardsActions.EditCellQueryStatusActionCre
   },
 })
 
-export const templateVariableSelected: DashboardsActions.TemplateVariableSelectedActionCreator = (
+export const templateVariableLocalSelected: DashboardsActions.TemplateVariableLocalSelectedActionCreator = (
   dashboardID: number,
   templateID: string,
   values
-): DashboardsActions.TemplateVariableSelectedAction => ({
-  type: 'TEMPLATE_VARIABLE_SELECTED',
+): DashboardsActions.TemplateVariableLocalSelectedAction => ({
+  type: 'TEMPLATE_VARIABLE_LOCAL_SELECTED',
   payload: {
     dashboardID,
     templateID,
@@ -219,10 +216,10 @@ export const templateVariableSelected: DashboardsActions.TemplateVariableSelecte
   },
 })
 
-export const templateVariablesSelectedByName: DashboardsActions.TemplateVariablesSelectedByNameActionCreator = (
+export const templateVariablesLocalSelectedByName: DashboardsActions.TemplateVariablesLocalSelectedByNameActionCreator = (
   dashboardID: number,
   queryParams: TempVarsModels.URLQueryParams
-): DashboardsActions.TemplateVariablesSelectedByNameAction => ({
+): DashboardsActions.TemplateVariablesLocalSelectedByNameAction => ({
   type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
   payload: {
     dashboardID,
@@ -659,27 +656,12 @@ const syncDashboardTempVarsFromURLQueryParams = (
 ): DashboardsActions.SyncDashboardTempVarsFromURLQueryParamsDispatcher => (
   dispatch: Dispatch<
     | NotificationsActions.PublishNotificationActionCreator
-    | DashboardsActions.TemplateVariableSelectedAction
+    | DashboardsActions.TemplateVariableLocalSelectedAction
   >,
   getState: () => DashboardsReducers.Dashboards & AuthReducers.Auth
 ): void => {
-  const {
-    dashboardUI,
-    auth: {isUsingAuth, me},
-  } = getState()
+  const {dashboardUI} = getState()
   const dashboard = dashboardUI.dashboards.find(d => d.id === dashboardID)
-
-  // viewers are not currently allowed to select temp vars and/or use overrides
-  if (isUsingAuth && !isUserAuthorized(me.role, EDITOR_ROLE)) {
-    const urlQueryParamsTempVarsWithUpdatedValues = findUpdatedTempVarsInURLQueryParams(
-      dashboard.templates,
-      urlQueryParams
-    )
-    if (urlQueryParamsTempVarsWithUpdatedValues.length) {
-      dispatch(notify(notifyViewerUnauthorizedToSetTempVars()))
-      return
-    }
-  }
 
   const urlQueryParamsTempVarsWithInvalidValues = findInvalidTempVarsInURLQuery(
     dashboard.templates,
@@ -689,7 +671,7 @@ const syncDashboardTempVarsFromURLQueryParams = (
     dispatch(notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery)))
   })
 
-  dispatch(templateVariablesSelectedByName(dashboardID, urlQueryParams))
+  dispatch(templateVariablesLocalSelectedByName(dashboardID, urlQueryParams))
 }
 
 const syncDashboardTimeRangeFromURLQueryParams = (
@@ -794,12 +776,12 @@ export const getDashboardWithHydratedAndSyncedTempVarsAsync: DashboardsActions.G
   }
 
   await bindActionCreators(hydrateTempVarValuesAsync, dispatch)(
-    +dashboardID,
+    dashboardID,
     source
   )
 
   bindActionCreators(syncDashboardFromURLQueryParams, dispatch)(
-    +dashboardID,
+    dashboardID,
     location
   )
 }
