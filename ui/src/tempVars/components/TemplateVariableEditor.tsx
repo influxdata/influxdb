@@ -235,12 +235,12 @@ class TemplateVariableEditor extends PureComponent<Props, State> {
   private handleUpdateTemplate = (nextNextTemplate: Template): void => {
     const {nextTemplate} = this.state
 
-    const TemplateWithSelectedAndLocalSelected = reconcileSelectedAndLocalSelectedValues(
+    const templateWithSelectedAndLocalSelected = reconcileSelectedAndLocalSelectedValues(
       nextTemplate,
       nextNextTemplate
     )
 
-    this.setState({nextTemplate: TemplateWithSelectedAndLocalSelected})
+    this.setState({nextTemplate: templateWithSelectedAndLocalSelected})
   }
 
   private handleChooseType = ({type}) => {

@@ -145,7 +145,7 @@ const ui = (state = initialState, action) => {
       const {
         dashboardID,
         templateID,
-        values: updatedSelectedValues,
+        values: updatedLocalSelectedValues,
       } = action.payload
 
       const newDashboards = state.dashboards.map(dashboard => {
@@ -154,8 +154,10 @@ const ui = (state = initialState, action) => {
             if (staleTemplate.id === templateID) {
               const newValues = staleTemplate.values.map(staleValue => {
                 let localSelected = false
-                for (let i = 0; i < updatedSelectedValues.length; i++) {
-                  if (updatedSelectedValues[i].value === staleValue.value) {
+                for (let i = 0; i < updatedLocalSelectedValues.length; i++) {
+                  if (
+                    updatedLocalSelectedValues[i].value === staleValue.value
+                  ) {
                     localSelected = true
                     break
                   }

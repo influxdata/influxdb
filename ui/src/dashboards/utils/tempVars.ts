@@ -200,15 +200,15 @@ export const reconcileSelectedAndLocalSelectedValues = (
 ): Template => {
   const localSelectedValue = nextTemplate.values.find(v => v.localSelected)
   const selectedValue = nextTemplate.values.find(v => v.selected)
-  const TemplateWithLocalSelected = makeSelected(
+  const templateWithLocalSelected = makeSelected(
     nextNextTemplate,
     getDeep<string>(selectedValue, 'value', '')
   )
 
-  const TemplateWithLocalSelectedAndSelected = makeLocalSelected(
-    TemplateWithLocalSelected,
+  const templateWithLocalSelectedAndSelected = makeLocalSelected(
+    templateWithLocalSelected,
     getDeep<string>(localSelectedValue, 'value', '')
   )
 
-  return TemplateWithLocalSelectedAndSelected
+  return templateWithLocalSelectedAndSelected
 }
