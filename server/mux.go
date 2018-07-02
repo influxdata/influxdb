@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	_ "net/http/pprof"
+
 	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
@@ -30,6 +32,7 @@ type MuxOpts struct {
 	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
 	StatusFeedURL string            // JSON Feed URL for the client Status page News Feed
 	CustomLinks   map[string]string // Any custom external links for client's User menu
+	PprofEnabled  bool              // Mount pprof routes for profiling
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
@@ -125,6 +128,11 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 			opts.Logger,
 			next,
 		)
+	}
+
+	if opts.PprofEnabled {
+		// add profiling routes
+		router.GET("/debug/pprof/:thing", http.DefaultServeMux.ServeHTTP)
 	}
 
 	/* Documentation */

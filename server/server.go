@@ -40,6 +40,8 @@ type Server struct {
 	Host string `long:"host" description:"The IP to listen on" default:"0.0.0.0" env:"HOST"`
 	Port int    `long:"port" description:"The port to listen on for insecure connections, defaults to a random value" default:"8888" env:"PORT"`
 
+	PprofEnabled bool `long:"pprof-enabled" description:"Enable the /debug/pprof/* HTTP routes" env:"PPROF_ENABLED"`
+
 	Cert flags.Filename `long:"cert" description:"Path to PEM encoded public key certificate. " env:"TLS_CERTIFICATE"`
 	Key  flags.Filename `long:"key" description:"Path to private key associated with given certificate. " env:"TLS_PRIVATE_KEY"`
 
