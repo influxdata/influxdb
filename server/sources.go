@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sync"
 
 	"github.com/influxdata/chronograf/enterprise"
 	"github.com/influxdata/chronograf/organizations"
@@ -180,24 +179,9 @@ func (s *Service) Sources(w http.ResponseWriter, r *http.Request) {
 		Sources: make([]sourceResponse, len(srcs)),
 	}
 
-	wg := sync.WaitGroup{}
-	wg.Add(len(srcs))
-	ch := make(chan sourceResponse, len(srcs))
-
-	for _, src := range srcs {
-		go (func(src chronograf.Source) {
-			defer wg.Done()
-
-			ch <- newSourceResponse(ctx, src)
-		})(src)
-	}
-
-	wg.Wait()
-	close(ch)
-
 	var sources []sourceResponse
-	for src := range ch {
-		sources = append(sources, src)
+	for _, src := range srcs {
+		sources = append(sources, newSourceResponse(ctx, src))
 	}
 
 	res.Sources = sources

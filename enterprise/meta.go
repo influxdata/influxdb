@@ -51,6 +51,7 @@ type jsonLDAPConfig struct {
 	Enabled bool `json:"enabled"`
 }
 
+// LDAPConfig represents the configuration for ldap from influxdb
 type LDAPConfig struct {
 	Structured jsonLDAPConfig `json:"structured"`
 }
