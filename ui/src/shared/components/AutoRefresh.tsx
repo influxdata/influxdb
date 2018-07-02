@@ -191,10 +191,11 @@ const AutoRefresh = (
 
     private isPropsDifferent(nextProps: Props) {
       const isSourceDifferent = !_.isEqual(this.props.source, nextProps.source)
+
       return (
         this.props.inView !== nextProps.inView ||
         !!this.queryDifference(this.props.queries, nextProps.queries).length ||
-        !_.isEqual(this.props.templates, nextProps.templates) ||
+        this.isActiveTemplatesDifferent(nextProps) ||
         this.props.autoRefresh !== nextProps.autoRefresh ||
         isSourceDifferent
       )
@@ -230,6 +231,20 @@ const AutoRefresh = (
       data.every(({resp}) =>
         _.get(resp, 'results', []).every(r => Object.keys(r).length > 1)
       )
+    }
+
+    private isActiveTemplatesDifferent(prevProps: Props) {
+      const prevTemplates = this.getActiveTemplates(prevProps.templates)
+      const templates = this.getActiveTemplates(this.props.templates)
+
+      return !_.isEqual(prevTemplates, templates)
+    }
+
+    private getActiveTemplates(tempVars: Template[]): Template[] {
+      return _.map(tempVars, tempVar => ({
+        ...tempVar,
+        values: tempVar.values.filter(v => v.selected || v.picked),
+      }))
     }
   }
 
