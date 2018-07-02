@@ -53,7 +53,7 @@ func sourceAuthenticationMethod(ctx context.Context, src chronograf.Source) auth
 			config, err := client.GetLDAPConfig(ctx)
 
 			if err == nil {
-				ldapEnabled = config.Enabled
+				ldapEnabled = config.Structured.Enabled
 			}
 		}
 	}

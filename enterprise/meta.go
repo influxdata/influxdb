@@ -13,8 +13,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/BurntSushi/toml"
-
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
 )
@@ -49,11 +47,15 @@ func NewMetaClient(url *url.URL, InsecureSkipVerify bool, authorizer influx.Auth
 	}
 }
 
-type LDAPConfig struct {
-	Enabled bool `toml:"enabled"`
+type jsonLDAPConfig struct {
+	Enabled bool `json:"enabled"`
 }
 
-func (m *MetaClient) RequestLDAPChannel(ctx context.Context, errors chan error) chan *http.Response {
+type LDAPConfig struct {
+	Structured jsonLDAPConfig `json:"structured"`
+}
+
+func (m *MetaClient) requestLDAPChannel(ctx context.Context, errors chan error) chan *http.Response {
 	channel := make(chan *http.Response, 1)
 	go (func() {
 		res, err := m.Do(ctx, "/ldap/v1/config", "GET", m.authorizer, nil, nil)
@@ -67,12 +69,13 @@ func (m *MetaClient) RequestLDAPChannel(ctx context.Context, errors chan error) 
 	return channel
 }
 
+// GetLDAPConfig get the current ldap config response from influxdb enterprise
 func (m *MetaClient) GetLDAPConfig(ctx context.Context) (*LDAPConfig, error) {
 	ctxt, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
 	errorCh := make(chan error, 1)
-	responseChannel := m.RequestLDAPChannel(ctxt, errorCh)
+	responseChannel := m.requestLDAPChannel(ctxt, errorCh)
 
 	select {
 	case res := <-responseChannel:
@@ -82,7 +85,7 @@ func (m *MetaClient) GetLDAPConfig(ctx context.Context) (*LDAPConfig, error) {
 		}
 
 		var config LDAPConfig
-		_, err = toml.Decode(string(result), &config)
+		err = json.Unmarshal(result, &config)
 		if err != nil {
 			return nil, err
 		}
