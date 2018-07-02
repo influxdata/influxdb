@@ -9,7 +9,7 @@ import {buildQuery} from 'src/utils/influxql'
 import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
 import {TEMPLATE_RANGE} from 'src/tempVars/constants'
 
-import {QueryConfig, Source, SourceLinks, TimeRange} from 'src/types'
+import {QueryConfig, Source, SourceLinks, TimeRange, Template} from 'src/types'
 import {CellEditorOverlayActions} from 'src/dashboards/components/CellEditorOverlay'
 
 const rawTextBinder = (
@@ -20,10 +20,6 @@ const rawTextBinder = (
 
 const buildText = (q: QueryConfig): string =>
   q.rawText || buildQuery(TYPE_QUERY_CONFIG, q.range || TEMPLATE_RANGE, q) || ''
-
-interface Template {
-  tempVar: string
-}
 
 interface Props {
   source: Source

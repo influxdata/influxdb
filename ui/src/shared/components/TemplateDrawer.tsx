@@ -1,9 +1,20 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC, MouseEvent} from 'react'
 import OnClickOutside from 'react-onclickoutside'
 import classnames from 'classnames'
 
-const TemplateDrawer = ({
+import {Template} from 'src/types'
+
+interface Props {
+  templates: Template[]
+  selected: Template
+  onMouseOverTempVar: (
+    template: Template
+  ) => (e: MouseEvent<HTMLDivElement>) => void
+  onClickTempVar: (
+    template: Template
+  ) => (e: MouseEvent<HTMLDivElement>) => void
+}
+const TemplateDrawer: SFC<Props> = ({
   templates,
   selected,
   onMouseOverTempVar,
@@ -25,20 +36,5 @@ const TemplateDrawer = ({
     ))}
   </div>
 )
-
-const {arrayOf, func, shape, string} = PropTypes
-
-TemplateDrawer.propTypes = {
-  templates: arrayOf(
-    shape({
-      tempVar: string.isRequired,
-    })
-  ),
-  selected: shape({
-    tempVar: string,
-  }),
-  onMouseOverTempVar: func.isRequired,
-  onClickTempVar: func.isRequired,
-}
 
 export default OnClickOutside(TemplateDrawer)
