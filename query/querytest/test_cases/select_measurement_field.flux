@@ -1,5 +1,5 @@
 from(db:"testdb")
   |> range(start: 2018-05-23T13:09:22.885021542Z)
   |> filter(fn: (r) => r._measurement ==  "system" AND r._field == "load1")
-  |> map(mergeKey:false, fn: (r) => {_measurement:r._measurement, load1:r._value, time: r._time})
+  |> map(mergeKey:false, fn: (r) => {_measurement:r._measurement, load1:r._value, _time: r._time})
   |> yield(name:"0")

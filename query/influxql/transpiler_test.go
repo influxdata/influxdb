@@ -102,7 +102,7 @@ func TestTranspiler(t *testing.T) {
 								Body: &semantic.ObjectExpression{
 									Properties: []*semantic.Property{
 										{
-											Key: &semantic.Identifier{Name: "time"},
+											Key: &semantic.Identifier{Name: "_time"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
@@ -220,7 +220,7 @@ func TestTranspiler(t *testing.T) {
 								Body: &semantic.ObjectExpression{
 									Properties: []*semantic.Property{
 										{
-											Key: &semantic.Identifier{Name: "time"},
+											Key: &semantic.Identifier{Name: "_time"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
@@ -448,7 +448,7 @@ func TestTranspiler(t *testing.T) {
 								Body: &semantic.ObjectExpression{
 									Properties: []*semantic.Property{
 										{
-											Key: &semantic.Identifier{Name: "time"},
+											Key: &semantic.Identifier{Name: "_time"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
@@ -668,7 +668,7 @@ func TestTranspiler(t *testing.T) {
 								Body: &semantic.ObjectExpression{
 									Properties: []*semantic.Property{
 										{
-											Key: &semantic.Identifier{Name: "time"},
+											Key: &semantic.Identifier{Name: "_time"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
@@ -830,7 +830,7 @@ func TestTranspiler(t *testing.T) {
 								Body: &semantic.ObjectExpression{
 									Properties: []*semantic.Property{
 										{
-											Key: &semantic.Identifier{Name: "time"},
+											Key: &semantic.Identifier{Name: "_time"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
@@ -959,7 +959,7 @@ func TestTranspiler(t *testing.T) {
 								Body: &semantic.ObjectExpression{
 									Properties: []*semantic.Property{
 										{
-											Key: &semantic.Identifier{Name: "time"},
+											Key: &semantic.Identifier{Name: "_time"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
@@ -1070,7 +1070,7 @@ func TestTranspiler(t *testing.T) {
 								Body: &semantic.ObjectExpression{
 									Properties: []*semantic.Property{
 										{
-											Key: &semantic.Identifier{Name: "time"},
+											Key: &semantic.Identifier{Name: "_time"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",
@@ -1194,7 +1194,7 @@ func TestTranspiler(t *testing.T) {
 								Body: &semantic.ObjectExpression{
 									Properties: []*semantic.Property{
 										{
-											Key: &semantic.Identifier{Name: "time"},
+											Key: &semantic.Identifier{Name: "_time"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
 													Name: "r",

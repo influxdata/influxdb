@@ -45,7 +45,7 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 
 	properties := make([]*semantic.Property, 0, len(t.stmt.Fields)+2)
 	properties = append(properties, &semantic.Property{
-		Key: &semantic.Identifier{Name: "time"},
+		Key: &semantic.Identifier{Name: execute.DefaultTimeColLabel},
 		Value: &semantic.MemberExpression{
 			Object: &semantic.IdentifierExpression{
 				Name: "r",
