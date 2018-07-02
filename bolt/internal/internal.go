@@ -718,9 +718,9 @@ func UnmarshalOrganizationPB(data []byte, o *Organization) error {
 func MarshalConfig(c *chronograf.Config) ([]byte, error) {
 	columns := make([]*LogViewerUIColumn, len(c.LogViewerUI.Columns))
 	for i, column := range c.LogViewerUI.Columns {
-		encodings := make([]*ColumnEncoding, len(column.Encoding))
+		encodings := make([]*ColumnEncoding, len(column.Encodings))
 
-		for j, e := range column.Encoding {
+		for j, e := range column.Encodings {
 			encodings[j] = &ColumnEncoding{
 				Type:  e.Type,
 				Value: e.Value,
@@ -729,9 +729,9 @@ func MarshalConfig(c *chronograf.Config) ([]byte, error) {
 		}
 
 		columns[i] = &LogViewerUIColumn{
-			Name:     column.Name,
-			Position: column.Position,
-			Encoding: encodings,
+			Name:      column.Name,
+			Position:  column.Position,
+			Encodings: encodings,
 		}
 	}
 	return MarshalConfigPB(&Config{
@@ -770,14 +770,14 @@ func UnmarshalConfig(data []byte, c *chronograf.Config) error {
 		columns[i].Name = c.Name
 		columns[i].Position = c.Position
 
-		encodings := make([]chronograf.ColumnEncoding, len(c.Encoding))
-		for j, e := range c.Encoding {
+		encodings := make([]chronograf.ColumnEncoding, len(c.Encodings))
+		for j, e := range c.Encodings {
 			encodings[j].Type = e.Type
 			encodings[j].Value = e.Value
 			encodings[j].Name = e.Name
 		}
 
-		columns[i].Encoding = encodings
+		columns[i].Encodings = encodings
 	}
 
 	c.LogViewerUI.Columns = columns

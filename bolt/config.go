@@ -41,7 +41,7 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 				{
 					Name:     "time",
 					Position: 0,
-					Encoding: []chronograf.ColumnEncoding{
+					Encodings: []chronograf.ColumnEncoding{
 						{
 							Type:  "visibility",
 							Value: "hidden",
@@ -51,7 +51,7 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 				{
 					Name:     "severity",
 					Position: 1,
-					Encoding: []chronograf.ColumnEncoding{
+					Encodings: []chronograf.ColumnEncoding{
 
 						{
 							Type:  "visibility",
@@ -70,7 +70,7 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 				{
 					Name:     "timestamp",
 					Position: 2,
-					Encoding: []chronograf.ColumnEncoding{
+					Encodings: []chronograf.ColumnEncoding{
 
 						{
 							Type:  "visibility",
@@ -81,7 +81,7 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 				{
 					Name:     "message",
 					Position: 3,
-					Encoding: []chronograf.ColumnEncoding{
+					Encodings: []chronograf.ColumnEncoding{
 
 						{
 							Type:  "visibility",
@@ -92,7 +92,7 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 				{
 					Name:     "facility",
 					Position: 4,
-					Encoding: []chronograf.ColumnEncoding{
+					Encodings: []chronograf.ColumnEncoding{
 
 						{
 							Type:  "visibility",
@@ -103,7 +103,7 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 				{
 					Name:     "procid",
 					Position: 5,
-					Encoding: []chronograf.ColumnEncoding{
+					Encodings: []chronograf.ColumnEncoding{
 
 						{
 							Type:  "visibility",
@@ -118,7 +118,7 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 				{
 					Name:     "appname",
 					Position: 6,
-					Encoding: []chronograf.ColumnEncoding{
+					Encodings: []chronograf.ColumnEncoding{
 						{
 							Type:  "visibility",
 							Value: "visible",
@@ -132,7 +132,7 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 				{
 					Name:     "host",
 					Position: 7,
-					Encoding: []chronograf.ColumnEncoding{
+					Encodings: []chronograf.ColumnEncoding{
 						{
 							Type:  "visibility",
 							Value: "visible",

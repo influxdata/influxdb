@@ -222,7 +222,7 @@ message LogViewerUIConfig {
 message LogViewerUIColumn {
 	string Name                                      = 1; // Name is the unique identifier of the log viewer column
 	int32 Position                                   = 2; // Position is the position of the column in the log viewer's array of columns
-	repeated ColumnEncoding Encoding                 = 3; // Encoding is the array of encoded properties associated with a log viewer column
+	repeated ColumnEncoding Encodings                = 3; // Encodings is the array of encoded properties associated with a log viewer column
 }
 
 message ColumnEncoding {	

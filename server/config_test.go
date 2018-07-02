@@ -40,7 +40,7 @@ func TestConfig(t *testing.T) {
 								{
 									Name:     "severity",
 									Position: 0,
-									Encoding: []chronograf.ColumnEncoding{
+									Encodings: []chronograf.ColumnEncoding{
 										{
 											Type:  "color",
 											Value: "emergency",
@@ -65,7 +65,7 @@ func TestConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/config"},"auth":{"superAdminNewUsers":false},"logViewerUI":{"columns":[{"name":"severity","position":0,"encoding":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}}`,
+				body:        `{"links":{"self":"/chronograf/v1/config"},"auth":{"superAdminNewUsers":false},"logViewerUI":{"columns":[{"name":"severity","position":0,"encodings":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}}`,
 			},
 		},
 	}
@@ -267,7 +267,7 @@ func TestLogViewerUIConfig(t *testing.T) {
 								{
 									Name:     "severity",
 									Position: 0,
-									Encoding: []chronograf.ColumnEncoding{
+									Encodings: []chronograf.ColumnEncoding{
 										{
 											Type:  "color",
 											Value: "emergency",
@@ -292,7 +292,7 @@ func TestLogViewerUIConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/config/logViewer"},"columns":[{"name":"severity","position":0,"encoding":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}`,
+				body:        `{"links":{"self":"/chronograf/v1/config/logViewer"},"columns":[{"name":"severity","position":0,"encodings":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}`,
 			},
 		},
 	}
@@ -357,7 +357,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 								{
 									Name:     "severity",
 									Position: 0,
-									Encoding: []chronograf.ColumnEncoding{
+									Encodings: []chronograf.ColumnEncoding{
 										{
 											Type:  "color",
 											Value: "info",
@@ -384,7 +384,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 						{
 							Name:     "severity",
 							Position: 1,
-							Encoding: []chronograf.ColumnEncoding{
+							Encodings: []chronograf.ColumnEncoding{
 								{
 									Type:  "color",
 									Value: "info",
@@ -408,7 +408,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 						{
 							Name:     "messages",
 							Position: 0,
-							Encoding: []chronograf.ColumnEncoding{
+							Encodings: []chronograf.ColumnEncoding{
 								{
 									Type:  "displayName",
 									Value: "Log Messages",
@@ -425,7 +425,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/config/logViewer"},"columns":[{"name":"severity","position":1,"encoding":[{"type":"color","value":"info","name":"pineapple"},{"type":"color","value":"emergency","name":"ruby"},{"type":"visibility","value":"visible"},{"type":"label","value":"icon"}]},{"name":"messages","position":0,"encoding":[{"type":"displayName","value":"Log Messages"},{"type":"visibility","value":"visible"}]}]}`,
+				body:        `{"links":{"self":"/chronograf/v1/config/logViewer"},"columns":[{"name":"severity","position":1,"encodings":[{"type":"color","value":"info","name":"pineapple"},{"type":"color","value":"emergency","name":"ruby"},{"type":"visibility","value":"visible"},{"type":"label","value":"icon"}]},{"name":"messages","position":0,"encodings":[{"type":"displayName","value":"Log Messages"},{"type":"visibility","value":"visible"}]}]}`,
 			},
 		},
 		{
@@ -438,7 +438,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 								{
 									Name:     "severity",
 									Position: 0,
-									Encoding: []chronograf.ColumnEncoding{
+									Encodings: []chronograf.ColumnEncoding{
 										{
 											Type:  "color",
 											Value: "info",
@@ -480,7 +480,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 								{
 									Name:     "procid",
 									Position: 0,
-									Encoding: []chronograf.ColumnEncoding{
+									Encodings: []chronograf.ColumnEncoding{
 										{
 											Type:  "visibility",
 											Value: "hidden",
@@ -498,7 +498,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 						{
 							Name:     "procid",
 							Position: 0,
-							Encoding: []chronograf.ColumnEncoding{
+							Encodings: []chronograf.ColumnEncoding{
 								{
 									Type:  "visibility",
 									Value: "hidden",
@@ -508,7 +508,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 						{
 							Name:     "procid",
 							Position: 1,
-							Encoding: []chronograf.ColumnEncoding{
+							Encodings: []chronograf.ColumnEncoding{
 								{
 									Type:  "visibility",
 									Value: "hidden",
@@ -534,7 +534,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 								{
 									Name:     "procid",
 									Position: 0,
-									Encoding: []chronograf.ColumnEncoding{
+									Encodings: []chronograf.ColumnEncoding{
 										{
 											Type:  "visibility",
 											Value: "hidden",
@@ -552,7 +552,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 						{
 							Name:     "procid",
 							Position: 0,
-							Encoding: []chronograf.ColumnEncoding{
+							Encodings: []chronograf.ColumnEncoding{
 								{
 									Type:  "visibility",
 									Value: "hidden",
@@ -562,7 +562,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 						{
 							Name:     "timestamp",
 							Position: 0,
-							Encoding: []chronograf.ColumnEncoding{
+							Encodings: []chronograf.ColumnEncoding{
 								{
 									Type:  "visibility",
 									Value: "hidden",
@@ -588,7 +588,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 								{
 									Name:     "severity",
 									Position: 0,
-									Encoding: []chronograf.ColumnEncoding{
+									Encodings: []chronograf.ColumnEncoding{
 										{
 											Type:  "color",
 											Value: "info",
@@ -611,7 +611,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 						{
 							Name:     "severity",
 							Position: 1,
-							Encoding: []chronograf.ColumnEncoding{
+							Encodings: []chronograf.ColumnEncoding{
 								{
 									Type:  "color",
 									Value: "info",

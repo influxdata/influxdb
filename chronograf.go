@@ -755,9 +755,9 @@ type LogViewerUIConfig struct {
 
 // LogViewerUIColumn is a specific column of the log viewer UI
 type LogViewerUIColumn struct {
-	Name     string           `json:"name"`
-	Position int32            `json:"position"`
-	Encoding []ColumnEncoding `json:"encoding"`
+	Name      string           `json:"name"`
+	Position  int32            `json:"position"`
+	Encodings []ColumnEncoding `json:"encodings"`
 }
 
 // ColumnEncoding is the settings for a specific column of the log viewer UI

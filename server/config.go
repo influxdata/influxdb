@@ -205,7 +205,7 @@ func validLogViewerUIConfig(cfg chronograf.LogViewerUIConfig) error {
 		}
 		positionMatcher[clm.Position] = true
 
-		for _, e := range clm.Encoding {
+		for _, e := range clm.Encodings {
 			if e.Type == "visibility" {
 				visibility++
 				if !(e.Value == "visible" || e.Value == "hidden") {

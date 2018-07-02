@@ -5149,7 +5149,7 @@
       "type": "object",
       "required": [
         "name",
-        "encoding",
+        "encodings",
         "position"
       ],
       "properties": {
@@ -5161,7 +5161,7 @@
           "type": "integer",
           "format": "int32"
         },
-        "encoding": {
+        "encodings": {
           "description": "Composable encoding options for the column",
           "type": "array",
           "items": {
@@ -5233,7 +5233,7 @@
           {
             "name": "severity",
             "position": 0,
-            "encoding": [
+            "encodings": [
               {
                 "type": "label",
                 "value": "icon"
@@ -5265,7 +5265,7 @@
           {
             "name": "messages",
             "position": 1,
-            "encoding": [
+            "encodings": [
               {
                 "type": "visibility",
                 "value": "hidden"

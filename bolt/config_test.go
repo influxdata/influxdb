@@ -29,7 +29,7 @@ func TestConfig_Get(t *testing.T) {
 							{
 								Name:     "time",
 								Position: 0,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "hidden",
@@ -39,7 +39,7 @@ func TestConfig_Get(t *testing.T) {
 							{
 								Name:     "severity",
 								Position: 1,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -58,7 +58,7 @@ func TestConfig_Get(t *testing.T) {
 							{
 								Name:     "timestamp",
 								Position: 2,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -69,7 +69,7 @@ func TestConfig_Get(t *testing.T) {
 							{
 								Name:     "message",
 								Position: 3,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -80,7 +80,7 @@ func TestConfig_Get(t *testing.T) {
 							{
 								Name:     "facility",
 								Position: 4,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -91,7 +91,7 @@ func TestConfig_Get(t *testing.T) {
 							{
 								Name:     "procid",
 								Position: 5,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -106,7 +106,7 @@ func TestConfig_Get(t *testing.T) {
 							{
 								Name:     "appname",
 								Position: 6,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "visible",
@@ -120,7 +120,7 @@ func TestConfig_Get(t *testing.T) {
 							{
 								Name:     "host",
 								Position: 7,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "visible",
@@ -177,7 +177,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "time",
 								Position: 1,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "visible",
@@ -187,7 +187,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "severity",
 								Position: 0,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -202,7 +202,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "timestamp",
 								Position: 2,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -213,7 +213,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "message",
 								Position: 3,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -224,7 +224,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "facility",
 								Position: 4,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -235,7 +235,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "procid",
 								Position: 5,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -250,7 +250,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "appname",
 								Position: 6,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "visible",
@@ -264,7 +264,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "host",
 								Position: 7,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "visible",
@@ -285,7 +285,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "time",
 								Position: 1,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "visible",
@@ -295,7 +295,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "severity",
 								Position: 0,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -310,7 +310,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "timestamp",
 								Position: 2,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -321,7 +321,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "message",
 								Position: 3,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -332,7 +332,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "facility",
 								Position: 4,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -343,7 +343,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "procid",
 								Position: 5,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 
 									{
 										Type:  "visibility",
@@ -358,7 +358,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "appname",
 								Position: 6,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "visible",
@@ -372,7 +372,7 @@ func TestConfig_Update(t *testing.T) {
 							{
 								Name:     "host",
 								Position: 7,
-								Encoding: []chronograf.ColumnEncoding{
+								Encodings: []chronograf.ColumnEncoding{
 									{
 										Type:  "visibility",
 										Value: "visible",
