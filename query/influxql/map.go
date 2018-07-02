@@ -43,7 +43,7 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 		panic("number of columns does not match the number of fields")
 	}
 
-	properties := make([]*semantic.Property, 0, len(t.stmt.Fields)+2)
+	properties := make([]*semantic.Property, 0, len(t.stmt.Fields)+1)
 	properties = append(properties, &semantic.Property{
 		Key: &semantic.Identifier{Name: execute.DefaultTimeColLabel},
 		Value: &semantic.MemberExpression{
@@ -51,15 +51,6 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 				Name: "r",
 			},
 			Property: execute.DefaultTimeColLabel,
-		},
-	})
-	properties = append(properties, &semantic.Property{
-		Key: &semantic.Identifier{Name: "_measurement"},
-		Value: &semantic.MemberExpression{
-			Object: &semantic.IdentifierExpression{
-				Name: "r",
-			},
-			Property: "_measurement",
 		},
 	})
 	for i, f := range t.stmt.Fields {
@@ -72,14 +63,17 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 			Value: value,
 		})
 	}
-	id := t.op("map", &functions.MapOpSpec{Fn: &semantic.FunctionExpression{
-		Params: []*semantic.FunctionParam{{
-			Key: &semantic.Identifier{Name: "r"},
-		}},
-		Body: &semantic.ObjectExpression{
-			Properties: properties,
+	id := t.op("map", &functions.MapOpSpec{
+		Fn: &semantic.FunctionExpression{
+			Params: []*semantic.FunctionParam{{
+				Key: &semantic.Identifier{Name: "r"},
+			}},
+			Body: &semantic.ObjectExpression{
+				Properties: properties,
+			},
 		},
-	}}, in.ID())
+		MergeKey: true,
+	}, in.ID())
 	return &mapCursor{id: id}, nil
 }
 
