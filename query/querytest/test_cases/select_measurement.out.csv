@@ -1,7 +1,7 @@
 #datatype,string,long,string,dateTime:RFC3339,double
 #partition,false,false,true,false,false
 #default,0,,,,
-,result,table,_measurement,time,used_percent
+,result,table,_measurement,_time,used_percent
 ,,0,swap,2018-05-22T19:53:26Z,82.9833984375
 ,,0,swap,2018-05-22T19:53:36Z,82.598876953125
 ,,0,swap,2018-05-22T19:53:46Z,82.598876953125

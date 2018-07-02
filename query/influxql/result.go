@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/iocounter"
 )
 
@@ -68,7 +69,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 			resultColMap := map[string]int{}
 			j := 1
 			for _, c := range b.Cols() {
-				if c.Label == "time" {
+				if c.Label == execute.DefaultTimeColLabel {
 					resultColMap[c.Label] = 0
 				} else if !b.Key().HasCol(c.Label) {
 					resultColMap[c.Label] = j
@@ -78,6 +79,9 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 
 			row.Columns = make([]string, len(resultColMap))
 			for k, v := range resultColMap {
+				if k == execute.DefaultTimeColLabel {
+					k = "time"
+				}
 				row.Columns[v] = k
 			}
 

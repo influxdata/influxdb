@@ -1,11 +1,11 @@
-#datatype,string,long,string,double,dateTime:RFC3339
+#datatype,string,long,string,dateTime:RFC3339,double
 #partition,false,false,true,false,false
 #default,0,,,,
-,result,table,_measurement,load1,time
-,,0,system,1.83,2018-05-22T19:53:26Z
-,,0,system,1.7,2018-05-22T19:53:36Z
-,,0,system,1.74,2018-05-22T19:53:46Z
-,,0,system,1.63,2018-05-22T19:53:56Z
-,,0,system,1.91,2018-05-22T19:54:06Z
-,,0,system,1.84,2018-05-22T19:54:16Z
+,result,table,_measurement,_time,load1
+,,0,system,2018-05-22T19:53:26Z,1.83
+,,0,system,2018-05-22T19:53:36Z,1.7
+,,0,system,2018-05-22T19:53:46Z,1.74
+,,0,system,2018-05-22T19:53:56Z,1.63
+,,0,system,2018-05-22T19:54:06Z,1.91
+,,0,system,2018-05-22T19:54:16Z,1.84
 

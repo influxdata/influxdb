@@ -1,6 +1,6 @@
-#datatype,string,long,string,double,dateTime:RFC3339
+#datatype,string,long,string,dateTime:RFC3339,double
 #partition,false,false,true,false,false
 #default,0,,,,
-,result,table,_measurement,max,time
-,,0,m1,43,2018-04-17T00:00:01Z
+,result,table,_measurement,_time,max
+,,0,m1,2018-04-17T00:00:01Z,43
 
