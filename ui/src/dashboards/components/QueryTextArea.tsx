@@ -34,10 +34,11 @@ interface Props {
 
 @ErrorHandling
 class QueryTextArea extends Component<Props, State> {
-  private textArea: HTMLTextAreaElement
+  private textArea: React.RefObject<HTMLTextAreaElement>
 
   constructor(props: Props) {
     super(props)
+    this.textArea = React.createRef()
     this.state = {
       value: this.props.query,
       isTemplating: false,
@@ -66,7 +67,7 @@ class QueryTextArea extends Component<Props, State> {
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
-          ref={this.handleTextAreaRef}
+          ref={this.textArea}
           value={value}
           placeholder="Enter a query or select database, measurement, and field below and have us build one for you..."
           autoComplete="off"
@@ -102,8 +103,6 @@ class QueryTextArea extends Component<Props, State> {
       this.setState({value: nextProps.query})
     }
   }
-
-  private handleTextAreaRef = (r: HTMLTextAreaElement) => (this.textArea = r)
 
   private handleCloseDrawer = () => {
     this.setState({isTemplating: false})
@@ -160,7 +159,7 @@ class QueryTextArea extends Component<Props, State> {
   }
 
   private handleTemplateReplace = (selectedTemplate, replaceWholeTemplate) => {
-    const {selectionStart, value} = this.textArea
+    const {selectionStart, value} = this.textArea.current
     const {tempVar} = selectedTemplate
     const newTempVar = replaceWholeTemplate
       ? tempVar
@@ -181,7 +180,7 @@ class QueryTextArea extends Component<Props, State> {
       tempVar.length - _.get(matched, '0', []).length + enterModifier
 
     this.setState({value: templatedValue, selectedTemplate}, () =>
-      this.textArea.setSelectionRange(
+      this.textArea.current.setSelectionRange(
         selectionStart + diffInLength,
         selectionStart + diffInLength
       )
@@ -215,7 +214,7 @@ class QueryTextArea extends Component<Props, State> {
   private handleChange = () => {
     const {templates} = this.props
     const {selectedTemplate} = this.state
-    const value = this.textArea.value
+    const value = this.textArea.current.value
 
     // mask matches that will confuse our regex
     const masked = applyMasks(value)
@@ -223,9 +222,9 @@ class QueryTextArea extends Component<Props, State> {
 
     if (matched && !_.isEmpty(templates)) {
       // maintain cursor poition
-      const start = this.textArea.selectionStart
+      const start = this.textArea.current.selectionStart
 
-      const end = this.textArea.selectionEnd
+      const end = this.textArea.current.selectionEnd
       const filterText = matched[0].substr(1).toLowerCase()
 
       const filteredTemplates = templates.filter(t =>
@@ -243,7 +242,7 @@ class QueryTextArea extends Component<Props, State> {
         filteredTemplates,
         value,
       })
-      this.textArea.setSelectionRange(start, end)
+      this.textArea.current.setSelectionRange(start, end)
     } else {
       this.setState({isTemplating: false, value})
     }
