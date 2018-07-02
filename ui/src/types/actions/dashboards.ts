@@ -1,8 +1,5 @@
 import {Dispatch} from 'redux'
-import {InjectedRouter} from 'react-router'
-import {LocationAction} from 'react-router-redux'
 import {Source} from 'src/types'
-import {Location} from 'history'
 import * as DashboardsModels from 'src/types/dashboards'
 import * as DashboardsReducers from 'src/types/reducers/dashboards'
 import * as ErrorsActions from 'src/types/actions/errors'
@@ -68,18 +65,6 @@ export interface SetTimeRangeAction {
     timeRange: QueriesModels.TimeRange
   }
 }
-
-export type SetZoomedTimeRangeDispatcher = (
-  zoomedTimeRange: QueriesModels.TimeRange,
-  location: Location
-) => SetZoomedTimeRangeThunk
-
-export type SetZoomedTimeRangeThunk = (
-  dispatch: Dispatch<
-    | SetZoomedTimeRangeActionCreator
-    | SyncURLQueryFromQueryParamsObjectDispatcher
-  >
-) => Promise<void>
 
 export type SetZoomedTimeRangeActionCreator = (
   zoomedTimeRange: QueriesModels.TimeRange
@@ -242,31 +227,10 @@ export interface TemplateVariableLocalSelectedAction {
   }
 }
 
-export type TemplateVariablesLocalSelectedByNameActionCreator = (
-  dashboardID: number,
-  queryParams: TempVarsModels.URLQueryParams
-) => TemplateVariablesLocalSelectedByNameAction
-
-export interface TemplateVariablesLocalSelectedByNameAction {
-  type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME'
+export interface UpdateTemplatesAction {
+  type: 'UPDATE_TEMPLATES'
   payload: {
-    dashboardID: number
-    queryParams: TempVarsModels.URLQueryParams
-  }
-}
-
-export type EditTemplateVariableValuesActionCreator = (
-  dashboardID: number,
-  templateID: string,
-  values: any[]
-) => EditTemplateVariableValuesAction
-
-export interface EditTemplateVariableValuesAction {
-  type: 'EDIT_TEMPLATE_VARIABLE_VALUES'
-  payload: {
-    dashboardID: number
-    templateID: string
-    values: any[]
+    templates: TempVarsModels.Template[]
   }
 }
 
@@ -341,50 +305,7 @@ export type UpdateDashboardCellThunk = (
   >
 ) => Promise<void>
 
-export type SyncURLQueryFromQueryParamsObjectDispatcher = (
-  location: Location,
-  updatedURLQueryParams: TempVarsModels.URLQueryParams,
-  deletedURLQueryParams?: TempVarsModels.URLQueryParams
-) => SyncURLQueryFromQueryParamsObjectActionCreator
-
-export type SyncURLQueryFromTempVarsDispatcher = (
-  location: Location,
-  tempVars: TempVarsModels.Template[],
-  deletedTempVars: TempVarsModels.Template[],
-  urlQueryParamsTimeRanges?: TempVarsModels.URLQueryParams
-) => SyncURLQueryFromQueryParamsObjectActionCreator
-
-export type SyncURLQueryFromQueryParamsObjectActionCreator = (
-  dispatch: Dispatch<LocationAction>
-) => void
-
-export type SyncDashboardTempVarsFromURLQueryParamsDispatcher = (
-  dispatch: Dispatch<
-    | NotificationsActions.PublishNotificationActionCreator
-    | TemplateVariableLocalSelectedAction
-  >,
-  getState: () => DashboardsReducers.Dashboards & DashboardsReducers.Auth
-) => void
-
-export type SyncDashboardTimeRangeFromURLQueryParamsDispatcher = (
-  dispatch: Dispatch<NotificationsActions.PublishNotificationActionCreator>,
-  getState: () => DashboardsReducers.Dashboards & DashboardsReducers.DashTimeV1
-) => void
-
-export type SyncDashboardFromURLQueryParamsDispatcher = (
-  dispatch: Dispatch<
-    | SyncDashboardTempVarsFromURLQueryParamsDispatcher
-    | SyncDashboardTimeRangeFromURLQueryParamsDispatcher
-  >
-) => void
-
-export type GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher = (
-  dashboardID: number,
-  source: Source,
-  router: InjectedRouter,
-  location: Location
-) => GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk
-
-export type GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk = (
-  dispatch: Dispatch<NotificationsActions.PublishNotificationActionCreator>
-) => Promise<void>
+export type GetDashboardWithTemplates = (
+  dashboardId: number,
+  source: Source
+) => ((dispatch: Dispatch<any>) => Promise<void>)

@@ -8,21 +8,24 @@ import {source} from 'test/resources'
 
 import {TemplateType, TemplateValueType} from 'src/types'
 
+const template = {
+  id: '0',
+  tempVar: ':my-var:',
+  label: '',
+  type: TemplateType.Databases,
+  values: [
+    {
+      value: 'db0',
+      type: TemplateValueType.Database,
+      selected: true,
+      localSelected: true,
+    },
+  ],
+}
+
 const defaultProps = {
-  template: {
-    id: '0',
-    tempVar: ':my-var:',
-    label: '',
-    type: TemplateType.Databases,
-    values: [
-      {
-        value: 'db0',
-        type: TemplateValueType.Database,
-        selected: true,
-        localSelected: true,
-      },
-    ],
-  },
+  template,
+  templates: [template],
   meRole: 'EDITOR',
   isUsingAuth: true,
   source,

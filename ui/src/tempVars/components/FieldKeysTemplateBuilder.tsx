@@ -23,6 +23,7 @@ class FieldKeysTemplateBuilder extends PureComponent<TemplateBuilderProps> {
   public render() {
     const {
       template,
+      templates,
       source,
       onUpdateTemplate,
       onUpdateDefaultTemplateValue,
@@ -34,6 +35,7 @@ class FieldKeysTemplateBuilder extends PureComponent<TemplateBuilderProps> {
         templateValueType={TemplateValueType.FieldKey}
         fetchKeys={fetchKeys}
         template={template}
+        templates={templates}
         source={source}
         onUpdateTemplate={onUpdateTemplate}
         onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}

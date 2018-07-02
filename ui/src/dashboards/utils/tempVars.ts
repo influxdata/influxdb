@@ -1,14 +1,10 @@
-import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
+import qs from 'qs'
 
-import {
-  Dashboard,
-  Template,
-  TemplateQuery,
-  TemplateValue,
-  URLQueryParams,
-} from 'src/types'
-import {TemplateUpdate} from 'src/types'
+import {formatTempVar} from 'src/tempVars/utils'
+
+import {Template, TemplateQuery} from 'src/types'
+import {TemplateQPSelections} from 'src/types/dashboards'
 
 export const makeQueryForTemplate = ({
   influxql,
@@ -21,123 +17,57 @@ export const makeQueryForTemplate = ({
     .replace(':measurement:', `"${measurement}"`)
     .replace(':tagKey:', `"${tagKey}"`)
 
+export const templateSelectionsFromQueryParams = (): TemplateQPSelections => {
+  const queryParams = qs.parse(window.location.search, {
+    ignoreQueryPrefix: true,
+  })
+  const tempVars = queryParams.tempVars || {}
+
+  return Object.entries(tempVars).reduce(
+    (acc, [tempVar, v]) => ({...acc, [formatTempVar(tempVar)]: v}),
+    {}
+  )
+}
+
+export const queryParamsFromTemplates = (templates: Template[]) => {
+  return templates.reduce((acc, template) => {
+    const tempVar = stripTempVar(template.tempVar)
+    const selection = template.values.find(t => t.localSelected)
+
+    if (!selection) {
+      return acc
+    }
+
+    return {
+      ...acc,
+      [tempVar]: selection.value,
+    }
+  }, {})
+}
+
+export const applySelections = (
+  templates: Template[],
+  selections: TemplateQPSelections
+): void => {
+  for (const {tempVar, values} of templates) {
+    if (!values.length) {
+      continue
+    }
+
+    let selection = selections[tempVar]
+
+    if (!selection || !values.find(v => v.value === selection)) {
+      selection = values.find(v => v.selected).value
+    }
+
+    for (const value of values) {
+      value.localSelected = value.value === selection
+    }
+  }
+}
+
 export const stripTempVar = (tempVarName: string): string =>
   tempVarName.substr(1, tempVarName.length - 2)
-
-export const generateURLQueryParamsFromTempVars = (
-  tempVars: Template[]
-): URLQueryParams => {
-  const urlQueryParams = {}
-
-  tempVars.forEach(({tempVar, values}) => {
-    const localSelected = values.find(value => value.localSelected === true)
-    const strippedTempVar = stripTempVar(tempVar)
-
-    urlQueryParams[strippedTempVar] = _.get(localSelected, 'value', '')
-  })
-
-  return urlQueryParams
-}
-
-const isValidTempVarOverride = (
-  values: TemplateValue[],
-  overrideValue: string
-): boolean => !!values.find(({value}) => value === overrideValue)
-
-const reconcileTempVarsWithOverrides = (
-  currentTempVars: Template[],
-  tempVarOverrides: URLQueryParams
-): Template[] => {
-  if (!tempVarOverrides) {
-    return currentTempVars
-  }
-  const reconciledTempVars = currentTempVars.map(tempVar => {
-    const {tempVar: name, values} = tempVar
-    const strippedTempVar = stripTempVar(name)
-    const overrideValue = tempVarOverrides[strippedTempVar]
-    if (overrideValue && isValidTempVarOverride(values, overrideValue)) {
-      const overriddenValues = values.map(tempVarValue => {
-        const {value} = tempVarValue
-        if (value === overrideValue) {
-          return {...tempVarValue, localSelected: true}
-        }
-        return {...tempVarValue, localSelected: false}
-      })
-      return {...tempVar, values: overriddenValues}
-    } else {
-      const valuesWithLocalSelected = values.map(tempVarValue => {
-        const isSelected = tempVarValue.selected
-        return {...tempVarValue, localSelected: isSelected}
-      })
-      return {...tempVar, values: valuesWithLocalSelected}
-    }
-  })
-
-  return reconciledTempVars
-}
-
-export const applyDashboardTempVarOverrides = (
-  dashboard: Dashboard,
-  tempVarOverrides: URLQueryParams
-): Dashboard => ({
-  ...dashboard,
-  templates: reconcileTempVarsWithOverrides(
-    dashboard.templates,
-    tempVarOverrides
-  ),
-})
-
-export const findUpdatedTempVarsInURLQueryParams = (
-  tempVars: Template[],
-  urlQueryParams: URLQueryParams
-): TemplateUpdate[] => {
-  const urlQueryParamsTempVarsWithInvalidValues = _.reduce(
-    urlQueryParams,
-    (acc, v, k) => {
-      const matchedTempVar = tempVars.find(
-        ({tempVar}) => stripTempVar(tempVar) === k
-      )
-      if (matchedTempVar) {
-        const isDifferentTempVarValue = !!matchedTempVar.values.find(
-          ({value, selected}) => selected && value !== v
-        )
-        if (isDifferentTempVarValue) {
-          acc.push({key: k, value: v})
-        }
-      }
-      return acc
-    },
-    []
-  )
-
-  return urlQueryParamsTempVarsWithInvalidValues
-}
-
-export const findInvalidTempVarsInURLQuery = (
-  tempVars: Template[],
-  urlQueryParams: URLQueryParams
-): TemplateUpdate[] => {
-  const urlQueryParamsTempVarsWithInvalidValues = _.reduce(
-    urlQueryParams,
-    (acc, v, k) => {
-      const matchedTempVar = tempVars.find(
-        ({tempVar}) => stripTempVar(tempVar) === k
-      )
-      if (matchedTempVar) {
-        const isValidTempVarValue = !!matchedTempVar.values.find(
-          ({value}) => value === v
-        )
-        if (!isValidTempVarValue) {
-          acc.push({key: k, value: v})
-        }
-      }
-      return acc
-    },
-    []
-  )
-
-  return urlQueryParamsTempVarsWithInvalidValues
-}
 
 const makeSelected = (template: Template, value: string): Template => {
   const found = template.values.find(v => v.value === value)

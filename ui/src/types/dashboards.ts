@@ -134,3 +134,8 @@ export interface DashboardSwitcherLink {
   text: string
   to: string
 }
+
+export interface TemplateQPSelections {
+  // e.g. {':my-db:': 'telegraf'}
+  [tempVar: string]: string
+}

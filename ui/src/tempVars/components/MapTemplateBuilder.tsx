@@ -13,7 +13,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 import {TemplateBuilderProps, TemplateValueType} from 'src/types'
-import {trimAndRemoveQuotes} from 'src/tempVars/utils/parsing'
+import {trimAndRemoveQuotes} from 'src/tempVars/utils'
 
 interface State {
   templateValuesString: string

@@ -2,8 +2,6 @@ import _ from 'lodash'
 import {timeRanges} from 'src/shared/data/timeRanges'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 
-import {applyDashboardTempVarOverrides} from 'src/dashboards/utils/tempVars'
-
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
 export const initialState = {
@@ -15,8 +13,6 @@ export const initialState = {
   hoverTime: NULL_HOVER_TIME,
   activeCellID: '',
 }
-
-import {TEMPLATE_VARIABLE_TYPES} from 'src/tempVars/constants'
 
 const ui = (state = initialState, action) => {
   switch (action.type) {
@@ -175,61 +171,26 @@ const ui = (state = initialState, action) => {
       return {...state, dashboards: newDashboards}
     }
 
-    case 'TEMPLATE_VARIABLES_SELECTED_BY_NAME': {
-      const {dashboardID, queryParams} = action.payload
-      const newDashboards = state.dashboards.map(
-        oldDashboard =>
-          oldDashboard.id === dashboardID
-            ? applyDashboardTempVarOverrides(oldDashboard, queryParams)
-            : oldDashboard
-      )
-
-      return {...state, dashboards: newDashboards}
-    }
-
-    case 'EDIT_TEMPLATE_VARIABLE_VALUES': {
-      const {dashboardID, templateID, values} = action.payload
+    case 'UPDATE_TEMPLATES': {
+      const {templates: updatedTemplates} = action.payload
 
       const dashboards = state.dashboards.map(dashboard => {
-        if (dashboard.id !== dashboardID) {
-          return dashboard
-        }
-        const templates = dashboard.templates.map(template => {
-          if (template.id !== templateID) {
-            return template
-          }
-          const localSelectedValue = _.get(template, 'values', []).find(
-            v => v.localSelected
-          )
-          const selectedValue = _.get(template, 'values', []).find(
-            v => v.selected
-          )
+        const templates = dashboard.templates.reduce(
+          (acc, existingTemplate) => {
+            const updatedTemplate = updatedTemplates.find(
+              t => t.id === existingTemplate.id
+            )
 
-          const newValues = values.map(value => {
-            const isLocalSelected =
-              _.get(localSelectedValue, 'value', null) === value
-            const isSelected = _.get(selectedValue, 'value', null) === value
-
-            const newValue = {
-              localSelected: localSelectedValue ? isLocalSelected : isSelected,
-              selected: isSelected,
-              value,
-              type: TEMPLATE_VARIABLE_TYPES[template.type],
+            if (updatedTemplate) {
+              return [...acc, updatedTemplate]
             }
 
-            return newValue
-          })
+            return [...acc, existingTemplate]
+          },
+          []
+        )
 
-          return {
-            ...template,
-            values: newValues,
-          }
-        })
-
-        return {
-          ...dashboard,
-          templates,
-        }
+        return {...dashboard, templates}
       })
 
       return {...state, dashboards}

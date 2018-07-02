@@ -23,8 +23,8 @@ import * as notifyActions from 'src/shared/actions/notifications'
 // Utils
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {millisecondTimeRange} from 'src/dashboards/utils/time'
-import {stripTempVar} from 'src/dashboards/utils/tempVars'
 import {getDeep} from 'src/utils/wrappers'
+import {getDashboards as getDashboardsAJAX} from 'src/dashboards/apis'
 
 // Constants
 import {
@@ -40,6 +40,9 @@ import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import {InjectedRouter} from 'react-router'
+import {AxiosResponse} from 'axios'
+import {RouterAction} from 'react-router-redux'
+import {DashboardsResponse} from 'src/types/apis/dashboards'
 import * as AnnotationsActions from 'src/types/actions/annotations'
 import * as AppActions from 'src/types/actions/app'
 import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
@@ -54,21 +57,17 @@ import * as NotificationsActions from 'src/types/actions/notifications'
 
 interface DashboardActions {
   setDashTimeV1: DashboardsActions.SetDashTimeV1ActionCreator
+  setZoomedTimeRange: DashboardsActions.SetZoomedTimeRangeActionCreator
   updateDashboard: DashboardsActions.UpdateDashboardActionCreator
-  syncURLQueryParamsFromQueryParamsObject: DashboardsActions.SyncURLQueryFromQueryParamsObjectDispatcher
   putDashboard: DashboardsActions.PutDashboardDispatcher
   putDashboardByID: DashboardsActions.PutDashboardByIDDispatcher
   getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher
-  getDashboardWithHydratedAndSyncedTempVarsAsync: DashboardsActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher
-  setTimeRange: DashboardsActions.SetTimeRangeActionCreator
   addDashboardCellAsync: DashboardsActions.AddDashboardCellDispatcher
   editCellQueryStatus: DashboardsActions.EditCellQueryStatusActionCreator
   updateDashboardCell: DashboardsActions.UpdateDashboardCellDispatcher
   cloneDashboardCellAsync: DashboardsActions.CloneDashboardCellDispatcher
   deleteDashboardCellAsync: DashboardsActions.DeleteDashboardCellDispatcher
   templateVariableLocalSelected: DashboardsActions.TemplateVariableLocalSelectedActionCreator
-  syncURLQueryFromTempVars: DashboardsActions.SyncURLQueryFromTempVarsDispatcher
-  setZoomedTimeRangeAsync: DashboardsActions.SetZoomedTimeRangeDispatcher
 }
 
 interface Props extends DashboardActions, ManualRefreshProps, WithRouterProps {
@@ -108,6 +107,16 @@ interface Props extends DashboardActions, ManualRefreshProps, WithRouterProps {
   thresholdsListColors: ColorsModels.ColorNumber[]
   gaugeColors: ColorsModels.ColorNumber[]
   lineColors: ColorsModels.ColorString[]
+  getDashboardWithTemplatesAsync: (
+    dashboardId: number,
+    source: SourcesModels.Source
+  ) => Promise<void>
+  rehydrateNestedTemplatesAsync: (
+    dashboardId: number,
+    source: SourcesModels.Source
+  ) => Promise<void>
+  updateTemplateQueryParams: (dashboardId: number) => void
+  updateQueryParams: (updatedQueryParams: object) => RouterAction
 }
 
 interface State {
@@ -115,6 +124,7 @@ interface State {
   selectedCell: DashboardsModels.Cell | null
   scrollTop: number
   windowHeight: number
+  dashboardLinks: DashboardsModels.DashboardSwitcherLink[]
 }
 
 @ErrorHandling
@@ -129,17 +139,12 @@ class DashboardPage extends Component<Props, State> {
       selectedCell: null,
       scrollTop: 0,
       windowHeight: window.innerHeight,
+      dashboardLinks: [],
     }
   }
 
   public async componentDidMount() {
-    const {
-      source,
-      getAnnotationsAsync,
-      timeRange,
-      autoRefresh,
-      getDashboardsAsync,
-    } = this.props
+    const {source, getAnnotationsAsync, timeRange, autoRefresh} = this.props
 
     const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
@@ -154,10 +159,7 @@ class DashboardPage extends Component<Props, State> {
 
     await this.getDashboard()
 
-    // We populate all dashboards in the redux store so that we can consume
-    // them in `this.dashboardLinks`. See
-    // https://github.com/influxdata/chronograf/issues/3594
-    getDashboardsAsync()
+    this.getDashboardLinks()
   }
 
   public componentWillReceiveProps(nextProps: Props) {
@@ -264,7 +266,7 @@ class DashboardPage extends Component<Props, State> {
       templatesIncludingDashTime = []
     }
 
-    const {isEditMode} = this.state
+    const {isEditMode, dashboardLinks} = this.state
 
     return (
       <div className="page dashboard-page">
@@ -299,7 +301,7 @@ class DashboardPage extends Component<Props, State> {
           onSave={this.handleRenameDashboard}
           onCancel={this.handleCancelEditDashboard}
           onEditDashboard={this.handleEditDashboard}
-          dashboardLinks={this.dashboardLinks}
+          dashboardLinks={dashboardLinks}
           activeDashboardLink={this.activeDashboardLink}
           activeDashboard={dashboard ? dashboard.name : ''}
           showTemplateControlBar={showTemplateControlBar}
@@ -346,17 +348,10 @@ class DashboardPage extends Component<Props, State> {
     this.setState({windowHeight: window.innerHeight})
   }
 
-  private getDashboard = async (): Promise<
-    DashboardsActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk
-  > => {
-    const {dashboardID, source, router, location} = this.props
+  private getDashboard = async () => {
+    const {dashboardID, source, getDashboardWithTemplatesAsync} = this.props
 
-    return await this.props.getDashboardWithHydratedAndSyncedTempVarsAsync(
-      dashboardID,
-      source,
-      router,
-      location
-    )
+    return getDashboardWithTemplatesAsync(dashboardID, source)
   }
 
   private inView = (cell: DashboardsModels.Cell): boolean => {
@@ -385,18 +380,18 @@ class DashboardPage extends Component<Props, State> {
   ): void => {
     const {
       dashboard,
-
       getAnnotationsAsync,
       source,
-      location,
+      setDashTimeV1,
+      updateQueryParams,
     } = this.props
 
-    this.props.setDashTimeV1(dashboard.id, {
+    setDashTimeV1(dashboard.id, {
       ...timeRange,
       format: FORMAT_INFLUXQL,
     })
 
-    this.props.syncURLQueryParamsFromQueryParamsObject(location, {
+    updateQueryParams({
       lower: timeRange.lower,
       upper: timeRange.upper,
     })
@@ -450,38 +445,31 @@ class DashboardPage extends Component<Props, State> {
   ): ((value: TempVarsModels.TemplateValue) => void) => (
     value: TempVarsModels.TemplateValue
   ): void => {
-    const {dashboard, location} = this.props
+    const {
+      dashboard,
+      source,
+      templateVariableLocalSelected,
+      updateTemplateQueryParams,
+      rehydrateNestedTemplatesAsync,
+    } = this.props
 
-    const currentTempVar = dashboard.templates.find(
-      tempVar => tempVar.id === templateID
-    )
-    const strippedTempVar = stripTempVar(currentTempVar.tempVar)
-
-    const updatedQueryParam = {
-      [strippedTempVar]: value.value,
-    }
-    this.props.syncURLQueryParamsFromQueryParamsObject(
-      location,
-      updatedQueryParam
-    )
-    this.props.templateVariableLocalSelected(dashboard.id, templateID, [value])
+    templateVariableLocalSelected(dashboard.id, templateID, [value])
+    updateTemplateQueryParams(dashboard.id)
+    rehydrateNestedTemplatesAsync(dashboard.id, source)
   }
 
   private handleSaveTemplateVariables = async (
     templates: TempVarsModels.Template[]
   ): Promise<void> => {
-    const {location, dashboard} = this.props
+    const {dashboard, updateTemplateQueryParams} = this.props
 
     try {
       await this.props.putDashboard({
         ...dashboard,
         templates,
       })
-      const deletedTempVars = dashboard.templates.filter(
-        ({tempVar: oldTempVar}) =>
-          !templates.find(({tempVar: newTempVar}) => oldTempVar === newTempVar)
-      )
-      this.props.syncURLQueryFromTempVars(location, templates, deletedTempVars)
+
+      updateTemplateQueryParams(dashboard.id)
     } catch (error) {
       console.error(error)
     }
@@ -494,8 +482,14 @@ class DashboardPage extends Component<Props, State> {
   private handleZoomedTimeRange = (
     zoomedTimeRange: QueriesModels.TimeRange
   ): void => {
-    const {location} = this.props
-    this.props.setZoomedTimeRangeAsync(zoomedTimeRange, location)
+    const {setZoomedTimeRange, updateQueryParams} = this.props
+
+    setZoomedTimeRange(zoomedTimeRange)
+
+    updateQueryParams({
+      zoomedLower: zoomedTimeRange.lower,
+      zoomedUpper: zoomedTimeRange.upper,
+    })
   }
 
   private setScrollTop = (e: MouseEvent<JSX.Element>): void => {
@@ -504,16 +498,26 @@ class DashboardPage extends Component<Props, State> {
     this.setState({scrollTop: target.scrollTop})
   }
 
-  private get dashboardLinks(): DashboardsModels.DashboardSwitcherLink[] {
-    const {dashboards, source} = this.props
+  private getDashboardLinks = async (): Promise<void> => {
+    const {source} = this.props
 
-    return dashboards.map(d => {
-      return {
-        key: String(d.id),
-        text: d.name,
-        to: `/sources/${source.id}/dashboards/${d.id}`,
-      }
-    })
+    try {
+      const resp = (await getDashboardsAJAX()) as AxiosResponse<
+        DashboardsResponse
+      >
+      const dashboards = resp.data.dashboards
+      const dashboardLinks = dashboards.map(d => {
+        return {
+          key: String(d.id),
+          text: d.name,
+          to: `/sources/${source.id}/dashboards/${d.id}`,
+        }
+      })
+
+      this.setState({dashboardLinks})
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   private get activeDashboardLink(): DashboardsModels.DashboardSwitcherLink | null {
@@ -523,7 +527,7 @@ class DashboardPage extends Component<Props, State> {
       return null
     }
 
-    const {dashboardLinks} = this
+    const {dashboardLinks} = this.state
 
     return dashboardLinks.find(link => link.key === String(dashboard.id))
   }
@@ -584,6 +588,11 @@ const mstp = (state, {params: {dashboardID}}) => {
 
 const mdtp = {
   ...dashboardActions,
+  getDashboardWithTemplatesAsync:
+    dashboardActions.getDashboardWithTemplatesAsync,
+  rehydrateNestedTemplatesAsync: dashboardActions.rehydrateNestedTemplatesAsync,
+  updateTemplateQueryParams: dashboardActions.updateTemplateQueryParams,
+  updateQueryParams: dashboardActions.updateQueryParams,
   handleChooseAutoRefresh: appActions.setAutoRefresh,
   templateControlBarVisibilityToggled:
     appActions.templateControlBarVisibilityToggled,

@@ -8,9 +8,9 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplatePreviewList from 'src/tempVars/components/TemplatePreviewList'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 import {notifyCSVUploadFailed} from 'src/shared/copy/notifications'
+import {trimAndRemoveQuotes} from 'src/tempVars/utils'
 
 import {TemplateBuilderProps, TemplateValueType, TemplateValue} from 'src/types'
-import {trimAndRemoveQuotes} from 'src/tempVars/utils/parsing'
 
 interface State {
   templateValuesString: string

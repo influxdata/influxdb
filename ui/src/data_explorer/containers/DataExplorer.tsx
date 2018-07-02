@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {withRouter, InjectedRouter} from 'react-router'
 import {Location} from 'history'
-import queryString from 'query-string'
+import qs from 'qs'
 
 import _ from 'lodash'
 
@@ -64,7 +64,7 @@ export class DataExplorer extends PureComponent<Props, State> {
 
   public componentDidMount() {
     const {source} = this.props
-    const {query} = queryString.parse(location.search)
+    const {query} = qs.parse(location.search, {ignoreQueryPrefix: true})
     if (query && query.length) {
       const qc = this.props.queryConfigs[0]
       this.props.queryConfigActions.editRawTextAsync(
@@ -80,10 +80,10 @@ export class DataExplorer extends PureComponent<Props, State> {
     const {queryConfigs, timeRange} = nextProps
 
     const query = buildRawText(_.get(queryConfigs, ['0'], ''), timeRange)
-    const qsCurrent = queryString.parse(location.search)
+    const qsCurrent = qs.parse(location.search, {ignoreQueryPrefix: true})
 
     if (query.length && qsCurrent.query !== query) {
-      const qsNew = queryString.stringify({query})
+      const qsNew = qs.stringify({query})
       const pathname = stripPrefix(location.pathname)
       router.push(`${pathname}?${qsNew}`)
     }

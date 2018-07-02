@@ -2,16 +2,12 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
 
-import {proxy} from 'src/utils/queryUrlGenerator'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplateMetaQueryPreview from 'src/tempVars/components/TemplateMetaQueryPreview'
-import {parseMetaQuery, isInvalidMetaQuery} from 'src/tempVars/utils/parsing'
+import {hydrateTemplate} from 'src/tempVars/apis'
+import {isInvalidMetaQuery} from 'src/tempVars/parsing'
 
-import {
-  TemplateBuilderProps,
-  RemoteDataState,
-  TemplateValueType,
-} from 'src/types'
+import {TemplateBuilderProps, RemoteDataState} from 'src/types'
 
 const DEBOUNCE_DELAY = 750
 
@@ -115,7 +111,7 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
   }
 
   private executeQuery = async (): Promise<void> => {
-    const {template, source, onUpdateTemplate} = this.props
+    const {template, templates, source, onUpdateTemplate} = this.props
     const {metaQuery} = this.state
 
     if (this.isInvalidMetaQuery) {
@@ -125,34 +121,21 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
     this.setState({metaQueryResultsStatus: RemoteDataState.Loading})
 
     try {
-      const {data} = await proxy({
-        source: source.links.proxy,
-        query: metaQuery,
-      })
+      const templateWithQuery = {
+        ...template,
+        query: {influxql: metaQuery},
+      }
 
-      const metaQueryResults = parseMetaQuery(metaQuery, data)
+      const nextTemplate = await hydrateTemplate(
+        source.links.proxy,
+        templateWithQuery,
+        templates
+      )
 
       this.setState({metaQueryResultsStatus: RemoteDataState.Done})
 
-      const nextValues = metaQueryResults.map(result => {
-        return {
-          type: TemplateValueType.MetaQuery,
-          value: result,
-          selected: false,
-          localSelected: false,
-        }
-      })
-
-      if (nextValues[0]) {
-        nextValues[0].selected = true
-      }
-
-      const nextTemplate = {
-        ...template,
-        values: nextValues,
-        query: {
-          influxql: metaQuery,
-        },
+      if (nextTemplate.values[0]) {
+        nextTemplate.values[0].selected = true
       }
 
       onUpdateTemplate(nextTemplate)

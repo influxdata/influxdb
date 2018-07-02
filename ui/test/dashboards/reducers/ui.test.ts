@@ -12,9 +12,8 @@ import {
   syncDashboardCell,
   deleteDashboardFailed,
   templateVariableLocalSelected,
-  editTemplateVariableValues,
-  templateVariablesLocalSelectedByName,
   setActiveCell,
+  updateTemplates,
 } from 'src/dashboards/actions'
 
 let state
@@ -129,34 +128,6 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboards[0].templates[0].values[2].localSelected).toBe(true)
   })
 
-  it('can select template variable values by name', () => {
-    const dash = _.cloneDeep(d1)
-    state = {
-      dashboards: [dash],
-    }
-
-    const localSelected = {region: 'us-west', temperature: '99.1'}
-    const actual = reducer(
-      state,
-      templateVariablesLocalSelectedByName(dash.id, localSelected)
-    )
-
-    expect(actual.dashboards[0].templates[0].values[0].localSelected).toBe(true)
-    expect(actual.dashboards[0].templates[0].values[1].localSelected).toBe(
-      false
-    )
-    expect(actual.dashboards[0].templates[0].values[2].localSelected).toBe(
-      false
-    )
-    expect(actual.dashboards[0].templates[1].values[0].localSelected).toBe(
-      false
-    )
-    expect(actual.dashboards[0].templates[1].values[1].localSelected).toBe(true)
-    expect(actual.dashboards[0].templates[1].values[2].localSelected).toBe(
-      false
-    )
-  })
-
   describe('SET_ACTIVE_CELL', () => {
     it('can set the active cell', () => {
       const activeCellID = '1'
@@ -166,56 +137,81 @@ describe('DataExplorer.Reducers.UI', () => {
     })
   })
 
-  describe('EDIT_TEMPLATE_VARIABLE_VALUES', () => {
-    it('can edit the tempvar values', () => {
-      const actual = reducer(
-        {...initialState, dashboards},
-        editTemplateVariableValues(d1.id, template.id, ['v1', 'v2'])
-      )
+  describe('UPDATE_TEMPLATE_VARIABLES', () => {
+    it('can update template variables', () => {
+      const thisState = {
+        ...initialState,
+        dashboards: [
+          {
+            ...dashboard,
+            templates: [
+              {
+                id: '0',
+                tempVar: ':foo:',
+                label: '',
+                type: TemplateType.CSV,
+                values: [],
+              },
+              {
+                id: '1',
+                tempVar: ':bar:',
+                label: '',
+                type: TemplateType.CSV,
+                values: [],
+              },
+              {
+                id: '2',
+                tempVar: ':baz:',
+                label: '',
+                type: TemplateType.CSV,
+                values: [],
+              },
+            ],
+          },
+        ],
+      }
 
-      const expected = [
+      const newTemplates = [
         {
-          localSelected: false,
-          selected: false,
-          value: 'v1',
-          type: 'tagKey',
+          id: '0',
+          tempVar: ':foo:',
+          label: '',
+          type: TemplateType.CSV,
+          values: [
+            {
+              type: TemplateValueType.CSV,
+              value: '',
+              selected: true,
+              localSelected: true,
+            },
+          ],
         },
         {
-          localSelected: false,
-          selected: false,
-          value: 'v2',
-          type: 'tagKey',
+          id: '1',
+          tempVar: ':bar:',
+          label: '',
+          type: TemplateType.CSV,
+          values: [
+            {
+              type: TemplateValueType.CSV,
+              value: '',
+              selected: false,
+              localSelected: false,
+            },
+          ],
         },
       ]
 
-      expect(actual.dashboards[0].templates[0].values).toEqual(expected)
-    })
+      const result = reducer(thisState, updateTemplates(newTemplates))
 
-    it('can handle an empty template.values', () => {
-      const ts = [{...template, values: []}]
-      const ds = [{...d1, templates: ts}]
+      // Variables present in payload are updated
+      expect(result.dashboards[0].templates).toContainEqual(newTemplates[0])
+      expect(result.dashboards[0].templates).toContainEqual(newTemplates[1])
 
-      const actual = reducer(
-        {...initialState, dashboards: ds},
-        editTemplateVariableValues(d1.id, template.id, ['v1', 'v2'])
+      // Variables not present in action payload are left untouched
+      expect(result.dashboards[0].templates).toContainEqual(
+        thisState.dashboards[0].templates[2]
       )
-
-      const expected = [
-        {
-          localSelected: false,
-          selected: false,
-          value: 'v1',
-          type: 'tagKey',
-        },
-        {
-          localSelected: false,
-          selected: false,
-          value: 'v2',
-          type: 'tagKey',
-        },
-      ]
-
-      expect(actual.dashboards[0].templates[0].values).toEqual(expected)
     })
   })
 })

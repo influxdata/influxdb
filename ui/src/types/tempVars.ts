@@ -59,12 +59,16 @@ export interface TemplateUpdate {
   value: string
 }
 
-export interface URLQueryParams {
-  [key: string]: string
+export interface TimeRangeQueryParams {
+  lower?: string
+  upper?: string
+  zoomedLower?: string
+  zoomedUpper?: string
 }
 
 export interface TemplateBuilderProps {
   template: Template
+  templates: Template[]
   source: Source
   onUpdateTemplate: (nextTemplate: Template) => void
   onUpdateDefaultTemplateValue: (item: TemplateValue) => void

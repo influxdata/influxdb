@@ -51,6 +51,7 @@ class TemplateControlBar extends Component<Props, State> {
                   meRole={meRole}
                   isUsingAuth={isUsingAuth}
                   template={template}
+                  templates={templates}
                   source={source}
                   onPickTemplate={onPickTemplate}
                   onCreateTemplate={this.handleCreateTemplate}
@@ -66,6 +67,7 @@ class TemplateControlBar extends Component<Props, State> {
             )}
             <OverlayTechnology visible={isAdding}>
               <TemplateVariableEditor
+                templates={templates}
                 source={source}
                 onCreate={this.handleCreateTemplate}
                 onCancel={this.handleCancelAddVariable}

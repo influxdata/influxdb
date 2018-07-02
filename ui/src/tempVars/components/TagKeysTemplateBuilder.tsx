@@ -26,6 +26,7 @@ class TagKeysTemplateBuilder extends PureComponent<TemplateBuilderProps> {
   public render() {
     const {
       template,
+      templates,
       source,
       onUpdateTemplate,
       onUpdateDefaultTemplateValue,
@@ -37,6 +38,7 @@ class TagKeysTemplateBuilder extends PureComponent<TemplateBuilderProps> {
         templateValueType={TemplateValueType.TagKey}
         fetchKeys={fetchTagKeys}
         template={template}
+        templates={templates}
         source={source}
         onUpdateTemplate={onUpdateTemplate}
         onUpdateDefaultTemplateValue={onUpdateDefaultTemplateValue}

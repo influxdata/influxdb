@@ -1,10 +1,6 @@
-import {bindActionCreators} from 'redux'
-import {replace} from 'react-router-redux'
+import {replace, RouterAction} from 'react-router-redux'
 import _ from 'lodash'
-import queryString from 'query-string'
-
-import {proxy} from 'src/utils/queryUrlGenerator'
-import {parseMetaQuery} from 'src/tempVars/utils/parsing'
+import qs from 'qs'
 
 import {
   getDashboards as getDashboardsAJAX,
@@ -17,13 +13,15 @@ import {
   createDashboard as createDashboardAJAX,
 } from 'src/dashboards/apis'
 import {getMe} from 'src/shared/apis/auth'
+import {hydrateTemplate, isTemplateNested} from 'src/tempVars/apis'
 
 import {notify} from 'src/shared/actions/notifications'
 import {errorThrown} from 'src/shared/actions/errors'
 
 import {
-  generateURLQueryParamsFromTempVars,
-  findInvalidTempVarsInURLQuery,
+  applySelections,
+  templateSelectionsFromQueryParams,
+  queryParamsFromTemplates,
 } from 'src/dashboards/utils/tempVars'
 import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
 import {
@@ -38,12 +36,10 @@ import {
   notifyDashboardImportFailed,
   notifyDashboardImported,
   notifyDashboardNotFound,
-  notifyInvalidTempVarValueInURLQuery,
   notifyInvalidZoomedTimeRangeValueInURLQuery,
   notifyInvalidTimeRangeValueInURLQuery,
 } from 'src/shared/copy/notifications'
 
-import {makeQueryForTemplate} from 'src/dashboards/utils/tempVars'
 import {getDeep} from 'src/utils/wrappers'
 
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
@@ -52,11 +48,7 @@ import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
 // Types
 import {Dispatch} from 'redux'
-import {InjectedRouter} from 'react-router'
-import {Location} from 'history'
 import {AxiosResponse} from 'axios'
-import {LocationAction} from 'react-router-redux'
-import * as AuthReducers from 'src/types/reducers/auth'
 import * as DashboardsActions from 'src/types/actions/dashboards'
 import * as DashboardsApis from 'src/types/apis/dashboards'
 import * as DashboardsModels from 'src/types/dashboards'
@@ -216,28 +208,11 @@ export const templateVariableLocalSelected: DashboardsActions.TemplateVariableLo
   },
 })
 
-export const templateVariablesLocalSelectedByName: DashboardsActions.TemplateVariablesLocalSelectedByNameActionCreator = (
-  dashboardID: number,
-  queryParams: TempVarsModels.URLQueryParams
-): DashboardsActions.TemplateVariablesLocalSelectedByNameAction => ({
-  type: 'TEMPLATE_VARIABLES_SELECTED_BY_NAME',
-  payload: {
-    dashboardID,
-    queryParams,
-  },
-})
-
-export const editTemplateVariableValues: DashboardsActions.EditTemplateVariableValuesActionCreator = (
-  dashboardID: number,
-  templateID: string,
-  values
-): DashboardsActions.EditTemplateVariableValuesAction => ({
-  type: 'EDIT_TEMPLATE_VARIABLE_VALUES',
-  payload: {
-    dashboardID,
-    templateID,
-    values,
-  },
+export const updateTemplates = (
+  templates: TempVarsModels.Template[]
+): DashboardsActions.UpdateTemplatesAction => ({
+  type: 'UPDATE_TEMPLATES',
+  payload: {templates},
 })
 
 export const setHoverTime: DashboardsActions.SetHoverTimeActionCreator = (
@@ -258,6 +233,21 @@ export const setActiveCell: DashboardsActions.SetActiveCellActionCreator = (
   },
 })
 
+const getDashboard = (
+  state,
+  dashboardId: number
+): DashboardsModels.Dashboard => {
+  const dashboard = state.dashboardUI.dashboards.find(
+    d => d.id === +dashboardId
+  )
+
+  if (!dashboard) {
+    throw new Error(`Could not find dashboard with id '${dashboardId}'`)
+  }
+
+  return dashboard
+}
+
 // Async Action Creators
 
 export const getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher = (): DashboardsActions.GetDashboardsThunk => async (
@@ -277,20 +267,6 @@ export const getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher = ():
   } catch (error) {
     console.error(error)
     dispatch(errorThrown(error))
-  }
-}
-
-export const getDashboardAsync = (dashboardID: number) => async (
-  dispatch
-): Promise<DashboardsModels.Dashboard | null> => {
-  try {
-    const {data: dashboard} = await getDashboardAJAX(dashboardID)
-    dispatch(loadDashboard(dashboard))
-    return dashboard
-  } catch (error) {
-    console.error(error)
-    dispatch(errorThrown(error))
-    return null
   }
 }
 
@@ -366,12 +342,7 @@ export const putDashboardByID: DashboardsActions.PutDashboardByIDDispatcher = (
   getState: () => DashboardsReducers.Dashboards
 ): Promise<void> => {
   try {
-    const {
-      dashboardUI: {dashboards},
-    } = getState()
-    const dashboard: DashboardsModels.Dashboard = dashboards.find(
-      d => d.id === +dashboardID
-    )
+    const dashboard = getDashboard(getState(), dashboardID)
     const templates = removeUnselectedTemplateValues(dashboard)
     await updateDashboardAJAX({...dashboard, templates})
   } catch (error) {
@@ -531,147 +502,27 @@ export const importDashboardAsync = (
   }
 }
 
-export const hydrateTempVarValuesAsync = (
-  dashboardID: number,
-  source: SourcesModels.Source
-) => async (dispatch, getState): Promise<void> => {
-  try {
-    const dashboard = getState().dashboardUI.dashboards.find(
-      d => d.id === dashboardID
-    )
-    const templates: TempVarsModels.Template[] = dashboard.templates
-    const queries = templates
-      .filter(
-        template => getDeep<string>(template, 'query.influxql', '') !== ''
-      )
-      .map(async template => {
-        const query = makeQueryForTemplate(template.query)
-        const response = await proxy({source: source.links.proxy, query})
-        const values = parseMetaQuery(query, response.data)
-
-        return {template, values}
-      })
-    const results = await Promise.all(queries)
-
-    for (const {template, values} of results) {
-      dispatch(editTemplateVariableValues(+dashboard.id, template.id, values))
-    }
-  } catch (error) {
-    console.error(error)
-    dispatch(errorThrown(error))
-  }
-}
-
-const removeNullValues = obj => _.pickBy(obj, o => o)
-
-export const syncURLQueryParamsFromQueryParamsObject = (
-  location: Location,
-  updatedURLQueryParams: TempVarsModels.URLQueryParams,
-  deletedURLQueryParams: TempVarsModels.URLQueryParams = {}
-): DashboardsActions.SyncURLQueryFromQueryParamsObjectActionCreator => (
-  dispatch: Dispatch<LocationAction>
+const updateTimeRangeFromQueryParams = (dashboardID: number) => (
+  dispatch,
+  getState
 ): void => {
-  const updatedLocationQuery = removeNullValues({
-    ...location.query,
-    ...updatedURLQueryParams,
+  const {dashTimeV1} = getState()
+  const queryParams = qs.parse(window.location.search, {
+    ignoreQueryPrefix: true,
   })
-
-  _.each(deletedURLQueryParams, (__, k) => {
-    delete updatedLocationQuery[k]
-  })
-
-  const updatedSearchString = queryString.stringify(updatedLocationQuery)
-  const updatedSearch = {search: updatedSearchString}
-  const updatedLocation = {
-    ...location,
-    query: updatedLocationQuery,
-    ...updatedSearch,
-  }
-
-  dispatch(replace(updatedLocation))
-}
-
-export const syncURLQueryFromTempVars: DashboardsActions.SyncURLQueryFromTempVarsDispatcher = (
-  location: Location,
-  tempVars: TempVarsModels.Template[],
-  deletedTempVars: TempVarsModels.Template[] = [],
-  urlQueryParamsTimeRanges?: TempVarsModels.URLQueryParams
-): DashboardsActions.SyncURLQueryFromQueryParamsObjectActionCreator => (
-  dispatch: Dispatch<
-    DashboardsActions.SyncURLQueryFromQueryParamsObjectDispatcher
-  >
-): void => {
-  const updatedURLQueryParams = generateURLQueryParamsFromTempVars(tempVars)
-  const deletedURLQueryParams = generateURLQueryParamsFromTempVars(
-    deletedTempVars
-  )
-
-  let updatedURLQueryParamsWithTimeRange = {
-    ...updatedURLQueryParams,
-  }
-
-  if (urlQueryParamsTimeRanges) {
-    updatedURLQueryParamsWithTimeRange = {
-      ...updatedURLQueryParamsWithTimeRange,
-      ...urlQueryParamsTimeRanges,
-    }
-  }
-
-  syncURLQueryParamsFromQueryParamsObject(
-    location,
-    updatedURLQueryParamsWithTimeRange,
-    deletedURLQueryParams
-  )(dispatch)
-}
-
-const syncDashboardTempVarsFromURLQueryParams = (
-  dashboardID: number,
-  urlQueryParams: TempVarsModels.URLQueryParams
-): DashboardsActions.SyncDashboardTempVarsFromURLQueryParamsDispatcher => (
-  dispatch: Dispatch<
-    | NotificationsActions.PublishNotificationActionCreator
-    | DashboardsActions.TemplateVariableLocalSelectedAction
-  >,
-  getState: () => DashboardsReducers.Dashboards & AuthReducers.Auth
-): void => {
-  const {dashboardUI} = getState()
-  const dashboard = dashboardUI.dashboards.find(d => d.id === dashboardID)
-
-  const urlQueryParamsTempVarsWithInvalidValues = findInvalidTempVarsInURLQuery(
-    dashboard.templates,
-    urlQueryParams
-  )
-  urlQueryParamsTempVarsWithInvalidValues.forEach(invalidURLQuery => {
-    dispatch(notify(notifyInvalidTempVarValueInURLQuery(invalidURLQuery)))
-  })
-
-  dispatch(templateVariablesLocalSelectedByName(dashboardID, urlQueryParams))
-}
-
-const syncDashboardTimeRangeFromURLQueryParams = (
-  dashboardID: number,
-  urlQueryParams: TempVarsModels.URLQueryParams,
-  location: Location
-): DashboardsActions.SyncDashboardTimeRangeFromURLQueryParamsDispatcher => (
-  dispatch: Dispatch<NotificationsActions.PublishNotificationActionCreator>,
-  getState: () => DashboardsReducers.Dashboards & DashboardsReducers.DashTimeV1
-): void => {
-  const {
-    dashboardUI: {dashboards},
-    dashTimeV1,
-  } = getState()
-  const dashboard = dashboards.find(d => d.id === dashboardID)
 
   const timeRangeFromQueries = {
-    lower: urlQueryParams.lower,
-    upper: urlQueryParams.upper,
+    lower: queryParams.lower,
+    upper: queryParams.upper,
   }
+
   const zoomedTimeRangeFromQueries = {
-    lower: urlQueryParams.zoomedLower,
-    upper: urlQueryParams.zoomedUpper,
+    lower: queryParams.zoomedLower,
+    upper: queryParams.zoomedUpper,
   }
 
   let validatedTimeRange = validTimeRange(timeRangeFromQueries)
+
   if (!validatedTimeRange.lower) {
     const dashboardTimeRange = dashTimeV1.ranges.find(
       r => r.dashboardID === idNormalizer(TYPE_ID, dashboardID)
@@ -683,100 +534,118 @@ const syncDashboardTimeRangeFromURLQueryParams = (
       dispatch(notify(notifyInvalidTimeRangeValueInURLQuery()))
     }
   }
+
   dispatch(setDashTimeV1(dashboardID, validatedTimeRange))
 
   const validatedZoomedTimeRange = validAbsoluteTimeRange(
     zoomedTimeRangeFromQueries
   )
+
   if (
     !validatedZoomedTimeRange.lower &&
-    (urlQueryParams.zoomedLower || urlQueryParams.zoomedUpper)
+    (queryParams.zoomedLower || queryParams.zoomedUpper)
   ) {
     dispatch(notify(notifyInvalidZoomedTimeRangeValueInURLQuery()))
   }
+
   dispatch(setZoomedTimeRange(validatedZoomedTimeRange))
-  const urlQueryParamsTimeRanges = {
+
+  const updatedQueryParams = {
     lower: validatedTimeRange.lower,
     upper: validatedTimeRange.upper,
     zoomedLower: validatedZoomedTimeRange.lower,
     zoomedUpper: validatedZoomedTimeRange.upper,
   }
 
-  syncURLQueryFromTempVars(
-    location,
-    dashboard.templates,
-    [],
-    urlQueryParamsTimeRanges
-  )(dispatch)
+  dispatch(updateQueryParams(updatedQueryParams))
 }
 
-const syncDashboardFromURLQueryParams = (
-  dashboardID: number,
-  location: Location
-): DashboardsActions.SyncDashboardFromURLQueryParamsDispatcher => (
-  dispatch: Dispatch<
-    | DashboardsActions.SyncDashboardTempVarsFromURLQueryParamsDispatcher
-    | DashboardsActions.SyncDashboardTimeRangeFromURLQueryParamsDispatcher
-  >
-): void => {
-  const urlQueryParams = queryString.parse(window.location.search)
-  bindActionCreators(syncDashboardTempVarsFromURLQueryParams, dispatch)(
-    dashboardID,
-    urlQueryParams
-  )
+export const getDashboardWithTemplatesAsync = (
+  dashboardId: number,
+  source: SourcesModels.Source
+) => async (dispatch: Dispatch<any>): Promise<void> => {
+  let dashboard: DashboardsModels.Dashboard
 
-  bindActionCreators(syncDashboardTimeRangeFromURLQueryParams, dispatch)(
-    dashboardID,
-    urlQueryParams,
-    location
-  )
-}
+  try {
+    const resp = await getDashboardAJAX(dashboardId)
+    dashboard = resp.data
+  } catch {
+    dispatch(replace(`/sources/${source.id}/dashboards`))
+    dispatch(notify(notifyDashboardNotFound(dashboardId)))
 
-export const getDashboardWithHydratedAndSyncedTempVarsAsync: DashboardsActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncDispatcher = (
-  dashboardID: number,
-  source: SourcesModels.Source,
-  router: InjectedRouter,
-  location: Location
-): DashboardsActions.GetDashboardWithHydratedAndSyncedTempVarsAsyncThunk => async (
-  dispatch: Dispatch<NotificationsActions.PublishNotificationActionCreator>
-): Promise<void> => {
-  const dashboard = await bindActionCreators(getDashboardAsync, dispatch)(
-    dashboardID
-  )
-  if (!dashboard) {
-    router.push(`/sources/${source.id}/dashboards`)
-    dispatch(notify(notifyDashboardNotFound(dashboardID)))
     return
   }
 
-  await bindActionCreators(hydrateTempVarValuesAsync, dispatch)(
-    dashboardID,
-    source
+  const templateSelections = templateSelectionsFromQueryParams()
+  const proxyLink = source.links.proxy
+  const nonNestedTemplates = await Promise.all(
+    dashboard.templates
+      .filter(t => !isTemplateNested(t))
+      .map(t => hydrateTemplate(proxyLink, t, []))
   )
 
-  bindActionCreators(syncDashboardFromURLQueryParams, dispatch)(
-    dashboardID,
-    location
+  applySelections(nonNestedTemplates, templateSelections)
+
+  const nestedTemplates = await Promise.all(
+    dashboard.templates
+      .filter(t => isTemplateNested(t))
+      .map(t => hydrateTemplate(proxyLink, t, nonNestedTemplates))
   )
+
+  applySelections(nestedTemplates, templateSelections)
+
+  const templates = [...nonNestedTemplates, ...nestedTemplates]
+
+  // TODO: Notify if any of the supplied query params were invalid
+  dispatch(loadDashboard({...dashboard, templates}))
+  dispatch<any>(updateTemplateQueryParams(dashboardId))
+  dispatch<any>(updateTimeRangeFromQueryParams(dashboardId))
 }
 
-export const setZoomedTimeRangeAsync: DashboardsActions.SetZoomedTimeRangeDispatcher = (
-  zoomedTimeRange: QueriesModels.TimeRange,
-  location: Location
-): DashboardsActions.SetZoomedTimeRangeThunk => async (
-  dispatch: Dispatch<
-    | DashboardsActions.SetZoomedTimeRangeActionCreator
-    | DashboardsActions.SyncURLQueryFromQueryParamsObjectDispatcher
-  >
-): Promise<void> => {
-  dispatch(setZoomedTimeRange(zoomedTimeRange))
-  const urlQueryParamsZoomedTimeRange = {
-    zoomedLower: zoomedTimeRange.lower,
-    zoomedUpper: zoomedTimeRange.upper,
+export const rehydrateNestedTemplatesAsync = (
+  dashboardId: number,
+  source: SourcesModels.Source
+) => async (dispatch: Dispatch<any>, getState): Promise<void> => {
+  const dashboard = getDashboard(getState(), dashboardId)
+  const proxyLink = source.links.proxy
+  const templateSelections = templateSelectionsFromQueryParams()
+  const nestedTemplates = await Promise.all(
+    dashboard.templates
+      .filter(t => isTemplateNested(t))
+      .map(t => hydrateTemplate(proxyLink, t, dashboard.templates))
+  )
+
+  applySelections(nestedTemplates, templateSelections)
+
+  dispatch(updateTemplates(nestedTemplates))
+  dispatch<any>(updateTemplateQueryParams(dashboardId))
+}
+
+export const updateTemplateQueryParams = (dashboardId: number) => (
+  dispatch,
+  getState
+): void => {
+  const templates = getDashboard(getState(), dashboardId).templates
+  const updatedQueryParams = {
+    tempVars: queryParamsFromTemplates(templates),
   }
 
-  syncURLQueryParamsFromQueryParamsObject(
-    location,
-    urlQueryParamsZoomedTimeRange
-  )(dispatch)
+  dispatch(updateQueryParams(updatedQueryParams))
+}
+
+export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
+  const {search, pathname} = window.location
+
+  const newQueryParams = _.pickBy(
+    {
+      ...qs.parse(search, {ignoreQueryPrefix: true}),
+      ...updatedQueryParams,
+    },
+    v => !!v
+  )
+
+  const newSearch = qs.stringify(newQueryParams)
+  const newLocation = {pathname, search: `?${newSearch}`}
+
+  return replace(newLocation)
 }
