@@ -547,11 +547,6 @@ export const notifyInvalidZoomedTimeRangeValueInURLQuery = (): Notification => (
   message: `Invalid URL query value supplied for zoomed lower or zoomed upper time range.`,
 })
 
-export const notifyViewerUnauthorizedToSetTempVars = (): Notification => ({
-  ...defaultErrorNotification,
-  message: `Viewer role unauthorized to override template variable values from URL.`,
-})
-
 //  Rule Builder Notifications
 //  ----------------------------------------------------------------------------
 export const notifyAlertRuleCreated = (ruleName: string): Notification => ({
