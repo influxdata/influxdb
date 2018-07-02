@@ -27,7 +27,7 @@ const TemplateDrawer: SFC<Props> = ({
           'template-drawer--selected': t.tempVar === selected.tempVar,
         })}
         onMouseOver={onMouseOverTempVar(t)}
-        onClick={onClickTempVar(t)}
+        onMouseDown={onClickTempVar(t)}
         key={t.tempVar}
       >
         {' '}
