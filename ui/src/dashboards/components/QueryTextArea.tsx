@@ -110,7 +110,7 @@ class QueryTextArea extends Component<Props, State> {
   }
 
   private handleMouseOverTempVar = (template: Template) => () => {
-    this.handleTemplateReplace(template, true)
+    this.handleTemplateReplace(template, false)
   }
 
   private handleClickTempVar = (template: Template) => () => {
