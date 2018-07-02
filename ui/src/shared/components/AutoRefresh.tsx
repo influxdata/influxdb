@@ -243,7 +243,7 @@ const AutoRefresh = (
     private getActiveTemplates(tempVars: Template[]): Template[] {
       return _.map(tempVars, tempVar => ({
         ...tempVar,
-        values: tempVar.values.filter(v => v.selected || v.picked),
+        values: tempVar.values.filter(v => v.selected || v.localSelected),
       }))
     }
   }
