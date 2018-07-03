@@ -228,6 +228,10 @@ func (c *cardinality) add(x uint64) {
 }
 
 func (c *cardinality) cardinality() int64 {
+	if c == nil || (c.short == nil && c.set == nil) {
+		return 0
+	}
+
 	if c.short != nil {
 		return int64(len(c.short))
 	}
@@ -371,12 +375,17 @@ func (cmd *Command) printSummaryByMeasurement() error {
 				continue // this shard doesn't have anything for this measurement.
 			}
 
+			if other.short != nil && other.set != nil {
+				panic("cardinality stored incorrectly")
+			}
+
 			if other.short != nil { // low cardinality case
 				res.addShort(other.short)
-			} else { // High cardinality case
+			} else if other.set != nil { // High cardinality case
 				res.merge(other.set)
 			}
 
+			// Shard does not have any series for this measurement.
 		}
 
 		// Determine final cardinality and allow intermediate structures to be
@@ -398,6 +407,12 @@ func (cmd *Command) printSummaryByMeasurement() error {
 
 	// sort measurements by cardinality.
 	sort.Sort(sort.Reverse(measurements))
+
+	if cmd.topN > 0 {
+		// There may not be "topN" measurement cardinality to sub-slice.
+		n := int(math.Min(float64(cmd.topN), float64(len(measurements))))
+		measurements = measurements[:n]
+	}
 
 	tw := tabwriter.NewWriter(cmd.Stdout, 4, 4, 1, '\t', 0)
 	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", cmd.dbPath, totalCardinality)
@@ -422,11 +437,23 @@ func (cmd *Command) printShardByMeasurement(id uint64) error {
 	var totalCardinality int64
 	all := make(cardinalities, 0, len(allMap))
 	for _, card := range allMap {
-		totalCardinality += card.cardinality()
+		n := card.cardinality()
+		if n == 0 {
+			continue
+		}
+
+		totalCardinality += n
 		all = append(all, card)
 	}
 
 	sort.Sort(sort.Reverse(all))
+
+	// Trim to top-n
+	if cmd.topN > 0 {
+		// There may not be "topN" measurement cardinality to sub-slice.
+		n := int(math.Min(float64(cmd.topN), float64(len(all))))
+		all = all[:n]
+	}
 
 	tw := tabwriter.NewWriter(cmd.Stdout, 4, 4, 1, '\t', 0)
 	fmt.Fprintf(tw, "===============\nShard ID: %d\nPath: %s\nCardinality (exact): %d\n\n", id, cmd.shardPaths[id], totalCardinality)
