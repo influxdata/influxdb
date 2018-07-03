@@ -1177,6 +1177,126 @@ func TestTranspiler(t *testing.T) {
 				},
 			},
 		},
+		{
+			s: `SELECT mean(value) FROM db0..cpu GROUP BY host`,
+			spec: &query.Spec{
+				Operations: []*query.Operation{
+					{
+						ID: "from0",
+						Spec: &functions.FromOpSpec{
+							Bucket: "db0/autogen",
+						},
+					},
+					{
+						ID: "range0",
+						Spec: &functions.RangeOpSpec{
+							Start: query.Time{Absolute: time.Unix(0, influxqllib.MinTime)},
+							Stop:  query.Time{Absolute: time.Unix(0, influxqllib.MaxTime)},
+						},
+					},
+					{
+						ID: "filter0",
+						Spec: &functions.FilterOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{
+									{Key: &semantic.Identifier{Name: "r"}},
+								},
+								Body: &semantic.LogicalExpression{
+									Operator: ast.AndOperator,
+									Left: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_measurement",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "cpu",
+										},
+									},
+									Right: &semantic.BinaryExpression{
+										Operator: ast.EqualOperator,
+										Left: &semantic.MemberExpression{
+											Object: &semantic.IdentifierExpression{
+												Name: "r",
+											},
+											Property: "_field",
+										},
+										Right: &semantic.StringLiteral{
+											Value: "value",
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID: "group0",
+						Spec: &functions.GroupOpSpec{
+							By: []string{"_measurement", "host"},
+						},
+					},
+					{
+						ID: "mean0",
+						Spec: &functions.MeanOpSpec{
+							AggregateConfig: execute.AggregateConfig{
+								TimeSrc: execute.DefaultStartColLabel,
+								TimeDst: execute.DefaultTimeColLabel,
+								Columns: []string{execute.DefaultValueColLabel},
+							},
+						},
+					},
+					{
+						ID: "map0",
+						Spec: &functions.MapOpSpec{
+							Fn: &semantic.FunctionExpression{
+								Params: []*semantic.FunctionParam{{
+									Key: &semantic.Identifier{Name: "r"},
+								}},
+								Body: &semantic.ObjectExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "_time"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_time",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "mean"},
+											Value: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_value",
+											},
+										},
+									},
+								},
+							},
+							MergeKey: true,
+						},
+					},
+					{
+						ID: "yield0",
+						Spec: &functions.YieldOpSpec{
+							Name: "0",
+						},
+					},
+				},
+				Edges: []query.Edge{
+					{Parent: "from0", Child: "range0"},
+					{Parent: "range0", Child: "filter0"},
+					{Parent: "filter0", Child: "group0"},
+					{Parent: "group0", Child: "mean0"},
+					{Parent: "mean0", Child: "map0"},
+					{Parent: "map0", Child: "yield0"},
+				},
+			},
+		},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			if err := tt.spec.Validate(); err != nil {

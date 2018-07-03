@@ -18,7 +18,6 @@ import (
 var skipTests = map[string]string{
 	"derivative":                "derivative not supported by influxql (https://github.com/influxdata/platform/issues/93)",
 	"filter_by_tags":            "arbitrary filtering not supported by influxql (https://github.com/influxdata/platform/issues/94)",
-	"group_ungroup":             "influxql/flux disagreement on keycols (https://github.com/influxdata/platform/issues/95)",
 	"window":                    "ordering of results differs between queries (https://github.com/influxdata/platform/issues/96)",
 	"window_group_mean_ungroup": "error in influxql: failed to run query: timeValue column \"_start\" does not exist (https://github.com/influxdata/platform/issues/97)",
 }

@@ -34,7 +34,7 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 							{Label: "value", Type: query.TFloat},
 						},
 						Data: [][]interface{}{
-							{mustParseTime("2018-05-24T09:00:00Z"), "m0", "server01", float64(2)},
+							{ts("2018-05-24T09:00:00Z"), "m0", "server01", float64(2)},
 						},
 					}},
 				}},
@@ -81,10 +81,15 @@ func (ri *resultErrorIterator) Err() error {
 	return errors.New(ri.Error)
 }
 
-func mustParseTime(s string) execute.Time {
+func mustParseTime(s string) time.Time {
 	t, err := time.Parse(time.RFC3339, s)
 	if err != nil {
 		panic(err)
 	}
-	return execute.Time(t.UnixNano())
+	return t
+}
+
+// ts takes an RFC3339 time string and returns an execute.Time from it using the unix timestamp.
+func ts(s string) execute.Time {
+	return execute.Time(mustParseTime(s).UnixNano())
 }

@@ -1,1 +1,0 @@
-select io_time from testdb..diskio group by "name"
