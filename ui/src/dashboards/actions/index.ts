@@ -341,7 +341,10 @@ const removeUnselectedTemplateValues = (
     'templates',
     []
   ).map(template => {
-    if (template.type === TempVarsModels.TemplateType.CSV) {
+    if (
+      template.type === TempVarsModels.TemplateType.CSV ||
+      template.type === TempVarsModels.TemplateType.Map
+    ) {
       return template
     }
 
