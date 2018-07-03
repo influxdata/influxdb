@@ -24,9 +24,13 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
   public constructor(props: TemplateBuilderProps) {
     super(props)
     const templateValues = props.template.values.map(v => v.value)
+    const templateKeys = props.template.values.map(v => v.key)
+    const templateValuesString = templateKeys
+      .map((v, i) => `${v}, ${templateValues[i]}`)
+      .join('\n')
 
     this.state = {
-      templateValuesString: templateValues.join(', '),
+      templateValuesString,
     }
   }
 
