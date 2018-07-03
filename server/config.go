@@ -65,6 +65,7 @@ func (s *Service) Config(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res := newConfigResponse(*config)
+
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -83,8 +84,7 @@ func (s *Service) LogViewerUIConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var res interface{}
-	res = newLogViewerUIConfigResponse(*config)
+	res := newLogViewerUIConfigResponse(*config)
 
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
@@ -93,33 +93,28 @@ func (s *Service) LogViewerUIConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Service) ReplaceLogViewerUIConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	config, err := s.Store.Config(ctx).Get(ctx)
-	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
-		return
-	}
-
-	if config == nil {
-		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
-		return
-	}
-
-	var res interface{}
-
 	var logViewerUIConfig chronograf.LogViewerUIConfig
 	if err := json.NewDecoder(r.Body).Decode(&logViewerUIConfig); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
-
 	if err := validLogViewerUIConfig(logViewerUIConfig); err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
 
+	config, err := s.Store.Config(ctx).Get(ctx)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
+	}
+	if config == nil {
+		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
+		return
+	}
 	config.LogViewer = logViewerUIConfig
-	res = newLogViewerUIConfigResponse(*config)
 
+	res := newLogViewerUIConfigResponse(*config)
 	if err := s.Store.Config(ctx).Update(ctx, config); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
@@ -143,8 +138,7 @@ func (s *Service) AuthConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var res interface{}
-	res = newAuthConfigResponse(*config)
+	res := newAuthConfigResponse(*config)
 
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
@@ -153,27 +147,24 @@ func (s *Service) AuthConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Service) ReplaceAuthConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	config, err := s.Store.Config(ctx).Get(ctx)
-	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
-		return
-	}
-
-	if config == nil {
-		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
-		return
-	}
-
-	var res interface{}
-
 	var authConfig chronograf.AuthConfig
 	if err := json.NewDecoder(r.Body).Decode(&authConfig); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
-	config.Auth = authConfig
-	res = newAuthConfigResponse(*config)
 
+	config, err := s.Store.Config(ctx).Get(ctx)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
+		return
+	}
+	if config == nil {
+		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
+		return
+	}
+	config.Auth = authConfig
+
+	res := newAuthConfigResponse(*config)
 	if err := s.Store.Config(ctx).Update(ctx, config); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
