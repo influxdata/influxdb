@@ -8,6 +8,7 @@ export enum TemplateValueType {
   Measurement = 'measurement',
   TagValue = 'tagValue',
   CSV = 'csv',
+  Map = 'map',
   Points = 'points',
   Constant = 'constant',
   MetaQuery = 'influxql',
@@ -19,6 +20,7 @@ export interface TemplateValue {
   type: TemplateValueType
   selected: boolean
   localSelected: boolean
+  key?: string
 }
 
 export interface TemplateQuery {
@@ -38,6 +40,7 @@ export enum TemplateType {
   TagKeys = 'tagKeys',
   TagValues = 'tagValues',
   CSV = 'csv',
+  Map = 'map',
   Databases = 'databases',
   MetaQuery = 'influxql',
 }

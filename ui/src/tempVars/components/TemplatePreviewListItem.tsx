@@ -28,6 +28,7 @@ class TemplatePreviewListItem extends PureComponent<Props> {
           active: this.isDefault,
         })}
       >
+        "key"
         {item.value}
         {this.defaultIndicator()}
       </li>

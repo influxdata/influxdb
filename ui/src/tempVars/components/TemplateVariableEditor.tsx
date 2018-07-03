@@ -23,6 +23,7 @@ import {
 
 import DatabasesTemplateBuilder from 'src/tempVars/components/DatabasesTemplateBuilder'
 import CSVTemplateBuilder from 'src/tempVars/components/CSVTemplateBuilder'
+import MapTemplateBuilder from 'src/tempVars/components/MapTemplateBuilder'
 import MeasurementsTemplateBuilder from 'src/tempVars/components/MeasurementsTemplateBuilder'
 import FieldKeysTemplateBuilder from 'src/tempVars/components/FieldKeysTemplateBuilder'
 import TagKeysTemplateBuilder from 'src/tempVars/components/TagKeysTemplateBuilder'
@@ -66,6 +67,7 @@ interface State {
 const TEMPLATE_BUILDERS = {
   [TemplateType.Databases]: DatabasesTemplateBuilder,
   [TemplateType.CSV]: CSVTemplateBuilder,
+  [TemplateType.Map]: MapTemplateBuilder,
   [TemplateType.Measurements]: MeasurementsTemplateBuilder,
   [TemplateType.FieldKeys]: FieldKeysTemplateBuilder,
   [TemplateType.TagKeys]: TagKeysTemplateBuilder,

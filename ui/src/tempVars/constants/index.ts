@@ -35,6 +35,10 @@ export const TEMPLATE_TYPES_LIST: TemplateTypesListItem[] = [
     type: TemplateType.CSV,
   },
   {
+    text: 'Map',
+    type: TemplateType.Map,
+  },
+  {
     text: 'Custom Meta Query',
     type: TemplateType.MetaQuery,
   },
@@ -42,6 +46,7 @@ export const TEMPLATE_TYPES_LIST: TemplateTypesListItem[] = [
 
 export const TEMPLATE_VARIABLE_TYPES = {
   [TemplateType.CSV]: TemplateValueType.CSV,
+  [TemplateType.Map]: TemplateValueType.Map,
   [TemplateType.Databases]: TemplateValueType.Database,
   [TemplateType.Measurements]: TemplateValueType.Measurement,
   [TemplateType.FieldKeys]: TemplateValueType.FieldKey,
@@ -102,6 +107,16 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
       tempVar: '',
       values: [],
       type: TemplateType.CSV,
+      label: '',
+      query: {},
+    }
+  },
+  [TemplateType.Map]: () => {
+    return {
+      id: uuid.v4(),
+      tempVar: '',
+      values: [],
+      type: TemplateType.Map,
       label: '',
       query: {},
     }
