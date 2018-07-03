@@ -6,7 +6,7 @@ import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEdit
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 import Authorized, {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
 
-import {Template, Source} from 'src/types'
+import {Template, Source, TemplateValueType} from 'src/types'
 
 interface Props {
   template: Template
@@ -43,10 +43,12 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
     } = this.props
     const {isEditing} = this.state
 
-    const dropdownItems = template.values.map(value => ({
-      ...value,
-      text: value.value,
-    }))
+    const dropdownItems = template.values.map(value => {
+      if (value.type === TemplateValueType.Map) {
+        return {...value, text: value.key}
+      }
+      return {...value, text: value.value}
+    })
 
     const dropdownStyle = template.values.length
       ? {minWidth: calculateDropdownWidth(template.values)}
