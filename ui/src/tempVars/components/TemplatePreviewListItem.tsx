@@ -2,7 +2,7 @@ import React, {PureComponent} from 'react'
 import classNames from 'classnames'
 import {TEMPLATE_PREVIEW_LIST_DIMENSIONS as DIMENSIONS} from 'src/tempVars/constants'
 
-import {TemplateValue} from 'src/types'
+import {TemplateValue, TemplateValueType} from 'src/types'
 
 const {LI_HEIGHT, LI_MARGIN_BOTTOM} = DIMENSIONS
 
@@ -28,6 +28,7 @@ class TemplatePreviewListItem extends PureComponent<Props> {
           active: this.isDefault,
         })}
       >
+        {this.mapTempVarKey}
         {item.value}
         {this.defaultIndicator()}
       </li>
@@ -36,6 +37,13 @@ class TemplatePreviewListItem extends PureComponent<Props> {
 
   private get isDefault(): boolean {
     return this.props.item.selected
+  }
+
+  private get mapTempVarKey(): string {
+    const {item} = this.props
+    if (item.type === TemplateValueType.Map) {
+      return `${item.key}     -->`
+    }
   }
 
   private defaultIndicator(): JSX.Element {

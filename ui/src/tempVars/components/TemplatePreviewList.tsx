@@ -42,8 +42,8 @@ class TemplatePreviewList extends PureComponent<Props> {
   private get resultsListHeight() {
     const {items} = this.props
     const count = Math.min(items.length, RESULTS_TO_DISPLAY)
-
-    return count * (LI_HEIGHT + LI_MARGIN_BOTTOM) - OFFSET
+    const scrollOffset = count > RESULTS_TO_DISPLAY ? OFFSET : 0
+    return count * (LI_HEIGHT + LI_MARGIN_BOTTOM) - scrollOffset
   }
 }
 

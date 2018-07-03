@@ -89,6 +89,7 @@ const renderTemplate = (query: string, template: Template): string => {
     case TemplateValueType.CSV:
     case TemplateValueType.Constant:
     case TemplateValueType.MetaQuery:
+    case TemplateValueType.Map:
       return replaceAll(q, tempVar, value)
     default:
       return query

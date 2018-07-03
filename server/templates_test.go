@@ -69,7 +69,7 @@ func TestValidTemplateRequest(t *testing.T) {
 						{
 							Key:   "key",
 							Value: "value",
-							Type:  "constant",
+							Type:  "map",
 						},
 					},
 				},
@@ -84,7 +84,7 @@ func TestValidTemplateRequest(t *testing.T) {
 					Values: []chronograf.TemplateValue{
 						{
 							Value: "value",
-							Type:  "constant",
+							Type:  "map",
 						},
 					},
 				},

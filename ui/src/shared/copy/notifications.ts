@@ -541,6 +541,12 @@ export const notifyInvalidTimeRangeValueInURLQuery = (): Notification => ({
   message: `Invalid URL query value supplied for lower or upper time range.`,
 })
 
+export const notifyInvalidMapType = (): Notification => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  message: `Template Variables of map type accept two comma separated values per line`,
+})
+
 export const notifyInvalidZoomedTimeRangeValueInURLQuery = (): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',

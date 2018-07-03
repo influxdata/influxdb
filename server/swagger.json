@@ -4179,7 +4179,7 @@
         },
         "type": {
           "type": "string",
-          "enum": ["csv", "tagKey", "tagValue", "fieldKey", "timeStamp"],
+          "enum": ["csv", "tagKey", "tagValue", "fieldKey", "timeStamp", "map"],
           "description":
             "The type will change the format of the output value. tagKey/fieldKey are double quoted; tagValue are single quoted; csv and timeStamp are not quoted."
         },
