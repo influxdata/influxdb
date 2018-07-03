@@ -11,12 +11,15 @@ import {
   buildLogQuery,
   parseHistogramQueryResponse,
 } from 'src/logs/utils'
-import {logConfigServerToUI, logConfigUIToServer} from 'src/logs/utils/config'
+import {
+  logConfigServerToUI,
+  // logConfigUIToServer
+} from 'src/logs/utils/config'
 import {getDeep} from 'src/utils/wrappers'
 import {
   executeQueryAsync,
-  getLogConfig as getLogConfigAJAX,
-  updateLogConfig as updateLogConfigAJAX,
+  // getLogConfig as getLogConfigAJAX,
+  // updateLogConfig as updateLogConfigAJAX,
 } from 'src/logs/api'
 import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
 
@@ -501,12 +504,114 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
   }
 }
 
+const serverLogData = {
+  columns: [
+    {
+      name: 'severity',
+      position: 1,
+      encodings: [
+        {
+          type: 'visibility',
+          value: 'visible',
+        },
+        {
+          type: 'label',
+          value: 'icon',
+        },
+        {
+          type: 'label',
+          value: 'text',
+        },
+      ],
+    },
+    {
+      name: 'timestamp',
+      position: 2,
+      encodings: [
+        {
+          type: 'visibility',
+          value: 'visible',
+        },
+      ],
+    },
+    {
+      name: 'message',
+      position: 3,
+      encodings: [
+        {
+          type: 'visibility',
+          value: 'visible',
+        },
+      ],
+    },
+    {
+      name: 'facility',
+      position: 4,
+      encodings: [
+        {
+          type: 'visibility',
+          value: 'visible',
+        },
+      ],
+    },
+    {
+      name: 'time',
+      position: 0,
+      encodings: [
+        {
+          type: 'visibility',
+          value: 'hidden',
+        },
+      ],
+    },
+    {
+      name: 'procid',
+      position: 5,
+      encodings: [
+        {
+          type: 'visibility',
+          value: 'visible',
+        },
+        {
+          type: 'displayName',
+          value: 'Proc ID',
+        },
+      ],
+    },
+    {
+      name: 'host',
+      position: 7,
+      encodings: [
+        {
+          type: 'visibility',
+          value: 'visible',
+        },
+      ],
+    },
+    {
+      name: 'appname',
+      position: 6,
+      encodings: [
+        {
+          type: 'visibility',
+          value: 'visible',
+        },
+        {
+          type: 'displayName',
+          value: 'Application',
+        },
+      ],
+    },
+  ],
+}
+
 export const getLogConfigAsync = (url: string) => async (
   dispatch: Dispatch<SetConfigsAction>
 ): Promise<void> => {
   url = url
   try {
-    const {data} = await getLogConfigAJAX(url)
+    // const {data} = await getLogConfigAJAX(url)
+    const data = serverLogData
     const logConfig = logConfigServerToUI(data)
     dispatch(setConfig(logConfig))
   } catch (error) {
@@ -517,9 +622,10 @@ export const getLogConfigAsync = (url: string) => async (
 export const updateLogConfigAsync = (url: string, config: LogConfig) => async (
   dispatch: Dispatch<SetConfigsAction>
 ): Promise<void> => {
+  url = url
   try {
-    const configForServer = logConfigUIToServer(config)
-    await updateLogConfigAJAX(url, configForServer)
+    // const configForServer = logConfigUIToServer(config)
+    // await updateLogConfigAJAX(url, configForServer)
     dispatch(setConfig(config))
   } catch (error) {
     console.error(error)
