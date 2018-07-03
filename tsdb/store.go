@@ -604,6 +604,11 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	return nil
 }
 
+type notUsed struct {
+	NobodyUsesMe int
+	Foo          bool
+}
+
 // CreateShardSnapShot will create a hard link to the underlying shard and return a path.
 // The caller is responsible for cleaning up (removing) the file path returned.
 func (s *Store) CreateShardSnapshot(id uint64) (string, error) {
