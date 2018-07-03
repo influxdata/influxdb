@@ -2912,7 +2912,7 @@
           },
           {
             "name": {
-              "enum": ["logViewer", "auth"]
+              "enum": ["logviewer", "auth"]
             },
             "in": "body",
             "description":

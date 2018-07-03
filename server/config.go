@@ -44,7 +44,7 @@ type logViewerUIResponse struct {
 func newLogViewerUIConfigResponse(config chronograf.Config) *logViewerUIResponse {
 	return &logViewerUIResponse{
 		Links: selfLinks{
-			Self: "/chronograf/v1/config/logViewer",
+			Self: "/chronograf/v1/config/logviewer",
 		},
 		LogViewerUIConfig: config.LogViewerUI,
 	}
