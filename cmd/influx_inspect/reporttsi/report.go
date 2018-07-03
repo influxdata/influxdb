@@ -171,7 +171,13 @@ func (cmd *Command) run() error {
 		return err
 	}
 
+	allIDs := make([]uint64, 0, len(cmd.shardIdxs))
 	for id := range cmd.shardIdxs {
+		allIDs = append(allIDs, id)
+	}
+	sort.Slice(allIDs, func(i int, j int) bool { return allIDs[i] < allIDs[j] })
+
+	for _, id := range allIDs {
 		if err := cmd.printShardByMeasurement(id); err != nil {
 			return err
 		}
