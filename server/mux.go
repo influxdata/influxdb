@@ -313,8 +313,8 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	// Global application config for Chronograf
 	router.GET("/chronograf/v1/config", EnsureSuperAdmin(service.Config))
-	router.GET("/chronograf/v1/config/logviewer", EnsureViewer(service.LogViewerUIConfig))
-	router.PUT("/chronograf/v1/config/logviewer", EnsureEditor(service.ReplaceLogViewerUIConfig))
+	router.GET("/chronograf/v1/config/logviewer", EnsureViewer(service.LogViewerConfig))
+	router.PUT("/chronograf/v1/config/logviewer", EnsureEditor(service.ReplaceLogViewerConfig))
 	router.GET("/chronograf/v1/config/auth", EnsureSuperAdmin(service.AuthConfig))
 	router.PUT("/chronograf/v1/config/auth", EnsureSuperAdmin(service.ReplaceAuthConfig))
 

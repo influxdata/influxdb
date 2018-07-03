@@ -716,7 +716,7 @@ func UnmarshalOrganizationPB(data []byte, o *Organization) error {
 
 // MarshalConfig encodes a config to binary protobuf format.
 func MarshalConfig(c *chronograf.Config) ([]byte, error) {
-	columns := make([]*LogViewerUIColumn, len(c.LogViewer.Columns))
+	columns := make([]*LogViewerColumn, len(c.LogViewer.Columns))
 	for i, column := range c.LogViewer.Columns {
 		encodings := make([]*ColumnEncoding, len(column.Encodings))
 
@@ -728,7 +728,7 @@ func MarshalConfig(c *chronograf.Config) ([]byte, error) {
 			}
 		}
 
-		columns[i] = &LogViewerUIColumn{
+		columns[i] = &LogViewerColumn{
 			Name:      column.Name,
 			Position:  column.Position,
 			Encodings: encodings,
@@ -738,7 +738,7 @@ func MarshalConfig(c *chronograf.Config) ([]byte, error) {
 		Auth: &AuthConfig{
 			SuperAdminNewUsers: c.Auth.SuperAdminNewUsers,
 		},
-		LogViewer: &LogViewerUIConfig{
+		LogViewer: &LogViewerConfig{
 			Columns: columns,
 		},
 	})
@@ -761,10 +761,10 @@ func UnmarshalConfig(data []byte, c *chronograf.Config) error {
 	c.Auth.SuperAdminNewUsers = pb.Auth.SuperAdminNewUsers
 
 	if pb.LogViewer == nil {
-		return fmt.Errorf("Log Viewer UI config is nil")
+		return fmt.Errorf("Log Viewer config is nil")
 	}
 
-	columns := make([]chronograf.LogViewerUIColumn, len(pb.LogViewer.Columns))
+	columns := make([]chronograf.LogViewerColumn, len(pb.LogViewer.Columns))
 
 	for i, c := range pb.LogViewer.Columns {
 		columns[i].Name = c.Name

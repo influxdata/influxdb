@@ -2876,7 +2876,7 @@
             "schema": {
               "oneOf": [
                 {
-                  "$ref": "#/definitions/LogViewerUIConfig"
+                  "$ref": "#/definitions/LogViewerConfig"
                 },
                 {
                   "$ref": "#/definitions/AuthConfig"
@@ -2920,7 +2920,7 @@
             "schema": {
               "oneOf": [
                 {
-                  "$ref": "#/definitions/LogViewerUIConfig"
+                  "$ref": "#/definitions/LogViewerConfig"
                 },
                 {
                   "$ref": "#/definitions/AuthConfig"
@@ -2932,11 +2932,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Returns an object with the updated UI settings for a specific section",
+            "description": "Returns an object with the updated settings for a specific section",
             "schema": {
               "oneOf": [
                 {
-                  "$ref": "#/definitions/LogViewerUIConfig"
+                  "$ref": "#/definitions/LogViewerConfig"
                 }
               ]
             }
@@ -5144,7 +5144,7 @@
         }
       }
     },
-    "LogViewerUIColumn": {
+    "LogViewerColumn": {
       "description": "Contains the settings for the log viewer page UI",
       "type": "object",
       "required": [
@@ -5215,7 +5215,7 @@
         ]
       }
     },
-    "LogViewerUIConfig": {
+    "LogViewerConfig": {
       "description": "Contains the settings for the log viewer page UI",
       "type": "object",
       "required": ["columns"],
@@ -5224,7 +5224,7 @@
           "description": "Defines the order, names, and visibility of columns in the log viewer table",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/LogViewerUIColumn"
+            "$ref": "#/definitions/LogViewerColumn"
           }
         }
       },

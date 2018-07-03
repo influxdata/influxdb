@@ -36,8 +36,8 @@ func (s *ConfigStore) Initialize(ctx context.Context) error {
 		Auth: chronograf.AuthConfig{
 			SuperAdminNewUsers: false,
 		},
-		LogViewer: chronograf.LogViewerUIConfig{
-			Columns: []chronograf.LogViewerUIColumn{
+		LogViewer: chronograf.LogViewerConfig{
+			Columns: []chronograf.LogViewerColumn{
 				{
 					Name:     "time",
 					Position: 0,

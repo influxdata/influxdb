@@ -35,8 +35,8 @@ func TestConfig(t *testing.T) {
 						Auth: chronograf.AuthConfig{
 							SuperAdminNewUsers: false,
 						},
-						LogViewer: chronograf.LogViewerUIConfig{
-							Columns: []chronograf.LogViewerUIColumn{
+						LogViewer: chronograf.LogViewerConfig{
+							Columns: []chronograf.LogViewerColumn{
 								{
 									Name:     "severity",
 									Position: 0,
@@ -242,7 +242,7 @@ func TestReplaceAuthConfig(t *testing.T) {
 	}
 }
 
-func TestLogViewerUIConfig(t *testing.T) {
+func TestLogViewerConfig(t *testing.T) {
 	type fields struct {
 		ConfigStore chronograf.ConfigStore
 	}
@@ -262,8 +262,8 @@ func TestLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewer: chronograf.LogViewerUIConfig{
-							Columns: []chronograf.LogViewerUIColumn{
+						LogViewer: chronograf.LogViewerConfig{
+							Columns: []chronograf.LogViewerColumn{
 								{
 									Name:     "severity",
 									Position: 0,
@@ -309,7 +309,7 @@ func TestLogViewerUIConfig(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
-			s.LogViewerUIConfig(w, r)
+			s.LogViewerConfig(w, r)
 
 			resp := w.Result()
 			content := resp.Header.Get("Content-Type")
@@ -328,7 +328,7 @@ func TestLogViewerUIConfig(t *testing.T) {
 	}
 }
 
-func TestReplaceLogViewerUIConfig(t *testing.T) {
+func TestReplaceLogViewerConfig(t *testing.T) {
 	type fields struct {
 		ConfigStore chronograf.ConfigStore
 	}
@@ -352,8 +352,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewer: chronograf.LogViewerUIConfig{
-							Columns: []chronograf.LogViewerUIColumn{
+						LogViewer: chronograf.LogViewerConfig{
+							Columns: []chronograf.LogViewerColumn{
 								{
 									Name:     "severity",
 									Position: 0,
@@ -379,8 +379,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				payload: chronograf.LogViewerUIConfig{
-					Columns: []chronograf.LogViewerUIColumn{
+				payload: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
 						{
 							Name:     "severity",
 							Position: 1,
@@ -433,8 +433,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewer: chronograf.LogViewerUIConfig{
-							Columns: []chronograf.LogViewerUIColumn{
+						LogViewer: chronograf.LogViewerConfig{
+							Columns: []chronograf.LogViewerColumn{
 								{
 									Name:     "severity",
 									Position: 0,
@@ -460,14 +460,14 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				payload: chronograf.LogViewerUIConfig{
-					Columns: []chronograf.LogViewerUIColumn{},
+				payload: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{},
 				},
 			},
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json",
-				body:        `{"code":400,"message":"Invalid log viewer UI config: must have at least 1 column"}`,
+				body:        `{"code":400,"message":"Invalid log viewer config: must have at least 1 column"}`,
 			},
 		},
 		{
@@ -475,8 +475,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewer: chronograf.LogViewerUIConfig{
-							Columns: []chronograf.LogViewerUIColumn{
+						LogViewer: chronograf.LogViewerConfig{
+							Columns: []chronograf.LogViewerColumn{
 								{
 									Name:     "procid",
 									Position: 0,
@@ -493,8 +493,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				payload: chronograf.LogViewerUIConfig{
-					Columns: []chronograf.LogViewerUIColumn{
+				payload: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
 						{
 							Name:     "procid",
 							Position: 0,
@@ -521,7 +521,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json",
-				body:        `{"code":400,"message":"Invalid log viewer UI config: Duplicate column name procid"}`,
+				body:        `{"code":400,"message":"Invalid log viewer config: Duplicate column name procid"}`,
 			},
 		},
 		{
@@ -529,8 +529,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewer: chronograf.LogViewerUIConfig{
-							Columns: []chronograf.LogViewerUIColumn{
+						LogViewer: chronograf.LogViewerConfig{
+							Columns: []chronograf.LogViewerColumn{
 								{
 									Name:     "procid",
 									Position: 0,
@@ -547,8 +547,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				payload: chronograf.LogViewerUIConfig{
-					Columns: []chronograf.LogViewerUIColumn{
+				payload: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
 						{
 							Name:     "procid",
 							Position: 0,
@@ -575,7 +575,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json",
-				body:        `{"code":400,"message":"Invalid log viewer UI config: Multiple columns with same position value"}`,
+				body:        `{"code":400,"message":"Invalid log viewer config: Multiple columns with same position value"}`,
 			},
 		},
 		{
@@ -583,8 +583,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewer: chronograf.LogViewerUIConfig{
-							Columns: []chronograf.LogViewerUIColumn{
+						LogViewer: chronograf.LogViewerConfig{
+							Columns: []chronograf.LogViewerColumn{
 								{
 									Name:     "severity",
 									Position: 0,
@@ -606,8 +606,8 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 				},
 			},
 			args: args{
-				payload: chronograf.LogViewerUIConfig{
-					Columns: []chronograf.LogViewerUIColumn{
+				payload: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
 						{
 							Name:     "severity",
 							Position: 1,
@@ -634,7 +634,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  400,
 				contentType: "application/json",
-				body:        `{"code":400,"message":"Invalid log viewer UI config: missing visibility encoding in column severity"}`,
+				body:        `{"code":400,"message":"Invalid log viewer config: missing visibility encoding in column severity"}`,
 			},
 		},
 	}
@@ -653,7 +653,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			buf, _ := json.Marshal(tt.args.payload)
 			r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 
-			s.ReplaceLogViewerUIConfig(w, r)
+			s.ReplaceLogViewerConfig(w, r)
 
 			resp := w.Result()
 			content := resp.Header.Get("Content-Type")

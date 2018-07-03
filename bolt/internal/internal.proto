@@ -208,18 +208,18 @@ message Organization {
 
 message Config {
 	AuthConfig Auth         					= 1; // Auth is the configuration for options that auth related
-	LogViewerUIConfig LogViewer                 = 2; // LogViewerUI is the configuration for the Log Viewer UI
+	LogViewerConfig LogViewer                   = 2; // LogViewer is the configuration for the Log Viewer 
 }
 
 message AuthConfig {
 	bool SuperAdminNewUsers   = 1; // SuperAdminNewUsers configuration option that specifies which users will auto become super admin
 }
 
-message LogViewerUIConfig {
-	repeated LogViewerUIColumn Columns               = 1; // Columns is the array of columns in the log viewer UI
+message LogViewerConfig {
+	repeated LogViewerColumn Columns               = 1; // Columns is the array of columns in the log viewer
 }
 
-message LogViewerUIColumn {
+message LogViewerColumn {
 	string Name                                      = 1; // Name is the unique identifier of the log viewer column
 	int32 Position                                   = 2; // Position is the position of the column in the log viewer's array of columns
 	repeated ColumnEncoding Encodings                = 3; // Encodings is the array of encoded properties associated with a log viewer column

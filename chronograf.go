@@ -739,8 +739,8 @@ type OrganizationsStore interface {
 // Config is the global application Config for parameters that can be set via
 // API, with different sections, such as Auth
 type Config struct {
-	Auth      AuthConfig        `json:"auth"`
-	LogViewer LogViewerUIConfig `json:"logViewer"`
+	Auth      AuthConfig      `json:"auth"`
+	LogViewer LogViewerConfig `json:"logViewer"`
 }
 
 // AuthConfig is the global application config section for auth parameters
@@ -748,13 +748,13 @@ type AuthConfig struct {
 	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
 }
 
-// LogViewerUIConfig is the config sections for log viewer section of the application
-type LogViewerUIConfig struct {
-	Columns []LogViewerUIColumn `json:"columns"`
+// LogViewerConfig is the config sections for log viewer section of the application
+type LogViewerConfig struct {
+	Columns []LogViewerColumn `json:"columns"`
 }
 
-// LogViewerUIColumn is a specific column of the log viewer UI
-type LogViewerUIColumn struct {
+// LogViewerColumn is a specific column of the log viewer UI
+type LogViewerColumn struct {
 	Name      string           `json:"name"`
 	Position  int32            `json:"position"`
 	Encodings []ColumnEncoding `json:"encodings"`

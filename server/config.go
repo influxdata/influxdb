@@ -36,17 +36,17 @@ func newAuthConfigResponse(config chronograf.Config) *authConfigResponse {
 	}
 }
 
-type logViewerUIResponse struct {
+type logViewerResponse struct {
 	Links selfLinks `json:"links"`
-	chronograf.LogViewerUIConfig
+	chronograf.LogViewerConfig
 }
 
-func newLogViewerUIConfigResponse(config chronograf.Config) *logViewerUIResponse {
-	return &logViewerUIResponse{
+func newLogViewerConfigResponse(config chronograf.Config) *logViewerResponse {
+	return &logViewerResponse{
 		Links: selfLinks{
 			Self: "/chronograf/v1/config/logviewer",
 		},
-		LogViewerUIConfig: config.LogViewer,
+		LogViewerConfig: config.LogViewer,
 	}
 }
 
@@ -69,8 +69,8 @@ func (s *Service) Config(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
-// LogViewerUIConfig retrieves the log viewer UI section of the global application configuration
-func (s *Service) LogViewerUIConfig(w http.ResponseWriter, r *http.Request) {
+// LogViewerConfig retrieves the log viewer UI section of the global application configuration
+func (s *Service) LogViewerConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	config, err := s.Store.Config(ctx).Get(ctx)
@@ -84,21 +84,21 @@ func (s *Service) LogViewerUIConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newLogViewerUIConfigResponse(*config)
+	res := newLogViewerConfigResponse(*config)
 
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
-// ReplaceLogViewerUIConfig replaces the log viewer UI section of the global application configuration
-func (s *Service) ReplaceLogViewerUIConfig(w http.ResponseWriter, r *http.Request) {
+// ReplaceLogViewerConfig replaces the log viewer UI section of the global application configuration
+func (s *Service) ReplaceLogViewerConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var logViewerUIConfig chronograf.LogViewerUIConfig
-	if err := json.NewDecoder(r.Body).Decode(&logViewerUIConfig); err != nil {
+	var logViewerConfig chronograf.LogViewerConfig
+	if err := json.NewDecoder(r.Body).Decode(&logViewerConfig); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
-	if err := validLogViewerUIConfig(logViewerUIConfig); err != nil {
+	if err := validLogViewerConfig(logViewerConfig); err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
@@ -112,9 +112,9 @@ func (s *Service) ReplaceLogViewerUIConfig(w http.ResponseWriter, r *http.Reques
 		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
 		return
 	}
-	config.LogViewer = logViewerUIConfig
+	config.LogViewer = logViewerConfig
 
-	res := newLogViewerUIConfigResponse(*config)
+	res := newLogViewerConfigResponse(*config)
 	if err := s.Store.Config(ctx).Update(ctx, config); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
@@ -173,14 +173,14 @@ func (s *Service) ReplaceAuthConfig(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
-// validLogViewerUIConfig ensures that the request body log viewer UI config is valid
+// validLogViewerConfig ensures that the request body log viewer UI config is valid
 // to be valid, it must: not be empty, have at least one column, not have multiple
 // columns with the same name or position value, each column must have a visbility
 // of either "visible" or "hidden" and if a column is of type severity, it must have
 // at least one severity format of type icon, text, or both
-func validLogViewerUIConfig(cfg chronograf.LogViewerUIConfig) error {
+func validLogViewerConfig(cfg chronograf.LogViewerConfig) error {
 	if len(cfg.Columns) == 0 {
-		return fmt.Errorf("Invalid log viewer UI config: must have at least 1 column")
+		return fmt.Errorf("Invalid log viewer config: must have at least 1 column")
 	}
 
 	nameMatcher := map[string]bool{}
@@ -193,11 +193,11 @@ func validLogViewerUIConfig(cfg chronograf.LogViewerUIConfig) error {
 
 		// check that each column has a unique value for the name and position properties
 		if _, ok := nameMatcher[clm.Name]; ok {
-			return fmt.Errorf("Invalid log viewer UI config: Duplicate column name %s", clm.Name)
+			return fmt.Errorf("Invalid log viewer config: Duplicate column name %s", clm.Name)
 		}
 		nameMatcher[clm.Name] = true
 		if _, ok := positionMatcher[clm.Position]; ok {
-			return fmt.Errorf("Invalid log viewer UI config: Multiple columns with same position value")
+			return fmt.Errorf("Invalid log viewer config: Multiple columns with same position value")
 		}
 		positionMatcher[clm.Position] = true
 
@@ -205,7 +205,7 @@ func validLogViewerUIConfig(cfg chronograf.LogViewerUIConfig) error {
 			if e.Type == "visibility" {
 				visibility++
 				if !(e.Value == "visible" || e.Value == "hidden") {
-					return fmt.Errorf("Invalid log viewer UI config: invalid visibility in column %s", clm.Name)
+					return fmt.Errorf("Invalid log viewer config: invalid visibility in column %s", clm.Name)
 				}
 			}
 
@@ -219,12 +219,12 @@ func validLogViewerUIConfig(cfg chronograf.LogViewerUIConfig) error {
 		}
 
 		if visibility != 1 {
-			return fmt.Errorf("Invalid log viewer UI config: missing visibility encoding in column %s", clm.Name)
+			return fmt.Errorf("Invalid log viewer config: missing visibility encoding in column %s", clm.Name)
 		}
 
 		if clm.Name == "severity" {
 			if iconCount+textCount == 0 || iconCount > 1 || textCount > 1 {
-				return fmt.Errorf("Invalid log viewer UI config: invalid number of severity format encodings in column %s", clm.Name)
+				return fmt.Errorf("Invalid log viewer config: invalid number of severity format encodings in column %s", clm.Name)
 			}
 		}
 	}
