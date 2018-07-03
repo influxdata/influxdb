@@ -86,19 +86,21 @@ const columnTarget = {
   },
 }
 
-function MyDropTarget(dropv1, dropv2, dropfunc1) {
-  return target => DropTarget(dropv1, dropv2, dropfunc1)(target) as any
+function ColumnDropTarget(dropColumnType, dropColumnTarget, dropHandler) {
+  return target =>
+    DropTarget(dropColumnType, dropColumnTarget, dropHandler)(target) as any
 }
 
-function MyDragSource(dragv1, dragv2, dragfunc1) {
-  return target => DragSource(dragv1, dragv2, dragfunc1)(target) as any
+function ColumnDragSource(dragColumnType, dragColumnSource, dragHandler) {
+  return target =>
+    DragSource(dragColumnType, dragColumnSource, dragHandler)(target) as any
 }
 
 @ErrorHandling
-@MyDropTarget(columnType, columnTarget, (connect: DropTargetConnector) => ({
+@ColumnDropTarget(columnType, columnTarget, (connect: DropTargetConnector) => ({
   connectDropTarget: connect.dropTarget(),
 }))
-@MyDragSource(
+@ColumnDragSource(
   columnType,
   columnSource,
   (connect: DragSourceConnector, monitor: DragSourceMonitor) => ({
