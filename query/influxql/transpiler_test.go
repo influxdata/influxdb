@@ -111,15 +111,6 @@ func TestTranspiler(t *testing.T) {
 											},
 										},
 										{
-											Key: &semantic.Identifier{Name: "_measurement"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-										},
-										{
 											Key: &semantic.Identifier{Name: "mean"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
@@ -131,6 +122,7 @@ func TestTranspiler(t *testing.T) {
 									},
 								},
 							},
+							MergeKey: true,
 						},
 					},
 					{
@@ -229,15 +221,6 @@ func TestTranspiler(t *testing.T) {
 											},
 										},
 										{
-											Key: &semantic.Identifier{Name: "_measurement"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-										},
-										{
 											Key: &semantic.Identifier{Name: "value"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
@@ -249,6 +232,7 @@ func TestTranspiler(t *testing.T) {
 									},
 								},
 							},
+							MergeKey: true,
 						},
 					},
 					{
@@ -457,15 +441,6 @@ func TestTranspiler(t *testing.T) {
 											},
 										},
 										{
-											Key: &semantic.Identifier{Name: "_measurement"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-										},
-										{
 											Key: &semantic.Identifier{Name: "mean"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
@@ -486,6 +461,7 @@ func TestTranspiler(t *testing.T) {
 									},
 								},
 							},
+							MergeKey: true,
 						},
 					},
 					{
@@ -677,15 +653,6 @@ func TestTranspiler(t *testing.T) {
 											},
 										},
 										{
-											Key: &semantic.Identifier{Name: "_measurement"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-										},
-										{
 											Key: &semantic.Identifier{Name: "a_b"},
 											Value: &semantic.BinaryExpression{
 												Operator: ast.AdditionOperator,
@@ -706,6 +673,7 @@ func TestTranspiler(t *testing.T) {
 									},
 								},
 							},
+							MergeKey: true,
 						},
 					},
 					{
@@ -839,15 +807,6 @@ func TestTranspiler(t *testing.T) {
 											},
 										},
 										{
-											Key: &semantic.Identifier{Name: "_measurement"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-										},
-										{
 											Key: &semantic.Identifier{Name: "mean"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
@@ -859,6 +818,7 @@ func TestTranspiler(t *testing.T) {
 									},
 								},
 							},
+							MergeKey: true,
 						},
 					},
 					{
@@ -968,15 +928,6 @@ func TestTranspiler(t *testing.T) {
 											},
 										},
 										{
-											Key: &semantic.Identifier{Name: "_measurement"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-										},
-										{
 											Key: &semantic.Identifier{Name: "mean"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
@@ -988,6 +939,7 @@ func TestTranspiler(t *testing.T) {
 									},
 								},
 							},
+							MergeKey: true,
 						},
 					},
 					{
@@ -1079,15 +1031,6 @@ func TestTranspiler(t *testing.T) {
 											},
 										},
 										{
-											Key: &semantic.Identifier{Name: "_measurement"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-										},
-										{
 											Key: &semantic.Identifier{Name: "max"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
@@ -1099,6 +1042,7 @@ func TestTranspiler(t *testing.T) {
 									},
 								},
 							},
+							MergeKey: true,
 						},
 					},
 					{
@@ -1203,15 +1147,6 @@ func TestTranspiler(t *testing.T) {
 											},
 										},
 										{
-											Key: &semantic.Identifier{Name: "_measurement"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
-												},
-												Property: "_measurement",
-											},
-										},
-										{
 											Key: &semantic.Identifier{Name: "value"},
 											Value: &semantic.MemberExpression{
 												Object: &semantic.IdentifierExpression{
@@ -1223,6 +1158,7 @@ func TestTranspiler(t *testing.T) {
 									},
 								},
 							},
+							MergeKey: true,
 						},
 					},
 					{

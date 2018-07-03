@@ -1,5 +1,6 @@
 from(db:"testdb")
   |> range(start: 2018-05-21T13:09:22.885021542Z)
   |> filter(fn: (r) => r._measurement ==  "swap")
-  |> map(mergeKey:false, fn: (r) => {_measurement:r._measurement, _time: r._time, used_percent:r._value})
+  |> group(by: ["_measurement"])
+  |> map(fn: (r) => {_time: r._time, used_percent:r._value})
   |> yield(name:"0")

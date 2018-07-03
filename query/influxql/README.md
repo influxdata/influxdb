@@ -16,6 +16,7 @@ The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent 
     6. [Evaluate the function](#evaluate-function)
 5. [Join the groups](#join-groups)
 6. [Map and eval columns](#map-and-eval)
+7. [Encoding the results](#encoding)
 
 ## <a name="identify-cursors"></a> Identify the cursors
 
@@ -106,10 +107,50 @@ If there are multiple groups, as is the case when there are multiple function ca
 
 ## <a name="map-and-eval"></a> Map and eval the columns
 
-After joining the results if a join was required, then a `map` call is used to both evaluate the math functions and name the columns.
+After joining the results if a join was required, then a `map` call is used to both evaluate the math functions and name the columns. The time is also passed through the `map()` function so it is available for the encoder.
 
-    result |> map(fn: (r) => {max: r.val1, usage_system: r.val2})
+    result |> map(fn: (r) => {_time: r._time, max: r.val1, usage_system: r.val2})
 
 This is the final result. It will also include any tags in the partition key and the time will be located in the `_time` variable.
+
+TODO(jsternberg): The `_time` variable is only needed for selectors and raw queries. We can actually drop this variable for aggregate queries and use the `_start` time from the partition key. Consider whether or not we should do this and if it is worth it.
+
+## <a name="encoding"></a> Encoding the results
+
+Each statement will be terminated by a `yield()` call. This call will embed the statement id as the result name. The result name is always of type string, but the transpiler will encode an integer in this field so it can be parsed by the encoder. For example:
+
+    result |> yield(name: "0")
+
+The edge nodes from the query specification will be used to encode the results back to the user in the JSON format used in 1.x. The JSON format from 1.x is below:
+
+    {
+        "results": [
+            {
+                "statement_id": 0,
+                "series": [
+                    {
+                        "name": "_measurement",
+                        "tags": {
+                            "key": "value"
+                        },
+                        "columns": [
+                            "time",
+                            "value"
+                        ],
+                        "values": [
+                            [
+                                "2015-01-29T21:55:43.702900257Z",
+                                2
+                            ]
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+The measurement name is retrieved from the `_measurement` column in the results. For the tags, the values in the partition key that are of type string are included with both the keys and the values mapped to each other. Any values in the partition key that are not strings, like the start and stop times, are ignored and discarded. If the `_field` key is still present in the partition key, it is also discarded. For all normal fields, they are included in the array of values for each row. The `_time` field will be renamed to `time` (or whatever the time alias is set to by the query).
+
+The chunking options that existed in 1.x are not supported by the encoder and should not be used. To minimize the amount of breaking code, using a chunking option will be ignored and the encoder will operate as normal, but it will include a message in the result so that a user can be informed that an invalid query option was used. The 1.x format has a field for sending back informational messages in it already.
 
 **TODO(jsternberg):** Find a way for a column to be both used as a tag and a field. This is not currently possible because the encoder can't tell the difference between the two.
