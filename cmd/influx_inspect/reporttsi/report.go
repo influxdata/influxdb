@@ -21,6 +21,12 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
+const (
+	// Number of series IDs to stored in slice before we convert to a roaring
+	// bitmap. Roaring bitmaps have a non-trivial initial cost to construct.
+	useBitmapN = 25
+)
+
 // Command represents the program execution for "influxd dumptsi".
 type Command struct {
 	// Standard input/output, overridden for testing.
@@ -216,8 +222,8 @@ func (c *cardinality) add(x uint64) {
 
 	c.short = append(c.short, uint32(x)) // Series IDs never get beyond 2^32
 
-	// cheaper to store in bitmap??
-	if len(c.short) > 16 {
+	// Cheaper to store in bitmap.
+	if len(c.short) > useBitmapN {
 		c.set = tsdb.NewSeriesIDSet()
 		for i := 0; i < len(c.short); i++ {
 			c.set.AddNoLock(uint64(c.short[i]))
@@ -322,8 +328,8 @@ func (r *result) addShort(ids []uint32) {
 		r.lowCardinality[id] = struct{}{}
 	}
 
-	// map now too big? TODO(edd): figure out appropriate size here.
-	if len(r.lowCardinality) > 20 {
+	// Cardinality is large enough that we will benefit from using a bitmap
+	if len(r.lowCardinality) > useBitmapN {
 		r.set = tsdb.NewSeriesIDSet()
 		for id := range r.lowCardinality {
 			r.set.AddNoLock(uint64(id))
