@@ -610,6 +610,7 @@ func (f *LogFile) appendEntry(e *LogEntry) error {
 		}
 		return err
 	}
+	f.w.Flush()
 
 	// Update in-memory file size & modification time.
 	f.size += int64(n)
