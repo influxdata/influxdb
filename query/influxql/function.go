@@ -1,7 +1,6 @@
 package influxql
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/influxdata/influxql"
@@ -45,7 +44,7 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 		cur.value = value
 		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
 	default:
-		return nil, errors.New("unimplemented")
+		return nil, fmt.Errorf("unimplemented function: %q", call.Name)
 	}
 	return cur, nil
 }
