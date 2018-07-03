@@ -1,4 +1,4 @@
-import React, {Component} from 'react'
+import React, {Component, MouseEvent} from 'react'
 
 import classnames from 'classnames'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
@@ -13,7 +13,8 @@ interface Props {
   selected: SeverityColor
   disabled?: boolean
   stretchToFit?: boolean
-  onChoose: (colors: SeverityColor) => void
+  onChoose: (severityLevel: string, colors: SeverityColor) => void
+  severityLevel: string
 }
 
 interface State {
@@ -94,8 +95,10 @@ export default class ColorDropdown extends Component<Props, State> {
               className={classnames('color-dropdown--item', {
                 active: color.name === selected.name,
               })}
+              data-tag-key={color.name}
+              data-tag-value={color.hex}
               key={i}
-              onClick={this.handleColorClick(color)}
+              onClick={this.handleColorClick}
               title={color.name}
             >
               <span
@@ -123,8 +126,13 @@ export default class ColorDropdown extends Component<Props, State> {
     this.setState({expanded: false})
   }
 
-  private handleColorClick = (color: SeverityColor) => (): void => {
-    this.props.onChoose(color)
+  private handleColorClick = (e: MouseEvent<HTMLElement>): void => {
+    const target = e.target as HTMLElement
+    const hex = target.dataset.tagValue || target.parentElement.dataset.tagValue
+    const name = target.dataset.tagKey || target.parentElement.dataset.tagKey
+
+    const color: SeverityColor = {name, hex}
+    this.props.onChoose(this.props.severityLevel, color)
     this.setState({expanded: false})
   }
 }

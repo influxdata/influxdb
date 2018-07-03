@@ -7,9 +7,9 @@ import {SeverityLevel, SeverityColor, SeverityFormat} from 'src/types/logs'
 interface Props {
   severityLevels: SeverityLevel[]
   onReset: () => void
-  onChangeSeverityLevel: (severity: string) => (override: SeverityColor) => void
+  onChangeSeverityLevel: (severity: string, override: SeverityColor) => void
   severityFormat: SeverityFormat
-  onChangeSeverityFormat: (format: SeverityFormat) => () => void
+  onChangeSeverityFormat: (format: SeverityFormat) => void
 }
 
 const SeverityConfig: SFC<Props> = ({
@@ -30,8 +30,9 @@ const SeverityConfig: SFC<Props> = ({
           <div className="logs-options--color-column">
             <ColorDropdown
               selected={config.override || config.default}
-              onChoose={onChangeSeverityLevel(config.severity)}
+              onChoose={onChangeSeverityLevel}
               stretchToFit={true}
+              severityLevel={config.severity}
             />
           </div>
         </div>

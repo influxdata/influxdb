@@ -128,7 +128,8 @@ class OptionsOverlay extends Component<Props, State> {
     this.setState({workingSeverityLevels: DEFAULT_SEVERITY_LEVELS})
   }
 
-  private handleChangeSeverityLevel = (severity: string) => (
+  private handleChangeSeverityLevel = (
+    severity: string,
     override: SeverityColor
   ): void => {
     const workingSeverityLevels = this.state.workingSeverityLevels.map(
@@ -144,7 +145,7 @@ class OptionsOverlay extends Component<Props, State> {
     this.setState({workingSeverityLevels})
   }
 
-  private handleChangeSeverityFormat = (format: SeverityFormat) => () => {
+  private handleChangeSeverityFormat = (format: SeverityFormat) => {
     this.setState({workingFormat: format})
   }
 
