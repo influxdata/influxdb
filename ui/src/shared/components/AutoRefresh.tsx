@@ -4,7 +4,7 @@ import _ from 'lodash'
 import {fetchTimeSeries} from 'src/shared/apis/query'
 import {DEFAULT_TIME_SERIES} from 'src/shared/constants/series'
 import {TimeSeriesServerResponse, TimeSeriesResponse} from 'src/types/series'
-import {Template, Source} from 'src/types'
+import {Template, Source, TemplateValue} from 'src/types'
 
 interface Axes {
   bounds: {
@@ -69,11 +69,13 @@ const AutoRefresh = (
     }
 
     public async componentDidMount() {
-      this.startNewPolling()
+      if (!this.isAwaitingSelectedValues) {
+        this.startNewPolling()
+      }
     }
 
     public async componentDidUpdate(prevProps: Props) {
-      if (!this.isPropsDifferent(prevProps)) {
+      if (this.isAwaitingSelectedValues || !this.isPropsDifferent(prevProps)) {
         return
       }
       this.startNewPolling()
@@ -191,6 +193,7 @@ const AutoRefresh = (
 
     private isPropsDifferent(nextProps: Props) {
       const isSourceDifferent = !_.isEqual(this.props.source, nextProps.source)
+
       return (
         this.props.inView !== nextProps.inView ||
         !!this.queryDifference(this.props.queries, nextProps.queries).length ||
@@ -230,6 +233,18 @@ const AutoRefresh = (
       data.every(({resp}) =>
         _.get(resp, 'results', []).every(r => Object.keys(r).length > 1)
       )
+    }
+
+    private get isAwaitingSelectedValues(): boolean {
+      const {templates} = this.props
+
+      const isAwaitingLocalSelection = (v: TemplateValue): boolean =>
+        v.localSelected === undefined
+
+      const allValues = _.flatMap(templates, t => t.values)
+      const valuesAwaitingSelection = allValues.filter(isAwaitingLocalSelection)
+
+      return valuesAwaitingSelection.length !== 0
     }
   }
 
