@@ -35,7 +35,7 @@ func TestConfig(t *testing.T) {
 						Auth: chronograf.AuthConfig{
 							SuperAdminNewUsers: false,
 						},
-						LogViewerUI: chronograf.LogViewerUIConfig{
+						LogViewer: chronograf.LogViewerUIConfig{
 							Columns: []chronograf.LogViewerUIColumn{
 								{
 									Name:     "severity",
@@ -65,7 +65,7 @@ func TestConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/config"},"auth":{"superAdminNewUsers":false},"logViewerUI":{"columns":[{"name":"severity","position":0,"encodings":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}}`,
+				body:        `{"links":{"self":"/chronograf/v1/config"},"auth":{"superAdminNewUsers":false},"logViewer":{"columns":[{"name":"severity","position":0,"encodings":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}}`,
 			},
 		},
 	}
@@ -262,7 +262,7 @@ func TestLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewerUI: chronograf.LogViewerUIConfig{
+						LogViewer: chronograf.LogViewerUIConfig{
 							Columns: []chronograf.LogViewerUIColumn{
 								{
 									Name:     "severity",
@@ -292,7 +292,7 @@ func TestLogViewerUIConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/config/logViewer"},"columns":[{"name":"severity","position":0,"encodings":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}`,
+				body:        `{"links":{"self":"/chronograf/v1/config/logviewer"},"columns":[{"name":"severity","position":0,"encodings":[{"type":"color","value":"emergency","name":"ruby"},{"type":"color","value":"info","name":"rainforest"},{"type":"displayName","value":"Log Severity"}]}]}`,
 			},
 		},
 	}
@@ -352,7 +352,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewerUI: chronograf.LogViewerUIConfig{
+						LogViewer: chronograf.LogViewerUIConfig{
 							Columns: []chronograf.LogViewerUIColumn{
 								{
 									Name:     "severity",
@@ -425,7 +425,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/config/logViewer"},"columns":[{"name":"severity","position":1,"encodings":[{"type":"color","value":"info","name":"pineapple"},{"type":"color","value":"emergency","name":"ruby"},{"type":"visibility","value":"visible"},{"type":"label","value":"icon"}]},{"name":"messages","position":0,"encodings":[{"type":"displayName","value":"Log Messages"},{"type":"visibility","value":"visible"}]}]}`,
+				body:        `{"links":{"self":"/chronograf/v1/config/logviewer"},"columns":[{"name":"severity","position":1,"encodings":[{"type":"color","value":"info","name":"pineapple"},{"type":"color","value":"emergency","name":"ruby"},{"type":"visibility","value":"visible"},{"type":"label","value":"icon"}]},{"name":"messages","position":0,"encodings":[{"type":"displayName","value":"Log Messages"},{"type":"visibility","value":"visible"}]}]}`,
 			},
 		},
 		{
@@ -433,7 +433,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewerUI: chronograf.LogViewerUIConfig{
+						LogViewer: chronograf.LogViewerUIConfig{
 							Columns: []chronograf.LogViewerUIColumn{
 								{
 									Name:     "severity",
@@ -475,7 +475,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewerUI: chronograf.LogViewerUIConfig{
+						LogViewer: chronograf.LogViewerUIConfig{
 							Columns: []chronograf.LogViewerUIColumn{
 								{
 									Name:     "procid",
@@ -529,7 +529,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewerUI: chronograf.LogViewerUIConfig{
+						LogViewer: chronograf.LogViewerUIConfig{
 							Columns: []chronograf.LogViewerUIColumn{
 								{
 									Name:     "procid",
@@ -583,7 +583,7 @@ func TestReplaceLogViewerUIConfig(t *testing.T) {
 			fields: fields{
 				ConfigStore: &mocks.ConfigStore{
 					Config: &chronograf.Config{
-						LogViewerUI: chronograf.LogViewerUIConfig{
+						LogViewer: chronograf.LogViewerUIConfig{
 							Columns: []chronograf.LogViewerUIColumn{
 								{
 									Name:     "severity",

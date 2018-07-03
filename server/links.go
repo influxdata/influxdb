@@ -12,8 +12,9 @@ type getFluxLinksResponse struct {
 }
 
 type getConfigLinksResponse struct {
-	Self string `json:"self"` // Location of the whole global application configuration
-	Auth string `json:"auth"` // Location of the auth section of the global application configuration
+	Self      string `json:"self"`      // Location of the whole global application configuration
+	Auth      string `json:"auth"`      // Location of the auth section of the global application configuration
+	LogViewer string `json:"logViewer"` // Location of the log viewer section of the global application configuration
 }
 
 type getExternalLinksResponse struct {

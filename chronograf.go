@@ -739,8 +739,8 @@ type OrganizationsStore interface {
 // Config is the global application Config for parameters that can be set via
 // API, with different sections, such as Auth
 type Config struct {
-	Auth        AuthConfig        `json:"auth"`
-	LogViewerUI LogViewerUIConfig `json:"logViewerUI"`
+	Auth      AuthConfig        `json:"auth"`
+	LogViewer LogViewerUIConfig `json:"logViewer"`
 }
 
 // AuthConfig is the global application config section for auth parameters

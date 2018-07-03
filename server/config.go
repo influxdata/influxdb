@@ -46,7 +46,7 @@ func newLogViewerUIConfigResponse(config chronograf.Config) *logViewerUIResponse
 		Links: selfLinks{
 			Self: "/chronograf/v1/config/logviewer",
 		},
-		LogViewerUIConfig: config.LogViewerUI,
+		LogViewerUIConfig: config.LogViewer,
 	}
 }
 
@@ -117,7 +117,7 @@ func (s *Service) ReplaceLogViewerUIConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	config.LogViewerUI = logViewerUIConfig
+	config.LogViewer = logViewerUIConfig
 	res = newLogViewerUIConfigResponse(*config)
 
 	if err := s.Store.Config(ctx).Update(ctx, config); err != nil {

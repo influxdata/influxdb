@@ -24,7 +24,7 @@ func TestConfig_Get(t *testing.T) {
 					Auth: chronograf.AuthConfig{
 						SuperAdminNewUsers: false,
 					},
-					LogViewerUI: chronograf.LogViewerUIConfig{
+					LogViewer: chronograf.LogViewerUIConfig{
 						Columns: []chronograf.LogViewerUIColumn{
 							{
 								Name:     "time",
@@ -172,7 +172,7 @@ func TestConfig_Update(t *testing.T) {
 					Auth: chronograf.AuthConfig{
 						SuperAdminNewUsers: false,
 					},
-					LogViewerUI: chronograf.LogViewerUIConfig{
+					LogViewer: chronograf.LogViewerUIConfig{
 						Columns: []chronograf.LogViewerUIColumn{
 							{
 								Name:     "time",
@@ -280,7 +280,7 @@ func TestConfig_Update(t *testing.T) {
 					Auth: chronograf.AuthConfig{
 						SuperAdminNewUsers: false,
 					},
-					LogViewerUI: chronograf.LogViewerUIConfig{
+					LogViewer: chronograf.LogViewerUIConfig{
 						Columns: []chronograf.LogViewerUIColumn{
 							{
 								Name:     "time",
