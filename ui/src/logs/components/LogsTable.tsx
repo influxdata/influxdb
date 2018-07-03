@@ -47,7 +47,9 @@ interface State {
   scrollTop: number
   currentRow: number
   currentMessageWidth: number
+  isMessageVisible: boolean
   lastQueryTime: number
+  visibleColumnsCount: number
 }
 
 class LogsTable extends Component<Props, State> {
@@ -63,6 +65,14 @@ class LogsTable extends Component<Props, State> {
 
     const scrollLeft = _.get(state, 'scrollLeft', 0)
 
+    let isMessageVisible: boolean = false
+    const visibleColumnsCount = props.tableColumns.filter(c => {
+      if (c.internalName === 'message') {
+        isMessageVisible = c.visible
+      }
+      return c.visible
+    }).length
+
     return {
       ...state,
       isQuerying: false,
@@ -75,6 +85,8 @@ class LogsTable extends Component<Props, State> {
         props.tableColumns,
         props.severityFormat
       ),
+      isMessageVisible,
+      visibleColumnsCount,
     }
   }
 
@@ -87,12 +99,22 @@ class LogsTable extends Component<Props, State> {
     this.grid = null
     this.headerGrid = React.createRef()
 
+    let isMessageVisible: boolean = false
+    const visibleColumnsCount = props.tableColumns.filter(c => {
+      if (c.internalName === 'message') {
+        isMessageVisible = c.visible
+      }
+      return c.visible
+    }).length
+
     this.state = {
       scrollTop: 0,
       scrollLeft: 0,
       currentRow: -1,
       currentMessageWidth: 0,
       lastQueryTime: null,
+      isMessageVisible,
+      visibleColumnsCount,
     }
   }
 
@@ -290,7 +312,11 @@ class LogsTable extends Component<Props, State> {
   private getColumnWidth = ({index}: {index: number}): number => {
     const {severityFormat} = this.props
     const column = getColumnFromData(this.props.data, index)
-    const {currentMessageWidth} = this.state
+    const {
+      currentMessageWidth,
+      isMessageVisible,
+      visibleColumnsCount,
+    } = this.state
 
     switch (column) {
       case 'message':
@@ -300,7 +326,12 @@ class LogsTable extends Component<Props, State> {
         if (column === 'severity') {
           columnKey = `${column}_${severityFormat}`
         }
-        return getColumnWidth(columnKey)
+        const width = getColumnWidth(columnKey)
+        if (!isMessageVisible) {
+          const inc = currentMessageWidth / visibleColumnsCount
+          return width + inc
+        }
+        return width
     }
   }
 
