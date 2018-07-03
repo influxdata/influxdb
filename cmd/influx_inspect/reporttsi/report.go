@@ -159,9 +159,9 @@ func (cmd *Command) run() error {
 
 	// Calculate cardinalities of shards.
 	fn := cmd.cardinalityByMeasurement
-	if cmd.byTagKey {
-		// TODO(edd)
-	}
+	// if cmd.byTagKey {
+	// TODO(edd)
+	// }
 
 	// Blocks until all work done.
 	cmd.calculateCardinalities(fn)
@@ -290,7 +290,7 @@ OUTER:
 		var e tsdb.SeriesIDElem
 		for e, err = sitr.Next(); err == nil && e.SeriesID != 0; e, err = sitr.Next() {
 			if e.SeriesID > math.MaxUint32 {
-				panic(fmt.Sprintf("series ID is too large: %d (max %d). Corrupted series file?", e.SeriesID, math.MaxUint32))
+				panic(fmt.Sprintf("series ID is too large: %d (max %d). Corrupted series file?", e.SeriesID, uint32(math.MaxUint32)))
 			}
 			c.add(e.SeriesID)
 		}
