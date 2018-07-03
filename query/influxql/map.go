@@ -112,7 +112,7 @@ func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (semantic.Expr
 	default:
 		// TODO(jsternberg): Handle the other expressions by turning them into
 		// an equivalent expression.
-		return nil, fmt.Errorf("unimplemented: %s", expr)
+		return nil, fmt.Errorf("unimplemented: %T", expr)
 	}
 }
 
@@ -145,7 +145,7 @@ func (t *transpilerState) evalBinaryExpr(expr *influxql.BinaryExpr, in cursor) (
 		}
 	}()
 	if fn == nil {
-		return nil, fmt.Errorf("unimplemented binary expression: %s", expr)
+		return nil, fmt.Errorf("unimplemented binary expression: %s", expr.Op)
 	}
 
 	lhs, err := t.mapField(expr.LHS, in)
