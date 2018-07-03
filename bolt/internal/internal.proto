@@ -97,7 +97,7 @@ message Template {
 }
 
 message TemplateValue {
-	string type             = 1; // Type can be tagKey, tagValue, fieldKey, csv, measurement, database, constant
+	string type             = 1; // Type can be tagKey, tagValue, fieldKey, csv, map, measurement, database, constant
 	string value            = 2; // Value is the specific value used to replace a template in an InfluxQL query
 	bool selected           = 3; // Selected states that this variable has been picked to use for replacement
 	string key              = 4; // Key is the key for a specific Value if the Template Type is map (optional)
