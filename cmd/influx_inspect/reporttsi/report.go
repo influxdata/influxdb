@@ -62,9 +62,9 @@ func NewCommand() *Command {
 func (cmd *Command) Run(args ...string) error {
 	fs := flag.NewFlagSet("reporttsi", flag.ExitOnError)
 	fs.StringVar(&cmd.dbPath, "db-path", "", "Path to database. Required.")
-	fs.StringVar(&cmd.seriesFilePath, "series-file", "", "Optional path to series file. Defaults _series")
+	fs.StringVar(&cmd.seriesFilePath, "series-file", "", "Optional path to series file. Defaults /path/to/db-path/_series")
 	fs.BoolVar(&cmd.byMeasurement, "measurements", true, "Segment cardinality by measurements")
-	fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys")
+	fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys (overrides `measurements`")
 	fs.IntVar(&cmd.topN, "top", 0, "Limit results to top n")
 	fs.IntVar(&cmd.concurrency, "c", runtime.GOMAXPROCS(0), "Set worker concurrency. Defaults to GOMAXPROCS setting.")
 
@@ -361,6 +361,7 @@ func (cmd *Command) printSummaryByMeasurement() error {
 	defer mitr.Close()
 
 	var name []byte
+	var totalCardinality int64
 	measurements := results{}
 	for name, err = mitr.Next(); err == nil && name != nil; name, err = mitr.Next() {
 		res := &result{name: name}
@@ -385,6 +386,7 @@ func (cmd *Command) printSummaryByMeasurement() error {
 		} else {
 			res.count = int64(res.set.Cardinality())
 		}
+		totalCardinality += res.count
 		res.set = nil
 		res.lowCardinality = nil
 		measurements = append(measurements, res)
@@ -398,8 +400,8 @@ func (cmd *Command) printSummaryByMeasurement() error {
 	sort.Sort(sort.Reverse(measurements))
 
 	tw := tabwriter.NewWriter(cmd.Stdout, 4, 4, 1, '\t', 0)
-	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\n\n", cmd.dbPath)
-	fmt.Fprint(tw, "Measurement\tExact Cardinality\n\n")
+	fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", cmd.dbPath, totalCardinality)
+	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, res := range measurements {
 		fmt.Fprintf(tw, "%q\t\t%d\n", res.name, res.count)
 	}
@@ -417,16 +419,18 @@ func (cmd *Command) printShardByMeasurement(id uint64) error {
 		return nil
 	}
 
+	var totalCardinality int64
 	all := make(cardinalities, 0, len(allMap))
 	for _, card := range allMap {
+		totalCardinality += card.cardinality()
 		all = append(all, card)
 	}
 
 	sort.Sort(sort.Reverse(all))
 
 	tw := tabwriter.NewWriter(cmd.Stdout, 4, 4, 1, '\t', 0)
-	fmt.Fprintf(tw, "===============\nShard: %d\nPath: %s\n", id, cmd.shardPaths[id])
-	fmt.Fprint(tw, "Measurement\tExact Cardinality\n\n")
+	fmt.Fprintf(tw, "===============\nShard ID: %d\nPath: %s\nCardinality (exact): %d\n\n", id, cmd.shardPaths[id], totalCardinality)
+	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
 	for _, card := range all {
 		fmt.Fprintf(tw, "%q\t\t%d\n", card.name, card.cardinality())
 	}
