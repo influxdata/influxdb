@@ -39,7 +39,7 @@ func (t *Transpiler) Transpile(ctx context.Context, txt string) (*query.Spec, er
 		stmt, ok := s.(*influxql.SelectStatement)
 		if !ok {
 			// TODO(jsternberg): Support meta queries.
-			return nil, errors.New("only supports select statements")
+			return nil, fmt.Errorf("only supports select statements: %T", s)
 		} else if err := transpiler.Transpile(ctx, i, stmt); err != nil {
 			return nil, err
 		}

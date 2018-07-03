@@ -1,6 +1,7 @@
 package influxql
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/influxdata/influxql"
@@ -74,7 +75,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		ref, ok := gr.call.Args[0].(*influxql.VarRef)
 		if !ok {
 			// TODO(jsternberg): This should be validated and figured out somewhere else.
-			return nil, errors.New("first argument to a function call must be a variable")
+			return nil, fmt.Errorf("first argument to %q must be a variable", gr.call.Name)
 		}
 		cur, err := createVarRefCursor(t, ref)
 		if err != nil {
