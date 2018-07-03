@@ -3,12 +3,25 @@ package tsm1
 import (
 	"fmt"
 	"sort"
+
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 {{range .}}
 
 // {{.Name}}Values represents a slice of {{.Name}} values.
 type {{.Name}}Values []{{.Name}}Value
+
+{{if ne .Name ""}}
+func New{{.Name}}ArrayFromValues(v {{.Name}}Values) *tsdb.{{.Name}}Array {
+	a := tsdb.New{{.Name}}ArrayLen(len(v))
+	for i, val := range v {
+		a.Timestamps[i] = val.unixnano
+		a.Values[i] = val.value
+	}
+	return a
+}
+{{end}}
 
 func (a {{.Name}}Values) MinTime() int64 {
 	return a[0].UnixNano()

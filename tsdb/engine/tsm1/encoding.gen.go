@@ -9,6 +9,8 @@ package tsm1
 import (
 	"fmt"
 	"sort"
+
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Values represents a slice of  values.
@@ -230,6 +232,15 @@ func (a Values) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
 
 // FloatValues represents a slice of Float values.
 type FloatValues []FloatValue
+
+func NewFloatArrayFromValues(v FloatValues) *tsdb.FloatArray {
+	a := tsdb.NewFloatArrayLen(len(v))
+	for i, val := range v {
+		a.Timestamps[i] = val.unixnano
+		a.Values[i] = val.value
+	}
+	return a
+}
 
 func (a FloatValues) MinTime() int64 {
 	return a[0].UnixNano()
@@ -492,6 +503,15 @@ func (a FloatValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNan
 // IntegerValues represents a slice of Integer values.
 type IntegerValues []IntegerValue
 
+func NewIntegerArrayFromValues(v IntegerValues) *tsdb.IntegerArray {
+	a := tsdb.NewIntegerArrayLen(len(v))
+	for i, val := range v {
+		a.Timestamps[i] = val.unixnano
+		a.Values[i] = val.value
+	}
+	return a
+}
+
 func (a IntegerValues) MinTime() int64 {
 	return a[0].UnixNano()
 }
@@ -752,6 +772,15 @@ func (a IntegerValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixN
 
 // UnsignedValues represents a slice of Unsigned values.
 type UnsignedValues []UnsignedValue
+
+func NewUnsignedArrayFromValues(v UnsignedValues) *tsdb.UnsignedArray {
+	a := tsdb.NewUnsignedArrayLen(len(v))
+	for i, val := range v {
+		a.Timestamps[i] = val.unixnano
+		a.Values[i] = val.value
+	}
+	return a
+}
 
 func (a UnsignedValues) MinTime() int64 {
 	return a[0].UnixNano()
@@ -1014,6 +1043,15 @@ func (a UnsignedValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].Unix
 // StringValues represents a slice of String values.
 type StringValues []StringValue
 
+func NewStringArrayFromValues(v StringValues) *tsdb.StringArray {
+	a := tsdb.NewStringArrayLen(len(v))
+	for i, val := range v {
+		a.Timestamps[i] = val.unixnano
+		a.Values[i] = val.value
+	}
+	return a
+}
+
 func (a StringValues) MinTime() int64 {
 	return a[0].UnixNano()
 }
@@ -1274,6 +1312,15 @@ func (a StringValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNa
 
 // BooleanValues represents a slice of Boolean values.
 type BooleanValues []BooleanValue
+
+func NewBooleanArrayFromValues(v BooleanValues) *tsdb.BooleanArray {
+	a := tsdb.NewBooleanArrayLen(len(v))
+	for i, val := range v {
+		a.Timestamps[i] = val.unixnano
+		a.Values[i] = val.value
+	}
+	return a
+}
 
 func (a BooleanValues) MinTime() int64 {
 	return a[0].UnixNano()
