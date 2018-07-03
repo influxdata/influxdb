@@ -2,11 +2,12 @@ import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import {Source, Namespace} from 'src/types'
 import classnames from 'classnames'
+
 import Dropdown from 'src/shared/components/Dropdown'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
-
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {TimeRange} from 'src/types'
 
 interface SourceItem {
@@ -25,6 +26,7 @@ interface Props {
   onChooseNamespace: (namespace: Namespace) => void
   onChooseTimerange: (timeRange: TimeRange) => void
   onChangeLiveUpdatingStatus: () => void
+  onShowOptionsOverlay: () => void
 }
 
 class LogViewerHeader extends PureComponent<Props> {
@@ -48,7 +50,7 @@ class LogViewerHeader extends PureComponent<Props> {
   }
 
   private get optionsComponents(): JSX.Element {
-    const {timeRange} = this.props
+    const {timeRange, onShowOptionsOverlay} = this.props
 
     return (
       <>
@@ -69,6 +71,14 @@ class LogViewerHeader extends PureComponent<Props> {
           onChooseTimeRange={this.handleChooseTimeRange}
           selected={timeRange}
         />
+        <Authorized requiredRole={EDITOR_ROLE}>
+          <button
+            className="btn btn-sm btn-square btn-default"
+            onClick={onShowOptionsOverlay}
+          >
+            <span className="icon cog-thick" />
+          </button>
+        </Authorized>
       </>
     )
   }

@@ -66,12 +66,7 @@ class LogsFilter extends PureComponent<Props, State> {
       filter: {key, operator, value},
     } = this.props
 
-    let displayKey = key
-    if (key === 'severity_1') {
-      displayKey = 'severity'
-    }
-
-    return <span>{`${displayKey} ${operator} ${value}`}</span>
+    return <span>{`${key} ${operator} ${value}`}</span>
   }
 
   private get renderEditor(): JSX.Element {

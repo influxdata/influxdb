@@ -49,11 +49,6 @@ const tableFields = [
     value: 'message',
   },
   {
-    alias: 'severity_text',
-    type: 'field',
-    value: 'severity',
-  },
-  {
     alias: 'facility',
     type: 'field',
     value: 'facility',

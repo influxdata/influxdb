@@ -1,4 +1,5 @@
 import _ from 'lodash'
+
 import {
   ActionTypes,
   Action,
@@ -8,8 +9,10 @@ import {
   DecrementQueryCountAction,
   IncrementQueryCountAction,
   ConcatMoreLogsAction,
+  SetConfigsAction,
 } from 'src/logs/actions'
 
+import {SeverityFormatOptions} from 'src/logs/constants'
 import {LogsState} from 'src/types/logs'
 
 const defaultState: LogsState = {
@@ -24,6 +27,10 @@ const defaultState: LogsState = {
   searchTerm: '',
   filters: [],
   queryCount: 0,
+  logConfig: {
+    tableColumns: [],
+    severityFormat: SeverityFormatOptions.dotText,
+  },
 }
 
 const removeFilter = (
@@ -95,6 +102,15 @@ const concatMoreLogs = (
   }
 }
 
+export const setConfigs = (state: LogsState, action: SetConfigsAction) => {
+  const {logConfig} = state
+  const {
+    logConfig: {tableColumns, severityFormat},
+  } = action.payload
+  const updatedLogConfig = {...logConfig, tableColumns, severityFormat}
+  return {...state, logConfig: updatedLogConfig}
+}
+
 export default (state: LogsState = defaultState, action: Action) => {
   switch (action.type) {
     case ActionTypes.SetSource:
@@ -130,6 +146,8 @@ export default (state: LogsState = defaultState, action: Action) => {
       return decrementQueryCount(state, action)
     case ActionTypes.ConcatMoreLogs:
       return concatMoreLogs(state, action)
+    case ActionTypes.SetConfig:
+      return setConfigs(state, action)
     default:
       return state
   }

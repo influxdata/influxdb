@@ -1,7 +1,8 @@
 import _ from 'lodash'
 import moment from 'moment'
 import {getDeep} from 'src/utils/wrappers'
-import {TableData} from 'src/types/logs'
+import {TableData, LogsTableColumn, SeverityFormat} from 'src/types/logs'
+import {SeverityFormatOptions} from 'src/logs/constants'
 
 const CHAR_WIDTH = 9
 
@@ -21,7 +22,7 @@ export const getColumnFromData = (data: TableData, index: number): string =>
   getDeep(data, `columns.${index}`, '')
 
 export const isClickable = (column: string): boolean =>
-  _.includes(['appname', 'facility', 'host', 'hostname', 'severity_1'], column)
+  _.includes(['appname', 'facility', 'host', 'hostname', 'severity'], column)
 
 export const formatColumnValue = (
   column: string,
@@ -40,19 +41,16 @@ export const formatColumnValue = (
   }
   return value
 }
-export const header = (key: string): string => {
-  return getDeep<string>(
-    {
-      timestamp: 'Timestamp',
-      procid: 'Proc ID',
-      message: 'Message',
-      appname: 'Application',
-      severity: '',
-      severity_1: 'Severity',
-    },
-    key,
-    _.capitalize(key)
-  )
+export const header = (
+  key: string,
+  headerOptions: LogsTableColumn[]
+): string => {
+  if (key === SeverityFormatOptions.dot) {
+    return ''
+  }
+
+  const headerOption = _.find(headerOptions, h => h.internalName === key)
+  return _.get(headerOption, 'displayName') || _.capitalize(key)
 }
 
 export const getColumnWidth = (column: string): number => {
@@ -61,8 +59,9 @@ export const getColumnWidth = (column: string): number => {
       timestamp: 160,
       procid: 80,
       facility: 120,
-      severity: 22,
-      severity_1: 120,
+      severity_dot: 25,
+      severity_text: 120,
+      severity_dotText: 120,
       host: 300,
     },
     column,
@@ -70,14 +69,25 @@ export const getColumnWidth = (column: string): number => {
   )
 }
 
-export const getMessageWidth = (data: TableData): number => {
+export const getMessageWidth = (
+  data: TableData,
+  tableColumns: LogsTableColumn[],
+  severityFormat: SeverityFormat
+): number => {
   const columns = getColumnsFromData(data)
   const otherWidth = columns.reduce((acc, col) => {
-    if (col === 'message' || col === 'time') {
+    const colConfig = tableColumns.find(c => c.internalName === col)
+    const isColVisible = colConfig && colConfig.visible
+    if (col === 'message' || col === 'time' || !isColVisible) {
       return acc
     }
 
-    return acc + getColumnWidth(col)
+    let columnName = col
+    if (col === 'severity') {
+      columnName = `${col}_${severityFormat}`
+    }
+
+    return acc + getColumnWidth(columnName)
   }, 0)
 
   const calculatedWidth = Math.max(

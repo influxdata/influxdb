@@ -1,5 +1,7 @@
 import moment from 'moment'
 import _ from 'lodash'
+import {Dispatch} from 'redux'
+
 import {Source, Namespace, TimeRange, QueryConfig} from 'src/types'
 import {getSource} from 'src/shared/apis'
 import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
@@ -9,16 +11,20 @@ import {
   buildLogQuery,
   parseHistogramQueryResponse,
 } from 'src/logs/utils'
+import {logConfigServerToUI, logConfigUIToServer} from 'src/logs/utils/config'
 import {getDeep} from 'src/utils/wrappers'
-import {executeQueryAsync} from 'src/logs/api'
-import {LogsState, Filter, TableData} from 'src/types/logs'
+import {
+  executeQueryAsync,
+  getLogConfig as getLogConfigAJAX,
+  updateLogConfig as updateLogConfigAJAX,
+} from 'src/logs/api'
+import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
 
 const defaultTableData: TableData = {
   columns: [
     'time',
     'severity',
     'timestamp',
-    'severity_1',
     'facility',
     'procid',
     'application',
@@ -51,6 +57,7 @@ export enum ActionTypes {
   IncrementQueryCount = 'LOGS_INCREMENT_QUERY_COUNT',
   DecrementQueryCount = 'LOGS_DECREMENT_QUERY_COUNT',
   ConcatMoreLogs = 'LOGS_CONCAT_MORE_LOGS',
+  SetConfig = 'SET_CONFIG',
 }
 
 export interface ConcatMoreLogsAction {
@@ -160,6 +167,13 @@ interface ChangeZoomAction {
   }
 }
 
+export interface SetConfigsAction {
+  type: ActionTypes.SetConfig
+  payload: {
+    logConfig: LogConfig
+  }
+}
+
 export type Action =
   | SetSourceAction
   | SetNamespacesAction
@@ -177,6 +191,7 @@ export type Action =
   | DecrementQueryCountAction
   | IncrementQueryCountAction
   | ConcatMoreLogsAction
+  | SetConfigsAction
 
 const getTimeRange = (state: State): TimeRange | null =>
   getDeep<TimeRange | null>(state, 'logs.timeRange', null)
@@ -483,5 +498,39 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
 
   if (namespace && proxyLink) {
     await dispatch(setTimeRangeAsync(timeRange))
+  }
+}
+
+export const getLogConfigAsync = (url: string) => async (
+  dispatch: Dispatch<SetConfigsAction>
+): Promise<void> => {
+  url = url
+  try {
+    const {data} = await getLogConfigAJAX(url)
+    const logConfig = logConfigServerToUI(data)
+    dispatch(setConfig(logConfig))
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const updateLogConfigAsync = (url: string, config: LogConfig) => async (
+  dispatch: Dispatch<SetConfigsAction>
+): Promise<void> => {
+  try {
+    const configForServer = logConfigUIToServer(config)
+    await updateLogConfigAJAX(url, configForServer)
+    dispatch(setConfig(config))
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const setConfig = (logConfig: LogConfig): SetConfigsAction => {
+  return {
+    type: ActionTypes.SetConfig,
+    payload: {
+      logConfig,
+    },
   }
 }

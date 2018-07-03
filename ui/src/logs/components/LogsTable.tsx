@@ -22,16 +22,15 @@ import {
 } from 'src/logs/utils/table'
 
 import timeRanges from 'src/logs/data/timeRanges'
+import {SeverityFormatOptions} from 'src/logs/constants'
 
 import {TimeRange} from 'src/types'
+import {TableData, LogsTableColumn, SeverityFormat} from 'src/types/logs'
 
 const ROW_HEIGHT = 26
 const CHAR_WIDTH = 9
 interface Props {
-  data: {
-    columns: string[]
-    values: string[]
-  }
+  data: TableData
   isScrolledToTop: boolean
   onScrollVertical: () => void
   onScrolledToTop: () => void
@@ -39,6 +38,8 @@ interface Props {
   fetchMore: (queryTimeEnd: string, time: number) => Promise<void>
   count: number
   timeRange: TimeRange
+  tableColumns: LogsTableColumn[]
+  severityFormat: SeverityFormat
 }
 
 interface State {
@@ -46,7 +47,9 @@ interface State {
   scrollTop: number
   currentRow: number
   currentMessageWidth: number
+  isMessageVisible: boolean
   lastQueryTime: number
+  visibleColumnsCount: number
 }
 
 class LogsTable extends Component<Props, State> {
@@ -62,6 +65,14 @@ class LogsTable extends Component<Props, State> {
 
     const scrollLeft = _.get(state, 'scrollLeft', 0)
 
+    let isMessageVisible: boolean = false
+    const visibleColumnsCount = props.tableColumns.filter(c => {
+      if (c.internalName === 'message') {
+        isMessageVisible = c.visible
+      }
+      return c.visible
+    }).length
+
     return {
       ...state,
       isQuerying: false,
@@ -69,7 +80,13 @@ class LogsTable extends Component<Props, State> {
       scrollTop,
       scrollLeft,
       currentRow: -1,
-      currentMessageWidth: getMessageWidth(props.data),
+      currentMessageWidth: getMessageWidth(
+        props.data,
+        props.tableColumns,
+        props.severityFormat
+      ),
+      isMessageVisible,
+      visibleColumnsCount,
     }
   }
 
@@ -82,12 +99,22 @@ class LogsTable extends Component<Props, State> {
     this.grid = null
     this.headerGrid = React.createRef()
 
+    let isMessageVisible: boolean = false
+    const visibleColumnsCount = props.tableColumns.filter(c => {
+      if (c.internalName === 'message') {
+        isMessageVisible = c.visible
+      }
+      return c.visible
+    }).length
+
     this.state = {
       scrollTop: 0,
       scrollLeft: 0,
       currentRow: -1,
       currentMessageWidth: 0,
       lastQueryTime: null,
+      isMessageVisible,
+      visibleColumnsCount,
     }
   }
 
@@ -121,10 +148,7 @@ class LogsTable extends Component<Props, State> {
   }
 
   public render() {
-    const columnCount = Math.max(
-      getColumnsFromData(this.props.data).length - 1,
-      0
-    )
+    const columnCount = Math.max(getColumnsFromData(this.props.data).length, 0)
 
     if (this.isTableEmpty) {
       return this.emptyTable
@@ -273,21 +297,41 @@ class LogsTable extends Component<Props, State> {
   }
 
   private handleWindowResize = () => {
-    this.setState({currentMessageWidth: getMessageWidth(this.props.data)})
+    this.setState({
+      currentMessageWidth: getMessageWidth(
+        this.props.data,
+        this.props.tableColumns,
+        this.props.severityFormat
+      ),
+    })
   }
 
   private handleHeaderScroll = ({scrollLeft}): void =>
     this.setState({scrollLeft})
 
   private getColumnWidth = ({index}: {index: number}): number => {
-    const column = getColumnFromData(this.props.data, index + 1)
-    const {currentMessageWidth} = this.state
+    const {severityFormat} = this.props
+    const column = getColumnFromData(this.props.data, index)
+    const {
+      currentMessageWidth,
+      isMessageVisible,
+      visibleColumnsCount,
+    } = this.state
 
     switch (column) {
       case 'message':
         return currentMessageWidth
       default:
-        return getColumnWidth(column)
+        let columnKey = column
+        if (column === 'severity') {
+          columnKey = `${column}_${severityFormat}`
+        }
+        const width = getColumnWidth(columnKey)
+        if (!isMessageVisible) {
+          const inc = currentMessageWidth / visibleColumnsCount
+          return width + inc
+        }
+        return width
     }
   }
 
@@ -327,33 +371,67 @@ class LogsTable extends Component<Props, State> {
   }
 
   private headerRenderer = ({key, style, columnIndex}) => {
-    const column = getColumnFromData(this.props.data, columnIndex + 1)
+    const column = getColumnFromData(this.props.data, columnIndex)
     const classes = 'logs-viewer--cell logs-viewer--cell-header'
+
+    let columnKey: string = column
+
+    if (column === 'severity') {
+      columnKey = this.getSeverityColumn(column)
+    }
 
     return (
       <div className={classes} style={style} key={key}>
-        {header(column)}
+        {header(columnKey, this.props.tableColumns)}
       </div>
     )
   }
 
+  private getSeverityColumn(column: string): string {
+    const {severityFormat} = this.props
+    if (severityFormat === SeverityFormatOptions.dot) {
+      return SeverityFormatOptions.dot
+    }
+    return column
+  }
+
+  private getSeverityDotText(text: string): JSX.Element {
+    const {severityFormat} = this.props
+    if (severityFormat === SeverityFormatOptions.dotText) {
+      return <span style={{padding: '5px'}}>{text}</span>
+    }
+  }
+
   private cellRenderer = ({key, style, rowIndex, columnIndex}) => {
-    const column = getColumnFromData(this.props.data, columnIndex + 1)
-    const value = getValueFromData(this.props.data, rowIndex, columnIndex + 1)
+    const {severityFormat} = this.props
+
+    const column = getColumnFromData(this.props.data, columnIndex)
+    const value = getValueFromData(this.props.data, rowIndex, columnIndex)
 
     let formattedValue: string | JSX.Element
-    if (column === 'severity') {
+    const isDotNeeded =
+      severityFormat === SeverityFormatOptions.dot ||
+      severityFormat === SeverityFormatOptions.dotText
+
+    let title: string
+
+    if (column === 'severity' && isDotNeeded) {
+      title = value
       formattedValue = (
-        <div
-          className={`logs-viewer--dot ${value}-severity`}
-          title={value}
-          onMouseOver={this.handleMouseEnter}
-          data-index={rowIndex}
-          style={this.severityDotStyle(value)}
-        />
+        <>
+          <div
+            className={`logs-viewer--dot ${value}-severity`}
+            title={value}
+            onMouseOver={this.handleMouseEnter}
+            data-index={rowIndex}
+            style={this.severityDotStyle(value)}
+          />
+          {this.getSeverityDotText(value)}
+        </>
       )
     } else {
       formattedValue = formatColumnValue(column, value, this.rowCharLimit)
+      title = formattedValue
     }
 
     const highlightRow = rowIndex === this.state.currentRow
@@ -364,7 +442,7 @@ class LogsTable extends Component<Props, State> {
           className={classnames('logs-viewer--cell', {
             highlight: highlightRow,
           })}
-          title={`Filter by '${formattedValue}'`}
+          title={`Filter by '${title}'`}
           style={{...style, padding: '5px'}}
           key={key}
           data-index={rowIndex}
@@ -418,9 +496,10 @@ class LogsTable extends Component<Props, State> {
   private handleTagClick = (e: MouseEvent<HTMLElement>) => {
     const {onTagSelection} = this.props
     const target = e.target as HTMLElement
+
     const selection = {
-      tag: target.dataset.tagValue,
-      key: target.dataset.tagKey,
+      tag: target.dataset.tagValue || target.parentElement.dataset.tagValue,
+      key: target.dataset.tagKey || target.parentElement.dataset.tagKey,
     }
 
     onTagSelection(selection)

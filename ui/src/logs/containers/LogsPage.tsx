@@ -15,20 +15,40 @@ import {
   removeFilter,
   changeFilter,
   fetchMoreAsync,
+  getLogConfigAsync,
+  updateLogConfigAsync,
 } from 'src/logs/actions'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 import LogViewerHeader from 'src/logs/components/LogViewerHeader'
 import HistogramChart from 'src/shared/components/HistogramChart'
 import LogsGraphContainer from 'src/logs/components/LogsGraphContainer'
+import OptionsOverlay from 'src/logs/components/OptionsOverlay'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogsTable from 'src/logs/components/LogsTable'
 import {getDeep} from 'src/utils/wrappers'
 import {colorForSeverity} from 'src/logs/utils/colors'
+import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
+import {
+  orderTableColumns,
+  filterTableColumns,
+} from 'src/dashboards/utils/tableGraph'
 
+import {SeverityFormatOptions} from 'src/logs/constants'
 import {Source, Namespace, TimeRange} from 'src/types'
-import {Filter} from 'src/types/logs'
+
 import {HistogramData, TimePeriod} from 'src/types/histogram'
+import {
+  Filter,
+  SeverityLevel,
+  SeverityFormat,
+  LogsTableColumn,
+  LogConfig,
+  TableData,
+} from 'src/types/logs'
+
+// Mock
+import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
 
 interface Props {
   sources: Source[]
@@ -46,20 +66,22 @@ interface Props {
   addFilter: (filter: Filter) => void
   removeFilter: (id: string) => void
   changeFilter: (id: string, operator: string, value: string) => void
+  getConfig: (url: string) => Promise<void>
+  updateConfig: (url: string, config: LogConfig) => Promise<void>
   timeRange: TimeRange
   histogramData: HistogramData
-  tableData: {
-    columns: string[]
-    values: string[]
-  }
+  tableData: TableData
   searchTerm: string
   filters: Filter[]
   queryCount: number
+  logConfig: LogConfig
+  logConfigLink: string
 }
 
 interface State {
   searchString: string
   liveUpdating: boolean
+  isOverlayVisible: boolean
 }
 
 class LogsPage extends PureComponent<Props, State> {
@@ -71,6 +93,7 @@ class LogsPage extends PureComponent<Props, State> {
     this.state = {
       searchString: '',
       liveUpdating: false,
+      isOverlayVisible: false,
     }
   }
 
@@ -82,6 +105,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   public componentDidMount() {
     this.props.getSources()
+    this.props.getConfig(this.logConfigLink)
 
     if (this.props.currentNamespace) {
       this.fetchNewDataset()
@@ -99,34 +123,63 @@ class LogsPage extends PureComponent<Props, State> {
     const {searchTerm, filters, queryCount, timeRange} = this.props
 
     return (
-      <div className="page">
-        {this.header}
-        <div className="page-contents logs-viewer">
-          <LogsGraphContainer>{this.chart}</LogsGraphContainer>
-          <SearchBar
-            searchString={searchTerm}
-            onSearch={this.handleSubmitSearch}
-          />
-          <FilterBar
-            numResults={this.histogramTotal}
-            filters={filters || []}
-            onDelete={this.handleFilterDelete}
-            onFilterChange={this.handleFilterChange}
-            queryCount={queryCount}
-          />
-          <LogsTable
-            count={this.histogramTotal}
-            data={this.props.tableData}
-            onScrollVertical={this.handleVerticalScroll}
-            onScrolledToTop={this.handleScrollToTop}
-            isScrolledToTop={liveUpdating}
-            onTagSelection={this.handleTagSelection}
-            fetchMore={this.props.fetchMoreAsync}
-            timeRange={timeRange}
-          />
+      <>
+        <div className="page">
+          {this.header}
+          <div className="page-contents logs-viewer">
+            <LogsGraphContainer>{this.chart}</LogsGraphContainer>
+            <SearchBar
+              searchString={searchTerm}
+              onSearch={this.handleSubmitSearch}
+            />
+            <FilterBar
+              numResults={this.histogramTotal}
+              filters={filters || []}
+              onDelete={this.handleFilterDelete}
+              onFilterChange={this.handleFilterChange}
+              queryCount={queryCount}
+            />
+            <LogsTable
+              count={this.histogramTotal}
+              data={this.tableData}
+              onScrollVertical={this.handleVerticalScroll}
+              onScrolledToTop={this.handleScrollToTop}
+              isScrolledToTop={liveUpdating}
+              onTagSelection={this.handleTagSelection}
+              fetchMore={this.props.fetchMoreAsync}
+              timeRange={timeRange}
+              tableColumns={this.tableColumns}
+              severityFormat={this.severityFormat}
+            />
+          </div>
         </div>
-      </div>
+        {this.renderImportOverlay()}
+      </>
     )
+  }
+
+  private get tableData(): TableData {
+    const {tableData} = this.props
+    const tableColumns = this.tableColumns
+    const columns = _.get(tableData, 'columns', [])
+    const values = _.get(tableData, 'values', [])
+    const data = [columns, ...values]
+
+    const filteredData = filterTableColumns(data, tableColumns)
+    const orderedData = orderTableColumns(filteredData, tableColumns)
+    const updatedColumns: string[] = _.get(orderedData, '0', [])
+    const updatedValues = _.slice(orderedData, 1)
+
+    return {columns: updatedColumns, values: updatedValues}
+  }
+
+  private get logConfigLink(): string {
+    return this.props.logConfigLink
+  }
+
+  private get tableColumns(): LogsTableColumn[] {
+    const {logConfig} = this.props
+    return _.get(logConfig, 'tableColumns', [])
   }
 
   private get isSpecificTimeRange(): boolean {
@@ -158,7 +211,6 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private handleTagSelection = (selection: {tag: string; key: string}) => {
-    // Do something with the tag
     this.props.addFilter({
       id: uuid.v4(),
       key: selection.key,
@@ -219,6 +271,7 @@ class LogsPage extends PureComponent<Props, State> {
         currentNamespaces={currentNamespaces}
         currentNamespace={currentNamespace}
         onChangeLiveUpdatingStatus={this.handleChangeLiveUpdatingStatus}
+        onShowOptionsOverlay={this.handleToggleOverlay}
       />
     )
   }
@@ -282,10 +335,66 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.executeQueriesAsync()
     this.setState({liveUpdating: true})
   }
+
+  private handleToggleOverlay = (): void => {
+    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
+  }
+
+  private renderImportOverlay = (): JSX.Element => {
+    const {isOverlayVisible} = this.state
+
+    return (
+      <OverlayTechnology visible={isOverlayVisible}>
+        <OptionsOverlay
+          severityLevels={DEFAULT_SEVERITY_LEVELS} // Todo: replace with real
+          onUpdateSeverityLevels={this.handleUpdateSeverityLevels}
+          onDismissOverlay={this.handleToggleOverlay}
+          columns={this.tableColumns}
+          onUpdateColumns={this.handleUpdateColumns}
+          onUpdateSeverityFormat={this.handleUpdateSeverityFormat}
+          severityFormat={this.severityFormat}
+        />
+      </OverlayTechnology>
+    )
+  }
+
+  private handleUpdateSeverityLevels = (levels: SeverityLevel[]) => {
+    // Todo: Handle saving of these new severity colors here
+    levels = levels
+  }
+
+  private handleUpdateSeverityFormat = async (format: SeverityFormat) => {
+    const {logConfig} = this.props
+    await this.props.updateConfig(this.logConfigLink, {
+      ...logConfig,
+      severityFormat: format,
+    })
+  }
+
+  private get severityFormat(): SeverityFormat {
+    const {logConfig} = this.props
+    const severityFormat = _.get(
+      logConfig,
+      'severityFormat',
+      SeverityFormatOptions.dotText
+    )
+    return severityFormat
+  }
+
+  private handleUpdateColumns = async (tableColumns: LogsTableColumn[]) => {
+    const {logConfig} = this.props
+    await this.props.updateConfig(this.logConfigLink, {
+      ...logConfig,
+      tableColumns,
+    })
+  }
 }
 
 const mapStateToProps = ({
   sources,
+  links: {
+    config: {logViewer},
+  },
   logs: {
     currentSource,
     currentNamespaces,
@@ -296,6 +405,7 @@ const mapStateToProps = ({
     searchTerm,
     filters,
     queryCount,
+    logConfig,
   },
 }) => ({
   sources,
@@ -308,6 +418,8 @@ const mapStateToProps = ({
   searchTerm,
   filters,
   queryCount,
+  logConfig,
+  logConfigLink: logViewer,
 })
 
 const mapDispatchToProps = {
@@ -322,6 +434,8 @@ const mapDispatchToProps = {
   removeFilter,
   changeFilter,
   fetchMoreAsync,
+  getConfig: getLogConfigAsync,
+  updateConfig: updateLogConfigAsync,
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(LogsPage)
