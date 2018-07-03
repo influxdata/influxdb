@@ -4,7 +4,7 @@ import Dropdown from 'src/shared/components/Dropdown'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
-import Authorized, {isUserAuthorized, EDITOR_ROLE} from 'src/auth/Authorized'
+import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
 import {Template, Source, TemplateValueType} from 'src/types'
 
@@ -33,14 +33,7 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      template,
-      isUsingAuth,
-      meRole,
-      source,
-      onPickTemplate,
-      onCreateTemplate,
-    } = this.props
+    const {template, source, onPickTemplate, onCreateTemplate} = this.props
     const {isEditing} = this.state
 
     const dropdownItems = template.values.map(value => {
@@ -65,7 +58,6 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
           menuClass="dropdown-astronaut"
           useAutoComplete={true}
           selected={localSelectedItem.text}
-          disabled={isUsingAuth && !isUserAuthorized(meRole, EDITOR_ROLE)}
           onChoose={onPickTemplate(template.id)}
         />
         <Authorized requiredRole={EDITOR_ROLE}>
