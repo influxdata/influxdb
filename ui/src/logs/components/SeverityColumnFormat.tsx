@@ -1,5 +1,6 @@
 import React, {PureComponent, MouseEvent} from 'react'
 
+import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SeverityFormatOptions} from 'src/logs/constants'
 import {SeverityFormat} from 'src/types/logs'
 
@@ -16,6 +17,7 @@ const className = (name: SeverityFormat, format: SeverityFormat): string => {
   return null
 }
 
+@ErrorHandling
 class SeverityColumnFormat extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
