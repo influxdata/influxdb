@@ -43,6 +43,7 @@ import (
 //go:generate tmpl -data=@file_store.gen.go.tmpldata file_store.gen.go.tmpl
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
+//go:generate tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
 
 func init() {
 	tsdb.RegisterEngine("tsm1", NewEngine)

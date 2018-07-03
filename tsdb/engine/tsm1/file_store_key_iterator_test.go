@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestNewMergeKeyIterator(t *testing.T) {
@@ -194,5 +195,25 @@ func (*mockTSMFile) ReadStringBlockAt(*IndexEntry, *[]StringValue) ([]StringValu
 }
 
 func (*mockTSMFile) ReadBooleanBlockAt(*IndexEntry, *[]BooleanValue) ([]BooleanValue, error) {
+	panic("implement me")
+}
+
+func (*mockTSMFile) ReadFloatArrayBlockAt(*IndexEntry, *tsdb.FloatArray) error {
+	panic("implement me")
+}
+
+func (*mockTSMFile) ReadIntegerArrayBlockAt(*IndexEntry, *tsdb.IntegerArray) error {
+	panic("implement me")
+}
+
+func (*mockTSMFile) ReadUnsignedArrayBlockAt(*IndexEntry, *tsdb.UnsignedArray) error {
+	panic("implement me")
+}
+
+func (*mockTSMFile) ReadStringArrayBlockAt(*IndexEntry, *tsdb.StringArray) error {
+	panic("implement me")
+}
+
+func (*mockTSMFile) ReadBooleanArrayBlockAt(*IndexEntry, *tsdb.BooleanArray) error {
 	panic("implement me")
 }
