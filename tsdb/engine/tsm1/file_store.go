@@ -46,10 +46,15 @@ type TSMFile interface {
 	// ReadAt returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
 	ReadFloatBlockAt(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error)
+	ReadFloatArrayBlockAt(entry *IndexEntry, values *tsdb.FloatArray) error
 	ReadIntegerBlockAt(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error)
+	ReadIntegerArrayBlockAt(entry *IndexEntry, values *tsdb.IntegerArray) error
 	ReadUnsignedBlockAt(entry *IndexEntry, values *[]UnsignedValue) ([]UnsignedValue, error)
+	ReadUnsignedArrayBlockAt(entry *IndexEntry, values *tsdb.UnsignedArray) error
 	ReadStringBlockAt(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
+	ReadStringArrayBlockAt(entry *IndexEntry, values *tsdb.StringArray) error
 	ReadBooleanBlockAt(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
+	ReadBooleanArrayBlockAt(entry *IndexEntry, values *tsdb.BooleanArray) error
 
 	// Entries returns the index entries for all blocks for the given key.
 	Entries(key []byte) []IndexEntry
