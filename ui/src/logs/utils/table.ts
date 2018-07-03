@@ -32,8 +32,6 @@ export const formatColumnValue = (
   switch (column) {
     case 'timestamp':
       return moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
-    case 'time':
-      return moment(+value / 1000000).format('YYYY/MM/DD HH:mm:ss')
     case 'message':
       value = (value || 'No Message Provided').replace('\\n', '')
       if (value.indexOf(' ') > charLimit - 5) {
@@ -80,7 +78,7 @@ export const getMessageWidth = (
   const otherWidth = columns.reduce((acc, col) => {
     const colConfig = tableColumns.find(c => c.internalName === col)
     const isColVisible = colConfig && colConfig.visible
-    if (col === 'message' || !isColVisible) {
+    if (col === 'message' || col === 'time' || !isColVisible) {
       return acc
     }
 

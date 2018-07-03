@@ -12,27 +12,34 @@ interface Props {
 
 class ColumnsOptions extends Component<Props> {
   public render() {
-    const {columns, onMoveColumn, onUpdateColumn} = this.props
+    const {columns} = this.props
 
     return (
       <>
         <label className="form-label">Table Columns</label>
         <div className="logs-options--columns">
-          {columns.map((c, i) => (
-            <DraggableColumn
-              key={c.internalName}
-              index={i}
-              id={c.internalName}
-              internalName={c.internalName}
-              displayName={c.displayName}
-              visible={c.visible}
-              onUpdateColumn={onUpdateColumn}
-              onMoveColumn={onMoveColumn}
-            />
-          ))}
+          {columns.map((c, i) => this.getDraggableColumn(c, i))}
         </div>
       </>
     )
+  }
+
+  private getDraggableColumn(column: LogsTableColumn, i: number): JSX.Element {
+    const {onMoveColumn, onUpdateColumn} = this.props
+    if (column.internalName !== 'time') {
+      return (
+        <DraggableColumn
+          key={column.internalName}
+          index={i}
+          id={column.internalName}
+          internalName={column.internalName}
+          displayName={column.displayName}
+          visible={column.visible}
+          onUpdateColumn={onUpdateColumn}
+          onMoveColumn={onMoveColumn}
+        />
+      )
+    }
   }
 }
 

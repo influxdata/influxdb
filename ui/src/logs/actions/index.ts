@@ -506,7 +506,7 @@ export const getLogConfigAsync = (url: string) => async (
 ): Promise<void> => {
   url = url
   try {
-    const {data} = await getLogConfigAJAX(url) // TODO: uncomment and replace following line when backend is ready
+    const {data} = await getLogConfigAJAX(url)
     const logConfig = logConfigServerToUI(data)
     dispatch(setConfig(logConfig))
   } catch (error) {
@@ -519,7 +519,7 @@ export const updateLogConfigAsync = (url: string, config: LogConfig) => async (
 ): Promise<void> => {
   try {
     const configForServer = logConfigUIToServer(config)
-    await updateLogConfigAJAX(url, configForServer) // TODO: uncomment when backend is ready
+    await updateLogConfigAJAX(url, configForServer)
     dispatch(setConfig(config))
   } catch (error) {
     console.error(error)

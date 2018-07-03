@@ -159,8 +159,8 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private get tableData(): TableData {
-    const {logConfig, tableData} = this.props
-    const tableColumns = _.get(logConfig, 'tableColumns', [])
+    const {tableData} = this.props
+    const tableColumns = this.tableColumns
     const columns = _.get(tableData, 'columns', [])
     const values = _.get(tableData, 'values', [])
     const data = [columns, ...values]
@@ -349,7 +349,7 @@ class LogsPage extends PureComponent<Props, State> {
           severityLevels={DEFAULT_SEVERITY_LEVELS} // Todo: replace with real
           onUpdateSeverityLevels={this.handleUpdateSeverityLevels}
           onDismissOverlay={this.handleToggleOverlay}
-          columns={this.columns}
+          columns={this.tableColumns}
           onUpdateColumns={this.handleUpdateColumns}
           onUpdateSeverityFormat={this.handleUpdateSeverityFormat}
           severityFormat={this.severityFormat}
@@ -369,13 +369,6 @@ class LogsPage extends PureComponent<Props, State> {
       ...logConfig,
       severityFormat: format,
     })
-  }
-
-  private get columns(): LogsTableColumn[] {
-    const {logConfig} = this.props
-    const tableColumns = _.get(logConfig, 'tableColumns', [])
-
-    return tableColumns
   }
 
   private get severityFormat(): SeverityFormat {
