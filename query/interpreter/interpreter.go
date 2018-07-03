@@ -10,50 +10,55 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Eval(program *semantic.Program, scope *Scope) error {
+func Eval(program *semantic.Program, scope *Scope) ([]values.Value, error) {
 	itrp := interpreter{}
-	return itrp.eval(program, scope)
+	err := itrp.eval(program, scope)
+	return itrp.values, err
 }
 
 type interpreter struct {
+	values []values.Value
 }
 
-func (itrp interpreter) eval(program *semantic.Program, scope *Scope) error {
+func (itrp *interpreter) eval(program *semantic.Program, scope *Scope) error {
 	for _, stmt := range program.Body {
-		if err := itrp.doStatement(stmt, scope); err != nil {
+		val, err := itrp.doStatement(stmt, scope)
+		if err != nil {
 			return err
+		}
+		if val != nil {
+			itrp.values = append(itrp.values, val)
 		}
 	}
 	return nil
 }
 
-func (itrp interpreter) doStatement(stmt semantic.Statement, scope *Scope) error {
+// doStatement returns the resolved value of a top-level statement
+func (itrp *interpreter) doStatement(stmt semantic.Statement, scope *Scope) (values.Value, error) {
 	scope.SetReturn(values.InvalidValue)
 	switch s := stmt.(type) {
 	case *semantic.OptionStatement:
-		if err := itrp.doStatement(s.Declaration, scope); err != nil {
-			return err
-		}
+		return itrp.doStatement(s.Declaration, scope)
 	case *semantic.NativeVariableDeclaration:
-		if err := itrp.doVariableDeclaration(s, scope); err != nil {
-			return err
-		}
+		return itrp.doVariableDeclaration(s, scope)
 	case *semantic.ExpressionStatement:
 		v, err := itrp.doExpression(s.Expression, scope)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		scope.SetReturn(v)
+		return v, nil
 	case *semantic.BlockStatement:
 		nested := scope.Nest()
 		for i, stmt := range s.Body {
-			if err := itrp.doStatement(stmt, nested); err != nil {
-				return err
+			_, err := itrp.doStatement(stmt, nested)
+			if err != nil {
+				return nil, err
 			}
 			// Validate a return statement is the last statement
 			if _, ok := stmt.(*semantic.ReturnStatement); ok {
 				if i != len(s.Body)-1 {
-					return errors.New("return statement is not the last statement in the block")
+					return nil, errors.New("return statement is not the last statement in the block")
 				}
 			}
 		}
@@ -63,25 +68,25 @@ func (itrp interpreter) doStatement(stmt semantic.Statement, scope *Scope) error
 	case *semantic.ReturnStatement:
 		v, err := itrp.doExpression(s.Argument, scope)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		scope.SetReturn(v)
 	default:
-		return fmt.Errorf("unsupported statement type %T", stmt)
+		return nil, fmt.Errorf("unsupported statement type %T", stmt)
 	}
-	return nil
+	return nil, nil
 }
 
-func (itrp interpreter) doVariableDeclaration(declaration *semantic.NativeVariableDeclaration, scope *Scope) error {
+func (itrp *interpreter) doVariableDeclaration(declaration *semantic.NativeVariableDeclaration, scope *Scope) (values.Value, error) {
 	value, err := itrp.doExpression(declaration.Init, scope)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	scope.Set(declaration.Identifier.Name, value)
-	return nil
+	return value, nil
 }
 
-func (itrp interpreter) doExpression(expr semantic.Expression, scope *Scope) (values.Value, error) {
+func (itrp *interpreter) doExpression(expr semantic.Expression, scope *Scope) (values.Value, error) {
 	switch e := expr.(type) {
 	case semantic.Literal:
 		return itrp.doLiteral(e)
@@ -194,7 +199,7 @@ func (itrp interpreter) doExpression(expr semantic.Expression, scope *Scope) (va
 			return nil, fmt.Errorf("invalid logical operator %v", e.Operator)
 		}
 	case *semantic.FunctionExpression:
-		return function{
+		return &function{
 			e:     e,
 			scope: scope.Nest(),
 		}, nil
@@ -203,7 +208,7 @@ func (itrp interpreter) doExpression(expr semantic.Expression, scope *Scope) (va
 	}
 }
 
-func (itrp interpreter) doArray(a *semantic.ArrayExpression, scope *Scope) (values.Value, error) {
+func (itrp *interpreter) doArray(a *semantic.ArrayExpression, scope *Scope) (values.Value, error) {
 	elements := make([]values.Value, len(a.Elements))
 	elementType := semantic.EmptyArrayType.ElementType()
 	for i, el := range a.Elements {
@@ -222,7 +227,7 @@ func (itrp interpreter) doArray(a *semantic.ArrayExpression, scope *Scope) (valu
 	return values.NewArrayWithBacking(elementType, elements), nil
 }
 
-func (itrp interpreter) doObject(m *semantic.ObjectExpression, scope *Scope) (values.Value, error) {
+func (itrp *interpreter) doObject(m *semantic.ObjectExpression, scope *Scope) (values.Value, error) {
 	obj := values.NewObject()
 	for _, p := range m.Properties {
 		v, err := itrp.doExpression(p.Value, scope)
@@ -237,7 +242,7 @@ func (itrp interpreter) doObject(m *semantic.ObjectExpression, scope *Scope) (va
 	return obj, nil
 }
 
-func (itrp interpreter) doLiteral(lit semantic.Literal) (values.Value, error) {
+func (itrp *interpreter) doLiteral(lit semantic.Literal) (values.Value, error) {
 	switch l := lit.(type) {
 	case *semantic.DateTimeLiteral:
 		return values.NewTimeValue(values.Time(l.Value.UnixNano())), nil
@@ -283,7 +288,7 @@ func DoFunctionCall(f func(args Arguments) (values.Value, error), argsObj values
 	return v, nil
 }
 
-func (itrp interpreter) doCall(call *semantic.CallExpression, scope *Scope) (values.Value, error) {
+func (itrp *interpreter) doCall(call *semantic.CallExpression, scope *Scope) (values.Value, error) {
 	callee, err := itrp.doExpression(call.Callee, scope)
 	if err != nil {
 		return nil, err
@@ -298,17 +303,23 @@ func (itrp interpreter) doCall(call *semantic.CallExpression, scope *Scope) (val
 	}
 
 	// Check if the function is an interpFunction and rebind it.
-	if af, ok := f.(function); ok {
+	if af, ok := f.(*function); ok {
 		af.itrp = itrp
 		f = af
-
 	}
 
 	// Call the function
-	return f.Call(argObj)
+	value, err := f.Call(argObj)
+	if err != nil {
+		return nil, err
+	}
+	if f.HasSideEffect() {
+		itrp.values = append(itrp.values, value)
+	}
+	return value, nil
 }
 
-func (itrp interpreter) doArguments(args *semantic.ObjectExpression, scope *Scope) (values.Object, error) {
+func (itrp *interpreter) doArguments(args *semantic.ObjectExpression, scope *Scope) (values.Object, error) {
 	obj := values.NewObject()
 	if args == nil || len(args.Properties) == 0 {
 		return obj, nil
@@ -444,48 +455,60 @@ type function struct {
 	scope *Scope
 	call  func(Arguments) (values.Value, error)
 
-	itrp interpreter
+	itrp *interpreter
 }
 
-func (f function) Type() semantic.Type {
+func (f *function) Type() semantic.Type {
 	return f.e.Type()
 }
 
-func (f function) Str() string {
+func (f *function) Str() string {
 	panic(values.UnexpectedKind(semantic.Object, semantic.String))
 }
-func (f function) Int() int64 {
+func (f *function) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Int))
 }
-func (f function) UInt() uint64 {
+func (f *function) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Object, semantic.UInt))
 }
-func (f function) Float() float64 {
+func (f *function) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Float))
 }
-func (f function) Bool() bool {
+func (f *function) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Bool))
 }
-func (f function) Time() values.Time {
+func (f *function) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Time))
 }
-func (f function) Duration() values.Duration {
+func (f *function) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Duration))
 }
-func (f function) Regexp() *regexp.Regexp {
+func (f *function) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Regexp))
 }
-func (f function) Array() values.Array {
+func (f *function) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Function))
 }
-func (f function) Object() values.Object {
+func (f *function) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Object))
 }
-func (f function) Function() values.Function {
+func (f *function) Function() values.Function {
 	return f
 }
+func (f *function) Equal(rhs values.Value) bool {
+	if f.Type() != rhs.Type() {
+		return false
+	}
+	v, ok := rhs.(*function)
+	return ok && (f == v)
+}
+func (f *function) HasSideEffect() bool {
+	// Function definitions do not produce side effects.
+	// Only a function call expression can produce side effects.
+	return false
+}
 
-func (f function) Call(argsObj values.Object) (values.Value, error) {
+func (f *function) Call(argsObj values.Object) (values.Value, error) {
 	args := newArguments(argsObj)
 	v, err := f.doCall(args)
 	if err != nil {
@@ -496,7 +519,7 @@ func (f function) Call(argsObj values.Object) (values.Value, error) {
 	}
 	return v, nil
 }
-func (f function) doCall(args Arguments) (values.Value, error) {
+func (f *function) doCall(args Arguments) (values.Value, error) {
 	for _, p := range f.e.Params {
 		if p.Default == nil {
 			v, err := args.GetRequired(p.Key.Name)
@@ -521,7 +544,7 @@ func (f function) doCall(args Arguments) (values.Value, error) {
 	case semantic.Expression:
 		return f.itrp.doExpression(n, f.scope)
 	case semantic.Statement:
-		err := f.itrp.doStatement(n, f.scope)
+		_, err := f.itrp.doStatement(n, f.scope)
 		if err != nil {
 			return nil, err
 		}
@@ -557,7 +580,7 @@ func ResolveFunction(f values.Function) (*semantic.FunctionExpression, error) {
 }
 
 // Resolve rewrites the function resolving any identifiers not listed in the function params.
-func (f function) Resolve() (semantic.Node, error) {
+func (f *function) Resolve() (semantic.Node, error) {
 	n := f.e.Copy()
 	node, err := f.resolveIdentifiers(n)
 	if err != nil {

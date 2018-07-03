@@ -24,7 +24,7 @@ var yieldSignature = semantic.FunctionSignature{
 }
 
 func init() {
-	query.RegisterFunction(YieldKind, createYieldOpSpec, yieldSignature)
+	query.RegisterFunctionWithSideEffect(YieldKind, createYieldOpSpec, yieldSignature)
 	query.RegisterOpSpec(YieldKind, newYieldOp)
 	plan.RegisterProcedureSpec(YieldKind, newYieldProcedure, YieldKind)
 }

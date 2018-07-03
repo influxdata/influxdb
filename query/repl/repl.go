@@ -48,7 +48,7 @@ func addBuiltIn(script string, scope *interpreter.Scope, declarations semantic.D
 		return errors.Wrap(err, "failed to create semantic graph for builtin")
 	}
 
-	if err := interpreter.Eval(semProg, scope); err != nil {
+	if _, err := interpreter.Eval(semProg, scope); err != nil {
 		return errors.Wrap(err, "failed to evaluate builtin")
 	}
 	return nil
@@ -170,7 +170,7 @@ func (r *REPL) executeLine(t string, expectYield bool) (values.Value, error) {
 		return nil, err
 	}
 
-	if err := interpreter.Eval(semProg, r.scope); err != nil {
+	if _, err := interpreter.Eval(semProg, r.scope); err != nil {
 		return nil, err
 	}
 

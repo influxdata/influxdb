@@ -316,6 +316,22 @@ func (r *Record) Object() values.Object {
 func (r *Record) Function() values.Function {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Function))
 }
+func (r *Record) Equal(rhs values.Value) bool {
+	if r.Type() != rhs.Type() {
+		return false
+	}
+	obj := rhs.Object()
+	if r.Len() != obj.Len() {
+		return false
+	}
+	for k, v := range r.values {
+		val, ok := obj.Get(k)
+		if !ok || !v.Equal(val) {
+			return false
+		}
+	}
+	return true
+}
 
 func (r *Record) Set(name string, v values.Value) {
 	r.values[name] = v

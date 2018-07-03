@@ -24,11 +24,13 @@ type Value interface {
 	Array() Array
 	Object() Object
 	Function() Function
+	Equal(Value) bool
 }
 
 // Function represents a callable type
 type Function interface {
 	Value
+	HasSideEffect() bool
 	Call(args Object) (Value, error)
 }
 
@@ -83,6 +85,37 @@ func (v value) Object() Object {
 func (v value) Function() Function {
 	CheckKind(v.t.Kind(), semantic.Function)
 	return v.v.(Function)
+}
+func (v value) Equal(r Value) bool {
+	if v.Type() != r.Type() {
+		return false
+	}
+	switch k := v.Type().Kind(); k {
+	case semantic.Bool:
+		return v.Bool() == r.Bool()
+	case semantic.UInt:
+		return v.UInt() == r.UInt()
+	case semantic.Int:
+		return v.Int() == r.Int()
+	case semantic.Float:
+		return v.Float() == r.Float()
+	case semantic.String:
+		return v.Str() == r.Str()
+	case semantic.Time:
+		return v.Time() == r.Time()
+	case semantic.Duration:
+		return v.Duration() == r.Duration()
+	case semantic.Regexp:
+		return v.Regexp().String() == r.Regexp().String()
+	case semantic.Object:
+		return v.Object().Equal(r.Object())
+	case semantic.Array:
+		return v.Array().Equal(r.Array())
+	case semantic.Function:
+		return v.Function().Equal(r.Function())
+	default:
+		return false
+	}
 }
 
 func (v value) String() string {
