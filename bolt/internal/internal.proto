@@ -208,7 +208,7 @@ message Organization {
 
 message Config {
 	AuthConfig Auth         					= 1; // Auth is the configuration for options that auth related
-	LogViewerUIConfig LogViewer       = 2; // LogViewerUI is the configuration for the Log Viewer UI
+	LogViewerUIConfig LogViewer                 = 2; // LogViewerUI is the configuration for the Log Viewer UI
 }
 
 message AuthConfig {
