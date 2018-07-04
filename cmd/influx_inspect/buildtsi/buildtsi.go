@@ -240,7 +240,11 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 	tsiIndex := tsi1.NewIndex(sfile, dbName,
 		tsi1.WithPath(tmpPath),
 		tsi1.WithMaximumLogFileSize(cmd.maxLogFileSize),
-		tsi1.DisableFsync())
+		tsi1.DisableFsync(),
+		// Each new series entry in a log file is ~12 bytes so this should
+		// roughly equate to one flush to the file for every batch.
+		tsi1.WithLogFileBufferSize(12*cmd.batchSize),
+	)
 
 	tsiIndex.WithLogger(cmd.Logger)
 
