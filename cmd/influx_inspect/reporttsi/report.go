@@ -27,7 +27,7 @@ const (
 	useBitmapN = 25
 )
 
-// Command represents the program execution for "influxd dumptsi".
+// Command represents the program execution for "influxd reporttsi".
 type Command struct {
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer
@@ -70,7 +70,8 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.dbPath, "db-path", "", "Path to database. Required.")
 	fs.StringVar(&cmd.seriesFilePath, "series-file", "", "Optional path to series file. Defaults /path/to/db-path/_series")
 	fs.BoolVar(&cmd.byMeasurement, "measurements", true, "Segment cardinality by measurements")
-	fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys (overrides `measurements`")
+	// TODO(edd): Not yet implemented.
+	// fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys (overrides `measurements`")
 	fs.IntVar(&cmd.topN, "top", 0, "Limit results to top n")
 	fs.IntVar(&cmd.concurrency, "c", runtime.GOMAXPROCS(0), "Set worker concurrency. Defaults to GOMAXPROCS setting.")
 
