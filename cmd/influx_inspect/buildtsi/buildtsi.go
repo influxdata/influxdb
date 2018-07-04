@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Command represents the program execution for "influx_inspect inmem2tsi".
+// Command represents the program execution for "influx_inspect buildtsi".
 type Command struct {
 	Stderr  io.Writer
 	Stdout  io.Writer
@@ -47,7 +47,7 @@ func NewCommand() *Command {
 
 // Run executes the command.
 func (cmd *Command) Run(args ...string) error {
-	fs := flag.NewFlagSet("inmem2tsi", flag.ExitOnError)
+	fs := flag.NewFlagSet("buildtsi", flag.ExitOnError)
 	dataDir := fs.String("datadir", "", "data directory")
 	walDir := fs.String("waldir", "", "WAL directory")
 	fs.StringVar(&cmd.databaseFilter, "database", "", "optional: database name")
@@ -116,7 +116,7 @@ func (cmd *Command) run(dataDir, walDir string) error {
 		fmt.Print("Are you sure you want to continue? (y/N): ")
 		var answer string
 		if fmt.Scanln(&answer); !strings.HasPrefix(strings.TrimSpace(strings.ToLower(answer)), "y") {
-			return fmt.Errorf("Operation aborted.")
+			return fmt.Errorf("operation aborted")
 		}
 	}
 
@@ -142,7 +142,7 @@ func (cmd *Command) run(dataDir, walDir string) error {
 }
 
 func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
-	cmd.Logger.Info("rebuilding database", zap.String("name", dbName))
+	cmd.Logger.Info("Rebuilding database", zap.String("name", dbName))
 
 	sfile := tsdb.NewSeriesFile(filepath.Join(dataDir, tsdb.SeriesFileDirectory))
 	sfile.Logger = cmd.Logger
@@ -175,7 +175,7 @@ func (cmd *Command) processDatabase(dbName, dataDir, walDir string) error {
 }
 
 func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpName, dataDir, walDir string) error {
-	cmd.Logger.Info("rebuilding retention policy", logger.Database(dbName), logger.RetentionPolicy(rpName))
+	cmd.Logger.Info("Rebuilding retention policy", logger.Database(dbName), logger.RetentionPolicy(rpName))
 
 	fis, err := ioutil.ReadDir(dataDir)
 	if err != nil {
@@ -202,17 +202,17 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 }
 
 func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, shardID uint64, dataDir, walDir string) error {
-	cmd.Logger.Info("rebuilding shard", logger.Database(dbName), logger.RetentionPolicy(rpName), logger.Shard(shardID))
+	cmd.Logger.Info("Rebuilding shard", logger.Database(dbName), logger.RetentionPolicy(rpName), logger.Shard(shardID))
 
 	// Check if shard already has a TSI index.
 	indexPath := filepath.Join(dataDir, "index")
-	cmd.Logger.Info("checking index path", zap.String("path", indexPath))
+	cmd.Logger.Info("Checking index path", zap.String("path", indexPath))
 	if _, err := os.Stat(indexPath); !os.IsNotExist(err) {
 		cmd.Logger.Info("tsi1 index already exists, skipping", zap.String("path", indexPath))
 		return nil
 	}
 
-	cmd.Logger.Info("opening shard")
+	cmd.Logger.Info("Opening shard")
 
 	// Find shard files.
 	tsmPaths, err := cmd.collectTSMFiles(dataDir)
@@ -226,7 +226,7 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 
 	// Remove temporary index files if this is being re-run.
 	tmpPath := filepath.Join(dataDir, ".index")
-	cmd.Logger.Info("cleaning up partial index from previous run, if any")
+	cmd.Logger.Info("Cleaning up partial index from previous run, if any")
 	if err := os.RemoveAll(tmpPath); err != nil {
 		return err
 	}
@@ -234,23 +234,23 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 	// Open TSI index in temporary path.
 	tsiIndex := tsi1.NewIndex(sfile, dbName, tsi1.WithPath(tmpPath), tsi1.WithMaximumLogFileSize(cmd.maxLogFileSize))
 	tsiIndex.WithLogger(cmd.Logger)
-	cmd.Logger.Info("opening tsi index in temporary location", zap.String("path", tmpPath))
+	cmd.Logger.Info("Opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
 		return err
 	}
 	defer tsiIndex.Close()
 
 	// Write out tsm1 files.
-	cmd.Logger.Info("iterating over tsm files")
+	cmd.Logger.Info("Iterating over tsm files")
 	for _, path := range tsmPaths {
-		cmd.Logger.Info("processing tsm file", zap.String("path", path))
+		cmd.Logger.Info("Processing tsm file", zap.String("path", path))
 		if err := cmd.processTSMFile(tsiIndex, path); err != nil {
 			return err
 		}
 	}
 
 	// Write out wal files.
-	cmd.Logger.Info("building cache from wal files")
+	cmd.Logger.Info("Building cache from wal files")
 	cache := tsm1.NewCache(tsdb.DefaultCacheMaxMemorySize)
 	loader := tsm1.NewCacheLoader(walPaths)
 	loader.WithLogger(cmd.Logger)
@@ -258,13 +258,13 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 		return err
 	}
 
-	cmd.Logger.Info("iterating over cache")
+	cmd.Logger.Info("Iterating over cache")
 	for _, key := range cache.Keys() {
 		seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
 		name, tags := models.ParseKey(seriesKey)
 
 		if cmd.Verbose {
-			cmd.Logger.Info("series", zap.String("name", string(name)), zap.String("tags", tags.String()))
+			cmd.Logger.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 		}
 
 		if err := tsiIndex.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
@@ -278,13 +278,13 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 	tsiIndex.Wait()
 
 	// Close TSI index.
-	cmd.Logger.Info("closing tsi index")
+	cmd.Logger.Info("Closing tsi index")
 	if err := tsiIndex.Close(); err != nil {
 		return err
 	}
 
 	// Rename TSI to standard path.
-	cmd.Logger.Info("moving tsi to permanent location")
+	cmd.Logger.Info("Moving tsi to permanent location")
 	return os.Rename(tmpPath, indexPath)
 }
 
@@ -297,7 +297,7 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string) error {
 
 	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
-		cmd.Logger.Warn("unable to read, skipping", zap.String("path", path), zap.Error(err))
+		cmd.Logger.Warn("Unable to read, skipping", zap.String("path", path), zap.Error(err))
 		return nil
 	}
 	defer r.Close()
@@ -308,7 +308,7 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string) error {
 		name, tags := models.ParseKey(seriesKey)
 
 		if cmd.Verbose {
-			cmd.Logger.Info("series", zap.String("name", string(name)), zap.String("tags", tags.String()))
+			cmd.Logger.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 		}
 
 		if err := index.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
