@@ -232,8 +232,13 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 	}
 
 	// Open TSI index in temporary path.
-	tsiIndex := tsi1.NewIndex(sfile, dbName, tsi1.WithPath(tmpPath), tsi1.WithMaximumLogFileSize(cmd.maxLogFileSize))
+	tsiIndex := tsi1.NewIndex(sfile, dbName,
+		tsi1.WithPath(tmpPath),
+		tsi1.WithMaximumLogFileSize(cmd.maxLogFileSize),
+		tsi1.DisableFsync())
+
 	tsiIndex.WithLogger(cmd.Logger)
+
 	cmd.Logger.Info("Opening tsi index in temporary location", zap.String("path", tmpPath))
 	if err := tsiIndex.Open(); err != nil {
 		return err
