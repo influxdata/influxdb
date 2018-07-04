@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 
@@ -61,7 +64,46 @@ func (cmd *Command) Run(args ...string) error {
 	}
 	cmd.Logger = logger.New(cmd.Stderr)
 
+	finish := startProfiles()
+	defer finish()
 	return cmd.run(*dataDir, *walDir)
+}
+
+func startProfiles() func() {
+	runtime.MemProfileRate = 100 // Sample 1% of allocations.
+
+	paths := []string{"/tmp/buildtsi.mem.pprof", "/tmp/buildtsi.cpu.pprof"}
+	var files []*os.File
+	for _, pth := range paths {
+		f, err := os.Create(pth)
+		if err != nil {
+			log.Fatalf("memprofile: %v", err)
+		}
+		log.Printf("writing profile to: %s\n", pth)
+		files = append(files, f)
+
+	}
+
+	closeFn := func() {
+		// Write the memory profile
+		if err := pprof.Lookup("heap").WriteTo(files[0], 0); err != nil {
+			panic(err)
+		}
+
+		// Stop the CPU profile.
+		pprof.StopCPUProfile()
+
+		for _, fd := range files {
+			if err := fd.Close(); err != nil {
+				panic(err)
+			}
+		}
+	}
+
+	if err := pprof.StartCPUProfile(files[1]); err != nil {
+		panic(err)
+	}
+	return closeFn
 }
 
 func (cmd *Command) run(dataDir, walDir string) error {
