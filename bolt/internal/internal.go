@@ -716,30 +716,9 @@ func UnmarshalOrganizationPB(data []byte, o *Organization) error {
 
 // MarshalConfig encodes a config to binary protobuf format.
 func MarshalConfig(c *chronograf.Config) ([]byte, error) {
-	columns := make([]*LogViewerColumn, len(c.LogViewer.Columns))
-	for i, column := range c.LogViewer.Columns {
-		encodings := make([]*ColumnEncoding, len(column.Encodings))
-
-		for j, e := range column.Encodings {
-			encodings[j] = &ColumnEncoding{
-				Type:  e.Type,
-				Value: e.Value,
-				Name:  e.Name,
-			}
-		}
-
-		columns[i] = &LogViewerColumn{
-			Name:      column.Name,
-			Position:  column.Position,
-			Encodings: encodings,
-		}
-	}
 	return MarshalConfigPB(&Config{
 		Auth: &AuthConfig{
 			SuperAdminNewUsers: c.Auth.SuperAdminNewUsers,
-		},
-		LogViewer: &LogViewerConfig{
-			Columns: columns,
 		},
 	})
 }
@@ -759,6 +738,54 @@ func UnmarshalConfig(data []byte, c *chronograf.Config) error {
 		return fmt.Errorf("Auth config is nil")
 	}
 	c.Auth.SuperAdminNewUsers = pb.Auth.SuperAdminNewUsers
+
+	return nil
+}
+
+// UnmarshalConfigPB decodes a config from binary protobuf data.
+func UnmarshalConfigPB(data []byte, c *Config) error {
+	return proto.Unmarshal(data, c)
+}
+
+// MarshalOrganizationConfig encodes a config to binary protobuf format.
+func MarshalOrganizationConfig(c *chronograf.OrganizationConfig) ([]byte, error) {
+	var lv chronograf.LogViewerConfig
+	columns := make([]*LogViewerColumn, len(lv.Columns))
+	for i, column := range lv.Columns {
+		encodings := make([]*ColumnEncoding, len(column.Encodings))
+
+		for j, e := range column.Encodings {
+			encodings[j] = &ColumnEncoding{
+				Type:  e.Type,
+				Value: e.Value,
+				Name:  e.Name,
+			}
+		}
+
+		columns[i] = &LogViewerColumn{
+			Name:      column.Name,
+			Position:  column.Position,
+			Encodings: encodings,
+		}
+	}
+	return MarshalOrganizationConfigPB(&OrganizationConfig{
+		LogViewer: &LogViewerConfig{
+			Columns: columns,
+		},
+	})
+}
+
+// MarshalOrganizationConfigPB encodes a config to binary protobuf format.
+func MarshalOrganizationConfigPB(c *OrganizationConfig) ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+// UnmarshalOrganizationConfig decodes a config from binary protobuf data.
+func UnmarshalOrganizationConfig(data []byte, c *chronograf.OrganizationConfig) error {
+	var pb OrganizationConfig
+	if err := UnmarshalOrganizationConfigPB(data, &pb); err != nil {
+		return err
+	}
 
 	if pb.LogViewer == nil {
 		return fmt.Errorf("Log Viewer config is nil")
@@ -785,8 +812,8 @@ func UnmarshalConfig(data []byte, c *chronograf.Config) error {
 	return nil
 }
 
-// UnmarshalConfigPB decodes a config from binary protobuf data.
-func UnmarshalConfigPB(data []byte, c *Config) error {
+// UnmarshalOrganizationConfigPB decodes a config from binary protobuf data.
+func UnmarshalOrganizationConfigPB(data []byte, c *OrganizationConfig) error {
 	return proto.Unmarshal(data, c)
 }
 

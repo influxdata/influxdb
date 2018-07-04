@@ -169,6 +169,19 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 	return &noop.DashboardsStore{}
 }
 
+// Settings returns a noop.SettingsStore if the context has no organization specified
+// and a organization.SettingsStore otherwise.
+func (s *Store) Settings(ctx context.Context) chronograf.SettingsStore {
+	if isServer := hasServerContext(ctx); isServer {
+		return s.SettingsStore
+	}
+	if org, ok := hasOrganizationContext(ctx); ok {
+		return organizations.NewSettingsStore(s.SettingsStore, org)
+	}
+
+	return &noop.SettingsStore{}
+}
+
 // Organizations returns the underlying OrganizationsStore.
 func (s *Store) Organizations(ctx context.Context) chronograf.OrganizationsStore {
 	if isServer := hasServerContext(ctx); isServer {
@@ -191,6 +204,7 @@ func (s *Store) Config(ctx context.Context) chronograf.ConfigStore {
 	if isSuperAdmin := hasSuperAdminContext(ctx); isSuperAdmin {
 		return s.ConfigStore
 	}
+
 	return &noop.ConfigStore{}
 }
 

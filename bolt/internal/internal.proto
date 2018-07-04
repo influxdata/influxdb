@@ -208,11 +208,14 @@ message Organization {
 
 message Config {
 	AuthConfig Auth         					= 1; // Auth is the configuration for options that auth related
-	LogViewerConfig LogViewer                   = 2; // LogViewer is the configuration for the Log Viewer 
 }
 
 message AuthConfig {
 	bool SuperAdminNewUsers   = 1; // SuperAdminNewUsers configuration option that specifies which users will auto become super admin
+}
+
+message OrganizationConfig {
+	LogViewerConfig LogViewer            	= 1; // LogViewer is the organization configuration for log viewer
 }
 
 message LogViewerConfig {

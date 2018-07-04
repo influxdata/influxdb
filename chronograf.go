@@ -739,32 +739,12 @@ type OrganizationsStore interface {
 // Config is the global application Config for parameters that can be set via
 // API, with different sections, such as Auth
 type Config struct {
-	Auth      AuthConfig      `json:"auth"`
-	LogViewer LogViewerConfig `json:"logViewer"`
+	Auth AuthConfig `json:"auth"`
 }
 
 // AuthConfig is the global application config section for auth parameters
 type AuthConfig struct {
 	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
-}
-
-// LogViewerConfig is the config sections for log viewer section of the application
-type LogViewerConfig struct {
-	Columns []LogViewerColumn `json:"columns"`
-}
-
-// LogViewerColumn is a specific column of the log viewer UI
-type LogViewerColumn struct {
-	Name      string           `json:"name"`
-	Position  int32            `json:"position"`
-	Encodings []ColumnEncoding `json:"encodings"`
-}
-
-// ColumnEncoding is the settings for a specific column of the log viewer UI
-type ColumnEncoding struct {
-	Type  string `json:"type"`
-	Value string `json:"value"`
-	Name  string `json:"name,omitempty"`
 }
 
 // ConfigStore is the storage and retrieval of global application Config
@@ -774,6 +754,41 @@ type ConfigStore interface {
 	// Get retrieves the whole Config from the ConfigStore
 	Get(context.Context) (*Config, error)
 	// Update updates the whole Config in the ConfigStore
+	Update(context.Context, *Config) error
+}
+
+// OrganizationConfig is the organization config for parameters that can
+// be set via API, with different sections, such as LogViewer
+type OrganizationConfig struct {
+	LogViewer LogViewerConfig `json:"logViewer"`
+}
+
+// LogViewerConfig is the configuration settings for the Log Viewer UI
+type LogViewerConfig struct {
+	Columns []LogViewerColumn `json:"columns"`
+}
+
+// LogViewerColumn is a specific column of the Log Viewer UI
+type LogViewerColumn struct {
+	Name      string           `json:"name"`
+	Position  int32            `json:"position"`
+	Encodings []ColumnEncoding `json:"encodings"`
+}
+
+// ColumnEncoding is the settings for a specific column of the Log Viewer UI
+type ColumnEncoding struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+	Name  string `json:"name,omitempty"`
+}
+
+// OrganizationConfigStore is the storage and retrieval of organization Configs
+type OrganizationConfigStore interface {
+	// Initialize creates the initial configuration
+	Initialize(context.Context) error
+	// Get retrieves the whole Config from the OrganizationConfigStore
+	Get(context.Context) (*Config, error)
+	// Update updates the whole Config in the OrganizationConfigStore
 	Update(context.Context, *Config) error
 }
 
