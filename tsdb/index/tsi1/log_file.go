@@ -43,6 +43,7 @@ type LogFile struct {
 	data   []byte         // mmap
 	file   *os.File       // writer
 	w      *bufio.Writer  // buffered writer
+	nosync bool           // Disables buffer flushing and file syncing. Useful for offline tooling.
 	buf    []byte         // marshaling buffer
 	keyBuf []byte
 
@@ -189,12 +190,23 @@ func (f *LogFile) Close() error {
 	return nil
 }
 
-// Flush flushes buffered data to disk.
-func (f *LogFile) Flush() error {
-	if f.w != nil {
-		return f.w.Flush()
+// FlushAndSync flushes buffered data to disk and then fsyncs the underlying file.
+// If the LogFile has disabled flushing and syncing then FlushAndSync is a no-op.
+func (f *LogFile) FlushAndSync() error {
+	if f.nosync {
+		return nil
 	}
-	return nil
+
+	if f.w != nil {
+		if err := f.w.Flush(); err != nil {
+			return err
+		}
+	}
+
+	if f.file == nil {
+		return nil
+	}
+	return f.file.Sync()
 }
 
 // ID returns the file sequence identifier.
@@ -300,13 +312,8 @@ func (f *LogFile) DeleteMeasurement(name []byte) error {
 	}
 	f.execEntry(&e)
 
-	// Flush buffer & sync to disk.
-	if err := f.w.Flush(); err != nil {
-		return err
-	} else if err := f.file.Sync(); err != nil {
-		return err
-	}
-	return nil
+	// Flush buffer and sync to disk.
+	return f.FlushAndSync()
 }
 
 // TagKeySeriesIDIterator returns a series iterator for a tag key.
@@ -422,13 +429,8 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 	}
 	f.execEntry(&e)
 
-	// Flush buffer & sync to disk.
-	if err := f.w.Flush(); err != nil {
-		return err
-	} else if err := f.file.Sync(); err != nil {
-		return err
-	}
-	return nil
+	// Flush buffer and sync to disk.
+	return f.FlushAndSync()
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a tag value.
@@ -496,13 +498,8 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 	}
 	f.execEntry(&e)
 
-	// Flush buffer & sync to disk.
-	if err := f.w.Flush(); err != nil {
-		return err
-	} else if err := f.file.Sync(); err != nil {
-		return err
-	}
-	return nil
+	// Flush buffer and sync to disk.
+	return f.FlushAndSync()
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
@@ -549,13 +546,8 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 		seriesSet.AddNoLock(entry.SeriesID)
 	}
 
-	// Flush buffer & sync to disk.
-	if err := f.w.Flush(); err != nil {
-		return err
-	} else if err := f.file.Sync(); err != nil {
-		return err
-	}
-	return nil
+	// Flush buffer and sync to disk.
+	return f.FlushAndSync()
 }
 
 // DeleteSeriesID adds a tombstone for a series id.
@@ -569,13 +561,8 @@ func (f *LogFile) DeleteSeriesID(id uint64) error {
 	}
 	f.execEntry(&e)
 
-	// Flush buffer & sync to disk.
-	if err := f.w.Flush(); err != nil {
-		return err
-	} else if err := f.file.Sync(); err != nil {
-		return err
-	}
-	return nil
+	// Flush buffer and sync to disk.
+	return f.FlushAndSync()
 }
 
 // SeriesN returns the total number of series in the file.

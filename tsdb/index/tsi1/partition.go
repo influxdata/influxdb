@@ -69,6 +69,7 @@ type Partition struct {
 
 	// Log file compaction thresholds.
 	MaxLogFileSize int64
+	nosync         bool // when true, flushing and syncing of LogFile will be disabled.
 
 	// Frequency of compaction checks.
 	compactionInterrupt chan struct{}
@@ -247,6 +248,8 @@ func (i *Partition) Open() error {
 // openLogFile opens a log file and appends it to the index.
 func (i *Partition) openLogFile(path string) (*LogFile, error) {
 	f := NewLogFile(i.sfile, path)
+	f.nosync = i.nosync
+
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
