@@ -86,6 +86,15 @@ var WithMaximumLogFileSize = func(size int64) IndexOption {
 	}
 }
 
+// DisableFsync disables flushing and syncing of underlying files. Primarily this
+// impacts the LogFiles. This option can be set when working with the index in
+// an offline manner, for cases where a hard failure can be overcome by re-running the tooling.
+var DisableFsync = func() IndexOption {
+	return func(i *Index) {
+		i.disableFsync = true
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
@@ -96,6 +105,7 @@ type Index struct {
 	path               string      // Root directory of the index partitions.
 	disableCompactions bool        // Initially disables compactions on the index.
 	maxLogFileSize     int64       // Maximum size of a LogFile before it's compacted.
+	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
 	logger             *zap.Logger // Index's logger.
 
 	// The following must be set when initializing an Index.
@@ -206,6 +216,7 @@ func (i *Index) Open() error {
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
+		p.nosync = i.disableFsync
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
 	}
