@@ -279,14 +279,14 @@ func (cmd *Command) processShard(sfile *tsdb.SeriesFile, dbName, rpName string, 
 
 	for _, key := range cache.Keys() {
 		seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
-		name, tags := models.ParseKey(seriesKey)
+		name, tags := models.ParseKeyBytes(seriesKey)
 
 		if cmd.Verbose {
 			cmd.Logger.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 		}
 
 		keysBatch = append(keysBatch, seriesKey)
-		namesBatch = append(namesBatch, []byte(name))
+		namesBatch = append(namesBatch, name)
 		tagsBatch = append(tagsBatch, tags)
 
 		// Flush batch?
@@ -347,14 +347,14 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string) error {
 	for i := 0; i < r.KeyCount(); i++ {
 		key, _ := r.KeyAt(i)
 		seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
-		name, tags := models.ParseKey(seriesKey)
+		name, tags := models.ParseKeyBytes(seriesKey)
 
 		if cmd.Verbose {
 			cmd.Logger.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 		}
 
 		keysBatch = append(keysBatch, seriesKey)
-		namesBatch = append(namesBatch, []byte(name))
+		namesBatch = append(namesBatch, name)
 		tagsBatch = append(tagsBatch, tags)
 
 		// Flush batch?
