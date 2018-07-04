@@ -35,17 +35,24 @@ const (
 	LogEntryTagValueTombstoneFlag    = 0x08
 )
 
+// defaultLogFileBufferSize describes the size of the buffer that the LogFile's buffered
+// writer uses. If the LogFile does not have an explicit buffer size set then
+// this is the size of the buffer; it is equal to the default buffer size used
+// by a bufio.Writer.
+const defaultLogFileBufferSize = 4096
+
 // LogFile represents an on-disk write-ahead log file.
 type LogFile struct {
-	mu     sync.RWMutex
-	wg     sync.WaitGroup // ref count
-	id     int            // file sequence identifier
-	data   []byte         // mmap
-	file   *os.File       // writer
-	w      *bufio.Writer  // buffered writer
-	nosync bool           // Disables buffer flushing and file syncing. Useful for offline tooling.
-	buf    []byte         // marshaling buffer
-	keyBuf []byte
+	mu         sync.RWMutex
+	wg         sync.WaitGroup // ref count
+	id         int            // file sequence identifier
+	data       []byte         // mmap
+	file       *os.File       // writer
+	w          *bufio.Writer  // buffered writer
+	bufferSize int            // The size of the buffer used by the buffered writer
+	nosync     bool           // Disables buffer flushing and file syncing. Useful for offline tooling.
+	buf        []byte         // marshaling buffer
+	keyBuf     []byte
 
 	sfile   *tsdb.SeriesFile // series lookup
 	size    int64            // tracks current file size
@@ -123,7 +130,11 @@ func (f *LogFile) open() error {
 		return err
 	}
 	f.file = file
-	f.w = bufio.NewWriter(f.file)
+
+	if f.bufferSize == 0 {
+		f.bufferSize = defaultLogFileBufferSize
+	}
+	f.w = bufio.NewWriterSize(f.file, f.bufferSize)
 
 	// Finish opening if file is empty.
 	fi, err := file.Stat()

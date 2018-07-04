@@ -95,6 +95,16 @@ var DisableFsync = func() IndexOption {
 	}
 }
 
+// WithLogFileBufferSize sets the size of the buffer used within LogFiles.
+// Typically appending an entry to a LogFile involves writing 11 or 12 bytes, so
+// depending on how many new series are being created within a batch, it may
+// be appropriate to set this.
+var WithLogFileBufferSize = func(sz int) IndexOption {
+	return func(i *Index) {
+		i.logfileBufferSize = sz
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
@@ -105,6 +115,7 @@ type Index struct {
 	path               string      // Root directory of the index partitions.
 	disableCompactions bool        // Initially disables compactions on the index.
 	maxLogFileSize     int64       // Maximum size of a LogFile before it's compacted.
+	logfileBufferSize  int         // The size of the buffer used by the LogFile.
 	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
 	logger             *zap.Logger // Index's logger.
 
@@ -217,6 +228,7 @@ func (i *Index) Open() error {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
 		p.nosync = i.disableFsync
+		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
 	}
