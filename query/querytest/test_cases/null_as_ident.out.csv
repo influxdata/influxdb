@@ -1,0 +1,11 @@
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string,string,string
+#partition,false,false,false,false,false,false,true,true,true,true,true,true
+#default,_result,,,,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,device,fstype,host,path
+,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,318324641792,free,disk,disk1s4,apfs,host.local,/private/var/vm
+,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:36Z,318324609024,free,disk,disk1s4,apfs,host.local,/private/var/vm
+,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:46Z,318324129792,free,disk,disk1s4,apfs,host.local,/private/var/vm
+,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:56Z,318324129792,free,disk,disk1s4,apfs,host.local,/private/var/vm
+,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:06Z,318326116352,free,disk,disk1s4,apfs,host.local,/private/var/vm
+,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,318325084160,free,disk,disk1s4,apfs,host.local,/private/var/vm
+
