@@ -496,6 +496,9 @@ func newFileSetSeriesIDIterator(fs *FileSet, itr tsdb.SeriesIDIterator) tsdb.Ser
 		fs.Release()
 		return nil
 	}
+	if itr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
+		return &fileSetSeriesIDSetIterator{fs: fs, itr: itr}
+	}
 	return &fileSetSeriesIDIterator{fs: fs, itr: itr}
 }
 
@@ -506,6 +509,26 @@ func (itr *fileSetSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 func (itr *fileSetSeriesIDIterator) Close() error {
 	itr.once.Do(func() { itr.fs.Release() })
 	return itr.itr.Close()
+}
+
+// fileSetSeriesIDSetIterator attaches a fileset to an iterator that is released on close.
+type fileSetSeriesIDSetIterator struct {
+	once sync.Once
+	fs   *FileSet
+	itr  tsdb.SeriesIDSetIterator
+}
+
+func (itr *fileSetSeriesIDSetIterator) Next() (tsdb.SeriesIDElem, error) {
+	return itr.itr.Next()
+}
+
+func (itr *fileSetSeriesIDSetIterator) Close() error {
+	itr.once.Do(func() { itr.fs.Release() })
+	return itr.itr.Close()
+}
+
+func (itr *fileSetSeriesIDSetIterator) SeriesIDSet() *tsdb.SeriesIDSet {
+	return itr.itr.SeriesIDSet()
 }
 
 // fileSetMeasurementIterator attaches a fileset to an iterator that is released on close.
