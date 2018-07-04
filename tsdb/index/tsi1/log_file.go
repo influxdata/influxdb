@@ -799,8 +799,8 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	default:
 	}
 
-	// Wrap in bufferred writer.
-	bw := bufio.NewWriter(w)
+	// Wrap in bufferred writer with a buffer equivalent to the LogFile size.
+	bw := bufio.NewWriterSize(w, 1<<17) // 128K
 
 	// Setup compaction offset tracking data.
 	var t IndexFileTrailer
