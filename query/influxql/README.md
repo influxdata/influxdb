@@ -14,6 +14,7 @@ The InfluxQL Transpiler exists to rewrite an InfluxQL query into its equivalent 
     4. [Evaluate the condition](#evaluate-condition)
     5. [Perform the grouping](#perform-grouping)
     6. [Evaluate the function](#evaluate-function)
+    7. [Combine windows](#combine-windows)
 5. [Join the groups](#join-groups)
 6. [Map and eval columns](#map-and-eval)
 7. [Encoding the results](#encoding)
@@ -76,9 +77,9 @@ At this point, generate the `filter` call to evaluate the condition. If there is
 We group together the streams based on the `GROUP BY` clause. As an example:
 
     > SELECT mean(usage_user) FROM telegraf..cpu WHERE time >= now() - 5m GROUP BY time(5m), host
-    ... |> group(by: ["_measurement", "host"]) |> window(every: 5m)
+    ... |> group(by: ["_measurement", "host"]) |> window(every: 5m, ignoreGlobalBounds: true)
 
-If the `GROUP BY time(...)` doesn't exist, `window()` is skipped. If there is no `GROUP BY` clause, it always groups by `_measurement`. If a wildcard is used for grouping, then this step is skipped.
+If the `GROUP BY time(...)` doesn't exist, `window()` is skipped. If there is no `GROUP BY` clause, it always groups by `_measurement`. If a wildcard is used for grouping, then this step is skipped. We also add `ignoreGlobalBounds` to every invocation of `window()` so the boundaries aren't clamped by the `range()` call.
 
 ### <a name="evaluate-function"></a> Evaluate the function
 
@@ -98,6 +99,14 @@ For an aggregate, the following is used instead:
         |> mean(timeSrc: "_start", columns: ["_value"])
 
 If the aggregate is combined with conditions, the column name of `_value` is replaced with whatever the generated column name is.
+
+### <a name="combine-windows"></a> Combine windows
+
+If there a window operation was added, we then combine each of the function results from the windows back into a single table.
+
+    ... |> window(every: inf, ignoreGlobalBounds: true)
+
+This step is skipped if there was no window function.
 
 ## <a name="join-groups"></a> Join the groups
 
