@@ -213,6 +213,22 @@ func (itr *rawSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
 	return tsdb.SeriesIDElem{SeriesID: seriesID}, nil
 }
 
+func (itr *rawSeriesIDIterator) SeriesIDSet() *tsdb.SeriesIDSet {
+	ss := tsdb.NewSeriesIDSet()
+	for data, prev := itr.data, uint64(0); len(data) > 0; {
+		delta, n, err := uvarint(data)
+		if err != nil {
+			break
+		}
+		data = data[n:]
+
+		seriesID := prev + uint64(delta)
+		prev = seriesID
+		ss.AddNoLock(seriesID)
+	}
+	return ss
+}
+
 // MeasurementBlockTrailer represents meta data at the end of a MeasurementBlock.
 type MeasurementBlockTrailer struct {
 	Version int // Encoding version
