@@ -33,6 +33,7 @@ v1.6.0 [unreleased]
 -	[#9967](https://github.com/influxdata/influxdb/pull/9967): Use storage package for Prometheus remote read.
 -	[#9856](https://github.com/influxdata/influxdb/pull/9856): Parallelize compression/decompression during backup and restore.
 -	[#9959](https://github.com/influxdata/influxdb/pull/9959): Improve the number of regex patterns that are optimized to static OR conditions.
+-	[#10044](https://github.com/influxdata/influxdb/pull/10044): Implement bitset iterator.
 
 ### Bugfixes
 
