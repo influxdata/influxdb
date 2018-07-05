@@ -1,5 +1,4 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
@@ -8,11 +7,25 @@ import SingleStatOptions from 'src/dashboards/components/SingleStatOptions'
 import AxesOptions from 'src/dashboards/components/AxesOptions'
 import TableOptions from 'src/dashboards/components/TableOptions'
 
-import {buildDefaultYLabel} from 'shared/presenters'
+import {buildDefaultYLabel} from 'src/shared/presenters'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Axes, Cell, QueryConfig} from 'src/types'
+
+interface Props {
+  cell: Cell
+  Axes: Axes
+  queryConfigs: QueryConfig[]
+  staticLegend: boolean
+  onResetFocus: () => void
+  onToggleStaticLegend: () => void
+}
+
+interface State {
+  axes: Axes
+}
 
 @ErrorHandling
-class DisplayOptions extends Component {
+class DisplayOptions extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -23,30 +36,31 @@ class DisplayOptions extends Component {
     }
   }
 
-  componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps) {
     const {axes, queryConfigs} = nextProps
 
     this.setState({axes: this.setDefaultLabels(axes, queryConfigs)})
   }
 
-  setDefaultLabels(axes, queryConfigs) {
-    return queryConfigs.length
-      ? {
-          ...axes,
-          y: {...axes.y, defaultYLabel: buildDefaultYLabel(queryConfigs[0])},
-        }
-      : axes
+  public render() {
+    return (
+      <div className="display-options">
+        <GraphTypeSelector />
+        {this.renderOptions}
+      </div>
+    )
   }
 
-  renderOptions = () => {
+  private get renderOptions(): JSX.Element {
     const {
-      cell: {type},
+      cell,
       staticLegend,
       onToggleStaticLegend,
       onResetFocus,
       queryConfigs,
     } = this.props
-    switch (type) {
+
+    switch (cell.type) {
       case 'gauge':
         return <GaugeOptions onResetFocus={onResetFocus} />
       case 'single-stat':
@@ -68,43 +82,21 @@ class DisplayOptions extends Component {
     }
   }
 
-  render() {
-    return (
-      <div className="display-options">
-        <GraphTypeSelector />
-        {this.renderOptions()}
-      </div>
-    )
+  private setDefaultLabels = (axes, queryConfigs): Axes => {
+    if (queryConfigs.length) {
+      return {
+        ...axes,
+        y: {...axes.y, defaultYLabel: buildDefaultYLabel(queryConfigs[0])},
+      }
+    }
+
+    return axes
   }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
-
-DisplayOptions.propTypes = {
-  cell: shape({
-    type: string.isRequired,
-  }).isRequired,
-  axes: shape({
-    y: shape({
-      bounds: arrayOf(string),
-      label: string,
-      defaultYLabel: string,
-    }),
-  }).isRequired,
-  queryConfigs: arrayOf(shape()).isRequired,
-  onToggleStaticLegend: func.isRequired,
-  staticLegend: bool,
-  onResetFocus: func.isRequired,
-}
-
-const mapStateToProps = ({
-  cellEditorOverlay: {
-    cell,
-    cell: {axes},
-  },
-}) => ({
-  cell,
-  axes,
+const mstp = ({cellEditorOverlay}) => ({
+  cell: cellEditorOverlay.cell,
+  axes: cellEditorOverlay.cell.axes,
 })
 
-export default connect(mapStateToProps, null)(DisplayOptions)
+export default connect(mstp, null)(DisplayOptions)
