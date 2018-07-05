@@ -298,14 +298,6 @@ export type GetDashboardsThunk = (
   dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>
 ) => Promise<DashboardsModels.Dashboard[] | void>
 
-export type GetDashboardsNamesDispatcher = (
-  sourceID: string
-) => GetDashboardsNamesThunk
-
-export type GetDashboardsNamesThunk = (
-  dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>
-) => Promise<DashboardsModels.DashboardName[] | void>
-
 export type PutDashboardDispatcher = (
   dashboard: DashboardsModels.Dashboard
 ) => PutDashboardThunk
