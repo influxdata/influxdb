@@ -48,6 +48,7 @@ class StatusPage extends Component<Props, State> {
           value: timeRange.lower,
           type: 'constant',
           selected: true,
+          localSelected: true,
         },
       ],
     }
@@ -61,6 +62,7 @@ class StatusPage extends Component<Props, State> {
           value: 'now()',
           type: 'constant',
           selected: true,
+          localSelected: true,
         },
       ],
     }
