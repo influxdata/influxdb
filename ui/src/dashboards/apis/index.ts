@@ -1,15 +1,13 @@
 import AJAX from 'src/utils/ajax'
 
 import {AxiosResponse} from 'axios'
-import {DashboardsResponse} from 'src/types/apis/dashboards'
+import {DashboardsResponse, GetDashboards} from 'src/types/apis/dashboards'
 
-export const getDashboards = (): Promise<
-  AxiosResponse<DashboardsResponse> | DashboardsResponse
-> => {
-  return AJAX({
+export const getDashboards: GetDashboards = () => {
+  return AJAX<DashboardsResponse>({
     method: 'GET',
     resource: 'dashboards',
-  })
+  }) as Promise<AxiosResponse<DashboardsResponse>>
 }
 
 export const getDashboard = async dashboardID => {

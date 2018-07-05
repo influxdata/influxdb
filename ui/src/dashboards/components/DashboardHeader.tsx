@@ -32,8 +32,7 @@ interface Props {
   zoomedTimeRange: QueriesModels.TimeRange
   onCancel: () => void
   onSave: (name: string) => Promise<void>
-  dashboardLinks: DashboardsModels.DashboardSwitcherLink[]
-  activeDashboardLink?: DashboardsModels.DashboardSwitcherLink
+  dashboardLinks: DashboardsModels.DashboardSwitcherLinks
   isHidden: boolean
 }
 
@@ -146,15 +145,10 @@ class DashboardHeader extends Component<Props> {
   }
 
   private get dashboardSwitcher(): JSX.Element {
-    const {dashboardLinks, activeDashboardLink} = this.props
+    const {dashboardLinks} = this.props
 
-    if (dashboardLinks.length > 1) {
-      return (
-        <DashboardSwitcher
-          links={dashboardLinks}
-          activeLink={activeDashboardLink}
-        />
-      )
+    if (dashboardLinks.links.length > 1) {
+      return <DashboardSwitcher dashboardLinks={dashboardLinks} />
     }
   }
 

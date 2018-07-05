@@ -47,7 +47,6 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
 // Types
-import {AxiosResponse} from 'axios'
 import {
   Dashboard,
   Cell,
@@ -58,7 +57,6 @@ import {
   TemplateValue,
   TemplateType,
 } from 'src/types'
-import * as DashboardsApis from 'src/types/apis/dashboards'
 
 export enum ActionType {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -401,9 +399,7 @@ export const getDashboardsAsync = () => async (
   try {
     const {
       data: {dashboards},
-    } = (await getDashboardsAJAX()) as AxiosResponse<
-      DashboardsApis.DashboardsResponse
-    >
+    } = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards))
     return dashboards
   } catch (error) {
@@ -584,9 +580,8 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
 
     const {
       data: {dashboards},
-    } = (await getDashboardsAJAX()) as AxiosResponse<
-      DashboardsApis.DashboardsResponse
-    >
+    } = await getDashboardsAJAX()
+
     dispatch(loadDashboards(dashboards))
 
     dispatch(notify(notifyDashboardImported(name)))

@@ -24,7 +24,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {millisecondTimeRange} from 'src/dashboards/utils/time'
 import {getDeep} from 'src/utils/wrappers'
-import {getDashboards as getDashboardsAJAX} from 'src/dashboards/apis'
+import * as dashboardSwitcher from 'src/dashboards/utils/dashboardSwitcherLinks'
 
 // Constants
 import {
@@ -40,8 +40,6 @@ import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import {InjectedRouter} from 'react-router'
-import {AxiosResponse} from 'axios'
-import {DashboardsResponse} from 'src/types/apis/dashboards'
 import * as AnnotationsActions from 'src/types/actions/annotations'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
@@ -112,7 +110,7 @@ interface State {
   selectedCell: DashboardsModels.Cell | null
   scrollTop: number
   windowHeight: number
-  dashboardLinks: DashboardsModels.DashboardSwitcherLink[]
+  dashboardLinks: DashboardsModels.DashboardSwitcherLinks
 }
 
 @ErrorHandling
@@ -127,7 +125,7 @@ class DashboardPage extends Component<Props, State> {
       selectedCell: null,
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      dashboardLinks: [],
+      dashboardLinks: dashboardSwitcher.EMPTY_LINKS,
     }
   }
 
@@ -290,7 +288,6 @@ class DashboardPage extends Component<Props, State> {
           onCancel={this.handleCancelEditDashboard}
           onEditDashboard={this.handleEditDashboard}
           dashboardLinks={dashboardLinks}
-          activeDashboardLink={this.activeDashboardLink}
           activeDashboard={dashboard ? dashboard.name : ''}
           showTemplateControlBar={showTemplateControlBar}
           handleChooseAutoRefresh={handleChooseAutoRefresh}
@@ -487,37 +484,21 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private getDashboardLinks = async (): Promise<void> => {
-    const {source} = this.props
+    const {source, dashboard} = this.props
 
     try {
-      const resp = (await getDashboardsAJAX()) as AxiosResponse<
-        DashboardsResponse
-      >
-      const dashboards = resp.data.dashboards
-      const dashboardLinks = dashboards.map(d => {
-        return {
-          key: String(d.id),
-          text: d.name,
-          to: `/sources/${source.id}/dashboards/${d.id}`,
-        }
-      })
+      const links = await dashboardSwitcher.loadDashboardLinks(source)
+      const dashboardLinks = dashboardSwitcher.updateActiveDashboardLink(
+        links,
+        dashboard
+      )
 
-      this.setState({dashboardLinks})
+      this.setState({
+        dashboardLinks,
+      })
     } catch (error) {
       console.error(error)
     }
-  }
-
-  private get activeDashboardLink(): DashboardsModels.DashboardSwitcherLink | null {
-    const {dashboard} = this.props
-
-    if (!dashboard) {
-      return null
-    }
-
-    const {dashboardLinks} = this.state
-
-    return dashboardLinks.find(link => link.key === String(dashboard.id))
   }
 }
 
@@ -560,7 +541,6 @@ const mstp = (state, {params: {dashboardID}}) => {
     dashboardID: Number(dashboardID),
     timeRange,
     zoomedTimeRange,
-    dashboards,
     autoRefresh,
     isUsingAuth,
     cellQueryStatus,
