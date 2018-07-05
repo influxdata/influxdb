@@ -1325,41 +1325,6 @@ func (c *KeyCursor) nextDescending() {
 	}
 }
 
-func (c *KeyCursor) filterFloatValues(tombstones []TimeRange, values FloatValues) FloatValues {
-	for _, t := range tombstones {
-		values = values.Exclude(t.Min, t.Max)
-	}
-	return values
-}
-
-func (c *KeyCursor) filterIntegerValues(tombstones []TimeRange, values IntegerValues) IntegerValues {
-	for _, t := range tombstones {
-		values = values.Exclude(t.Min, t.Max)
-	}
-	return values
-}
-
-func (c *KeyCursor) filterUnsignedValues(tombstones []TimeRange, values UnsignedValues) UnsignedValues {
-	for _, t := range tombstones {
-		values = values.Exclude(t.Min, t.Max)
-	}
-	return values
-}
-
-func (c *KeyCursor) filterStringValues(tombstones []TimeRange, values StringValues) StringValues {
-	for _, t := range tombstones {
-		values = values.Exclude(t.Min, t.Max)
-	}
-	return values
-}
-
-func (c *KeyCursor) filterBooleanValues(tombstones []TimeRange, values BooleanValues) BooleanValues {
-	for _, t := range tombstones {
-		values = values.Exclude(t.Min, t.Max)
-	}
-	return values
-}
-
 type purger struct {
 	mu        sync.RWMutex
 	fileStore *FileStore

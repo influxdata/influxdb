@@ -2,8 +2,12 @@
 
 package tsm1
 
-// ReadFloatBlock reads the next block as a set of float values.
-func (c *KeyCursor) ReadFloatBlock(buf *[]FloatValue) ([]FloatValue, error) {
+import (
+	"github.com/influxdata/influxdb/tsdb"
+)
+
+// ReadFloatArrayBlock reads the next block as a set of float values.
+func (c *KeyCursor) ReadFloatArrayBlock(values *tsdb.FloatArray) (*tsdb.FloatArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -12,9 +16,7 @@ LOOP:
 
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
-	*buf = (*buf)[:0]
-	var values FloatValues
-	values, err := first.r.ReadFloatBlockAt(&first.entry, buf)
+	err := first.r.ReadFloatArrayBlockAt(&first.entry, values)
 	if err != nil {
 		return nil, err
 	}
@@ -24,11 +26,11 @@ LOOP:
 	}
 
 	// Remove values we already read
-	values = values.Exclude(first.readMin, first.readMax)
+	values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesFloatValues(tombstones, values)
+	excludeTombstonesFloatArray(tombstones, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -70,7 +72,7 @@ LOOP:
 				if cur.entry.MaxTime > maxT {
 					maxT = cur.entry.MaxTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -85,9 +87,8 @@ LOOP:
 				continue
 			}
 
-			var a []FloatValue
-			var v FloatValues
-			v, err := cur.r.ReadFloatBlockAt(&cur.entry, &a)
+			v := &tsdb.FloatArray{}
+			err := cur.r.ReadFloatArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -98,16 +99,16 @@ LOOP:
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesFloatValues(tombstones, v)
+			excludeTombstonesFloatArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			if v.Len() > 0 {
 				// Only use values in the overlapping window
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = values.Merge(v)
+				values.Merge(v)
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -133,7 +134,7 @@ LOOP:
 				if cur.entry.MinTime < minT {
 					minT = cur.entry.MinTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -148,9 +149,8 @@ LOOP:
 				continue
 			}
 
-			var a []FloatValue
-			var v FloatValues
-			v, err := cur.r.ReadFloatBlockAt(&cur.entry, &a)
+			v := &tsdb.FloatArray{}
+			err := cur.r.ReadFloatArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -160,17 +160,18 @@ LOOP:
 			}
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesFloatValues(tombstones, v)
+			excludeTombstonesFloatArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
 			if v.Len() > 0 {
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = v.Merge(values)
+				v.Merge(values)
+				*values = *v
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -181,15 +182,14 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesFloatValues(t []TimeRange, values FloatValues) FloatValues {
+func excludeTombstonesFloatArray(t []TimeRange, values *tsdb.FloatArray) {
 	for i := range t {
-		values = values.Exclude(t[i].Min, t[i].Max)
+		values.Exclude(t[i].Min, t[i].Max)
 	}
-	return values
 }
 
-// ReadIntegerBlock reads the next block as a set of integer values.
-func (c *KeyCursor) ReadIntegerBlock(buf *[]IntegerValue) ([]IntegerValue, error) {
+// ReadIntegerArrayBlock reads the next block as a set of integer values.
+func (c *KeyCursor) ReadIntegerArrayBlock(values *tsdb.IntegerArray) (*tsdb.IntegerArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -198,9 +198,7 @@ LOOP:
 
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
-	*buf = (*buf)[:0]
-	var values IntegerValues
-	values, err := first.r.ReadIntegerBlockAt(&first.entry, buf)
+	err := first.r.ReadIntegerArrayBlockAt(&first.entry, values)
 	if err != nil {
 		return nil, err
 	}
@@ -210,11 +208,11 @@ LOOP:
 	}
 
 	// Remove values we already read
-	values = values.Exclude(first.readMin, first.readMax)
+	values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesIntegerValues(tombstones, values)
+	excludeTombstonesIntegerArray(tombstones, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -256,7 +254,7 @@ LOOP:
 				if cur.entry.MaxTime > maxT {
 					maxT = cur.entry.MaxTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -271,9 +269,8 @@ LOOP:
 				continue
 			}
 
-			var a []IntegerValue
-			var v IntegerValues
-			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, &a)
+			v := &tsdb.IntegerArray{}
+			err := cur.r.ReadIntegerArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -284,16 +281,16 @@ LOOP:
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesIntegerValues(tombstones, v)
+			excludeTombstonesIntegerArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			if v.Len() > 0 {
 				// Only use values in the overlapping window
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = values.Merge(v)
+				values.Merge(v)
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -319,7 +316,7 @@ LOOP:
 				if cur.entry.MinTime < minT {
 					minT = cur.entry.MinTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -334,9 +331,8 @@ LOOP:
 				continue
 			}
 
-			var a []IntegerValue
-			var v IntegerValues
-			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, &a)
+			v := &tsdb.IntegerArray{}
+			err := cur.r.ReadIntegerArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -346,17 +342,18 @@ LOOP:
 			}
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesIntegerValues(tombstones, v)
+			excludeTombstonesIntegerArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
 			if v.Len() > 0 {
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = v.Merge(values)
+				v.Merge(values)
+				*values = *v
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -367,15 +364,14 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesIntegerValues(t []TimeRange, values IntegerValues) IntegerValues {
+func excludeTombstonesIntegerArray(t []TimeRange, values *tsdb.IntegerArray) {
 	for i := range t {
-		values = values.Exclude(t[i].Min, t[i].Max)
+		values.Exclude(t[i].Min, t[i].Max)
 	}
-	return values
 }
 
-// ReadUnsignedBlock reads the next block as a set of unsigned values.
-func (c *KeyCursor) ReadUnsignedBlock(buf *[]UnsignedValue) ([]UnsignedValue, error) {
+// ReadUnsignedArrayBlock reads the next block as a set of unsigned values.
+func (c *KeyCursor) ReadUnsignedArrayBlock(values *tsdb.UnsignedArray) (*tsdb.UnsignedArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -384,9 +380,7 @@ LOOP:
 
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
-	*buf = (*buf)[:0]
-	var values UnsignedValues
-	values, err := first.r.ReadUnsignedBlockAt(&first.entry, buf)
+	err := first.r.ReadUnsignedArrayBlockAt(&first.entry, values)
 	if err != nil {
 		return nil, err
 	}
@@ -396,11 +390,11 @@ LOOP:
 	}
 
 	// Remove values we already read
-	values = values.Exclude(first.readMin, first.readMax)
+	values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesUnsignedValues(tombstones, values)
+	excludeTombstonesUnsignedArray(tombstones, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -442,7 +436,7 @@ LOOP:
 				if cur.entry.MaxTime > maxT {
 					maxT = cur.entry.MaxTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -457,9 +451,8 @@ LOOP:
 				continue
 			}
 
-			var a []UnsignedValue
-			var v UnsignedValues
-			v, err := cur.r.ReadUnsignedBlockAt(&cur.entry, &a)
+			v := &tsdb.UnsignedArray{}
+			err := cur.r.ReadUnsignedArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -470,16 +463,16 @@ LOOP:
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesUnsignedValues(tombstones, v)
+			excludeTombstonesUnsignedArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			if v.Len() > 0 {
 				// Only use values in the overlapping window
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = values.Merge(v)
+				values.Merge(v)
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -505,7 +498,7 @@ LOOP:
 				if cur.entry.MinTime < minT {
 					minT = cur.entry.MinTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -520,9 +513,8 @@ LOOP:
 				continue
 			}
 
-			var a []UnsignedValue
-			var v UnsignedValues
-			v, err := cur.r.ReadUnsignedBlockAt(&cur.entry, &a)
+			v := &tsdb.UnsignedArray{}
+			err := cur.r.ReadUnsignedArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -532,17 +524,18 @@ LOOP:
 			}
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesUnsignedValues(tombstones, v)
+			excludeTombstonesUnsignedArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
 			if v.Len() > 0 {
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = v.Merge(values)
+				v.Merge(values)
+				*values = *v
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -553,15 +546,14 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesUnsignedValues(t []TimeRange, values UnsignedValues) UnsignedValues {
+func excludeTombstonesUnsignedArray(t []TimeRange, values *tsdb.UnsignedArray) {
 	for i := range t {
-		values = values.Exclude(t[i].Min, t[i].Max)
+		values.Exclude(t[i].Min, t[i].Max)
 	}
-	return values
 }
 
-// ReadStringBlock reads the next block as a set of string values.
-func (c *KeyCursor) ReadStringBlock(buf *[]StringValue) ([]StringValue, error) {
+// ReadStringArrayBlock reads the next block as a set of string values.
+func (c *KeyCursor) ReadStringArrayBlock(values *tsdb.StringArray) (*tsdb.StringArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -570,9 +562,7 @@ LOOP:
 
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
-	*buf = (*buf)[:0]
-	var values StringValues
-	values, err := first.r.ReadStringBlockAt(&first.entry, buf)
+	err := first.r.ReadStringArrayBlockAt(&first.entry, values)
 	if err != nil {
 		return nil, err
 	}
@@ -582,11 +572,11 @@ LOOP:
 	}
 
 	// Remove values we already read
-	values = values.Exclude(first.readMin, first.readMax)
+	values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesStringValues(tombstones, values)
+	excludeTombstonesStringArray(tombstones, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -628,7 +618,7 @@ LOOP:
 				if cur.entry.MaxTime > maxT {
 					maxT = cur.entry.MaxTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -643,9 +633,8 @@ LOOP:
 				continue
 			}
 
-			var a []StringValue
-			var v StringValues
-			v, err := cur.r.ReadStringBlockAt(&cur.entry, &a)
+			v := &tsdb.StringArray{}
+			err := cur.r.ReadStringArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -656,16 +645,16 @@ LOOP:
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesStringValues(tombstones, v)
+			excludeTombstonesStringArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			if v.Len() > 0 {
 				// Only use values in the overlapping window
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = values.Merge(v)
+				values.Merge(v)
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -691,7 +680,7 @@ LOOP:
 				if cur.entry.MinTime < minT {
 					minT = cur.entry.MinTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -706,9 +695,8 @@ LOOP:
 				continue
 			}
 
-			var a []StringValue
-			var v StringValues
-			v, err := cur.r.ReadStringBlockAt(&cur.entry, &a)
+			v := &tsdb.StringArray{}
+			err := cur.r.ReadStringArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -718,17 +706,18 @@ LOOP:
 			}
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesStringValues(tombstones, v)
+			excludeTombstonesStringArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
 			if v.Len() > 0 {
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = v.Merge(values)
+				v.Merge(values)
+				*values = *v
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -739,15 +728,14 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesStringValues(t []TimeRange, values StringValues) StringValues {
+func excludeTombstonesStringArray(t []TimeRange, values *tsdb.StringArray) {
 	for i := range t {
-		values = values.Exclude(t[i].Min, t[i].Max)
+		values.Exclude(t[i].Min, t[i].Max)
 	}
-	return values
 }
 
-// ReadBooleanBlock reads the next block as a set of boolean values.
-func (c *KeyCursor) ReadBooleanBlock(buf *[]BooleanValue) ([]BooleanValue, error) {
+// ReadBooleanArrayBlock reads the next block as a set of boolean values.
+func (c *KeyCursor) ReadBooleanArrayBlock(values *tsdb.BooleanArray) (*tsdb.BooleanArray, error) {
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
@@ -756,9 +744,7 @@ LOOP:
 
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
-	*buf = (*buf)[:0]
-	var values BooleanValues
-	values, err := first.r.ReadBooleanBlockAt(&first.entry, buf)
+	err := first.r.ReadBooleanArrayBlockAt(&first.entry, values)
 	if err != nil {
 		return nil, err
 	}
@@ -768,11 +754,11 @@ LOOP:
 	}
 
 	// Remove values we already read
-	values = values.Exclude(first.readMin, first.readMax)
+	values.Exclude(first.readMin, first.readMax)
 
 	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
-	values = excludeTombstonesBooleanValues(tombstones, values)
+	excludeTombstonesBooleanArray(tombstones, values)
 	// If there are no values in this first block (all tombstoned or previously read) and
 	// we have more potential blocks too search.  Try again.
 	if values.Len() == 0 && len(c.current) > 0 {
@@ -814,7 +800,7 @@ LOOP:
 				if cur.entry.MaxTime > maxT {
 					maxT = cur.entry.MaxTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -829,9 +815,8 @@ LOOP:
 				continue
 			}
 
-			var a []BooleanValue
-			var v BooleanValues
-			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, &a)
+			v := &tsdb.BooleanArray{}
+			err := cur.r.ReadBooleanArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -842,16 +827,16 @@ LOOP:
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesBooleanValues(tombstones, v)
+			excludeTombstonesBooleanArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			if v.Len() > 0 {
 				// Only use values in the overlapping window
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = values.Merge(v)
+				values.Merge(v)
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -877,7 +862,7 @@ LOOP:
 				if cur.entry.MinTime < minT {
 					minT = cur.entry.MinTime
 				}
-				values = values.Include(minT, maxT)
+				values.Include(minT, maxT)
 				break
 			}
 		}
@@ -892,9 +877,8 @@ LOOP:
 				continue
 			}
 
-			var a []BooleanValue
-			var v BooleanValues
-			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, &a)
+			v := &tsdb.BooleanArray{}
+			err := cur.r.ReadBooleanArrayBlockAt(&cur.entry, v)
 			if err != nil {
 				return nil, err
 			}
@@ -904,17 +888,18 @@ LOOP:
 			}
 			tombstones := cur.r.TombstoneRange(c.key)
 			// Remove any tombstoned values
-			v = excludeTombstonesBooleanValues(tombstones, v)
+			excludeTombstonesBooleanArray(tombstones, v)
 
 			// Remove values we already read
-			v = v.Exclude(cur.readMin, cur.readMax)
+			v.Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
 			if v.Len() > 0 {
-				v = v.Include(minT, maxT)
+				v.Include(minT, maxT)
 				// Merge the remaining values with the existing
-				values = v.Merge(values)
+				v.Merge(values)
+				*values = *v
 			}
 			cur.markRead(minT, maxT)
 		}
@@ -925,9 +910,8 @@ LOOP:
 	return values, err
 }
 
-func excludeTombstonesBooleanValues(t []TimeRange, values BooleanValues) BooleanValues {
+func excludeTombstonesBooleanArray(t []TimeRange, values *tsdb.BooleanArray) {
 	for i := range t {
-		values = values.Exclude(t[i].Min, t[i].Max)
+		values.Exclude(t[i].Min, t[i].Max)
 	}
-	return values
 }
