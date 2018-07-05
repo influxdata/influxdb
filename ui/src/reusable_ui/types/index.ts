@@ -1,11 +1,21 @@
-export type ComponentColor =
-  | 'default'
-  | 'primary'
-  | 'success'
-  | 'warning'
-  | 'danger'
-  | 'alert'
+export enum ComponentColor {
+  Default = 'default',
+  Primary = 'primary',
+  Success = 'success',
+  Warning = 'warning',
+  Danger = 'danger',
+  Alert = 'alert',
+}
 
-export type ComponentSize = 'xs' | 'sm' | 'md' | 'lg'
+export enum ComponentSize {
+  ExtraSmall = 'xs',
+  Small = 'sm',
+  Medium = 'md',
+  Large = 'lg',
+}
 
-export type ButtonShape = 'square' | 'stretch' | 'none'
+export enum ButtonShape {
+  Default = 'none',
+  Square = 'square',
+  StretchToFit = 'stretch',
+}

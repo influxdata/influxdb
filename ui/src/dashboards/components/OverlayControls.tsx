@@ -3,6 +3,7 @@ import React, {SFC} from 'react'
 import ConfirmOrCancel from 'src/shared/components/ConfirmOrCancel'
 import SourceSelector from 'src/dashboards/components/SourceSelector'
 import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
+import {ButtonShape} from 'src/reusable_ui/types'
 
 import {
   DISPLAY_OPTIONS_QUERIES,
@@ -47,7 +48,7 @@ const OverlayControls: SFC<Props> = ({
         activeButton={displayOptionsTab}
         buttons={[DISPLAY_OPTIONS_QUERIES, DISPLAY_OPTIONS_VIS]}
         onChange={onClickDisplayOptions}
-        shape="stretch"
+        shape={ButtonShape.StretchToFit}
       />
     </div>
     <div className="overlay-controls--right">
