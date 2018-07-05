@@ -50,26 +50,6 @@ const OverlayControls: SFC<Props> = ({
         shape="stretch"
       />
     </div>
-    {/* <ul className="nav nav-tablist nav-tablist-sm">
-      <li
-        key="queries"
-        className={classnames({
-          active: !displayOptionsTab,
-        })}
-        onClick={onClickDisplayOptions(false)}
-      >
-        Queries
-      </li>
-      <li
-        key="displayOptions"
-        className={classnames({
-          active: displayOptionsTab,
-        })}
-        onClick={onClickDisplayOptions(true)}
-      >
-        Visualization
-      </li>
-    </ul> */}
     <div className="overlay-controls--right">
       <ConfirmOrCancel
         onCancel={onCancel}
