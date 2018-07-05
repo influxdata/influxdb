@@ -1,4 +1,4 @@
-v1.6.0 [unreleased]
+v1.6.0 [2018-07-05]
 -------------------
 
 ### Breaking changes
