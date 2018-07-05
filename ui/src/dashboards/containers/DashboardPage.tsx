@@ -115,7 +115,6 @@ interface State {
   selectedCell: DashboardsModels.Cell | null
   scrollTop: number
   windowHeight: number
-  dashboardsNames: DashboardsModels.DashboardName[]
 }
 
 @ErrorHandling
@@ -130,7 +129,6 @@ class DashboardPage extends Component<Props, State> {
       selectedCell: null,
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      dashboardsNames: [],
     }
   }
 
