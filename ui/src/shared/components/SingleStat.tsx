@@ -71,8 +71,9 @@ class SingleStat extends PureComponent<Props> {
     const lastValue = lastValues[firstAlphabeticalindex]
     const HUNDRED = 100.0
     const roundedValue = Math.round(+lastValue * HUNDRED) / HUNDRED
+    const localeFormatted = roundedValue.toLocaleString()
 
-    return `${roundedValue}`
+    return `${localeFormatted}`
   }
 
   private get containerStyle(): CSSProperties {
