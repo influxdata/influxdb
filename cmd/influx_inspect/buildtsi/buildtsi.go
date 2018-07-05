@@ -342,35 +342,36 @@ func (cmd *Command) processTSMFile(index *tsi1.Index, path string) error {
 
 	keysBatch := make([][]byte, 0, cmd.batchSize)
 	namesBatch := make([][]byte, 0, cmd.batchSize)
-	tagsBatch := make([]models.Tags, 0, cmd.batchSize)
-
+	tagsBatch := make([]models.Tags, cmd.batchSize)
+	var ti int
 	for i := 0; i < r.KeyCount(); i++ {
 		key, _ := r.KeyAt(i)
 		seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
-		name, tags := models.ParseKeyBytes(seriesKey)
+		var name []byte
+		name, tagsBatch[ti] = models.ParseKeyBytesWithTags(seriesKey, tagsBatch[ti])
 
 		if cmd.Verbose {
-			cmd.Logger.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
+			cmd.Logger.Info("Series", zap.String("name", string(name)), zap.String("tags", tagsBatch[ti].String()))
 		}
 
 		keysBatch = append(keysBatch, seriesKey)
 		namesBatch = append(namesBatch, name)
-		tagsBatch = append(tagsBatch, tags)
+		ti++
 
 		// Flush batch?
 		if len(keysBatch) == cmd.batchSize {
-			if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
+			if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
 				return fmt.Errorf("problem creating series: (%s)", err)
 			}
 			keysBatch = keysBatch[:0]
 			namesBatch = namesBatch[:0]
-			tagsBatch = tagsBatch[:0]
+			ti = 0 // Reset tags.
 		}
 	}
 
 	// Flush any remaining series in the batches
 	if len(keysBatch) > 0 {
-		if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
+		if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
 			return fmt.Errorf("problem creating series: (%s)", err)
 		}
 	}
