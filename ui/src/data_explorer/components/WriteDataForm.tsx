@@ -11,7 +11,7 @@ import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
 import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
-import {WRITE_DATA_FILE} from 'src/shared/constants'
+import {WriteDataMode} from 'src/shared/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Source, DropdownItem} from 'src/types'
 
@@ -31,7 +31,7 @@ interface State {
   uploadContent: string
   fileName: string
   progress: string
-  mode: string
+  mode: WriteDataMode
   dragClass: string
   isUploading: boolean
 }
@@ -48,7 +48,7 @@ class WriteDataForm extends PureComponent<Props, State> {
       uploadContent: '',
       fileName: '',
       progress: '',
-      mode: WRITE_DATA_FILE,
+      mode: WriteDataMode.File,
       dragClass: 'drag-none',
       isUploading: false,
     }
@@ -91,7 +91,7 @@ class WriteDataForm extends PureComponent<Props, State> {
     )
   }
 
-  private handleToggleMode = (mode: string) => {
+  private handleToggleMode = (mode: WriteDataMode) => {
     this.setState({mode})
   }
 
@@ -112,7 +112,7 @@ class WriteDataForm extends PureComponent<Props, State> {
     const {inputContent, uploadContent, selectedDatabase, mode} = this.state
     let content = inputContent
 
-    if (mode === 'File Upload') {
+    if (mode === WriteDataMode.File) {
       content = uploadContent
     }
     this.setState({isUploading: true})

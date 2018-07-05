@@ -7,7 +7,7 @@ import React, {
   ReactElement,
 } from 'react'
 import WriteDataFooter from 'src/data_explorer/components/WriteDataFooter'
-import {WRITE_DATA_FILE} from 'src/shared/constants'
+import {WriteDataMode} from 'src/shared/constants'
 
 interface Props {
   handleCancelFile: (e: MouseEvent<HTMLButtonElement>) => void
@@ -40,7 +40,7 @@ class WriteDataBody extends PureComponent<Props> {
 
   private get input(): JSX.Element {
     const {mode} = this.props
-    if (mode === WRITE_DATA_FILE) {
+    if (mode === WriteDataMode.File) {
       return this.dragArea
     }
 
@@ -138,7 +138,7 @@ class WriteDataBody extends PureComponent<Props> {
   private get footer(): JSX.Element | null {
     const {isUploading, inputContent, handleSubmit, mode} = this.props
 
-    if (mode === WRITE_DATA_FILE) {
+    if (mode === WriteDataMode.File) {
       return null
     }
 

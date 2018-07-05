@@ -489,5 +489,7 @@ export const MAX_SIZE = 1
 export const MIN_SIZE = 0
 
 // Write Data Modes
-export const WRITE_DATA_MANUAL = 'Manual Entry'
-export const WRITE_DATA_FILE = 'File Upload'
+export enum WriteDataMode {
+  Manual = 'Manual Entry',
+  File = 'File Upload',
+}

@@ -2,12 +2,12 @@ import React, {PureComponent} from 'react'
 import DatabaseDropdown from 'src/shared/components/DatabaseDropdown'
 import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
 import {Source, DropdownItem} from 'src/types'
-import {WRITE_DATA_FILE, WRITE_DATA_MANUAL} from 'src/shared/constants'
+import {WriteDataMode} from 'src/shared/constants'
 
 interface Props {
   handleSelectDatabase: (item: DropdownItem) => void
   selectedDatabase: string
-  onToggleMode: (mode: string) => void
+  onToggleMode: (mode: WriteDataMode) => void
   errorThrown: () => void
   onClose: () => void
   mode: string
@@ -45,7 +45,7 @@ class WriteDataHeader extends PureComponent<Props> {
 
   private get modeSelector(): JSX.Element {
     const {mode} = this.props
-    const modes = [WRITE_DATA_FILE, WRITE_DATA_MANUAL]
+    const modes = [WriteDataMode.File, WriteDataMode.Manual]
 
     return (
       <RadioButtons
@@ -56,7 +56,7 @@ class WriteDataHeader extends PureComponent<Props> {
     )
   }
 
-  private handleRadioButtonClick = (mode: string): void => {
+  private handleRadioButtonClick = (mode: WriteDataMode): void => {
     const {onToggleMode} = this.props
 
     onToggleMode(mode)
