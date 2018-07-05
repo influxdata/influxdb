@@ -1,44 +1,82 @@
+import React, {PureComponent, CSSProperties} from 'react'
+import Dygraph from 'src/shared/components/Dygraph'
 import _ from 'lodash'
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
-import Dygraph from 'shared/components/Dygraph'
 
 import SingleStat from 'src/shared/components/SingleStat'
-import {timeSeriesToDygraph} from 'utils/timeSeriesTransformers'
+import {
+  timeSeriesToDygraph,
+  TimeSeriesToDyGraphReturnType,
+} from 'src/utils/timeSeriesTransformers'
 
-import {colorsStringSchema} from 'shared/schemas'
 import {ErrorHandlingWith} from 'src/shared/decorators/errors'
 import InvalidData from 'src/shared/components/InvalidData'
+import {Query, Axes, RuleValues, TimeRange} from 'src/types'
+import {ColorString} from 'src/types/colors'
+import {Data} from 'src/types/dygraphs'
 
-const validateTimeSeries = timeseries => {
-  return _.every(timeseries, r =>
+const validateTimeSeries = ts => {
+  return _.every(ts, r =>
     _.every(
       r,
-      (v, i) => (i === 0 && Date.parse(v)) || _.isNumber(v) || _.isNull(v)
+      (v, i: number) =>
+        (i === 0 && Date.parse(v)) || _.isNumber(v) || _.isNull(v)
     )
   )
 }
 
+interface Props {
+  axes: Axes
+  title: string
+  cellID: string
+  cellHeight: number
+  isFetchingInitially: boolean
+  isRefreshing: boolean
+  isGraphFilled: boolean
+  isBarGraph: boolean
+  staticLegend: boolean
+  showSingleStat: boolean
+  displayOptions: {
+    stepPlot: boolean
+    stackedGraph: boolean
+    animatedZooms: boolean
+  }
+  activeQueryIndex: number
+  ruleValues: RuleValues
+  timeRange: TimeRange
+  isInDataExplorer: boolean
+  onZoom: () => void
+  data: Data
+  queries: Query[]
+  colors: ColorString[]
+  underlayCallback?: () => void
+  setResolution: () => void
+  handleSetHoverTime: () => void
+}
+
 @ErrorHandlingWith(InvalidData)
-class LineGraph extends Component {
-  constructor(props) {
-    super(props)
-    this.isValidData = true
+class LineGraph extends PureComponent<Props> {
+  public static defaultProps: Partial<Props> = {
+    underlayCallback: () => {},
+    isGraphFilled: true,
+    staticLegend: false,
   }
 
-  componentWillMount() {
+  private isValidData: boolean = true
+  private timeSeries: TimeSeriesToDyGraphReturnType
+
+  public componentWillMount() {
     const {data, isInDataExplorer} = this.props
     this.parseTimeSeries(data, isInDataExplorer)
   }
 
-  parseTimeSeries(data, isInDataExplorer) {
-    this._timeSeries = timeSeriesToDygraph(data, isInDataExplorer)
+  public parseTimeSeries(data, isInDataExplorer) {
+    this.timeSeries = timeSeriesToDygraph(data, isInDataExplorer)
     this.isValidData = validateTimeSeries(
-      _.get(this._timeSeries, 'timeSeries', [])
+      _.get(this.timeSeries, 'timeSeries', [])
     )
   }
 
-  componentWillUpdate(nextProps) {
+  public componentWillUpdate(nextProps) {
     const {data, activeQueryIndex} = this.props
     if (
       data !== nextProps.data ||
@@ -48,7 +86,7 @@ class LineGraph extends Component {
     }
   }
 
-  render() {
+  public render() {
     if (!this.isValidData) {
       return <InvalidData />
     }
@@ -76,7 +114,7 @@ class LineGraph extends Component {
       handleSetHoverTime,
     } = this.props
 
-    const {labels, timeSeries, dygraphSeries} = this._timeSeries
+    const {labels, timeSeries, dygraphSeries} = this.timeSeries
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -99,19 +137,9 @@ class LineGraph extends Component {
       connectSeparatedPoints: true,
     }
 
-    const containerStyle = {
-      width: 'calc(100% - 32px)',
-      height: 'calc(100% - 16px)',
-      position: 'absolute',
-      top: '8px',
-    }
-
-    const prefix = axes ? axes.y.prefix : ''
-    const suffix = axes ? axes.y.suffix : ''
-
     return (
-      <div className="dygraph graph--hasYLabel" style={{height: '100%'}}>
-        {isRefreshing ? <GraphLoadingDots /> : null}
+      <div className="dygraph graph--hasYLabel" style={this.style}>
+        {isRefreshing && <GraphLoadingDots />}
         <Dygraph
           axes={axes}
           cellID={cellID}
@@ -124,26 +152,60 @@ class LineGraph extends Component {
           isBarGraph={isBarGraph}
           timeSeries={timeSeries}
           ruleValues={ruleValues}
+          staticLegend={staticLegend}
           dygraphSeries={dygraphSeries}
           setResolution={setResolution}
+          containerStyle={this.containerStyle}
           handleSetHoverTime={handleSetHoverTime}
-          containerStyle={containerStyle}
-          staticLegend={staticLegend}
           isGraphFilled={showSingleStat ? false : isGraphFilled}
         >
           {showSingleStat && (
             <SingleStat
-              prefix={prefix}
-              suffix={suffix}
               data={data}
               lineGraph={true}
               colors={colors}
+              prefix={this.prefix}
+              suffix={this.suffix}
               cellHeight={cellHeight}
+              isFetchingInitially={isFetchingInitially}
             />
           )}
         </Dygraph>
       </div>
     )
+  }
+
+  private get style(): CSSProperties {
+    return {height: '100%'}
+  }
+
+  private get prefix(): string {
+    const {axes} = this.props
+
+    if (!axes) {
+      return ''
+    }
+
+    return axes.y.prefix
+  }
+
+  private get suffix(): string {
+    const {axes} = this.props
+
+    if (!axes) {
+      return ''
+    }
+
+    return axes.y.suffix
+  }
+
+  private get containerStyle(): CSSProperties {
+    return {
+      width: 'calc(100% - 32px)',
+      height: 'calc(100% - 16px)',
+      position: 'absolute',
+      top: '8px',
+    }
   }
 }
 
@@ -160,53 +222,5 @@ const GraphSpinner = () => (
     <div className="graph-spinner" />
   </div>
 )
-
-const {array, arrayOf, bool, func, number, shape, string} = PropTypes
-
-LineGraph.defaultProps = {
-  underlayCallback: () => {},
-  isGraphFilled: true,
-  staticLegend: false,
-}
-
-LineGraph.propTypes = {
-  cellID: string,
-  axes: shape({
-    y: shape({
-      bounds: array,
-      label: string,
-    }),
-    y2: shape({
-      bounds: array,
-      label: string,
-    }),
-  }),
-  handleSetHoverTime: func,
-  title: string,
-  isFetchingInitially: bool,
-  isRefreshing: bool,
-  underlayCallback: func,
-  isGraphFilled: bool,
-  isBarGraph: bool,
-  staticLegend: bool,
-  showSingleStat: bool,
-  displayOptions: shape({
-    stepPlot: bool,
-    stackedGraph: bool,
-    animatedZooms: bool,
-  }),
-  activeQueryIndex: number,
-  ruleValues: shape({}),
-  timeRange: shape({
-    lower: string.isRequired,
-  }),
-  isInDataExplorer: bool,
-  setResolution: func,
-  cellHeight: number,
-  onZoom: func,
-  queries: arrayOf(shape({}).isRequired).isRequired,
-  data: arrayOf(shape({}).isRequired).isRequired,
-  colors: colorsStringSchema,
-}
 
 export default LineGraph

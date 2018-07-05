@@ -14,7 +14,7 @@ interface Label {
   responseIndex: number
 }
 
-interface TimeSeriesToDyGraphReturnType {
+export interface TimeSeriesToDyGraphReturnType {
   labels: string[]
   timeSeries: DygraphValue[][]
   dygraphSeries: DygraphSeries

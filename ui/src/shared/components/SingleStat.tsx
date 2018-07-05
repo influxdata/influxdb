@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'src/shared/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
-import {ColorNumber} from 'src/types/colors'
+import {ColorString} from 'src/types/colors'
 import {CellType} from 'src/types/dashboards'
 import {Data} from 'src/types/dygraphs'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -14,11 +14,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   isFetchingInitially: boolean
   cellHeight: number
-  colors: ColorNumber[]
+  colors: ColorString[]
   prefix?: string
   suffix?: string
   lineGraph: boolean
-  staticLegendHeight: number
+  staticLegendHeight?: number
   data: Data
 }
 
