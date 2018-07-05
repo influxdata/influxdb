@@ -40,7 +40,8 @@ import (
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl batch_cursor.gen.go.tmpl cursor_iterator.gen.go.tmpl
-//go:generate tmpl -data=@file_store.gen.go.tmpldata file_store.gen.go.tmpl
+//go:generate go run ../../../_tools/tmpl/main.go -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
+//go:generate go run ../../../_tools/tmpl/main.go -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 //go:generate tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 //go:generate tmpl -data=@reader.gen.go.tmpldata reader.gen.go.tmpl
