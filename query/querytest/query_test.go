@@ -20,6 +20,7 @@ var skipTests = map[string]string{
 	"filter_by_tags":            "arbitrary filtering not supported by influxql (https://github.com/influxdata/platform/issues/94)",
 	"window":                    "ordering of results differs between queries (https://github.com/influxdata/platform/issues/96)",
 	"window_group_mean_ungroup": "error in influxql: failed to run query: timeValue column \"_start\" does not exist (https://github.com/influxdata/platform/issues/97)",
+	"string_max":                "panic because no max() implementation for string (https://github.com/influxdata/platform/issues/352)",
 }
 
 func Test_QueryEndToEnd(t *testing.T) {
