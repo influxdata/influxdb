@@ -1703,13 +1703,19 @@ func (t *Throttler) Handler(h http.Handler) http.Handler {
 			}
 		}
 
-		// Wait for a spot in the list of concurrent requests.
+		// First check if we can immediately send in to current because there is
+		// available capacity. This helps reduce racyness in tests.
 		select {
 		case t.current <- struct{}{}:
-		case <-timerCh:
-			t.Logger.Warn("request throttled, exceeds timeout", zap.Duration("d", timeout))
-			http.Error(w, "request throttled, exceeds timeout", http.StatusServiceUnavailable)
-			return
+		default:
+			// Wait for a spot in the list of concurrent requests, but allow checking the timeout.
+			select {
+			case t.current <- struct{}{}:
+			case <-timerCh:
+				t.Logger.Warn("request throttled, exceeds timeout", zap.Duration("d", timeout))
+				http.Error(w, "request throttled, exceeds timeout", http.StatusServiceUnavailable)
+				return
+			}
 		}
 		defer func() { <-t.current }()
 
