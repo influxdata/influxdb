@@ -1,12 +1,10 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
-import OptIn from 'shared/components/OptIn'
+import OptIn from 'src/shared/components/OptIn'
 import Input from 'src/dashboards/components/DisplayOptionsInput'
 import {Tabber, Tab} from 'src/dashboards/components/Tabber'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import LineGraphColorSelector from 'src/shared/components/LineGraphColorSelector'
 
 import {
@@ -17,80 +15,51 @@ import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
 import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Axes} from 'src/types'
 
 const {LINEAR, LOG, BASE_2, BASE_10} = AXES_SCALE_OPTIONS
 const getInputMin = scale => (scale === LOG ? '0' : null)
 
+interface Props {
+  type: string
+  axes: Axes
+  staticLegend: boolean
+  defaultYLabel: string
+  handleUpdateAxes: (axes: Axes) => void
+  onToggleStaticLegend: (x: boolean) => (e: MouseEvent<HTMLLIElement>) => void
+}
+
 @ErrorHandling
-class AxesOptions extends Component {
-  handleSetPrefixSuffix = e => {
-    const {handleUpdateAxes, axes} = this.props
-    const {prefix, suffix} = e.target.form
-
-    const newAxes = {
-      ...axes,
+class AxesOptions extends PureComponent<Props> {
+  public static defaultProps: Partial<Props> = {
+    axes: {
       y: {
-        ...axes.y,
-        prefix: prefix.value,
-        suffix: suffix.value,
+        bounds: ['', ''],
+        prefix: '',
+        suffix: '',
+        base: BASE_10,
+        scale: LINEAR,
+        label: '',
       },
-    }
-
-    handleUpdateAxes(newAxes)
-  }
-
-  handleSetYAxisBoundMin = min => {
-    const {handleUpdateAxes, axes} = this.props
-    const {
-      y: {
-        bounds: [, max],
+      x: {
+        bounds: ['', ''],
+        prefix: '',
+        suffix: '',
+        base: BASE_10,
+        scale: LINEAR,
+        label: '',
       },
-    } = this.props.axes
-    const newAxes = {...axes, y: {...axes.y, bounds: [min, max]}}
-
-    handleUpdateAxes(newAxes)
+    },
   }
 
-  handleSetYAxisBoundMax = max => {
-    const {handleUpdateAxes, axes} = this.props
-    const {
-      y: {
-        bounds: [min],
-      },
-    } = axes
-    const newAxes = {...axes, y: {...axes.y, bounds: [min, max]}}
-
-    handleUpdateAxes(newAxes)
-  }
-
-  handleSetLabel = label => {
-    const {handleUpdateAxes, axes} = this.props
-    const newAxes = {...axes, y: {...axes.y, label}}
-
-    handleUpdateAxes(newAxes)
-  }
-
-  handleSetScale = scale => () => {
-    const {handleUpdateAxes, axes} = this.props
-    const newAxes = {...axes, y: {...axes.y, scale}}
-
-    handleUpdateAxes(newAxes)
-  }
-
-  handleSetBase = base => () => {
-    const {handleUpdateAxes, axes} = this.props
-    const newAxes = {...axes, y: {...axes.y, base}}
-
-    handleUpdateAxes(newAxes)
-  }
-
-  render() {
+  public render() {
     const {
       axes: {
-        y: {bounds, label, prefix, suffix, base, scale, defaultYLabel},
+        y: {bounds, label, prefix, suffix, base, scale},
       },
       type,
       staticLegend,
+      defaultYLabel,
       onToggleStaticLegend,
     } = this.props
 
@@ -109,10 +78,10 @@ class AxesOptions extends Component {
             <div className="form-group col-sm-12">
               <label htmlFor="prefix">Title</label>
               <OptIn
-                customPlaceholder={defaultYLabel || 'y-axis title'}
+                type="text"
                 customValue={label}
                 onSetValue={this.handleSetLabel}
-                type="text"
+                customPlaceholder={defaultYLabel || 'y-axis title'}
               />
             </div>
             <LineGraphColorSelector />
@@ -129,7 +98,7 @@ class AxesOptions extends Component {
             <div className="form-group col-sm-6">
               <label htmlFor="max">Max</label>
               <OptIn
-                customPlaceholder={'max'}
+                customPlaceholder="max"
                 customValue={max}
                 onSetValue={this.handleSetYAxisBoundMax}
                 type="number"
@@ -142,7 +111,6 @@ class AxesOptions extends Component {
               value={prefix}
               labelText="Y-Value's Prefix"
               onChange={this.handleSetPrefixSuffix}
-              maxLength="5"
             />
             <Input
               name="suffix"
@@ -150,11 +118,10 @@ class AxesOptions extends Component {
               value={suffix}
               labelText="Y-Value's Suffix"
               onChange={this.handleSetPrefixSuffix}
-              maxLength="5"
             />
             <Tabber
               labelText="Y-Value's Format"
-              tipID="Y-Values's Format"
+              tipID="Y-Value's Format"
               tipContent={TOOLTIP_Y_VALUE_FORMAT}
             >
               <Tab
@@ -202,38 +169,74 @@ class AxesOptions extends Component {
       </FancyScrollbar>
     )
   }
+
+  private handleSetPrefixSuffix = e => {
+    const {handleUpdateAxes, axes} = this.props
+    const {prefix, suffix} = e.target.form
+
+    const newAxes = {
+      ...axes,
+      y: {
+        ...axes.y,
+        prefix: prefix.value,
+        suffix: suffix.value,
+      },
+    }
+
+    handleUpdateAxes(newAxes)
+  }
+
+  private handleSetYAxisBoundMin = (min: string): void => {
+    const {handleUpdateAxes, axes} = this.props
+    const {
+      y: {
+        bounds: [, max],
+      },
+    } = this.props.axes
+
+    const bounds: [string, string] = [min, max]
+    const newAxes = {...axes, y: {...axes.y, bounds}}
+
+    handleUpdateAxes(newAxes)
+  }
+
+  private handleSetYAxisBoundMax = (max: string): void => {
+    const {handleUpdateAxes, axes} = this.props
+    const {
+      y: {
+        bounds: [min],
+      },
+    } = axes
+
+    const bounds: [string, string] = [min, max]
+    const newAxes = {...axes, y: {...axes.y, bounds}}
+
+    handleUpdateAxes(newAxes)
+  }
+
+  private handleSetLabel = label => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, label}}
+
+    handleUpdateAxes(newAxes)
+  }
+
+  private handleSetScale = scale => () => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, scale}}
+
+    handleUpdateAxes(newAxes)
+  }
+
+  private handleSetBase = base => () => {
+    const {handleUpdateAxes, axes} = this.props
+    const newAxes = {...axes, y: {...axes.y, base}}
+
+    handleUpdateAxes(newAxes)
+  }
 }
 
-const {arrayOf, bool, func, shape, string} = PropTypes
-
-AxesOptions.defaultProps = {
-  axes: {
-    y: {
-      bounds: ['', ''],
-      prefix: '',
-      suffix: '',
-      base: BASE_10,
-      scale: LINEAR,
-      defaultYLabel: '',
-    },
-  },
-}
-
-AxesOptions.propTypes = {
-  type: string.isRequired,
-  axes: shape({
-    y: shape({
-      bounds: arrayOf(string),
-      label: string,
-      defaultYLabel: string,
-    }),
-  }).isRequired,
-  onToggleStaticLegend: func.isRequired,
-  staticLegend: bool,
-  handleUpdateAxes: func.isRequired,
-}
-
-const mapStateToProps = ({
+const mstp = ({
   cellEditorOverlay: {
     cell: {axes, type},
   },
@@ -242,8 +245,8 @@ const mapStateToProps = ({
   type,
 })
 
-const mapDispatchToProps = dispatch => ({
-  handleUpdateAxes: bindActionCreators(updateAxes, dispatch),
-})
+const mdtp = {
+  handleUpdateAxes: updateAxes,
+}
 
-export default connect(mapStateToProps, mapDispatchToProps)(AxesOptions)
+export default connect(mstp, mdtp)(AxesOptions)

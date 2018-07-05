@@ -1,7 +1,16 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC, ChangeEvent} from 'react'
 
-const DisplayOptionsInput = ({
+interface Props {
+  name: string
+  id: string
+  value: string
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void
+  labelText?: string
+  colWidth?: string
+  placeholder?: string
+}
+
+const DisplayOptionsInput: SFC<Props> = ({
   id,
   name,
   value,
@@ -24,22 +33,10 @@ const DisplayOptionsInput = ({
   </div>
 )
 
-const {func, string} = PropTypes
-
 DisplayOptionsInput.defaultProps = {
   value: '',
   colWidth: 'col-sm-6',
   placeholder: '',
-}
-
-DisplayOptionsInput.propTypes = {
-  name: string.isRequired,
-  id: string.isRequired,
-  value: string.isRequired,
-  onChange: func.isRequired,
-  labelText: string,
-  colWidth: string,
-  placeholder: string,
 }
 
 export default DisplayOptionsInput

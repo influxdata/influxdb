@@ -7,11 +7,11 @@ import ClickOutsideInput from 'src/shared/components/ClickOutsideInput'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  min: string
-  fixedPlaceholder: string
-  fixedValue: string
-  customPlaceholder: string
-  customValue: string
+  min?: string
+  fixedPlaceholder?: string
+  fixedValue?: string
+  customPlaceholder?: string
+  customValue?: string
   onSetValue: (value: string) => void
   type: string | number
 }
@@ -25,10 +25,11 @@ interface State {
 @ErrorHandling
 export default class OptIn extends Component<Props, State> {
   public static defaultProps: Partial<Props> = {
+    min: '',
     fixedValue: '',
-    customPlaceholder: 'Custom Value',
-    fixedPlaceholder: 'auto',
     customValue: '',
+    fixedPlaceholder: 'auto',
+    customPlaceholder: 'Custom Value',
   }
 
   private id: string

@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 import GraphTypeSelector from 'src/dashboards/components/GraphTypeSelector'
 import GaugeOptions from 'src/dashboards/components/GaugeOptions'
@@ -17,11 +18,11 @@ interface Props {
   queryConfigs: QueryConfig[]
   staticLegend: boolean
   onResetFocus: () => void
-  onToggleStaticLegend: () => void
+  onToggleStaticLegend: (x: boolean) => () => void
 }
 
 interface State {
-  axes: Axes
+  defaultYLabel: string
 }
 
 @ErrorHandling
@@ -29,17 +30,17 @@ class DisplayOptions extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
-    const {axes, queryConfigs} = props
-
     this.state = {
-      axes: this.setDefaultLabels(axes, queryConfigs),
+      defaultYLabel: this.defaultYLabel,
     }
   }
 
-  public componentWillReceiveProps(nextProps) {
-    const {axes, queryConfigs} = nextProps
+  public componentDidUpdate(prevProps) {
+    const {queryConfigs} = prevProps
 
-    this.setState({axes: this.setDefaultLabels(axes, queryConfigs)})
+    if (!_.isEqual(queryConfigs[0], this.props.queryConfigs[0])) {
+      this.setState({defaultYLabel: this.defaultYLabel})
+    }
   }
 
   public render() {
@@ -60,6 +61,8 @@ class DisplayOptions extends PureComponent<Props, State> {
       queryConfigs,
     } = this.props
 
+    const {defaultYLabel} = this.state
+
     switch (cell.type) {
       case 'gauge':
         return <GaugeOptions onResetFocus={onResetFocus} />
@@ -75,22 +78,21 @@ class DisplayOptions extends PureComponent<Props, State> {
       default:
         return (
           <AxesOptions
-            onToggleStaticLegend={onToggleStaticLegend}
             staticLegend={staticLegend}
+            defaultYLabel={defaultYLabel}
+            onToggleStaticLegend={onToggleStaticLegend}
           />
         )
     }
   }
 
-  private setDefaultLabels = (axes, queryConfigs): Axes => {
+  private get defaultYLabel(): string {
+    const {queryConfigs} = this.props
     if (queryConfigs.length) {
-      return {
-        ...axes,
-        y: {...axes.y, defaultYLabel: buildDefaultYLabel(queryConfigs[0])},
-      }
+      return buildDefaultYLabel(queryConfigs[0])
     }
 
-    return axes
+    return ''
   }
 }
 

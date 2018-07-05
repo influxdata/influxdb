@@ -4,7 +4,7 @@ import onClickOutside from 'src/shared/components/OnClickOutside'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  min: string
+  min?: string
   id: string
   type: string
   customPlaceholder: string
@@ -25,7 +25,7 @@ class ClickOutsideInput extends Component<Props> {
   public render() {
     const {
       id,
-      min,
+      min = '',
       type,
       onFocus,
       onChange,
