@@ -1,6 +1,7 @@
 package influxql
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/influxdata/influxql"
@@ -8,6 +9,41 @@ import (
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"
 )
+
+// function contains the prototype for invoking a function.
+// TODO(jsternberg): This should do a lot more heavy lifting, but it mostly just
+// pre-validates that we know the function exists. The cursor creation should be
+// done by this struct, but it isn't at the moment.
+type function struct {
+	Ref  *influxql.VarRef
+	call *influxql.Call
+}
+
+// parseFunction parses a call AST and creates the function for it.
+func parseFunction(expr *influxql.Call) (*function, error) {
+	switch expr.Name {
+	case "mean", "max":
+		if exp, got := 1, len(expr.Args); exp != got {
+			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+		}
+
+		switch ref := expr.Args[0].(type) {
+		case *influxql.VarRef:
+			return &function{
+				Ref:  ref,
+				call: expr,
+			}, nil
+		case *influxql.Wildcard:
+			return nil, errors.New("unimplemented: wildcard function")
+		case *influxql.RegexLiteral:
+			return nil, errors.New("unimplemented: wildcard regex function")
+		default:
+			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
+		}
+	default:
+		return nil, fmt.Errorf("unimplemented function: %q", expr.Name)
+	}
+}
 
 // createFunctionCursor creates a new cursor that calls a function on one of the columns
 // and returns the result.

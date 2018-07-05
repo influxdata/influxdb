@@ -79,9 +79,11 @@ func (t *transpilerState) Transpile(ctx context.Context, id int, stmt *influxql.
 	t.stmt.OmitTime = true
 	t.id = id
 
-	groups := identifyGroups(t.stmt)
-	if len(groups) == 0 {
-		return errors.New("no fields")
+	groups, err := identifyGroups(t.stmt)
+	if err != nil {
+		return err
+	} else if len(groups) == 0 {
+		return errors.New("at least 1 non-time field must be queried")
 	}
 
 	cursors := make([]cursor, 0, len(groups))
@@ -98,7 +100,7 @@ func (t *transpilerState) Transpile(ctx context.Context, id int, stmt *influxql.
 	cur := Join(t, cursors, []string{"_measurement"}, nil)
 
 	// Map each of the fields into another cursor. This evaluates any lingering expressions.
-	cur, err := t.mapFields(cur)
+	cur, err = t.mapFields(cur)
 	if err != nil {
 		return err
 	}
