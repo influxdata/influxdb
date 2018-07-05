@@ -102,11 +102,11 @@ class SingleStat extends PureComponent<Props> {
     const {lastValues, series} = getLastValues(data)
     const firstAlphabeticalSeriesName = _.sortBy(series)[0]
 
-    const firstAlphabeticalindex = _.indexOf(
+    const firstAlphabeticalIndex = _.indexOf(
       series,
       firstAlphabeticalSeriesName
     )
-    const lastValue = lastValues[firstAlphabeticalindex]
+    const lastValue = lastValues[firstAlphabeticalIndex]
 
     const {bgColor, textColor} = generateThresholdsListHexs({
       colors,
