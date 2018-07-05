@@ -308,12 +308,13 @@ func (s *Shard) Open() error {
 			return err
 		}
 
+		idx.WithLogger(s.baseLogger)
+
 		// Open index.
 		if err := idx.Open(); err != nil {
 			return err
 		}
 		s.index = idx
-		idx.WithLogger(s.baseLogger)
 
 		// Initialize underlying engine.
 		e, err := NewEngine(s.id, idx, s.path, s.walPath, s.sfile, s.options)
