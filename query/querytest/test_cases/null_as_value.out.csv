@@ -1,1 +1,1 @@
-Null as value unimplemented
+ err: error calling function "filter": name "null" does not exist in scope

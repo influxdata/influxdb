@@ -1,3 +1,3 @@
-db = null 
-from(db: db)
-	|> range(start:-5m) 
+from(db: "test")
+	|> range(start:-5m)
+	|> filter(fn: (r) => r._value == null)
