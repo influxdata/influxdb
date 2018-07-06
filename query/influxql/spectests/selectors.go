@@ -14,30 +14,31 @@ import (
 	"github.com/influxdata/platform/query/semantic"
 )
 
-var aggregateCreateFuncs = []func(config execute.AggregateConfig) query.OperationSpec{
-	func(config execute.AggregateConfig) query.OperationSpec {
-		return &functions.CountOpSpec{AggregateConfig: config}
+var selectorCreateFuncs = []func(config execute.SelectorConfig) query.OperationSpec{
+	func(config execute.SelectorConfig) query.OperationSpec {
+		return &functions.FirstOpSpec{SelectorConfig: config}
 	},
-	func(config execute.AggregateConfig) query.OperationSpec {
-		return &functions.MeanOpSpec{AggregateConfig: config}
+	func(config execute.SelectorConfig) query.OperationSpec {
+		return &functions.LastOpSpec{SelectorConfig: config}
 	},
-	func(config execute.AggregateConfig) query.OperationSpec {
-		return &functions.SumOpSpec{AggregateConfig: config}
+	func(config execute.SelectorConfig) query.OperationSpec {
+		return &functions.MaxOpSpec{SelectorConfig: config}
+	},
+	func(config execute.SelectorConfig) query.OperationSpec {
+		return &functions.MinOpSpec{SelectorConfig: config}
 	},
 }
 
-func AggregateTest(fn func(aggregate query.Operation) (string, *query.Spec)) Fixture {
+func SelectorTest(fn func(selector query.Operation) (string, *query.Spec)) Fixture {
 	_, file, line, _ := runtime.Caller(1)
 	fixture := &collection{
 		file: filepath.Base(file),
 		line: line,
 	}
 
-	for _, aggregateSpecFn := range aggregateCreateFuncs {
-		spec := aggregateSpecFn(execute.AggregateConfig{
-			TimeSrc: execute.DefaultStartColLabel,
-			TimeDst: execute.DefaultTimeColLabel,
-			Columns: []string{execute.DefaultValueColLabel},
+	for _, selectorSpecFn := range selectorCreateFuncs {
+		spec := selectorSpecFn(execute.SelectorConfig{
+			Column: execute.DefaultValueColLabel,
 		})
 		op := query.Operation{
 			ID:   query.OperationID(fmt.Sprintf("%s0", spec.Kind())),
@@ -51,8 +52,8 @@ func AggregateTest(fn func(aggregate query.Operation) (string, *query.Spec)) Fix
 
 func init() {
 	RegisterFixture(
-		AggregateTest(func(aggregate query.Operation) (stmt string, spec *query.Spec) {
-			return fmt.Sprintf(`SELECT %s(value) FROM db0..cpu`, aggregate.Spec.Kind()),
+		SelectorTest(func(selector query.Operation) (stmt string, spec *query.Spec) {
+			return fmt.Sprintf(`SELECT %s(value) FROM db0..cpu`, selector.Spec.Kind()),
 				&query.Spec{
 					Operations: []*query.Operation{
 						{
@@ -111,7 +112,7 @@ func init() {
 								By: []string{"_measurement"},
 							},
 						},
-						&aggregate,
+						&selector,
 						{
 							ID: "map0",
 							Spec: &functions.MapOpSpec{
@@ -131,7 +132,7 @@ func init() {
 												},
 											},
 											{
-												Key: &semantic.Identifier{Name: string(aggregate.Spec.Kind())},
+												Key: &semantic.Identifier{Name: string(selector.Spec.Kind())},
 												Value: &semantic.MemberExpression{
 													Object: &semantic.IdentifierExpression{
 														Name: "r",
@@ -156,8 +157,8 @@ func init() {
 						{Parent: "from0", Child: "range0"},
 						{Parent: "range0", Child: "filter0"},
 						{Parent: "filter0", Child: "group0"},
-						{Parent: "group0", Child: aggregate.ID},
-						{Parent: aggregate.ID, Child: "map0"},
+						{Parent: "group0", Child: selector.ID},
+						{Parent: selector.ID, Child: "map0"},
 						{Parent: "map0", Child: "yield0"},
 					},
 				}
