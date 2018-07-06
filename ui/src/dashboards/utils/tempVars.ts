@@ -40,10 +40,9 @@ export const templateSelectionsFromTemplates = (
       return acc
     }
 
-    return {
-      ...acc,
-      [tempVar]: selection.value,
-    }
+    const value = template.type === 'map' ? selection.key : selection.value
+
+    return {...acc, [tempVar]: value}
   }, {})
 }
 
