@@ -2865,27 +2865,47 @@
         }
       }
     },
-    "/chronograf/v1/config/:section": {
+    "/chronograf/v1/config": {
       "get": {
         "tags": ["config"],
-        "summary": "Returns the settings for a specific section of the app",
-        "description": "All settings for a specific section of the app",
+        "summary": "Returns the global application configuration",
+        "description": "All global application configurations",
         "responses": {
           "200": {
-            "description": "Returns an object with the settings for a section of the app",
+            "description": "Returns an object with the global configurations",
             "schema": {
-              "oneOf": [
-                {
-                  "$ref": "#/definitions/LogViewerConfig"
-                },
-                {
-                  "$ref": "#/definitions/AuthConfig"
-                }
-              ]
+              "$ref": "#/definitions/Config"
             }
           },
           "404": {
-            "description": "Could not find requested section",
+            "description": "Could not find global application config",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/chronograf/v1/config/auth": {
+      "get": {
+        "tags": ["config"],
+        "summary": "Returns the global application configuration for auth",
+        "description": "All global application configuration for auth",
+        "responses": {
+          "200": {
+            "description": "Returns an object with the global application configuration for auth",
+            "schema": {
+              "$ref": "#/definitions/AuthConfig"
+            }
+          },
+          "404": {
+            "description": "Could not find auth configuration",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -2900,49 +2920,120 @@
       },
       "put": {
         "tags": ["config"],
-        "summary": "Updates the settings for a specific section of the app",
-        "description": "Updates settings for a specific section of the app",
+        "summary": "Updates the global application configuration for auth",
+        "description": "Replaces the global application configuration for auth",
         "parameters": [
           {
-            "name": "section",
-            "in": "path",
-            "type": "string",
-            "description": "Section name for the target section settings",
-            "required": true
-          },
-          {
-            "name": {
-              "enum": ["logViewer", "auth"]
-            },
+            "name": "auth",
             "in": "body",
             "description":
-              "Section configuration update parameters",
+              "Auth configuration update object",
             "schema": {
-              "oneOf": [
-                {
-                  "$ref": "#/definitions/LogViewerConfig"
-                },
-                {
-                  "$ref": "#/definitions/AuthConfig"
-                }
-              ]
+              "$ref": "#/definitions/AuthConfig"
             },
             "required": true
           }
         ],
         "responses": {
           "200": {
-            "description": "Returns an object with the updated settings for a specific section",
+            "description": "Returns an object with the updated auth configuration",
             "schema": {
-              "oneOf": [
-                {
-                  "$ref": "#/definitions/LogViewerConfig"
-                }
-              ]
+              "$ref": "#/definitions/AuthConfig"
             }
           },
           "404": {
-            "description": "Could not find requested section",
+            "description": "Could not find auth configuration",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/chronograf/v1/org_config": {
+      "get": {
+        "tags": ["organization config"],
+        "summary": "Retrieve the organization configuration",
+        "description": "Organization-specific configurations such as log viewer configs",
+        "responses": {
+          "200": {
+            "description": "Returns an object with the organization-specific configurations",
+            "schema": {
+              "$ref": "#/definitions/OrganizationConfig" 
+            }
+          },
+          "404": {
+            "description": "Could not find organization config",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/chronograf/v1/org_config/logviewer": {
+      "get": {
+        "tags": ["organization config"],
+        "summary": "Retrieve the organization-specific log viewer configurations",
+        "description": "Retrieve the log viewer configurations for the user's current organization",
+        "responses": {
+          "200": {
+            "description": "Returns an log viewer configuration object",
+            "schema": {
+              "$ref": "#/definitions/LogViewerConfig"
+            }
+          },
+          "404": {
+            "description": "Could not find the log viewer configuration for this organization",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["organization config"],
+        "summary": "Update the log viewer configuration",
+        "description": "Update the log viewer configuration for a specific organization",
+        "parameters": [
+          {
+            "name": "logViewer",
+            "in": "body",
+            "description":
+              "Log Viewer configuration update object",
+            "schema": {
+              "$ref": "#/definitions/LogViewerConfig"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns an object with the updated log viewer configurations",
+            "schema": {
+              "$ref": "#/definitions/LogViewerConfig"
+            }
+          },
+          "404": {
+            "description": "Could not find log viewer configurations for the specified organization",
             "schema": {
               "$ref": "#/definitions/Error"
             }
@@ -5144,14 +5235,9 @@
         }
       }
     },
-    "LogViewerColumn": {
-      "description": "Contains the settings for the log viewer page UI",
+    "Config": {
+      "description": "Global application configuration",
       "type": "object",
-      "required": [
-        "name",
-        "encodings",
-        "position"
-      ],
       "properties": {
         "name": {
           "description": "Unique identifier name of the column",
@@ -5216,7 +5302,7 @@
       }
     },
     "LogViewerConfig": {
-      "description": "Contains the settings for the log viewer page UI",
+      "description": "Contains the organization-specific configuration for the log viewer",
       "type": "object",
       "required": ["columns"],
       "properties": {
@@ -5275,13 +5361,74 @@
         ]
       }
     },
-    "AuthConfig": {
+    "LogViewerColumn": {
+      "description": "Contains the organization-specific configuration for the log viewer",
       "type": "object",
-      "required": ["superAdminNewUsers"],
+      "required": [
+        "name",
+        "encodings",
+        "position"
+      ],
       "properties": {
-        "superAdminNewUsers": {
-          "type": "boolean",
-          "default": true
+        "name": {
+          "description": "Unique identifier name of the column",
+          "type": "string"
+        },
+        "position": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "encodings": {
+          "description": "Composable encoding options for the column",
+          "type": "array",
+          "items": {
+            "description":"Type and value and optional name of an encoding",
+            "type": "object",
+            "required": ["type", "value"],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "example": {
+          "name": "severity",
+          "position": 0,
+          "encodings": [
+            {
+              "type": "label",
+              "value": "icon"
+            },
+            {
+              "type": "label",
+              "value": "text"
+            },
+            {
+              "type": "visibility",
+              "value": "visible"
+            },
+            {
+              "type": "color",
+              "name": "ruby",
+              "value": "emergency"
+            },
+            {
+              "type": "color",
+              "name": "rainforest",
+              "value": "info"
+            },
+            {
+              "type": "displayName",
+              "value": "Log Severity!"
+            }
+          ]
         }
       }
     },
