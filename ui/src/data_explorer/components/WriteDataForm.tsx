@@ -91,7 +91,7 @@ class WriteDataForm extends PureComponent<Props, State> {
     )
   }
 
-  private handleToggleMode = (mode: WriteDataMode) => {
+  private handleToggleMode = (mode: WriteDataMode): void => {
     this.setState({mode})
   }
 
@@ -99,7 +99,7 @@ class WriteDataForm extends PureComponent<Props, State> {
     this.setState({selectedDatabase: item.text})
   }
 
-  private handleKeyUp = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  private handleKeyUp = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
     e.stopPropagation()
     if (e.key === 'Escape') {
       const {onClose} = this.props

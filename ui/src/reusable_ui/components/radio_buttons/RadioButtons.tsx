@@ -65,7 +65,7 @@ class RadioButtons extends Component<Props> {
     })
   }
 
-  private handleButtonClick = (button: string) => () => {
+  private handleButtonClick = (button: string) => (): void => {
     const {onChange, disabled} = this.props
     if (disabled) {
       return
