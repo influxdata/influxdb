@@ -44,7 +44,6 @@ import {AxiosResponse} from 'axios'
 import {DashboardsResponse} from 'src/types/apis/dashboards'
 import * as AnnotationsActions from 'src/types/actions/annotations'
 import * as AppActions from 'src/types/actions/app'
-import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
 import * as ColorsModels from 'src/types/colors'
 import * as DashboardsModels from 'src/types/dashboards'
 import * as ErrorsActions from 'src/types/actions/errors'
@@ -82,8 +81,8 @@ interface Props extends ManualRefreshProps, WithRouterProps {
   router: InjectedRouter
   notify: NotificationsActions.PublishNotificationActionCreator
   getAnnotationsAsync: AnnotationsActions.GetAnnotationsDispatcher
-  handleShowCellEditorOverlay: CellEditorOverlayActions.ShowCellEditorOverlayActionCreator
-  handleHideCellEditorOverlay: CellEditorOverlayActions.HideCellEditorOverlayActionCreator
+  handleShowCellEditorOverlay: typeof cellEditorOverlayActions.showCellEditorOverlay
+  handleHideCellEditorOverlay: typeof cellEditorOverlayActions.hideCellEditorOverlay
   handleDismissEditingAnnotation: AnnotationsActions.DismissEditingAnnotationActionCreator
   selectedCell: DashboardsModels.Cell
   thresholdsListType: string

@@ -39,7 +39,6 @@ import {
 import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 
 // Types
-import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
 import * as ColorsModels from 'src/types/colors'
 import * as DashboardsModels from 'src/types/dashboards'
 import * as QueriesModels from 'src/types/queries'

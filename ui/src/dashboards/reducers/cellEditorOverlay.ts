@@ -14,7 +14,7 @@ import {
 } from 'src/shared/constants/graphColorPalettes'
 
 import {initializeOptions} from 'src/dashboards/constants/cellEditor'
-import {Action} from 'src/types/actions/cellEditorOverlay'
+import {Action, ActionType} from 'src/dashboards/actions/cellEditorOverlay'
 import {CellType, Cell} from 'src/types'
 import {ThresholdType, TableOptions} from 'src/types/dashboards'
 import {ThresholdColor, GaugeColor, LineColor} from 'src/types/colors'
@@ -35,12 +35,9 @@ export const initialState = {
   lineColors: DEFAULT_LINE_COLORS,
 }
 
-const cellEditorOverlay = (
-  state = initialState,
-  action: Action
-): CEOInitialState => {
+export default (state = initialState, action: Action): CEOInitialState => {
   switch (action.type) {
-    case 'SHOW_CELL_EDITOR_OVERLAY': {
+    case ActionType.ShowCellEditorOverlay: {
       const {
         cell,
         cell: {colors},
@@ -71,33 +68,33 @@ const cellEditorOverlay = (
       }
     }
 
-    case 'HIDE_CELL_EDITOR_OVERLAY': {
+    case ActionType.HideCellEditorOverlay: {
       const cell = null
 
       return {...state, cell}
     }
 
-    case 'CHANGE_CELL_TYPE': {
+    case ActionType.ChangeCellType: {
       const {cellType} = action.payload
       const cell = {...state.cell, type: cellType}
 
       return {...state, cell}
     }
 
-    case 'RENAME_CELL': {
+    case ActionType.RenameCell: {
       const {cellName} = action.payload
       const cell = {...state.cell, name: cellName}
 
       return {...state, cell}
     }
 
-    case 'UPDATE_THRESHOLDS_LIST_COLORS': {
+    case ActionType.UpdateThresholdsListColors: {
       const {thresholdsListColors} = action.payload
 
       return {...state, thresholdsListColors}
     }
 
-    case 'UPDATE_THRESHOLDS_LIST_TYPE': {
+    case ActionType.UpdateThresholdsListType: {
       const {thresholdsListType} = action.payload
 
       const thresholdsListColors = state.thresholdsListColors.map(color => ({
@@ -108,46 +105,48 @@ const cellEditorOverlay = (
       return {...state, thresholdsListType, thresholdsListColors}
     }
 
-    case 'UPDATE_GAUGE_COLORS': {
+    case ActionType.UpdateGaugeColors: {
       const {gaugeColors} = action.payload
 
       return {...state, gaugeColors}
     }
 
-    case 'UPDATE_AXES': {
+    case ActionType.UpdateAxes: {
       const {axes} = action.payload
       const cell = {...state.cell, axes}
 
       return {...state, cell}
     }
 
-    case 'UPDATE_TABLE_OPTIONS': {
+    case ActionType.UpdateTableOptions: {
       const {tableOptions} = action.payload
       const cell = {...state.cell, tableOptions}
 
       return {...state, cell}
     }
 
-    case 'CHANGE_TIME_FORMAT': {
+    case ActionType.ChangeTimeFormat: {
       const {timeFormat} = action.payload
       const cell = {...state.cell, timeFormat}
 
       return {...state, cell}
     }
-    case 'CHANGE_DECIMAL_PLACES': {
+
+    case ActionType.ChangeDecimalPlaces: {
       const {decimalPlaces} = action.payload
       const cell = {...state.cell, decimalPlaces}
 
       return {...state, cell}
     }
-    case 'UPDATE_FIELD_OPTIONS': {
+
+    case ActionType.UpdateFieldOptions: {
       const {fieldOptions} = action.payload
       const cell = {...state.cell, fieldOptions}
 
       return {...state, cell}
     }
 
-    case 'UPDATE_LINE_COLORS': {
+    case ActionType.UpdateLineColors: {
       const {lineColors} = action.payload
 
       return {...state, lineColors}
@@ -156,5 +155,3 @@ const cellEditorOverlay = (
 
   return state
 }
-
-export default cellEditorOverlay
