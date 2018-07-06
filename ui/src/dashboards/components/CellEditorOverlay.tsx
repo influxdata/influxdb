@@ -22,6 +22,7 @@ import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 import {buildQuery} from 'src/utils/influxql'
 import {nextSource} from 'src/dashboards/utils/sources'
 import replaceTemplate, {replaceInterval} from 'src/tempVars/utils/replace'
+import {editCellQueryStatus} from 'src/dashboards/actions'
 
 // Constants
 import {IS_STATIC_LEGEND} from 'src/shared/constants'
@@ -40,7 +41,6 @@ import {getCellTypeColors} from 'src/dashboards/constants/cellEditor'
 // Types
 import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
 import * as ColorsModels from 'src/types/colors'
-import * as DashboardsActions from 'src/types/actions/dashboards'
 import * as DashboardsModels from 'src/types/dashboards'
 import * as QueriesModels from 'src/types/queries'
 import * as SourcesModels from 'src/types/sources'
@@ -72,7 +72,7 @@ interface QueryStatus {
 
 interface Props {
   sources: SourcesModels.Source[]
-  editQueryStatus: DashboardsActions.EditCellQueryStatusActionCreator
+  editQueryStatus: typeof editCellQueryStatus
   onCancel: () => void
   onSave: (cell: DashboardsModels.Cell) => void
   source: SourcesModels.Source

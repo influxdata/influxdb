@@ -47,196 +47,341 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {defaultTimeRange} from 'src/shared/data/timeRanges'
 
 // Types
-import {Dispatch} from 'redux'
 import {AxiosResponse} from 'axios'
-import * as DashboardsActions from 'src/types/actions/dashboards'
+import {
+  Dashboard,
+  Cell,
+  CellType,
+  TimeRange,
+  Source,
+  Template,
+  TemplateValue,
+  TemplateType,
+} from 'src/types'
 import * as DashboardsApis from 'src/types/apis/dashboards'
-import * as DashboardsModels from 'src/types/dashboards'
-import * as DashboardsReducers from 'src/types/reducers/dashboards'
-import * as ErrorsActions from 'src/types/actions/errors'
-import * as QueriesModels from 'src/types/queries'
-import * as SourcesModels from 'src/types/sources'
-import * as TempVarsModels from 'src/types/tempVars'
-import * as NotificationsActions from 'src/types/actions/notifications'
 
-export const loadDashboards: DashboardsActions.LoadDashboardsActionCreator = (
-  dashboards: DashboardsModels.Dashboard[],
+export enum ActionType {
+  LoadDashboards = 'LOAD_DASHBOARDS',
+  LoadDashboard = 'LOAD_DASHBOARD',
+  SetDashboardTimeRange = 'SET_DASHBOARD_TIME_RANGE',
+  SetDashboardZoomedTimeRange = 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
+  UpdateDashboard = 'UPDATE_DASHBOARD',
+  CreateDashboard = 'CREATE_DASHBOARD',
+  DeleteDashboard = 'DELETE_DASHBOARD',
+  DeleteDashboardFailed = 'DELETE_DASHBOARD_FAILED',
+  AddDashboardCell = 'ADD_DASHBOARD_CELL',
+  DeleteDashboardCell = 'DELETE_DASHBOARD_CELL',
+  SyncDashboardCell = 'SYNC_DASHBOARD_CELL',
+  EditCellQueryStatus = 'EDIT_CELL_QUERY_STATUS',
+  TemplateVariableLocalSelected = 'TEMPLATE_VARIABLE_LOCAL_SELECTED',
+  UpdateTemplates = 'UPDATE_TEMPLATES',
+  SetHoverTime = 'SET_HOVER_TIME',
+  SetActiveCell = 'SET_ACTIVE_CELL',
+  SetDashboardTimeV1 = 'SET_DASHBOARD_TIME_V1',
+  RetainRangesDashboardTimeV1 = 'RETAIN_RANGES_DASHBOARD_TIME_V1',
+}
+
+interface LoadDashboardsAction {
+  type: ActionType.LoadDashboards
+  payload: {
+    dashboards: Dashboard[]
+    dashboardID: number
+  }
+}
+
+interface LoadDashboardAction {
+  type: ActionType.LoadDashboard
+  payload: {
+    dashboard: Dashboard
+  }
+}
+
+interface RetainRangesDashTimeV1Action {
+  type: ActionType.RetainRangesDashboardTimeV1
+  payload: {
+    dashboardIDs: string[]
+  }
+}
+
+interface SetTimeRangeAction {
+  type: ActionType.SetDashboardTimeRange
+  payload: {
+    timeRange: TimeRange
+  }
+}
+
+interface SetZoomedTimeRangeAction {
+  type: ActionType.SetDashboardZoomedTimeRange
+  payload: {
+    zoomedTimeRange: TimeRange
+  }
+}
+
+interface UpdateDashboardAction {
+  type: ActionType.UpdateDashboard
+  payload: {
+    dashboard: Dashboard
+  }
+}
+
+interface CreateDashboardAction {
+  type: ActionType.CreateDashboard
+  payload: {
+    dashboard: Dashboard
+  }
+}
+
+interface DeleteDashboardAction {
+  type: ActionType.DeleteDashboard
+  payload: {
+    dashboard: Dashboard
+  }
+}
+
+interface DeleteDashboardFailedAction {
+  type: ActionType.DeleteDashboardFailed
+  payload: {
+    dashboard: Dashboard
+  }
+}
+
+interface SyncDashboardCellAction {
+  type: ActionType.SyncDashboardCell
+  payload: {
+    dashboard: Dashboard
+    cell: Cell
+  }
+}
+
+interface AddDashboardCellAction {
+  type: ActionType.AddDashboardCell
+  payload: {
+    dashboard: Dashboard
+    cell: Cell
+  }
+}
+
+interface DeleteDashboardCellAction {
+  type: ActionType.DeleteDashboardCell
+  payload: {
+    dashboard: Dashboard
+    cell: Cell
+  }
+}
+
+interface EditCellQueryStatusAction {
+  type: ActionType.EditCellQueryStatus
+  payload: {
+    queryID: string
+    status: string
+  }
+}
+
+interface TemplateVariableLocalSelectedAction {
+  type: ActionType.TemplateVariableLocalSelected
+  payload: {
+    dashboardID: number
+    templateID: string
+    value: TemplateValue
+  }
+}
+
+interface UpdateTemplatesAction {
+  type: ActionType.UpdateTemplates
+  payload: {
+    templates: Template[]
+  }
+}
+
+interface SetHoverTimeAction {
+  type: ActionType.SetHoverTime
+  payload: {
+    hoverTime: string
+  }
+}
+
+interface SetActiveCellAction {
+  type: ActionType.SetActiveCell
+  payload: {
+    activeCellID: string
+  }
+}
+
+interface SetDashTimeV1Action {
+  type: ActionType.SetDashboardTimeV1
+  payload: {
+    dashboardID: number
+    timeRange: TimeRange
+  }
+}
+
+export type Action =
+  | LoadDashboardsAction
+  | LoadDashboardAction
+  | RetainRangesDashTimeV1Action
+  | SetTimeRangeAction
+  | SetZoomedTimeRangeAction
+  | UpdateDashboardAction
+  | CreateDashboardAction
+  | DeleteDashboardAction
+  | DeleteDashboardFailedAction
+  | SyncDashboardCellAction
+  | AddDashboardCellAction
+  | DeleteDashboardCellAction
+  | EditCellQueryStatusAction
+  | TemplateVariableLocalSelectedAction
+  | UpdateTemplatesAction
+  | SetHoverTimeAction
+  | SetActiveCellAction
+  | SetDashTimeV1Action
+
+export const loadDashboards = (
+  dashboards: Dashboard[],
   dashboardID?: number
-): DashboardsActions.LoadDashboardsAction => ({
-  type: 'LOAD_DASHBOARDS',
+): LoadDashboardsAction => ({
+  type: ActionType.LoadDashboards,
   payload: {
     dashboards,
     dashboardID,
   },
 })
 
-export const loadDashboard: DashboardsActions.LoadDashboardActionCreator = (
-  dashboard: DashboardsModels.Dashboard
-): DashboardsActions.LoadDashboardAction => ({
-  type: 'LOAD_DASHBOARD',
-  payload: {
-    dashboard,
-  },
+export const loadDashboard = (dashboard: Dashboard): LoadDashboardAction => ({
+  type: ActionType.LoadDashboard,
+  payload: {dashboard},
 })
 
-export const setDashTimeV1: DashboardsActions.SetDashTimeV1ActionCreator = (
+export const setDashTimeV1 = (
   dashboardID: number,
-  timeRange: QueriesModels.TimeRange
-): DashboardsActions.SetDashTimeV1Action => ({
-  type: 'SET_DASHBOARD_TIME_V1',
-  payload: {
-    dashboardID,
-    timeRange,
-  },
+  timeRange: TimeRange
+): SetDashTimeV1Action => ({
+  type: ActionType.SetDashboardTimeV1,
+  payload: {dashboardID, timeRange},
 })
 
-export const retainRangesDashTimeV1: DashboardsActions.RetainRangesDashTimeV1ActionCreator = (
+export const retainRangesDashTimeV1 = (
   dashboardIDs: string[]
-): DashboardsActions.RetainRangesDashTimeV1Action => ({
-  type: 'RETAIN_RANGES_DASHBOARD_TIME_V1',
+): RetainRangesDashTimeV1Action => ({
+  type: ActionType.RetainRangesDashboardTimeV1,
   payload: {dashboardIDs},
 })
 
-export const setTimeRange: DashboardsActions.SetTimeRangeActionCreator = (
-  timeRange: QueriesModels.TimeRange
-): DashboardsActions.SetTimeRangeAction => ({
-  type: 'SET_DASHBOARD_TIME_RANGE',
-  payload: {
-    timeRange,
-  },
+export const setTimeRange = (timeRange: TimeRange): SetTimeRangeAction => ({
+  type: ActionType.SetDashboardTimeRange,
+  payload: {timeRange},
 })
 
-export const setZoomedTimeRange: DashboardsActions.SetZoomedTimeRangeActionCreator = (
-  zoomedTimeRange: QueriesModels.TimeRange
-): DashboardsActions.SetZoomedTimeRangeAction => ({
-  type: 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
-  payload: {
-    zoomedTimeRange,
-  },
+export const setZoomedTimeRange = (
+  zoomedTimeRange: TimeRange
+): SetZoomedTimeRangeAction => ({
+  type: ActionType.SetDashboardZoomedTimeRange,
+  payload: {zoomedTimeRange},
 })
 
-export const updateDashboard: DashboardsActions.UpdateDashboardActionCreator = (
-  dashboard: DashboardsModels.Dashboard
-): DashboardsActions.UpdateDashboardAction => ({
-  type: 'UPDATE_DASHBOARD',
-  payload: {
-    dashboard,
-  },
+export const updateDashboard = (
+  dashboard: Dashboard
+): UpdateDashboardAction => ({
+  type: ActionType.UpdateDashboard,
+  payload: {dashboard},
 })
 
-export const createDashboard: DashboardsActions.CreateDashboardActionCreator = (
-  dashboard: DashboardsModels.Dashboard
-): DashboardsActions.CreateDashboardAction => ({
-  type: 'CREATE_DASHBOARD',
-  payload: {
-    dashboard,
-  },
+export const createDashboard = (
+  dashboard: Dashboard
+): CreateDashboardAction => ({
+  type: ActionType.CreateDashboard,
+  payload: {dashboard},
 })
 
-export const deleteDashboard: DashboardsActions.DeleteDashboardActionCreator = (
-  dashboard: DashboardsModels.Dashboard
-): DashboardsActions.DeleteDashboardAction => ({
-  type: 'DELETE_DASHBOARD',
-  payload: {
-    dashboard,
-  },
+export const deleteDashboard = (
+  dashboard: Dashboard
+): DeleteDashboardAction => ({
+  type: ActionType.DeleteDashboard,
+  payload: {dashboard},
 })
 
-export const deleteDashboardFailed: DashboardsActions.DeleteDashboardFailedActionCreator = (
-  dashboard: DashboardsModels.Dashboard
-): DashboardsActions.DeleteDashboardFailedAction => ({
-  type: 'DELETE_DASHBOARD_FAILED',
-  payload: {
-    dashboard,
-  },
+export const deleteDashboardFailed = (
+  dashboard: Dashboard
+): DeleteDashboardFailedAction => ({
+  type: ActionType.DeleteDashboardFailed,
+  payload: {dashboard},
 })
 
-export const syncDashboardCell: DashboardsActions.SyncDashboardCellActionCreator = (
-  dashboard: DashboardsModels.Dashboard,
-  cell: DashboardsModels.Cell
-): DashboardsActions.SyncDashboardCellAction => ({
-  type: 'SYNC_DASHBOARD_CELL',
-  payload: {
-    dashboard,
-    cell,
-  },
+export const syncDashboardCell = (
+  dashboard: Dashboard,
+  cell: Cell
+): SyncDashboardCellAction => ({
+  type: ActionType.SyncDashboardCell,
+  payload: {dashboard, cell},
 })
 
-export const addDashboardCell: DashboardsActions.AddDashboardCellActionCreator = (
-  dashboard: DashboardsModels.Dashboard,
-  cell: DashboardsModels.Cell
-): DashboardsActions.AddDashboardCellAction => ({
-  type: 'ADD_DASHBOARD_CELL',
-  payload: {
-    dashboard,
-    cell,
-  },
+export const addDashboardCell = (
+  dashboard: Dashboard,
+  cell: Cell
+): AddDashboardCellAction => ({
+  type: ActionType.AddDashboardCell,
+  payload: {dashboard, cell},
 })
 
-export const deleteDashboardCell: DashboardsActions.DeleteDashboardCellActionCreator = (
-  dashboard: DashboardsModels.Dashboard,
-  cell: DashboardsModels.Cell
-): DashboardsActions.DeleteDashboardCellAction => ({
-  type: 'DELETE_DASHBOARD_CELL',
-  payload: {
-    dashboard,
-    cell,
-  },
+export const deleteDashboardCell = (
+  dashboard: Dashboard,
+  cell: Cell
+): DeleteDashboardCellAction => ({
+  type: ActionType.DeleteDashboardCell,
+  payload: {dashboard, cell},
 })
 
-export const editCellQueryStatus: DashboardsActions.EditCellQueryStatusActionCreator = (
+export const editCellQueryStatus = (
   queryID: string,
   status: string
-): DashboardsActions.EditCellQueryStatusAction => ({
-  type: 'EDIT_CELL_QUERY_STATUS',
-  payload: {
-    queryID,
-    status,
-  },
+): EditCellQueryStatusAction => ({
+  type: ActionType.EditCellQueryStatus,
+  payload: {queryID, status},
 })
 
-export const templateVariableLocalSelected: DashboardsActions.TemplateVariableLocalSelectedActionCreator = (
+export const templateVariableLocalSelected = (
   dashboardID: number,
   templateID: string,
-  value: TempVarsModels.TemplateValue
-): DashboardsActions.TemplateVariableLocalSelectedAction => ({
-  type: 'TEMPLATE_VARIABLE_LOCAL_SELECTED',
-  payload: {
-    dashboardID,
-    templateID,
-    value,
-  },
+  value: TemplateValue
+): TemplateVariableLocalSelectedAction => ({
+  type: ActionType.TemplateVariableLocalSelected,
+  payload: {dashboardID, templateID, value},
 })
 
 export const updateTemplates = (
-  templates: TempVarsModels.Template[]
-): DashboardsActions.UpdateTemplatesAction => ({
-  type: 'UPDATE_TEMPLATES',
+  templates: Template[]
+): UpdateTemplatesAction => ({
+  type: ActionType.UpdateTemplates,
   payload: {templates},
 })
 
-export const setHoverTime: DashboardsActions.SetHoverTimeActionCreator = (
-  hoverTime: string
-): DashboardsActions.SetHoverTimeAction => ({
-  type: 'SET_HOVER_TIME',
-  payload: {
-    hoverTime,
-  },
+export const setHoverTime = (hoverTime: string): SetHoverTimeAction => ({
+  type: ActionType.SetHoverTime,
+  payload: {hoverTime},
 })
 
-export const setActiveCell: DashboardsActions.SetActiveCellActionCreator = (
-  activeCellID: string
-): DashboardsActions.SetActiveCellAction => ({
-  type: 'SET_ACTIVE_CELL',
-  payload: {
-    activeCellID,
-  },
+export const setActiveCell = (activeCellID: string): SetActiveCellAction => ({
+  type: ActionType.SetActiveCell,
+  payload: {activeCellID},
 })
 
-const getDashboard = (
-  state,
-  dashboardId: number
-): DashboardsModels.Dashboard => {
+export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
+  const {search, pathname} = window.location
+
+  const newQueryParams = _.pickBy(
+    {
+      ...qs.parse(search, {ignoreQueryPrefix: true}),
+      ...updatedQueryParams,
+    },
+    v => !!v
+  )
+
+  const newSearch = qs.stringify(newQueryParams)
+  const newLocation = {pathname, search: `?${newSearch}`}
+
+  return replace(newLocation)
+}
+
+const getDashboard = (state, dashboardId: number): Dashboard => {
   const dashboard = state.dashboardUI.dashboards.find(
     d => d.id === +dashboardId
   )
@@ -248,14 +393,11 @@ const getDashboard = (
   return dashboard
 }
 
-// Async Action Creators
+// Thunkers
 
-export const getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher = (): DashboardsActions.GetDashboardsThunk => async (
-  dispatch: Dispatch<
-    | DashboardsActions.LoadDashboardsActionCreator
-    | ErrorsActions.ErrorThrownActionCreator
-  >
-): Promise<DashboardsModels.Dashboard[] | void> => {
+export const getDashboardsAsync = () => async (
+  dispatch
+): Promise<Dashboard[]> => {
   try {
     const {
       data: {dashboards},
@@ -270,7 +412,7 @@ export const getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher = ():
   }
 }
 
-export const getChronografVersion = () => async (): Promise<string | void> => {
+export const getChronografVersion = () => async (): Promise<string> => {
   try {
     const results = await getMe()
     const version = _.get(results, 'headers.x-chronograf-version')
@@ -280,36 +422,27 @@ export const getChronografVersion = () => async (): Promise<string | void> => {
   }
 }
 
-const removeUnselectedTemplateValues = (
-  dashboard: DashboardsModels.Dashboard
-): TempVarsModels.Template[] => {
-  const templates = getDeep<TempVarsModels.Template[]>(
-    dashboard,
-    'templates',
-    []
-  ).map(template => {
-    if (
-      template.type === TempVarsModels.TemplateType.CSV ||
-      template.type === TempVarsModels.TemplateType.Map
-    ) {
-      return template
+const removeUnselectedTemplateValues = (dashboard: Dashboard): Template[] => {
+  const templates = getDeep<Template[]>(dashboard, 'templates', []).map(
+    template => {
+      if (
+        template.type === TemplateType.CSV ||
+        template.type === TemplateType.Map
+      ) {
+        return template
+      }
+
+      const value = template.values.find(val => val.selected)
+      const values = value ? [value] : []
+
+      return {...template, values}
     }
-
-    const value = template.values.find(val => val.selected)
-    const values = value ? [value] : []
-
-    return {...template, values}
-  })
+  )
   return templates
 }
 
-export const putDashboard = (
-  dashboard: DashboardsModels.Dashboard
-): DashboardsActions.PutDashboardThunk => async (
-  dispatch: Dispatch<
-    | DashboardsActions.UpdateDashboardAction
-    | ErrorsActions.ErrorThrownActionCreator
-  >
+export const putDashboard = (dashboard: Dashboard) => async (
+  dispatch
 ): Promise<void> => {
   try {
     // save only selected template values to server
@@ -335,11 +468,9 @@ export const putDashboard = (
   }
 }
 
-export const putDashboardByID: DashboardsActions.PutDashboardByIDDispatcher = (
-  dashboardID: number
-): DashboardsActions.PutDashboardByIDThunk => async (
-  dispatch: Dispatch<ErrorsActions.ErrorThrownActionCreator>,
-  getState: () => DashboardsReducers.Dashboards
+export const putDashboardByID = (dashboardID: number) => async (
+  dispatch,
+  getState
 ): Promise<void> => {
   try {
     const dashboard = getDashboard(getState(), dashboardID)
@@ -351,14 +482,8 @@ export const putDashboardByID: DashboardsActions.PutDashboardByIDDispatcher = (
   }
 }
 
-export const updateDashboardCell: DashboardsActions.UpdateDashboardCellDispatcher = (
-  dashboard: DashboardsModels.Dashboard,
-  cell: DashboardsModels.Cell
-): DashboardsActions.UpdateDashboardCellThunk => async (
-  dispatch: Dispatch<
-    | DashboardsActions.SyncDashboardCellActionCreator
-    | ErrorsActions.ErrorThrownActionCreator
-  >
+export const updateDashboardCell = (dashboard: Dashboard, cell: Cell) => async (
+  dispatch
 ): Promise<void> => {
   try {
     const {data} = await updateDashboardCellAJAX(cell)
@@ -369,15 +494,8 @@ export const updateDashboardCell: DashboardsActions.UpdateDashboardCellDispatche
   }
 }
 
-export const deleteDashboardAsync: DashboardsActions.DeleteDashboardDispatcher = (
-  dashboard: DashboardsModels.Dashboard
-): DashboardsActions.DeleteDashboardThunk => async (
-  dispatch: Dispatch<
-    | DashboardsActions.DeleteDashboardActionCreator
-    | NotificationsActions.PublishNotificationActionCreator
-    | ErrorsActions.ErrorThrownActionCreator
-    | DashboardsActions.DeleteDashboardFailedActionCreator
-  >
+export const deleteDashboardAsync = (dashboard: Dashboard) => async (
+  dispatch
 ): Promise<void> => {
   dispatch(deleteDashboard(dashboard))
   try {
@@ -394,16 +512,10 @@ export const deleteDashboardAsync: DashboardsActions.DeleteDashboardDispatcher =
   }
 }
 
-export const addDashboardCellAsync: DashboardsActions.AddDashboardCellDispatcher = (
-  dashboard: DashboardsModels.Dashboard,
-  cellType?: DashboardsModels.CellType
-): DashboardsActions.AddDashboardCellThunk => async (
-  dispatch: Dispatch<
-    | DashboardsActions.AddDashboardCellAction
-    | NotificationsActions.PublishNotificationActionCreator
-    | ErrorsActions.ErrorThrownActionCreator
-  >
-): Promise<void> => {
+export const addDashboardCellAsync = (
+  dashboard: Dashboard,
+  cellType?: CellType
+) => async (dispatch): Promise<void> => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
@@ -417,16 +529,10 @@ export const addDashboardCellAsync: DashboardsActions.AddDashboardCellDispatcher
   }
 }
 
-export const cloneDashboardCellAsync: DashboardsActions.CloneDashboardCellDispatcher = (
-  dashboard: DashboardsModels.Dashboard,
-  cell: DashboardsModels.Cell
-): DashboardsActions.CloneDashboardCellThunk => async (
-  dispatch: Dispatch<
-    | DashboardsActions.AddDashboardCellActionCreator
-    | NotificationsActions.PublishNotificationActionCreator
-    | ErrorsActions.ErrorThrownActionCreator
-  >
-): Promise<void> => {
+export const cloneDashboardCellAsync = (
+  dashboard: Dashboard,
+  cell: Cell
+) => async (dispatch): Promise<void> => {
   try {
     const clonedCell = getClonedDashboardCell(dashboard, cell)
     const {data} = await addDashboardCellAJAX(dashboard, clonedCell)
@@ -438,16 +544,10 @@ export const cloneDashboardCellAsync: DashboardsActions.CloneDashboardCellDispat
   }
 }
 
-export const deleteDashboardCellAsync: DashboardsActions.DeleteDashboardCellDispatcher = (
-  dashboard: DashboardsModels.Dashboard,
-  cell: DashboardsModels.Cell
-): DashboardsActions.DeleteDashboardCellThunk => async (
-  dispatch: Dispatch<
-    | DashboardsActions.DeleteDashboardCellActionCreator
-    | NotificationsActions.PublishNotificationActionCreator
-    | ErrorsActions.ErrorThrownActionCreator
-  >
-): Promise<void> => {
+export const deleteDashboardCellAsync = (
+  dashboard: Dashboard,
+  cell: Cell
+) => async (dispatch): Promise<void> => {
   try {
     await deleteDashboardCellAJAX(cell)
     dispatch(deleteDashboardCell(dashboard, cell))
@@ -458,9 +558,9 @@ export const deleteDashboardCellAsync: DashboardsActions.DeleteDashboardCellDisp
   }
 }
 
-export const importDashboardAsync = (
-  dashboard: DashboardsModels.Dashboard
-) => async (dispatch): Promise<void> => {
+export const importDashboardAsync = (dashboard: Dashboard) => async (
+  dispatch
+): Promise<void> => {
   try {
     // save only selected template values to server
     const templatesWithOnlySelectedValues = removeUnselectedTemplateValues(
@@ -562,9 +662,9 @@ const updateTimeRangeFromQueryParams = (dashboardID: number) => (
 
 export const getDashboardWithTemplatesAsync = (
   dashboardId: number,
-  source: SourcesModels.Source
-) => async (dispatch: Dispatch<any>): Promise<void> => {
-  let dashboard: DashboardsModels.Dashboard
+  source: Source
+) => async (dispatch): Promise<void> => {
+  let dashboard: Dashboard
 
   try {
     const resp = await getDashboardAJAX(dashboardId)
@@ -598,14 +698,14 @@ export const getDashboardWithTemplatesAsync = (
 
   // TODO: Notify if any of the supplied query params were invalid
   dispatch(loadDashboard({...dashboard, templates}))
-  dispatch<any>(updateTemplateQueryParams(dashboardId))
-  dispatch<any>(updateTimeRangeFromQueryParams(dashboardId))
+  dispatch(updateTemplateQueryParams(dashboardId))
+  dispatch(updateTimeRangeFromQueryParams(dashboardId))
 }
 
 export const rehydrateNestedTemplatesAsync = (
   dashboardId: number,
-  source: SourcesModels.Source
-) => async (dispatch: Dispatch<any>, getState): Promise<void> => {
+  source: Source
+) => async (dispatch, getState): Promise<void> => {
   const dashboard = getDashboard(getState(), dashboardId)
   const proxyLink = source.links.proxy
   const templateSelections = templateSelectionsFromQueryParams()
@@ -618,7 +718,7 @@ export const rehydrateNestedTemplatesAsync = (
   applyLocalSelections(nestedTemplates, templateSelections)
 
   dispatch(updateTemplates(nestedTemplates))
-  dispatch<any>(updateTemplateQueryParams(dashboardId))
+  dispatch(updateTemplateQueryParams(dashboardId))
 }
 
 export const updateTemplateQueryParams = (dashboardId: number) => (
@@ -631,21 +731,4 @@ export const updateTemplateQueryParams = (dashboardId: number) => (
   }
 
   dispatch(updateQueryParams(updatedQueryParams))
-}
-
-export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
-  const {search, pathname} = window.location
-
-  const newQueryParams = _.pickBy(
-    {
-      ...qs.parse(search, {ignoreQueryPrefix: true}),
-      ...updatedQueryParams,
-    },
-    v => !!v
-  )
-
-  const newSearch = qs.stringify(newQueryParams)
-  const newLocation = {pathname, search: `?${newSearch}`}
-
-  return replace(newLocation)
 }

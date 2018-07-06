@@ -1,10 +1,12 @@
 import _ from 'lodash'
 import {timeRanges} from 'src/shared/data/timeRanges'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
+import {DashboardUIState} from 'src/types/dashboards'
+import {Action, ActionType} from 'src/dashboards/actions'
 
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
-export const initialState = {
+export const initialState: DashboardUIState = {
   dashboards: [],
   timeRange: {lower, upper},
   zoomedTimeRange: {lower: null, upper: null},
@@ -14,9 +16,12 @@ export const initialState = {
   activeCellID: '',
 }
 
-const ui = (state = initialState, action) => {
+export default (
+  state: DashboardUIState = initialState,
+  action: Action
+): DashboardUIState => {
   switch (action.type) {
-    case 'LOAD_DASHBOARDS': {
+    case ActionType.LoadDashboards: {
       const {dashboards} = action.payload
       const newState = {
         dashboards,
@@ -25,26 +30,26 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'LOAD_DASHBOARD': {
+    case ActionType.LoadDashboard: {
       const {dashboard} = action.payload
       const newDashboards = _.unionBy([dashboard], state.dashboards, 'id')
 
       return {...state, dashboards: newDashboards}
     }
 
-    case 'SET_DASHBOARD_TIME_RANGE': {
+    case ActionType.SetDashboardTimeRange: {
       const {timeRange} = action.payload
 
       return {...state, timeRange}
     }
 
-    case 'SET_DASHBOARD_ZOOMED_TIME_RANGE': {
+    case ActionType.SetDashboardZoomedTimeRange: {
       const {zoomedTimeRange} = action.payload
 
       return {...state, zoomedTimeRange}
     }
 
-    case 'UPDATE_DASHBOARD': {
+    case ActionType.UpdateDashboard: {
       const {dashboard} = action.payload
       const newState = {
         dashboards: state.dashboards.map(
@@ -54,7 +59,7 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'CREATE_DASHBOARD': {
+    case ActionType.CreateDashboard: {
       const {dashboard} = action.payload
       const newState = {
         dashboards: [...state.dashboards, dashboard],
@@ -62,7 +67,7 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'DELETE_DASHBOARD': {
+    case ActionType.DeleteDashboard: {
       const {dashboard} = action.payload
       const newState = {
         dashboards: state.dashboards.filter(d => d.id !== dashboard.id),
@@ -71,7 +76,7 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'DELETE_DASHBOARD_FAILED': {
+    case ActionType.DeleteDashboardFailed: {
       const {dashboard} = action.payload
       const newState = {
         dashboards: [_.cloneDeep(dashboard), ...state.dashboards],
@@ -79,7 +84,7 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'ADD_DASHBOARD_CELL': {
+    case ActionType.AddDashboardCell: {
       const {cell, dashboard} = action.payload
       const {dashboards} = state
 
@@ -93,7 +98,7 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'DELETE_DASHBOARD_CELL': {
+    case ActionType.DeleteDashboardCell: {
       const {dashboard, cell} = action.payload
 
       const newCells = dashboard.cells.filter(
@@ -112,7 +117,7 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'SYNC_DASHBOARD_CELL': {
+    case ActionType.SyncDashboardCell: {
       const {cell, dashboard} = action.payload
 
       const newDashboard = {
@@ -131,13 +136,13 @@ const ui = (state = initialState, action) => {
       return {...state, ...newState}
     }
 
-    case 'EDIT_CELL_QUERY_STATUS': {
+    case ActionType.EditCellQueryStatus: {
       const {queryID, status} = action.payload
 
       return {...state, cellQueryStatus: {queryID, status}}
     }
 
-    case 'TEMPLATE_VARIABLE_LOCAL_SELECTED': {
+    case ActionType.TemplateVariableLocalSelected: {
       const {dashboardID, templateID, value: newValue} = action.payload
 
       const dashboards = state.dashboards.map(dashboard => {
@@ -165,7 +170,7 @@ const ui = (state = initialState, action) => {
       return {...state, dashboards}
     }
 
-    case 'UPDATE_TEMPLATES': {
+    case ActionType.UpdateTemplates: {
       const {templates: updatedTemplates} = action.payload
 
       const dashboards = state.dashboards.map(dashboard => {
@@ -190,13 +195,13 @@ const ui = (state = initialState, action) => {
       return {...state, dashboards}
     }
 
-    case 'SET_HOVER_TIME': {
+    case ActionType.SetHoverTime: {
       const {hoverTime} = action.payload
 
       return {...state, hoverTime}
     }
 
-    case 'SET_ACTIVE_CELL': {
+    case ActionType.SetActiveCell: {
       const {activeCellID} = action.payload
       return {...state, activeCellID}
     }
@@ -204,5 +209,3 @@ const ui = (state = initialState, action) => {
 
   return state
 }
-
-export default ui

@@ -1,6 +1,5 @@
-import {QueryConfig} from 'src/types'
+import {Template, TimeRange, QueryConfig} from 'src/types'
 import {ColorString} from 'src/types/colors'
-import {Template} from 'src/types'
 
 export interface Axis {
   label: string
@@ -138,4 +137,17 @@ export interface DashboardSwitcherLink {
 export interface TemplateSelections {
   // e.g. {':my-db:': 'telegraf'}
   [tempVar: string]: string
+}
+
+export interface DashboardUIState {
+  dashboards: Dashboard[]
+  timeRange: TimeRange
+  zoomedTimeRange: TimeRange
+  isEditMode: boolean
+  cellQueryStatus: {
+    queryID: string | null
+    status: string | null
+  }
+  hoverTime: string
+  activeCellID: string
 }

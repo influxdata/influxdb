@@ -41,13 +41,11 @@ import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import {InjectedRouter} from 'react-router'
 import {AxiosResponse} from 'axios'
-import {RouterAction} from 'react-router-redux'
 import {DashboardsResponse} from 'src/types/apis/dashboards'
 import * as AnnotationsActions from 'src/types/actions/annotations'
 import * as AppActions from 'src/types/actions/app'
 import * as CellEditorOverlayActions from 'src/types/actions/cellEditorOverlay'
 import * as ColorsModels from 'src/types/colors'
-import * as DashboardsActions from 'src/types/actions/dashboards'
 import * as DashboardsModels from 'src/types/dashboards'
 import * as ErrorsActions from 'src/types/actions/errors'
 import * as QueriesModels from 'src/types/queries'
@@ -55,22 +53,7 @@ import * as SourcesModels from 'src/types/sources'
 import * as TempVarsModels from 'src/types/tempVars'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
-interface DashboardActions {
-  setDashTimeV1: DashboardsActions.SetDashTimeV1ActionCreator
-  setZoomedTimeRange: DashboardsActions.SetZoomedTimeRangeActionCreator
-  updateDashboard: DashboardsActions.UpdateDashboardActionCreator
-  putDashboard: DashboardsActions.PutDashboardDispatcher
-  putDashboardByID: DashboardsActions.PutDashboardByIDDispatcher
-  getDashboardsAsync: DashboardsActions.GetDashboardsDispatcher
-  addDashboardCellAsync: DashboardsActions.AddDashboardCellDispatcher
-  editCellQueryStatus: DashboardsActions.EditCellQueryStatusActionCreator
-  updateDashboardCell: DashboardsActions.UpdateDashboardCellDispatcher
-  cloneDashboardCellAsync: DashboardsActions.CloneDashboardCellDispatcher
-  deleteDashboardCellAsync: DashboardsActions.DeleteDashboardCellDispatcher
-  templateVariableLocalSelected: DashboardsActions.TemplateVariableLocalSelectedActionCreator
-}
-
-interface Props extends DashboardActions, ManualRefreshProps, WithRouterProps {
+interface Props extends ManualRefreshProps, WithRouterProps {
   source: SourcesModels.Source
   sources: SourcesModels.Source[]
   params: {
@@ -107,16 +90,22 @@ interface Props extends DashboardActions, ManualRefreshProps, WithRouterProps {
   thresholdsListColors: ColorsModels.ColorNumber[]
   gaugeColors: ColorsModels.ColorNumber[]
   lineColors: ColorsModels.ColorString[]
-  getDashboardWithTemplatesAsync: (
-    dashboardId: number,
-    source: SourcesModels.Source
-  ) => Promise<void>
-  rehydrateNestedTemplatesAsync: (
-    dashboardId: number,
-    source: SourcesModels.Source
-  ) => Promise<void>
-  updateTemplateQueryParams: (dashboardId: number) => void
-  updateQueryParams: (updatedQueryParams: object) => RouterAction
+  setDashTimeV1: typeof dashboardActions.setDashTimeV1
+  setZoomedTimeRange: typeof dashboardActions.setZoomedTimeRange
+  updateDashboard: typeof dashboardActions.updateDashboard
+  putDashboard: typeof dashboardActions.putDashboard
+  putDashboardByID: typeof dashboardActions.putDashboardByID
+  getDashboardsAsync: typeof dashboardActions.getDashboardsAsync
+  addDashboardCellAsync: typeof dashboardActions.addDashboardCellAsync
+  editCellQueryStatus: typeof dashboardActions.editCellQueryStatus
+  updateDashboardCell: typeof dashboardActions.updateDashboardCell
+  cloneDashboardCellAsync: typeof dashboardActions.cloneDashboardCellAsync
+  deleteDashboardCellAsync: typeof dashboardActions.deleteDashboardCellAsync
+  templateVariableLocalSelected: typeof dashboardActions.templateVariableLocalSelected
+  getDashboardWithTemplatesAsync: typeof dashboardActions.getDashboardWithTemplatesAsync
+  rehydrateNestedTemplatesAsync: typeof dashboardActions.rehydrateNestedTemplatesAsync
+  updateTemplateQueryParams: typeof dashboardActions.updateTemplateQueryParams
+  updateQueryParams: typeof dashboardActions.updateQueryParams
 }
 
 interface State {
@@ -587,7 +576,18 @@ const mstp = (state, {params: {dashboardID}}) => {
 }
 
 const mdtp = {
-  ...dashboardActions,
+  setDashTimeV1: dashboardActions.setDashTimeV1,
+  setZoomedTimeRange: dashboardActions.setZoomedTimeRange,
+  updateDashboard: dashboardActions.updateDashboard,
+  putDashboard: dashboardActions.putDashboard,
+  putDashboardByID: dashboardActions.putDashboardByID,
+  getDashboardsAsync: dashboardActions.getDashboardsAsync,
+  addDashboardCellAsync: dashboardActions.addDashboardCellAsync,
+  editCellQueryStatus: dashboardActions.editCellQueryStatus,
+  updateDashboardCell: dashboardActions.updateDashboardCell,
+  cloneDashboardCellAsync: dashboardActions.cloneDashboardCellAsync,
+  deleteDashboardCellAsync: dashboardActions.deleteDashboardCellAsync,
+  templateVariableLocalSelected: dashboardActions.templateVariableLocalSelected,
   getDashboardWithTemplatesAsync:
     dashboardActions.getDashboardWithTemplatesAsync,
   rehydrateNestedTemplatesAsync: dashboardActions.rehydrateNestedTemplatesAsync,
