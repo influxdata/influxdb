@@ -54,6 +54,10 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 		},
 	})
 	for i, f := range t.stmt.Fields {
+		if ref, ok := f.Expr.(*influxql.VarRef); ok && ref.Val == "time" {
+			// Skip past any time columns.
+			continue
+		}
 		value, err := t.mapField(f.Expr, in)
 		if err != nil {
 			return nil, err
@@ -88,7 +92,12 @@ func (t *transpilerState) mapField(expr influxql.Expr, in cursor) (semantic.Expr
 	}
 
 	switch expr := expr.(type) {
-	case *influxql.Call, *influxql.VarRef:
+	case *influxql.Call:
+		if isMathFunction(expr) {
+			return nil, fmt.Errorf("unimplemented math function: %q", expr.Name)
+		}
+		return nil, fmt.Errorf("missing symbol for %s", expr)
+	case *influxql.VarRef:
 		return nil, fmt.Errorf("missing symbol for %s", expr)
 	case *influxql.BinaryExpr:
 		return t.evalBinaryExpr(expr, in)
