@@ -824,6 +824,7 @@ func ToStringArray(a values.Array) ([]string, error) {
 // whether the argument was specified and any errors about the argument type.
 // semantic.The GetRequired{Type} methods return only two values, the typed value of the arg and any errors, a missing argument is considered an error in this case.
 type Arguments interface {
+	GetAll() []string
 	Get(name string) (values.Value, bool)
 	GetRequired(name string) (values.Value, error)
 
@@ -860,6 +861,14 @@ func newArguments(obj values.Object) *arguments {
 }
 func NewArguments(obj values.Object) Arguments {
 	return newArguments(obj)
+}
+
+func (a *arguments) GetAll() []string {
+	args := make([]string, 0, a.obj.Len())
+	a.obj.Range(func(name string, v values.Value) {
+		args = append(args, name)
+	})
+	return args
 }
 
 func (a *arguments) Get(name string) (values.Value, bool) {
