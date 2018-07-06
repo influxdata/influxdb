@@ -25,7 +25,7 @@ import replaceTemplate, {replaceInterval} from 'src/tempVars/utils/replace'
 
 // Constants
 import {IS_STATIC_LEGEND} from 'src/shared/constants'
-import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
+import {TYPE_QUERY_CONFIG, CEOTabs} from 'src/dashboards/constants'
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
 import {
@@ -91,7 +91,7 @@ interface Props {
 interface State {
   queriesWorkingDraft: QueriesModels.QueryConfig[]
   activeQueryIndex: number
-  isDisplayOptionsTabActive: boolean
+  activeEditorTab: CEOTabs
   isStaticLegend: boolean
 }
 
@@ -143,7 +143,7 @@ class CellEditorOverlay extends Component<Props, State> {
     this.state = {
       queriesWorkingDraft,
       activeQueryIndex: 0,
-      isDisplayOptionsTabActive: false,
+      activeEditorTab: CEOTabs.Queries,
       isStaticLegend: IS_STATIC_LEGEND(legend),
     }
   }
@@ -180,12 +180,7 @@ class CellEditorOverlay extends Component<Props, State> {
       editQueryStatus,
     } = this.props
 
-    const {
-      activeQueryIndex,
-      isDisplayOptionsTabActive,
-      queriesWorkingDraft,
-      isStaticLegend,
-    } = this.state
+    const {activeEditorTab, queriesWorkingDraft, isStaticLegend} = this.state
 
     return (
       <div
@@ -220,34 +215,51 @@ class CellEditorOverlay extends Component<Props, State> {
               selected={this.findSelectedSource()}
               onSetQuerySource={this.handleSetQuerySource}
               isSavable={this.isSaveable}
-              isDisplayOptionsTabActive={isDisplayOptionsTabActive}
-              onClickDisplayOptions={this.handleClickDisplayOptionsTab}
+              activeEditorTab={activeEditorTab}
+              onSetActiveEditorTab={this.handleSetActiveEditorTab}
             />
-            {isDisplayOptionsTabActive ? (
-              <DisplayOptions
-                queryConfigs={queriesWorkingDraft}
-                onToggleStaticLegend={this.handleToggleStaticLegend}
-                staticLegend={isStaticLegend}
-                onResetFocus={this.handleResetFocus}
-              />
-            ) : (
-              <QueryMaker
-                source={this.source}
-                templates={templates}
-                queries={queriesWorkingDraft}
-                actions={this.queryActions}
-                timeRange={timeRange}
-                onDeleteQuery={this.handleDeleteQuery}
-                onAddQuery={this.handleAddQuery}
-                activeQueryIndex={activeQueryIndex}
-                activeQuery={this.getActiveQuery()}
-                setActiveQueryIndex={this.handleSetActiveQueryIndex}
-                initialGroupByTime={AUTO_GROUP_BY}
-              />
-            )}
+            {this.cellEditorBottom}
           </CEOBottom>
         </ResizeContainer>
       </div>
+    )
+  }
+
+  private get cellEditorBottom(): JSX.Element {
+    const {templates, timeRange} = this.props
+
+    const {
+      activeQueryIndex,
+      activeEditorTab,
+      queriesWorkingDraft,
+      isStaticLegend,
+    } = this.state
+
+    if (activeEditorTab === CEOTabs.Queries) {
+      return (
+        <QueryMaker
+          source={this.source}
+          templates={templates}
+          queries={queriesWorkingDraft}
+          actions={this.queryActions}
+          timeRange={timeRange}
+          onDeleteQuery={this.handleDeleteQuery}
+          onAddQuery={this.handleAddQuery}
+          activeQueryIndex={activeQueryIndex}
+          activeQuery={this.getActiveQuery()}
+          setActiveQueryIndex={this.handleSetActiveQueryIndex}
+          initialGroupByTime={AUTO_GROUP_BY}
+        />
+      )
+    }
+
+    return (
+      <DisplayOptions
+        queryConfigs={queriesWorkingDraft}
+        onToggleStaticLegend={this.handleToggleStaticLegend}
+        staticLegend={isStaticLegend}
+        onResetFocus={this.handleResetFocus}
+      />
     )
   }
 
@@ -336,15 +348,15 @@ class CellEditorOverlay extends Component<Props, State> {
     this.props.onSave(newCell)
   }
 
-  private handleClickDisplayOptionsTab = isDisplayOptionsTabActive => () => {
-    this.setState({isDisplayOptionsTabActive})
+  private handleSetActiveEditorTab = (tabName: CEOTabs): void => {
+    this.setState({activeEditorTab: tabName})
   }
 
-  private handleSetActiveQueryIndex = activeQueryIndex => {
+  private handleSetActiveQueryIndex = (activeQueryIndex): void => {
     this.setState({activeQueryIndex})
   }
 
-  private handleToggleStaticLegend = isStaticLegend => () => {
+  private handleToggleStaticLegend = isStaticLegend => (): void => {
     this.setState({isStaticLegend})
   }
 

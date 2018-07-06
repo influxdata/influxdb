@@ -7,6 +7,7 @@ import React, {
   ReactElement,
 } from 'react'
 import WriteDataFooter from 'src/data_explorer/components/WriteDataFooter'
+import {WriteDataMode} from 'src/types'
 
 interface Props {
   handleCancelFile: (e: MouseEvent<HTMLButtonElement>) => void
@@ -17,7 +18,7 @@ interface Props {
   inputContent: string
   uploadContent: string
   fileName: string
-  isManual: boolean
+  mode: string
   fileInput: (ref: any) => any
   handleFileOpen: () => void
   isUploading: boolean
@@ -38,12 +39,12 @@ class WriteDataBody extends PureComponent<Props> {
   }
 
   private get input(): JSX.Element {
-    const {isManual} = this.props
-    if (isManual) {
-      return this.textarea
+    const {mode} = this.props
+    if (mode === WriteDataMode.File) {
+      return this.dragArea
     }
 
-    return this.dragArea
+    return this.textarea
   }
 
   private get textarea(): ReactElement<HTMLTextAreaElement> {
@@ -135,25 +136,17 @@ class WriteDataBody extends PureComponent<Props> {
   }
 
   private get footer(): JSX.Element | null {
-    const {
-      isUploading,
-      isManual,
-      inputContent,
-      handleSubmit,
-      uploadContent,
-    } = this.props
+    const {isUploading, inputContent, handleSubmit, mode} = this.props
 
-    if (!isManual) {
+    if (mode === WriteDataMode.File) {
       return null
     }
 
     return (
       <WriteDataFooter
         isUploading={isUploading}
-        isManual={isManual}
         inputContent={inputContent}
         handleSubmit={handleSubmit}
-        uploadContent={uploadContent}
       />
     )
   }

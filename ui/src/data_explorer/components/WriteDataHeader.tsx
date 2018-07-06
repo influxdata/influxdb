@@ -1,14 +1,16 @@
 import React, {PureComponent} from 'react'
 import DatabaseDropdown from 'src/shared/components/DatabaseDropdown'
+import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
 import {Source, DropdownItem} from 'src/types'
+import {WriteDataMode} from 'src/types'
 
 interface Props {
   handleSelectDatabase: (item: DropdownItem) => void
   selectedDatabase: string
-  toggleWriteView: (isWriteViewToggled: boolean) => void
+  onToggleMode: (mode: WriteDataMode) => void
   errorThrown: () => void
   onClose: () => void
-  isManual: boolean
+  mode: string
   source: Source
 }
 
@@ -32,18 +34,7 @@ class WriteDataHeader extends PureComponent<Props> {
             database={selectedDatabase}
             onErrorThrown={errorThrown}
           />
-          <ul className="nav nav-tablist nav-tablist-sm">
-            <li onClick={this.handleToggleOff} className={this.fileUploadClass}>
-              File Upload
-            </li>
-            <li
-              onClick={this.handleToggleOn}
-              className={this.manualEntryClass}
-              data-test="manual-entry-button"
-            >
-              Manual Entry
-            </li>
-          </ul>
+          {this.modeSelector}
         </div>
         <div className="page-header--right">
           <span className="page-header__dismiss" onClick={onClose} />
@@ -52,28 +43,23 @@ class WriteDataHeader extends PureComponent<Props> {
     )
   }
 
-  private get fileUploadClass(): string {
-    if (this.props.isManual) {
-      return ''
-    }
+  private get modeSelector(): JSX.Element {
+    const {mode} = this.props
+    const modes = [WriteDataMode.File, WriteDataMode.Manual]
 
-    return 'active'
+    return (
+      <RadioButtons
+        buttons={modes}
+        activeButton={mode}
+        onChange={this.handleRadioButtonClick}
+      />
+    )
   }
 
-  private get manualEntryClass(): string {
-    if (this.props.isManual) {
-      return 'active'
-    }
+  private handleRadioButtonClick = (mode: WriteDataMode): void => {
+    const {onToggleMode} = this.props
 
-    return ''
-  }
-
-  private handleToggleOff = (): void => {
-    this.props.toggleWriteView(false)
-  }
-
-  private handleToggleOn = (): void => {
-    this.props.toggleWriteView(true)
+    onToggleMode(mode)
   }
 }
 

@@ -11,8 +11,10 @@ import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
 import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
+import {WriteDataMode} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Source, DropdownItem} from 'src/types'
+
 let dragCounter = 0
 
 interface Props {
@@ -29,7 +31,7 @@ interface State {
   uploadContent: string
   fileName: string
   progress: string
-  isManual: boolean
+  mode: WriteDataMode
   dragClass: string
   isUploading: boolean
 }
@@ -46,7 +48,7 @@ class WriteDataForm extends PureComponent<Props, State> {
       uploadContent: '',
       fileName: '',
       progress: '',
-      isManual: false,
+      mode: WriteDataMode.File,
       dragClass: 'drag-none',
       isUploading: false,
     }
@@ -71,7 +73,7 @@ class WriteDataForm extends PureComponent<Props, State> {
             source={source}
             onClose={onClose}
             errorThrown={errorThrown}
-            toggleWriteView={this.toggleWriteView}
+            onToggleMode={this.handleToggleMode}
             handleSelectDatabase={this.handleSelectDatabase}
           />
           <WriteDataBody
@@ -89,15 +91,15 @@ class WriteDataForm extends PureComponent<Props, State> {
     )
   }
 
-  private toggleWriteView = (isManual: boolean) => {
-    this.setState({isManual})
+  private handleToggleMode = (mode: WriteDataMode): void => {
+    this.setState({mode})
   }
 
   private handleSelectDatabase = (item: DropdownItem): void => {
     this.setState({selectedDatabase: item.text})
   }
 
-  private handleKeyUp = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  private handleKeyUp = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
     e.stopPropagation()
     if (e.key === 'Escape') {
       const {onClose} = this.props
@@ -107,8 +109,12 @@ class WriteDataForm extends PureComponent<Props, State> {
 
   private handleSubmit = async () => {
     const {onClose, source, writeLineProtocol} = this.props
-    const {inputContent, uploadContent, selectedDatabase, isManual} = this.state
-    const content = isManual ? inputContent : uploadContent
+    const {inputContent, uploadContent, selectedDatabase, mode} = this.state
+    let content = inputContent
+
+    if (mode === WriteDataMode.File) {
+      content = uploadContent
+    }
     this.setState({isUploading: true})
 
     try {

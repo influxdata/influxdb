@@ -108,3 +108,8 @@ export const TYPE_QUERY_CONFIG: string = 'queryConfig'
 export const TYPE_SHIFTED: string = 'shifted queryConfig'
 export const TYPE_FLUX: string = 'flux'
 export const DASHBOARD_NAME_MAX_LENGTH: number = 50
+
+export enum CEOTabs {
+  Queries = 'Queries',
+  Vis = 'Visualization',
+}
