@@ -290,7 +290,7 @@ class Gauge extends Component {
     ctx.textAlign = 'center'
 
     const textY = radius
-    const textContent = `${prefix}${gaugePosition.toString()}${suffix}`
+    const textContent = `${prefix}${gaugePosition.toLocaleString()}${suffix}`
     ctx.fillText(textContent, 0, textY)
   }
 

@@ -6,7 +6,7 @@ import _ from 'lodash'
 import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'src/shared/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
-import {ColorNumber} from 'src/types/colors'
+import {ColorString} from 'src/types/colors'
 import {CellType} from 'src/types/dashboards'
 import {Data} from 'src/types/dygraphs'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -14,11 +14,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   isFetchingInitially: boolean
   cellHeight: number
-  colors: ColorNumber[]
+  colors: ColorString[]
   prefix?: string
   suffix?: string
   lineGraph: boolean
-  staticLegendHeight: number
+  staticLegendHeight?: number
   data: Data
 }
 
@@ -71,8 +71,9 @@ class SingleStat extends PureComponent<Props> {
     const lastValue = lastValues[firstAlphabeticalindex]
     const HUNDRED = 100.0
     const roundedValue = Math.round(+lastValue * HUNDRED) / HUNDRED
+    const localeFormatted = roundedValue.toLocaleString()
 
-    return `${roundedValue}`
+    return `${localeFormatted}`
   }
 
   private get containerStyle(): CSSProperties {
@@ -101,11 +102,11 @@ class SingleStat extends PureComponent<Props> {
     const {lastValues, series} = getLastValues(data)
     const firstAlphabeticalSeriesName = _.sortBy(series)[0]
 
-    const firstAlphabeticalindex = _.indexOf(
+    const firstAlphabeticalIndex = _.indexOf(
       series,
       firstAlphabeticalSeriesName
     )
-    const lastValue = lastValues[firstAlphabeticalindex]
+    const lastValue = lastValues[firstAlphabeticalIndex]
 
     const {bgColor, textColor} = generateThresholdsListHexs({
       colors,
