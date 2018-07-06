@@ -174,7 +174,7 @@ func (t *rowSelectorTransformation) Process(id DatasetID, b query.Block) error {
 	// yet have an implementation
 
 	if rower == nil {
-		return fmt.Errorf("unimplemented row selector type")
+		return fmt.Errorf("unimplemented row selector function")
 	}
 
 	b.Do(func(cr query.ColReader) error {
