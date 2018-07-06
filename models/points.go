@@ -1587,7 +1587,6 @@ func parseTags(buf []byte, dst Tags) Tags {
 	var i int
 	walkTags(buf, func(key, value []byte) bool {
 		dst[i].Key, dst[i].Value = key, value
-		// tags = append(tags, Tag{Key: key, Value: value})
 		i++
 		return true
 	})

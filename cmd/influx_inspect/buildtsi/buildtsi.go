@@ -71,49 +71,8 @@ func (cmd *Command) Run(args ...string) error {
 	}
 	cmd.Logger = logger.New(cmd.Stderr)
 
-	// Uncomment for profiling
-	// finish := startProfiles()
-	// defer finish()
-
 	return cmd.run(*dataDir, *walDir)
 }
-
-// func startProfiles() func() {
-// 	runtime.MemProfileRate = 100 // Sample 1% of allocations.
-
-// 	paths := []string{"/tmp/buildtsi.mem.pprof", "/tmp/buildtsi.cpu.pprof"}
-// 	var files []*os.File
-// 	for _, pth := range paths {
-// 		f, err := os.Create(pth)
-// 		if err != nil {
-// 			log.Fatalf("memprofile: %v", err)
-// 		}
-// 		log.Printf("writing profile to: %s\n", pth)
-// 		files = append(files, f)
-
-// 	}
-
-// 	closeFn := func() {
-// 		// Write the memory profile
-// 		if err := pprof.Lookup("heap").WriteTo(files[0], 0); err != nil {
-// 			panic(err)
-// 		}
-
-// 		// Stop the CPU profile.
-// 		pprof.StopCPUProfile()
-
-// 		for _, fd := range files {
-// 			if err := fd.Close(); err != nil {
-// 				panic(err)
-// 			}
-// 		}
-// 	}
-
-// 	if err := pprof.StartCPUProfile(files[1]); err != nil {
-// 		panic(err)
-// 	}
-// 	return closeFn
-// }
 
 func (cmd *Command) run(dataDir, walDir string) error {
 	// Verify the user actually wants to run as root.
@@ -191,10 +150,12 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 		return err
 	}
 
-	var shards []struct {
+	type shard struct {
 		ID   uint64
 		Path string
 	}
+
+	var shards []shard
 
 	for _, fi := range fis {
 		if !fi.IsDir() {
@@ -208,10 +169,7 @@ func (cmd *Command) processRetentionPolicy(sfile *tsdb.SeriesFile, dbName, rpNam
 			continue
 		}
 
-		shards = append(shards, struct {
-			ID   uint64
-			Path string
-		}{shardID, fi.Name()})
+		shards = append(shards, shard{shardID, fi.Name()})
 	}
 
 	errC := make(chan error, len(shards))
