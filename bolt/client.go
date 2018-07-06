@@ -167,6 +167,9 @@ func (c *Client) initialize(ctx context.Context) error {
 		if _, err := tx.CreateBucketIfNotExists(OrganizationConfigBucket); err != nil {
 			return err
 		}
+		// Always create Cells bucket.
+		if err := c.initializeCells(ctx, tx); err != nil {
+		}
 		return nil
 	}); err != nil {
 		return err
