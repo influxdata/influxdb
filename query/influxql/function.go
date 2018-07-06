@@ -22,7 +22,32 @@ type function struct {
 // parseFunction parses a call AST and creates the function for it.
 func parseFunction(expr *influxql.Call) (*function, error) {
 	switch expr.Name {
-	case "mean", "max":
+	case "count":
+		if exp, got := 1, len(expr.Args); exp != got {
+			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+		}
+
+		switch ref := expr.Args[0].(type) {
+		case *influxql.VarRef:
+			return &function{
+				Ref:  ref,
+				call: expr,
+			}, nil
+		case *influxql.Call:
+			if ref.Name == "distinct" {
+				return nil, errors.New("unimplemented: count(distinct)")
+			}
+			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
+		case *influxql.Distinct:
+			return nil, errors.New("unimplemented: count(distinct)")
+		case *influxql.Wildcard:
+			return nil, errors.New("unimplemented: wildcard function")
+		case *influxql.RegexLiteral:
+			return nil, errors.New("unimplemented: wildcard regex function")
+		default:
+			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
+		}
+	case "min", "max", "sum", "first", "last", "mean":
 		if exp, got := 1, len(expr.Args); exp != got {
 			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 		}
@@ -53,16 +78,28 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 		parent: in,
 	}
 	switch call.Name {
-	case "mean":
+	case "count":
 		value, ok := in.Value(call.Args[0])
 		if !ok {
 			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
 		}
-		cur.id = t.op("mean", &functions.MeanOpSpec{
+		cur.id = t.op("count", &functions.CountOpSpec{
 			AggregateConfig: execute.AggregateConfig{
 				Columns: []string{value},
 				TimeSrc: execute.DefaultStartColLabel,
 				TimeDst: execute.DefaultTimeColLabel,
+			},
+		}, in.ID())
+		cur.value = value
+		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "min":
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		cur.id = t.op("min", &functions.MinOpSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: value,
 			},
 		}, in.ID())
 		cur.value = value
@@ -75,6 +112,58 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 		cur.id = t.op("max", &functions.MaxOpSpec{
 			SelectorConfig: execute.SelectorConfig{
 				Column: value,
+			},
+		}, in.ID())
+		cur.value = value
+		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "sum":
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		cur.id = t.op("sum", &functions.SumOpSpec{
+			AggregateConfig: execute.AggregateConfig{
+				Columns: []string{value},
+				TimeSrc: execute.DefaultStartColLabel,
+				TimeDst: execute.DefaultTimeColLabel,
+			},
+		}, in.ID())
+		cur.value = value
+		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "first":
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		cur.id = t.op("first", &functions.FirstOpSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: value,
+			},
+		}, in.ID())
+		cur.value = value
+		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "last":
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		cur.id = t.op("last", &functions.LastOpSpec{
+			SelectorConfig: execute.SelectorConfig{
+				Column: value,
+			},
+		}, in.ID())
+		cur.value = value
+		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "mean":
+		value, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+		cur.id = t.op("mean", &functions.MeanOpSpec{
+			AggregateConfig: execute.AggregateConfig{
+				Columns: []string{value},
+				TimeSrc: execute.DefaultStartColLabel,
+				TimeDst: execute.DefaultTimeColLabel,
 			},
 		}, in.ID())
 		cur.value = value
