@@ -113,19 +113,17 @@ describe('DataExplorer.Reducers.UI', () => {
       dashboards: [dash],
     }
 
-    const value = dash.templates[0].values[2].value
-    const actual = reducer(
-      state,
-      templateVariableLocalSelected(dash.id, dash.templates[0].id, [{value}])
+    const action = templateVariableLocalSelected(
+      dash.id,
+      dash.templates[0].id,
+      dash.templates[0].values[2]
     )
 
-    expect(actual.dashboards[0].templates[0].values[0].localSelected).toBe(
-      false
-    )
-    expect(actual.dashboards[0].templates[0].values[1].localSelected).toBe(
-      false
-    )
-    expect(actual.dashboards[0].templates[0].values[2].localSelected).toBe(true)
+    const actual = reducer(state, action).dashboards[0].templates[0].values
+
+    expect(actual[0].localSelected).toBe(false)
+    expect(actual[1].localSelected).toBe(false)
+    expect(actual[2].localSelected).toBe(true)
   })
 
   describe('SET_ACTIVE_CELL', () => {

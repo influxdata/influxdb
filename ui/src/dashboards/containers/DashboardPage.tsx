@@ -453,7 +453,7 @@ class DashboardPage extends Component<Props, State> {
       rehydrateNestedTemplatesAsync,
     } = this.props
 
-    templateVariableLocalSelected(dashboard.id, templateID, [value])
+    templateVariableLocalSelected(dashboard.id, templateID, value)
     updateTemplateQueryParams(dashboard.id)
     rehydrateNestedTemplatesAsync(dashboard.id, source)
   }

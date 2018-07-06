@@ -198,13 +198,13 @@ export const editCellQueryStatus: DashboardsActions.EditCellQueryStatusActionCre
 export const templateVariableLocalSelected: DashboardsActions.TemplateVariableLocalSelectedActionCreator = (
   dashboardID: number,
   templateID: string,
-  values
+  value: TempVarsModels.TemplateValue
 ): DashboardsActions.TemplateVariableLocalSelectedAction => ({
   type: 'TEMPLATE_VARIABLE_LOCAL_SELECTED',
   payload: {
     dashboardID,
     templateID,
-    values,
+    value,
   },
 })
 

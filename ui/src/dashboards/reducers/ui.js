@@ -138,37 +138,31 @@ const ui = (state = initialState, action) => {
     }
 
     case 'TEMPLATE_VARIABLE_LOCAL_SELECTED': {
-      const {
-        dashboardID,
-        templateID,
-        values: updatedLocalSelectedValues,
-      } = action.payload
+      const {dashboardID, templateID, value: newValue} = action.payload
 
-      const newDashboards = state.dashboards.map(dashboard => {
-        if (dashboard.id === dashboardID) {
-          const newTemplates = dashboard.templates.map(staleTemplate => {
-            if (staleTemplate.id === templateID) {
-              const newValues = staleTemplate.values.map(staleValue => {
-                let localSelected = false
-                for (let i = 0; i < updatedLocalSelectedValues.length; i++) {
-                  if (
-                    updatedLocalSelectedValues[i].value === staleValue.value
-                  ) {
-                    localSelected = true
-                    break
-                  }
-                }
-                return {...staleValue, localSelected}
-              })
-              return {...staleTemplate, values: newValues}
-            }
-            return staleTemplate
-          })
-          return {...dashboard, templates: newTemplates}
+      const dashboards = state.dashboards.map(dashboard => {
+        if (dashboard.id !== dashboardID) {
+          return dashboard
         }
-        return dashboard
+
+        const templates = dashboard.templates.map(template => {
+          if (template.id !== templateID) {
+            return template
+          }
+
+          const values = template.values.map(value => {
+            const localSelected = value.value === newValue.value
+
+            return {...value, localSelected}
+          })
+
+          return {...template, values}
+        })
+
+        return {...dashboard, templates}
       })
-      return {...state, dashboards: newDashboards}
+
+      return {...state, dashboards}
     }
 
     case 'UPDATE_TEMPLATES': {

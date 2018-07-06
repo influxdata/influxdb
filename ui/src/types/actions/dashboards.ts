@@ -215,7 +215,7 @@ export interface EditCellQueryStatusAction {
 export type TemplateVariableLocalSelectedActionCreator = (
   dashboardID: number,
   templateID: string,
-  values: any[]
+  value: TempVarsModels.TemplateValue
 ) => TemplateVariableLocalSelectedAction
 
 export interface TemplateVariableLocalSelectedAction {
@@ -223,7 +223,7 @@ export interface TemplateVariableLocalSelectedAction {
   payload: {
     dashboardID: number
     templateID: string
-    values: any[]
+    value: TempVarsModels.TemplateValue
   }
 }
 
