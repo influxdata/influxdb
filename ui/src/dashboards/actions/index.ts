@@ -19,9 +19,9 @@ import {notify} from 'src/shared/actions/notifications'
 import {errorThrown} from 'src/shared/actions/errors'
 
 import {
-  applySelections,
+  applyLocalSelections,
   templateSelectionsFromQueryParams,
-  queryParamsFromTemplates,
+  templateSelectionsFromTemplates,
 } from 'src/dashboards/utils/tempVars'
 import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
 import {
@@ -584,7 +584,7 @@ export const getDashboardWithTemplatesAsync = (
       .map(t => hydrateTemplate(proxyLink, t, []))
   )
 
-  applySelections(nonNestedTemplates, templateSelections)
+  applyLocalSelections(nonNestedTemplates, templateSelections)
 
   const nestedTemplates = await Promise.all(
     dashboard.templates
@@ -592,7 +592,7 @@ export const getDashboardWithTemplatesAsync = (
       .map(t => hydrateTemplate(proxyLink, t, nonNestedTemplates))
   )
 
-  applySelections(nestedTemplates, templateSelections)
+  applyLocalSelections(nestedTemplates, templateSelections)
 
   const templates = [...nonNestedTemplates, ...nestedTemplates]
 
@@ -615,7 +615,7 @@ export const rehydrateNestedTemplatesAsync = (
       .map(t => hydrateTemplate(proxyLink, t, dashboard.templates))
   )
 
-  applySelections(nestedTemplates, templateSelections)
+  applyLocalSelections(nestedTemplates, templateSelections)
 
   dispatch(updateTemplates(nestedTemplates))
   dispatch<any>(updateTemplateQueryParams(dashboardId))
@@ -627,7 +627,7 @@ export const updateTemplateQueryParams = (dashboardId: number) => (
 ): void => {
   const templates = getDashboard(getState(), dashboardId).templates
   const updatedQueryParams = {
-    tempVars: queryParamsFromTemplates(templates),
+    tempVars: templateSelectionsFromTemplates(templates),
   }
 
   dispatch(updateQueryParams(updatedQueryParams))

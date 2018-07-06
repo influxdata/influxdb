@@ -4,7 +4,7 @@ import qs from 'qs'
 import {formatTempVar} from 'src/tempVars/utils'
 
 import {Template, TemplateQuery} from 'src/types'
-import {TemplateQPSelections} from 'src/types/dashboards'
+import {TemplateSelections} from 'src/types/dashboards'
 
 export const makeQueryForTemplate = ({
   influxql,
@@ -17,7 +17,7 @@ export const makeQueryForTemplate = ({
     .replace(':measurement:', `"${measurement}"`)
     .replace(':tagKey:', `"${tagKey}"`)
 
-export const templateSelectionsFromQueryParams = (): TemplateQPSelections => {
+export const templateSelectionsFromQueryParams = (): TemplateSelections => {
   const queryParams = qs.parse(window.location.search, {
     ignoreQueryPrefix: true,
   })
@@ -29,7 +29,9 @@ export const templateSelectionsFromQueryParams = (): TemplateQPSelections => {
   )
 }
 
-export const queryParamsFromTemplates = (templates: Template[]) => {
+export const templateSelectionsFromTemplates = (
+  templates: Template[]
+): TemplateSelections => {
   return templates.reduce((acc, template) => {
     const tempVar = stripTempVar(template.tempVar)
     const selection = template.values.find(t => t.localSelected)
@@ -45,18 +47,22 @@ export const queryParamsFromTemplates = (templates: Template[]) => {
   }, {})
 }
 
-export const applySelections = (
+export const applyLocalSelections = (
   templates: Template[],
-  selections: TemplateQPSelections
+  selections: TemplateSelections
 ): void => {
+  // Ensure that every supplied template has an appropriately set
+  // `localSelected` value.
   for (const {tempVar, values} of templates) {
     if (!values.length) {
       continue
     }
 
+    // Attempt to use supplied selection
     let selection = selections[tempVar]
 
     if (!selection || !values.find(v => v.value === selection)) {
+      // Default to template's `selected` value if no valid selection is found
       selection = values.find(v => v.selected).value
     }
 
