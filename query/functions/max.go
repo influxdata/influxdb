@@ -125,10 +125,6 @@ func (s *MaxSelector) Rows() []execute.Row {
 	return s.rows
 }
 
-func (s *MaxSelector) IsNil() bool {
-	return s == nil
-}
-
 func (s *MaxSelector) selectRow(idx int, cr query.ColReader) {
 	// Capture row
 	if idx >= 0 {

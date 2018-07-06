@@ -170,10 +170,11 @@ func (t *rowSelectorTransformation) Process(id DatasetID, b query.Block) error {
 		return fmt.Errorf("unsupported selector type %v", valueCol.Type)
 	}
 
-	// if rower has a nil underlying value, this means that the row selector doesn't
+	// if rower has a nil value, this means that the row selector doesn't
 	// yet have an implementation
-	if rower.IsNil() {
-		return fmt.Errorf("unimplemented row selector type %T", rower)
+
+	if rower == nil {
+		return fmt.Errorf("unimplemented row selector type")
 	}
 
 	b.Do(func(cr query.ColReader) error {
@@ -283,7 +284,6 @@ type RowSelector interface {
 
 type Rower interface {
 	Rows() []Row
-	IsNil() bool
 }
 
 type DoBoolRowSelector interface {

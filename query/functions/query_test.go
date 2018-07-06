@@ -18,7 +18,7 @@ import (
 var skipTests = map[string]string{
 	"derivative":                "derivative not supported by influxql (https://github.com/influxdata/platform/issues/93)",
 	"window_group_mean_ungroup": "error in influxql: failed to run query: timeValue column \"_start\" does not exist (https://github.com/influxdata/platform/issues/97)",
-	"string_max":                "panic because no max() implementation for string (https://github.com/influxdata/platform/issues/352)",
+	"string_max":                "error: unimplemented row selector type",
 	"null_as_value":             "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
 }
 

@@ -153,9 +153,6 @@ func (s *LastSelector) Rows() []execute.Row {
 	return s.rows
 }
 
-func (s *LastSelector) IsNil() bool {
-	return s == nil
-}
 func (s *LastSelector) selectLast(l int, cr query.ColReader) {
 	if l > 0 {
 		s.rows = []execute.Row{execute.ReadRow(l-1, cr)}
