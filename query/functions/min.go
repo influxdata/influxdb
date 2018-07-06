@@ -125,6 +125,10 @@ func (s *MinSelector) Rows() []execute.Row {
 	return s.rows
 }
 
+func (s *MinSelector) IsNil() bool {
+	return s == nil
+}
+
 func (s *MinSelector) selectRow(idx int, cr query.ColReader) {
 	// Capture row
 	if idx >= 0 {
