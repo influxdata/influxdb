@@ -99,7 +99,7 @@ interface LoadDashboardAction {
 interface RetainRangesDashTimeV1Action {
   type: ActionType.RetainRangesDashboardTimeV1
   payload: {
-    dashboardIDs: string[]
+    dashboardIDs: number[]
   }
 }
 
@@ -260,7 +260,7 @@ export const setDashTimeV1 = (
 })
 
 export const retainRangesDashTimeV1 = (
-  dashboardIDs: string[]
+  dashboardIDs: number[]
 ): RetainRangesDashTimeV1Action => ({
   type: ActionType.RetainRangesDashboardTimeV1,
   payload: {dashboardIDs},
