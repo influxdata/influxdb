@@ -101,6 +101,11 @@ var DisableFsync = func() IndexOption {
 // be appropriate to set this.
 var WithLogFileBufferSize = func(sz int) IndexOption {
 	return func(i *Index) {
+		if sz > 1<<17 { // 128K
+			sz = 1 << 17
+		} else if sz < 1<<12 {
+			sz = 1 << 12 // 4K (runtime default)
+		}
 		i.logfileBufferSize = sz
 	}
 }
