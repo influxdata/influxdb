@@ -11,7 +11,7 @@ import WriteDataBody from 'src/data_explorer/components/WriteDataBody'
 import WriteDataHeader from 'src/data_explorer/components/WriteDataHeader'
 
 import {OVERLAY_TECHNOLOGY} from 'src/shared/constants/classNames'
-import {WriteDataMode} from 'src/shared/constants'
+import {WriteDataMode} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Source, DropdownItem} from 'src/types'
 

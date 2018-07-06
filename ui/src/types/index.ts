@@ -46,6 +46,7 @@ import {
 } from './dygraphs'
 import {JSONFeedData} from './status'
 import {AnnotationInterface} from './annotations'
+import {WriteDataMode} from './dataExplorer'
 
 export {
   Me,
@@ -109,4 +110,5 @@ export {
   TemplateValueType,
   TemplateUpdate,
   TemplateBuilderProps,
+  WriteDataMode,
 }

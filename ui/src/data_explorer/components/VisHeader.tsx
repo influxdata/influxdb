@@ -22,7 +22,7 @@ class VisHeader extends PureComponent<Props> {
     )
   }
 
-  private handleChangeVisType = (view: string) => {
+  private handleChangeVisType = (view: string): void => {
     const {onToggleView} = this.props
 
     onToggleView(view)

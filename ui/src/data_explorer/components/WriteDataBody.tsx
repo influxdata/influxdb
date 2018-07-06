@@ -7,7 +7,7 @@ import React, {
   ReactElement,
 } from 'react'
 import WriteDataFooter from 'src/data_explorer/components/WriteDataFooter'
-import {WriteDataMode} from 'src/shared/constants'
+import {WriteDataMode} from 'src/types'
 
 interface Props {
   handleCancelFile: (e: MouseEvent<HTMLButtonElement>) => void

@@ -2,7 +2,7 @@ import React, {PureComponent} from 'react'
 import DatabaseDropdown from 'src/shared/components/DatabaseDropdown'
 import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
 import {Source, DropdownItem} from 'src/types'
-import {WriteDataMode} from 'src/shared/constants'
+import {WriteDataMode} from 'src/types'
 
 interface Props {
   handleSelectDatabase: (item: DropdownItem) => void
