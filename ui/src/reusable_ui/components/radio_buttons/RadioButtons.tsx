@@ -3,11 +3,6 @@ import classnames from 'classnames'
 import _ from 'lodash'
 
 import {ComponentColor, ComponentSize, ButtonShape} from 'src/reusable_ui/types'
-import {
-  COMPONENT_COLORS,
-  COMPONENT_SIZES,
-  BUTTON_SHAPES,
-} from 'src/reusable_ui/constants'
 
 interface Props {
   color?: ComponentColor
@@ -21,9 +16,9 @@ interface Props {
 
 class RadioButtons extends Component<Props> {
   public static defaultProps = {
-    color: COMPONENT_COLORS.default,
-    size: COMPONENT_SIZES.small,
-    shape: BUTTON_SHAPES.none,
+    color: ComponentColor.Default,
+    size: ComponentSize.Small,
+    shape: ButtonShape.Default,
     disabled: false,
   }
 
@@ -51,8 +46,8 @@ class RadioButtons extends Component<Props> {
     return classnames(
       `radio-buttons radio-buttons-${color} radio-buttons-${size}`,
       {
-        'radio-buttons-square': shape === BUTTON_SHAPES.square,
-        'radio-buttons-stretch': shape === BUTTON_SHAPES.stretchToFit,
+        'radio-buttons-square': shape === ButtonShape.Square,
+        'radio-buttons-stretch': shape === ButtonShape.StretchToFit,
       }
     )
   }
