@@ -62,7 +62,6 @@ export enum ActionTypes {
   ConcatMoreLogs = 'LOGS_CONCAT_MORE_LOGS',
   SetConfig = 'SET_CONFIG',
 }
-
 export interface ConcatMoreLogsAction {
   type: ActionTypes.ConcatMoreLogs
   payload: {
@@ -445,15 +444,17 @@ export const setNamespaces = (
   },
 })
 
+export const setTimeRange = timeRange => ({
+  type: ActionTypes.SetTimeRange,
+  payload: {
+    timeRange,
+  },
+})
+
 export const setTimeRangeAsync = (timeRange: TimeRange) => async (
   dispatch
 ): Promise<void> => {
-  dispatch({
-    type: ActionTypes.SetTimeRange,
-    payload: {
-      timeRange,
-    },
-  })
+  dispatch(setTimeRange(timeRange))
   dispatch(setHistogramQueryConfigAsync())
   dispatch(setTableQueryConfigAsync())
 }

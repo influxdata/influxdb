@@ -144,6 +144,8 @@ const computeSeconds = (range: TimeRange) => {
 
   if (seconds) {
     return seconds
+  } else if (upper && upper.match(/now/) && lower) {
+    return moment().unix() - moment(lower).unix()
   } else if (upper && lower) {
     return moment(upper).unix() - moment(lower).unix()
   } else {

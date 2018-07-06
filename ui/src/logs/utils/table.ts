@@ -4,6 +4,7 @@ import {getDeep} from 'src/utils/wrappers'
 import {TableData, LogsTableColumn, SeverityFormat} from 'src/types/logs'
 import {SeverityFormatOptions} from 'src/logs/constants'
 
+export const ROW_HEIGHT = 26
 const CHAR_WIDTH = 9
 
 export const getValuesFromData = (data: TableData): string[][] =>
@@ -67,6 +68,27 @@ export const getColumnWidth = (column: string): number => {
     column,
     200
   )
+}
+
+export const calculateRowCharWidth = (currentMessageWidth: number): number =>
+  Math.floor(currentMessageWidth / CHAR_WIDTH)
+
+export const calculateMessageHeight = (
+  index: number,
+  data: TableData,
+  rowCharLimit: number
+): number => {
+  const columns = getColumnsFromData(data)
+  const columnIndex = columns.indexOf('message')
+  const value = getValueFromData(data, index, columnIndex)
+
+  if (_.isEmpty(value)) {
+    return ROW_HEIGHT
+  }
+
+  const lines = Math.ceil(value.length / (rowCharLimit * 0.95))
+
+  return Math.max(lines, 1) * ROW_HEIGHT + 4
 }
 
 export const getMessageWidth = (

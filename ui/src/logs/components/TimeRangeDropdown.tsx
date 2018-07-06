@@ -8,7 +8,7 @@ import timeRanges from 'src/logs/data/timeRanges'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
-import CustomTimeRange from 'src/shared/components/CustomTimeRange'
+import CustomSingularTime from 'src/shared/components/CustomSingularTime'
 
 import {TimeRange} from 'src/types'
 
@@ -56,7 +56,7 @@ class TimeRangeDropdown extends Component<Props, State> {
   }
 
   public render() {
-    const {selected, preventCustomTimeRange, page} = this.props
+    const {selected, preventCustomTimeRange} = this.props
     const {customTimeRange, isCustomTimeRangeOpen} = this.state
 
     return (
@@ -113,13 +113,11 @@ class TimeRangeDropdown extends Component<Props, State> {
           {isCustomTimeRangeOpen ? (
             <ClickOutside onClickOutside={this.handleCloseCustomTimeRange}>
               <div className="custom-time--overlay">
-                <CustomTimeRange
-                  onApplyTimeRange={this.handleApplyCustomTimeRange}
-                  timeRange={customTimeRange}
+                <CustomSingularTime
+                  time={customTimeRange.lower}
+                  onSelected={this.handleApplyCustomTimeRange}
                   onClose={this.handleCloseCustomTimeRange}
-                  isVisible={isCustomTimeRangeOpen}
-                  timeInterval={60}
-                  page={page}
+                  timeInterval={300}
                 />
               </div>
             </ClickOutside>

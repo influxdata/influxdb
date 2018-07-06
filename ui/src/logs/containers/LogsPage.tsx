@@ -80,6 +80,7 @@ interface State {
   liveUpdating: boolean
   isOverlayVisible: boolean
   histogramColors: HistogramColor[]
+  hasScrolled: boolean
 }
 
 class LogsPage extends PureComponent<Props, State> {
@@ -106,6 +107,7 @@ class LogsPage extends PureComponent<Props, State> {
       liveUpdating: false,
       isOverlayVisible: false,
       histogramColors: [],
+      hasScrolled: false,
     }
   }
 
@@ -163,6 +165,7 @@ class LogsPage extends PureComponent<Props, State> {
               tableColumns={this.tableColumns}
               severityFormat={this.severityFormat}
               severityLevelColors={this.severityLevelColors}
+              hasScrolled={this.state.hasScrolled}
             />
           </div>
         </div>
@@ -183,7 +186,10 @@ class LogsPage extends PureComponent<Props, State> {
     const updatedColumns: string[] = _.get(orderedData, '0', [])
     const updatedValues = _.slice(orderedData, 1)
 
-    return {columns: updatedColumns, values: updatedValues}
+    return {
+      columns: updatedColumns,
+      values: updatedValues,
+    }
   }
 
   private get logConfigLink(): string {
@@ -219,8 +225,8 @@ class LogsPage extends PureComponent<Props, State> {
   private handleVerticalScroll = () => {
     if (this.state.liveUpdating) {
       clearInterval(this.interval)
-      this.setState({liveUpdating: false})
     }
+    this.setState({liveUpdating: false, hasScrolled: true})
   }
 
   private handleTagSelection = (selection: {tag: string; key: string}) => {
@@ -299,8 +305,8 @@ class LogsPage extends PureComponent<Props, State> {
     const {liveUpdating} = this.state
 
     if (liveUpdating) {
-      clearInterval(this.interval)
       this.setState({liveUpdating: false})
+      clearInterval(this.interval)
     } else {
       this.startUpdating()
     }
@@ -351,8 +357,8 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private fetchNewDataset() {
-    this.props.executeQueriesAsync()
     this.setState({liveUpdating: true})
+    this.props.executeQueriesAsync()
   }
 
   private handleToggleOverlay = (): void => {

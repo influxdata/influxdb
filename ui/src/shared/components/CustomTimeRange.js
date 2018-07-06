@@ -3,6 +3,7 @@ import PropTypes from 'prop-types'
 import rome from 'rome'
 import moment from 'moment'
 
+import {formatTimeRange} from 'shared/utils/time'
 import shortcuts from 'shared/data/timeRangeShortcuts'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 const dateFormat = 'YYYY-MM-DD HH:mm'
@@ -90,21 +91,7 @@ class CustomTimeRange extends Component {
    * before passing the string to be parsed.
    */
   _formatTimeRange = timeRange => {
-    if (!timeRange) {
-      return ''
-    }
-
-    if (timeRange === 'now()') {
-      return moment(new Date()).format(dateFormat)
-    }
-
-    // If the given time range is relative, create a fixed timestamp based on its value
-    if (timeRange.match(/^now/)) {
-      const [, duration, unitOfTime] = timeRange.match(/(\d+)(\w+)/)
-      moment().subtract(duration, unitOfTime)
-    }
-
-    return moment(timeRange.replace(/\'/g, '')).format(dateFormat)
+    return formatTimeRange(timeRange)
   }
 
   handleClick = () => {

@@ -10,6 +10,9 @@ import {getDeep} from 'src/utils/wrappers'
 
 import {colorForSeverity} from 'src/logs/utils/colors'
 import {
+  ROW_HEIGHT,
+  calculateRowCharWidth,
+  calculateMessageHeight,
   getColumnFromData,
   getValueFromData,
   getValuesFromData,
@@ -36,8 +39,6 @@ import {
   SeverityLevelColor,
 } from 'src/types/logs'
 
-const ROW_HEIGHT = 26
-const CHAR_WIDTH = 9
 interface Props {
   data: TableData
   isScrolledToTop: boolean
@@ -50,6 +51,8 @@ interface Props {
   tableColumns: LogsTableColumn[]
   severityFormat: SeverityFormat
   severityLevelColors: SeverityLevelColor[]
+  scrollToRow?: number
+  hasScrolled: boolean
 }
 
 interface State {
@@ -64,13 +67,35 @@ interface State {
 
 class LogsTable extends Component<Props, State> {
   public static getDerivedStateFromProps(props, state): State {
-    const {isScrolledToTop} = props
+    const {
+      isScrolledToTop,
+      scrollToRow,
+      data,
+      tableColumns,
+      severityFormat,
+      hasScrolled,
+    } = props
+    const currentMessageWidth = getMessageWidth(
+      data,
+      tableColumns,
+      severityFormat
+    )
 
     let lastQueryTime = _.get(state, 'lastQueryTime', null)
     let scrollTop = _.get(state, 'scrollTop', 0)
     if (isScrolledToTop) {
       lastQueryTime = null
       scrollTop = 0
+    } else if (scrollToRow && !hasScrolled) {
+      const rowCharLimit = calculateRowCharWidth(currentMessageWidth)
+
+      scrollTop = _.reduce(
+        _.range(0, scrollToRow),
+        (acc, index) => {
+          return acc + calculateMessageHeight(index, data, rowCharLimit)
+        },
+        0
+      )
     }
 
     const scrollLeft = _.get(state, 'scrollLeft', 0)
@@ -90,11 +115,7 @@ class LogsTable extends Component<Props, State> {
       scrollTop,
       scrollLeft,
       currentRow: -1,
-      currentMessageWidth: getMessageWidth(
-        props.data,
-        props.tableColumns,
-        props.severityFormat
-      ),
+      currentMessageWidth,
       isMessageVisible,
       visibleColumnsCount,
     }
@@ -204,21 +225,13 @@ class LogsTable extends Component<Props, State> {
                   autoHide={false}
                 >
                   <Grid
-                    height={height}
-                    rowHeight={this.calculateRowHeight}
-                    rowCount={getValuesFromData(this.props.data).length}
-                    width={width}
-                    scrollLeft={this.state.scrollLeft}
-                    scrollTop={this.state.scrollTop}
-                    cellRenderer={this.cellRenderer}
-                    onSectionRendered={this.handleRowRender(onRowsRendered)}
-                    onScroll={this.handleGridScroll}
-                    columnCount={columnCount}
-                    columnWidth={this.getColumnWidth}
-                    ref={(ref: Grid) => {
-                      registerChild(ref)
-                      this.grid = ref
-                    }}
+                    {...this.gridProperties(
+                      width,
+                      height,
+                      onRowsRendered,
+                      columnCount,
+                      registerChild
+                    )}
                     style={{
                       height: this.calculateTotalHeight(),
                       overflowY: 'hidden',
@@ -231,6 +244,40 @@ class LogsTable extends Component<Props, State> {
         </InfiniteLoader>
       </div>
     )
+  }
+
+  private gridProperties = (
+    width: number,
+    height: number,
+    onRowsRendered: (params: {startIndex: number; stopIndex: number}) => void,
+    columnCount: number,
+    registerChild: (g: Grid) => void
+  ) => {
+    const {hasScrolled, scrollToRow} = this.props
+    const {scrollLeft, scrollTop} = this.state
+    const result: {scrollToRow?: number} & any = {
+      width,
+      height,
+      rowHeight: this.calculateRowHeight,
+      rowCount: getValuesFromData(this.props.data).length,
+      scrollLeft,
+      scrollTop,
+      cellRenderer: this.cellRenderer,
+      onSectionRendered: this.handleRowRender(onRowsRendered),
+      onScroll: this.handleGridScroll,
+      columnCount,
+      columnWidth: this.getColumnWidth,
+      ref: (ref: Grid) => {
+        registerChild(ref)
+        this.grid = ref
+      },
+    }
+
+    if (!hasScrolled && scrollToRow) {
+      result.scrollToRow = scrollToRow
+    }
+
+    return result
   }
 
   private handleGridScroll = ({scrollLeft}) => {
@@ -346,8 +393,7 @@ class LogsTable extends Component<Props, State> {
   }
 
   private get rowCharLimit(): number {
-    const {currentMessageWidth} = this.state
-    return Math.floor(currentMessageWidth / CHAR_WIDTH)
+    return calculateRowCharWidth(this.state.currentMessageWidth)
   }
 
   private calculateTotalHeight = (): number => {
@@ -356,29 +402,17 @@ class LogsTable extends Component<Props, State> {
     return _.reduce(
       data,
       (acc, __, index) => {
-        return acc + this.calculateMessageHeight(index)
+        return (
+          acc +
+          calculateMessageHeight(index, this.props.data, this.rowCharLimit)
+        )
       },
       0
     )
   }
 
-  private calculateMessageHeight = (index: number): number => {
-    const columns = getColumnsFromData(this.props.data)
-    const columnIndex = columns.indexOf('message')
-    const value = getValueFromData(this.props.data, index, columnIndex)
-
-    if (_.isEmpty(value)) {
-      return ROW_HEIGHT
-    }
-
-    const lines = Math.ceil(value.length / (this.rowCharLimit * 0.95))
-
-    return Math.max(lines, 1) * ROW_HEIGHT + 4
-  }
-
-  private calculateRowHeight = ({index}: {index: number}): number => {
-    return this.calculateMessageHeight(index)
-  }
+  private calculateRowHeight = ({index}: {index: number}): number =>
+    calculateMessageHeight(index, this.props.data, this.rowCharLimit)
 
   private headerRenderer = ({key, style, columnIndex}) => {
     const column = getColumnFromData(this.props.data, columnIndex)
