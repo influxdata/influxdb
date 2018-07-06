@@ -9,35 +9,36 @@ import (
 
 // General errors.
 const (
-	ErrUpstreamTimeout                 = Error("request to backend timed out")
-	ErrSourceNotFound                  = Error("source not found")
-	ErrServerNotFound                  = Error("server not found")
-	ErrLayoutNotFound                  = Error("layout not found")
-	ErrDashboardNotFound               = Error("dashboard not found")
-	ErrUserNotFound                    = Error("user not found")
-	ErrLayoutInvalid                   = Error("layout is invalid")
-	ErrDashboardInvalid                = Error("dashboard is invalid")
-	ErrSourceInvalid                   = Error("source is invalid")
-	ErrServerInvalid                   = Error("server is invalid")
-	ErrAlertNotFound                   = Error("alert not found")
-	ErrAuthentication                  = Error("user not authenticated")
-	ErrUninitialized                   = Error("client uninitialized. Call Open() method")
-	ErrInvalidAxis                     = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
-	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold', 'text', and 'background'")
-	ErrInvalidColor                    = Error("Invalid color. Accepted color format is #RRGGBB")
-	ErrInvalidLegend                   = Error("Invalid legend. Both type and orientation must be set")
-	ErrInvalidLegendType               = Error("Invalid legend type. Valid legend type is 'static'")
-	ErrInvalidLegendOrient             = Error("Invalid orientation type. Valid orientation types are 'top', 'bottom', 'right', 'left'")
-	ErrUserAlreadyExists               = Error("user already exists")
-	ErrOrganizationNotFound            = Error("organization not found")
-	ErrMappingNotFound                 = Error("mapping not found")
-	ErrOrganizationAlreadyExists       = Error("organization already exists")
-	ErrCannotDeleteDefaultOrganization = Error("cannot delete default organization")
-	ErrConfigNotFound                  = Error("cannot find configuration")
-	ErrAnnotationNotFound              = Error("annotation not found")
-	ErrInvalidCellOptionsText          = Error("invalid text wrapping option. Valid wrappings are 'truncate', 'wrap', and 'single line'")
-	ErrInvalidCellOptionsSort          = Error("cell options sortby cannot be empty'")
-	ErrInvalidCellOptionsColumns       = Error("cell options columns cannot be empty'")
+	ErrUpstreamTimeout                      = Error("request to backend timed out")
+	ErrSourceNotFound                       = Error("source not found")
+	ErrServerNotFound                       = Error("server not found")
+	ErrLayoutNotFound                       = Error("layout not found")
+	ErrDashboardNotFound                    = Error("dashboard not found")
+	ErrUserNotFound                         = Error("user not found")
+	ErrLayoutInvalid                        = Error("layout is invalid")
+	ErrDashboardInvalid                     = Error("dashboard is invalid")
+	ErrSourceInvalid                        = Error("source is invalid")
+	ErrServerInvalid                        = Error("server is invalid")
+	ErrAlertNotFound                        = Error("alert not found")
+	ErrAuthentication                       = Error("user not authenticated")
+	ErrUninitialized                        = Error("client uninitialized. Call Open() method")
+	ErrInvalidAxis                          = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
+	ErrInvalidColorType                     = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold', 'text', and 'background'")
+	ErrInvalidColor                         = Error("Invalid color. Accepted color format is #RRGGBB")
+	ErrInvalidLegend                        = Error("Invalid legend. Both type and orientation must be set")
+	ErrInvalidLegendType                    = Error("Invalid legend type. Valid legend type is 'static'")
+	ErrInvalidLegendOrient                  = Error("Invalid orientation type. Valid orientation types are 'top', 'bottom', 'right', 'left'")
+	ErrUserAlreadyExists                    = Error("user already exists")
+	ErrOrganizationNotFound                 = Error("organization not found")
+	ErrMappingNotFound                      = Error("mapping not found")
+	ErrOrganizationAlreadyExists            = Error("organization already exists")
+	ErrCannotDeleteDefaultOrganization      = Error("cannot delete default organization")
+	ErrConfigNotFound                       = Error("cannot find configuration")
+	ErrAnnotationNotFound                   = Error("annotation not found")
+	ErrInvalidCellOptionsText               = Error("invalid text wrapping option. Valid wrappings are 'truncate', 'wrap', and 'single line'")
+	ErrInvalidCellOptionsSort               = Error("cell options sortby cannot be empty'")
+	ErrInvalidCellOptionsColumns            = Error("cell options columns cannot be empty'")
+	ErrOrganizationConfigFindOrCreateFailed = Error("failed to find or create organization config")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -760,7 +761,8 @@ type ConfigStore interface {
 // OrganizationConfig is the organization config for parameters that can
 // be set via API, with different sections, such as LogViewer
 type OrganizationConfig struct {
-	LogViewer LogViewerConfig `json:"logViewer"`
+	OrganizationID string          `json:"organization"`
+	LogViewer      LogViewerConfig `json:"logViewer"`
 }
 
 // LogViewerConfig is the configuration settings for the Log Viewer UI
@@ -784,12 +786,10 @@ type ColumnEncoding struct {
 
 // OrganizationConfigStore is the storage and retrieval of organization Configs
 type OrganizationConfigStore interface {
-	// Initialize creates the initial configuration
-	Initialize(context.Context) error
-	// Get retrieves the whole Config from the OrganizationConfigStore
-	Get(context.Context) (*Config, error)
-	// Update updates the whole Config in the OrganizationConfigStore
-	Update(context.Context, *Config) error
+	// FindOrCreate gets an existing OrganizationConfig and creates one if none exists
+	FindOrCreate(ctx context.Context, orgID string) (*OrganizationConfig, error)
+	// Update updates the whole organization config in the OrganizationConfigStore
+	Update(context.Context, *OrganizationConfig) error
 }
 
 // BuildInfo is sent to the usage client to track versions and commits

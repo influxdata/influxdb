@@ -749,9 +749,9 @@ func UnmarshalConfigPB(data []byte, c *Config) error {
 
 // MarshalOrganizationConfig encodes a config to binary protobuf format.
 func MarshalOrganizationConfig(c *chronograf.OrganizationConfig) ([]byte, error) {
-	var lv chronograf.LogViewerConfig
-	columns := make([]*LogViewerColumn, len(lv.Columns))
-	for i, column := range lv.Columns {
+	columns := make([]*LogViewerColumn, len(c.LogViewer.Columns))
+
+	for i, column := range c.LogViewer.Columns {
 		encodings := make([]*ColumnEncoding, len(column.Encodings))
 
 		for j, e := range column.Encodings {
@@ -768,7 +768,9 @@ func MarshalOrganizationConfig(c *chronograf.OrganizationConfig) ([]byte, error)
 			Encodings: encodings,
 		}
 	}
+
 	return MarshalOrganizationConfigPB(&OrganizationConfig{
+		OrganizationID: c.OrganizationID,
 		LogViewer: &LogViewerConfig{
 			Columns: columns,
 		},
@@ -783,13 +785,22 @@ func MarshalOrganizationConfigPB(c *OrganizationConfig) ([]byte, error) {
 // UnmarshalOrganizationConfig decodes a config from binary protobuf data.
 func UnmarshalOrganizationConfig(data []byte, c *chronograf.OrganizationConfig) error {
 	var pb OrganizationConfig
+
 	if err := UnmarshalOrganizationConfigPB(data, &pb); err != nil {
 		return err
 	}
 
+	if pb.OrganizationID == "" {
+		return fmt.Errorf("Organization ID on organization config is nil")
+	}
 	if pb.LogViewer == nil {
 		return fmt.Errorf("Log Viewer config is nil")
 	}
+	if pb.LogViewer.Columns == nil {
+		return fmt.Errorf("Log Viewer config Columns is nil")
+	}
+
+	c.OrganizationID = pb.OrganizationID
 
 	columns := make([]chronograf.LogViewerColumn, len(pb.LogViewer.Columns))
 

@@ -22,17 +22,17 @@ func newOrganizationConfigResponse(config chronograf.OrganizationConfig) *organi
 	}
 }
 
-type logViewerOrganizationConfigResponse struct {
+type logViewerConfigResponse struct {
 	Links selfLinks `json:"links"`
-	chronograf.LogViewerOrganizationConfig
+	chronograf.LogViewerConfig
 }
 
-func newAuthConfigResponse(config chronograf.OrganizationConfig) *logViewerOrganizationConfigResponse {
-	return &logViewerOrganizationConfigResponse{
+func newLogViewerConfigResponse(config chronograf.OrganizationConfig) *logViewerConfigResponse {
+	return &logViewerConfigResponse{
 		Links: selfLinks{
 			Self: "/chronograf/v1/org_config/logviewer",
 		},
-		LogViewerOrganizationConfig: config.LogViewer,
+		LogViewerConfig: config.LogViewer,
 	}
 }
 
@@ -40,14 +40,20 @@ func newAuthConfigResponse(config chronograf.OrganizationConfig) *logViewerOrgan
 func (s *Service) OrganizationConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	config, err := s.Store.OrganizationConfig(ctx).Get(ctx)
+	orgID, ok := hasOrganizationContext(ctx)
+	if !ok {
+		Error(w, http.StatusBadRequest, "Organization not found on context", s.Logger)
+		return
+	}
+
+	config, err := s.Store.OrganizationConfig(ctx).FindOrCreate(ctx, orgID)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
 
 	if config == nil {
-		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
+		Error(w, http.StatusBadRequest, "Organization configuration object was nil", s.Logger)
 		return
 	}
 	res := newOrganizationConfigResponse(*config)
@@ -59,14 +65,20 @@ func (s *Service) OrganizationConfig(w http.ResponseWriter, r *http.Request) {
 func (s *Service) LogViewerOrganizationConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	config, err := s.Store.OrganizationConfig(ctx).Get(ctx)
+	orgID, ok := hasOrganizationContext(ctx)
+	if !ok {
+		Error(w, http.StatusBadRequest, "Organization not found on context", s.Logger)
+		return
+	}
+
+	config, err := s.Store.OrganizationConfig(ctx).FindOrCreate(ctx, orgID)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
 
 	if config == nil {
-		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
+		Error(w, http.StatusBadRequest, "Organization configuration object was nil", s.Logger)
 		return
 	}
 
@@ -79,6 +91,12 @@ func (s *Service) LogViewerOrganizationConfig(w http.ResponseWriter, r *http.Req
 func (s *Service) ReplaceLogViewerOrganizationConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	orgID, ok := hasOrganizationContext(ctx)
+	if !ok {
+		Error(w, http.StatusBadRequest, "Organization not found on context", s.Logger)
+		return
+	}
+
 	var logViewerConfig chronograf.LogViewerConfig
 	if err := json.NewDecoder(r.Body).Decode(&logViewerConfig); err != nil {
 		invalidJSON(w, s.Logger)
@@ -89,13 +107,13 @@ func (s *Service) ReplaceLogViewerOrganizationConfig(w http.ResponseWriter, r *h
 		return
 	}
 
-	config, err := s.Store.OrganizationConfig(ctx).Get(ctx)
+	config, err := s.Store.OrganizationConfig(ctx).FindOrCreate(ctx, orgID)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
 	if config == nil {
-		Error(w, http.StatusBadRequest, "Configuration object was nil", s.Logger)
+		Error(w, http.StatusBadRequest, "Organization configuration object was nil", s.Logger)
 		return
 	}
 	config.LogViewer = logViewerConfig

@@ -91,6 +91,7 @@ type DataStore interface {
 	Mappings(ctx context.Context) chronograf.MappingsStore
 	Dashboards(ctx context.Context) chronograf.DashboardsStore
 	Config(ctx context.Context) chronograf.ConfigStore
+	OrganizationConfig(ctx context.Context) chronograf.OrganizationConfigStore
 }
 
 // ensure that Store implements a DataStore
@@ -98,18 +99,19 @@ var _ DataStore = &Store{}
 
 // Store implements the DataStore interface
 type Store struct {
-	SourcesStore       chronograf.SourcesStore
-	ServersStore       chronograf.ServersStore
-	LayoutsStore       chronograf.LayoutsStore
-	UsersStore         chronograf.UsersStore
-	DashboardsStore    chronograf.DashboardsStore
-	MappingsStore      chronograf.MappingsStore
-	OrganizationsStore chronograf.OrganizationsStore
-	ConfigStore        chronograf.ConfigStore
+	SourcesStore            chronograf.SourcesStore
+	ServersStore            chronograf.ServersStore
+	LayoutsStore            chronograf.LayoutsStore
+	UsersStore              chronograf.UsersStore
+	DashboardsStore         chronograf.DashboardsStore
+	MappingsStore           chronograf.MappingsStore
+	OrganizationsStore      chronograf.OrganizationsStore
+	ConfigStore             chronograf.ConfigStore
+	OrganizationConfigStore chronograf.OrganizationConfigStore
 }
 
 // Sources returns a noop.SourcesStore if the context has no organization specified
-// and a organization.SourcesStore otherwise.
+// and an organization.SourcesStore otherwise.
 func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
 	if isServer := hasServerContext(ctx); isServer {
 		return s.SourcesStore
@@ -122,7 +124,7 @@ func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
 }
 
 // Servers returns a noop.ServersStore if the context has no organization specified
-// and a organization.ServersStore otherwise.
+// and an organization.ServersStore otherwise.
 func (s *Store) Servers(ctx context.Context) chronograf.ServersStore {
 	if isServer := hasServerContext(ctx); isServer {
 		return s.ServersStore
@@ -157,7 +159,7 @@ func (s *Store) Users(ctx context.Context) chronograf.UsersStore {
 }
 
 // Dashboards returns a noop.DashboardsStore if the context has no organization specified
-// and a organization.DashboardsStore otherwise.
+// and an organization.DashboardsStore otherwise.
 func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 	if isServer := hasServerContext(ctx); isServer {
 		return s.DashboardsStore
@@ -169,17 +171,17 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 	return &noop.DashboardsStore{}
 }
 
-// Settings returns a noop.SettingsStore if the context has no organization specified
-// and a organization.SettingsStore otherwise.
-func (s *Store) Settings(ctx context.Context) chronograf.SettingsStore {
+// OrganizationConfig returns a noop.OrganizationConfigStore if the context has no organization specified
+// and an organization.OrganizationConfigStore otherwise.
+func (s *Store) OrganizationConfig(ctx context.Context) chronograf.OrganizationConfigStore {
 	if isServer := hasServerContext(ctx); isServer {
-		return s.SettingsStore
+		return s.OrganizationConfigStore
 	}
-	if org, ok := hasOrganizationContext(ctx); ok {
-		return organizations.NewSettingsStore(s.SettingsStore, org)
+	if orgID, ok := hasOrganizationContext(ctx); ok {
+		return organizations.NewOrganizationConfigStore(s.OrganizationConfigStore, orgID)
 	}
 
-	return &noop.SettingsStore{}
+	return &noop.OrganizationConfigStore{}
 }
 
 // Organizations returns the underlying OrganizationsStore.

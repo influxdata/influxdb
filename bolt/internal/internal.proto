@@ -215,7 +215,8 @@ message AuthConfig {
 }
 
 message OrganizationConfig {
-	LogViewerConfig LogViewer            	= 1; // LogViewer is the organization configuration for log viewer
+	string OrganizationID                   = 1; // OrganizationID is the ID of the organization this config belogs to
+	LogViewerConfig LogViewer              	= 2; // LogViewer is the organization configuration for log viewer
 }
 
 message LogViewerConfig {
