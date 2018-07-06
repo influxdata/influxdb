@@ -288,7 +288,7 @@ func (p *Partition) deleteNonManifestFiles(m *Manifest) error {
 		}
 	}
 
-	return nil
+	return dir.Close()
 }
 
 func (p *Partition) buildSeriesSet() error {
@@ -336,13 +336,17 @@ func (p *Partition) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	var err error
+
 	// Close log files.
 	for _, f := range p.fileSet.files {
-		f.Close()
+		if localErr := f.Close(); localErr != nil {
+			err = localErr
+		}
 	}
 	p.fileSet.files = nil
 
-	return nil
+	return err
 }
 
 // closing returns true if the partition is currently closing. It does not require
@@ -605,6 +609,9 @@ func (p *Partition) DropMeasurement(name []byte) error {
 			if err := p.activeLogFile.DeleteSeriesID(elem.SeriesID); err != nil {
 				return err
 			}
+		}
+		if err = itr.Close(); err != nil {
+			return err
 		}
 	}
 
