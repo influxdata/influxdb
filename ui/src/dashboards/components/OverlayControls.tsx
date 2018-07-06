@@ -5,10 +5,7 @@ import SourceSelector from 'src/dashboards/components/SourceSelector'
 import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
 import {ButtonShape} from 'src/reusable_ui/types'
 
-import {
-  DISPLAY_OPTIONS_QUERIES,
-  DISPLAY_OPTIONS_VIS,
-} from 'src/dashboards/constants'
+import {CEOTabs} from 'src/dashboards/constants'
 
 import * as QueriesModels from 'src/types/queries'
 import * as SourcesModels from 'src/types/sources'
@@ -16,8 +13,8 @@ import * as SourcesModels from 'src/types/sources'
 interface Props {
   onCancel: () => void
   onSave: () => void
-  displayOptionsTab: string
-  onClickDisplayOptions: (tabName: string) => void
+  activeEditorTab: CEOTabs
+  onSetActiveEditorTab: (tabName: CEOTabs) => void
   isSavable: boolean
   sources: SourcesModels.SourceOption[]
   onSetQuerySource: (source: SourcesModels.Source) => void
@@ -33,8 +30,8 @@ const OverlayControls: SFC<Props> = ({
   onCancel,
   isSavable,
   onSetQuerySource,
-  displayOptionsTab,
-  onClickDisplayOptions,
+  activeEditorTab,
+  onSetActiveEditorTab,
 }) => (
   <div className="overlay-controls">
     <SourceSelector
@@ -45,9 +42,9 @@ const OverlayControls: SFC<Props> = ({
     />
     <div className="overlay-controls--tabs">
       <RadioButtons
-        activeButton={displayOptionsTab}
-        buttons={[DISPLAY_OPTIONS_QUERIES, DISPLAY_OPTIONS_VIS]}
-        onChange={onClickDisplayOptions}
+        activeButton={activeEditorTab}
+        buttons={[CEOTabs.Queries, CEOTabs.Vis]}
+        onChange={onSetActiveEditorTab}
         shape={ButtonShape.StretchToFit}
       />
     </div>
