@@ -1,0 +1,6 @@
+from(db:"test")
+    |> range(start:-5m)
+    |> max()
+    |> group(except:["_measurement"])
+    |> map(fn: (r) => {_time: r._time, max: r._value})
+    |> yield(name:"0")
