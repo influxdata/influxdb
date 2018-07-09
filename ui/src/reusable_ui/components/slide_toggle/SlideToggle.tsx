@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
 import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import './slide-toggle.scss'
 
 import {ComponentColor, ComponentSize} from 'src/reusable_ui/types'
 
