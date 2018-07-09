@@ -1,65 +1,80 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {Component} from 'react'
 
-import SlideToggle from 'shared/components/SlideToggle'
+import SlideToggle from 'src/reusable_ui/components/slide_toggle/SlideToggle'
+import {ComponentColor, ComponentSize} from 'src/reusable_ui/types'
 
-const AllUsersTableHeader = ({
-  numUsers,
-  numOrganizations,
-  onClickCreateUser,
-  isCreatingUser,
-  authConfig: {superAdminNewUsers},
-  onChangeAuthConfig,
-}) => {
-  const numUsersString = `${numUsers} User${numUsers === 1 ? '' : 's'}`
-  const numOrganizationsString = `${numOrganizations} Org${
-    numOrganizations === 1 ? '' : 's'
-  }`
+interface AuthConfig {
+  superAdminNewUsers: boolean
+}
 
-  return (
-    <div className="panel-heading">
-      <h2 className="panel-title">
-        {numUsersString} across {numOrganizationsString}
-      </h2>
-      <div style={{display: 'flex', alignItems: 'center'}}>
-        <div className="all-users-admin-toggle">
-          <SlideToggle
-            size="xs"
-            active={superAdminNewUsers}
-            onToggle={onChangeAuthConfig('superAdminNewUsers')}
-          />
-          <span>All new users are SuperAdmins</span>
+interface Props {
+  numUsers: number
+  numOrganizations: number
+  onClickCreateUser: () => void
+  isCreatingUser: boolean
+  onChangeAuthConfig: (fieldName: string) => (value: any) => void
+  authConfig: AuthConfig
+}
+
+class AllUsersTableHeader extends Component<Props> {
+  public static defaultProps: Partial<Props> = {
+    numUsers: 0,
+    numOrganizations: 0,
+    isCreatingUser: false,
+  }
+
+  public render() {
+    const {
+      numUsers,
+      numOrganizations,
+      onClickCreateUser,
+      isCreatingUser,
+      authConfig: {superAdminNewUsers},
+    } = this.props
+
+    const numUsersString = `${numUsers} User${numUsers === 1 ? '' : 's'}`
+    const numOrganizationsString = `${numOrganizations} Org${
+      numOrganizations === 1 ? '' : 's'
+    }`
+
+    return (
+      <div className="panel-heading">
+        <h2 className="panel-title">
+          {numUsersString} across {numOrganizationsString}
+        </h2>
+        <div style={{display: 'flex', alignItems: 'center'}}>
+          <div className="all-users-admin-toggle">
+            <SlideToggle
+              color={ComponentColor.Success}
+              size={ComponentSize.Small}
+              active={superAdminNewUsers}
+              onChange={this.handleToggleClick}
+            />
+            <span>All new users are SuperAdmins</span>
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={onClickCreateUser}
+            disabled={isCreatingUser || !onClickCreateUser}
+          >
+            <span className="icon plus" />
+            Add User
+          </button>
         </div>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={onClickCreateUser}
-          disabled={isCreatingUser || !onClickCreateUser}
-        >
-          <span className="icon plus" />
-          Add User
-        </button>
       </div>
-    </div>
-  )
-}
+    )
+  }
 
-const {bool, func, number, shape} = PropTypes
+  private handleToggleClick = (): void => {
+    const {
+      onChangeAuthConfig,
+      authConfig: {superAdminNewUsers},
+    } = this.props
+    const fieldName = 'superAdminNewUsers'
+    const newConfig = !superAdminNewUsers
 
-AllUsersTableHeader.defaultProps = {
-  numUsers: 0,
-  numOrganizations: 0,
-  isCreatingUser: false,
-}
-
-AllUsersTableHeader.propTypes = {
-  numUsers: number.isRequired,
-  numOrganizations: number.isRequired,
-  onClickCreateUser: func,
-  isCreatingUser: bool.isRequired,
-  onChangeAuthConfig: func.isRequired,
-  authConfig: shape({
-    superAdminNewUsers: bool,
-  }),
+    onChangeAuthConfig(fieldName)(newConfig)
+  }
 }
 
 export default AllUsersTableHeader

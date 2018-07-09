@@ -73,7 +73,8 @@ class AllUsersTable extends Component {
     )
   }
 
-  handleChangeSuperAdmin = user => newStatus => {
+  handleChangeSuperAdmin = user => {
+    const newStatus = !user.superAdmin
     this.props.onUpdateUserSuperAdmin(user, newStatus)
   }
 

@@ -2,11 +2,12 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 import Tags from 'src/shared/components/Tags'
-import SlideToggle from 'src/shared/components/SlideToggle'
+import SlideToggle from 'src/reusable_ui/components/slide_toggle/SlideToggle'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 import {ALL_USERS_TABLE} from 'src/admin/constants/chronografTableSizing'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {ComponentColor, ComponentSize} from 'src/reusable_ui/types'
 
 const {
   colOrganizations,
@@ -39,7 +40,7 @@ interface Props {
   organization: Organization
   onAddToOrganization: (user: User) => () => void
   onRemoveFromOrganization: (user: User) => () => void
-  onChangeSuperAdmin: (user: User) => () => void
+  onChangeSuperAdmin: (user: User) => void
   onDelete: (user: User) => void
   meID: string
   organizations: Organization[]
@@ -48,12 +49,7 @@ interface Props {
 @ErrorHandling
 export default class AllUsersTableRow extends PureComponent<Props> {
   public render() {
-    const {
-      user,
-      onRemoveFromOrganization,
-      onAddToOrganization,
-      onChangeSuperAdmin,
-    } = this.props
+    const {user, onRemoveFromOrganization, onAddToOrganization} = this.props
 
     return (
       <tr className={'chronograf-admin-table--user'}>
@@ -72,9 +68,11 @@ export default class AllUsersTableRow extends PureComponent<Props> {
         <td style={{width: colSuperAdmin}} className="text-center">
           <SlideToggle
             active={user.superAdmin}
-            onToggle={onChangeSuperAdmin(user)}
-            size="xs"
+            onChange={this.handleToggleClick}
+            size={ComponentSize.ExtraSmall}
+            color={ComponentColor.Success}
             disabled={this.userIsMe}
+            tooltipText={this.toggleTooltipText}
           />
         </td>
         <td style={{textAlign: 'right', width: colActions}}>
@@ -91,7 +89,19 @@ export default class AllUsersTableRow extends PureComponent<Props> {
     )
   }
 
-  private get userNameTableCell() {
+  private handleToggleClick = () => {
+    const {user, onChangeSuperAdmin} = this.props
+
+    onChangeSuperAdmin(user)
+  }
+
+  private get toggleTooltipText(): string {
+    if (this.userIsMe) {
+      return 'You cannot demote yourself'
+    }
+  }
+
+  private get userNameTableCell(): JSX.Element {
     const {user} = this.props
 
     return (
