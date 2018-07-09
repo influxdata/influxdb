@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import _ from 'lodash'
 
 import Tags from 'src/shared/components/Tags'
@@ -47,7 +47,20 @@ interface Props {
 }
 
 @ErrorHandling
-export default class AllUsersTableRow extends PureComponent<Props> {
+export default class AllUsersTableRow extends Component<Props> {
+  public shouldComponentUpdate(nextProps) {
+    if (
+      _.isEqual(
+        _.omit(nextProps.user, 'superAdmin'),
+        _.omit(this.props.user, 'superAdmin')
+      )
+    ) {
+      return false
+    }
+
+    return true
+  }
+
   public render() {
     const {user, onRemoveFromOrganization, onAddToOrganization} = this.props
 
