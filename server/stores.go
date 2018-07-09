@@ -174,9 +174,6 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 // OrganizationConfig returns a noop.OrganizationConfigStore if the context has no organization specified
 // and an organization.OrganizationConfigStore otherwise.
 func (s *Store) OrganizationConfig(ctx context.Context) chronograf.OrganizationConfigStore {
-	if isServer := hasServerContext(ctx); isServer {
-		return s.OrganizationConfigStore
-	}
 	if orgID, ok := hasOrganizationContext(ctx); ok {
 		return organizations.NewOrganizationConfigStore(s.OrganizationConfigStore, orgID)
 	}
