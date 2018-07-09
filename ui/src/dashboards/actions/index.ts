@@ -1,6 +1,7 @@
 import {replace, RouterAction} from 'react-router-redux'
 import _ from 'lodash'
 import qs from 'qs'
+import {Dispatch} from 'redux'
 
 import {
   getDashboards as getDashboardsAJAX,
@@ -38,6 +39,7 @@ import {
   notifyDashboardNotFound,
   notifyInvalidZoomedTimeRangeValueInURLQuery,
   notifyInvalidTimeRangeValueInURLQuery,
+  notifyInvalidTempVarValueInMetaQuery,
 } from 'src/shared/copy/notifications'
 
 import {getDeep} from 'src/utils/wrappers'
@@ -394,7 +396,7 @@ const getDashboard = (state, dashboardId: number): Dashboard => {
 // Thunkers
 
 export const getDashboardsAsync = () => async (
-  dispatch
+  dispatch: Dispatch<Action>
 ): Promise<Dashboard[]> => {
   try {
     const {
@@ -438,7 +440,7 @@ const removeUnselectedTemplateValues = (dashboard: Dashboard): Template[] => {
 }
 
 export const putDashboard = (dashboard: Dashboard) => async (
-  dispatch
+  dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
     // save only selected template values to server
@@ -465,7 +467,7 @@ export const putDashboard = (dashboard: Dashboard) => async (
 }
 
 export const putDashboardByID = (dashboardID: number) => async (
-  dispatch,
+  dispatch: Dispatch<Action>,
   getState
 ): Promise<void> => {
   try {
@@ -479,7 +481,7 @@ export const putDashboardByID = (dashboardID: number) => async (
 }
 
 export const updateDashboardCell = (dashboard: Dashboard, cell: Cell) => async (
-  dispatch
+  dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
     const {data} = await updateDashboardCellAJAX(cell)
@@ -491,7 +493,7 @@ export const updateDashboardCell = (dashboard: Dashboard, cell: Cell) => async (
 }
 
 export const deleteDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch
+  dispatch: Dispatch<Action>
 ): Promise<void> => {
   dispatch(deleteDashboard(dashboard))
   try {
@@ -511,7 +513,7 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
 export const addDashboardCellAsync = (
   dashboard: Dashboard,
   cellType?: CellType
-) => async (dispatch): Promise<void> => {
+) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
     const {data} = await addDashboardCellAJAX(
       dashboard,
@@ -528,7 +530,7 @@ export const addDashboardCellAsync = (
 export const cloneDashboardCellAsync = (
   dashboard: Dashboard,
   cell: Cell
-) => async (dispatch): Promise<void> => {
+) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
     const clonedCell = getClonedDashboardCell(dashboard, cell)
     const {data} = await addDashboardCellAJAX(dashboard, clonedCell)
@@ -543,7 +545,7 @@ export const cloneDashboardCellAsync = (
 export const deleteDashboardCellAsync = (
   dashboard: Dashboard,
   cell: Cell
-) => async (dispatch): Promise<void> => {
+) => async (dispatch: Dispatch<Action>): Promise<void> => {
   try {
     await deleteDashboardCellAJAX(cell)
     dispatch(deleteDashboardCell(dashboard, cell))
@@ -555,7 +557,7 @@ export const deleteDashboardCellAsync = (
 }
 
 export const importDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch
+  dispatch: Dispatch<Action>
 ): Promise<void> => {
   try {
     // save only selected template values to server
@@ -598,7 +600,7 @@ export const importDashboardAsync = (dashboard: Dashboard) => async (
 }
 
 const updateTimeRangeFromQueryParams = (dashboardID: number) => (
-  dispatch,
+  dispatch: Dispatch<Action>,
   getState
 ): void => {
   const {dashTimeV1} = getState()
@@ -655,6 +657,27 @@ const updateTimeRangeFromQueryParams = (dashboardID: number) => (
   dispatch(updateQueryParams(updatedQueryParams))
 }
 
+const hydrateTemplates = (
+  templates: Template[],
+  nonNestedTemplates: Template[],
+  proxyLink: string,
+  dispatch: Dispatch<Action>
+) => {
+  return templates.map(async t => {
+    try {
+      return await hydrateTemplate(proxyLink, t, nonNestedTemplates)
+    } catch (error) {
+      const errorMessage = getDeep(error, 'data.message', '')
+        .replace(/.*(err):/g, '')
+        .trim()
+      dispatch(
+        notify(notifyInvalidTempVarValueInMetaQuery(t.tempVar, errorMessage))
+      )
+      return t
+    }
+  })
+}
+
 export const getDashboardWithTemplatesAsync = (
   dashboardId: number,
   source: Source
@@ -674,17 +697,23 @@ export const getDashboardWithTemplatesAsync = (
   const templateSelections = templateSelectionsFromQueryParams()
   const proxyLink = source.links.proxy
   const nonNestedTemplates = await Promise.all(
-    dashboard.templates
-      .filter(t => !isTemplateNested(t))
-      .map(t => hydrateTemplate(proxyLink, t, []))
+    hydrateTemplates(
+      dashboard.templates.filter(t => !isTemplateNested(t)),
+      [],
+      proxyLink,
+      dispatch
+    )
   )
 
   applyLocalSelections(nonNestedTemplates, templateSelections)
 
   const nestedTemplates = await Promise.all(
-    dashboard.templates
-      .filter(t => isTemplateNested(t))
-      .map(t => hydrateTemplate(proxyLink, t, nonNestedTemplates))
+    hydrateTemplates(
+      dashboard.templates.filter(t => isTemplateNested(t)),
+      nonNestedTemplates,
+      proxyLink,
+      dispatch
+    )
   )
 
   applyLocalSelections(nestedTemplates, templateSelections)
@@ -717,7 +746,7 @@ export const rehydrateNestedTemplatesAsync = (
 }
 
 export const updateTemplateQueryParams = (dashboardId: number) => (
-  dispatch,
+  dispatch: Dispatch<Action>,
   getState
 ): void => {
   const templates = getDashboard(getState(), dashboardId).templates
