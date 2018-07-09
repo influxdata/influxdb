@@ -40,8 +40,9 @@ import {
   Role as InfluxDBRole,
   Permission,
   RemoteDataState,
+  SourceAuthenticationMethod,
 } from 'src/types'
-import {SourceAuthenticationMethod} from 'src/types/sources'
+import {InfluxDBPermissions} from 'src/types/auth'
 import {NotificationAction} from 'src/types/notifications'
 
 import {
@@ -241,19 +242,24 @@ export class AdminInfluxDBPage extends PureComponent<Props, State> {
     this.props.updateUserPassword(user, password)
   }
 
-  private get adminSubSections() {
-    const {
-      users,
-      roles,
-      source,
-      permissions,
-      filterUsers,
-      filterRoles,
-    } = this.props
-    const hasRoles = !!source.links.roles
+  private get allowed(): InfluxDBPermissions[] {
+    const {permissions} = this.props
     const globalPermissions = permissions.find(p => p.scope === 'all')
-    const allowed = globalPermissions ? globalPermissions.allowed : []
-    const sections = [
+    return globalPermissions ? globalPermissions.allowed : []
+  }
+
+  private get hasRoles(): boolean {
+    return !!this.props.source.links.roles
+  }
+
+  private get isLDAP(): boolean {
+    const {source} = this.props
+    return source.authentication === SourceAuthenticationMethod.LDAP
+  }
+
+  private get adminSubSections() {
+    const {users, roles, source, filterUsers, filterRoles} = this.props
+    return [
       {
         url: 'databases',
         name: 'Databases',
@@ -263,13 +269,13 @@ export class AdminInfluxDBPage extends PureComponent<Props, State> {
       {
         url: 'users',
         name: 'Users',
-        enabled: true,
+        enabled: !this.isLDAP,
         component: (
           <UsersTable
             users={users}
             allRoles={roles}
-            hasRoles={hasRoles}
-            permissions={allowed}
+            hasRoles={this.hasRoles}
+            permissions={this.allowed}
             isEditing={users.some(u => u.isEditing)}
             onSave={this.handleSaveUser}
             onCancel={this.handleCancelEditUser}
@@ -286,12 +292,12 @@ export class AdminInfluxDBPage extends PureComponent<Props, State> {
       {
         url: 'roles',
         name: 'Roles',
-        enabled: hasRoles,
+        enabled: this.hasRoles && !this.isLDAP,
         component: (
           <RolesTable
             roles={roles}
             allUsers={users}
-            permissions={allowed}
+            permissions={this.allowed}
             isEditing={roles.some(r => r.isEditing)}
             onClickCreate={this.handleClickCreate}
             onEdit={this.handleEditRole}
@@ -311,14 +317,6 @@ export class AdminInfluxDBPage extends PureComponent<Props, State> {
         component: <QueriesPage source={source} />,
       },
     ]
-
-    if (source.authentication === SourceAuthenticationMethod.LDAP) {
-      return sections.filter(
-        s => s.name === 'Queries' || s.name === 'Databases'
-      )
-    }
-
-    return sections
   }
 }
 
