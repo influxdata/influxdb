@@ -24,14 +24,34 @@ func (s *OrganizationConfigStore) Migrate(ctx context.Context) error {
 	return nil
 }
 
+// Get retrieves an OrganizationConfig from the store
+func (s *OrganizationConfigStore) Get(ctx context.Context, orgID string) (*chronograf.OrganizationConfig, error) {
+	var cfg chronograf.OrganizationConfig
+
+	err := s.client.db.View(func(tx *bolt.Tx) error {
+		return s.get(ctx, tx, orgID, &cfg)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func (s *OrganizationConfigStore) get(ctx context.Context, tx *bolt.Tx, orgID string, cfg *chronograf.OrganizationConfig) error {
+	v := tx.Bucket(OrganizationConfigBucket).Get([]byte(orgID))
+	return internal.UnmarshalOrganizationConfig(v, cfg)
+}
+
 // FindOrCreate gets an OrganizationConfig from the store or creates one if none exists for this organization
 func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, orgID string) (*chronograf.OrganizationConfig, error) {
 	var cfg chronograf.OrganizationConfig
-	err := s.client.db.View(func(tx *bolt.Tx) error {
+	err := s.client.db.Update(func(tx *bolt.Tx) error {
 		v := tx.Bucket(OrganizationConfigBucket).Get([]byte(orgID))
 		if v == nil {
 			cfg = newOrganizationConfig(orgID)
-			return nil
+			return s.update(ctx, tx, &cfg)
 		}
 		return internal.UnmarshalOrganizationConfig(v, &cfg)
 	})
@@ -48,13 +68,17 @@ func (s *OrganizationConfigStore) Update(ctx context.Context, cfg *chronograf.Or
 		return fmt.Errorf("config provided was nil")
 	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
-		if v, err := internal.MarshalOrganizationConfig(cfg); err != nil {
-			return err
-		} else if err := tx.Bucket(OrganizationConfigBucket).Put([]byte(cfg.OrganizationID), v); err != nil {
-			return err
-		}
-		return nil
+		return s.update(ctx, tx, cfg)
 	})
+}
+
+func (s *OrganizationConfigStore) update(ctx context.Context, tx *bolt.Tx, cfg *chronograf.OrganizationConfig) error {
+	if v, err := internal.MarshalOrganizationConfig(cfg); err != nil {
+		return err
+	} else if err := tx.Bucket(OrganizationConfigBucket).Put([]byte(cfg.OrganizationID), v); err != nil {
+		return err
+	}
+	return nil
 }
 
 func newOrganizationConfig(orgID string) chronograf.OrganizationConfig {

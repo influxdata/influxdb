@@ -515,6 +515,14 @@ func TestOrganizationConfig_FindOrCreate(t *testing.T) {
 		if diff := cmp.Diff(got, tt.wants.organizationConfig); diff != "" {
 			t.Errorf("%q. OrganizationConfigStore.FindOrCreate():\n-got/+want\ndiff %s", tt.name, diff)
 		}
+
+		d, err := s.Get(context.Background(), tt.args.organizationID)
+		if err != nil {
+			t.Errorf("%q. OrganizationConfigStore.Get(): Failed to retrieve organization config", tt.name)
+		}
+		if diff := cmp.Diff(got, d); diff != "" {
+			t.Errorf("%q. OrganizationConfigStore.Get():\n-got/+want\ndiff %s", tt.name, diff)
+		}
 	}
 }
 
