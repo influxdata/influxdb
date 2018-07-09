@@ -4,41 +4,44 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/influxdata/platform"
 )
+
+// ID is an ID
+type ID string
 
 // CellService represents a service for managing cell data.
 type CellService interface {
-	// FindCellByplatform.ID returns a single cell by platform.ID.
-	FindCellByID(ctx context.Context, id platform.ID) (*Cell, error)
+	// FindCellByID returns a single cell by ID.
+	FindCellByID(ctx context.Context, id ID) (*Cell, error)
 
 	// FindCells returns a list of cells that match filter and the total count of matching cells.
 	// Additional options provide pagination & sorting.
 	FindCells(ctx context.Context, filter CellFilter) ([]*Cell, int, error)
 
-	// CreateCell creates a new cell and sets b.platform.ID with the new identifier.
+	// CreateCell creates a new cell and sets b.ID with the new identifier.
 	CreateCell(ctx context.Context, b *Cell) error
 
 	// UpdateCell updates a single cell with changeset.
 	// Returns the new cell state after update.
-	UpdateCell(ctx context.Context, id platform.ID, upd CellUpdate) (*Cell, error)
+	UpdateCell(ctx context.Context, id ID, upd CellUpdate) (*Cell, error)
 
-	// DeleteCell removes a cell by platform.ID.
-	DeleteCell(ctx context.Context, id platform.ID) error
+	// DeleteCell removes a cell by ID.
+	DeleteCell(ctx context.Context, id ID) error
 }
 
 // CellUpdate is a struct for updating cells.
 type CellUpdate struct {
-	Name          *string       `json:"name"`
-	Visualization Visualization `json:"visualization"`
+	CellContentsUpdate
+	Visualization Visualization
+}
+
+// CellContentsUpdate is a struct for updating the non visualization content of a cell.
+type CellContentsUpdate struct {
+	Name *string `json:"name"`
 }
 
 // CellFilter represents a set of filter that restrict the returned results.
 type CellFilter struct {
-	ID             *platform.ID
-	OrganizationID *platform.ID
-	Organization   *string
 }
 
 // Cell holds positional and visual information for a cell.
@@ -48,8 +51,8 @@ type Cell struct {
 }
 
 type CellContents struct {
-	ID   platform.ID `json:"id"`
-	Name string      `json:"name"`
+	ID   ID     `json:"id"`
+	Name string `json:"name"`
 }
 
 type Visualization interface {
@@ -130,6 +133,32 @@ func (c *Cell) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	c.Visualization = v
+	return nil
+}
+
+func (u *CellUpdate) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &u.CellContentsUpdate); err != nil {
+		return err
+	}
+
+	var vs struct {
+		B json.RawMessage `json:"visualization"`
+	}
+
+	if err := json.Unmarshal(b, &vs); err != nil {
+		return err
+	}
+
+	if len(vs.B) == 0 {
+		// Then there wasn't any visualizaiton field, so there's no need to update it
+		return nil
+	}
+
+	v, err := UnmarshalVisualizationJSON(b)
+	if err != nil {
+		return err
+	}
+	u.Visualization = v
 	return nil
 }
 
