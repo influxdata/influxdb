@@ -1,24 +1,39 @@
 import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  active: boolean
+  size?: string
+  onToggle: (newState: boolean) => void
+  disabled?: boolean
+}
+
+interface State {
+  active: boolean
+}
+
 @ErrorHandling
-class SlideToggle extends Component {
+class SlideToggle extends Component<Props, State> {
+  public static defaultProps: Partial<Props> = {
+    size: 'sm',
+  }
+
   constructor(props) {
     super(props)
 
     this.state = {
-      active: props.active,
+      active: this.props.active,
     }
   }
 
-  componentWillReceiveProps(nextProps) {
+  public componentWillReceiveProps(nextProps) {
     if (nextProps.active !== this.props.active) {
       this.setState({active: nextProps.active})
     }
   }
 
-  handleClick = () => {
+  public handleClick = () => {
     const {onToggle, disabled} = this.props
 
     if (disabled) {
@@ -30,32 +45,20 @@ class SlideToggle extends Component {
     })
   }
 
-  render() {
-    const {size, disabled} = this.props
-    const {active} = this.state
-
-    const className = `slide-toggle slide-toggle__${size} ${
-      active ? 'active' : ''
-    } ${disabled ? 'disabled' : ''}`
-
+  public render() {
     return (
-      <div className={className} onClick={this.handleClick}>
+      <div className={this.className} onClick={this.handleClick}>
         <div className="slide-toggle--knob" />
       </div>
     )
   }
-}
 
-const {bool, func, string} = PropTypes
+  private get className(): string {
+    const {size, disabled} = this.props
+    const {active} = this.state
 
-SlideToggle.defaultProps = {
-  size: 'sm',
-}
-SlideToggle.propTypes = {
-  active: bool,
-  size: string,
-  onToggle: func.isRequired,
-  disabled: bool,
+    return classnames(`slide-toggle slide-toggle__${size}`, {active, disabled})
+  }
 }
 
 export default SlideToggle
