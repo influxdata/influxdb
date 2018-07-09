@@ -389,7 +389,7 @@ func (q *Query) State() State {
 
 func (q *Query) isOK() bool {
 	q.mu.Lock()
-	ok := q.state != Canceled && q.state != Errored
+	ok := q.state != Canceled && q.state != Errored && q.state != Finished
 	q.mu.Unlock()
 	return ok
 }
