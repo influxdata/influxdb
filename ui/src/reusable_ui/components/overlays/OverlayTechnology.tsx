@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
 import classnames from 'classnames'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import './overlays.scss'
 
 interface Props {
   children: JSX.Element
