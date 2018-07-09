@@ -27,12 +27,12 @@ type logViewerConfigResponse struct {
 	chronograf.LogViewerConfig
 }
 
-func newLogViewerConfigResponse(config chronograf.OrganizationConfig) *logViewerConfigResponse {
+func newLogViewerConfigResponse(lv chronograf.LogViewerConfig) *logViewerConfigResponse {
 	return &logViewerConfigResponse{
 		Links: selfLinks{
 			Self: "/chronograf/v1/org_config/logviewer",
 		},
-		LogViewerConfig: config.LogViewer,
+		LogViewerConfig: lv,
 	}
 }
 
@@ -82,7 +82,7 @@ func (s *Service) LogViewerOrganizationConfig(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	res := newLogViewerConfigResponse(*config)
+	res := newLogViewerConfigResponse(config.LogViewer)
 
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
@@ -118,7 +118,7 @@ func (s *Service) ReplaceLogViewerOrganizationConfig(w http.ResponseWriter, r *h
 	}
 	config.LogViewer = logViewerConfig
 
-	res := newLogViewerConfigResponse(*config)
+	res := newLogViewerConfigResponse(config.LogViewer)
 	if err := s.Store.OrganizationConfig(ctx).Update(ctx, config); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
