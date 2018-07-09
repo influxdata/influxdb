@@ -17,6 +17,9 @@ module.exports = {
       moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
       transformIgnorePatterns: ['/node_modules/(?!dygraphs)'],
       snapshotSerializers: ['enzyme-to-json/serializer'],
+      moduleNameMapper: {
+        '\\.(css|scss)$': 'identity-obj-proxy',
+      },
     },
     {
       runner: 'jest-runner-eslint',
