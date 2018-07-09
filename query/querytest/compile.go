@@ -1,6 +1,7 @@
 package querytest
 
 import (
+	"github.com/influxdata/platform/query/functions"
 	"context"
 	"testing"
 
@@ -20,7 +21,9 @@ type NewQueryTestCase struct {
 var opts = append(
 	semantictest.CmpOptions,
 	cmp.AllowUnexported(query.Spec{}),
+	cmp.AllowUnexported(functions.JoinOpSpec{}),
 	cmpopts.IgnoreUnexported(query.Spec{}),
+	cmpopts.IgnoreUnexported(functions.JoinOpSpec{}),
 )
 
 func NewQueryTestHelper(t *testing.T, tc NewQueryTestCase) {

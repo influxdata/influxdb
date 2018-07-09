@@ -30,6 +30,8 @@ type JoinOpSpec struct {
 	// TODO(nathanielc): Change this to a map of parent operation IDs to names.
 	// Then make it possible for the transformation to map operation IDs to parent IDs.
 	TableNames map[query.OperationID]string `json:"table_names"`
+	// tableNames maps each TableObject being joined to its unique OperationID
+	tableNames map[*query.TableObject]string
 }
 
 var joinSignature = semantic.FunctionSignature{
@@ -62,6 +64,7 @@ func createJoinOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 	spec := &JoinOpSpec{
 		Fn:         fn,
 		TableNames: make(map[query.OperationID]string),
+		tableNames: make(map[*query.TableObject]string),
 	}
 
 	if array, ok, err := args.GetArray("on", semantic.String); err != nil {
@@ -89,9 +92,9 @@ func createJoinOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 				err = fmt.Errorf("value for key %q in tables must be an table object: got %v", k, t.Type())
 				return
 			}
-			p := t.(query.TableObject)
+			p := t.(*query.TableObject)
 			a.AddParent(p)
-			spec.TableNames[p.ID] = k
+			spec.tableNames[p] = k
 		})
 		if err != nil {
 			return nil, err
@@ -99,6 +102,12 @@ func createJoinOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 	}
 
 	return spec, nil
+}
+
+func (t *JoinOpSpec) IDer(ider query.IDer) {
+	for p, k := range t.tableNames {
+		t.TableNames[ider.ID(p)] = k
+	}
 }
 
 func newJoinOp() query.OperationSpec {
