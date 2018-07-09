@@ -1,4 +1,4 @@
-package querytest
+package functions_test
 
 import (
 	"context"
@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/andreyvit/diff"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/influxql"
-
-	"github.com/andreyvit/diff"
+	"github.com/influxdata/platform/query/querytest"
 )
 
 var skipTests = map[string]string{
@@ -23,18 +23,19 @@ var skipTests = map[string]string{
 }
 
 // Change as needed
-const testDataPath = "../functions/testdata"
 
 func Test_QueryEndToEnd(t *testing.T) {
-	qs := GetQueryServiceBridge()
+	qs := querytest.GetQueryServiceBridge()
 
 	influxqlTranspiler := influxql.NewTranspiler()
 
-	if _, err := os.Stat(testDataPath); err != nil {
-		t.Fatalf("Test data path invalid: error: %v ", testDataPath, err)
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
 	}
+	path := filepath.Join(dir, "testdata")
 
-	fluxFiles, err := filepath.Glob(filepath.Join(testDataPath, "*.flux"))
+	fluxFiles, err := filepath.Glob(filepath.Join(path, "*.flux"))
 	if err != nil {
 		t.Fatalf("error searching for Flux files: %s", err)
 	}
@@ -63,12 +64,12 @@ func Test_QueryEndToEnd(t *testing.T) {
 }
 
 func queryTester(t *testing.T, qs query.QueryService, prefix, queryExt string) {
-	q, err := GetTestData(prefix, queryExt)
+	q, err := querytest.GetTestData(prefix, queryExt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	csvOut, err := GetTestData(prefix, ".out.csv")
+	csvOut, err := querytest.GetTestData(prefix, ".out.csv")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +85,7 @@ func queryTester(t *testing.T, qs query.QueryService, prefix, queryExt string) {
 }
 
 func queryTranspileTester(t *testing.T, transpiler query.Transpiler, qs query.QueryService, prefix, queryExt string) {
-	q, err := GetTestData(prefix, queryExt)
+	q, err := querytest.GetTestData(prefix, queryExt)
 	if err != nil {
 		if os.IsNotExist(err) {
 			t.Skip("query missing")
@@ -93,7 +94,7 @@ func queryTranspileTester(t *testing.T, transpiler query.Transpiler, qs query.Qu
 		}
 	}
 
-	csvOut, err := GetTestData(prefix, ".out.csv")
+	csvOut, err := querytest.GetTestData(prefix, ".out.csv")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +109,7 @@ func queryTranspileTester(t *testing.T, transpiler query.Transpiler, qs query.Qu
 	QueryTestCheckSpec(t, qs, spec, csvIn, csvOut, enc)
 
 	enc = influxql.NewMultiResultEncoder()
-	jsonOut, err := GetTestData(prefix, ".out.json")
+	jsonOut, err := querytest.GetTestData(prefix, ".out.json")
 	if err != nil {
 		t.Logf("skipping json evaluation: %s", err)
 		return
@@ -118,9 +119,9 @@ func queryTranspileTester(t *testing.T, transpiler query.Transpiler, qs query.Qu
 
 func QueryTestCheckSpec(t *testing.T, qs query.QueryService, spec *query.Spec, inputFile, want string, enc query.MultiResultEncoder) {
 	t.Helper()
-	ReplaceFromSpec(spec, inputFile)
+	querytest.ReplaceFromSpec(spec, inputFile)
 
-	got, err := GetQueryEncodedResults(qs, spec, inputFile, enc)
+	got, err := querytest.GetQueryEncodedResults(qs, spec, inputFile, enc)
 	if err != nil {
 		t.Errorf("failed to run query: %v", err)
 	}
