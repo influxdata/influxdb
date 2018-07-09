@@ -42,6 +42,7 @@ type CellContentsUpdate struct {
 
 // CellFilter represents a set of filter that restrict the returned results.
 type CellFilter struct {
+	ID *ID
 }
 
 // Cell holds positional and visual information for a cell.
@@ -59,6 +60,11 @@ type Visualization interface {
 	Visualization()
 }
 
+// EmptyVisualization is visuaization that has no values
+type EmptyVisualization struct{}
+
+func (v EmptyVisualization) Visualization() {}
+
 func UnmarshalVisualizationJSON(b []byte) (Visualization, error) {
 	var v struct {
 		B json.RawMessage `json:"visualization"`
@@ -66,6 +72,11 @@ func UnmarshalVisualizationJSON(b []byte) (Visualization, error) {
 
 	if err := json.Unmarshal(b, &v); err != nil {
 		return nil, err
+	}
+
+	if len(v.B) == 0 {
+		// Then there wasn't any visualizaiton field, so there's no need unmarshal it
+		return EmptyVisualization{}, nil
 	}
 
 	var t struct {
@@ -84,6 +95,12 @@ func UnmarshalVisualizationJSON(b []byte) (Visualization, error) {
 			return nil, err
 		}
 		vis = qv
+	case "empty":
+		var ev EmptyVisualization
+		if err := json.Unmarshal(v.B, &ev); err != nil {
+			return nil, err
+		}
+		vis = ev
 	default:
 		return nil, fmt.Errorf("unknown type %v", t.Type)
 	}
@@ -101,6 +118,14 @@ func MarshalVisualizationJSON(v Visualization) ([]byte, error) {
 		}{
 			Type:            "chronograf-v1",
 			V1Visualization: vis,
+		}
+	case EmptyVisualization:
+		s = struct {
+			Type string `json:"type"`
+			EmptyVisualization
+		}{
+			Type:               "empty",
+			EmptyVisualization: vis,
 		}
 	default:
 		return nil, fmt.Errorf("unsupported type")
@@ -139,19 +164,6 @@ func (c *Cell) UnmarshalJSON(b []byte) error {
 func (u *CellUpdate) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &u.CellContentsUpdate); err != nil {
 		return err
-	}
-
-	var vs struct {
-		B json.RawMessage `json:"visualization"`
-	}
-
-	if err := json.Unmarshal(b, &vs); err != nil {
-		return err
-	}
-
-	if len(vs.B) == 0 {
-		// Then there wasn't any visualizaiton field, so there's no need to update it
-		return nil
 	}
 
 	v, err := UnmarshalVisualizationJSON(b)

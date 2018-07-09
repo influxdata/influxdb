@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/chronograf/v2"
-	"github.com/influxdata/platform"
 )
 
 func TestCell_MarshalJSON(t *testing.T) {
@@ -25,7 +24,7 @@ func TestCell_MarshalJSON(t *testing.T) {
 			args: args{
 				cell: chronograf.Cell{
 					CellContents: chronograf.CellContents{
-						ID:   platform.ID("0"), // This ends up being id 30 encoded
+						ID:   chronograf.ID("0"),
 						Name: "hello",
 					},
 					Visualization: chronograf.V1Visualization{
@@ -36,7 +35,7 @@ func TestCell_MarshalJSON(t *testing.T) {
 			wants: wants{
 				json: `
 {
-  "id": "30",
+  "id": "0",
   "name": "hello",
   "visualization": {
     "type": "chronograf-v1",
