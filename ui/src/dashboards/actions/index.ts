@@ -18,6 +18,7 @@ import {hydrateTemplate, isTemplateNested} from 'src/tempVars/apis'
 
 import {notify} from 'src/shared/actions/notifications'
 import {errorThrown} from 'src/shared/actions/errors'
+import {stripPrefix} from 'src/utils/basepath'
 
 import {
   applyLocalSelections,
@@ -366,6 +367,7 @@ export const setActiveCell = (activeCellID: string): SetActiveCellAction => ({
 
 export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
   const {search, pathname} = window.location
+  const strippedPathname = stripPrefix(pathname)
 
   const newQueryParams = _.pickBy(
     {
@@ -376,7 +378,7 @@ export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
   )
 
   const newSearch = qs.stringify(newQueryParams)
-  const newLocation = {pathname, search: `?${newSearch}`}
+  const newLocation = {pathname: strippedPathname, search: `?${newSearch}`}
 
   return replace(newLocation)
 }
