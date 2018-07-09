@@ -9,8 +9,6 @@ import (
 var _ chronograf.OrganizationConfigStore = &OrganizationConfigStore{}
 
 type OrganizationConfigStore struct {
-	//InitializeF func(ctx context.Context) error
-	//GetF        func(ctx context.Context, id chronograf.OrganizationID) (*chronograf.OrganizationConfig, error)
 	FindOrCreateF func(ctx context.Context, id string) (*chronograf.OrganizationConfig, error)
 	UpdateF       func(ctx context.Context, target *chronograf.OrganizationConfig) error
 }
