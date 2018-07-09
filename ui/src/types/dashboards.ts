@@ -151,3 +151,8 @@ export interface DashboardUIState {
   hoverTime: string
   activeCellID: string
 }
+
+export interface DashboardSwitcherLinks {
+  active?: DashboardSwitcherLink
+  links: DashboardSwitcherLink[]
+}
