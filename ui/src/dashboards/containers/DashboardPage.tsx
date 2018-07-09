@@ -168,7 +168,20 @@ class DashboardPage extends Component<Props, State> {
     const prevPath = getDeep(prevProps.location, 'pathname', null)
     const thisPath = getDeep(this.props.location, 'pathname', null)
 
-    if (prevPath && thisPath && prevPath !== thisPath) {
+    const templates = getDeep<TempVarsModels.Template[]>(
+      this.props.dashboard,
+      'templates',
+      []
+    ).map(t => t.tempVar)
+    const prevTemplates = getDeep<TempVarsModels.Template[]>(
+      prevProps.dashboard,
+      'templates',
+      []
+    ).map(t => t.tempVar)
+    const isTemplateDeleted: boolean =
+      _.intersection(templates, prevTemplates).length !== prevTemplates.length
+
+    if ((prevPath && thisPath && prevPath !== thisPath) || isTemplateDeleted) {
       this.getDashboard()
     }
   }

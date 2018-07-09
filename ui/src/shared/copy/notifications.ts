@@ -526,6 +526,16 @@ export const notifyBuilderDisabled = (): Notification => ({
 
 //  Template Variables & URL Queries
 //  ----------------------------------------------------------------------------
+export const notifyInvalidTempVarValueInMetaQuery = (
+  tempVar: string,
+  errorMessage: string
+): Notification => ({
+  ...defaultErrorNotification,
+  icon: 'cube',
+  duration: 7500,
+  message: `Invalid query supplied for template variable ${tempVar}: ${errorMessage}`,
+})
+
 export const notifyInvalidTempVarValueInURLQuery = ({
   key,
   value,
