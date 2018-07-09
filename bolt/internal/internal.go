@@ -790,14 +790,8 @@ func UnmarshalOrganizationConfig(data []byte, c *chronograf.OrganizationConfig) 
 		return err
 	}
 
-	if pb.OrganizationID == "" {
-		return fmt.Errorf("Organization ID on organization config is nil")
-	}
 	if pb.LogViewer == nil {
 		return fmt.Errorf("Log Viewer config is nil")
-	}
-	if pb.LogViewer.Columns == nil {
-		return fmt.Errorf("Log Viewer config Columns is nil")
 	}
 
 	c.OrganizationID = pb.OrganizationID
