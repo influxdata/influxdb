@@ -214,6 +214,11 @@ func (c *Controller) processQuery(pq *PriorityQueue, q *Query) error {
 		if c.verbose {
 			log.Println("physical plan", plan.Formatted(q.plan))
 		}
+	} else if !q.isOK() {
+		// The query was canceled or finished after we retrieved it, but before we
+		// were able to construct a plan for it. Remove it from the queue and do nothing.
+		pq.Pop()
+		return nil
 	}
 
 	// Check if we have enough resources
