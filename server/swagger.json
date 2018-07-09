@@ -5180,41 +5180,42 @@
               }
             }
           }
-        },
-        "example": {
-          "name": "severity",
-          "position": 0,
-          "encoding": [
-            {
-              "type": "label",
-              "value": "icon"
-            },
-            {
-              "type": "label",
-              "value": "text"
-            },
-            {
-              "type": "visibility",
-              "value": "visible"
-            },
-            {
-              "type": "color",
-              "name": "ruby",
-              "value": "emergency"
-            },
-            {
-              "type": "color",
-              "name": "rainforest",
-              "value": "info"
-            },
-            {
-              "type": "displayName",
-              "value": "Log Severity!"
-            }
-          ]
         }
       },
-      "LogViewerUIConfig": {
+      "example": {
+        "name": "severity",
+        "position": 0,
+        "encoding": [
+          {
+            "type": "label",
+            "value": "icon"
+          },
+          {
+            "type": "label",
+            "value": "text"
+          },
+          {
+            "type": "visibility",
+            "value": "visible"
+          },
+          {
+            "type": "color",
+            "name": "ruby",
+            "value": "emergency"
+          },
+          {
+            "type": "color",
+            "name": "rainforest",
+            "value": "info"
+          },
+          {
+            "type": "displayName",
+            "value": "Log Severity!"
+          }
+        ]
+      }
+    },
+    "LogViewerUIConfig": {
       "description": "Contains the settings for the log viewer page UI",
       "type": "object",
       "required": ["columns"],
