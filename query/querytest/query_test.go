@@ -22,21 +22,19 @@ var skipTests = map[string]string{
 	"null_as_value":             "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
 }
 
+// Change as needed
+const testDataPath = "../functions/testdata"
+
 func Test_QueryEndToEnd(t *testing.T) {
 	qs := GetQueryServiceBridge()
 
 	influxqlTranspiler := influxql.NewTranspiler()
 
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(dir, "test_cases")
-	if err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(testDataPath); err != nil {
+		t.Fatalf("Test data path invalid: error: %v ", testDataPath, err)
 	}
 
-	fluxFiles, err := filepath.Glob(filepath.Join(path, "*.flux"))
+	fluxFiles, err := filepath.Glob(filepath.Join(testDataPath, "*.flux"))
 	if err != nil {
 		t.Fatalf("error searching for Flux files: %s", err)
 	}
