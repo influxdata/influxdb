@@ -12,6 +12,39 @@ export interface Me {
   role: Role
 }
 
+export enum InfluxDBPermissions {
+  All = 'ALL',
+  NoPermissions = 'NoPermissions',
+  ViewAdmin = 'ViewAdmin',
+  ViewChronograf = 'ViewChronograf',
+  CreateDatabase = 'CreateDatabase',
+  CreateUserAndRole = 'CreateUserAndRole',
+  AddRemoveNode = 'AddRemoveNode',
+  DropDatabase = 'DropDatabase',
+  DropData = 'DropData',
+  ReadData = 'ReadData',
+  WriteData = 'WriteData',
+  Rebalance = 'Rebalance',
+  ManageShard = 'ManageShard',
+  ManageContinuousQuery = 'ManageContinuousQuery',
+  ManageQuery = 'ManageQuery',
+  ManageSubscription = 'ManageSubscription',
+  Monitor = 'Monitor',
+  CopyShard = 'CopyShard',
+  KapacitorAPI = 'KapacitorAPI',
+  KapacitorConfigAPI = 'KapacitorConfigAPI',
+}
+
+export enum InfluxDBPermissionScope {
+  All = 'all',
+  Database = 'database',
+}
+
+export interface Permission {
+  scope: string
+  allowed: InfluxDBPermissions[]
+}
+
 export interface Role {
   name: string
   organization: string

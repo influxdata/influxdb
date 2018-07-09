@@ -1,5 +1,14 @@
-import {Source, Template, Dashboard, Cell, CellType} from 'src/types'
-import {SourceLinks, TemplateType, TemplateValueType} from 'src/types'
+import {
+  Source,
+  SourceAuthenticationMethod,
+  Template,
+  Dashboard,
+  Cell,
+  CellType,
+  SourceLinks,
+  TemplateType,
+  TemplateValueType,
+} from 'src/types'
 
 export const role = {
   name: '',
@@ -47,6 +56,7 @@ export const source: Source = {
   role: 'viewer',
   defaultRP: '',
   links: sourceLinks,
+  authentication: SourceAuthenticationMethod.Basic,
 }
 
 export const timeRange = {
