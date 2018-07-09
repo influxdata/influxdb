@@ -1573,11 +1573,14 @@ func parseTags(buf []byte, dst Tags) Tags {
 	}
 
 	n := bytes.Count(buf, []byte(","))
-	if len(dst) < n {
+	if cap(dst) < n {
 		dst = make(Tags, n)
+	} else {
+		dst = dst[:n]
 	}
 
-	if dst == nil { // Ensure existing behaviour.
+	// Ensure existing behaviour when point has no tags and nil slice passed in.
+	if dst == nil {
 		dst = Tags{}
 	}
 
