@@ -288,13 +288,13 @@ func TestLogViewerOrganizationConfig(t *testing.T) {
 			body, _ := ioutil.ReadAll(resp.Body)
 
 			if resp.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. Config() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
+				t.Errorf("%q. LogViewerOrganizationConfig() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
-				t.Errorf("%q. Config() = %v, want %v", tt.name, content, tt.wants.contentType)
+				t.Errorf("%q. LogViewerOrganizationConfig() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. Config() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+				t.Errorf("%q. LogViewerOrganizationConfig() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
 			}
 		})
 	}
@@ -690,13 +690,13 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 			body, _ := ioutil.ReadAll(resp.Body)
 
 			if resp.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. Config() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
+				t.Errorf("%q. ReplaceLogViewerOrganizationConfig() = %v, want %v", tt.name, resp.StatusCode, tt.wants.statusCode)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
-				t.Errorf("%q. Config() = %v, want %v", tt.name, content, tt.wants.contentType)
+				t.Errorf("%q. ReplaceLogViewerOrganizationConfig() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. Config() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+				t.Errorf("%q. ReplaceLogViewerOrganizationConfig() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
 			}
 		})
 	}
