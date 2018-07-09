@@ -1,14 +1,13 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/boltdb/bolt"
 	chronograf "github.com/influxdata/chronograf/v2"
-	"github.com/influxdata/platform"
 )
 
 var (
@@ -22,17 +21,8 @@ func (c *Client) initializeCells(ctx context.Context, tx *bolt.Tx) error {
 	return nil
 }
 
-//func (c *Client) setOrganizationOnCell(ctx context.Context, tx *bolt.Tx, d *chronograf.Cell) error {
-//	o, err := c.findOrganizationByID(ctx, tx, d.OrganizationID)
-//	if err != nil {
-//		return err
-//	}
-//	d.Organization = o.Name
-//	return nil
-//}
-
 // FindCellByID retrieves a cell by id.
-func (c *Client) FindCellByID(ctx context.Context, id platform.ID) (*chronograf.Cell, error) {
+func (c *Client) FindCellByID(ctx context.Context, id chronograf.ID) (*chronograf.Cell, error) {
 	var d *chronograf.Cell
 
 	err := c.db.View(func(tx *bolt.Tx) error {
@@ -51,10 +41,10 @@ func (c *Client) FindCellByID(ctx context.Context, id platform.ID) (*chronograf.
 	return d, nil
 }
 
-func (c *Client) findCellByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*chronograf.Cell, error) {
+func (c *Client) findCellByID(ctx context.Context, tx *bolt.Tx, id chronograf.ID) (*chronograf.Cell, error) {
 	var d chronograf.Cell
 
-	v := tx.Bucket(cellBucket).Get(id)
+	v := tx.Bucket(cellBucket).Get([]byte(id))
 
 	if len(v) == 0 {
 		// TODO: Make standard error
@@ -65,16 +55,10 @@ func (c *Client) findCellByID(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 		return nil, err
 	}
 
-	//if err := c.setOrganizationOnCell(ctx, tx, &d); err != nil {
-	//	return nil, err
-	//}
-
 	return &d, nil
 }
 
 // FindCell retrieves a cell using an arbitrary cell filter.
-// Filters using ID, or OrganizationID and cell Name should be efficient.
-// Other filters will do a linear scan across cells until it finds a match.
 func (c *Client) FindCell(ctx context.Context, filter chronograf.CellFilter) (*chronograf.Cell, error) {
 	if filter.ID != nil {
 		return c.FindCellByID(ctx, *filter.ID)
@@ -82,14 +66,6 @@ func (c *Client) FindCell(ctx context.Context, filter chronograf.CellFilter) (*c
 
 	var d *chronograf.Cell
 	err := c.db.View(func(tx *bolt.Tx) error {
-		//if filter.Organization != nil {
-		//	o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	filter.OrganizationID = &o.ID
-		//}
-
 		filterFn := filterCellsFn(filter)
 		return c.forEachCell(ctx, tx, func(dash *chronograf.Cell) bool {
 			if filterFn(dash) {
@@ -114,22 +90,14 @@ func (c *Client) FindCell(ctx context.Context, filter chronograf.CellFilter) (*c
 func filterCellsFn(filter chronograf.CellFilter) func(d *chronograf.Cell) bool {
 	if filter.ID != nil {
 		return func(d *chronograf.Cell) bool {
-			return bytes.Equal(d.ID, *filter.ID)
+			return d.ID == *filter.ID
 		}
 	}
-
-	//if filter.OrganizationID != nil {
-	//	return func(d *chronograf.Cell) bool {
-	//		return bytes.Equal(d.OrganizationID, *filter.OrganizationID)
-	//	}
-	//}
 
 	return func(d *chronograf.Cell) bool { return true }
 }
 
 // FindCells retrives all cells that match an arbitrary cell filter.
-// Filters using ID, or OrganizationID and cell Name should be efficient.
-// Other filters will do a linear scan across all cells searching for a match.
 func (c *Client) FindCells(ctx context.Context, filter chronograf.CellFilter) ([]*chronograf.Cell, int, error) {
 	if filter.ID != nil {
 		d, err := c.FindCellByID(ctx, *filter.ID)
@@ -159,13 +127,6 @@ func (c *Client) FindCells(ctx context.Context, filter chronograf.CellFilter) ([
 
 func (c *Client) findCells(ctx context.Context, tx *bolt.Tx, filter chronograf.CellFilter) ([]*chronograf.Cell, error) {
 	ds := []*chronograf.Cell{}
-	//if filter.Organization != nil {
-	//	o, err := c.findOrganizationByName(ctx, tx, *filter.Organization)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//	filter.OrganizationID = &o.ID
-	//}
 
 	filterFn := filterCellsFn(filter)
 	err := c.forEachCell(ctx, tx, func(d *chronograf.Cell) bool {
@@ -185,19 +146,12 @@ func (c *Client) findCells(ctx context.Context, tx *bolt.Tx, filter chronograf.C
 // CreateCell creates a platform cell and sets d.ID.
 func (c *Client) CreateCell(ctx context.Context, d *chronograf.Cell) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		//if len(d.OrganizationID) == 0 {
-		//	o, err := c.findOrganizationByName(ctx, tx, d.Organization)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	d.OrganizationID = o.ID
-		//}
 
 		id, err := tx.Bucket(cellBucket).NextSequence()
 		if err != nil {
 			return err
 		}
-		d.ID = platform.ID(fmt.Sprintf("%d", id))
+		d.ID = chronograf.ID(strconv.Itoa(int(id)))
 
 		return c.putCell(ctx, tx, d)
 	})
@@ -211,15 +165,13 @@ func (c *Client) PutCell(ctx context.Context, d *chronograf.Cell) error {
 }
 
 func (c *Client) putCell(ctx context.Context, tx *bolt.Tx, d *chronograf.Cell) error {
-	//d.Organization = ""
 	v, err := json.Marshal(d)
 	if err != nil {
 		return err
 	}
-	if err := tx.Bucket(cellBucket).Put(d.ID, v); err != nil {
+	if err := tx.Bucket(cellBucket).Put([]byte(d.ID), v); err != nil {
 		return err
 	}
-	//return c.setOrganizationOnCell(ctx, tx, d)
 	return nil
 }
 
@@ -231,9 +183,6 @@ func (c *Client) forEachCell(ctx context.Context, tx *bolt.Tx, fn func(*chronogr
 		if err := json.Unmarshal(v, d); err != nil {
 			return err
 		}
-		//if err := c.setOrganizationOnCell(ctx, tx, d); err != nil {
-		//	return err
-		//}
 		if !fn(d) {
 			break
 		}
@@ -243,7 +192,7 @@ func (c *Client) forEachCell(ctx context.Context, tx *bolt.Tx, fn func(*chronogr
 }
 
 // UpdateCell updates a cell according the parameters set on upd.
-func (c *Client) UpdateCell(ctx context.Context, id platform.ID, upd chronograf.CellUpdate) (*chronograf.Cell, error) {
+func (c *Client) UpdateCell(ctx context.Context, id chronograf.ID, upd chronograf.CellUpdate) (*chronograf.Cell, error) {
 	var d *chronograf.Cell
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		dash, err := c.updateCell(ctx, tx, id, upd)
@@ -257,7 +206,7 @@ func (c *Client) UpdateCell(ctx context.Context, id platform.ID, upd chronograf.
 	return d, err
 }
 
-func (c *Client) updateCell(ctx context.Context, tx *bolt.Tx, id platform.ID, upd chronograf.CellUpdate) (*chronograf.Cell, error) {
+func (c *Client) updateCell(ctx context.Context, tx *bolt.Tx, id chronograf.ID, upd chronograf.CellUpdate) (*chronograf.Cell, error) {
 	d, err := c.findCellByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
@@ -267,28 +216,28 @@ func (c *Client) updateCell(ctx context.Context, tx *bolt.Tx, id platform.ID, up
 		d.Name = *upd.Name
 	}
 
+	if upd.Visualization != nil {
+		d.Visualization = upd.Visualization
+	}
+
 	if err := c.putCell(ctx, tx, d); err != nil {
 		return nil, err
 	}
-
-	//if err := c.setOrganizationOnCell(ctx, tx, d); err != nil {
-	//	return nil, err
-	//}
 
 	return d, nil
 }
 
 // DeleteCell deletes a cell and prunes it from the index.
-func (c *Client) DeleteCell(ctx context.Context, id platform.ID) error {
+func (c *Client) DeleteCell(ctx context.Context, id chronograf.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.deleteCell(ctx, tx, id)
 	})
 }
 
-func (c *Client) deleteCell(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
+func (c *Client) deleteCell(ctx context.Context, tx *bolt.Tx, id chronograf.ID) error {
 	_, err := c.findCellByID(ctx, tx, id)
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(cellBucket).Delete(id)
+	return tx.Bucket(cellBucket).Delete([]byte(id))
 }
