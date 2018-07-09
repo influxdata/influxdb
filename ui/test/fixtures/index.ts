@@ -1,6 +1,7 @@
 import {interval} from 'src/shared/constants'
 import {
   Source,
+  SourceAuthenticationMethod,
   CellQuery,
   SourceLinks,
   Cell,
@@ -46,6 +47,7 @@ export const source: Source = {
   defaultRP: '',
   links: sourceLinks,
   insecureSkipVerify: false,
+  authentication: SourceAuthenticationMethod.Basic,
 }
 
 export const queryConfig: QueryConfig = {

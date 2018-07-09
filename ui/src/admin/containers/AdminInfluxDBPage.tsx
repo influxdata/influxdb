@@ -1,5 +1,4 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {
@@ -30,16 +29,26 @@ import RolesTable from 'src/admin/components/RolesTable'
 import QueriesPage from 'src/admin/containers/QueriesPage'
 import DatabaseManagerPage from 'src/admin/containers/DatabaseManagerPage'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
-import FancyScrollbar from 'shared/components/FancyScrollbar'
-import SubSections from 'shared/components/SubSections'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import SubSections from 'src/shared/components/SubSections'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {notify as notifyAction} from 'shared/actions/notifications'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {
+  Source,
+  User as InfluxDBUser,
+  Role as InfluxDBRole,
+  Permission,
+  RemoteDataState,
+  SourceAuthenticationMethod,
+} from 'src/types'
+import {InfluxDBPermissions} from 'src/types/auth'
+import {NotificationAction} from 'src/types/notifications'
 
 import {
   notifyRoleNameInvalid,
   notifyDBUserNamePasswordInvalid,
-} from 'shared/copy/notifications'
+} from 'src/shared/copy/notifications'
 
 const isValidUser = user => {
   const minLen = 3
@@ -51,23 +60,114 @@ const isValidRole = role => {
   return role.name.length >= minLen
 }
 
+interface User extends InfluxDBUser {
+  isEditing: boolean
+}
+
+interface Role extends InfluxDBRole {
+  isEditing: boolean
+}
+
+interface Props {
+  source: Source
+  users: User[]
+  roles: Role[]
+  permissions: Permission[]
+  loadUsers: (url: string) => void
+  loadRoles: (url: string) => void
+  loadPermissions: (url: string) => void
+  addUser: () => void
+  addRole: () => void
+  removeUser: (user: User) => void
+  removeRole: (role: Role) => void
+  editUser: (user: User, updates: Partial<User>) => void
+  editRole: (role: Role, updates: Partial<Role>) => void
+  createUser: (url: string, user: User) => void
+  createRole: (url: string, role: Role) => void
+  deleteRole: (role: Role) => void
+  deleteUser: (user: User) => void
+  filterRoles: () => void
+  filterUsers: () => void
+  updateRoleUsers: (role: Role, users: User[]) => void
+  updateRolePermissions: (role: Role, permissions: Permission[]) => void
+  updateUserPermissions: (user: User, permissions: Permission[]) => void
+  updateUserRoles: (user: User, roles: Role[]) => void
+  updateUserPassword: (user: User, password: string) => void
+  notify: NotificationAction
+  params: {
+    tab: string
+  }
+}
+
+interface State {
+  loading: RemoteDataState
+}
+
 @ErrorHandling
-export class DisconnectedAdminInfluxDBPage extends Component {
+export class AdminInfluxDBPage extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
+    this.state = {
+      loading: RemoteDataState.NotStarted,
+    }
   }
-
-  componentDidMount() {
+  public async componentDidMount() {
     const {source, loadUsers, loadRoles, loadPermissions} = this.props
 
-    loadUsers(source.links.users)
-    loadPermissions(source.links.permissions)
+    this.setState({loading: RemoteDataState.Loading})
+
+    if (source.authentication === SourceAuthenticationMethod.LDAP) {
+      return this.setState({loading: RemoteDataState.Done})
+    }
+
+    try {
+      await loadUsers(source.links.users)
+      await loadPermissions(source.links.permissions)
+      this.setState({loading: RemoteDataState.Done})
+    } catch (error) {
+      console.error(error)
+      this.setState({loading: RemoteDataState.Error})
+    }
+
     if (source.links.roles) {
-      loadRoles(source.links.roles)
+      try {
+        await loadRoles(source.links.roles)
+      } catch (error) {
+        this.setState({loading: RemoteDataState.Error})
+        console.error('could not load roles: ', error)
+      }
     }
   }
 
-  handleClickCreate = type => () => {
+  public render() {
+    return (
+      <div className="page">
+        <PageHeader titleText="InfluxDB Admin" sourceIndicator={true} />
+        <FancyScrollbar className="page-contents">{this.admin}</FancyScrollbar>
+      </div>
+    )
+  }
+
+  private get admin(): JSX.Element {
+    const {source, params} = this.props
+    const {loading} = this.state
+    if (loading === RemoteDataState.Loading) {
+      return <div className="page-spinner" />
+    }
+
+    return (
+      <div className="container-fluid">
+        <SubSections
+          parentUrl="admin-influxdb"
+          sourceID={source.id}
+          activeSection={params.tab}
+          sections={this.adminSubSections}
+        />
+      </div>
+    )
+  }
+
+  private handleClickCreate = type => () => {
     if (type === 'users') {
       this.props.addUser()
     } else if (type === 'roles') {
@@ -75,15 +175,15 @@ export class DisconnectedAdminInfluxDBPage extends Component {
     }
   }
 
-  handleEditUser = (user, updates) => {
+  private handleEditUser = (user, updates) => {
     this.props.editUser(user, updates)
   }
 
-  handleEditRole = (role, updates) => {
+  private handleEditRole = (role, updates) => {
     this.props.editRole(role, updates)
   }
 
-  handleSaveUser = async user => {
+  private handleSaveUser = async user => {
     const {notify} = this.props
     if (!isValidUser(user)) {
       notify(notifyDBUserNamePasswordInvalid())
@@ -96,7 +196,7 @@ export class DisconnectedAdminInfluxDBPage extends Component {
     }
   }
 
-  handleSaveRole = async role => {
+  private handleSaveRole = async role => {
     const {notify} = this.props
     if (!isValidRole(role)) {
       notify(notifyRoleNameInvalid())
@@ -109,55 +209,59 @@ export class DisconnectedAdminInfluxDBPage extends Component {
     }
   }
 
-  handleCancelEditUser = user => {
+  private handleCancelEditUser = user => {
     this.props.removeUser(user)
   }
 
-  handleCancelEditRole = role => {
+  private handleCancelEditRole = role => {
     this.props.removeRole(role)
   }
 
-  handleDeleteRole = role => {
+  private handleDeleteRole = role => {
     this.props.deleteRole(role)
   }
 
-  handleDeleteUser = user => {
+  private handleDeleteUser = user => {
     this.props.deleteUser(user)
   }
 
-  handleUpdateRoleUsers = (role, users) => {
+  private handleUpdateRoleUsers = (role, users) => {
     this.props.updateRoleUsers(role, users)
   }
 
-  handleUpdateRolePermissions = (role, permissions) => {
+  private handleUpdateRolePermissions = (role, permissions) => {
     this.props.updateRolePermissions(role, permissions)
   }
 
-  handleUpdateUserPermissions = (user, permissions) => {
+  private handleUpdateUserPermissions = (user, permissions) => {
     this.props.updateUserPermissions(user, permissions)
   }
 
-  handleUpdateUserRoles = (user, roles) => {
+  private handleUpdateUserRoles = (user, roles) => {
     this.props.updateUserRoles(user, roles)
   }
 
-  handleUpdateUserPassword = (user, password) => {
+  private handleUpdateUserPassword = (user, password) => {
     this.props.updateUserPassword(user, password)
   }
 
-  getAdminSubSections = () => {
-    const {
-      users,
-      roles,
-      source,
-      permissions,
-      filterUsers,
-      filterRoles,
-    } = this.props
-    const hasRoles = !!source.links.roles
+  private get allowed(): InfluxDBPermissions[] {
+    const {permissions} = this.props
     const globalPermissions = permissions.find(p => p.scope === 'all')
-    const allowed = globalPermissions ? globalPermissions.allowed : []
+    return globalPermissions ? globalPermissions.allowed : []
+  }
 
+  private get hasRoles(): boolean {
+    return !!this.props.source.links.roles
+  }
+
+  private get isLDAP(): boolean {
+    const {source} = this.props
+    return source.authentication === SourceAuthenticationMethod.LDAP
+  }
+
+  private get adminSubSections() {
+    const {users, roles, source, filterUsers, filterRoles} = this.props
     return [
       {
         url: 'databases',
@@ -168,13 +272,13 @@ export class DisconnectedAdminInfluxDBPage extends Component {
       {
         url: 'users',
         name: 'Users',
-        enabled: true,
+        enabled: !this.isLDAP,
         component: (
           <UsersTable
             users={users}
             allRoles={roles}
-            hasRoles={hasRoles}
-            permissions={allowed}
+            hasRoles={this.hasRoles}
+            permissions={this.allowed}
             isEditing={users.some(u => u.isEditing)}
             onSave={this.handleSaveUser}
             onCancel={this.handleCancelEditUser}
@@ -191,12 +295,12 @@ export class DisconnectedAdminInfluxDBPage extends Component {
       {
         url: 'roles',
         name: 'Roles',
-        enabled: hasRoles,
+        enabled: this.hasRoles && !this.isLDAP,
         component: (
           <RolesTable
             roles={roles}
             allUsers={users}
-            permissions={allowed}
+            permissions={this.allowed}
             isEditing={roles.some(r => r.isEditing)}
             onClickCreate={this.handleClickCreate}
             onEdit={this.handleEditRole}
@@ -217,68 +321,6 @@ export class DisconnectedAdminInfluxDBPage extends Component {
       },
     ]
   }
-
-  render() {
-    const {users, source, params} = this.props
-
-    return (
-      <div className="page">
-        <PageHeader titleText="InfluxDB Admin" sourceIndicator={true} />
-        <FancyScrollbar className="page-contents">
-          {users ? (
-            <div className="container-fluid">
-              <SubSections
-                parentUrl="admin-influxdb"
-                sourceID={source.id}
-                activeSection={params.tab}
-                sections={this.getAdminSubSections()}
-              />
-            </div>
-          ) : (
-            <div className="page-spinner" />
-          )}
-        </FancyScrollbar>
-      </div>
-    )
-  }
-}
-
-const {arrayOf, func, shape, string} = PropTypes
-
-DisconnectedAdminInfluxDBPage.propTypes = {
-  source: shape({
-    id: string.isRequired,
-    links: shape({
-      users: string.isRequired,
-    }),
-  }).isRequired,
-  users: arrayOf(shape()),
-  roles: arrayOf(shape()),
-  permissions: arrayOf(shape()),
-  loadUsers: func,
-  loadRoles: func,
-  loadPermissions: func,
-  addUser: func,
-  addRole: func,
-  removeUser: func,
-  removeRole: func,
-  editUser: func,
-  editRole: func,
-  createUser: func,
-  createRole: func,
-  deleteRole: func,
-  deleteUser: func,
-  filterRoles: func,
-  filterUsers: func,
-  updateRoleUsers: func,
-  updateRolePermissions: func,
-  updateUserPermissions: func,
-  updateUserRoles: func,
-  updateUserPassword: func,
-  notify: func.isRequired,
-  params: shape({
-    tab: string,
-  }).isRequired,
 }
 
 const mapStateToProps = ({adminInfluxDB: {users, roles, permissions}}) => ({
@@ -317,6 +359,4 @@ const mapDispatchToProps = dispatch => ({
   notify: bindActionCreators(notifyAction, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(
-  DisconnectedAdminInfluxDBPage
-)
+export default connect(mapStateToProps, mapDispatchToProps)(AdminInfluxDBPage)

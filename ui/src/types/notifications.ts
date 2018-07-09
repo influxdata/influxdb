@@ -7,5 +7,4 @@ export interface Notification {
 }
 
 export type NotificationFunc = (message: string) => Notification
-
 export type NotificationAction = (message: Notification) => void

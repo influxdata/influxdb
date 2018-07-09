@@ -1,6 +1,6 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
-import {AuthLinks, Organization, Role, User, Me} from './auth'
+import {AuthLinks, Organization, Role, Permission, User, Me} from './auth'
 import {Cell, CellQuery, Legend, Axes, Dashboard, CellType} from './dashboards'
 import {
   Template,
@@ -28,7 +28,12 @@ import {
   TagValues,
 } from './queries'
 import {AlertRule, Kapacitor, Task, RuleValues} from './kapacitor'
-import {NewSource, Source, SourceLinks} from './sources'
+import {
+  NewSource,
+  Source,
+  SourceLinks,
+  SourceAuthenticationMethod,
+} from './sources'
 import {DropdownAction, DropdownItem, Constructable} from './shared'
 import {
   Notification,
@@ -53,6 +58,7 @@ export {
   Role,
   User,
   Organization,
+  Permission,
   Constructable,
   Template,
   TemplateQuery,
@@ -79,6 +85,7 @@ export {
   NewSource,
   Source,
   SourceLinks,
+  SourceAuthenticationMethod,
   DropdownAction,
   DropdownItem,
   TimeRange,

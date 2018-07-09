@@ -8,7 +8,7 @@ import {
 import uuid from 'uuid'
 
 const initialState = {
-  users: null,
+  users: [],
   roles: [],
   permissions: [],
   queries: [],
