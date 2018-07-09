@@ -140,26 +140,29 @@ export class AdminInfluxDBPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {source, params} = this.props
-    const {loading} = this.state
-
     return (
       <div className="page">
         <PageHeader titleText="InfluxDB Admin" sourceIndicator={true} />
-        <FancyScrollbar className="page-contents">
-          {loading === RemoteDataState.Loading ? (
-            <div className="page-spinner" />
-          ) : (
-            <div className="container-fluid">
-              <SubSections
-                parentUrl="admin-influxdb"
-                sourceID={source.id}
-                activeSection={params.tab}
-                sections={this.adminSubSections}
-              />
-            </div>
-          )}
-        </FancyScrollbar>
+        <FancyScrollbar className="page-contents">{this.admin}</FancyScrollbar>
+      </div>
+    )
+  }
+
+  private get admin(): JSX.Element {
+    const {source, params} = this.props
+    const {loading} = this.state
+    if (loading === RemoteDataState.Loading) {
+      return <div className="page-spinner" />
+    }
+
+    return (
+      <div className="container-fluid">
+        <SubSections
+          parentUrl="admin-influxdb"
+          sourceID={source.id}
+          activeSection={params.tab}
+          sections={this.adminSubSections}
+        />
       </div>
     )
   }
