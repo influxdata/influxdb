@@ -701,3 +701,377 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 		})
 	}
 }
+
+func Test_validLogViewerConfig(t *testing.T) {
+	type args struct {
+		LogViewer chronograf.LogViewerConfig
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "cannot have 0 columns",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: nil,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "can have 1 column",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "timestamp",
+							Position: 2,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "can have more than 1 column",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "timestamp",
+							Position: 2,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+						{
+							Name:     "message",
+							Position: 3,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+						{
+							Name:     "facility",
+							Position: 4,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "cannot have multiple columns with the same name value",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "timestamp",
+							Position: 2,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+						{
+							Name:     "timestamp",
+							Position: 3,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "cannot have multiple columns with the same position value",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "timestamp",
+							Position: 2,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+						{
+							Name:     "message",
+							Position: 2,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "each column must have a visibility encoding value of either 'visible' or 'hidden'",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "timestamp",
+							Position: 2,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "bob",
+								},
+							},
+						},
+						{
+							Name:     "message",
+							Position: 3,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "severity column can have 1 of each icon and text label encoding",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "severity",
+							Position: 0,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+								{
+									Type:  "color",
+									Value: "info",
+									Name:  "rainforest",
+								},
+								{
+									Type:  "label",
+									Value: "icon",
+								},
+								{
+									Type:  "label",
+									Value: "text",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "severity column can 1 icon label encoding",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "severity",
+							Position: 0,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+								{
+									Type:  "color",
+									Value: "info",
+									Name:  "rainforest",
+								},
+								{
+									Type:  "label",
+									Value: "icon",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "severity column can have 1 text label encoding",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "severity",
+							Position: 0,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+								{
+									Type:  "color",
+									Value: "info",
+									Name:  "rainforest",
+								},
+								{
+									Type:  "label",
+									Value: "text",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "severity column cannot have 0 label encodings",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "severity",
+							Position: 0,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+								{
+									Type:  "color",
+									Value: "info",
+									Name:  "rainforest",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "severity column cannot have more than 1 icon label encoding",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "severity",
+							Position: 0,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+								{
+									Type:  "color",
+									Value: "info",
+									Name:  "rainforest",
+								},
+								{
+									Type:  "label",
+									Value: "icon",
+								},
+								{
+									Type:  "label",
+									Value: "icon",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "severity column cannot have more than 1 text label encoding",
+			args: args{
+				LogViewer: chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "severity",
+							Position: 0,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+								{
+									Type:  "color",
+									Value: "info",
+									Name:  "rainforest",
+								},
+								{
+									Type:  "label",
+									Value: "text",
+								},
+								{
+									Type:  "label",
+									Value: "text",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := validLogViewerConfig(tt.args.LogViewer)
+
+			if (tt.wantErr == true && got == nil) || (tt.wantErr == false && got != nil) {
+				t.Errorf("%q. validLogViewerConfig().\ngot: %v\nwantErr: %v", tt.name, got, tt.wantErr)
+			}
+		})
+	}
+}
