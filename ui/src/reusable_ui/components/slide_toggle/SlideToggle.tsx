@@ -20,6 +20,7 @@ class SlideToggle extends Component<Props> {
     size: ComponentSize.Small,
     color: ComponentColor.Primary,
     tooltipText: '',
+    disabled: false,
   }
 
   public render() {
