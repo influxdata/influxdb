@@ -30,6 +30,7 @@ import FieldKeysTemplateBuilder from 'src/tempVars/components/FieldKeysTemplateB
 import TagKeysTemplateBuilder from 'src/tempVars/components/TagKeysTemplateBuilder'
 import TagValuesTemplateBuilder from 'src/tempVars/components/TagValuesTemplateBuilder'
 import MetaQueryTemplateBuilder from 'src/tempVars/components/MetaQueryTemplateBuilder'
+import TextTemplateBuilder from 'src/tempVars/components/TextTemplateBuilder'
 
 import {
   Template,
@@ -75,6 +76,7 @@ const TEMPLATE_BUILDERS = {
   [TemplateType.TagKeys]: TagKeysTemplateBuilder,
   [TemplateType.TagValues]: TagValuesTemplateBuilder,
   [TemplateType.MetaQuery]: MetaQueryTemplateBuilder,
+  [TemplateType.Text]: TextTemplateBuilder,
 }
 
 const DEFAULT_TEMPLATE = DEFAULT_TEMPLATES[TemplateType.Databases]

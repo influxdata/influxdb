@@ -43,6 +43,7 @@ export enum TemplateType {
   Map = 'map',
   Databases = 'databases',
   MetaQuery = 'influxql',
+  Text = 'text',
 }
 
 export interface Template {

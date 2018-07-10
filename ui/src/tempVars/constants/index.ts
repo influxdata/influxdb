@@ -42,6 +42,10 @@ export const TEMPLATE_TYPES_LIST: TemplateTypesListItem[] = [
     text: 'Custom Meta Query',
     type: TemplateType.MetaQuery,
   },
+  {
+    text: 'Text',
+    type: TemplateType.Text,
+  },
 ]
 
 export const TEMPLATE_VARIABLE_TYPES = {
@@ -53,6 +57,7 @@ export const TEMPLATE_VARIABLE_TYPES = {
   [TemplateType.TagKeys]: TemplateValueType.TagKey,
   [TemplateType.TagValues]: TemplateValueType.TagValue,
   [TemplateType.MetaQuery]: TemplateValueType.MetaQuery,
+  [TemplateType.Text]: TemplateValueType.Constant,
 }
 
 export const TEMPLATE_VARIABLE_QUERIES = {
@@ -167,6 +172,15 @@ export const DEFAULT_TEMPLATES: DefaultTemplates = {
       query: {
         influxql: '',
       },
+    }
+  },
+  [TemplateType.Text]: () => {
+    return {
+      id: uuid.v4(),
+      tempVar: ':my-text:',
+      values: [],
+      type: TemplateType.Text,
+      label: '',
     }
   },
 }
