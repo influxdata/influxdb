@@ -222,9 +222,9 @@ func (r *REPL) doQuery(spec *query.Spec) error {
 
 	for _, name := range names {
 		r := results[name]
-		blocks := r.Blocks()
+		blocks := r.Tables()
 		fmt.Println("Result:", name)
-		err := blocks.Do(func(b query.Block) error {
+		err := blocks.Do(func(b query.Table) error {
 			_, err := execute.NewFormatter(b, nil).WriteTo(os.Stdout)
 			return err
 		})

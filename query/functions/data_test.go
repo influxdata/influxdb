@@ -23,8 +23,8 @@ const (
 // NormalData is a slice of N random values that are normaly distributed with mean Mu and standard deviation Sigma.
 var NormalData []float64
 
-// NormalBlock is a block of data whose value col is NormalData.
-var NormalBlock query.Block
+// NormalTable is a table of data whose value col is NormalData.
+var NormalTable query.Table
 
 func init() {
 	dist := distuv.Normal{
@@ -51,14 +51,14 @@ func init() {
 			values.NewStringValue(t1Value),
 		},
 	)
-	normalBlockBuilder := execute.NewColListBlockBuilder(key, executetest.UnlimitedAllocator)
+	normalTableBuilder := execute.NewColListTableBuilder(key, executetest.UnlimitedAllocator)
 
-	normalBlockBuilder.AddCol(query.ColMeta{Label: execute.DefaultTimeColLabel, Type: query.TTime})
-	normalBlockBuilder.AddCol(query.ColMeta{Label: execute.DefaultStartColLabel, Type: query.TTime})
-	normalBlockBuilder.AddCol(query.ColMeta{Label: execute.DefaultStopColLabel, Type: query.TTime})
-	normalBlockBuilder.AddCol(query.ColMeta{Label: execute.DefaultValueColLabel, Type: query.TFloat})
-	normalBlockBuilder.AddCol(query.ColMeta{Label: "t1", Type: query.TString})
-	normalBlockBuilder.AddCol(query.ColMeta{Label: "t2", Type: query.TString})
+	normalTableBuilder.AddCol(query.ColMeta{Label: execute.DefaultTimeColLabel, Type: query.TTime})
+	normalTableBuilder.AddCol(query.ColMeta{Label: execute.DefaultStartColLabel, Type: query.TTime})
+	normalTableBuilder.AddCol(query.ColMeta{Label: execute.DefaultStopColLabel, Type: query.TTime})
+	normalTableBuilder.AddCol(query.ColMeta{Label: execute.DefaultValueColLabel, Type: query.TFloat})
+	normalTableBuilder.AddCol(query.ColMeta{Label: "t1", Type: query.TString})
+	normalTableBuilder.AddCol(query.ColMeta{Label: "t2", Type: query.TString})
 
 	times := make([]execute.Time, N)
 	startTimes := make([]execute.Time, N)
@@ -84,12 +84,12 @@ func init() {
 		}
 	}
 
-	normalBlockBuilder.AppendTimes(0, times)
-	normalBlockBuilder.AppendTimes(1, startTimes)
-	normalBlockBuilder.AppendTimes(2, stopTimes)
-	normalBlockBuilder.AppendFloats(3, values)
-	normalBlockBuilder.AppendStrings(4, t1)
-	normalBlockBuilder.AppendStrings(5, t2)
+	normalTableBuilder.AppendTimes(0, times)
+	normalTableBuilder.AppendTimes(1, startTimes)
+	normalTableBuilder.AppendTimes(2, stopTimes)
+	normalTableBuilder.AppendFloats(3, values)
+	normalTableBuilder.AppendStrings(4, t1)
+	normalTableBuilder.AppendStrings(5, t2)
 
-	NormalBlock, _ = normalBlockBuilder.Block()
+	NormalTable, _ = normalTableBuilder.Table()
 }

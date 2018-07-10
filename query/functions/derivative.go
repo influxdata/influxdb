@@ -125,7 +125,7 @@ func createDerivativeTransformation(id execute.DatasetID, mode execute.Accumulat
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewDerivativeTransformation(d, cache, s)
 	return t, d, nil
@@ -133,7 +133,7 @@ func createDerivativeTransformation(id execute.DatasetID, mode execute.Accumulat
 
 type derivativeTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	unit        time.Duration
 	nonNegative bool
@@ -141,7 +141,7 @@ type derivativeTransformation struct {
 	timeCol     string
 }
 
-func NewDerivativeTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *DerivativeProcedureSpec) *derivativeTransformation {
+func NewDerivativeTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *DerivativeProcedureSpec) *derivativeTransformation {
 	return &derivativeTransformation{
 		d:           d,
 		cache:       cache,
@@ -152,14 +152,14 @@ func NewDerivativeTransformation(d execute.Dataset, cache execute.BlockBuilderCa
 	}
 }
 
-func (t *derivativeTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *derivativeTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *derivativeTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *derivativeTransformation) Process(id execute.DatasetID, b query.Table) error {
+	builder, created := t.cache.TableBuilder(b.Key())
 	if !created {
-		return fmt.Errorf("derivative found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("derivative found duplicate table with key: %v", b.Key())
 	}
 	cols := b.Cols()
 	derivatives := make([]*derivative, len(cols))

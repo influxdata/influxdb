@@ -42,59 +42,59 @@ func GroupKeyForRowOn(i int, cr query.ColReader, on map[string]bool) query.Group
 	return NewGroupKey(cols, vs)
 }
 
-// OneTimeBlock is a Block that permits reading data only once.
+// OneTimeTable is a Table that permits reading data only once.
 // Specifically the ValueIterator may only be consumed once from any of the columns.
-type OneTimeBlock interface {
-	query.Block
+type OneTimeTable interface {
+	query.Table
 	onetime()
 }
 
-// CacheOneTimeBlock returns a block that can be read multiple times.
-// If the block is not a OneTimeBlock it is returned directly.
-// Otherwise its contents are read into a new block.
-func CacheOneTimeBlock(b query.Block, a *Allocator) query.Block {
-	_, ok := b.(OneTimeBlock)
+// CacheOneTimeTable returns a table that can be read multiple times.
+// If the table is not a OneTimeTable it is returned directly.
+// Otherwise its contents are read into a new table.
+func CacheOneTimeTable(t query.Table, a *Allocator) query.Table {
+	_, ok := t.(OneTimeTable)
 	if !ok {
-		return b
+		return t
 	}
-	return CopyBlock(b, a)
+	return CopyTable(t, a)
 }
 
-// CopyBlock returns a copy of the block and is OneTimeBlock safe.
-func CopyBlock(b query.Block, a *Allocator) query.Block {
-	builder := NewColListBlockBuilder(b.Key(), a)
+// CopyTable returns a copy of the table and is OneTimeTable safe.
+func CopyTable(t query.Table, a *Allocator) query.Table {
+	builder := NewColListTableBuilder(t.Key(), a)
 
-	cols := b.Cols()
+	cols := t.Cols()
 	colMap := make([]int, len(cols))
 	for j, c := range cols {
 		colMap[j] = j
 		builder.AddCol(c)
 	}
 
-	AppendBlock(b, builder, colMap)
-	// ColListBlockBuilders do not error
-	nb, _ := builder.Block()
+	AppendTable(t, builder, colMap)
+	// ColListTableBuilders do not error
+	nb, _ := builder.Table()
 	return nb
 }
 
-// AddBlockCols adds the columns of b onto builder.
-func AddBlockCols(b query.Block, builder BlockBuilder) {
-	cols := b.Cols()
+// AddTableCols adds the columns of b onto builder.
+func AddTableCols(t query.Table, builder TableBuilder) {
+	cols := t.Cols()
 	for _, c := range cols {
 		builder.AddCol(c)
 	}
 }
 
-func AddBlockKeyCols(key query.GroupKey, builder BlockBuilder) {
+func AddTableKeyCols(key query.GroupKey, builder TableBuilder) {
 	for _, c := range key.Cols() {
 		builder.AddCol(c)
 	}
 }
 
 // AddNewCols adds the columns of b onto builder that did not already exist.
-// Returns the mapping of builder cols to block cols.
-func AddNewCols(b query.Block, builder BlockBuilder) []int {
-	cols := b.Cols()
+// Returns the mapping of builder cols to table cols.
+func AddNewCols(t query.Table, builder TableBuilder) []int {
+	cols := t.Cols()
 	existing := builder.Cols()
 	colMap := make([]int, len(existing))
 	for j, c := range cols {
@@ -114,14 +114,14 @@ func AddNewCols(b query.Block, builder BlockBuilder) []int {
 	return colMap
 }
 
-// AppendBlock append data from block b onto builder.
-// The colMap is a map of builder column index to block column index.
-func AppendBlock(b query.Block, builder BlockBuilder, colMap []int) {
-	if len(b.Cols()) == 0 {
+// AppendTable append data from table b onto builder.
+// The colMap is a map of builder column index to table column index.
+func AppendTable(t query.Table, builder TableBuilder, colMap []int) {
+	if len(t.Cols()) == 0 {
 		return
 	}
 
-	b.Do(func(cr query.ColReader) error {
+	t.Do(func(cr query.ColReader) error {
 		AppendCols(cr, builder, colMap)
 		return nil
 	})
@@ -129,7 +129,7 @@ func AppendBlock(b query.Block, builder BlockBuilder, colMap []int) {
 
 // AppendCols appends all columns from cr onto builder.
 // The colMap is a map of builder column index to cr column index.
-func AppendCols(cr query.ColReader, builder BlockBuilder, colMap []int) {
+func AppendCols(cr query.ColReader, builder TableBuilder, colMap []int) {
 	for j := range builder.Cols() {
 		AppendCol(j, colMap[j], cr, builder)
 	}
@@ -137,7 +137,7 @@ func AppendCols(cr query.ColReader, builder BlockBuilder, colMap []int) {
 
 // AppendCol append a column from cr onto builder
 // The indexes bj and cj are builder and col reader indexes respectively.
-func AppendCol(bj, cj int, cr query.ColReader, builder BlockBuilder) {
+func AppendCol(bj, cj int, cr query.ColReader, builder TableBuilder) {
 	c := cr.Cols()[cj]
 	switch c.Type {
 	case query.TBool:
@@ -158,7 +158,7 @@ func AppendCol(bj, cj int, cr query.ColReader, builder BlockBuilder) {
 }
 
 // AppendMappedRecord appends the record from cr onto builder assuming matching columns.
-func AppendRecord(i int, cr query.ColReader, builder BlockBuilder) {
+func AppendRecord(i int, cr query.ColReader, builder TableBuilder) {
 	for j, c := range builder.Cols() {
 		switch c.Type {
 		case query.TBool:
@@ -180,7 +180,7 @@ func AppendRecord(i int, cr query.ColReader, builder BlockBuilder) {
 }
 
 // AppendMappedRecord appends the records from cr onto builder, using colMap as a map of builder index to cr index.
-func AppendMappedRecord(i int, cr query.ColReader, builder BlockBuilder, colMap []int) {
+func AppendMappedRecord(i int, cr query.ColReader, builder TableBuilder, colMap []int) {
 	for j, c := range builder.Cols() {
 		switch c.Type {
 		case query.TBool:
@@ -202,7 +202,7 @@ func AppendMappedRecord(i int, cr query.ColReader, builder BlockBuilder, colMap 
 }
 
 // AppendRecordForCols appends the only the columns provided from cr onto builder.
-func AppendRecordForCols(i int, cr query.ColReader, builder BlockBuilder, cols []query.ColMeta) {
+func AppendRecordForCols(i int, cr query.ColReader, builder TableBuilder, cols []query.ColMeta) {
 	for j, c := range cols {
 		switch c.Type {
 		case query.TBool:
@@ -223,7 +223,7 @@ func AppendRecordForCols(i int, cr query.ColReader, builder BlockBuilder, cols [
 	}
 }
 
-func AppendKeyValues(key query.GroupKey, builder BlockBuilder) {
+func AppendKeyValues(key query.GroupKey, builder TableBuilder) {
 	for j, c := range key.Cols() {
 		idx := ColIdx(c.Label, builder.Cols())
 		switch c.Type {
@@ -266,15 +266,15 @@ func HasCol(label string, cols []query.ColMeta) bool {
 	return ColIdx(label, cols) >= 0
 }
 
-// BlockBuilder builds blocks that can be used multiple times
-type BlockBuilder interface {
+// TableBuilder builds tables that can be used multiple times
+type TableBuilder interface {
 	Key() query.GroupKey
 
 	NRows() int
 	NCols() int
 	Cols() []query.ColMeta
 
-	// AddCol increases the size of the block by one column.
+	// AddCol increases the size of the table by one column.
 	// The index of the column is returned.
 	AddCol(query.ColMeta) int
 
@@ -307,38 +307,38 @@ type BlockBuilder interface {
 	// Clear removes all rows, while preserving the column meta data.
 	ClearData()
 
-	// Block returns the block that has been built.
-	// Further modifications of the builder will not effect the returned block.
-	Block() (query.Block, error)
+	// Table returns the table that has been built.
+	// Further modifications of the builder will not effect the returned table.
+	Table() (query.Table, error)
 }
 
-type ColListBlockBuilder struct {
-	blk   *ColListBlock
+type ColListTableBuilder struct {
+	table *ColListTable
 	alloc *Allocator
 }
 
-func NewColListBlockBuilder(key query.GroupKey, a *Allocator) *ColListBlockBuilder {
-	return &ColListBlockBuilder{
-		blk:   &ColListBlock{key: key},
+func NewColListTableBuilder(key query.GroupKey, a *Allocator) *ColListTableBuilder {
+	return &ColListTableBuilder{
+		table: &ColListTable{key: key},
 		alloc: a,
 	}
 }
 
-func (b ColListBlockBuilder) Key() query.GroupKey {
-	return b.blk.Key()
+func (b ColListTableBuilder) Key() query.GroupKey {
+	return b.table.Key()
 }
 
-func (b ColListBlockBuilder) NRows() int {
-	return b.blk.nrows
+func (b ColListTableBuilder) NRows() int {
+	return b.table.nrows
 }
-func (b ColListBlockBuilder) NCols() int {
-	return len(b.blk.cols)
+func (b ColListTableBuilder) NCols() int {
+	return len(b.table.cols)
 }
-func (b ColListBlockBuilder) Cols() []query.ColMeta {
-	return b.blk.colMeta
+func (b ColListTableBuilder) Cols() []query.ColMeta {
+	return b.table.colMeta
 }
 
-func (b ColListBlockBuilder) AddCol(c query.ColMeta) int {
+func (b ColListTableBuilder) AddCol(c query.ColMeta) int {
 	var col column
 	switch c.Type {
 	case query.TBool:
@@ -374,116 +374,116 @@ func (b ColListBlockBuilder) AddCol(c query.ColMeta) int {
 	default:
 		PanicUnknownType(c.Type)
 	}
-	b.blk.colMeta = append(b.blk.colMeta, c)
-	b.blk.cols = append(b.blk.cols, col)
-	return len(b.blk.cols) - 1
+	b.table.colMeta = append(b.table.colMeta, c)
+	b.table.cols = append(b.table.cols, col)
+	return len(b.table.cols) - 1
 }
 
-func (b ColListBlockBuilder) SetBool(i int, j int, value bool) {
+func (b ColListTableBuilder) SetBool(i int, j int, value bool) {
 	b.checkColType(j, query.TBool)
-	b.blk.cols[j].(*boolColumn).data[i] = value
+	b.table.cols[j].(*boolColumn).data[i] = value
 }
-func (b ColListBlockBuilder) AppendBool(j int, value bool) {
+func (b ColListTableBuilder) AppendBool(j int, value bool) {
 	b.checkColType(j, query.TBool)
-	col := b.blk.cols[j].(*boolColumn)
+	col := b.table.cols[j].(*boolColumn)
 	col.data = b.alloc.AppendBools(col.data, value)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
-func (b ColListBlockBuilder) AppendBools(j int, values []bool) {
+func (b ColListTableBuilder) AppendBools(j int, values []bool) {
 	b.checkColType(j, query.TBool)
-	col := b.blk.cols[j].(*boolColumn)
+	col := b.table.cols[j].(*boolColumn)
 	col.data = b.alloc.AppendBools(col.data, values...)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
 
-func (b ColListBlockBuilder) SetInt(i int, j int, value int64) {
+func (b ColListTableBuilder) SetInt(i int, j int, value int64) {
 	b.checkColType(j, query.TInt)
-	b.blk.cols[j].(*intColumn).data[i] = value
+	b.table.cols[j].(*intColumn).data[i] = value
 }
-func (b ColListBlockBuilder) AppendInt(j int, value int64) {
+func (b ColListTableBuilder) AppendInt(j int, value int64) {
 	b.checkColType(j, query.TInt)
-	col := b.blk.cols[j].(*intColumn)
+	col := b.table.cols[j].(*intColumn)
 	col.data = b.alloc.AppendInts(col.data, value)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
-func (b ColListBlockBuilder) AppendInts(j int, values []int64) {
+func (b ColListTableBuilder) AppendInts(j int, values []int64) {
 	b.checkColType(j, query.TInt)
-	col := b.blk.cols[j].(*intColumn)
+	col := b.table.cols[j].(*intColumn)
 	col.data = b.alloc.AppendInts(col.data, values...)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
 
-func (b ColListBlockBuilder) SetUInt(i int, j int, value uint64) {
+func (b ColListTableBuilder) SetUInt(i int, j int, value uint64) {
 	b.checkColType(j, query.TUInt)
-	b.blk.cols[j].(*uintColumn).data[i] = value
+	b.table.cols[j].(*uintColumn).data[i] = value
 }
-func (b ColListBlockBuilder) AppendUInt(j int, value uint64) {
+func (b ColListTableBuilder) AppendUInt(j int, value uint64) {
 	b.checkColType(j, query.TUInt)
-	col := b.blk.cols[j].(*uintColumn)
+	col := b.table.cols[j].(*uintColumn)
 	col.data = b.alloc.AppendUInts(col.data, value)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
-func (b ColListBlockBuilder) AppendUInts(j int, values []uint64) {
+func (b ColListTableBuilder) AppendUInts(j int, values []uint64) {
 	b.checkColType(j, query.TUInt)
-	col := b.blk.cols[j].(*uintColumn)
+	col := b.table.cols[j].(*uintColumn)
 	col.data = b.alloc.AppendUInts(col.data, values...)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
 
-func (b ColListBlockBuilder) SetFloat(i int, j int, value float64) {
+func (b ColListTableBuilder) SetFloat(i int, j int, value float64) {
 	b.checkColType(j, query.TFloat)
-	b.blk.cols[j].(*floatColumn).data[i] = value
+	b.table.cols[j].(*floatColumn).data[i] = value
 }
-func (b ColListBlockBuilder) AppendFloat(j int, value float64) {
+func (b ColListTableBuilder) AppendFloat(j int, value float64) {
 	b.checkColType(j, query.TFloat)
-	col := b.blk.cols[j].(*floatColumn)
+	col := b.table.cols[j].(*floatColumn)
 	col.data = b.alloc.AppendFloats(col.data, value)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
-func (b ColListBlockBuilder) AppendFloats(j int, values []float64) {
+func (b ColListTableBuilder) AppendFloats(j int, values []float64) {
 	b.checkColType(j, query.TFloat)
-	col := b.blk.cols[j].(*floatColumn)
+	col := b.table.cols[j].(*floatColumn)
 	col.data = b.alloc.AppendFloats(col.data, values...)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
 
-func (b ColListBlockBuilder) SetString(i int, j int, value string) {
+func (b ColListTableBuilder) SetString(i int, j int, value string) {
 	b.checkColType(j, query.TString)
-	b.blk.cols[j].(*stringColumn).data[i] = value
+	b.table.cols[j].(*stringColumn).data[i] = value
 }
-func (b ColListBlockBuilder) AppendString(j int, value string) {
-	meta := b.blk.cols[j].Meta()
+func (b ColListTableBuilder) AppendString(j int, value string) {
+	meta := b.table.cols[j].Meta()
 	CheckColType(meta, query.TString)
-	col := b.blk.cols[j].(*stringColumn)
+	col := b.table.cols[j].(*stringColumn)
 	col.data = b.alloc.AppendStrings(col.data, value)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
-func (b ColListBlockBuilder) AppendStrings(j int, values []string) {
+func (b ColListTableBuilder) AppendStrings(j int, values []string) {
 	b.checkColType(j, query.TString)
-	col := b.blk.cols[j].(*stringColumn)
+	col := b.table.cols[j].(*stringColumn)
 	col.data = b.alloc.AppendStrings(col.data, values...)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
 
-func (b ColListBlockBuilder) SetTime(i int, j int, value Time) {
+func (b ColListTableBuilder) SetTime(i int, j int, value Time) {
 	b.checkColType(j, query.TTime)
-	b.blk.cols[j].(*timeColumn).data[i] = value
+	b.table.cols[j].(*timeColumn).data[i] = value
 }
-func (b ColListBlockBuilder) AppendTime(j int, value Time) {
+func (b ColListTableBuilder) AppendTime(j int, value Time) {
 	b.checkColType(j, query.TTime)
-	col := b.blk.cols[j].(*timeColumn)
+	col := b.table.cols[j].(*timeColumn)
 	col.data = b.alloc.AppendTimes(col.data, value)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
-func (b ColListBlockBuilder) AppendTimes(j int, values []Time) {
+func (b ColListTableBuilder) AppendTimes(j int, values []Time) {
 	b.checkColType(j, query.TTime)
-	col := b.blk.cols[j].(*timeColumn)
+	col := b.table.cols[j].(*timeColumn)
 	col.data = b.alloc.AppendTimes(col.data, values...)
-	b.blk.nrows = len(col.data)
+	b.table.nrows = len(col.data)
 }
 
-func (b ColListBlockBuilder) checkColType(j int, typ query.DataType) {
-	CheckColType(b.blk.colMeta[j], typ)
+func (b ColListTableBuilder) checkColType(j int, typ query.DataType) {
+	CheckColType(b.table.colMeta[j], typ)
 }
 
 func CheckColType(col query.ColMeta, typ query.DataType) {
@@ -496,43 +496,43 @@ func PanicUnknownType(typ query.DataType) {
 	panic(fmt.Errorf("unknown type %v", typ))
 }
 
-func (b ColListBlockBuilder) Block() (query.Block, error) {
+func (b ColListTableBuilder) Table() (query.Table, error) {
 	// Create copy in mutable state
-	return b.blk.Copy(), nil
+	return b.table.Copy(), nil
 }
 
-// RawBlock returns the underlying block being constructed.
-// The Block returned will be modified by future calls to any BlockBuilder methods.
-func (b ColListBlockBuilder) RawBlock() *ColListBlock {
+// RawTable returns the underlying table being constructed.
+// The table returned will be modified by future calls to any TableBuilder methods.
+func (b ColListTableBuilder) RawTable() *ColListTable {
 	// Create copy in mutable state
-	return b.blk
+	return b.table
 }
 
-func (b ColListBlockBuilder) ClearData() {
-	for _, c := range b.blk.cols {
+func (b ColListTableBuilder) ClearData() {
+	for _, c := range b.table.cols {
 		c.Clear()
 	}
-	b.blk.nrows = 0
+	b.table.nrows = 0
 }
 
-func (b ColListBlockBuilder) Sort(cols []string, desc bool) {
+func (b ColListTableBuilder) Sort(cols []string, desc bool) {
 	colIdxs := make([]int, len(cols))
 	for i, label := range cols {
-		for j, c := range b.blk.colMeta {
+		for j, c := range b.table.colMeta {
 			if c.Label == label {
 				colIdxs[i] = j
 				break
 			}
 		}
 	}
-	s := colListBlockSorter{cols: colIdxs, desc: desc, b: b.blk}
+	s := colListTableSorter{cols: colIdxs, desc: desc, b: b.table}
 	sort.Sort(s)
 }
 
-// ColListBlock implements Block using list of columns.
-// All data for the block is stored in RAM.
-// As a result At* methods are provided directly on the block for easy access.
-type ColListBlock struct {
+// ColListTable implements Table using list of columns.
+// All data for the table is stored in RAM.
+// As a result At* methods are provided directly on the table for easy access.
+type ColListTable struct {
 	key     query.GroupKey
 	colMeta []query.ColMeta
 	cols    []column
@@ -541,89 +541,89 @@ type ColListBlock struct {
 	refCount int32
 }
 
-func (b *ColListBlock) RefCount(n int) {
-	c := atomic.AddInt32(&b.refCount, int32(n))
+func (t *ColListTable) RefCount(n int) {
+	c := atomic.AddInt32(&t.refCount, int32(n))
 	if c == 0 {
-		for _, c := range b.cols {
+		for _, c := range t.cols {
 			c.Clear()
 		}
 	}
 }
 
-func (b *ColListBlock) Key() query.GroupKey {
-	return b.key
+func (t *ColListTable) Key() query.GroupKey {
+	return t.key
 }
-func (b *ColListBlock) Cols() []query.ColMeta {
-	return b.colMeta
+func (t *ColListTable) Cols() []query.ColMeta {
+	return t.colMeta
 }
-func (b *ColListBlock) Empty() bool {
-	return b.nrows == 0
+func (t *ColListTable) Empty() bool {
+	return t.nrows == 0
 }
-func (b *ColListBlock) NRows() int {
-	return b.nrows
-}
-
-func (b *ColListBlock) Len() int {
-	return b.nrows
+func (t *ColListTable) NRows() int {
+	return t.nrows
 }
 
-func (b *ColListBlock) Do(f func(query.ColReader) error) error {
-	return f(b)
+func (t *ColListTable) Len() int {
+	return t.nrows
 }
 
-func (b *ColListBlock) Bools(j int) []bool {
-	CheckColType(b.colMeta[j], query.TBool)
-	return b.cols[j].(*boolColumn).data
+func (t *ColListTable) Do(f func(query.ColReader) error) error {
+	return f(t)
 }
-func (b *ColListBlock) Ints(j int) []int64 {
-	CheckColType(b.colMeta[j], query.TInt)
-	return b.cols[j].(*intColumn).data
+
+func (t *ColListTable) Bools(j int) []bool {
+	CheckColType(t.colMeta[j], query.TBool)
+	return t.cols[j].(*boolColumn).data
 }
-func (b *ColListBlock) UInts(j int) []uint64 {
-	CheckColType(b.colMeta[j], query.TUInt)
-	return b.cols[j].(*uintColumn).data
+func (t *ColListTable) Ints(j int) []int64 {
+	CheckColType(t.colMeta[j], query.TInt)
+	return t.cols[j].(*intColumn).data
 }
-func (b *ColListBlock) Floats(j int) []float64 {
-	CheckColType(b.colMeta[j], query.TFloat)
-	return b.cols[j].(*floatColumn).data
+func (t *ColListTable) UInts(j int) []uint64 {
+	CheckColType(t.colMeta[j], query.TUInt)
+	return t.cols[j].(*uintColumn).data
 }
-func (b *ColListBlock) Strings(j int) []string {
-	meta := b.colMeta[j]
+func (t *ColListTable) Floats(j int) []float64 {
+	CheckColType(t.colMeta[j], query.TFloat)
+	return t.cols[j].(*floatColumn).data
+}
+func (t *ColListTable) Strings(j int) []string {
+	meta := t.colMeta[j]
 	CheckColType(meta, query.TString)
-	return b.cols[j].(*stringColumn).data
+	return t.cols[j].(*stringColumn).data
 }
-func (b *ColListBlock) Times(j int) []Time {
-	CheckColType(b.colMeta[j], query.TTime)
-	return b.cols[j].(*timeColumn).data
+func (t *ColListTable) Times(j int) []Time {
+	CheckColType(t.colMeta[j], query.TTime)
+	return t.cols[j].(*timeColumn).data
 }
 
-func (b *ColListBlock) Copy() *ColListBlock {
-	cpy := new(ColListBlock)
-	cpy.key = b.key
-	cpy.nrows = b.nrows
+func (t *ColListTable) Copy() *ColListTable {
+	cpy := new(ColListTable)
+	cpy.key = t.key
+	cpy.nrows = t.nrows
 
-	cpy.colMeta = make([]query.ColMeta, len(b.colMeta))
-	copy(cpy.colMeta, b.colMeta)
+	cpy.colMeta = make([]query.ColMeta, len(t.colMeta))
+	copy(cpy.colMeta, t.colMeta)
 
-	cpy.cols = make([]column, len(b.cols))
-	for i, c := range b.cols {
+	cpy.cols = make([]column, len(t.cols))
+	for i, c := range t.cols {
 		cpy.cols[i] = c.Copy()
 	}
 
 	return cpy
 }
 
-type colListBlockSorter struct {
+type colListTableSorter struct {
 	cols []int
 	desc bool
-	b    *ColListBlock
+	b    *ColListTable
 }
 
-func (c colListBlockSorter) Len() int {
+func (c colListTableSorter) Len() int {
 	return c.b.nrows
 }
 
-func (c colListBlockSorter) Less(x int, y int) (less bool) {
+func (c colListTableSorter) Less(x int, y int) (less bool) {
 	for _, j := range c.cols {
 		if !c.b.cols[j].Equal(x, y) {
 			less = c.b.cols[j].Less(x, y)
@@ -636,7 +636,7 @@ func (c colListBlockSorter) Less(x int, y int) (less bool) {
 	return
 }
 
-func (c colListBlockSorter) Swap(x int, y int) {
+func (c colListTableSorter) Swap(x int, y int) {
 	for _, col := range c.b.cols {
 		col.Swap(x, y)
 	}
@@ -859,98 +859,98 @@ func (c *timeColumn) Swap(i, j int) {
 	c.data[i], c.data[j] = c.data[j], c.data[i]
 }
 
-type BlockBuilderCache interface {
-	// BlockBuilder returns an existing or new BlockBuilder for the given meta data.
-	// The boolean return value indicates if BlockBuilder is new.
-	BlockBuilder(key query.GroupKey) (BlockBuilder, bool)
-	ForEachBuilder(f func(query.GroupKey, BlockBuilder))
+type TableBuilderCache interface {
+	// TableBuilder returns an existing or new TableBuilder for the given meta data.
+	// The boolean return value indicates if TableBuilder is new.
+	TableBuilder(key query.GroupKey) (TableBuilder, bool)
+	ForEachBuilder(f func(query.GroupKey, TableBuilder))
 }
 
-type blockBuilderCache struct {
-	blocks *GroupLookup
+type tableBuilderCache struct {
+	tables *GroupLookup
 	alloc  *Allocator
 
 	triggerSpec query.TriggerSpec
 }
 
-func NewBlockBuilderCache(a *Allocator) *blockBuilderCache {
-	return &blockBuilderCache{
-		blocks: NewGroupLookup(),
+func NewTableBuilderCache(a *Allocator) *tableBuilderCache {
+	return &tableBuilderCache{
+		tables: NewGroupLookup(),
 		alloc:  a,
 	}
 }
 
-type blockState struct {
-	builder BlockBuilder
+type tableState struct {
+	builder TableBuilder
 	trigger Trigger
 }
 
-func (d *blockBuilderCache) SetTriggerSpec(ts query.TriggerSpec) {
+func (d *tableBuilderCache) SetTriggerSpec(ts query.TriggerSpec) {
 	d.triggerSpec = ts
 }
 
-func (d *blockBuilderCache) Block(key query.GroupKey) (query.Block, error) {
+func (d *tableBuilderCache) Table(key query.GroupKey) (query.Table, error) {
 	b, ok := d.lookupState(key)
 	if !ok {
-		return nil, fmt.Errorf("block not found with key %v", key)
+		return nil, fmt.Errorf("table not found with key %v", key)
 	}
-	return b.builder.Block()
+	return b.builder.Table()
 }
 
-func (d *blockBuilderCache) lookupState(key query.GroupKey) (blockState, bool) {
-	v, ok := d.blocks.Lookup(key)
+func (d *tableBuilderCache) lookupState(key query.GroupKey) (tableState, bool) {
+	v, ok := d.tables.Lookup(key)
 	if !ok {
-		return blockState{}, false
+		return tableState{}, false
 	}
-	return v.(blockState), true
+	return v.(tableState), true
 }
 
-// BlockBuilder will return the builder for the specified block.
+// TableBuilder will return the builder for the specified table.
 // If no builder exists, one will be created.
-func (d *blockBuilderCache) BlockBuilder(key query.GroupKey) (BlockBuilder, bool) {
+func (d *tableBuilderCache) TableBuilder(key query.GroupKey) (TableBuilder, bool) {
 	b, ok := d.lookupState(key)
 	if !ok {
-		builder := NewColListBlockBuilder(key, d.alloc)
+		builder := NewColListTableBuilder(key, d.alloc)
 		t := NewTriggerFromSpec(d.triggerSpec)
-		b = blockState{
+		b = tableState{
 			builder: builder,
 			trigger: t,
 		}
-		d.blocks.Set(key, b)
+		d.tables.Set(key, b)
 	}
 	return b.builder, !ok
 }
 
-func (d *blockBuilderCache) ForEachBuilder(f func(query.GroupKey, BlockBuilder)) {
-	d.blocks.Range(func(key query.GroupKey, value interface{}) {
-		f(key, value.(blockState).builder)
+func (d *tableBuilderCache) ForEachBuilder(f func(query.GroupKey, TableBuilder)) {
+	d.tables.Range(func(key query.GroupKey, value interface{}) {
+		f(key, value.(tableState).builder)
 	})
 }
 
-func (d *blockBuilderCache) DiscardBlock(key query.GroupKey) {
+func (d *tableBuilderCache) DiscardTable(key query.GroupKey) {
 	b, ok := d.lookupState(key)
 	if ok {
 		b.builder.ClearData()
 	}
 }
 
-func (d *blockBuilderCache) ExpireBlock(key query.GroupKey) {
-	b, ok := d.blocks.Delete(key)
+func (d *tableBuilderCache) ExpireTable(key query.GroupKey) {
+	b, ok := d.tables.Delete(key)
 	if ok {
-		b.(blockState).builder.ClearData()
+		b.(tableState).builder.ClearData()
 	}
 }
 
-func (d *blockBuilderCache) ForEach(f func(query.GroupKey)) {
-	d.blocks.Range(func(key query.GroupKey, value interface{}) {
+func (d *tableBuilderCache) ForEach(f func(query.GroupKey)) {
+	d.tables.Range(func(key query.GroupKey, value interface{}) {
 		f(key)
 	})
 }
 
-func (d *blockBuilderCache) ForEachWithContext(f func(query.GroupKey, Trigger, BlockContext)) {
-	d.blocks.Range(func(key query.GroupKey, value interface{}) {
-		b := value.(blockState)
-		f(key, b.trigger, BlockContext{
+func (d *tableBuilderCache) ForEachWithContext(f func(query.GroupKey, Trigger, TableContext)) {
+	d.tables.Range(func(key query.GroupKey, value interface{}) {
+		b := value.(tableState)
+		f(key, b.trigger, TableContext{
 			Key:   key,
 			Count: b.builder.NRows(),
 		})

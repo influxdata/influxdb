@@ -82,7 +82,7 @@ func createSpreadTransformation(id execute.DatasetID, mode execute.AccumulationM
 	return t, d, nil
 }
 
-// SpreadAgg finds the difference between the max and min values a block
+// SpreadAgg finds the difference between the max and min values a table
 type SpreadAgg struct {
 	minSet bool
 	maxSet bool

@@ -192,7 +192,7 @@ func (r *resultDecoder) Name() string {
 	return r.id
 }
 
-func (r *resultDecoder) Blocks() query.BlockIterator {
+func (r *resultDecoder) Tables() query.TableIterator {
 	return r
 }
 
@@ -200,7 +200,7 @@ func (r *resultDecoder) Abort(error) {
 	panic("not implemented")
 }
 
-func (r *resultDecoder) Do(f func(query.Block) error) error {
+func (r *resultDecoder) Do(f func(query.Table) error) error {
 	var extraLine []string
 	var meta tableMetadata
 	newMeta := true
@@ -228,8 +228,8 @@ func (r *resultDecoder) Do(f func(query.Block) error) error {
 			}
 		}
 
-		// create new block
-		b, err := newBlock(r.cr, r.c, meta, extraLine)
+		// create new table
+		b, err := newTable(r.cr, r.c, meta, extraLine)
 		if err != nil {
 			return err
 		}
@@ -380,7 +380,7 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 	}, nil
 }
 
-type blockDecoder struct {
+type tableDecoder struct {
 	r *csv.Reader
 	c ResultDecoderConfig
 
@@ -393,7 +393,7 @@ type blockDecoder struct {
 	key         query.GroupKey
 	cols        []colMeta
 
-	builder *execute.ColListBlockBuilder
+	builder *execute.ColListTableBuilder
 
 	empty bool
 
@@ -403,13 +403,13 @@ type blockDecoder struct {
 	extraLine []string
 }
 
-func newBlock(
+func newTable(
 	r *csv.Reader,
 	c ResultDecoderConfig,
 	meta tableMetadata,
 	extraLine []string,
-) (*blockDecoder, error) {
-	b := &blockDecoder{
+) (*tableDecoder, error) {
+	b := &tableDecoder{
 		r:    r,
 		c:    c,
 		meta: meta,
@@ -427,49 +427,49 @@ func newBlock(
 	return b, nil
 }
 
-func (b *blockDecoder) Do(f func(query.ColReader) error) (err error) {
+func (d *tableDecoder) Do(f func(query.ColReader) error) (err error) {
 	// Send off first batch from first advance call.
-	err = f(b.builder.RawBlock())
+	err = f(d.builder.RawTable())
 	if err != nil {
 		return
 	}
-	b.builder.ClearData()
+	d.builder.ClearData()
 
-	for b.more {
-		b.more, err = b.advance(nil)
+	for d.more {
+		d.more, err = d.advance(nil)
 		if err != nil {
 			return
 		}
-		err = f(b.builder.RawBlock())
+		err = f(d.builder.RawTable())
 		if err != nil {
 			return
 		}
-		b.builder.ClearData()
+		d.builder.ClearData()
 	}
 	return
 }
 
-// advance reads the csv data until the end of the block or bufSize rows have been read.
+// advance reads the csv data until the end of the table or bufSize rows have been read.
 // Advance returns whether there is more data and any error.
-func (b *blockDecoder) advance(extraLine []string) (bool, error) {
+func (d *tableDecoder) advance(extraLine []string) (bool, error) {
 	var line, record []string
 	var err error
-	for !b.initialized || b.builder.NRows() < b.c.MaxBufferCount {
+	for !d.initialized || d.builder.NRows() < d.c.MaxBufferCount {
 		if len(extraLine) > 0 {
 			line = extraLine
 			extraLine = nil
 		} else {
-			l, err := b.r.Read()
+			l, err := d.r.Read()
 			if err != nil {
 				if err == io.EOF {
-					b.eof = true
+					d.eof = true
 					return false, nil
 				}
 				return false, err
 			}
 			line = l
 		}
-		if len(line) != b.meta.NumFields {
+		if len(line) != d.meta.NumFields {
 			if len(line) > annotationIdx && line[annotationIdx] == "" {
 				return false, csv.ErrFieldCount
 			}
@@ -481,20 +481,20 @@ func (b *blockDecoder) advance(extraLine []string) (bool, error) {
 			goto DONE
 		}
 
-		if !b.initialized {
-			if err := b.init(line); err != nil {
+		if !d.initialized {
+			if err := d.init(line); err != nil {
 				return false, err
 			}
-			b.initialized = true
+			d.initialized = true
 		}
 
 		// check if we have tableID that is now different
-		if line[tableIdx] != "" && line[tableIdx] != b.id {
+		if line[tableIdx] != "" && line[tableIdx] != d.id {
 			goto DONE
 		}
 
 		record = line[recordStartIdx:]
-		err = b.appendRecord(record)
+		err = d.appendRecord(record)
 		if err != nil {
 			return false, err
 		}
@@ -503,18 +503,18 @@ func (b *blockDecoder) advance(extraLine []string) (bool, error) {
 
 DONE:
 	// table is done
-	b.extraLine = line
-	if !b.initialized {
+	d.extraLine = line
+	if !d.initialized {
 		return false, errors.New("table was not initialized, missing group key data")
 	}
 	return false, nil
 }
 
-func (b *blockDecoder) init(line []string) error {
-	if b.meta.TableID != "" {
-		b.id = b.meta.TableID
+func (d *tableDecoder) init(line []string) error {
+	if d.meta.TableID != "" {
+		d.id = d.meta.TableID
 	} else if len(line) != 0 {
-		b.id = line[tableIdx]
+		d.id = line[tableIdx]
 	} else {
 		return errors.New("missing table ID")
 	}
@@ -522,13 +522,13 @@ func (b *blockDecoder) init(line []string) error {
 	if len(line) != 0 {
 		record = line[recordStartIdx:]
 	}
-	keyCols := make([]query.ColMeta, 0, len(b.meta.Cols))
-	keyValues := make([]values.Value, 0, len(b.meta.Cols))
-	for j, c := range b.meta.Cols {
-		if b.meta.Groups[j] {
+	keyCols := make([]query.ColMeta, 0, len(d.meta.Cols))
+	keyValues := make([]values.Value, 0, len(d.meta.Cols))
+	for j, c := range d.meta.Cols {
+		if d.meta.Groups[j] {
 			var value values.Value
-			if b.meta.Defaults[j] != nil {
-				value = b.meta.Defaults[j]
+			if d.meta.Defaults[j] != nil {
+				value = d.meta.Defaults[j]
 			} else if record != nil {
 				v, err := decodeValue(record[j], c)
 				if err != nil {
@@ -544,61 +544,61 @@ func (b *blockDecoder) init(line []string) error {
 	}
 
 	key := execute.NewGroupKey(keyCols, keyValues)
-	b.builder = execute.NewColListBlockBuilder(key, newUnlimitedAllocator())
-	for _, c := range b.meta.Cols {
-		b.builder.AddCol(c.ColMeta)
+	d.builder = execute.NewColListTableBuilder(key, newUnlimitedAllocator())
+	for _, c := range d.meta.Cols {
+		d.builder.AddCol(c.ColMeta)
 	}
 
 	return nil
 }
 
-func (b *blockDecoder) appendRecord(record []string) error {
-	b.empty = false
-	for j, c := range b.meta.Cols {
-		if record[j] == "" && b.meta.Defaults[j] != nil {
+func (d *tableDecoder) appendRecord(record []string) error {
+	d.empty = false
+	for j, c := range d.meta.Cols {
+		if record[j] == "" && d.meta.Defaults[j] != nil {
 			switch c.Type {
 			case query.TBool:
-				v := b.meta.Defaults[j].Bool()
-				b.builder.AppendBool(j, v)
+				v := d.meta.Defaults[j].Bool()
+				d.builder.AppendBool(j, v)
 			case query.TInt:
-				v := b.meta.Defaults[j].Int()
-				b.builder.AppendInt(j, v)
+				v := d.meta.Defaults[j].Int()
+				d.builder.AppendInt(j, v)
 			case query.TUInt:
-				v := b.meta.Defaults[j].UInt()
-				b.builder.AppendUInt(j, v)
+				v := d.meta.Defaults[j].UInt()
+				d.builder.AppendUInt(j, v)
 			case query.TFloat:
-				v := b.meta.Defaults[j].Float()
-				b.builder.AppendFloat(j, v)
+				v := d.meta.Defaults[j].Float()
+				d.builder.AppendFloat(j, v)
 			case query.TString:
-				v := b.meta.Defaults[j].Str()
-				b.builder.AppendString(j, v)
+				v := d.meta.Defaults[j].Str()
+				d.builder.AppendString(j, v)
 			case query.TTime:
-				v := b.meta.Defaults[j].Time()
-				b.builder.AppendTime(j, v)
+				v := d.meta.Defaults[j].Time()
+				d.builder.AppendTime(j, v)
 			default:
 				return fmt.Errorf("unsupported column type %v", c.Type)
 			}
 			continue
 		}
-		if err := decodeValueInto(j, c, record[j], b.builder); err != nil {
+		if err := decodeValueInto(j, c, record[j], d.builder); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (b *blockDecoder) Empty() bool {
-	return b.empty
+func (d *tableDecoder) Empty() bool {
+	return d.empty
 }
 
-func (b *blockDecoder) RefCount(n int) {}
+func (d *tableDecoder) RefCount(n int) {}
 
-func (b *blockDecoder) Key() query.GroupKey {
-	return b.builder.Key()
+func (d *tableDecoder) Key() query.GroupKey {
+	return d.builder.Key()
 }
 
-func (b *blockDecoder) Cols() []query.ColMeta {
-	return b.builder.Cols()
+func (d *tableDecoder) Cols() []query.ColMeta {
+	return d.builder.Cols()
 }
 
 type colMeta struct {
@@ -664,9 +664,9 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 	var lastCols []colMeta
 	var lastEmpty bool
 
-	err := result.Blocks().Do(func(b query.Block) error {
+	err := result.Tables().Do(func(b query.Table) error {
 		e.written = true
-		// Update cols with block cols
+		// Update cols with table cols
 		cols := metaCols
 		for _, c := range b.Cols() {
 			cm := colMeta{ColMeta: c}
@@ -682,7 +682,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 
 		if lastEmpty || schemaChanged || b.Empty() {
 			if len(lastCols) > 0 {
-				// Write out empty line if not first block
+				// Write out empty line if not first table
 				writer.Write(nil)
 			}
 
@@ -907,7 +907,7 @@ func decodeValue(value string, c colMeta) (values.Value, error) {
 	return val, nil
 }
 
-func decodeValueInto(j int, c colMeta, value string, builder execute.BlockBuilder) error {
+func decodeValueInto(j int, c colMeta, value string, builder execute.TableBuilder) error {
 	switch c.Type {
 	case query.TBool:
 		v, err := strconv.ParseBool(value)

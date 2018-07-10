@@ -98,7 +98,7 @@ func createMapTransformation(id execute.DatasetID, mode execute.AccumulationMode
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t, err := NewMapTransformation(d, cache, s)
 	if err != nil {
@@ -109,13 +109,13 @@ func createMapTransformation(id execute.DatasetID, mode execute.AccumulationMode
 
 type mapTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	fn       *execute.RowMapFn
 	mergeKey bool
 }
 
-func NewMapTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *MapProcedureSpec) (*mapTransformation, error) {
+func NewMapTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *MapProcedureSpec) (*mapTransformation, error) {
 	fn, err := execute.NewRowMapFn(spec.Fn)
 	if err != nil {
 		return nil, err
@@ -128,11 +128,11 @@ func NewMapTransformation(d execute.Dataset, cache execute.BlockBuilderCache, sp
 	}, nil
 }
 
-func (t *mapTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *mapTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
+func (t *mapTransformation) Process(id execute.DatasetID, b query.Table) error {
 	// Prepare the functions for the column types.
 	cols := b.Cols()
 	err := t.fn.Prepare(cols)
@@ -163,10 +163,10 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 				continue
 			}
 			key := groupKeyForObject(i, cr, m, on)
-			builder, created := t.cache.BlockBuilder(key)
+			builder, created := t.cache.TableBuilder(key)
 			if created {
 				if t.mergeKey {
-					execute.AddBlockKeyCols(b.Key(), builder)
+					execute.AddTableKeyCols(b.Key(), builder)
 				}
 				// Add columns from function in sorted order
 				for _, k := range keys {

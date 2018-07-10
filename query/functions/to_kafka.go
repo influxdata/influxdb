@@ -209,7 +209,7 @@ func createToKafkaTransformation(id execute.DatasetID, mode execute.Accumulation
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewToKafkaTransformation(d, cache, s)
 	return t, d, nil
@@ -217,14 +217,14 @@ func createToKafkaTransformation(id execute.DatasetID, mode execute.Accumulation
 
 type ToKafkaTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 	spec  *ToKafkaProcedureSpec
 }
 
-func (t *ToKafkaTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *ToKafkaTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
-func NewToKafkaTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *ToKafkaProcedureSpec) *ToKafkaTransformation {
+func NewToKafkaTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *ToKafkaProcedureSpec) *ToKafkaTransformation {
 	return &ToKafkaTransformation{
 		d:     d,
 		cache: cache,
@@ -256,7 +256,7 @@ func (m *toKafkaMetric) Time() time.Time {
 	return m.t
 }
 
-func (t *ToKafkaTransformation) Process(id execute.DatasetID, b query.Block) (err error) {
+func (t *ToKafkaTransformation) Process(id execute.DatasetID, b query.Table) (err error) {
 	w := DefaultKafkaWriterFactory(kafka.WriterConfig{
 		Brokers:       t.spec.Spec.Brokers,
 		Topic:         t.spec.Spec.Topic,

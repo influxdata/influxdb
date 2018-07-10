@@ -24,7 +24,7 @@ func TestDerivativeOperation_Marshaling(t *testing.T) {
 }
 
 func TestDerivative_PassThrough(t *testing.T) {
-	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 		s := functions.NewDerivativeTransformation(
 			d,
 			c,
@@ -38,8 +38,8 @@ func TestDerivative_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.DerivativeProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
 			name: "float",
@@ -48,7 +48,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    1,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -58,7 +58,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(2), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -75,7 +75,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    query.Duration(time.Second),
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -85,7 +85,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(3 * time.Second), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -102,7 +102,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    1,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TInt},
@@ -112,7 +112,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(2), int64(10)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -129,7 +129,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    query.Duration(time.Second),
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TInt},
@@ -139,7 +139,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(3 * time.Second), int64(10)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -157,7 +157,7 @@ func TestDerivative_Process(t *testing.T) {
 				Unit:        1,
 				NonNegative: true,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TInt},
@@ -168,7 +168,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(3), int64(20)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -186,7 +186,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    1,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TUInt},
@@ -196,7 +196,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(2), uint64(20)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -213,7 +213,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    1,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TUInt},
@@ -223,7 +223,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(2), uint64(10)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -241,7 +241,7 @@ func TestDerivative_Process(t *testing.T) {
 				Unit:        1,
 				NonNegative: true,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TUInt},
@@ -252,7 +252,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(3), uint64(20)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -270,7 +270,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    query.Duration(time.Second),
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TUInt},
@@ -280,7 +280,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(3 * time.Second), uint64(10)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -291,14 +291,14 @@ func TestDerivative_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "non negative one block",
+			name: "non negative one table",
 			spec: &functions.DerivativeProcedureSpec{
 				Columns:     []string{execute.DefaultValueColLabel},
 				TimeCol:     execute.DefaultTimeColLabel,
 				Unit:        1,
 				NonNegative: true,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -309,7 +309,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(3), 2.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -327,7 +327,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    1,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -338,7 +338,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(2), 1.0, "b"},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -356,7 +356,7 @@ func TestDerivative_Process(t *testing.T) {
 				TimeCol: execute.DefaultTimeColLabel,
 				Unit:    1,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "x", Type: query.TFloat},
@@ -367,7 +367,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(2), 1.0, 10.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "x", Type: query.TFloat},
@@ -386,7 +386,7 @@ func TestDerivative_Process(t *testing.T) {
 				Unit:        1,
 				NonNegative: true,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "x", Type: query.TFloat},
@@ -398,7 +398,7 @@ func TestDerivative_Process(t *testing.T) {
 					{execute.Time(3), 2.0, 0.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "x", Type: query.TFloat},
@@ -418,7 +418,7 @@ func TestDerivative_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewDerivativeTransformation(d, c, tc.spec)
 				},
 			)

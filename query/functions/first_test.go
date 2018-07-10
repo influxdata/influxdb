@@ -29,12 +29,12 @@ func TestFirstOperation_Marshaling(t *testing.T) {
 func TestFirst_Process(t *testing.T) {
 	testCases := []struct {
 		name string
-		data *executetest.Block
+		data *executetest.Table
 		want [][]int
 	}{
 		{
 			name: "first",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -71,7 +71,7 @@ func TestFirst_Process(t *testing.T) {
 }
 
 func BenchmarkFirst(b *testing.B) {
-	executetest.IndexSelectorFuncBenchmarkHelper(b, new(functions.FirstSelector), NormalBlock)
+	executetest.IndexSelectorFuncBenchmarkHelper(b, new(functions.FirstSelector), NormalTable)
 }
 
 func TestFirst_PushDown_Match(t *testing.T) {

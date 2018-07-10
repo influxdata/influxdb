@@ -12,14 +12,14 @@ import (
 
 func ProcessTestHelper(
 	t *testing.T,
-	data []query.Block,
-	want []*Block,
-	create func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation,
+	data []query.Table,
+	want []*Table,
+	create func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation,
 ) {
 	t.Helper()
 
 	d := NewDataset(RandomDatasetID())
-	c := execute.NewBlockBuilderCache(UnlimitedAllocator)
+	c := execute.NewTableBuilderCache(UnlimitedAllocator)
 	c.SetTriggerSpec(execute.DefaultTriggerSpec)
 
 	tx := create(d, c)
@@ -31,18 +31,18 @@ func ProcessTestHelper(
 		}
 	}
 
-	got, err := BlocksFromCache(c)
+	got, err := TablesFromCache(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	NormalizeBlocks(got)
-	NormalizeBlocks(want)
+	NormalizeTables(got)
+	NormalizeTables(want)
 
-	sort.Sort(SortedBlocks(got))
-	sort.Sort(SortedBlocks(want))
+	sort.Sort(SortedTables(got))
+	sort.Sort(SortedTables(want))
 
 	if !cmp.Equal(want, got, cmpopts.EquateNaNs()) {
-		t.Errorf("unexpected blocks -want/+got\n%s", cmp.Diff(want, got))
+		t.Errorf("unexpected tables -want/+got\n%s", cmp.Diff(want, got))
 	}
 }

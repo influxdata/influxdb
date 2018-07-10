@@ -9,28 +9,28 @@ import (
 
 type Result interface {
 	Name() string
-	// Blocks returns a BlockIterator for iterating through results
-	Blocks() BlockIterator
+	// Tables returns a TableIterator for iterating through results
+	Tables() TableIterator
 }
 
-type BlockIterator interface {
-	Do(f func(Block) error) error
+type TableIterator interface {
+	Do(f func(Table) error) error
 }
 
-type Block interface {
+type Table interface {
 	Key() GroupKey
 
 	Cols() []ColMeta
 
-	// Do calls f to process the data contained within the block.
+	// Do calls f to process the data contained within the table.
 	// The function f will be called zero or more times.
 	Do(f func(ColReader) error) error
 
-	// RefCount modifies the reference count on the block by n.
-	// When the RefCount goes to zero, the block is freed.
+	// RefCount modifies the reference count on the table by n.
+	// When the RefCount goes to zero, the table is freed.
 	RefCount(n int)
 
-	// Empty returns whether the block contains no records.
+	// Empty returns whether the table contains no records.
 	Empty() bool
 }
 

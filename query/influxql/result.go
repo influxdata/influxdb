@@ -41,10 +41,10 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 			break
 		}
 
-		blocks := res.Blocks()
+		tables := res.Tables()
 
 		result := Result{StatementID: id}
-		if err := blocks.Do(func(b query.Block) error {
+		if err := tables.Do(func(b query.Table) error {
 			var row Row
 
 			for j, c := range b.Key().Cols() {

@@ -92,7 +92,7 @@ func createIntegralTransformation(id execute.DatasetID, mode execute.Accumulatio
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewIntegralTransformation(d, cache, s)
 	return t, d, nil
@@ -100,12 +100,12 @@ func createIntegralTransformation(id execute.DatasetID, mode execute.Accumulatio
 
 type integralTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	spec IntegralProcedureSpec
 }
 
-func NewIntegralTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *IntegralProcedureSpec) *integralTransformation {
+func NewIntegralTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *IntegralProcedureSpec) *integralTransformation {
 	return &integralTransformation{
 		d:     d,
 		cache: cache,
@@ -113,17 +113,17 @@ func NewIntegralTransformation(d execute.Dataset, cache execute.BlockBuilderCach
 	}
 }
 
-func (t *integralTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *integralTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *integralTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *integralTransformation) Process(id execute.DatasetID, b query.Table) error {
+	builder, created := t.cache.TableBuilder(b.Key())
 	if !created {
-		return fmt.Errorf("integral found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("integral found duplicate table with key: %v", b.Key())
 	}
 
-	execute.AddBlockKeyCols(b.Key(), builder)
+	execute.AddTableKeyCols(b.Key(), builder)
 	builder.AddCol(query.ColMeta{
 		Label: t.spec.TimeDst,
 		Type:  query.TTime,

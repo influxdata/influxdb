@@ -9,8 +9,8 @@ import (
 )
 
 type Transformation interface {
-	RetractBlock(id DatasetID, key query.GroupKey) error
-	Process(id DatasetID, b query.Block) error
+	RetractTable(id DatasetID, key query.GroupKey) error
+	Process(id DatasetID, b query.Table) error
 	UpdateWatermark(id DatasetID, t Time) error
 	UpdateProcessingTime(id DatasetID, t Time) error
 	Finish(id DatasetID, err error)

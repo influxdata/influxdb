@@ -8,7 +8,7 @@ import (
 	"github.com/influxdata/platform/query/execute"
 )
 
-func RowSelectorFuncTestHelper(t *testing.T, selector execute.RowSelector, data query.Block, want []execute.Row) {
+func RowSelectorFuncTestHelper(t *testing.T, selector execute.RowSelector, data query.Table, want []execute.Row) {
 	t.Helper()
 
 	s := selector.NewFloatSelector()
@@ -30,7 +30,7 @@ func RowSelectorFuncTestHelper(t *testing.T, selector execute.RowSelector, data 
 
 var rows []execute.Row
 
-func RowSelectorFuncBenchmarkHelper(b *testing.B, selector execute.RowSelector, data query.Block) {
+func RowSelectorFuncBenchmarkHelper(b *testing.B, selector execute.RowSelector, data query.Table) {
 	b.Helper()
 
 	valueIdx := execute.ColIdx(execute.DefaultValueColLabel, data.Cols())
@@ -49,7 +49,7 @@ func RowSelectorFuncBenchmarkHelper(b *testing.B, selector execute.RowSelector, 
 	}
 }
 
-func IndexSelectorFuncTestHelper(t *testing.T, selector execute.IndexSelector, data query.Block, want [][]int) {
+func IndexSelectorFuncTestHelper(t *testing.T, selector execute.IndexSelector, data query.Table, want [][]int) {
 	t.Helper()
 
 	var got [][]int
@@ -74,7 +74,7 @@ func IndexSelectorFuncTestHelper(t *testing.T, selector execute.IndexSelector, d
 	}
 }
 
-func IndexSelectorFuncBenchmarkHelper(b *testing.B, selector execute.IndexSelector, data query.Block) {
+func IndexSelectorFuncBenchmarkHelper(b *testing.B, selector execute.IndexSelector, data query.Table) {
 	b.Helper()
 
 	valueIdx := execute.ColIdx(execute.DefaultValueColLabel, data.Cols())

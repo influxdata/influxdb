@@ -17,15 +17,15 @@ func TestRowSelector_Process(t *testing.T) {
 	testCases := []struct {
 		name   string
 		config execute.SelectorConfig
-		data   []*executetest.Block
-		want   []*executetest.Block
+		data   []*executetest.Table
+		want   []*executetest.Table
 	}{
 		{
 			name: "single",
 			config: execute.SelectorConfig{
 				Column: "_value",
 			},
-			data: []*executetest.Block{{
+			data: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -46,7 +46,7 @@ func TestRowSelector_Process(t *testing.T) {
 					{execute.Time(0), execute.Time(100), execute.Time(90), 9.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -64,7 +64,7 @@ func TestRowSelector_Process(t *testing.T) {
 			config: execute.SelectorConfig{
 				Column: "x",
 			},
-			data: []*executetest.Block{{
+			data: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -85,7 +85,7 @@ func TestRowSelector_Process(t *testing.T) {
 					{execute.Time(0), execute.Time(100), execute.Time(90), 9.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -99,11 +99,11 @@ func TestRowSelector_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "multiple blocks",
+			name: "multiple tables",
 			config: execute.SelectorConfig{
 				Column: "_value",
 			},
-			data: []*executetest.Block{
+			data: []*executetest.Table{
 				{
 					KeyCols: []string{"_start", "_stop"},
 					ColMeta: []query.ColMeta{
@@ -147,7 +147,7 @@ func TestRowSelector_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"_start", "_stop"},
 					ColMeta: []query.ColMeta{
@@ -179,7 +179,7 @@ func TestRowSelector_Process(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			d := executetest.NewDataset(executetest.RandomDatasetID())
-			c := execute.NewBlockBuilderCache(executetest.UnlimitedAllocator)
+			c := execute.NewTableBuilderCache(executetest.UnlimitedAllocator)
 			c.SetTriggerSpec(execute.DefaultTriggerSpec)
 
 			selector := execute.NewRowSelectorTransformation(d, c, new(functions.MinSelector), tc.config)
@@ -191,19 +191,19 @@ func TestRowSelector_Process(t *testing.T) {
 				}
 			}
 
-			got, err := executetest.BlocksFromCache(c)
+			got, err := executetest.TablesFromCache(c)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			executetest.NormalizeBlocks(got)
-			executetest.NormalizeBlocks(tc.want)
+			executetest.NormalizeTables(got)
+			executetest.NormalizeTables(tc.want)
 
-			sort.Sort(executetest.SortedBlocks(got))
-			sort.Sort(executetest.SortedBlocks(tc.want))
+			sort.Sort(executetest.SortedTables(got))
+			sort.Sort(executetest.SortedTables(tc.want))
 
 			if !cmp.Equal(tc.want, got, cmpopts.EquateNaNs()) {
-				t.Errorf("unexpected blocks -want/+got\n%s", cmp.Diff(tc.want, got))
+				t.Errorf("unexpected tables -want/+got\n%s", cmp.Diff(tc.want, got))
 			}
 		})
 	}
@@ -214,15 +214,15 @@ func TestIndexSelector_Process(t *testing.T) {
 	testCases := []struct {
 		name   string
 		config execute.SelectorConfig
-		data   []*executetest.Block
-		want   []*executetest.Block
+		data   []*executetest.Table
+		want   []*executetest.Table
 	}{
 		{
 			name: "single",
 			config: execute.SelectorConfig{
 				Column: "_value",
 			},
-			data: []*executetest.Block{{
+			data: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -243,7 +243,7 @@ func TestIndexSelector_Process(t *testing.T) {
 					{execute.Time(0), execute.Time(100), execute.Time(90), 9.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -257,11 +257,11 @@ func TestIndexSelector_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "multiple blocks",
+			name: "multiple tables",
 			config: execute.SelectorConfig{
 				Column: "_value",
 			},
-			data: []*executetest.Block{
+			data: []*executetest.Table{
 				{
 					KeyCols: []string{"_start", "_stop"},
 					ColMeta: []query.ColMeta{
@@ -305,7 +305,7 @@ func TestIndexSelector_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"_start", "_stop"},
 					ColMeta: []query.ColMeta{
@@ -337,7 +337,7 @@ func TestIndexSelector_Process(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			d := executetest.NewDataset(executetest.RandomDatasetID())
-			c := execute.NewBlockBuilderCache(executetest.UnlimitedAllocator)
+			c := execute.NewTableBuilderCache(executetest.UnlimitedAllocator)
 			c.SetTriggerSpec(execute.DefaultTriggerSpec)
 
 			selector := execute.NewIndexSelectorTransformation(d, c, new(functions.FirstSelector), tc.config)
@@ -349,19 +349,19 @@ func TestIndexSelector_Process(t *testing.T) {
 				}
 			}
 
-			got, err := executetest.BlocksFromCache(c)
+			got, err := executetest.TablesFromCache(c)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			executetest.NormalizeBlocks(got)
-			executetest.NormalizeBlocks(tc.want)
+			executetest.NormalizeTables(got)
+			executetest.NormalizeTables(tc.want)
 
-			sort.Sort(executetest.SortedBlocks(got))
-			sort.Sort(executetest.SortedBlocks(tc.want))
+			sort.Sort(executetest.SortedTables(got))
+			sort.Sort(executetest.SortedTables(tc.want))
 
 			if !cmp.Equal(tc.want, got, cmpopts.EquateNaNs()) {
-				t.Errorf("unexpected blocks -want/+got\n%s", cmp.Diff(tc.want, got))
+				t.Errorf("unexpected tables -want/+got\n%s", cmp.Diff(tc.want, got))
 			}
 		})
 	}

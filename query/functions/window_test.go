@@ -77,7 +77,7 @@ func TestWindowOperation_Marshaling(t *testing.T) {
 }
 
 func TestFixedWindow_PassThrough(t *testing.T) {
-	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 		fw := functions.NewFixedWindowTransformation(
 			d,
 			c,
@@ -102,7 +102,7 @@ func TestFixedWindow_Process(t *testing.T) {
 		start         execute.Time
 		every, period execute.Duration
 		num           int
-		want          func(start execute.Time) []*executetest.Block
+		want          func(start execute.Time) []*executetest.Table
 	}{
 		{
 			name:     "nonoverlapping_nonaligned",
@@ -112,8 +112,8 @@ func TestFixedWindow_Process(t *testing.T) {
 			every:  execute.Duration(time.Minute),
 			period: execute.Duration(time.Minute),
 			num:    15,
-			want: func(start execute.Time) []*executetest.Block {
-				return []*executetest.Block{
+			want: func(start execute.Time) []*executetest.Table {
+				return []*executetest.Table{
 					{
 						KeyCols: []string{"_start", "_stop"},
 						ColMeta: []query.ColMeta{
@@ -173,8 +173,8 @@ func TestFixedWindow_Process(t *testing.T) {
 			every:  execute.Duration(time.Minute),
 			period: execute.Duration(time.Minute),
 			num:    15,
-			want: func(start execute.Time) []*executetest.Block {
-				return []*executetest.Block{
+			want: func(start execute.Time) []*executetest.Table {
+				return []*executetest.Table{
 					{
 						KeyCols: []string{"_start", "_stop"},
 						ColMeta: []query.ColMeta{
@@ -234,8 +234,8 @@ func TestFixedWindow_Process(t *testing.T) {
 			every:  execute.Duration(time.Minute),
 			period: execute.Duration(2 * time.Minute),
 			num:    15,
-			want: func(start execute.Time) []*executetest.Block {
-				return []*executetest.Block{
+			want: func(start execute.Time) []*executetest.Table {
+				return []*executetest.Table{
 					{
 						KeyCols: []string{"_start", "_stop"},
 						ColMeta: []query.ColMeta{
@@ -321,8 +321,8 @@ func TestFixedWindow_Process(t *testing.T) {
 			every:  execute.Duration(time.Minute),
 			period: execute.Duration(2 * time.Minute),
 			num:    15,
-			want: func(start execute.Time) []*executetest.Block {
-				return []*executetest.Block{
+			want: func(start execute.Time) []*executetest.Table {
+				return []*executetest.Table{
 					{
 						KeyCols: []string{"_start", "_stop"},
 						ColMeta: []query.ColMeta{
@@ -408,8 +408,8 @@ func TestFixedWindow_Process(t *testing.T) {
 			every:  execute.Duration(2 * time.Minute),
 			period: execute.Duration(time.Minute),
 			num:    24,
-			want: func(start execute.Time) []*executetest.Block {
-				return []*executetest.Block{
+			want: func(start execute.Time) []*executetest.Table {
+				return []*executetest.Table{
 					{
 						KeyCols: []string{"_start", "_stop"},
 						ColMeta: []query.ColMeta{
@@ -455,8 +455,8 @@ func TestFixedWindow_Process(t *testing.T) {
 			every:  execute.Duration(2 * time.Minute),
 			period: execute.Duration(time.Minute),
 			num:    24,
-			want: func(start execute.Time) []*executetest.Block {
-				return []*executetest.Block{
+			want: func(start execute.Time) []*executetest.Table {
+				return []*executetest.Table{
 					{
 						KeyCols: []string{"_start", "_stop"},
 						ColMeta: []query.ColMeta{
@@ -502,8 +502,8 @@ func TestFixedWindow_Process(t *testing.T) {
 			every:  execute.Duration(time.Minute),
 			period: execute.Duration(time.Minute),
 			num:    15,
-			want: func(start execute.Time) []*executetest.Block {
-				return []*executetest.Block{
+			want: func(start execute.Time) []*executetest.Table {
+				return []*executetest.Table{
 					{
 						KeyCols: []string{"_start", "_stop"},
 						ColMeta: []query.ColMeta{
@@ -564,7 +564,7 @@ func TestFixedWindow_Process(t *testing.T) {
 			stop := start + execute.Time(time.Hour)
 
 			d := executetest.NewDataset(executetest.RandomDatasetID())
-			c := execute.NewBlockBuilderCache(executetest.UnlimitedAllocator)
+			c := execute.NewTableBuilderCache(executetest.UnlimitedAllocator)
 			c.SetTriggerSpec(execute.DefaultTriggerSpec)
 
 			fw := functions.NewFixedWindowTransformation(
@@ -585,7 +585,7 @@ func TestFixedWindow_Process(t *testing.T) {
 				execute.DefaultStopColLabel,
 			)
 
-			block0 := &executetest.Block{
+			table0 := &executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
 					{Label: "_stop", Type: query.TTime},
@@ -608,7 +608,7 @@ func TestFixedWindow_Process(t *testing.T) {
 				case query.TString:
 					v = strconv.Itoa(i)
 				}
-				block0.Data = append(block0.Data, []interface{}{
+				table0.Data = append(table0.Data, []interface{}{
 					start,
 					stop,
 					start + execute.Time(time.Duration(i)*10*time.Second),
@@ -617,25 +617,25 @@ func TestFixedWindow_Process(t *testing.T) {
 			}
 
 			parentID := executetest.RandomDatasetID()
-			if err := fw.Process(parentID, block0); err != nil {
+			if err := fw.Process(parentID, table0); err != nil {
 				t.Fatal(err)
 			}
 
-			got, err := executetest.BlocksFromCache(c)
+			got, err := executetest.TablesFromCache(c)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			want := tc.want(start)
 
-			executetest.NormalizeBlocks(got)
-			executetest.NormalizeBlocks(want)
+			executetest.NormalizeTables(got)
+			executetest.NormalizeTables(want)
 
-			sort.Sort(executetest.SortedBlocks(got))
-			sort.Sort(executetest.SortedBlocks(want))
+			sort.Sort(executetest.SortedTables(got))
+			sort.Sort(executetest.SortedTables(want))
 
 			if !cmp.Equal(want, got) {
-				t.Errorf("unexpected blocks -want/+got\n%s", cmp.Diff(want, got))
+				t.Errorf("unexpected tables -want/+got\n%s", cmp.Diff(want, got))
 			}
 		})
 	}

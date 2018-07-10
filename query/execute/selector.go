@@ -8,7 +8,7 @@ import (
 
 type selectorTransformation struct {
 	d     Dataset
-	cache BlockBuilderCache
+	cache TableBuilderCache
 
 	config SelectorConfig
 }
@@ -36,11 +36,11 @@ type indexSelectorTransformation struct {
 }
 
 func NewRowSelectorTransformationAndDataset(id DatasetID, mode AccumulationMode, selector RowSelector, config SelectorConfig, a *Allocator) (*rowSelectorTransformation, Dataset) {
-	cache := NewBlockBuilderCache(a)
+	cache := NewTableBuilderCache(a)
 	d := NewDataset(id, mode, cache)
 	return NewRowSelectorTransformation(d, cache, selector, config), d
 }
-func NewRowSelectorTransformation(d Dataset, c BlockBuilderCache, selector RowSelector, config SelectorConfig) *rowSelectorTransformation {
+func NewRowSelectorTransformation(d Dataset, c TableBuilderCache, selector RowSelector, config SelectorConfig) *rowSelectorTransformation {
 	return &rowSelectorTransformation{
 		selectorTransformation: newSelectorTransformation(d, c, config),
 		selector:               selector,
@@ -48,18 +48,18 @@ func NewRowSelectorTransformation(d Dataset, c BlockBuilderCache, selector RowSe
 }
 
 func NewIndexSelectorTransformationAndDataset(id DatasetID, mode AccumulationMode, selector IndexSelector, config SelectorConfig, a *Allocator) (*indexSelectorTransformation, Dataset) {
-	cache := NewBlockBuilderCache(a)
+	cache := NewTableBuilderCache(a)
 	d := NewDataset(id, mode, cache)
 	return NewIndexSelectorTransformation(d, cache, selector, config), d
 }
-func NewIndexSelectorTransformation(d Dataset, c BlockBuilderCache, selector IndexSelector, config SelectorConfig) *indexSelectorTransformation {
+func NewIndexSelectorTransformation(d Dataset, c TableBuilderCache, selector IndexSelector, config SelectorConfig) *indexSelectorTransformation {
 	return &indexSelectorTransformation{
 		selectorTransformation: newSelectorTransformation(d, c, config),
 		selector:               selector,
 	}
 }
 
-func newSelectorTransformation(d Dataset, c BlockBuilderCache, config SelectorConfig) selectorTransformation {
+func newSelectorTransformation(d Dataset, c TableBuilderCache, config SelectorConfig) selectorTransformation {
 	if config.Column == "" {
 		config.Column = DefaultValueColLabel
 	}
@@ -70,9 +70,9 @@ func newSelectorTransformation(d Dataset, c BlockBuilderCache, config SelectorCo
 	}
 }
 
-func (t *selectorTransformation) RetractBlock(id DatasetID, key query.GroupKey) error {
+func (t *selectorTransformation) RetractTable(id DatasetID, key query.GroupKey) error {
 	//TODO(nathanielc): Store intermediate state for retractions
-	return t.d.RetractBlock(key)
+	return t.d.RetractTable(key)
 }
 func (t *selectorTransformation) UpdateWatermark(id DatasetID, mark Time) error {
 	return t.d.UpdateWatermark(mark)
@@ -84,12 +84,12 @@ func (t *selectorTransformation) Finish(id DatasetID, err error) {
 	t.d.Finish(err)
 }
 
-func (t *selectorTransformation) setupBuilder(b query.Block) (BlockBuilder, int, error) {
-	builder, new := t.cache.BlockBuilder(b.Key())
+func (t *selectorTransformation) setupBuilder(b query.Table) (TableBuilder, int, error) {
+	builder, new := t.cache.TableBuilder(b.Key())
 	if !new {
-		return nil, 0, fmt.Errorf("found duplicate block with key: %v", b.Key())
+		return nil, 0, fmt.Errorf("found duplicate table with key: %v", b.Key())
 	}
-	AddBlockCols(b, builder)
+	AddTableCols(b, builder)
 
 	cols := builder.Cols()
 	valueIdx := ColIdx(t.config.Column, cols)
@@ -99,7 +99,7 @@ func (t *selectorTransformation) setupBuilder(b query.Block) (BlockBuilder, int,
 	return builder, valueIdx, nil
 }
 
-func (t *indexSelectorTransformation) Process(id DatasetID, b query.Block) error {
+func (t *indexSelectorTransformation) Process(id DatasetID, b query.Table) error {
 	builder, valueIdx, err := t.setupBuilder(b)
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func (t *indexSelectorTransformation) Process(id DatasetID, b query.Block) error
 	})
 }
 
-func (t *rowSelectorTransformation) Process(id DatasetID, b query.Block) error {
+func (t *rowSelectorTransformation) Process(id DatasetID, b query.Table) error {
 	builder, valueIdx, err := t.setupBuilder(b)
 	if err != nil {
 		return err
@@ -199,7 +199,7 @@ func (t *rowSelectorTransformation) Process(id DatasetID, b query.Block) error {
 	return nil
 }
 
-func (t *indexSelectorTransformation) appendSelected(selected []int, builder BlockBuilder, cr query.ColReader) {
+func (t *indexSelectorTransformation) appendSelected(selected []int, builder TableBuilder, cr query.ColReader) {
 	if len(selected) == 0 {
 		return
 	}
@@ -226,7 +226,7 @@ func (t *indexSelectorTransformation) appendSelected(selected []int, builder Blo
 	}
 }
 
-func (t *rowSelectorTransformation) appendRows(builder BlockBuilder, rows []Row) {
+func (t *rowSelectorTransformation) appendRows(builder TableBuilder, rows []Row) {
 	cols := builder.Cols()
 	for j, c := range cols {
 		for _, row := range rows {

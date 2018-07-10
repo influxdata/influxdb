@@ -83,7 +83,7 @@ func createUniqueTransformation(id execute.DatasetID, mode execute.AccumulationM
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewUniqueTransformation(d, cache, s)
 	return t, d, nil
@@ -91,12 +91,12 @@ func createUniqueTransformation(id execute.DatasetID, mode execute.AccumulationM
 
 type uniqueTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	column string
 }
 
-func NewUniqueTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *UniqueProcedureSpec) *uniqueTransformation {
+func NewUniqueTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *UniqueProcedureSpec) *uniqueTransformation {
 	return &uniqueTransformation{
 		d:      d,
 		cache:  cache,
@@ -104,16 +104,16 @@ func NewUniqueTransformation(d execute.Dataset, cache execute.BlockBuilderCache,
 	}
 }
 
-func (t *uniqueTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *uniqueTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *uniqueTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *uniqueTransformation) Process(id execute.DatasetID, b query.Table) error {
+	builder, created := t.cache.TableBuilder(b.Key())
 	if !created {
-		return fmt.Errorf("unique found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("unique found duplicate table with key: %v", b.Key())
 	}
-	execute.AddBlockCols(b, builder)
+	execute.AddTableCols(b, builder)
 
 	colIdx := execute.ColIdx(t.column, builder.Cols())
 	if colIdx < 0 {

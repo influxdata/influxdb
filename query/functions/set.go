@@ -89,7 +89,7 @@ func createSetTransformation(id execute.DatasetID, mode execute.AccumulationMode
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewSetTransformation(d, cache, s)
 	return t, d, nil
@@ -97,14 +97,14 @@ func createSetTransformation(id execute.DatasetID, mode execute.AccumulationMode
 
 type setTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	key, value string
 }
 
 func NewSetTransformation(
 	d execute.Dataset,
-	cache execute.BlockBuilderCache,
+	cache execute.TableBuilderCache,
 	spec *SetProcedureSpec,
 ) execute.Transformation {
 	return &setTransformation{
@@ -115,12 +115,12 @@ func NewSetTransformation(
 	}
 }
 
-func (t *setTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
+func (t *setTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
 	// TODO
 	return nil
 }
 
-func (t *setTransformation) Process(id execute.DatasetID, b query.Block) error {
+func (t *setTransformation) Process(id execute.DatasetID, b query.Table) error {
 	key := b.Key()
 	if idx := execute.ColIdx(t.key, key.Cols()); idx >= 0 {
 		// Update key
@@ -136,9 +136,9 @@ func (t *setTransformation) Process(id execute.DatasetID, b query.Block) error {
 		}
 		key = execute.NewGroupKey(cols, vs)
 	}
-	builder, created := t.cache.BlockBuilder(key)
+	builder, created := t.cache.TableBuilder(key)
 	if created {
-		execute.AddBlockCols(b, builder)
+		execute.AddTableCols(b, builder)
 		if !execute.HasCol(t.key, builder.Cols()) {
 			builder.AddCol(query.ColMeta{
 				Label: t.key,

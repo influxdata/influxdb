@@ -118,7 +118,7 @@ func (s *CovarianceProcedureSpec) Copy() plan.ProcedureSpec {
 
 type CovarianceTransformation struct {
 	d      execute.Dataset
-	cache  execute.BlockBuilderCache
+	cache  execute.TableBuilderCache
 	bounds execute.Bounds
 	spec   CovarianceProcedureSpec
 
@@ -137,13 +137,13 @@ func createCovarianceTransformation(id execute.DatasetID, mode execute.Accumulat
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewCovarianceTransformation(d, cache, s)
 	return t, d, nil
 }
 
-func NewCovarianceTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *CovarianceProcedureSpec) *CovarianceTransformation {
+func NewCovarianceTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *CovarianceProcedureSpec) *CovarianceTransformation {
 	return &CovarianceTransformation{
 		d:     d,
 		cache: cache,
@@ -151,17 +151,17 @@ func NewCovarianceTransformation(d execute.Dataset, cache execute.BlockBuilderCa
 	}
 }
 
-func (t *CovarianceTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *CovarianceTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *CovarianceTransformation) Process(id execute.DatasetID, b query.Block) error {
+func (t *CovarianceTransformation) Process(id execute.DatasetID, b query.Table) error {
 	cols := b.Cols()
-	builder, created := t.cache.BlockBuilder(b.Key())
+	builder, created := t.cache.TableBuilder(b.Key())
 	if !created {
-		return fmt.Errorf("covariance found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("covariance found duplicate table with key: %v", b.Key())
 	}
-	execute.AddBlockKeyCols(b.Key(), builder)
+	execute.AddTableKeyCols(b.Key(), builder)
 	builder.AddCol(query.ColMeta{
 		Label: t.spec.TimeDst,
 		Type:  query.TTime,

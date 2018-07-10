@@ -11,9 +11,9 @@ import (
 
 const fixedWidthTimeFmt = "2006-01-02T15:04:05.000000000Z"
 
-// Formatter writes a block to a Writer.
+// Formatter writes a table to a Writer.
 type Formatter struct {
-	b         query.Block
+	b         query.Table
 	widths    []int
 	maxWidth  int
 	newWidths []int
@@ -38,9 +38,9 @@ func DefaultFormatOptions() *FormatOptions {
 
 var eol = []byte{'\n'}
 
-// NewFormatter creates a Formatter for a given block.
+// NewFormatter creates a Formatter for a given table.
 // If opts is nil, the DefaultFormatOptions are used.
-func NewFormatter(b query.Block, opts *FormatOptions) *Formatter {
+func NewFormatter(b query.Table, opts *FormatOptions) *Formatter {
 	if opts == nil {
 		opts = DefaultFormatOptions()
 	}
@@ -75,7 +75,7 @@ var minWidthsByType = map[query.DataType]int{
 	query.TInvalid: 10,
 }
 
-// WriteTo writes the formatted block data to w.
+// WriteTo writes the formatted table data to w.
 func (f *Formatter) WriteTo(out io.Writer) (int64, error) {
 	w := &writeToHelper{w: out}
 
@@ -100,8 +100,8 @@ func (f *Formatter) WriteTo(out io.Writer) (int64, error) {
 		}
 	}
 
-	// Write Block header
-	w.write([]byte("Block: keys: ["))
+	// Write table header
+	w.write([]byte("Table: keys: ["))
 	labels := make([]string, len(f.b.Key().Cols()))
 	for i, c := range f.b.Key().Cols() {
 		labels[i] = c.Label

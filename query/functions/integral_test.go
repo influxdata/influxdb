@@ -23,7 +23,7 @@ func TestIntegralOperation_Marshaling(t *testing.T) {
 }
 
 func TestIntegral_PassThrough(t *testing.T) {
-	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 		s := functions.NewIntegralTransformation(
 			d,
 			c,
@@ -37,8 +37,8 @@ func TestIntegral_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.IntegralProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
 			name: "float",
@@ -46,7 +46,7 @@ func TestIntegral_Process(t *testing.T) {
 				Unit:            1,
 				AggregateConfig: execute.DefaultAggregateConfig,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -59,7 +59,7 @@ func TestIntegral_Process(t *testing.T) {
 					{execute.Time(1), execute.Time(3), execute.Time(2), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -78,7 +78,7 @@ func TestIntegral_Process(t *testing.T) {
 				Unit:            query.Duration(time.Second),
 				AggregateConfig: execute.DefaultAggregateConfig,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -91,7 +91,7 @@ func TestIntegral_Process(t *testing.T) {
 					{execute.Time(1 * time.Second), execute.Time(4 * time.Second), execute.Time(3 * time.Second), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -110,7 +110,7 @@ func TestIntegral_Process(t *testing.T) {
 				Unit:            1,
 				AggregateConfig: execute.DefaultAggregateConfig,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -124,7 +124,7 @@ func TestIntegral_Process(t *testing.T) {
 					{execute.Time(1), execute.Time(3), execute.Time(2), 1.0, "b"},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -147,7 +147,7 @@ func TestIntegral_Process(t *testing.T) {
 					Columns: []string{"x", "y"},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -163,7 +163,7 @@ func TestIntegral_Process(t *testing.T) {
 					{execute.Time(1), execute.Time(5), execute.Time(4), 1.0, 10.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -185,7 +185,7 @@ func TestIntegral_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewIntegralTransformation(d, c, tc.spec)
 				},
 			)

@@ -147,8 +147,8 @@ func TestMap_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.MapProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
 			name: `_value+5`,
@@ -186,7 +186,7 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -196,7 +196,7 @@ func TestMap_Process(t *testing.T) {
 					{execute.Time(2), 6.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -243,7 +243,7 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"_measurement", "host"},
 				ColMeta: []query.ColMeta{
 					{Label: "_measurement", Type: query.TString},
@@ -256,7 +256,7 @@ func TestMap_Process(t *testing.T) {
 					{"m", "A", execute.Time(2), 6.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_measurement", "host"},
 				ColMeta: []query.ColMeta{
 					{Label: "_measurement", Type: query.TString},
@@ -306,7 +306,7 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"_measurement", "host"},
 				ColMeta: []query.ColMeta{
 					{Label: "_measurement", Type: query.TString},
@@ -319,7 +319,7 @@ func TestMap_Process(t *testing.T) {
 					{"m", "A", execute.Time(2), 6.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -379,7 +379,7 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"_measurement", "host"},
 				ColMeta: []query.ColMeta{
 					{Label: "_measurement", Type: query.TString},
@@ -392,7 +392,7 @@ func TestMap_Process(t *testing.T) {
 					{"m", "A", execute.Time(2), 6.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"_measurement", "host"},
 				ColMeta: []query.ColMeta{
 					{Label: "_measurement", Type: query.TString},
@@ -464,7 +464,7 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"_measurement", "host"},
 				ColMeta: []query.ColMeta{
 					{Label: "_measurement", Type: query.TString},
@@ -478,7 +478,7 @@ func TestMap_Process(t *testing.T) {
 					{"m", "A", "www.example.com", execute.Time(2), 6.0},
 				},
 			}},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"_measurement", "host"},
 					ColMeta: []query.ColMeta{
@@ -544,7 +544,7 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -554,7 +554,7 @@ func TestMap_Process(t *testing.T) {
 					{execute.Time(2), 6.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -603,7 +603,7 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TInt},
@@ -613,7 +613,7 @@ func TestMap_Process(t *testing.T) {
 					{execute.Time(2), int64(6)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -662,7 +662,7 @@ func TestMap_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TUInt},
@@ -672,7 +672,7 @@ func TestMap_Process(t *testing.T) {
 					{execute.Time(2), uint64(6)},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -691,7 +691,7 @@ func TestMap_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					f, err := functions.NewMapTransformation(d, c, tc.spec)
 					if err != nil {
 						t.Fatal(err)

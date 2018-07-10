@@ -106,7 +106,7 @@ func createDifferenceTransformation(id execute.DatasetID, mode execute.Accumulat
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewDifferenceTransformation(d, cache, s)
 	return t, d, nil
@@ -114,13 +114,13 @@ func createDifferenceTransformation(id execute.DatasetID, mode execute.Accumulat
 
 type differenceTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	nonNegative bool
 	columns     []string
 }
 
-func NewDifferenceTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *DifferenceProcedureSpec) *differenceTransformation {
+func NewDifferenceTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *DifferenceProcedureSpec) *differenceTransformation {
 	return &differenceTransformation{
 		d:           d,
 		cache:       cache,
@@ -129,14 +129,14 @@ func NewDifferenceTransformation(d execute.Dataset, cache execute.BlockBuilderCa
 	}
 }
 
-func (t *differenceTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *differenceTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *differenceTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *differenceTransformation) Process(id execute.DatasetID, b query.Table) error {
+	builder, created := t.cache.TableBuilder(b.Key())
 	if !created {
-		return fmt.Errorf("difference found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("difference found duplicate table with key: %v", b.Key())
 	}
 	cols := b.Cols()
 	differences := make([]*difference, len(cols))

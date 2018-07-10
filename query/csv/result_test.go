@@ -37,7 +37,7 @@ var symetricalTestCases = []TestCase{
 `),
 		result: &executetest.Result{
 			Nm: "_result",
-			Blks: []*executetest.Block{{
+			Tbls: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 				ColMeta: []query.ColMeta{
 					{Label: "_start", Type: query.TTime},
@@ -78,7 +78,7 @@ var symetricalTestCases = []TestCase{
 `),
 		result: &executetest.Result{
 			Nm: "_result",
-			Blks: []*executetest.Block{{
+			Tbls: []*executetest.Table{{
 				KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 				KeyValues: []interface{}{
 					values.ConvertTime(time.Date(2018, 4, 17, 0, 0, 0, 0, time.UTC)),
@@ -111,7 +111,7 @@ var symetricalTestCases = []TestCase{
 `),
 		result: &executetest.Result{
 			Nm: "_result",
-			Blks: []*executetest.Block{
+			Tbls: []*executetest.Table{
 				{
 					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 					ColMeta: []query.ColMeta{
@@ -196,7 +196,7 @@ var symetricalTestCases = []TestCase{
 `),
 		result: &executetest.Result{
 			Nm: "_result",
-			Blks: []*executetest.Block{
+			Tbls: []*executetest.Table{
 				{
 					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 					ColMeta: []query.ColMeta{
@@ -341,7 +341,7 @@ var symetricalTestCases = []TestCase{
 `),
 		result: &executetest.Result{
 			Nm: "_result",
-			Blks: []*executetest.Block{
+			Tbls: []*executetest.Table{
 				{
 					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 					ColMeta: []query.ColMeta{
@@ -436,7 +436,7 @@ func TestResultDecoder(t *testing.T) {
 `),
 			result: &executetest.Result{
 				Nm: "_result",
-				Blks: []*executetest.Block{{
+				Tbls: []*executetest.Table{{
 					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 					ColMeta: []query.ColMeta{
 						{Label: "_start", Type: query.TTime},
@@ -483,12 +483,12 @@ func TestResultDecoder(t *testing.T) {
 			got := &executetest.Result{
 				Nm: result.Name(),
 			}
-			if err := result.Blocks().Do(func(b query.Block) error {
-				cb, err := executetest.ConvertBlock(b)
+			if err := result.Tables().Do(func(b query.Table) error {
+				cb, err := executetest.ConvertTable(b)
 				if err != nil {
 					return err
 				}
-				got.Blks = append(got.Blks, cb)
+				got.Tbls = append(got.Tbls, cb)
 				return nil
 			}); err != nil {
 				t.Fatal(err)
@@ -543,7 +543,7 @@ func TestMutliResultEncoder(t *testing.T) {
 			config: csv.DefaultEncoderConfig(),
 			results: query.NewSliceResultIterator([]query.Result{&executetest.Result{
 				Nm: "_result",
-				Blks: []*executetest.Block{{
+				Tbls: []*executetest.Table{{
 					KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 					ColMeta: []query.ColMeta{
 						{Label: "_start", Type: query.TTime},
@@ -588,7 +588,7 @@ func TestMutliResultEncoder(t *testing.T) {
 			results: query.NewSliceResultIterator([]query.Result{
 				&executetest.Result{
 					Nm: "_result",
-					Blks: []*executetest.Block{{
+					Tbls: []*executetest.Table{{
 						KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 						ColMeta: []query.ColMeta{
 							{Label: "_start", Type: query.TTime},
@@ -620,7 +620,7 @@ func TestMutliResultEncoder(t *testing.T) {
 				},
 				&executetest.Result{
 					Nm: "mean",
-					Blks: []*executetest.Block{{
+					Tbls: []*executetest.Table{{
 						KeyCols: []string{"_start", "_stop", "_measurement", "host"},
 						ColMeta: []query.ColMeta{
 							{Label: "_start", Type: query.TTime},

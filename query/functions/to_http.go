@@ -246,7 +246,7 @@ func createToHTTPTransformation(id execute.DatasetID, mode execute.AccumulationM
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewToHTTPTransformation(d, cache, s)
 	return t, d, nil
@@ -254,15 +254,15 @@ func createToHTTPTransformation(id execute.DatasetID, mode execute.AccumulationM
 
 type ToHTTPTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 	spec  *ToHTTPProcedureSpec
 }
 
-func (t *ToHTTPTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *ToHTTPTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func NewToHTTPTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *ToHTTPProcedureSpec) *ToHTTPTransformation {
+func NewToHTTPTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *ToHTTPProcedureSpec) *ToHTTPTransformation {
 
 	return &ToHTTPTransformation{
 		d:     d,
@@ -306,7 +306,7 @@ type idxType struct {
 	Type query.DataType
 }
 
-func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Block) error {
+func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Table) error {
 	pr, pw := io.Pipe() // TODO: replce the pipe with something faster
 	m := &toHttpMetric{}
 	e := protocol.NewEncoder(pw)

@@ -27,12 +27,12 @@ func TestMinOperation_Marshaling(t *testing.T) {
 func TestMin_Process(t *testing.T) {
 	testCases := []struct {
 		name string
-		data *executetest.Block
+		data *executetest.Table
 		want []execute.Row
 	}{
 		{
 			name: "first",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -59,7 +59,7 @@ func TestMin_Process(t *testing.T) {
 		},
 		{
 			name: "last",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -86,7 +86,7 @@ func TestMin_Process(t *testing.T) {
 		},
 		{
 			name: "middle",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -126,5 +126,5 @@ func TestMin_Process(t *testing.T) {
 }
 
 func BenchmarkMin(b *testing.B) {
-	executetest.RowSelectorFuncBenchmarkHelper(b, new(functions.MinSelector), NormalBlock)
+	executetest.RowSelectorFuncBenchmarkHelper(b, new(functions.MinSelector), NormalTable)
 }

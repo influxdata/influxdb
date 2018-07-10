@@ -147,7 +147,7 @@ func (c *CSVSource) Run(ctx context.Context) {
 	var err error
 	var max execute.Time
 	maxSet := false
-	err = c.data.Blocks().Do(func(b query.Block) error {
+	err = c.data.Tables().Do(func(b query.Table) error {
 		for _, t := range c.ts {
 			err := t.Process(c.id, b)
 			if err != nil {

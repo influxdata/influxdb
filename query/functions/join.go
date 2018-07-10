@@ -274,26 +274,18 @@ type mergeJoinParentState struct {
 	finished   bool
 }
 
-func (t *mergeJoinTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
+func (t *mergeJoinTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
 	panic("not implemented")
-	//t.mu.Lock()
-	//defer t.mu.Unlock()
-
-	//bm := blockMetadata{
-	//	tags:   meta.Tags().IntersectingSubset(t.keys),
-	//	bounds: meta.Bounds(),
-	//}
-	//return t.d.RetractBlock(execute.ToBlockKey(bm))
 }
 
-func (t *mergeJoinTransformation) Process(id execute.DatasetID, b query.Block) error {
+func (t *mergeJoinTransformation) Process(id execute.DatasetID, b query.Table) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	tables := t.cache.Tables(b.Key())
 
 	var references []string
-	var table execute.BlockBuilder
+	var table execute.TableBuilder
 	switch id {
 	case t.leftID:
 		table = tables.left
@@ -307,20 +299,20 @@ func (t *mergeJoinTransformation) Process(id execute.DatasetID, b query.Block) e
 	labels := unionStrs(t.keys, references)
 	colMap := make([]int, len(labels))
 	for _, label := range labels {
-		blockIdx := execute.ColIdx(label, b.Cols())
-		if blockIdx < 0 {
+		tableIdx := execute.ColIdx(label, b.Cols())
+		if tableIdx < 0 {
 			return fmt.Errorf("no column %q exists", label)
 		}
 		// Only add the column if it does not already exist
 		builderIdx := execute.ColIdx(label, table.Cols())
 		if builderIdx < 0 {
-			c := b.Cols()[blockIdx]
+			c := b.Cols()[tableIdx]
 			builderIdx = table.AddCol(c)
 		}
-		colMap[builderIdx] = blockIdx
+		colMap[builderIdx] = tableIdx
 	}
 
-	execute.AppendBlock(b, table, colMap)
+	execute.AppendTable(b, table, colMap)
 	return nil
 }
 
@@ -424,10 +416,10 @@ func NewMergeJoinCache(joinFn *joinFunc, a *execute.Allocator, leftName, rightNa
 	}
 }
 
-func (c *mergeJoinCache) Block(key query.GroupKey) (query.Block, error) {
+func (c *mergeJoinCache) Table(key query.GroupKey) (query.Table, error) {
 	t, ok := c.lookup(key)
 	if !ok {
-		return nil, errors.New("block not found")
+		return nil, errors.New("table not found")
 	}
 	return t.Join()
 }
@@ -438,10 +430,10 @@ func (c *mergeJoinCache) ForEach(f func(query.GroupKey)) {
 	})
 }
 
-func (c *mergeJoinCache) ForEachWithContext(f func(query.GroupKey, execute.Trigger, execute.BlockContext)) {
+func (c *mergeJoinCache) ForEachWithContext(f func(query.GroupKey, execute.Trigger, execute.TableContext)) {
 	c.data.Range(func(key query.GroupKey, value interface{}) {
 		tables := value.(*joinTables)
-		bc := execute.BlockContext{
+		bc := execute.TableContext{
 			Key:   key,
 			Count: tables.Size(),
 		}
@@ -449,14 +441,14 @@ func (c *mergeJoinCache) ForEachWithContext(f func(query.GroupKey, execute.Trigg
 	})
 }
 
-func (c *mergeJoinCache) DiscardBlock(key query.GroupKey) {
+func (c *mergeJoinCache) DiscardTable(key query.GroupKey) {
 	t, ok := c.lookup(key)
 	if ok {
 		t.ClearData()
 	}
 }
 
-func (c *mergeJoinCache) ExpireBlock(key query.GroupKey) {
+func (c *mergeJoinCache) ExpireTable(key query.GroupKey) {
 	v, ok := c.data.Delete(key)
 	if ok {
 		v.(*joinTables).ClearData()
@@ -483,8 +475,8 @@ func (c *mergeJoinCache) Tables(key query.GroupKey) *joinTables {
 			key:       key,
 			on:        c.on,
 			alloc:     c.alloc,
-			left:      execute.NewColListBlockBuilder(key, c.alloc),
-			right:     execute.NewColListBlockBuilder(key, c.alloc),
+			left:      execute.NewColListTableBuilder(key, c.alloc),
+			right:     execute.NewColListTableBuilder(key, c.alloc),
 			leftName:  c.leftName,
 			rightName: c.rightName,
 			trigger:   execute.NewTriggerFromSpec(c.triggerSpec),
@@ -502,7 +494,7 @@ type joinTables struct {
 
 	alloc *execute.Allocator
 
-	left, right         *execute.ColListBlockBuilder
+	left, right         *execute.ColListTableBuilder
 	leftName, rightName string
 
 	trigger execute.Trigger
@@ -515,16 +507,16 @@ func (t *joinTables) Size() int {
 }
 
 func (t *joinTables) ClearData() {
-	t.left = execute.NewColListBlockBuilder(t.key, t.alloc)
-	t.right = execute.NewColListBlockBuilder(t.key, t.alloc)
+	t.left = execute.NewColListTableBuilder(t.key, t.alloc)
+	t.right = execute.NewColListTableBuilder(t.key, t.alloc)
 }
 
 // Join performs a sort-merge join
-func (t *joinTables) Join() (query.Block, error) {
+func (t *joinTables) Join() (query.Table, error) {
 	// First prepare the join function
-	left := t.left.RawBlock()
-	right := t.right.RawBlock()
-	err := t.joinFn.Prepare(map[string]*execute.ColListBlock{
+	left := t.left.RawTable()
+	right := t.right.RawTable()
+	err := t.joinFn.Prepare(map[string]*execute.ColListTable{
 		t.leftName:  left,
 		t.rightName: right,
 	})
@@ -532,7 +524,7 @@ func (t *joinTables) Join() (query.Block, error) {
 		return nil, errors.Wrap(err, "failed to prepare join function")
 	}
 	// Create a builder for the result of the join
-	builder := execute.NewColListBlockBuilder(t.key, t.alloc)
+	builder := execute.NewColListTableBuilder(t.key, t.alloc)
 
 	// Add columns from function in sorted order
 	properties := t.joinFn.Type().Properties()
@@ -577,7 +569,7 @@ func (t *joinTables) Join() (query.Block, error) {
 			// Inner join
 			for l := leftSet.Start; l < leftSet.Stop; l++ {
 				for r := rightSet.Start; r < rightSet.Stop; r++ {
-					// Evaluate expression and add to block
+					// Evaluate expression and add to table
 					rows[t.leftName] = l
 					rows[t.rightName] = r
 					m, err := t.joinFn.Eval(rows)
@@ -598,10 +590,10 @@ func (t *joinTables) Join() (query.Block, error) {
 			rightSet, rightKey = t.advance(rightSet.Stop, right)
 		}
 	}
-	return builder.Block()
+	return builder.Table()
 }
 
-func (t *joinTables) advance(offset int, table *execute.ColListBlock) (subset, query.GroupKey) {
+func (t *joinTables) advance(offset int, table *execute.ColListTable) (subset, query.GroupKey) {
 	if n := table.NRows(); n == offset {
 		return subset{Start: n, Stop: n}, nil
 	}
@@ -625,7 +617,7 @@ func (s subset) Empty() bool {
 	return s.Start == s.Stop
 }
 
-func equalRowKeys(x, y int, table *execute.ColListBlock, on map[string]bool) bool {
+func equalRowKeys(x, y int, table *execute.ColListTable, on map[string]bool) bool {
 	for j, c := range table.Cols() {
 		if !on[c.Label] {
 			continue
@@ -678,7 +670,7 @@ type joinFunc struct {
 	isWrap  bool
 	wrapObj *execute.Record
 
-	tableData map[string]*execute.ColListBlock
+	tableData map[string]*execute.ColListTable
 }
 
 type tableCol struct {
@@ -699,7 +691,7 @@ func NewRowJoinFunction(fn *semantic.FunctionExpression, parentIDs []execute.Dat
 	}, nil
 }
 
-func (f *joinFunc) Prepare(tables map[string]*execute.ColListBlock) error {
+func (f *joinFunc) Prepare(tables map[string]*execute.ColListTable) error {
 	f.tableData = tables
 	propertyTypes := make(map[string]semantic.Type, len(f.references))
 	// Prepare types and recordcols
