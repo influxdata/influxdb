@@ -422,7 +422,7 @@ class LogsTable extends Component<Props, State> {
           <div
             className={`logs-viewer--dot ${value}-severity`}
             title={value}
-            onMouseOver={this.handleMouseEnter}
+            onMouseOver={this.handleMouseOver}
             data-index={rowIndex}
             style={this.severityDotStyle(value)}
           />
@@ -446,14 +446,14 @@ class LogsTable extends Component<Props, State> {
           style={{...style, padding: '5px'}}
           key={key}
           data-index={rowIndex}
-          onMouseOver={this.handleMouseEnter}
+          onMouseOver={this.handleMouseOver}
         >
           <div
             data-tag-key={column}
             data-tag-value={value}
             onClick={this.handleTagClick}
             data-index={rowIndex}
-            onMouseOver={this.handleMouseEnter}
+            onMouseOver={this.handleMouseOver}
             className="logs-viewer--clickable"
           >
             {formattedValue}
@@ -469,7 +469,7 @@ class LogsTable extends Component<Props, State> {
         })}
         key={key}
         style={style}
-        onMouseOver={this.handleMouseEnter}
+        onMouseOver={this.handleMouseOver}
         data-index={rowIndex}
       >
         {formattedValue}
@@ -488,7 +488,7 @@ class LogsTable extends Component<Props, State> {
     }
   }
 
-  private handleMouseEnter = (e: MouseEvent<HTMLElement>): void => {
+  private handleMouseOver = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement
     this.setState({currentRow: +target.dataset.index})
   }
