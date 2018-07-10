@@ -157,3 +157,7 @@ func (m *multiShardBatchCursors) createCursor(row seriesRow) tsdb.Cursor {
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
+
+func (m *multiShardBatchCursors) newAggregateCursor(ctx context.Context, agg *Aggregate, cursor tsdb.Cursor) tsdb.Cursor {
+	return newAggregateBatchCursor(ctx, agg, cursor)
+}

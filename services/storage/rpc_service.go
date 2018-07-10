@@ -17,6 +17,7 @@ import (
 
 //go:generate protoc -I$GOPATH/src/github.com/influxdata/influxdb/vendor -I. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,plugins=grpc:. storage.proto predicate.proto
 //go:generate tmpl -data=@batch_cursor.gen.go.tmpldata batch_cursor.gen.go.tmpl
+//go:generate tmpl -data=@batch_cursor.gen.go.tmpldata array_cursor.gen.go.tmpl
 //go:generate tmpl -data=@batch_cursor.gen.go.tmpldata response_writer.gen.go.tmpl
 
 const (
@@ -41,7 +42,6 @@ func (r *rpcService) Hints(context.Context, *types.Empty) (*HintsResponse, error
 }
 
 func (r *rpcService) Read(req *ReadRequest, stream Storage_ReadServer) error {
-	// TODO(sgc): implement frameWriter that handles the details of streaming frames
 	var err error
 	var wire opentracing.SpanContext
 

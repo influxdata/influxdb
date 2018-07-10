@@ -9,15 +9,22 @@ import (
 {{if $isArray -}}
 // Read{{.Name}}ArrayBlock reads the next block as a set of {{.name}} values.
 func (c *KeyCursor) Read{{.Name}}ArrayBlock(values *tsdb.{{.Name}}Array) (*tsdb.{{.Name}}Array, error) {
-{{else -}}
+LOOP:
+	// No matching blocks to decode
+	if len(c.current) == 0 {
+		values.Timestamps = values.Timestamps[:0]
+		values.Values = values.Values[:0]
+		return values, nil
+	}
+{{else}}
 // Read{{.Name}}Block reads the next block as a set of {{.name}} values.
 func (c *KeyCursor) Read{{.Name}}Block(buf *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
-{{end -}}
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
 	}
+{{end}}
 
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]

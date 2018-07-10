@@ -41,6 +41,31 @@ type BooleanBatchCursor interface {
 	Next() (keys []int64, values []bool)
 }
 
+type IntegerArrayCursor interface {
+	Cursor
+	Next() *IntegerArray
+}
+
+type FloatArrayCursor interface {
+	Cursor
+	Next() *FloatArray
+}
+
+type UnsignedArrayCursor interface {
+	Cursor
+	Next() *UnsignedArray
+}
+
+type StringArrayCursor interface {
+	Cursor
+	Next() *StringArray
+}
+
+type BooleanArrayCursor interface {
+	Cursor
+	Next() *BooleanArray
+}
+
 type CursorRequest struct {
 	Name      []byte
 	Tags      models.Tags
