@@ -5239,66 +5239,91 @@
       "description": "Global application configuration",
       "type": "object",
       "properties": {
-        "name": {
-          "description": "Unique identifier name of the column",
-          "type": "string"
-        },
-        "position": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "encodings": {
-          "description": "Composable encoding options for the column",
-          "type": "array",
-          "items": {
-            "description":"Type and value and optional name of an encoding",
-            "type": "object",
-            "required": ["type", "value"],
-            "properties": {
-              "type": {
-                "type": "string"
-              },
-              "value": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              }
-            }
-          }
+        "auth": {
+          "$ref": "#/definitions/AuthConfig"
         }
       },
       "example": {
-        "name": "severity",
-        "position": 0,
-        "encoding": [
-          {
-            "type": "label",
-            "value": "icon"
-          },
-          {
-            "type": "label",
-            "value": "text"
-          },
-          {
-            "type": "visibility",
-            "value": "visible"
-          },
-          {
-            "type": "color",
-            "name": "ruby",
-            "value": "emergency"
-          },
-          {
-            "type": "color",
-            "name": "rainforest",
-            "value": "info"
-          },
-          {
-            "type": "displayName",
-            "value": "Log Severity!"
-          }
-        ]
+        "auth": {
+          "superAdminNewUsers": true
+        }
+      }
+    },
+    "AuthConfig": {
+      "description": "Global application configuration for auth",
+      "type": "object",
+      "required": ["superAdminNewUsers"],
+      "properties": {
+        "superAdminNewUsers": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "example": {
+        "superAdminNewUsers": true
+      }
+    },
+    "OrganizationConfig": {
+      "description": "Configurations for a specific organization",
+      "type": "object",
+      "required": ["logViewer"],
+      "properties": {
+        "organization": {
+          "type": "string",
+          "readOnly": true
+        },
+        "logViewer": {
+          "$ref": "#/definitions/LogViewerConfig"
+        }
+      },
+      "example": {
+        "organization": "default",
+        "logViewer": {
+          "columns": [
+            {
+              "name": "severity",
+              "position": 0,
+              "encodings": [
+                {
+                  "type": "label",
+                  "value": "icon"
+                },
+                {
+                  "type": "label",
+                  "value": "text"
+                },
+                {
+                  "type": "visibility",
+                  "value": "visible"
+                },
+                {
+                  "type": "color",
+                  "name": "ruby",
+                  "value": "emergency"
+                },
+                {
+                  "type": "color",
+                  "name": "rainforest",
+                  "value": "info"
+                },
+                {
+                  "type": "displayName",
+                  "value": "Log Severity!"
+                }
+              ]
+            },
+            {
+              "name": "messages",
+              "position": 1,
+              "encodings": [
+                {
+                  "type": "visibility",
+                  "value": "hidden"
+                }
+              ]
+            }
+          ]
+        }
       }
     },
     "LogViewerConfig": {
