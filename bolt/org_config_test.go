@@ -60,6 +60,46 @@ func TestOrganizationConfig_FindOrCreate(t *testing.T) {
 										Type:  "label",
 										Value: "text",
 									},
+									{
+										Type:  "color",
+										Name:  "emerg",
+										Value: "ruby",
+									},
+									{
+										Type:  "color",
+										Name:  "alert",
+										Value: "fire",
+									},
+									{
+										Type:  "color",
+										Name:  "crit",
+										Value: "curacao",
+									},
+									{
+										Type:  "color",
+										Name:  "err",
+										Value: "tiger",
+									},
+									{
+										Type:  "color",
+										Name:  "warning",
+										Value: "pineapple",
+									},
+									{
+										Type:  "color",
+										Name:  "notice",
+										Value: "rainforest",
+									},
+									{
+										Type:  "color",
+										Name:  "info",
+										Value: "star",
+									},
+									{
+										Type:  "color",
+										Name:  "debug",
+										Value: "wolf",
+									},
 								},
 							},
 							{
@@ -176,6 +216,46 @@ func TestOrganizationConfig_FindOrCreate(t *testing.T) {
 									{
 										Type:  "label",
 										Value: "text",
+									},
+									{
+										Type:  "color",
+										Name:  "emerg",
+										Value: "ruby",
+									},
+									{
+										Type:  "color",
+										Name:  "alert",
+										Value: "fire",
+									},
+									{
+										Type:  "color",
+										Name:  "crit",
+										Value: "curacao",
+									},
+									{
+										Type:  "color",
+										Name:  "err",
+										Value: "tiger",
+									},
+									{
+										Type:  "color",
+										Name:  "warning",
+										Value: "pineapple",
+									},
+									{
+										Type:  "color",
+										Name:  "notice",
+										Value: "rainforest",
+									},
+									{
+										Type:  "color",
+										Name:  "info",
+										Value: "star",
+									},
+									{
+										Type:  "color",
+										Name:  "debug",
+										Value: "wolf",
 									},
 								},
 							},
@@ -294,6 +374,46 @@ func TestOrganizationConfig_FindOrCreate(t *testing.T) {
 										Type:  "label",
 										Value: "text",
 									},
+									{
+										Type:  "color",
+										Name:  "emerg",
+										Value: "ruby",
+									},
+									{
+										Type:  "color",
+										Name:  "alert",
+										Value: "fire",
+									},
+									{
+										Type:  "color",
+										Name:  "crit",
+										Value: "curacao",
+									},
+									{
+										Type:  "color",
+										Name:  "err",
+										Value: "tiger",
+									},
+									{
+										Type:  "color",
+										Name:  "warning",
+										Value: "pineapple",
+									},
+									{
+										Type:  "color",
+										Name:  "notice",
+										Value: "rainforest",
+									},
+									{
+										Type:  "color",
+										Name:  "info",
+										Value: "star",
+									},
+									{
+										Type:  "color",
+										Name:  "debug",
+										Value: "wolf",
+									},
 								},
 							},
 							{
@@ -410,6 +530,46 @@ func TestOrganizationConfig_FindOrCreate(t *testing.T) {
 									{
 										Type:  "label",
 										Value: "text",
+									},
+									{
+										Type:  "color",
+										Name:  "emerg",
+										Value: "ruby",
+									},
+									{
+										Type:  "color",
+										Name:  "alert",
+										Value: "fire",
+									},
+									{
+										Type:  "color",
+										Name:  "crit",
+										Value: "curacao",
+									},
+									{
+										Type:  "color",
+										Name:  "err",
+										Value: "tiger",
+									},
+									{
+										Type:  "color",
+										Name:  "warning",
+										Value: "pineapple",
+									},
+									{
+										Type:  "color",
+										Name:  "notice",
+										Value: "rainforest",
+									},
+									{
+										Type:  "color",
+										Name:  "info",
+										Value: "star",
+									},
+									{
+										Type:  "color",
+										Name:  "debug",
+										Value: "wolf",
 									},
 								},
 							},
