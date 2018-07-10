@@ -106,15 +106,16 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	databases := s.Databases()
 	statistics := make([]models.Statistic, 0, len(databases))
 	for _, database := range databases {
+		log := s.Logger.With(logger.Database(database))
 		sc, err := s.SeriesCardinality(database)
 		if err != nil {
-			s.Logger.Info("Cannot retrieve series cardinality", zap.Error(err))
+			log.Info("Cannot retrieve series cardinality", zap.Error(err))
 			continue
 		}
 
 		mc, err := s.MeasurementsCardinality(database)
 		if err != nil {
-			s.Logger.Info("Cannot retrieve measurement cardinality", zap.Error(err))
+			log.Info("Cannot retrieve measurement cardinality", zap.Error(err))
 			continue
 		}
 
@@ -1344,7 +1345,7 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || strings.HasPrefix(tag.Val, "_") {
+				if !ok || influxql.IsSystemName(tag.Val) {
 					return nil
 				}
 			}
@@ -1755,7 +1756,9 @@ func (s *Store) monitorShards() {
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
 					if err := sh.Free(); err != nil {
-						s.Logger.Warn("Error while freeing cold shard resources", zap.Error(err))
+						s.Logger.Warn("Error while freeing cold shard resources",
+							zap.Error(err),
+							logger.Shard(sh.ID()))
 					}
 				} else {
 					sh.SetCompactionsEnabled(true)
@@ -1813,7 +1816,10 @@ func (s *Store) monitorShards() {
 				indexSet := IndexSet{Indexes: []Index{firstShardIndex}, SeriesFile: sfile}
 				names, err := indexSet.MeasurementNamesByExpr(nil, nil)
 				if err != nil {
-					s.Logger.Warn("Cannot retrieve measurement names", zap.Error(err))
+					s.Logger.Warn("Cannot retrieve measurement names",
+						zap.Error(err),
+						logger.Shard(sh.ID()),
+						logger.Database(db))
 					return nil
 				}
 
