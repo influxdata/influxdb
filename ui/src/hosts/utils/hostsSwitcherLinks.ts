@@ -1,6 +1,3 @@
-import {getAllHosts as getAllHostsAJAX} from 'src/hosts/apis'
-
-import {GetAllHosts} from 'src/types/apis/hosts'
 import {Source} from 'src/types/sources'
 import {HostNames, HostName} from 'src/types/hosts'
 import {DashboardSwitcherLinks} from 'src/types/dashboards'
@@ -10,18 +7,7 @@ export const EMPTY_LINKS = {
   active: null,
 }
 
-const hostNamesAJAX = getAllHostsAJAX as GetAllHosts
-
-export const loadHostsLinks = async (
-  source: Source,
-  getHostNamesAJAX: GetAllHosts = hostNamesAJAX
-): Promise<DashboardSwitcherLinks> => {
-  const hostNames = await getHostNamesAJAX(source)
-
-  return linksFromHosts(hostNames, source)
-}
-
-const linksFromHosts = (
+export const linksFromHosts = (
   hostNames: HostNames,
   source: Source
 ): DashboardSwitcherLinks => {
@@ -37,10 +23,10 @@ const linksFromHosts = (
 }
 
 export const updateActiveHostLink = (
-  dashboardLinks: DashboardSwitcherLinks,
+  hostLinks: DashboardSwitcherLinks,
   host: HostName
-) => {
-  const active = dashboardLinks.links.find(link => link.key === host.name)
+): DashboardSwitcherLinks => {
+  const active = hostLinks.links.find(link => link.key === host.name)
 
-  return {...dashboardLinks, active}
+  return {...hostLinks, active}
 }

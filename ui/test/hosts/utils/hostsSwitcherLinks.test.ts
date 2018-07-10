@@ -1,12 +1,12 @@
 import {
-  loadHostsLinks,
   updateActiveHostLink,
+  linksFromHosts,
 } from 'src/hosts/utils/hostsSwitcherLinks'
 import {source} from 'test/resources'
 import {HostNames} from 'src/types/hosts'
 
-describe('hosts.utils.hostsSwitcherLinks', () => {
-  describe('loadHostLinks', () => {
+describe('hosts.utils.hostSwitcherLinks', () => {
+  describe('linksFromHosts', () => {
     const socure = {...source, id: '897'}
 
     const hostNames: HostNames = {
@@ -18,10 +18,8 @@ describe('hosts.utils.hostsSwitcherLinks', () => {
       },
     }
 
-    const getHostsAJAX = async () => hostNames
-
-    it('can load host links for a given source', async () => {
-      const actualLinks = await loadHostsLinks(socure, getHostsAJAX)
+    it('can build host links for a given source', () => {
+      const actualLinks = linksFromHosts(hostNames, socure)
 
       const expectedLinks = {
         links: [

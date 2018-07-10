@@ -8,14 +8,15 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import FancyScrollbar from 'shared/components/FancyScrollbar'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {generateForHosts} from 'src/utils/tempVars'
-import * as hostsSwitcher from 'src/hosts/utils/hostsSwitcherLinks'
 
 import {timeRanges} from 'shared/data/timeRanges'
 import {
   getLayouts,
   getAppsForHost,
   getMeasurementsForHost,
+  loadHostsLinks,
 } from 'src/hosts/apis'
+import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
 import {setAutoRefresh, delayEnablePresentationMode} from 'shared/actions/app'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -26,7 +27,7 @@ class HostPage extends Component {
     super(props)
     this.state = {
       layouts: [],
-      hostLinks: hostsSwitcher.EMPTY_LINKS,
+      hostLinks: EMPTY_LINKS,
       timeRange: timeRanges.find(tr => tr.lower === 'now() - 1h'),
       dygraphs: [],
     }
@@ -198,12 +199,10 @@ class HostPage extends Component {
       params: {hostID},
     } = this.props
 
-    const allLinks = await hostsSwitcher.loadHostsLinks(source)
-    const hostLinks = hostsSwitcher.updateActiveHostLink(allLinks, {
-      name: hostID,
-    })
+    const activeHost = {name: hostID}
+    const links = await loadHostsLinks(source, {activeHost})
 
-    return hostLinks
+    return links
   }
 }
 
