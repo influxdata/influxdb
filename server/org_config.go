@@ -27,12 +27,12 @@ type logViewerConfigResponse struct {
 	chronograf.LogViewerConfig
 }
 
-func newLogViewerConfigResponse(lv chronograf.LogViewerConfig) *logViewerConfigResponse {
+func newLogViewerConfigResponse(c chronograf.LogViewerConfig) *logViewerConfigResponse {
 	return &logViewerConfigResponse{
 		Links: selfLinks{
 			Self: "/chronograf/v1/org_config/logviewer",
 		},
-		LogViewerConfig: lv,
+		LogViewerConfig: c,
 	}
 }
 
@@ -119,15 +119,15 @@ func (s *Service) ReplaceOrganizationLogViewerConfig(w http.ResponseWriter, r *h
 // columns with the same name or position value, each column must have a visbility
 // of either "visible" or "hidden" and if a column is of type severity, it must have
 // at least one severity format of type icon, text, or both
-func validLogViewerConfig(cfg chronograf.LogViewerConfig) error {
-	if len(cfg.Columns) == 0 {
+func validLogViewerConfig(c chronograf.LogViewerConfig) error {
+	if len(c.Columns) == 0 {
 		return fmt.Errorf("Invalid log viewer config: must have at least 1 column")
 	}
 
 	nameMatcher := map[string]bool{}
 	positionMatcher := map[int32]bool{}
 
-	for _, clm := range cfg.Columns {
+	for _, clm := range c.Columns {
 		iconCount := 0
 		textCount := 0
 		visibility := 0

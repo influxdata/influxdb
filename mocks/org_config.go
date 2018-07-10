@@ -13,10 +13,10 @@ type OrganizationConfigStore struct {
 	UpdateF       func(ctx context.Context, target *chronograf.OrganizationConfig) error
 }
 
-func (oc *OrganizationConfigStore) FindOrCreate(ctx context.Context, id string) (*chronograf.OrganizationConfig, error) {
-	return oc.FindOrCreateF(ctx, id)
+func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, id string) (*chronograf.OrganizationConfig, error) {
+	return s.FindOrCreateF(ctx, id)
 }
 
-func (oc *OrganizationConfigStore) Update(ctx context.Context, target *chronograf.OrganizationConfig) error {
-	return oc.UpdateF(ctx, target)
+func (s *OrganizationConfigStore) Update(ctx context.Context, target *chronograf.OrganizationConfig) error {
+	return s.UpdateF(ctx, target)
 }

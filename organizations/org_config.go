@@ -41,11 +41,11 @@ func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, orgID string
 }
 
 // Update the OrganizationConfig in OrganizationConfigStore.
-func (s *OrganizationConfigStore) Update(ctx context.Context, oc *chronograf.OrganizationConfig) error {
+func (s *OrganizationConfigStore) Update(ctx context.Context, c *chronograf.OrganizationConfig) error {
 	err := validOrganization(ctx)
 	if err != nil {
 		return err
 	}
 
-	return s.store.Update(ctx, oc)
+	return s.store.Update(ctx, c)
 }

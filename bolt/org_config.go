@@ -26,35 +26,35 @@ func (s *OrganizationConfigStore) Migrate(ctx context.Context) error {
 
 // Get retrieves an OrganizationConfig from the store
 func (s *OrganizationConfigStore) Get(ctx context.Context, orgID string) (*chronograf.OrganizationConfig, error) {
-	var cfg chronograf.OrganizationConfig
+	var c chronograf.OrganizationConfig
 
 	err := s.client.db.View(func(tx *bolt.Tx) error {
-		return s.get(ctx, tx, orgID, &cfg)
+		return s.get(ctx, tx, orgID, &c)
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &cfg, nil
+	return &c, nil
 }
 
-func (s *OrganizationConfigStore) get(ctx context.Context, tx *bolt.Tx, orgID string, cfg *chronograf.OrganizationConfig) error {
+func (s *OrganizationConfigStore) get(ctx context.Context, tx *bolt.Tx, orgID string, c *chronograf.OrganizationConfig) error {
 	v := tx.Bucket(OrganizationConfigBucket).Get([]byte(orgID))
 	if len(v) == 0 {
 		return chronograf.ErrOrganizationConfigNotFound
 	}
-	return internal.UnmarshalOrganizationConfig(v, cfg)
+	return internal.UnmarshalOrganizationConfig(v, c)
 }
 
 // FindOrCreate gets an OrganizationConfig from the store or creates one if none exists for this organization
 func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, orgID string) (*chronograf.OrganizationConfig, error) {
-	var cfg chronograf.OrganizationConfig
+	var c chronograf.OrganizationConfig
 	err := s.client.db.Update(func(tx *bolt.Tx) error {
-		err := s.get(ctx, tx, orgID, &cfg)
+		err := s.get(ctx, tx, orgID, &c)
 		if err == chronograf.ErrOrganizationConfigNotFound {
-			cfg = newOrganizationConfig(orgID)
-			return s.update(ctx, tx, &cfg)
+			c = newOrganizationConfig(orgID)
+			return s.update(ctx, tx, &c)
 		}
 		return err
 	})
@@ -62,23 +62,23 @@ func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, orgID string
 	if err != nil {
 		return nil, err
 	}
-	return &cfg, nil
+	return &c, nil
 }
 
 // Update replaces the OrganizationConfig in the store
-func (s *OrganizationConfigStore) Update(ctx context.Context, cfg *chronograf.OrganizationConfig) error {
+func (s *OrganizationConfigStore) Update(ctx context.Context, c *chronograf.OrganizationConfig) error {
 	return s.client.db.Update(func(tx *bolt.Tx) error {
-		return s.update(ctx, tx, cfg)
+		return s.update(ctx, tx, c)
 	})
 }
 
-func (s *OrganizationConfigStore) update(ctx context.Context, tx *bolt.Tx, cfg *chronograf.OrganizationConfig) error {
-	if cfg == nil {
+func (s *OrganizationConfigStore) update(ctx context.Context, tx *bolt.Tx, c *chronograf.OrganizationConfig) error {
+	if c == nil {
 		return fmt.Errorf("config provided was nil")
 	}
-	if v, err := internal.MarshalOrganizationConfig(cfg); err != nil {
+	if v, err := internal.MarshalOrganizationConfig(c); err != nil {
 		return err
-	} else if err := tx.Bucket(OrganizationConfigBucket).Put([]byte(cfg.OrganizationID), v); err != nil {
+	} else if err := tx.Bucket(OrganizationConfigBucket).Put([]byte(c.OrganizationID), v); err != nil {
 		return err
 	}
 	return nil
