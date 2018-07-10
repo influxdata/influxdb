@@ -13,10 +13,15 @@
       "name": "MySQL – Reads/Second",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(last(\"commands_select\"), 1s) AS selects_per_second FROM \":db:\".\":rp:\".\"mysql\"",
-          "groupbys": [
-            "\"server\""
-          ],
+          "query":
+            "SELECT non_negative_derivative(last(\"commands_select\"), 1s) AS selects_per_second FROM \":db:\".\":rp:\".\"mysql\"",
+          "groupbys": ["\"server\""],
+          "wheres": []
+        },
+        {
+          "query":
+            "SELECT non_negative_derivative(last(\"cmd_select\"), 1s) AS selects_per_second FROM \":db:\".\":rp:\".\"mysql\"",
+          "groupbys": ["\"server\""],
           "wheres": []
         }
       ]
@@ -30,10 +35,15 @@
       "name": "MySQL – Writes/Second",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(last(\"commands_insert\"), 1s) AS inserts_per_second, non_negative_derivative(last(\"commands_update\"), 1s) AS updates_per_second, non_negative_derivative(last(\"commands_delete\"), 1s) AS deletes_per_second FROM \":db:\".\":rp:\".\"mysql\"",
-          "groupbys": [
-            "\"server\""
-          ],
+          "query":
+            "SELECT non_negative_derivative(last(\"commands_insert\"), 1s) AS inserts_per_second, non_negative_derivative(last(\"commands_update\"), 1s) AS updates_per_second, non_negative_derivative(last(\"commands_delete\"), 1s) AS deletes_per_second FROM \":db:\".\":rp:\".\"mysql\"",
+          "groupbys": ["\"server\""],
+          "wheres": []
+        },
+        {
+          "query":
+            "SELECT non_negative_derivative(last(\"cmd_insert\"), 1s) AS inserts_per_second, non_negative_derivative(last(\"cmd_update\"), 1s) AS updates_per_second, non_negative_derivative(last(\"cmd_delete\"), 1s) AS deletes_per_second FROM \":db:\".\":rp:\".\"mysql\"",
+          "groupbys": ["\"server\""],
           "wheres": []
         }
       ]
@@ -47,10 +57,9 @@
       "name": "MySQL – Connections/Second",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(last(\"threads_connected\"), 1s) AS cxn_per_second, non_negative_derivative(last(\"threads_running\"), 1s) AS threads_running_per_second FROM \":db:\".\":rp:\".\"mysql\"",
-          "groupbys": [
-            "\"server\""
-          ],
+          "query":
+            "SELECT non_negative_derivative(last(\"threads_connected\"), 1s) AS cxn_per_second, non_negative_derivative(last(\"threads_running\"), 1s) AS threads_running_per_second FROM \":db:\".\":rp:\".\"mysql\"",
+          "groupbys": ["\"server\""],
           "wheres": []
         }
       ]
@@ -64,10 +73,9 @@
       "name": "MySQL – Connections Errors/Second",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(last(\"connection_errors_max_connections\"), 1s) AS cxn_errors_per_second, non_negative_derivative(last(\"connection_errors_internal\"), 1s) AS internal_cxn_errors_per_second, non_negative_derivative(last(\"aborted_connects\"), 1s) AS cxn_aborted_per_second FROM \":db:\".\":rp:\".\"mysql\"",
-          "groupbys": [
-            "\"server\""
-          ],
+          "query":
+            "SELECT non_negative_derivative(last(\"connection_errors_max_connections\"), 1s) AS cxn_errors_per_second, non_negative_derivative(last(\"connection_errors_internal\"), 1s) AS internal_cxn_errors_per_second, non_negative_derivative(last(\"aborted_connects\"), 1s) AS cxn_aborted_per_second FROM \":db:\".\":rp:\".\"mysql\"",
+          "groupbys": ["\"server\""],
           "wheres": []
         }
       ]
