@@ -32,13 +32,13 @@ class LogsFilter extends PureComponent<Props, State> {
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
-        <li className={this.className} onClick={this.handleStartEdit}>
+        <div className={this.className} onClick={this.handleStartEdit}>
           {editing ? this.renderEditor : this.label}
           <div
             className="logs-viewer--filter-remove"
             onClick={this.handleDelete}
           />
-        </li>
+        </div>
       </ClickOutside>
     )
   }
@@ -123,8 +123,12 @@ class LogsFilter extends PureComponent<Props, State> {
     const {operator, value, editing} = this.state
     const {filter} = this.props
 
-    if (!editing || (filter.operator === operator && filter.value === value)) {
+    if (!editing) {
       return
+    }
+
+    if (filter.operator === operator && filter.value === value) {
+      return this.setState({editing: false})
     }
 
     let state = {}

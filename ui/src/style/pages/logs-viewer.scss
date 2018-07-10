@@ -85,6 +85,7 @@ $logs-viewer-gutter: 60px;
   font-weight: 600;
   color: $g9-mountain;
   transition: color 0.25s ease;
+  min-width: 180px;
 
   strong {
     color: $g15-platinum;
@@ -119,8 +120,6 @@ $logs-viewer-gutter: 60px;
 
 .logs-viewer--filters {
   flex: 1 0 0;
-  margin: 0;
-  padding: 0;
   display: flex;
   align-items: center;
 }
@@ -130,7 +129,6 @@ $logs-viewer-gutter: 60px;
   font-size: 12px;
   display: flex;
   align-items: center;
-  list-style: none;
   padding: 0 2px 0 8px;
   height: 26px;
   border-radius: 4px;
@@ -138,7 +136,7 @@ $logs-viewer-gutter: 60px;
   color: $g13-mist;
   font-weight: 500;
   font-family: $code-font;
-  margin: 2px;
+  margin: 1px;
 
   &.active,
   &:hover {
@@ -224,6 +222,10 @@ $logs-viewer-gutter: 60px;
   border: 2px solid $g3-castle;
   margin-left: 2px;
 }
+.logs-viewer--severity-text {
+  padding: 2px;
+  padding-left: 5px;
+}
 
 // Play & Pause Toggle in Header
 .nav.nav-tablist.nav-tablist-sm.logs-viewer--mode-toggle {
@@ -263,6 +265,8 @@ $logs-viewer-gutter: 60px;
 
 // Clickable Cells
 .logs-viewer--clickable {
+  display: inline-flex;
+  align-items: center;
   padding: 1px 3px;
   border-radius: 3px;
   @include no-user-select();
