@@ -24,7 +24,7 @@ export interface LogsState {
   currentNamespaces: Namespace[]
   currentNamespace: Namespace | null
   timeRange: TimeRange
-  timeWindow: string
+  timeWindow: TimeWindow
   histogramQueryConfig: QueryConfig | null
   histogramData: object[]
   tableQueryConfig: QueryConfig | null
@@ -78,4 +78,17 @@ export interface ServerEncoding {
   type: string
   value: string
   name?: string
+}
+
+export interface TimeWindow {
+  upper?: string
+  lower: string
+  seconds?: number
+  windowOption: string
+  timeOption: string
+}
+
+export interface TimeWindowOption {
+  seconds: number
+  text: string
 }
