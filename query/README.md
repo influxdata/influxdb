@@ -7,7 +7,7 @@ servers.
 
 ### Specification
 
-A complete specification can be found in [SPEC.md](./SPEC.md).
+A complete specification can be found in [SPEC.md](./docs/SPEC.md).
 
 ### INSTALLATION
 
