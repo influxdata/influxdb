@@ -50,21 +50,18 @@
     Sortable Tables
     ----------------------------------------------
 */
-table.table thead th.sortable-header,
-.alert-history-table--th.sortable-header {
+.sortable-header {
   transition:
     color 0.25s ease,
     background-color 0.25s ease;
   position: relative;
 
-  &:after {
-    content: '\e910';
+  > .icon {
     display: block;
     position: absolute;
     top: 50%;
     right: 8px;
     color: $g20-white;
-    font-family: 'icomoon';
     opacity: 0;
     transform: translateY(-50%);
     transition:
@@ -83,12 +80,12 @@ table.table thead th.sortable-header,
     background-color: $g5-pepper;
     color: $g19-ghost;
 
-    &:after {opacity: 1;}
+    > .icon {opacity: 1;}
   }
-  &.sorting-ascending:after {
+  &.sorting-ascending > .icon {
     transform: translateY(-50%) rotate(180deg);
   }
-  &.sorting-descending:after {
+  &.sorting-descending > .icon {
     transform: translateY(-50%) rotate(0deg);
   }
 }
