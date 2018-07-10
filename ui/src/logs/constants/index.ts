@@ -171,3 +171,10 @@ export enum EncodingVisibilityOptions {
   visible = 'visible',
   hidden = 'hidden',
 }
+
+export const TIME_RANGE_VALUES = [
+  {text: '1m'},
+  {text: '5m'},
+  {text: '10m'},
+  {text: '15m'},
+]
