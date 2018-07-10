@@ -123,8 +123,12 @@ class LogsFilter extends PureComponent<Props, State> {
     const {operator, value, editing} = this.state
     const {filter} = this.props
 
-    if (!editing || (filter.operator === operator && filter.value === value)) {
+    if (!editing) {
       return
+    }
+
+    if (filter.operator === operator && filter.value === value) {
+      return this.setState({editing: false})
     }
 
     let state = {}
