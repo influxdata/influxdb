@@ -2695,7 +2695,8 @@ func TestServer(t *testing.T) {
 				body: `
 			{
 				"links": {
-					"self": "\/chronograf\/v1\/org_config"
+					"self": "\/chronograf\/v1\/org_config",
+					"logViewer": "\/chronograf\/v1\/org_config\/logviewer"
 				},
 				"organization": "default",
 				"logViewer": {

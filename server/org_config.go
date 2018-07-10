@@ -8,17 +8,23 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+type organizationConfigLinks struct {
+	Self      string `json:"self"`      // Self link mapping to this resource
+	LogViewer string `json:"logViewer"` // LogViewer link to the organization log viewer config endpoint
+}
+
 type organizationConfigResponse struct {
-	Links selfLinks `json:"links"`
+	Links organizationConfigLinks `json:"links"`
 	chronograf.OrganizationConfig
 }
 
-func newOrganizationConfigResponse(config chronograf.OrganizationConfig) *organizationConfigResponse {
+func newOrganizationConfigResponse(c chronograf.OrganizationConfig) *organizationConfigResponse {
 	return &organizationConfigResponse{
-		Links: selfLinks{
-			Self: "/chronograf/v1/org_config",
+		Links: organizationConfigLinks{
+			Self:      "/chronograf/v1/org_config",
+			LogViewer: "/chronograf/v1/org_config/logviewer",
 		},
-		OrganizationConfig: config,
+		OrganizationConfig: c,
 	}
 }
 
