@@ -5422,8 +5422,9 @@
               }
             }
           }
-        },
-        "example": {
+        }
+      },
+      "example": {
           "name": "severity",
           "position": 0,
           "encodings": [
@@ -5455,7 +5456,6 @@
             }
           ]
         }
-      }
     },
     "Routes": {
       "type": "object",
