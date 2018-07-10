@@ -52,10 +52,6 @@ func (s *Service) OrganizationConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if config == nil {
-		Error(w, http.StatusBadRequest, "Organization configuration object was nil", s.Logger)
-		return
-	}
 	res := newOrganizationConfigResponse(*config)
 
 	encodeJSON(w, http.StatusOK, res, s.Logger)
