@@ -179,7 +179,7 @@ func (s *Service) Sources(w http.ResponseWriter, r *http.Request) {
 		Sources: make([]sourceResponse, len(srcs)),
 	}
 
-	var sources []sourceResponse
+	sources := make([]sourceResponse, 0)
 	for _, src := range srcs {
 		sources = append(sources, newSourceResponse(ctx, src))
 	}
