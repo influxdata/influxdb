@@ -1,128 +1,153 @@
+export enum SeverityColorOptions {
+  ruby = 'ruby',
+  fire = 'fire',
+  curacao = 'curacao',
+  tiger = 'tiger',
+  pineapple = 'pineapple',
+  thunder = 'thunder',
+  sulfur = 'sulfur',
+  viridian = 'viridian',
+  rainforest = 'rainforest',
+  honeydew = 'honeydew',
+  ocean = 'ocean',
+  pool = 'pool',
+  laser = 'laser',
+  planet = 'planet',
+  star = 'star',
+  comet = 'comet',
+  graphite = 'graphite',
+  wolf = 'wolf',
+  mist = 'mist',
+  pearl = 'pearl',
+}
+
 export const SEVERITY_COLORS = [
   {
     hex: '#BF3D5E',
-    name: 'ruby',
+    name: SeverityColorOptions.ruby,
   },
   {
     hex: '#DC4E58',
-    name: 'fire',
+    name: SeverityColorOptions.fire,
   },
   {
     hex: '#F95F53',
-    name: 'curacao',
+    name: SeverityColorOptions.curacao,
   },
   {
     hex: '#F48D38',
-    name: 'tiger',
+    name: SeverityColorOptions.tiger,
   },
   {
     hex: '#FFB94A',
-    name: 'pineapple',
+    name: SeverityColorOptions.pineapple,
   },
   {
     hex: '#FFD255',
-    name: 'thunder',
+    name: SeverityColorOptions.thunder,
   },
   {
     hex: '#FFE480',
-    name: 'sulfur',
+    name: SeverityColorOptions.sulfur,
   },
   {
     hex: '#32B08C',
-    name: 'viridian',
+    name: SeverityColorOptions.viridian,
   },
   {
     hex: '#4ED8A0',
-    name: 'rainforest',
+    name: SeverityColorOptions.rainforest,
   },
   {
     hex: '#7CE490',
-    name: 'honeydew',
+    name: SeverityColorOptions.honeydew,
   },
   {
     hex: '#4591ED',
-    name: 'ocean',
+    name: SeverityColorOptions.ocean,
   },
   {
     hex: '#22ADF6',
-    name: 'pool',
+    name: SeverityColorOptions.pool,
   },
   {
     hex: '#00C9FF',
-    name: 'laser',
+    name: SeverityColorOptions.laser,
   },
   {
     hex: '#513CC6',
-    name: 'planet',
+    name: SeverityColorOptions.planet,
   },
   {
     hex: '#7A65F2',
-    name: 'star',
+    name: SeverityColorOptions.star,
   },
   {
     hex: '#9394FF',
-    name: 'comet',
+    name: SeverityColorOptions.comet,
   },
   {
     hex: '#545667',
-    name: 'graphite',
+    name: SeverityColorOptions.graphite,
   },
   {
     hex: '#8E91A1',
-    name: 'wolf',
+    name: SeverityColorOptions.wolf,
   },
   {
     hex: '#BEC2CC',
-    name: 'mist',
+    name: SeverityColorOptions.mist,
   },
   {
     hex: '#E7E8EB',
-    name: 'pearl',
+    name: SeverityColorOptions.pearl,
   },
 ]
 
-export const DEFAULT_SEVERITY_LEVELS = [
-  {
-    severity: 'emergency',
-    default: SEVERITY_COLORS.find(c => c.name === 'ruby'),
-    override: null,
-  },
-  {
-    severity: 'alert',
-    default: SEVERITY_COLORS.find(c => c.name === 'fire'),
-    override: null,
-  },
-  {
-    severity: 'critical',
-    default: SEVERITY_COLORS.find(c => c.name === 'curacao'),
-    override: null,
-  },
-  {
-    severity: 'error',
-    default: SEVERITY_COLORS.find(c => c.name === 'tiger'),
-    override: null,
-  },
-  {
-    severity: 'warning',
-    default: SEVERITY_COLORS.find(c => c.name === 'pineapple'),
-    override: null,
-  },
-  {
-    severity: 'notice',
-    default: SEVERITY_COLORS.find(c => c.name === 'rainforest'),
-    override: null,
-  },
-  {
-    severity: 'info',
-    default: SEVERITY_COLORS.find(c => c.name === 'star'),
-    override: null,
-  },
-  {
-    severity: 'debug',
-    default: SEVERITY_COLORS.find(c => c.name === 'wolf'),
-    override: null,
-  },
-]
+export const SeverityColorValues = {
+  [SeverityColorOptions.ruby]: '#BF3D5E',
+  [SeverityColorOptions.fire]: '#DC4E58',
+  [SeverityColorOptions.curacao]: '#F95F53',
+  [SeverityColorOptions.tiger]: '#F48D38',
+  [SeverityColorOptions.pineapple]: '#FFB94A',
+  [SeverityColorOptions.thunder]: '#FFD255',
+  [SeverityColorOptions.sulfur]: '#FFE480',
+  [SeverityColorOptions.viridian]: '#32B08C',
+  [SeverityColorOptions.rainforest]: '#4ED8A0',
+  [SeverityColorOptions.honeydew]: '#7CE490',
+  [SeverityColorOptions.ocean]: '#4591ED',
+  [SeverityColorOptions.pool]: '#22ADF6',
+  [SeverityColorOptions.laser]: '#00C9FF',
+  [SeverityColorOptions.planet]: '#513CC6',
+  [SeverityColorOptions.star]: '#7A65F2',
+  [SeverityColorOptions.comet]: '#9394FF',
+  [SeverityColorOptions.graphite]: '#545667',
+  [SeverityColorOptions.wolf]: '#8E91A1',
+  [SeverityColorOptions.mist]: '#BEC2CC',
+  [SeverityColorOptions.pearl]: '#E7E8EB',
+}
+
+export enum SeverityLevelOptions {
+  emerg = 'emerg',
+  alert = 'alert',
+  crit = 'crit',
+  err = 'err',
+  warning = 'warning',
+  notice = 'notice',
+  info = 'info',
+  debug = 'debug',
+}
+
+export const DEFAULT_SEVERITY_LEVELS = {
+  [SeverityLevelOptions.emerg]: SeverityColorOptions.ruby,
+  [SeverityLevelOptions.alert]: SeverityColorOptions.fire,
+  [SeverityLevelOptions.crit]: SeverityColorOptions.curacao,
+  [SeverityLevelOptions.err]: SeverityColorOptions.tiger,
+  [SeverityLevelOptions.warning]: SeverityColorOptions.pineapple,
+  [SeverityLevelOptions.notice]: SeverityColorOptions.rainforest,
+  [SeverityLevelOptions.info]: SeverityColorOptions.star,
+  [SeverityLevelOptions.debug]: SeverityColorOptions.wolf,
+}
 
 export enum SeverityFormatOptions {
   dot = 'dot',
@@ -134,6 +159,7 @@ export enum EncodingTypes {
   visibility = 'visibility',
   display = 'displayName',
   label = 'label',
+  color = 'color',
 }
 
 export enum EncodingLabelOptions {

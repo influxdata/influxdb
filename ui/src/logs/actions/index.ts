@@ -522,6 +522,11 @@ const serverLogData = {
           type: 'label',
           value: 'text',
         },
+        {
+          type: 'color',
+          value: 'err',
+          name: 'fire',
+        },
       ],
     },
     {

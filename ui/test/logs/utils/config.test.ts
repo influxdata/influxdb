@@ -6,10 +6,17 @@ import {
   sortColumns,
   getDisplayAndVisibleEncodings,
   getLabelEncodings,
+  getColorEncodings,
   getFullEncodings,
+  getLevelColorsFromColumn,
 } from 'src/logs/utils/config'
 import {serverLogConfig, serverLogColumns} from 'test/fixtures'
-import {SeverityFormatOptions} from 'src/logs/constants'
+import {
+  SeverityFormatOptions,
+  SeverityColorOptions,
+  SeverityLevelOptions,
+} from 'src/logs/constants'
+import {LogConfig} from 'src/types/logs'
 
 const sortedServerColumns = () => {
   return [
@@ -38,6 +45,16 @@ const sortedServerColumns = () => {
         {
           type: 'label',
           value: 'text',
+        },
+        {
+          type: 'color',
+          value: 'alert',
+          name: 'pearl',
+        },
+        {
+          type: 'color',
+          value: 'warning',
+          name: 'wolf',
         },
       ],
     },
@@ -114,7 +131,7 @@ const sortedServerColumns = () => {
 
 describe('Logs.Config', () => {
   describe('logConfigServerToUI', () => {
-    it('Converts columns to tableColumns', () => {
+    it('converts columns to tableColumns', () => {
       const serverColumn = {
         name: 'appname',
         position: 6,
@@ -156,7 +173,7 @@ describe('Logs.Config', () => {
       expect(uiColumn2).toEqual(expectedColumn2)
     })
 
-    it('Gets severity format from columns', () => {
+    it('gets severity format from columns', () => {
       const serverColumnDotText = {
         name: 'severity',
         position: 2,
@@ -190,14 +207,59 @@ describe('Logs.Config', () => {
       expect(severityFormatDot).toBe(SeverityFormatOptions.dot)
     })
 
-    it('Sorts the columns by position', () => {
+    it('sorts the columns by position', () => {
       const sortedColumns = sortColumns(serverLogColumns)
       const expected = sortedServerColumns()
 
       expect(sortedColumns).toEqual(expected)
     })
 
-    it('Converts the config from server to the format used by UI', () => {
+    it('gets Severity Color from column', () => {
+      const severityColumn = {
+        name: 'severity',
+        position: 1,
+        encodings: [
+          {
+            type: 'visibility',
+            value: 'visible',
+          },
+          {
+            type: 'label',
+            value: 'icon',
+          },
+          {
+            type: 'label',
+            value: 'text',
+          },
+          {
+            type: 'color',
+            name: 'pineapple',
+            value: 'emerg',
+          },
+          {
+            type: 'color',
+            name: 'fire',
+            value: 'err',
+          },
+        ],
+      }
+      const convertedColors = getLevelColorsFromColumn(severityColumn)
+
+      const expectedColors = [
+        {
+          level: SeverityLevelOptions.emerg,
+          color: SeverityColorOptions.pineapple,
+        },
+        {
+          level: SeverityLevelOptions.err,
+          color: SeverityColorOptions.fire,
+        },
+      ]
+
+      expect(convertedColors).toEqual(expectedColors)
+    })
+
+    it('converts the config from server to the format used by UI', () => {
       const uiLogConfig = logConfigServerToUI(serverLogConfig)
 
       const expected = {
@@ -216,6 +278,16 @@ describe('Logs.Config', () => {
           {internalName: 'host', displayName: '', visible: true},
         ],
         severityFormat: SeverityFormatOptions.dotText,
+        severityLevelColors: [
+          {
+            level: SeverityLevelOptions.alert,
+            color: SeverityColorOptions.pearl,
+          },
+          {
+            level: SeverityLevelOptions.warning,
+            color: SeverityColorOptions.wolf,
+          },
+        ],
       }
 
       expect(uiLogConfig).toEqual(expected)
@@ -272,6 +344,50 @@ describe('Logs.Config', () => {
       expect(encodingsDot).toEqual(expectedDot)
     })
 
+    it('generates color encodings from severityLevelColors', () => {
+      const severityLevelColors = [
+        {
+          level: SeverityLevelOptions.emerg,
+          color: SeverityColorOptions.pearl,
+        },
+        {
+          level: SeverityLevelOptions.alert,
+          color: SeverityColorOptions.mist,
+        },
+        {level: SeverityLevelOptions.crit, color: SeverityColorOptions.wolf},
+        {
+          level: SeverityLevelOptions.err,
+          color: SeverityColorOptions.graphite,
+        },
+      ]
+
+      const colorEncodings = getColorEncodings(severityLevelColors)
+      const expectedEncodings = [
+        {
+          type: 'color',
+          value: 'emerg',
+          name: SeverityColorOptions.pearl,
+        },
+        {
+          type: 'color',
+          value: 'alert',
+          name: SeverityColorOptions.mist,
+        },
+        {
+          type: 'color',
+          value: 'crit',
+          name: SeverityColorOptions.wolf,
+        },
+        {
+          type: 'color',
+          value: 'err',
+          name: SeverityColorOptions.graphite,
+        },
+      ]
+
+      expect(colorEncodings).toEqual(expectedEncodings)
+    })
+
     it('gets all encodings when appropriate', () => {
       const displayName = 'SEVERITY'
       const tableColumnSeverity = {
@@ -285,11 +401,22 @@ describe('Logs.Config', () => {
         visible: true,
       }
       const severityFormat = SeverityFormatOptions.dotText
+      const severityLevelColors = [
+        {level: SeverityLevelOptions.emerg, color: SeverityColorOptions.pearl},
+        {level: SeverityLevelOptions.alert, color: SeverityColorOptions.mist},
+        {level: SeverityLevelOptions.crit, color: SeverityColorOptions.wolf},
+        {level: SeverityLevelOptions.err, color: SeverityColorOptions.graphite},
+      ]
       const encodingsSeverity = getFullEncodings(
         tableColumnSeverity,
-        severityFormat
+        severityFormat,
+        severityLevelColors
       )
-      const encodingsOther = getFullEncodings(tableColumnOther, severityFormat)
+      const encodingsOther = getFullEncodings(
+        tableColumnOther,
+        severityFormat,
+        severityLevelColors
+      )
       const expectedSeverity = [
         {
           type: 'visibility',
@@ -307,6 +434,26 @@ describe('Logs.Config', () => {
           type: 'label',
           value: 'text',
         },
+        {
+          type: 'color',
+          value: 'emerg',
+          name: SeverityColorOptions.pearl,
+        },
+        {
+          type: 'color',
+          value: 'alert',
+          name: SeverityColorOptions.mist,
+        },
+        {
+          type: 'color',
+          value: 'crit',
+          name: SeverityColorOptions.wolf,
+        },
+        {
+          type: 'color',
+          value: 'err',
+          name: SeverityColorOptions.graphite,
+        },
       ]
 
       const expectedOther = [
@@ -320,8 +467,8 @@ describe('Logs.Config', () => {
       expect(encodingsOther).toEqual(expectedOther)
     })
 
-    it('Converts the config from what the UI uses to what the server takes', () => {
-      const uiLogConfig = {
+    it('converts the config from what the UI uses to what the server takes', () => {
+      const uiLogConfig: LogConfig = {
         tableColumns: [
           {internalName: 'time', displayName: '', visible: false},
           {internalName: 'severity', displayName: '', visible: true},
@@ -337,6 +484,16 @@ describe('Logs.Config', () => {
           {internalName: 'host', displayName: '', visible: true},
         ],
         severityFormat: SeverityFormatOptions.dotText,
+        severityLevelColors: [
+          {
+            level: SeverityLevelOptions.alert,
+            color: SeverityColorOptions.pearl,
+          },
+          {
+            level: SeverityLevelOptions.warning,
+            color: SeverityColorOptions.wolf,
+          },
+        ],
       }
 
       const convertedServerLogConfig = logConfigUIToServer(uiLogConfig)

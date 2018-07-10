@@ -40,7 +40,7 @@ import {Source, Namespace, TimeRange} from 'src/types'
 import {HistogramData, TimePeriod} from 'src/types/histogram'
 import {
   Filter,
-  SeverityLevel,
+  SeverityLevelColor,
   SeverityFormat,
   LogsTableColumn,
   LogConfig,
@@ -48,8 +48,6 @@ import {
 } from 'src/types/logs'
 
 // Mock
-import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
-
 interface Props {
   sources: Source[]
   currentSource: Source | null
@@ -276,6 +274,10 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
+  private get severityLevelColors(): SeverityLevelColor[] {
+    return _.get(this.props.logConfig, 'severityLevelColors', [])
+  }
+
   private handleChangeLiveUpdatingStatus = (): void => {
     const {liveUpdating} = this.state
 
@@ -346,7 +348,7 @@ class LogsPage extends PureComponent<Props, State> {
     return (
       <OverlayTechnology visible={isOverlayVisible}>
         <OptionsOverlay
-          severityLevels={DEFAULT_SEVERITY_LEVELS} // Todo: replace with real
+          severityLevelColors={this.severityLevelColors}
           onUpdateSeverityLevels={this.handleUpdateSeverityLevels}
           onDismissOverlay={this.handleToggleOverlay}
           columns={this.tableColumns}
@@ -358,7 +360,7 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleUpdateSeverityLevels = (levels: SeverityLevel[]) => {
+  private handleUpdateSeverityLevels = (levels: SeverityLevelColor[]) => {
     // Todo: Handle saving of these new severity colors here
     levels = levels
   }

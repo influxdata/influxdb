@@ -1,4 +1,8 @@
-import {SeverityFormatOptions} from 'src/logs/constants'
+import {
+  SeverityFormatOptions,
+  SeverityColorOptions,
+  SeverityLevelOptions,
+} from 'src/logs/constants'
 import {QueryConfig, TimeRange, Namespace, Source} from 'src/types'
 import {FieldOption} from 'src/types/dashboards'
 import {TimeSeriesValue} from 'src/types/series'
@@ -33,17 +37,17 @@ export interface LogsState {
 export interface LogConfig {
   tableColumns: LogsTableColumn[]
   severityFormat: SeverityFormat
+  severityLevelColors: SeverityLevelColor[]
 }
 
-export interface SeverityLevel {
-  severity: string
-  default: SeverityColor
-  override?: SeverityColor
+export interface SeverityLevelColor {
+  level: SeverityLevelOptions
+  color: SeverityColorOptions
 }
 
 export interface SeverityColor {
   hex: string
-  name: string
+  name: SeverityColorOptions
 }
 
 export type SeverityFormat = SeverityFormatOptions
@@ -63,4 +67,5 @@ export interface ServerColumn {
 export interface ServerEncoding {
   type: string
   value: string
+  name?: string
 }

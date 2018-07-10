@@ -30,6 +30,7 @@ const defaultState: LogsState = {
   logConfig: {
     tableColumns: [],
     severityFormat: SeverityFormatOptions.dotText,
+    severityLevelColors: [],
   },
 }
 

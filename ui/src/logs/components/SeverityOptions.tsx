@@ -2,10 +2,13 @@ import React, {SFC} from 'react'
 import uuid from 'uuid'
 import ColorDropdown from 'src/logs/components/ColorDropdown'
 import SeverityColumnFormat from 'src/logs/components/SeverityColumnFormat'
-import {SeverityLevel, SeverityColor, SeverityFormat} from 'src/types/logs'
+
+import {SeverityColorValues} from 'src/logs/constants'
+
+import {SeverityLevelColor, SeverityColor, SeverityFormat} from 'src/types/logs'
 
 interface Props {
-  severityLevels: SeverityLevel[]
+  severityLevelColors: SeverityLevelColor[]
   onReset: () => void
   onChangeSeverityLevel: (severity: string, override: SeverityColor) => void
   severityFormat: SeverityFormat
@@ -13,7 +16,7 @@ interface Props {
 }
 
 const SeverityConfig: SFC<Props> = ({
-  severityLevels,
+  severityLevelColors,
   onReset,
   onChangeSeverityLevel,
   severityFormat,
@@ -22,21 +25,24 @@ const SeverityConfig: SFC<Props> = ({
   <>
     <label className="form-label">Severity Colors</label>
     <div className="logs-options--color-list">
-      {severityLevels.map(config => (
-        <div key={uuid.v4()} className="logs-options--color-row">
-          <div className="logs-options--color-column">
-            <div className="logs-options--color-label">{config.severity}</div>
+      {severityLevelColors.map(lc => {
+        const color = {name: lc.color, hex: SeverityColorValues[lc.color]}
+        return (
+          <div key={uuid.v4()} className="logs-options--color-row">
+            <div className="logs-options--color-column">
+              <div className="logs-options--color-label">{lc.level}</div>
+            </div>
+            <div className="logs-options--color-column">
+              <ColorDropdown
+                selected={color}
+                onChoose={onChangeSeverityLevel}
+                stretchToFit={true}
+                severityLevel={lc.level}
+              />
+            </div>
           </div>
-          <div className="logs-options--color-column">
-            <ColorDropdown
-              selected={config.override || config.default}
-              onChoose={onChangeSeverityLevel}
-              stretchToFit={true}
-              severityLevel={config.severity}
-            />
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
     <button className="btn btn-sm btn-default btn-block" onClick={onReset}>
       <span className="icon refresh" />
