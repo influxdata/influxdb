@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform/query/functions"
+	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 
@@ -31,6 +32,25 @@ func TestFrom_NewQuery(t *testing.T) {
 			Name:    "from",
 			Raw:     `from(db:"telegraf", chicken:"what is this?")`,
 			WantErr: true,
+		},
+		{
+			Name:    "from bucket invalid ID",
+			Raw:     `from(bucketID:"invalid")`,
+			WantErr: true,
+		},
+		{
+			Name: "from bucket ID",
+			Raw:  `from(bucketID:"aaaaaaaa")`,
+			Want: &query.Spec{
+				Operations: []*query.Operation{
+					{
+						ID: "from0",
+						Spec: &functions.FromOpSpec{
+							BucketID: platform.ID{170, 170, 170, 170},
+						},
+					},
+				},
+			},
 		},
 		{
 			Name: "from with database",
