@@ -41,6 +41,9 @@ func (s *OrganizationConfigStore) Get(ctx context.Context, orgID string) (*chron
 
 func (s *OrganizationConfigStore) get(ctx context.Context, tx *bolt.Tx, orgID string, cfg *chronograf.OrganizationConfig) error {
 	v := tx.Bucket(OrganizationConfigBucket).Get([]byte(orgID))
+	if len(v) == 0 {
+		return chronograf.ErrOrganizationConfigNotFound
+	}
 	return internal.UnmarshalOrganizationConfig(v, cfg)
 }
 
@@ -48,12 +51,12 @@ func (s *OrganizationConfigStore) get(ctx context.Context, tx *bolt.Tx, orgID st
 func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, orgID string) (*chronograf.OrganizationConfig, error) {
 	var cfg chronograf.OrganizationConfig
 	err := s.client.db.Update(func(tx *bolt.Tx) error {
-		v := tx.Bucket(OrganizationConfigBucket).Get([]byte(orgID))
-		if v == nil {
+		err := s.get(ctx, tx, orgID, &cfg)
+		if err == chronograf.ErrOrganizationConfigNotFound {
 			cfg = newOrganizationConfig(orgID)
 			return s.update(ctx, tx, &cfg)
 		}
-		return internal.UnmarshalOrganizationConfig(v, &cfg)
+		return err
 	})
 
 	if err != nil {

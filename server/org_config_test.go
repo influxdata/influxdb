@@ -152,7 +152,7 @@ func TestOrganizationConfig(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, chronograf.ErrOrganizationConfigFindOrCreateFailed
+							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
 				},
@@ -254,7 +254,7 @@ func TestLogViewerOrganizationConfig(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, chronograf.ErrOrganizationConfigFindOrCreateFailed
+							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
 				},
@@ -353,7 +353,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, chronograf.ErrOrganizationConfigFindOrCreateFailed
+							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
 					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
@@ -445,7 +445,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, chronograf.ErrOrganizationConfigFindOrCreateFailed
+							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
 					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
@@ -489,7 +489,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, chronograf.ErrOrganizationConfigFindOrCreateFailed
+							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
 					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
@@ -554,7 +554,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, chronograf.ErrOrganizationConfigFindOrCreateFailed
+							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
 					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
@@ -624,7 +624,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 								},
 							}, nil
 						default:
-							return nil, chronograf.ErrOrganizationConfigFindOrCreateFailed
+							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
 					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
