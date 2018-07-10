@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
 import uuid from 'uuid'
+import moment from 'moment'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 import {AutoSizer} from 'react-virtualized'
@@ -46,6 +47,8 @@ import {
   LogsTableColumn,
   LogConfig,
   TableData,
+  TimeWindow,
+  TimeWindowOption,
 } from 'src/types/logs'
 
 // Mock
@@ -59,7 +62,7 @@ interface Props {
   getSource: (sourceID: string) => void
   getSources: () => void
   setTimeRangeAsync: (timeRange: TimeRange) => void
-  setTimeWindowAsync: (timeWindow: string) => void
+  setTimeWindowAsync: (timeWindow: TimeWindow) => void
   setNamespaceAsync: (namespace: Namespace) => void
   changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
@@ -71,7 +74,7 @@ interface Props {
   getConfig: (url: string) => Promise<void>
   updateConfig: (url: string, config: LogConfig) => Promise<void>
   timeRange: TimeRange
-  timeWindow: string
+  timeWindow: TimeWindow
   histogramData: HistogramData
   tableData: TableData
   searchTerm: string
@@ -257,7 +260,6 @@ class LogsPage extends PureComponent<Props, State> {
       currentSource,
       currentNamespaces,
       currentNamespace,
-      timeRange,
       timeWindow,
     } = this.props
 
@@ -266,13 +268,12 @@ class LogsPage extends PureComponent<Props, State> {
     return (
       <LogViewerHeader
         timeWindow={timeWindow}
-        onChangeTimeWindow={this.handleChooseTimeWindow}
+        onChangeTimeWindow={this.transformWindowToRange}
+        onChooseTime={this.transformTimeToRange}
         liveUpdating={liveUpdating && !this.isSpecificTimeRange}
         availableSources={sources}
-        timeRange={timeRange}
         onChooseSource={this.handleChooseSource}
         onChooseNamespace={this.handleChooseNamespace}
-        onChooseTimerange={this.handleChooseTimerange}
         currentSource={currentSource}
         currentNamespaces={currentNamespaces}
         currentNamespace={currentNamespace}
@@ -313,12 +314,43 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.executeQueriesAsync()
   }
 
-  private handleChooseTimerange = (timeRange: TimeRange) => {
-    this.props.setTimeRangeAsync(timeRange)
-    this.fetchNewDataset()
+  // private handleChooseTimerange = (timeRange: TimeRange) => {
+  //   console.log('TIME RANGE', timeRange)
+  //   this.props.setTimeRangeAsync(timeRange)
+  //   this.fetchNewDataset()
+  // }
+
+  private transformTimeToRange = (timeOption: string) => {
+    const {seconds, windowOption} = this.props.timeWindow
+    let lower = `now() - ${windowOption}`
+    let upper = null
+
+    if (timeOption !== 'now') {
+      const numberTimeOption = moment(timeOption).valueOf()
+      const milliseconds = seconds * 10 / 2
+
+      lower = moment(numberTimeOption - milliseconds).format()
+      upper = moment(numberTimeOption + milliseconds).format()
+    }
+
+    const timeWindow = {
+      ...this.props.timeWindow,
+      lower,
+      upper,
+      timeOption,
+    }
+
+    this.props.setTimeWindowAsync(timeWindow)
   }
 
-  private handleChooseTimeWindow = (timeWindow: string) => {
+  private transformWindowToRange = (timeWindowOption: TimeWindowOption) => {
+    const {text, seconds} = timeWindowOption
+    const timeWindow = {
+      ...this.props.timeWindow,
+      seconds,
+      windowOption: text,
+    }
+
     this.props.setTimeWindowAsync(timeWindow)
   }
 

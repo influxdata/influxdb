@@ -147,8 +147,8 @@ export enum EncodingVisibilityOptions {
 }
 
 export const TIME_RANGE_VALUES = [
-  {text: '1m'},
-  {text: '5m'},
-  {text: '10m'},
-  {text: '15m'},
+  {text: '1m', seconds: 60},
+  {text: '5m', seconds: 300},
+  {text: '10m', seconds: 600},
+  {text: '15m', seconds: 900},
 ]

@@ -21,7 +21,13 @@ import {
   // getLogConfig as getLogConfigAJAX,
   // updateLogConfig as updateLogConfigAJAX,
 } from 'src/logs/api'
-import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
+import {
+  LogsState,
+  Filter,
+  TableData,
+  LogConfig,
+  TimeWindow,
+} from 'src/types/logs'
 
 const defaultTableData: TableData = {
   columns: [
@@ -132,7 +138,7 @@ interface SetTimeRangeAction {
 interface SetTimeWindowAction {
   type: ActionTypes.SetTimeWindow
   payload: {
-    timeWindow: string
+    timeWindow: TimeWindow
   }
 }
 
@@ -251,7 +257,7 @@ const setHistogramData = (data): SetHistogramData => ({
   payload: {data},
 })
 
-export const setTimeWindow = (timeWindow: string): SetTimeWindowAction => ({
+export const setTimeWindow = (timeWindow: TimeWindow): SetTimeWindowAction => ({
   type: ActionTypes.SetTimeWindow,
   payload: {timeWindow},
 })
@@ -472,10 +478,9 @@ export const setTimeRangeAsync = (timeRange: TimeRange) => async (
   dispatch(setTableQueryConfigAsync())
 }
 
-export const setTimeWindowAsync = (timeWindow: string) => async (
+export const setTimeWindowAsync = (timeWindow: TimeWindow) => async (
   dispatch
 ): Promise<void> => {
-  console.log(timeWindow)
   dispatch({
     type: ActionTypes.SetTimeWindow,
     payload: {

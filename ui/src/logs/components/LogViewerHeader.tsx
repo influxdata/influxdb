@@ -9,7 +9,7 @@ import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTi
 import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
 import WindowSelectorDropdown from 'src/logs/components/window_selector_dropdown/WindowSelectorDropdown'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-import {TimeRange} from 'src/types'
+import {TimeWindow, TimeWindowOption} from 'src/types/logs'
 
 interface SourceItem {
   id: string
@@ -21,15 +21,14 @@ interface Props {
   availableSources: Source[]
   currentSource: Source | null
   currentNamespaces: Namespace[]
-  timeRange: TimeRange
   liveUpdating: boolean
   onChooseSource: (sourceID: string) => void
   onChooseNamespace: (namespace: Namespace) => void
-  onChooseTimerange: (timeRange: TimeRange) => void
+  onChooseTime: (time: string) => void
   onChangeLiveUpdatingStatus: () => void
   onShowOptionsOverlay: () => void
-  timeWindow: string
-  onChangeTimeWindow: (timeWindow: string) => void
+  timeWindow: TimeWindow
+  onChangeTimeWindow: (timeWindow: TimeWindowOption) => void
 }
 
 class LogViewerHeader extends PureComponent<Props> {
@@ -54,10 +53,10 @@ class LogViewerHeader extends PureComponent<Props> {
 
   private get optionsComponents(): JSX.Element {
     const {
-      timeRange,
       onShowOptionsOverlay,
       timeWindow,
       onChangeTimeWindow,
+      onChooseTime,
     } = this.props
 
     return (
@@ -80,8 +79,8 @@ class LogViewerHeader extends PureComponent<Props> {
           onChangeWindow={onChangeTimeWindow}
         />
         <TimeRangeDropdown
-          onChooseTimeRange={this.handleChooseTimeRange}
-          selected={timeRange}
+          onChooseTime={onChooseTime}
+          selectedTime={timeWindow.timeOption}
         />
         <Authorized requiredRole={EDITOR_ROLE}>
           <button
@@ -114,10 +113,6 @@ class LogViewerHeader extends PureComponent<Props> {
         </li>
       </ul>
     )
-  }
-
-  private handleChooseTimeRange = (timerange: TimeRange) => {
-    this.props.onChooseTimerange(timerange)
   }
 
   private handleChooseSource = (item: SourceItem) => {
