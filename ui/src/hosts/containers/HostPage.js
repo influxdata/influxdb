@@ -174,6 +174,10 @@ class HostPage extends Component {
       handleClickPresentationButton,
     } = this.props
     const {timeRange} = this.state
+    const switcherLinks = {
+      links: this.dashboardLinks,
+      active: this.activeDashboardLink,
+    }
 
     return (
       <div className="page">
@@ -186,8 +190,7 @@ class HostPage extends Component {
           handleChooseAutoRefresh={handleChooseAutoRefresh}
           handleChooseTimeRange={this.handleChooseTimeRange}
           handleClickPresentationButton={handleClickPresentationButton}
-          dashboardLinks={this.dashboardLinks}
-          activeDashboardLink={this.activeDashboardLink}
+          dashboardLinks={switcherLinks}
         />
         <FancyScrollbar
           className={classnames({
