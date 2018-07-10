@@ -58,6 +58,9 @@ func (s *Service) OrganizationConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // OrganizationLogViewerConfig retrieves the log viewer UI section of the organization config
+// This uses a FindOrCreate function to ensure that any new organizations have
+// default organization config values, without having to associate organization creation with
+// organization config creation.
 func (s *Service) OrganizationLogViewerConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
