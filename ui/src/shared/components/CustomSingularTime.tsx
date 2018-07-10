@@ -3,10 +3,8 @@ import rome from 'rome'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {formatTimeRange} from 'src/shared/utils/time'
 
-import {TimeRange} from 'src/types'
-
 interface Props {
-  onSelected: (timeRange: TimeRange) => void
+  onSelected: (time: string) => void
   time: string
   timeInterval?: number
   onClose?: () => void
@@ -66,6 +64,7 @@ class CustomSingularTime extends Component<Props, State> {
             </div>
           </div>
           <div
+            style={{marginTop: '10px'}}
             className="custom-time--apply btn btn-sm btn-primary"
             onClick={this.handleClick}
           >
@@ -85,8 +84,8 @@ class CustomSingularTime extends Component<Props, State> {
   private handleClick = () => {
     const date = this.calendar.getDate()
     if (date) {
-      const lower = date.toISOString()
-      this.props.onSelected({lower, upper: 'now()'})
+      const time = date.toISOString()
+      this.props.onSelected(time)
     }
 
     if (this.props.onClose) {

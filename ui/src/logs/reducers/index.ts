@@ -13,7 +13,21 @@ import {
 } from 'src/logs/actions'
 
 import {SeverityFormatOptions} from 'src/logs/constants'
-import {LogsState} from 'src/types/logs'
+import {LogsState, TableData} from 'src/types/logs'
+
+const defaultTableData: TableData = {
+  columns: [
+    'time',
+    'severity',
+    'timestamp',
+    'facility',
+    'procid',
+    'application',
+    'host',
+    'message',
+  ],
+  values: [],
+}
 
 const defaultState: LogsState = {
   currentSource: null,
@@ -31,6 +45,11 @@ const defaultState: LogsState = {
     tableColumns: [],
     severityFormat: SeverityFormatOptions.dotText,
     severityLevelColors: [],
+  },
+  tableTime: {},
+  tableInfiniteData: {
+    forward: defaultTableData,
+    backward: defaultTableData,
   },
 }
 
@@ -135,11 +154,31 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, tableQueryConfig: action.payload.queryConfig}
     case ActionTypes.SetTableData:
       return {...state, tableData: action.payload.data}
+    case ActionTypes.SetTableForwardData:
+      return {
+        ...state,
+        tableInfiniteData: {
+          ...state.tableInfiniteData,
+          forward: action.payload.data,
+        },
+      }
+    case ActionTypes.SetTableBackwardData:
+      return {
+        ...state,
+        tableInfiniteData: {
+          ...state.tableInfiniteData,
+          backward: action.payload.data,
+        },
+      }
     case ActionTypes.ChangeZoom:
       return {...state, timeRange: action.payload.timeRange}
     case ActionTypes.SetSearchTerm:
       const {searchTerm} = action.payload
       return {...state, searchTerm}
+    case ActionTypes.SetTableCustomTime:
+      return {...state, tableTime: {custom: action.payload.time}}
+    case ActionTypes.SetTableRelativeTime:
+      return {...state, tableTime: {relative: action.payload.time}}
     case ActionTypes.AddFilter:
       return addFilter(state, action)
     case ActionTypes.RemoveFilter:

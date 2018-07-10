@@ -323,6 +323,7 @@ class LogsTable extends Component<Props, State> {
   }
 
   private loadMoreRows = async () => {
+    return
     const data = getValuesFromData(this.props.data)
     const {timeRange} = this.props
     const lastTime = getDeep(

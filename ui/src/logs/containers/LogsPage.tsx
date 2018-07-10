@@ -5,6 +5,8 @@ import {connect} from 'react-redux'
 import {AutoSizer} from 'react-virtualized'
 
 import {
+  setTableCustomTimeAsync,
+  setTableRelativeTimeAsync,
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
   setNamespaceAsync,
@@ -26,14 +28,10 @@ import OptionsOverlay from 'src/logs/components/OptionsOverlay'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogsTable from 'src/logs/components/LogsTable'
+import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import {getDeep} from 'src/utils/wrappers'
 import {colorForSeverity} from 'src/logs/utils/colors'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import {
-  orderTableColumns,
-  filterTableColumns,
-} from 'src/dashboards/utils/tableGraph'
-
 import {SeverityFormatOptions} from 'src/logs/constants'
 import {Source, Namespace, TimeRange} from 'src/types'
 
@@ -46,6 +44,7 @@ import {
   LogConfig,
   TableData,
 } from 'src/types/logs'
+import {applyChangesToTableData} from 'src/logs/utils/table'
 
 interface Props {
   sources: Source[]
@@ -59,6 +58,8 @@ interface Props {
   changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
   setSearchTermAsync: (searchTerm: string) => void
+  setTableRelativeTime: (time: number) => void
+  setTableCustomTime: (time: string) => void
   fetchMoreAsync: (queryTimeEnd: string, lastTime: number) => Promise<void>
   addFilter: (filter: Filter) => void
   removeFilter: (id: string) => void
@@ -73,6 +74,14 @@ interface Props {
   queryCount: number
   logConfig: LogConfig
   logConfigLink: string
+  tableInfiniteData: {
+    forward: TableData
+    backward: TableData
+  }
+  tableTime: {
+    custom: string
+    relative: number
+  }
 }
 
 interface State {
@@ -134,7 +143,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   public render() {
     const {liveUpdating} = this.state
-    const {searchTerm, filters, queryCount, timeRange} = this.props
+    const {searchTerm, filters, queryCount, timeRange, tableTime} = this.props
 
     return (
       <>
@@ -142,6 +151,17 @@ class LogsPage extends PureComponent<Props, State> {
           {this.header}
           <div className="page-contents logs-viewer">
             <LogsGraphContainer>{this.chart}</LogsGraphContainer>
+            <div style={{height: '50px', position: 'relative'}}>
+              <div style={{position: 'absolute', right: '10px', top: '10px'}}>
+                <span style={{marginRight: '10px'}}>Go to </span>
+                <PointInTimeDropDown
+                  customTime={tableTime.custom}
+                  relativeTime={tableTime.relative}
+                  onChooseCustomTime={this.handleChooseCustomTime}
+                  onChooseRelativeTime={this.handleChooseRelativeTime}
+                />
+              </div>
+            </div>
             <SearchBar
               searchString={searchTerm}
               onSearch={this.handleSubmitSearch}
@@ -174,21 +194,28 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
-  private get tableData(): TableData {
-    const {tableData} = this.props
-    const tableColumns = this.tableColumns
-    const columns = _.get(tableData, 'columns', [])
-    const values = _.get(tableData, 'values', [])
-    const data = [columns, ...values]
+  private handleChooseCustomTime = (time: string) => {
+    this.props.setTableCustomTime(time)
+  }
 
-    const filteredData = filterTableColumns(data, tableColumns)
-    const orderedData = orderTableColumns(filteredData, tableColumns)
-    const updatedColumns: string[] = _.get(orderedData, '0', [])
-    const updatedValues = _.slice(orderedData, 1)
+  private handleChooseRelativeTime = (time: number) => {
+    this.props.setTableRelativeTime(time)
+  }
+
+  private get tableData(): TableData {
+    const forwardData = applyChangesToTableData(
+      this.props.tableInfiniteData.forward,
+      this.tableColumns
+    )
+
+    const backwardData = applyChangesToTableData(
+      this.props.tableInfiniteData.backward,
+      this.tableColumns
+    )
 
     return {
-      columns: updatedColumns,
-      values: updatedValues,
+      columns: forwardData.columns,
+      values: [...forwardData.values, ...backwardData.values],
     }
   }
 
@@ -436,6 +463,8 @@ const mapStateToProps = ({
     filters,
     queryCount,
     logConfig,
+    tableTime,
+    tableInfiniteData,
   },
 }) => ({
   sources,
@@ -449,7 +478,9 @@ const mapStateToProps = ({
   filters,
   queryCount,
   logConfig,
+  tableTime,
   logConfigLink: logViewer,
+  tableInfiniteData,
 })
 
 const mapDispatchToProps = {
@@ -464,6 +495,8 @@ const mapDispatchToProps = {
   removeFilter,
   changeFilter,
   fetchMoreAsync,
+  setTableCustomTime: setTableCustomTimeAsync,
+  setTableRelativeTime: setTableRelativeTimeAsync,
   getConfig: getLogConfigAsync,
   updateConfig: updateLogConfigAsync,
 }

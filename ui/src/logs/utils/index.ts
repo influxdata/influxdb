@@ -115,6 +115,99 @@ export const filtersClause = (filters: Filter[]): string => {
   ).join(' AND ')
 }
 
+export function buildInfiniteWhereClause({
+  lower,
+  upper,
+  tags,
+  areTagsAccepted,
+}: QueryConfig): string {
+  const timeClauses = []
+
+  if (lower) {
+    timeClauses.push(`time >= '${lower}'`)
+  }
+
+  if (upper) {
+    timeClauses.push(`time < '${upper}'`)
+  }
+
+  const tagClauses = _.keys(tags).map(k => {
+    const operator = areTagsAccepted ? '=' : '!='
+
+    if (tags[k].length > 1) {
+      const joinedOnOr = tags[k]
+        .map(v => `"${k}"${operator}'${v}'`)
+        .join(' OR ')
+      return `(${joinedOnOr})`
+    }
+
+    return `"${k}"${operator}'${tags[k]}'`
+  })
+
+  const subClauses = timeClauses.concat(tagClauses)
+  if (!subClauses.length) {
+    return ''
+  }
+
+  return ` WHERE ${subClauses.join(' AND ')}`
+}
+
+export function buildGeneralLogQuery(
+  condition: string,
+  config: QueryConfig,
+  filters: Filter[],
+  searchTerm: string | null = null
+) {
+  const {groupBy, fill = NULL_STRING} = config
+  const select = buildSelect(config, '')
+  const dimensions = buildGroupBy(groupBy)
+  const fillClause = groupBy.time ? buildFill(fill) : ''
+
+  if (!_.isEmpty(searchTerm)) {
+    condition = `${condition} AND message =~ ${new RegExp(searchTerm)}`
+  }
+
+  if (!_.isEmpty(filters)) {
+    condition = `${condition} AND ${filtersClause(filters)}`
+  }
+
+  return `${select}${condition}${dimensions}${fillClause}`
+}
+
+export function buildBackwardLogQuery(
+  upper: string,
+  config: QueryConfig,
+  filters: Filter[],
+  searchTerm: string | null = null
+) {
+  const {tags, areTagsAccepted} = config
+
+  const condition = buildInfiniteWhereClause({
+    upper,
+    tags,
+    areTagsAccepted,
+  })
+
+  return buildGeneralLogQuery(condition, config, filters, searchTerm)
+}
+
+export function buildForwardLogQuery(
+  lower: string,
+  config: QueryConfig,
+  filters: Filter[],
+  searchTerm: string | null = null
+) {
+  const {tags, areTagsAccepted} = config
+
+  const condition = buildInfiniteWhereClause({
+    lower,
+    tags,
+    areTagsAccepted,
+  })
+
+  return buildGeneralLogQuery(condition, config, filters, searchTerm)
+}
+
 export function buildLogQuery(
   timeRange: TimeRange,
   config: QueryConfig,

@@ -3,6 +3,10 @@ import moment from 'moment'
 import {getDeep} from 'src/utils/wrappers'
 import {TableData, LogsTableColumn, SeverityFormat} from 'src/types/logs'
 import {SeverityFormatOptions} from 'src/logs/constants'
+import {
+  orderTableColumns,
+  filterTableColumns,
+} from 'src/dashboards/utils/tableGraph'
 
 export const ROW_HEIGHT = 26
 const CHAR_WIDTH = 9
@@ -118,4 +122,23 @@ export const getMessageWidth = (
   )
 
   return calculatedWidth - CHAR_WIDTH
+}
+
+export const applyChangesToTableData = (
+  tableData: TableData,
+  tableColumns: LogsTableColumn[]
+): TableData => {
+  const columns = _.get(tableData, 'columns', [])
+  const values = _.get(tableData, 'values', [])
+  const data = [columns, ...values]
+
+  const filteredData = filterTableColumns(data, tableColumns)
+  const orderedData = orderTableColumns(filteredData, tableColumns)
+  const updatedColumns: string[] = _.get(orderedData, '0', [])
+  const updatedValues = _.slice(orderedData, 1)
+
+  return {
+    columns: updatedColumns,
+    values: updatedValues,
+  }
 }

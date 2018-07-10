@@ -9,6 +9,8 @@ import {
   buildHistogramQueryConfig,
   buildTableQueryConfig,
   buildLogQuery,
+  buildForwardLogQuery,
+  buildBackwardLogQuery,
   parseHistogramQueryResponse,
 } from 'src/logs/utils'
 import {
@@ -21,7 +23,10 @@ import {
   // getLogConfig as getLogConfigAJAX,
   // updateLogConfig as updateLogConfigAJAX,
 } from 'src/logs/api'
+import serverLogData from 'src/logs/data/serverLogData'
 import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
+
+const INITIAL_LIMIT = 1000
 
 const defaultTableData: TableData = {
   columns: [
@@ -61,7 +66,40 @@ export enum ActionTypes {
   DecrementQueryCount = 'LOGS_DECREMENT_QUERY_COUNT',
   ConcatMoreLogs = 'LOGS_CONCAT_MORE_LOGS',
   SetConfig = 'SET_CONFIG',
+  SetTableRelativeTime = 'SET_TABLE_RELATIVE_TIME',
+  SetTableCustomTime = 'SET_TABLE_CUSTOM_TIME',
+  SetTableForwardData = 'SET_TABLE_FORWARD_DATA',
+  SetTableBackwardData = 'SET_TABLE_BACKWARD_DATA',
 }
+
+export interface SetTableForwardDataAction {
+  type: ActionTypes.SetTableForwardData
+  payload: {
+    data: TableData
+  }
+}
+
+export interface SetTableBackwardDataAction {
+  type: ActionTypes.SetTableBackwardData
+  payload: {
+    data: TableData
+  }
+}
+
+export interface SetTableRelativeTimeAction {
+  type: ActionTypes.SetTableRelativeTime
+  payload: {
+    time: number
+  }
+}
+
+export interface SetTableCustomTimeAction {
+  type: ActionTypes.SetTableCustomTime
+  payload: {
+    time: string
+  }
+}
+
 export interface ConcatMoreLogsAction {
   type: ActionTypes.ConcatMoreLogs
   payload: {
@@ -194,6 +232,10 @@ export type Action =
   | IncrementQueryCountAction
   | ConcatMoreLogsAction
   | SetConfigsAction
+  | SetTableCustomTimeAction
+  | SetTableRelativeTimeAction
+  | SetTableForwardDataAction
+  | SetTableBackwardDataAction
 
 const getTimeRange = (state: State): TimeRange | null =>
   getDeep<TimeRange | null>(state, 'logs.timeRange', null)
@@ -215,6 +257,131 @@ const getSearchTerm = (state: State): string | null =>
 
 const getFilters = (state: State): Filter[] =>
   getDeep<Filter[]>(state, 'logs.filters', [])
+
+const getTableSelectedTime = (state: State): string => {
+  const custom = getDeep<string>(state, 'logs.tableTime.custom', '')
+
+  if (!_.isEmpty(custom)) {
+    return custom
+  }
+
+  const relative = getDeep<number>(state, 'logs.tableTime.relative', 0)
+
+  return moment()
+    .subtract(relative, 'seconds')
+    .toISOString()
+}
+
+export const setTableCustomTime = (time: string): SetTableCustomTimeAction => ({
+  type: ActionTypes.SetTableCustomTime,
+  payload: {time},
+})
+
+export const setTableRelativeTime = (
+  time: number
+): SetTableRelativeTimeAction => ({
+  type: ActionTypes.SetTableRelativeTime,
+  payload: {time},
+})
+
+export const setTableForwardData = (
+  data: TableData
+): SetTableForwardDataAction => ({
+  type: ActionTypes.SetTableForwardData,
+  payload: {data},
+})
+
+export const setTableBackwardData = (
+  data: TableData
+): SetTableBackwardDataAction => ({
+  type: ActionTypes.SetTableBackwardData,
+  payload: {data},
+})
+
+export const executeTableForwardQueryAsync = () => async (
+  dispatch,
+  getState: GetState
+) => {
+  const state = getState()
+
+  const time = getTableSelectedTime(state)
+  const queryConfig = getTableQueryConfig(state)
+  const namespace = getNamespace(state)
+  const proxyLink = getProxyLink(state)
+  const searchTerm = getSearchTerm(state)
+  const filters = getFilters(state)
+
+  if (!_.every([queryConfig, time, namespace, proxyLink])) {
+    return
+  }
+
+  try {
+    dispatch(incrementQueryCount())
+
+    const query = buildForwardLogQuery(time, queryConfig, filters, searchTerm)
+    const response = await executeQueryAsync(
+      proxyLink,
+      namespace,
+      `${query} ORDER BY time ASC LIMIT ${INITIAL_LIMIT}`
+    )
+
+    const series = getDeep(response, 'results.0.series.0', defaultTableData)
+
+    const result = {
+      columns: series.columns,
+      values: _.reverse(series.values),
+    }
+
+    dispatch(setTableForwardData(result))
+  } finally {
+    dispatch(decrementQueryCount())
+  }
+}
+
+export const executeTableBackwardQueryAsync = () => async (
+  dispatch,
+  getState: GetState
+) => {
+  const state = getState()
+
+  const time = getTableSelectedTime(state)
+  const queryConfig = getTableQueryConfig(state)
+  const namespace = getNamespace(state)
+  const proxyLink = getProxyLink(state)
+  const searchTerm = getSearchTerm(state)
+  const filters = getFilters(state)
+
+  if (!_.every([queryConfig, time, namespace, proxyLink])) {
+    return
+  }
+
+  try {
+    dispatch(incrementQueryCount())
+
+    const query = buildBackwardLogQuery(time, queryConfig, filters, searchTerm)
+    const response = await executeQueryAsync(
+      proxyLink,
+      namespace,
+      `${query} ORDER BY time DESC LIMIT ${INITIAL_LIMIT}`
+    )
+
+    const series = getDeep(response, 'results.0.series.0', defaultTableData)
+
+    dispatch(setTableBackwardData(series))
+  } finally {
+    dispatch(decrementQueryCount())
+  }
+}
+
+export const setTableCustomTimeAsync = (time: string) => async dispatch => {
+  await dispatch(setTableCustomTime(time))
+  await dispatch(executeTableQueryAsync())
+}
+
+export const setTableRelativeTimeAsync = (time: number) => async dispatch => {
+  await dispatch(setTableRelativeTime(time))
+  await dispatch(executeTableQueryAsync())
+}
 
 export const changeFilter = (id: string, operator: string, value: string) => ({
   type: ActionTypes.ChangeFilter,
@@ -271,44 +438,11 @@ export const executeHistogramQueryAsync = () => async (
   }
 }
 
-const setTableData = (series: TableData): SetTableData => ({
-  type: ActionTypes.SetTableData,
-  payload: {data: {columns: series.columns, values: series.values}},
-})
-
-export const executeTableQueryAsync = () => async (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
-  const state = getState()
-
-  const queryConfig = getTableQueryConfig(state)
-  const timeRange = getTimeRange(state)
-  const namespace = getNamespace(state)
-  const proxyLink = getProxyLink(state)
-  const searchTerm = getSearchTerm(state)
-  const filters = getFilters(state)
-
-  if (!_.every([queryConfig, timeRange, namespace, proxyLink])) {
-    return
-  }
-
-  try {
-    dispatch(incrementQueryCount())
-
-    const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
-    const response = await executeQueryAsync(
-      proxyLink,
-      namespace,
-      `${query} ORDER BY time DESC LIMIT 1000`
-    )
-
-    const series = getDeep(response, 'results.0.series.0', defaultTableData)
-
-    dispatch(setTableData(series))
-  } finally {
-    dispatch(decrementQueryCount())
-  }
+export const executeTableQueryAsync = () => async (dispatch): Promise<void> => {
+  await Promise.all([
+    dispatch(executeTableForwardQueryAsync()),
+    dispatch(executeTableBackwardQueryAsync()),
+  ])
 }
 
 export const decrementQueryCount = () => ({
