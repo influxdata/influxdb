@@ -490,7 +490,8 @@ class LogsTable extends Component<Props, State> {
 
   private handleMouseEnter = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement
-    this.setState({currentRow: +target.dataset.index})
+    const index = target.dataset.index || target.parentElement.dataset.index
+    this.setState({currentRow: +index})
   }
 
   private handleTagClick = (e: MouseEvent<HTMLElement>) => {
