@@ -6,7 +6,7 @@ import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEdit
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 
-import {Template, Source} from 'src/types'
+import {Template, Source, TemplateValue} from 'src/types'
 
 interface Props {
   template: Template
@@ -14,7 +14,7 @@ interface Props {
   meRole: string
   isUsingAuth: boolean
   source: Source
-  onPickTemplate: (id: string) => void
+  onPickValue: (v: TemplateValue) => void
   onCreateTemplate: (template: Template) => Promise<void>
   onUpdateTemplate: (template: Template) => Promise<void>
   onDeleteTemplate: (template: Template) => Promise<void>
@@ -39,7 +39,7 @@ class TemplateControl extends PureComponent<Props, State> {
       templates,
       source,
       onCreateTemplate,
-      onPickTemplate,
+      onPickValue,
     } = this.props
     const {isEditing} = this.state
 
@@ -49,7 +49,7 @@ class TemplateControl extends PureComponent<Props, State> {
 
     return (
       <div className="template-control--dropdown" style={dropdownStyle}>
-        <TemplateDropdown template={template} onPickTemplate={onPickTemplate} />
+        <TemplateDropdown template={template} onPickValue={onPickValue} />
         <Authorized requiredRole={EDITOR_ROLE}>
           <label className="template-control--label">
             {template.tempVar}

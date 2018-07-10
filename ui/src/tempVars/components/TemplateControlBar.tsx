@@ -8,7 +8,7 @@ import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechno
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
-import {Template, Source} from 'src/types'
+import {Template, TemplateValue, Source} from 'src/types'
 
 interface Props {
   meRole: string
@@ -16,7 +16,7 @@ interface Props {
   templates: Template[]
   isOpen: boolean
   source: Source
-  onPickTemplate: (id: string) => void
+  onPickTemplate: (template: Template, value: TemplateValue) => void
   onSaveTemplates: (templates: Template[]) => void
 }
 
@@ -84,7 +84,7 @@ class TemplateControlBar extends Component<Props, State> {
         template={template}
         templates={templates}
         source={source}
-        onPickTemplate={onPickTemplate}
+        onPickValue={v => onPickTemplate(template, v)}
         onCreateTemplate={this.handleCreateTemplate}
         onUpdateTemplate={this.handleUpdateTemplate}
         onDeleteTemplate={this.handleDeleteTemplate}

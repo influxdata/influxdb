@@ -2,15 +2,15 @@ import React, {SFC} from 'react'
 
 import Dropdown from 'src/shared/components/Dropdown'
 
-import {Template, TemplateValueType} from 'src/types'
+import {Template, TemplateValue, TemplateValueType} from 'src/types'
 
 interface Props {
   template: Template
-  onPickTemplate: (id: string) => void
+  onPickValue: (v: TemplateValue) => void
 }
 
 const TemplateDropdown: SFC<Props> = props => {
-  const {template, onPickTemplate} = props
+  const {template, onPickValue} = props
 
   const dropdownItems = template.values.map(value => {
     if (value.type === TemplateValueType.Map) {
@@ -29,7 +29,7 @@ const TemplateDropdown: SFC<Props> = props => {
       menuClass="dropdown-astronaut"
       useAutoComplete={true}
       selected={localSelectedItem.text}
-      onChoose={onPickTemplate(template.id)}
+      onChoose={onPickValue}
     />
   )
 }

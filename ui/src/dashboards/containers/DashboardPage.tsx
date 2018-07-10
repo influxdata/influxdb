@@ -442,8 +442,7 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handlePickTemplate = (
-    templateID: string
-  ): ((value: TempVarsModels.TemplateValue) => void) => (
+    template: TempVarsModels.Template,
     value: TempVarsModels.TemplateValue
   ): void => {
     const {
@@ -454,7 +453,7 @@ class DashboardPage extends Component<Props, State> {
       rehydrateNestedTemplatesAsync,
     } = this.props
 
-    templateVariableLocalSelected(dashboard.id, templateID, value)
+    templateVariableLocalSelected(dashboard.id, template.id, value)
     updateTemplateQueryParams(dashboard.id)
     rehydrateNestedTemplatesAsync(dashboard.id, source)
   }
