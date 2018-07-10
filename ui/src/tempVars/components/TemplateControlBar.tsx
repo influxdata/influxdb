@@ -33,41 +33,14 @@ class TemplateControlBar extends Component<Props, State> {
   }
 
   public render() {
-    const {
-      isOpen,
-      templates,
-      onPickTemplate,
-      meRole,
-      isUsingAuth,
-      source,
-    } = this.props
+    const {isOpen, templates, source} = this.props
     const {isAdding} = this.state
 
     return (
       <div className={classnames('template-control-bar', {show: isOpen})}>
         <div className="template-control--container">
           <div className="template-control--controls">
-            {templates && templates.length ? (
-              templates.map(template => (
-                <TemplateControlDropdown
-                  key={template.id}
-                  meRole={meRole}
-                  isUsingAuth={isUsingAuth}
-                  template={template}
-                  templates={templates}
-                  source={source}
-                  onPickTemplate={onPickTemplate}
-                  onCreateTemplate={this.handleCreateTemplate}
-                  onUpdateTemplate={this.handleUpdateTemplate}
-                  onDeleteTemplate={this.handleDeleteTemplate}
-                />
-              ))
-            ) : (
-              <div className="template-control--empty" data-test="empty-state">
-                This dashboard does not have any{' '}
-                <strong>Template Variables</strong>
-              </div>
-            )}
+            {this.renderTemplateControls()}
             <OverlayTechnology visible={isAdding}>
               <TemplateVariableEditor
                 templates={templates}
@@ -90,6 +63,33 @@ class TemplateControlBar extends Component<Props, State> {
         </div>
       </div>
     )
+  }
+
+  public renderTemplateControls() {
+    const {templates, onPickTemplate, meRole, isUsingAuth, source} = this.props
+
+    if (!templates || !templates.length) {
+      return (
+        <div className="template-control--empty" data-test="empty-state">
+          This dashboard does not have any <strong>Template Variables</strong>
+        </div>
+      )
+    }
+
+    return templates.map(template => (
+      <TemplateControlDropdown
+        key={template.id}
+        meRole={meRole}
+        isUsingAuth={isUsingAuth}
+        template={template}
+        templates={templates}
+        source={source}
+        onPickTemplate={onPickTemplate}
+        onCreateTemplate={this.handleCreateTemplate}
+        onUpdateTemplate={this.handleUpdateTemplate}
+        onDeleteTemplate={this.handleDeleteTemplate}
+      />
+    ))
   }
 
   private handleAddVariable = (): void => {
