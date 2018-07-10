@@ -119,16 +119,14 @@ func MarshalVisualizationJSON(v Visualization) ([]byte, error) {
 			Type:            "chronograf-v1",
 			V1Visualization: vis,
 		}
-	case EmptyVisualization:
+	default:
 		s = struct {
 			Type string `json:"type"`
 			EmptyVisualization
 		}{
 			Type:               "empty",
-			EmptyVisualization: vis,
+			EmptyVisualization: EmptyVisualization{},
 		}
-	default:
-		return nil, fmt.Errorf("unsupported type")
 	}
 	return json.Marshal(s)
 }
@@ -172,6 +170,20 @@ func (u *CellUpdate) UnmarshalJSON(b []byte) error {
 	}
 	u.Visualization = v
 	return nil
+}
+func (u CellUpdate) MarshalJSON() ([]byte, error) {
+	vis, err := MarshalVisualizationJSON(u.Visualization)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(struct {
+		CellContentsUpdate
+		Visualization json.RawMessage `json:"visualization,omitempty"`
+	}{
+		CellContentsUpdate: u.CellContentsUpdate,
+		Visualization:      vis,
+	})
 }
 
 type V1Visualization struct {
