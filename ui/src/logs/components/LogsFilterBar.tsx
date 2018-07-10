@@ -18,7 +18,7 @@ class LogsFilters extends PureComponent<Props> {
     return (
       <div className="logs-viewer--filter-bar">
         <QueryResults count={numResults} queryCount={queryCount} />
-        <ul className="logs-viewer--filters">{this.renderFilters}</ul>
+        <div className="logs-viewer--filters">{this.renderFilters}</div>
       </div>
     )
   }
