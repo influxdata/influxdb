@@ -356,7 +356,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
-					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
+					PutF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
 						return nil
 					},
 				},
@@ -448,7 +448,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
-					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
+					PutF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
 						return nil
 					},
 				},
@@ -492,7 +492,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
-					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
+					PutF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
 						return nil
 					},
 				},
@@ -557,7 +557,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
-					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
+					PutF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
 						return nil
 					},
 				},
@@ -627,7 +627,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 							return nil, chronograf.ErrOrganizationConfigNotFound
 						}
 					},
-					UpdateF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
+					PutF: func(ctx context.Context, target *chronograf.OrganizationConfig) error {
 						return nil
 					},
 				},

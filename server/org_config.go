@@ -105,7 +105,7 @@ func (s *Service) ReplaceOrganizationLogViewerConfig(w http.ResponseWriter, r *h
 		return
 	}
 	config.LogViewer = logViewerConfig
-	if err := s.Store.OrganizationConfig(ctx).Update(ctx, config); err != nil {
+	if err := s.Store.OrganizationConfig(ctx).Put(ctx, config); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}

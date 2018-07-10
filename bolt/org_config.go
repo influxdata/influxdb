@@ -54,7 +54,7 @@ func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, orgID string
 		err := s.get(ctx, tx, orgID, &c)
 		if err == chronograf.ErrOrganizationConfigNotFound {
 			c = newOrganizationConfig(orgID)
-			return s.update(ctx, tx, &c)
+			return s.put(ctx, tx, &c)
 		}
 		return err
 	})
@@ -65,14 +65,14 @@ func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, orgID string
 	return &c, nil
 }
 
-// Update replaces the OrganizationConfig in the store
-func (s *OrganizationConfigStore) Update(ctx context.Context, c *chronograf.OrganizationConfig) error {
+// Put replaces the OrganizationConfig in the store
+func (s *OrganizationConfigStore) Put(ctx context.Context, c *chronograf.OrganizationConfig) error {
 	return s.client.db.Update(func(tx *bolt.Tx) error {
-		return s.update(ctx, tx, c)
+		return s.put(ctx, tx, c)
 	})
 }
 
-func (s *OrganizationConfigStore) update(ctx context.Context, tx *bolt.Tx, c *chronograf.OrganizationConfig) error {
+func (s *OrganizationConfigStore) put(ctx context.Context, tx *bolt.Tx, c *chronograf.OrganizationConfig) error {
 	if c == nil {
 		return fmt.Errorf("config provided was nil")
 	}

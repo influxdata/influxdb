@@ -16,6 +16,6 @@ func (s *OrganizationConfigStore) FindOrCreate(context.Context, string) (*chrono
 	return nil, chronograf.ErrOrganizationConfigNotFound
 }
 
-func (s *OrganizationConfigStore) Update(context.Context, *chronograf.OrganizationConfig) error {
-	return fmt.Errorf("cannot update conifg")
+func (s *OrganizationConfigStore) Put(context.Context, *chronograf.OrganizationConfig) error {
+	return fmt.Errorf("cannot replace config")
 }

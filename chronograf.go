@@ -789,8 +789,8 @@ type ColumnEncoding struct {
 type OrganizationConfigStore interface {
 	// FindOrCreate gets an existing OrganizationConfig and creates one if none exists
 	FindOrCreate(ctx context.Context, orgID string) (*OrganizationConfig, error)
-	// Update updates the whole organization config in the OrganizationConfigStore
-	Update(context.Context, *OrganizationConfig) error
+	// Put replaces the whole organization config in the OrganizationConfigStore
+	Put(context.Context, *OrganizationConfig) error
 }
 
 // BuildInfo is sent to the usage client to track versions and commits

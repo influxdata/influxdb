@@ -661,7 +661,7 @@ func TestOrganizationConfig_FindOrCreate(t *testing.T) {
 		s := client.OrganizationConfigStore
 
 		if tt.addFirst {
-			if err := s.Update(context.Background(), tt.wants.organizationConfig); err != nil {
+			if err := s.Put(context.Background(), tt.wants.organizationConfig); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -686,7 +686,7 @@ func TestOrganizationConfig_FindOrCreate(t *testing.T) {
 	}
 }
 
-func TestOrganizationConfig_Update(t *testing.T) {
+func TestOrganizationConfig_Put(t *testing.T) {
 	type args struct {
 		organizationConfig *chronograf.OrganizationConfig
 		organizationID     string
@@ -1141,20 +1141,20 @@ func TestOrganizationConfig_Update(t *testing.T) {
 		defer client.Close()
 
 		s := client.OrganizationConfigStore
-		err = s.Update(context.Background(), tt.args.organizationConfig)
+		err = s.Put(context.Background(), tt.args.organizationConfig)
 		if (tt.wants.err != nil) != (err != nil) {
-			t.Errorf("%q. OrganizationConfigStore.Update() error = %v, wantErr %v", tt.name, err, tt.wants.err)
+			t.Errorf("%q. OrganizationConfigStore.Put() error = %v, wantErr %v", tt.name, err, tt.wants.err)
 			continue
 		}
 
 		got, _ := s.FindOrCreate(context.Background(), tt.args.organizationID)
 		if (tt.wants.err != nil) != (err != nil) {
-			t.Errorf("%q. OrganizationConfigStore.Update() error = %v, wantErr %v", tt.name, err, tt.wants.err)
+			t.Errorf("%q. OrganizationConfigStore.Put() error = %v, wantErr %v", tt.name, err, tt.wants.err)
 			continue
 		}
 
 		if diff := cmp.Diff(got, tt.wants.organizationConfig); diff != "" {
-			t.Errorf("%q. OrganizationConfigStore.Update():\n-got/+want\ndiff %s", tt.name, diff)
+			t.Errorf("%q. OrganizationConfigStore.Put():\n-got/+want\ndiff %s", tt.name, diff)
 		}
 	}
 }
