@@ -20,6 +20,7 @@ export interface LogsState {
   currentNamespaces: Namespace[]
   currentNamespace: Namespace | null
   timeRange: TimeRange
+  timeWindow: string
   histogramQueryConfig: QueryConfig | null
   histogramData: object[]
   tableQueryConfig: QueryConfig | null

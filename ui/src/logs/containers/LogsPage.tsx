@@ -7,6 +7,7 @@ import {AutoSizer} from 'react-virtualized'
 import {
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
+  setTimeWindowAsync,
   setNamespaceAsync,
   executeQueriesAsync,
   changeZoomAsync,
@@ -58,6 +59,7 @@ interface Props {
   getSource: (sourceID: string) => void
   getSources: () => void
   setTimeRangeAsync: (timeRange: TimeRange) => void
+  setTimeWindowAsync: (timeWindow: string) => void
   setNamespaceAsync: (namespace: Namespace) => void
   changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
@@ -69,6 +71,7 @@ interface Props {
   getConfig: (url: string) => Promise<void>
   updateConfig: (url: string, config: LogConfig) => Promise<void>
   timeRange: TimeRange
+  timeWindow: string
   histogramData: HistogramData
   tableData: TableData
   searchTerm: string
@@ -255,12 +258,15 @@ class LogsPage extends PureComponent<Props, State> {
       currentNamespaces,
       currentNamespace,
       timeRange,
+      timeWindow,
     } = this.props
 
     const {liveUpdating} = this.state
 
     return (
       <LogViewerHeader
+        timeWindow={timeWindow}
+        onChangeTimeWindow={this.handleChooseTimeWindow}
         liveUpdating={liveUpdating && !this.isSpecificTimeRange}
         availableSources={sources}
         timeRange={timeRange}
@@ -310,6 +316,10 @@ class LogsPage extends PureComponent<Props, State> {
   private handleChooseTimerange = (timeRange: TimeRange) => {
     this.props.setTimeRangeAsync(timeRange)
     this.fetchNewDataset()
+  }
+
+  private handleChooseTimeWindow = (timeWindow: string) => {
+    this.props.setTimeWindowAsync(timeWindow)
   }
 
   private handleChooseSource = (sourceID: string) => {
@@ -399,6 +409,7 @@ const mapStateToProps = ({
     currentSource,
     currentNamespaces,
     timeRange,
+    timeWindow,
     currentNamespace,
     histogramData,
     tableData,
@@ -412,6 +423,7 @@ const mapStateToProps = ({
   currentSource,
   currentNamespaces,
   timeRange,
+  timeWindow,
   currentNamespace,
   histogramData,
   tableData,
@@ -426,6 +438,7 @@ const mapDispatchToProps = {
   getSource: getSourceAndPopulateNamespacesAsync,
   getSources: getSourcesAsync,
   setTimeRangeAsync,
+  setTimeWindowAsync,
   setNamespaceAsync,
   executeQueriesAsync,
   changeZoomAsync,

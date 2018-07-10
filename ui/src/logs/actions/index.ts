@@ -47,6 +47,7 @@ export enum ActionTypes {
   SetSource = 'LOGS_SET_SOURCE',
   SetNamespaces = 'LOGS_SET_NAMESPACES',
   SetTimeRange = 'LOGS_SET_TIMERANGE',
+  SetTimeWindow = 'LOGS_SET_TIMEWINDOW',
   SetNamespace = 'LOGS_SET_NAMESPACE',
   SetHistogramQueryConfig = 'LOGS_SET_HISTOGRAM_QUERY_CONFIG',
   SetHistogramData = 'LOGS_SET_HISTOGRAM_DATA',
@@ -128,6 +129,13 @@ interface SetTimeRangeAction {
   }
 }
 
+interface SetTimeWindowAction {
+  type: ActionTypes.SetTimeWindow
+  payload: {
+    timeWindow: string
+  }
+}
+
 interface SetHistogramQueryConfig {
   type: ActionTypes.SetHistogramQueryConfig
   payload: {
@@ -181,6 +189,7 @@ export type Action =
   | SetSourceAction
   | SetNamespacesAction
   | SetTimeRangeAction
+  | SetTimeWindowAction
   | SetNamespaceAction
   | SetHistogramQueryConfig
   | SetHistogramData
@@ -240,6 +249,11 @@ export const removeFilter = (id: string): RemoveFilterAction => ({
 const setHistogramData = (data): SetHistogramData => ({
   type: ActionTypes.SetHistogramData,
   payload: {data},
+})
+
+export const setTimeWindow = (timeWindow: string): SetTimeWindowAction => ({
+  type: ActionTypes.SetTimeWindow,
+  payload: {timeWindow},
 })
 
 export const executeHistogramQueryAsync = () => async (
@@ -452,6 +466,20 @@ export const setTimeRangeAsync = (timeRange: TimeRange) => async (
     type: ActionTypes.SetTimeRange,
     payload: {
       timeRange,
+    },
+  })
+  dispatch(setHistogramQueryConfigAsync())
+  dispatch(setTableQueryConfigAsync())
+}
+
+export const setTimeWindowAsync = (timeWindow: string) => async (
+  dispatch
+): Promise<void> => {
+  console.log(timeWindow)
+  dispatch({
+    type: ActionTypes.SetTimeWindow,
+    payload: {
+      timeWindow,
     },
   })
   dispatch(setHistogramQueryConfigAsync())

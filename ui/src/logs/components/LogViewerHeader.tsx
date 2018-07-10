@@ -7,6 +7,7 @@ import Dropdown from 'src/shared/components/Dropdown'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
+import WindowSelectorDropdown from 'src/logs/components/window_selector_dropdown/WindowSelectorDropdown'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {TimeRange} from 'src/types'
 
@@ -27,6 +28,8 @@ interface Props {
   onChooseTimerange: (timeRange: TimeRange) => void
   onChangeLiveUpdatingStatus: () => void
   onShowOptionsOverlay: () => void
+  timeWindow: string
+  onChangeTimeWindow: (timeWindow: string) => void
 }
 
 class LogViewerHeader extends PureComponent<Props> {
@@ -50,7 +53,12 @@ class LogViewerHeader extends PureComponent<Props> {
   }
 
   private get optionsComponents(): JSX.Element {
-    const {timeRange, onShowOptionsOverlay} = this.props
+    const {
+      timeRange,
+      onShowOptionsOverlay,
+      timeWindow,
+      onChangeTimeWindow,
+    } = this.props
 
     return (
       <>
@@ -66,6 +74,10 @@ class LogViewerHeader extends PureComponent<Props> {
           items={this.namespaceDropDownItems}
           selected={this.selectedNamespace}
           onChoose={this.handleChooseNamespace}
+        />
+        <WindowSelectorDropdown
+          selectedTimeWindow={timeWindow}
+          onChangeWindow={onChangeTimeWindow}
         />
         <TimeRangeDropdown
           onChooseTimeRange={this.handleChooseTimeRange}
