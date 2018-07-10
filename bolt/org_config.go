@@ -67,15 +67,15 @@ func (s *OrganizationConfigStore) FindOrCreate(ctx context.Context, orgID string
 
 // Update replaces the OrganizationConfig in the store
 func (s *OrganizationConfigStore) Update(ctx context.Context, cfg *chronograf.OrganizationConfig) error {
-	if cfg == nil {
-		return fmt.Errorf("config provided was nil")
-	}
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		return s.update(ctx, tx, cfg)
 	})
 }
 
 func (s *OrganizationConfigStore) update(ctx context.Context, tx *bolt.Tx, cfg *chronograf.OrganizationConfig) error {
+	if cfg == nil {
+		return fmt.Errorf("config provided was nil")
+	}
 	if v, err := internal.MarshalOrganizationConfig(cfg); err != nil {
 		return err
 	} else if err := tx.Bucket(OrganizationConfigBucket).Put([]byte(cfg.OrganizationID), v); err != nil {
