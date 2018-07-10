@@ -30,8 +30,41 @@ type JoinOpSpec struct {
 	// TODO(nathanielc): Change this to a map of parent operation IDs to names.
 	// Then make it possible for the transformation to map operation IDs to parent IDs.
 	TableNames map[query.OperationID]string `json:"table_names"`
-	// tableNames maps each TableObject being joined to its unique OperationID
+	// tableNames maps each TableObject being joined to the parameter that holds it.
 	tableNames map[*query.TableObject]string
+}
+
+type params struct {
+	vars []string
+	vals []*query.TableObject
+}
+
+type joinParams params
+
+func newJoinParams(capacity int) *joinParams {
+	params := &joinParams{
+		vars: make([]string, 0, capacity),
+		vals: make([]*query.TableObject, 0, capacity),
+	}
+	return params
+}
+
+func (params *joinParams) add(newVar string, newVal *query.TableObject) {
+	params.vars = append(params.vars, newVar)
+	params.vals = append(params.vals, newVal)
+}
+
+// joinParams implements the Sort interface in order
+// to build the query spec in a consistent manner.
+func (params *joinParams) Len() int {
+	return len(params.vals)
+}
+func (params *joinParams) Swap(i, j int) {
+	params.vars[i], params.vars[j] = params.vars[j], params.vars[i]
+	params.vals[i], params.vals[j] = params.vals[j], params.vals[i]
+}
+func (params *joinParams) Less(i, j int) bool {
+	return params.vars[i] < params.vars[j]
 }
 
 var joinSignature = semantic.FunctionSignature{
@@ -80,6 +113,7 @@ func createJoinOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 		return nil, err
 	} else if ok {
 		var err error
+		joinParams := newJoinParams(m.Len())
 		m.Range(func(k string, t values.Value) {
 			if err != nil {
 				return
@@ -93,11 +127,17 @@ func createJoinOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 				return
 			}
 			p := t.(*query.TableObject)
-			a.AddParent(p)
+			joinParams.add(k/*parameter*/, p/*argument*/)
 			spec.tableNames[p] = k
 		})
 		if err != nil {
 			return nil, err
+		}
+		// Add parents in a consistent manner by sorting
+		// based on their corresponding function parameter.
+		sort.Sort(joinParams)
+		for _, p := range joinParams.vals {
+			a.AddParent(p)
 		}
 	}
 
