@@ -37,7 +37,7 @@ func newResult(name string, spec plan.YieldSpec) *result {
 func (s *result) Name() string {
 	return s.name
 }
-func (s *result) RetractBlock(DatasetID, query.PartitionKey) error {
+func (s *result) RetractBlock(DatasetID, query.GroupKey) error {
 	//TODO implement
 	return nil
 }

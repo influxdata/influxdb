@@ -331,7 +331,7 @@ func TestMap_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: `_value+5 mergeKey=true repartition`,
+			name: `_value+5 mergeKey=true regroup`,
 			spec: &functions.MapProcedureSpec{
 				MergeKey: true,
 				Fn: &semantic.FunctionExpression{
@@ -407,7 +407,7 @@ func TestMap_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: `_value+5 mergeKey=true repartition fan out`,
+			name: `_value+5 mergeKey=true regroup fan out`,
 			spec: &functions.MapProcedureSpec{
 				MergeKey: true,
 				Fn: &semantic.FunctionExpression{

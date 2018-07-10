@@ -19,9 +19,9 @@ type MultiResultEncoder struct{}
 // Expectations/Assumptions:
 //  1.  Each result will be published as a 'statement' in the top-level list of results. The result name
 //      will be interpreted as an integer and used as the statement id.
-//  2.  If the _measurement name is present in the partition key, it will be used as the result name instead
+//  2.  If the _measurement name is present in the group key, it will be used as the result name instead
 //      of as a normal tag.
-//  3.  All columns in the partition key must be strings and they will be used as tags. There is no current way
+//  3.  All columns in the group key must be strings and they will be used as tags. There is no current way
 //      to have a tag and field be the same name in the results.
 //      TODO(jsternberg): For full compatibility, the above must be possible.
 //  4.  All other columns are fields and will be output in the order they are found.

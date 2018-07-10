@@ -84,7 +84,7 @@ func NewAggregateTransformationAndDataset(id DatasetID, mode AccumulationMode, a
 	return NewAggregateTransformation(d, cache, agg, config), d
 }
 
-func (t *aggregateTransformation) RetractBlock(id DatasetID, key query.PartitionKey) error {
+func (t *aggregateTransformation) RetractBlock(id DatasetID, key query.GroupKey) error {
 	//TODO(nathanielc): Store intermediate state for retractions
 	return t.d.RetractBlock(key)
 }
@@ -119,7 +119,7 @@ func (t *aggregateTransformation) Process(id DatasetID, b query.Block) error {
 		}
 		c := cols[idx]
 		if b.Key().HasCol(c.Label) {
-			return errors.New("cannot aggregate columns that are part of the partition key")
+			return errors.New("cannot aggregate columns that are part of the group key")
 		}
 		var vf ValueFunc
 		switch c.Type {
@@ -203,7 +203,7 @@ func (t *aggregateTransformation) Finish(id DatasetID, err error) {
 	t.d.Finish(err)
 }
 
-func AppendAggregateTime(srcTime, dstTime string, key query.PartitionKey, builder BlockBuilder) error {
+func AppendAggregateTime(srcTime, dstTime string, key query.GroupKey, builder BlockBuilder) error {
 	srcTimeIdx := ColIdx(srcTime, key.Cols())
 	if srcTimeIdx < 0 {
 		return fmt.Errorf("timeValue column %q does not exist", srcTime)

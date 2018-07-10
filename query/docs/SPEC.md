@@ -715,14 +715,14 @@ The available data types for a column are:
 
 #### Table
 
-A table is set of records, with a common set of columns and a partition key.
+A table is set of records, with a common set of columns and a group key.
 
-The partition key is a list of columns.
-A table's partition key denotes which subset of the entire dataset is assigned to the table.
-As such, all records within a table will have the same values for each column that is part of the partition key.
-These common values are referred to as the partition key value, and can be represented as a set of key value pairs.
+The group key is a list of columns.
+A table's group key denotes which subset of the entire dataset is assigned to the table.
+As such, all records within a table will have the same values for each column that is part of the group key.
+These common values are referred to as the group key value, and can be represented as a set of key value pairs.
 
-A tables schema consists of its partition key, and its column's labels and types.
+A tables schema consists of its group key, and its column's labels and types.
 
 
 [IMPL#294](https://github.com/influxdata/platform/query/issues/294) Remove concept of Kind from table columns
@@ -732,8 +732,8 @@ A tables schema consists of its partition key, and its column's labels and types
 #### Stream
 
 A stream represents a potentially unbounded dataset.
-A stream partitioned into individual tables.
-Within a stream each table's partition key value is unique.
+A stream grouped into individual tables.
+Within a stream each table's group key value is unique.
 
 #### Missing values
 
@@ -751,7 +751,7 @@ All operations may consume a stream and always produce a new stream.
 
 Most operations output one table for every table they receive from the input stream.
 
-Operations that modify the partition keys or values will need to repartition the tables in the output stream.
+Operations that modify the group keys or values will need to regroup the tables in the output stream.
 
 ### Built-in operations
 
@@ -806,7 +806,7 @@ The aggregate function is applied to each column in isolation.
 Any output table will have the following properties:
 
 * It always contains a single record.
-* It will have the same partition key as the input table.
+* It will have the same group key as the input table.
 * It will have a column `_time` which represents the time of the aggregated record.
     This can be set as the start or stop time of the input table.
     By default the stop time is used.
@@ -820,7 +820,7 @@ All aggregate operations have the following properties:
     columns specifies a list of columns to aggregate.
 * `timeSrc` string
     timeSrc is the source time column to use on the resulting aggregate record.
-    The value must be column with type `time` and must be part of the partition key.
+    The value must be column with type `time` and must be part of the group key.
     Defaults to `_stop`.
 * `timeDst` string
     timeDst is the destination column to use for the resulting aggregate record.
@@ -917,7 +917,7 @@ A single column on which to operate must be provided to the operation.
 
 Any output table will have the following properties:
 
-* It will have the same partition key as the input table.
+* It will have the same group key as the input table.
 * It will contain the same columns as the input table.
 * It will have a column `_time` which represents the time of the selected record.
     This can be set as the value of any time column on the input table.
@@ -996,11 +996,11 @@ Limit has the following properties:
 #### Map
 
 Map applies a function to each record of the input tables.
-The modified records are assigned to new tables based on the partition key of the input table.
+The modified records are assigned to new tables based on the group key of the input table.
 The output tables are the result of applying the map function to each record on the input tables.
 
-When the output record contains a different value for the partition key the record is repartitioned into the appropriate table.
-When the output record drops a column that was part of the partition key that column is removed from the partition key.
+When the output record contains a different value for the group key the record is regroup into the appropriate table.
+When the output record drops a column that was part of the group key that column is removed from the group key.
 
 Map has the following properties:
 
@@ -1008,8 +1008,8 @@ Map has the following properties:
     Function to apply to each record.
     The return value must be an object.
 * `mergeKey` bool
-    MergeKey indicates if the record returned from fn should be merged with the partition key.
-    When merging, all columns on the partition key will be added to the record giving precedence to any columns already present on the record.
+    MergeKey indicates if the record returned from fn should be merged with the group key.
+    When merging, all columns on the group key will be added to the record giving precedence to any columns already present on the record.
     When not merging, only columns defined on the returned record will be present on the output records.
     Defaults to true.
 
@@ -1017,7 +1017,7 @@ Map has the following properties:
 
 Range filters records based on provided time bounds.
 Each input tables records are filtered to contain only records that exist within the time bounds.
-Each input table's partition key value is modified to fit within the time bounds.
+Each input table's group key value is modified to fit within the time bounds.
 Tables where all records exists outside the time bounds are filtered entirely.
 
 
@@ -1036,7 +1036,7 @@ Range has the following properties:
 
 Set assigns a static value to each record.
 The key may modify and existing column or it may add a new column to the tables.
-If the column that is modified is part of the partition key, then the output tables will be repartitioned as needed.
+If the column that is modified is part of the group key, then the output tables will be regroup as needed.
 
 
 Set has the following properties:
@@ -1064,8 +1064,8 @@ Sort has the following properties:
 
 #### Group
 
-Group partitions records based on their values for specific columns.
-It produces tables with new partition keys based on the provided properties.
+Group groups records based on their values for specific columns.
+It produces tables with new group keys based on the provided properties.
 
 Group has the following properties:
 
@@ -1080,15 +1080,15 @@ Examples:
 
     group(by:["host"]) // group records by their "host" value
     group(except:["_time", "region", "_value"]) // group records by all other columns except for _time, region, and _value
-    group(by:[]) // group all records into a single partition
-    group(except:[]) // group records into all unique partitions
+    group(by:[]) // group all records into a single group
+    group(except:[]) // group records into all unique groups
 
 [IMPL#322](https://github.com/influxdata/platform/query/issues/322) Investigate always keeping all columns in group.
 
 #### Window
 
-Window partitions records based on a time value.
-New columns are added to uniquely identify each window and those columns are added to the partition key of the output tables.
+Window groups records based on a time value.
+New columns are added to uniquely identify each window and those columns are added to the group key of the output tables.
 
 A single input record will be placed into zero or more output tables, depending on the specific windowing function.
 
@@ -1098,10 +1098,10 @@ Window has the following properties:
     Duration of time between windows
     Defaults to `period`'s value
 * `period` duration
-    Duration of the windowed partition
+    Duration of the windowed group
     Default to `every`'s value
 * `start` time
-    The time of the initial window partition
+    The time of the initial window group
 * `round` duration
     Rounds a window's bounds to the nearest duration
     Defaults to `every`'s value
@@ -1121,8 +1121,8 @@ Window has the following properties:
 #### Join
 
 Join merges two or more input streams into a single output stream.
-Input tables are matched on their partition keys and then each of their records are joined into a single output table.
-The output table partition key will be the same as the input table.
+Input tables are matched on their group keys and then each of their records are joined into a single output table.
+The output table group key will be the same as the input table.
 
 The join operation compares values based on equality.
 
@@ -1297,7 +1297,7 @@ Triggers can fire based on these inputs:
 | Current processing time | The current processing time is the system time when the trigger is being evaluated.               |
 | Watermark time          | The watermark time is a time where it is expected that no data will arrive that is older than it. |
 | Record count            | The number of records currently in the table.                                                     |
-| Partition key value     | The partition key value of the table.                                                             |
+| Group key value         | The group key value of the table.                                                                 |
 
 Additionally triggers can be _finished_, which means that they will never fire again.
 Once a trigger is finished, its associated table is deleted.
@@ -1453,7 +1453,7 @@ In addition to the columns on the tables themselves three additional columns may
 Columns support the following annotations:
 
 * datatype - a description of the type of data contained within the column.
-* partition - a boolean flag indicating if the column is part of the table's partition key.
+* group - a boolean flag indicating if the column is part of the table's group key.
 * default - a default value to be used for rows whose string value is the empty string.
 
 ##### Multiple tables
@@ -1467,7 +1467,7 @@ It is also possible that a table has no records.
 In such cases an empty row delimits a new table boundary and new annotations and header rows follow.
 The empty row acts like a delimiter between two independent CSV files that have been concatenated together.
 
-In the case were a table has no rows the `default` annotation is used to provide the values of the partition key.
+In the case were a table has no rows the `default` annotation is used to provide the values of the group key.
 
 ##### Multiple results
 
@@ -1495,12 +1495,12 @@ The possible data types are:
 | dateTime     | time      | an instant in time, may be followed with a colon `:` and a description of the format |
 | duration     | duration  | a length of time represented as an unsigned 64-bit integer number of nanoseconds     |
 
-The `partition` annotation specifies if the column is part of the table's partition key.
+The `group` annotation specifies if the column is part of the table's group key.
 Possible values are `true` or `false`.
 
 The `default` annotation specifies a default value, if it exists, for each column.
 
-In order to fully encode a table with its partition key the `datatype`, `partition` and `default` annotations must be used.
+In order to fully encode a table with its group key the `datatype`, `group` and `default` annotations must be used.
 
 ##### Errors
 
@@ -1591,11 +1591,11 @@ Example encoding with two tables in the same result with the datatype annotation
 ,mean,1,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,west,C,51.62
 ```
 
-Example encoding with two tables in the same result with the datatype and partition annotations:
+Example encoding with two tables in the same result with the datatype and group annotations:
 
 ```
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,false,false
+#group,false,false,true,true,false,true,false,false
 ,result,table,_start,_stop,_time,region,host,_value
 ,mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
 ,mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
@@ -1605,18 +1605,18 @@ Example encoding with two tables in the same result with the datatype and partit
 ,mean,1,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,west,C,51.62
 ```
 
-Example encoding with two tables with differing schemas in the same result with the datatype and partition annotations:
+Example encoding with two tables with differing schemas in the same result with the datatype and group annotations:
 
 ```
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,false,false
+#group,false,false,true,true,false,true,false,false
 ,result,table,_start,_stop,_time,region,host,_value
 ,mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
 ,mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
 ,mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,false,false
+#group,false,false,true,true,false,true,false,false
 ,result,table,_start,_stop,_time,location,device,min,max
 ,mean,1,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,USA,5825,62.73,68.42
 ,mean,1,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,USA,2175,12.83,56.12

@@ -128,7 +128,7 @@ func NewMapTransformation(d execute.Dataset, cache execute.BlockBuilderCache, sp
 	}, nil
 }
 
-func (t *mapTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *mapTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 
@@ -148,7 +148,7 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 	}
 	sort.Strings(keys)
 
-	// Determine on which cols to partition
+	// Determine on which cols to group
 	on := make(map[string]bool, len(b.Key().Cols()))
 	for _, c := range b.Key().Cols() {
 		on[c.Label] = t.mergeKey || execute.ContainsStr(keys, c.Label)
@@ -162,7 +162,7 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 				log.Printf("failed to evaluate map expression: %v", err)
 				continue
 			}
-			key := partitionKeyForObject(i, cr, m, on)
+			key := groupKeyForObject(i, cr, m, on)
 			builder, created := t.cache.BlockBuilder(key)
 			if created {
 				if t.mergeKey {
@@ -196,7 +196,7 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 	})
 }
 
-func partitionKeyForObject(i int, cr query.ColReader, obj values.Object, on map[string]bool) query.PartitionKey {
+func groupKeyForObject(i int, cr query.ColReader, obj values.Object, on map[string]bool) query.GroupKey {
 	cols := make([]query.ColMeta, 0, len(on))
 	vs := make([]values.Value, 0, len(on))
 	for j, c := range cr.Cols() {
@@ -224,7 +224,7 @@ func partitionKeyForObject(i int, cr query.ColReader, obj values.Object, on map[
 			}
 		}
 	}
-	return execute.NewPartitionKey(cols, vs)
+	return execute.NewGroupKey(cols, vs)
 }
 
 func (t *mapTransformation) UpdateWatermark(id execute.DatasetID, mark execute.Time) error {

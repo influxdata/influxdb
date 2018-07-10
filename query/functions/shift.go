@@ -127,7 +127,7 @@ func NewShiftTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}
 }
 
-func (t *shiftTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *shiftTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 
@@ -148,7 +148,7 @@ func (t *shiftTransformation) Process(id execute.DatasetID, b query.Block) error
 			vs[j] = key.Value(j)
 		}
 	}
-	key = execute.NewPartitionKey(cols, vs)
+	key = execute.NewGroupKey(cols, vs)
 
 	builder, created := t.cache.BlockBuilder(key)
 	if !created {

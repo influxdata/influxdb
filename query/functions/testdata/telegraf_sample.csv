@@ -1,5 +1,5 @@
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
 ,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,0,usage_guest,cpu,cpu-total,host.local
@@ -544,7 +544,7 @@
 ,,89,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,2.2022022022022023,usage_user,cpu,cpu7,host.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true,true,true
 #default,_result,,,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,device,fstype,host,path
 ,,90,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,318324641792,free,disk,disk1s1,apfs,host.local,/
@@ -585,7 +585,7 @@
 ,,95,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,171272134656,used,disk,disk1s1,apfs,host.local,/
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true,true,true
 #default,_result,,,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,device,fstype,host,path
 ,,96,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,34.98234271799806,used_percent,disk,disk1s1,apfs,host.local,/
@@ -596,7 +596,7 @@
 ,,96,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,34.982252364543626,used_percent,disk,disk1s1,apfs,host.local,/
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true,true,true
 #default,_result,,,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,device,fstype,host,path
 ,,97,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,318324641792,free,disk,disk1s4,apfs,host.local,/private/var/vm
@@ -637,7 +637,7 @@
 ,,102,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,9663721472,used,disk,disk1s4,apfs,host.local,/private/var/vm
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true,true,true
 #default,_result,,,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,device,fstype,host,path
 ,,103,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,2.946361076908575,used_percent,disk,disk1s4,apfs,host.local,/private/var/vm
@@ -648,7 +648,7 @@
 ,,103,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,2.9463571030660702,used_percent,disk,disk1s4,apfs,host.local,/private/var/vm
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true,true,true
 #default,_result,,,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,device,fstype,host,path
 ,,104,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,249991168,free,disk,disk2s1,hfs,host.local,/Volumes/Command Line Developer Tools
@@ -689,7 +689,7 @@
 ,,109,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,200724480,used,disk,disk2s1,hfs,host.local,/Volumes/Command Line Developer Tools
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true,true,true
 #default,_result,,,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,device,fstype,host,path
 ,,110,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,44.53461531470946,used_percent,disk,disk2s1,hfs,host.local,/Volumes/Command Line Developer Tools
@@ -700,7 +700,7 @@
 ,,110,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,44.53461531470946,used_percent,disk,disk2s1,hfs,host.local,/Volumes/Command Line Developer Tools
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host,name
 ,,111,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,15204688,io_time,diskio,host.local,disk0
@@ -867,7 +867,7 @@
 ,,137,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,0,writes,diskio,host.local,disk3
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
-#partition,false,false,false,false,false,false,true,true,true
+#group,false,false,false,false,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,138,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,6535598080,active,mem,host.local
@@ -884,7 +884,7 @@
 ,,139,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,6448041984,available,mem,host.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
-#partition,false,false,false,false,false,false,true,true,true
+#group,false,false,false,false,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,140,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,36.946678161621094,available_percent,mem,host.local
@@ -895,7 +895,7 @@
 ,,140,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,37.53254413604736,available_percent,mem,host.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
-#partition,false,false,false,false,false,false,true,true,true
+#group,false,false,false,false,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,141,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,0,buffered,mem,host.local
@@ -936,7 +936,7 @@
 ,,146,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,10731827200,used,mem,host.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
-#partition,false,false,false,false,false,false,true,true,true
+#group,false,false,false,false,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,147,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,63.053321838378906,used_percent,mem,host.local
@@ -947,7 +947,7 @@
 ,,147,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,62.46745586395264,used_percent,mem,host.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
-#partition,false,false,false,false,false,false,true,true,true
+#group,false,false,false,false,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,148,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,0,blocked,processes,host.local
@@ -1030,7 +1030,7 @@
 ,,160,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,7098859520,used,swap,host.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
-#partition,false,false,false,false,false,false,true,true,true
+#group,false,false,false,false,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,161,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,82.9833984375,used_percent,swap,host.local
@@ -1059,7 +1059,7 @@
 ,,164,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,1.93,load5,system,host.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
-#partition,false,false,false,false,false,false,true,true,true
+#group,false,false,false,false,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,165,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,8,n_cpus,system,host.local
@@ -1082,7 +1082,7 @@
 ,,167,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:54:16Z,1320680,uptime,system,host.local
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true
+#group,false,false,false,false,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,168,2018-05-22T19:53:24.421470485Z,2018-05-22T19:54:24.421470485Z,2018-05-22T19:53:26Z,"15 days,  6:50",uptime_format,system,host.local

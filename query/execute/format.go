@@ -241,10 +241,10 @@ func (f *Formatter) valueBuf(i, j int, typ query.DataType, cr query.ColReader) (
 type orderedCols struct {
 	indexMap []int
 	cols     []query.ColMeta
-	key      query.PartitionKey
+	key      query.GroupKey
 }
 
-func newOrderedCols(cols []query.ColMeta, key query.PartitionKey) orderedCols {
+func newOrderedCols(cols []query.ColMeta, key query.GroupKey) orderedCols {
 	indexMap := make([]int, len(cols))
 	for i := range indexMap {
 		indexMap[i] = i

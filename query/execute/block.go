@@ -16,38 +16,7 @@ const (
 	DefaultValueColLabel = "_value"
 )
 
-func PartitionKeyForRow(i int, cr query.ColReader) query.PartitionKey {
-	key := cr.Key()
-	cols := cr.Cols()
-	colsCpy := make([]query.ColMeta, 0, len(cols))
-	vs := make([]values.Value, 0, len(cols))
-	for j, c := range cols {
-		if !key.HasCol(c.Label) {
-			continue
-		}
-		colsCpy = append(colsCpy, c)
-		switch c.Type {
-		case query.TBool:
-			vs = append(vs, values.NewBoolValue(cr.Bools(j)[i]))
-		case query.TInt:
-			vs = append(vs, values.NewIntValue(cr.Ints(j)[i]))
-		case query.TUInt:
-			vs = append(vs, values.NewUIntValue(cr.UInts(j)[i]))
-		case query.TFloat:
-			vs = append(vs, values.NewFloatValue(cr.Floats(j)[i]))
-		case query.TString:
-			vs = append(vs, values.NewStringValue(cr.Strings(j)[i]))
-		case query.TTime:
-			vs = append(vs, values.NewTimeValue(cr.Times(j)[i]))
-		}
-	}
-	return &partitionKey{
-		cols:   colsCpy,
-		values: vs,
-	}
-}
-
-func PartitionKeyForRowOn(i int, cr query.ColReader, on map[string]bool) query.PartitionKey {
+func GroupKeyForRowOn(i int, cr query.ColReader, on map[string]bool) query.GroupKey {
 	cols := make([]query.ColMeta, 0, len(on))
 	vs := make([]values.Value, 0, len(on))
 	for j, c := range cr.Cols() {
@@ -70,7 +39,7 @@ func PartitionKeyForRowOn(i int, cr query.ColReader, on map[string]bool) query.P
 			vs = append(vs, values.NewTimeValue(cr.Times(j)[i]))
 		}
 	}
-	return NewPartitionKey(cols, vs)
+	return NewGroupKey(cols, vs)
 }
 
 // OneTimeBlock is a Block that permits reading data only once.
@@ -116,7 +85,7 @@ func AddBlockCols(b query.Block, builder BlockBuilder) {
 	}
 }
 
-func AddBlockKeyCols(key query.PartitionKey, builder BlockBuilder) {
+func AddBlockKeyCols(key query.GroupKey, builder BlockBuilder) {
 	for _, c := range key.Cols() {
 		builder.AddCol(c)
 	}
@@ -254,7 +223,7 @@ func AppendRecordForCols(i int, cr query.ColReader, builder BlockBuilder, cols [
 	}
 }
 
-func AppendKeyValues(key query.PartitionKey, builder BlockBuilder) {
+func AppendKeyValues(key query.GroupKey, builder BlockBuilder) {
 	for j, c := range key.Cols() {
 		idx := ColIdx(c.Label, builder.Cols())
 		switch c.Type {
@@ -299,7 +268,7 @@ func HasCol(label string, cols []query.ColMeta) bool {
 
 // BlockBuilder builds blocks that can be used multiple times
 type BlockBuilder interface {
-	Key() query.PartitionKey
+	Key() query.GroupKey
 
 	NRows() int
 	NCols() int
@@ -348,14 +317,14 @@ type ColListBlockBuilder struct {
 	alloc *Allocator
 }
 
-func NewColListBlockBuilder(key query.PartitionKey, a *Allocator) *ColListBlockBuilder {
+func NewColListBlockBuilder(key query.GroupKey, a *Allocator) *ColListBlockBuilder {
 	return &ColListBlockBuilder{
 		blk:   &ColListBlock{key: key},
 		alloc: a,
 	}
 }
 
-func (b ColListBlockBuilder) Key() query.PartitionKey {
+func (b ColListBlockBuilder) Key() query.GroupKey {
 	return b.blk.Key()
 }
 
@@ -564,7 +533,7 @@ func (b ColListBlockBuilder) Sort(cols []string, desc bool) {
 // All data for the block is stored in RAM.
 // As a result At* methods are provided directly on the block for easy access.
 type ColListBlock struct {
-	key     query.PartitionKey
+	key     query.GroupKey
 	colMeta []query.ColMeta
 	cols    []column
 	nrows   int
@@ -581,7 +550,7 @@ func (b *ColListBlock) RefCount(n int) {
 	}
 }
 
-func (b *ColListBlock) Key() query.PartitionKey {
+func (b *ColListBlock) Key() query.GroupKey {
 	return b.key
 }
 func (b *ColListBlock) Cols() []query.ColMeta {
@@ -893,12 +862,12 @@ func (c *timeColumn) Swap(i, j int) {
 type BlockBuilderCache interface {
 	// BlockBuilder returns an existing or new BlockBuilder for the given meta data.
 	// The boolean return value indicates if BlockBuilder is new.
-	BlockBuilder(key query.PartitionKey) (BlockBuilder, bool)
-	ForEachBuilder(f func(query.PartitionKey, BlockBuilder))
+	BlockBuilder(key query.GroupKey) (BlockBuilder, bool)
+	ForEachBuilder(f func(query.GroupKey, BlockBuilder))
 }
 
 type blockBuilderCache struct {
-	blocks *PartitionLookup
+	blocks *GroupLookup
 	alloc  *Allocator
 
 	triggerSpec query.TriggerSpec
@@ -906,7 +875,7 @@ type blockBuilderCache struct {
 
 func NewBlockBuilderCache(a *Allocator) *blockBuilderCache {
 	return &blockBuilderCache{
-		blocks: NewPartitionLookup(),
+		blocks: NewGroupLookup(),
 		alloc:  a,
 	}
 }
@@ -920,7 +889,7 @@ func (d *blockBuilderCache) SetTriggerSpec(ts query.TriggerSpec) {
 	d.triggerSpec = ts
 }
 
-func (d *blockBuilderCache) Block(key query.PartitionKey) (query.Block, error) {
+func (d *blockBuilderCache) Block(key query.GroupKey) (query.Block, error) {
 	b, ok := d.lookupState(key)
 	if !ok {
 		return nil, fmt.Errorf("block not found with key %v", key)
@@ -928,7 +897,7 @@ func (d *blockBuilderCache) Block(key query.PartitionKey) (query.Block, error) {
 	return b.builder.Block()
 }
 
-func (d *blockBuilderCache) lookupState(key query.PartitionKey) (blockState, bool) {
+func (d *blockBuilderCache) lookupState(key query.GroupKey) (blockState, bool) {
 	v, ok := d.blocks.Lookup(key)
 	if !ok {
 		return blockState{}, false
@@ -938,7 +907,7 @@ func (d *blockBuilderCache) lookupState(key query.PartitionKey) (blockState, boo
 
 // BlockBuilder will return the builder for the specified block.
 // If no builder exists, one will be created.
-func (d *blockBuilderCache) BlockBuilder(key query.PartitionKey) (BlockBuilder, bool) {
+func (d *blockBuilderCache) BlockBuilder(key query.GroupKey) (BlockBuilder, bool) {
 	b, ok := d.lookupState(key)
 	if !ok {
 		builder := NewColListBlockBuilder(key, d.alloc)
@@ -952,34 +921,34 @@ func (d *blockBuilderCache) BlockBuilder(key query.PartitionKey) (BlockBuilder, 
 	return b.builder, !ok
 }
 
-func (d *blockBuilderCache) ForEachBuilder(f func(query.PartitionKey, BlockBuilder)) {
-	d.blocks.Range(func(key query.PartitionKey, value interface{}) {
+func (d *blockBuilderCache) ForEachBuilder(f func(query.GroupKey, BlockBuilder)) {
+	d.blocks.Range(func(key query.GroupKey, value interface{}) {
 		f(key, value.(blockState).builder)
 	})
 }
 
-func (d *blockBuilderCache) DiscardBlock(key query.PartitionKey) {
+func (d *blockBuilderCache) DiscardBlock(key query.GroupKey) {
 	b, ok := d.lookupState(key)
 	if ok {
 		b.builder.ClearData()
 	}
 }
 
-func (d *blockBuilderCache) ExpireBlock(key query.PartitionKey) {
+func (d *blockBuilderCache) ExpireBlock(key query.GroupKey) {
 	b, ok := d.blocks.Delete(key)
 	if ok {
 		b.(blockState).builder.ClearData()
 	}
 }
 
-func (d *blockBuilderCache) ForEach(f func(query.PartitionKey)) {
-	d.blocks.Range(func(key query.PartitionKey, value interface{}) {
+func (d *blockBuilderCache) ForEach(f func(query.GroupKey)) {
+	d.blocks.Range(func(key query.GroupKey, value interface{}) {
 		f(key)
 	})
 }
 
-func (d *blockBuilderCache) ForEachWithContext(f func(query.PartitionKey, Trigger, BlockContext)) {
-	d.blocks.Range(func(key query.PartitionKey, value interface{}) {
+func (d *blockBuilderCache) ForEachWithContext(f func(query.GroupKey, Trigger, BlockContext)) {
+	d.blocks.Range(func(key query.GroupKey, value interface{}) {
 		b := value.(blockState)
 		f(key, b.trigger, BlockContext{
 			Key:   key,

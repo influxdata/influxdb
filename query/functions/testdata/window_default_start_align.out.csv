@@ -1,5 +1,5 @@
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
-#partition,false,false,true,true,false,false,true,true,true
+#group,false,false,true,true,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,0,2018-05-22T19:54:00Z,2018-05-22T19:55:00Z,2018-05-22T19:54:36Z,62.71536350250244,used_percent,mem,host.local

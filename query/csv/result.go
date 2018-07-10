@@ -25,9 +25,9 @@ const (
 
 	recordStartIdx = 3
 
-	datatypeAnnotation  = "datatype"
-	partitionAnnotation = "partition"
-	defaultAnnotation   = "default"
+	datatypeAnnotation = "datatype"
+	groupAnnotation    = "group"
+	defaultAnnotation  = "default"
 
 	resultLabel = "result"
 	tableLabel  = "table"
@@ -248,20 +248,20 @@ func (r *resultDecoder) Do(f func(query.Block) error) error {
 }
 
 type tableMetadata struct {
-	ResultID   string
-	TableID    string
-	Cols       []colMeta
-	Partitions []bool
-	Defaults   []values.Value
-	NumFields  int
+	ResultID  string
+	TableID   string
+	Cols      []colMeta
+	Groups    []bool
+	Defaults  []values.Value
+	NumFields int
 }
 
 // readMetadata reads the table annotations and header.
 func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tableMetadata, error) {
 	n := -1
 	var resultID, tableID string
-	var datatypes, partitions, defaults []string
-	for datatypes == nil || partitions == nil || defaults == nil {
+	var datatypes, groups, defaults []string
+	for datatypes == nil || groups == nil || defaults == nil {
 		var line []string
 		if len(extraLine) > 0 {
 			line = extraLine
@@ -270,15 +270,15 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 			l, err := r.Read()
 			if err != nil {
 				if err == io.EOF {
-					if datatypes == nil && partitions == nil && defaults == nil {
+					if datatypes == nil && groups == nil && defaults == nil {
 						// No, just pass the EOF up
 						return tableMetadata{}, err
 					}
 					switch {
 					case datatypes == nil:
 						return tableMetadata{}, fmt.Errorf("missing expected annotation datatype")
-					case partitions == nil:
-						return tableMetadata{}, fmt.Errorf("missing expected annotation partition")
+					case groups == nil:
+						return tableMetadata{}, fmt.Errorf("missing expected annotation group")
 					case defaults == nil:
 						return tableMetadata{}, fmt.Errorf("missing expected annotation default")
 					}
@@ -296,8 +296,8 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 		switch annotation := strings.TrimPrefix(line[annotationIdx], commentPrefix); annotation {
 		case datatypeAnnotation:
 			datatypes = copyLine(line[recordStartIdx:])
-		case partitionAnnotation:
-			partitions = copyLine(line[recordStartIdx:])
+		case groupAnnotation:
+			groups = copyLine(line[recordStartIdx:])
 		case defaultAnnotation:
 			resultID = line[resultIdx]
 			tableID = line[tableIdx]
@@ -307,8 +307,8 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 				switch {
 				case datatypes == nil:
 					return tableMetadata{}, fmt.Errorf("missing expected annotation datatype")
-				case partitions == nil:
-					return tableMetadata{}, fmt.Errorf("missing expected annotation partition")
+				case groups == nil:
+					return tableMetadata{}, fmt.Errorf("missing expected annotation group")
 				case defaults == nil:
 					return tableMetadata{}, fmt.Errorf("missing expected annotation default")
 				}
@@ -341,7 +341,7 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 
 	cols := make([]colMeta, len(labels))
 	defaultValues := make([]values.Value, len(labels))
-	partitionValues := make([]bool, len(labels))
+	groupValues := make([]bool, len(labels))
 
 	for j, label := range labels {
 		t, desc, err := decodeType(datatypes[j])
@@ -367,16 +367,16 @@ func readMetadata(r *csv.Reader, c ResultDecoderConfig, extraLine []string) (tab
 			}
 			defaultValues[j] = v
 		}
-		partitionValues[j] = partitions[j] == "true"
+		groupValues[j] = groups[j] == "true"
 	}
 
 	return tableMetadata{
-		ResultID:   resultID,
-		TableID:    tableID,
-		Cols:       cols,
-		Partitions: partitionValues,
-		Defaults:   defaultValues,
-		NumFields:  n,
+		ResultID:  resultID,
+		TableID:   tableID,
+		Cols:      cols,
+		Groups:    groupValues,
+		Defaults:  defaultValues,
+		NumFields: n,
 	}, nil
 }
 
@@ -390,7 +390,7 @@ type blockDecoder struct {
 
 	initialized bool
 	id          string
-	key         query.PartitionKey
+	key         query.GroupKey
 	cols        []colMeta
 
 	builder *execute.ColListBlockBuilder
@@ -505,7 +505,7 @@ DONE:
 	// table is done
 	b.extraLine = line
 	if !b.initialized {
-		return false, errors.New("table was not initialized, missing partition key data")
+		return false, errors.New("table was not initialized, missing group key data")
 	}
 	return false, nil
 }
@@ -525,7 +525,7 @@ func (b *blockDecoder) init(line []string) error {
 	keyCols := make([]query.ColMeta, 0, len(b.meta.Cols))
 	keyValues := make([]values.Value, 0, len(b.meta.Cols))
 	for j, c := range b.meta.Cols {
-		if b.meta.Partitions[j] {
+		if b.meta.Groups[j] {
 			var value values.Value
 			if b.meta.Defaults[j] != nil {
 				value = b.meta.Defaults[j]
@@ -536,14 +536,14 @@ func (b *blockDecoder) init(line []string) error {
 				}
 				value = v
 			} else {
-				return fmt.Errorf("missing value for partition key column %q", c.Label)
+				return fmt.Errorf("missing value for group key column %q", c.Label)
 			}
 			keyCols = append(keyCols, c.ColMeta)
 			keyValues = append(keyValues, value)
 		}
 	}
 
-	key := execute.NewPartitionKey(keyCols, keyValues)
+	key := execute.NewGroupKey(keyCols, keyValues)
 	b.builder = execute.NewColListBlockBuilder(key, newUnlimitedAllocator())
 	for _, c := range b.meta.Cols {
 		b.builder.AddCol(c.ColMeta)
@@ -593,7 +593,7 @@ func (b *blockDecoder) Empty() bool {
 
 func (b *blockDecoder) RefCount(n int) {}
 
-func (b *blockDecoder) Key() query.PartitionKey {
+func (b *blockDecoder) Key() query.GroupKey {
 	return b.builder.Key()
 }
 
@@ -630,7 +630,7 @@ type ResultEncoderConfig struct {
 
 func DefaultEncoderConfig() ResultEncoderConfig {
 	return ResultEncoderConfig{
-		Annotations: []string{datatypeAnnotation, partitionAnnotation, defaultAnnotation},
+		Annotations: []string{datatypeAnnotation, groupAnnotation, defaultAnnotation},
 	}
 }
 
@@ -750,7 +750,7 @@ func (e *ResultEncoder) EncodeError(w io.Writer, err error) error {
 	return writer.Error()
 }
 
-func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols []colMeta, useKeyDefaults bool, key query.PartitionKey, resultName, tableID string) error {
+func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols []colMeta, useKeyDefaults bool, key query.GroupKey, resultName, tableID string) error {
 	defaults := make([]string, len(row))
 	for j, c := range cols {
 		switch j {
@@ -795,15 +795,15 @@ func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols 
 	return writer.Error()
 }
 
-func writeAnnotations(writer *csv.Writer, annotations []string, row, defaults []string, cols []colMeta, key query.PartitionKey) error {
+func writeAnnotations(writer *csv.Writer, annotations []string, row, defaults []string, cols []colMeta, key query.GroupKey) error {
 	for _, annotation := range annotations {
 		switch annotation {
 		case datatypeAnnotation:
 			if err := writeDatatypes(writer, row, cols); err != nil {
 				return err
 			}
-		case partitionAnnotation:
-			if err := writePartitions(writer, row, cols, key); err != nil {
+		case groupAnnotation:
+			if err := writeGroups(writer, row, cols, key); err != nil {
 				return err
 			}
 		case defaultAnnotation:
@@ -843,10 +843,10 @@ func writeDatatypes(writer *csv.Writer, row []string, cols []colMeta) error {
 	return writer.Write(row)
 }
 
-func writePartitions(writer *csv.Writer, row []string, cols []colMeta, key query.PartitionKey) error {
+func writeGroups(writer *csv.Writer, row []string, cols []colMeta, key query.GroupKey) error {
 	for j, c := range cols {
 		if j == annotationIdx {
-			row[j] = commentPrefix + partitionAnnotation
+			row[j] = commentPrefix + groupAnnotation
 			continue
 		}
 		row[j] = strconv.FormatBool(key.HasCol(c.Label))

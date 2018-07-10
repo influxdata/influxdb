@@ -151,7 +151,7 @@ func NewKeysTransformation(d execute.Dataset, cache execute.BlockBuilderCache, s
 	}
 }
 
-func (t *keysTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *keysTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 

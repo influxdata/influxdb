@@ -151,7 +151,7 @@ func NewCovarianceTransformation(d execute.Dataset, cache execute.BlockBuilderCa
 	}
 }
 
-func (t *CovarianceTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *CovarianceTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 

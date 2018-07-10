@@ -9,7 +9,7 @@ import (
 type Dataset interface {
 	Node
 
-	RetractBlock(key query.PartitionKey) error
+	RetractBlock(key query.GroupKey) error
 	UpdateProcessingTime(t Time) error
 	UpdateWatermark(mark Time) error
 	Finish(error)
@@ -19,13 +19,13 @@ type Dataset interface {
 
 // DataCache holds all working data for a transformation.
 type DataCache interface {
-	Block(query.PartitionKey) (query.Block, error)
+	Block(query.GroupKey) (query.Block, error)
 
-	ForEach(func(query.PartitionKey))
-	ForEachWithContext(func(query.PartitionKey, Trigger, BlockContext))
+	ForEach(func(query.GroupKey))
+	ForEachWithContext(func(query.GroupKey, Trigger, BlockContext))
 
-	DiscardBlock(query.PartitionKey)
-	ExpireBlock(query.PartitionKey)
+	DiscardBlock(query.GroupKey)
+	ExpireBlock(query.GroupKey)
 
 	SetTriggerSpec(t query.TriggerSpec)
 }
@@ -105,7 +105,7 @@ func (d *dataset) UpdateProcessingTime(time Time) error {
 }
 
 func (d *dataset) evalTriggers() (err error) {
-	d.cache.ForEachWithContext(func(key query.PartitionKey, trigger Trigger, bc BlockContext) {
+	d.cache.ForEachWithContext(func(key query.GroupKey, trigger Trigger, bc BlockContext) {
 		if err != nil {
 			// Skip the rest once we have encountered an error
 			return
@@ -126,7 +126,7 @@ func (d *dataset) evalTriggers() (err error) {
 	return err
 }
 
-func (d *dataset) triggerBlock(key query.PartitionKey) error {
+func (d *dataset) triggerBlock(key query.GroupKey) error {
 	b, err := d.cache.Block(key)
 	if err != nil {
 		return err
@@ -157,11 +157,11 @@ func (d *dataset) triggerBlock(key query.PartitionKey) error {
 	return nil
 }
 
-func (d *dataset) expireBlock(key query.PartitionKey) {
+func (d *dataset) expireBlock(key query.GroupKey) {
 	d.cache.ExpireBlock(key)
 }
 
-func (d *dataset) RetractBlock(key query.PartitionKey) error {
+func (d *dataset) RetractBlock(key query.GroupKey) error {
 	d.cache.DiscardBlock(key)
 	for _, t := range d.ts {
 		if err := t.RetractBlock(d.id, key); err != nil {
@@ -174,7 +174,7 @@ func (d *dataset) RetractBlock(key query.PartitionKey) error {
 func (d *dataset) Finish(err error) {
 	if err == nil {
 		// Only trigger blocks we if we not finishing because of an error.
-		d.cache.ForEach(func(bk query.PartitionKey) {
+		d.cache.ForEach(func(bk query.GroupKey) {
 			if err != nil {
 				return
 			}

@@ -13,12 +13,12 @@ import (
 // Not all fields need to be set. See comments on each field.
 // Use Normalize to ensure that all fields are set before equality comparisons.
 type Block struct {
-	// PartitionKey of the block. Does not need to be set explicitly.
-	PartitionKey query.PartitionKey
-	// KeyCols is a list of column that are part of the partition key.
+	// GroupKey of the block. Does not need to be set explicitly.
+	GroupKey query.GroupKey
+	// KeyCols is a list of column that are part of the group key.
 	// The column type is deduced from the ColMeta slice.
 	KeyCols []string
-	// KeyValues is a list of values for the partition key columns.
+	// KeyValues is a list of values for the group key columns.
 	// Only needs to be set when no data is present on the Block.
 	KeyValues []interface{}
 	// ColMeta is a list of columns of the block.
@@ -30,7 +30,7 @@ type Block struct {
 
 // Normalize ensures all fields of the Block are set correctly.
 func (b *Block) Normalize() {
-	if b.PartitionKey == nil {
+	if b.GroupKey == nil {
 		cols := make([]query.ColMeta, len(b.KeyCols))
 		vs := make([]values.Value, len(b.KeyCols))
 		if len(b.KeyValues) != len(b.KeyCols) {
@@ -39,7 +39,7 @@ func (b *Block) Normalize() {
 		for j, label := range b.KeyCols {
 			idx := execute.ColIdx(label, b.ColMeta)
 			if idx < 0 {
-				panic(fmt.Errorf("block invalid: missing partition column %q", label))
+				panic(fmt.Errorf("block invalid: missing group column %q", label))
 			}
 			cols[j] = b.ColMeta[idx]
 			if len(b.Data) > 0 {
@@ -51,7 +51,7 @@ func (b *Block) Normalize() {
 			}
 			vs[j] = v
 		}
-		b.PartitionKey = execute.NewPartitionKey(cols, vs)
+		b.GroupKey = execute.NewGroupKey(cols, vs)
 	}
 }
 
@@ -65,9 +65,9 @@ func (b *Block) Cols() []query.ColMeta {
 	return b.ColMeta
 }
 
-func (b *Block) Key() query.PartitionKey {
+func (b *Block) Key() query.GroupKey {
 	b.Normalize()
-	return b.PartitionKey
+	return b.GroupKey
 }
 
 func (b *Block) Do(f func(query.ColReader) error) error {
@@ -84,7 +84,7 @@ func (b *Block) Do(f func(query.ColReader) error) error {
 }
 
 type ColReader struct {
-	key  query.PartitionKey
+	key  query.GroupKey
 	cols []query.ColMeta
 	row  []interface{}
 }
@@ -93,7 +93,7 @@ func (cr ColReader) Cols() []query.ColMeta {
 	return cr.cols
 }
 
-func (cr ColReader) Key() query.PartitionKey {
+func (cr ColReader) Key() query.GroupKey {
 	return cr.key
 }
 func (cr ColReader) Len() int {
@@ -125,7 +125,7 @@ func (cr ColReader) Times(j int) []execute.Time {
 }
 
 func BlocksFromCache(c execute.DataCache) (blocks []*Block, err error) {
-	c.ForEach(func(key query.PartitionKey) {
+	c.ForEach(func(key query.GroupKey) {
 		if err != nil {
 			return
 		}
@@ -147,8 +147,8 @@ func BlocksFromCache(c execute.DataCache) (blocks []*Block, err error) {
 func ConvertBlock(b query.Block) (*Block, error) {
 	key := b.Key()
 	blk := &Block{
-		PartitionKey: key,
-		ColMeta:      b.Cols(),
+		GroupKey: key,
+		ColMeta:  b.Cols(),
 	}
 
 	keyCols := key.Cols()
