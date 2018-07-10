@@ -6,6 +6,7 @@ import Input from 'src/dashboards/components/DisplayOptionsInput'
 import {Tabber, Tab} from 'src/dashboards/components/Tabber'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import LineGraphColorSelector from 'src/shared/components/LineGraphColorSelector'
+import GraphOptionsDecimalPlaces from 'src/dashboards/components/GraphOptionsDecimalPlaces'
 
 import {
   AXES_SCALE_OPTIONS,
@@ -13,9 +14,13 @@ import {
 } from 'src/dashboards/constants/cellEditor'
 import {GRAPH_TYPES} from 'src/dashboards/graphics/graph'
 
-import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
+import {
+  updateAxes,
+  changeDecimalPlaces,
+} from 'src/dashboards/actions/cellEditorOverlay'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Axes} from 'src/types'
+import {Axes, CellType} from 'src/types'
+import {DecimalPlaces} from 'src/types/dashboards'
 
 const {LINEAR, LOG, BASE_2, BASE_10} = AXES_SCALE_OPTIONS
 const getInputMin = scale => (scale === LOG ? '0' : null)
@@ -25,6 +30,8 @@ interface Props {
   axes: Axes
   staticLegend: boolean
   defaultYLabel: string
+  onUpdateDecimalPlaces: () => void
+  decimalPlaces: DecimalPlaces
   handleUpdateAxes: (axes: Axes) => void
   onToggleStaticLegend: (x: boolean) => (e: MouseEvent<HTMLLIElement>) => void
 }
@@ -152,6 +159,7 @@ class AxesOptions extends PureComponent<Props> {
                 onClickTab={this.handleSetScale(LOG)}
               />
             </Tabber>
+            {this.decimalPlaces}
             <Tabber labelText="Static Legend">
               <Tab
                 text="Show"
@@ -167,6 +175,22 @@ class AxesOptions extends PureComponent<Props> {
           </form>
         </div>
       </FancyScrollbar>
+    )
+  }
+
+  private get decimalPlaces(): JSX.Element {
+    const {onUpdateDecimalPlaces, decimalPlaces, type} = this.props
+
+    if (type !== CellType.LinePlusSingleStat) {
+      return null
+    }
+
+    return (
+      <GraphOptionsDecimalPlaces
+        digits={decimalPlaces.digits}
+        isEnforced={decimalPlaces.isEnforced}
+        onDecimalPlacesChange={onUpdateDecimalPlaces}
+      />
     )
   }
 
@@ -247,6 +271,7 @@ const mstp = ({
 
 const mdtp = {
   handleUpdateAxes: updateAxes,
+  onUpdateDecimalPlaces: changeDecimalPlaces,
 }
 
 export default connect(mstp, mdtp)(AxesOptions)

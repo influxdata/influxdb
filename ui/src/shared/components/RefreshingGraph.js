@@ -32,13 +32,13 @@ const RefreshingGraph = ({
   cellID,
   queries,
   source,
-  tableOptions,
   templates,
   timeRange,
   cellHeight,
   autoRefresh,
   fieldOptions,
   timeFormat,
+  tableOptions,
   decimalPlaces,
   onSetResolution,
   resizerTopHeight,
@@ -62,18 +62,19 @@ const RefreshingGraph = ({
   if (type === 'single-stat') {
     return (
       <RefreshingSingleStat
-        source={source}
         type={type}
+        source={source}
         colors={colors}
-        key={manualRefresh}
-        queries={[queries[0]]}
-        templates={templates}
-        autoRefresh={autoRefresh}
-        cellHeight={cellHeight}
-        editQueryStatus={editQueryStatus}
         prefix={prefix}
         suffix={suffix}
         inView={inView}
+        key={manualRefresh}
+        templates={templates}
+        queries={[queries[0]]}
+        cellHeight={cellHeight}
+        autoRefresh={autoRefresh}
+        decimalPlaces={decimalPlaces}
+        editQueryStatus={editQueryStatus}
         onSetResolution={onSetResolution}
       />
     )
@@ -149,6 +150,7 @@ const RefreshingGraph = ({
       cellHeight={cellHeight}
       autoRefresh={autoRefresh}
       isBarGraph={type === 'bar'}
+      decimalPlaces={decimalPlaces}
       staticLegend={staticLegend}
       displayOptions={displayOptions}
       editQueryStatus={editQueryStatus}

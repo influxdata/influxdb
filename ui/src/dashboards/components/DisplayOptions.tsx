@@ -80,6 +80,7 @@ class DisplayOptions extends PureComponent<Props, State> {
           <AxesOptions
             staticLegend={staticLegend}
             defaultYLabel={defaultYLabel}
+            decimalPlaces={cell.decimalPlaces}
             onToggleStaticLegend={onToggleStaticLegend}
           />
         )

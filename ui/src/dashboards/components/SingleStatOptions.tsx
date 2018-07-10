@@ -4,15 +4,22 @@ import {connect} from 'react-redux'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import ThresholdsList from 'src/shared/components/ThresholdsList'
 import ThresholdsListTypeToggle from 'src/shared/components/ThresholdsListTypeToggle'
+import GraphOptionsDecimalPlaces from 'src/dashboards/components/GraphOptionsDecimalPlaces'
 
-import {updateAxes} from 'src/dashboards/actions/cellEditorOverlay'
+import {
+  updateAxes,
+  changeDecimalPlaces,
+} from 'src/dashboards/actions/cellEditorOverlay'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {Axes} from 'src/types'
+import {DecimalPlaces} from 'src/types/dashboards'
 
 interface Props {
-  handleUpdateAxes: (axes: Axes) => void
   axes: Axes
+  decimalPlaces: DecimalPlaces
   onResetFocus: () => void
+  onUpdateAxes: (axes: Axes) => void
+  onUpdateDecimalPlaces: (decimalPlaces: DecimalPlaces) => void
 }
 
 @ErrorHandling
@@ -23,6 +30,7 @@ class SingleStatOptions extends PureComponent<Props> {
         y: {prefix, suffix},
       },
       onResetFocus,
+      decimalPlaces,
     } = this.props
 
     return (
@@ -54,6 +62,11 @@ class SingleStatOptions extends PureComponent<Props> {
                 maxLength={5}
               />
             </div>
+            <GraphOptionsDecimalPlaces
+              digits={decimalPlaces.digits}
+              isEnforced={decimalPlaces.isEnforced}
+              onDecimalPlacesChange={this.handleDecimalPlacesChange}
+            />
             <ThresholdsListTypeToggle containerClass="form-group col-xs-6" />
           </div>
         </div>
@@ -61,27 +74,34 @@ class SingleStatOptions extends PureComponent<Props> {
     )
   }
 
+  private handleDecimalPlacesChange = (decimalPlaces: DecimalPlaces) => {
+    const {onUpdateDecimalPlaces} = this.props
+    onUpdateDecimalPlaces(decimalPlaces)
+  }
+
   private handleUpdatePrefix = e => {
-    const {handleUpdateAxes, axes} = this.props
+    const {onUpdateAxes, axes} = this.props
     const newAxes = {...axes, y: {...axes.y, prefix: e.target.value}}
 
-    handleUpdateAxes(newAxes)
+    onUpdateAxes(newAxes)
   }
 
   private handleUpdateSuffix = e => {
-    const {handleUpdateAxes, axes} = this.props
+    const {onUpdateAxes, axes} = this.props
     const newAxes = {...axes, y: {...axes.y, suffix: e.target.value}}
 
-    handleUpdateAxes(newAxes)
+    onUpdateAxes(newAxes)
   }
 }
 
 const mstp = ({cellEditorOverlay}) => ({
   axes: cellEditorOverlay.cell.axes,
+  decimalPlaces: cellEditorOverlay.cell.decimalPlaces,
 })
 
 const mdtp = {
-  handleUpdateAxes: updateAxes,
+  onUpdateAxes: updateAxes,
+  onUpdateDecimalPlaces: changeDecimalPlaces,
 }
 
 export default connect(mstp, mdtp)(SingleStatOptions)

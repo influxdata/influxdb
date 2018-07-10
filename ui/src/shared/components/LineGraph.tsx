@@ -11,6 +11,7 @@ import {
 import {ErrorHandlingWith} from 'src/shared/decorators/errors'
 import InvalidData from 'src/shared/components/InvalidData'
 import {Query, Axes, RuleValues, TimeRange} from 'src/types'
+import {DecimalPlaces} from 'src/types/dashboards'
 import {ColorString} from 'src/types/colors'
 import {Data} from 'src/types/dygraphs'
 
@@ -48,6 +49,7 @@ interface Props {
   data: Data
   queries: Query[]
   colors: ColorString[]
+  decimalPlaces: DecimalPlaces
   underlayCallback?: () => void
   setResolution: () => void
   handleSetHoverTime: () => void
@@ -109,6 +111,7 @@ class LineGraph extends PureComponent<Props> {
       showSingleStat,
       displayOptions,
       staticLegend,
+      decimalPlaces,
       underlayCallback,
       isFetchingInitially,
       handleSetHoverTime,
@@ -167,6 +170,7 @@ class LineGraph extends PureComponent<Props> {
               prefix={this.prefix}
               suffix={this.suffix}
               cellHeight={cellHeight}
+              decimalPlaces={decimalPlaces}
               isFetchingInitially={isFetchingInitially}
             />
           )}
