@@ -1,5 +1,6 @@
 import React, {PureComponent} from 'react'
-import SlideToggle from 'src/shared/components/SlideToggle'
+import SlideToggle from 'src/reusable_ui/components/slide_toggle/SlideToggle'
+import {ComponentColor} from 'src/reusable_ui/types'
 
 import {OnChangeArg} from 'src/types/flux'
 
@@ -19,17 +20,28 @@ class FuncArgBool extends PureComponent<Props> {
       <div className="func-arg">
         <label className="func-arg--label">{this.props.argKey}</label>
         <div className="func-arg--value">
-          <SlideToggle active={this.props.value} onToggle={this.handleToggle} />
+          <SlideToggle
+            active={this.props.value}
+            onChange={this.handleToggleClick}
+            color={ComponentColor.Success}
+          />
         </div>
       </div>
     )
   }
 
-  private handleToggle = (value: boolean): void => {
-    const {argKey, funcID, bodyID, onChangeArg, declarationID} = this.props
+  private handleToggleClick = (): void => {
+    const {
+      argKey,
+      funcID,
+      bodyID,
+      onChangeArg,
+      declarationID,
+      value,
+    } = this.props
     onChangeArg({
       key: argKey,
-      value,
+      value: !value,
       funcID,
       bodyID,
       declarationID,

@@ -3,6 +3,10 @@
    -----------------------------------------------------------------------------
 */
 
+@import 'src/style/modules/influx-colors';
+@import 'src/style/modules/variables';
+@import 'src/style/modules/mixins';
+
 $overlay-title-height: $chronograf-page-header-height;
 $overlay-gutter: 30px;
 $overlay-min-height: 150px;
