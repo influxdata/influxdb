@@ -53,7 +53,6 @@ func (s *Service) OrganizationConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := newOrganizationConfigResponse(*config)
-
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -76,13 +75,7 @@ func (s *Service) OrganizationLogViewerConfig(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if config == nil {
-		Error(w, http.StatusBadRequest, "Organization configuration object was nil", s.Logger)
-		return
-	}
-
 	res := newLogViewerConfigResponse(config.LogViewer)
-
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -111,18 +104,13 @@ func (s *Service) ReplaceOrganizationLogViewerConfig(w http.ResponseWriter, r *h
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
-	if config == nil {
-		Error(w, http.StatusBadRequest, "Organization configuration object was nil", s.Logger)
-		return
-	}
 	config.LogViewer = logViewerConfig
-
-	res := newLogViewerConfigResponse(config.LogViewer)
 	if err := s.Store.OrganizationConfig(ctx).Update(ctx, config); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
 
+	res := newLogViewerConfigResponse(config.LogViewer)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
