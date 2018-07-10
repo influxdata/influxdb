@@ -1,12 +1,12 @@
 import React, {PureComponent} from 'react'
 
-import Dropdown from 'src/shared/components/Dropdown'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
+import TemplateDropdown from 'src/tempVars/components/TemplateDropdown'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
-import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 
-import {Template, Source, TemplateValueType} from 'src/types'
+import {Template, Source} from 'src/types'
 
 interface Props {
   template: Template
@@ -38,35 +38,18 @@ class TemplateControl extends PureComponent<Props, State> {
       template,
       templates,
       source,
-      onPickTemplate,
       onCreateTemplate,
+      onPickTemplate,
     } = this.props
     const {isEditing} = this.state
-
-    const dropdownItems = template.values.map(value => {
-      if (value.type === TemplateValueType.Map) {
-        return {...value, text: value.key}
-      }
-      return {...value, text: value.value}
-    })
 
     const dropdownStyle = template.values.length
       ? {minWidth: calculateDropdownWidth(template.values)}
       : null
 
-    const localSelectedItem = dropdownItems.find(item => item.localSelected) ||
-      dropdownItems[0] || {text: '(No values)'}
-
     return (
       <div className="template-control--dropdown" style={dropdownStyle}>
-        <Dropdown
-          items={dropdownItems}
-          buttonSize="btn-xs"
-          menuClass="dropdown-astronaut"
-          useAutoComplete={true}
-          selected={localSelectedItem.text}
-          onChoose={onPickTemplate(template.id)}
-        />
+        <TemplateDropdown template={template} onPickTemplate={onPickTemplate} />
         <Authorized requiredRole={EDITOR_ROLE}>
           <label className="template-control--label">
             {template.tempVar}
