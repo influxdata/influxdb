@@ -20,7 +20,7 @@
         },
         {
           "query":
-            "SELECT non_negative_derivative(last(\"cmd_select\"), 1s) AS selects_per_second FROM \":db:\".\":rp:\".\"mysql\"",
+            "SELECT non_negative_derivative(last(\"com_select\"), 1s) AS selects_per_second FROM \":db:\".\":rp:\".\"mysql\"",
           "groupbys": ["\"server\""],
           "wheres": []
         }
@@ -42,7 +42,7 @@
         },
         {
           "query":
-            "SELECT non_negative_derivative(last(\"cmd_insert\"), 1s) AS inserts_per_second, non_negative_derivative(last(\"cmd_update\"), 1s) AS updates_per_second, non_negative_derivative(last(\"cmd_delete\"), 1s) AS deletes_per_second FROM \":db:\".\":rp:\".\"mysql\"",
+            "SELECT non_negative_derivative(last(\"com_insert\"), 1s) AS inserts_per_second, non_negative_derivative(last(\"com_update\"), 1s) AS updates_per_second, non_negative_derivative(last(\"com_delete\"), 1s) AS deletes_per_second FROM \":db:\".\":rp:\".\"mysql\"",
           "groupbys": ["\"server\""],
           "wheres": []
         }
