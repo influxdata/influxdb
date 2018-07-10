@@ -106,9 +106,14 @@ const concatMoreLogs = (
 export const setConfigs = (state: LogsState, action: SetConfigsAction) => {
   const {logConfig} = state
   const {
-    logConfig: {tableColumns, severityFormat},
+    logConfig: {tableColumns, severityFormat, severityLevelColors},
   } = action.payload
-  const updatedLogConfig = {...logConfig, tableColumns, severityFormat}
+  const updatedLogConfig = {
+    ...logConfig,
+    tableColumns,
+    severityFormat,
+    severityLevelColors,
+  }
   return {...state, logConfig: updatedLogConfig}
 }
 

@@ -360,9 +360,14 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleUpdateSeverityLevels = (levels: SeverityLevelColor[]) => {
-    // Todo: Handle saving of these new severity colors here
-    levels = levels
+  private handleUpdateSeverityLevels = async (
+    severityLevelColors: SeverityLevelColor[]
+  ) => {
+    const {logConfig} = this.props
+    await this.props.updateConfig(this.logConfigLink, {
+      ...logConfig,
+      severityLevelColors,
+    })
   }
 
   private handleUpdateSeverityFormat = async (format: SeverityFormat) => {
