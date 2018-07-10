@@ -617,17 +617,17 @@ func (i *Index) InitializeSeries(keys, names [][]byte, tags []models.Tags) error
 // DropSeries drops the provided series from the index.  If cascade is true
 // and this is the last series to the measurement, the measurment will also be dropped.
 func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
+	// Extract measurement name.
+	name, _ := models.ParseKeyBytes(key)
+
 	// Remove from partition.
-	if err := i.partition(key).DropSeries(seriesID); err != nil {
+	if err := i.partition(key).DropSeries(name, seriesID); err != nil {
 		return err
 	}
 
 	if !cascade {
 		return nil
 	}
-
-	// Extract measurement name.
-	name, _ := models.ParseKeyBytes(key)
 
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {
