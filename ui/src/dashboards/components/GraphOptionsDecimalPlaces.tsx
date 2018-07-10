@@ -9,6 +9,7 @@ interface Props extends DecimalPlaces {
 }
 
 const fixedValueString = 'fixed'
+const defaultPlaceholder = 'unlimited'
 
 @ErrorHandling
 class GraphOptionsDecimalPlaces extends PureComponent<Props> {
@@ -16,7 +17,7 @@ class GraphOptionsDecimalPlaces extends PureComponent<Props> {
     super(props)
   }
 
-  public onSetValue = (valueFromSelector: string): void => {
+  public handleSetValue = (valueFromSelector: string): void => {
     let digits
     let isEnforced
     if (valueFromSelector === fixedValueString) {
@@ -36,21 +37,39 @@ class GraphOptionsDecimalPlaces extends PureComponent<Props> {
   }
 
   public render() {
-    const {digits, isEnforced} = this.props
     return (
       <div className="form-group col-xs-6">
         <label> Decimal Places </label>
         <OptIn
-          customPlaceholder={isEnforced ? digits.toString() : 'unlimited'}
-          customValue={isEnforced ? digits.toString() : ''}
-          onSetValue={this.onSetValue}
-          fixedPlaceholder={''}
-          fixedValue={fixedValueString}
+          min="0"
           type="number"
-          min={'0'}
+          fixedPlaceholder=""
+          customValue={this.value}
+          fixedValue={fixedValueString}
+          onSetValue={this.handleSetValue}
+          customPlaceholder={this.placeholder}
         />
       </div>
     )
+  }
+
+  private get placeholder(): string {
+    const {isEnforced, digits} = this.props
+
+    if (!isEnforced) {
+      return defaultPlaceholder
+    }
+
+    return `${digits}`
+  }
+
+  private get value(): string {
+    const {isEnforced, digits} = this.props
+    if (!isEnforced) {
+      return ''
+    }
+
+    return `${digits}`
   }
 }
 

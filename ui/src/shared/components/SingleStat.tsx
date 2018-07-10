@@ -7,12 +7,13 @@ import {SMALL_CELL_HEIGHT} from 'src/shared/graphs/helpers'
 import {DYGRAPH_CONTAINER_V_MARGIN} from 'src/shared/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {ColorString} from 'src/types/colors'
-import {CellType} from 'src/types/dashboards'
+import {CellType, DecimalPlaces} from 'src/types/dashboards'
 import {Data} from 'src/types/dygraphs'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   isFetchingInitially: boolean
+  decimalPlaces: DecimalPlaces
   cellHeight: number
   colors: ColorString[]
   prefix?: string
@@ -59,21 +60,32 @@ class SingleStat extends PureComponent<Props> {
     return `${prefix}${this.roundedLastValue}${suffix}`
   }
 
-  private get roundedLastValue(): string {
+  private get lastValue(): number {
     const {data} = this.props
     const {lastValues, series} = getLastValues(data)
     const firstAlphabeticalSeriesName = _.sortBy(series)[0]
 
-    const firstAlphabeticalindex = _.indexOf(
+    const firstAlphabeticalIndex = _.indexOf(
       series,
       firstAlphabeticalSeriesName
     )
-    const lastValue = lastValues[firstAlphabeticalindex]
-    const HUNDRED = 100.0
-    const roundedValue = Math.round(+lastValue * HUNDRED) / HUNDRED
-    const localeFormatted = roundedValue.toLocaleString()
 
-    return `${localeFormatted}`
+    return lastValues[firstAlphabeticalIndex]
+  }
+
+  private get roundedLastValue(): string {
+    const {decimalPlaces} = this.props
+    let roundedValue = `${this.lastValue}`
+
+    if (decimalPlaces.isEnforced) {
+      roundedValue = this.lastValue.toFixed(decimalPlaces.digits)
+    }
+
+    return this.formatToLocale(+roundedValue)
+  }
+
+  private formatToLocale(n: number): string {
+    return n.toLocaleString()
   }
 
   private get containerStyle(): CSSProperties {
