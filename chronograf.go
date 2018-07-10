@@ -745,6 +745,7 @@ type Config struct {
 
 // AuthConfig is the global application config section for auth parameters
 type AuthConfig struct {
+	// SuperAdminNewUsers configuration option that specifies which users will auto become super admin
 	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
 }
 
