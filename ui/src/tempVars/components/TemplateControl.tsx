@@ -2,11 +2,12 @@ import React, {PureComponent} from 'react'
 
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateDropdown from 'src/tempVars/components/TemplateDropdown'
+import TextTemplateSelector from 'src/tempVars/components/TextTemplateSelector'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 
-import {Template, Source, TemplateValue} from 'src/types'
+import {Template, TemplateType, Source, TemplateValue} from 'src/types'
 
 interface Props {
   template: Template
@@ -39,6 +40,7 @@ class TemplateControl extends PureComponent<Props, State> {
       templates,
       source,
       onCreateTemplate,
+      onUpdateTemplate,
       onPickValue,
     } = this.props
     const {isEditing} = this.state
@@ -49,7 +51,14 @@ class TemplateControl extends PureComponent<Props, State> {
 
     return (
       <div className="template-control--dropdown" style={dropdownStyle}>
-        <TemplateDropdown template={template} onPickValue={onPickValue} />
+        {template.type === TemplateType.Text ? (
+          <TextTemplateSelector
+            template={template}
+            onUpdateTemplate={onUpdateTemplate}
+          />
+        ) : (
+          <TemplateDropdown template={template} onPickValue={onPickValue} />
+        )}
         <Authorized requiredRole={EDITOR_ROLE}>
           <label className="template-control--label">
             {template.tempVar}
