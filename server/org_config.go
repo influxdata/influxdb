@@ -126,6 +126,11 @@ func (s *Service) ReplaceOrganizationLogViewerConfig(w http.ResponseWriter, r *h
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
+// validLogViewerConfig ensures that the request body log viewer UI config is valid
+// to be valid, it must: not be empty, have at least one column, not have multiple
+// columns with the same name or position value, each column must have a visbility
+// of either "visible" or "hidden" and if a column is of type severity, it must have
+// at least one severity format of type icon, text, or both
 func validLogViewerConfig(cfg chronograf.LogViewerConfig) error {
 	if len(cfg.Columns) == 0 {
 		return fmt.Errorf("Invalid log viewer config: must have at least 1 column")
