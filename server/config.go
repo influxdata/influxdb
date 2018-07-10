@@ -7,15 +7,21 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+type configLinks struct {
+	Self string `json:"self"` // Self link mapping to this resource
+	Auth string `json:"auth"` // Auth link to the auth config endpoint
+}
+
 type configResponse struct {
-	Links selfLinks `json:"links"`
+	Links configLinks `json:"links"`
 	chronograf.Config
 }
 
 func newConfigResponse(config chronograf.Config) *configResponse {
 	return &configResponse{
-		Links: selfLinks{
+		Links: configLinks{
 			Self: "/chronograf/v1/config",
+			Auth: "/chronograf/v1/config/auth",
 		},
 		Config: config,
 	}

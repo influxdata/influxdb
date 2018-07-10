@@ -41,7 +41,7 @@ func TestConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"links":{"self":"/chronograf/v1/config"},"auth":{"superAdminNewUsers":false}}`,
+				body:        `{"links":{"self":"/chronograf/v1/config","auth":"/chronograf/v1/config/auth"},"auth":{"superAdminNewUsers":false}}`,
 			},
 		},
 	}
