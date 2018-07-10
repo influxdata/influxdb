@@ -207,7 +207,7 @@ message Organization {
 }
 
 message Config {
-	AuthConfig Auth         					= 1; // Auth is the configuration for options that auth related
+	AuthConfig Auth         = 1; // Auth is the configuration for options that auth related
 }
 
 message AuthConfig {
