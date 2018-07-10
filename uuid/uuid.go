@@ -35,10 +35,10 @@
 package uuid // import "github.com/influxdata/influxdb/uuid"
 
 import (
+	"crypto/rand"
+	"net"
 	"sync/atomic"
 	"time"
-	"net"
-	"crypto/rand"
 )
 
 // UUID - unique identifier type representing a 128 bit number
