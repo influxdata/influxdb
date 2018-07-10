@@ -281,7 +281,7 @@ func TestLogViewerOrganizationConfig(t *testing.T) {
 			ctx := context.WithValue(r.Context(), organizations.ContextKey, tt.args.organizationID)
 			r = r.WithContext(ctx)
 
-			s.LogViewerOrganizationConfig(w, r)
+			s.OrganizationLogViewerConfig(w, r)
 
 			resp := w.Result()
 			content := resp.Header.Get("Content-Type")
@@ -683,7 +683,7 @@ func TestReplaceLogViewerOrganizationConfig(t *testing.T) {
 			buf, _ := json.Marshal(tt.args.payload)
 			r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 
-			s.ReplaceLogViewerOrganizationConfig(w, r)
+			s.ReplaceOrganizationLogViewerConfig(w, r)
 
 			resp := w.Result()
 			content := resp.Header.Get("Content-Type")

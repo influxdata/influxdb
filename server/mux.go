@@ -318,8 +318,8 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	// Organization config settings for Chronograf
 	router.GET("/chronograf/v1/org_config", EnsureViewer(service.OrganizationConfig))
-	router.GET("/chronograf/v1/org_config/logviewer", EnsureViewer(service.LogViewerOrganizationConfig))
-	router.PUT("/chronograf/v1/org_config/logviewer", EnsureEditor(service.ReplaceLogViewerOrganizationConfig))
+	router.GET("/chronograf/v1/org_config/logviewer", EnsureViewer(service.OrganizationLogViewerConfig))
+	router.PUT("/chronograf/v1/org_config/logviewer", EnsureEditor(service.ReplaceOrganizationLogViewerConfig))
 
 	router.GET("/chronograf/v1/env", EnsureViewer(service.Environment))
 

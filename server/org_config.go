@@ -57,8 +57,8 @@ func (s *Service) OrganizationConfig(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
-// LogViewerOrganizationConfig retrieves the log viewer UI section of the organization config
-func (s *Service) LogViewerOrganizationConfig(w http.ResponseWriter, r *http.Request) {
+// OrganizationLogViewerConfig retrieves the log viewer UI section of the organization config
+func (s *Service) OrganizationLogViewerConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	orgID, ok := hasOrganizationContext(ctx)
@@ -83,8 +83,8 @@ func (s *Service) LogViewerOrganizationConfig(w http.ResponseWriter, r *http.Req
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
-// ReplaceLogViewerOrganizationConfig replaces the log viewer UI section of the organization config
-func (s *Service) ReplaceLogViewerOrganizationConfig(w http.ResponseWriter, r *http.Request) {
+// ReplaceOrganizationLogViewerConfig replaces the log viewer UI section of the organization config
+func (s *Service) ReplaceOrganizationLogViewerConfig(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	orgID, ok := hasOrganizationContext(ctx)
