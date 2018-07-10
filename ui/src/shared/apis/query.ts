@@ -63,7 +63,10 @@ const replace = async (
   }
 }
 
-const duration = async (query: string, source: Source): Promise<number> => {
+export const duration = async (
+  query: string,
+  source: Source
+): Promise<number> => {
   try {
     const analysis = await analyzeQueries(source.links.queries, [{query}])
     return getDeep<number>(analysis, '0.durationMs', DEFAULT_DURATION_MS)

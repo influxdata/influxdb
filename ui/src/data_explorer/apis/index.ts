@@ -7,6 +7,8 @@ import {proxy} from 'src/utils/queryUrlGenerator'
 import {timeSeriesToTableGraph} from 'src/utils/timeSeriesTransformers'
 import {dataToCSV} from 'src/shared/parsing/dataToCSV'
 import {Source, QueryConfig} from 'src/types'
+import {duration} from 'src/shared/apis/query'
+import {replaceInterval} from 'src/tempVars/utils/replace'
 
 export const writeLineProtocol = async (
   source: Source,
@@ -32,9 +34,17 @@ export const getDataForCSV = (
   errorThrown
 ) => async () => {
   try {
+    let queryString = query.text
+
+    if (queryString.includes(':interval:')) {
+      const queryDuration = await duration(query.text, source)
+
+      queryString = replaceInterval(query.text, null, queryDuration)
+    }
+
     const response = await fetchTimeSeriesForCSV({
       source: source.links.proxy,
-      query: query.text,
+      query: queryString,
     })
 
     const {data} = timeSeriesToTableGraph([{response}])
