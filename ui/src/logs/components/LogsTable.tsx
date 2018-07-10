@@ -22,10 +22,19 @@ import {
 } from 'src/logs/utils/table'
 
 import timeRanges from 'src/logs/data/timeRanges'
-import {SeverityFormatOptions} from 'src/logs/constants'
+import {
+  SeverityFormatOptions,
+  SeverityColorOptions,
+  SeverityLevelOptions,
+} from 'src/logs/constants'
 
 import {TimeRange} from 'src/types'
-import {TableData, LogsTableColumn, SeverityFormat} from 'src/types/logs'
+import {
+  TableData,
+  LogsTableColumn,
+  SeverityFormat,
+  SeverityLevelColor,
+} from 'src/types/logs'
 
 const ROW_HEIGHT = 26
 const CHAR_WIDTH = 9
@@ -40,6 +49,7 @@ interface Props {
   timeRange: TimeRange
   tableColumns: LogsTableColumn[]
   severityFormat: SeverityFormat
+  severityLevelColors: SeverityLevelColor[]
 }
 
 interface State {
@@ -403,7 +413,7 @@ class LogsTable extends Component<Props, State> {
   }
 
   private cellRenderer = ({key, style, rowIndex, columnIndex}) => {
-    const {severityFormat} = this.props
+    const {severityFormat, severityLevelColors} = this.props
 
     const column = getColumnFromData(this.props.data, columnIndex)
     const value = getValueFromData(this.props.data, rowIndex, columnIndex)
@@ -417,6 +427,7 @@ class LogsTable extends Component<Props, State> {
 
     if (column === 'severity' && isDotNeeded) {
       title = value
+      const colorLevel = severityLevelColors.find(lc => lc.level === value)
       formattedValue = (
         <>
           <div
@@ -424,7 +435,7 @@ class LogsTable extends Component<Props, State> {
             title={value}
             onMouseOver={this.handleMouseEnter}
             data-index={rowIndex}
-            style={this.severityDotStyle(value)}
+            style={this.severityDotStyle(colorLevel.color, colorLevel.level)}
           />
           {this.getSeverityDotText(value)}
         </>
@@ -477,8 +488,11 @@ class LogsTable extends Component<Props, State> {
     )
   }
 
-  private severityDotStyle = (severity: string): CSSProperties => {
-    const severityColor = colorForSeverity(severity)
+  private severityDotStyle = (
+    colorName: SeverityColorOptions,
+    level: SeverityLevelOptions
+  ): CSSProperties => {
+    const severityColor = colorForSeverity(colorName, level)
     const brightSeverityColor = color(severityColor)
       .brighter(0.5)
       .hex()

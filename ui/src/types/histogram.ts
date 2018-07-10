@@ -30,4 +30,9 @@ export interface HoverData {
   anchor: TooltipAnchor
 }
 
-export type ColorScale = (color: string) => string
+export type ColorScale = (color: string, group: string) => string
+
+export interface HistogramColor {
+  group: string
+  color: string
+}

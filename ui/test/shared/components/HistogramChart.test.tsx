@@ -15,6 +15,7 @@ describe('HistogramChart', () => {
       height: 400,
       colorScale: () => 'blue',
       onZoom: () => {},
+      colors: [],
     }
 
     const wrapper = mount(<HistogramChart {...props} />)
@@ -30,6 +31,7 @@ describe('HistogramChart', () => {
       height: 0,
       colorScale: () => 'blue',
       onZoom: () => {},
+      colors: [],
     }
 
     const wrapper = mount(<HistogramChart {...props} />)
@@ -49,6 +51,7 @@ describe('HistogramChart', () => {
       height: 400,
       colorScale: () => 'blue',
       onZoom: () => {},
+      colors: [],
     }
 
     const wrapper = mount(<HistogramChart {...props} />)
@@ -68,6 +71,7 @@ describe('HistogramChart', () => {
       height: 400,
       colorScale: () => 'blue',
       onZoom: () => {},
+      colors: [],
     }
 
     const wrapper = mount(<HistogramChart {...props} />)

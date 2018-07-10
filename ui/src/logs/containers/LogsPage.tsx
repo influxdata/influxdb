@@ -37,7 +37,7 @@ import {
 import {SeverityFormatOptions} from 'src/logs/constants'
 import {Source, Namespace, TimeRange} from 'src/types'
 
-import {HistogramData, TimePeriod} from 'src/types/histogram'
+import {HistogramData, TimePeriod, HistogramColor} from 'src/types/histogram'
 import {
   Filter,
   SeverityLevelColor,
@@ -80,9 +80,23 @@ interface State {
   searchString: string
   liveUpdating: boolean
   isOverlayVisible: boolean
+  histogramColors: HistogramColor[]
 }
 
 class LogsPage extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps(props: Props) {
+    const severityLevelColors: SeverityLevelColor[] = _.get(
+      props.logConfig,
+      'severityLevelColors',
+      []
+    )
+    const histogramColors = severityLevelColors.map(lc => ({
+      group: lc.level,
+      color: lc.color,
+    }))
+    return {histogramColors}
+  }
+
   private interval: NodeJS.Timer
 
   constructor(props: Props) {
@@ -92,6 +106,7 @@ class LogsPage extends PureComponent<Props, State> {
       searchString: '',
       liveUpdating: false,
       isOverlayVisible: false,
+      histogramColors: [],
     }
   }
 
@@ -148,6 +163,7 @@ class LogsPage extends PureComponent<Props, State> {
               timeRange={timeRange}
               tableColumns={this.tableColumns}
               severityFormat={this.severityFormat}
+              severityLevelColors={this.severityLevelColors}
             />
           </div>
         </div>
@@ -230,6 +246,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   private get chart(): JSX.Element {
     const {histogramData} = this.props
+    const {histogramColors} = this.state
 
     return (
       <AutoSizer>
@@ -240,6 +257,7 @@ class LogsPage extends PureComponent<Props, State> {
             height={height}
             colorScale={colorForSeverity}
             onZoom={this.handleChartZoom}
+            colors={histogramColors}
           />
         )}
       </AutoSizer>
