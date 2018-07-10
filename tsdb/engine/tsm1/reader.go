@@ -793,6 +793,7 @@ func (d *indirectIndex) search(key []byte) int {
 
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice).
+	// TODO(sgc): this should be inlined to `indirectIndex` as it is only used here
 	i := bytesutil.SearchBytesFixed(d.offsets, 4, func(x []byte) bool {
 		// i is the position in offsets we are at so get offset it points to
 		offset := int32(binary.BigEndian.Uint32(x))

@@ -27,7 +27,7 @@ type groupResultSet struct {
 	ctx context.Context
 	req *ReadRequest
 	rr  readRequest
-	mb  *multiShardBatchCursors
+	mb  multiShardCursors
 
 	i    int
 	rows []*seriesRow
@@ -58,7 +58,7 @@ func newGroupResultSet(ctx context.Context, req *ReadRequest, newCursorFn func()
 		newCursorFn: newCursorFn,
 	}
 
-	g.mb = newMultiShardBatchCursors(ctx, &g.rr)
+	g.mb = newMultiShardArrayCursors(ctx, &g.rr)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)
@@ -281,7 +281,7 @@ func groupBySort(g *groupResultSet) (int, error) {
 }
 
 type groupNoneCursor struct {
-	mb   *multiShardBatchCursors
+	mb   multiShardCursors
 	req  *readRequest
 	cur  seriesCursor
 	row  seriesRow
@@ -307,13 +307,13 @@ func (c *groupNoneCursor) Next() bool {
 func (c *groupNoneCursor) Cursor() tsdb.Cursor {
 	cur := c.mb.createCursor(c.row)
 	if c.req.aggregate != nil {
-		cur = newAggregateBatchCursor(c.req.ctx, c.req.aggregate, cur)
+		cur = c.mb.newAggregateCursor(c.req.ctx, c.req.aggregate, cur)
 	}
 	return cur
 }
 
 type groupByCursor struct {
-	mb   *multiShardBatchCursors
+	mb   multiShardCursors
 	req  *readRequest
 	i    int
 	rows []*seriesRow
@@ -342,7 +342,7 @@ func (c *groupByCursor) Next() bool {
 func (c *groupByCursor) Cursor() tsdb.Cursor {
 	cur := c.mb.createCursor(*c.rows[c.i-1])
 	if c.req.aggregate != nil {
-		cur = newAggregateBatchCursor(c.req.ctx, c.req.aggregate, cur)
+		cur = c.mb.newAggregateCursor(c.req.ctx, c.req.aggregate, cur)
 	}
 	return cur
 }

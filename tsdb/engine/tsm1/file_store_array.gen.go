@@ -11,7 +11,9 @@ func (c *KeyCursor) ReadFloatArrayBlock(values *tsdb.FloatArray) (*tsdb.FloatArr
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
-		return nil, nil
+		values.Timestamps = values.Timestamps[:0]
+		values.Values = values.Values[:0]
+		return values, nil
 	}
 
 	// First block is the oldest block containing the points we're searching for.
@@ -193,7 +195,9 @@ func (c *KeyCursor) ReadIntegerArrayBlock(values *tsdb.IntegerArray) (*tsdb.Inte
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
-		return nil, nil
+		values.Timestamps = values.Timestamps[:0]
+		values.Values = values.Values[:0]
+		return values, nil
 	}
 
 	// First block is the oldest block containing the points we're searching for.
@@ -375,7 +379,9 @@ func (c *KeyCursor) ReadUnsignedArrayBlock(values *tsdb.UnsignedArray) (*tsdb.Un
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
-		return nil, nil
+		values.Timestamps = values.Timestamps[:0]
+		values.Values = values.Values[:0]
+		return values, nil
 	}
 
 	// First block is the oldest block containing the points we're searching for.
@@ -557,7 +563,9 @@ func (c *KeyCursor) ReadStringArrayBlock(values *tsdb.StringArray) (*tsdb.String
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
-		return nil, nil
+		values.Timestamps = values.Timestamps[:0]
+		values.Values = values.Values[:0]
+		return values, nil
 	}
 
 	// First block is the oldest block containing the points we're searching for.
@@ -739,7 +747,9 @@ func (c *KeyCursor) ReadBooleanArrayBlock(values *tsdb.BooleanArray) (*tsdb.Bool
 LOOP:
 	// No matching blocks to decode
 	if len(c.current) == 0 {
-		return nil, nil
+		values.Timestamps = values.Timestamps[:0]
+		values.Values = values.Values[:0]
+		return values, nil
 	}
 
 	// First block is the oldest block containing the points we're searching for.

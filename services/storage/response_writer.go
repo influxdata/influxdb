@@ -139,6 +139,17 @@ func (w *responseWriter) streamCursor(cur tsdb.Cursor) {
 			w.streamBooleanSeries(cur)
 		case tsdb.StringBatchCursor:
 			w.streamStringSeries(cur)
+
+		case tsdb.IntegerArrayCursor:
+			w.streamIntegerArraySeries(cur)
+		case tsdb.FloatArrayCursor:
+			w.streamFloatArraySeries(cur)
+		case tsdb.UnsignedArrayCursor:
+			w.streamUnsignedArraySeries(cur)
+		case tsdb.BooleanArrayCursor:
+			w.streamBooleanArraySeries(cur)
+		case tsdb.StringArrayCursor:
+			w.streamStringArraySeries(cur)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", cur))
 		}
@@ -155,6 +166,17 @@ func (w *responseWriter) streamCursor(cur tsdb.Cursor) {
 			w.streamBooleanPoints(cur)
 		case tsdb.StringBatchCursor:
 			w.streamStringPoints(cur)
+
+		case tsdb.IntegerArrayCursor:
+			w.streamIntegerArrayPoints(cur)
+		case tsdb.FloatArrayCursor:
+			w.streamFloatArrayPoints(cur)
+		case tsdb.UnsignedArrayCursor:
+			w.streamUnsignedArrayPoints(cur)
+		case tsdb.BooleanArrayCursor:
+			w.streamBooleanArrayPoints(cur)
+		case tsdb.StringArrayCursor:
+			w.streamStringArrayPoints(cur)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", cur))
 		}

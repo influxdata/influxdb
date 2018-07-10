@@ -104,14 +104,14 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
 		return nil, err
 	}
 	if len(shardIDs) == 0 {
-		return (*ResultSet)(nil), nil
+		return (*resultSet)(nil), nil
 	}
 
 	var cur seriesCursor
 	if ic, err := newIndexSeriesCursor(ctx, req.Predicate, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
 	} else if ic == nil {
-		return (*ResultSet)(nil), nil
+		return (*resultSet)(nil), nil
 	} else {
 		cur = ic
 	}
@@ -129,10 +129,10 @@ func (s *Store) Read(ctx context.Context, req *ReadRequest) (Results, error) {
 		aggregate: req.Aggregate,
 	}
 
-	return &ResultSet{
+	return &resultSet{
 		req: rr,
 		cur: cur,
-		mb:  newMultiShardBatchCursors(ctx, &rr),
+		mb:  newMultiShardArrayCursors(ctx, &rr),
 	}, nil
 }
 
