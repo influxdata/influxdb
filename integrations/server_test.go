@@ -2658,6 +2658,704 @@ func TestServer(t *testing.T) {
 			},
 		},
 		{
+			name:    "GET /org_config",
+			subName: "default org",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/org_config",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+			{
+				"links": {
+					"self": "\/chronograf\/v1\/org_config"
+				},
+				"organization": "default",
+				"logViewer": {
+					"columns": [
+						{
+							"name": "time",
+							"position": 0,
+							"encodings": [
+								{
+									"type": "visibility",
+									"value": "hidden"
+								}
+							]
+						},
+						{
+							"name": "severity",
+							"position": 1,
+							"encodings": [
+								{
+									"type": "visibility",
+									"value": "visible"
+								},
+								{
+									"type": "label",
+									"value": "icon"
+								},
+								{
+									"type": "label",
+									"value": "text"
+								},
+								{
+									"type": "color",
+									"value": "ruby",
+									"name": "emerg"
+								},
+								{
+									"type": "color",
+									"value": "fire",
+									"name": "alert"
+								},
+								{
+									"type": "color",
+									"value": "curacao",
+									"name": "crit"
+								},
+								{
+									"type": "color",
+									"value": "tiger",
+									"name": "err"
+								},
+								{
+									"type": "color",
+									"value": "pineapple",
+									"name": "warning"
+								},
+								{
+									"type": "color",
+									"value": "rainforest",
+									"name": "notice"
+								},
+								{
+									"type": "color",
+									"value": "star",
+									"name": "info"
+								},
+								{
+									"type": "color",
+									"value": "wolf",
+									"name": "debug"
+								}
+							]
+						},
+						{
+							"name": "timestamp",
+							"position": 2,
+							"encodings": [
+								{
+									"type": "visibility",
+									"value": "visible"
+								}
+							]
+						},
+						{
+							"name": "message",
+							"position": 3,
+							"encodings": [
+								{
+									"type": "visibility",
+									"value": "visible"
+								}
+							]
+						},
+						{
+							"name": "facility",
+							"position": 4,
+							"encodings": [
+								{
+									"type": "visibility",
+									"value": "visible"
+								}
+							]
+						},
+						{
+							"name": "procid",
+							"position": 5,
+							"encodings": [
+								{
+									"type": "visibility",
+									"value": "visible"
+								},
+								{
+									"type": "displayName",
+									"value": "Proc ID"
+								}
+							]
+						},
+						{
+							"name": "appname",
+							"position": 6,
+							"encodings": [
+								{
+									"type": "visibility",
+									"value": "visible"
+								},
+								{
+									"type": "displayName",
+									"value": "Application"
+								}
+							]
+						},
+						{
+							"name": "host",
+							"position": 7,
+							"encodings": [
+								{
+									"type": "visibility",
+									"value": "visible"
+								}
+							]
+						}
+					]
+				}
+			}
+				`,
+			},
+		},
+		{
+			name:    "GET /org_config/logviewer",
+			subName: "default org",
+			fields: fields{
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "GET",
+				path:   "/chronograf/v1/org_config/logviewer",
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+			{
+				"links": {
+					"self": "\/chronograf\/v1\/org_config/logviewer"
+				},
+				"columns": [
+					{
+						"name": "time",
+						"position": 0,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "hidden"
+							}
+						]
+					},
+					{
+						"name": "severity",
+						"position": 1,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							},
+							{
+								"type": "label",
+								"value": "icon"
+							},
+							{
+								"type": "label",
+								"value": "text"
+							},
+							{
+								"type": "color",
+								"value": "ruby",
+								"name": "emerg"
+							},
+							{
+								"type": "color",
+								"value": "fire",
+								"name": "alert"
+							},
+							{
+								"type": "color",
+								"value": "curacao",
+								"name": "crit"
+							},
+							{
+								"type": "color",
+								"value": "tiger",
+								"name": "err"
+							},
+							{
+								"type": "color",
+								"value": "pineapple",
+								"name": "warning"
+							},
+							{
+								"type": "color",
+								"value": "rainforest",
+								"name": "notice"
+							},
+							{
+								"type": "color",
+								"value": "star",
+								"name": "info"
+							},
+							{
+								"type": "color",
+								"value": "wolf",
+								"name": "debug"
+							}
+						]
+					},
+					{
+						"name": "timestamp",
+						"position": 2,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							}
+						]
+					},
+					{
+						"name": "message",
+						"position": 3,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							}
+						]
+					},
+					{
+						"name": "facility",
+						"position": 4,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							}
+						]
+					},
+					{
+						"name": "procid",
+						"position": 5,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							},
+							{
+								"type": "displayName",
+								"value": "Proc ID"
+							}
+						]
+					},
+					{
+						"name": "appname",
+						"position": 6,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							},
+							{
+								"type": "displayName",
+								"value": "Application"
+							}
+						]
+					},
+					{
+						"name": "host",
+						"position": 7,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							}
+						]
+					}
+				]
+			}
+				`,
+			},
+		},
+		{
+			name:    "PUT /org_config/logviewer",
+			subName: "default org",
+			fields: fields{
+				Config: &chronograf.Config{
+					Auth: chronograf.AuthConfig{
+						SuperAdminNewUsers: true,
+					},
+				},
+				Organizations: []chronograf.Organization{
+					{
+						ID:          "1",
+						Name:        "cool",
+						DefaultRole: roles.ViewerRoleName,
+					},
+				},
+				Users: []chronograf.User{
+					{
+						ID:         1, // This is artificial, but should be reflective of the users actual ID
+						Name:       "billibob",
+						Provider:   "github",
+						Scheme:     "oauth2",
+						SuperAdmin: true,
+						Roles: []chronograf.Role{
+							{
+								Name:         "admin",
+								Organization: "default",
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				server: &server.Server{
+					GithubClientID:     "not empty",
+					GithubClientSecret: "not empty",
+				},
+				method: "PUT",
+				path:   "/chronograf/v1/org_config/logviewer",
+				payload: &chronograf.LogViewerConfig{
+					Columns: []chronograf.LogViewerColumn{
+						{
+							Name:     "time",
+							Position: 0,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "hidden",
+								},
+							},
+						},
+						{
+							Name:     "severity",
+							Position: 1,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+								{
+									Type:  "label",
+									Value: "icon",
+								},
+								{
+									Type:  "color",
+									Name:  "emerg",
+									Value: "ruby",
+								},
+								{
+									Type:  "color",
+									Name:  "alert",
+									Value: "fire",
+								},
+								{
+									Type:  "color",
+									Name:  "crit",
+									Value: "curacao",
+								},
+								{
+									Type:  "color",
+									Name:  "err",
+									Value: "tiger",
+								},
+								{
+									Type:  "color",
+									Name:  "warning",
+									Value: "pineapple",
+								},
+								{
+									Type:  "color",
+									Name:  "notice",
+									Value: "wolf",
+								},
+								{
+									Type:  "color",
+									Name:  "info",
+									Value: "wolf",
+								},
+								{
+									Type:  "color",
+									Name:  "debug",
+									Value: "wolf",
+								},
+							},
+						},
+						{
+							Name:     "timestamp",
+							Position: 3,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+						{
+							Name:     "message",
+							Position: 2,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+						{
+							Name:     "facility",
+							Position: 4,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+						{
+							Name:     "procid",
+							Position: 5,
+							Encodings: []chronograf.ColumnEncoding{
+
+								{
+									Type:  "visibility",
+									Value: "hidden",
+								},
+								{
+									Type:  "displayName",
+									Value: "ProcID!",
+								},
+							},
+						},
+						{
+							Name:     "appname",
+							Position: 6,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+								{
+									Type:  "displayName",
+									Value: "Application",
+								},
+							},
+						},
+						{
+							Name:     "host",
+							Position: 7,
+							Encodings: []chronograf.ColumnEncoding{
+								{
+									Type:  "visibility",
+									Value: "visible",
+								},
+							},
+						},
+					},
+				},
+				principal: oauth2.Principal{
+					Organization: "default",
+					Subject:      "billibob",
+					Issuer:       "github",
+				},
+			},
+			wants: wants{
+				statusCode: 200,
+				body: `
+			{
+				"links": {
+					"self": "\/chronograf\/v1\/org_config\/logviewer"
+				},
+				"columns": [
+					{
+						"name": "time",
+						"position": 0,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "hidden"
+							}
+						]
+					},
+					{
+						"name": "severity",
+						"position": 1,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							},
+							{
+								"type": "label",
+								"value": "icon"
+							},
+							{
+								"type": "color",
+								"value": "ruby",
+								"name": "emerg"
+							},
+							{
+								"type": "color",
+								"value": "fire",
+								"name": "alert"
+							},
+							{
+								"type": "color",
+								"value": "curacao",
+								"name": "crit"
+							},
+							{
+								"type": "color",
+								"value": "tiger",
+								"name": "err"
+							},
+							{
+								"type": "color",
+								"value": "pineapple",
+								"name": "warning"
+							},
+							{
+								"type": "color",
+								"value": "wolf",
+								"name": "notice"
+							},
+							{
+								"type": "color",
+								"value": "wolf",
+								"name": "info"
+							},
+							{
+								"type": "color",
+								"value": "wolf",
+								"name": "debug"
+							}
+						]
+					},
+					{
+						"name": "timestamp",
+						"position": 3,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							}
+						]
+					},
+					{
+						"name": "message",
+						"position": 2,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							}
+						]
+					},
+					{
+						"name": "facility",
+						"position": 4,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							}
+						]
+					},
+					{
+						"name": "procid",
+						"position": 5,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "hidden"
+							},
+							{
+								"type": "displayName",
+								"value": "ProcID!"
+							}
+						]
+					},
+					{
+						"name": "appname",
+						"position": 6,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							},
+							{
+								"type": "displayName",
+								"value": "Application"
+							}
+						]
+					},
+					{
+						"name": "host",
+						"position": 7,
+						"encodings": [
+							{
+								"type": "visibility",
+								"value": "visible"
+							}
+						]
+					}
+				]
+			}
+				`,
+			},
+		},
+		{
 			name:    "GET /",
 			subName: "signed into default org",
 			fields: fields{
