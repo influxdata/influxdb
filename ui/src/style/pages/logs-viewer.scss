@@ -85,6 +85,7 @@ $logs-viewer-gutter: 60px;
   font-weight: 600;
   color: $g9-mountain;
   transition: color 0.25s ease;
+  min-width: 180px;
 
   strong {
     color: $g15-platinum;
@@ -221,6 +222,10 @@ $logs-viewer-gutter: 60px;
   border: 2px solid $g3-castle;
   margin-left: 2px;
 }
+.logs-viewer--severity-text {
+  padding: 2px;
+  padding-left: 5px;
+}
 
 // Play & Pause Toggle in Header
 .nav.nav-tablist.nav-tablist-sm.logs-viewer--mode-toggle {
@@ -260,6 +265,8 @@ $logs-viewer-gutter: 60px;
 
 // Clickable Cells
 .logs-viewer--clickable {
+  display: inline-flex;
+  align-items: center;
   padding: 1px 3px;
   border-radius: 3px;
   @include no-user-select();
