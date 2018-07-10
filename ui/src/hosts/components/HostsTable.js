@@ -121,6 +121,7 @@ class HostsTable extends Component {
                     style={{width: colName}}
                   >
                     Host
+                    <span className="icon caret-up" />
                   </div>
                   <div
                     onClick={this.updateSort('deltaUptime')}
@@ -128,6 +129,7 @@ class HostsTable extends Component {
                     style={{width: colStatus}}
                   >
                     Status
+                    <span className="icon caret-up" />
                   </div>
                   <div
                     onClick={this.updateSort('cpu')}
@@ -135,6 +137,7 @@ class HostsTable extends Component {
                     style={{width: colCPU}}
                   >
                     CPU
+                    <span className="icon caret-up" />
                   </div>
                   <div
                     onClick={this.updateSort('load')}
@@ -142,6 +145,7 @@ class HostsTable extends Component {
                     style={{width: colLoad}}
                   >
                     Load
+                    <span className="icon caret-up" />
                   </div>
                   <div className="hosts-table--th">Apps</div>
                 </div>

@@ -158,35 +158,35 @@ class AlertsTable extends PureComponent<Props, State> {
             className={this.sortableClasses('name')}
             style={{width: colName}}
           >
-            Name
+            Name <span className="icon caret-up" />
           </div>
           <div
             onClick={this.changeSort('level')}
             className={this.sortableClasses('level')}
             style={{width: colLevel}}
           >
-            Level
+            Level <span className="icon caret-up" />
           </div>
           <div
             onClick={this.changeSort('time')}
             className={this.sortableClasses('time')}
             style={{width: colTime}}
           >
-            Time
+            Time <span className="icon caret-up" />
           </div>
           <div
             onClick={this.changeSort('host')}
             className={this.sortableClasses('host')}
             style={{width: colHost}}
           >
-            Host
+            Host <span className="icon caret-up" />
           </div>
           <div
             onClick={this.changeSort('value')}
             className={this.sortableClasses('value')}
             style={{width: colValue}}
           >
-            Value
+            Value <span className="icon caret-up" />
           </div>
         </div>
         <InfiniteScroll
