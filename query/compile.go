@@ -243,18 +243,14 @@ func (t *TableObject) ToSpec() *Spec {
 }
 
 func (t *TableObject) buildSpec(ider IDer, spec *Spec, visited map[*TableObject]bool) {
-	// Traverse graph upwards to first unvisited node
+	// Traverse graph upwards to first unvisited node.
+	// Note: parents are sorted based on parameter name, so the visit order is consistent.
 	t.Parents.Range(func(i int, v values.Value) {
 		p := v.(*TableObject)
 		if !visited[p] {
 			// rescurse up parents
 			p.buildSpec(ider, spec, visited)
 		}
-	})
-
-	// Make sure parents are placed in consistent order
-	t.Parents.Sort(func(i, j values.Value) bool {
-		return ider.ID(i.(*TableObject)) < ider.ID(j.(*TableObject))
 	})
 
 	// Assign ID to table object after visiting all ancestors.
