@@ -3,7 +3,7 @@ import {shallow} from 'enzyme'
 
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
-import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
+import TemplateControl from 'src/tempVars/components/TemplateControl'
 import {source} from 'test/resources'
 
 import {TemplateType, TemplateValueType} from 'src/types'
@@ -35,9 +35,9 @@ const defaultProps = {
   onDeleteTemplate: () => Promise.resolve(),
 }
 
-describe('TemplateControlDropdown', () => {
+describe('TemplateControl', () => {
   it('should show a TemplateVariableEditor overlay when the settings icon is clicked', () => {
-    const wrapper = shallow(<TemplateControlDropdown {...defaultProps} />, {
+    const wrapper = shallow(<TemplateControl {...defaultProps} />, {
       context: {
         store: {},
       },

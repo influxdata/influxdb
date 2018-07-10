@@ -24,7 +24,7 @@ interface State {
   isEditing: boolean
 }
 
-class TemplateControlDropdown extends PureComponent<Props, State> {
+class TemplateControl extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
 
@@ -115,4 +115,4 @@ class TemplateControlDropdown extends PureComponent<Props, State> {
   }
 }
 
-export default TemplateControlDropdown
+export default TemplateControl

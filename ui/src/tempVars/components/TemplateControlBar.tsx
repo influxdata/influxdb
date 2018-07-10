@@ -3,7 +3,7 @@ import classnames from 'classnames'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
+import TemplateControl from 'src/tempVars/components/TemplateControl'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
@@ -77,7 +77,7 @@ class TemplateControlBar extends Component<Props, State> {
     }
 
     return templates.map(template => (
-      <TemplateControlDropdown
+      <TemplateControl
         key={template.id}
         meRole={meRole}
         isUsingAuth={isUsingAuth}

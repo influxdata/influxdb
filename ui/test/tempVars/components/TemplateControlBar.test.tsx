@@ -2,7 +2,7 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 import TemplateControlBar from 'src/tempVars/components/TemplateControlBar'
-import TemplateControlDropdown from 'src/tempVars/components/TemplateControlDropdown'
+import TemplateControl from 'src/tempVars/components/TemplateControl'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import {source} from 'test/resources'
@@ -45,7 +45,7 @@ describe('TemplateControlBar', () => {
     const props = {...defaultProps, templates: [template]}
     const wrapper = shallow(<TemplateControlBar {...props} />)
 
-    const dropdown = wrapper.find(TemplateControlDropdown)
+    const dropdown = wrapper.find(TemplateControl)
     expect(dropdown.exists()).toBe(true)
   })
 
@@ -55,7 +55,7 @@ describe('TemplateControlBar', () => {
 
     const emptyState = wrapper.find({'data-test': 'empty-state'})
 
-    const dropdown = wrapper.find(TemplateControlDropdown)
+    const dropdown = wrapper.find(TemplateControl)
 
     expect(dropdown.exists()).toBe(false)
     expect(emptyState.exists()).toBe(true)
