@@ -63,7 +63,6 @@ func TestAuthorizedToken(t *testing.T) {
 		}
 	}
 }
-
 func TestAuthorizedUser(t *testing.T) {
 	type fields struct {
 		UsersStore         chronograf.UsersStore
@@ -102,7 +101,7 @@ func TestAuthorizedUser(t *testing.T) {
 			args: args{
 				useAuth: false,
 			},
-			hasOrganizationContext: false,
+			hasOrganizationContext: true,
 			hasSuperAdminContext:   false,
 			hasRoleContext:         false,
 			hasServerContext:       true,
@@ -1045,6 +1044,11 @@ func TestAuthorizedUser(t *testing.T) {
 						return &chronograf.Organization{
 							ID:   "1337",
 							Name: "The ShillBillThrilliettas",
+						}, nil
+					},
+					DefaultOrganizationF: func(ctx context.Context) (*chronograf.Organization, error) {
+						return &chronograf.Organization{
+							ID: "0",
 						}, nil
 					},
 				},

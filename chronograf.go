@@ -38,6 +38,7 @@ const (
 	ErrInvalidCellOptionsText          = Error("invalid text wrapping option. Valid wrappings are 'truncate', 'wrap', and 'single line'")
 	ErrInvalidCellOptionsSort          = Error("cell options sortby cannot be empty'")
 	ErrInvalidCellOptionsColumns       = Error("cell options columns cannot be empty'")
+	ErrOrganizationConfigNotFound      = Error("could not find organization config")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -736,20 +737,16 @@ type OrganizationsStore interface {
 	DefaultOrganization(ctx context.Context) (*Organization, error)
 }
 
-// AuthConfig is the global application config section for auth parameters
-type AuthConfig struct {
-	// SuperAdminNewUsers should be true by default to give a seamless upgrade to
-	// 1.4.0 for legacy users. It means that all new users will by default receive
-	// SuperAdmin status. If a SuperAdmin wants to change this behavior, they
-	// can toggle it off via the Chronograf UI, in which case newly authenticating
-	// users will simply receive whatever role they would otherwise receive.
-	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
-}
-
 // Config is the global application Config for parameters that can be set via
 // API, with different sections, such as Auth
 type Config struct {
 	Auth AuthConfig `json:"auth"`
+}
+
+// AuthConfig is the global application config section for auth parameters
+type AuthConfig struct {
+	// SuperAdminNewUsers configuration option that specifies which users will auto become super admin
+	SuperAdminNewUsers bool `json:"superAdminNewUsers"`
 }
 
 // ConfigStore is the storage and retrieval of global application Config
@@ -760,6 +757,40 @@ type ConfigStore interface {
 	Get(context.Context) (*Config, error)
 	// Update updates the whole Config in the ConfigStore
 	Update(context.Context, *Config) error
+}
+
+// OrganizationConfig is the organization config for parameters that can
+// be set via API, with different sections, such as LogViewer
+type OrganizationConfig struct {
+	OrganizationID string          `json:"organization"`
+	LogViewer      LogViewerConfig `json:"logViewer"`
+}
+
+// LogViewerConfig is the configuration settings for the Log Viewer UI
+type LogViewerConfig struct {
+	Columns []LogViewerColumn `json:"columns"`
+}
+
+// LogViewerColumn is a specific column of the Log Viewer UI
+type LogViewerColumn struct {
+	Name      string           `json:"name"`
+	Position  int32            `json:"position"`
+	Encodings []ColumnEncoding `json:"encodings"`
+}
+
+// ColumnEncoding is the settings for a specific column of the Log Viewer UI
+type ColumnEncoding struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+	Name  string `json:"name,omitempty"`
+}
+
+// OrganizationConfigStore is the storage and retrieval of organization Configs
+type OrganizationConfigStore interface {
+	// FindOrCreate gets an existing OrganizationConfig and creates one if none exists
+	FindOrCreate(ctx context.Context, orgID string) (*OrganizationConfig, error)
+	// Put replaces the whole organization config in the OrganizationConfigStore
+	Put(context.Context, *OrganizationConfig) error
 }
 
 // BuildInfo is sent to the usage client to track versions and commits
