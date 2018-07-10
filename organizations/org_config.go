@@ -47,10 +47,5 @@ func (s *OrganizationConfigStore) Update(ctx context.Context, oc *chronograf.Org
 		return err
 	}
 
-	_, err = s.store.FindOrCreate(ctx, oc.OrganizationID)
-	if err != nil {
-		return err
-	}
-
 	return s.store.Update(ctx, oc)
 }
