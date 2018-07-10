@@ -95,7 +95,12 @@ export const getCpuAndLoadForHosts = (
   })
 }
 
-export async function getAllHosts(proxyLink, telegrafDB) {
+export async function getAllHosts(source) {
+  const {
+    telegrafDB,
+    links: {proxy: proxyLink},
+  } = source
+
   try {
     const resp = await proxy({
       source: proxyLink,
