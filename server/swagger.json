@@ -402,7 +402,7 @@
           }
         ],
         "responses": {
-          "200": {
+          "204": {
             "description": "Source was able to be contacted"
           },
           "404": {
