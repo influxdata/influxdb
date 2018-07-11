@@ -6,10 +6,10 @@ import classnames from 'classnames'
 import Dropdown from 'src/shared/components/Dropdown'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
-import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
-import WindowSelectorDropdown from 'src/logs/components/window_selector_dropdown/WindowSelectorDropdown'
+import TimeMarkerDropdown from 'src/logs/components/TimeMarkerDropdown'
+import TimeWindowDropdown from 'src/logs/components/TimeWindowDropdown'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-import {TimeWindow, TimeWindowOption} from 'src/types/logs'
+import {TimeRange, TimeWindow, TimeMarker} from 'src/types/logs'
 
 interface SourceItem {
   id: string
@@ -24,11 +24,11 @@ interface Props {
   liveUpdating: boolean
   onChooseSource: (sourceID: string) => void
   onChooseNamespace: (namespace: Namespace) => void
-  onChooseTime: (time: string) => void
   onChangeLiveUpdatingStatus: () => void
   onShowOptionsOverlay: () => void
-  timeWindow: TimeWindow
-  onChangeTimeWindow: (timeWindow: TimeWindowOption) => void
+  timeRange: TimeRange
+  onSetTimeMarker: (timeMarker: TimeMarker) => void
+  onSetTimeWindow: (timeWindow: TimeWindow) => void
 }
 
 class LogViewerHeader extends PureComponent<Props> {
@@ -52,10 +52,10 @@ class LogViewerHeader extends PureComponent<Props> {
   }
 
   private get optionsComponents(): JSX.Element {
-    const {onShowOptionsOverlay, onChangeTimeWindow, onChooseTime} = this.props
+    const {onShowOptionsOverlay, onSetTimeWindow, onSetTimeMarker} = this.props
 
     // Todo: Replace w/ getDeep
-    const timeWindow = _.get(this.props, 'timeWindow', {
+    const timeRange = _.get(this.props, 'timeRange', {
       upper: null,
       lower: 'now() - 1m',
       seconds: 60,
@@ -78,13 +78,13 @@ class LogViewerHeader extends PureComponent<Props> {
           selected={this.selectedNamespace}
           onChoose={this.handleChooseNamespace}
         />
-        <WindowSelectorDropdown
-          selectedTimeWindow={timeWindow}
-          onChangeWindow={onChangeTimeWindow}
+        <TimeWindowDropdown
+          selectedTimeWindow={timeRange.windowOption}
+          onSetTimeWindow={onSetTimeWindow}
         />
-        <TimeRangeDropdown
-          onChooseTime={onChooseTime}
-          selectedTime={timeWindow.timeOption}
+        <TimeMarkerDropdown
+          onSetTimeMarker={onSetTimeMarker}
+          selectedTimeMarker={timeRange.timeOption}
         />
         <Authorized requiredRole={EDITOR_ROLE}>
           <button

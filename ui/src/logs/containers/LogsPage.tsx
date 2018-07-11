@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import uuid from 'uuid'
-import moment from 'moment'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 import {AutoSizer} from 'react-virtualized'
@@ -8,7 +7,8 @@ import {AutoSizer} from 'react-virtualized'
 import {
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
-  setTimeWindowAsync,
+  setTimeWindow,
+  setTimeMarker,
   setNamespaceAsync,
   executeQueriesAsync,
   changeZoomAsync,
@@ -37,7 +37,7 @@ import {
 } from 'src/dashboards/utils/tableGraph'
 
 import {SeverityFormatOptions} from 'src/logs/constants'
-import {Source, Namespace, TimeRange} from 'src/types'
+import {Source, Namespace} from 'src/types'
 
 import {HistogramData, TimePeriod} from 'src/types/histogram'
 import {
@@ -47,8 +47,9 @@ import {
   LogsTableColumn,
   LogConfig,
   TableData,
+  TimeRange,
   TimeWindow,
-  TimeWindowOption,
+  TimeMarker,
 } from 'src/types/logs'
 
 // Mock
@@ -62,7 +63,8 @@ interface Props {
   getSource: (sourceID: string) => void
   getSources: () => void
   setTimeRangeAsync: (timeRange: TimeRange) => void
-  setTimeWindowAsync: (timeWindow: TimeWindow) => void
+  setTimeWindow: (timeWindow: TimeWindow) => void
+  setTimeMarker: (timeMarker: TimeMarker) => void
   setNamespaceAsync: (namespace: Namespace) => void
   changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
@@ -74,7 +76,6 @@ interface Props {
   getConfig: (url: string) => Promise<void>
   updateConfig: (url: string, config: LogConfig) => Promise<void>
   timeRange: TimeRange
-  timeWindow: TimeWindow
   histogramData: HistogramData
   tableData: TableData
   searchTerm: string
@@ -260,16 +261,16 @@ class LogsPage extends PureComponent<Props, State> {
       currentSource,
       currentNamespaces,
       currentNamespace,
-      timeWindow,
+      timeRange,
     } = this.props
 
     const {liveUpdating} = this.state
 
     return (
       <LogViewerHeader
-        timeWindow={timeWindow}
-        onChangeTimeWindow={this.transformWindowToRange}
-        onChooseTime={this.transformTimeToRange}
+        timeRange={timeRange}
+        onSetTimeMarker={this.handleSetTimeMarker}
+        onSetTimeWindow={this.handleSetTimeWindow}
         liveUpdating={liveUpdating && !this.isSpecificTimeRange}
         availableSources={sources}
         onChooseSource={this.handleChooseSource}
@@ -314,57 +315,45 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.executeQueriesAsync()
   }
 
-  private handleChooseTimerange = (timeWindow: TimeWindow) => {
-    const {seconds, windowOption, timeOption} = timeWindow
-    let lower = `now() - ${windowOption}`
-    let upper = null
+  // HANDLE CHOOSE TIMERANGE
+  // private handleChooseTimerange = (timeWindow: TimeWindow) => {
+  //   const {seconds, windowOption, timeOption} = timeWindow
+  //   let lower = `now() - ${windowOption}`
+  //   let upper = null
 
-    if (timeOption !== 'now') {
-      const numberTimeOption = moment(timeOption).valueOf()
-      const milliseconds = seconds * 10 / 2
-      console.log('MS', milliseconds)
-      lower =
-        moment
-          .utc(numberTimeOption - milliseconds)
-          .format('YYYY-MM-DDTHH:mm:ss.SSS') + 'Z'
-      upper =
-        moment
-          .utc(numberTimeOption + milliseconds)
-          .format('YYYY-MM-DDTHH:mm:ss.SSS') + 'Z'
-    }
+  //   if (timeOption !== 'now') {
+  //     const numberTimeOption = moment(timeOption).valueOf()
+  //     const milliseconds = seconds * 10 / 2
+  //     console.log('MS', milliseconds)
+  //     lower =
+  //       moment
+  //         .utc(numberTimeOption - milliseconds)
+  //         .format('YYYY-MM-DDTHH:mm:ss.SSS') + 'Z'
+  //     upper =
+  //       moment
+  //         .utc(numberTimeOption + milliseconds)
+  //         .format('YYYY-MM-DDTHH:mm:ss.SSS') + 'Z'
+  //   }
 
-    const timeRange = {
-      lower,
-      upper,
-      seconds,
-    }
+  //   const timeRange: TimeRange = {
+  //     lower,
+  //     upper,
+  //     seconds,
+  //   }
 
-    console.log('TIME RANGE', timeRange)
-    this.props.setTimeRangeAsync(timeRange)
-    this.fetchNewDataset()
+  //   console.log('TIME RANGE', timeRange)
+  //   this.props.setTimeRangeAsync(timeRange)
+  //   this.fetchNewDataset()
+  // }
+
+  private handleSetTimeWindow = (timeWindow: TimeWindow) => {
+    // console.log('TIME WINDOW', timeWindow)
+    this.props.setTimeWindow(timeWindow)
   }
 
-  private transformTimeToRange = (timeOption: string) => {
-    const timeWindow = {
-      ...this.props.timeWindow,
-      timeOption,
-    }
-
-    this.props.setTimeWindowAsync(timeWindow)
-    this.handleChooseTimerange(timeWindow)
-  }
-
-  private transformWindowToRange = (timeWindowOption: TimeWindowOption) => {
-    const {text, seconds} = timeWindowOption
-
-    const timeWindow = {
-      ...this.props.timeWindow,
-      seconds,
-      windowOption: text,
-    }
-
-    this.props.setTimeWindowAsync(timeWindow)
-    this.handleChooseTimerange(timeWindow)
+  private handleSetTimeMarker = (timeMarker: TimeMarker) => {
+    // console.log('TIME MARKER', timeMarker)
+    this.props.setTimeMarker(timeMarker)
   }
 
   private handleChooseSource = (sourceID: string) => {
@@ -454,7 +443,6 @@ const mapStateToProps = ({
     currentSource,
     currentNamespaces,
     timeRange,
-    timeWindow,
     currentNamespace,
     histogramData,
     tableData,
@@ -468,7 +456,6 @@ const mapStateToProps = ({
   currentSource,
   currentNamespaces,
   timeRange,
-  timeWindow,
   currentNamespace,
   histogramData,
   tableData,
@@ -483,7 +470,8 @@ const mapDispatchToProps = {
   getSource: getSourceAndPopulateNamespacesAsync,
   getSources: getSourcesAsync,
   setTimeRangeAsync,
-  setTimeWindowAsync,
+  setTimeWindow,
+  setTimeMarker,
   setNamespaceAsync,
   executeQueriesAsync,
   changeZoomAsync,

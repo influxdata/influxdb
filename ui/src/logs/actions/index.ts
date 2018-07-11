@@ -2,7 +2,7 @@ import moment from 'moment'
 import _ from 'lodash'
 import {Dispatch} from 'redux'
 
-import {Source, Namespace, TimeRange, QueryConfig} from 'src/types'
+import {Source, Namespace, QueryConfig} from 'src/types'
 import {getSource} from 'src/shared/apis'
 import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
 import {
@@ -26,7 +26,9 @@ import {
   Filter,
   TableData,
   LogConfig,
+  TimeRange,
   TimeWindow,
+  TimeMarker,
 } from 'src/types/logs'
 
 const defaultTableData: TableData = {
@@ -54,6 +56,7 @@ export enum ActionTypes {
   SetNamespaces = 'LOGS_SET_NAMESPACES',
   SetTimeRange = 'LOGS_SET_TIMERANGE',
   SetTimeWindow = 'LOGS_SET_TIMEWINDOW',
+  SetTimeMarker = 'LOGS_SET_TIMEMARKER',
   SetNamespace = 'LOGS_SET_NAMESPACE',
   SetHistogramQueryConfig = 'LOGS_SET_HISTOGRAM_QUERY_CONFIG',
   SetHistogramData = 'LOGS_SET_HISTOGRAM_DATA',
@@ -142,6 +145,13 @@ interface SetTimeWindowAction {
   }
 }
 
+interface SetTimeMarkerAction {
+  type: ActionTypes.SetTimeMarker
+  payload: {
+    timeMarker: TimeMarker
+  }
+}
+
 interface SetHistogramQueryConfig {
   type: ActionTypes.SetHistogramQueryConfig
   payload: {
@@ -196,6 +206,7 @@ export type Action =
   | SetNamespacesAction
   | SetTimeRangeAction
   | SetTimeWindowAction
+  | SetTimeMarkerAction
   | SetNamespaceAction
   | SetHistogramQueryConfig
   | SetHistogramData
@@ -260,6 +271,11 @@ const setHistogramData = (data): SetHistogramData => ({
 export const setTimeWindow = (timeWindow: TimeWindow): SetTimeWindowAction => ({
   type: ActionTypes.SetTimeWindow,
   payload: {timeWindow},
+})
+
+export const setTimeMarker = (timeMarker: TimeMarker): SetTimeMarkerAction => ({
+  type: ActionTypes.SetTimeMarker,
+  payload: {timeMarker},
 })
 
 export const executeHistogramQueryAsync = () => async (
@@ -472,19 +488,6 @@ export const setTimeRangeAsync = (timeRange: TimeRange) => async (
     type: ActionTypes.SetTimeRange,
     payload: {
       timeRange,
-    },
-  })
-  dispatch(setHistogramQueryConfigAsync())
-  dispatch(setTableQueryConfigAsync())
-}
-
-export const setTimeWindowAsync = (timeWindow: TimeWindow) => async (
-  dispatch
-): Promise<void> => {
-  dispatch({
-    type: ActionTypes.SetTimeWindow,
-    payload: {
-      timeWindow,
     },
   })
   dispatch(setHistogramQueryConfigAsync())
