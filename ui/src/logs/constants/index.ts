@@ -21,89 +21,6 @@ export enum SeverityColorOptions {
   pearl = 'pearl',
 }
 
-export const SEVERITY_COLORS = [
-  {
-    hex: '#BF3D5E',
-    name: SeverityColorOptions.ruby,
-  },
-  {
-    hex: '#DC4E58',
-    name: SeverityColorOptions.fire,
-  },
-  {
-    hex: '#F95F53',
-    name: SeverityColorOptions.curacao,
-  },
-  {
-    hex: '#F48D38',
-    name: SeverityColorOptions.tiger,
-  },
-  {
-    hex: '#FFB94A',
-    name: SeverityColorOptions.pineapple,
-  },
-  {
-    hex: '#FFD255',
-    name: SeverityColorOptions.thunder,
-  },
-  {
-    hex: '#FFE480',
-    name: SeverityColorOptions.sulfur,
-  },
-  {
-    hex: '#32B08C',
-    name: SeverityColorOptions.viridian,
-  },
-  {
-    hex: '#4ED8A0',
-    name: SeverityColorOptions.rainforest,
-  },
-  {
-    hex: '#7CE490',
-    name: SeverityColorOptions.honeydew,
-  },
-  {
-    hex: '#4591ED',
-    name: SeverityColorOptions.ocean,
-  },
-  {
-    hex: '#22ADF6',
-    name: SeverityColorOptions.pool,
-  },
-  {
-    hex: '#00C9FF',
-    name: SeverityColorOptions.laser,
-  },
-  {
-    hex: '#513CC6',
-    name: SeverityColorOptions.planet,
-  },
-  {
-    hex: '#7A65F2',
-    name: SeverityColorOptions.star,
-  },
-  {
-    hex: '#9394FF',
-    name: SeverityColorOptions.comet,
-  },
-  {
-    hex: '#545667',
-    name: SeverityColorOptions.graphite,
-  },
-  {
-    hex: '#8E91A1',
-    name: SeverityColorOptions.wolf,
-  },
-  {
-    hex: '#BEC2CC',
-    name: SeverityColorOptions.mist,
-  },
-  {
-    hex: '#E7E8EB',
-    name: SeverityColorOptions.pearl,
-  },
-]
-
 export const SeverityColorValues = {
   [SeverityColorOptions.ruby]: '#BF3D5E',
   [SeverityColorOptions.fire]: '#DC4E58',
@@ -126,6 +43,89 @@ export const SeverityColorValues = {
   [SeverityColorOptions.mist]: '#BEC2CC',
   [SeverityColorOptions.pearl]: '#E7E8EB',
 }
+
+export const SEVERITY_COLORS = [
+  {
+    hex: SeverityColorValues[SeverityColorOptions.ruby],
+    name: SeverityColorOptions.ruby,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.fire],
+    name: SeverityColorOptions.fire,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.curacao],
+    name: SeverityColorOptions.curacao,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.tiger],
+    name: SeverityColorOptions.tiger,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.pineapple],
+    name: SeverityColorOptions.pineapple,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.thunder],
+    name: SeverityColorOptions.thunder,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.sulfur],
+    name: SeverityColorOptions.sulfur,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.viridian],
+    name: SeverityColorOptions.viridian,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.rainforest],
+    name: SeverityColorOptions.rainforest,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.honeydew],
+    name: SeverityColorOptions.honeydew,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.ocean],
+    name: SeverityColorOptions.ocean,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.pool],
+    name: SeverityColorOptions.pool,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.laser],
+    name: SeverityColorOptions.laser,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.planet],
+    name: SeverityColorOptions.planet,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.star],
+    name: SeverityColorOptions.star,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.comet],
+    name: SeverityColorOptions.comet,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.graphite],
+    name: SeverityColorOptions.graphite,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.wolf],
+    name: SeverityColorOptions.wolf,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.mist],
+    name: SeverityColorOptions.mist,
+  },
+  {
+    hex: SeverityColorValues[SeverityColorOptions.pearl],
+    name: SeverityColorOptions.pearl,
+  },
+]
 
 export enum SeverityLevelOptions {
   emerg = 'emerg',
