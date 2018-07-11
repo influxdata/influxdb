@@ -3,19 +3,8 @@ import qs from 'qs'
 
 import {formatTempVar} from 'src/tempVars/utils'
 
-import {Template, TemplateQuery} from 'src/types'
+import {Template} from 'src/types'
 import {TemplateSelections} from 'src/types/dashboards'
-
-export const makeQueryForTemplate = ({
-  influxql,
-  db,
-  measurement,
-  tagKey,
-}: TemplateQuery): string =>
-  influxql
-    .replace(':database:', `"${db}"`)
-    .replace(':measurement:', `"${measurement}"`)
-    .replace(':tagKey:', `"${tagKey}"`)
 
 export const templateSelectionsFromQueryParams = (): TemplateSelections => {
   const queryParams = qs.parse(window.location.search, {

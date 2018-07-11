@@ -665,19 +665,21 @@ const hydrateTemplates = (
   proxyLink: string,
   dispatch: Dispatch<Action>
 ) => {
-  return templates.map(async t => {
+  const hydratedTemplates = templates.map(async t => {
     try {
       return await hydrateTemplate(proxyLink, t, nonNestedTemplates)
     } catch (error) {
       const errorMessage = getDeep(error, 'data.message', '')
         .replace(/.*(err):/g, '')
         .trim()
+
       dispatch(
         notify(notifyInvalidTempVarValueInMetaQuery(t.tempVar, errorMessage))
       )
-      return t
     }
   })
+
+  return Promise.all(hydratedTemplates)
 }
 
 export const getDashboardWithTemplatesAsync = (
@@ -698,24 +700,20 @@ export const getDashboardWithTemplatesAsync = (
 
   const templateSelections = templateSelectionsFromQueryParams()
   const proxyLink = source.links.proxy
-  const nonNestedTemplates = await Promise.all(
-    hydrateTemplates(
-      dashboard.templates.filter(t => !isTemplateNested(t)),
-      [],
-      proxyLink,
-      dispatch
-    )
+  const nonNestedTemplates = await hydrateTemplates(
+    dashboard.templates.filter(t => !isTemplateNested(t)),
+    [],
+    proxyLink,
+    dispatch
   )
 
   applyLocalSelections(nonNestedTemplates, templateSelections)
 
-  const nestedTemplates = await Promise.all(
-    hydrateTemplates(
-      dashboard.templates.filter(t => isTemplateNested(t)),
-      nonNestedTemplates,
-      proxyLink,
-      dispatch
-    )
+  const nestedTemplates = await hydrateTemplates(
+    dashboard.templates.filter(t => isTemplateNested(t)),
+    nonNestedTemplates,
+    proxyLink,
+    dispatch
   )
 
   applyLocalSelections(nestedTemplates, templateSelections)
@@ -735,10 +733,12 @@ export const rehydrateNestedTemplatesAsync = (
   const dashboard = getDashboard(getState(), dashboardId)
   const proxyLink = source.links.proxy
   const templateSelections = templateSelectionsFromQueryParams()
-  const nestedTemplates = await Promise.all(
-    dashboard.templates
-      .filter(t => isTemplateNested(t))
-      .map(t => hydrateTemplate(proxyLink, t, dashboard.templates))
+
+  const nestedTemplates = await hydrateTemplates(
+    dashboard.templates.filter(isTemplateNested),
+    dashboard.templates,
+    proxyLink,
+    dispatch
   )
 
   applyLocalSelections(nestedTemplates, templateSelections)
