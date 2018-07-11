@@ -2,7 +2,6 @@ package functions_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/influxdata/platform/query/querytest"
+	"github.com/pkg/errors"
 
 	"github.com/andreyvit/diff"
 )
@@ -21,7 +21,7 @@ var skipTests = map[string]string{
 	"derivative":                "derivative not supported by influxql (https://github.com/influxdata/platform/issues/93)",
 	"filter_by_tags":            "arbitrary filtering not supported by influxql (https://github.com/influxdata/platform/issues/94)",
 	"window_group_mean_ungroup": "error in influxql: failed to run query: timeValue column \"_start\" does not exist (https://github.com/influxdata/platform/issues/97)",
-	"string_max":                "error: invalid use of function: *functions.MaxSelector has no implementation for type string",
+	"string_max":                "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
 	"null_as_value":             "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
 }
 
@@ -133,7 +133,7 @@ func QueryTestCheckSpec(t *testing.T, qs query.QueryService, spec *query.Spec, i
 	got, err := querytest.GetQueryEncodedResults(qs, spec, inputFile, enc)
 	if err != nil {
 		t.Errorf("failed to run query: %v", err)
-		return fmt.Errorf("Error running query")
+		return errors.New("Error running query")
 	}
 
 	if g, w := strings.TrimSpace(got), strings.TrimSpace(want); g != w {
