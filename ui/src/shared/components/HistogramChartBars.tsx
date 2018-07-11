@@ -11,6 +11,7 @@ import {
   HoverData,
   TooltipAnchor,
   ColorScale,
+  HistogramColor,
 } from 'src/types/histogram'
 
 const BAR_BORDER_RADIUS = 3
@@ -71,7 +72,8 @@ const getBarGroups = ({
   yScale,
   colorScale,
   hoverData,
-}): BarGroup[] => {
+  colors,
+}: Partial<Props>): BarGroup[] => {
   const barWidth = getBarWidth({data, xScale, width})
   const sortFn = getSortFn(data)
   const visibleData = data.filter(d => d.value !== 0)
@@ -109,7 +111,8 @@ const getBarGroups = ({
     timeGroup.forEach((d: HistogramDatum) => {
       const height = yScale(0) - yScale(d.value)
       const k = hoverDataKeys.includes(d.key) ? HOVER_BRIGTHEN_FACTOR : 0
-      const fill = color(colorScale(d.group))
+      const groupColor = colors.find(c => c.group === d.group)
+      const fill = color(colorScale(_.get(groupColor, 'color', ''), d.group))
         .brighter(k)
         .hex()
 
@@ -138,6 +141,7 @@ interface Props {
   yScale: ScaleLinear<number, number>
   colorScale: ColorScale
   hoverData?: HoverData
+  colors: HistogramColor[]
   onHover: (h: HoverData) => void
 }
 
@@ -146,7 +150,7 @@ interface State {
 }
 
 class HistogramChartBars extends PureComponent<Props, State> {
-  public static getDerivedStateFromProps(props) {
+  public static getDerivedStateFromProps(props: Props) {
     return {barGroups: getBarGroups(props)}
   }
 

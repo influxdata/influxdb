@@ -1,16 +1,16 @@
-const SEVERITY_COLORS = {
-  emergency: '#BF3D5E',
-  alert: '#DC4E58',
-  critical: '#F95F53',
-  error: '#F48D38',
-  warning: '#FFB94A',
-  notice: '#4ED8A0',
-  info: '#7A65F2',
-  debug: '#8E91A1',
-}
+import {SeverityColorValues, DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
 
-const DEFAULT_SEVERITY_COLOR = '#7A65F2'
+import {ColorScale} from 'src/types/histogram'
 
-export const colorForSeverity = (severity: string): string => {
-  return SEVERITY_COLORS[severity] || DEFAULT_SEVERITY_COLOR
+const DEFAULT_COLOR_VALUE = SeverityColorValues.star
+
+export const colorForSeverity: ColorScale = (
+  colorName,
+  severityLevel
+): string => {
+  return (
+    SeverityColorValues[colorName] ||
+    DEFAULT_SEVERITY_LEVELS[severityLevel] ||
+    DEFAULT_COLOR_VALUE
+  )
 }

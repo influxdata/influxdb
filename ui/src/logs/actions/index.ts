@@ -522,6 +522,46 @@ const serverLogData = {
           type: 'label',
           value: 'text',
         },
+        {
+          type: 'color',
+          value: 'emerg',
+          name: 'ruby',
+        },
+        {
+          type: 'color',
+          value: 'alert',
+          name: 'fire',
+        },
+        {
+          type: 'color',
+          value: 'crit',
+          name: 'curacao',
+        },
+        {
+          type: 'color',
+          value: 'err',
+          name: 'tiger',
+        },
+        {
+          type: 'color',
+          value: 'warning',
+          name: 'pineapple',
+        },
+        {
+          type: 'color',
+          value: 'notice',
+          name: 'rainforest',
+        },
+        {
+          type: 'color',
+          value: 'info',
+          name: 'star',
+        },
+        {
+          type: 'color',
+          value: 'debug',
+          name: 'wolf',
+        },
       ],
     },
     {

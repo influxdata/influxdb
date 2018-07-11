@@ -6,9 +6,12 @@ import {
   LogsTableColumn,
   ServerEncoding,
   SeverityFormat,
+  SeverityLevelColor,
 } from 'src/types/logs'
 import {
   SeverityFormatOptions,
+  SeverityColorOptions,
+  SeverityLevelOptions,
   EncodingTypes,
   EncodingLabelOptions,
   EncodingVisibilityOptions,
@@ -25,9 +28,11 @@ export const logConfigServerToUI = (
   const sortedColumns = sortColumns(columns)
 
   let severityFormat: SeverityFormatOptions
+  let severityLevelColors: SeverityLevelColor[]
   const convertedColumns = sortedColumns.map(c => {
     if (c.name === 'severity') {
       severityFormat = getFormatFromColumn(c)
+      severityLevelColors = getLevelColorsFromColumn(c)
     }
 
     return columnServerToUI(c)
@@ -36,6 +41,7 @@ export const logConfigServerToUI = (
   return {
     tableColumns: convertedColumns,
     severityFormat,
+    severityLevelColors,
   }
 }
 
@@ -47,10 +53,11 @@ export const columnServerToUI = (column: ServerColumn): LogsTableColumn => {
   const internalName = column.name
   const encodings: LogsTableColumn = column.encodings.reduce(
     (acc, e) => {
-      if (e.type === EncodingTypes.visibility) {
-        if (e.value === 'visible') {
-          acc.visible = true
-        }
+      if (
+        e.type === EncodingTypes.visibility &&
+        e.value === EncodingVisibilityOptions.visible
+      ) {
+        acc.visible = true
       } else if (e.type === EncodingTypes.display) {
         acc.displayName = e.value
       }
@@ -87,16 +94,28 @@ export const getFormatFromColumn = (
   }
 }
 
+export const getLevelColorsFromColumn = (
+  column: ServerColumn
+): SeverityLevelColor[] => {
+  const colors = column.encodings.filter(e => e.type === EncodingTypes.color)
+  return colors.map(c => {
+    const level: SeverityLevelOptions = SeverityLevelOptions[c.value]
+    const color: SeverityColorOptions = SeverityColorOptions[c.name]
+    return {level, color}
+  })
+}
+
 export const logConfigUIToServer = (config: LogConfig): ServerLogConfig => {
   const tableColumns = _.get(config, 'tableColumns')
   const severityFormat = _.get(config, 'severityFormat')
+  const severityLevelColors = _.get(config, 'severityLevelColors')
 
   if (_.isEmpty(tableColumns)) {
     return {columns: []}
   }
 
   const columns = tableColumns.map((c, i) => {
-    const encodings = getFullEncodings(c, severityFormat)
+    const encodings = getFullEncodings(c, severityFormat, severityLevelColors)
     const name = c.internalName
     const position = i
 
@@ -136,25 +155,38 @@ export const getDisplayAndVisibleEncodings = (
 export const getLabelEncodings = (format: SeverityFormat): ServerEncoding[] => {
   switch (format) {
     case SeverityFormatOptions.dot:
-      return [{type: 'label', value: EncodingLabelOptions.icon}]
+      return [{type: EncodingTypes.label, value: EncodingLabelOptions.icon}]
     case SeverityFormatOptions.text:
-      return [{type: 'label', value: EncodingLabelOptions.text}]
+      return [{type: EncodingTypes.label, value: EncodingLabelOptions.text}]
     case SeverityFormatOptions.dotText:
       return [
-        {type: 'label', value: EncodingLabelOptions.icon},
-        {type: 'label', value: EncodingLabelOptions.text},
+        {type: EncodingTypes.label, value: EncodingLabelOptions.icon},
+        {type: EncodingTypes.label, value: EncodingLabelOptions.text},
       ]
   }
   return null
 }
 
+export const getColorEncodings = (
+  levelColors: SeverityLevelColor[]
+): ServerEncoding[] => {
+  return levelColors.map(({color, level}) => {
+    return {type: EncodingTypes.color, name: color, value: level}
+  })
+}
+
 export const getFullEncodings = (
   tableColumn: LogsTableColumn,
-  format: SeverityFormat
-) => {
+  format: SeverityFormat,
+  severityLevelColors: SeverityLevelColor[]
+): ServerEncoding[] => {
   let encodings = getDisplayAndVisibleEncodings(tableColumn)
   if (tableColumn.internalName === 'severity') {
-    encodings = [...encodings, ...getLabelEncodings(format)]
+    encodings = [
+      ...encodings,
+      ...getLabelEncodings(format),
+      ...getColorEncodings(severityLevelColors),
+    ]
   }
 
   return encodings

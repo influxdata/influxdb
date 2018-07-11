@@ -3,6 +3,7 @@
 exports[`HistogramChart displays a HistogramChartSkeleton if empty data is passed 1`] = `
 <HistogramChart
   colorScale={[Function]}
+  colors={Array []}
   data={Array []}
   dataStatus="Done"
   height={400}
@@ -74,6 +75,7 @@ exports[`HistogramChart displays a HistogramChartSkeleton if empty data is passe
 exports[`HistogramChart displays a HistogramChartTooltip when hovering over bars 1`] = `
 <HistogramChartTooltip
   colorScale={[Function]}
+  colors={Array []}
   data={
     Object {
       "anchor": "left",
@@ -135,6 +137,7 @@ exports[`HistogramChart displays a HistogramChartTooltip when hovering over bars
 exports[`HistogramChart displays a nothing if passed width and height of 0 1`] = `
 <HistogramChart
   colorScale={[Function]}
+  colors={Array []}
   data={Array []}
   dataStatus="Done"
   height={0}
@@ -146,6 +149,7 @@ exports[`HistogramChart displays a nothing if passed width and height of 0 1`] =
 exports[`HistogramChart displays the visualization with bars if nonempty data is passed 1`] = `
 <HistogramChart
   colorScale={[Function]}
+  colors={Array []}
   data={
     Array [
       Object {
@@ -331,6 +335,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
     >
       <HistogramChartBars
         colorScale={[Function]}
+        colors={Array []}
         data={
           Array [
             Object {

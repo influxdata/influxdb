@@ -37,18 +37,15 @@ import {
 import {SeverityFormatOptions} from 'src/logs/constants'
 import {Source, Namespace, TimeRange} from 'src/types'
 
-import {HistogramData, TimePeriod} from 'src/types/histogram'
+import {HistogramData, TimePeriod, HistogramColor} from 'src/types/histogram'
 import {
   Filter,
-  SeverityLevel,
+  SeverityLevelColor,
   SeverityFormat,
   LogsTableColumn,
   LogConfig,
   TableData,
 } from 'src/types/logs'
-
-// Mock
-import {DEFAULT_SEVERITY_LEVELS} from 'src/logs/constants'
 
 interface Props {
   sources: Source[]
@@ -82,9 +79,23 @@ interface State {
   searchString: string
   liveUpdating: boolean
   isOverlayVisible: boolean
+  histogramColors: HistogramColor[]
 }
 
 class LogsPage extends PureComponent<Props, State> {
+  public static getDerivedStateFromProps(props: Props) {
+    const severityLevelColors: SeverityLevelColor[] = _.get(
+      props.logConfig,
+      'severityLevelColors',
+      []
+    )
+    const histogramColors = severityLevelColors.map(lc => ({
+      group: lc.level,
+      color: lc.color,
+    }))
+    return {histogramColors}
+  }
+
   private interval: NodeJS.Timer
 
   constructor(props: Props) {
@@ -94,6 +105,7 @@ class LogsPage extends PureComponent<Props, State> {
       searchString: '',
       liveUpdating: false,
       isOverlayVisible: false,
+      histogramColors: [],
     }
   }
 
@@ -150,6 +162,7 @@ class LogsPage extends PureComponent<Props, State> {
               timeRange={timeRange}
               tableColumns={this.tableColumns}
               severityFormat={this.severityFormat}
+              severityLevelColors={this.severityLevelColors}
             />
           </div>
         </div>
@@ -232,6 +245,7 @@ class LogsPage extends PureComponent<Props, State> {
 
   private get chart(): JSX.Element {
     const {histogramData} = this.props
+    const {histogramColors} = this.state
 
     return (
       <AutoSizer>
@@ -242,6 +256,7 @@ class LogsPage extends PureComponent<Props, State> {
             height={height}
             colorScale={colorForSeverity}
             onZoom={this.handleChartZoom}
+            colors={histogramColors}
           />
         )}
       </AutoSizer>
@@ -274,6 +289,10 @@ class LogsPage extends PureComponent<Props, State> {
         onShowOptionsOverlay={this.handleToggleOverlay}
       />
     )
+  }
+
+  private get severityLevelColors(): SeverityLevelColor[] {
+    return _.get(this.props.logConfig, 'severityLevelColors', [])
   }
 
   private handleChangeLiveUpdatingStatus = (): void => {
@@ -346,7 +365,7 @@ class LogsPage extends PureComponent<Props, State> {
     return (
       <OverlayTechnology visible={isOverlayVisible}>
         <OptionsOverlay
-          severityLevels={DEFAULT_SEVERITY_LEVELS} // Todo: replace with real
+          severityLevelColors={this.severityLevelColors}
           onUpdateSeverityLevels={this.handleUpdateSeverityLevels}
           onDismissOverlay={this.handleToggleOverlay}
           columns={this.tableColumns}
@@ -358,14 +377,19 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleUpdateSeverityLevels = (levels: SeverityLevel[]) => {
-    // Todo: Handle saving of these new severity colors here
-    levels = levels
+  private handleUpdateSeverityLevels = (
+    severityLevelColors: SeverityLevelColor[]
+  ): void => {
+    const {logConfig} = this.props
+    this.props.updateConfig(this.logConfigLink, {
+      ...logConfig,
+      severityLevelColors,
+    })
   }
 
-  private handleUpdateSeverityFormat = async (format: SeverityFormat) => {
+  private handleUpdateSeverityFormat = (format: SeverityFormat): void => {
     const {logConfig} = this.props
-    await this.props.updateConfig(this.logConfigLink, {
+    this.props.updateConfig(this.logConfigLink, {
       ...logConfig,
       severityFormat: format,
     })
@@ -381,9 +405,9 @@ class LogsPage extends PureComponent<Props, State> {
     return severityFormat
   }
 
-  private handleUpdateColumns = async (tableColumns: LogsTableColumn[]) => {
+  private handleUpdateColumns = (tableColumns: LogsTableColumn[]): void => {
     const {logConfig} = this.props
-    await this.props.updateConfig(this.logConfigLink, {
+    this.props.updateConfig(this.logConfigLink, {
       ...logConfig,
       tableColumns,
     })

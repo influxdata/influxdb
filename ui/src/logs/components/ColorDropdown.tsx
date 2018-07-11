@@ -5,7 +5,7 @@ import {ClickOutside} from 'src/shared/components/ClickOutside'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
-import {SEVERITY_COLORS} from 'src/logs/constants'
+import {SEVERITY_COLORS, SeverityColorOptions} from 'src/logs/constants'
 
 import {SeverityColor} from 'src/types/logs'
 
@@ -129,7 +129,9 @@ export default class ColorDropdown extends Component<Props, State> {
   private handleColorClick = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement
     const hex = target.dataset.tagValue || target.parentElement.dataset.tagValue
-    const name = target.dataset.tagKey || target.parentElement.dataset.tagKey
+    const nameString =
+      target.dataset.tagKey || target.parentElement.dataset.tagKey
+    const name = SeverityColorOptions[nameString]
 
     const color: SeverityColor = {name, hex}
     this.props.onChoose(this.props.severityLevel, color)
