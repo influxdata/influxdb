@@ -16,35 +16,28 @@ export const hydrateTemplate = async (
     return template
   }
 
-  try {
-    const query = templateReplace(
-      makeQueryForTemplate(template.query),
-      templates
-    )
-    const response = await proxy({source: proxyLink, query})
-    const values = parseMetaQuery(query, response.data)
-    const type = TEMPLATE_VARIABLE_TYPES[template.type]
-    const selectedValue = getSelectedValue(template)
-    const selectedLocalValue = getLocalSelectedValue(template)
+  const query = templateReplace(makeQueryForTemplate(template.query), templates)
+  const response = await proxy({source: proxyLink, query})
+  const values = parseMetaQuery(query, response.data)
+  const type = TEMPLATE_VARIABLE_TYPES[template.type]
+  const selectedValue = getSelectedValue(template)
+  const selectedLocalValue = getLocalSelectedValue(template)
 
-    const templateValues = values.map(value => {
-      return {
-        type,
-        value,
-        selected: value === selectedValue,
-        localSelected: value === selectedLocalValue,
-      }
-    })
-
-    if (templateValues.length && !templateValues.find(v => v.selected)) {
-      // Handle stale selected value
-      templateValues[0].selected = true
+  const templateValues = values.map(value => {
+    return {
+      type,
+      value,
+      selected: value === selectedValue,
+      localSelected: value === selectedLocalValue,
     }
+  })
 
-    return {...template, values: templateValues}
-  } catch (error) {
-    throw error
+  if (templateValues.length && !templateValues.find(v => v.selected)) {
+    // Handle stale selected value
+    templateValues[0].selected = true
   }
+
+  return {...template, values: templateValues}
 }
 
 export const isTemplateNested = (template: Template): boolean => {
