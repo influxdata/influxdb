@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
 import uuid from 'uuid'
 import _ from 'lodash'
+import moment from 'moment'
 import {connect} from 'react-redux'
 import {AutoSizer} from 'react-virtualized'
 
@@ -9,6 +10,7 @@ import {
   setTableRelativeTimeAsync,
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
+  setTimeBounds,
   setTimeWindow,
   setTimeMarker,
   setNamespaceAsync,
@@ -49,6 +51,7 @@ import {
   TimeRange,
   TimeWindow,
   TimeMarker,
+  TimeBounds,
 } from 'src/types/logs'
 import {applyChangesToTableData} from 'src/logs/utils/table'
 
@@ -60,6 +63,7 @@ interface Props {
   getSource: (sourceID: string) => void
   getSources: () => void
   setTimeRangeAsync: (timeRange: TimeRange) => void
+  setTimeBounds: (timeBounds: TimeBounds) => void
   setTimeWindow: (timeWindow: TimeWindow) => void
   setTimeMarker: (timeMarker: TimeMarker) => void
   setNamespaceAsync: (namespace: Namespace) => void
@@ -395,45 +399,37 @@ class LogsPage extends Component<Props, State> {
     this.props.executeQueriesAsync()
   }
 
-  // HANDLE CHOOSE TIMERANGE
-  // private handleChooseTimerange = (timeWindow: TimeWindow) => {
-  //   const {seconds, windowOption, timeOption} = timeWindow
-  //   let lower = `now() - ${windowOption}`
-  //   let upper = null
+  private handleSetTimeBounds = async () => {
+    const {seconds, windowOption, timeOption} = this.props.timeRange
+    let lower = `now() - ${windowOption}`
+    let upper = null
 
-  //   if (timeOption !== 'now') {
-  //     const numberTimeOption = moment(timeOption).valueOf()
-  //     const milliseconds = seconds * 10 / 2
-  //     console.log('MS', milliseconds)
-  //     lower =
-  //       moment
-  //         .utc(numberTimeOption - milliseconds)
-  //         .format('YYYY-MM-DDTHH:mm:ss.SSS') + 'Z'
-  //     upper =
-  //       moment
-  //         .utc(numberTimeOption + milliseconds)
-  //         .format('YYYY-MM-DDTHH:mm:ss.SSS') + 'Z'
-  //   }
+    if (timeOption !== 'now') {
+      const numberTimeOption = moment(timeOption).valueOf()
+      const milliseconds = seconds * 10 / 2
+      lower = moment(numberTimeOption - milliseconds).toISOString()
+      upper = moment(numberTimeOption + milliseconds).toISOString()
+    }
 
-  //   const timeRange: TimeRange = {
-  //     lower,
-  //     upper,
-  //     seconds,
-  //   }
+    const timeBounds: TimeBounds = {
+      lower,
+      upper,
+    }
 
-  //   console.log('TIME RANGE', timeRange)
-  //   this.props.setTimeRangeAsync(timeRange)
-  //   this.fetchNewDataset()
-  // }
+    await this.props.setTimeBounds(timeBounds)
 
-  private handleSetTimeWindow = (timeWindow: TimeWindow) => {
-    // console.log('TIME WINDOW', timeWindow)
-    this.props.setTimeWindow(timeWindow)
+    this.props.setTimeRangeAsync(this.props.timeRange)
+    this.fetchNewDataset()
   }
 
-  private handleSetTimeMarker = (timeMarker: TimeMarker) => {
-    // console.log('TIME MARKER', timeMarker)
-    this.props.setTimeMarker(timeMarker)
+  private handleSetTimeWindow = async (timeWindow: TimeWindow) => {
+    await this.props.setTimeWindow(timeWindow)
+    this.handleSetTimeBounds()
+  }
+
+  private handleSetTimeMarker = async (timeMarker: TimeMarker) => {
+    await this.props.setTimeMarker(timeMarker)
+    this.handleSetTimeBounds()
   }
 
   private handleChooseSource = (sourceID: string) => {
@@ -561,6 +557,7 @@ const mapDispatchToProps = {
   getSource: getSourceAndPopulateNamespacesAsync,
   getSources: getSourcesAsync,
   setTimeRangeAsync,
+  setTimeBounds,
   setTimeWindow,
   setTimeMarker,
   setNamespaceAsync,

@@ -182,8 +182,9 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, currentSource: action.payload.source}
     case ActionTypes.SetNamespaces:
       return {...state, currentNamespaces: action.payload.namespaces}
-    case ActionTypes.SetTimeRange:
-      return {...state, timeRange: action.payload.timeRange}
+    case ActionTypes.SetTimeBounds:
+      const {upper, lower} = action.payload.timeBounds
+      return {...state, timeRange: {...state.timeRange, upper, lower}}
     case ActionTypes.SetTimeWindow:
       const {windowOption, seconds} = action.payload.timeWindow
       return {...state, timeRange: {...state.timeRange, windowOption, seconds}}
