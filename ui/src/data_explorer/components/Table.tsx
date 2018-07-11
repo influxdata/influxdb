@@ -20,7 +20,6 @@ import {
   stylePixelOffset,
   defaultColumnWidth,
 } from 'src/data_explorer/constants/table'
-import {noop} from 'src/shared/actions/app'
 
 import {Source, Template} from 'src/types'
 
@@ -215,7 +214,12 @@ class ChronoTable extends PureComponent<Props, State> {
     return _.get(series, `${activeSeriesIndex}`, emptySeries)
   }
 
-  private fetchCellData = async ({source, query, templates}: Props) => {
+  private fetchCellData = async ({
+    source,
+    query,
+    templates,
+    editQueryStatus,
+  }: Props) => {
     if (!query || !query.text) {
       return
     }
@@ -230,7 +234,7 @@ class ChronoTable extends PureComponent<Props, State> {
         [query],
         NULL_RESOLUTION,
         templates,
-        noop
+        editQueryStatus
       )
 
       const results = getDeep(queriesResponse, '0.results', [])
