@@ -98,7 +98,7 @@ const operatorMapping = (operator: string): string => {
 }
 
 const valueMapping = (operator: string, value): string => {
-  if (operator === '=~') {
+  if (operator === '=~' || operator === '!~') {
     return `${new RegExp(value)}`
   } else {
     return `'${value}'`

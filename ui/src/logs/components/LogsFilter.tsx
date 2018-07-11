@@ -132,7 +132,7 @@ class LogsFilter extends PureComponent<Props, State> {
     }
 
     let state = {}
-    if (['!=', '==', '=~'].includes(operator) && value !== '') {
+    if (['!=', '==', '=~', '!~'].includes(operator) && value !== '') {
       this.props.onChangeFilter(id, operator, value)
     } else {
       state = {operator: filter.operator, value: filter.value}
