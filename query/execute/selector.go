@@ -154,6 +154,7 @@ func (t *rowSelectorTransformation) Process(id DatasetID, b query.Block) error {
 	valueCol := builder.Cols()[valueIdx]
 
 	var rower Rower
+
 	switch valueCol.Type {
 	case query.TBool:
 		rower = t.selector.NewBoolSelector()
@@ -167,6 +168,13 @@ func (t *rowSelectorTransformation) Process(id DatasetID, b query.Block) error {
 		rower = t.selector.NewStringSelector()
 	default:
 		return fmt.Errorf("unsupported selector type %v", valueCol.Type)
+	}
+
+	// if rower has a nil value, this means that the row selector doesn't
+	// yet have an implementation
+
+	if rower == nil {
+		return fmt.Errorf("invalid use of function: %T has no implementation for type %v", t.selector, valueCol.Type)
 	}
 
 	b.Do(func(cr query.ColReader) error {
