@@ -1,6 +1,3 @@
-import {getDashboards} from 'src/dashboards/apis'
-
-import {GetDashboards} from 'src/types/apis/dashboards'
 import {Source} from 'src/types/sources'
 import {Dashboard, DashboardSwitcherLinks} from 'src/types/dashboards'
 
@@ -9,18 +6,7 @@ export const EMPTY_LINKS = {
   active: null,
 }
 
-export const loadDashboardLinks = async (
-  source: Source,
-  dashboardsAJAX: GetDashboards = getDashboards
-): Promise<DashboardSwitcherLinks> => {
-  const {
-    data: {dashboards},
-  } = await dashboardsAJAX()
-
-  return linksFromDashboards(dashboards, source)
-}
-
-const linksFromDashboards = (
+export const linksFromDashboards = (
   dashboards: Dashboard[],
   source: Source
 ): DashboardSwitcherLinks => {

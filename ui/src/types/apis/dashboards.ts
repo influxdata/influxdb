@@ -6,3 +6,7 @@ export interface DashboardsResponse {
 }
 
 export type GetDashboards = () => Promise<AxiosResponse<DashboardsResponse>>
+export interface LoadLinksOptions {
+  activeDashboard: Dashboard
+  dashboardsAJAX?: GetDashboards
+}

@@ -1,6 +1,10 @@
 import {proxy} from 'utils/queryUrlGenerator'
 import replaceTemplate from 'src/tempVars/utils/replace'
 import AJAX from 'utils/ajax'
+import {
+  linksFromHosts,
+  updateActiveHostLink,
+} from 'src/hosts/utils/hostsSwitcherLinks'
 import _ from 'lodash'
 
 export const getCpuAndLoadForHosts = (
@@ -95,7 +99,12 @@ export const getCpuAndLoadForHosts = (
   })
 }
 
-export async function getAllHosts(proxyLink, telegrafDB) {
+async function getAllHosts(source) {
+  const {
+    telegrafDB,
+    links: {proxy: proxyLink},
+  } = source
+
   try {
     const resp = await proxy({
       source: proxyLink,
@@ -120,6 +129,16 @@ export async function getAllHosts(proxyLink, telegrafDB) {
     console.error(error) // eslint-disable-line no-console
     throw error
   }
+}
+
+export const loadHostsLinks = async (
+  source,
+  {activeHost = {}, getHostNamesAJAX = getAllHosts} = {}
+) => {
+  const hostNames = await getHostNamesAJAX(source)
+  const allLinks = linksFromHosts(hostNames, source)
+
+  return updateActiveHostLink(allLinks, activeHost)
 }
 
 export const getLayouts = () =>

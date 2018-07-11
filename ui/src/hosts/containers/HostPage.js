@@ -1,7 +1,6 @@
 import React, {Component} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 import classnames from 'classnames'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer'
@@ -15,8 +14,9 @@ import {
   getLayouts,
   getAppsForHost,
   getMeasurementsForHost,
-  getAllHosts,
+  loadHostsLinks,
 } from 'src/hosts/apis'
+import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
 import {setAutoRefresh, delayEnablePresentationMode} from 'shared/actions/app'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -27,7 +27,7 @@ class HostPage extends Component {
     super(props)
     this.state = {
       layouts: [],
-      hosts: {},
+      hostLinks: EMPTY_LINKS,
       timeRange: timeRanges.find(tr => tr.lower === 'now() - 1h'),
       dygraphs: [],
     }
@@ -36,7 +36,6 @@ class HostPage extends Component {
   async fetchHostsAndMeasurements(layouts) {
     const {source, params} = this.props
 
-    const hosts = await getAllHosts(source.links.proxy, source.telegraf)
     const host = await getAppsForHost(
       source.links.proxy,
       params.hostID,
@@ -46,7 +45,7 @@ class HostPage extends Component {
 
     const measurements = await getMeasurementsForHost(source, params.hostID)
 
-    return {host, hosts, measurements}
+    return {host, measurements}
   }
 
   async componentDidMount() {
@@ -56,9 +55,7 @@ class HostPage extends Component {
     const {location} = this.props
 
     // fetching layouts and mappings can be done at the same time
-    const {hosts, host, measurements} = await this.fetchHostsAndMeasurements(
-      layouts
-    )
+    const {host, measurements} = await this.fetchHostsAndMeasurements(layouts)
 
     const focusedApp = location.query.app
 
@@ -74,15 +71,9 @@ class HostPage extends Component {
       )
     })
 
-    // only display hosts in the list if they match the current app
-    let filteredHosts = hosts
-    if (focusedApp) {
-      filteredHosts = _.pickBy(hosts, (val, __, ___) => {
-        return _.get(val, 'apps', []).includes(focusedApp)
-      })
-    }
+    const hostLinks = await this.getHostLinks()
 
-    this.setState({layouts: filteredLayouts, hosts: filteredHosts}) // eslint-disable-line react/no-did-mount-set-state
+    this.setState({layouts: filteredLayouts, hostLinks}) // eslint-disable-line react/no-did-mount-set-state
   }
 
   handleChooseTimeRange = ({lower, upper}) => {
@@ -173,7 +164,7 @@ class HostPage extends Component {
       handleChooseAutoRefresh,
       handleClickPresentationButton,
     } = this.props
-    const {timeRange} = this.state
+    const {timeRange, hostLinks} = this.state
 
     return (
       <div className="page">
@@ -186,8 +177,7 @@ class HostPage extends Component {
           handleChooseAutoRefresh={handleChooseAutoRefresh}
           handleChooseTimeRange={this.handleChooseTimeRange}
           handleClickPresentationButton={handleClickPresentationButton}
-          dashboardLinks={this.dashboardLinks}
-          activeDashboardLink={this.activeDashboardLink}
+          dashboardLinks={hostLinks}
         />
         <FancyScrollbar
           className={classnames({
@@ -203,30 +193,16 @@ class HostPage extends Component {
     )
   }
 
-  get dashboardLinks() {
+  getHostLinks = async () => {
     const {
-      params: {sourceID},
-    } = this.props
-    const {hosts} = this.state
-
-    if (!sourceID || !hosts) {
-      return []
-    }
-
-    return Object.values(hosts).map(({name}) => ({
-      key: name,
-      text: name,
-      to: `/sources/${sourceID}/hosts/${name}`,
-    }))
-  }
-
-  get activeDashboardLink() {
-    const {
+      source,
       params: {hostID},
     } = this.props
-    const {dashboardLinks} = this
 
-    return dashboardLinks.find(d => d.key === hostID)
+    const activeHost = {name: hostID}
+    const links = await loadHostsLinks(source, {activeHost})
+
+    return links
   }
 }
 

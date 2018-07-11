@@ -24,7 +24,9 @@ import * as notifyActions from 'src/shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {millisecondTimeRange} from 'src/dashboards/utils/time'
 import {getDeep} from 'src/utils/wrappers'
-import * as dashboardSwitcher from 'src/dashboards/utils/dashboardSwitcherLinks'
+
+// APIs
+import {loadDashboardLinks} from 'src/dashboards/apis'
 
 // Constants
 import {
@@ -34,6 +36,7 @@ import {
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'src/shared/constants'
 import {FORMAT_INFLUXQL, defaultTimeRange} from 'src/shared/data/timeRanges'
+import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
 // Types
 import {WithRouterProps} from 'react-router'
@@ -125,7 +128,7 @@ class DashboardPage extends Component<Props, State> {
       selectedCell: null,
       scrollTop: 0,
       windowHeight: window.innerHeight,
-      dashboardLinks: dashboardSwitcher.EMPTY_LINKS,
+      dashboardLinks: EMPTY_LINKS,
     }
   }
 
@@ -497,14 +500,10 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private getDashboardLinks = async (): Promise<void> => {
-    const {source, dashboard} = this.props
+    const {source, dashboard: activeDashboard} = this.props
 
     try {
-      const links = await dashboardSwitcher.loadDashboardLinks(source)
-      const dashboardLinks = dashboardSwitcher.updateActiveDashboardLink(
-        links,
-        dashboard
-      )
+      const dashboardLinks = await loadDashboardLinks(source, {activeDashboard})
 
       this.setState({
         dashboardLinks,

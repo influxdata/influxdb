@@ -1,11 +1,11 @@
 import {
-  loadDashboardLinks,
+  linksFromDashboards,
   updateActiveDashboardLink,
 } from 'src/dashboards/utils/dashboardSwitcherLinks'
 import {dashboard, source} from 'test/resources'
 
 describe('dashboards.utils.dashboardSwitcherLinks', () => {
-  describe('loadDashboardLinks', () => {
+  describe('linksFromDashboards', () => {
     const socure = {...source, id: '897'}
 
     const dashboards = [
@@ -16,22 +16,8 @@ describe('dashboards.utils.dashboardSwitcherLinks', () => {
       },
     ]
 
-    const data = {
-      dashboards,
-    }
-
-    const axiosResponse = {
-      data,
-      status: 200,
-      statusText: 'Okay',
-      headers: null,
-      config: null,
-    }
-
-    const getDashboards = async () => axiosResponse
-
-    it('can load dashboard links for source', async () => {
-      const actualLinks = await loadDashboardLinks(socure, getDashboards)
+    it('can build dashboard links for source', () => {
+      const actualLinks = linksFromDashboards(dashboards, socure)
 
       const expectedLinks = {
         links: [
