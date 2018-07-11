@@ -9,7 +9,6 @@ import {analyzeQueries} from 'src/shared/apis'
 import {DEFAULT_DURATION_MS} from 'src/shared/constants'
 import replaceTemplates, {replaceInterval} from 'src/tempVars/utils/replace'
 import {proxy} from 'src/utils/queryUrlGenerator'
-import {noop} from 'src/shared/actions/app'
 
 import {Source} from 'src/types'
 
@@ -28,7 +27,7 @@ export const fetchTimeSeries = async (
   queries: Query[],
   resolution: number,
   templates: Template[],
-  editQueryStatus: () => any = noop
+  editQueryStatus: () => any
 ) => {
   const timeSeriesPromises = queries.map(async query => {
     const {database, rp} = query

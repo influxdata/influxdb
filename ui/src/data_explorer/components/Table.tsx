@@ -20,6 +20,7 @@ import {
   stylePixelOffset,
   defaultColumnWidth,
 } from 'src/data_explorer/constants/table'
+import {noop} from 'src/shared/actions/app'
 
 import {Source, Template} from 'src/types'
 
@@ -228,7 +229,8 @@ class ChronoTable extends PureComponent<Props, State> {
         source,
         [query],
         NULL_RESOLUTION,
-        templates
+        templates,
+        noop
       )
 
       const results = getDeep(queriesResponse, '0.results', [])
