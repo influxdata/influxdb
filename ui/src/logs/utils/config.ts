@@ -53,10 +53,11 @@ export const columnServerToUI = (column: ServerColumn): LogsTableColumn => {
   const internalName = column.name
   const encodings: LogsTableColumn = column.encodings.reduce(
     (acc, e) => {
-      if (e.type === EncodingTypes.visibility) {
-        if (e.value === EncodingVisibilityOptions.visible) {
-          acc.visible = true
-        }
+      if (
+        e.type === EncodingTypes.visibility &&
+        e.value === EncodingVisibilityOptions.visible
+      ) {
+        acc.visible = true
       } else if (e.type === EncodingTypes.display) {
         acc.displayName = e.value
       }
@@ -178,7 +179,7 @@ export const getFullEncodings = (
   tableColumn: LogsTableColumn,
   format: SeverityFormat,
   severityLevelColors: SeverityLevelColor[]
-) => {
+): ServerEncoding[] => {
   let encodings = getDisplayAndVisibleEncodings(tableColumn)
   if (tableColumn.internalName === 'severity') {
     encodings = [
