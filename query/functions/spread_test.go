@@ -3,9 +3,9 @@ package functions_test
 import (
 	"testing"
 
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 

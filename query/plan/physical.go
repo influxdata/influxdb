@@ -14,15 +14,16 @@ import (
 const DefaultYieldName = "_result"
 
 type PlanSpec struct {
-	// Now represents the relative currentl time of the plan.
+	// Now represents the relative current time of the plan.
 	Now    time.Time
 	Bounds BoundsSpec
+
 	// Procedures is a set of all operations
 	Procedures map[ProcedureID]*Procedure
 	Order      []ProcedureID
-	// Results is a list of datasets that are the result of the plan
-	Results map[string]YieldSpec
 
+	// Results is a list of datasets that are the result of the plan
+	Results   map[string]YieldSpec
 	Resources query.ResourceManagement
 }
 
@@ -42,7 +43,7 @@ func (p *PlanSpec) lookup(id ProcedureID) *Procedure {
 
 type Planner interface {
 	// Plan create a plan from the logical plan and available storage.
-	Plan(p *LogicalPlanSpec, s Storage, now time.Time) (*PlanSpec, error)
+	Plan(p *LogicalPlanSpec, s Storage) (*PlanSpec, error)
 }
 
 type PlanRewriter interface {
@@ -61,7 +62,9 @@ func NewPlanner() Planner {
 	return new(planner)
 }
 
-func (p *planner) Plan(lp *LogicalPlanSpec, s Storage, now time.Time) (*PlanSpec, error) {
+func (p *planner) Plan(lp *LogicalPlanSpec, s Storage) (*PlanSpec, error) {
+	now := lp.Now
+
 	p.plan = &PlanSpec{
 		Now:        now,
 		Procedures: make(map[ProcedureID]*Procedure, len(lp.Procedures)),

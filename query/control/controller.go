@@ -114,7 +114,7 @@ func (c *Controller) compileQuery(q *Query, queryStr string) error {
 	if !q.tryCompile() {
 		return errors.New("failed to transition query to compiling state")
 	}
-	spec, err := query.Compile(q.compilingCtx, queryStr, query.Verbose(c.verbose))
+	spec, err := query.Compile(q.compilingCtx, queryStr, q.now, query.Verbose(c.verbose))
 	if err != nil {
 		return errors.Wrap(err, "failed to compile query")
 	}
@@ -226,7 +226,7 @@ func (c *Controller) processQuery(q *Query) (pop bool, err error) {
 			log.Println("logical plan", plan.Formatted(lp))
 		}
 
-		p, err := c.pplanner.Plan(lp, nil, q.now)
+		p, err := c.pplanner.Plan(lp, nil)
 		if err != nil {
 			return true, errors.Wrap(err, "failed to create physical plan")
 		}

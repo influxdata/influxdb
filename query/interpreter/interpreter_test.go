@@ -14,13 +14,18 @@ import (
 	"github.com/influxdata/platform/query/values"
 )
 
-var testScope = interpreter.NewScope()
+var testScope = make(map[string]values.Value)
+var optionScope = make(map[string]values.Value)
 var testDeclarations = make(semantic.DeclarationScope)
 var optionsObject = values.NewObject()
 
 func addFunc(f *function) {
-	testScope.Set(f.name, f)
+	testScope[f.name] = f
 	testDeclarations[f.name] = semantic.NewExternalVariableDeclaration(f.name, f.t)
+}
+
+func addOption(name string, opt values.Value) {
+	optionScope[name] = opt
 }
 
 func init() {
@@ -90,8 +95,11 @@ func init() {
 		},
 		hasSideEffect: true,
 	})
+
 	optionsObject.Set("name", values.NewStringValue("foo"))
 	optionsObject.Set("repeat", values.NewIntValue(100))
+
+	addOption("task", optionsObject)
 }
 
 // TestEval tests whether a program can run to completion or not
@@ -337,14 +345,17 @@ func TestEval(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			values, err := interpreter.Eval(graph, testScope.Nest())
+			// Create new interpreter scope for each test case
+			itrp := interpreter.NewInterpreter(optionScope, testScope)
+
+			err = itrp.Eval(graph)
 			if !tc.wantErr && err != nil {
 				t.Fatal(err)
 			} else if tc.wantErr && err == nil {
 				t.Fatal("expected error")
 			}
-			if tc.want != nil && !cmp.Equal(tc.want, values, semantictest.CmpOptions...) {
-				t.Fatalf("unexpected side effect values -want/+got: \n%s", cmp.Diff(tc.want, values, semantictest.CmpOptions...))
+			if tc.want != nil && !cmp.Equal(tc.want, itrp.SideEffects(), semantictest.CmpOptions...) {
+				t.Fatalf("unexpected side effect values -want/+got: \n%s", cmp.Diff(tc.want, itrp.SideEffects(), semantictest.CmpOptions...))
 			}
 		})
 	}
@@ -352,7 +363,6 @@ func TestEval(t *testing.T) {
 }
 func TestResolver(t *testing.T) {
 	var got semantic.Expression
-	scope := interpreter.NewScope()
 	declarations := make(semantic.DeclarationScope)
 	f := &function{
 		name: "resolver",
@@ -382,7 +392,7 @@ func TestResolver(t *testing.T) {
 		},
 		hasSideEffect: false,
 	}
-	scope.Set(f.name, f)
+	testScope[f.name] = f
 	declarations[f.name] = semantic.NewExternalVariableDeclaration(f.name, f.t)
 
 	program, err := parser.NewAST(`
@@ -398,7 +408,9 @@ func TestResolver(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := interpreter.Eval(graph, scope); err != nil {
+	itrp := interpreter.NewInterpreter(optionScope, testScope)
+
+	if err := itrp.Eval(graph); err != nil {
 		t.Fatal(err)
 	}
 
@@ -425,42 +437,42 @@ type function struct {
 	hasSideEffect bool
 }
 
-func (f function) Type() semantic.Type {
+func (f *function) Type() semantic.Type {
 	return f.t
 }
 
-func (f function) Str() string {
+func (f *function) Str() string {
 	panic(values.UnexpectedKind(semantic.Object, semantic.String))
 }
-func (f function) Int() int64 {
+func (f *function) Int() int64 {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Int))
 }
-func (f function) UInt() uint64 {
+func (f *function) UInt() uint64 {
 	panic(values.UnexpectedKind(semantic.Object, semantic.UInt))
 }
-func (f function) Float() float64 {
+func (f *function) Float() float64 {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Float))
 }
-func (f function) Bool() bool {
+func (f *function) Bool() bool {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Bool))
 }
-func (f function) Time() values.Time {
+func (f *function) Time() values.Time {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Time))
 }
-func (f function) Duration() values.Duration {
+func (f *function) Duration() values.Duration {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Duration))
 }
-func (f function) Regexp() *regexp.Regexp {
+func (f *function) Regexp() *regexp.Regexp {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Regexp))
 }
-func (f function) Array() values.Array {
+func (f *function) Array() values.Array {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Function))
 }
-func (f function) Object() values.Object {
+func (f *function) Object() values.Object {
 	panic(values.UnexpectedKind(semantic.Object, semantic.Object))
 }
-func (f function) Function() values.Function {
-	return &f
+func (f *function) Function() values.Function {
+	return f
 }
 func (f *function) Equal(rhs values.Value) bool {
 	if f.Type() != rhs.Type() {
@@ -469,10 +481,10 @@ func (f *function) Equal(rhs values.Value) bool {
 	v, ok := rhs.(*function)
 	return ok && (f == v)
 }
-func (f function) HasSideEffect() bool {
+func (f *function) HasSideEffect() bool {
 	return f.hasSideEffect
 }
 
-func (f function) Call(args values.Object) (values.Value, error) {
+func (f *function) Call(args values.Object) (values.Value, error) {
 	return f.call(args)
 }

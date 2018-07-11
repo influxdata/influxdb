@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/platform/query/complete"
 	_ "github.com/influxdata/platform/query/functions" // Import the built-in functions
 	"github.com/influxdata/platform/query/interpreter"
+	_ "github.com/influxdata/platform/query/options" // Import the built-in options
 )
 
 func init() {

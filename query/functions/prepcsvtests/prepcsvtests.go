@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
@@ -69,7 +70,7 @@ func main() {
 		}
 
 		qs := querytest.GetQueryServiceBridge()
-		qspec, err := query.Compile(context.Background(), string(querytext))
+		qspec, err := query.Compile(context.Background(), string(querytext), time.Now().UTC())
 		if err != nil {
 			fmt.Printf("error compiling. \n query: \n %s \n err: %s", string(querytext), err)
 			return

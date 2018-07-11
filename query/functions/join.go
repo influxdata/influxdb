@@ -127,7 +127,7 @@ func createJoinOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 				return
 			}
 			p := t.(*query.TableObject)
-			joinParams.add(k /*parameter*/, p /*argument*/)
+			joinParams.add(k, p)
 			spec.tableNames[p] = k
 		})
 		if err != nil {

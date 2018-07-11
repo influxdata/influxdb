@@ -19,6 +19,7 @@ const (
 	TableParameter  = "table"
 	tableKindKey    = "kind"
 	tableParentsKey = "parents"
+	nowOption       = "now"
 	//tableSpecKey    = "spec"
 )
 
@@ -35,7 +36,8 @@ type options struct {
 }
 
 // Compile evaluates a Flux script producing a query Spec.
-func Compile(ctx context.Context, q string, opts ...Option) (*Spec, error) {
+// now parameter must be non-zero, that is the default now time should be set before compiling.
+func Compile(ctx context.Context, q string, now time.Time, opts ...Option) (*Spec, error) {
 	o := new(options)
 	for _, opt := range opts {
 		opt(o)
@@ -49,8 +51,10 @@ func Compile(ctx context.Context, q string, opts ...Option) (*Spec, error) {
 	s, _ = opentracing.StartSpanFromContext(ctx, "compile")
 	defer s.Finish()
 
-	scope, decls := builtIns()
-	interpScope := interpreter.NewScopeWithValues(scope)
+	itrp := NewInterpreter()
+	itrp.SetOption(nowOption, nowFunc(now))
+
+	_, decls := builtIns(itrp)
 
 	// Convert AST program to a semantic program
 	semProg, err := semantic.New(astProg, decls)
@@ -58,11 +62,10 @@ func Compile(ctx context.Context, q string, opts ...Option) (*Spec, error) {
 		return nil, err
 	}
 
-	operations, err := interpreter.Eval(semProg, interpScope)
-	if err != nil {
+	if err := itrp.Eval(semProg); err != nil {
 		return nil, err
 	}
-	spec := toSpec(operations)
+	spec := toSpec(itrp)
 
 	if o.verbose {
 		log.Println("Query Spec: ", Formatted(spec, FmtJSON))
@@ -70,7 +73,38 @@ func Compile(ctx context.Context, q string, opts ...Option) (*Spec, error) {
 	return spec, nil
 }
 
-func toSpec(stmtVals []values.Value) *Spec {
+// NewInterpreter returns an interpreter instance with
+// pre-constructed options and global scopes.
+func NewInterpreter() *interpreter.Interpreter {
+	options := make(map[string]values.Value, len(builtinOptions))
+	globals := make(map[string]values.Value, len(builtinScope))
+
+	for k, v := range builtinScope {
+		globals[k] = v
+	}
+
+	for k, v := range builtinOptions {
+		options[k] = v
+	}
+
+	return interpreter.NewInterpreter(options, globals)
+}
+
+func nowFunc(now time.Time) values.Function {
+	timeVal := values.NewTimeValue(values.ConvertTime(now))
+	ftype := semantic.NewFunctionType(semantic.FunctionSignature{
+		ReturnType: semantic.Time,
+	})
+	call := func(args values.Object) (values.Value, error) {
+		return timeVal, nil
+	}
+	sideEffect := false
+	return values.NewFunction(nowOption, ftype, call, sideEffect)
+}
+
+func toSpec(itrp *interpreter.Interpreter) *Spec {
+	operations := itrp.SideEffects()
+
 	ider := &ider{
 		id:     0,
 		lookup: make(map[*TableObject]OperationID),
@@ -78,9 +112,9 @@ func toSpec(stmtVals []values.Value) *Spec {
 
 	spec := new(Spec)
 	visited := make(map[*TableObject]bool)
-	nodes := make([]*TableObject, 0, len(stmtVals))
+	nodes := make([]*TableObject, 0, len(operations))
 
-	for _, val := range stmtVals {
+	for _, val := range operations {
 		if op, ok := val.(*TableObject); ok {
 			dup := false
 			for _, node := range nodes {
@@ -95,12 +129,23 @@ func toSpec(stmtVals []values.Value) *Spec {
 			}
 		}
 	}
+
+	// now option is Time value
+	nowValue, _ := itrp.Option(nowOption).Function().Call(nil)
+	spec.Now = nowValue.Time().Time()
+
 	return spec
 }
 
 type CreateOperationSpec func(args Arguments, a *Administration) (OperationSpec, error)
 
 var builtinScope = make(map[string]values.Value)
+
+// TODO(Josh): Default option values should be registered similarly to built-in
+// functions. Default options should be registered in their own files
+// (or in a single file) using the RegisterBuiltInOption function which will
+// place the resolved option value in the following map.
+var builtinOptions = make(map[string]values.Value)
 var builtinDeclarations = make(semantic.DeclarationScope)
 
 // list of builtin scripts
@@ -148,6 +193,17 @@ func RegisterBuiltInValue(name string, v values.Value) {
 	}
 	builtinDeclarations[name] = semantic.NewExternalVariableDeclaration(name, v.Type())
 	builtinScope[name] = v
+}
+
+// RegisterBuiltInOption adds the value to the builtin scope.
+func RegisterBuiltInOption(name string, v values.Value) {
+	if finalized {
+		panic(errors.New("already finalized, cannot register builtin option"))
+	}
+	if _, ok := builtinOptions[name]; ok {
+		panic(fmt.Errorf("duplicate registration for builtin option %q", name))
+	}
+	builtinOptions[name] = v
 }
 
 // FinalizeBuiltIns must be called to complete registration.
@@ -373,16 +429,12 @@ func BuiltIns() (map[string]values.Value, semantic.DeclarationScope) {
 	if !finalized {
 		panic("builtins not finalized")
 	}
-	return builtIns()
+	return builtIns(NewInterpreter())
 }
 
-func builtIns() (map[string]values.Value, semantic.DeclarationScope) {
+func builtIns(itrp *interpreter.Interpreter) (map[string]values.Value, semantic.DeclarationScope) {
 	decls := builtinDeclarations.Copy()
-	scope := make(map[string]values.Value, len(builtinScope))
-	for k, v := range builtinScope {
-		scope[k] = v
-	}
-	interpScope := interpreter.NewScopeWithValues(scope)
+
 	for name, script := range builtins {
 		astProg, err := parser.NewAST(script)
 		if err != nil {
@@ -393,11 +445,11 @@ func builtIns() (map[string]values.Value, semantic.DeclarationScope) {
 			panic(errors.Wrapf(err, "failed to create semantic graph for builtin %q", name))
 		}
 
-		if _, err := interpreter.Eval(semProg, interpScope); err != nil {
+		if err := itrp.Eval(semProg); err != nil {
 			panic(errors.Wrapf(err, "failed to evaluate builtin %q", name))
 		}
 	}
-	return scope, decls
+	return itrp.GlobalScope().Values(), decls
 }
 
 type Administration struct {

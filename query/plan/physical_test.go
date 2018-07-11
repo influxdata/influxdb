@@ -1050,12 +1050,14 @@ func TestPhysicalPlanner_Plan_PushDown_Mixed(t *testing.T) {
 
 func PhysicalPlanTestHelper(t *testing.T, lp *plan.LogicalPlanSpec, want *plan.PlanSpec) {
 	t.Helper()
+
 	// Setup expected now time
 	now := time.Now()
+	lp.Now = now
 	want.Now = now
 
 	planner := plan.NewPlanner()
-	got, err := planner.Plan(lp, nil, now)
+	got, err := planner.Plan(lp, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1076,10 +1078,11 @@ func BenchmarkPhysicalPlan(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	planner := plan.NewPlanner()
 	now := time.Date(2017, 8, 8, 0, 0, 0, 0, time.UTC)
+	lp.Now = now
+	planner := plan.NewPlanner()
 	for n := 0; n < b.N; n++ {
-		benchmarkPhysicalPlan, err = planner.Plan(lp, nil, now)
+		benchmarkPhysicalPlan, err = planner.Plan(lp, nil)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1097,7 +1100,8 @@ func BenchmarkQueryToPhysicalPlan(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		benchmarkQueryToPhysicalPlan, err = pp.Plan(lp, nil, now)
+		lp.Now = now
+		benchmarkQueryToPhysicalPlan, err = pp.Plan(lp, nil)
 		if err != nil {
 			b.Fatal(err)
 		}

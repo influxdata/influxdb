@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/plan"
 	"github.com/influxdata/platform/query/plan/plantest"
 )
@@ -171,6 +171,10 @@ func TestLogicalPlanner_Plan(t *testing.T) {
 	for i, tc := range testCases {
 		tc := tc
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			// Set Now time on query spec
+			tc.q.Now = time.Now().UTC()
+			tc.ap.Now = tc.q.Now
+
 			planner := plan.NewLogicalPlanner()
 			got, err := planner.Plan(tc.q)
 			if err != nil {

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
@@ -83,7 +84,7 @@ func queryTester(t *testing.T, qs query.QueryService, prefix, queryExt string) e
 		t.Fatal(err)
 	}
 
-	spec, err := query.Compile(context.Background(), q)
+	spec, err := query.Compile(context.Background(), q, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("failed to compile: %v", err)
 	}
