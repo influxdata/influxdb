@@ -174,10 +174,13 @@ class DragAndDrop extends PureComponent<Props, State> {
     const reader = new FileReader()
     reader.readAsText(file)
     reader.onload = loadEvent => {
-      this.setState({
-        uploadContent: loadEvent.target.result,
-        fileName: file.name,
-      })
+      this.setState(
+        {
+          uploadContent: loadEvent.target.result,
+          fileName: file.name,
+        },
+        this.handleSubmit
+      )
     }
   }
 
