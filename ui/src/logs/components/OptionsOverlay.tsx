@@ -26,7 +26,7 @@ interface Props {
 }
 
 interface State {
-  workingSeverityLevels: SeverityLevelColor[]
+  workingLevelColumns: SeverityLevelColor[]
   workingColumns: LogsTableColumn[]
   workingFormat: SeverityFormat
 }
@@ -37,14 +37,33 @@ class OptionsOverlay extends Component<Props, State> {
     super(props)
 
     this.state = {
-      workingSeverityLevels: this.props.severityLevelColors,
+      workingLevelColumns: this.props.severityLevelColors,
       workingColumns: this.props.columns,
       workingFormat: this.props.severityFormat,
     }
   }
 
+  public shouldComponentUpdate(__, nextState: State) {
+    const isColorsDifferent = !_.isEqual(
+      nextState.workingLevelColumns,
+      this.state.workingLevelColumns
+    )
+    const isFormatDifferent = !_.isEqual(
+      nextState.workingFormat,
+      this.state.workingFormat
+    )
+    const isColumnsDifferent = !_.isEqual(
+      nextState.workingColumns,
+      this.state.workingColumns
+    )
+    if (isColorsDifferent || isFormatDifferent || isColumnsDifferent) {
+      return true
+    }
+    return false
+  }
+
   public render() {
-    const {workingSeverityLevels, workingColumns, workingFormat} = this.state
+    const {workingLevelColumns, workingColumns, workingFormat} = this.state
 
     return (
       <Container maxWidth={800}>
@@ -55,7 +74,7 @@ class OptionsOverlay extends Component<Props, State> {
           <div className="row">
             <div className="col-sm-5">
               <SeverityOptions
-                severityLevelColors={workingSeverityLevels}
+                severityLevelColors={workingLevelColumns}
                 onReset={this.handleResetSeverityLevels}
                 onChangeSeverityLevel={this.handleChangeSeverityLevel}
                 severityFormat={workingFormat}
@@ -95,13 +114,10 @@ class OptionsOverlay extends Component<Props, State> {
   }
 
   private get isSaveDisabled(): boolean {
-    const {workingSeverityLevels, workingColumns, workingFormat} = this.state
+    const {workingLevelColumns, workingColumns, workingFormat} = this.state
     const {severityLevelColors, columns, severityFormat} = this.props
 
-    const severityChanged = !_.isEqual(
-      workingSeverityLevels,
-      severityLevelColors
-    )
+    const severityChanged = !_.isEqual(workingLevelColumns, severityLevelColors)
     const columnsChanged = !_.isEqual(workingColumns, columns)
     const formatChanged = !_.isEqual(workingFormat, severityFormat)
 
@@ -119,10 +135,10 @@ class OptionsOverlay extends Component<Props, State> {
       onUpdateSeverityFormat,
       onUpdateColumns,
     } = this.props
-    const {workingSeverityLevels, workingFormat, workingColumns} = this.state
+    const {workingLevelColumns, workingFormat, workingColumns} = this.state
 
     await onUpdateSeverityFormat(workingFormat)
-    await onUpdateSeverityLevels(workingSeverityLevels)
+    await onUpdateSeverityLevels(workingLevelColumns)
     await onUpdateColumns(workingColumns)
     onDismissOverlay()
   }
@@ -131,24 +147,22 @@ class OptionsOverlay extends Component<Props, State> {
     const defaults = _.map(DEFAULT_SEVERITY_LEVELS, (color, level) => {
       return {level: SeverityLevelOptions[level], color}
     })
-    this.setState({workingSeverityLevels: defaults})
+    this.setState({workingLevelColumns: defaults})
   }
 
   private handleChangeSeverityLevel = (
     severityLevel: string,
     override: SeverityColor
   ): void => {
-    const workingSeverityLevels = this.state.workingSeverityLevels.map(
-      config => {
-        if (config.level === severityLevel) {
-          return {...config, color: override.name}
-        }
-
-        return config
+    const workingLevelColumns = this.state.workingLevelColumns.map(config => {
+      if (config.level === severityLevel) {
+        return {...config, color: override.name}
       }
-    )
 
-    this.setState({workingSeverityLevels})
+      return config
+    })
+
+    this.setState({workingLevelColumns})
   }
 
   private handleChangeSeverityFormat = (format: SeverityFormat) => {
