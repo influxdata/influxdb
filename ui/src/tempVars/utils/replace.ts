@@ -1,4 +1,9 @@
-import {Template, TemplateValueType, TemplateValue} from 'src/types/tempVars'
+import {
+  Template,
+  TemplateType,
+  TemplateValueType,
+  TemplateValue,
+} from 'src/types/tempVars'
 import {
   TEMP_VAR_INTERVAL,
   DEFAULT_PIXELS,
@@ -28,12 +33,30 @@ export const replaceInterval = (
   return replaceAll(query, TEMP_VAR_INTERVAL, `${msPerPixel}ms`)
 }
 
-const templateReplace = (query: string, tempVars: Template[]) => {
-  const replacedQuery = tempVars.reduce((acc, template) => {
-    return renderTemplate(acc, template)
-  }, query)
+const TEMPLATES_SORTING_ORDER = {
+  [TemplateType.CSV]: 0,
+  [TemplateType.Map]: 0,
+  [TemplateType.AutoGroupBy]: 1,
+  [TemplateType.Constant]: 1,
+  [TemplateType.FieldKeys]: 1,
+  [TemplateType.Measurements]: 1,
+  [TemplateType.TagKeys]: 1,
+  [TemplateType.TagValues]: 1,
+  [TemplateType.Databases]: 1,
+  [TemplateType.MetaQuery]: 1,
+}
 
-  return replacedQuery
+const sortTemplates = (a: Template, b: Template): number => {
+  return TEMPLATES_SORTING_ORDER[a.type] - TEMPLATES_SORTING_ORDER[b.type]
+}
+
+const templateReplace = (query: string, tempVars: Template[]) => {
+  const sortedTempVars = [...tempVars].sort(sortTemplates)
+
+  return sortedTempVars.reduce(
+    (acc, template) => renderTemplate(acc, template),
+    query
+  )
 }
 
 const renderTemplate = (query: string, template: Template): string => {

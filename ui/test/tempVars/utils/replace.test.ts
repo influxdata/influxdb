@@ -1,5 +1,5 @@
 import templateReplace, {replaceInterval} from 'src/tempVars/utils/replace'
-import {TemplateValueType} from 'src/types/tempVars'
+import {TemplateType, TemplateValueType} from 'src/types/tempVars'
 import {emptyTemplate} from 'test/resources'
 
 describe('templates.utils.replace', () => {
@@ -316,6 +316,106 @@ describe('templates.utils.replace', () => {
 
         expect(actual).toBe(expected)
       })
+    })
+  })
+
+  describe('with order-dependent template variables', () => {
+    it('can render a query with a nested CSV query', () => {
+      const templates = [
+        {
+          id: '95281aaa-4330-4f07-a22a-b16bebbcfc6b',
+          tempVar: ':filterByHost:',
+          type: TemplateType.CSV,
+          label: '',
+          query: {},
+          values: [
+            {
+              value: "AND host = ':host:'",
+              type: TemplateValueType.CSV,
+              selected: true,
+              localSelected: true,
+            },
+          ],
+        },
+        {
+          id: 'b865afa5-f54c-49a8-adfa-9435450bac3a',
+          tempVar: ':host:',
+          type: TemplateType.MetaQuery,
+          label: '',
+          query: {
+            influxql:
+              'SHOW TAG VALUES ON "telegraf" FROM "cpu" WITH KEY = "host"',
+          },
+          values: [
+            {
+              type: TemplateValueType.MetaQuery,
+              value: 'myhost.local',
+              selected: true,
+              localSelected: true,
+            },
+          ],
+        },
+      ]
+      const query = `SELECT mean("usage_user") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 30m :filterByHost: GROUP BY time(1s)`
+      const expected = `SELECT mean("usage_user") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 30m AND host = 'myhost.local' GROUP BY time(1s)`
+
+      expect(templateReplace(query, templates)).toEqual(expected)
+
+      // Should not be dependent on order
+      expect(templateReplace(query, templates.reverse())).toEqual(expected)
+    })
+
+    it('can render a query with a nested map query', () => {
+      const templates = [
+        {
+          id: '95281aaa-4330-4f07-a22a-b16bebbcfc6b',
+          tempVar: ':filterByHost:',
+          type: TemplateType.Map,
+          label: '',
+          query: {},
+          values: [
+            {
+              value: "AND host = ':host:'",
+              key: 'with host',
+              type: TemplateValueType.Map,
+              selected: false,
+              localSelected: true,
+            },
+            {
+              value: 'AND 1 = 1',
+              key: 'without host',
+              type: TemplateValueType.Map,
+              selected: true,
+              localSelected: false,
+            },
+          ],
+        },
+        {
+          id: 'b865afa5-f54c-49a8-adfa-9435450bac3a',
+          tempVar: ':host:',
+          type: TemplateType.MetaQuery,
+          label: '',
+          query: {
+            influxql:
+              'SHOW TAG VALUES ON "telegraf" FROM "cpu" WITH KEY = "host"',
+          },
+          values: [
+            {
+              type: TemplateValueType.MetaQuery,
+              value: 'myhost.local',
+              selected: true,
+              localSelected: true,
+            },
+          ],
+        },
+      ]
+      const query = `SELECT mean("usage_user") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 30m :filterByHost: GROUP BY time(1s)`
+      const expected = `SELECT mean("usage_user") FROM "telegraf"."autogen"."cpu" WHERE time > now() - 30m AND host = 'myhost.local' GROUP BY time(1s)`
+
+      expect(templateReplace(query, templates)).toEqual(expected)
+
+      // Should not be dependent on order
+      expect(templateReplace(query, templates.reverse())).toEqual(expected)
     })
   })
 })
