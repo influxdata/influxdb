@@ -377,19 +377,19 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
-  private handleUpdateSeverityLevels = async (
+  private handleUpdateSeverityLevels = (
     severityLevelColors: SeverityLevelColor[]
-  ) => {
+  ): void => {
     const {logConfig} = this.props
-    await this.props.updateConfig(this.logConfigLink, {
+    this.props.updateConfig(this.logConfigLink, {
       ...logConfig,
       severityLevelColors,
     })
   }
 
-  private handleUpdateSeverityFormat = async (format: SeverityFormat) => {
+  private handleUpdateSeverityFormat = (format: SeverityFormat): void => {
     const {logConfig} = this.props
-    await this.props.updateConfig(this.logConfigLink, {
+    this.props.updateConfig(this.logConfigLink, {
       ...logConfig,
       severityFormat: format,
     })
@@ -405,9 +405,9 @@ class LogsPage extends PureComponent<Props, State> {
     return severityFormat
   }
 
-  private handleUpdateColumns = async (tableColumns: LogsTableColumn[]) => {
+  private handleUpdateColumns = (tableColumns: LogsTableColumn[]): void => {
     const {logConfig} = this.props
-    await this.props.updateConfig(this.logConfigLink, {
+    this.props.updateConfig(this.logConfigLink, {
       ...logConfig,
       tableColumns,
     })
