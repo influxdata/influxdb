@@ -293,7 +293,8 @@ button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
   margin-top: 30px;
 }
 .form-group-wrapper {
-  display: inline-block;
+  display: inline-flex;
+  flex-wrap: wrap;
   width: calc(100% + 12px);
   margin-left: -6px;
   margin-right: -6px;
