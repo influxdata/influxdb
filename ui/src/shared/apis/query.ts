@@ -1,18 +1,25 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
-import {fetchTimeSeriesAsync} from 'src/shared/actions/timeSeries'
+import {
+  handleSuccess,
+  handleError,
+  handleLoading,
+} from 'src/shared/actions/timeSeries'
 import {analyzeQueries} from 'src/shared/apis'
 import {DEFAULT_DURATION_MS} from 'src/shared/constants'
 import replaceTemplates, {replaceInterval} from 'src/tempVars/utils/replace'
+import {proxy} from 'src/utils/queryUrlGenerator'
+import {noop} from 'src/shared/actions/app'
+
 import {Source} from 'src/types'
 
 import {Template} from 'src/types'
 
 interface Query {
   text: string
-  database: string
-  db: string
-  rp: string
+  database?: string
+  db?: string
+  rp?: string
   id: string
 }
 
@@ -21,7 +28,7 @@ export const fetchTimeSeries = async (
   queries: Query[],
   resolution: number,
   templates: Template[],
-  editQueryStatus: () => any
+  editQueryStatus: () => any = noop
 ) => {
   const timeSeriesPromises = queries.map(async query => {
     const {database, rp} = query
@@ -30,16 +37,21 @@ export const fetchTimeSeries = async (
     try {
       const text = await replace(query.text, source, templates, resolution)
 
+      handleLoading({...query, text}, editQueryStatus)
+
       const payload = {
         source: source.links.proxy,
         db,
         rp,
-        query: {...query, text},
+        query: text,
       }
 
-      return fetchTimeSeriesAsync(payload, editQueryStatus)
+      const {data} = await proxy(payload)
+
+      return handleSuccess(data, query, editQueryStatus)
     } catch (error) {
       console.error(error)
+      handleError(error, query, editQueryStatus)
       throw error
     }
   })
