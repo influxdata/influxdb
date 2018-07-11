@@ -12,6 +12,7 @@ import (
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/kit/prom"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/control"
@@ -20,6 +21,7 @@ import (
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -83,6 +85,10 @@ func fluxF(cmd *cobra.Command, args []string) {
 	// Create top level logger
 	logger = influxlogger.New(os.Stdout)
 
+	reg := prom.NewRegistry()
+	reg.MustRegister(prometheus.NewGoCollector())
+	reg.WithLogger(logger)
+
 	config := control.Config{
 		ExecutorDependencies: make(execute.Dependencies),
 		ConcurrencyQuota:     concurrencyQuota,
@@ -94,6 +100,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 	c := control.New(config)
+	reg.MustRegister(c.PrometheusCollectors()...)
 
 	orgName, err := getStrList("ORGANIZATION_NAME")
 	if err != nil {
@@ -110,6 +117,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 
 	handler := http.NewHandler("query")
 	handler.Handler = queryHandler
+	handler.MetricsHandler = reg.HTTPHandler()
 
 	logger.Info("listening", zap.String("transport", "http"), zap.String("addr", bindAddr))
 	if err := nethttp.ListenAndServe(bindAddr, handler); err != nil {

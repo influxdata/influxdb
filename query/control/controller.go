@@ -26,6 +26,8 @@ type Controller struct {
 	queryDone     chan *Query
 	cancelRequest chan QueryID
 
+	metrics *controllerMetrics
+
 	verbose bool
 
 	lplanner plan.LogicalPlanner
@@ -58,6 +60,7 @@ func New(c Config) *Controller {
 		lplanner:             plan.NewLogicalPlanner(),
 		pplanner:             plan.NewPlanner(),
 		executor:             execute.NewExecutor(c.ExecutorDependencies),
+		metrics:              newControllerMetrics(),
 		verbose:              c.Verbose,
 	}
 	go ctrl.run()
@@ -266,6 +269,11 @@ func (c *Controller) free(q *Query) {
 	}
 }
 
+// PrometheusCollectors satisifies the prom.PrometheusCollector interface.
+func (c *Controller) PrometheusCollectors() []prometheus.Collector {
+	return c.metrics.PrometheusCollectors()
+}
+
 // Query represents a single request.
 type Query struct {
 	id QueryID
@@ -436,8 +444,8 @@ func (q *Query) tryCompile() bool {
 		q.compileSpan, q.compilingCtx = StartSpanFromContext(
 			q.parentCtx,
 			"compiling",
-			compilingHist.WithLabelValues(q.labelValues...),
-			compilingGauge.WithLabelValues(q.labelValues...),
+			q.c.metrics.compilingDur.WithLabelValues(q.labelValues...),
+			q.c.metrics.compiling.WithLabelValues(q.labelValues...),
 		)
 
 		q.state = Compiling
@@ -457,8 +465,8 @@ func (q *Query) tryQueue() bool {
 		q.queueSpan, q.queueCtx = StartSpanFromContext(
 			q.parentCtx,
 			"queueing",
-			queueingHist.WithLabelValues(q.labelValues...),
-			queueingGauge.WithLabelValues(q.labelValues...),
+			q.c.metrics.queueingDur.WithLabelValues(q.labelValues...),
+			q.c.metrics.queueing.WithLabelValues(q.labelValues...),
 		)
 
 		q.state = Queueing
@@ -477,8 +485,8 @@ func (q *Query) tryRequeue() bool {
 		q.requeueSpan, q.requeueCtx = StartSpanFromContext(
 			q.parentCtx,
 			"requeueing",
-			requeueingHist.WithLabelValues(q.labelValues...),
-			requeueingGauge.WithLabelValues(q.labelValues...),
+			q.c.metrics.requeueingDur.WithLabelValues(q.labelValues...),
+			q.c.metrics.requeueing.WithLabelValues(q.labelValues...),
 		)
 
 		q.state = Requeueing
@@ -497,8 +505,8 @@ func (q *Query) tryPlan() bool {
 		q.planSpan, q.planCtx = StartSpanFromContext(
 			q.parentCtx,
 			"planning",
-			planningHist.WithLabelValues(q.labelValues...),
-			planningGauge.WithLabelValues(q.labelValues...),
+			q.c.metrics.planningDur.WithLabelValues(q.labelValues...),
+			q.c.metrics.planning.WithLabelValues(q.labelValues...),
 		)
 
 		q.state = Planning
@@ -522,8 +530,8 @@ func (q *Query) tryExec() bool {
 		q.executeSpan, q.executeCtx = StartSpanFromContext(
 			q.parentCtx,
 			"executing",
-			executingHist.WithLabelValues(q.labelValues...),
-			executingGauge.WithLabelValues(q.labelValues...),
+			q.c.metrics.executingDur.WithLabelValues(q.labelValues...),
+			q.c.metrics.executing.WithLabelValues(q.labelValues...),
 		)
 
 		q.state = Executing
