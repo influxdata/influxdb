@@ -16,7 +16,11 @@ export const hydrateTemplate = async (
     return template
   }
 
-  const query = templateReplace(makeQueryForTemplate(template.query), templates)
+  const query = templateReplace(
+    makeQueryForTemplate(template.query),
+    templates.filter(t => !isTemplateNested(t))
+  )
+
   const response = await proxy({source: proxyLink, query})
   const values = parseMetaQuery(query, response.data)
   const type = TEMPLATE_VARIABLE_TYPES[template.type]

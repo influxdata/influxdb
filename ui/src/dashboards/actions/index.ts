@@ -733,10 +733,12 @@ export const rehydrateNestedTemplatesAsync = (
   const dashboard = getDashboard(getState(), dashboardId)
   const proxyLink = source.links.proxy
   const templateSelections = templateSelectionsFromQueryParams()
-  const nestedTemplates = await Promise.all(
-    dashboard.templates
-      .filter(t => isTemplateNested(t))
-      .map(t => hydrateTemplate(proxyLink, t, dashboard.templates))
+
+  const nestedTemplates = await hydrateTemplates(
+    dashboard.templates.filter(isTemplateNested),
+    dashboard.templates,
+    proxyLink,
+    dispatch
   )
 
   applyLocalSelections(nestedTemplates, templateSelections)
