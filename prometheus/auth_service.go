@@ -38,11 +38,6 @@ func NewAuthorizationService() *AuthorizationService {
 		}, []string{"method", "error"}),
 	}
 
-	prometheus.MustRegister(
-		s.requestCount,
-		s.requestDuration,
-	)
-
 	return s
 }
 
@@ -50,7 +45,7 @@ func NewAuthorizationService() *AuthorizationService {
 func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
 	defer func(start time.Time) {
 		labels := prometheus.Labels{
-			"method": "FindAuthorizationsByID",
+			"method": "FindAuthorizationByID",
 			"error":  fmt.Sprint(err != nil),
 		}
 		s.requestCount.With(labels).Add(1)
@@ -63,7 +58,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, t string) (a *platform.Authorization, err error) {
 	defer func(start time.Time) {
 		labels := prometheus.Labels{
-			"method": "FindAuthorizationsByToken",
+			"method": "FindAuthorizationByToken",
 			"error":  fmt.Sprint(err != nil),
 		}
 		s.requestCount.With(labels).Add(1)
@@ -112,4 +107,11 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	}(time.Now())
 
 	return s.AuthorizationService.DeleteAuthorization(ctx, id)
+}
+
+func (s *AuthorizationService) PrometheusCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		s.requestCount,
+		s.requestDuration,
+	}
 }
