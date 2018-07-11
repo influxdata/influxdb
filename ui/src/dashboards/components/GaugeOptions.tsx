@@ -1,31 +1,124 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
 import uuid from 'uuid'
 
-import FancyScrollbar from 'shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import Threshold from 'src/dashboards/components/Threshold'
+import GraphOptionsDecimalPlaces from 'src/dashboards/components/GraphOptionsDecimalPlaces'
 
 import {
   COLOR_TYPE_THRESHOLD,
   THRESHOLD_COLORS,
   MAX_THRESHOLDS,
   MIN_THRESHOLDS,
-} from 'shared/constants/thresholds'
+} from 'src/shared/constants/thresholds'
 
 import {
+  changeDecimalPlaces,
   updateGaugeColors,
   updateAxes,
 } from 'src/dashboards/actions/cellEditorOverlay'
-import {colorsNumberSchema} from 'shared/schemas'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {Axes} from 'src/types'
+import {DecimalPlaces} from 'src/types/dashboards'
+import {ColorNumber} from 'src/types/colors'
+
+interface Props {
+  axes: Axes
+  gaugeColors: ColorNumber[]
+  decimalPlaces: DecimalPlaces
+  onResetFocus: () => void
+  handleUpdateAxes: (a: Axes) => void
+  onUpdateDecimalPlaces: (d: DecimalPlaces) => void
+  handleUpdateGaugeColors: (d: ColorNumber[]) => void
+}
 
 @ErrorHandling
-class GaugeOptions extends Component {
-  handleAddThreshold = () => {
+class GaugeOptions extends PureComponent<Props> {
+  public render() {
+    const {gaugeColors, axes, decimalPlaces} = this.props
+    const {y} = axes
+
+    return (
+      <FancyScrollbar
+        className="display-options--cell y-axis-controls"
+        autoHide={false}
+      >
+        <div className="display-options--cell-wrapper">
+          <h5 className="display-options--header">Gauge Controls</h5>
+          <div className="thresholds-list">
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={this.handleAddThreshold}
+              disabled={this.disableAddThreshold}
+            >
+              <span className="icon plus" /> Add Threshold
+            </button>
+            {this.sortedGaugeColors.map((color, index) => (
+              <Threshold
+                isMin={index === 0}
+                isMax={index === gaugeColors.length - 1}
+                visualizationType="gauge"
+                threshold={color}
+                key={uuid.v4()}
+                disableMaxColor={this.disableMaxColor}
+                onChooseColor={this.handleChooseColor}
+                onValidateColorValue={this.handleValidateColorValue}
+                onUpdateColorValue={this.handleUpdateColorValue}
+                onDeleteThreshold={this.handleDeleteThreshold}
+              />
+            ))}
+          </div>
+          <div className="graph-options-group form-group-wrapper">
+            <div className="form-group col-xs-6">
+              <label>Prefix</label>
+              <input
+                className="form-control input-sm"
+                placeholder="%, MPH, etc."
+                defaultValue={y.prefix}
+                onChange={this.handleUpdatePrefix}
+                maxLength={5}
+              />
+            </div>
+            <div className="form-group col-xs-6">
+              <label>Suffix</label>
+              <input
+                className="form-control input-sm"
+                placeholder="%, MPH, etc."
+                defaultValue={y.suffix}
+                onChange={this.handleUpdateSuffix}
+                maxLength={5}
+              />
+            </div>
+            <GraphOptionsDecimalPlaces
+              digits={decimalPlaces.digits}
+              isEnforced={decimalPlaces.isEnforced}
+              onDecimalPlacesChange={this.handleDecimalPlacesChange}
+            />
+          </div>
+        </div>
+      </FancyScrollbar>
+    )
+  }
+
+  private get disableMaxColor(): boolean {
+    const {gaugeColors} = this.props
+    return gaugeColors.length > MIN_THRESHOLDS
+  }
+
+  private get disableAddThreshold(): boolean {
+    const {gaugeColors} = this.props
+    return gaugeColors.length > MAX_THRESHOLDS
+  }
+
+  private handleDecimalPlacesChange = (decimalPlaces: DecimalPlaces) => {
+    const {onUpdateDecimalPlaces} = this.props
+    onUpdateDecimalPlaces(decimalPlaces)
+  }
+
+  private handleAddThreshold = () => {
     const {gaugeColors, handleUpdateGaugeColors, onResetFocus} = this.props
     const sortedColors = _.sortBy(gaugeColors, color => color.value)
 
@@ -50,7 +143,7 @@ class GaugeOptions extends Component {
         name: THRESHOLD_COLORS[randomColor].name,
       }
 
-      const updatedColors = _.sortBy(
+      const updatedColors: ColorNumber[] = _.sortBy<ColorNumber>(
         [...gaugeColors, newThreshold],
         color => color.value
       )
@@ -61,7 +154,7 @@ class GaugeOptions extends Component {
     }
   }
 
-  handleDeleteThreshold = threshold => {
+  private handleDeleteThreshold = threshold => {
     const {handleUpdateGaugeColors, onResetFocus} = this.props
     const gaugeColors = this.props.gaugeColors.filter(
       color => color.id !== threshold.id
@@ -72,7 +165,7 @@ class GaugeOptions extends Component {
     onResetFocus()
   }
 
-  handleChooseColor = threshold => {
+  private handleChooseColor = threshold => {
     const {handleUpdateGaugeColors} = this.props
     const gaugeColors = this.props.gaugeColors.map(
       color =>
@@ -84,7 +177,7 @@ class GaugeOptions extends Component {
     handleUpdateGaugeColors(gaugeColors)
   }
 
-  handleUpdateColorValue = (threshold, value) => {
+  private handleUpdateColorValue = (threshold, value) => {
     const {handleUpdateGaugeColors} = this.props
     const gaugeColors = this.props.gaugeColors.map(
       color => (color.id === threshold.id ? {...color, value} : color)
@@ -93,7 +186,7 @@ class GaugeOptions extends Component {
     handleUpdateGaugeColors(gaugeColors)
   }
 
-  handleValidateColorValue = (threshold, targetValue) => {
+  private handleValidateColorValue = (threshold, targetValue) => {
     const {gaugeColors} = this.props
 
     const thresholdValue = threshold.value
@@ -134,14 +227,14 @@ class GaugeOptions extends Component {
     return allowedToUpdate
   }
 
-  handleUpdatePrefix = e => {
+  private handleUpdatePrefix = e => {
     const {handleUpdateAxes, axes} = this.props
     const newAxes = {...axes, y: {...axes.y, prefix: e.target.value}}
 
     handleUpdateAxes(newAxes)
   }
 
-  handleUpdateSuffix = e => {
+  private handleUpdateSuffix = e => {
     const {handleUpdateAxes, axes} = this.props
     const newAxes = {...axes, y: {...axes.y, suffix: e.target.value}}
 
@@ -154,98 +247,23 @@ class GaugeOptions extends Component {
 
     return sortedColors
   }
-
-  render() {
-    const {
-      gaugeColors,
-      axes: {
-        y: {prefix, suffix},
-      },
-    } = this.props
-
-    const disableMaxColor = gaugeColors.length > MIN_THRESHOLDS
-    const disableAddThreshold = gaugeColors.length > MAX_THRESHOLDS
-
-    return (
-      <FancyScrollbar
-        className="display-options--cell y-axis-controls"
-        autoHide={false}
-      >
-        <div className="display-options--cell-wrapper">
-          <h5 className="display-options--header">Gauge Controls</h5>
-          <div className="thresholds-list">
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={this.handleAddThreshold}
-              disabled={disableAddThreshold}
-            >
-              <span className="icon plus" /> Add Threshold
-            </button>
-            {this.sortedGaugeColors.map((color, index) => (
-              <Threshold
-                isMin={index === 0}
-                isMax={index === gaugeColors.length - 1}
-                visualizationType="gauge"
-                threshold={color}
-                key={uuid.v4()}
-                disableMaxColor={disableMaxColor}
-                onChooseColor={this.handleChooseColor}
-                onValidateColorValue={this.handleValidateColorValue}
-                onUpdateColorValue={this.handleUpdateColorValue}
-                onDeleteThreshold={this.handleDeleteThreshold}
-              />
-            ))}
-          </div>
-          <div className="graph-options-group form-group-wrapper">
-            <div className="form-group col-xs-6">
-              <label>Prefix</label>
-              <input
-                className="form-control input-sm"
-                placeholder="%, MPH, etc."
-                defaultValue={prefix}
-                onChange={this.handleUpdatePrefix}
-                maxLength="5"
-              />
-            </div>
-            <div className="form-group col-xs-6">
-              <label>Suffix</label>
-              <input
-                className="form-control input-sm"
-                placeholder="%, MPH, etc."
-                defaultValue={suffix}
-                onChange={this.handleUpdateSuffix}
-                maxLength="5"
-              />
-            </div>
-          </div>
-        </div>
-      </FancyScrollbar>
-    )
-  }
-}
-
-const {func, shape} = PropTypes
-
-GaugeOptions.propTypes = {
-  gaugeColors: colorsNumberSchema,
-  handleUpdateGaugeColors: func.isRequired,
-  handleUpdateAxes: func.isRequired,
-  axes: shape({}).isRequired,
-  onResetFocus: func.isRequired,
 }
 
 const mapStateToProps = ({
   cellEditorOverlay: {
     gaugeColors,
-    cell: {axes},
+    cell: {axes, decimalPlaces},
   },
 }) => ({
+  decimalPlaces,
   gaugeColors,
   axes,
 })
 
-const mapDispatchToProps = dispatch => ({
-  handleUpdateGaugeColors: bindActionCreators(updateGaugeColors, dispatch),
-  handleUpdateAxes: bindActionCreators(updateAxes, dispatch),
-})
+const mapDispatchToProps = {
+  handleUpdateGaugeColors: updateGaugeColors,
+  handleUpdateAxes: updateAxes,
+  onUpdateDecimalPlaces: changeDecimalPlaces,
+}
+
 export default connect(mapStateToProps, mapDispatchToProps)(GaugeOptions)

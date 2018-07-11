@@ -26,6 +26,10 @@ const defaultProps = {
   cellID: '',
   prefix: '',
   suffix: '',
+  decimalPlaces: {
+    digits: 10,
+    isEnforced: false,
+  },
 }
 
 const setup = (overrides = {}) => {

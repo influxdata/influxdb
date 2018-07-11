@@ -83,20 +83,21 @@ const RefreshingGraph = ({
   if (type === 'gauge') {
     return (
       <RefreshingGaugeChart
-        source={source}
         type={type}
+        source={source}
+        cellID={cellID}
+        prefix={prefix}
+        suffix={suffix}
+        inView={inView}
         colors={colors}
         key={manualRefresh}
         queries={[queries[0]]}
         templates={templates}
         autoRefresh={autoRefresh}
         cellHeight={cellHeight}
+        decimalPlaces={decimalPlaces}
         resizerTopHeight={resizerTopHeight}
         editQueryStatus={editQueryStatus}
-        cellID={cellID}
-        prefix={prefix}
-        suffix={suffix}
-        inView={inView}
         onSetResolution={onSetResolution}
       />
     )
