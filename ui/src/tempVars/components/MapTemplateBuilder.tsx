@@ -117,9 +117,10 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     this.setState({templateValuesString: e.target.value})
   }
 
-  private constructValuesFromString(templateValuesString) {
+  private constructValuesFromString(templateValuesString: string) {
     const {notify} = this.props
-    const parsedTVS = Papa.parse(templateValuesString)
+    const trimmed = _.trimEnd(templateValuesString, '\n')
+    const parsedTVS = Papa.parse(trimmed)
     const templateValuesData = getDeep<string[][]>(parsedTVS, 'data', [[]])
 
     if (templateValuesData.length === 0) {
