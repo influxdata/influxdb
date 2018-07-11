@@ -19,16 +19,16 @@ interface State {
 }
 
 class TextTemplateSelector extends PureComponent<Props, State> {
-  constructor(props) {
-    super(props)
-
-    this.state = {text: ''}
-  }
-
   public static getDerivedStateFromProps(props) {
     const text = getDeep<string>(props, 'template.values.0.value', '')
 
     return {text}
+  }
+
+  constructor(props) {
+    super(props)
+
+    this.state = {text: ''}
   }
 
   public render() {

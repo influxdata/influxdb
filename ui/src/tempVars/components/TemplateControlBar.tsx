@@ -76,20 +76,24 @@ class TemplateControlBar extends Component<Props, State> {
       )
     }
 
-    return templates.map(template => (
-      <TemplateControl
-        key={template.id}
-        meRole={meRole}
-        isUsingAuth={isUsingAuth}
-        template={template}
-        templates={templates}
-        source={source}
-        onPickValue={v => onPickTemplate(template, v)}
-        onCreateTemplate={this.handleCreateTemplate}
-        onUpdateTemplate={this.handleUpdateTemplate}
-        onDeleteTemplate={this.handleDeleteTemplate}
-      />
-    ))
+    return templates.map(template => {
+      const onPickValue = v => onPickTemplate(template, v)
+
+      return (
+        <TemplateControl
+          key={template.id}
+          meRole={meRole}
+          isUsingAuth={isUsingAuth}
+          template={template}
+          templates={templates}
+          source={source}
+          onPickValue={onPickValue}
+          onCreateTemplate={this.handleCreateTemplate}
+          onUpdateTemplate={this.handleUpdateTemplate}
+          onDeleteTemplate={this.handleDeleteTemplate}
+        />
+      )
+    })
   }
 
   private handleAddVariable = (): void => {
