@@ -1,9 +1,6 @@
-import {proxy} from 'src/utils/queryUrlGenerator'
-import {noop} from 'src/shared/actions/app'
-
-import {errorThrown} from 'src/shared/actions/errors'
 import {TimeSeriesResponse, TimeSeriesSeries} from 'src/types/series'
 import {Status} from 'src/types'
+
 import {getDeep} from 'src/utils/wrappers'
 
 interface Query {
@@ -14,16 +11,9 @@ interface Query {
   rp?: string
 }
 
-interface Payload {
-  source: string
-  query: Query
-  db?: string
-  rp?: string
-}
-
 type EditQueryStatusFunction = (queryID: string, status: Status) => void
 
-const handleLoading = (
+export const handleLoading = (
   query: Query,
   editQueryStatus: EditQueryStatusFunction
 ): void =>
@@ -31,7 +21,7 @@ const handleLoading = (
     loading: true,
   })
 
-const handleSuccess = (
+export const handleSuccess = (
   data: TimeSeriesResponse,
   query: Query,
   editQueryStatus: EditQueryStatusFunction
@@ -62,7 +52,7 @@ const handleSuccess = (
   return data
 }
 
-const handleError = (
+export const handleError = (
   error,
   query: Query,
   editQueryStatus: EditQueryStatusFunction
@@ -75,23 +65,4 @@ const handleError = (
   editQueryStatus(query.id, {
     error: message,
   })
-}
-
-export const fetchTimeSeriesAsync = async (
-  {source, db, rp, query}: Payload,
-  editQueryStatus: EditQueryStatusFunction = noop
-): Promise<TimeSeriesResponse> => {
-  handleLoading(query, editQueryStatus)
-  try {
-    const {data} = await proxy({
-      source,
-      db,
-      rp,
-      query: query.text,
-    })
-    return handleSuccess(data, query, editQueryStatus)
-  } catch (error) {
-    errorThrown(error)
-    handleError(error, query, editQueryStatus)
-  }
 }

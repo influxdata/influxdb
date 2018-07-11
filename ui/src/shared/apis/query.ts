@@ -1,18 +1,25 @@
 import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
-import {fetchTimeSeriesAsync} from 'src/shared/actions/timeSeries'
+import {
+  handleSuccess,
+  handleError,
+  handleLoading,
+} from 'src/shared/actions/timeSeries'
 import {analyzeQueries} from 'src/shared/apis'
 import {DEFAULT_DURATION_MS} from 'src/shared/constants'
 import replaceTemplates, {replaceInterval} from 'src/tempVars/utils/replace'
+import {proxy} from 'src/utils/queryUrlGenerator'
+import {noop} from 'src/shared/actions/app'
+
 import {Source} from 'src/types'
 
 import {Template} from 'src/types'
 
 interface Query {
   text: string
-  database: string
-  db: string
-  rp: string
+  database?: string
+  db?: string
+  rp?: string
   id: string
 }
 
@@ -21,23 +28,12 @@ export const fetchTimeSeries = async (
   queries: Query[],
   resolution: number,
   templates: Template[],
-  editQueryStatus: () => any
+  editQueryStatus: () => any = noop
 ) => {
   const timeSeriesPromises = queries.map(async query => {
-    const {database, rp} = query
-    const db = _.get(query, 'db', database)
-
     try {
       const text = await replace(query.text, source, templates, resolution)
-
-      const payload = {
-        source: source.links.proxy,
-        db,
-        rp,
-        query: {...query, text},
-      }
-
-      return fetchTimeSeriesAsync(payload, editQueryStatus)
+      return handleQueryFetchStatus({...query, text}, source, editQueryStatus)
     } catch (error) {
       console.error(error)
       throw error
@@ -45,6 +41,34 @@ export const fetchTimeSeries = async (
   })
 
   return Promise.all(timeSeriesPromises)
+}
+
+const handleQueryFetchStatus = async (
+  query: Query,
+  source: Source,
+  editQueryStatus: () => any
+) => {
+  const {database, rp} = query
+  const db = _.get(query, 'db', database)
+
+  try {
+    handleLoading(query, editQueryStatus)
+
+    const payload = {
+      source: source.links.proxy,
+      db,
+      rp,
+      query: query.text,
+    }
+
+    const {data} = await proxy(payload)
+
+    return handleSuccess(data, query, editQueryStatus)
+  } catch (error) {
+    console.error(error)
+    handleError(error, query, editQueryStatus)
+    throw error
+  }
 }
 
 const replace = async (

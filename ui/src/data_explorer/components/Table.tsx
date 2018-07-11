@@ -2,13 +2,14 @@ import React, {PureComponent, CSSProperties} from 'react'
 
 import Dimensions from 'react-dimensions'
 import _ from 'lodash'
+import {getDeep} from 'src/utils/wrappers'
 
 import {Table, Column, Cell} from 'fixed-data-table-2'
 import Dropdown from 'src/shared/components/Dropdown'
 import CustomCell from 'src/data_explorer/components/CustomCell'
 import TabItem from 'src/data_explorer/components/TableTabItem'
 
-import {fetchTimeSeriesAsync} from 'src/shared/actions/timeSeries'
+import {fetchTimeSeries} from 'src/shared/apis/query'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   emptySeries,
@@ -20,7 +21,7 @@ import {
   defaultColumnWidth,
 } from 'src/data_explorer/constants/table'
 
-import {Source} from 'src/types'
+import {Source, Template} from 'src/types'
 
 interface DataExplorerTableQuery {
   text: string
@@ -40,6 +41,7 @@ interface ColumnWidths {
 interface Props {
   height: number
   query: DataExplorerTableQuery
+  templates: Template[]
   editQueryStatus: () => void
   containerHeight: number
   containerWidth: number
@@ -52,6 +54,8 @@ interface State {
   activeSeriesIndex: number
   isLoading: boolean
 }
+
+const NULL_RESOLUTION = null
 
 @ErrorHandling
 class ChronoTable extends PureComponent<Props, State> {
@@ -67,7 +71,7 @@ class ChronoTable extends PureComponent<Props, State> {
   }
 
   public componentDidMount() {
-    this.fetchCellData(this.props.query)
+    this.fetchCellData(this.props)
   }
 
   public componentWillReceiveProps(nextProps) {
@@ -75,7 +79,7 @@ class ChronoTable extends PureComponent<Props, State> {
       return
     }
 
-    this.fetchCellData(nextProps.query)
+    this.fetchCellData(nextProps)
   }
 
   public render() {
@@ -210,7 +214,12 @@ class ChronoTable extends PureComponent<Props, State> {
     return _.get(series, `${activeSeriesIndex}`, emptySeries)
   }
 
-  private fetchCellData = async (query: DataExplorerTableQuery) => {
+  private fetchCellData = async ({
+    source,
+    query,
+    templates,
+    editQueryStatus,
+  }: Props) => {
     if (!query || !query.text) {
       return
     }
@@ -220,10 +229,15 @@ class ChronoTable extends PureComponent<Props, State> {
     })
 
     try {
-      const {results} = await fetchTimeSeriesAsync({
-        source: this.props.source.links.proxy,
-        query,
-      })
+      const queriesResponse = await fetchTimeSeries(
+        source,
+        [query],
+        NULL_RESOLUTION,
+        templates,
+        editQueryStatus
+      )
+
+      const results = getDeep(queriesResponse, '0.results', [])
 
       this.setState({
         isLoading: false,

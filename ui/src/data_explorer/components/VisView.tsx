@@ -37,7 +37,12 @@ const DataExplorerVisView: SFC<Props> = ({
     }
 
     return (
-      <Table query={query} editQueryStatus={editQueryStatus} source={source} />
+      <Table
+        query={query}
+        editQueryStatus={editQueryStatus}
+        source={source}
+        templates={templates}
+      />
     )
   }
 
