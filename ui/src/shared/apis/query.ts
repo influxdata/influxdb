@@ -31,32 +31,44 @@ export const fetchTimeSeries = async (
   editQueryStatus: () => any = noop
 ) => {
   const timeSeriesPromises = queries.map(async query => {
-    const {database, rp} = query
-    const db = _.get(query, 'db', database)
-
     try {
       const text = await replace(query.text, source, templates, resolution)
-
-      handleLoading({...query, text}, editQueryStatus)
-
-      const payload = {
-        source: source.links.proxy,
-        db,
-        rp,
-        query: text,
-      }
-
-      const {data} = await proxy(payload)
-
-      return handleSuccess(data, query, editQueryStatus)
+      return handleQueryFetchStatus({...query, text}, source, editQueryStatus)
     } catch (error) {
       console.error(error)
-      handleError(error, query, editQueryStatus)
       throw error
     }
   })
 
   return Promise.all(timeSeriesPromises)
+}
+
+const handleQueryFetchStatus = async (
+  query: Query,
+  source: Source,
+  editQueryStatus: () => any
+) => {
+  const {database, rp} = query
+  const db = _.get(query, 'db', database)
+
+  try {
+    handleLoading(query, editQueryStatus)
+
+    const payload = {
+      source: source.links.proxy,
+      db,
+      rp,
+      query: query.text,
+    }
+
+    const {data} = await proxy(payload)
+
+    return handleSuccess(data, query, editQueryStatus)
+  } catch (error) {
+    console.error(error)
+    handleError(error, query, editQueryStatus)
+    throw error
+  }
 }
 
 const replace = async (
