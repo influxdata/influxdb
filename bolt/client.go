@@ -33,15 +33,16 @@ type Client struct {
 	Now       func() time.Time
 	LayoutIDs chronograf.ID
 
-	BuildStore         *BuildStore
-	SourcesStore       *SourcesStore
-	ServersStore       *ServersStore
-	LayoutsStore       *LayoutsStore
-	DashboardsStore    *DashboardsStore
-	UsersStore         *UsersStore
-	OrganizationsStore *OrganizationsStore
-	ConfigStore        *ConfigStore
-	MappingsStore      *MappingsStore
+	BuildStore              *BuildStore
+	SourcesStore            *SourcesStore
+	ServersStore            *ServersStore
+	LayoutsStore            *LayoutsStore
+	DashboardsStore         *DashboardsStore
+	UsersStore              *UsersStore
+	OrganizationsStore      *OrganizationsStore
+	ConfigStore             *ConfigStore
+	MappingsStore           *MappingsStore
+	OrganizationConfigStore *OrganizationConfigStore
 }
 
 // NewClient initializes all stores
@@ -62,6 +63,7 @@ func NewClient() *Client {
 	c.OrganizationsStore = &OrganizationsStore{client: c}
 	c.ConfigStore = &ConfigStore{client: c}
 	c.MappingsStore = &MappingsStore{client: c}
+	c.OrganizationConfigStore = &OrganizationConfigStore{client: c}
 	return c
 }
 
@@ -161,6 +163,10 @@ func (c *Client) initialize(ctx context.Context) error {
 		if _, err := tx.CreateBucketIfNotExists(MappingsBucket); err != nil {
 			return err
 		}
+		// Always create OrganizationConfig bucket.
+		if _, err := tx.CreateBucketIfNotExists(OrganizationConfigBucket); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return err
@@ -195,6 +201,9 @@ func (c *Client) migrate(ctx context.Context, build chronograf.BuildInfo) error 
 			return err
 		}
 		if err := c.MappingsStore.Migrate(ctx); err != nil {
+			return err
+		}
+		if err := c.OrganizationConfigStore.Migrate(ctx); err != nil {
 			return err
 		}
 

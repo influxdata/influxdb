@@ -8,14 +8,15 @@ import (
 
 // Store is a server.DataStore
 type Store struct {
-	SourcesStore       chronograf.SourcesStore
-	MappingsStore      chronograf.MappingsStore
-	ServersStore       chronograf.ServersStore
-	LayoutsStore       chronograf.LayoutsStore
-	UsersStore         chronograf.UsersStore
-	DashboardsStore    chronograf.DashboardsStore
-	OrganizationsStore chronograf.OrganizationsStore
-	ConfigStore        chronograf.ConfigStore
+	SourcesStore            chronograf.SourcesStore
+	MappingsStore           chronograf.MappingsStore
+	ServersStore            chronograf.ServersStore
+	LayoutsStore            chronograf.LayoutsStore
+	UsersStore              chronograf.UsersStore
+	DashboardsStore         chronograf.DashboardsStore
+	OrganizationsStore      chronograf.OrganizationsStore
+	ConfigStore             chronograf.ConfigStore
+	OrganizationConfigStore chronograf.OrganizationConfigStore
 }
 
 func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
@@ -47,4 +48,8 @@ func (s *Store) Dashboards(ctx context.Context) chronograf.DashboardsStore {
 
 func (s *Store) Config(ctx context.Context) chronograf.ConfigStore {
 	return s.ConfigStore
+}
+
+func (s *Store) OrganizationConfig(ctx context.Context) chronograf.OrganizationConfigStore {
+	return s.OrganizationConfigStore
 }

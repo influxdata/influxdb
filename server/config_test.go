@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
@@ -42,7 +41,7 @@ func TestConfig(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
-				body:        `{"auth": {"superAdminNewUsers": false}, "links": {"self": "/chronograf/v1/config"}}`,
+				body:        `{"links":{"self":"/chronograf/v1/config","auth":"/chronograf/v1/config/auth"},"auth":{"superAdminNewUsers":false}}`,
 			},
 		},
 	}
@@ -78,12 +77,9 @@ func TestConfig(t *testing.T) {
 	}
 }
 
-func TestConfigSection(t *testing.T) {
+func TestAuthConfig(t *testing.T) {
 	type fields struct {
 		ConfigStore chronograf.ConfigStore
-	}
-	type args struct {
-		section string
 	}
 	type wants struct {
 		statusCode  int
@@ -94,7 +90,6 @@ func TestConfigSection(t *testing.T) {
 	tests := []struct {
 		name   string
 		fields fields
-		args   args
 		wants  wants
 	}{
 		{
@@ -108,33 +103,10 @@ func TestConfigSection(t *testing.T) {
 					},
 				},
 			},
-			args: args{
-				section: "auth",
-			},
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json",
 				body:        `{"superAdminNewUsers": false, "links": {"self": "/chronograf/v1/config/auth"}}`,
-			},
-		},
-		{
-			name: "Get unknown configuration",
-			fields: fields{
-				ConfigStore: &mocks.ConfigStore{
-					Config: &chronograf.Config{
-						Auth: chronograf.AuthConfig{
-							SuperAdminNewUsers: false,
-						},
-					},
-				},
-			},
-			args: args{
-				section: "unknown",
-			},
-			wants: wants{
-				statusCode:  400,
-				contentType: "application/json",
-				body:        `{"code":400,"message":"received unknown section \"unknown\""}`,
 			},
 		},
 	}
@@ -150,16 +122,8 @@ func TestConfigSection(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "http://any.url", nil)
-			r = r.WithContext(httprouter.WithParams(
-				r.Context(),
-				httprouter.Params{
-					{
-						Key:   "section",
-						Value: tt.args.section,
-					},
-				}))
 
-			s.ConfigSection(w, r)
+			s.AuthConfig(w, r)
 
 			resp := w.Result()
 			content := resp.Header.Get("Content-Type")
@@ -178,12 +142,11 @@ func TestConfigSection(t *testing.T) {
 	}
 }
 
-func TestReplaceConfigSection(t *testing.T) {
+func TestReplaceAuthConfig(t *testing.T) {
 	type fields struct {
 		ConfigStore chronograf.ConfigStore
 	}
 	type args struct {
-		section string
 		payload interface{} // expects JSON serializable struct
 	}
 	type wants struct {
@@ -210,7 +173,6 @@ func TestReplaceConfigSection(t *testing.T) {
 				},
 			},
 			args: args{
-				section: "auth",
 				payload: chronograf.AuthConfig{
 					SuperAdminNewUsers: true,
 				},
@@ -219,31 +181,6 @@ func TestReplaceConfigSection(t *testing.T) {
 				statusCode:  200,
 				contentType: "application/json",
 				body:        `{"superAdminNewUsers": true, "links": {"self": "/chronograf/v1/config/auth"}}`,
-			},
-		},
-		{
-			name: "Set unknown configuration",
-			fields: fields{
-				ConfigStore: &mocks.ConfigStore{
-					Config: &chronograf.Config{
-						Auth: chronograf.AuthConfig{
-							SuperAdminNewUsers: false,
-						},
-					},
-				},
-			},
-			args: args{
-				section: "unknown",
-				payload: struct {
-					Data string `json:"data"`
-				}{
-					Data: "stuff",
-				},
-			},
-			wants: wants{
-				statusCode:  400,
-				contentType: "application/json",
-				body:        `{"code":400,"message":"received unknown section \"unknown\""}`,
 			},
 		},
 	}
@@ -259,18 +196,10 @@ func TestReplaceConfigSection(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "http://any.url", nil)
-			r = r.WithContext(httprouter.WithParams(
-				r.Context(),
-				httprouter.Params{
-					{
-						Key:   "section",
-						Value: tt.args.section,
-					},
-				}))
 			buf, _ := json.Marshal(tt.args.payload)
 			r.Body = ioutil.NopCloser(bytes.NewReader(buf))
 
-			s.ReplaceConfigSection(w, r)
+			s.ReplaceAuthConfig(w, r)
 
 			resp := w.Result()
 			content := resp.Header.Get("Content-Type")

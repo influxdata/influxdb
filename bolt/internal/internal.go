@@ -747,6 +747,81 @@ func UnmarshalConfigPB(data []byte, c *Config) error {
 	return proto.Unmarshal(data, c)
 }
 
+// MarshalOrganizationConfig encodes a config to binary protobuf format.
+func MarshalOrganizationConfig(c *chronograf.OrganizationConfig) ([]byte, error) {
+	columns := make([]*LogViewerColumn, len(c.LogViewer.Columns))
+
+	for i, column := range c.LogViewer.Columns {
+		encodings := make([]*ColumnEncoding, len(column.Encodings))
+
+		for j, e := range column.Encodings {
+			encodings[j] = &ColumnEncoding{
+				Type:  e.Type,
+				Value: e.Value,
+				Name:  e.Name,
+			}
+		}
+
+		columns[i] = &LogViewerColumn{
+			Name:      column.Name,
+			Position:  column.Position,
+			Encodings: encodings,
+		}
+	}
+
+	return MarshalOrganizationConfigPB(&OrganizationConfig{
+		OrganizationID: c.OrganizationID,
+		LogViewer: &LogViewerConfig{
+			Columns: columns,
+		},
+	})
+}
+
+// MarshalOrganizationConfigPB encodes a config to binary protobuf format.
+func MarshalOrganizationConfigPB(c *OrganizationConfig) ([]byte, error) {
+	return proto.Marshal(c)
+}
+
+// UnmarshalOrganizationConfig decodes a config from binary protobuf data.
+func UnmarshalOrganizationConfig(data []byte, c *chronograf.OrganizationConfig) error {
+	var pb OrganizationConfig
+
+	if err := UnmarshalOrganizationConfigPB(data, &pb); err != nil {
+		return err
+	}
+
+	if pb.LogViewer == nil {
+		return fmt.Errorf("Log Viewer config is nil")
+	}
+
+	c.OrganizationID = pb.OrganizationID
+
+	columns := make([]chronograf.LogViewerColumn, len(pb.LogViewer.Columns))
+
+	for i, c := range pb.LogViewer.Columns {
+		columns[i].Name = c.Name
+		columns[i].Position = c.Position
+
+		encodings := make([]chronograf.ColumnEncoding, len(c.Encodings))
+		for j, e := range c.Encodings {
+			encodings[j].Type = e.Type
+			encodings[j].Value = e.Value
+			encodings[j].Name = e.Name
+		}
+
+		columns[i].Encodings = encodings
+	}
+
+	c.LogViewer.Columns = columns
+
+	return nil
+}
+
+// UnmarshalOrganizationConfigPB decodes a config from binary protobuf data.
+func UnmarshalOrganizationConfigPB(data []byte, c *OrganizationConfig) error {
+	return proto.Unmarshal(data, c)
+}
+
 // MarshalMapping encodes a mapping to binary protobuf format.
 func MarshalMapping(m *chronograf.Mapping) ([]byte, error) {
 

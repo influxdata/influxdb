@@ -37,7 +37,6 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
   public render() {
     const {onUpdateDefaultTemplateValue, template} = this.props
     const {templateValuesString} = this.state
-    const pluralizer = template.values.length === 1 ? '' : 's'
 
     return (
       <>
@@ -65,7 +64,7 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         <div className="form-group col-xs-12 temp-builder--results">
           <p className="temp-builder--validation">
             Mapping contains <strong>{template.values.length}</strong> key-value
-            pair{pluralizer}
+            pair{this.pluralizer}
           </p>
           {template.values.length > 0 && (
             <TemplatePreviewList
@@ -76,6 +75,10 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         </div>
       </>
     )
+  }
+
+  private get pluralizer(): string {
+    return this.props.template.values.length === 1 ? '' : 's'
   }
 
   private handleUploadFile = (
@@ -114,9 +117,10 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
     this.setState({templateValuesString: e.target.value})
   }
 
-  private constructValuesFromString(templateValuesString) {
+  private constructValuesFromString(templateValuesString: string) {
     const {notify} = this.props
-    const parsedTVS = Papa.parse(templateValuesString)
+    const trimmed = _.trimEnd(templateValuesString, '\n')
+    const parsedTVS = Papa.parse(trimmed)
     const templateValuesData = getDeep<string[][]>(parsedTVS, 'data', [[]])
 
     if (templateValuesData.length === 0) {

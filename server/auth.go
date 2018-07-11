@@ -95,13 +95,8 @@ func AuthorizedUser(
 	next http.HandlerFunc,
 ) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !useAuth {
-			ctx := r.Context()
-			// If there is no auth, then give the user raw access to the DataStore
-			r = r.WithContext(serverContext(ctx))
-			next(w, r)
-			return
-		}
+		ctx := r.Context()
+		serverCtx := serverContext(ctx)
 
 		log := logger.
 			WithField("component", "role_auth").
@@ -109,8 +104,24 @@ func AuthorizedUser(
 			WithField("method", r.Method).
 			WithField("url", r.URL)
 
-		ctx := r.Context()
-		serverCtx := serverContext(ctx)
+		defaultOrg, err := store.Organizations(serverCtx).DefaultOrganization(serverCtx)
+		if err != nil {
+			log.Error(fmt.Sprintf("Failed to retrieve the default organization: %v", err))
+			Error(w, http.StatusForbidden, "User is not authorized", logger)
+			return
+		}
+
+		if !useAuth {
+			// If there is no auth, then set the organization id to be the default org id on context
+			// so that calls like hasOrganizationContext as used in Organization Config service
+			// method OrganizationConfig can successfully get the organization id
+			ctx = context.WithValue(ctx, organizations.ContextKey, defaultOrg.ID)
+
+			// And if there is no auth, then give the user raw access to the DataStore
+			r = r.WithContext(serverContext(ctx))
+			next(w, r)
+			return
+		}
 
 		p, err := getValidPrincipal(ctx)
 		if err != nil {
@@ -127,12 +138,6 @@ func AuthorizedUser(
 
 		// This is as if the user was logged into the default organization
 		if p.Organization == "" {
-			defaultOrg, err := store.Organizations(serverCtx).DefaultOrganization(serverCtx)
-			if err != nil {
-				log.Error(fmt.Sprintf("Failed to retrieve the default organization: %v", err))
-				Error(w, http.StatusForbidden, "User is not authorized", logger)
-				return
-			}
 			p.Organization = defaultOrg.ID
 		}
 

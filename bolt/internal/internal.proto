@@ -214,6 +214,27 @@ message AuthConfig {
 	bool SuperAdminNewUsers   = 1; // SuperAdminNewUsers configuration option that specifies which users will auto become super admin
 }
 
+message OrganizationConfig {
+	string OrganizationID                   = 1; // OrganizationID is the ID of the organization this config belogs to
+	LogViewerConfig LogViewer              	= 2; // LogViewer is the organization configuration for log viewer
+}
+
+message LogViewerConfig {
+	repeated LogViewerColumn Columns               = 1; // Columns is the array of columns in the log viewer
+}
+
+message LogViewerColumn {
+	string Name                                      = 1; // Name is the unique identifier of the log viewer column
+	int32 Position                                   = 2; // Position is the position of the column in the log viewer's array of columns
+	repeated ColumnEncoding Encodings                = 3; // Encodings is the array of encoded properties associated with a log viewer column
+}
+
+message ColumnEncoding {	
+	string Type                        = 1; // Type is the purpose of the encoding, for example: severity color
+	string Value                       = 2; // Value is what the encoding corresponds to
+	string Name                        = 3; // Name is the optional encoding name
+}
+
 message BuildInfo {
 	string Version          = 1; // Version is a descriptive git SHA identifier
 	string Commit           = 2; // Commit is an abbreviated SHA

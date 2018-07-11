@@ -87,8 +87,9 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Mappings:      "/chronograf/v1/mappings",
 		Dashboards:    "/chronograf/v1/dashboards",
 		Config: getConfigLinksResponse{
-			Self: "/chronograf/v1/config",
-			Auth: "/chronograf/v1/config/auth",
+			Self:      "/chronograf/v1/config",
+			Auth:      "/chronograf/v1/config/auth",
+			LogViewer: "/chronograf/v1/config/logviewer",
 		},
 		Auth: make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
 		ExternalLinks: getExternalLinksResponse{
