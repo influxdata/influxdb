@@ -42,7 +42,7 @@ class TemplatePreviewListItem extends PureComponent<Props> {
   private get mapTempVarKey(): string {
     const {item} = this.props
     if (item.type === TemplateValueType.Map) {
-      return `${item.key}     -->`
+      return `${item.key} --> `
     }
   }
 
