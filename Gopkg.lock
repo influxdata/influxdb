@@ -371,7 +371,7 @@
   branch = "master"
   name = "github.com/influxdata/tdigest"
   packages = ["."]
-  revision = "617b83f940fd9acd207f712561a8a0590277fb38"
+  revision = "a7d76c6f093a59b94a01c6c2b8429122d444a8cc"
 
 [[projects]]
   name = "github.com/jmespath/go-jmespath"
@@ -758,6 +758,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "386ae3e065a4de07944b9c04b34a23918a3788df6788870e0a8ce5405205ff1f"
+  inputs-digest = "3f8fd8ca672e7b714bab7f109f469ad1a6ffb69f2452736747e6d40a5bad5776"
   solver-name = "gps-cdcl"
   solver-version = 1
