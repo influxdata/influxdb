@@ -31,6 +31,7 @@
 1.  [#3751](https://github.com/influxdata/chronograf/pull/3751): Fix crosshairs moving passed the edges of graphs
 1.  [#3759](https://github.com/influxdata/chronograf/pull/3759): Change y-axis options to have valid defaults
 1.  [#3793](https://github.com/influxdata/chronograf/pull/3793): Stop making requests for old sources after changing sources
+1.  [#3888](https://github.com/influxdata/chronograf/pull/3888): Fix health check status code creating firefox error
 
 ## v1.5.0.0 [2018-05-15-RC]
 
