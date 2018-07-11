@@ -23,7 +23,7 @@ const defaultTableData: TableData = {
     'timestamp',
     'facility',
     'procid',
-    'application',
+    'appname',
     'host',
     'message',
   ],
