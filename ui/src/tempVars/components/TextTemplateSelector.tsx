@@ -1,4 +1,9 @@
-import React, {PureComponent, ChangeEvent, KeyboardEvent} from 'react'
+import React, {
+  PureComponent,
+  ChangeEvent,
+  FocusEvent,
+  KeyboardEvent,
+} from 'react'
 
 import {getDeep} from 'src/utils/wrappers'
 
@@ -36,6 +41,7 @@ class TextTemplateSelector extends PureComponent<Props, State> {
         value={text}
         onChange={this.handleChange}
         onKeyUp={this.handleKeyUp}
+        onFocus={this.handleFocus}
         onBlur={this.submit}
         spellCheck={false}
       />
@@ -47,9 +53,15 @@ class TextTemplateSelector extends PureComponent<Props, State> {
   }
 
   private handleKeyUp = (e: KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter' || e.key === 'Escape') {
-      this.submit()
+    if (e.key === 'Enter') {
+      e.currentTarget.blur()
     }
+  }
+
+  private handleFocus = (e: FocusEvent<HTMLInputElement>): void => {
+    const input = e.currentTarget
+
+    input.setSelectionRange(0, input.value.length)
   }
 
   private submit = (): void => {
