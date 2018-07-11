@@ -27,6 +27,7 @@ import {
   TableData,
   LogConfig,
   TimeRange,
+  TimeBounds,
   TimeWindow,
   TimeMarker,
 } from 'src/types/logs'
@@ -54,7 +55,7 @@ type GetState = () => State
 export enum ActionTypes {
   SetSource = 'LOGS_SET_SOURCE',
   SetNamespaces = 'LOGS_SET_NAMESPACES',
-  SetTimeRange = 'LOGS_SET_TIMERANGE',
+  SetTimeBounds = 'LOGS_SET_TIMEBOUNDS',
   SetTimeWindow = 'LOGS_SET_TIMEWINDOW',
   SetTimeMarker = 'LOGS_SET_TIMEMARKER',
   SetNamespace = 'LOGS_SET_NAMESPACE',
@@ -131,10 +132,10 @@ interface SetNamespaceAction {
   }
 }
 
-interface SetTimeRangeAction {
-  type: ActionTypes.SetTimeRange
+interface SetTimeBoundsAction {
+  type: ActionTypes.SetTimeBounds
   payload: {
-    timeRange: TimeRange
+    timeBounds: TimeBounds
   }
 }
 
@@ -204,7 +205,7 @@ export interface SetConfigsAction {
 export type Action =
   | SetSourceAction
   | SetNamespacesAction
-  | SetTimeRangeAction
+  | SetTimeBoundsAction
   | SetTimeWindowAction
   | SetTimeMarkerAction
   | SetNamespaceAction
@@ -278,6 +279,11 @@ export const setTimeMarker = (timeMarker: TimeMarker): SetTimeMarkerAction => ({
   payload: {timeMarker},
 })
 
+export const setTimeBounds = (timeBounds: TimeBounds): SetTimeBoundsAction => ({
+  type: ActionTypes.SetTimeBounds,
+  payload: {timeBounds},
+})
+
 export const executeHistogramQueryAsync = () => async (
   dispatch,
   getState: GetState
@@ -333,7 +339,17 @@ export const executeTableQueryAsync = () => async (
   try {
     dispatch(incrementQueryCount())
 
-    const query = buildLogQuery(timeRange, queryConfig, filters, searchTerm)
+    const queryTimeRange = {
+      upper: timeRange.upper,
+      lower: timeRange.lower,
+      seconds: timeRange.seconds,
+    }
+    const query = buildLogQuery(
+      queryTimeRange,
+      queryConfig,
+      filters,
+      searchTerm
+    )
     const response = await executeQueryAsync(
       proxyLink,
       namespace,
@@ -388,7 +404,13 @@ export const setHistogramQueryConfigAsync = () => async (
   const timeRange = getDeep<TimeRange | null>(state, 'logs.timeRange', null)
 
   if (timeRange && namespace) {
-    const queryConfig = buildHistogramQueryConfig(namespace, timeRange)
+    const queryTimeRange = {
+      upper: timeRange.upper,
+      lower: timeRange.lower,
+      seconds: timeRange.seconds,
+    }
+
+    const queryConfig = buildHistogramQueryConfig(namespace, queryTimeRange)
 
     dispatch({
       type: ActionTypes.SetHistogramQueryConfig,
@@ -481,15 +503,7 @@ export const setNamespaces = (
   },
 })
 
-export const setTimeRangeAsync = (timeRange: TimeRange) => async (
-  dispatch
-): Promise<void> => {
-  dispatch({
-    type: ActionTypes.SetTimeRange,
-    payload: {
-      timeRange,
-    },
-  })
+export const setTimeRangeAsync = () => async (dispatch): Promise<void> => {
   dispatch(setHistogramQueryConfigAsync())
   dispatch(setTableQueryConfigAsync())
 }

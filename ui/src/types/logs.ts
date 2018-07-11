@@ -73,6 +73,11 @@ export interface TimeRange {
   timeOption: string
 }
 
+export interface TimeBounds {
+  upper: string | null
+  lower: string
+}
+
 export interface TimeWindow {
   seconds: number
   windowOption: string
