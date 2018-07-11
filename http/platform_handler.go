@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	idpctx "github.com/influxdata/platform/context"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // PlatformHandler is a collection of all the service handlers.
@@ -67,6 +68,12 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	}
 
 	nethttp.NotFound(w, r)
+}
+
+// PrometheusCollectors satisfies the prom.PrometheusCollector interface.
+func (h *PlatformHandler) PrometheusCollectors() []prometheus.Collector {
+	// TODO: collect and return relevant metrics.
+	return nil
 }
 
 func extractAuthorization(ctx context.Context, r *nethttp.Request) (context.Context, error) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/platform/kit/prom"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -30,16 +31,39 @@ type Handler struct {
 	DebugHandler http.Handler
 	// Handler handles all other requests
 	Handler http.Handler
+
+	requests   *prometheus.CounterVec
+	requestDur *prometheus.HistogramVec
 }
 
 // NewHandler creates a new handler with the given name.
 // The name is used to tag the metrics produced by this handler.
+//
+// The MetricsHandler is set to the default prometheus handler.
+// It is the caller's responsibility to call prometheus.MustRegister(h.PrometheusCollectors()...).
+// In most cases, you want to use NewHandlerFromRegistry instead.
 func NewHandler(name string) *Handler {
-	return &Handler{
+	h := &Handler{
 		name:           name,
 		MetricsHandler: promhttp.Handler(),
 		DebugHandler:   http.DefaultServeMux,
 	}
+	h.initMetrics()
+	return h
+}
+
+// NewHandlerFromRegistry creates a new handler with the given name,
+// and sets the /metrics endpoint to use the metrics from the given registry,
+// after self-registering h's metrics.
+func NewHandlerFromRegistry(name string, reg *prom.Registry) *Handler {
+	h := &Handler{
+		name:           name,
+		MetricsHandler: reg.HTTPHandler(),
+		DebugHandler:   http.DefaultServeMux,
+	}
+	h.initMetrics()
+	reg.MustRegister(h.PrometheusCollectors()...)
+	return h
 }
 
 // ServeHTTP delegates a request to the appropriate subhandler.
@@ -50,7 +74,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: This could be problematic eventually. But for now it should be fine.
 	defer func() {
-		httpRequests.With(prometheus.Labels{
+		h.requests.With(prometheus.Labels{
 			"handler": h.name,
 			"method":  r.Method,
 			"path":    r.URL.Path,
@@ -58,7 +82,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}).Inc()
 	}()
 	defer func(start time.Time) {
-		httpRequestDuration.With(prometheus.Labels{
+		h.requestDur.With(prometheus.Labels{
 			"handler": h.name,
 			"method":  r.Method,
 			"path":    r.URL.Path,
@@ -85,25 +109,26 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, code int, res in
 	return json.NewEncoder(w).Encode(res)
 }
 
-func init() {
-	prometheus.MustRegister(httpCollectors...)
+// PrometheusCollectors satisifies prom.PrometheusCollector.
+func (h *Handler) PrometheusCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		h.requests,
+		h.requestDur,
+	}
 }
 
-// namespace is the leading part of all published metrics for the http handler service.
-const namespace = "http"
+func (h *Handler) initMetrics() {
+	const namespace = "http"
+	const handlerSubsystem = "api"
 
-const handlerSubsystem = "api"
-
-// http metrics track request latency and count by path.
-var (
-	httpRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+	h.requests = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: handlerSubsystem,
 		Name:      "requests_total",
 		Help:      "Number of http requests received",
 	}, []string{"handler", "method", "path", "status"})
 
-	httpRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	h.requestDur = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: handlerSubsystem,
 		Name:      "request_duration_seconds",
@@ -111,6 +136,4 @@ var (
 		// TODO(desa): determine what spacing these buckets should have.
 		Buckets: prometheus.ExponentialBuckets(0.001, 1.5, 25),
 	}, []string{"handler", "method", "path", "status"})
-
-	httpCollectors = []prometheus.Collector{httpRequests, httpRequestDuration}
-)
+}

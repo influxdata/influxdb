@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/julienschmidt/httprouter"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -66,6 +67,12 @@ func (h *TranspilerQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.
 		h.Logger.Info("Unable to encode result", zap.Error(err))
 		return
 	}
+}
+
+// PrometheusCollectors satisfies the prom.PrometheusCollector interface.
+func (h *TranspilerQueryHandler) PrometheusCollectors() []prometheus.Collector {
+	// TODO: return relevant prometheus collectors.
+	return nil
 }
 
 // crossExecute contains the components needed to execute a transpiled query and encode results.

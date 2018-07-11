@@ -115,9 +115,8 @@ func fluxF(cmd *cobra.Command, args []string) {
 	queryHandler.OrganizationService = &orgSvc
 	queryHandler.Logger = logger.With(zap.String("handler", "query"))
 
-	handler := http.NewHandler("query")
+	handler := http.NewHandlerFromRegistry("query", reg)
 	handler.Handler = queryHandler
-	handler.MetricsHandler = reg.HTTPHandler()
 
 	logger.Info("listening", zap.String("transport", "http"), zap.String("addr", bindAddr))
 	if err := nethttp.ListenAndServe(bindAddr, handler); err != nil {

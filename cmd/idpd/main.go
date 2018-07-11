@@ -16,6 +16,8 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/kit/prom"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -61,6 +63,10 @@ var platformCmd = &cobra.Command{
 func platformF(cmd *cobra.Command, args []string) {
 	// Create top level logger
 	logger := influxlogger.New(os.Stdout)
+
+	reg := prom.NewRegistry()
+	reg.MustRegister(prometheus.NewGoCollector())
+	reg.WithLogger(logger)
 
 	c := bolt.NewClient()
 	c.Path = boltPath
@@ -130,7 +136,9 @@ func platformF(cmd *cobra.Command, args []string) {
 			AuthorizationHandler: authHandler,
 			DashboardHandler:     dashboardHandler,
 		}
-		h := http.NewHandler("platform")
+		reg.MustRegister(platformHandler.PrometheusCollectors()...)
+
+		h := http.NewHandlerFromRegistry("platform", reg)
 		h.Handler = platformHandler
 
 		httpServer.Handler = h

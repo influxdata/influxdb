@@ -9,7 +9,9 @@ import (
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/kit/prom"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -69,6 +71,10 @@ func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 		return err
 	}
 
+	reg := prom.NewRegistry()
+	reg.MustRegister(prometheus.NewGoCollector())
+	reg.WithLogger(logger)
+
 	// TODO(nathanielc): Allow QueryService to use multiple hosts.
 
 	logger.Info("Using fluxd service", zap.Strings("hosts", hosts), zap.Stringer("org-id", id))
@@ -77,10 +83,11 @@ func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 		Addr: hosts[0],
 	}
 	transpileHandler.Logger = logger
+	reg.MustRegister(transpileHandler.PrometheusCollectors()...)
 
 	//TODO(nathanielc): Add health checks
 
-	handler := http.NewHandler("transpile")
+	handler := http.NewHandlerFromRegistry("transpile", reg)
 	handler.Handler = transpileHandler
 
 	logger.Info("Starting transpilerd", zap.String("bind_addr", flags.bindAddr))
