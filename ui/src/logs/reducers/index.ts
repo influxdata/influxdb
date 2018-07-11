@@ -33,8 +33,7 @@ const defaultTableData: TableData = {
 export const defaultState: LogsState = {
   currentSource: null,
   currentNamespaces: [],
-  timeRange: {lower: 'now() - 1m', upper: null},
-  timeWindow: {
+  timeRange: {
     upper: null,
     lower: 'now() - 1m',
     seconds: 60,
@@ -186,7 +185,11 @@ export default (state: LogsState = defaultState, action: Action) => {
     case ActionTypes.SetTimeRange:
       return {...state, timeRange: action.payload.timeRange}
     case ActionTypes.SetTimeWindow:
-      return {...state, timeWindow: action.payload.timeWindow}
+      const {windowOption, seconds} = action.payload.timeWindow
+      return {...state, timeRange: {...state.timeRange, windowOption, seconds}}
+    case ActionTypes.SetTimeMarker:
+      const {timeOption} = action.payload.timeMarker
+      return {...state, timeRange: {...state.timeRange, timeOption}}
     case ActionTypes.SetNamespace:
       return {...state, currentNamespace: action.payload.namespace}
     case ActionTypes.SetHistogramQueryConfig:
