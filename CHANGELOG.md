@@ -6,7 +6,7 @@ v1.7.0 [unreleased]
 -	[#9964](https://github.com/influxdata/influxdb/pull/9964): Enable the storage service by default.
 -	[#9996](https://github.com/influxdata/influxdb/pull/9996): Ensure read service regexes get optimised.
 
-v1.6.0 [2017-07-05]
+v1.6.0 [2018-07-05]
 -------------------
 
 ### Breaking changes
