@@ -82,7 +82,7 @@ class GaugeChart extends PureComponent<Props> {
     const {lastValues} = getLastValues(data)
     let lastValue = _.get(lastValues, 0, 0)
 
-    if (lastValue === null) {
+    if (!lastValue) {
       return 0
     }
 
