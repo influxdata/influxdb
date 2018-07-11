@@ -55,6 +55,7 @@ class TemplateControl extends PureComponent<Props, State> {
           <TextTemplateSelector
             template={template}
             onUpdateTemplate={onUpdateTemplate}
+            key={template.id}
           />
         ) : (
           <TemplateDropdown template={template} onPickValue={onPickValue} />
