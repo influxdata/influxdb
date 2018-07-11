@@ -47,7 +47,6 @@ import {
   TableData,
 } from 'src/types/logs'
 
-// Mock
 interface Props {
   sources: Source[]
   currentSource: Source | null
