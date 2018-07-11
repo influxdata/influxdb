@@ -93,7 +93,6 @@ type DataStore interface {
 	Dashboards(ctx context.Context) chronograf.DashboardsStore
 	Config(ctx context.Context) chronograf.ConfigStore
 	OrganizationConfig(ctx context.Context) chronograf.OrganizationConfigStore
-
 	Cells(ctx context.Context) chronografv2.CellService
 }
 
@@ -111,8 +110,7 @@ type Store struct {
 	OrganizationsStore      chronograf.OrganizationsStore
 	ConfigStore             chronograf.ConfigStore
 	OrganizationConfigStore chronograf.OrganizationConfigStore
-
-	CellService chronografv2.CellService
+	CellService             chronografv2.CellService
 }
 
 // Sources returns a noop.SourcesStore if the context has no organization specified
