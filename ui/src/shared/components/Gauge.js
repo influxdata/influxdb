@@ -283,6 +283,7 @@ class Gauge extends Component {
   drawGaugeValue = (ctx, radius, labelValueFontSize) => {
     const {gaugePosition, prefix, suffix} = this.props
     const {valueColor} = GAUGE_SPECS
+    const maximumFractionDigits = 20
 
     ctx.font = `${labelValueFontSize}px Roboto`
     ctx.fillStyle = valueColor
@@ -290,7 +291,9 @@ class Gauge extends Component {
     ctx.textAlign = 'center'
 
     const textY = radius
-    const textContent = `${prefix}${gaugePosition.toLocaleString()}${suffix}`
+    const textContent = `${prefix}${gaugePosition.toLocaleString(undefined, {
+      maximumFractionDigits,
+    })}${suffix}`
     ctx.fillText(textContent, 0, textY)
   }
 

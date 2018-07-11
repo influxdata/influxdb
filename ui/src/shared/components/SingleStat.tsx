@@ -75,6 +75,11 @@ class SingleStat extends PureComponent<Props> {
 
   private get roundedLastValue(): string {
     const {decimalPlaces} = this.props
+
+    if (this.lastValue === null) {
+      return `${0}`
+    }
+
     let roundedValue = `${this.lastValue}`
 
     if (decimalPlaces.isEnforced) {
@@ -85,7 +90,8 @@ class SingleStat extends PureComponent<Props> {
   }
 
   private formatToLocale(n: number): string {
-    return n.toLocaleString()
+    const maximumFractionDigits = 20
+    return n.toLocaleString(undefined, {maximumFractionDigits})
   }
 
   private get containerStyle(): CSSProperties {

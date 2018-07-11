@@ -8,6 +8,7 @@ import {DEFAULT_GAUGE_COLORS} from 'src/shared/constants/thresholds'
 import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import {DecimalPlaces} from 'src/types/dashboards'
 
 interface Color {
   type: string
@@ -19,6 +20,7 @@ interface Color {
 
 interface Props {
   data: TimeSeriesResponse[]
+  decimalPlaces: DecimalPlaces
   isFetchingInitially: boolean
   cellID: string
   cellHeight?: number
@@ -76,11 +78,19 @@ class GaugeChart extends PureComponent<Props> {
   }
 
   private get lastValueForGauge(): number {
-    const {data} = this.props
+    const {data, decimalPlaces} = this.props
     const {lastValues} = getLastValues(data)
-    const precision = 100.0
+    let lastValue = _.get(lastValues, 0, 0)
 
-    return Math.round(_.get(lastValues, 0, 0) * precision) / precision
+    if (!lastValue) {
+      return 0
+    }
+
+    if (decimalPlaces.isEnforced) {
+      lastValue = +lastValue.toFixed(decimalPlaces.digits)
+    }
+
+    return lastValue
   }
 }
 
