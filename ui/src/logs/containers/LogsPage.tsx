@@ -314,37 +314,49 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.executeQueriesAsync()
   }
 
-  // private handleChooseTimerange = (timeRange: TimeRange) => {
-  //   console.log('TIME RANGE', timeRange)
-  //   this.props.setTimeRangeAsync(timeRange)
-  //   this.fetchNewDataset()
-  // }
-
-  private transformTimeToRange = (timeOption: string) => {
-    const {seconds, windowOption} = this.props.timeWindow
+  private handleChooseTimerange = (timeWindow: TimeWindow) => {
+    const {seconds, windowOption, timeOption} = timeWindow
     let lower = `now() - ${windowOption}`
     let upper = null
 
     if (timeOption !== 'now') {
       const numberTimeOption = moment(timeOption).valueOf()
       const milliseconds = seconds * 10 / 2
-
-      lower = moment(numberTimeOption - milliseconds).format()
-      upper = moment(numberTimeOption + milliseconds).format()
+      console.log('MS', milliseconds)
+      lower =
+        moment
+          .utc(numberTimeOption - milliseconds)
+          .format('YYYY-MM-DDTHH:mm:ss.SSS') + 'Z'
+      upper =
+        moment
+          .utc(numberTimeOption + milliseconds)
+          .format('YYYY-MM-DDTHH:mm:ss.SSS') + 'Z'
     }
 
-    const timeWindow = {
-      ...this.props.timeWindow,
+    const timeRange = {
       lower,
       upper,
+      seconds,
+    }
+
+    console.log('TIME RANGE', timeRange)
+    this.props.setTimeRangeAsync(timeRange)
+    this.fetchNewDataset()
+  }
+
+  private transformTimeToRange = (timeOption: string) => {
+    const timeWindow = {
+      ...this.props.timeWindow,
       timeOption,
     }
 
     this.props.setTimeWindowAsync(timeWindow)
+    this.handleChooseTimerange(timeWindow)
   }
 
   private transformWindowToRange = (timeWindowOption: TimeWindowOption) => {
     const {text, seconds} = timeWindowOption
+
     const timeWindow = {
       ...this.props.timeWindow,
       seconds,
@@ -352,6 +364,7 @@ class LogsPage extends PureComponent<Props, State> {
     }
 
     this.props.setTimeWindowAsync(timeWindow)
+    this.handleChooseTimerange(timeWindow)
   }
 
   private handleChooseSource = (sourceID: string) => {
