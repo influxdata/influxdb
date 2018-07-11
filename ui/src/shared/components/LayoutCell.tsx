@@ -77,7 +77,7 @@ export default class LayoutCell extends Component<Props> {
         this.userDefinedTemplateVariables,
         (acc, template) => {
           const {tempVar} = template
-          const templateValue = template.values.find(v => v.selected)
+          const templateValue = template.values.find(v => v.localSelected)
           const value = _.get(templateValue, 'value', str)
           const regex = new RegExp(tempVar, 'g')
           return acc.replace(regex, value)
