@@ -24,7 +24,6 @@ import {
   getColumnsFromData,
 } from 'src/logs/utils/table'
 
-import timeRanges from 'src/logs/data/timeRanges'
 import {
   SeverityFormatOptions,
   SeverityColorOptions,
@@ -45,14 +44,20 @@ interface Props {
   onScrollVertical: () => void
   onScrolledToTop: () => void
   onTagSelection: (selection: {tag: string; key: string}) => void
-  fetchMore: (queryTimeEnd: string, time: number) => Promise<void>
+  fetchMore: (time: string) => Promise<void>
+  fetchNewer: (time: string) => void
+  hasScrolled: boolean
   count: number
   timeRange: TimeRange
+  queryCount: number
   tableColumns: LogsTableColumn[]
   severityFormat: SeverityFormat
   severityLevelColors: SeverityLevelColor[]
   scrollToRow?: number
-  hasScrolled: boolean
+  tableInfiniteData: {
+    forward: TableData
+    backward: TableData
+  }
 }
 
 interface State {
@@ -62,7 +67,20 @@ interface State {
   currentMessageWidth: number
   isMessageVisible: boolean
   lastQueryTime: number
+  firstQueryTime: number
   visibleColumnsCount: number
+}
+
+const calculateScrollTop = (currentMessageWidth, data, scrollToRow) => {
+  const rowCharLimit = calculateRowCharWidth(currentMessageWidth)
+
+  return _.reduce(
+    _.range(0, scrollToRow),
+    (acc, index) => {
+      return acc + calculateMessageHeight(index, data, rowCharLimit)
+    },
+    0
+  )
 }
 
 class LogsTable extends Component<Props, State> {
@@ -73,7 +91,6 @@ class LogsTable extends Component<Props, State> {
       data,
       tableColumns,
       severityFormat,
-      hasScrolled,
     } = props
     const currentMessageWidth = getMessageWidth(
       data,
@@ -82,20 +99,16 @@ class LogsTable extends Component<Props, State> {
     )
 
     let lastQueryTime = _.get(state, 'lastQueryTime', null)
+    let firstQueryTime = _.get(state, 'firstQueryTime', null)
     let scrollTop = _.get(state, 'scrollTop', 0)
     if (isScrolledToTop) {
       lastQueryTime = null
+      firstQueryTime = null
       scrollTop = 0
-    } else if (scrollToRow && !hasScrolled) {
-      const rowCharLimit = calculateRowCharWidth(currentMessageWidth)
+    }
 
-      scrollTop = _.reduce(
-        _.range(0, scrollToRow),
-        (acc, index) => {
-          return acc + calculateMessageHeight(index, data, rowCharLimit)
-        },
-        0
-      )
+    if (scrollToRow) {
+      scrollTop = calculateScrollTop(currentMessageWidth, data, scrollToRow)
     }
 
     const scrollLeft = _.get(state, 'scrollLeft', 0)
@@ -112,12 +125,14 @@ class LogsTable extends Component<Props, State> {
       ...state,
       isQuerying: false,
       lastQueryTime,
+      firstQueryTime,
       scrollTop,
       scrollLeft,
       currentRow: -1,
       currentMessageWidth,
       isMessageVisible,
       visibleColumnsCount,
+      scrollToRow,
     }
   }
 
@@ -144,9 +159,12 @@ class LogsTable extends Component<Props, State> {
       currentRow: -1,
       currentMessageWidth: 0,
       lastQueryTime: null,
+      firstQueryTime: null,
       isMessageVisible,
       visibleColumnsCount,
     }
+
+    this.loadMoreUpRows = _.throttle(this.loadMoreUpRows, 5000)
   }
 
   public componentDidUpdate() {
@@ -208,8 +226,8 @@ class LogsTable extends Component<Props, State> {
         </AutoSizer>
         <InfiniteLoader
           isRowLoaded={this.isRowLoaded}
-          loadMoreRows={this.loadMoreRows}
-          rowCount={this.props.count}
+          loadMoreRows={this.loadMoreDownRows}
+          rowCount={this.rowCount() + 1000}
         >
           {({registerChild, onRowsRendered}) => (
             <AutoSizer>
@@ -253,13 +271,13 @@ class LogsTable extends Component<Props, State> {
     columnCount: number,
     registerChild: (g: Grid) => void
   ) => {
-    const {hasScrolled, scrollToRow} = this.props
+    const {scrollToRow} = this.props
     const {scrollLeft, scrollTop} = this.state
-    const result: {scrollToRow?: number} & any = {
+    const result: any = {
       width,
       height,
       rowHeight: this.calculateRowHeight,
-      rowCount: getValuesFromData(this.props.data).length,
+      rowCount: this.rowCount(),
       scrollLeft,
       scrollTop,
       cellRenderer: this.cellRenderer,
@@ -273,7 +291,7 @@ class LogsTable extends Component<Props, State> {
       },
     }
 
-    if (!hasScrolled && scrollToRow) {
+    if (scrollToRow) {
       result.scrollToRow = scrollToRow
     }
 
@@ -302,6 +320,10 @@ class LogsTable extends Component<Props, State> {
 
       this.setState({scrollTop})
 
+      if (scrollTop < 200 && scrollTop < previousTop) {
+        this.loadMoreUpRows()
+      }
+
       if (scrollTop === 0) {
         this.props.onScrolledToTop()
       } else if (scrollTop !== previousTop) {
@@ -322,36 +344,56 @@ class LogsTable extends Component<Props, State> {
     }
   }
 
-  private loadMoreRows = async () => {
-    return
-    const data = getValuesFromData(this.props.data)
-    const {timeRange} = this.props
+  private loadMoreUpRows = async () => {
+    // Prevent multiple queries at the same time
+    const {queryCount} = this.props
+    if (queryCount > 0) {
+      return
+    }
+
+    const data = getValuesFromData(this.props.tableInfiniteData.forward)
+    const firstTime = getDeep(data, '0.0', new Date().getTime() / 1000)
+    const {firstQueryTime} = this.state
+    if (firstQueryTime && firstQueryTime > firstTime) {
+      return
+    }
+
+    this.setState({firstQueryTime: firstTime})
+    await this.props.fetchNewer(moment(firstTime).toISOString())
+  }
+
+  private loadMoreDownRows = async () => {
+    // Prevent multiple queries at the same time
+    const {queryCount} = this.props
+    if (queryCount > 0) {
+      return
+    }
+
+    const data = getValuesFromData(this.props.tableInfiniteData.backward)
+
     const lastTime = getDeep(
       data,
       `${data.length - 1}.0`,
       new Date().getTime() / 1000
     )
-    const upper = getDeep<string>(timeRange, 'upper', null)
-    const lower = getDeep<string>(timeRange, 'lower', null)
 
-    if (this.state.lastQueryTime && this.state.lastQueryTime <= lastTime) {
+    // Guard against fetching on scrolling back up then down
+    const {lastQueryTime} = this.state
+    if (lastQueryTime && lastQueryTime <= lastTime) {
       return
-    }
-    const firstQueryTime = getDeep<number>(data, '0.0', null)
-    let queryTimeEnd = lower
-    if (!upper) {
-      const foundTimeRange = timeRanges.find(range => range.lower === lower)
-      queryTimeEnd = moment(firstQueryTime)
-        .subtract(foundTimeRange.seconds, 'seconds')
-        .toISOString()
     }
 
     this.setState({lastQueryTime: lastTime})
-    await this.props.fetchMore(queryTimeEnd, lastTime)
+    await this.props.fetchMore(moment(lastTime).toISOString())
+  }
+
+  private rowCount = (): number => {
+    const data = this.props.tableInfiniteData
+    return data.forward.values.length + data.backward.values.length
   }
 
   private isRowLoaded = ({index}) => {
-    return !!getValuesFromData(this.props.data)[index]
+    return index < this.rowCount() - 1
   }
 
   private handleWindowResize = () => {

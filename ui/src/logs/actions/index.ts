@@ -23,10 +23,10 @@ import {
   // getLogConfig as getLogConfigAJAX,
   // updateLogConfig as updateLogConfigAJAX,
 } from 'src/logs/api'
-import serverLogData from 'src/logs/data/serverLogData'
+import {serverLogData} from 'src/logs/data/serverLogData'
 import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
 
-const INITIAL_LIMIT = 1000
+const INITIAL_LIMIT = 100
 
 const defaultTableData: TableData = {
   columns: [
@@ -65,11 +65,17 @@ export enum ActionTypes {
   IncrementQueryCount = 'LOGS_INCREMENT_QUERY_COUNT',
   DecrementQueryCount = 'LOGS_DECREMENT_QUERY_COUNT',
   ConcatMoreLogs = 'LOGS_CONCAT_MORE_LOGS',
+  PrependMoreLogs = 'LOGS_PREPEND_MORE_LOGS',
   SetConfig = 'SET_CONFIG',
   SetTableRelativeTime = 'SET_TABLE_RELATIVE_TIME',
   SetTableCustomTime = 'SET_TABLE_CUSTOM_TIME',
   SetTableForwardData = 'SET_TABLE_FORWARD_DATA',
   SetTableBackwardData = 'SET_TABLE_BACKWARD_DATA',
+  ClearRowsAdded = 'CLEAR_ROWS_ADDED',
+}
+
+export interface ClearRowsAddedAction {
+  type: ActionTypes.ClearRowsAdded
 }
 
 export interface SetTableForwardDataAction {
@@ -102,6 +108,13 @@ export interface SetTableCustomTimeAction {
 
 export interface ConcatMoreLogsAction {
   type: ActionTypes.ConcatMoreLogs
+  payload: {
+    series: TableData
+  }
+}
+
+export interface PrependMoreLogsAction {
+  type: ActionTypes.PrependMoreLogs
   payload: {
     series: TableData
   }
@@ -231,11 +244,13 @@ export type Action =
   | DecrementQueryCountAction
   | IncrementQueryCountAction
   | ConcatMoreLogsAction
+  | PrependMoreLogsAction
   | SetConfigsAction
   | SetTableCustomTimeAction
   | SetTableRelativeTimeAction
   | SetTableForwardDataAction
   | SetTableBackwardDataAction
+  | ClearRowsAddedAction
 
 const getTimeRange = (state: State): TimeRange | null =>
   getDeep<TimeRange | null>(state, 'logs.timeRange', null)
@@ -271,6 +286,10 @@ const getTableSelectedTime = (state: State): string => {
     .subtract(relative, 'seconds')
     .toISOString()
 }
+
+export const clearRowsAdded = () => ({
+  type: ActionTypes.ClearRowsAdded,
+})
 
 export const setTableCustomTime = (time: string): SetTableCustomTimeAction => ({
   type: ActionTypes.SetTableCustomTime,
@@ -442,6 +461,7 @@ export const executeTableQueryAsync = () => async (dispatch): Promise<void> => {
   await Promise.all([
     dispatch(executeTableForwardQueryAsync()),
     dispatch(executeTableBackwardQueryAsync()),
+    dispatch(clearRowsAdded()),
   ])
 }
 
@@ -521,14 +541,13 @@ export const setTableQueryConfigAsync = () => async (
   }
 }
 
-export const fetchMoreAsync = (
-  queryTimeEnd: string,
-  lastTime: number
-) => async (dispatch, getState): Promise<void> => {
+export const fetchMoreAsync = (queryTimeEnd: string) => async (
+  dispatch,
+  getState
+): Promise<void> => {
   const state = getState()
   const tableQueryConfig = getTableQueryConfig(state)
-  const time = moment(lastTime).toISOString()
-  const timeRange = {lower: queryTimeEnd, upper: time}
+  const timeRange = {lower: queryTimeEnd}
   const newQueryConfig = {
     ...tableQueryConfig,
     range: timeRange,
@@ -540,11 +559,17 @@ export const fetchMoreAsync = (
   const params = [namespace, proxyLink, tableQueryConfig]
 
   if (_.every(params)) {
-    const query = buildLogQuery(timeRange, newQueryConfig, filters, searchTerm)
+    const query = buildBackwardLogQuery(
+      queryTimeEnd,
+      newQueryConfig,
+      filters,
+      searchTerm
+    )
+
     const response = await executeQueryAsync(
       proxyLink,
       namespace,
-      `${query} ORDER BY time DESC LIMIT 1000`
+      `${query} ORDER BY time DESC LIMIT ${INITIAL_LIMIT}`
     )
 
     const series = getDeep(response, 'results.0.series.0', defaultTableData)
@@ -552,8 +577,54 @@ export const fetchMoreAsync = (
   }
 }
 
+export const fetchNewerAsync = (queryTimeStart: string) => async (
+  dispatch,
+  getState
+): Promise<void> => {
+  const state = getState()
+  const tableQueryConfig = getTableQueryConfig(state)
+  const timeRange = {lower: queryTimeStart}
+  const newQueryConfig = {
+    ...tableQueryConfig,
+    range: timeRange,
+  }
+  const namespace = getNamespace(state)
+  const proxyLink = getProxyLink(state)
+  const searchTerm = getSearchTerm(state)
+  const filters = getFilters(state)
+  const params = [namespace, proxyLink, tableQueryConfig]
+
+  if (_.every(params)) {
+    const query = buildForwardLogQuery(
+      queryTimeStart,
+      newQueryConfig,
+      filters,
+      searchTerm
+    )
+
+    const response = await executeQueryAsync(
+      proxyLink,
+      namespace,
+      `${query} ORDER BY time ASC LIMIT ${INITIAL_LIMIT}`
+    )
+
+    const series = getDeep(response, 'results.0.series.0', defaultTableData)
+    await dispatch(
+      PrependMoreLogs({
+        columns: series.columns,
+        values: _.reverse(series.values),
+      })
+    )
+  }
+}
+
 export const ConcatMoreLogs = (series: TableData): ConcatMoreLogsAction => ({
   type: ActionTypes.ConcatMoreLogs,
+  payload: {series},
+})
+
+export const PrependMoreLogs = (series: TableData): PrependMoreLogsAction => ({
+  type: ActionTypes.PrependMoreLogs,
   payload: {series},
 })
 
@@ -637,147 +708,6 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
   if (namespace && proxyLink) {
     await dispatch(setTimeRangeAsync(timeRange))
   }
-}
-
-const serverLogData = {
-  columns: [
-    {
-      name: 'severity',
-      position: 1,
-      encodings: [
-        {
-          type: 'visibility',
-          value: 'visible',
-        },
-        {
-          type: 'label',
-          value: 'icon',
-        },
-        {
-          type: 'label',
-          value: 'text',
-        },
-        {
-          type: 'color',
-          value: 'emerg',
-          name: 'ruby',
-        },
-        {
-          type: 'color',
-          value: 'alert',
-          name: 'fire',
-        },
-        {
-          type: 'color',
-          value: 'crit',
-          name: 'curacao',
-        },
-        {
-          type: 'color',
-          value: 'err',
-          name: 'tiger',
-        },
-        {
-          type: 'color',
-          value: 'warning',
-          name: 'pineapple',
-        },
-        {
-          type: 'color',
-          value: 'notice',
-          name: 'rainforest',
-        },
-        {
-          type: 'color',
-          value: 'info',
-          name: 'star',
-        },
-        {
-          type: 'color',
-          value: 'debug',
-          name: 'wolf',
-        },
-      ],
-    },
-    {
-      name: 'timestamp',
-      position: 2,
-      encodings: [
-        {
-          type: 'visibility',
-          value: 'visible',
-        },
-      ],
-    },
-    {
-      name: 'message',
-      position: 3,
-      encodings: [
-        {
-          type: 'visibility',
-          value: 'visible',
-        },
-      ],
-    },
-    {
-      name: 'facility',
-      position: 4,
-      encodings: [
-        {
-          type: 'visibility',
-          value: 'visible',
-        },
-      ],
-    },
-    {
-      name: 'time',
-      position: 0,
-      encodings: [
-        {
-          type: 'visibility',
-          value: 'hidden',
-        },
-      ],
-    },
-    {
-      name: 'procid',
-      position: 5,
-      encodings: [
-        {
-          type: 'visibility',
-          value: 'visible',
-        },
-        {
-          type: 'displayName',
-          value: 'Proc ID',
-        },
-      ],
-    },
-    {
-      name: 'host',
-      position: 7,
-      encodings: [
-        {
-          type: 'visibility',
-          value: 'visible',
-        },
-      ],
-    },
-    {
-      name: 'appname',
-      position: 6,
-      encodings: [
-        {
-          type: 'visibility',
-          value: 'visible',
-        },
-        {
-          type: 'displayName',
-          value: 'Application',
-        },
-      ],
-    },
-  ],
 }
 
 export const getLogConfigAsync = (url: string) => async (

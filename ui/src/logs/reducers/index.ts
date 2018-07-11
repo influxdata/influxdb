@@ -9,6 +9,7 @@ import {
   DecrementQueryCountAction,
   IncrementQueryCountAction,
   ConcatMoreLogsAction,
+  PrependMoreLogsAction,
   SetConfigsAction,
 } from 'src/logs/actions'
 
@@ -51,6 +52,7 @@ const defaultState: LogsState = {
     forward: defaultTableData,
     backward: defaultTableData,
   },
+  newRowsAdded: 0,
 }
 
 const removeFilter = (
@@ -111,13 +113,45 @@ const concatMoreLogs = (
   const {
     series: {values},
   } = action.payload
-  const {tableData} = state
-  const vals = [...tableData.values, ...values]
+  const {tableInfiniteData} = state
+  const {backward} = tableInfiniteData
+  const vals = [...backward.values, ...values]
+
   return {
     ...state,
-    tableData: {
-      columns: tableData.columns,
-      values: vals,
+    tableInfiniteData: {
+      ...tableInfiniteData,
+      backward: {
+        columns: backward.columns,
+        values: vals,
+      },
+    },
+  }
+}
+
+const prependMoreLogs = (
+  state: LogsState,
+  action: PrependMoreLogsAction
+): LogsState => {
+  const {
+    series: {values},
+  } = action.payload
+  const {tableInfiniteData} = state
+  const {forward} = tableInfiniteData
+  const vals = [...values, ...forward.values]
+
+  const uniqueValues = _.uniqBy(vals, '0')
+  const newRowsAdded = uniqueValues.length - forward.values.length
+
+  return {
+    ...state,
+    newRowsAdded,
+    tableInfiniteData: {
+      ...tableInfiniteData,
+      forward: {
+        columns: forward.columns,
+        values: uniqueValues,
+      },
     },
   }
 }
@@ -154,6 +188,8 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, tableQueryConfig: action.payload.queryConfig}
     case ActionTypes.SetTableData:
       return {...state, tableData: action.payload.data}
+    case ActionTypes.ClearRowsAdded:
+      return {...state, newRowsAdded: null}
     case ActionTypes.SetTableForwardData:
       return {
         ...state,
@@ -191,6 +227,8 @@ export default (state: LogsState = defaultState, action: Action) => {
       return decrementQueryCount(state, action)
     case ActionTypes.ConcatMoreLogs:
       return concatMoreLogs(state, action)
+    case ActionTypes.PrependMoreLogs:
+      return prependMoreLogs(state, action)
     case ActionTypes.SetConfig:
       return setConfigs(state, action)
     default:

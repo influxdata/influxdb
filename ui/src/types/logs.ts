@@ -40,6 +40,7 @@ export interface LogsState {
     custom?: string
     relative?: string
   }
+  newRowsAdded: number
 }
 
 export interface LogConfig {

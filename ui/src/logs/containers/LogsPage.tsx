@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import uuid from 'uuid'
 import _ from 'lodash'
 import {connect} from 'react-redux'
@@ -17,6 +17,7 @@ import {
   removeFilter,
   changeFilter,
   fetchMoreAsync,
+  fetchNewerAsync,
   getLogConfigAsync,
   updateLogConfigAsync,
 } from 'src/logs/actions'
@@ -60,12 +61,14 @@ interface Props {
   setSearchTermAsync: (searchTerm: string) => void
   setTableRelativeTime: (time: number) => void
   setTableCustomTime: (time: string) => void
-  fetchMoreAsync: (queryTimeEnd: string, lastTime: number) => Promise<void>
+  fetchMoreAsync: (queryTimeEnd: string) => Promise<void>
+  fetchNewerAsync: (queryTimeEnd: string) => Promise<void>
   addFilter: (filter: Filter) => void
   removeFilter: (id: string) => void
   changeFilter: (id: string, operator: string, value: string) => void
   getConfig: (url: string) => Promise<void>
   updateConfig: (url: string, config: LogConfig) => Promise<void>
+  newRowsAdded: number
   timeRange: TimeRange
   histogramData: HistogramData
   tableData: TableData
@@ -92,7 +95,7 @@ interface State {
   hasScrolled: boolean
 }
 
-class LogsPage extends PureComponent<Props, State> {
+class LogsPage extends Component<Props, State> {
   public static getDerivedStateFromProps(props: Props) {
     const severityLevelColors: SeverityLevelColor[] = _.get(
       props.logConfig,
@@ -107,6 +110,7 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private interval: NodeJS.Timer
+  private loadingNewer: boolean = false
 
   constructor(props: Props) {
     super(props)
@@ -142,7 +146,7 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {liveUpdating} = this.state
+    // const {liveUpdating} = this.state
     const {searchTerm, filters, queryCount, timeRange, tableTime} = this.props
 
     return (
@@ -175,22 +179,47 @@ class LogsPage extends PureComponent<Props, State> {
             />
             <LogsTable
               count={this.histogramTotal}
+              queryCount={queryCount}
               data={this.tableData}
               onScrollVertical={this.handleVerticalScroll}
               onScrolledToTop={this.handleScrollToTop}
-              isScrolledToTop={liveUpdating}
+              isScrolledToTop={false}
               onTagSelection={this.handleTagSelection}
               fetchMore={this.props.fetchMoreAsync}
+              fetchNewer={this.fetchNewer}
               timeRange={timeRange}
+              scrollToRow={this.tableScrollToRow}
               tableColumns={this.tableColumns}
               severityFormat={this.severityFormat}
               severityLevelColors={this.severityLevelColors}
               hasScrolled={this.state.hasScrolled}
+              tableInfiniteData={this.props.tableInfiniteData}
             />
           </div>
         </div>
         {this.renderImportOverlay()}
       </>
+    )
+  }
+
+  private fetchNewer = (time: string) => {
+    this.loadingNewer = true
+    this.props.fetchNewerAsync(time)
+  }
+
+  private get tableScrollToRow() {
+    if (this.loadingNewer && this.props.newRowsAdded) {
+      this.loadingNewer = false
+      return this.props.newRowsAdded || 0
+    }
+
+    if (this.state.hasScrolled) {
+      return
+    }
+
+    return Math.max(
+      _.get(this.props, 'tableInfiniteData.forward.values.length', 0) - 3,
+      0
     )
   }
 
@@ -453,6 +482,7 @@ const mapStateToProps = ({
     config: {logViewer},
   },
   logs: {
+    newRowsAdded,
     currentSource,
     currentNamespaces,
     timeRange,
@@ -481,6 +511,7 @@ const mapStateToProps = ({
   tableTime,
   logConfigLink: logViewer,
   tableInfiniteData,
+  newRowsAdded,
 })
 
 const mapDispatchToProps = {
@@ -495,6 +526,7 @@ const mapDispatchToProps = {
   removeFilter,
   changeFilter,
   fetchMoreAsync,
+  fetchNewerAsync,
   setTableCustomTime: setTableCustomTimeAsync,
   setTableRelativeTime: setTableRelativeTimeAsync,
   getConfig: getLogConfigAsync,
