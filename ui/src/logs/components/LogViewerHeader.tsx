@@ -52,12 +52,16 @@ class LogViewerHeader extends PureComponent<Props> {
   }
 
   private get optionsComponents(): JSX.Element {
-    const {
-      onShowOptionsOverlay,
-      timeWindow,
-      onChangeTimeWindow,
-      onChooseTime,
-    } = this.props
+    const {onShowOptionsOverlay, onChangeTimeWindow, onChooseTime} = this.props
+
+    // Todo: Replace w/ getDeep
+    const timeWindow = _.get(this.props, 'timeWindow', {
+      upper: null,
+      lower: 'now() - 1m',
+      seconds: 60,
+      windowOption: '1m',
+      timeOption: 'now',
+    })
 
     return (
       <>
