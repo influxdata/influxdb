@@ -173,7 +173,7 @@ func (t *differenceTransformation) Process(id execute.DatasetID, b query.Block) 
 		l := cr.Len()
 		for j, c := range cols {
 			d := differences[j]
-			if d == nil && l == 0 {
+			if l == 0 {
 				continue
 			}
 
