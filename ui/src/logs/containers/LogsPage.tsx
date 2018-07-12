@@ -44,6 +44,7 @@ import {
   LogsTableColumn,
   LogConfig,
   TableData,
+  LiveUpdating,
 } from 'src/types/logs'
 import {applyChangesToTableData} from 'src/logs/utils/table'
 
@@ -89,7 +90,7 @@ interface Props {
 
 interface State {
   searchString: string
-  liveUpdating: boolean
+  liveUpdating: LiveUpdating
   isOverlayVisible: boolean
   histogramColors: HistogramColor[]
   hasScrolled: boolean
@@ -117,7 +118,7 @@ class LogsPage extends Component<Props, State> {
 
     this.state = {
       searchString: '',
-      liveUpdating: false,
+      liveUpdating: LiveUpdating.Pause,
       isOverlayVisible: false,
       histogramColors: [],
       hasScrolled: false,
@@ -267,7 +268,7 @@ class LogsPage extends Component<Props, State> {
 
     if (!this.isSpecificTimeRange) {
       this.interval = setInterval(this.handleInterval, 10000)
-      this.setState({liveUpdating: true})
+      this.setState({liveUpdating: LiveUpdating.Play})
     }
   }
 
@@ -281,7 +282,7 @@ class LogsPage extends Component<Props, State> {
     if (this.state.liveUpdating) {
       clearInterval(this.interval)
     }
-    this.setState({liveUpdating: false, hasScrolled: true})
+    this.setState({liveUpdating: LiveUpdating.Pause, hasScrolled: true})
   }
 
   private handleTagSelection = (selection: {tag: string; key: string}) => {
@@ -333,11 +334,9 @@ class LogsPage extends Component<Props, State> {
       timeRange,
     } = this.props
 
-    const {liveUpdating} = this.state
-
     return (
       <LogViewerHeader
-        liveUpdating={liveUpdating && !this.isSpecificTimeRange}
+        liveUpdating={this.liveUpdatingStatus}
         availableSources={sources}
         timeRange={timeRange}
         onChooseSource={this.handleChooseSource}
@@ -352,6 +351,16 @@ class LogsPage extends Component<Props, State> {
     )
   }
 
+  private get liveUpdatingStatus(): LiveUpdating {
+    const {liveUpdating} = this.state
+
+    if (liveUpdating === LiveUpdating.Play && !this.isSpecificTimeRange) {
+      return LiveUpdating.Play
+    }
+
+    return LiveUpdating.Pause
+  }
+
   private get severityLevelColors(): SeverityLevelColor[] {
     return _.get(this.props.logConfig, 'severityLevelColors', [])
   }
@@ -359,8 +368,8 @@ class LogsPage extends Component<Props, State> {
   private handleChangeLiveUpdatingStatus = (): void => {
     const {liveUpdating} = this.state
 
-    if (liveUpdating) {
-      this.setState({liveUpdating: false})
+    if (liveUpdating === LiveUpdating.Play) {
+      this.setState({liveUpdating: LiveUpdating.Pause})
       clearInterval(this.interval)
     } else {
       this.startUpdating()
@@ -369,7 +378,7 @@ class LogsPage extends Component<Props, State> {
 
   private handleSubmitSearch = (value: string): void => {
     this.props.setSearchTermAsync(value)
-    this.setState({liveUpdating: true})
+    this.setState({liveUpdating: LiveUpdating.Play})
   }
 
   private handleFilterDelete = (id: string): void => {
@@ -408,11 +417,11 @@ class LogsPage extends Component<Props, State> {
     }
 
     this.props.changeZoomAsync(timeRange)
-    this.setState({liveUpdating: true})
+    this.setState({liveUpdating: LiveUpdating.Play})
   }
 
   private fetchNewDataset() {
-    this.setState({liveUpdating: true})
+    this.setState({liveUpdating: LiveUpdating.Play})
     this.props.executeQueriesAsync()
   }
 

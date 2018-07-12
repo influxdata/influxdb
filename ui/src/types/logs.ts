@@ -78,3 +78,8 @@ export interface ServerEncoding {
   value: string
   name?: string
 }
+
+export enum LiveUpdating {
+  Play = 'icon play',
+  Pause = 'icon pause',
+}

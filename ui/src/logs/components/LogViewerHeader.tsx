@@ -1,14 +1,16 @@
 import _ from 'lodash'
 import React, {PureComponent} from 'react'
 import {Source, Namespace} from 'src/types'
-import classnames from 'classnames'
 
+import RadioButtons from 'src/reusable_ui/components/radio_buttons/RadioButtons'
+import {ButtonShape, ComponentColor} from 'src/reusable_ui/types'
 import Dropdown from 'src/shared/components/Dropdown'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {TimeRange} from 'src/types'
+import {LiveUpdating} from 'src/types/logs'
 
 interface SourceItem {
   id: string
@@ -21,7 +23,7 @@ interface Props {
   currentSource: Source | null
   currentNamespaces: Namespace[]
   timeRange: TimeRange
-  liveUpdating: boolean
+  liveUpdating: LiveUpdating
   onChooseSource: (sourceID: string) => void
   onChooseNamespace: (namespace: Namespace) => void
   onChooseTimerange: (timeRange: TimeRange) => void
@@ -85,22 +87,17 @@ class LogViewerHeader extends PureComponent<Props> {
 
   private get status(): JSX.Element {
     const {liveUpdating, onChangeLiveUpdatingStatus} = this.props
+    const buttons = ['icon play', 'icon pause']
 
     return (
-      <ul className="nav nav-tablist nav-tablist-sm logs-viewer--mode-toggle">
-        <li
-          className={classnames({active: liveUpdating})}
-          onClick={onChangeLiveUpdatingStatus}
-        >
-          <span className="icon play" />
-        </li>
-        <li
-          className={classnames({active: !liveUpdating})}
-          onClick={onChangeLiveUpdatingStatus}
-        >
-          <span className="icon pause" />
-        </li>
-      </ul>
+      <RadioButtons
+        customClass="logs-viewer--mode-toggle"
+        shape={ButtonShape.Square}
+        color={ComponentColor.Primary}
+        buttons={buttons}
+        onChange={onChangeLiveUpdatingStatus}
+        activeButton={liveUpdating}
+      />
     )
   }
 
