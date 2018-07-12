@@ -13,17 +13,13 @@ import {
   buildBackwardLogQuery,
   parseHistogramQueryResponse,
 } from 'src/logs/utils'
-import {
-  logConfigServerToUI,
-  // logConfigUIToServer
-} from 'src/logs/utils/config'
+import {logConfigServerToUI, logConfigUIToServer} from 'src/logs/utils/config'
 import {getDeep} from 'src/utils/wrappers'
 import {
   executeQueryAsync,
-  // getLogConfig as getLogConfigAJAX,
-  // updateLogConfig as updateLogConfigAJAX,
+  getLogConfig as getLogConfigAJAX,
+  updateLogConfig as updateLogConfigAJAX,
 } from 'src/logs/api'
-import {serverLogData} from 'src/logs/data/serverLogData'
 import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
 
 export const INITIAL_LIMIT = 100
@@ -713,10 +709,8 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
 export const getLogConfigAsync = (url: string) => async (
   dispatch: Dispatch<SetConfigsAction>
 ): Promise<void> => {
-  url = url
   try {
-    // const {data} = await getLogConfigAJAX(url)
-    const data = serverLogData
+    const {data} = await getLogConfigAJAX(url)
     const logConfig = logConfigServerToUI(data)
     dispatch(setConfig(logConfig))
   } catch (error) {
@@ -727,10 +721,9 @@ export const getLogConfigAsync = (url: string) => async (
 export const updateLogConfigAsync = (url: string, config: LogConfig) => async (
   dispatch: Dispatch<SetConfigsAction>
 ): Promise<void> => {
-  url = url
   try {
-    // const configForServer = logConfigUIToServer(config)
-    // await updateLogConfigAJAX(url, configForServer)
+    const configForServer = logConfigUIToServer(config)
+    await updateLogConfigAJAX(url, configForServer)
     dispatch(setConfig(config))
   } catch (error) {
     console.error(error)

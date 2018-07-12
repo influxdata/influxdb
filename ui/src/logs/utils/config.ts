@@ -99,8 +99,8 @@ export const getLevelColorsFromColumn = (
 ): SeverityLevelColor[] => {
   const colors = column.encodings.filter(e => e.type === EncodingTypes.color)
   return colors.map(c => {
-    const level: SeverityLevelOptions = SeverityLevelOptions[c.value]
-    const color: SeverityColorOptions = SeverityColorOptions[c.name]
+    const level: SeverityLevelOptions = SeverityLevelOptions[c.name]
+    const color: SeverityColorOptions = SeverityColorOptions[c.value]
     return {level, color}
   })
 }
@@ -171,7 +171,7 @@ export const getColorEncodings = (
   levelColors: SeverityLevelColor[]
 ): ServerEncoding[] => {
   return levelColors.map(({color, level}) => {
-    return {type: EncodingTypes.color, name: color, value: level}
+    return {type: EncodingTypes.color, value: color, name: level}
   })
 }
 
