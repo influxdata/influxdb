@@ -11,7 +11,11 @@ import {
   HoverData,
   TooltipAnchor,
   ColorScale,
+<<<<<<< HEAD
   HistogramColor,
+=======
+>>>>>>> origin/logs-histogram-window
+  BarGroup,
 } from 'src/types/histogram'
 
 const BAR_BORDER_RADIUS = 3
@@ -43,26 +47,6 @@ const getSortFn = (data: HistogramData): SortFn => {
   }
 
   return (a, b) => counts[b.group] - counts[a.group]
-}
-
-interface BarGroup {
-  key: string
-  clip: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }
-  bars: Array<{
-    key: string
-    group: string
-    x: number
-    y: number
-    width: number
-    height: number
-    fill: string
-  }>
-  data: HistogramData
 }
 
 const getBarGroups = ({
@@ -143,6 +127,7 @@ interface Props {
   hoverData?: HoverData
   colors: HistogramColor[]
   onHover: (h: HoverData) => void
+  onBarClick?: (group: BarGroup) => void
 }
 
 interface State {
@@ -173,6 +158,7 @@ class HistogramChartBars extends PureComponent<Props, State> {
           data-key={key}
           onMouseOver={this.handleMouseOver}
           onMouseOut={this.handleMouseOut}
+          onClick={this.handleBarClick(group)}
         >
           <defs>
             <clipPath id={`histogram-chart-bars--clip-${key}`}>
@@ -203,6 +189,14 @@ class HistogramChartBars extends PureComponent<Props, State> {
         </g>
       )
     })
+  }
+
+  private handleBarClick = (group: BarGroup) => (): void => {
+    const {onBarClick} = this.props
+
+    if (onBarClick) {
+      onBarClick(group)
+    }
   }
 
   private handleMouseOver = (e: MouseEvent<SVGGElement>): void => {

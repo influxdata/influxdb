@@ -30,9 +30,33 @@ export interface HoverData {
   anchor: TooltipAnchor
 }
 
+<<<<<<< HEAD
 export type ColorScale = (color: string, group: string) => string
 
 export interface HistogramColor {
   group: string
   color: string
+}
+=======
+export type ColorScale = (color: string) => string
+>>>>>>> origin/logs-histogram-window
+
+export interface BarGroup {
+  key: string
+  clip: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  bars: Array<{
+    key: string
+    group: string
+    x: number
+    y: number
+    width: number
+    height: number
+    fill: string
+  }>
+  data: HistogramData
 }
