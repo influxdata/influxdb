@@ -37,7 +37,7 @@ import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import {getDeep} from 'src/utils/wrappers'
 import {colorForSeverity} from 'src/logs/utils/colors'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import {SeverityFormatOptions} from 'src/logs/constants'
+import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
 import {Source, Namespace} from 'src/types'
 
 import {HistogramData, TimePeriod, HistogramColor} from 'src/types/histogram'
@@ -406,7 +406,7 @@ class LogsPage extends Component<Props, State> {
 
     if (timeOption !== 'now') {
       const numberTimeOption = new Date(timeOption).valueOf()
-      const milliseconds = seconds * 10 / 2
+      const milliseconds = seconds * SECONDS_TO_MS
       lower = moment(numberTimeOption - milliseconds).toISOString()
       upper = moment(numberTimeOption + milliseconds).toISOString()
     }

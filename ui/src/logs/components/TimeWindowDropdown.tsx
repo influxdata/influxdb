@@ -1,21 +1,19 @@
 import React, {Component} from 'react'
 import Dropdown from 'src/shared/components/Dropdown'
 import {TIME_RANGE_VALUES} from 'src/logs/constants'
-import {TimeWindow} from 'src/types/logs'
+import {TimeWindow, TimeRange} from 'src/types/logs'
 
 interface Props {
   onSetTimeWindow: (timeWindow: TimeWindow) => void
-  selectedTimeWindow: string
+  selectedTimeWindow: TimeRange
 }
 
 class TimeWindowDropdown extends Component<Props> {
   public render() {
-    const {selectedTimeWindow} = this.props
-
     return (
       <Dropdown
-        className="dropdown-80"
-        selected={selectedTimeWindow}
+        className="dropdown-90"
+        selected={this.selected}
         onChoose={this.handleChoose}
         buttonSize="btn-sm"
         buttonColor="btn-default"
@@ -24,7 +22,19 @@ class TimeWindowDropdown extends Component<Props> {
     )
   }
 
-  public handleChoose = dropdownItem => {
+  private get selected(): string {
+    const {
+      selectedTimeWindow: {timeOption, windowOption},
+    } = this.props
+
+    if (timeOption === 'now') {
+      return `- ${windowOption}`
+    }
+
+    return `+/- ${windowOption}`
+  }
+
+  private handleChoose = (dropdownItem): void => {
     const {onSetTimeWindow} = this.props
     const {text, seconds} = dropdownItem
 
