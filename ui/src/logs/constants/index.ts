@@ -138,6 +138,17 @@ export enum SeverityLevelOptions {
   debug = 'debug',
 }
 
+export const SEVERITY_SORTING_ORDER = {
+  [SeverityLevelOptions.emerg]: 1,
+  [SeverityLevelOptions.alert]: 2,
+  [SeverityLevelOptions.crit]: 3,
+  [SeverityLevelOptions.err]: 4,
+  [SeverityLevelOptions.warning]: 5,
+  [SeverityLevelOptions.notice]: 6,
+  [SeverityLevelOptions.info]: 7,
+  [SeverityLevelOptions.debug]: 8,
+}
+
 export const DEFAULT_SEVERITY_LEVELS = {
   [SeverityLevelOptions.emerg]: SeverityColorOptions.ruby,
   [SeverityLevelOptions.alert]: SeverityColorOptions.fire,

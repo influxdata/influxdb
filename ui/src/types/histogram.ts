@@ -36,3 +36,5 @@ export interface HistogramColor {
   group: string
   color: string
 }
+
+export type SortFn = (a: HistogramDatum, b: HistogramDatum) => number

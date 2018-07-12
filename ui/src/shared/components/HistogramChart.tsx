@@ -15,6 +15,7 @@ import {
   HoverData,
   ColorScale,
   HistogramColor,
+  SortFn,
 } from 'src/types/histogram'
 
 const PADDING_TOP = 0.2
@@ -32,6 +33,7 @@ interface Props {
   colors: HistogramColor[]
   colorScale: ColorScale
   onBarClick?: (time: string) => void
+  sortBarGroups: SortFn
 }
 
 interface State {
@@ -46,7 +48,15 @@ class HistogramChart extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {width, height, data, colorScale, colors, onBarClick} = this.props
+    const {
+      width,
+      height,
+      data,
+      colorScale,
+      colors,
+      onBarClick,
+      sortBarGroups,
+    } = this.props
     const {margins} = this
 
     if (width === 0 || height === 0) {
@@ -99,6 +109,7 @@ class HistogramChart extends PureComponent<Props, State> {
               onHover={this.handleHover}
               colors={colors}
               onBarClick={onBarClick}
+              sortBarGroups={sortBarGroups}
             />
           </g>
         </svg>
