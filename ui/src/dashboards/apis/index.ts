@@ -2,7 +2,7 @@ import AJAX from 'src/utils/ajax'
 
 import {
   linksFromDashboards,
-  updateActiveDashboardLink,
+  updateDashboardLinks,
 } from 'src/dashboards/utils/dashboardSwitcherLinks'
 
 import {AxiosResponse} from 'axios'
@@ -30,7 +30,7 @@ export const loadDashboardLinks = async (
   } = await dashboardsAJAX()
 
   const links = linksFromDashboards(dashboards, source)
-  const dashboardLinks = updateActiveDashboardLink(links, activeDashboard)
+  const dashboardLinks = updateDashboardLinks(links, activeDashboard)
 
   return dashboardLinks
 }
