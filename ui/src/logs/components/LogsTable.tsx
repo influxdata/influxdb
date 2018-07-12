@@ -244,6 +244,7 @@ class LogsTable extends Component<Props, State> {
                   autoHide={false}
                 >
                   <Grid
+                    rowHeight={ROW_HEIGHT}
                     {...this.gridProperties(
                       width,
                       height,
@@ -277,7 +278,6 @@ class LogsTable extends Component<Props, State> {
     const result: any = {
       width,
       height,
-      rowHeight: this.calculateRowHeight,
       rowCount: this.rowCount(),
       scrollLeft,
       scrollTop,

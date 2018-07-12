@@ -238,10 +238,6 @@ $logs-viewer-gutter: 60px;
   margin-right: 10px;
 }
 
-.message--cell {
-  word-break: break-all;
-}
-
 // Table Cell Styles
 .logs-viewer--cell {
   font-size: 12px;
@@ -261,6 +257,13 @@ $logs-viewer-gutter: 60px;
   font-weight: 600;
   color: $g15-platinum;
   border-bottom: 2px solid $g5-pepper;
+}
+
+.message--cell {
+  overflow: hidden;
+  white-space: nowrap;
+  display: block;
+  text-overflow: ellipsis;
 }
 
 // Clickable Cells
