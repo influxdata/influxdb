@@ -325,7 +325,7 @@ class LogsPage extends PureComponent<Props, State> {
     let upper = null
 
     if (timeOption !== 'now') {
-      const numberTimeOption = moment(timeOption).valueOf()
+      const numberTimeOption = new Date(timeOption).valueOf()
       const milliseconds = seconds * 10 / 2
       lower = moment(numberTimeOption - milliseconds).toISOString()
       upper = moment(numberTimeOption + milliseconds).toISOString()
