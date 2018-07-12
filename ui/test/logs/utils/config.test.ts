@@ -48,13 +48,13 @@ const sortedServerColumns = () => {
         },
         {
           type: 'color',
-          value: 'alert',
-          name: 'pearl',
+          name: 'alert',
+          value: 'pearl',
         },
         {
           type: 'color',
-          value: 'warning',
-          name: 'wolf',
+          name: 'warning',
+          value: 'wolf',
         },
       ],
     },
@@ -233,13 +233,13 @@ describe('Logs.Config', () => {
           },
           {
             type: 'color',
-            name: 'pineapple',
-            value: 'emerg',
+            name: 'emerg',
+            value: 'pineapple',
           },
           {
             type: 'color',
-            name: 'fire',
-            value: 'err',
+            name: 'err',
+            value: 'fire',
           },
         ],
       }
@@ -365,23 +365,23 @@ describe('Logs.Config', () => {
       const expectedEncodings = [
         {
           type: 'color',
-          value: 'emerg',
-          name: SeverityColorOptions.pearl,
+          name: 'emerg',
+          value: SeverityColorOptions.pearl,
         },
         {
           type: 'color',
-          value: 'alert',
-          name: SeverityColorOptions.mist,
+          name: 'alert',
+          value: SeverityColorOptions.mist,
         },
         {
           type: 'color',
-          value: 'crit',
-          name: SeverityColorOptions.wolf,
+          name: 'crit',
+          value: SeverityColorOptions.wolf,
         },
         {
           type: 'color',
-          value: 'err',
-          name: SeverityColorOptions.graphite,
+          name: 'err',
+          value: SeverityColorOptions.graphite,
         },
       ]
 
@@ -436,23 +436,23 @@ describe('Logs.Config', () => {
         },
         {
           type: 'color',
-          value: 'emerg',
-          name: SeverityColorOptions.pearl,
+          name: 'emerg',
+          value: SeverityColorOptions.pearl,
         },
         {
           type: 'color',
-          value: 'alert',
-          name: SeverityColorOptions.mist,
+          name: 'alert',
+          value: SeverityColorOptions.mist,
         },
         {
           type: 'color',
-          value: 'crit',
-          name: SeverityColorOptions.wolf,
+          name: 'crit',
+          value: SeverityColorOptions.wolf,
         },
         {
           type: 'color',
-          value: 'err',
-          name: SeverityColorOptions.graphite,
+          name: 'err',
+          value: SeverityColorOptions.graphite,
         },
       ]
 

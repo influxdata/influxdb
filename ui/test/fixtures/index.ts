@@ -404,13 +404,13 @@ export const serverLogColumns: ServerColumn[] = [
       },
       {
         type: 'color',
-        value: 'alert',
-        name: 'pearl',
+        name: 'alert',
+        value: 'pearl',
       },
       {
         type: 'color',
-        value: 'warning',
-        name: 'wolf',
+        name: 'warning',
+        value: 'wolf',
       },
     ],
   },
