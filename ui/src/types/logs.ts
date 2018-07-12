@@ -1,12 +1,8 @@
-<<<<<<< HEAD
 import {
   SeverityFormatOptions,
   SeverityColorOptions,
   SeverityLevelOptions,
 } from 'src/logs/constants'
-=======
-import {SeverityFormatOptions} from 'src/logs/constants'
->>>>>>> origin/logs-histogram-window
 import {QueryConfig, Namespace, Source} from 'src/types'
 import {FieldOption} from 'src/types/dashboards'
 import {TimeSeriesValue} from 'src/types/series'

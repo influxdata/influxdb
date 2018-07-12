@@ -11,10 +11,7 @@ import {
   HoverData,
   TooltipAnchor,
   ColorScale,
-<<<<<<< HEAD
   HistogramColor,
-=======
->>>>>>> origin/logs-histogram-window
   BarGroup,
 } from 'src/types/histogram'
 

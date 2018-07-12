@@ -16,7 +16,6 @@ import {
 import {SeverityFormatOptions} from 'src/logs/constants'
 import {LogsState, TableData} from 'src/types/logs'
 
-<<<<<<< HEAD
 const defaultTableData: TableData = {
   columns: [
     'time',
@@ -31,8 +30,6 @@ const defaultTableData: TableData = {
   values: [],
 }
 
-=======
->>>>>>> origin/logs-histogram-window
 export const defaultState: LogsState = {
   currentSource: null,
   currentNamespaces: [],
@@ -204,7 +201,6 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, tableQueryConfig: action.payload.queryConfig}
     case ActionTypes.SetTableData:
       return {...state, tableData: action.payload.data}
-<<<<<<< HEAD
     case ActionTypes.ClearRowsAdded:
       return {...state, newRowsAdded: null}
     case ActionTypes.SetTableForwardData:
@@ -223,8 +219,6 @@ export default (state: LogsState = defaultState, action: Action) => {
           backward: action.payload.data,
         },
       }
-=======
->>>>>>> origin/logs-histogram-window
     case ActionTypes.SetSearchTerm:
       const {searchTerm} = action.payload
       return {...state, searchTerm}
