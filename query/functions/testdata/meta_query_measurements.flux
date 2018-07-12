@@ -1,0 +1,5 @@
+from(db:"test")
+    |> range(start:-5m)
+    |> group(by: ["_measurement"])
+    |> distinct(column: "_measurement")
+    |> group(none:true)
