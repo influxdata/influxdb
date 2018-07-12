@@ -357,13 +357,16 @@ class DashboardPage extends Component<Props, State> {
     const {dashboardID, source, getDashboardWithTemplatesAsync} = this.props
 
     await getDashboardWithTemplatesAsync(dashboardID, source)
+    this.updateActiveDashboard()
+  }
 
-    const dashboardLinks = updateActiveDashboardLink(
-      this.state.dashboardLinks,
-      this.props.dashboard
-    )
-
-    this.setState({dashboardLinks})
+  private updateActiveDashboard(): void {
+    this.setState((prevState, props) => ({
+      dashboardLinks: updateActiveDashboardLink(
+        prevState.dashboardLinks,
+        props.dashboard
+      ),
+    }))
   }
 
   private inView = (cell: DashboardsModels.Cell): boolean => {
@@ -450,7 +453,6 @@ class DashboardPage extends Component<Props, State> {
 
   private updateLinkName(): void {
     this.setState((prevState, props) => ({
-      ...prevState,
       dashboardLinks: updateDashboardLinkName(
         prevState.dashboardLinks,
         props.dashboard
