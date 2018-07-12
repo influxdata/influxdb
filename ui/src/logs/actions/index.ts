@@ -20,7 +20,6 @@ import {
   getLogConfig as getLogConfigAJAX,
   updateLogConfig as updateLogConfigAJAX,
 } from 'src/logs/api'
-import {serverLogData} from 'src/logs/data/serverLogData'
 import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
 
 export const INITIAL_LIMIT = 100

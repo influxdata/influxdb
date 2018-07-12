@@ -448,7 +448,9 @@ class LogsPage extends Component<Props, State> {
     })
   }
 
-  private handleUpdateSeverityFormat = async (format: SeverityFormat): Promise<void> => {
+  private handleUpdateSeverityFormat = async (
+    format: SeverityFormat
+  ): Promise<void> => {
     const {logConfig} = this.props
     await this.props.updateConfig(this.logConfigLink, {
       ...logConfig,
@@ -466,7 +468,9 @@ class LogsPage extends Component<Props, State> {
     return severityFormat
   }
 
-  private handleUpdateColumns = async (tableColumns: LogsTableColumn[]): Promise<void> => {
+  private handleUpdateColumns = async (
+    tableColumns: LogsTableColumn[]
+  ): Promise<void> => {
     const {logConfig} = this.props
     await this.props.updateConfig(this.logConfigLink, {
       ...logConfig,
