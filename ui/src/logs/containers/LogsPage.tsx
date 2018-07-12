@@ -326,6 +326,7 @@ class LogsPage extends Component<Props, State> {
             height={height}
             colorScale={colorForSeverity}
             colors={histogramColors}
+            onBarClick={this.handleBarClick}
           />
         )}
       </AutoSizer>
@@ -394,6 +395,19 @@ class LogsPage extends Component<Props, State> {
     this.props.changeFilter(id, operator, value)
     this.fetchNewDataset()
     this.props.executeQueriesAsync()
+  }
+
+  private handleBarClick = (group: BarGroup): void => {
+    const {data} = group
+
+    if (!data.length) {
+      return
+    }
+
+    const unixTimestamp = data[0].time
+    const timeOption = moment(unixTimestamp).toISOString()
+
+    this.handleSetTimeMarker({timeOption})
   }
 
   private handleSetTimeBounds = async () => {
