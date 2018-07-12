@@ -307,6 +307,54 @@ func TestDifference_Process(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name: "float no values",
+			spec: &functions.DifferenceProcedureSpec{
+				Columns:     []string{"x", "y"},
+				NonNegative: true,
+			},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
+				},
+				Data: [][]interface{}{},
+			}},
+			want: []*executetest.Block{{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
+				},
+				Data: [][]interface{}(nil),
+			}},
+		},
+		{
+			name: "float single value",
+			spec: &functions.DifferenceProcedureSpec{
+				Columns:     []string{"x", "y"},
+				NonNegative: true,
+			},
+			data: []query.Block{&executetest.Block{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(3), 10.0, 20.0},
+				},
+			}},
+			want: []*executetest.Block{{
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "x", Type: query.TFloat},
+					{Label: "y", Type: query.TFloat},
+				},
+				Data: [][]interface{}(nil),
+			}},
+		},
 	}
 	for _, tc := range testCases {
 		tc := tc
