@@ -35,3 +35,27 @@ export const updateActiveDashboardLink = (
 
   return {...dashboardLinks, active}
 }
+
+export const updateDashboadLinkName = (
+  dashboardLinks: DashboardSwitcherLinks,
+  dashboard: Dashboard
+): DashboardSwitcherLinks => {
+  const {name} = dashboard
+  let active = dashboardLinks.active
+
+  const links = dashboardLinks.links.map(link => {
+    if (link.key === String(dashboard.id)) {
+      const newLink = {...link, text: name}
+
+      if (link === active) {
+        active = newLink
+      }
+
+      return newLink
+    }
+
+    return link
+  })
+
+  return {links, active}
+}
