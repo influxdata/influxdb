@@ -2,7 +2,7 @@ import moment from 'moment'
 import _ from 'lodash'
 import {Dispatch} from 'redux'
 
-import {Source, Namespace, TimeRange, QueryConfig} from 'src/types'
+import {Source, Namespace, QueryConfig} from 'src/types'
 import {getSource} from 'src/shared/apis'
 import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
 import {
@@ -20,7 +20,17 @@ import {
   getLogConfig as getLogConfigAJAX,
   updateLogConfig as updateLogConfigAJAX,
 } from 'src/logs/api'
-import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
+
+import {
+  LogsState,
+  Filter,
+  TableData,
+  LogConfig,
+  TimeRange,
+  TimeBounds,
+  TimeWindow,
+  TimeMarker,
+} from 'src/types/logs'
 
 export const INITIAL_LIMIT = 100
 
@@ -31,7 +41,7 @@ const defaultTableData: TableData = {
     'timestamp',
     'facility',
     'procid',
-    'application',
+    'appname',
     'host',
     'message',
   ],
@@ -47,13 +57,14 @@ type GetState = () => State
 export enum ActionTypes {
   SetSource = 'LOGS_SET_SOURCE',
   SetNamespaces = 'LOGS_SET_NAMESPACES',
-  SetTimeRange = 'LOGS_SET_TIMERANGE',
+  SetTimeBounds = 'LOGS_SET_TIMEBOUNDS',
+  SetTimeWindow = 'LOGS_SET_TIMEWINDOW',
+  SetTimeMarker = 'LOGS_SET_TIMEMARKER',
   SetNamespace = 'LOGS_SET_NAMESPACE',
   SetHistogramQueryConfig = 'LOGS_SET_HISTOGRAM_QUERY_CONFIG',
   SetHistogramData = 'LOGS_SET_HISTOGRAM_DATA',
   SetTableQueryConfig = 'LOGS_SET_TABLE_QUERY_CONFIG',
   SetTableData = 'LOGS_SET_TABLE_DATA',
-  ChangeZoom = 'LOGS_CHANGE_ZOOM',
   SetSearchTerm = 'LOGS_SET_SEARCH_TERM',
   AddFilter = 'LOGS_ADD_FILTER',
   RemoveFilter = 'LOGS_REMOVE_FILTER',
@@ -167,10 +178,24 @@ interface SetNamespaceAction {
   }
 }
 
-interface SetTimeRangeAction {
-  type: ActionTypes.SetTimeRange
+interface SetTimeBoundsAction {
+  type: ActionTypes.SetTimeBounds
   payload: {
-    timeRange: TimeRange
+    timeBounds: TimeBounds
+  }
+}
+
+interface SetTimeWindowAction {
+  type: ActionTypes.SetTimeWindow
+  payload: {
+    timeWindow: TimeWindow
+  }
+}
+
+interface SetTimeMarkerAction {
+  type: ActionTypes.SetTimeMarker
+  payload: {
+    timeMarker: TimeMarker
   }
 }
 
@@ -209,13 +234,6 @@ interface SetSearchTerm {
   }
 }
 
-interface ChangeZoomAction {
-  type: ActionTypes.ChangeZoom
-  payload: {
-    timeRange: TimeRange
-  }
-}
-
 export interface SetConfigsAction {
   type: ActionTypes.SetConfig
   payload: {
@@ -226,11 +244,12 @@ export interface SetConfigsAction {
 export type Action =
   | SetSourceAction
   | SetNamespacesAction
-  | SetTimeRangeAction
+  | SetTimeBoundsAction
+  | SetTimeWindowAction
+  | SetTimeMarkerAction
   | SetNamespaceAction
   | SetHistogramQueryConfig
   | SetHistogramData
-  | ChangeZoomAction
   | SetTableData
   | SetTableQueryConfig
   | SetSearchTerm
@@ -311,6 +330,21 @@ export const setTableBackwardData = (
 ): SetTableBackwardDataAction => ({
   type: ActionTypes.SetTableBackwardData,
   payload: {data},
+})
+
+export const setTimeWindow = (timeWindow: TimeWindow): SetTimeWindowAction => ({
+  type: ActionTypes.SetTimeWindow,
+  payload: {timeWindow},
+})
+
+export const setTimeMarker = (timeMarker: TimeMarker): SetTimeMarkerAction => ({
+  type: ActionTypes.SetTimeMarker,
+  payload: {timeMarker},
+})
+
+export const setTimeBounds = (timeBounds: TimeBounds): SetTimeBoundsAction => ({
+  type: ActionTypes.SetTimeBounds,
+  payload: {timeBounds},
 })
 
 export const executeTableForwardQueryAsync = () => async (
@@ -501,7 +535,13 @@ export const setHistogramQueryConfigAsync = () => async (
   const timeRange = getDeep<TimeRange | null>(state, 'logs.timeRange', null)
 
   if (timeRange && namespace) {
-    const queryConfig = buildHistogramQueryConfig(namespace, timeRange)
+    const queryTimeRange = {
+      upper: timeRange.upper,
+      lower: timeRange.lower,
+      seconds: timeRange.seconds,
+    }
+
+    const queryConfig = buildHistogramQueryConfig(namespace, queryTimeRange)
 
     dispatch({
       type: ActionTypes.SetHistogramQueryConfig,
@@ -645,17 +685,7 @@ export const setNamespaces = (
   },
 })
 
-export const setTimeRange = timeRange => ({
-  type: ActionTypes.SetTimeRange,
-  payload: {
-    timeRange,
-  },
-})
-
-export const setTimeRangeAsync = (timeRange: TimeRange) => async (
-  dispatch
-): Promise<void> => {
-  dispatch(setTimeRange(timeRange))
+export const setTimeRangeAsync = () => async (dispatch): Promise<void> => {
   dispatch(setHistogramQueryConfigAsync())
   dispatch(setTableQueryConfigAsync())
 }
@@ -690,19 +720,6 @@ export const getSourceAndPopulateNamespacesAsync = (sourceID: string) => async (
   if (proxyLink) {
     dispatch(setSource(source))
     dispatch(populateNamespacesAsync(proxyLink, source))
-  }
-}
-
-export const changeZoomAsync = (timeRange: TimeRange) => async (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
-  const state = getState()
-  const namespace = getNamespace(state)
-  const proxyLink = getProxyLink(state)
-
-  if (namespace && proxyLink) {
-    await dispatch(setTimeRangeAsync(timeRange))
   }
 }
 

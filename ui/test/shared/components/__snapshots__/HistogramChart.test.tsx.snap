@@ -310,25 +310,6 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
       </HistogramChartAxes>
     </g>
     <g
-      className="histogram-chart--brush"
-      transform="translate(25, 5)"
-    >
-      <XBrush
-        height={375}
-        onBrush={[Function]}
-        width={575}
-        xScale={[Function]}
-      >
-        <rect
-          className="x-brush--area"
-          height={375}
-          onDoubleClick={[Function]}
-          onMouseDown={[Function]}
-          width={575}
-        />
-      </XBrush>
-    </g>
-    <g
       className="histogram-chart--bars"
       clipPath="url(#histogram-chart--bars-clip)"
       transform="translate(25, 5)"
@@ -368,6 +349,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
           className="histogram-chart-bars--bars"
           data-key="1-1-193.5"
           key="1-1-193.5"
+          onClick={[Function]}
           onMouseOut={[Function]}
           onMouseOver={[Function]}
         >
@@ -402,6 +384,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
           className="histogram-chart-bars--bars"
           data-key="2-2-481"
           key="2-2-481"
+          onClick={[Function]}
           onMouseOut={[Function]}
           onMouseOver={[Function]}
         >

@@ -1,6 +1,7 @@
 import React, {Component} from 'react'
 import uuid from 'uuid'
 import _ from 'lodash'
+import moment from 'moment'
 import {connect} from 'react-redux'
 import {AutoSizer} from 'react-virtualized'
 
@@ -9,9 +10,11 @@ import {
   setTableRelativeTimeAsync,
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
+  setTimeBounds,
+  setTimeWindow,
+  setTimeMarker,
   setNamespaceAsync,
   executeQueriesAsync,
-  changeZoomAsync,
   setSearchTermAsync,
   addFilter,
   removeFilter,
@@ -33,10 +36,10 @@ import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import {getDeep} from 'src/utils/wrappers'
 import {colorForSeverity} from 'src/logs/utils/colors'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import {SeverityFormatOptions} from 'src/logs/constants'
-import {Source, Namespace, TimeRange} from 'src/types'
+import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
+import {Source, Namespace} from 'src/types'
 
-import {HistogramData, TimePeriod, HistogramColor} from 'src/types/histogram'
+import {HistogramData, HistogramColor} from 'src/types/histogram'
 import {
   Filter,
   SeverityLevelColor,
@@ -45,6 +48,10 @@ import {
   LogConfig,
   TableData,
   LiveUpdating,
+  TimeRange,
+  TimeWindow,
+  TimeMarker,
+  TimeBounds,
 } from 'src/types/logs'
 import {applyChangesToTableData} from 'src/logs/utils/table'
 
@@ -56,8 +63,10 @@ interface Props {
   getSource: (sourceID: string) => void
   getSources: () => void
   setTimeRangeAsync: (timeRange: TimeRange) => void
+  setTimeBounds: (timeBounds: TimeBounds) => void
+  setTimeWindow: (timeWindow: TimeWindow) => void
+  setTimeMarker: (timeMarker: TimeMarker) => void
   setNamespaceAsync: (namespace: Namespace) => void
-  changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
   setSearchTermAsync: (searchTerm: string) => void
   setTableRelativeTime: (time: number) => void
@@ -317,8 +326,8 @@ class LogsPage extends Component<Props, State> {
             width={width}
             height={height}
             colorScale={colorForSeverity}
-            onZoom={this.handleChartZoom}
             colors={histogramColors}
+            onBarClick={this.handleBarClick}
           />
         )}
       </AutoSizer>
@@ -336,12 +345,13 @@ class LogsPage extends Component<Props, State> {
 
     return (
       <LogViewerHeader
+        timeRange={timeRange}
+        onSetTimeMarker={this.handleSetTimeMarker}
+        onSetTimeWindow={this.handleSetTimeWindow}
         liveUpdating={this.liveUpdatingStatus}
         availableSources={sources}
-        timeRange={timeRange}
         onChooseSource={this.handleChooseSource}
         onChooseNamespace={this.handleChooseNamespace}
-        onChooseTimerange={this.handleChooseTimerange}
         currentSource={currentSource}
         currentNamespaces={currentNamespaces}
         currentNamespace={currentNamespace}
@@ -396,9 +406,43 @@ class LogsPage extends Component<Props, State> {
     this.props.executeQueriesAsync()
   }
 
-  private handleChooseTimerange = (timeRange: TimeRange) => {
-    this.props.setTimeRangeAsync(timeRange)
+  private handleBarClick = (time: string): void => {
+    const timeOption = moment(time).toISOString()
+
+    this.handleSetTimeMarker({timeOption})
+  }
+
+  private handleSetTimeBounds = async () => {
+    const {seconds, windowOption, timeOption} = this.props.timeRange
+    let lower = `now() - ${windowOption}`
+    let upper = null
+
+    if (timeOption !== 'now') {
+      const numberTimeOption = new Date(timeOption).valueOf()
+      const milliseconds = seconds * SECONDS_TO_MS
+      lower = moment(numberTimeOption - milliseconds).toISOString()
+      upper = moment(numberTimeOption + milliseconds).toISOString()
+    }
+
+    const timeBounds: TimeBounds = {
+      lower,
+      upper,
+    }
+
+    await this.props.setTimeBounds(timeBounds)
+
+    this.props.setTimeRangeAsync(this.props.timeRange)
     this.fetchNewDataset()
+  }
+
+  private handleSetTimeWindow = async (timeWindow: TimeWindow) => {
+    await this.props.setTimeWindow(timeWindow)
+    this.handleSetTimeBounds()
+  }
+
+  private handleSetTimeMarker = async (timeMarker: TimeMarker) => {
+    await this.props.setTimeMarker(timeMarker)
+    this.handleSetTimeBounds()
   }
 
   private handleChooseSource = (sourceID: string) => {
@@ -407,17 +451,6 @@ class LogsPage extends Component<Props, State> {
 
   private handleChooseNamespace = (namespace: Namespace) => {
     this.props.setNamespaceAsync(namespace)
-  }
-
-  private handleChartZoom = (t: TimePeriod) => {
-    const {start, end} = t
-    const timeRange = {
-      lower: new Date(start).toISOString(),
-      upper: new Date(end).toISOString(),
-    }
-
-    this.props.changeZoomAsync(timeRange)
-    this.setState({liveUpdating: LiveUpdating.Play})
   }
 
   private fetchNewDataset() {
@@ -530,9 +563,11 @@ const mapDispatchToProps = {
   getSource: getSourceAndPopulateNamespacesAsync,
   getSources: getSourcesAsync,
   setTimeRangeAsync,
+  setTimeBounds,
+  setTimeWindow,
+  setTimeMarker,
   setNamespaceAsync,
   executeQueriesAsync,
-  changeZoomAsync,
   setSearchTermAsync,
   addFilter,
   removeFilter,

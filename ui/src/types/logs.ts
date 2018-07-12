@@ -3,9 +3,10 @@ import {
   SeverityColorOptions,
   SeverityLevelOptions,
 } from 'src/logs/constants'
-import {QueryConfig, TimeRange, Namespace, Source} from 'src/types'
+import {QueryConfig, Namespace, Source} from 'src/types'
 import {FieldOption} from 'src/types/dashboards'
 import {TimeSeriesValue} from 'src/types/series'
+import {TimeRange} from 'src/types/logs'
 
 export interface Filter {
   id: string
@@ -82,4 +83,47 @@ export interface ServerEncoding {
 export enum LiveUpdating {
   Play = 'icon play',
   Pause = 'icon pause',
+}
+export interface TimeRange {
+  upper?: string
+  lower: string
+  seconds?: number
+  windowOption: string
+  timeOption: string
+}
+
+export interface TimeBounds {
+  upper: string | null
+  lower: string
+}
+
+export interface TimeWindow {
+  seconds: number
+  windowOption: string
+}
+
+export interface TimeMarker {
+  timeOption: string
+}
+
+export interface TimeRange {
+  upper?: string
+  lower: string
+  seconds?: number
+  windowOption: string
+  timeOption: string
+}
+
+export interface TimeBounds {
+  upper: string | null
+  lower: string
+}
+
+export interface TimeWindow {
+  seconds: number
+  windowOption: string
+}
+
+export interface TimeMarker {
+  timeOption: string
 }

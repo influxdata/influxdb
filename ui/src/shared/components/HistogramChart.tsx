@@ -6,12 +6,10 @@ import HistogramChartAxes from 'src/shared/components/HistogramChartAxes'
 import HistogramChartBars from 'src/shared/components/HistogramChartBars'
 import HistogramChartTooltip from 'src/shared/components/HistogramChartTooltip'
 import HistogramChartSkeleton from 'src/shared/components/HistogramChartSkeleton'
-import XBrush from 'src/shared/components/XBrush'
 
 import extentBy from 'src/utils/extentBy'
 
 import {
-  TimePeriod,
   HistogramData,
   Margins,
   HoverData,
@@ -33,7 +31,7 @@ interface Props {
   height: number
   colors: HistogramColor[]
   colorScale: ColorScale
-  onZoom: (TimePeriod) => void
+  onBarClick?: (time: string) => void
 }
 
 interface State {
@@ -48,7 +46,7 @@ class HistogramChart extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {width, height, data, colorScale, colors} = this.props
+    const {width, height, data, colorScale, colors, onBarClick} = this.props
     const {margins} = this
 
     if (width === 0 || height === 0) {
@@ -85,14 +83,6 @@ class HistogramChart extends PureComponent<Props, State> {
               yScale={yScale}
             />
           </g>
-          <g className="histogram-chart--brush" transform={bodyTransform}>
-            <XBrush
-              xScale={xScale}
-              width={adjustedWidth}
-              height={adjustedHeight}
-              onBrush={this.handleBrush}
-            />
-          </g>
           <g
             transform={bodyTransform}
             className="histogram-chart--bars"
@@ -108,6 +98,7 @@ class HistogramChart extends PureComponent<Props, State> {
               hoverData={hoverData}
               onHover={this.handleHover}
               colors={colors}
+              onBarClick={onBarClick}
             />
           </g>
         </svg>
@@ -181,11 +172,6 @@ class HistogramChart extends PureComponent<Props, State> {
     )
 
     return Math.max(...counts)
-  }
-
-  private handleBrush = (t: TimePeriod): void => {
-    this.props.onZoom(t)
-    this.setState({hoverData: null})
   }
 
   private handleHover = (hoverData: HoverData): void => {

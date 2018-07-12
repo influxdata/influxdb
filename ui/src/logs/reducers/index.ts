@@ -30,10 +30,16 @@ const defaultTableData: TableData = {
   values: [],
 }
 
-const defaultState: LogsState = {
+export const defaultState: LogsState = {
   currentSource: null,
   currentNamespaces: [],
-  timeRange: {lower: 'now() - 1m', upper: null},
+  timeRange: {
+    upper: null,
+    lower: 'now() - 1m',
+    seconds: 60,
+    windowOption: '1m',
+    timeOption: 'now',
+  },
   currentNamespace: null,
   histogramQueryConfig: null,
   tableQueryConfig: null,
@@ -176,8 +182,15 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, currentSource: action.payload.source}
     case ActionTypes.SetNamespaces:
       return {...state, currentNamespaces: action.payload.namespaces}
-    case ActionTypes.SetTimeRange:
-      return {...state, timeRange: action.payload.timeRange}
+    case ActionTypes.SetTimeBounds:
+      const {upper, lower} = action.payload.timeBounds
+      return {...state, timeRange: {...state.timeRange, upper, lower}}
+    case ActionTypes.SetTimeWindow:
+      const {windowOption, seconds} = action.payload.timeWindow
+      return {...state, timeRange: {...state.timeRange, windowOption, seconds}}
+    case ActionTypes.SetTimeMarker:
+      const {timeOption} = action.payload.timeMarker
+      return {...state, timeRange: {...state.timeRange, timeOption}}
     case ActionTypes.SetNamespace:
       return {...state, currentNamespace: action.payload.namespace}
     case ActionTypes.SetHistogramQueryConfig:
@@ -206,8 +219,6 @@ export default (state: LogsState = defaultState, action: Action) => {
           backward: action.payload.data,
         },
       }
-    case ActionTypes.ChangeZoom:
-      return {...state, timeRange: action.payload.timeRange}
     case ActionTypes.SetSearchTerm:
       const {searchTerm} = action.payload
       return {...state, searchTerm}
