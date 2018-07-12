@@ -23,8 +23,6 @@ interface Props {
   }
 
   onChooseTimeRange: (timeRange: TimeRange) => void
-  preventCustomTimeRange?: boolean
-  page?: string
 }
 
 interface State {
@@ -36,10 +34,6 @@ interface State {
 
 @ErrorHandling
 class TimeRangeDropdown extends Component<Props, State> {
-  public static defaultProps = {
-    page: 'default',
-  }
-
   constructor(props) {
     super(props)
     const {lower, upper} = props.selected
@@ -56,7 +50,7 @@ class TimeRangeDropdown extends Component<Props, State> {
   }
 
   public render() {
-    const {selected, preventCustomTimeRange, page} = this.props
+    const {selected} = this.props
     const {customTimeRange, isCustomTimeRangeOpen} = this.state
 
     return (
@@ -79,25 +73,21 @@ class TimeRangeDropdown extends Component<Props, State> {
                 autoHeight={true}
                 maxHeight={DROPDOWN_MENU_MAX_HEIGHT}
               >
-                {preventCustomTimeRange ? null : (
-                  <div>
-                    <li className="dropdown-header">Absolute Time</li>
-                    <li
-                      className={
-                        isCustomTimeRangeOpen
-                          ? 'active dropdown-item custom-timerange'
-                          : 'dropdown-item custom-timerange'
-                      }
-                    >
-                      <a href="#" onClick={this.showCustomTimeRange}>
-                        Date Picker
-                      </a>
-                    </li>
-                  </div>
-                )}
-                <li className="dropdown-header">
-                  {preventCustomTimeRange ? '' : 'Relative '}Time
-                </li>
+                <div>
+                  <li className="dropdown-header">Absolute Time</li>
+                  <li
+                    className={
+                      isCustomTimeRangeOpen
+                        ? 'active dropdown-item custom-timerange'
+                        : 'dropdown-item custom-timerange'
+                    }
+                  >
+                    <a href="#" onClick={this.showCustomTimeRange}>
+                      Date Picker
+                    </a>
+                  </li>
+                </div>
+                <li className="dropdown-header">Relative Time</li>
                 {timeRanges.map(item => {
                   return (
                     <li className="dropdown-item" key={item.menuOption}>
@@ -118,8 +108,8 @@ class TimeRangeDropdown extends Component<Props, State> {
                   timeRange={customTimeRange}
                   onClose={this.handleCloseCustomTimeRange}
                   isVisible={isCustomTimeRangeOpen}
-                  timeInterval={60}
-                  page={page}
+                  timeInterval={300}
+                  page="default"
                 />
               </div>
             </ClickOutside>
@@ -131,9 +121,7 @@ class TimeRangeDropdown extends Component<Props, State> {
 
   private get dropdownClassName(): string {
     const {isOpen} = this.state
-
     const {lower, upper} = _.get(this.props, 'selected', {upper: '', lower: ''})
-
     const absoluteTimeRange = !_.isEmpty(lower) && !_.isEmpty(upper)
 
     return classnames('dropdown', {

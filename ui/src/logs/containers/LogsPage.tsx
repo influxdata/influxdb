@@ -1,10 +1,12 @@
-import React, {PureComponent} from 'react'
+import React, {Component} from 'react'
 import uuid from 'uuid'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 import {AutoSizer} from 'react-virtualized'
 
 import {
+  setTableCustomTimeAsync,
+  setTableRelativeTimeAsync,
   getSourceAndPopulateNamespacesAsync,
   setTimeRangeAsync,
   setNamespaceAsync,
@@ -15,6 +17,7 @@ import {
   removeFilter,
   changeFilter,
   fetchMoreAsync,
+  fetchNewerAsync,
   getLogConfigAsync,
   updateLogConfigAsync,
 } from 'src/logs/actions'
@@ -26,14 +29,10 @@ import OptionsOverlay from 'src/logs/components/OptionsOverlay'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogsTable from 'src/logs/components/LogsTable'
+import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import {getDeep} from 'src/utils/wrappers'
 import {colorForSeverity} from 'src/logs/utils/colors'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import {
-  orderTableColumns,
-  filterTableColumns,
-} from 'src/dashboards/utils/tableGraph'
-
 import {SeverityFormatOptions} from 'src/logs/constants'
 import {Source, Namespace, TimeRange} from 'src/types'
 
@@ -46,6 +45,7 @@ import {
   LogConfig,
   TableData,
 } from 'src/types/logs'
+import {applyChangesToTableData} from 'src/logs/utils/table'
 
 interface Props {
   sources: Source[]
@@ -59,12 +59,16 @@ interface Props {
   changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
   setSearchTermAsync: (searchTerm: string) => void
-  fetchMoreAsync: (queryTimeEnd: string, lastTime: number) => Promise<void>
+  setTableRelativeTime: (time: number) => void
+  setTableCustomTime: (time: string) => void
+  fetchMoreAsync: (queryTimeEnd: string) => Promise<void>
+  fetchNewerAsync: (queryTimeEnd: string) => Promise<void>
   addFilter: (filter: Filter) => void
   removeFilter: (id: string) => void
   changeFilter: (id: string, operator: string, value: string) => void
   getConfig: (url: string) => Promise<void>
   updateConfig: (url: string, config: LogConfig) => Promise<void>
+  newRowsAdded: number
   timeRange: TimeRange
   histogramData: HistogramData
   tableData: TableData
@@ -73,6 +77,14 @@ interface Props {
   queryCount: number
   logConfig: LogConfig
   logConfigLink: string
+  tableInfiniteData: {
+    forward: TableData
+    backward: TableData
+  }
+  tableTime: {
+    custom: string
+    relative: number
+  }
 }
 
 interface State {
@@ -80,9 +92,10 @@ interface State {
   liveUpdating: boolean
   isOverlayVisible: boolean
   histogramColors: HistogramColor[]
+  hasScrolled: boolean
 }
 
-class LogsPage extends PureComponent<Props, State> {
+class LogsPage extends Component<Props, State> {
   public static getDerivedStateFromProps(props: Props) {
     const severityLevelColors: SeverityLevelColor[] = _.get(
       props.logConfig,
@@ -97,6 +110,7 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private interval: NodeJS.Timer
+  private loadingNewer: boolean = false
 
   constructor(props: Props) {
     super(props)
@@ -106,6 +120,7 @@ class LogsPage extends PureComponent<Props, State> {
       liveUpdating: false,
       isOverlayVisible: false,
       histogramColors: [],
+      hasScrolled: false,
     }
   }
 
@@ -131,8 +146,7 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {liveUpdating} = this.state
-    const {searchTerm, filters, queryCount, timeRange} = this.props
+    const {searchTerm, filters, queryCount, timeRange, tableTime} = this.props
 
     return (
       <>
@@ -140,6 +154,17 @@ class LogsPage extends PureComponent<Props, State> {
           {this.header}
           <div className="page-contents logs-viewer">
             <LogsGraphContainer>{this.chart}</LogsGraphContainer>
+            <div style={{height: '50px', position: 'relative'}}>
+              <div style={{position: 'absolute', right: '10px', top: '10px'}}>
+                <span style={{marginRight: '10px'}}>Go to </span>
+                <PointInTimeDropDown
+                  customTime={tableTime.custom}
+                  relativeTime={tableTime.relative}
+                  onChooseCustomTime={this.handleChooseCustomTime}
+                  onChooseRelativeTime={this.handleChooseRelativeTime}
+                />
+              </div>
+            </div>
             <SearchBar
               searchString={searchTerm}
               onSearch={this.handleSubmitSearch}
@@ -153,16 +178,21 @@ class LogsPage extends PureComponent<Props, State> {
             />
             <LogsTable
               count={this.histogramTotal}
+              queryCount={queryCount}
               data={this.tableData}
               onScrollVertical={this.handleVerticalScroll}
               onScrolledToTop={this.handleScrollToTop}
-              isScrolledToTop={liveUpdating}
+              isScrolledToTop={false}
               onTagSelection={this.handleTagSelection}
               fetchMore={this.props.fetchMoreAsync}
+              fetchNewer={this.fetchNewer}
               timeRange={timeRange}
+              scrollToRow={this.tableScrollToRow}
               tableColumns={this.tableColumns}
               severityFormat={this.severityFormat}
               severityLevelColors={this.severityLevelColors}
+              hasScrolled={this.state.hasScrolled}
+              tableInfiniteData={this.props.tableInfiniteData}
             />
           </div>
         </div>
@@ -171,19 +201,50 @@ class LogsPage extends PureComponent<Props, State> {
     )
   }
 
+  private fetchNewer = (time: string) => {
+    this.loadingNewer = true
+    this.props.fetchNewerAsync(time)
+  }
+
+  private get tableScrollToRow() {
+    if (this.loadingNewer && this.props.newRowsAdded) {
+      this.loadingNewer = false
+      return this.props.newRowsAdded || 0
+    }
+
+    if (this.state.hasScrolled) {
+      return
+    }
+
+    return Math.max(
+      _.get(this.props, 'tableInfiniteData.forward.values.length', 0) - 3,
+      0
+    )
+  }
+
+  private handleChooseCustomTime = (time: string) => {
+    this.props.setTableCustomTime(time)
+  }
+
+  private handleChooseRelativeTime = (time: number) => {
+    this.props.setTableRelativeTime(time)
+  }
+
   private get tableData(): TableData {
-    const {tableData} = this.props
-    const tableColumns = this.tableColumns
-    const columns = _.get(tableData, 'columns', [])
-    const values = _.get(tableData, 'values', [])
-    const data = [columns, ...values]
+    const forwardData = applyChangesToTableData(
+      this.props.tableInfiniteData.forward,
+      this.tableColumns
+    )
 
-    const filteredData = filterTableColumns(data, tableColumns)
-    const orderedData = orderTableColumns(filteredData, tableColumns)
-    const updatedColumns: string[] = _.get(orderedData, '0', [])
-    const updatedValues = _.slice(orderedData, 1)
+    const backwardData = applyChangesToTableData(
+      this.props.tableInfiniteData.backward,
+      this.tableColumns
+    )
 
-    return {columns: updatedColumns, values: updatedValues}
+    return {
+      columns: forwardData.columns,
+      values: [...forwardData.values, ...backwardData.values],
+    }
   }
 
   private get logConfigLink(): string {
@@ -219,8 +280,8 @@ class LogsPage extends PureComponent<Props, State> {
   private handleVerticalScroll = () => {
     if (this.state.liveUpdating) {
       clearInterval(this.interval)
-      this.setState({liveUpdating: false})
     }
+    this.setState({liveUpdating: false, hasScrolled: true})
   }
 
   private handleTagSelection = (selection: {tag: string; key: string}) => {
@@ -299,8 +360,8 @@ class LogsPage extends PureComponent<Props, State> {
     const {liveUpdating} = this.state
 
     if (liveUpdating) {
-      clearInterval(this.interval)
       this.setState({liveUpdating: false})
+      clearInterval(this.interval)
     } else {
       this.startUpdating()
     }
@@ -351,8 +412,8 @@ class LogsPage extends PureComponent<Props, State> {
   }
 
   private fetchNewDataset() {
-    this.props.executeQueriesAsync()
     this.setState({liveUpdating: true})
+    this.props.executeQueriesAsync()
   }
 
   private handleToggleOverlay = (): void => {
@@ -420,6 +481,7 @@ const mapStateToProps = ({
     config: {logViewer},
   },
   logs: {
+    newRowsAdded,
     currentSource,
     currentNamespaces,
     timeRange,
@@ -430,6 +492,8 @@ const mapStateToProps = ({
     filters,
     queryCount,
     logConfig,
+    tableTime,
+    tableInfiniteData,
   },
 }) => ({
   sources,
@@ -443,7 +507,10 @@ const mapStateToProps = ({
   filters,
   queryCount,
   logConfig,
+  tableTime,
   logConfigLink: logViewer,
+  tableInfiniteData,
+  newRowsAdded,
 })
 
 const mapDispatchToProps = {
@@ -458,6 +525,9 @@ const mapDispatchToProps = {
   removeFilter,
   changeFilter,
   fetchMoreAsync,
+  fetchNewerAsync,
+  setTableCustomTime: setTableCustomTimeAsync,
+  setTableRelativeTime: setTableRelativeTimeAsync,
   getConfig: getLogConfigAsync,
   updateConfig: updateLogConfigAsync,
 }

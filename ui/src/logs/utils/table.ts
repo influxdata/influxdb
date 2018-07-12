@@ -3,7 +3,12 @@ import moment from 'moment'
 import {getDeep} from 'src/utils/wrappers'
 import {TableData, LogsTableColumn, SeverityFormat} from 'src/types/logs'
 import {SeverityFormatOptions} from 'src/logs/constants'
+import {
+  orderTableColumns,
+  filterTableColumns,
+} from 'src/dashboards/utils/tableGraph'
 
+export const ROW_HEIGHT = 26
 const CHAR_WIDTH = 9
 
 export const getValuesFromData = (data: TableData): string[][] =>
@@ -69,6 +74,27 @@ export const getColumnWidth = (column: string): number => {
   )
 }
 
+export const calculateRowCharWidth = (currentMessageWidth: number): number =>
+  Math.floor(currentMessageWidth / CHAR_WIDTH)
+
+export const calculateMessageHeight = (
+  index: number,
+  data: TableData,
+  rowCharLimit: number
+): number => {
+  const columns = getColumnsFromData(data)
+  const columnIndex = columns.indexOf('message')
+  const value = getValueFromData(data, index, columnIndex)
+
+  if (_.isEmpty(value)) {
+    return ROW_HEIGHT
+  }
+
+  const lines = Math.ceil(value.length / (rowCharLimit * 0.95))
+
+  return Math.max(lines, 1) * ROW_HEIGHT + 4
+}
+
 export const getMessageWidth = (
   data: TableData,
   tableColumns: LogsTableColumn[],
@@ -96,4 +122,23 @@ export const getMessageWidth = (
   )
 
   return calculatedWidth - CHAR_WIDTH
+}
+
+export const applyChangesToTableData = (
+  tableData: TableData,
+  tableColumns: LogsTableColumn[]
+): TableData => {
+  const columns = _.get(tableData, 'columns', [])
+  const values = _.get(tableData, 'values', [])
+  const data = [columns, ...values]
+
+  const filteredData = filterTableColumns(data, tableColumns)
+  const orderedData = orderTableColumns(filteredData, tableColumns)
+  const updatedColumns: string[] = _.get(orderedData, '0', [])
+  const updatedValues = _.slice(orderedData, 1)
+
+  return {
+    columns: updatedColumns,
+    values: updatedValues,
+  }
 }

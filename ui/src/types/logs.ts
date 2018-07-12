@@ -32,6 +32,15 @@ export interface LogsState {
   filters: Filter[]
   queryCount: number
   logConfig: LogConfig
+  tableInfiniteData: {
+    forward: TableData
+    backward: TableData
+  }
+  tableTime: {
+    custom?: string
+    relative?: string
+  }
+  newRowsAdded: number
 }
 
 export interface LogConfig {
