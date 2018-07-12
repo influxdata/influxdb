@@ -1,8 +1,12 @@
+<<<<<<< HEAD
 import {
   SeverityFormatOptions,
   SeverityColorOptions,
   SeverityLevelOptions,
 } from 'src/logs/constants'
+=======
+import {SeverityFormatOptions} from 'src/logs/constants'
+>>>>>>> origin/logs-histogram-window
 import {QueryConfig, Namespace, Source} from 'src/types'
 import {FieldOption} from 'src/types/dashboards'
 import {TimeSeriesValue} from 'src/types/series'
@@ -78,6 +82,28 @@ export interface ServerEncoding {
   type: string
   value: string
   name?: string
+}
+
+export interface TimeRange {
+  upper?: string
+  lower: string
+  seconds?: number
+  windowOption: string
+  timeOption: string
+}
+
+export interface TimeBounds {
+  upper: string | null
+  lower: string
+}
+
+export interface TimeWindow {
+  seconds: number
+  windowOption: string
+}
+
+export interface TimeMarker {
+  timeOption: string
 }
 
 export interface TimeRange {

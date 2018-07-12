@@ -16,7 +16,10 @@ import {
   Margins,
   HoverData,
   ColorScale,
+<<<<<<< HEAD
   HistogramColor,
+=======
+>>>>>>> origin/logs-histogram-window
   BarGroup,
 } from 'src/types/histogram'
 
@@ -50,7 +53,11 @@ class HistogramChart extends PureComponent<Props, State> {
   }
 
   public render() {
+<<<<<<< HEAD
     const {width, height, data, colorScale, colors, onBarClick} = this.props
+=======
+    const {width, height, data, colorScale, onBarClick} = this.props
+>>>>>>> origin/logs-histogram-window
     const {margins} = this
 
     if (width === 0 || height === 0) {
@@ -102,7 +109,10 @@ class HistogramChart extends PureComponent<Props, State> {
               colorScale={colorScale}
               hoverData={hoverData}
               onHover={this.handleHover}
+<<<<<<< HEAD
               colors={colors}
+=======
+>>>>>>> origin/logs-histogram-window
               onBarClick={onBarClick}
             />
           </g>
