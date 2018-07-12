@@ -38,7 +38,7 @@ import {
   filterTableColumns,
 } from 'src/dashboards/utils/tableGraph'
 
-import {SeverityFormatOptions} from 'src/logs/constants'
+import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
 import {Source, Namespace} from 'src/types'
 
 import {HistogramData, TimePeriod} from 'src/types/histogram'
@@ -326,7 +326,7 @@ class LogsPage extends PureComponent<Props, State> {
 
     if (timeOption !== 'now') {
       const numberTimeOption = new Date(timeOption).valueOf()
-      const milliseconds = seconds * 10 / 2
+      const milliseconds = seconds * SECONDS_TO_MS
       lower = moment(numberTimeOption - milliseconds).toISOString()
       upper = moment(numberTimeOption + milliseconds).toISOString()
     }

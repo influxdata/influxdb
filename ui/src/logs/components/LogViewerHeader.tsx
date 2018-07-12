@@ -78,13 +78,13 @@ class LogViewerHeader extends PureComponent<Props> {
           selected={this.selectedNamespace}
           onChoose={this.handleChooseNamespace}
         />
-        <TimeWindowDropdown
-          selectedTimeWindow={timeRange.windowOption}
-          onSetTimeWindow={onSetTimeWindow}
-        />
         <TimeMarkerDropdown
           onSetTimeMarker={onSetTimeMarker}
           selectedTimeMarker={timeRange.timeOption}
+        />
+        <TimeWindowDropdown
+          selectedTimeWindow={timeRange}
+          onSetTimeWindow={onSetTimeWindow}
         />
         <Authorized requiredRole={EDITOR_ROLE}>
           <button

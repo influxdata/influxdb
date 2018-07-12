@@ -152,3 +152,5 @@ export const TIME_RANGE_VALUES = [
   {text: '10m', seconds: 600},
   {text: '15m', seconds: 900},
 ]
+
+export const SECONDS_TO_MS = 1000
