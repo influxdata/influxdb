@@ -6,12 +6,10 @@ import HistogramChartAxes from 'src/shared/components/HistogramChartAxes'
 import HistogramChartBars from 'src/shared/components/HistogramChartBars'
 import HistogramChartTooltip from 'src/shared/components/HistogramChartTooltip'
 import HistogramChartSkeleton from 'src/shared/components/HistogramChartSkeleton'
-import XBrush from 'src/shared/components/XBrush'
 
 import extentBy from 'src/utils/extentBy'
 
 import {
-  TimePeriod,
   HistogramData,
   Margins,
   HoverData,
@@ -33,7 +31,6 @@ interface Props {
   height: number
   colors: HistogramColor[]
   colorScale: ColorScale
-  onZoom?: (TimePeriod) => void
   onBarClick?: (time: string) => void
 }
 
@@ -86,7 +83,6 @@ class HistogramChart extends PureComponent<Props, State> {
               yScale={yScale}
             />
           </g>
-          {this.xBrush}
           <g
             transform={bodyTransform}
             className="histogram-chart--bars"
@@ -115,24 +111,6 @@ class HistogramChart extends PureComponent<Props, State> {
         )}
       </>
     )
-  }
-
-  private get xBrush(): JSX.Element {
-    const {onZoom} = this.props
-    const {xScale, adjustedWidth, adjustedHeight, bodyTransform} = this
-
-    if (onZoom) {
-      return (
-        <g className="histogram-chart--brush" transform={bodyTransform}>
-          <XBrush
-            xScale={xScale}
-            width={adjustedWidth}
-            height={adjustedHeight}
-            onBrush={this.handleBrush}
-          />
-        </g>
-      )
-    }
   }
 
   private get xScale(): ScaleTime<number, number> {
@@ -194,11 +172,6 @@ class HistogramChart extends PureComponent<Props, State> {
     )
 
     return Math.max(...counts)
-  }
-
-  private handleBrush = (t: TimePeriod): void => {
-    this.props.onZoom(t)
-    this.setState({hoverData: null})
   }
 
   private handleHover = (hoverData: HoverData): void => {

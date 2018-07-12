@@ -7,11 +7,6 @@ export interface HistogramDatum {
   group: string
 }
 
-export interface TimePeriod {
-  start: UnixTime
-  end: UnixTime
-}
-
 export type HistogramData = HistogramDatum[]
 
 export type TooltipAnchor = 'left' | 'right'
