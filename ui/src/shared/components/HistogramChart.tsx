@@ -33,7 +33,7 @@ interface Props {
   colors: HistogramColor[]
   colorScale: ColorScale
   onBarClick?: (time: string) => void
-  onSortChartBars: SortFn
+  sortBarGroups: SortFn
 }
 
 interface State {
@@ -55,7 +55,7 @@ class HistogramChart extends PureComponent<Props, State> {
       colorScale,
       colors,
       onBarClick,
-      onSortChartBars,
+      sortBarGroups,
     } = this.props
     const {margins} = this
 
@@ -109,7 +109,7 @@ class HistogramChart extends PureComponent<Props, State> {
               onHover={this.handleHover}
               colors={colors}
               onBarClick={onBarClick}
-              onSortChartBars={onSortChartBars}
+              sortBarGroups={sortBarGroups}
             />
           </g>
         </svg>

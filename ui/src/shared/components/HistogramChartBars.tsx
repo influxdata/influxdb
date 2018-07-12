@@ -58,14 +58,14 @@ const getBarGroups = ({
   colorScale,
   hoverData,
   colors,
-  onSortChartBars,
+  sortBarGroups,
 }: Partial<Props>): BarGroup[] => {
   const barWidth = getBarWidth({data, xScale, width})
   const visibleData = data.filter(d => d.value !== 0)
   const timeGroups = Object.values(_.groupBy(visibleData, 'time'))
 
   for (const timeGroup of timeGroups) {
-    timeGroup.sort(onSortChartBars)
+    timeGroup.sort(sortBarGroups)
   }
 
   let hoverDataKeys = []
@@ -148,7 +148,7 @@ interface Props {
   colors: HistogramColor[]
   onHover: (h: HoverData) => void
   onBarClick?: (time: string) => void
-  onSortChartBars: SortFn
+  sortBarGroups: SortFn
 }
 
 interface State {

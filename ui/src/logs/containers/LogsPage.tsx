@@ -335,14 +335,14 @@ class LogsPage extends Component<Props, State> {
             colorScale={colorForSeverity}
             colors={histogramColors}
             onBarClick={this.handleBarClick}
-            onSortChartBars={this.handleSortHistogramBars}
+            sortBarGroups={this.handleSortHistogramBarGroups}
           />
         )}
       </AutoSizer>
     )
   }
 
-  private handleSortHistogramBars = (
+  private handleSortHistogramBarGroups = (
     a: HistogramDatum,
     b: HistogramDatum
   ): number => {

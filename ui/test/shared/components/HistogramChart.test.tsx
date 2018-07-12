@@ -15,7 +15,7 @@ describe('HistogramChart', () => {
       height: 400,
       colorScale: () => 'blue',
       colors: [],
-      onSortChartBars: (a, b) => a.value - b.value,
+      sortBarGroups: (a, b) => a.value - b.value,
     }
 
     const wrapper = mount(<HistogramChart {...props} />)
@@ -31,7 +31,7 @@ describe('HistogramChart', () => {
       height: 0,
       colorScale: () => 'blue',
       colors: [],
-      onSortChartBars: (a, b) => a.value - b.value,
+      sortBarGroups: (a, b) => a.value - b.value,
     }
 
     const wrapper = mount(<HistogramChart {...props} />)
@@ -51,7 +51,7 @@ describe('HistogramChart', () => {
       height: 400,
       colorScale: () => 'blue',
       colors: [],
-      onSortChartBars: (a, b) => a.value - b.value,
+      sortBarGroups: (a, b) => a.value - b.value,
     }
 
     const wrapper = mount(<HistogramChart {...props} />)
@@ -71,7 +71,7 @@ describe('HistogramChart', () => {
       height: 400,
       colorScale: () => 'blue',
       colors: [],
-      onSortChartBars: (a, b) => a.value - b.value,
+      sortBarGroups: (a, b) => a.value - b.value,
     }
 
     const wrapper = mount(<HistogramChart {...props} />)

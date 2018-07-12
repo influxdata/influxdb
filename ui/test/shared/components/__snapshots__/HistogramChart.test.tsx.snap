@@ -7,7 +7,7 @@ exports[`HistogramChart displays a HistogramChartSkeleton if empty data is passe
   data={Array []}
   dataStatus="Done"
   height={400}
-  onSortChartBars={[Function]}
+  sortBarGroups={[Function]}
   width={600}
 >
   <HistogramChartSkeleton
@@ -141,7 +141,7 @@ exports[`HistogramChart displays a nothing if passed width and height of 0 1`] =
   data={Array []}
   dataStatus="Done"
   height={0}
-  onSortChartBars={[Function]}
+  sortBarGroups={[Function]}
   width={0}
 />
 `;
@@ -174,7 +174,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
   }
   dataStatus="Done"
   height={400}
-  onSortChartBars={[Function]}
+  sortBarGroups={[Function]}
   width={600}
 >
   <svg
@@ -341,7 +341,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
         }
         height={375}
         onHover={[Function]}
-        onSortChartBars={[Function]}
+        sortBarGroups={[Function]}
         width={575}
         xScale={[Function]}
         yScale={[Function]}
