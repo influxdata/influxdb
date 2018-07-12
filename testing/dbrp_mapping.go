@@ -3,16 +3,31 @@ package testing
 import (
 	"bytes"
 	"context"
-	"errors"
+	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
+	"github.com/pkg/errors"
 )
 
 var dbrpMappingCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
+	}),
+	cmp.Transformer("Sort", func(in []*platform.DBRPMapping) []*platform.DBRPMapping {
+		out := make([]*platform.DBRPMapping, len(in))
+		copy(out, in) // Copy input slice to avoid mutating it
+		sort.Slice(out, func(i, j int) bool {
+			if out[i].Cluster != out[j].Cluster {
+				return out[i].Cluster < out[j].Cluster
+			}
+			if out[i].Database != out[j].Database {
+				return out[i].Database < out[j].Database
+			}
+			return out[i].RetentionPolicy < out[j].RetentionPolicy
+		})
+		return out
 	}),
 }
 
@@ -21,9 +36,34 @@ type DBRPMappingFields struct {
 	DBRPMappings []*platform.DBRPMapping
 }
 
+// Populate creates all entities in DBRPMappingFields
+func (f DBRPMappingFields) Populate(ctx context.Context, s platform.DBRPMappingService) error {
+	for _, m := range f.DBRPMappings {
+		if err := s.Create(ctx, m); err != nil {
+			return errors.Wrap(err, "failed to populate dbrp mappings")
+		}
+	}
+	return nil
+}
+
+// CleanupDBRPMappings finds and removes all dbrp mappings
+func CleanupDBRPMappings(ctx context.Context, s platform.DBRPMappingService) error {
+	mappings, _, err := s.FindMany(ctx, platform.DBRPMappingFilter{})
+	if err != nil {
+		return errors.Wrap(err, "failed to retrieve all dbrp mappings")
+	}
+
+	for _, m := range mappings {
+		if err := s.Delete(ctx, m.Cluster, m.Database, m.RetentionPolicy); err != nil {
+			return errors.Wrapf(err, "failed to remove dbrp mapping %s/%s/%s", m.Cluster, m.Database, m.RetentionPolicy)
+		}
+	}
+	return nil
+}
+
 // CreateDBRPMapping testing
 func CreateDBRPMapping(
-	init func(DBRPMappingFields, *testing.T) (platform.DBRPMapperService, func()),
+	init func(DBRPMappingFields, *testing.T) (platform.DBRPMappingService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -211,7 +251,7 @@ func CreateDBRPMapping(
 
 // FindDBRPMappings testing
 func FindDBRPMappings(
-	init func(DBRPMappingFields, *testing.T) (platform.DBRPMapperService, func()),
+	init func(DBRPMappingFields, *testing.T) (platform.DBRPMappingService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -384,7 +424,7 @@ func FindDBRPMappings(
 
 // FindDBRPMappingByKey testing
 func FindDBRPMappingByKey(
-	init func(DBRPMappingFields, *testing.T) (platform.DBRPMapperService, func()),
+	init func(DBRPMappingFields, *testing.T) (platform.DBRPMappingService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -493,7 +533,7 @@ func FindDBRPMappingByKey(
 
 // FindDBRPMapping testing
 func FindDBRPMapping(
-	init func(DBRPMappingFields, *testing.T) (platform.DBRPMapperService, func()),
+	init func(DBRPMappingFields, *testing.T) (platform.DBRPMappingService, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -619,7 +659,7 @@ func FindDBRPMapping(
 
 // DeleteDBRPMapping testing
 func DeleteDBRPMapping(
-	init func(DBRPMappingFields, *testing.T) (platform.DBRPMapperService, func()),
+	init func(DBRPMappingFields, *testing.T) (platform.DBRPMappingService, func()),
 	t *testing.T,
 ) {
 	type args struct {

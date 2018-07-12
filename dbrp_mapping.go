@@ -1,13 +1,14 @@
 package platform
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"regexp"
 )
 
-// DBRPMapperService provides a mapping of cluster, database and retention policy to an organization ID and bucket ID.
-type DBRPMapperService interface {
+// DBRPMappingService provides a mapping of cluster, database and retention policy to an organization ID and bucket ID.
+type DBRPMappingService interface {
 	// FindBy returns the dbrp mapping the for cluster, db and rp.
 	FindBy(ctx context.Context, cluster, db, rp string) (*DBRPMapping, error)
 	// Find returns the first dbrp mapping the matches the filter.
@@ -63,6 +64,21 @@ func (m DBRPMapping) Validate() error {
 		return errors.New("BucketID is required")
 	}
 	return nil
+}
+
+func (m *DBRPMapping) Equal(o *DBRPMapping) bool {
+	if m == o {
+		return true
+	}
+	if m == nil || o == nil {
+		return false
+	}
+	return m.Cluster == o.Cluster &&
+		m.Database == o.Database &&
+		m.RetentionPolicy == o.RetentionPolicy &&
+		m.Default == o.Default &&
+		bytes.Equal(m.OrganizationID, o.OrganizationID) &&
+		bytes.Equal(m.BucketID, o.BucketID)
 }
 
 // DBRPMappingFilter represents a set of filters that restrict the returned results by cluster, database and retention policy.
