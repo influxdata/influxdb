@@ -58,7 +58,7 @@ func init() {
 						{
 							ID: "from0",
 							Spec: &functions.FromOpSpec{
-								Bucket: "db0/autogen",
+								BucketID: bucketID,
 							},
 						},
 						{

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/csv"
@@ -17,6 +19,28 @@ import (
 
 	"github.com/andreyvit/diff"
 )
+
+var dbrpMappingSvc = mock.NewDBRPMappingService()
+
+func init() {
+	mapping := platform.DBRPMapping{
+		Cluster:         "cluster",
+		Database:        "db0",
+		RetentionPolicy: "autogen",
+		Default:         true,
+		OrganizationID:  platform.ID("org"),
+		BucketID:        platform.ID("bucket"),
+	}
+	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
+		return &mapping, nil
+	}
+	dbrpMappingSvc.FindFn = func(ctx context.Context, filter platform.DBRPMappingFilter) (*platform.DBRPMapping, error) {
+		return &mapping, nil
+	}
+	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilter, opt ...platform.FindOptions) ([]*platform.DBRPMapping, int, error) {
+		return []*platform.DBRPMapping{&mapping}, 1, nil
+	}
+}
 
 var skipTests = map[string]string{
 	"derivative":                "derivative not supported by influxql (https://github.com/influxdata/platform/issues/93)",
@@ -31,7 +55,7 @@ var skipTests = map[string]string{
 func Test_QueryEndToEnd(t *testing.T) {
 	qs := querytest.GetQueryServiceBridge()
 
-	influxqlTranspiler := influxql.NewTranspiler()
+	influxqlTranspiler := influxql.NewTranspiler(dbrpMappingSvc)
 
 	dir, err := os.Getwd()
 	if err != nil {

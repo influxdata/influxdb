@@ -82,6 +82,8 @@ func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 	transpileHandler.QueryService = &http.QueryService{
 		Addr: hosts[0],
 	}
+	//TODO(nathanielc): Add DBRPMappingService
+	transpileHandler.DBRPMappingService = nil
 	transpileHandler.Logger = logger
 	reg.MustRegister(transpileHandler.PrometheusCollectors()...)
 
