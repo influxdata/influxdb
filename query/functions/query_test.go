@@ -23,6 +23,7 @@ var skipTests = map[string]string{
 	"window_group_mean_ungroup": "error in influxql: failed to run query: timeValue column \"_start\" does not exist (https://github.com/influxdata/platform/issues/97)",
 	"string_max":                "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
 	"null_as_value":             "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
+	"difference_panic":          "difference() panics when no table is supplied",
 }
 
 func Test_QueryEndToEnd(t *testing.T) {
