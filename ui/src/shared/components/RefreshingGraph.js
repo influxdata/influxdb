@@ -1,4 +1,4 @@
-import React from 'react'
+import React, {PureComponent} from 'react'
 import PropTypes from 'prop-types'
 import {connect} from 'react-redux'
 
@@ -23,154 +23,160 @@ const RefreshingSingleStat = AutoRefresh(SingleStat)
 const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 const RefreshingTableGraph = AutoRefresh(TableGraph)
 
-const RefreshingGraph = ({
-  axes,
-  inView,
-  type,
-  colors,
-  onZoom,
-  cellID,
-  queries,
-  source,
-  templates,
-  timeRange,
-  cellHeight,
-  autoRefresh,
-  fieldOptions,
-  timeFormat,
-  tableOptions,
-  decimalPlaces,
-  onSetResolution,
-  resizerTopHeight,
-  staticLegend,
-  manualRefresh, // when changed, re-mounts the component
-  editQueryStatus,
-  handleSetHoverTime,
-  grabDataForDownload,
-  isInCEO,
-}) => {
-  const prefix = (axes && axes.y.prefix) || ''
-  const suffix = (axes && axes.y.suffix) || ''
-  if (!queries.length) {
-    return (
-      <div className="graph-empty">
-        <p data-test="data-explorer-no-results">{emptyGraphCopy}</p>
-      </div>
-    )
-  }
+class RefreshingGraph extends PureComponent {
+  render() {
+    const {
+      axes,
+      inView,
+      type,
+      colors,
+      onZoom,
+      cellID,
+      queries,
+      source,
+      templates,
+      timeRange,
+      cellHeight,
+      autoRefresh,
+      fieldOptions,
+      timeFormat,
+      tableOptions,
+      decimalPlaces,
+      onSetResolution,
+      resizerTopHeight,
+      staticLegend,
+      manualRefresh, // when changed, re-mounts the component
+      editQueryStatus,
+      handleSetHoverTime,
+      grabDataForDownload,
+      isInCEO,
+    } = this.props
 
-  if (type === 'single-stat') {
-    return (
-      <RefreshingSingleStat
-        type={type}
-        source={source}
-        colors={colors}
-        prefix={prefix}
-        suffix={suffix}
-        inView={inView}
-        key={manualRefresh}
-        templates={templates}
-        queries={[queries[0]]}
-        cellHeight={cellHeight}
-        autoRefresh={autoRefresh}
-        decimalPlaces={decimalPlaces}
-        editQueryStatus={editQueryStatus}
-        onSetResolution={onSetResolution}
-      />
-    )
-  }
+    const prefix = (axes && axes.y.prefix) || ''
+    const suffix = (axes && axes.y.suffix) || ''
+    if (!queries.length) {
+      return (
+        <div className="graph-empty">
+          <p data-test="data-explorer-no-results">{emptyGraphCopy}</p>
+        </div>
+      )
+    }
 
-  if (type === 'gauge') {
-    return (
-      <RefreshingGaugeChart
-        type={type}
-        source={source}
-        cellID={cellID}
-        prefix={prefix}
-        suffix={suffix}
-        inView={inView}
-        colors={colors}
-        key={manualRefresh}
-        queries={[queries[0]]}
-        templates={templates}
-        autoRefresh={autoRefresh}
-        cellHeight={cellHeight}
-        decimalPlaces={decimalPlaces}
-        resizerTopHeight={resizerTopHeight}
-        editQueryStatus={editQueryStatus}
-        onSetResolution={onSetResolution}
-      />
-    )
-  }
-
-  if (type === 'table') {
-    return (
-      <RefreshingTableGraph
-        type={type}
-        source={source}
-        cellID={cellID}
-        colors={colors}
-        inView={inView}
-        isInCEO={isInCEO}
-        key={manualRefresh}
-        queries={queries}
-        templates={templates}
-        autoRefresh={autoRefresh}
-        cellHeight={cellHeight}
-        tableOptions={tableOptions}
-        fieldOptions={fieldOptions}
-        timeFormat={timeFormat}
-        decimalPlaces={decimalPlaces}
-        editQueryStatus={editQueryStatus}
-        resizerTopHeight={resizerTopHeight}
-        grabDataForDownload={grabDataForDownload}
-        handleSetHoverTime={handleSetHoverTime}
-        onSetResolution={onSetResolution}
-      />
-    )
-  }
-
-  const displayOptions = {
-    stepPlot: type === 'line-stepplot',
-    stackedGraph: type === 'line-stacked',
-  }
-
-  return (
-    <TimeSeries
-      source={source}
-      inView={inView}
-      queries={queries}
-      templates={templates}
-    >
-      {({timeSeries}) => (
-        <LineGraph
+    if (type === 'single-stat') {
+      return (
+        <RefreshingSingleStat
           type={type}
-          axes={axes}
+          source={source}
+          colors={colors}
+          prefix={prefix}
+          suffix={suffix}
+          inView={inView}
+          key={manualRefresh}
+          templates={templates}
+          queries={[queries[0]]}
+          cellHeight={cellHeight}
+          autoRefresh={autoRefresh}
+          decimalPlaces={decimalPlaces}
+          editQueryStatus={editQueryStatus}
+          onSetResolution={onSetResolution}
+        />
+      )
+    }
+
+    if (type === 'gauge') {
+      return (
+        <RefreshingGaugeChart
+          type={type}
+          source={source}
+          cellID={cellID}
+          prefix={prefix}
+          suffix={suffix}
+          inView={inView}
+          colors={colors}
+          key={manualRefresh}
+          queries={[queries[0]]}
+          templates={templates}
+          autoRefresh={autoRefresh}
+          cellHeight={cellHeight}
+          decimalPlaces={decimalPlaces}
+          resizerTopHeight={resizerTopHeight}
+          editQueryStatus={editQueryStatus}
+          onSetResolution={onSetResolution}
+        />
+      )
+    }
+
+    if (type === 'table') {
+      return (
+        <RefreshingTableGraph
+          type={type}
           source={source}
           cellID={cellID}
           colors={colors}
-          onZoom={onZoom}
-          queries={queries}
           inView={inView}
-          data={timeSeries}
+          isInCEO={isInCEO}
           key={manualRefresh}
+          queries={queries}
           templates={templates}
-          timeRange={timeRange}
-          cellHeight={cellHeight}
           autoRefresh={autoRefresh}
-          isBarGraph={type === 'bar'}
+          cellHeight={cellHeight}
+          tableOptions={tableOptions}
+          fieldOptions={fieldOptions}
+          timeFormat={timeFormat}
           decimalPlaces={decimalPlaces}
-          staticLegend={staticLegend}
-          displayOptions={displayOptions}
           editQueryStatus={editQueryStatus}
+          resizerTopHeight={resizerTopHeight}
           grabDataForDownload={grabDataForDownload}
           handleSetHoverTime={handleSetHoverTime}
-          showSingleStat={type === 'line-plus-single-stat'}
           onSetResolution={onSetResolution}
         />
-      )}
-    </TimeSeries>
-  )
+      )
+    }
+
+    const displayOptions = {
+      stepPlot: type === 'line-stepplot',
+      stackedGraph: type === 'line-stacked',
+    }
+
+    return (
+      <TimeSeries
+        source={source}
+        inView={inView}
+        queries={queries}
+        templates={templates}
+      >
+        {({timeSeries}) => {
+          return (
+            <LineGraph
+              type={type}
+              axes={axes}
+              source={source}
+              cellID={cellID}
+              colors={colors}
+              onZoom={onZoom}
+              queries={queries}
+              inView={inView}
+              data={timeSeries}
+              key={manualRefresh}
+              templates={templates}
+              timeRange={timeRange}
+              cellHeight={cellHeight}
+              autoRefresh={autoRefresh}
+              isBarGraph={type === 'bar'}
+              decimalPlaces={decimalPlaces}
+              staticLegend={staticLegend}
+              displayOptions={displayOptions}
+              editQueryStatus={editQueryStatus}
+              grabDataForDownload={grabDataForDownload}
+              handleSetHoverTime={handleSetHoverTime}
+              showSingleStat={type === 'line-plus-single-stat'}
+              onSetResolution={onSetResolution}
+            />
+          )
+        }}
+      </TimeSeries>
+    )
+  }
 }
 
 const {arrayOf, bool, func, number, shape, string} = PropTypes
