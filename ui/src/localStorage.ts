@@ -79,7 +79,14 @@ export const saveToLocalStorage = ({
         dataExplorer,
         dataExplorerQueryConfigs,
         script,
-        logs: {...minimalLogs, histogramData: [], tableData: {}, queryCount: 0},
+        logs: {
+          ...minimalLogs,
+          histogramData: [],
+          tableData: {},
+          queryCount: 0,
+          tableInfiniteData: minimalLogs.tableInfiniteData || {},
+          tableTime: minimalLogs.tableTime || {},
+        },
       })
     )
   } catch (err) {
