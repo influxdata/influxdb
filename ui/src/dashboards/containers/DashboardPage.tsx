@@ -434,6 +434,7 @@ class DashboardPage extends Component<Props, State> {
 
     this.props.updateDashboard(newDashboard)
     await this.props.putDashboard(newDashboard)
+    await this.getDashboardLinks()
   }
 
   private handleDeleteDashboardCell = (cell: DashboardsModels.Cell): void => {
