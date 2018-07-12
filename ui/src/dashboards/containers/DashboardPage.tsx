@@ -24,6 +24,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {millisecondTimeRange} from 'src/dashboards/utils/time'
 import {getDeep} from 'src/utils/wrappers'
+import {updateDashboardLinks} from 'src/dashboards/utils/dashboardSwitcherLinks'
 
 // APIs
 import {loadDashboardLinks} from 'src/dashboards/apis'
@@ -352,7 +353,17 @@ class DashboardPage extends Component<Props, State> {
   private getDashboard = async () => {
     const {dashboardID, source, getDashboardWithTemplatesAsync} = this.props
 
-    return getDashboardWithTemplatesAsync(dashboardID, source)
+    await getDashboardWithTemplatesAsync(dashboardID, source)
+    this.updateActiveDashboard()
+  }
+
+  private updateActiveDashboard(): void {
+    this.setState((prevState, props) => ({
+      dashboardLinks: updateDashboardLinks(
+        prevState.dashboardLinks,
+        props.dashboard
+      ),
+    }))
   }
 
   private inView = (cell: DashboardsModels.Cell): boolean => {
@@ -434,6 +445,7 @@ class DashboardPage extends Component<Props, State> {
 
     this.props.updateDashboard(newDashboard)
     await this.props.putDashboard(newDashboard)
+    this.updateActiveDashboard()
   }
 
   private handleDeleteDashboardCell = (cell: DashboardsModels.Cell): void => {
