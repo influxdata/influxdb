@@ -31,7 +31,7 @@ export const updateDashboardLinks = (
     return updateActiveDashboardLink(dashboardLinks, activeDashboard)
   }
 
-  return updateDashboardLinkName(dashboardLinks, activeDashboard)
+  return updateActiveDashboardLinkName(dashboardLinks, activeDashboard)
 }
 
 const updateActiveDashboardLink = (
@@ -49,22 +49,18 @@ const updateActiveDashboardLink = (
   return {...dashboardLinks, active}
 }
 
-const updateDashboardLinkName = (
+const updateActiveDashboardLinkName = (
   dashboardLinks: DashboardSwitcherLinks,
   dashboard: Dashboard
 ): DashboardSwitcherLinks => {
   const {name} = dashboard
-  let active = dashboardLinks.active
+  let {active} = dashboardLinks
 
   const links = dashboardLinks.links.map(link => {
     if (link.key === String(dashboard.id)) {
-      const newLink = {...link, text: name}
+      active = {...link, text: name}
 
-      if (link === active) {
-        active = newLink
-      }
-
-      return newLink
+      return active
     }
 
     return link
