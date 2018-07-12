@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math"
 	"sync"
@@ -198,6 +199,23 @@ func (c *Controller) run() {
 
 // processQuery move the query through the state machine and returns and errors and if the query should be popped.
 func (c *Controller) processQuery(q *Query) (pop bool, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			// If a query panicked, always pop it from the queue so we don't
+			// try to reprocess it.
+			pop = true
+
+			// Update the error with information about the query if this is an
+			// error type and create an error if it isn't.
+			switch e := e.(type) {
+			case error:
+				err = errors.Wrap(e, "panic")
+			default:
+				err = fmt.Errorf("panic: %s", e)
+			}
+		}
+	}()
+
 	if q.tryPlan() {
 		// Plan query to determine needed resources
 		lp, err := c.lplanner.Plan(&q.spec)
