@@ -31,20 +31,21 @@ func (r *AuthRoutes) Lookup(provider string) (AuthRoute, bool) {
 }
 
 type getRoutesResponse struct {
-	Layouts       string                   `json:"layouts"`          // Location of the layouts endpoint
-	Users         string                   `json:"users"`            // Location of the users endpoint
-	AllUsers      string                   `json:"allUsers"`         // Location of the raw users endpoint
-	Organizations string                   `json:"organizations"`    // Location of the organizations endpoint
-	Mappings      string                   `json:"mappings"`         // Location of the application mappings endpoint
-	Sources       string                   `json:"sources"`          // Location of the sources endpoint
-	Me            string                   `json:"me"`               // Location of the me endpoint
-	Environment   string                   `json:"environment"`      // Location of the environement endpoint
-	Dashboards    string                   `json:"dashboards"`       // Location of the dashboards endpoint
-	Config        getConfigLinksResponse   `json:"config"`           // Location of the config endpoint and its various sections
-	Auth          []AuthRoute              `json:"auth"`             // Location of all auth routes.
-	Logout        *string                  `json:"logout,omitempty"` // Location of the logout route for all auth routes
-	ExternalLinks getExternalLinksResponse `json:"external"`         // All external links for the client to use
-	Flux          getFluxLinksResponse     `json:"flux"`
+	Layouts            string                             `json:"layouts"`          // Location of the layouts endpoint
+	Users              string                             `json:"users"`            // Location of the users endpoint
+	AllUsers           string                             `json:"allUsers"`         // Location of the raw users endpoint
+	Organizations      string                             `json:"organizations"`    // Location of the organizations endpoint
+	Mappings           string                             `json:"mappings"`         // Location of the application mappings endpoint
+	Sources            string                             `json:"sources"`          // Location of the sources endpoint
+	Me                 string                             `json:"me"`               // Location of the me endpoint
+	Environment        string                             `json:"environment"`      // Location of the environement endpoint
+	Dashboards         string                             `json:"dashboards"`       // Location of the dashboards endpoint
+	Config             getConfigLinksResponse             `json:"config"`           // Location of the config endpoint and its various sections
+	OrganizationConfig getOrganizationConfigLinksResponse `json:"orgConfig"`        // Location of the organization config endpoint
+	Auth               []AuthRoute                        `json:"auth"`             // Location of all auth routes.
+	Logout             *string                            `json:"logout,omitempty"` // Location of the logout route for all auth routes
+	ExternalLinks      getExternalLinksResponse           `json:"external"`         // All external links for the client to use
+	Flux               getFluxLinksResponse               `json:"flux"`
 }
 
 // AllRoutes is a handler that returns all links to resources in Chronograf server, as well as
@@ -87,9 +88,12 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Mappings:      "/chronograf/v1/mappings",
 		Dashboards:    "/chronograf/v1/dashboards",
 		Config: getConfigLinksResponse{
-			Self:      "/chronograf/v1/config",
-			Auth:      "/chronograf/v1/config/auth",
-			LogViewer: "/chronograf/v1/config/logviewer",
+			Self: "/chronograf/v1/config",
+			Auth: "/chronograf/v1/config/auth",
+		},
+		OrganizationConfig: getOrganizationConfigLinksResponse{
+			Self:      "/chronograf/v1/org_config",
+			LogViewer: "/chronograf/v1/org_config/logviewer",
 		},
 		Auth: make([]AuthRoute, len(a.AuthRoutes)), // We want to return at least an empty array, rather than null
 		ExternalLinks: getExternalLinksResponse{
