@@ -36,10 +36,18 @@ import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import {getDeep} from 'src/utils/wrappers'
 import {colorForSeverity} from 'src/logs/utils/colors'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
-import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
+import {
+  SeverityFormatOptions,
+  SEVERITY_SORTING_ORDER,
+  SECONDS_TO_MS,
+} from 'src/logs/constants'
 import {Source, Namespace} from 'src/types'
 
-import {HistogramData, HistogramColor} from 'src/types/histogram'
+import {
+  HistogramData,
+  HistogramColor,
+  HistogramDatum,
+} from 'src/types/histogram'
 import {
   Filter,
   SeverityLevelColor,
@@ -327,10 +335,18 @@ class LogsPage extends Component<Props, State> {
             colorScale={colorForSeverity}
             colors={histogramColors}
             onBarClick={this.handleBarClick}
+            onSortChartBars={this.handleSortHistogramBars}
           />
         )}
       </AutoSizer>
     )
+  }
+
+  private handleSortHistogramBars = (
+    a: HistogramDatum,
+    b: HistogramDatum
+  ): number => {
+    return SEVERITY_SORTING_ORDER[b.group] - SEVERITY_SORTING_ORDER[a.group]
   }
 
   private get header(): JSX.Element {
