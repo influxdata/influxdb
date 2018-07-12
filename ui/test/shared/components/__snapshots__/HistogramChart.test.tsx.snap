@@ -368,6 +368,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
           className="histogram-chart-bars--bars"
           data-key="1-1-193.5"
           key="1-1-193.5"
+          onClick={[Function]}
           onMouseOut={[Function]}
           onMouseOver={[Function]}
         >
@@ -402,6 +403,7 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
           className="histogram-chart-bars--bars"
           data-key="2-2-481"
           key="2-2-481"
+          onClick={[Function]}
           onMouseOut={[Function]}
           onMouseOver={[Function]}
         >
