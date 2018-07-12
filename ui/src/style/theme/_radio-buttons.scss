@@ -130,6 +130,11 @@
   &.radio-buttons-lg .radio-button {
     width: $form-lg-height - 4px;
   }
+
+  .radio-button {
+    padding: 0;
+    text-align: center;
+  }
 }
 
 .radio-buttons.radio-buttons-stretch {

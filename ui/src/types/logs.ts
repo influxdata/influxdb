@@ -80,6 +80,10 @@ export interface ServerEncoding {
   name?: string
 }
 
+export enum LiveUpdating {
+  Play = 'icon play',
+  Pause = 'icon pause',
+}
 export interface TimeRange {
   upper?: string
   lower: string

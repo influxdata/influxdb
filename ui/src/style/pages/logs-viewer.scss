@@ -228,13 +228,7 @@ $logs-viewer-gutter: 60px;
 }
 
 // Play & Pause Toggle in Header
-.nav.nav-tablist.nav-tablist-sm.logs-viewer--mode-toggle {
-  > li {
-    padding: 0;
-    width: 26px;
-    justify-content: center;
-  }
-  
+.radio-buttons.logs-viewer--mode-toggle {
   margin-right: 10px;
 }
 
