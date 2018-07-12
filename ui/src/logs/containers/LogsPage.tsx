@@ -135,7 +135,7 @@ class LogsPage extends Component<Props, State> {
   }
 
   public componentDidUpdate() {
-    if (!this.props.currentSource) {
+    if (!this.props.currentSource && this.props.sources.length > 0) {
       this.props.getSource(this.props.sources[0].id)
     }
   }
@@ -234,10 +234,12 @@ class LogsPage extends Component<Props, State> {
 
   private handleChooseCustomTime = (time: string) => {
     this.props.setTableCustomTime(time)
+    this.setState({hasScrolled: false})
   }
 
   private handleChooseRelativeTime = (time: number) => {
     this.props.setTableRelativeTime(time)
+    this.setState({hasScrolled: false})
   }
 
   private get tableData(): TableData {
