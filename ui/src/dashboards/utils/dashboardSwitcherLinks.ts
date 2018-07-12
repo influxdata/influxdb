@@ -36,7 +36,7 @@ export const updateActiveDashboardLink = (
   return {...dashboardLinks, active}
 }
 
-export const updateDashboadLinkName = (
+export const updateDashboardLinkName = (
   dashboardLinks: DashboardSwitcherLinks,
   dashboard: Dashboard
 ): DashboardSwitcherLinks => {

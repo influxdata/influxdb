@@ -26,7 +26,7 @@ import {millisecondTimeRange} from 'src/dashboards/utils/time'
 import {getDeep} from 'src/utils/wrappers'
 import {
   updateActiveDashboardLink,
-  updateDashboadLinkName,
+  updateDashboardLinkName,
 } from 'src/dashboards/utils/dashboardSwitcherLinks'
 
 // APIs
@@ -448,10 +448,10 @@ class DashboardPage extends Component<Props, State> {
     this.updateLinkName()
   }
 
-  private updateLinkName = () => {
+  private updateLinkName(): void {
     this.setState((prevState, props) => ({
       ...prevState,
-      dashboardLinks: updateDashboadLinkName(
+      dashboardLinks: updateDashboardLinkName(
         prevState.dashboardLinks,
         props.dashboard
       ),
