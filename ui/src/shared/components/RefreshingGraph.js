@@ -10,6 +10,8 @@ import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
 import GaugeChart from 'shared/components/GaugeChart'
 import TableGraph from 'shared/components/TableGraph'
+import AutoRefreshNew from 'shared/components/AutoRefresh/AutoRefresh'
+import TimeSeries from 'shared/components/TimeSeries/TimeSeries'
 
 import {colorsStringSchema} from 'shared/schemas'
 import {setHoverTime} from 'src/dashboards/actions'
@@ -136,30 +138,41 @@ const RefreshingGraph = ({
   }
 
   return (
-    <RefreshingLineGraph
-      type={type}
-      axes={axes}
+    <TimeSeries
       source={source}
-      cellID={cellID}
-      colors={colors}
-      onZoom={onZoom}
-      queries={queries}
       inView={inView}
-      key={manualRefresh}
+      queries={queries}
       templates={templates}
-      timeRange={timeRange}
-      cellHeight={cellHeight}
-      autoRefresh={autoRefresh}
-      isBarGraph={type === 'bar'}
-      decimalPlaces={decimalPlaces}
-      staticLegend={staticLegend}
-      displayOptions={displayOptions}
-      editQueryStatus={editQueryStatus}
-      grabDataForDownload={grabDataForDownload}
-      handleSetHoverTime={handleSetHoverTime}
-      showSingleStat={type === 'line-plus-single-stat'}
-      onSetResolution={onSetResolution}
-    />
+      refreshMs={autoRefresh}
+    >
+      {({timeSeries}) => (
+        <LineGraph
+          type={type}
+          axes={axes}
+          source={source}
+          cellID={cellID}
+          colors={colors}
+          onZoom={onZoom}
+          queries={queries}
+          inView={inView}
+          data={timeSeries}
+          key={manualRefresh}
+          templates={templates}
+          timeRange={timeRange}
+          cellHeight={cellHeight}
+          autoRefresh={autoRefresh}
+          isBarGraph={type === 'bar'}
+          decimalPlaces={decimalPlaces}
+          staticLegend={staticLegend}
+          displayOptions={displayOptions}
+          editQueryStatus={editQueryStatus}
+          grabDataForDownload={grabDataForDownload}
+          handleSetHoverTime={handleSetHoverTime}
+          showSingleStat={type === 'line-plus-single-stat'}
+          onSetResolution={onSetResolution}
+        />
+      )}
+    </TimeSeries>
   )
 }
 
