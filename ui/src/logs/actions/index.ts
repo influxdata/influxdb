@@ -21,8 +21,6 @@ import {
   updateLogConfig as updateLogConfigAJAX,
 } from 'src/logs/api'
 
-import {serverLogData} from 'src/logs/data/serverLogData'
-
 import {
   LogsState,
   Filter,
