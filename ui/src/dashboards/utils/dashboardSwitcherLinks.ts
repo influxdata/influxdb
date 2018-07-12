@@ -21,7 +21,20 @@ export const linksFromDashboards = (
   return {links, active: null}
 }
 
-export const updateActiveDashboardLink = (
+export const updateDashboardLinks = (
+  dashboardLinks: DashboardSwitcherLinks,
+  activeDashboard: Dashboard
+) => {
+  const {active} = dashboardLinks
+
+  if (!active || active.key !== String(activeDashboard.id)) {
+    return updateActiveDashboardLink(dashboardLinks, activeDashboard)
+  }
+
+  return updateDashboardLinkName(dashboardLinks, activeDashboard)
+}
+
+const updateActiveDashboardLink = (
   dashboardLinks: DashboardSwitcherLinks,
   dashboard: Dashboard
 ) => {
@@ -36,7 +49,7 @@ export const updateActiveDashboardLink = (
   return {...dashboardLinks, active}
 }
 
-export const updateDashboardLinkName = (
+const updateDashboardLinkName = (
   dashboardLinks: DashboardSwitcherLinks,
   dashboard: Dashboard
 ): DashboardSwitcherLinks => {

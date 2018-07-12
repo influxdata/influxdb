@@ -1,7 +1,6 @@
 import {
   linksFromDashboards,
-  updateActiveDashboardLink,
-  updateDashboardLinkName,
+  updateDashboardLinks,
 } from 'src/dashboards/utils/dashboardSwitcherLinks'
 import {dashboard, source} from 'test/resources'
 
@@ -35,19 +34,19 @@ describe('dashboards.utils.dashboardSwitcherLinks', () => {
     })
   })
 
-  const link1 = {
-    key: '9001',
-    text: 'Low Dash',
-    to: '/sources/897/dashboards/9001',
-  }
+  describe('updateDashboardLinks', () => {
+    const link1 = {
+      key: '9001',
+      text: 'Low Dash',
+      to: '/sources/897/dashboards/9001',
+    }
 
-  const link2 = {
-    key: '2282',
-    text: 'Other Dash',
-    to: '/sources/897/dashboards/2282',
-  }
+    const link2 = {
+      key: '2282',
+      text: 'Other Dash',
+      to: '/sources/897/dashboards/2282',
+    }
 
-  describe('updateActiveDashboardLink', () => {
     const activeDashboard = {
       ...dashboard,
       id: 123,
@@ -63,10 +62,7 @@ describe('dashboards.utils.dashboardSwitcherLinks', () => {
     const links = [link1, activeLink, link2]
     it('can set the active link', () => {
       const loadedLinks = {links, active: null}
-      const actualLinks = updateActiveDashboardLink(
-        loadedLinks,
-        activeDashboard
-      )
+      const actualLinks = updateDashboardLinks(loadedLinks, activeDashboard)
       const expectedLinks = {links, active: activeLink}
 
       expect(actualLinks).toEqual(expectedLinks)
@@ -74,14 +70,12 @@ describe('dashboards.utils.dashboardSwitcherLinks', () => {
 
     it('can handle a missing dashboard', () => {
       const loadedLinks = {links, active: null}
-      const actualLinks = updateActiveDashboardLink(loadedLinks, undefined)
+      const actualLinks = updateDashboardLinks(loadedLinks, undefined)
       const expectedLinks = {links, active: null}
 
       expect(actualLinks).toEqual(expectedLinks)
     })
-  })
 
-  describe('updateDashboardLinkName', () => {
     const staleDashboard = {
       ...dashboard,
       id: 3000,
@@ -94,40 +88,17 @@ describe('dashboards.utils.dashboardSwitcherLinks', () => {
       to: '/sources/897/dashboards/3000',
     }
 
-    const links = [link1, staleLink, link2]
+    const staleLinks = [link1, staleLink, link2]
     const updatedDashboard = {...staleDashboard, name: 'New Dashboard Name'}
 
-    const dashboardLinks = {
-      links,
-      active: link1,
+    const staleDashboardLinks = {
+      links: staleLinks,
+      active: staleLink,
     }
 
-    it('can update the name of a provided dashboard', () => {
-      const actualDashLinks = updateDashboardLinkName(
-        dashboardLinks,
-        updatedDashboard
-      )
-
-      const expectedDashlinks = {
-        links: [
-          link1,
-          {
-            key: '3000',
-            text: 'New Dashboard Name',
-            to: '/sources/897/dashboards/3000',
-          },
-          link2,
-        ],
-        active: link1,
-      }
-
-      expect(actualDashLinks).toEqual(expectedDashlinks)
-    })
-
-    it('can update name for active link', () => {
-      const linksWithStaleActive = {...dashboardLinks, active: staleLink}
-      const actualLinks = updateDashboardLinkName(
-        linksWithStaleActive,
+    it('can update name for dashboard', () => {
+      const actualLinks = updateDashboardLinks(
+        staleDashboardLinks,
         updatedDashboard
       )
 

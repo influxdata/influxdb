@@ -24,10 +24,7 @@ import * as notifyActions from 'src/shared/actions/notifications'
 import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {millisecondTimeRange} from 'src/dashboards/utils/time'
 import {getDeep} from 'src/utils/wrappers'
-import {
-  updateActiveDashboardLink,
-  updateDashboardLinkName,
-} from 'src/dashboards/utils/dashboardSwitcherLinks'
+import {updateDashboardLinks} from 'src/dashboards/utils/dashboardSwitcherLinks'
 
 // APIs
 import {loadDashboardLinks} from 'src/dashboards/apis'
@@ -362,7 +359,7 @@ class DashboardPage extends Component<Props, State> {
 
   private updateActiveDashboard(): void {
     this.setState((prevState, props) => ({
-      dashboardLinks: updateActiveDashboardLink(
+      dashboardLinks: updateDashboardLinks(
         prevState.dashboardLinks,
         props.dashboard
       ),
@@ -448,16 +445,7 @@ class DashboardPage extends Component<Props, State> {
 
     this.props.updateDashboard(newDashboard)
     await this.props.putDashboard(newDashboard)
-    this.updateLinkName()
-  }
-
-  private updateLinkName(): void {
-    this.setState((prevState, props) => ({
-      dashboardLinks: updateDashboardLinkName(
-        prevState.dashboardLinks,
-        props.dashboard
-      ),
-    }))
+    this.updateActiveDashboard()
   }
 
   private handleDeleteDashboardCell = (cell: DashboardsModels.Cell): void => {
