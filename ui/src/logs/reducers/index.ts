@@ -219,8 +219,6 @@ export default (state: LogsState = defaultState, action: Action) => {
           backward: action.payload.data,
         },
       }
-    case ActionTypes.ChangeZoom:
-      return {...state, timeRange: action.payload.timeRange}
     case ActionTypes.SetSearchTerm:
       const {searchTerm} = action.payload
       return {...state, searchTerm}

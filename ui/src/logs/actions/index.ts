@@ -70,7 +70,6 @@ export enum ActionTypes {
   SetHistogramData = 'LOGS_SET_HISTOGRAM_DATA',
   SetTableQueryConfig = 'LOGS_SET_TABLE_QUERY_CONFIG',
   SetTableData = 'LOGS_SET_TABLE_DATA',
-  ChangeZoom = 'LOGS_CHANGE_ZOOM',
   SetSearchTerm = 'LOGS_SET_SEARCH_TERM',
   AddFilter = 'LOGS_ADD_FILTER',
   RemoveFilter = 'LOGS_REMOVE_FILTER',
@@ -240,13 +239,6 @@ interface SetSearchTerm {
   }
 }
 
-interface ChangeZoomAction {
-  type: ActionTypes.ChangeZoom
-  payload: {
-    timeRange: TimeRange
-  }
-}
-
 export interface SetConfigsAction {
   type: ActionTypes.SetConfig
   payload: {
@@ -263,7 +255,6 @@ export type Action =
   | SetNamespaceAction
   | SetHistogramQueryConfig
   | SetHistogramData
-  | ChangeZoomAction
   | SetTableData
   | SetTableQueryConfig
   | SetSearchTerm
@@ -744,19 +735,6 @@ export const getSourceAndPopulateNamespacesAsync = (sourceID: string) => async (
   if (proxyLink) {
     dispatch(setSource(source))
     dispatch(populateNamespacesAsync(proxyLink, source))
-  }
-}
-
-export const changeZoomAsync = (timeRange: TimeRange) => async (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
-  const state = getState()
-  const namespace = getNamespace(state)
-  const proxyLink = getProxyLink(state)
-
-  if (namespace && proxyLink) {
-    await dispatch(setTimeRangeAsync(timeRange))
   }
 }
 

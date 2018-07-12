@@ -15,7 +15,6 @@ import {
   setTimeMarker,
   setNamespaceAsync,
   executeQueriesAsync,
-  changeZoomAsync,
   setSearchTermAsync,
   addFilter,
   removeFilter,
@@ -40,7 +39,7 @@ import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechno
 import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
 import {Source, Namespace} from 'src/types'
 
-import {HistogramData, TimePeriod, HistogramColor} from 'src/types/histogram'
+import {HistogramData, HistogramColor} from 'src/types/histogram'
 import {
   Filter,
   SeverityLevelColor,
@@ -67,7 +66,6 @@ interface Props {
   setTimeWindow: (timeWindow: TimeWindow) => void
   setTimeMarker: (timeMarker: TimeMarker) => void
   setNamespaceAsync: (namespace: Namespace) => void
-  changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
   setSearchTermAsync: (searchTerm: string) => void
   setTableRelativeTime: (time: number) => void
@@ -327,7 +325,6 @@ class LogsPage extends Component<Props, State> {
             width={width}
             height={height}
             colorScale={colorForSeverity}
-            onZoom={this.handleChartZoom}
             colors={histogramColors}
           />
         )}
@@ -438,17 +435,6 @@ class LogsPage extends Component<Props, State> {
 
   private handleChooseNamespace = (namespace: Namespace) => {
     this.props.setNamespaceAsync(namespace)
-  }
-
-  private handleChartZoom = (t: TimePeriod) => {
-    const {start, end} = t
-    const timeRange = {
-      lower: new Date(start).toISOString(),
-      upper: new Date(end).toISOString(),
-    }
-
-    this.props.changeZoomAsync(timeRange)
-    this.setState({liveUpdating: true})
   }
 
   private fetchNewDataset() {
@@ -562,7 +548,6 @@ const mapDispatchToProps = {
   setTimeMarker,
   setNamespaceAsync,
   executeQueriesAsync,
-  changeZoomAsync,
   setSearchTermAsync,
   addFilter,
   removeFilter,
