@@ -39,7 +39,7 @@ import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechno
 import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
 import {Source, Namespace} from 'src/types'
 
-import {HistogramData, HistogramColor} from 'src/types/histogram'
+import {HistogramData, HistogramColor, BarGroup} from 'src/types/histogram'
 import {
   Filter,
   SeverityLevelColor,
