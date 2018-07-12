@@ -6,9 +6,10 @@ import classnames from 'classnames'
 import Dropdown from 'src/shared/components/Dropdown'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
-import TimeRangeDropdown from 'src/logs/components/TimeRangeDropdown'
+import TimeMarkerDropdown from 'src/logs/components/TimeMarkerDropdown'
+import TimeWindowDropdown from 'src/logs/components/TimeWindowDropdown'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-import {TimeRange} from 'src/types'
+import {TimeRange, TimeWindow, TimeMarker} from 'src/types/logs'
 
 interface SourceItem {
   id: string
@@ -20,13 +21,14 @@ interface Props {
   availableSources: Source[]
   currentSource: Source | null
   currentNamespaces: Namespace[]
-  timeRange: TimeRange
   liveUpdating: boolean
   onChooseSource: (sourceID: string) => void
   onChooseNamespace: (namespace: Namespace) => void
-  onChooseTimerange: (timeRange: TimeRange) => void
   onChangeLiveUpdatingStatus: () => void
   onShowOptionsOverlay: () => void
+  timeRange: TimeRange
+  onSetTimeMarker: (timeMarker: TimeMarker) => void
+  onSetTimeWindow: (timeWindow: TimeWindow) => void
 }
 
 class LogViewerHeader extends PureComponent<Props> {
@@ -50,7 +52,16 @@ class LogViewerHeader extends PureComponent<Props> {
   }
 
   private get optionsComponents(): JSX.Element {
-    const {timeRange, onShowOptionsOverlay} = this.props
+    const {onShowOptionsOverlay, onSetTimeWindow, onSetTimeMarker} = this.props
+
+    // Todo: Replace w/ getDeep
+    const timeRange = _.get(this.props, 'timeRange', {
+      upper: null,
+      lower: 'now() - 1m',
+      seconds: 60,
+      windowOption: '1m',
+      timeOption: 'now',
+    })
 
     return (
       <>
@@ -67,9 +78,13 @@ class LogViewerHeader extends PureComponent<Props> {
           selected={this.selectedNamespace}
           onChoose={this.handleChooseNamespace}
         />
-        <TimeRangeDropdown
-          onChooseTimeRange={this.handleChooseTimeRange}
-          selected={timeRange}
+        <TimeMarkerDropdown
+          onSetTimeMarker={onSetTimeMarker}
+          selectedTimeMarker={timeRange.timeOption}
+        />
+        <TimeWindowDropdown
+          selectedTimeWindow={timeRange}
+          onSetTimeWindow={onSetTimeWindow}
         />
         <Authorized requiredRole={EDITOR_ROLE}>
           <button
@@ -102,10 +117,6 @@ class LogViewerHeader extends PureComponent<Props> {
         </li>
       </ul>
     )
-  }
-
-  private handleChooseTimeRange = (timerange: TimeRange) => {
-    this.props.onChooseTimerange(timerange)
   }
 
   private handleChooseSource = (item: SourceItem) => {
