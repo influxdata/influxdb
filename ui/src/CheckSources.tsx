@@ -17,7 +17,6 @@ import {
 import {getSourceHealth} from 'src/sources/apis'
 import {getSourcesAsync} from 'src/shared/actions/sources'
 
-import {errorThrown as errorThrownAction} from 'src/shared/actions/errors'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
@@ -48,7 +47,6 @@ interface Props {
   location: Location
   auth: Auth
   notify: (message: Notification | NotificationFunc) => void
-  errorThrown: () => void
 }
 
 export const SourceContext = React.createContext()
@@ -117,7 +115,6 @@ export class CheckSources extends Component<Props, State> {
       router,
       location,
       params,
-      errorThrown,
       sources,
       auth: {isUsingAuth, me},
       notify,
@@ -188,7 +185,7 @@ export class CheckSources extends Component<Props, State> {
       try {
         await getSourceHealth(source.links.health)
       } catch (error) {
-        errorThrown(error, copy.notifySourceNoLongerAvailable(source.name))
+        notify(copy.notifySourceNoLongerAvailable(source.name))
       }
     }
   }
@@ -225,7 +222,6 @@ const mapStateToProps = ({sources, auth}) => ({
 
 const mapDispatchToProps = dispatch => ({
   getSources: bindActionCreators(getSourcesAsync, dispatch),
-  errorThrown: bindActionCreators(errorThrownAction, dispatch),
   notify: bindActionCreators(notifyAction, dispatch),
 })
 
