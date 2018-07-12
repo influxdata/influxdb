@@ -310,25 +310,6 @@ exports[`HistogramChart displays the visualization with bars if nonempty data is
       </HistogramChartAxes>
     </g>
     <g
-      className="histogram-chart--brush"
-      transform="translate(25, 5)"
-    >
-      <XBrush
-        height={375}
-        onBrush={[Function]}
-        width={575}
-        xScale={[Function]}
-      >
-        <rect
-          className="x-brush--area"
-          height={375}
-          onDoubleClick={[Function]}
-          onMouseDown={[Function]}
-          width={575}
-        />
-      </XBrush>
-    </g>
-    <g
       className="histogram-chart--bars"
       clipPath="url(#histogram-chart--bars-clip)"
       transform="translate(25, 5)"
