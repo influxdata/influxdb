@@ -37,6 +37,7 @@ import {
   SeverityFormat,
   SeverityLevelColor,
 } from 'src/types/logs'
+import {INITIAL_LIMIT} from 'src/logs/actions'
 
 interface Props {
   data: TableData
@@ -164,7 +165,7 @@ class LogsTable extends Component<Props, State> {
       visibleColumnsCount,
     }
 
-    this.loadMoreUpRows = _.throttle(this.loadMoreUpRows, 5000)
+    this.loadMoreAboveRows = _.throttle(this.loadMoreAboveRows, 5000)
   }
 
   public componentDidUpdate() {
@@ -226,8 +227,8 @@ class LogsTable extends Component<Props, State> {
         </AutoSizer>
         <InfiniteLoader
           isRowLoaded={this.isRowLoaded}
-          loadMoreRows={this.loadMoreDownRows}
-          rowCount={this.rowCount() + 1000}
+          loadMoreRows={this.loadMoreBelowRows}
+          rowCount={this.rowCount() + INITIAL_LIMIT}
         >
           {({registerChild, onRowsRendered}) => (
             <AutoSizer>
@@ -321,7 +322,7 @@ class LogsTable extends Component<Props, State> {
       this.setState({scrollTop})
 
       if (scrollTop < 200 && scrollTop < previousTop) {
-        this.loadMoreUpRows()
+        this.loadMoreAboveRows()
       }
 
       if (scrollTop === 0) {
@@ -344,7 +345,7 @@ class LogsTable extends Component<Props, State> {
     }
   }
 
-  private loadMoreUpRows = async () => {
+  private loadMoreAboveRows = async () => {
     // Prevent multiple queries at the same time
     const {queryCount} = this.props
     if (queryCount > 0) {
@@ -362,7 +363,7 @@ class LogsTable extends Component<Props, State> {
     await this.props.fetchNewer(moment(firstTime).toISOString())
   }
 
-  private loadMoreDownRows = async () => {
+  private loadMoreBelowRows = async () => {
     // Prevent multiple queries at the same time
     const {queryCount} = this.props
     if (queryCount > 0) {
@@ -389,7 +390,10 @@ class LogsTable extends Component<Props, State> {
 
   private rowCount = (): number => {
     const data = this.props.tableInfiniteData
-    return data.forward.values.length + data.backward.values.length
+    return (
+      getDeep<number>(data, 'forward.values.length', 0) +
+      getDeep<number>(data, 'backward.values.length', 0)
+    )
   }
 
   private isRowLoaded = ({index}) => {

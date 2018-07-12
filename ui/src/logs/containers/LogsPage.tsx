@@ -146,7 +146,6 @@ class LogsPage extends Component<Props, State> {
   }
 
   public render() {
-    // const {liveUpdating} = this.state
     const {searchTerm, filters, queryCount, timeRange, tableTime} = this.props
 
     return (

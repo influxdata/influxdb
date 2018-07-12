@@ -22,7 +22,7 @@ interface State {
 }
 
 const dateFormat = 'YYYY-MM-DD HH:mm'
-const format = t => moment(t.replace(/\'/g, '')).format(dateFormat)
+const format = (t: string) => moment(t.replace(/\'/g, '')).format(dateFormat)
 
 @ErrorHandling
 class TimeRangeDropdown extends Component<Props, State> {

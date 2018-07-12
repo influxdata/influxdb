@@ -26,7 +26,7 @@ import {
 import {serverLogData} from 'src/logs/data/serverLogData'
 import {LogsState, Filter, TableData, LogConfig} from 'src/types/logs'
 
-const INITIAL_LIMIT = 100
+export const INITIAL_LIMIT = 100
 
 const defaultTableData: TableData = {
   columns: [
