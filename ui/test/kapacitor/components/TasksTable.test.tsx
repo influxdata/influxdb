@@ -7,23 +7,32 @@ import {TaskRow} from 'src/kapacitor/components/TasksTable'
 
 import {source, kapacitorRules} from 'test/resources'
 
+const setup = (override = {}) => {
+  const props = {
+    source,
+    tasks: kapacitorRules,
+    onDelete: () => {},
+    onChangeRuleStatus: () => {},
+    ...override,
+  }
+
+  const wrapper = shallow(<TasksTable {...props} />)
+
+  return {
+    wrapper,
+  }
+}
+
 describe('Kapacitor.Components.TasksTable', () => {
   describe('rendering', () => {
-    const props = {
-      source,
-      tasks: kapacitorRules,
-      onDelete: () => {},
-      onChangeRuleStatus: () => {},
-    }
-
     it('renders TasksTable', () => {
-      const wrapper = shallow(<TasksTable {...props} />)
+      const {wrapper} = setup()
 
       expect(wrapper.exists()).toBe(true)
     })
 
     it('renders TaskRows alphabetically sorted by task name', () => {
-      const wrapper = shallow(<TasksTable {...props} />)
+      const {wrapper} = setup()
       const taskRows = wrapper.find(TaskRow)
       const actualNamesOrder = taskRows.map(taskRow => {
         const {name} = taskRow.prop('task')
@@ -36,24 +45,36 @@ describe('Kapacitor.Components.TasksTable', () => {
 
       expect(actualNamesOrder).toEqual(expectedNamesOrder)
     })
+
+    describe('checkbox', () => {
+      it('has the correct htmlFor its label', () => {
+        const task = kapacitorRules[3]
+        const tasks = [task]
+        const {wrapper} = setup({tasks})
+
+        const row = wrapper.find(TaskRow)
+        const checkbox = row.dive().find({type: 'checkbox'})
+        const label = row.dive().find('label')
+
+        expect(checkbox.props().id).toBe(label.props().htmlFor)
+      })
+    })
   })
 
   describe('user interaction', () => {
-    const props = {
-      source,
-      task: kapacitorRules[3],
-      onDelete: () => {},
-      onChangeRuleStatus: jest.fn(),
-    }
-
     it('calls onChangeRuleStatus when checkbox is effectively clicked', () => {
-      const wrapper = shallow(<TaskRow {...props} />)
+      const task = kapacitorRules[3]
+      const tasks = [task]
+      const onChangeRuleStatus = jest.fn()
 
-      const checkbox = wrapper.find({type: 'checkbox'})
+      const {wrapper} = setup({tasks, onChangeRuleStatus})
+
+      const row = wrapper.find(TaskRow)
+      const checkbox = row.dive().find({type: 'checkbox'})
       checkbox.simulate('change')
 
-      expect(props.onChangeRuleStatus).toHaveBeenCalledTimes(1)
-      expect(props.onChangeRuleStatus).toHaveBeenCalledWith(kapacitorRules[3])
+      expect(onChangeRuleStatus).toHaveBeenCalledTimes(1)
+      expect(onChangeRuleStatus).toHaveBeenCalledWith(kapacitorRules[3])
     })
   })
 })
