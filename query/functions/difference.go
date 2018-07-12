@@ -173,6 +173,10 @@ func (t *differenceTransformation) Process(id execute.DatasetID, b query.Block) 
 		l := cr.Len()
 		for j, c := range cols {
 			d := differences[j]
+			if d == nil && l < 2 {
+				continue
+			}
+
 			switch c.Type {
 			case query.TBool:
 				builder.AppendBools(j, cr.Bools(j)[firstIdx:])
