@@ -46,7 +46,7 @@ const defaultTableData: TableData = {
     'timestamp',
     'facility',
     'procid',
-    'application',
+    'appname',
     'host',
     'message',
   ],
@@ -412,17 +412,7 @@ export const executeTableBackwardQueryAsync = () => async (
   try {
     dispatch(incrementQueryCount())
 
-    const queryTimeRange = {
-      upper: timeRange.upper,
-      lower: timeRange.lower,
-      seconds: timeRange.seconds,
-    }
-    const query = buildLogQuery(
-      queryTimeRange,
-      queryConfig,
-      filters,
-      searchTerm
-    )
+    const query = buildBackwardLogQuery(time, queryConfig, filters, searchTerm)
     const response = await executeQueryAsync(
       proxyLink,
       namespace,

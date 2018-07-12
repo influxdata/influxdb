@@ -3,9 +3,10 @@ import {
   SeverityColorOptions,
   SeverityLevelOptions,
 } from 'src/logs/constants'
-import {QueryConfig, TimeRange, Namespace, Source} from 'src/types'
+import {QueryConfig, Namespace, Source} from 'src/types'
 import {FieldOption} from 'src/types/dashboards'
 import {TimeSeriesValue} from 'src/types/series'
+import {TimeRange} from 'src/types/logs'
 
 export interface Filter {
   id: string
