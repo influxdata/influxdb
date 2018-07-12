@@ -32,7 +32,6 @@ import OptionsOverlay from 'src/logs/components/OptionsOverlay'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogsTable from 'src/logs/components/LogsTable'
-import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import {getDeep} from 'src/utils/wrappers'
 import {colorForSeverity} from 'src/logs/utils/colors'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
@@ -164,7 +163,7 @@ class LogsPage extends Component<Props, State> {
   }
 
   public render() {
-    const {searchTerm, filters, queryCount, timeRange, tableTime} = this.props
+    const {searchTerm, filters, queryCount, timeRange} = this.props
 
     return (
       <>
@@ -172,17 +171,6 @@ class LogsPage extends Component<Props, State> {
           {this.header}
           <div className="page-contents logs-viewer">
             <LogsGraphContainer>{this.chart}</LogsGraphContainer>
-            <div style={{height: '50px', position: 'relative'}}>
-              <div style={{position: 'absolute', right: '10px', top: '10px'}}>
-                <span style={{marginRight: '10px'}}>Go to </span>
-                <PointInTimeDropDown
-                  customTime={tableTime.custom}
-                  relativeTime={tableTime.relative}
-                  onChooseCustomTime={this.handleChooseCustomTime}
-                  onChooseRelativeTime={this.handleChooseRelativeTime}
-                />
-              </div>
-            </div>
             <SearchBar
               searchString={searchTerm}
               onSearch={this.handleSubmitSearch}
@@ -359,6 +347,7 @@ class LogsPage extends Component<Props, State> {
       currentNamespaces,
       currentNamespace,
       timeRange,
+      tableTime,
     } = this.props
 
     return (
@@ -375,6 +364,10 @@ class LogsPage extends Component<Props, State> {
         currentNamespace={currentNamespace}
         onChangeLiveUpdatingStatus={this.handleChangeLiveUpdatingStatus}
         onShowOptionsOverlay={this.handleToggleOverlay}
+        customTime={tableTime.custom}
+        relativeTime={tableTime.relative}
+        onChooseCustomTime={this.handleChooseCustomTime}
+        onChooseRelativeTime={this.handleChooseRelativeTime}
       />
     )
   }
