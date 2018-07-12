@@ -1,26 +1,26 @@
 error: panic: runtime error: slice bounds out of range
-goroutine 68 [running]:
+goroutine 12 [running]:
 runtime/debug.Stack(0x14ba440, 0x14b3b00, 0x1868f80)
 	/usr/local/Cellar/go/1.10.3/libexec/src/runtime/debug/stack.go:24 +0xa7
-github.com/influxdata/platform/query/execute.(*poolDispatcher).Start.func1.1(0xc4202e7cc0)
+github.com/influxdata/platform/query/execute.(*poolDispatcher).Start.func1.1(0xc42034f8b0)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/execute/dispatcher.go:67 +0xb9
 panic(0x14b3b00, 0x1868f80)
 	/usr/local/Cellar/go/1.10.3/libexec/src/runtime/panic.go:502 +0x229
-github.com/influxdata/platform/query/functions.(*differenceTransformation).Process.func1(0x15beac0, 0xc420520230, 0x1, 0xc4205204b0)
+github.com/influxdata/platform/query/functions.(*differenceTransformation).Process.func1(0x15beac0, 0xc420426d70, 0x1, 0xc420426ff0)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/functions/difference.go:215 +0x859
-github.com/influxdata/platform/query/execute.(*ColListBlock).Do(0xc420520230, 0xc4205204b0, 0x4, 0x5)
+github.com/influxdata/platform/query/execute.(*ColListBlock).Do(0xc420426d70, 0xc420426ff0, 0x4, 0x5)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/execute/block.go:602 +0x3c
-github.com/influxdata/platform/query/functions.(*differenceTransformation).Process(0xc420465500, 0x8758767ca5bfbed5, 0x63eb5c4900b059b8, 0x15bb240, 0xc420520230, 0x1, 0x0)
+github.com/influxdata/platform/query/functions.(*differenceTransformation).Process(0xc42035bc00, 0x8758767ca5bfbed5, 0x63eb5c4900b059b8, 0x15bb240, 0xc420426d70, 0x1, 0x0)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/functions/difference.go:172 +0x44f
-github.com/influxdata/platform/query/execute.processMessage(0x15bb840, 0xc420465500, 0x15b5e00, 0xc420167a20, 0x0, 0x0, 0x0)
+github.com/influxdata/platform/query/execute.processMessage(0x15bb840, 0xc42035bc00, 0x15b5e00, 0xc420524060, 0x0, 0x0, 0x0)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/execute/transport.go:199 +0x200
-github.com/influxdata/platform/query/execute.(*consecutiveTransport).processMessages(0xc420468300, 0xa)
+github.com/influxdata/platform/query/execute.(*consecutiveTransport).processMessages(0xc4202e3b00, 0xa)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/execute/transport.go:156 +0xa1
 github.com/influxdata/platform/query/execute.(*consecutiveTransport).(github.com/influxdata/platform/query/execute.processMessages)-fm(0xa)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/execute/transport.go:137 +0x34
-github.com/influxdata/platform/query/execute.(*poolDispatcher).run(0xc4202e7cc0, 0x15b9e00, 0xc420500690)
+github.com/influxdata/platform/query/execute.(*poolDispatcher).run(0xc42034f8b0, 0x15b9e00, 0xc4201f0a80)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/execute/dispatcher.go:116 +0x4b
-github.com/influxdata/platform/query/execute.(*poolDispatcher).Start.func1(0xc4202e7cc0, 0x15b9e00, 0xc420500690)
+github.com/influxdata/platform/query/execute.(*poolDispatcher).Start.func1(0xc42034f8b0, 0x15b9e00, 0xc4201f0a80)
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/execute/dispatcher.go:70 +0x95
 created by github.com/influxdata/platform/query/execute.(*poolDispatcher).Start
 	/Users/adamperlin/go/src/github.com/influxdata/platform/query/execute/dispatcher.go:55 +0x7e
