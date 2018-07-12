@@ -1,26 +1,26 @@
 export default [
   {
-    text: '1 minute ago',
+    text: '1m ago',
     value: 60,
   },
   {
-    text: '5 minute ago',
+    text: '5m ago',
     value: 300,
   },
   {
-    text: '10 minute ago',
+    text: '10m ago',
     value: 600,
   },
   {
-    text: '30 minute ago',
+    text: '30m ago',
     value: 1800,
   },
   {
-    text: '1 hour ago',
+    text: '1h ago',
     value: 3600,
   },
   {
-    text: '3 hour ago',
+    text: '3h ago',
     value: 10800,
   },
 ]

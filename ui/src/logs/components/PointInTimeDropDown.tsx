@@ -107,8 +107,8 @@ class TimeRangeDropdown extends Component<Props, State> {
     const absoluteTimeRange = !!this.props.customTime
 
     return classnames('dropdown', {
-      'dropdown-290': absoluteTimeRange,
-      'dropdown-120': !absoluteTimeRange,
+      'dropdown-180': absoluteTimeRange,
+      'dropdown-110': !absoluteTimeRange,
       open: isOpen,
     })
   }
