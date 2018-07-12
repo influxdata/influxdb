@@ -18,6 +18,11 @@ export interface Margins {
   left: number
 }
 
+export interface TimePeriod {
+  start: UnixTime
+  end: UnixTime
+}
+
 export interface HoverData {
   data: HistogramData
   x: number
