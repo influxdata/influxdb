@@ -17,7 +17,6 @@ import {
   HoverData,
   ColorScale,
   HistogramColor,
-  BarGroup,
 } from 'src/types/histogram'
 
 const PADDING_TOP = 0.2
@@ -35,7 +34,7 @@ interface Props {
   colors: HistogramColor[]
   colorScale: ColorScale
   onZoom?: (TimePeriod) => void
-  onBarClick?: (group: BarGroup) => void
+  onBarClick?: (time: string) => void
 }
 
 interface State {

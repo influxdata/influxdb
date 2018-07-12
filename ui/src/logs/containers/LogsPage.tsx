@@ -39,7 +39,7 @@ import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechno
 import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
 import {Source, Namespace} from 'src/types'
 
-import {HistogramData, HistogramColor, BarGroup} from 'src/types/histogram'
+import {HistogramData, HistogramColor} from 'src/types/histogram'
 import {
   Filter,
   SeverityLevelColor,
@@ -397,15 +397,8 @@ class LogsPage extends Component<Props, State> {
     this.props.executeQueriesAsync()
   }
 
-  private handleBarClick = (group: BarGroup): void => {
-    const {data} = group
-
-    if (!data.length) {
-      return
-    }
-
-    const unixTimestamp = data[0].time
-    const timeOption = moment(unixTimestamp).toISOString()
+  private handleBarClick = (time: string): void => {
+    const timeOption = moment(time).toISOString()
 
     this.handleSetTimeMarker({timeOption})
   }

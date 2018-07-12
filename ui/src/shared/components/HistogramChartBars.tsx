@@ -12,7 +12,6 @@ import {
   TooltipAnchor,
   ColorScale,
   HistogramColor,
-  BarGroup,
 } from 'src/types/histogram'
 
 const BAR_BORDER_RADIUS = 3
@@ -114,6 +113,25 @@ const getBarGroups = ({
   })
 }
 
+interface BarGroup {
+  key: string
+  clip: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  bars: Array<{
+    key: string
+    group: string
+    x: number
+    y: number
+    width: number
+    height: number
+    fill: string
+  }>
+  data: HistogramData
+}
 interface Props {
   width: number
   height: number
@@ -124,7 +142,7 @@ interface Props {
   hoverData?: HoverData
   colors: HistogramColor[]
   onHover: (h: HoverData) => void
-  onBarClick?: (group: BarGroup) => void
+  onBarClick?: (time: string) => void
 }
 
 interface State {
@@ -155,7 +173,7 @@ class HistogramChartBars extends PureComponent<Props, State> {
           data-key={key}
           onMouseOver={this.handleMouseOver}
           onMouseOut={this.handleMouseOut}
-          onClick={this.handleBarClick(group)}
+          onClick={this.handleBarClick(group.data)}
         >
           <defs>
             <clipPath id={`histogram-chart-bars--clip-${key}`}>
@@ -188,11 +206,12 @@ class HistogramChartBars extends PureComponent<Props, State> {
     })
   }
 
-  private handleBarClick = (group: BarGroup) => (): void => {
+  private handleBarClick = data => (): void => {
     const {onBarClick} = this.props
 
     if (onBarClick) {
-      onBarClick(group)
+      const time = data[0].time
+      onBarClick(time)
     }
   }
 
