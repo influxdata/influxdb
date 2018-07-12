@@ -13,7 +13,6 @@ import {
   setTimeMarker,
   setNamespaceAsync,
   executeQueriesAsync,
-  changeZoomAsync,
   setSearchTermAsync,
   addFilter,
   removeFilter,
@@ -41,7 +40,7 @@ import {
 import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
 import {Source, Namespace} from 'src/types'
 
-import {HistogramData, TimePeriod} from 'src/types/histogram'
+import {HistogramData} from 'src/types/histogram'
 import {
   Filter,
   SeverityLevel,
@@ -70,7 +69,6 @@ interface Props {
   setTimeWindow: (timeWindow: TimeWindow) => void
   setTimeMarker: (timeMarker: TimeMarker) => void
   setNamespaceAsync: (namespace: Namespace) => void
-  changeZoomAsync: (timeRange: TimeRange) => void
   executeQueriesAsync: () => void
   setSearchTermAsync: (searchTerm: string) => void
   fetchMoreAsync: (queryTimeEnd: string, lastTime: number) => Promise<void>
@@ -252,7 +250,6 @@ class LogsPage extends PureComponent<Props, State> {
             width={width}
             height={height}
             colorScale={colorForSeverity}
-            onZoom={this.handleChartZoom}
           />
         )}
       </AutoSizer>
@@ -360,17 +357,6 @@ class LogsPage extends PureComponent<Props, State> {
     this.props.setNamespaceAsync(namespace)
   }
 
-  private handleChartZoom = (t: TimePeriod) => {
-    const {start, end} = t
-    const timeRange = {
-      lower: new Date(start).toISOString(),
-      upper: new Date(end).toISOString(),
-    }
-
-    this.props.changeZoomAsync(timeRange)
-    this.setState({liveUpdating: true})
-  }
-
   private fetchNewDataset() {
     this.props.executeQueriesAsync()
     this.setState({liveUpdating: true})
@@ -471,7 +457,6 @@ const mapDispatchToProps = {
   setTimeMarker,
   setNamespaceAsync,
   executeQueriesAsync,
-  changeZoomAsync,
   setSearchTermAsync,
   addFilter,
   removeFilter,

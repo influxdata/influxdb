@@ -142,8 +142,6 @@ export default (state: LogsState = defaultState, action: Action) => {
       return {...state, tableQueryConfig: action.payload.queryConfig}
     case ActionTypes.SetTableData:
       return {...state, tableData: action.payload.data}
-    case ActionTypes.ChangeZoom:
-      return {...state, timeRange: action.payload.timeRange}
     case ActionTypes.SetSearchTerm:
       const {searchTerm} = action.payload
       return {...state, searchTerm}

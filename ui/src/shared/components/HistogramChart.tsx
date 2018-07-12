@@ -31,7 +31,7 @@ interface Props {
   width: number
   height: number
   colorScale: ColorScale
-  onZoom: (TimePeriod) => void
+  onZoom?: (TimePeriod) => void
 }
 
 interface State {
@@ -83,14 +83,7 @@ class HistogramChart extends PureComponent<Props, State> {
               yScale={yScale}
             />
           </g>
-          <g className="histogram-chart--brush" transform={bodyTransform}>
-            <XBrush
-              xScale={xScale}
-              width={adjustedWidth}
-              height={adjustedHeight}
-              onBrush={this.handleBrush}
-            />
-          </g>
+          {this.xBrush}
           <g
             transform={bodyTransform}
             className="histogram-chart--bars"
@@ -113,6 +106,24 @@ class HistogramChart extends PureComponent<Props, State> {
         )}
       </>
     )
+  }
+
+  private get xBrush(): JSX.Element {
+    const {onZoom} = this.props
+    const {xScale, adjustedWidth, adjustedHeight, bodyTransform} = this
+
+    if (onZoom) {
+      return (
+        <g className="histogram-chart--brush" transform={bodyTransform}>
+          <XBrush
+            xScale={xScale}
+            width={adjustedWidth}
+            height={adjustedHeight}
+            onBrush={this.handleBrush}
+          />
+        </g>
+      )
+    }
   }
 
   private get xScale(): ScaleTime<number, number> {
