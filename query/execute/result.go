@@ -42,10 +42,10 @@ func (s *result) RetractTable(DatasetID, query.GroupKey) error {
 	return nil
 }
 
-func (s *result) Process(id DatasetID, b query.Table) error {
+func (s *result) Process(id DatasetID, tbl query.Table) error {
 	select {
 	case s.tables <- resultMessage{
-		table: b,
+		table: tbl,
 	}:
 	case <-s.aborted:
 	}

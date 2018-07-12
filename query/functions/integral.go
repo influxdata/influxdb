@@ -117,18 +117,18 @@ func (t *integralTransformation) RetractTable(id execute.DatasetID, key query.Gr
 	return t.d.RetractTable(key)
 }
 
-func (t *integralTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *integralTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("integral found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("integral found duplicate table with key: %v", tbl.Key())
 	}
 
-	execute.AddTableKeyCols(b.Key(), builder)
+	execute.AddTableKeyCols(tbl.Key(), builder)
 	builder.AddCol(query.ColMeta{
 		Label: t.spec.TimeDst,
 		Type:  query.TTime,
 	})
-	cols := b.Cols()
+	cols := tbl.Cols()
 	integrals := make([]*integral, len(cols))
 	colMap := make([]int, len(cols))
 	for j, c := range cols {
@@ -141,7 +141,7 @@ func (t *integralTransformation) Process(id execute.DatasetID, b query.Table) er
 		}
 	}
 
-	if err := execute.AppendAggregateTime(t.spec.TimeSrc, t.spec.TimeDst, b.Key(), builder); err != nil {
+	if err := execute.AppendAggregateTime(t.spec.TimeSrc, t.spec.TimeDst, tbl.Key(), builder); err != nil {
 		return err
 	}
 
@@ -149,7 +149,7 @@ func (t *integralTransformation) Process(id execute.DatasetID, b query.Table) er
 	if timeIdx < 0 {
 		return fmt.Errorf("no column %q exists", t.spec.TimeSrc)
 	}
-	err := b.Do(func(cr query.ColReader) error {
+	err := tbl.Do(func(cr query.ColReader) error {
 		for j, in := range integrals {
 			if in == nil {
 				continue
@@ -166,7 +166,7 @@ func (t *integralTransformation) Process(id execute.DatasetID, b query.Table) er
 		return err
 	}
 
-	execute.AppendKeyValues(b.Key(), builder)
+	execute.AppendKeyValues(tbl.Key(), builder)
 	for j, in := range integrals {
 		if in == nil {
 			continue

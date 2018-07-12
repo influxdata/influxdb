@@ -67,7 +67,7 @@ func (t *consecutiveTransport) RetractTable(id DatasetID, key query.GroupKey) er
 	return nil
 }
 
-func (t *consecutiveTransport) Process(id DatasetID, b query.Table) error {
+func (t *consecutiveTransport) Process(id DatasetID, tbl query.Table) error {
 	select {
 	case <-t.finished:
 		return t.err()
@@ -75,7 +75,7 @@ func (t *consecutiveTransport) Process(id DatasetID, b query.Table) error {
 	}
 	t.pushMsg(&processMsg{
 		srcMessage: srcMessage(id),
-		table:      b,
+		table:      tbl,
 	})
 	return nil
 }

@@ -483,8 +483,8 @@ func TestResultDecoder(t *testing.T) {
 			got := &executetest.Result{
 				Nm: result.Name(),
 			}
-			if err := result.Tables().Do(func(b query.Table) error {
-				cb, err := executetest.ConvertTable(b)
+			if err := result.Tables().Do(func(tbl query.Table) error {
+				cb, err := executetest.ConvertTable(tbl)
 				if err != nil {
 					return err
 				}

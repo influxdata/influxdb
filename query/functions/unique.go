@@ -108,12 +108,12 @@ func (t *uniqueTransformation) RetractTable(id execute.DatasetID, key query.Grou
 	return t.d.RetractTable(key)
 }
 
-func (t *uniqueTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *uniqueTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("unique found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("unique found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	colIdx := execute.ColIdx(t.column, builder.Cols())
 	if colIdx < 0 {
@@ -144,7 +144,7 @@ func (t *uniqueTransformation) Process(id execute.DatasetID, b query.Table) erro
 		timeUnique = make(map[execute.Time]bool)
 	}
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			// Check unique

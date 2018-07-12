@@ -131,8 +131,8 @@ func (t *shiftTransformation) RetractTable(id execute.DatasetID, key query.Group
 	return t.d.RetractTable(key)
 }
 
-func (t *shiftTransformation) Process(id execute.DatasetID, b query.Table) error {
-	key := b.Key()
+func (t *shiftTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	key := tbl.Key()
 	// Update key
 	cols := make([]query.ColMeta, len(key.Cols()))
 	vs := make([]values.Value, len(key.Cols()))
@@ -152,11 +152,11 @@ func (t *shiftTransformation) Process(id execute.DatasetID, b query.Table) error
 
 	builder, created := t.cache.TableBuilder(key)
 	if !created {
-		return fmt.Errorf("shift found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("shift found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		for j, c := range cr.Cols() {
 			if execute.ContainsStr(t.columns, c.Label) {
 				l := cr.Len()

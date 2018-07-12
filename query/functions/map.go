@@ -132,9 +132,9 @@ func (t *mapTransformation) RetractTable(id execute.DatasetID, key query.GroupKe
 	return t.d.RetractTable(key)
 }
 
-func (t *mapTransformation) Process(id execute.DatasetID, b query.Table) error {
+func (t *mapTransformation) Process(id execute.DatasetID, tbl query.Table) error {
 	// Prepare the functions for the column types.
-	cols := b.Cols()
+	cols := tbl.Cols()
 	err := t.fn.Prepare(cols)
 	if err != nil {
 		// TODO(nathanielc): Should we not fail the query for failed compilation?
@@ -149,12 +149,12 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Table) error {
 	sort.Strings(keys)
 
 	// Determine on which cols to group
-	on := make(map[string]bool, len(b.Key().Cols()))
-	for _, c := range b.Key().Cols() {
+	on := make(map[string]bool, len(tbl.Key().Cols()))
+	for _, c := range tbl.Key().Cols() {
 		on[c.Label] = t.mergeKey || execute.ContainsStr(keys, c.Label)
 	}
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			m, err := t.fn.Eval(i, cr)
@@ -166,11 +166,11 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Table) error {
 			builder, created := t.cache.TableBuilder(key)
 			if created {
 				if t.mergeKey {
-					execute.AddTableKeyCols(b.Key(), builder)
+					execute.AddTableKeyCols(tbl.Key(), builder)
 				}
 				// Add columns from function in sorted order
 				for _, k := range keys {
-					if t.mergeKey && b.Key().HasCol(k) {
+					if t.mergeKey && tbl.Key().HasCol(k) {
 						continue
 					}
 					builder.AddCol(query.ColMeta{
@@ -182,8 +182,8 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Table) error {
 			for j, c := range builder.Cols() {
 				v, ok := m.Get(c.Label)
 				if !ok {
-					if idx := execute.ColIdx(c.Label, b.Key().Cols()); t.mergeKey && idx >= 0 {
-						v = b.Key().Value(idx)
+					if idx := execute.ColIdx(c.Label, tbl.Key().Cols()); t.mergeKey && idx >= 0 {
+						v = tbl.Key().Value(idx)
 					} else {
 						// This should be unreachable
 						return fmt.Errorf("could not find value for column %q", c.Label)

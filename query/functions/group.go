@@ -285,8 +285,8 @@ func (t *groupTransformation) RetractTable(id execute.DatasetID, key query.Group
 	panic("not implemented")
 }
 
-func (t *groupTransformation) Process(id execute.DatasetID, b query.Table) error {
-	cols := b.Cols()
+func (t *groupTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	cols := tbl.Cols()
 	on := make(map[string]bool, len(cols))
 	if t.mode == GroupModeBy && len(t.keys) > 0 {
 		for _, k := range t.keys {
@@ -303,13 +303,13 @@ func (t *groupTransformation) Process(id execute.DatasetID, b query.Table) error
 			on[c.Label] = true
 		}
 	}
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			key := execute.GroupKeyForRowOn(i, cr, on)
 			builder, created := t.cache.TableBuilder(key)
 			if created {
-				execute.AddTableCols(b, builder)
+				execute.AddTableCols(tbl, builder)
 			}
 			execute.AppendRecord(i, cr, builder)
 		}

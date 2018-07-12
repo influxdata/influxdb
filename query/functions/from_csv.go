@@ -147,14 +147,14 @@ func (c *CSVSource) Run(ctx context.Context) {
 	var err error
 	var max execute.Time
 	maxSet := false
-	err = c.data.Tables().Do(func(b query.Table) error {
+	err = c.data.Tables().Do(func(tbl query.Table) error {
 		for _, t := range c.ts {
-			err := t.Process(c.id, b)
+			err := t.Process(c.id, tbl)
 			if err != nil {
 				return err
 			}
-			if idx := execute.ColIdx(execute.DefaultStopColLabel, b.Key().Cols()); idx >= 0 {
-				if stop := b.Key().ValueTime(idx); !maxSet || stop > max {
+			if idx := execute.ColIdx(execute.DefaultStopColLabel, tbl.Key().Cols()); idx >= 0 {
+				if stop := tbl.Key().ValueTime(idx); !maxSet || stop > max {
 					max = stop
 					maxSet = true
 				}

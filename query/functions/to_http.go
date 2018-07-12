@@ -306,13 +306,13 @@ type idxType struct {
 	Type query.DataType
 }
 
-func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Table) error {
+func (t *ToHTTPTransformation) Process(id execute.DatasetID, tbl query.Table) error {
 	pr, pw := io.Pipe() // TODO: replce the pipe with something faster
 	m := &toHttpMetric{}
 	e := protocol.NewEncoder(pw)
 	e.FailOnFieldErr(true)
 	e.SetFieldSortOrder(protocol.SortFields)
-	cols := b.Cols()
+	cols := tbl.Cols()
 	labels := make(map[string]idxType, len(cols))
 	for i, col := range cols {
 		labels[col.Label] = idxType{Idx: i, Type: col.Type}
@@ -334,7 +334,7 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Table) erro
 	}
 
 	// check if each col is a tag or value and cache this value for the loop
-	colMetadatas := b.Cols()
+	colMetadatas := tbl.Cols()
 	isTag := make([]bool, len(colMetadatas))
 	isValue := make([]bool, len(colMetadatas))
 
@@ -347,7 +347,7 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Table) erro
 	wg.Add(1)
 	go func() {
 		m.name = t.spec.Spec.Name
-		b.Do(func(er query.ColReader) error {
+		tbl.Do(func(er query.ColReader) error {
 			l := er.Len()
 			for i := 0; i < l; i++ {
 				m.truncateTagsAndFields()

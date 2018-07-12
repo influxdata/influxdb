@@ -107,9 +107,9 @@ func (s *source) run(ctx context.Context) error {
 
 	//TODO(nathanielc): Pass through context to actual network I/O.
 	for tables, mark, ok := s.next(ctx, trace); ok; tables, mark, ok = s.next(ctx, trace) {
-		err := tables.Do(func(b query.Table) error {
+		err := tables.Do(func(tbl query.Table) error {
 			for _, t := range s.ts {
-				if err := t.Process(s.id, b); err != nil {
+				if err := t.Process(s.id, tbl); err != nil {
 					return err
 				}
 				//TODO(nathanielc): Also add mechanism to send UpdateProcessingTime calls, when no data is arriving.

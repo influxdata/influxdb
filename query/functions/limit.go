@@ -144,12 +144,12 @@ func (t *limitTransformation) RetractTable(id execute.DatasetID, key query.Group
 	return t.d.RetractTable(key)
 }
 
-func (t *limitTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *limitTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("limit found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("limit found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	ncols := builder.NCols()
 	if cap(t.colMap) < ncols {
@@ -164,7 +164,7 @@ func (t *limitTransformation) Process(id execute.DatasetID, b query.Table) error
 	// AppendTable with limit
 	n := t.n
 	offset := t.offset
-	b.Do(func(cr query.ColReader) error {
+	tbl.Do(func(cr query.ColReader) error {
 		if n <= 0 {
 			// Returning an error terminates iteration
 			return errors.New("finished")

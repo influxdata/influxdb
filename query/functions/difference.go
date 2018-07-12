@@ -133,12 +133,12 @@ func (t *differenceTransformation) RetractTable(id execute.DatasetID, key query.
 	return t.d.RetractTable(key)
 }
 
-func (t *differenceTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *differenceTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("difference found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("difference found duplicate table with key: %v", tbl.Key())
 	}
-	cols := b.Cols()
+	cols := tbl.Cols()
 	differences := make([]*difference, len(cols))
 	for j, c := range cols {
 		found := false
@@ -169,7 +169,7 @@ func (t *differenceTransformation) Process(id execute.DatasetID, b query.Table) 
 
 	// We need to drop the first row since its derivative is undefined
 	firstIdx := 1
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for j, c := range cols {
 			d := differences[j]

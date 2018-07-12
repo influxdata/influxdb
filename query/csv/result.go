@@ -664,11 +664,11 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 	var lastCols []colMeta
 	var lastEmpty bool
 
-	err := result.Tables().Do(func(b query.Table) error {
+	err := result.Tables().Do(func(tbl query.Table) error {
 		e.written = true
 		// Update cols with table cols
 		cols := metaCols
-		for _, c := range b.Cols() {
+		for _, c := range tbl.Cols() {
 			cm := colMeta{ColMeta: c}
 			if c.Type == query.TTime {
 				cm.fmt = time.RFC3339Nano
@@ -680,13 +680,13 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 
 		schemaChanged := !equalCols(cols, lastCols)
 
-		if lastEmpty || schemaChanged || b.Empty() {
+		if lastEmpty || schemaChanged || tbl.Empty() {
 			if len(lastCols) > 0 {
 				// Write out empty line if not first table
 				writer.Write(nil)
 			}
 
-			if err := writeSchema(writer, &e.c, row, cols, b.Empty(), b.Key(), result.Name(), tableIDStr); err != nil {
+			if err := writeSchema(writer, &e.c, row, cols, tbl.Empty(), tbl.Key(), result.Name(), tableIDStr); err != nil {
 				return err
 			}
 		}
@@ -706,7 +706,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 			}
 		}
 
-		err := b.Do(func(cr query.ColReader) error {
+		err := tbl.Do(func(cr query.ColReader) error {
 			record := row[recordStartIdx:]
 			l := cr.Len()
 			for i := 0; i < l; i++ {
@@ -729,7 +729,7 @@ func (e *ResultEncoder) Encode(w io.Writer, result query.Result) (int64, error) 
 		tableID++
 		tableIDStr = strconv.Itoa(tableID)
 		lastCols = cols
-		lastEmpty = b.Empty()
+		lastEmpty = tbl.Empty()
 		writer.Flush()
 		return writer.Error()
 	})

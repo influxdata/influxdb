@@ -209,15 +209,15 @@ func (t *stateTrackingTransformation) RetractTable(id execute.DatasetID, key que
 	return t.d.RetractTable(key)
 }
 
-func (t *stateTrackingTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *stateTrackingTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	// Prepare the functions for the column types.
-	cols := b.Cols()
+	cols := tbl.Cols()
 	err := t.fn.Prepare(cols)
 	if err != nil {
 		// TODO(nathanielc): Should we not fail the query for failed compilation?
@@ -247,12 +247,12 @@ func (t *stateTrackingTransformation) Process(id execute.DatasetID, b query.Tabl
 		inState bool
 	)
 
-	timeIdx := execute.ColIdx(t.timeCol, b.Cols())
+	timeIdx := execute.ColIdx(t.timeCol, tbl.Cols())
 	if timeIdx < 0 {
 		return fmt.Errorf("no column %q exists", t.timeCol)
 	}
 	// Append modified rows
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			tm := cr.Times(timeIdx)[i]

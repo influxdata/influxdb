@@ -10,7 +10,7 @@ import (
 
 type Transformation interface {
 	RetractTable(id DatasetID, key query.GroupKey) error
-	Process(id DatasetID, b query.Table) error
+	Process(id DatasetID, tbl query.Table) error
 	UpdateWatermark(id DatasetID, t Time) error
 	UpdateProcessingTime(id DatasetID, t Time) error
 	Finish(id DatasetID, err error)

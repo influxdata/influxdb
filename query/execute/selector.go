@@ -84,12 +84,12 @@ func (t *selectorTransformation) Finish(id DatasetID, err error) {
 	t.d.Finish(err)
 }
 
-func (t *selectorTransformation) setupBuilder(b query.Table) (TableBuilder, int, error) {
-	builder, new := t.cache.TableBuilder(b.Key())
+func (t *selectorTransformation) setupBuilder(tbl query.Table) (TableBuilder, int, error) {
+	builder, new := t.cache.TableBuilder(tbl.Key())
 	if !new {
-		return nil, 0, fmt.Errorf("found duplicate table with key: %v", b.Key())
+		return nil, 0, fmt.Errorf("found duplicate table with key: %v", tbl.Key())
 	}
-	AddTableCols(b, builder)
+	AddTableCols(tbl, builder)
 
 	cols := builder.Cols()
 	valueIdx := ColIdx(t.config.Column, cols)
@@ -99,8 +99,8 @@ func (t *selectorTransformation) setupBuilder(b query.Table) (TableBuilder, int,
 	return builder, valueIdx, nil
 }
 
-func (t *indexSelectorTransformation) Process(id DatasetID, b query.Table) error {
-	builder, valueIdx, err := t.setupBuilder(b)
+func (t *indexSelectorTransformation) Process(id DatasetID, tbl query.Table) error {
+	builder, valueIdx, err := t.setupBuilder(tbl)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (t *indexSelectorTransformation) Process(id DatasetID, b query.Table) error
 		return fmt.Errorf("unsupported selector type %v", valueCol.Type)
 	}
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		switch valueCol.Type {
 		case query.TBool:
 			selected := s.(DoBoolIndexSelector).DoBool(cr.Bools(valueIdx))
@@ -146,8 +146,8 @@ func (t *indexSelectorTransformation) Process(id DatasetID, b query.Table) error
 	})
 }
 
-func (t *rowSelectorTransformation) Process(id DatasetID, b query.Table) error {
-	builder, valueIdx, err := t.setupBuilder(b)
+func (t *rowSelectorTransformation) Process(id DatasetID, tbl query.Table) error {
+	builder, valueIdx, err := t.setupBuilder(tbl)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (t *rowSelectorTransformation) Process(id DatasetID, b query.Table) error {
 		return fmt.Errorf("invalid use of function: %T has no implementation for type %v", t.selector, valueCol.Type)
 	}
 
-	b.Do(func(cr query.ColReader) error {
+	tbl.Do(func(cr query.ColReader) error {
 		switch valueCol.Type {
 		case query.TBool:
 			rower.(DoBoolRowSelector).DoBool(cr.Bools(valueIdx), cr)

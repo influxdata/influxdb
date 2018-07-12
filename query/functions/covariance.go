@@ -155,13 +155,13 @@ func (t *CovarianceTransformation) RetractTable(id execute.DatasetID, key query.
 	return t.d.RetractTable(key)
 }
 
-func (t *CovarianceTransformation) Process(id execute.DatasetID, b query.Table) error {
-	cols := b.Cols()
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *CovarianceTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	cols := tbl.Cols()
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("covariance found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("covariance found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableKeyCols(b.Key(), builder)
+	execute.AddTableKeyCols(tbl.Key(), builder)
 	builder.AddCol(query.ColMeta{
 		Label: t.spec.TimeDst,
 		Type:  query.TTime,
@@ -176,12 +176,12 @@ func (t *CovarianceTransformation) Process(id execute.DatasetID, b query.Table) 
 	if cols[xIdx].Type != cols[yIdx].Type {
 		return errors.New("cannot compute the covariance between different types")
 	}
-	if err := execute.AppendAggregateTime(t.spec.TimeSrc, t.spec.TimeDst, b.Key(), builder); err != nil {
+	if err := execute.AppendAggregateTime(t.spec.TimeSrc, t.spec.TimeDst, tbl.Key(), builder); err != nil {
 		return err
 	}
 
 	t.reset()
-	b.Do(func(cr query.ColReader) error {
+	tbl.Do(func(cr query.ColReader) error {
 		switch typ := cols[xIdx].Type; typ {
 		case query.TFloat:
 			t.DoFloat(cr.Floats(xIdx), cr.Floats(yIdx))
@@ -191,7 +191,7 @@ func (t *CovarianceTransformation) Process(id execute.DatasetID, b query.Table) 
 		return nil
 	})
 
-	execute.AppendKeyValues(b.Key(), builder)
+	execute.AppendKeyValues(tbl.Key(), builder)
 	builder.AppendFloat(valueIdx, t.value())
 	return nil
 }

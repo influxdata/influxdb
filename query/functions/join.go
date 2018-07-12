@@ -278,11 +278,11 @@ func (t *mergeJoinTransformation) RetractTable(id execute.DatasetID, key query.G
 	panic("not implemented")
 }
 
-func (t *mergeJoinTransformation) Process(id execute.DatasetID, b query.Table) error {
+func (t *mergeJoinTransformation) Process(id execute.DatasetID, tbl query.Table) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	tables := t.cache.Tables(b.Key())
+	tables := t.cache.Tables(tbl.Key())
 
 	var references []string
 	var table execute.TableBuilder
@@ -299,20 +299,20 @@ func (t *mergeJoinTransformation) Process(id execute.DatasetID, b query.Table) e
 	labels := unionStrs(t.keys, references)
 	colMap := make([]int, len(labels))
 	for _, label := range labels {
-		tableIdx := execute.ColIdx(label, b.Cols())
+		tableIdx := execute.ColIdx(label, tbl.Cols())
 		if tableIdx < 0 {
 			return fmt.Errorf("no column %q exists", label)
 		}
 		// Only add the column if it does not already exist
 		builderIdx := execute.ColIdx(label, table.Cols())
 		if builderIdx < 0 {
-			c := b.Cols()[tableIdx]
+			c := tbl.Cols()[tableIdx]
 			builderIdx = table.AddCol(c)
 		}
 		colMap[builderIdx] = tableIdx
 	}
 
-	execute.AppendTable(b, table, colMap)
+	execute.AppendTable(tbl, table, colMap)
 	return nil
 }
 

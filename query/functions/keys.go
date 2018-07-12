@@ -155,16 +155,16 @@ func (t *keysTransformation) RetractTable(id execute.DatasetID, key query.GroupK
 	return t.d.RetractTable(key)
 }
 
-func (t *keysTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *keysTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("keys found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("keys found duplicate table with key: %v", tbl.Key())
 	}
 
-	execute.AddTableKeyCols(b.Key(), builder)
+	execute.AddTableKeyCols(tbl.Key(), builder)
 	colIdx := builder.AddCol(query.ColMeta{Label: execute.DefaultValueColLabel, Type: query.TString})
 
-	cols := b.Cols()
+	cols := tbl.Cols()
 	sort.Slice(cols, func(i, j int) bool {
 		return cols[i].Label < cols[j].Label
 	})
@@ -175,7 +175,7 @@ func (t *keysTransformation) Process(id execute.DatasetID, b query.Table) error 
 		for i < len(cols) && j < len(t.except) {
 			c := strings.Compare(cols[i].Label, t.except[j])
 			if c < 0 {
-				execute.AppendKeyValues(b.Key(), builder)
+				execute.AppendKeyValues(tbl.Key(), builder)
 				builder.AppendString(colIdx, cols[i].Label)
 				i++
 			} else if c > 0 {
@@ -189,12 +189,12 @@ func (t *keysTransformation) Process(id execute.DatasetID, b query.Table) error 
 
 	// add remaining
 	for ; i < len(cols); i++ {
-		execute.AppendKeyValues(b.Key(), builder)
+		execute.AppendKeyValues(tbl.Key(), builder)
 		builder.AppendString(colIdx, cols[i].Label)
 	}
 
 	// TODO: this is a hack
-	return b.Do(func(query.ColReader) error {
+	return tbl.Do(func(query.ColReader) error {
 		return nil
 	})
 }

@@ -44,17 +44,17 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 		tables := res.Tables()
 
 		result := Result{StatementID: id}
-		if err := tables.Do(func(b query.Table) error {
+		if err := tables.Do(func(tbl query.Table) error {
 			var row Row
 
-			for j, c := range b.Key().Cols() {
+			for j, c := range tbl.Key().Cols() {
 				if c.Type != query.TString {
 					// Skip any columns that aren't strings. They are extra ones that
 					// flux includes by default like the start and end times that we do not
 					// care about.
 					continue
 				}
-				v := b.Key().Value(j).Str()
+				v := tbl.Key().Value(j).Str()
 				if c.Label == "_measurement" {
 					row.Name = v
 				} else if c.Label == "_field" {
@@ -74,10 +74,10 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 			// from the ordering given in the original query.
 			resultColMap := map[string]int{}
 			j := 1
-			for _, c := range b.Cols() {
+			for _, c := range tbl.Cols() {
 				if c.Label == execute.DefaultTimeColLabel {
 					resultColMap[c.Label] = 0
-				} else if !b.Key().HasCol(c.Label) {
+				} else if !tbl.Key().HasCol(c.Label) {
 					resultColMap[c.Label] = j
 					j++
 				}
@@ -91,7 +91,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 				row.Columns[v] = k
 			}
 
-			if err := b.Do(func(cr query.ColReader) error {
+			if err := tbl.Do(func(cr query.ColReader) error {
 				// Preallocate the number of rows for the response to make this section
 				// of code easier to read. Find a time column which should exist
 				// in the output.
@@ -101,7 +101,7 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results query.ResultIterator) (
 				}
 
 				j := 0
-				for idx, c := range b.Cols() {
+				for idx, c := range tbl.Cols() {
 					if cr.Key().HasCol(c.Label) {
 						continue
 					}

@@ -110,14 +110,14 @@ func (t *cumulativeSumTransformation) RetractTable(id execute.DatasetID, key que
 	return t.d.RetractTable(key)
 }
 
-func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *cumulativeSumTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("cumulative sum found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("cumulative sum found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
-	cols := b.Cols()
+	cols := tbl.Cols()
 	sumers := make([]*cumulativeSum, len(cols))
 	for j, c := range cols {
 		for _, label := range t.spec.Columns {
@@ -127,7 +127,7 @@ func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b query.Tabl
 			}
 		}
 	}
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for j, c := range cols {
 			switch c.Type {

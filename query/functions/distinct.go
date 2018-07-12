@@ -144,56 +144,56 @@ func (t *distinctTransformation) RetractTable(id execute.DatasetID, key query.Gr
 	return t.d.RetractTable(key)
 }
 
-func (t *distinctTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *distinctTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("distinct found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("distinct found duplicate table with key: %v", tbl.Key())
 	}
 
-	colIdx := execute.ColIdx(t.column, b.Cols())
+	colIdx := execute.ColIdx(t.column, tbl.Cols())
 	if colIdx < 0 {
 		// doesn't exist in this table, so add an empty value
-		execute.AddTableKeyCols(b.Key(), builder)
+		execute.AddTableKeyCols(tbl.Key(), builder)
 		colIdx = builder.AddCol(query.ColMeta{
 			Label: execute.DefaultValueColLabel,
 			Type:  query.TString,
 		})
 		builder.AppendString(colIdx, "")
-		execute.AppendKeyValues(b.Key(), builder)
+		execute.AppendKeyValues(tbl.Key(), builder)
 		// TODO: hack required to ensure data flows downstream
-		return b.Do(func(query.ColReader) error {
+		return tbl.Do(func(query.ColReader) error {
 			return nil
 		})
 	}
 
-	col := b.Cols()[colIdx]
+	col := tbl.Cols()[colIdx]
 
-	execute.AddTableKeyCols(b.Key(), builder)
+	execute.AddTableKeyCols(tbl.Key(), builder)
 	colIdx = builder.AddCol(query.ColMeta{
 		Label: execute.DefaultValueColLabel,
 		Type:  col.Type,
 	})
 
-	if b.Key().HasCol(t.column) {
-		j := execute.ColIdx(t.column, b.Key().Cols())
+	if tbl.Key().HasCol(t.column) {
+		j := execute.ColIdx(t.column, tbl.Key().Cols())
 		switch col.Type {
 		case query.TBool:
-			builder.AppendBool(colIdx, b.Key().ValueBool(j))
+			builder.AppendBool(colIdx, tbl.Key().ValueBool(j))
 		case query.TInt:
-			builder.AppendInt(colIdx, b.Key().ValueInt(j))
+			builder.AppendInt(colIdx, tbl.Key().ValueInt(j))
 		case query.TUInt:
-			builder.AppendUInt(colIdx, b.Key().ValueUInt(j))
+			builder.AppendUInt(colIdx, tbl.Key().ValueUInt(j))
 		case query.TFloat:
-			builder.AppendFloat(colIdx, b.Key().ValueFloat(j))
+			builder.AppendFloat(colIdx, tbl.Key().ValueFloat(j))
 		case query.TString:
-			builder.AppendString(colIdx, b.Key().ValueString(j))
+			builder.AppendString(colIdx, tbl.Key().ValueString(j))
 		case query.TTime:
-			builder.AppendTime(colIdx, b.Key().ValueTime(j))
+			builder.AppendTime(colIdx, tbl.Key().ValueTime(j))
 		}
 
-		execute.AppendKeyValues(b.Key(), builder)
+		execute.AppendKeyValues(tbl.Key(), builder)
 		// TODO: hack required to ensure data flows downstream
-		return b.Do(func(query.ColReader) error {
+		return tbl.Do(func(query.ColReader) error {
 			return nil
 		})
 	}
@@ -221,7 +221,7 @@ func (t *distinctTransformation) Process(id execute.DatasetID, b query.Table) er
 		timeDistinct = make(map[execute.Time]bool)
 	}
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			// Check distinct
@@ -270,7 +270,7 @@ func (t *distinctTransformation) Process(id execute.DatasetID, b query.Table) er
 				builder.AppendTime(colIdx, v)
 			}
 
-			execute.AppendKeyValues(b.Key(), builder)
+			execute.AppendKeyValues(tbl.Key(), builder)
 		}
 		return nil
 	})

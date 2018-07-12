@@ -129,13 +129,13 @@ func TablesFromCache(c execute.DataCache) (tables []*Table, err error) {
 		if err != nil {
 			return
 		}
-		var b query.Table
-		b, err = c.Table(key)
+		var tbl query.Table
+		tbl, err = c.Table(key)
 		if err != nil {
 			return
 		}
 		var cb *Table
-		cb, err = ConvertTable(b)
+		cb, err = ConvertTable(tbl)
 		if err != nil {
 			return
 		}
@@ -144,11 +144,11 @@ func TablesFromCache(c execute.DataCache) (tables []*Table, err error) {
 	return tables, nil
 }
 
-func ConvertTable(b query.Table) (*Table, error) {
-	key := b.Key()
+func ConvertTable(tbl query.Table) (*Table, error) {
+	key := tbl.Key()
 	blk := &Table{
 		GroupKey: key,
-		ColMeta:  b.Cols(),
+		ColMeta:  tbl.Cols(),
 	}
 
 	keyCols := key.Cols()
@@ -178,7 +178,7 @@ func ConvertTable(b query.Table) (*Table, error) {
 		}
 	}
 
-	err := b.Do(func(cr query.ColReader) error {
+	err := tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			row := make([]interface{}, len(blk.ColMeta))

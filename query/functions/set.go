@@ -120,8 +120,8 @@ func (t *setTransformation) RetractTable(id execute.DatasetID, key query.GroupKe
 	return nil
 }
 
-func (t *setTransformation) Process(id execute.DatasetID, b query.Table) error {
-	key := b.Key()
+func (t *setTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	key := tbl.Key()
 	if idx := execute.ColIdx(t.key, key.Cols()); idx >= 0 {
 		// Update key
 		cols := make([]query.ColMeta, len(key.Cols()))
@@ -138,7 +138,7 @@ func (t *setTransformation) Process(id execute.DatasetID, b query.Table) error {
 	}
 	builder, created := t.cache.TableBuilder(key)
 	if created {
-		execute.AddTableCols(b, builder)
+		execute.AddTableCols(tbl, builder)
 		if !execute.HasCol(t.key, builder.Cols()) {
 			builder.AddCol(query.ColMeta{
 				Label: t.key,
@@ -147,7 +147,7 @@ func (t *setTransformation) Process(id execute.DatasetID, b query.Table) error {
 		}
 	}
 	idx := execute.ColIdx(t.key, builder.Cols())
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		for j := range cr.Cols() {
 			if j == idx {
 				continue

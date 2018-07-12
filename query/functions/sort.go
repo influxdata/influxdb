@@ -129,8 +129,8 @@ func (t *sortTransformation) RetractTable(id execute.DatasetID, key query.GroupK
 	return t.d.RetractTable(key)
 }
 
-func (t *sortTransformation) Process(id execute.DatasetID, b query.Table) error {
-	key := b.Key()
+func (t *sortTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	key := tbl.Key()
 	for _, label := range t.cols {
 		if key.HasCol(label) {
 			key = t.sortedKey(key)
@@ -140,9 +140,9 @@ func (t *sortTransformation) Process(id execute.DatasetID, b query.Table) error 
 
 	builder, created := t.cache.TableBuilder(key)
 	if !created {
-		return fmt.Errorf("sort found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("sort found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	ncols := builder.NCols()
 	if cap(t.colMap) < ncols {
@@ -154,7 +154,7 @@ func (t *sortTransformation) Process(id execute.DatasetID, b query.Table) error 
 		t.colMap = t.colMap[:ncols]
 	}
 
-	execute.AppendTable(b, builder, t.colMap)
+	execute.AppendTable(tbl, builder, t.colMap)
 
 	builder.Sort(t.cols, t.desc)
 	return nil

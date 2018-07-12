@@ -149,17 +149,17 @@ func (t *rangeTransformation) RetractTable(id execute.DatasetID, key query.Group
 	return t.d.RetractTable(key)
 }
 
-func (t *rangeTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *rangeTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("range found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("range found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableCols(b, builder)
-	cols := make([]int, len(b.Cols()))
+	execute.AddTableCols(tbl, builder)
+	cols := make([]int, len(tbl.Cols()))
 	for i := range cols {
 		cols[i] = i
 	}
-	execute.AppendTable(b, builder, cols)
+	execute.AppendTable(tbl, builder, cols)
 
 	return nil
 }

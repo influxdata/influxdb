@@ -245,16 +245,16 @@ func (t *fixedWindowTransformation) RetractTable(id execute.DatasetID, key query
 	panic("not implemented")
 }
 
-func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Table) error {
-	timeIdx := execute.ColIdx(t.timeCol, b.Cols())
+func (t *fixedWindowTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	timeIdx := execute.ColIdx(t.timeCol, tbl.Cols())
 
-	newCols := make([]query.ColMeta, 0, len(b.Cols())+2)
-	keyCols := make([]query.ColMeta, 0, len(b.Cols())+2)
-	keyColMap := make([]int, 0, len(b.Cols())+2)
+	newCols := make([]query.ColMeta, 0, len(tbl.Cols())+2)
+	keyCols := make([]query.ColMeta, 0, len(tbl.Cols())+2)
+	keyColMap := make([]int, 0, len(tbl.Cols())+2)
 	startColIdx := -1
 	stopColIdx := -1
-	for j, c := range b.Cols() {
-		keyIdx := execute.ColIdx(c.Label, b.Key().Cols())
+	for j, c := range tbl.Cols() {
+		keyIdx := execute.ColIdx(c.Label, tbl.Key().Cols())
 		keyed := keyIdx >= 0
 		if c.Label == t.startColLabel {
 			startColIdx = j
@@ -291,7 +291,7 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Table)
 		keyColMap = append(keyColMap, len(keyColMap))
 	}
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			tm := cr.Times(timeIdx)[i]
@@ -308,7 +308,7 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Table)
 					case t.stopColLabel:
 						vs[j] = values.NewTimeValue(bnds.Stop)
 					default:
-						vs[j] = b.Key().Value(keyColMap[j])
+						vs[j] = tbl.Key().Value(keyColMap[j])
 					}
 				}
 				key := execute.NewGroupKey(cols, vs)

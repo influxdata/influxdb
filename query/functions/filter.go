@@ -221,22 +221,22 @@ func (t *filterTransformation) RetractTable(id execute.DatasetID, key query.Grou
 	return t.d.RetractTable(key)
 }
 
-func (t *filterTransformation) Process(id execute.DatasetID, b query.Table) error {
-	builder, created := t.cache.TableBuilder(b.Key())
+func (t *filterTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("filter found duplicate table with key: %v", b.Key())
+		return fmt.Errorf("filter found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddTableCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	// Prepare the function for the column types.
-	cols := b.Cols()
+	cols := tbl.Cols()
 	if err := t.fn.Prepare(cols); err != nil {
 		// TODO(nathanielc): Should we not fail the query for failed compilation?
 		return err
 	}
 
 	// Append only matching rows to table
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			if pass, err := t.fn.Eval(i, cr); err != nil {
