@@ -143,7 +143,7 @@ func (j *JWT) KeyFuncRS256(token *gojwt.Token) (interface{}, error) {
 	// extract cert when kid and alg match
 	var certPkix []byte
 	for _, jwk := range jwks.Keys {
-		if token.Header["kid"] == jwk.Kid && token.Header["alg"] == jwk.Alg {
+		if token.Header["kid"] == jwk.Kid {
 			// FIXME: optionally walk the key chain, see rfc7517 section 4.7
 			certPkix, err = base64.StdEncoding.DecodeString(jwk.X5c[0])
 			if err != nil {
