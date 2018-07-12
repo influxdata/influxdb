@@ -478,7 +478,7 @@ class LogsPage extends Component<Props, State> {
 const mapStateToProps = ({
   sources,
   links: {
-    config: {logViewer},
+    orgConfig: {logViewer},
   },
   logs: {
     newRowsAdded,

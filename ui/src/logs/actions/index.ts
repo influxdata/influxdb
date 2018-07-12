@@ -710,7 +710,6 @@ export const changeZoomAsync = (timeRange: TimeRange) => async (
 export const getLogConfigAsync = (url: string) => async (
   dispatch: Dispatch<SetConfigsAction>
 ): Promise<void> => {
-  url = url
   try {
     const {data} = await getLogConfigAJAX(url)
     const logConfig = logConfigServerToUI(data)
@@ -723,7 +722,6 @@ export const getLogConfigAsync = (url: string) => async (
 export const updateLogConfigAsync = (url: string, config: LogConfig) => async (
   dispatch: Dispatch<SetConfigsAction>
 ): Promise<void> => {
-  url = url
   try {
     const configForServer = logConfigUIToServer(config)
     await updateLogConfigAJAX(url, configForServer)
