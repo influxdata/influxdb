@@ -31,3 +31,23 @@ export interface HoverData {
 }
 
 export type ColorScale = (color: string) => string
+
+export interface BarGroup {
+  key: string
+  clip: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  bars: Array<{
+    key: string
+    group: string
+    x: number
+    y: number
+    width: number
+    height: number
+    fill: string
+  }>
+  data: HistogramData
+}

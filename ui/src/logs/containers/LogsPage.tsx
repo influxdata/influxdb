@@ -40,7 +40,7 @@ import {
 import {SeverityFormatOptions, SECONDS_TO_MS} from 'src/logs/constants'
 import {Source, Namespace} from 'src/types'
 
-import {HistogramData} from 'src/types/histogram'
+import {HistogramData, BarGroup} from 'src/types/histogram'
 import {
   Filter,
   SeverityLevel,
