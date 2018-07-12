@@ -267,6 +267,7 @@ type groupCursor struct {
 
 func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	var windowEvery time.Duration
+	var windowStart time.Time
 	tags := []string{"_measurement"}
 	if len(t.stmt.Dimensions) > 0 {
 		// Maintain a set of the dimensions we have encountered.
@@ -298,8 +299,43 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 					return nil, errors.New("multiple time dimensions not allowed")
 				} else {
 					windowEvery = lit.Val
+					var windowOffset time.Duration
 					if len(expr.Args) == 2 {
-						return nil, errors.New("unimplemented: group by offsets")
+						switch lit2 := expr.Args[1].(type) {
+						case *influxql.DurationLiteral:
+							windowOffset = lit2.Val % windowEvery
+						case *influxql.TimeLiteral:
+							windowOffset = lit2.Val.Sub(lit2.Val.Truncate(windowEvery))
+						case *influxql.Call:
+							if lit2.Name != "now" {
+								return nil, errors.New("time dimension offset function must be now()")
+							} else if len(lit2.Args) != 0 {
+								return nil, errors.New("time dimension offset now() function requires no arguments")
+							}
+							now := t.now
+							windowOffset = now.Sub(now.Truncate(windowEvery))
+
+							// Use the evaluated offset to replace the argument. Ideally, we would
+							// use the interval assigned above, but the query engine hasn't been changed
+							// to use the compiler information yet.
+							expr.Args[1] = &influxql.DurationLiteral{Val: windowOffset}
+						case *influxql.StringLiteral:
+							// If literal looks like a date time then parse it as a time literal.
+							if lit2.IsTimeLiteral() {
+								t, err := lit2.ToTimeLiteral(t.stmt.Location)
+								if err != nil {
+									return nil, err
+								}
+								windowOffset = t.Val.Sub(t.Val.Truncate(windowEvery))
+							} else {
+								return nil, errors.New("time dimension offset must be duration or now()")
+							}
+						default:
+							return nil, errors.New("time dimension offset must be duration or now()")
+						}
+
+						//TODO set windowStart
+						windowStart = time.Unix(0, 0).Add(windowOffset)
 					}
 				}
 			case *influxql.Wildcard:
@@ -320,14 +356,20 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	}, in.ID())
 
 	if windowEvery > 0 {
-		id = t.op("window", &functions.WindowOpSpec{
+		windowOp := &functions.WindowOpSpec{
 			Every:              query.Duration(windowEvery),
 			Period:             query.Duration(windowEvery),
 			IgnoreGlobalBounds: true,
 			TimeCol:            execute.DefaultTimeColLabel,
 			StartColLabel:      execute.DefaultStartColLabel,
 			StopColLabel:       execute.DefaultStopColLabel,
-		}, id)
+		}
+
+		if !windowStart.IsZero() {
+			windowOp.Start = query.Time{Absolute: windowStart}
+		}
+
+		id = t.op("window", windowOp, id)
 	}
 
 	return &groupCursor{id: id, cursor: in}, nil

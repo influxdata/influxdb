@@ -1,0 +1,1 @@
+select mean(io_time) from testdb..diskio where time >= now() - 5s group by time(1s, 2s)
