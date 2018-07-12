@@ -182,20 +182,24 @@ func (c *Controller) run() {
 		// Peek at head of priority queue
 		q := pq.Peek()
 		if q != nil {
-			err := c.processQuery(pq, q)
+			pop, err := c.processQuery(q)
 			if err != nil {
 				go q.setErr(err)
+			}
+			if pop {
+				pq.Pop()
 			}
 		}
 	}
 }
 
-func (c *Controller) processQuery(pq *PriorityQueue, q *Query) error {
+// processQuery move the query through the state machine and returns and errors and if the query should be popped.
+func (c *Controller) processQuery(q *Query) (pop bool, err error) {
 	if q.tryPlan() {
 		// Plan query to determine needed resources
 		lp, err := c.lplanner.Plan(&q.spec)
 		if err != nil {
-			return errors.Wrap(err, "failed to create logical plan")
+			return true, errors.Wrap(err, "failed to create logical plan")
 		}
 		if c.verbose {
 			log.Println("logical plan", plan.Formatted(lp))
@@ -203,7 +207,7 @@ func (c *Controller) processQuery(pq *PriorityQueue, q *Query) error {
 
 		p, err := c.pplanner.Plan(lp, nil, q.now)
 		if err != nil {
-			return errors.Wrap(err, "failed to create physical plan")
+			return true, errors.Wrap(err, "failed to create physical plan")
 		}
 		q.plan = p
 		q.concurrency = p.Resources.ConcurrencyQuota
@@ -214,11 +218,6 @@ func (c *Controller) processQuery(pq *PriorityQueue, q *Query) error {
 		if c.verbose {
 			log.Println("physical plan", plan.Formatted(q.plan))
 		}
-	} else if !q.isOK() {
-		// The query was canceled or finished after we retrieved it, but before we
-		// were able to construct a plan for it. Remove it from the queue and do nothing.
-		pq.Pop()
-		return nil
 	}
 
 	// Check if we have enough resources
@@ -227,24 +226,24 @@ func (c *Controller) processQuery(pq *PriorityQueue, q *Query) error {
 		c.consume(q)
 
 		// Remove the query from the queue
-		pq.Pop()
+		pop = true
 
 		// Execute query
 		if !q.tryExec() {
-			return errors.New("failed to transition query into executing state")
+			return true, errors.New("failed to transition query into executing state")
 		}
 		r, err := c.executor.Execute(q.executeCtx, q.orgID, q.plan)
 		if err != nil {
-			return errors.Wrap(err, "failed to execute query")
+			return true, errors.Wrap(err, "failed to execute query")
 		}
 		q.setResults(r)
 	} else {
 		// update state to queueing
 		if !q.tryRequeue() {
-			return errors.New("failed to transition query into requeueing state")
+			return true, errors.New("failed to transition query into requeueing state")
 		}
 	}
-	return nil
+	return pop, nil
 }
 
 func (c *Controller) check(q *Query) bool {
