@@ -241,7 +241,7 @@ func NewFixedWindowTransformation(
 	}
 }
 
-func (t *fixedWindowTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) (err error) {
+func (t *fixedWindowTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) (err error) {
 	panic("not implemented")
 	//tagKey := meta.Tags().Key()
 	//t.cache.ForEachBuilder(func(bk execute.BlockKey, bld execute.BlockBuilder) {
@@ -321,7 +321,7 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 						vs[j] = b.Key().Value(keyColMap[j])
 					}
 				}
-				key := execute.NewPartitionKey(cols, vs)
+				key := execute.NewGroupKey(cols, vs)
 				builder, created := t.cache.BlockBuilder(key)
 				if created {
 					for _, c := range newCols {

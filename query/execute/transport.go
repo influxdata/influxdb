@@ -54,7 +54,7 @@ func (t *consecutiveTransport) Finished() <-chan struct{} {
 	return t.finished
 }
 
-func (t *consecutiveTransport) RetractBlock(id DatasetID, key query.PartitionKey) error {
+func (t *consecutiveTransport) RetractBlock(id DatasetID, key query.GroupKey) error {
 	select {
 	case <-t.finished:
 		return t.err()
@@ -232,18 +232,18 @@ func (m srcMessage) SrcDatasetID() DatasetID {
 
 type RetractBlockMsg interface {
 	Message
-	Key() query.PartitionKey
+	Key() query.GroupKey
 }
 
 type retractBlockMsg struct {
 	srcMessage
-	key query.PartitionKey
+	key query.GroupKey
 }
 
 func (m *retractBlockMsg) Type() MessageType {
 	return RetractBlockType
 }
-func (m *retractBlockMsg) Key() query.PartitionKey {
+func (m *retractBlockMsg) Key() query.GroupKey {
 	return m.key
 }
 

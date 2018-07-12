@@ -39,7 +39,7 @@ func init() {
 	start := execute.Time(time.Date(2016, 10, 10, 0, 0, 0, 0, time.UTC).UnixNano())
 	stop := execute.Time(time.Date(2017, 10, 10, 0, 0, 0, 0, time.UTC).UnixNano())
 	t1Value := "a"
-	key := execute.NewPartitionKey(
+	key := execute.NewGroupKey(
 		[]query.ColMeta{
 			{Label: execute.DefaultStartColLabel, Type: query.TTime},
 			{Label: execute.DefaultStopColLabel, Type: query.TTime},

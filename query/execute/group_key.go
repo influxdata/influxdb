@@ -8,58 +8,58 @@ import (
 	"github.com/influxdata/platform/query/values"
 )
 
-type partitionKey struct {
+type groupKey struct {
 	cols   []query.ColMeta
 	values []values.Value
 }
 
-func NewPartitionKey(cols []query.ColMeta, values []values.Value) query.PartitionKey {
-	return &partitionKey{
+func NewGroupKey(cols []query.ColMeta, values []values.Value) query.GroupKey {
+	return &groupKey{
 		cols:   cols,
 		values: values,
 	}
 }
 
-func (k *partitionKey) Cols() []query.ColMeta {
+func (k *groupKey) Cols() []query.ColMeta {
 	return k.cols
 }
-func (k *partitionKey) HasCol(label string) bool {
+func (k *groupKey) HasCol(label string) bool {
 	return ColIdx(label, k.cols) >= 0
 }
-func (k *partitionKey) Value(j int) values.Value {
+func (k *groupKey) Value(j int) values.Value {
 	return k.values[j]
 }
-func (k *partitionKey) ValueBool(j int) bool {
+func (k *groupKey) ValueBool(j int) bool {
 	return k.values[j].Bool()
 }
-func (k *partitionKey) ValueUInt(j int) uint64 {
+func (k *groupKey) ValueUInt(j int) uint64 {
 	return k.values[j].UInt()
 }
-func (k *partitionKey) ValueInt(j int) int64 {
+func (k *groupKey) ValueInt(j int) int64 {
 	return k.values[j].Int()
 }
-func (k *partitionKey) ValueFloat(j int) float64 {
+func (k *groupKey) ValueFloat(j int) float64 {
 	return k.values[j].Float()
 }
-func (k *partitionKey) ValueString(j int) string {
+func (k *groupKey) ValueString(j int) string {
 	return k.values[j].Str()
 }
-func (k *partitionKey) ValueDuration(j int) Duration {
+func (k *groupKey) ValueDuration(j int) Duration {
 	return k.values[j].Duration()
 }
-func (k *partitionKey) ValueTime(j int) Time {
+func (k *groupKey) ValueTime(j int) Time {
 	return k.values[j].Time()
 }
 
-func (k *partitionKey) Equal(o query.PartitionKey) bool {
-	return partitionKeyEqual(k, o)
+func (k *groupKey) Equal(o query.GroupKey) bool {
+	return groupKeyEqual(k, o)
 }
 
-func (k *partitionKey) Less(o query.PartitionKey) bool {
-	return partitionKeyLess(k, o)
+func (k *groupKey) Less(o query.GroupKey) bool {
+	return groupKeyLess(k, o)
 }
 
-func (k *partitionKey) String() string {
+func (k *groupKey) String() string {
 	var b strings.Builder
 	b.WriteRune('{')
 	for j, c := range k.cols {
@@ -72,7 +72,7 @@ func (k *partitionKey) String() string {
 	return b.String()
 }
 
-func partitionKeyEqual(a, b query.PartitionKey) bool {
+func groupKeyEqual(a, b query.GroupKey) bool {
 	aCols := a.Cols()
 	bCols := b.Cols()
 	if len(aCols) != len(bCols) {
@@ -112,7 +112,7 @@ func partitionKeyEqual(a, b query.PartitionKey) bool {
 	return true
 }
 
-func partitionKeyLess(a, b query.PartitionKey) bool {
+func groupKeyLess(a, b query.GroupKey) bool {
 	aCols := a.Cols()
 	bCols := b.Cols()
 	if av, bv := len(aCols), len(bCols); av != bv {

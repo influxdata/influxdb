@@ -281,7 +281,7 @@ func NewGroupTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	return t
 }
 
-func (t *groupTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) (err error) {
+func (t *groupTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) (err error) {
 	//TODO(nathanielc): Investigate if this can be smarter and not retract all blocks with the same time bounds.
 	panic("not implemented")
 	//t.cache.ForEachBuilder(func(bk execute.BlockKey, builder execute.BlockBuilder) {
@@ -316,7 +316,7 @@ func (t *groupTransformation) Process(id execute.DatasetID, b query.Block) error
 	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
-			key := execute.PartitionKeyForRowOn(i, cr, on)
+			key := execute.GroupKeyForRowOn(i, cr, on)
 			builder, created := t.cache.BlockBuilder(key)
 			if created {
 				execute.AddBlockCols(b, builder)

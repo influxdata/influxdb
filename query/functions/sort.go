@@ -125,7 +125,7 @@ func NewSortTransformation(d execute.Dataset, cache execute.BlockBuilderCache, s
 	}
 }
 
-func (t *sortTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *sortTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 
@@ -170,7 +170,7 @@ func (t *sortTransformation) Finish(id execute.DatasetID, err error) {
 	t.d.Finish(err)
 }
 
-func (t *sortTransformation) sortedKey(key query.PartitionKey) query.PartitionKey {
+func (t *sortTransformation) sortedKey(key query.GroupKey) query.GroupKey {
 	cols := make([]query.ColMeta, len(key.Cols()))
 	vs := make([]values.Value, len(key.Cols()))
 	j := 0
@@ -189,5 +189,5 @@ func (t *sortTransformation) sortedKey(key query.PartitionKey) query.PartitionKe
 			j++
 		}
 	}
-	return execute.NewPartitionKey(cols, vs)
+	return execute.NewGroupKey(cols, vs)
 }

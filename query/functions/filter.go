@@ -217,7 +217,7 @@ func NewFilterTransformation(d execute.Dataset, cache execute.BlockBuilderCache,
 	}, nil
 }
 
-func (t *filterTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *filterTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 

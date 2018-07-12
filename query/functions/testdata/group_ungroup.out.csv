@@ -1,5 +1,5 @@
 #datatype,string,long,dateTime:RFC3339,long
-#partition,false,false,false,false
+#group,false,false,false,false
 #default,0,,,
 ,result,table,_time,io_time
 ,,0,2018-05-22T19:53:26Z,15204688

@@ -15,7 +15,7 @@ func RandomDatasetID() execute.DatasetID {
 
 type Dataset struct {
 	ID                    execute.DatasetID
-	Retractions           []query.PartitionKey
+	Retractions           []query.GroupKey
 	ProcessingTimeUpdates []execute.Time
 	WatermarkUpdates      []execute.Time
 	Finished              bool
@@ -32,7 +32,7 @@ func (d *Dataset) AddTransformation(t execute.Transformation) {
 	panic("not implemented")
 }
 
-func (d *Dataset) RetractBlock(key query.PartitionKey) error {
+func (d *Dataset) RetractBlock(key query.GroupKey) error {
 	d.Retractions = append(d.Retractions, key)
 	return nil
 }

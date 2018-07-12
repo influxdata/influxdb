@@ -145,7 +145,7 @@ func NewRangeTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}, nil
 }
 
-func (t *rangeTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *rangeTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 

@@ -106,7 +106,7 @@ func NewCumulativeSumTransformation(d execute.Dataset, cache execute.BlockBuilde
 	}
 }
 
-func (t *cumulativeSumTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *cumulativeSumTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 

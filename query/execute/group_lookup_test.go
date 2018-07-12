@@ -15,7 +15,7 @@ var (
 		{Label: "b", Type: query.TString},
 		{Label: "c", Type: query.TString},
 	}
-	key0 = execute.NewPartitionKey(
+	key0 = execute.NewGroupKey(
 		cols,
 		[]values.Value{
 			values.NewStringValue("I"),
@@ -23,7 +23,7 @@ var (
 			values.NewStringValue("K"),
 		},
 	)
-	key1 = execute.NewPartitionKey(
+	key1 = execute.NewGroupKey(
 		cols,
 		[]values.Value{
 			values.NewStringValue("L"),
@@ -31,7 +31,7 @@ var (
 			values.NewStringValue("N"),
 		},
 	)
-	key2 = execute.NewPartitionKey(
+	key2 = execute.NewGroupKey(
 		cols,
 		[]values.Value{
 			values.NewStringValue("X"),
@@ -41,8 +41,8 @@ var (
 	)
 )
 
-func TestPartitionLookup(t *testing.T) {
-	l := execute.NewPartitionLookup()
+func TestGroupLookup(t *testing.T) {
+	l := execute.NewGroupLookup()
 	l.Set(key0, 0)
 	if v, ok := l.Lookup(key0); !ok || v != 0 {
 		t.Error("failed to lookup key0")
@@ -63,7 +63,7 @@ func TestPartitionLookup(t *testing.T) {
 	}
 
 	var got []entry
-	l.Range(func(k query.PartitionKey, v interface{}) {
+	l.Range(func(k query.GroupKey, v interface{}) {
 		got = append(got, entry{
 			Key:   k,
 			Value: v.(int),
@@ -94,8 +94,8 @@ func TestPartitionLookup(t *testing.T) {
 }
 
 // Test that the lookup supports Deletes while rangeing.
-func TestPartitionLookup_RangeWithDelete(t *testing.T) {
-	l := execute.NewPartitionLookup()
+func TestGroupLookup_RangeWithDelete(t *testing.T) {
+	l := execute.NewGroupLookup()
 	l.Set(key0, 0)
 	if v, ok := l.Lookup(key0); !ok || v != 0 {
 		t.Error("failed to lookup key0")
@@ -114,7 +114,7 @@ func TestPartitionLookup_RangeWithDelete(t *testing.T) {
 		{Key: key1, Value: 1},
 	}
 	var got []entry
-	l.Range(func(k query.PartitionKey, v interface{}) {
+	l.Range(func(k query.GroupKey, v interface{}) {
 		// Delete the current key
 		l.Delete(key0)
 		// Delete a future key
@@ -131,6 +131,6 @@ func TestPartitionLookup_RangeWithDelete(t *testing.T) {
 }
 
 type entry struct {
-	Key   query.PartitionKey
+	Key   query.GroupKey
 	Value int
 }

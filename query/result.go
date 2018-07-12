@@ -18,7 +18,7 @@ type BlockIterator interface {
 }
 
 type Block interface {
-	Key() PartitionKey
+	Key() GroupKey
 
 	Cols() []ColMeta
 
@@ -76,7 +76,7 @@ func (t DataType) String() string {
 // All data the ColReader exposes is guaranteed to be in memory.
 // Once a ColReader goes out of scope all slices are considered invalid.
 type ColReader interface {
-	Key() PartitionKey
+	Key() GroupKey
 	// Cols returns a list of column metadata.
 	Cols() []ColMeta
 	// Len returns the length of the slices.
@@ -90,7 +90,7 @@ type ColReader interface {
 	Times(j int) []values.Time
 }
 
-type PartitionKey interface {
+type GroupKey interface {
 	Cols() []ColMeta
 
 	HasCol(label string) bool
@@ -104,8 +104,8 @@ type PartitionKey interface {
 	ValueTime(j int) values.Time
 	Value(j int) values.Value
 
-	Equal(o PartitionKey) bool
-	Less(o PartitionKey) bool
+	Equal(o GroupKey) bool
+	Less(o GroupKey) bool
 	String() string
 }
 

@@ -152,7 +152,7 @@ func NewDerivativeTransformation(d execute.Dataset, cache execute.BlockBuilderCa
 	}
 }
 
-func (t *derivativeTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *derivativeTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 

@@ -155,7 +155,7 @@ func (bi *bockIterator) handleRead(f func(query.Block) error, ms *mergedStreams)
 		frame := ms.next()
 		s := frame.GetSeries()
 		typ := convertDataType(s.DataType)
-		key := partitionKeyForSeries(s, &bi.readSpec, bi.bounds)
+		key := groupKeyForSeries(s, &bi.readSpec, bi.bounds)
 		cols, defs := determineBlockColsForSeries(s, typ)
 		block := newBlock(bi.bounds, key, cols, ms, &bi.readSpec, s.Tags, defs)
 
@@ -177,7 +177,7 @@ func (bi *bockIterator) handleGroupRead(f func(query.Block) error, ms *mergedStr
 		}
 		frame := ms.next()
 		s := frame.GetGroup()
-		key := partitionKeyForGroup(s, &bi.readSpec, bi.bounds)
+		key := groupKeyForGroup(s, &bi.readSpec, bi.bounds)
 
 		// try to infer type
 		// TODO(sgc): this is a hack
@@ -279,7 +279,7 @@ func determineBlockColsForSeries(s *ReadResponse_SeriesFrame, typ query.DataType
 	return cols, defs
 }
 
-func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.PartitionKey {
+func groupKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.GroupKey {
 	cols := make([]query.ColMeta, 2, len(s.Tags))
 	vs := make([]values.Value, 2, len(s.Tags))
 	cols[0] = query.ColMeta{
@@ -294,7 +294,7 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 	vs[1] = values.NewTimeValue(bnds.Stop)
 	switch readSpec.GroupMode {
 	case storage.GroupModeBy:
-		// partition key in GroupKeys order, including tags in the GroupKeys slice
+		// group key in GroupKeys order, including tags in the GroupKeys slice
 		for _, k := range readSpec.GroupKeys {
 			if i := indexOfTag(s.Tags, k); i < len(s.Tags) {
 				cols = append(cols, query.ColMeta{
@@ -305,7 +305,7 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 			}
 		}
 	case storage.GroupModeExcept:
-		// partition key in GroupKeys order, skipping tags in the GroupKeys slice
+		// group key in GroupKeys order, skipping tags in the GroupKeys slice
 		for _, k := range readSpec.GroupKeys {
 			if i := indexOfTag(s.Tags, k); i == len(s.Tags) {
 				cols = append(cols, query.ColMeta{
@@ -324,7 +324,7 @@ func partitionKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSp
 			vs = append(vs, values.NewStringValue(string(s.Tags[i].Value)))
 		}
 	}
-	return execute.NewPartitionKey(cols, vs)
+	return execute.NewGroupKey(cols, vs)
 }
 
 func determineBlockColsForGroup(f *ReadResponse_GroupFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
@@ -357,7 +357,7 @@ func determineBlockColsForGroup(f *ReadResponse_GroupFrame, typ query.DataType) 
 	return cols, defs
 }
 
-func partitionKeyForGroup(g *ReadResponse_GroupFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.PartitionKey {
+func groupKeyForGroup(g *ReadResponse_GroupFrame, readSpec *storage.ReadSpec, bnds execute.Bounds) query.GroupKey {
 	cols := make([]query.ColMeta, 2, len(readSpec.GroupKeys)+2)
 	vs := make([]values.Value, 2, len(readSpec.GroupKeys)+2)
 	cols[0] = query.ColMeta{
@@ -377,14 +377,14 @@ func partitionKeyForGroup(g *ReadResponse_GroupFrame, readSpec *storage.ReadSpec
 		})
 		vs = append(vs, values.NewStringValue(string(g.PartitionKeyVals[i])))
 	}
-	return execute.NewPartitionKey(cols, vs)
+	return execute.NewGroupKey(cols, vs)
 }
 
 // block implement OneTimeBlock as it can only be read once.
 // Since it can only be read once it is also a ValueIterator for itself.
 type block struct {
 	bounds execute.Bounds
-	key    query.PartitionKey
+	key    query.GroupKey
 	cols   []query.ColMeta
 
 	empty bool
@@ -421,7 +421,7 @@ type block struct {
 
 func newBlock(
 	bounds execute.Bounds,
-	key query.PartitionKey,
+	key query.GroupKey,
 	cols []query.ColMeta,
 	ms *mergedStreams,
 	readSpec *storage.ReadSpec,
@@ -457,7 +457,7 @@ func (b *block) wait() {
 	<-b.done
 }
 
-func (b *block) Key() query.PartitionKey {
+func (b *block) Key() query.GroupKey {
 	return b.key
 }
 func (b *block) Cols() []query.ColMeta {
@@ -780,7 +780,7 @@ type streamState struct {
 	bounds     execute.Bounds
 	stream     Storage_ReadClient
 	rep        ReadResponse
-	currentKey query.PartitionKey
+	currentKey query.GroupKey
 	readSpec   *storage.ReadSpec
 	finished   bool
 	group      bool
@@ -813,7 +813,7 @@ func (s *streamState) more() bool {
 	return true
 }
 
-func (s *streamState) key() query.PartitionKey {
+func (s *streamState) key() query.GroupKey {
 	return s.currentKey
 }
 
@@ -824,12 +824,12 @@ func (s *streamState) computeKey() {
 	if s.group {
 		if ft == groupType {
 			group := p.GetGroup()
-			s.currentKey = partitionKeyForGroup(group, s.readSpec, s.bounds)
+			s.currentKey = groupKeyForGroup(group, s.readSpec, s.bounds)
 		}
 	} else {
 		if ft == seriesType {
 			series := p.GetSeries()
-			s.currentKey = partitionKeyForSeries(series, s.readSpec, s.bounds)
+			s.currentKey = groupKeyForSeries(series, s.readSpec, s.bounds)
 		}
 	}
 }
@@ -845,11 +845,11 @@ func (s *streamState) next() ReadResponse_Frame {
 
 type mergedStreams struct {
 	streams    []*streamState
-	currentKey query.PartitionKey
+	currentKey query.GroupKey
 	i          int
 }
 
-func (s *mergedStreams) key() query.PartitionKey {
+func (s *mergedStreams) key() query.GroupKey {
 	if len(s.streams) == 1 {
 		return s.streams[0].key()
 	}
@@ -896,7 +896,7 @@ func (s *mergedStreams) advance() bool {
 
 func (s *mergedStreams) determineNewKey() bool {
 	minIdx := -1
-	var minKey query.PartitionKey
+	var minKey query.GroupKey
 	for i, stream := range s.streams {
 		if !stream.more() {
 			continue

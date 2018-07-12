@@ -70,7 +70,7 @@ func newSelectorTransformation(d Dataset, c BlockBuilderCache, config SelectorCo
 	}
 }
 
-func (t *selectorTransformation) RetractBlock(id DatasetID, key query.PartitionKey) error {
+func (t *selectorTransformation) RetractBlock(id DatasetID, key query.GroupKey) error {
 	//TODO(nathanielc): Store intermediate state for retractions
 	return t.d.RetractBlock(key)
 }

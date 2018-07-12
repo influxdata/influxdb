@@ -140,7 +140,7 @@ func NewLimitTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}
 }
 
-func (t *limitTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *limitTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 

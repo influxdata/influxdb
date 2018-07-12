@@ -29,7 +29,7 @@ var symetricalTestCases = []TestCase{
 		name:          "single table",
 		encoderConfig: csv.DefaultEncoderConfig(),
 		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,,,,,,,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
@@ -72,7 +72,7 @@ var symetricalTestCases = []TestCase{
 		name:          "single empty table",
 		encoderConfig: csv.DefaultEncoderConfig(),
 		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,,cpu,A,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 `),
@@ -101,7 +101,7 @@ var symetricalTestCases = []TestCase{
 		name:          "multiple tables",
 		encoderConfig: csv.DefaultEncoderConfig(),
 		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,,,,,,,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
@@ -177,7 +177,7 @@ var symetricalTestCases = []TestCase{
 		name:          "multiple tables with differing schemas",
 		encoderConfig: csv.DefaultEncoderConfig(),
 		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,,,,,,,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
@@ -186,7 +186,7 @@ var symetricalTestCases = []TestCase{
 ,,1,2018-04-17T00:05:00Z,2018-04-17T00:10:00Z,2018-04-17T00:07:01Z,mem,A,53
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double,double
-#partition,false,false,true,true,false,true,false,false,false
+#group,false,false,true,true,false,true,false,false,false
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,location,device,min,max
 ,,2,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,USA,1563,42,67.9
@@ -326,7 +326,7 @@ var symetricalTestCases = []TestCase{
 		name:          "multiple tables with one empty",
 		encoderConfig: csv.DefaultEncoderConfig(),
 		encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,,,,,,,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
@@ -335,7 +335,7 @@ var symetricalTestCases = []TestCase{
 ,,1,2018-04-17T00:05:00Z,2018-04-17T00:10:00Z,2018-04-17T00:07:01Z,mem,A,53
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,2,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,,cpu,A,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 `),
@@ -428,7 +428,7 @@ func TestResultDecoder(t *testing.T) {
 			name:          "single table with defaults",
 			encoderConfig: csv.DefaultEncoderConfig(),
 			encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,,cpu,A,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 ,,,,,2018-04-17T00:00:00Z,cpu,A,42.0
@@ -574,7 +574,7 @@ func TestMutliResultEncoder(t *testing.T) {
 				}},
 			}}),
 			encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,,,,,,,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
@@ -652,14 +652,14 @@ func TestMutliResultEncoder(t *testing.T) {
 				},
 			}),
 			encoded: toCRLF(`#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,_result,,,,,,,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,42
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:01Z,cpu,A,43
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,string,string,double
-#partition,false,false,true,true,false,true,true,false
+#group,false,false,true,true,false,true,true,false
 #default,mean,,,,,,,
 ,result,table,_start,_stop,_time,_measurement,host,_value
 ,,0,2018-04-17T00:00:00Z,2018-04-17T00:05:00Z,2018-04-17T00:00:00Z,cpu,A,40

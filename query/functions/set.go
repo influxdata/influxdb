@@ -115,7 +115,7 @@ func NewSetTransformation(
 	}
 }
 
-func (t *setTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *setTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	// TODO
 	return nil
 }
@@ -134,7 +134,7 @@ func (t *setTransformation) Process(id execute.DatasetID, b query.Block) error {
 				vs[j] = key.Value(j)
 			}
 		}
-		key = execute.NewPartitionKey(cols, vs)
+		key = execute.NewGroupKey(cols, vs)
 	}
 	builder, created := t.cache.BlockBuilder(key)
 	if created {

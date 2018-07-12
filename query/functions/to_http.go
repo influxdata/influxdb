@@ -258,7 +258,7 @@ type ToHTTPTransformation struct {
 	spec  *ToHTTPProcedureSpec
 }
 
-func (t *ToHTTPTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *ToHTTPTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 

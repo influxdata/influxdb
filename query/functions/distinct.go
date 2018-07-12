@@ -140,7 +140,7 @@ func NewDistinctTransformation(d execute.Dataset, cache execute.BlockBuilderCach
 	}
 }
 
-func (t *distinctTransformation) RetractBlock(id execute.DatasetID, key query.PartitionKey) error {
+func (t *distinctTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
 	return t.d.RetractBlock(key)
 }
 
