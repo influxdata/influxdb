@@ -25,7 +25,6 @@ interface Props {
   queries: Query[]
   templates: Template[]
   children: (r: RenderProps) => JSX.Element
-  refreshMs?: number
 }
 
 interface State {
@@ -36,7 +35,6 @@ interface State {
 class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     inView: true,
-    refreshMs: 0,
   }
 
   constructor(props: Props) {
@@ -54,7 +52,6 @@ class TimeSeries extends Component<Props, State> {
   public async componentDidMount() {
     this.executeQueries()
     AutoRefresh.subscribe(this.executeQueries)
-    AutoRefresh.poll(this.props.refreshMs)
   }
 
   public componentWillUnmount() {

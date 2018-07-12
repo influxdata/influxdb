@@ -10,8 +10,7 @@ import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
 import GaugeChart from 'shared/components/GaugeChart'
 import TableGraph from 'shared/components/TableGraph'
-import AutoRefreshNew from 'shared/components/AutoRefresh/AutoRefresh'
-import TimeSeries from 'shared/components/TimeSeries/TimeSeries'
+import TimeSeries from 'shared/components/time_series/TimeSeries'
 
 import {colorsStringSchema} from 'shared/schemas'
 import {setHoverTime} from 'src/dashboards/actions'
@@ -20,7 +19,6 @@ import {
   DEFAULT_DECIMAL_PLACES,
 } from 'src/dashboards/constants'
 
-const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
 const RefreshingGaugeChart = AutoRefresh(GaugeChart)
 const RefreshingTableGraph = AutoRefresh(TableGraph)
@@ -143,7 +141,6 @@ const RefreshingGraph = ({
       inView={inView}
       queries={queries}
       templates={templates}
-      refreshMs={autoRefresh}
     >
       {({timeSeries}) => (
         <LineGraph

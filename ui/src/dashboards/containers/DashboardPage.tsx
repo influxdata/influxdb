@@ -25,6 +25,7 @@ import idNormalizer, {TYPE_ID} from 'src/normalizers/id'
 import {millisecondTimeRange} from 'src/dashboards/utils/time'
 import {getDeep} from 'src/utils/wrappers'
 import {updateDashboardLinks} from 'src/dashboards/utils/dashboardSwitcherLinks'
+import AutoRefresh from 'src/utils/AutoRefresh'
 
 // APIs
 import {loadDashboardLinks} from 'src/dashboards/apis'
@@ -110,10 +111,10 @@ interface Props extends ManualRefreshProps, WithRouterProps {
 }
 
 interface State {
-  isEditMode: boolean
-  selectedCell: DashboardsModels.Cell | null
   scrollTop: number
+  isEditMode: boolean
   windowHeight: number
+  selectedCell: DashboardsModels.Cell | null
   dashboardLinks: DashboardsModels.DashboardSwitcherLinks
 }
 
@@ -138,6 +139,8 @@ class DashboardPage extends Component<Props, State> {
 
     const annotationRange = millisecondTimeRange(timeRange)
     getAnnotationsAsync(source.links.annotations, annotationRange)
+
+    AutoRefresh.poll(autoRefresh)
 
     if (autoRefresh) {
       this.intervalID = window.setInterval(() => {
