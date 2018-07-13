@@ -1163,6 +1163,7 @@ func (s *Shard) engineNoLock() (Engine, error) {
 
 type ShardGroup interface {
 	MeasurementsByRegex(re *regexp.Regexp) []string
+	FieldKeysByMeasurement(name []byte) []string
 	FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	MapType(measurement, field string) influxql.DataType
 	CreateIterator(ctx context.Context, measurement *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
@@ -1211,6 +1212,22 @@ func (a Shards) MeasurementsByRegex(re *regexp.Regexp) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// TODO(edd)
+func (a Shards) FieldKeysByMeasurement(name []byte) []string {
+	var out []string
+	for _, shard := range a {
+		mf := shard.MeasurementFields(name)
+		if mf == nil {
+			continue
+		}
+
+		// TODO(edd): merge the results
+		out = append(out, mf.FieldKeys()...)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (a Shards) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
