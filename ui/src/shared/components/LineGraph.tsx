@@ -7,14 +7,13 @@ import _ from 'lodash'
 // Components
 import SingleStat from 'src/shared/components/SingleStat'
 import {ErrorHandlingWith} from 'src/shared/decorators/errors'
+import InvalidData from 'src/shared/components/InvalidData'
 
 // Utils
 import {
   timeSeriesToDygraph,
   TimeSeriesToDyGraphReturnType,
 } from 'src/utils/timeSeriesTransformers'
-
-import InvalidData from 'src/shared/components/InvalidData'
 
 // Types
 import {ColorString} from 'src/types/colors'
@@ -28,16 +27,6 @@ import {
   RemoteDataState,
   CellType,
 } from 'src/types'
-
-const validateTimeSeries = ts => {
-  return _.every(ts, r =>
-    _.every(
-      r,
-      (v, i: number) =>
-        (i === 0 && Date.parse(v)) || _.isNumber(v) || _.isNull(v)
-    )
-  )
-}
 
 interface Props {
   axes: Axes
@@ -77,9 +66,8 @@ class LineGraph extends PureComponent<LineGraphProps> {
     const {location} = this.props
 
     this.timeSeries = timeSeriesToDygraph(data, location.pathname)
-    this.isValidData = validateTimeSeries(
-      _.get(this.timeSeries, 'timeSeries', [])
-    )
+    const timeSeries = _.get(this.timeSeries, 'timeSeries', [])
+    this.isValidData = this.validateTimeSeries(timeSeries)
   }
 
   public componentWillUpdate(nextProps) {
@@ -165,6 +153,16 @@ class LineGraph extends PureComponent<LineGraphProps> {
           )}
         </Dygraph>
       </div>
+    )
+  }
+
+  private validateTimeSeries = ts => {
+    return _.every(ts, r =>
+      _.every(
+        r,
+        (v, i: number) =>
+          (i === 0 && Date.parse(v)) || _.isNumber(v) || _.isNull(v)
+      )
     )
   }
 

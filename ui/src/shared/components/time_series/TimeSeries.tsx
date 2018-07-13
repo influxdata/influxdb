@@ -29,6 +29,7 @@ interface Props {
 
 interface State {
   loading: RemoteDataState
+  isFirstFetch: boolean
   timeSeries: TimeSeriesServerResponse[]
 }
 
@@ -42,11 +43,13 @@ class TimeSeries extends Component<Props, State> {
     this.state = {
       timeSeries: DEFAULT_TIME_SERIES,
       loading: RemoteDataState.NotStarted,
+      isFirstFetch: false,
     }
   }
 
   public async componentDidMount() {
-    this.executeQueries()
+    const isFirstFetch = true
+    this.executeQueries(isFirstFetch)
     AutoRefresh.subscribe(this.executeQueries)
   }
 
@@ -62,7 +65,7 @@ class TimeSeries extends Component<Props, State> {
     this.executeQueries()
   }
 
-  public executeQueries = async () => {
+  public executeQueries = async (isFirstFetch: boolean = false) => {
     const {source, inView, queries, templates} = this.props
 
     if (!inView) {
@@ -73,7 +76,7 @@ class TimeSeries extends Component<Props, State> {
       return this.setState({timeSeries: DEFAULT_TIME_SERIES})
     }
 
-    this.setState({loading: RemoteDataState.Loading})
+    this.setState({loading: RemoteDataState.Loading, isFirstFetch})
 
     const TEMP_RES = 300
 
@@ -99,13 +102,21 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public render() {
-    const {timeSeries, loading} = this.state
+    const {timeSeries, loading, isFirstFetch} = this.state
 
     const hasValues = _.some(timeSeries, s => {
       const results = _.get(s, 'response.results', [])
       const v = _.some(results, r => r.series)
       return v
     })
+
+    if (isFirstFetch && loading === RemoteDataState.Loading) {
+      return (
+        <div className="graph-empty">
+          <h3 className="graph-spinner" />
+        </div>
+      )
+    }
 
     if (!hasValues) {
       return (
