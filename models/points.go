@@ -278,14 +278,17 @@ func ParseKey(buf []byte) (string, Tags) {
 }
 
 func ParseKeyBytes(buf []byte) ([]byte, Tags) {
+	return ParseKeyBytesWithTags(buf, nil)
+}
+
+func ParseKeyBytesWithTags(buf []byte, tags Tags) ([]byte, Tags) {
 	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
 	// when just parsing a key
 	state, i, _ := scanMeasurement(buf, 0)
 
 	var name []byte
-	var tags Tags
 	if state == tagKeyState {
-		tags = parseTags(buf)
+		tags = parseTags(buf, tags)
 		// scanMeasurement returns the location of the comma if there are tags, strip that off
 		name = buf[:i-1]
 	} else {
@@ -295,7 +298,7 @@ func ParseKeyBytes(buf []byte) ([]byte, Tags) {
 }
 
 func ParseTags(buf []byte) Tags {
-	return parseTags(buf)
+	return parseTags(buf, nil)
 }
 
 func ParseName(buf []byte) []byte {
@@ -1476,7 +1479,7 @@ func (p *point) Tags() Tags {
 	if p.cachedTags != nil {
 		return p.cachedTags
 	}
-	p.cachedTags = parseTags(p.key)
+	p.cachedTags = parseTags(p.key, nil)
 	return p.cachedTags
 }
 
@@ -1562,20 +1565,35 @@ func walkFields(buf []byte, fn func(key, value []byte) bool) {
 	}
 }
 
-func parseTags(buf []byte) Tags {
+// parseTags parses buf into the provided destination tags, returning destination
+// Tags, which may have a different length and capacity.
+func parseTags(buf []byte, dst Tags) Tags {
 	if len(buf) == 0 {
 		return nil
+	}
+
+	n := bytes.Count(buf, []byte(","))
+	if cap(dst) < n {
+		dst = make(Tags, n)
+	} else {
+		dst = dst[:n]
+	}
+
+	// Ensure existing behaviour when point has no tags and nil slice passed in.
+	if dst == nil {
+		dst = Tags{}
 	}
 
 	// Series keys can contain escaped commas, therefore the number of commas
 	// in a series key only gives an estimation of the upper bound on the number
 	// of tags.
-	tags := make(Tags, 0, bytes.Count(buf, []byte(",")))
+	var i int
 	walkTags(buf, func(key, value []byte) bool {
-		tags = append(tags, Tag{Key: key, Value: value})
+		dst[i].Key, dst[i].Value = key, value
+		i++
 		return true
 	})
-	return tags
+	return dst[:i]
 }
 
 // MakeKey creates a key for a set of tags.

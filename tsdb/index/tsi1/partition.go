@@ -69,6 +69,8 @@ type Partition struct {
 
 	// Log file compaction thresholds.
 	MaxLogFileSize int64
+	nosync         bool // when true, flushing and syncing of LogFile will be disabled.
+	logbufferSize  int  // the LogFile's buffer is set to this value.
 
 	// Frequency of compaction checks.
 	compactionInterrupt chan struct{}
@@ -91,7 +93,6 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 		sfile:       sfile,
 		seriesIDSet: tsdb.NewSeriesIDSet(),
 
-		// Default compaction thresholds.
 		MaxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 
 		// compactionEnabled: true,
@@ -247,6 +248,9 @@ func (i *Partition) Open() error {
 // openLogFile opens a log file and appends it to the index.
 func (i *Partition) openLogFile(path string) (*LogFile, error) {
 	f := NewLogFile(i.sfile, path)
+	f.nosync = i.nosync
+	f.bufferSize = i.logbufferSize
+
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
