@@ -199,6 +199,7 @@ class LogsPage extends Component<Props, State> {
               severityLevelColors={this.severityLevelColors}
               hasScrolled={this.state.hasScrolled}
               tableInfiniteData={this.props.tableInfiniteData}
+              onChooseCustomTime={this.handleChooseCustomTime}
             />
           </div>
         </div>
