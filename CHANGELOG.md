@@ -1,6 +1,10 @@
 v1.6.1 [unreleased]
 -------------------
 
+### Features
+
+-	[#10078](https://github.com/influxdata/influxdb/pull/10078): Improve LogFile performance with bitset iterator.
+
 ### Bugfixes
 
 -	[#10012](https://github.com/influxdata/influxdb/pull/10012): Improve series segment recovery.
