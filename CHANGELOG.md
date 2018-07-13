@@ -63,6 +63,54 @@ v1.6.0 [2018-07-05]
 -	[#9866](https://github.com/influxdata/influxdb/pull/9866): Close TSMReaders from FileStore.Close after releasing FileStore mutex.
 -	[#9932](https://github.com/influxdata/influxdb/pull/9932): buildtsi: Do not escape measurement names.
 
+v1.5.4 [2018-06-21]
+-------------------
+
+### Bugfixes
+
+-	[#9924](https://github.com/influxdata/influxdb/pull/9924): [1.5] Fix panic in readTombstoneV4.
+-	[#9931](https://github.com/influxdata/influxdb/pull/9931): buildtsi: Do not escape measurement names.
+
+v1.5.3 [2018-05-25]
+-------------------
+
+### Features
+
+-	[#9903](https://github.com/influxdata/influxdb/pull/9903): Add optional pprof http endpoint immediately on startup.
+
+### Bugfixes
+
+-	[#9765](https://github.com/influxdata/influxdb/pull/9765): Fix the validation for multiple nested distinct calls.
+-	[#9869](https://github.com/influxdata/influxdb/pull/9869): Return the correct auxiliary values for top/bottom.
+
+v1.5.2 [2018-04-12]
+-------------------
+
+### Features
+
+-	[#9680](https://github.com/influxdata/influxdb/pull/9680): Check for root user when running buildtsi.
+-	[#9672](https://github.com/influxdata/influxdb/pull/9672): [1.5] Adjustable TSI Compaction Threshold
+
+### Bugfixes
+
+-	[#9638](https://github.com/influxdata/influxdb/pull/9638): backport: check for failure case where backup dir has no manifest files.
+-	[#9651](https://github.com/influxdata/influxdb/pull/9651): Fix regression to allow now() to be used as the group by offset again.
+-	[#9614](https://github.com/influxdata/influxdb/pull/9614): 1.5: Revert "Use MADV_WILLNEED when loading TSM files".
+-	[#9660](https://github.com/influxdata/influxdb/pull/9660): Ignore index size in Engine.DiskSize().
+-	[#9662](https://github.com/influxdata/influxdb/pull/9662): [1.5] Fix buildtsi partition key.
+-	[#9676](https://github.com/influxdata/influxdb/pull/9676): Ensure that conditions are encoded correctly even if the AST is not properly formed.
+
+v1.5.1 [2018-03-20]
+-------------------
+
+### Bugfixes
+
+-	[#9542](https://github.com/influxdata/influxdb/pull/9542): Allow time variable to be case insensitive again.
+-	[#9564](https://github.com/influxdata/influxdb/pull/9564): Support setting the log level through the environment variable.
+-	[#9575](https://github.com/influxdata/influxdb/pull/9575): Ensure correct number of tags parsed.
+-	[#9566](https://github.com/influxdata/influxdb/pull/9566): Fix panic when checking fieldsets.
+-	[#9587](https://github.com/influxdata/influxdb/pull/9587): Fix data race in WAL.
+
 v1.5.0 [2018-03-06]
 -------------------
 
