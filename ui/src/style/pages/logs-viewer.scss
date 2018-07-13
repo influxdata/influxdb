@@ -257,7 +257,7 @@ $logs-viewer-gutter: 60px;
 .logs-viewer--clickable {
   display: inline-flex;
   align-items: center;
-  padding: 1px 3px;
+  padding: 0px 3px;
   border-radius: 3px;
   @include no-user-select();
 
