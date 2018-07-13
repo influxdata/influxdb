@@ -73,8 +73,6 @@ interface State {
 }
 
 const calculateScrollTop = scrollToRow => {
-  // const rowCharLimit = calculateRowCharWidth(currentMessageWidth)
-
   return _.reduce(
     _.range(0, scrollToRow),
     acc => {
