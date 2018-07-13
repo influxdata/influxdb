@@ -104,16 +104,22 @@ func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*t
 		}
 	}
 
+	var mitr tsdb.MeasurementIterator
+	name, ok := HasSingleMeasurementNoOR(p.measurementCond)
+	if ok {
+		mitr = tsdb.NewMeasurementSliceIterator([][]byte{[]byte(name)})
+	}
+
 	sg := tsdb.Shards(shards)
-	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{}, opt.Condition)
+	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{Measurements: mitr}, opt.Condition)
 	if p.sqry != nil && err == nil {
 		// Optimisation to check if request is only interested in results for a
 		// single measurement. In this case we can efficiently produce all known
 		// field keys from the collection of shards without having to go via
 		// the query engine.
-		if name, ok := HasSingleMeasurementNoOR(p.measurementCond); ok {
+		if ok {
 			fkeys := sg.FieldKeysByMeasurement([]byte(name))
-			if len(p.fields) == 0 {
+			if len(fkeys) == 0 {
 				goto CLEANUP
 			}
 
