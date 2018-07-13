@@ -71,6 +71,7 @@ interface Props {
   setResolution?: (w: number) => void
   onZoom?: (timeRange: TimeRange) => void
   mode?: string
+  underlayCallback?: () => void
 }
 
 interface State {
@@ -102,6 +103,7 @@ class Dygraph extends Component<Props, State> {
     staticLegend: false,
     setResolution: () => {},
     handleSetHoverTime: () => {},
+    underlayCallback: () => {},
   }
 
   private graphRef: React.RefObject<HTMLDivElement>
@@ -125,6 +127,7 @@ class Dygraph extends Component<Props, State> {
       labels,
       axes: {y, y2},
       isGraphFilled: fillGraph,
+      underlayCallback,
     } = this.props
 
     const timeSeries = this.timeSeries
@@ -157,6 +160,7 @@ class Dygraph extends Component<Props, State> {
       zoomCallback: (lower: number, upper: number) =>
         this.handleZoom(lower, upper),
       drawCallback: () => this.handleDraw(),
+      underlayCallback,
       highlightCircleSize: 3,
     }
 
@@ -191,6 +195,7 @@ class Dygraph extends Component<Props, State> {
       axes: {y, y2},
       options,
       type,
+      underlayCallback,
     } = this.props
 
     const dygraph = this.dygraph
@@ -237,6 +242,7 @@ class Dygraph extends Component<Props, State> {
       colors: LINE_COLORS,
       series: this.colorDygraphSeries,
       plotter: type === CellType.Bar ? barPlotter : null,
+      underlayCallback,
     }
 
     dygraph.updateOptions(updateOptions)

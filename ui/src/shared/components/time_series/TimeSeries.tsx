@@ -20,11 +20,11 @@ interface RenderProps {
 }
 
 interface Props {
-  inView: boolean
   source: Source
   queries: Query[]
-  templates: Template[]
   children: (r: RenderProps) => JSX.Element
+  inView?: boolean
+  templates?: Template[]
 }
 
 interface State {
@@ -36,6 +36,7 @@ interface State {
 class TimeSeries extends Component<Props, State> {
   public static defaultProps = {
     inView: true,
+    templates: [],
   }
 
   constructor(props: Props) {

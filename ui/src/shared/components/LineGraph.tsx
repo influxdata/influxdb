@@ -19,14 +19,7 @@ import {
 import {ColorString} from 'src/types/colors'
 import {DecimalPlaces} from 'src/types/dashboards'
 import {TimeSeriesServerResponse} from 'src/types/series'
-import {
-  Query,
-  Axes,
-  RuleValues,
-  TimeRange,
-  RemoteDataState,
-  CellType,
-} from 'src/types'
+import {Query, Axes, TimeRange, RemoteDataState, CellType} from 'src/types'
 
 interface Props {
   axes: Axes
@@ -34,7 +27,6 @@ interface Props {
   queries: Query[]
   timeRange: TimeRange
   colors: ColorString[]
-  ruleValues?: RuleValues
   loading: RemoteDataState
   decimalPlaces: DecimalPlaces
   data: TimeSeriesServerResponse[]
@@ -96,7 +88,6 @@ class LineGraph extends PureComponent<LineGraphProps> {
       queries,
       timeRange,
       cellHeight,
-      ruleValues,
       staticLegend,
       decimalPlaces,
       handleSetHoverTime,
@@ -105,7 +96,6 @@ class LineGraph extends PureComponent<LineGraphProps> {
     const {labels, timeSeries, dygraphSeries} = this.timeSeries
 
     const options = {
-      labels,
       rightGap: 0,
       yRangePad: 10,
       labelsKMB: true,
@@ -133,7 +123,6 @@ class LineGraph extends PureComponent<LineGraphProps> {
           options={options}
           timeRange={timeRange}
           timeSeries={timeSeries}
-          ruleValues={ruleValues}
           staticLegend={staticLegend}
           dygraphSeries={dygraphSeries}
           isGraphFilled={this.isGraphFilled}
