@@ -214,6 +214,10 @@ class LogsPage extends Component<Props, State> {
   }
 
   private get tableScrollToRow() {
+    if (this.liveUpdatingStatus === LiveUpdating.Play) {
+      return 0
+    }
+
     if (this.loadingNewer && this.props.newRowsAdded) {
       this.loadingNewer = false
       return this.props.newRowsAdded || 0
@@ -285,7 +289,7 @@ class LogsPage extends Component<Props, State> {
   }
 
   private get isSpecificTimeRange(): boolean {
-    return !!getDeep(this.props, 'timeRange.upper', false)
+    return !!getDeep(this.props, 'tableTime.custom', false)
   }
 
   private startUpdating = () => {

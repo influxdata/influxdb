@@ -101,7 +101,7 @@ class LogsTable extends Component<Props, State> {
       scrollTop = 0
     }
 
-    if (scrollToRow) {
+    if (_.isNumber(scrollToRow)) {
       scrollTop = calculateScrollTop(scrollToRow)
     }
 
@@ -285,7 +285,7 @@ class LogsTable extends Component<Props, State> {
       },
     }
 
-    if (scrollToRow) {
+    if (_.isNumber(scrollToRow)) {
       result.scrollToRow = scrollToRow
     }
 
