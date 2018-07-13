@@ -85,6 +85,9 @@ type multiShardBatchCursors struct {
 	}
 }
 
+// TODO(sgc): temporary to keep megacheck happy; BatchCursors will be removed in subsequent PR
+var _ = newMultiShardBatchCursors
+
 func newMultiShardBatchCursors(ctx context.Context, rr *readRequest) *multiShardBatchCursors {
 	lim := rr.limit
 	if lim < 0 {
