@@ -1,0 +1,8 @@
+#datatype,string,long,string,string
+#partition,false,false,false,false
+#default,_result,,,
+,result,table,_measurement,_value
+,,0,disk,disk
+,,0,disk1,disk1
+,,0,disk2,disk2
+
