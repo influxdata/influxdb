@@ -21,11 +21,11 @@ const defaultTableData: TableData = {
     'time',
     'severity',
     'timestamp',
+    'message',
     'facility',
     'procid',
     'appname',
     'host',
-    'message',
   ],
   values: [],
 }

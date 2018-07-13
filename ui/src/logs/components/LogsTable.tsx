@@ -346,12 +346,15 @@ class LogsTable extends Component<Props, State> {
     }
 
     const data = getValuesFromData(this.props.tableInfiniteData.forward)
-    const backwardData = getValuesFromData(this.props.tableInfiniteData.forward)
+    const backwardData = getValuesFromData(
+      this.props.tableInfiniteData.backward
+    )
     const firstTime = getDeep(
       data,
       '0.0',
       getDeep(backwardData, '0.0', new Date().getTime())
     )
+
     const {firstQueryTime} = this.state
     if (firstQueryTime && firstQueryTime > firstTime) {
       return
