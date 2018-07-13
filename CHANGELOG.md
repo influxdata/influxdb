@@ -4,6 +4,7 @@ v1.6.1 [unreleased]
 ### Features
 
 -	[#10078](https://github.com/influxdata/influxdb/pull/10078): Improve LogFile performance with bitset iterator.
+-	[#10077](https://github.com/influxdata/influxdb/pull/10077): Add TSI index cardinality report to influx_inspect.
 
 ### Bugfixes
 
