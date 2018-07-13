@@ -45,10 +45,6 @@ class TimeSeries extends Component<Props, State> {
     }
   }
 
-  public shouldComponentUpdate() {
-    return true
-  }
-
   public async componentDidMount() {
     this.executeQueries()
     AutoRefresh.subscribe(this.executeQueries)

@@ -10,7 +10,7 @@ class AutoRefresh {
   }
 
   public unsubscribe(fn: func) {
-    this.subscribers = this.subscribers.filter(f => f === fn)
+    this.subscribers = this.subscribers.filter(f => f !== fn)
   }
 
   public poll(refreshMs: number) {

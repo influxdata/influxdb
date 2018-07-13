@@ -1,23 +1,28 @@
+// Libraries
 import React, {Component, CSSProperties, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import NanoDate from 'nano-date'
 import ReactResizeDetector from 'react-resize-detector'
-import {getDeep} from 'src/utils/wrappers'
 
+// Components
 import D from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import StaticLegend from 'src/shared/components/StaticLegend'
 import Annotations from 'src/shared/components/Annotations'
 import Crosshair from 'src/shared/components/Crosshair'
 
+// Utils
 import getRange, {getStackedRange} from 'src/shared/parsing/getRangeForDygraph'
+import {getDeep} from 'src/utils/wrappers'
+import {numberValueFormatter} from 'src/utils/formatting'
+
+// Constants
 import {
   AXES_SCALE_OPTIONS,
   DEFAULT_AXIS,
 } from 'src/dashboards/constants/cellEditor'
 import {buildDefaultYLabel} from 'src/shared/presenters'
-import {numberValueFormatter} from 'src/utils/formatting'
 import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 import {
   OPTIONS,
@@ -26,14 +31,16 @@ import {
   CHAR_PIXELS,
   barPlotter,
 } from 'src/shared/graphs/helpers'
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
 import {getLineColorsHexes} from 'src/shared/constants/graphColorPalettes'
 const {LOG, BASE_10, BASE_2} = AXES_SCALE_OPTIONS
 
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Types
 import {
   Axes,
   Query,
+  CellType,
   RuleValues,
   TimeRange,
   DygraphData,
@@ -46,6 +53,7 @@ import {LineColor} from 'src/types/colors'
 const Dygraphs = D as Constructable<DygraphClass>
 
 interface Props {
+  type: CellType
   cellID: string
   queries: Query[]
   timeSeries: DygraphData
@@ -59,7 +67,6 @@ interface Props {
   ruleValues?: RuleValues
   axes?: Axes
   isGraphFilled?: boolean
-  isBarGraph?: boolean
   staticLegend?: boolean
   setResolution?: (w: number) => void
   onZoom?: (timeRange: TimeRange) => void
@@ -113,11 +120,11 @@ class Dygraph extends Component<Props, State> {
 
   public componentDidMount() {
     const {
-      axes: {y, y2},
-      isGraphFilled: fillGraph,
-      isBarGraph,
+      type,
       options,
       labels,
+      axes: {y, y2},
+      isGraphFilled: fillGraph,
     } = this.props
 
     const timeSeries = this.timeSeries
@@ -153,7 +160,7 @@ class Dygraph extends Component<Props, State> {
       highlightCircleSize: 3,
     }
 
-    if (isBarGraph) {
+    if (type === CellType.Bar) {
       defaultOptions = {
         ...defaultOptions,
         plotter: barPlotter,
@@ -183,7 +190,7 @@ class Dygraph extends Component<Props, State> {
       labels,
       axes: {y, y2},
       options,
-      isBarGraph,
+      type,
     } = this.props
 
     const dygraph = this.dygraph
@@ -229,7 +236,7 @@ class Dygraph extends Component<Props, State> {
       },
       colors: LINE_COLORS,
       series: this.colorDygraphSeries,
-      plotter: isBarGraph ? barPlotter : null,
+      plotter: type === CellType.Bar ? barPlotter : null,
     }
 
     dygraph.updateOptions(updateOptions)
