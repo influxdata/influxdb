@@ -1,5 +1,6 @@
 .histogram-chart {
   user-select: none;
+  position: relative;
 }
 
 .histogram-chart-bars--bar {
@@ -63,4 +64,10 @@
 
 .histogram-chart-tooltip--column:first-child {
   margin-right: 12px;
+}
+
+.histogram-chart--overlays {
+  position: absolute;
+  top: 0;
+  left: 0;
 }

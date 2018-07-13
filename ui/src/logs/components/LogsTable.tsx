@@ -74,13 +74,7 @@ interface State {
 }
 
 const calculateScrollTop = scrollToRow => {
-  return _.reduce(
-    _.range(0, scrollToRow),
-    acc => {
-      return acc + ROW_HEIGHT
-    },
-    0
-  )
+  return scrollToRow * ROW_HEIGHT
 }
 
 class LogsTable extends Component<Props, State> {
@@ -107,7 +101,7 @@ class LogsTable extends Component<Props, State> {
       scrollTop = 0
     }
 
-    if (scrollToRow) {
+    if (_.isNumber(scrollToRow)) {
       scrollTop = calculateScrollTop(scrollToRow)
     }
 
@@ -164,7 +158,7 @@ class LogsTable extends Component<Props, State> {
       visibleColumnsCount,
     }
 
-    this.loadMoreAboveRows = _.throttle(this.loadMoreAboveRows, 5000)
+    this.loadMoreAboveRows = _.throttle(this.loadMoreAboveRows, 50)
   }
 
   public componentDidUpdate() {
@@ -291,7 +285,7 @@ class LogsTable extends Component<Props, State> {
       },
     }
 
-    if (scrollToRow) {
+    if (_.isNumber(scrollToRow)) {
       result.scrollToRow = scrollToRow
     }
 
@@ -352,7 +346,15 @@ class LogsTable extends Component<Props, State> {
     }
 
     const data = getValuesFromData(this.props.tableInfiniteData.forward)
-    const firstTime = getDeep(data, '0.0', new Date().getTime() / 1000)
+    const backwardData = getValuesFromData(
+      this.props.tableInfiniteData.backward
+    )
+    const firstTime = getDeep(
+      data,
+      '0.0',
+      getDeep(backwardData, '0.0', new Date().getTime())
+    )
+
     const {firstQueryTime} = this.state
     if (firstQueryTime && firstQueryTime > firstTime) {
       return
@@ -370,11 +372,12 @@ class LogsTable extends Component<Props, State> {
     }
 
     const data = getValuesFromData(this.props.tableInfiniteData.backward)
+    const forwardData = getValuesFromData(this.props.tableInfiniteData.forward)
 
     const lastTime = getDeep(
       data,
       `${data.length - 1}.0`,
-      new Date().getTime() / 1000
+      getDeep(forwardData, `${forwardData.length - 1}.0`, new Date().getTime())
     )
 
     // Guard against fetching on scrolling back up then down
@@ -445,13 +448,7 @@ class LogsTable extends Component<Props, State> {
   private calculateTotalHeight = (): number => {
     const data = getValuesFromData(this.props.data)
 
-    return _.reduce(
-      data,
-      (acc, __) => {
-        return acc + ROW_HEIGHT
-      },
-      0
-    )
+    return data.length * ROW_HEIGHT
   }
 
   private headerRenderer = ({key, style, columnIndex}) => {

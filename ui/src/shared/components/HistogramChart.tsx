@@ -26,6 +26,14 @@ const PADDING_TOP = 0.2
 const DIGIT_WIDTH = 7
 const PERIOD_DIGIT_WIDTH = 4
 
+interface RenderPropArgs {
+  xScale: ScaleTime<number, number>
+  yScale: ScaleLinear<number, number>
+  adjustedWidth: number
+  adjustedHeight: number
+  margins: Margins
+}
+
 interface Props {
   data: HistogramData
   width: number
@@ -34,6 +42,7 @@ interface Props {
   colorScale: ColorScale
   onBarClick?: (time: string) => void
   sortBarGroups: SortFn
+  children?: (args: RenderPropArgs) => JSX.Element
 }
 
 interface State {
@@ -56,6 +65,7 @@ class HistogramChart extends PureComponent<Props, State> {
       colors,
       onBarClick,
       sortBarGroups,
+      children,
     } = this.props
     const {margins} = this
 
@@ -76,8 +86,16 @@ class HistogramChart extends PureComponent<Props, State> {
     const {hoverData} = this.state
     const {xScale, yScale, adjustedWidth, adjustedHeight, bodyTransform} = this
 
+    const renderPropArgs = {
+      xScale,
+      yScale,
+      adjustedWidth,
+      adjustedHeight,
+      margins,
+    }
+
     return (
-      <>
+      <div className="histogram-chart">
         <svg width={width} height={height} className="histogram-chart">
           <defs>
             <clipPath id="histogram-chart--bars-clip">
@@ -113,14 +131,17 @@ class HistogramChart extends PureComponent<Props, State> {
             />
           </g>
         </svg>
-        {hoverData && (
-          <HistogramChartTooltip
-            data={hoverData}
-            colorScale={colorScale}
-            colors={colors}
-          />
-        )}
-      </>
+        <div className="histogram-chart--overlays">
+          {!!children && children(renderPropArgs)}
+          {hoverData && (
+            <HistogramChartTooltip
+              data={hoverData}
+              colorScale={colorScale}
+              colors={colors}
+            />
+          )}
+        </div>
+      </div>
     )
   }
 
