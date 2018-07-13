@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/influxdata/platform"
 )
@@ -16,6 +17,7 @@ type QueryService interface {
 }
 
 // ResultIterator allows iterating through all results
+// ResultIterators may implement Statisticser.
 type ResultIterator interface {
 	// More indicates if there are more results.
 	// More must be called until it returns false in order to free all resources.
@@ -31,6 +33,34 @@ type ResultIterator interface {
 
 	// Err reports the first error encountered.
 	Err() error
+}
+
+// Statisticser reports statisitcs about query processing.
+type Statisticser interface {
+	// Statistics reports the statisitcs for the query.
+	// The statisitcs are not complete until the query is finished.
+	Statistics() Statistics
+}
+
+// Statistics is a collection of statisitcs about the processing of a query.
+type Statistics struct {
+	// TotalDuration is the total amount of time in nanoseconds spent.
+	TotalDuration time.Duration `json:"total_duration"`
+	// CompileDuration is the amount of time in nanoseconds spent compiling the query.
+	CompileDuration time.Duration `json:"compile_duration"`
+	// QueueDuration is the amount of time in nanoseconds spent queueing.
+	QueueDuration time.Duration `json:"queue_duration"`
+	// PlanDuration is the amount of time in nanoseconds spent in plannig the query.
+	PlanDuration time.Duration `json:"plan_duration"`
+	// RequeueDuration is the amount of time in nanoseconds spent requeueing.
+	RequeueDuration time.Duration `json:"requeue_duration"`
+	// ExecuteDuration is the amount of time in nanoseconds spent in executing the query.
+	ExecuteDuration time.Duration `json:"execute_duration"`
+
+	// Concurrency is the number of goroutines allocated to process the query
+	Concurrency int `json:"concurrency"`
+	// MaxAllocated is the maximum number of bytes the query allocated.
+	MaxAllocated int64 `json:"max_allocated"`
 }
 
 // AsyncQueryService represents a service for performing queries where the results are delivered asynchronously.
@@ -66,6 +96,8 @@ type Query interface {
 
 	// Err reports any error the query may have encountered.
 	Err() error
+
+	Statisticser
 }
 
 // QueryServiceBridge implements the QueryService interface while consuming the AsyncQueryService interface.
@@ -140,6 +172,10 @@ func (r *resultIterator) Cancel() {
 
 func (r *resultIterator) Err() error {
 	return r.query.Err()
+}
+
+func (r *resultIterator) Statistics() Statistics {
+	return r.query.Statistics()
 }
 
 type MapResultIterator struct {

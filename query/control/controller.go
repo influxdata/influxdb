@@ -93,20 +93,28 @@ func (c *Controller) Query(ctx context.Context, orgID platform.ID, qSpec *query.
 
 func (c *Controller) createQuery(ctx context.Context, orgID platform.ID) *Query {
 	id := c.nextID()
+	labelValues := []string{
+		orgID.String(),
+	}
 	cctx, cancel := context.WithCancel(ctx)
+	parentSpan, parentCtx := StartSpanFromContext(
+		cctx,
+		"all",
+		c.metrics.allDur.WithLabelValues(labelValues...),
+		c.metrics.all.WithLabelValues(labelValues...),
+	)
 	ready := make(chan map[string]query.Result, 1)
 	return &Query{
-		id:    id,
-		orgID: orgID,
-		labelValues: []string{
-			orgID.String(),
-		},
-		state:     Created,
-		c:         c,
-		now:       time.Now().UTC(),
-		ready:     ready,
-		parentCtx: cctx,
-		cancel:    cancel,
+		id:          id,
+		orgID:       orgID,
+		labelValues: labelValues,
+		state:       Created,
+		c:           c,
+		now:         time.Now().UTC(),
+		ready:       ready,
+		parentCtx:   parentCtx,
+		parentSpan:  parentSpan,
+		cancel:      cancel,
 	}
 }
 
@@ -253,7 +261,8 @@ func (c *Controller) processQuery(q *Query) (pop bool, err error) {
 		if !q.tryExec() {
 			return true, errors.New("failed to transition query into executing state")
 		}
-		r, err := c.executor.Execute(q.executeCtx, q.orgID, q.plan)
+		q.alloc = new(execute.Allocator)
+		r, err := c.executor.Execute(q.executeCtx, q.orgID, q.plan, q.alloc)
 		if err != nil {
 			return true, errors.Wrap(err, "failed to execute query")
 		}
@@ -319,6 +328,7 @@ type Query struct {
 	requeueCtx,
 	executeCtx context.Context
 
+	parentSpan,
 	compileSpan,
 	queueSpan,
 	planSpan,
@@ -329,6 +339,8 @@ type Query struct {
 
 	concurrency int
 	memory      int64
+
+	alloc *execute.Allocator
 }
 
 // ID reports an ephemeral unique ID for the query.
@@ -342,6 +354,11 @@ func (q *Query) OrganizationID() platform.ID {
 
 func (q *Query) Spec() *query.Spec {
 	return &q.spec
+}
+
+// Concurrency reports the number of goroutines allowed to process the request.
+func (q *Query) Concurrency() int {
+	return q.concurrency
 }
 
 // Cancel will stop the query execution.
@@ -371,6 +388,8 @@ func (q *Query) Ready() <-chan map[string]query.Result {
 
 // finish informs the controller and the Ready channel that the query is finished.
 func (q *Query) finish() {
+	defer q.parentSpan.Finish()
+
 	switch q.state {
 	case Compiling:
 		q.compileSpan.Finish()
@@ -407,6 +426,31 @@ func (q *Query) Done() {
 	q.finish()
 
 	q.state = Finished
+}
+
+// Statistics reports the statisitcs for the query.
+// The statisitcs are not complete until the query is finished.
+func (q *Query) Statistics() query.Statistics {
+	stats := query.Statistics{}
+	stats.TotalDuration = q.parentSpan.Duration
+	if q.compileSpan != nil {
+		stats.CompileDuration = q.compileSpan.Duration
+	}
+	if q.queueSpan != nil {
+		stats.QueueDuration = q.queueSpan.Duration
+	}
+	if q.planSpan != nil {
+		stats.PlanDuration = q.planSpan.Duration
+	}
+	if q.requeueSpan != nil {
+		stats.RequeueDuration = q.requeueSpan.Duration
+	}
+	if q.executeSpan != nil {
+		stats.ExecuteDuration = q.executeSpan.Duration
+	}
+	stats.Concurrency = q.concurrency
+	stats.MaxAllocated = q.alloc.Max()
+	return stats
 }
 
 // State reports the current state of the query.

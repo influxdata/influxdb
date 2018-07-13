@@ -12,7 +12,7 @@ import (
 )
 
 type Executor interface {
-	Execute(ctx context.Context, orgID platform.ID, p *plan.PlanSpec) (map[string]query.Result, error)
+	Execute(ctx context.Context, orgID platform.ID, p *plan.PlanSpec, a *Allocator) (map[string]query.Result, error)
 }
 
 type executor struct {
@@ -46,8 +46,8 @@ type executionState struct {
 	dispatcher *poolDispatcher
 }
 
-func (e *executor) Execute(ctx context.Context, orgID platform.ID, p *plan.PlanSpec) (map[string]query.Result, error) {
-	es, err := e.createExecutionState(ctx, orgID, p)
+func (e *executor) Execute(ctx context.Context, orgID platform.ID, p *plan.PlanSpec, a *Allocator) (map[string]query.Result, error) {
+	es, err := e.createExecutionState(ctx, orgID, p, a)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to initialize execute state")
 	}
@@ -62,17 +62,17 @@ func validatePlan(p *plan.PlanSpec) error {
 	return nil
 }
 
-func (e *executor) createExecutionState(ctx context.Context, orgID platform.ID, p *plan.PlanSpec) (*executionState, error) {
+func (e *executor) createExecutionState(ctx context.Context, orgID platform.ID, p *plan.PlanSpec, a *Allocator) (*executionState, error) {
 	if err := validatePlan(p); err != nil {
 		return nil, errors.Wrap(err, "invalid plan")
 	}
+	// Set allocation limit
+	a.Limit = p.Resources.MemoryBytesQuota
 	es := &executionState{
-		orgID: orgID,
-		p:     p,
-		deps:  e.deps,
-		alloc: &Allocator{
-			Limit: p.Resources.MemoryBytesQuota,
-		},
+		orgID:     orgID,
+		p:         p,
+		deps:      e.deps,
+		alloc:     a,
 		resources: p.Resources,
 		results:   make(map[string]query.Result, len(p.Results)),
 		// TODO(nathanielc): Have the planner specify the dispatcher throughput

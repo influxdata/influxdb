@@ -354,7 +354,7 @@ func TestExecutor_Execute(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			exe := execute.NewExecutor(nil)
-			results, err := exe.Execute(context.Background(), orgID, tc.plan)
+			results, err := exe.Execute(context.Background(), orgID, tc.plan, executetest.UnlimitedAllocator)
 			if err != nil {
 				t.Fatal(err)
 			}
