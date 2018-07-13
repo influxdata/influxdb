@@ -313,7 +313,7 @@ func TestDifference_Process(t *testing.T) {
 				Columns:     []string{"x", "y"},
 				NonNegative: true,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "x", Type: query.TFloat},
@@ -321,7 +321,7 @@ func TestDifference_Process(t *testing.T) {
 				},
 				Data: [][]interface{}{},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "x", Type: query.TFloat},
@@ -336,7 +336,7 @@ func TestDifference_Process(t *testing.T) {
 				Columns:     []string{"x", "y"},
 				NonNegative: true,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "x", Type: query.TFloat},
@@ -346,7 +346,7 @@ func TestDifference_Process(t *testing.T) {
 					{execute.Time(3), 10.0, 20.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "x", Type: query.TFloat},
