@@ -271,7 +271,7 @@ func HasSingleMeasurementNoOR(expr influxql.Expr) (string, bool) {
 			}
 
 			if ref, ok := be.LHS.(*influxql.VarRef); ok {
-				if ref.Val == measurementKey {
+				if ref.Val == measurementRemap[measurementKey] {
 					if be.Op != influxql.EQ {
 						invalidOP = true
 						return

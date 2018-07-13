@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 	"github.com/influxdata/influxql"
@@ -1219,20 +1220,26 @@ func (a Shards) MeasurementsByRegex(re *regexp.Regexp) []string {
 	return names
 }
 
-// TODO(edd)
+// FieldKeysByMeasurement returns a de-duplicated, sorted, set of field keys for
+// the provided measurement name.
 func (a Shards) FieldKeysByMeasurement(name []byte) []string {
-	var out []string
+	if len(a) == 1 {
+		mf := a[0].MeasurementFields(name)
+		if mf == nil {
+			return nil
+		}
+		return mf.FieldKeys()
+	}
+
+	all := make([][]string, 0, len(a))
 	for _, shard := range a {
 		mf := shard.MeasurementFields(name)
 		if mf == nil {
 			continue
 		}
-
-		// TODO(edd): merge the results
-		out = append(out, mf.FieldKeys()...)
+		all = append(all, mf.FieldKeys())
 	}
-	sort.Strings(out)
-	return out
+	return slices.MergeSortedStrings(all...)
 }
 
 func (a Shards) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
