@@ -115,6 +115,15 @@ func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
 	return s.bitmap.Equals(other.bitmap)
 }
 
+// And returns a new SeriesIDSet containing elements that were present in s and other.
+func (s *SeriesIDSet) And(other *SeriesIDSet) *SeriesIDSet {
+	s.RLock()
+	defer s.RUnlock()
+	other.RLock()
+	defer other.RUnlock()
+	return &SeriesIDSet{bitmap: roaring.And(s.bitmap, other.bitmap)}
+}
+
 // AndNot returns a new SeriesIDSet containing elements that were present in s,
 // but not present in other.
 func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
@@ -152,6 +161,12 @@ func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
 	s.bitmap = roaring.AndNot(s.bitmap, other.bitmap)
 }
 
+// Iterator returns an iterator to the underlying bitmap.
+// This iterator is not protected by a lock.
+func (s *SeriesIDSet) Iterator() SeriesIDSetIterable {
+	return s.bitmap.Iterator()
+}
+
 // UnmarshalBinary unmarshals data into the set.
 func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
 	s.Lock()
@@ -164,4 +179,9 @@ func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.WriteTo(w)
+}
+
+type SeriesIDSetIterable interface {
+	HasNext() bool
+	Next() uint32
 }

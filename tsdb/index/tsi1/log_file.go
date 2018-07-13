@@ -738,49 +738,13 @@ func (f *LogFile) SeriesIDIterator() tsdb.SeriesIDIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	// Determine total series count across all measurements.
-	var n int
-	mSeriesIdx := make([]int, len(f.mms))
-	mSeries := make([][]tsdb.SeriesIDElem, 0, len(f.mms))
+	ss := tsdb.NewSeriesIDSet()
 	for _, mm := range f.mms {
-		n += len(mm.series)
-		a := make([]tsdb.SeriesIDElem, 0, len(mm.series))
 		for seriesID := range mm.series {
-			a = append(a, tsdb.SeriesIDElem{SeriesID: seriesID})
+			ss.AddNoLock(seriesID)
 		}
-		sort.Sort(tsdb.SeriesIDElems(a))
-		mSeries = append(mSeries, a)
 	}
-
-	// Combine series across all measurements by merging the already sorted
-	// series lists.
-	sBuffer := make([]tsdb.SeriesIDElem, len(f.mms))
-	series := make([]tsdb.SeriesIDElem, 0, n)
-	var minElem tsdb.SeriesIDElem
-	var minElemIdx int
-
-	for s := 0; s < cap(series); s++ {
-		for i := 0; i < len(sBuffer); i++ {
-			// Are there still serie to pull from this measurement?
-			if mSeriesIdx[i] < len(mSeries[i]) && sBuffer[i].SeriesID == 0 {
-				// Fill the buffer slot for this measurement.
-				sBuffer[i] = mSeries[i][mSeriesIdx[i]]
-				mSeriesIdx[i]++
-			}
-
-			// Does this measurement have the smallest current serie out of
-			// all those in the buffer?
-			if minElem.SeriesID == 0 || (sBuffer[i].SeriesID != 0 && sBuffer[i].SeriesID < minElem.SeriesID) {
-				minElem, minElemIdx = sBuffer[i], i
-			}
-		}
-		series, minElem.SeriesID, sBuffer[minElemIdx].SeriesID = append(series, minElem), 0, 0
-	}
-
-	if len(series) == 0 {
-		return nil
-	}
-	return &logSeriesIDIterator{series: series}
+	return tsdb.NewSeriesIDSetIterator(ss)
 }
 
 // createMeasurementIfNotExists returns a measurement by name.
@@ -1397,37 +1361,17 @@ func (itr *logTagValueIterator) Next() (e TagValueElem) {
 	return e
 }
 
-// logSeriesIDIterator represents an iterator over a slice of series.
-type logSeriesIDIterator struct {
-	series []tsdb.SeriesIDElem
-}
-
-// newLogSeriesIDIterator returns a new instance of logSeriesIDIterator.
-// All series are copied to the iterator.
-func newLogSeriesIDIterator(m map[uint64]struct{}) *logSeriesIDIterator {
+// newLogSeriesIDIterator returns a new iterator. All series are copied to the iterator.
+func newLogSeriesIDIterator(m map[uint64]struct{}) tsdb.SeriesIDIterator {
 	if len(m) == 0 {
 		return nil
 	}
 
-	itr := logSeriesIDIterator{series: make([]tsdb.SeriesIDElem, 0, len(m))}
+	ss := tsdb.NewSeriesIDSet()
 	for seriesID := range m {
-		itr.series = append(itr.series, tsdb.SeriesIDElem{SeriesID: seriesID})
+		ss.AddNoLock(seriesID)
 	}
-	sort.Sort(tsdb.SeriesIDElems(itr.series))
-
-	return &itr
-}
-
-func (itr *logSeriesIDIterator) Close() error { return nil }
-
-// Next returns the next element in the iterator.
-func (itr *logSeriesIDIterator) Next() (tsdb.SeriesIDElem, error) {
-	if len(itr.series) == 0 {
-		return tsdb.SeriesIDElem{}, nil
-	}
-	elem := itr.series[0]
-	itr.series = itr.series[1:]
-	return elem, nil
+	return tsdb.NewSeriesIDSetIterator(ss)
 }
 
 // FormatLogFileName generates a log filename for the given index.
