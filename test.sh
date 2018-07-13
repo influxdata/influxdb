@@ -124,8 +124,8 @@ case $ENVIRONMENT_INDEX in
         rc=$?
         ;;
     4)
-        # go1.9
-        run_test_docker Dockerfile_build_ubuntu64_go19 test_64bit --test --junit-report
+        # go1.11
+        run_test_docker Dockerfile_build_ubuntu64_go1.11 test_64bit --test --junit-report
         rc=$?
         ;;
     "count")
