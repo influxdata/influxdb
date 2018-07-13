@@ -114,7 +114,7 @@ func AddNewCols(t query.Table, builder TableBuilder) []int {
 	return colMap
 }
 
-// AppendTable append data from table b onto builder.
+// AppendTable append data from table t onto builder.
 // The colMap is a map of builder column index to table column index.
 func AppendTable(t query.Table, builder TableBuilder, colMap []int) {
 	if len(t.Cols()) == 0 {
