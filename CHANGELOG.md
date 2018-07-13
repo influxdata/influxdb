@@ -6,6 +6,7 @@ v1.6.1 [unreleased]
 -	[#10078](https://github.com/influxdata/influxdb/pull/10078): Improve LogFile performance with bitset iterator.
 -	[#10077](https://github.com/influxdata/influxdb/pull/10077): Add TSI index cardinality report to influx_inspect.
 -	[#10079](https://github.com/influxdata/influxdb/pull/10079): Update to Go 1.10.
+-	[#10080](https://github.com/influxdata/influxdb/pull/10080): Improve performance of buildtsi and TSI planning.
 
 ### Bugfixes
 
