@@ -1024,11 +1024,11 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		tags := prometheus.RemoveInfluxSystemTags(rs.Tags())
 		var unsupportedCursor string
 		switch cur := cur.(type) {
-		case tsdb.FloatBatchCursor:
+		case tsdb.FloatArrayCursor:
 			var series *remote.TimeSeries
 			for {
-				ts, vs := cur.Next()
-				if len(ts) == 0 {
+				a := cur.Next()
+				if a.Len() == 0 {
 					break
 				}
 
@@ -1039,10 +1039,10 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 					}
 				}
 
-				for i, ts := range ts {
+				for i, ts := range a.Timestamps {
 					series.Samples = append(series.Samples, &remote.Sample{
 						TimestampMs: ts / int64(time.Millisecond),
-						Value:       vs[i],
+						Value:       a.Values[i],
 					})
 				}
 			}
@@ -1051,13 +1051,13 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 			if series != nil {
 				resp.Results[0].Timeseries = append(resp.Results[0].Timeseries, series)
 			}
-		case tsdb.IntegerBatchCursor:
+		case tsdb.IntegerArrayCursor:
 			unsupportedCursor = "int64"
-		case tsdb.UnsignedBatchCursor:
+		case tsdb.UnsignedArrayCursor:
 			unsupportedCursor = "uint"
-		case tsdb.BooleanBatchCursor:
+		case tsdb.BooleanArrayCursor:
 			unsupportedCursor = "bool"
-		case tsdb.StringBatchCursor:
+		case tsdb.StringArrayCursor:
 			unsupportedCursor = "string"
 		default:
 			panic(fmt.Sprintf("unreachable: %T", cur))

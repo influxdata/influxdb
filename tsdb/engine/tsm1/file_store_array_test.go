@@ -355,7 +355,7 @@ func TestFileStore_Array(t *testing.T) {
 				}
 
 				if len(read) == 0 {
-					exp = nil
+					exp = tsdb.NewFloatArrayLen(0)
 				}
 
 				if !cmp.Equal(values, exp) {
