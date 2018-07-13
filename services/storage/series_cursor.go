@@ -12,9 +12,11 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
+const measurementKey = "_measurement"
+
 var (
-	measurementKey = []byte("_measurement")
-	fieldKey       = []byte("_field")
+	measurementKeyBytes = []byte(measurementKey)
+	fieldKey            = []byte("_field")
 )
 
 type seriesCursor interface {
@@ -105,6 +107,24 @@ func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*t
 	sg := tsdb.Shards(shards)
 	p.sqry, err = sg.CreateSeriesCursor(ctx, tsdb.SeriesCursorRequest{}, opt.Condition)
 	if p.sqry != nil && err == nil {
+		// Optimisation to check if request is only interested in results for a
+		// single measurement. In this case we can efficiently produce all known
+		// field keys from the collection of shards without having to go via
+		// the query engine.
+		if name, ok := HasSingleMeasurementNoOR(p.measurementCond); ok {
+			fkeys := sg.FieldKeysByMeasurement([]byte(name))
+			if len(p.fields) == 0 {
+				goto CLEANUP
+			}
+
+			fields := make([]field, 0, len(fkeys))
+			for _, key := range fkeys {
+				fields = append(fields, field{n: key, nb: []byte(key)})
+			}
+			p.fields = map[string][]field{name: fields}
+			return p, nil
+		}
+
 		var (
 			itr query.Iterator
 			fi  query.FloatIterator
@@ -169,7 +189,7 @@ func (c *indexSeriesCursor) Next() *seriesRow {
 			c.row.name = sr.Name
 			c.row.stags = sr.Tags
 			c.tags = copyTags(c.tags, sr.Tags)
-			c.tags.Set(measurementKey, sr.Name)
+			c.tags.Set(measurementKeyBytes, sr.Name)
 
 			c.nf = c.fields[string(sr.Name)]
 			// c.nf may be nil if there are no fields
@@ -259,7 +279,6 @@ type measurementFields map[string][]field
 type field struct {
 	n  string
 	nb []byte
-	d  influxql.DataType
 }
 
 func extractFields(itr query.FloatIterator) measurementFields {
@@ -276,7 +295,6 @@ func extractFields(itr query.FloatIterator) measurementFields {
 		// Aux is populated by `fieldKeysIterator#Next`
 		fields := append(mf[p.Name], field{
 			n: p.Aux[0].(string),
-			d: influxql.DataTypeFromString(p.Aux[1].(string)),
 		})
 
 		mf[p.Name] = fields
