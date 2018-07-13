@@ -630,17 +630,17 @@ func TestHandler_PromRead(t *testing.T) {
 
 	// data for each cursor.
 	h.Store.ResultSet.CursorFn = func() tsdb.Cursor {
-		cursor := internal.NewFloatBatchCursorMock()
+		cursor := internal.NewFloatArrayCursorMock()
 
 		var i int64
-		cursor.NextFn = func() ([]int64, []float64) {
+		cursor.NextFn = func() *tsdb.FloatArray {
 			i++
 			ts := []int64{22000000 * i, 10000000000 * i}
 			vs := []float64{2.3, 2992.33}
 			if i > 2 {
 				ts, vs = nil, nil
 			}
-			return ts, vs
+			return &tsdb.FloatArray{Timestamps: ts, Values: vs}
 		}
 
 		return cursor
@@ -758,10 +758,10 @@ func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
 	compressed := snappy.Encode(nil, data)
 
 	unsupported := []tsdb.Cursor{
-		internal.NewIntegerBatchCursorMock(),
-		internal.NewBooleanBatchCursorMock(),
-		internal.NewUnsignedBatchCursorMock(),
-		internal.NewStringBatchCursorMock(),
+		internal.NewIntegerArrayCursorMock(),
+		internal.NewBooleanArrayCursorMock(),
+		internal.NewUnsignedArrayCursorMock(),
+		internal.NewStringArrayCursorMock(),
 	}
 
 	for _, cursor := range unsupported {
