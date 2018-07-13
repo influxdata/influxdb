@@ -236,7 +236,16 @@ class KeysTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
         nextValues[0].selected = true
       }
 
-      onUpdateTemplate({...template, values: nextValues})
+      onUpdateTemplate({
+        ...template,
+        values: nextValues,
+        query: {
+          ...template.query,
+          db: selectedDatabase,
+          measurement: selectedMeasurement,
+          tagKey: selectedTagKey,
+        },
+      })
     } catch (error) {
       this.setState({tagValuesStatus: RemoteDataState.Error})
       console.error(error)
