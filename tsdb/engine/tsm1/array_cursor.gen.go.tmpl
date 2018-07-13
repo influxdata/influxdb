@@ -112,7 +112,7 @@ func (c *{{$type}}) Next() {{$arrayType}} {
 				pos += n
 				c.tsm.pos += n
 				if c.tsm.pos >= len(tvals.Timestamps) {
-					tvals = c.nextTSM()
+					c.nextTSM()
 				}
 			}
 		}

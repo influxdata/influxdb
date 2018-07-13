@@ -32,6 +32,9 @@ type cursorIterator struct {
 	}
 }
 
+// TODO(sgc): temporary to keep megacheck happy; cursorIterator will be removed in subsequent PR
+var _ cursorIterator
+
 func (q *cursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (tsdb.Cursor, error) {
 	// Look up fields for measurement.
 	mf := q.e.fieldset.Fields(r.Name)

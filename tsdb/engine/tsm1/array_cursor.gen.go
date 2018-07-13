@@ -113,7 +113,7 @@ func (c *floatArrayAscendingCursor) Next() *tsdb.FloatArray {
 				pos += n
 				c.tsm.pos += n
 				if c.tsm.pos >= len(tvals.Timestamps) {
-					tvals = c.nextTSM()
+					c.nextTSM()
 				}
 			}
 		}
@@ -381,27 +381,32 @@ func (c *integerArrayAscendingCursor) Next() *tsdb.IntegerArray {
 	}
 
 	if pos < len(c.res.Timestamps) {
-		if pos == 0 {
-			// optimization: all points served from TSM data
-			copy(c.res.Timestamps, tvals.Timestamps)
-			pos += copy(c.res.Values, tvals.Values)
-			c.nextTSM()
-		} else {
-			// copy as much as we can
-			n := copy(c.res.Timestamps[pos:], tvals.Timestamps[c.tsm.pos:])
-			copy(c.res.Values[pos:], tvals.Values[c.tsm.pos:])
-			pos += n
-			c.tsm.pos += n
-			if c.tsm.pos >= len(tvals.Timestamps) {
-				tvals = c.nextTSM()
+		if c.tsm.pos < len(tvals.Timestamps) {
+			if pos == 0 {
+				// optimization: all points served from TSM data
+				copy(c.res.Timestamps, tvals.Timestamps)
+				pos += copy(c.res.Values, tvals.Values)
+				c.nextTSM()
+			} else {
+				// copy as much as we can
+				n := copy(c.res.Timestamps[pos:], tvals.Timestamps[c.tsm.pos:])
+				copy(c.res.Values[pos:], tvals.Values[c.tsm.pos:])
+				pos += n
+				c.tsm.pos += n
+				if c.tsm.pos >= len(tvals.Timestamps) {
+					c.nextTSM()
+				}
 			}
 		}
-		// TSM was exhausted
-		for pos < len(c.res.Timestamps) && c.cache.pos < len(cvals) {
-			c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
-			c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).value
-			pos++
-			c.cache.pos++
+
+		if c.cache.pos < len(cvals) {
+			// TSM was exhausted
+			for pos < len(c.res.Timestamps) && c.cache.pos < len(cvals) {
+				c.res.Timestamps[pos] = cvals[c.cache.pos].UnixNano()
+				c.res.Values[pos] = cvals[c.cache.pos].(IntegerValue).value
+				pos++
+				c.cache.pos++
+			}
 		}
 	}
 
@@ -670,7 +675,7 @@ func (c *unsignedArrayAscendingCursor) Next() *tsdb.UnsignedArray {
 				pos += n
 				c.tsm.pos += n
 				if c.tsm.pos >= len(tvals.Timestamps) {
-					tvals = c.nextTSM()
+					c.nextTSM()
 				}
 			}
 		}
@@ -951,7 +956,7 @@ func (c *stringArrayAscendingCursor) Next() *tsdb.StringArray {
 				pos += n
 				c.tsm.pos += n
 				if c.tsm.pos >= len(tvals.Timestamps) {
-					tvals = c.nextTSM()
+					c.nextTSM()
 				}
 			}
 		}
@@ -1232,7 +1237,7 @@ func (c *booleanArrayAscendingCursor) Next() *tsdb.BooleanArray {
 				pos += n
 				c.tsm.pos += n
 				if c.tsm.pos >= len(tvals.Timestamps) {
-					tvals = c.nextTSM()
+					c.nextTSM()
 				}
 			}
 		}
