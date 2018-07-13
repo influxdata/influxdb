@@ -7,7 +7,7 @@ import {TemplateType, TemplateValueType} from 'src/types'
 
 describe('TextTemplateSelector', () => {
   test('updates template on enter', () => {
-    const onUpdateTemplateMock = jest.fn()
+    const onPickValueMock = jest.fn()
     const template = {
       id: '0',
       tempVar: ':my-var:',
@@ -24,10 +24,7 @@ describe('TextTemplateSelector', () => {
     }
 
     const wrapper = shallow(
-      <TextTemplateSelector
-        template={template}
-        onUpdateTemplate={onUpdateTemplateMock}
-      />
+      <TextTemplateSelector template={template} onPickValue={onPickValueMock} />
     )
 
     wrapper.find('input').simulate('change', {target: {value: 'new value'}})
@@ -42,19 +39,11 @@ describe('TextTemplateSelector', () => {
       },
     })
 
-    expect(onUpdateTemplateMock).toBeCalledWith({
-      id: '0',
-      tempVar: ':my-var:',
-      label: '',
-      type: TemplateType.Text,
-      values: [
-        {
-          value: 'new value',
-          type: TemplateValueType.Constant,
-          selected: true,
-          localSelected: true,
-        },
-      ],
+    expect(onPickValueMock).toBeCalledWith({
+      value: 'new value',
+      type: TemplateValueType.Constant,
+      selected: true,
+      localSelected: true,
     })
   })
 })

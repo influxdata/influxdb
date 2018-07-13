@@ -40,7 +40,6 @@ class TemplateControl extends PureComponent<Props, State> {
       templates,
       source,
       onCreateTemplate,
-      onUpdateTemplate,
       onPickValue,
     } = this.props
     const {isEditing} = this.state
@@ -54,7 +53,7 @@ class TemplateControl extends PureComponent<Props, State> {
         {template.type === TemplateType.Text ? (
           <TextTemplateSelector
             template={template}
-            onUpdateTemplate={onUpdateTemplate}
+            onPickValue={onPickValue}
             key={template.id}
           />
         ) : (
