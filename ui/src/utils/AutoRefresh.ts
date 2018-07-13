@@ -1,4 +1,4 @@
-type func = () => any
+type func = (...args: any[]) => any
 
 class AutoRefresh {
   public subscribers: func[] = []
@@ -19,6 +19,10 @@ class AutoRefresh {
     if (refreshMs) {
       this.intervalID = setInterval(this.refresh, refreshMs)
     }
+  }
+
+  public stopPolling() {
+    this.clearInterval()
   }
 
   private clearInterval() {

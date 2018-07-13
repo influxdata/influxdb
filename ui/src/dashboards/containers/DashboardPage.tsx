@@ -120,32 +120,24 @@ interface State {
 
 @ErrorHandling
 class DashboardPage extends Component<Props, State> {
-  private intervalID: number
-
   public constructor(props: Props) {
     super(props)
 
     this.state = {
+      scrollTop: 0,
       isEditMode: false,
       selectedCell: null,
-      scrollTop: 0,
       windowHeight: window.innerHeight,
       dashboardLinks: EMPTY_LINKS,
     }
   }
 
   public async componentDidMount() {
-    const {source, getAnnotationsAsync, timeRange, autoRefresh} = this.props
-
-    const annotationRange = millisecondTimeRange(timeRange)
-    getAnnotationsAsync(source.links.annotations, annotationRange)
-
-    AutoRefresh.poll(autoRefresh)
+    const {autoRefresh} = this.props
 
     if (autoRefresh) {
-      this.intervalID = window.setInterval(() => {
-        getAnnotationsAsync(source.links.annotations, annotationRange)
-      }, autoRefresh)
+      AutoRefresh.poll(autoRefresh)
+      AutoRefresh.subscribe(this.fetchAnnotations)
     }
 
     window.addEventListener('resize', this.handleWindowResize, true)
@@ -155,45 +147,37 @@ class DashboardPage extends Component<Props, State> {
     this.getDashboardLinks()
   }
 
-  public componentWillReceiveProps(nextProps: Props) {
-    const {source, getAnnotationsAsync, timeRange} = this.props
-    if (this.props.autoRefresh !== nextProps.autoRefresh) {
-      clearInterval(this.intervalID)
-      this.intervalID = null
-      const annotationRange = millisecondTimeRange(timeRange)
-      if (nextProps.autoRefresh) {
-        this.intervalID = window.setInterval(() => {
-          getAnnotationsAsync(source.links.annotations, annotationRange)
-        }, nextProps.autoRefresh)
-      }
-    }
+  public fetchAnnotations = () => {
+    const {source, timeRange, getAnnotationsAsync} = this.props
+    const rangeMs = millisecondTimeRange(timeRange)
+    getAnnotationsAsync(source.links.annotations, rangeMs)
   }
 
   public componentDidUpdate(prevProps: Props) {
+    const {dashboard, autoRefresh} = this.props
+
     const prevPath = getDeep(prevProps.location, 'pathname', null)
     const thisPath = getDeep(this.props.location, 'pathname', null)
 
-    const templates = getDeep<TempVarsModels.Template[]>(
-      this.props.dashboard,
-      'templates',
-      []
-    ).map(t => t.tempVar)
-    const prevTemplates = getDeep<TempVarsModels.Template[]>(
-      prevProps.dashboard,
-      'templates',
-      []
-    ).map(t => t.tempVar)
-    const isTemplateDeleted: boolean =
-      _.intersection(templates, prevTemplates).length !== prevTemplates.length
+    const templates = this.parseTempVar(dashboard)
+    const prevTemplates = this.parseTempVar(prevProps.dashboard)
+
+    const intersection = _.intersection(templates, prevTemplates)
+    const isTemplateDeleted = intersection.length !== prevTemplates.length
 
     if ((prevPath && thisPath && prevPath !== thisPath) || isTemplateDeleted) {
       this.getDashboard()
     }
+
+    if (autoRefresh !== prevProps.autoRefresh) {
+      AutoRefresh.poll(autoRefresh)
+    }
   }
 
   public componentWillUnmount() {
-    clearInterval(this.intervalID)
-    this.intervalID = null
+    AutoRefresh.stopPolling()
+    AutoRefresh.unsubscribe(this.fetchAnnotations)
+
     window.removeEventListener('resize', this.handleWindowResize, true)
     this.props.handleDismissEditingAnnotation()
   }
@@ -220,7 +204,6 @@ class DashboardPage extends Component<Props, State> {
       cellQueryStatus,
       thresholdsListType,
       thresholdsListColors,
-
       inPresentationMode,
       handleChooseAutoRefresh,
       handleShowCellEditorOverlay,
@@ -347,6 +330,12 @@ class DashboardPage extends Component<Props, State> {
         ) : null}
       </div>
     )
+  }
+
+  public parseTempVar(
+    dashboard: DashboardsModels.Dashboard
+  ): TempVarsModels.Template[] {
+    return getDeep(dashboard, 'templates', []).map(t => t.tempVar)
   }
 
   private handleWindowResize = (): void => {

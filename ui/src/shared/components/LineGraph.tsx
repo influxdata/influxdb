@@ -111,7 +111,7 @@ class LineGraph extends PureComponent<LineGraphProps> {
       labelsKMB: true,
       fillGraph: true,
       axisLabelWidth: 60,
-      animatedZooms: false,
+      animatedZooms: true,
       drawAxesAtZero: true,
       axisLineColor: '#383846',
       gridLineColor: '#383846',
