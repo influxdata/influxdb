@@ -4,7 +4,7 @@ import {getDeep} from 'src/utils/wrappers'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplateMetaQueryPreview from 'src/tempVars/components/TemplateMetaQueryPreview'
-import {hydrateTemplate} from 'src/tempVars/apis'
+import {hydrateTemplate} from 'src/tempVars/utils/hydrate'
 import {isInvalidMetaQuery} from 'src/tempVars/parsing'
 
 import {TemplateBuilderProps, RemoteDataState} from 'src/types'
@@ -126,11 +126,9 @@ class CustomMetaQueryTemplateBuilder extends PureComponent<
         query: {influxql: metaQuery},
       }
 
-      const nextTemplate = await hydrateTemplate(
-        source.links.proxy,
-        templateWithQuery,
-        templates
-      )
+      const nextTemplate = await hydrateTemplate(templateWithQuery, templates, {
+        proxyUrl: source.links.proxy,
+      })
 
       this.setState({metaQueryResultsStatus: RemoteDataState.Done})
 

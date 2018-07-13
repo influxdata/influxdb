@@ -104,7 +104,7 @@ interface Props extends ManualRefreshProps, WithRouterProps {
   deleteDashboardCellAsync: typeof dashboardActions.deleteDashboardCellAsync
   templateVariableLocalSelected: typeof dashboardActions.templateVariableLocalSelected
   getDashboardWithTemplatesAsync: typeof dashboardActions.getDashboardWithTemplatesAsync
-  rehydrateNestedTemplatesAsync: typeof dashboardActions.rehydrateNestedTemplatesAsync
+  rehydrateTemplatesAsync: typeof dashboardActions.rehydrateTemplatesAsync
   updateTemplateQueryParams: typeof dashboardActions.updateTemplateQueryParams
   updateQueryParams: typeof dashboardActions.updateQueryParams
 }
@@ -461,13 +461,11 @@ class DashboardPage extends Component<Props, State> {
       dashboard,
       source,
       templateVariableLocalSelected,
-      updateTemplateQueryParams,
-      rehydrateNestedTemplatesAsync,
+      rehydrateTemplatesAsync,
     } = this.props
 
     templateVariableLocalSelected(dashboard.id, template.id, value)
-    updateTemplateQueryParams(dashboard.id)
-    rehydrateNestedTemplatesAsync(dashboard.id, source)
+    rehydrateTemplatesAsync(dashboard.id, source)
   }
 
   private handleSaveTemplateVariables = async (
@@ -592,7 +590,7 @@ const mdtp = {
   templateVariableLocalSelected: dashboardActions.templateVariableLocalSelected,
   getDashboardWithTemplatesAsync:
     dashboardActions.getDashboardWithTemplatesAsync,
-  rehydrateNestedTemplatesAsync: dashboardActions.rehydrateNestedTemplatesAsync,
+  rehydrateTemplatesAsync: dashboardActions.rehydrateTemplatesAsync,
   updateTemplateQueryParams: dashboardActions.updateTemplateQueryParams,
   updateQueryParams: dashboardActions.updateQueryParams,
   handleChooseAutoRefresh: appActions.setAutoRefresh,

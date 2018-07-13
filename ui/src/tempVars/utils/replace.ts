@@ -145,4 +145,21 @@ const replaceAll = (query: string, search: string, replacement: string) => {
   return query.split(search).join(replacement)
 }
 
+export const templateInternalReplace = (template: Template): string => {
+  const {influxql, db, measurement, tagKey} = template.query
+
+  if (template.type === TemplateType.MetaQuery) {
+    // A custom meta query template may reference other templates whose names
+    // conflict with the `database`, `measurement` and `tagKey` fields stored
+    // within a template's `query` object. Since these fields are always empty
+    // for a custom meta query template, we do not attempt to replace them
+    return influxql
+  }
+
+  return influxql
+    .replace(':database:', `"${db}"`)
+    .replace(':measurement:', `"${measurement}"`)
+    .replace(':tagKey:', `"${tagKey}"`)
+}
+
 export default templateReplace
