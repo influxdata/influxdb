@@ -9,6 +9,7 @@ v1.6.1 [unreleased]
 
 -	[#10012](https://github.com/influxdata/influxdb/pull/10012): Improve series segment recovery.
 -	[#10076](https://github.com/influxdata/influxdb/pull/10076): Fix windows mmap on zero length file.
+-	[#10037](https://github.com/influxdata/influxdb/pull/10037): Ensure Filter iterators executed as late as possible.
 
 v1.6.0 [2018-07-05]
 -------------------
