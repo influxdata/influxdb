@@ -487,6 +487,9 @@
   # bind-address = ":8089"
   # database = "udp"
   # retention-policy = ""
+ 
+  # InfluxDB precision for timestamps on received points ("" or "n", "u", "ms", "s", "m", "h")
+  # precision = ""
 
   # These next lines control how batching works. You should have this enabled
   # otherwise you could get dropped metrics or poor performance. Batching
