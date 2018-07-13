@@ -74,13 +74,7 @@ interface State {
 }
 
 const calculateScrollTop = scrollToRow => {
-  return _.reduce(
-    _.range(0, scrollToRow),
-    acc => {
-      return acc + ROW_HEIGHT
-    },
-    0
-  )
+  return scrollToRow * ROW_HEIGHT
 }
 
 class LogsTable extends Component<Props, State> {
@@ -445,13 +439,7 @@ class LogsTable extends Component<Props, State> {
   private calculateTotalHeight = (): number => {
     const data = getValuesFromData(this.props.data)
 
-    return _.reduce(
-      data,
-      (acc, __) => {
-        return acc + ROW_HEIGHT
-      },
-      0
-    )
+    return data.length * ROW_HEIGHT
   }
 
   private headerRenderer = ({key, style, columnIndex}) => {

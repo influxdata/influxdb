@@ -23,13 +23,11 @@ export class ExpandableMessage extends Component<Props, State> {
     const {formattedValue} = this.props
 
     return (
-      <ClickOutside onClickOutside={this.collapse}>
-        <>
-          <div onClick={this.expand} className="expandable--message">
-            <div className="expandable--text">{formattedValue}</div>
-            <div className={this.isExpanded}>{formattedValue}</div>
-          </div>
-        </>
+      <ClickOutside onClickOutside={this.handleClickOutside}>
+        <div onClick={this.handleClick} className="expandable--message">
+          <div className="expandable--text">{formattedValue}</div>
+          <div className={this.isExpanded}>{formattedValue}</div>
+        </div>
       </ClickOutside>
     )
   }
@@ -43,13 +41,13 @@ export class ExpandableMessage extends Component<Props, State> {
     }
   }
 
-  private expand = () => {
+  private handleClick = () => {
     this.setState({
       expanded: true,
     })
   }
 
-  private collapse = () => {
+  private handleClickOutside = () => {
     this.setState({
       expanded: false,
     })
