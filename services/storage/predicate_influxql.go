@@ -258,7 +258,7 @@ func HasSingleMeasurementNoOR(expr influxql.Expr) (string, bool) {
 			return
 		}
 
-		if be, ok := expr.(*influxql.BinaryExpr); ok {
+		if be, ok := node.(*influxql.BinaryExpr); ok {
 			if be.Op == influxql.OR {
 				invalidOP = true
 				return
@@ -283,7 +283,7 @@ func HasSingleMeasurementNoOR(expr influxql.Expr) (string, bool) {
 			}
 		}
 	})
-	return lastMeasurement, foundOnce && !invalidOP
+	return lastMeasurement, len(lastMeasurement) > 0 && foundOnce && !invalidOP
 }
 
 func HasFieldKeyOrValue(expr influxql.Expr) (bool, bool) {

@@ -409,11 +409,12 @@ func (e *QueryExecutor) ExecuteQuery(q, database string, chunkSize int) <-chan *
 }
 
 type MockShard struct {
-	Measurements      []string
-	FieldDimensionsFn func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	CreateIteratorFn  func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
-	IteratorCostFn    func(m string, opt query.IteratorOptions) (query.IteratorCost, error)
-	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
+	Measurements             []string
+	FieldDimensionsFn        func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+	FieldKeysByMeasurementFn func(name []byte) []string
+	CreateIteratorFn         func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) (query.Iterator, error)
+	IteratorCostFn           func(m string, opt query.IteratorOptions) (query.IteratorCost, error)
+	ExpandSourcesFn          func(sources influxql.Sources) (influxql.Sources, error)
 }
 
 func (sh *MockShard) MeasurementsByRegex(re *regexp.Regexp) []string {
@@ -424,6 +425,10 @@ func (sh *MockShard) MeasurementsByRegex(re *regexp.Regexp) []string {
 		}
 	}
 	return names
+}
+
+func (sh *MockShard) FieldKeysByMeasurement(name []byte) []string {
+	return sh.FieldKeysByMeasurementFn(name)
 }
 
 func (sh *MockShard) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
