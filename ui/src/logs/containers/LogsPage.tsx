@@ -32,7 +32,6 @@ import OptionsOverlay from 'src/logs/components/OptionsOverlay'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/LogsFilterBar'
 import LogsTable from 'src/logs/components/LogsTable'
-import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import {getDeep} from 'src/utils/wrappers'
 import {colorForSeverity} from 'src/logs/utils/colors'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
@@ -164,7 +163,7 @@ class LogsPage extends Component<Props, State> {
   }
 
   public render() {
-    const {searchTerm, filters, queryCount, timeRange, tableTime} = this.props
+    const {searchTerm, filters, queryCount, timeRange} = this.props
 
     return (
       <>
@@ -172,17 +171,6 @@ class LogsPage extends Component<Props, State> {
           {this.header}
           <div className="page-contents logs-viewer">
             <LogsGraphContainer>{this.chart}</LogsGraphContainer>
-            <div style={{height: '50px', position: 'relative'}}>
-              <div style={{position: 'absolute', right: '10px', top: '10px'}}>
-                <span style={{marginRight: '10px'}}>Go to </span>
-                <PointInTimeDropDown
-                  customTime={tableTime.custom}
-                  relativeTime={tableTime.relative}
-                  onChooseCustomTime={this.handleChooseCustomTime}
-                  onChooseRelativeTime={this.handleChooseRelativeTime}
-                />
-              </div>
-            </div>
             <SearchBar
               searchString={searchTerm}
               onSearch={this.handleSubmitSearch}
@@ -211,6 +199,7 @@ class LogsPage extends Component<Props, State> {
               severityLevelColors={this.severityLevelColors}
               hasScrolled={this.state.hasScrolled}
               tableInfiniteData={this.props.tableInfiniteData}
+              onChooseCustomTime={this.handleChooseCustomTime}
             />
           </div>
         </div>
@@ -240,14 +229,33 @@ class LogsPage extends Component<Props, State> {
     )
   }
 
-  private handleChooseCustomTime = (time: string) => {
+  private handleChooseCustomTime = async (time: string) => {
     this.props.setTableCustomTime(time)
     this.setState({hasScrolled: false})
+
+    await this.props.setTimeMarker({
+      timeOption: time,
+    })
+
+    this.handleSetTimeBounds()
   }
 
-  private handleChooseRelativeTime = (time: number) => {
+  private handleChooseRelativeTime = async (time: number) => {
     this.props.setTableRelativeTime(time)
     this.setState({hasScrolled: false})
+
+    let timeOption = {
+      timeOption: moment()
+        .subtract(time, 'seconds')
+        .toISOString(),
+    }
+
+    if (time === 0) {
+      timeOption = {timeOption: 'now'}
+    }
+
+    await this.props.setTimeMarker(timeOption)
+    this.handleSetTimeBounds()
   }
 
   private get tableData(): TableData {
@@ -359,12 +367,12 @@ class LogsPage extends Component<Props, State> {
       currentNamespaces,
       currentNamespace,
       timeRange,
+      tableTime,
     } = this.props
 
     return (
       <LogViewerHeader
         timeRange={timeRange}
-        onSetTimeMarker={this.handleSetTimeMarker}
         onSetTimeWindow={this.handleSetTimeWindow}
         liveUpdating={this.liveUpdatingStatus}
         availableSources={sources}
@@ -375,6 +383,10 @@ class LogsPage extends Component<Props, State> {
         currentNamespace={currentNamespace}
         onChangeLiveUpdatingStatus={this.handleChangeLiveUpdatingStatus}
         onShowOptionsOverlay={this.handleToggleOverlay}
+        customTime={tableTime.custom}
+        relativeTime={tableTime.relative}
+        onChooseCustomTime={this.handleChooseCustomTime}
+        onChooseRelativeTime={this.handleChooseRelativeTime}
       />
     )
   }
@@ -425,9 +437,9 @@ class LogsPage extends Component<Props, State> {
   }
 
   private handleBarClick = (time: string): void => {
-    const timeOption = moment(time).toISOString()
+    const formattedTime = moment(time).toISOString()
 
-    this.handleSetTimeMarker({timeOption})
+    this.handleChooseCustomTime(formattedTime)
   }
 
   private handleSetTimeBounds = async () => {
@@ -455,11 +467,6 @@ class LogsPage extends Component<Props, State> {
 
   private handleSetTimeWindow = async (timeWindow: TimeWindow) => {
     await this.props.setTimeWindow(timeWindow)
-    this.handleSetTimeBounds()
-  }
-
-  private handleSetTimeMarker = async (timeMarker: TimeMarker) => {
-    await this.props.setTimeMarker(timeMarker)
     this.handleSetTimeBounds()
   }
 

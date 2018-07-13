@@ -59,6 +59,7 @@ interface Props {
     forward: TableData
     backward: TableData
   }
+  onChooseCustomTime: (time: string) => void
 }
 
 interface State {
@@ -528,6 +529,32 @@ class LogsTable extends Component<Props, State> {
 
     const highlightRow = rowIndex === this.state.currentRow
 
+    if (column === 'timestamp') {
+      return (
+        <div
+          className={classnames('logs-viewer--cell', {
+            highlight: highlightRow,
+          })}
+          title={`Jump to '${title}'`}
+          key={key}
+          style={style}
+          data-index={rowIndex}
+          onMouseOver={this.handleMouseOver}
+        >
+          <div
+            data-tag-key={column}
+            data-tag-value={value}
+            onClick={this.handleTimestampClick(`${formattedValue}`)}
+            data-index={rowIndex}
+            onMouseOver={this.handleMouseOver}
+            className="logs-viewer--clickable"
+          >
+            {formattedValue}
+          </div>
+        </div>
+      )
+    }
+
     if (isClickable(column)) {
       return (
         <div
@@ -587,6 +614,12 @@ class LogsTable extends Component<Props, State> {
     const target = e.target as HTMLElement
     const index = target.dataset.index || target.parentElement.dataset.index
     this.setState({currentRow: +index})
+  }
+
+  private handleTimestampClick = (time: string) => () => {
+    const {onChooseCustomTime} = this.props
+    const formattedTime = moment(time, 'YYYY/MM/DD HH:mm:ss').toISOString()
+    onChooseCustomTime(formattedTime)
   }
 
   private handleTagClick = (e: MouseEvent<HTMLElement>) => {
