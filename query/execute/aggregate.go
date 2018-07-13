@@ -11,7 +11,7 @@ import (
 
 type aggregateTransformation struct {
 	d     Dataset
-	cache BlockBuilderCache
+	cache TableBuilderCache
 	agg   Aggregate
 
 	config AggregateConfig
@@ -69,7 +69,7 @@ func (c *AggregateConfig) ReadArgs(args query.Arguments) error {
 	return nil
 }
 
-func NewAggregateTransformation(d Dataset, c BlockBuilderCache, agg Aggregate, config AggregateConfig) *aggregateTransformation {
+func NewAggregateTransformation(d Dataset, c TableBuilderCache, agg Aggregate, config AggregateConfig) *aggregateTransformation {
 	return &aggregateTransformation{
 		d:      d,
 		cache:  c,
@@ -79,33 +79,33 @@ func NewAggregateTransformation(d Dataset, c BlockBuilderCache, agg Aggregate, c
 }
 
 func NewAggregateTransformationAndDataset(id DatasetID, mode AccumulationMode, agg Aggregate, config AggregateConfig, a *Allocator) (*aggregateTransformation, Dataset) {
-	cache := NewBlockBuilderCache(a)
+	cache := NewTableBuilderCache(a)
 	d := NewDataset(id, mode, cache)
 	return NewAggregateTransformation(d, cache, agg, config), d
 }
 
-func (t *aggregateTransformation) RetractBlock(id DatasetID, key query.GroupKey) error {
+func (t *aggregateTransformation) RetractTable(id DatasetID, key query.GroupKey) error {
 	//TODO(nathanielc): Store intermediate state for retractions
-	return t.d.RetractBlock(key)
+	return t.d.RetractTable(key)
 }
 
-func (t *aggregateTransformation) Process(id DatasetID, b query.Block) error {
-	builder, new := t.cache.BlockBuilder(b.Key())
+func (t *aggregateTransformation) Process(id DatasetID, tbl query.Table) error {
+	builder, new := t.cache.TableBuilder(tbl.Key())
 	if !new {
-		return fmt.Errorf("aggregate found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("aggregate found duplicate table with key: %v", tbl.Key())
 	}
 
-	AddBlockKeyCols(b.Key(), builder)
+	AddTableKeyCols(tbl.Key(), builder)
 	builder.AddCol(query.ColMeta{
 		Label: t.config.TimeDst,
 		Type:  query.TTime,
 	})
 
 	builderColMap := make([]int, len(t.config.Columns))
-	blockColMap := make([]int, len(t.config.Columns))
+	tableColMap := make([]int, len(t.config.Columns))
 	aggregates := make([]ValueFunc, len(t.config.Columns))
 
-	cols := b.Cols()
+	cols := tbl.Cols()
 	for j, label := range t.config.Columns {
 		idx := -1
 		for bj, bc := range cols {
@@ -118,7 +118,7 @@ func (t *aggregateTransformation) Process(id DatasetID, b query.Block) error {
 			return fmt.Errorf("column %q does not exist", label)
 		}
 		c := cols[idx]
-		if b.Key().HasCol(c.Label) {
+		if tbl.Key().HasCol(c.Label) {
 			return errors.New("cannot aggregate columns that are part of the group key")
 		}
 		var vf ValueFunc
@@ -141,18 +141,18 @@ func (t *aggregateTransformation) Process(id DatasetID, b query.Block) error {
 			Label: c.Label,
 			Type:  vf.Type(),
 		})
-		blockColMap[j] = idx
+		tableColMap[j] = idx
 	}
-	if err := AppendAggregateTime(t.config.TimeSrc, t.config.TimeDst, b.Key(), builder); err != nil {
+	if err := AppendAggregateTime(t.config.TimeSrc, t.config.TimeDst, tbl.Key(), builder); err != nil {
 		return err
 	}
 
-	b.Do(func(cr query.ColReader) error {
+	tbl.Do(func(cr query.ColReader) error {
 		for j := range t.config.Columns {
 			vf := aggregates[j]
 
-			tj := blockColMap[j]
-			c := b.Cols()[tj]
+			tj := tableColMap[j]
+			c := tbl.Cols()[tj]
 
 			switch c.Type {
 			case query.TBool:
@@ -188,7 +188,7 @@ func (t *aggregateTransformation) Process(id DatasetID, b query.Block) error {
 		}
 	}
 
-	AppendKeyValues(b.Key(), builder)
+	AppendKeyValues(tbl.Key(), builder)
 
 	return nil
 }
@@ -203,7 +203,7 @@ func (t *aggregateTransformation) Finish(id DatasetID, err error) {
 	t.d.Finish(err)
 }
 
-func AppendAggregateTime(srcTime, dstTime string, key query.GroupKey, builder BlockBuilder) error {
+func AppendAggregateTime(srcTime, dstTime string, key query.GroupKey, builder TableBuilder) error {
 	srcTimeIdx := ColIdx(srcTime, key.Cols())
 	if srcTimeIdx < 0 {
 		return fmt.Errorf("timeValue column %q does not exist", srcTime)

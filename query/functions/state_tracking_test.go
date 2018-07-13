@@ -41,11 +41,11 @@ func TestStateTracking_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.StateTrackingProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
-			name: "one block",
+			name: "one table",
 			spec: &functions.StateTrackingProcedureSpec{
 				CountLabel:    "count",
 				DurationLabel: "duration",
@@ -53,7 +53,7 @@ func TestStateTracking_Process(t *testing.T) {
 				Fn:            gt5,
 				TimeCol:       "_time",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -67,7 +67,7 @@ func TestStateTracking_Process(t *testing.T) {
 					{execute.Time(6), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -92,7 +92,7 @@ func TestStateTracking_Process(t *testing.T) {
 				Fn:            gt5,
 				TimeCol:       "_time",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -106,7 +106,7 @@ func TestStateTracking_Process(t *testing.T) {
 					{execute.Time(6), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -129,7 +129,7 @@ func TestStateTracking_Process(t *testing.T) {
 				Fn:         gt5,
 				TimeCol:    "_time",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -143,7 +143,7 @@ func TestStateTracking_Process(t *testing.T) {
 					{execute.Time(6), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -167,7 +167,7 @@ func TestStateTracking_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					tx, err := functions.NewStateTrackingTransformation(d, c, tc.spec)
 					if err != nil {
 						t.Fatal(err)

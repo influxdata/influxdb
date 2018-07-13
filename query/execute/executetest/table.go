@@ -8,73 +8,73 @@ import (
 	"github.com/influxdata/platform/query/values"
 )
 
-// Block is an implementation of execute.Block
-// It is designed to make it easy to statically declare the data within the block.
+// Table is an implementation of execute.Table
+// It is designed to make it easy to statically declare the data within the table.
 // Not all fields need to be set. See comments on each field.
 // Use Normalize to ensure that all fields are set before equality comparisons.
-type Block struct {
-	// GroupKey of the block. Does not need to be set explicitly.
+type Table struct {
+	// GroupKey of the table. Does not need to be set explicitly.
 	GroupKey query.GroupKey
 	// KeyCols is a list of column that are part of the group key.
 	// The column type is deduced from the ColMeta slice.
 	KeyCols []string
 	// KeyValues is a list of values for the group key columns.
-	// Only needs to be set when no data is present on the Block.
+	// Only needs to be set when no data is present on the table.
 	KeyValues []interface{}
-	// ColMeta is a list of columns of the block.
+	// ColMeta is a list of columns of the table.
 	ColMeta []query.ColMeta
 	// Data is a list of rows, i.e. Data[row][col]
 	// Each row must be a list with length equal to len(ColMeta)
 	Data [][]interface{}
 }
 
-// Normalize ensures all fields of the Block are set correctly.
-func (b *Block) Normalize() {
-	if b.GroupKey == nil {
-		cols := make([]query.ColMeta, len(b.KeyCols))
-		vs := make([]values.Value, len(b.KeyCols))
-		if len(b.KeyValues) != len(b.KeyCols) {
-			b.KeyValues = make([]interface{}, len(b.KeyCols))
+// Normalize ensures all fields of the table are set correctly.
+func (t *Table) Normalize() {
+	if t.GroupKey == nil {
+		cols := make([]query.ColMeta, len(t.KeyCols))
+		vs := make([]values.Value, len(t.KeyCols))
+		if len(t.KeyValues) != len(t.KeyCols) {
+			t.KeyValues = make([]interface{}, len(t.KeyCols))
 		}
-		for j, label := range b.KeyCols {
-			idx := execute.ColIdx(label, b.ColMeta)
+		for j, label := range t.KeyCols {
+			idx := execute.ColIdx(label, t.ColMeta)
 			if idx < 0 {
-				panic(fmt.Errorf("block invalid: missing group column %q", label))
+				panic(fmt.Errorf("table invalid: missing group column %q", label))
 			}
-			cols[j] = b.ColMeta[idx]
-			if len(b.Data) > 0 {
-				b.KeyValues[j] = b.Data[0][idx]
+			cols[j] = t.ColMeta[idx]
+			if len(t.Data) > 0 {
+				t.KeyValues[j] = t.Data[0][idx]
 			}
-			v, err := values.NewValue(b.KeyValues[j], execute.ConvertToKind(cols[j].Type))
+			v, err := values.NewValue(t.KeyValues[j], execute.ConvertToKind(cols[j].Type))
 			if err != nil {
 				panic(err)
 			}
 			vs[j] = v
 		}
-		b.GroupKey = execute.NewGroupKey(cols, vs)
+		t.GroupKey = execute.NewGroupKey(cols, vs)
 	}
 }
 
-func (b *Block) Empty() bool {
-	return len(b.Data) == 0
+func (t *Table) Empty() bool {
+	return len(t.Data) == 0
 }
 
-func (b *Block) RefCount(n int) {}
+func (t *Table) RefCount(n int) {}
 
-func (b *Block) Cols() []query.ColMeta {
-	return b.ColMeta
+func (t *Table) Cols() []query.ColMeta {
+	return t.ColMeta
 }
 
-func (b *Block) Key() query.GroupKey {
-	b.Normalize()
-	return b.GroupKey
+func (t *Table) Key() query.GroupKey {
+	t.Normalize()
+	return t.GroupKey
 }
 
-func (b *Block) Do(f func(query.ColReader) error) error {
-	for _, r := range b.Data {
+func (t *Table) Do(f func(query.ColReader) error) error {
+	for _, r := range t.Data {
 		if err := f(ColReader{
-			key:  b.Key(),
-			cols: b.ColMeta,
+			key:  t.Key(),
+			cols: t.ColMeta,
 			row:  r,
 		}); err != nil {
 			return err
@@ -124,31 +124,31 @@ func (cr ColReader) Times(j int) []execute.Time {
 	return []execute.Time{cr.row[j].(execute.Time)}
 }
 
-func BlocksFromCache(c execute.DataCache) (blocks []*Block, err error) {
+func TablesFromCache(c execute.DataCache) (tables []*Table, err error) {
 	c.ForEach(func(key query.GroupKey) {
 		if err != nil {
 			return
 		}
-		var b query.Block
-		b, err = c.Block(key)
+		var tbl query.Table
+		tbl, err = c.Table(key)
 		if err != nil {
 			return
 		}
-		var cb *Block
-		cb, err = ConvertBlock(b)
+		var cb *Table
+		cb, err = ConvertTable(tbl)
 		if err != nil {
 			return
 		}
-		blocks = append(blocks, cb)
+		tables = append(tables, cb)
 	})
-	return blocks, nil
+	return tables, nil
 }
 
-func ConvertBlock(b query.Block) (*Block, error) {
-	key := b.Key()
-	blk := &Block{
+func ConvertTable(tbl query.Table) (*Table, error) {
+	key := tbl.Key()
+	blk := &Table{
 		GroupKey: key,
-		ColMeta:  b.Cols(),
+		ColMeta:  tbl.Cols(),
 	}
 
 	keyCols := key.Cols()
@@ -178,7 +178,7 @@ func ConvertBlock(b query.Block) (*Block, error) {
 		}
 	}
 
-	err := b.Do(func(cr query.ColReader) error {
+	err := tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			row := make([]interface{}, len(blk.ColMeta))
@@ -212,22 +212,22 @@ func ConvertBlock(b query.Block) (*Block, error) {
 	return blk, nil
 }
 
-type SortedBlocks []*Block
+type SortedTables []*Table
 
-func (b SortedBlocks) Len() int {
+func (b SortedTables) Len() int {
 	return len(b)
 }
 
-func (b SortedBlocks) Less(i int, j int) bool {
+func (b SortedTables) Less(i int, j int) bool {
 	return b[i].Key().Less(b[j].Key())
 }
 
-func (b SortedBlocks) Swap(i int, j int) {
+func (b SortedTables) Swap(i int, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
-// NormalizeBlocks ensures that each block is normalized
-func NormalizeBlocks(bs []*Block) {
+// NormalizeTables ensures that each table is normalized
+func NormalizeTables(bs []*Table) {
 	for _, b := range bs {
 		b.Key()
 	}

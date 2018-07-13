@@ -142,17 +142,17 @@ func TestToHTTP_Process(t *testing.T) {
 		data = append(data, serverData...)
 	}))
 	type wanted struct {
-		Block  []*executetest.Block
+		Table  []*executetest.Table
 		Result []byte
 	}
 	testCases := []struct {
 		name string
 		spec *functions.ToHTTPProcedureSpec
-		data []query.Block
+		data []query.Table
 		want wanted
 	}{
 		{
-			name: "colblock with name in _measurement",
+			name: "coltable with name in _measurement",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
 					URL:          server.URL,
@@ -163,7 +163,7 @@ func TestToHTTP_Process(t *testing.T) {
 					NameColumn:   "_measurement",
 				},
 			},
-			data: []query.Block{execute.CopyBlock(&executetest.Block{
+			data: []query.Table{execute.CopyTable(&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_measurement", Type: query.TString},
@@ -179,11 +179,11 @@ func TestToHTTP_Process(t *testing.T) {
 				},
 			}, executetest.UnlimitedAllocator)},
 			want: wanted{
-				Block:  []*executetest.Block(nil),
+				Table:  []*executetest.Table(nil),
 				Result: []byte("a _value=2 11\na _value=2 21\nb _value=1 21\na _value=3 31\nc _value=4 41\n")},
 		},
 		{
-			name: "one block with measurement name in _measurement",
+			name: "one table with measurement name in _measurement",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
 					URL:          server.URL,
@@ -194,7 +194,7 @@ func TestToHTTP_Process(t *testing.T) {
 					NameColumn:   "_measurement",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_measurement", Type: query.TString},
@@ -210,11 +210,11 @@ func TestToHTTP_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block:  []*executetest.Block(nil),
+				Table:  []*executetest.Table(nil),
 				Result: []byte("a _value=2 11\na _value=2 21\nb _value=1 21\na _value=3 31\nc _value=4 41\n")},
 		},
 		{
-			name: "one block with measurement name in _measurement and tag",
+			name: "one table with measurement name in _measurement and tag",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
 					URL:          server.URL,
@@ -226,7 +226,7 @@ func TestToHTTP_Process(t *testing.T) {
 					NameColumn:   "_measurement",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_measurement", Type: query.TString},
@@ -242,11 +242,11 @@ func TestToHTTP_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block:  []*executetest.Block(nil),
+				Table:  []*executetest.Table(nil),
 				Result: []byte("a,fred=one _value=2 11\na,fred=one _value=2 21\nb,fred=seven _value=1 21\na,fred=nine _value=3 31\nc,fred=elevendyone _value=4 41\n")},
 		},
 		{
-			name: "one block",
+			name: "one table",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
 					URL:          server.URL,
@@ -254,10 +254,10 @@ func TestToHTTP_Process(t *testing.T) {
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
 					ValueColumns: []string{"_value"},
-					Name:         "one_block",
+					Name:         "one_table",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -270,12 +270,12 @@ func TestToHTTP_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block:  []*executetest.Block(nil),
-				Result: []byte("one_block _value=2 11\none_block _value=1 21\none_block _value=3 31\none_block _value=4 41\n"),
+				Table:  []*executetest.Table(nil),
+				Result: []byte("one_table _value=2 11\none_table _value=1 21\none_table _value=3 31\none_table _value=4 41\n"),
 			},
 		},
 		{
-			name: "one block with unused tag",
+			name: "one table with unused tag",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
 					URL:          server.URL,
@@ -283,10 +283,10 @@ func TestToHTTP_Process(t *testing.T) {
 					Timeout:      50 * time.Second,
 					TimeColumn:   execute.DefaultTimeColLabel,
 					ValueColumns: []string{"_value"},
-					Name:         "one_block_w_unused_tag",
+					Name:         "one_table_w_unused_tag",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -300,16 +300,16 @@ func TestToHTTP_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block: []*executetest.Block(nil),
-				Result: []byte(`one_block_w_unused_tag _value=2 11
-one_block_w_unused_tag _value=1 21
-one_block_w_unused_tag _value=3 31
-one_block_w_unused_tag _value=4 41
+				Table: []*executetest.Table(nil),
+				Result: []byte(`one_table_w_unused_tag _value=2 11
+one_table_w_unused_tag _value=1 21
+one_table_w_unused_tag _value=3 31
+one_table_w_unused_tag _value=4 41
 `),
 			},
 		},
 		{
-			name: "one block with tag",
+			name: "one table with tag",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
 					URL:          server.URL,
@@ -318,10 +318,10 @@ one_block_w_unused_tag _value=4 41
 					TimeColumn:   execute.DefaultTimeColLabel,
 					ValueColumns: []string{"_value"},
 					TagColumns:   []string{"fred"},
-					Name:         "one_block_w_tag",
+					Name:         "one_table_w_tag",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -335,16 +335,16 @@ one_block_w_unused_tag _value=4 41
 				},
 			}},
 			want: wanted{
-				Block: []*executetest.Block(nil),
-				Result: []byte(`one_block_w_tag,fred=one _value=2 11
-one_block_w_tag,fred=seven _value=1 21
-one_block_w_tag,fred=nine _value=3 31
-one_block_w_tag,fred=elevendyone _value=4 41
+				Table: []*executetest.Table(nil),
+				Result: []byte(`one_table_w_tag,fred=one _value=2 11
+one_table_w_tag,fred=seven _value=1 21
+one_table_w_tag,fred=nine _value=3 31
+one_table_w_tag,fred=elevendyone _value=4 41
 `),
 			},
 		},
 		{
-			name: "multi block",
+			name: "multi table",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
 					URL:          server.URL,
@@ -353,11 +353,11 @@ one_block_w_tag,fred=elevendyone _value=4 41
 					TimeColumn:   execute.DefaultTimeColLabel,
 					ValueColumns: []string{"_value"},
 					TagColumns:   []string{"fred"},
-					Name:         "multi_block",
+					Name:         "multi_table",
 				},
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
 						{Label: "_value", Type: query.TFloat},
@@ -369,7 +369,7 @@ one_block_w_tag,fred=elevendyone _value=4 41
 						{execute.Time(31), 3.0, "nine"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
 						{Label: "_value", Type: query.TFloat},
@@ -383,13 +383,13 @@ one_block_w_tag,fred=elevendyone _value=4 41
 				},
 			},
 			want: wanted{
-				Block: []*executetest.Block(nil),
-				Result: []byte("multi_block,fred=one _value=2 11\nmulti_block,fred=seven _value=1 21\nmulti_block,fred=nine _value=3 31\n" +
-					"multi_block,fred=one _value=2 51\nmulti_block,fred=seven _value=1 61\nmulti_block,fred=nine _value=3 71\n"),
+				Table: []*executetest.Table(nil),
+				Result: []byte("multi_table,fred=one _value=2 11\nmulti_table,fred=seven _value=1 21\nmulti_table,fred=nine _value=3 31\n" +
+					"multi_table,fred=one _value=2 51\nmulti_table,fred=seven _value=1 61\nmulti_table,fred=nine _value=3 71\n"),
 			},
 		},
 		{
-			name: "multi collist blocks",
+			name: "multi collist tables",
 			spec: &functions.ToHTTPProcedureSpec{
 				Spec: &functions.ToHTTPOpSpec{
 					URL:          server.URL,
@@ -398,12 +398,12 @@ one_block_w_tag,fred=elevendyone _value=4 41
 					TimeColumn:   execute.DefaultTimeColLabel,
 					ValueColumns: []string{"_value"},
 					TagColumns:   []string{"fred"},
-					Name:         "multi_collist_blocks",
+					Name:         "multi_collist_tables",
 				},
 			},
-			data: []query.Block{
-				execute.CopyBlock(
-					&executetest.Block{
+			data: []query.Table{
+				execute.CopyTable(
+					&executetest.Table{
 						ColMeta: []query.ColMeta{
 							{Label: "_time", Type: query.TTime},
 							{Label: "_value", Type: query.TFloat},
@@ -415,7 +415,7 @@ one_block_w_tag,fred=elevendyone _value=4 41
 							{execute.Time(31), 3.0, "nine"},
 						},
 					}, executetest.UnlimitedAllocator),
-				&executetest.Block{
+				&executetest.Table{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
 						{Label: "_value", Type: query.TFloat},
@@ -429,9 +429,9 @@ one_block_w_tag,fred=elevendyone _value=4 41
 				},
 			},
 			want: wanted{
-				Block: []*executetest.Block(nil),
-				Result: []byte("multi_collist_blocks,fred=one _value=2 11\nmulti_collist_blocks,fred=seven _value=1 21\nmulti_collist_blocks,fred=nine _value=3 31\n" +
-					"multi_collist_blocks,fred=one _value=2 51\nmulti_collist_blocks,fred=seven _value=1 61\nmulti_collist_blocks,fred=nine _value=3 71\n"),
+				Table: []*executetest.Table(nil),
+				Result: []byte("multi_collist_tables,fred=one _value=2 11\nmulti_collist_tables,fred=seven _value=1 21\nmulti_collist_tables,fred=nine _value=3 31\n" +
+					"multi_collist_tables,fred=one _value=2 51\nmulti_collist_tables,fred=seven _value=1 61\nmulti_collist_tables,fred=nine _value=3 71\n"),
 			},
 		},
 	}
@@ -444,8 +444,8 @@ one_block_w_tag,fred=elevendyone _value=4 41
 			executetest.ProcessTestHelper(
 				t,
 				tc.data,
-				tc.want.Block,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				tc.want.Table,
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewToHTTPTransformation(d, c, tc.spec)
 				},
 			)

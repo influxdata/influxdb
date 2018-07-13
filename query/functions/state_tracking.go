@@ -167,7 +167,7 @@ func createStateTrackingTransformation(id execute.DatasetID, mode execute.Accumu
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t, err := NewStateTrackingTransformation(d, cache, s)
 	if err != nil {
@@ -178,7 +178,7 @@ func createStateTrackingTransformation(id execute.DatasetID, mode execute.Accumu
 
 type stateTrackingTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	fn *execute.RowPredicateFn
 
@@ -189,7 +189,7 @@ type stateTrackingTransformation struct {
 	durationUnit int64
 }
 
-func NewStateTrackingTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *StateTrackingProcedureSpec) (*stateTrackingTransformation, error) {
+func NewStateTrackingTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *StateTrackingProcedureSpec) (*stateTrackingTransformation, error) {
 	fn, err := execute.NewRowPredicateFn(spec.Fn)
 	if err != nil {
 		return nil, err
@@ -205,19 +205,19 @@ func NewStateTrackingTransformation(d execute.Dataset, cache execute.BlockBuilde
 	}, nil
 }
 
-func (t *stateTrackingTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *stateTrackingTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *stateTrackingTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *stateTrackingTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddBlockCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	// Prepare the functions for the column types.
-	cols := b.Cols()
+	cols := tbl.Cols()
 	err := t.fn.Prepare(cols)
 	if err != nil {
 		// TODO(nathanielc): Should we not fail the query for failed compilation?
@@ -247,12 +247,12 @@ func (t *stateTrackingTransformation) Process(id execute.DatasetID, b query.Bloc
 		inState bool
 	)
 
-	timeIdx := execute.ColIdx(t.timeCol, b.Cols())
+	timeIdx := execute.ColIdx(t.timeCol, tbl.Cols())
 	if timeIdx < 0 {
 		return fmt.Errorf("no column %q exists", t.timeCol)
 	}
 	// Append modified rows
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			tm := cr.Times(timeIdx)[i]

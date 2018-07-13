@@ -22,7 +22,7 @@ func TestUniqueOperation_Marshaling(t *testing.T) {
 }
 
 func TestUnique_PassThrough(t *testing.T) {
-	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 		s := functions.NewUniqueTransformation(
 			d,
 			c,
@@ -38,15 +38,15 @@ func TestUnique_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.UniqueProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
-			name: "one block",
+			name: "one table",
 			spec: &functions.UniqueProcedureSpec{
 				Column: "_value",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -58,7 +58,7 @@ func TestUnique_Process(t *testing.T) {
 					{execute.Time(4), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -75,7 +75,7 @@ func TestUnique_Process(t *testing.T) {
 			spec: &functions.UniqueProcedureSpec{
 				Column: "t1",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "t1", Type: query.TString},
@@ -88,7 +88,7 @@ func TestUnique_Process(t *testing.T) {
 					{execute.Time(4), "c", 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "t1", Type: query.TString},
@@ -106,7 +106,7 @@ func TestUnique_Process(t *testing.T) {
 			spec: &functions.UniqueProcedureSpec{
 				Column: "_time",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "t1", Type: query.TString},
@@ -119,7 +119,7 @@ func TestUnique_Process(t *testing.T) {
 					{execute.Time(3), "c", 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "t1", Type: query.TString},
@@ -140,7 +140,7 @@ func TestUnique_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewUniqueTransformation(d, c, tc.spec)
 				},
 			)

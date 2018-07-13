@@ -188,7 +188,7 @@ func createFilterTransformation(id execute.DatasetID, mode execute.AccumulationM
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t, err := NewFilterTransformation(d, cache, s)
 	if err != nil {
@@ -199,12 +199,12 @@ func createFilterTransformation(id execute.DatasetID, mode execute.AccumulationM
 
 type filterTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	fn *execute.RowPredicateFn
 }
 
-func NewFilterTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *FilterProcedureSpec) (*filterTransformation, error) {
+func NewFilterTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *FilterProcedureSpec) (*filterTransformation, error) {
 	fn, err := execute.NewRowPredicateFn(spec.Fn)
 	if err != nil {
 		return nil, err
@@ -217,26 +217,26 @@ func NewFilterTransformation(d execute.Dataset, cache execute.BlockBuilderCache,
 	}, nil
 }
 
-func (t *filterTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *filterTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *filterTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *filterTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("filter found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("filter found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddBlockCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	// Prepare the function for the column types.
-	cols := b.Cols()
+	cols := tbl.Cols()
 	if err := t.fn.Prepare(cols); err != nil {
 		// TODO(nathanielc): Should we not fail the query for failed compilation?
 		return err
 	}
 
-	// Append only matching rows to block
-	return b.Do(func(cr query.ColReader) error {
+	// Append only matching rows to table
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			if pass, err := t.fn.Eval(i, cr); err != nil {

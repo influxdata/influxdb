@@ -28,15 +28,15 @@ func TestLimit_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.LimitProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
-			name: "one block",
+			name: "one table",
 			spec: &functions.LimitProcedureSpec{
 				N: 1,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -46,7 +46,7 @@ func TestLimit_Process(t *testing.T) {
 					{execute.Time(2), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -57,12 +57,12 @@ func TestLimit_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "one block with offset single batch",
+			name: "one table with offset single batch",
 			spec: &functions.LimitProcedureSpec{
 				N:      1,
 				Offset: 1,
 			},
-			data: []query.Block{execute.CopyBlock(&executetest.Block{
+			data: []query.Table{execute.CopyTable(&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -73,7 +73,7 @@ func TestLimit_Process(t *testing.T) {
 					{execute.Time(3), 0.0},
 				},
 			}, executetest.UnlimitedAllocator)},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -84,12 +84,12 @@ func TestLimit_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "one block with offset multiple batches",
+			name: "one table with offset multiple batches",
 			spec: &functions.LimitProcedureSpec{
 				N:      1,
 				Offset: 1,
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -100,7 +100,7 @@ func TestLimit_Process(t *testing.T) {
 					{execute.Time(3), 0.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -111,12 +111,12 @@ func TestLimit_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "multiple blocks",
+			name: "multiple tables",
 			spec: &functions.LimitProcedureSpec{
 				N: 2,
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
 						{Label: "t1", Type: query.TString},
@@ -129,7 +129,7 @@ func TestLimit_Process(t *testing.T) {
 						{"a", execute.Time(2), 1.0},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
 						{Label: "t1", Type: query.TString},
@@ -143,7 +143,7 @@ func TestLimit_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -178,7 +178,7 @@ func TestLimit_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewLimitTransformation(d, c, tc.spec)
 				},
 			)

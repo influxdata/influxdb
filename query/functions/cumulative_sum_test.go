@@ -20,7 +20,7 @@ func TestCumulativeSumOperation_Marshaling(t *testing.T) {
 }
 
 func TestCumulativeSum_PassThrough(t *testing.T) {
-	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+	executetest.TransformationPassThroughTestHelper(t, func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 		s := functions.NewCumulativeSumTransformation(
 			d,
 			c,
@@ -34,15 +34,15 @@ func TestCumulativeSum_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.CumulativeSumProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
 			name: "float",
 			spec: &functions.CumulativeSumProcedureSpec{
 				Columns: []string{execute.DefaultValueColLabel},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -60,7 +60,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 					{execute.Time(9), 8.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -84,7 +84,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 			spec: &functions.CumulativeSumProcedureSpec{
 				Columns: []string{"int", "uint", "float"},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "int", Type: query.TInt},
@@ -104,7 +104,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 					{execute.Time(9), int64(8), uint64(11), 3.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "int", Type: query.TInt},
@@ -130,7 +130,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 			spec: &functions.CumulativeSumProcedureSpec{
 				Columns: []string{"int", "float"},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "time2", Type: query.TTime},
@@ -150,7 +150,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 					{execute.Time(9), execute.Time(9), int64(8), 3.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "time2", Type: query.TTime},
@@ -176,7 +176,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 			spec: &functions.CumulativeSumProcedureSpec{
 				Columns: []string{"int"},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "int", Type: query.TInt},
@@ -195,7 +195,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 					{execute.Time(9), int64(8), "tag0"},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "int", Type: query.TInt},
@@ -223,7 +223,7 @@ func TestCumulativeSum_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewCumulativeSumTransformation(d, c, tc.spec)
 				},
 			)

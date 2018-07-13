@@ -29,12 +29,12 @@ func TestLastOperation_Marshaling(t *testing.T) {
 func TestLast_Process(t *testing.T) {
 	testCases := []struct {
 		name string
-		data *executetest.Block
+		data *executetest.Table
 		want []execute.Row
 	}{
 		{
 			name: "last",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -74,7 +74,7 @@ func TestLast_Process(t *testing.T) {
 }
 
 func BenchmarkLast(b *testing.B) {
-	executetest.RowSelectorFuncBenchmarkHelper(b, new(functions.LastSelector), NormalBlock)
+	executetest.RowSelectorFuncBenchmarkHelper(b, new(functions.LastSelector), NormalTable)
 }
 
 func TestLast_PushDown_Match(t *testing.T) {

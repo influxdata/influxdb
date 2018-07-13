@@ -26,7 +26,7 @@ func TestSampleOperation_Marshaling(t *testing.T) {
 func TestSample_Process(t *testing.T) {
 	testCases := []struct {
 		name   string
-		data   query.Block
+		data   query.Table
 		want   [][]int
 		fromor *functions.SampleSelector
 	}{
@@ -36,7 +36,7 @@ func TestSample_Process(t *testing.T) {
 				Pos: 0,
 			},
 			name: "everything in separate Do calls",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -76,7 +76,7 @@ func TestSample_Process(t *testing.T) {
 				Pos: 0,
 			},
 			name: "everything in single Do call",
-			data: execute.CopyBlock(&executetest.Block{
+			data: execute.CopyTable(&executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -116,7 +116,7 @@ func TestSample_Process(t *testing.T) {
 				Pos: 0,
 			},
 			name: "every-other-even",
-			data: execute.CopyBlock(&executetest.Block{
+			data: execute.CopyTable(&executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -151,7 +151,7 @@ func TestSample_Process(t *testing.T) {
 				Pos: 1,
 			},
 			name: "every-other-odd",
-			data: execute.CopyBlock(&executetest.Block{
+			data: execute.CopyTable(&executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -186,7 +186,7 @@ func TestSample_Process(t *testing.T) {
 				Pos: 0,
 			},
 			name: "every-third-0",
-			data: execute.CopyBlock(&executetest.Block{
+			data: execute.CopyTable(&executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -220,7 +220,7 @@ func TestSample_Process(t *testing.T) {
 				Pos: 1,
 			},
 			name: "every-third-1",
-			data: execute.CopyBlock(&executetest.Block{
+			data: execute.CopyTable(&executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -253,7 +253,7 @@ func TestSample_Process(t *testing.T) {
 				Pos: 2,
 			},
 			name: "every-third-2",
-			data: execute.CopyBlock(&executetest.Block{
+			data: execute.CopyTable(&executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -286,7 +286,7 @@ func TestSample_Process(t *testing.T) {
 				Pos: 2,
 			},
 			name: "every-third-2 in separate Do calls",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -339,5 +339,5 @@ func BenchmarkSample(b *testing.B) {
 		N:   10,
 		Pos: 0,
 	}
-	executetest.IndexSelectorFuncBenchmarkHelper(b, ss, NormalBlock)
+	executetest.IndexSelectorFuncBenchmarkHelper(b, ss, NormalTable)
 }

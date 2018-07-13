@@ -13,14 +13,14 @@ func TestKeys_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.KeysProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
-			name: "one block",
+			name: "one table",
 			spec: &functions.KeysProcedureSpec{},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
 						{Label: "_value", Type: query.TFloat},
@@ -32,7 +32,7 @@ func TestKeys_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_value", Type: query.TString},
 				},
@@ -45,10 +45,10 @@ func TestKeys_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "one block except",
+			name: "one table except",
 			spec: &functions.KeysProcedureSpec{Except: []string{"_value", "_time"}},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
 						{Label: "_value", Type: query.TFloat},
@@ -60,7 +60,7 @@ func TestKeys_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_value", Type: query.TString},
 				},
@@ -71,10 +71,10 @@ func TestKeys_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "two blocks",
+			name: "two tables",
 			spec: &functions.KeysProcedureSpec{},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"tag0", "tag1"},
 					ColMeta: []query.ColMeta{
 						{Label: "tag0", Type: query.TString},
@@ -86,7 +86,7 @@ func TestKeys_Process(t *testing.T) {
 						{"tag0-0", "tag1-0", execute.Time(1), 2.0},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"tag0", "tag2"},
 					ColMeta: []query.ColMeta{
 						{Label: "tag0", Type: query.TString},
@@ -99,7 +99,7 @@ func TestKeys_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"tag0", "tag1"},
 					ColMeta: []query.ColMeta{
@@ -138,7 +138,7 @@ func TestKeys_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewKeysTransformation(d, c, tc.spec)
 				},
 			)

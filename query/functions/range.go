@@ -119,7 +119,7 @@ func createRangeTransformation(id execute.DatasetID, mode execute.AccumulationMo
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t, err := NewRangeTransformation(d, cache, s)
 	if err != nil {
@@ -130,13 +130,13 @@ func createRangeTransformation(id execute.DatasetID, mode execute.AccumulationMo
 
 type rangeTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	Start query.Time
 	Stop  query.Time
 }
 
-func NewRangeTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *RangeProcedureSpec) (*rangeTransformation, error) {
+func NewRangeTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *RangeProcedureSpec) (*rangeTransformation, error) {
 	return &rangeTransformation{
 		d:     d,
 		cache: cache,
@@ -145,21 +145,21 @@ func NewRangeTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}, nil
 }
 
-func (t *rangeTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *rangeTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *rangeTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *rangeTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("range found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("range found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddBlockCols(b, builder)
-	cols := make([]int, len(b.Cols()))
+	execute.AddTableCols(tbl, builder)
+	cols := make([]int, len(tbl.Cols()))
 	for i := range cols {
 		cols[i] = i
 	}
-	execute.AppendBlock(b, builder, cols)
+	execute.AppendTable(tbl, builder, cols)
 
 	return nil
 }

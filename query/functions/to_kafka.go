@@ -209,7 +209,7 @@ func createToKafkaTransformation(id execute.DatasetID, mode execute.Accumulation
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewToKafkaTransformation(d, cache, s)
 	return t, d, nil
@@ -217,14 +217,14 @@ func createToKafkaTransformation(id execute.DatasetID, mode execute.Accumulation
 
 type ToKafkaTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 	spec  *ToKafkaProcedureSpec
 }
 
-func (t *ToKafkaTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *ToKafkaTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
-func NewToKafkaTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *ToKafkaProcedureSpec) *ToKafkaTransformation {
+func NewToKafkaTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *ToKafkaProcedureSpec) *ToKafkaTransformation {
 	return &ToKafkaTransformation{
 		d:     d,
 		cache: cache,
@@ -256,7 +256,7 @@ func (m *toKafkaMetric) Time() time.Time {
 	return m.t
 }
 
-func (t *ToKafkaTransformation) Process(id execute.DatasetID, b query.Block) (err error) {
+func (t *ToKafkaTransformation) Process(id execute.DatasetID, tbl query.Table) (err error) {
 	w := DefaultKafkaWriterFactory(kafka.WriterConfig{
 		Brokers:       t.spec.Spec.Brokers,
 		Topic:         t.spec.Spec.Topic,
@@ -283,7 +283,7 @@ func (t *ToKafkaTransformation) Process(id execute.DatasetID, b query.Block) (er
 	e := protocol.NewEncoder(pw)
 	e.FailOnFieldErr(true)
 	e.SetFieldSortOrder(protocol.SortFields)
-	cols := b.Cols()
+	cols := tbl.Cols()
 	labels := make(map[string]idxType, len(cols))
 	for i, col := range cols {
 		labels[col.Label] = idxType{Idx: i, Type: col.Type}
@@ -302,7 +302,7 @@ func (t *ToKafkaTransformation) Process(id execute.DatasetID, b query.Block) (er
 		measurementNameCol = t.spec.Spec.NameColumn
 	}
 	// check if each col is a tag or value and cache this value for the loop
-	colMetadatas := b.Cols()
+	colMetadatas := tbl.Cols()
 	isTag := make([]bool, len(colMetadatas))
 	isValue := make([]bool, len(colMetadatas))
 	for i, col := range colMetadatas {
@@ -313,7 +313,7 @@ func (t *ToKafkaTransformation) Process(id execute.DatasetID, b query.Block) (er
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err = b.Do(func(er query.ColReader) error {
+		err = tbl.Do(func(er query.ColReader) error {
 			l := er.Len()
 			for i := 0; i < l; i++ {
 				m.truncateTagsAndFields()

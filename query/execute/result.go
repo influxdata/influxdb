@@ -13,22 +13,22 @@ type result struct {
 	name string
 
 	mu     sync.Mutex
-	blocks chan resultMessage
+	tables chan resultMessage
 
 	abortErr chan error
 	aborted  chan struct{}
 }
 
 type resultMessage struct {
-	block query.Block
+	table query.Table
 	err   error
 }
 
 func newResult(name string, spec plan.YieldSpec) *result {
 	return &result{
 		name: name,
-		// TODO(nathanielc): Currently this buffer needs to be big enough hold all result blocks :(
-		blocks:   make(chan resultMessage, 1000),
+		// TODO(nathanielc): Currently this buffer needs to be big enough hold all result tables :(
+		tables:   make(chan resultMessage, 1000),
 		abortErr: make(chan error, 1),
 		aborted:  make(chan struct{}),
 	}
@@ -37,38 +37,38 @@ func newResult(name string, spec plan.YieldSpec) *result {
 func (s *result) Name() string {
 	return s.name
 }
-func (s *result) RetractBlock(DatasetID, query.GroupKey) error {
+func (s *result) RetractTable(DatasetID, query.GroupKey) error {
 	//TODO implement
 	return nil
 }
 
-func (s *result) Process(id DatasetID, b query.Block) error {
+func (s *result) Process(id DatasetID, tbl query.Table) error {
 	select {
-	case s.blocks <- resultMessage{
-		block: b,
+	case s.tables <- resultMessage{
+		table: tbl,
 	}:
 	case <-s.aborted:
 	}
 	return nil
 }
 
-func (s *result) Blocks() query.BlockIterator {
+func (s *result) Tables() query.TableIterator {
 	return s
 }
 
-func (s *result) Do(f func(query.Block) error) error {
+func (s *result) Do(f func(query.Table) error) error {
 	for {
 		select {
 		case err := <-s.abortErr:
 			return err
-		case msg, more := <-s.blocks:
+		case msg, more := <-s.tables:
 			if !more {
 				return nil
 			}
 			if msg.err != nil {
 				return msg.err
 			}
-			if err := f(msg.block); err != nil {
+			if err := f(msg.table); err != nil {
 				return err
 			}
 		}
@@ -91,13 +91,13 @@ func (s *result) setTrigger(Trigger) {
 func (s *result) Finish(id DatasetID, err error) {
 	if err != nil {
 		select {
-		case s.blocks <- resultMessage{
+		case s.tables <- resultMessage{
 			err: err,
 		}:
 		case <-s.aborted:
 		}
 	}
-	close(s.blocks)
+	close(s.tables)
 }
 
 // Abort the result with the given error

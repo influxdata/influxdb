@@ -6,34 +6,34 @@ import (
 
 type Result struct {
 	Nm   string
-	Blks []*Block
+	Tbls []*Table
 }
 
-func NewResult(blocks []*Block) *Result {
-	return &Result{Blks: blocks}
+func NewResult(tables []*Table) *Result {
+	return &Result{Tbls: tables}
 }
 
 func (r *Result) Name() string {
 	return r.Nm
 }
 
-func (r *Result) Blocks() query.BlockIterator {
-	return &BlockIterator{
-		r.Blks,
+func (r *Result) Tables() query.TableIterator {
+	return &TableIterator{
+		r.Tbls,
 	}
 }
 
 func (r *Result) Normalize() {
-	NormalizeBlocks(r.Blks)
+	NormalizeTables(r.Tbls)
 }
 
-type BlockIterator struct {
-	blocks []*Block
+type TableIterator struct {
+	tables []*Table
 }
 
-func (bi *BlockIterator) Do(f func(query.Block) error) error {
-	for _, b := range bi.blocks {
-		if err := f(b); err != nil {
+func (ti *TableIterator) Do(f func(query.Table) error) error {
+	for _, t := range ti.tables {
+		if err := f(t); err != nil {
 			return err
 		}
 	}

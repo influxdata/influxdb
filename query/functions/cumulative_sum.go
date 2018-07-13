@@ -86,7 +86,7 @@ func createCumulativeSumTransformation(id execute.DatasetID, mode execute.Accumu
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewCumulativeSumTransformation(d, cache, s)
 	return t, d, nil
@@ -94,11 +94,11 @@ func createCumulativeSumTransformation(id execute.DatasetID, mode execute.Accumu
 
 type cumulativeSumTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 	spec  CumulativeSumProcedureSpec
 }
 
-func NewCumulativeSumTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *CumulativeSumProcedureSpec) *cumulativeSumTransformation {
+func NewCumulativeSumTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *CumulativeSumProcedureSpec) *cumulativeSumTransformation {
 	return &cumulativeSumTransformation{
 		d:     d,
 		cache: cache,
@@ -106,18 +106,18 @@ func NewCumulativeSumTransformation(d execute.Dataset, cache execute.BlockBuilde
 	}
 }
 
-func (t *cumulativeSumTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *cumulativeSumTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *cumulativeSumTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("cumulative sum found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("cumulative sum found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddBlockCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
-	cols := b.Cols()
+	cols := tbl.Cols()
 	sumers := make([]*cumulativeSum, len(cols))
 	for j, c := range cols {
 		for _, label := range t.spec.Columns {
@@ -127,7 +127,7 @@ func (t *cumulativeSumTransformation) Process(id execute.DatasetID, b query.Bloc
 			}
 		}
 	}
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for j, c := range cols {
 			switch c.Type {

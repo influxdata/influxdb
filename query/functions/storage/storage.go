@@ -106,10 +106,10 @@ func (s *source) run(ctx context.Context) error {
 	}
 
 	//TODO(nathanielc): Pass through context to actual network I/O.
-	for blocks, mark, ok := s.next(ctx, trace); ok; blocks, mark, ok = s.next(ctx, trace) {
-		err := blocks.Do(func(b query.Block) error {
+	for tables, mark, ok := s.next(ctx, trace); ok; tables, mark, ok = s.next(ctx, trace) {
+		err := tables.Do(func(tbl query.Table) error {
 			for _, t := range s.ts {
-				if err := t.Process(s.id, b); err != nil {
+				if err := t.Process(s.id, tbl); err != nil {
 					return err
 				}
 				//TODO(nathanielc): Also add mechanism to send UpdateProcessingTime calls, when no data is arriving.
@@ -132,7 +132,7 @@ func (s *source) run(ctx context.Context) error {
 	return nil
 }
 
-func (s *source) next(ctx context.Context, trace map[string]string) (query.BlockIterator, execute.Time, bool) {
+func (s *source) next(ctx context.Context, trace map[string]string) (query.TableIterator, execute.Time, bool) {
 	start := s.currentTime - execute.Time(s.window.Period)
 	stop := s.currentTime
 
@@ -161,11 +161,11 @@ const (
 	GroupModeDefault GroupMode = 0
 	// GroupModeNone merges all series into a single group.
 	GroupModeNone GroupMode = 1 << iota
-	// GroupModeAll produces a separate block for each series.
+	// GroupModeAll produces a separate table for each series.
 	GroupModeAll
-	// GroupModeBy produces a block for each unique value of the specified GroupKeys.
+	// GroupModeBy produces a table for each unique value of the specified GroupKeys.
 	GroupModeBy
-	// GroupModeExcept produces a block for the unique values of all keys, except those specified by GroupKeys.
+	// GroupModeExcept produces a table for the unique values of all keys, except those specified by GroupKeys.
 	GroupModeExcept
 )
 
@@ -198,6 +198,6 @@ type ReadSpec struct {
 }
 
 type Reader interface {
-	Read(ctx context.Context, trace map[string]string, rs ReadSpec, start, stop execute.Time) (query.BlockIterator, error)
+	Read(ctx context.Context, trace map[string]string, rs ReadSpec, start, stop execute.Time) (query.TableIterator, error)
 	Close()
 }

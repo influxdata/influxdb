@@ -105,7 +105,7 @@ func createShiftTransformation(id execute.DatasetID, mode execute.AccumulationMo
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewShiftTransformation(d, cache, s)
 	return t, d, nil
@@ -113,12 +113,12 @@ func createShiftTransformation(id execute.DatasetID, mode execute.AccumulationMo
 
 type shiftTransformation struct {
 	d       execute.Dataset
-	cache   execute.BlockBuilderCache
+	cache   execute.TableBuilderCache
 	shift   execute.Duration
 	columns []string
 }
 
-func NewShiftTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *ShiftProcedureSpec) *shiftTransformation {
+func NewShiftTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *ShiftProcedureSpec) *shiftTransformation {
 	return &shiftTransformation{
 		d:       d,
 		cache:   cache,
@@ -127,12 +127,12 @@ func NewShiftTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}
 }
 
-func (t *shiftTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *shiftTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *shiftTransformation) Process(id execute.DatasetID, b query.Block) error {
-	key := b.Key()
+func (t *shiftTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	key := tbl.Key()
 	// Update key
 	cols := make([]query.ColMeta, len(key.Cols()))
 	vs := make([]values.Value, len(key.Cols()))
@@ -150,13 +150,13 @@ func (t *shiftTransformation) Process(id execute.DatasetID, b query.Block) error
 	}
 	key = execute.NewGroupKey(cols, vs)
 
-	builder, created := t.cache.BlockBuilder(key)
+	builder, created := t.cache.TableBuilder(key)
 	if !created {
-		return fmt.Errorf("shift found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("shift found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddBlockCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		for j, c := range cr.Cols() {
 			if execute.ContainsStr(t.columns, c.Label) {
 				l := cr.Len()

@@ -125,7 +125,7 @@ func createDerivativeTransformation(id execute.DatasetID, mode execute.Accumulat
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewDerivativeTransformation(d, cache, s)
 	return t, d, nil
@@ -133,7 +133,7 @@ func createDerivativeTransformation(id execute.DatasetID, mode execute.Accumulat
 
 type derivativeTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	unit        time.Duration
 	nonNegative bool
@@ -141,7 +141,7 @@ type derivativeTransformation struct {
 	timeCol     string
 }
 
-func NewDerivativeTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *DerivativeProcedureSpec) *derivativeTransformation {
+func NewDerivativeTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *DerivativeProcedureSpec) *derivativeTransformation {
 	return &derivativeTransformation{
 		d:           d,
 		cache:       cache,
@@ -152,16 +152,16 @@ func NewDerivativeTransformation(d execute.Dataset, cache execute.BlockBuilderCa
 	}
 }
 
-func (t *derivativeTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *derivativeTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *derivativeTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *derivativeTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("derivative found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("derivative found duplicate table with key: %v", tbl.Key())
 	}
-	cols := b.Cols()
+	cols := tbl.Cols()
 	derivatives := make([]*derivative, len(cols))
 	timeIdx := -1
 	for j, c := range cols {
@@ -192,7 +192,7 @@ func (t *derivativeTransformation) Process(id execute.DatasetID, b query.Block) 
 
 	// We need to drop the first row since its derivative is undefined
 	firstIdx := 1
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for j, c := range cols {
 			d := derivatives[j]

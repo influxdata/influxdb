@@ -32,7 +32,7 @@ func (d *Dataset) AddTransformation(t execute.Transformation) {
 	panic("not implemented")
 }
 
-func (d *Dataset) RetractBlock(key query.GroupKey) error {
+func (d *Dataset) RetractTable(key query.GroupKey) error {
 	d.Retractions = append(d.Retractions, key)
 	return nil
 }
@@ -59,14 +59,14 @@ func (d *Dataset) SetTriggerSpec(t query.TriggerSpec) {
 	panic("not implemented")
 }
 
-type NewTransformation func(execute.Dataset, execute.BlockBuilderCache) execute.Transformation
+type NewTransformation func(execute.Dataset, execute.TableBuilderCache) execute.Transformation
 
 func TransformationPassThroughTestHelper(t *testing.T, newTr NewTransformation) {
 	t.Helper()
 
 	now := execute.Now()
 	d := NewDataset(RandomDatasetID())
-	c := execute.NewBlockBuilderCache(UnlimitedAllocator)
+	c := execute.NewTableBuilderCache(UnlimitedAllocator)
 	c.SetTriggerSpec(execute.DefaultTriggerSpec)
 
 	parentID := RandomDatasetID()

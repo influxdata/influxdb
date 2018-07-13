@@ -13,12 +13,12 @@ type Trigger interface {
 }
 
 type TriggerContext struct {
-	Block                 BlockContext
+	Table                 TableContext
 	Watermark             Time
 	CurrentProcessingTime Time
 }
 
-type BlockContext struct {
+type TableContext struct {
 	Key   query.GroupKey
 	Count int
 }
@@ -60,11 +60,11 @@ type afterWatermarkTrigger struct {
 }
 
 func (t *afterWatermarkTrigger) Triggered(c TriggerContext) bool {
-	timeIdx := ColIdx(DefaultStopColLabel, c.Block.Key.Cols())
+	timeIdx := ColIdx(DefaultStopColLabel, c.Table.Key.Cols())
 	if timeIdx < 0 {
 		return false
 	}
-	stop := c.Block.Key.ValueTime(timeIdx)
+	stop := c.Table.Key.ValueTime(timeIdx)
 	if c.Watermark >= stop+Time(t.allowedLateness) {
 		t.finished = true
 	}
@@ -121,7 +121,7 @@ type afterAtLeastCount struct {
 }
 
 func (t *afterAtLeastCount) Triggered(c TriggerContext) bool {
-	t.n = c.Block.Count
+	t.n = c.Table.Count
 	return t.n >= t.atLeast
 }
 func (t *afterAtLeastCount) Finished() bool {

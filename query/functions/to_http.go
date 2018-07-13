@@ -246,7 +246,7 @@ func createToHTTPTransformation(id execute.DatasetID, mode execute.AccumulationM
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewToHTTPTransformation(d, cache, s)
 	return t, d, nil
@@ -254,15 +254,15 @@ func createToHTTPTransformation(id execute.DatasetID, mode execute.AccumulationM
 
 type ToHTTPTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 	spec  *ToHTTPProcedureSpec
 }
 
-func (t *ToHTTPTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *ToHTTPTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func NewToHTTPTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *ToHTTPProcedureSpec) *ToHTTPTransformation {
+func NewToHTTPTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *ToHTTPProcedureSpec) *ToHTTPTransformation {
 
 	return &ToHTTPTransformation{
 		d:     d,
@@ -306,13 +306,13 @@ type idxType struct {
 	Type query.DataType
 }
 
-func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Block) error {
+func (t *ToHTTPTransformation) Process(id execute.DatasetID, tbl query.Table) error {
 	pr, pw := io.Pipe() // TODO: replce the pipe with something faster
 	m := &toHttpMetric{}
 	e := protocol.NewEncoder(pw)
 	e.FailOnFieldErr(true)
 	e.SetFieldSortOrder(protocol.SortFields)
-	cols := b.Cols()
+	cols := tbl.Cols()
 	labels := make(map[string]idxType, len(cols))
 	for i, col := range cols {
 		labels[col.Label] = idxType{Idx: i, Type: col.Type}
@@ -334,7 +334,7 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Block) erro
 	}
 
 	// check if each col is a tag or value and cache this value for the loop
-	colMetadatas := b.Cols()
+	colMetadatas := tbl.Cols()
 	isTag := make([]bool, len(colMetadatas))
 	isValue := make([]bool, len(colMetadatas))
 
@@ -347,7 +347,7 @@ func (t *ToHTTPTransformation) Process(id execute.DatasetID, b query.Block) erro
 	wg.Add(1)
 	go func() {
 		m.name = t.spec.Spec.Name
-		b.Do(func(er query.ColReader) error {
+		tbl.Do(func(er query.ColReader) error {
 			l := er.Len()
 			for i := 0; i < l; i++ {
 				m.truncateTagsAndFields()

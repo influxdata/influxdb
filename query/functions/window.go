@@ -177,7 +177,7 @@ func createWindowTransformation(id execute.DatasetID, mode execute.AccumulationM
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	var start execute.Time
 	if s.Window.Start.IsZero() {
@@ -205,7 +205,7 @@ func createWindowTransformation(id execute.DatasetID, mode execute.AccumulationM
 
 type fixedWindowTransformation struct {
 	d      execute.Dataset
-	cache  execute.BlockBuilderCache
+	cache  execute.TableBuilderCache
 	w      execute.Window
 	bounds execute.Bounds
 
@@ -219,7 +219,7 @@ type fixedWindowTransformation struct {
 
 func NewFixedWindowTransformation(
 	d execute.Dataset,
-	cache execute.BlockBuilderCache,
+	cache execute.TableBuilderCache,
 	bounds execute.Bounds,
 	w execute.Window,
 	ignoreGlobalBounds bool,
@@ -241,30 +241,20 @@ func NewFixedWindowTransformation(
 	}
 }
 
-func (t *fixedWindowTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) (err error) {
+func (t *fixedWindowTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) (err error) {
 	panic("not implemented")
-	//tagKey := meta.Tags().Key()
-	//t.cache.ForEachBuilder(func(bk execute.BlockKey, bld execute.BlockBuilder) {
-	//	if err != nil {
-	//		return
-	//	}
-	//	if bld.Bounds().Overlaps(meta.Bounds()) && tagKey == bld.Tags().Key() {
-	//		err = t.d.RetractBlock(bk)
-	//	}
-	//})
-	//return
 }
 
-func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block) error {
-	timeIdx := execute.ColIdx(t.timeCol, b.Cols())
+func (t *fixedWindowTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	timeIdx := execute.ColIdx(t.timeCol, tbl.Cols())
 
-	newCols := make([]query.ColMeta, 0, len(b.Cols())+2)
-	keyCols := make([]query.ColMeta, 0, len(b.Cols())+2)
-	keyColMap := make([]int, 0, len(b.Cols())+2)
+	newCols := make([]query.ColMeta, 0, len(tbl.Cols())+2)
+	keyCols := make([]query.ColMeta, 0, len(tbl.Cols())+2)
+	keyColMap := make([]int, 0, len(tbl.Cols())+2)
 	startColIdx := -1
 	stopColIdx := -1
-	for j, c := range b.Cols() {
-		keyIdx := execute.ColIdx(c.Label, b.Key().Cols())
+	for j, c := range tbl.Cols() {
+		keyIdx := execute.ColIdx(c.Label, tbl.Key().Cols())
 		keyed := keyIdx >= 0
 		if c.Label == t.startColLabel {
 			startColIdx = j
@@ -301,7 +291,7 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 		keyColMap = append(keyColMap, len(keyColMap))
 	}
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			tm := cr.Times(timeIdx)[i]
@@ -318,11 +308,11 @@ func (t *fixedWindowTransformation) Process(id execute.DatasetID, b query.Block)
 					case t.stopColLabel:
 						vs[j] = values.NewTimeValue(bnds.Stop)
 					default:
-						vs[j] = b.Key().Value(keyColMap[j])
+						vs[j] = tbl.Key().Value(keyColMap[j])
 					}
 				}
 				key := execute.NewGroupKey(cols, vs)
-				builder, created := t.cache.BlockBuilder(key)
+				builder, created := t.cache.TableBuilder(key)
 				if created {
 					for _, c := range newCols {
 						builder.AddCol(c)

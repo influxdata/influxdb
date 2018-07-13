@@ -30,7 +30,7 @@ func TestExecutor_Execute(t *testing.T) {
 	testCases := []struct {
 		name string
 		plan *plan.PlanSpec
-		want map[string][]*executetest.Block
+		want map[string][]*executetest.Table
 	}{
 		{
 			name: "simple aggregate",
@@ -48,7 +48,7 @@ func TestExecutor_Execute(t *testing.T) {
 					plan.ProcedureIDFromOperationID("from"): {
 						ID: plan.ProcedureIDFromOperationID("from"),
 						Spec: &testFromProcedureSource{
-							data: []query.Block{&executetest.Block{
+							data: []query.Table{&executetest.Table{
 								KeyCols: []string{"_start", "_stop"},
 								ColMeta: []query.ColMeta{
 									{Label: "_start", Type: query.TTime},
@@ -83,8 +83,8 @@ func TestExecutor_Execute(t *testing.T) {
 					plan.DefaultYieldName: {ID: plan.ProcedureIDFromOperationID("sum")},
 				},
 			},
-			want: map[string][]*executetest.Block{
-				plan.DefaultYieldName: []*executetest.Block{{
+			want: map[string][]*executetest.Table{
+				plan.DefaultYieldName: []*executetest.Table{{
 					KeyCols: []string{"_start", "_stop"},
 					ColMeta: []query.ColMeta{
 						{Label: "_start", Type: query.TTime},
@@ -114,7 +114,7 @@ func TestExecutor_Execute(t *testing.T) {
 					plan.ProcedureIDFromOperationID("from"): {
 						ID: plan.ProcedureIDFromOperationID("from"),
 						Spec: &testFromProcedureSource{
-							data: []query.Block{&executetest.Block{
+							data: []query.Table{&executetest.Table{
 								KeyCols: []string{"_start", "_stop"},
 								ColMeta: []query.ColMeta{
 									{Label: "_start", Type: query.TTime},
@@ -241,8 +241,8 @@ func TestExecutor_Execute(t *testing.T) {
 					plan.DefaultYieldName: {ID: plan.ProcedureIDFromOperationID("join")},
 				},
 			},
-			want: map[string][]*executetest.Block{
-				plan.DefaultYieldName: []*executetest.Block{{
+			want: map[string][]*executetest.Table{
+				plan.DefaultYieldName: []*executetest.Table{{
 					KeyCols: []string{"_start", "_stop"},
 					ColMeta: []query.ColMeta{
 						{Label: "_start", Type: query.TTime},
@@ -272,7 +272,7 @@ func TestExecutor_Execute(t *testing.T) {
 					plan.ProcedureIDFromOperationID("from"): {
 						ID: plan.ProcedureIDFromOperationID("from"),
 						Spec: &testFromProcedureSource{
-							data: []query.Block{&executetest.Block{
+							data: []query.Table{&executetest.Table{
 								KeyCols: []string{"_start", "_stop"},
 								ColMeta: []query.ColMeta{
 									{Label: "_start", Type: query.TTime},
@@ -321,8 +321,8 @@ func TestExecutor_Execute(t *testing.T) {
 					"mean": {ID: plan.ProcedureIDFromOperationID("mean")},
 				},
 			},
-			want: map[string][]*executetest.Block{
-				"sum": []*executetest.Block{{
+			want: map[string][]*executetest.Table{
+				"sum": []*executetest.Table{{
 					KeyCols: []string{"_start", "_stop"},
 					ColMeta: []query.ColMeta{
 						{Label: "_start", Type: query.TTime},
@@ -334,7 +334,7 @@ func TestExecutor_Execute(t *testing.T) {
 						{execute.Time(0), execute.Time(5), execute.Time(5), 15.0},
 					},
 				}},
-				"mean": []*executetest.Block{{
+				"mean": []*executetest.Table{{
 					KeyCols: []string{"_start", "_stop"},
 					ColMeta: []query.ColMeta{
 						{Label: "_start", Type: query.TTime},
@@ -358,10 +358,10 @@ func TestExecutor_Execute(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := make(map[string][]*executetest.Block, len(results))
+			got := make(map[string][]*executetest.Table, len(results))
 			for name, r := range results {
-				if err := r.Blocks().Do(func(b query.Block) error {
-					cb, err := executetest.ConvertBlock(b)
+				if err := r.Tables().Do(func(tbl query.Table) error {
+					cb, err := executetest.ConvertTable(tbl)
 					if err != nil {
 						return err
 					}
@@ -373,10 +373,10 @@ func TestExecutor_Execute(t *testing.T) {
 			}
 
 			for _, g := range got {
-				executetest.NormalizeBlocks(g)
+				executetest.NormalizeTables(g)
 			}
 			for _, w := range tc.want {
-				executetest.NormalizeBlocks(w)
+				executetest.NormalizeTables(w)
 			}
 
 			if !cmp.Equal(got, tc.want) {
@@ -387,7 +387,7 @@ func TestExecutor_Execute(t *testing.T) {
 }
 
 type testFromProcedureSource struct {
-	data []query.Block
+	data []query.Table
 	ts   []execute.Transformation
 }
 

@@ -556,9 +556,9 @@ func TestMergeJoin_Process(t *testing.T) {
 		skip  bool
 		name  string
 		spec  *functions.MergeJoinProcedureSpec
-		data0 []*executetest.Block // data from parent 0
-		data1 []*executetest.Block // data from parent 1
-		want  []*executetest.Block
+		data0 []*executetest.Table // data from parent 0
+		data1 []*executetest.Table // data from parent 1
+		want  []*executetest.Table
 	}{
 		{
 			name: "simple inner",
@@ -567,7 +567,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         addFunction,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -580,7 +580,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -593,7 +593,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -614,7 +614,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         addFunction,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -627,7 +627,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -640,7 +640,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -661,7 +661,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         addFunction,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -674,7 +674,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -686,7 +686,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -706,7 +706,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         addFunction,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -719,7 +719,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -734,7 +734,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -757,7 +757,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         addFunctionT1,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -772,7 +772,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -787,7 +787,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -810,7 +810,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         addFunctionT1,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -827,7 +827,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -844,7 +844,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -869,7 +869,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         addFunctionT1T2,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -888,7 +888,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -907,7 +907,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -934,7 +934,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         passThroughFunc,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -947,7 +947,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -960,7 +960,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -982,7 +982,7 @@ func TestMergeJoin_Process(t *testing.T) {
 				Fn:         passThroughFuncT1T2,
 				TableNames: tableNames,
 			},
-			data0: []*executetest.Block{
+			data0: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -1001,7 +1001,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			data1: []*executetest.Block{
+			data1: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -1020,7 +1020,7 @@ func TestMergeJoin_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -1081,19 +1081,19 @@ func TestMergeJoin_Process(t *testing.T) {
 				}
 			}
 
-			got, err := executetest.BlocksFromCache(c)
+			got, err := executetest.TablesFromCache(c)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			executetest.NormalizeBlocks(got)
-			executetest.NormalizeBlocks(tc.want)
+			executetest.NormalizeTables(got)
+			executetest.NormalizeTables(tc.want)
 
-			sort.Sort(executetest.SortedBlocks(got))
-			sort.Sort(executetest.SortedBlocks(tc.want))
+			sort.Sort(executetest.SortedTables(got))
+			sort.Sort(executetest.SortedTables(tc.want))
 
 			if !cmp.Equal(tc.want, got) {
-				t.Errorf("unexpected blocks -want/+got\n%s", cmp.Diff(tc.want, got))
+				t.Errorf("unexpected tables -want/+got\n%s", cmp.Diff(tc.want, got))
 			}
 		})
 	}

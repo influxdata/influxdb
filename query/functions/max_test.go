@@ -27,12 +27,12 @@ func TestMaxOperation_Marshaling(t *testing.T) {
 func TestMax_Process(t *testing.T) {
 	testCases := []struct {
 		name string
-		data *executetest.Block
+		data *executetest.Table
 		want []execute.Row
 	}{
 		{
 			name: "first",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -59,7 +59,7 @@ func TestMax_Process(t *testing.T) {
 		},
 		{
 			name: "last",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -86,7 +86,7 @@ func TestMax_Process(t *testing.T) {
 		},
 		{
 			name: "middle",
-			data: &executetest.Block{
+			data: &executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -126,5 +126,5 @@ func TestMax_Process(t *testing.T) {
 }
 
 func BenchmarkMax(b *testing.B) {
-	executetest.RowSelectorFuncBenchmarkHelper(b, new(functions.MaxSelector), NormalBlock)
+	executetest.RowSelectorFuncBenchmarkHelper(b, new(functions.MaxSelector), NormalTable)
 }

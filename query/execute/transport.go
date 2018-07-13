@@ -54,20 +54,20 @@ func (t *consecutiveTransport) Finished() <-chan struct{} {
 	return t.finished
 }
 
-func (t *consecutiveTransport) RetractBlock(id DatasetID, key query.GroupKey) error {
+func (t *consecutiveTransport) RetractTable(id DatasetID, key query.GroupKey) error {
 	select {
 	case <-t.finished:
 		return t.err()
 	default:
 	}
-	t.pushMsg(&retractBlockMsg{
+	t.pushMsg(&retractTableMsg{
 		srcMessage: srcMessage(id),
 		key:        key,
 	})
 	return nil
 }
 
-func (t *consecutiveTransport) Process(id DatasetID, b query.Block) error {
+func (t *consecutiveTransport) Process(id DatasetID, tbl query.Table) error {
 	select {
 	case <-t.finished:
 		return t.err()
@@ -75,7 +75,7 @@ func (t *consecutiveTransport) Process(id DatasetID, b query.Block) error {
 	}
 	t.pushMsg(&processMsg{
 		srcMessage: srcMessage(id),
-		block:      b,
+		table:      tbl,
 	})
 	return nil
 }
@@ -192,10 +192,10 @@ PROCESS:
 // The return value is true if the message was a FinishMsg.
 func processMessage(t Transformation, m Message) (finished bool, err error) {
 	switch m := m.(type) {
-	case RetractBlockMsg:
-		err = t.RetractBlock(m.SrcDatasetID(), m.Key())
+	case RetractTableMsg:
+		err = t.RetractTable(m.SrcDatasetID(), m.Key())
 	case ProcessMsg:
-		b := m.Block()
+		b := m.Table()
 		err = t.Process(m.SrcDatasetID(), b)
 		b.RefCount(-1)
 	case UpdateWatermarkMsg:
@@ -217,7 +217,7 @@ type Message interface {
 type MessageType int
 
 const (
-	RetractBlockType MessageType = iota
+	RetractTableType MessageType = iota
 	ProcessType
 	UpdateWatermarkType
 	UpdateProcessingTimeType
@@ -230,38 +230,38 @@ func (m srcMessage) SrcDatasetID() DatasetID {
 	return DatasetID(m)
 }
 
-type RetractBlockMsg interface {
+type RetractTableMsg interface {
 	Message
 	Key() query.GroupKey
 }
 
-type retractBlockMsg struct {
+type retractTableMsg struct {
 	srcMessage
 	key query.GroupKey
 }
 
-func (m *retractBlockMsg) Type() MessageType {
-	return RetractBlockType
+func (m *retractTableMsg) Type() MessageType {
+	return RetractTableType
 }
-func (m *retractBlockMsg) Key() query.GroupKey {
+func (m *retractTableMsg) Key() query.GroupKey {
 	return m.key
 }
 
 type ProcessMsg interface {
 	Message
-	Block() query.Block
+	Table() query.Table
 }
 
 type processMsg struct {
 	srcMessage
-	block query.Block
+	table query.Table
 }
 
 func (m *processMsg) Type() MessageType {
 	return ProcessType
 }
-func (m *processMsg) Block() query.Block {
-	return m.block
+func (m *processMsg) Table() query.Table {
+	return m.table
 }
 
 type UpdateWatermarkMsg interface {

@@ -92,7 +92,7 @@ func createIntegralTransformation(id execute.DatasetID, mode execute.Accumulatio
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewIntegralTransformation(d, cache, s)
 	return t, d, nil
@@ -100,12 +100,12 @@ func createIntegralTransformation(id execute.DatasetID, mode execute.Accumulatio
 
 type integralTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	spec IntegralProcedureSpec
 }
 
-func NewIntegralTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *IntegralProcedureSpec) *integralTransformation {
+func NewIntegralTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *IntegralProcedureSpec) *integralTransformation {
 	return &integralTransformation{
 		d:     d,
 		cache: cache,
@@ -113,22 +113,22 @@ func NewIntegralTransformation(d execute.Dataset, cache execute.BlockBuilderCach
 	}
 }
 
-func (t *integralTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *integralTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *integralTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *integralTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("integral found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("integral found duplicate table with key: %v", tbl.Key())
 	}
 
-	execute.AddBlockKeyCols(b.Key(), builder)
+	execute.AddTableKeyCols(tbl.Key(), builder)
 	builder.AddCol(query.ColMeta{
 		Label: t.spec.TimeDst,
 		Type:  query.TTime,
 	})
-	cols := b.Cols()
+	cols := tbl.Cols()
 	integrals := make([]*integral, len(cols))
 	colMap := make([]int, len(cols))
 	for j, c := range cols {
@@ -141,7 +141,7 @@ func (t *integralTransformation) Process(id execute.DatasetID, b query.Block) er
 		}
 	}
 
-	if err := execute.AppendAggregateTime(t.spec.TimeSrc, t.spec.TimeDst, b.Key(), builder); err != nil {
+	if err := execute.AppendAggregateTime(t.spec.TimeSrc, t.spec.TimeDst, tbl.Key(), builder); err != nil {
 		return err
 	}
 
@@ -149,7 +149,7 @@ func (t *integralTransformation) Process(id execute.DatasetID, b query.Block) er
 	if timeIdx < 0 {
 		return fmt.Errorf("no column %q exists", t.spec.TimeSrc)
 	}
-	err := b.Do(func(cr query.ColReader) error {
+	err := tbl.Do(func(cr query.ColReader) error {
 		for j, in := range integrals {
 			if in == nil {
 				continue
@@ -166,7 +166,7 @@ func (t *integralTransformation) Process(id execute.DatasetID, b query.Block) er
 		return err
 	}
 
-	execute.AppendKeyValues(b.Key(), builder)
+	execute.AppendKeyValues(tbl.Key(), builder)
 	for j, in := range integrals {
 		if in == nil {
 			continue

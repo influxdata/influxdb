@@ -45,7 +45,7 @@ type connection struct {
 	client StorageClient
 }
 
-func (sr *reader) Read(ctx context.Context, trace map[string]string, readSpec storage.ReadSpec, start, stop execute.Time) (query.BlockIterator, error) {
+func (sr *reader) Read(ctx context.Context, trace map[string]string, readSpec storage.ReadSpec, start, stop execute.Time) (query.TableIterator, error) {
 	var predicate *Predicate
 	if readSpec.Predicate != nil {
 		p, err := ToStoragePredicate(readSpec.Predicate)
@@ -55,7 +55,7 @@ func (sr *reader) Read(ctx context.Context, trace map[string]string, readSpec st
 		predicate = p
 	}
 
-	bi := &bockIterator{
+	bi := &tableIterator{
 		ctx:   ctx,
 		trace: trace,
 		bounds: execute.Bounds{
@@ -75,7 +75,7 @@ func (sr *reader) Close() {
 	}
 }
 
-type bockIterator struct {
+type tableIterator struct {
 	ctx       context.Context
 	trace     map[string]string
 	bounds    execute.Bounds
@@ -84,7 +84,7 @@ type bockIterator struct {
 	predicate *Predicate
 }
 
-func (bi *bockIterator) Do(f func(query.Block) error) error {
+func (bi *tableIterator) Do(f func(query.Table) error) error {
 	// Setup read request
 	var req ReadRequest
 	req.Database = string(bi.readSpec.BucketID)
@@ -146,33 +146,33 @@ func (bi *bockIterator) Do(f func(query.Block) error) error {
 	return bi.handleRead(f, ms)
 }
 
-func (bi *bockIterator) handleRead(f func(query.Block) error, ms *mergedStreams) error {
+func (bi *tableIterator) handleRead(f func(query.Table) error, ms *mergedStreams) error {
 	for ms.more() {
 		if p := ms.peek(); readFrameType(p) != seriesType {
-			//This means the consumer didn't read all the data off the block
+			//This means the consumer didn't read all the data off the table
 			return errors.New("internal error: short read")
 		}
 		frame := ms.next()
 		s := frame.GetSeries()
 		typ := convertDataType(s.DataType)
 		key := groupKeyForSeries(s, &bi.readSpec, bi.bounds)
-		cols, defs := determineBlockColsForSeries(s, typ)
-		block := newBlock(bi.bounds, key, cols, ms, &bi.readSpec, s.Tags, defs)
+		cols, defs := determineTableColsForSeries(s, typ)
+		table := newTable(bi.bounds, key, cols, ms, &bi.readSpec, s.Tags, defs)
 
-		if err := f(block); err != nil {
+		if err := f(table); err != nil {
 			// TODO(nathanielc): Close streams since we have abandoned the request
 			return err
 		}
-		// Wait until the block has been read.
-		block.wait()
+		// Wait until the table has been read.
+		table.wait()
 	}
 	return nil
 }
 
-func (bi *bockIterator) handleGroupRead(f func(query.Block) error, ms *mergedStreams) error {
+func (bi *tableIterator) handleGroupRead(f func(query.Table) error, ms *mergedStreams) error {
 	for ms.more() {
 		if p := ms.peek(); readFrameType(p) != groupType {
-			//This means the consumer didn't read all the data off the block
+			//This means the consumer didn't read all the data off the table
 			return errors.New("internal error: short read")
 		}
 		frame := ms.next()
@@ -185,16 +185,16 @@ func (bi *bockIterator) handleGroupRead(f func(query.Block) error, ms *mergedStr
 		if p := ms.peek(); readFrameType(p) == seriesType {
 			typ = convertDataType(p.GetSeries().DataType)
 		}
-		cols, defs := determineBlockColsForGroup(s, typ)
+		cols, defs := determineTableColsForGroup(s, typ)
 
-		block := newBlock(bi.bounds, key, cols, ms, &bi.readSpec, nil, defs)
+		table := newTable(bi.bounds, key, cols, ms, &bi.readSpec, nil, defs)
 
-		if err := f(block); err != nil {
+		if err := f(table); err != nil {
 			// TODO(nathanielc): Close streams since we have abandoned the request
 			return err
 		}
-		// Wait until the block has been read.
-		block.wait()
+		// Wait until the table has been read.
+		table.wait()
 	}
 	return nil
 }
@@ -250,7 +250,7 @@ const (
 	valueColIdx = 3
 )
 
-func determineBlockColsForSeries(s *ReadResponse_SeriesFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
+func determineTableColsForSeries(s *ReadResponse_SeriesFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
 	cols := make([]query.ColMeta, 4+len(s.Tags))
 	defs := make([][]byte, 4+len(s.Tags))
 	cols[startColIdx] = query.ColMeta{
@@ -327,7 +327,7 @@ func groupKeyForSeries(s *ReadResponse_SeriesFrame, readSpec *storage.ReadSpec, 
 	return execute.NewGroupKey(cols, vs)
 }
 
-func determineBlockColsForGroup(f *ReadResponse_GroupFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
+func determineTableColsForGroup(f *ReadResponse_GroupFrame, typ query.DataType) ([]query.ColMeta, [][]byte) {
 	cols := make([]query.ColMeta, 4+len(f.TagKeys))
 	defs := make([][]byte, 4+len(f.TagKeys))
 	cols[startColIdx] = query.ColMeta{
@@ -380,9 +380,9 @@ func groupKeyForGroup(g *ReadResponse_GroupFrame, readSpec *storage.ReadSpec, bn
 	return execute.NewGroupKey(cols, vs)
 }
 
-// block implement OneTimeBlock as it can only be read once.
+// table implement OneTimeTable as it can only be read once.
 // Since it can only be read once it is also a ValueIterator for itself.
-type block struct {
+type table struct {
 	bounds execute.Bounds
 	key    query.GroupKey
 	cols   []query.ColMeta
@@ -419,7 +419,7 @@ type block struct {
 	err error
 }
 
-func newBlock(
+func newTable(
 	bounds execute.Bounds,
 	key query.GroupKey,
 	cols []query.ColMeta,
@@ -427,8 +427,8 @@ func newBlock(
 	readSpec *storage.ReadSpec,
 	tags []Tag,
 	defs [][]byte,
-) *block {
-	b := &block{
+) *table {
+	b := &table{
 		bounds:   bounds,
 		key:      key,
 		tags:     make([][]byte, len(cols)),
@@ -446,283 +446,283 @@ func newBlock(
 	return b
 }
 
-func (b *block) RefCount(n int) {
-	//TODO(nathanielc): Have the storageBlock consume the Allocator,
+func (t *table) RefCount(n int) {
+	//TODO(nathanielc): Have the table consume the Allocator,
 	// once we have zero-copy serialization over the network
 }
 
-func (b *block) Err() error { return b.err }
+func (t *table) Err() error { return t.err }
 
-func (b *block) wait() {
-	<-b.done
+func (t *table) wait() {
+	<-t.done
 }
 
-func (b *block) Key() query.GroupKey {
-	return b.key
+func (t *table) Key() query.GroupKey {
+	return t.key
 }
-func (b *block) Cols() []query.ColMeta {
-	return b.cols
+func (t *table) Cols() []query.ColMeta {
+	return t.cols
 }
 
-// onetime satisfies the OneTimeBlock interface since this block may only be read once.
-func (b *block) onetime() {}
-func (b *block) Do(f func(query.ColReader) error) error {
-	defer close(b.done)
+// onetime satisfies the OneTimeTable interface since this table may only be read once.
+func (t *table) onetime() {}
+func (t *table) Do(f func(query.ColReader) error) error {
+	defer close(t.done)
 	// If the initial advance call indicated we are done, return immediately
-	if !b.more {
-		return b.err
+	if !t.more {
+		return t.err
 	}
 
-	f(b)
-	for b.advance() {
-		if err := f(b); err != nil {
+	f(t)
+	for t.advance() {
+		if err := f(t); err != nil {
 			return err
 		}
 	}
-	return b.err
+	return t.err
 }
 
-func (b *block) Len() int {
-	return b.l
+func (t *table) Len() int {
+	return t.l
 }
 
-func (b *block) Bools(j int) []bool {
-	execute.CheckColType(b.cols[j], query.TBool)
-	return b.colBufs[j].([]bool)
+func (t *table) Bools(j int) []bool {
+	execute.CheckColType(t.cols[j], query.TBool)
+	return t.colBufs[j].([]bool)
 }
-func (b *block) Ints(j int) []int64 {
-	execute.CheckColType(b.cols[j], query.TInt)
-	return b.colBufs[j].([]int64)
+func (t *table) Ints(j int) []int64 {
+	execute.CheckColType(t.cols[j], query.TInt)
+	return t.colBufs[j].([]int64)
 }
-func (b *block) UInts(j int) []uint64 {
-	execute.CheckColType(b.cols[j], query.TUInt)
-	return b.colBufs[j].([]uint64)
+func (t *table) UInts(j int) []uint64 {
+	execute.CheckColType(t.cols[j], query.TUInt)
+	return t.colBufs[j].([]uint64)
 }
-func (b *block) Floats(j int) []float64 {
-	execute.CheckColType(b.cols[j], query.TFloat)
-	return b.colBufs[j].([]float64)
+func (t *table) Floats(j int) []float64 {
+	execute.CheckColType(t.cols[j], query.TFloat)
+	return t.colBufs[j].([]float64)
 }
-func (b *block) Strings(j int) []string {
-	execute.CheckColType(b.cols[j], query.TString)
-	return b.colBufs[j].([]string)
+func (t *table) Strings(j int) []string {
+	execute.CheckColType(t.cols[j], query.TString)
+	return t.colBufs[j].([]string)
 }
-func (b *block) Times(j int) []execute.Time {
-	execute.CheckColType(b.cols[j], query.TTime)
-	return b.colBufs[j].([]execute.Time)
+func (t *table) Times(j int) []execute.Time {
+	execute.CheckColType(t.cols[j], query.TTime)
+	return t.colBufs[j].([]execute.Time)
 }
 
 // readTags populates b.tags with the provided tags
-func (b *block) readTags(tags []Tag) {
-	for j := range b.tags {
-		b.tags[j] = b.defs[j]
+func (t *table) readTags(tags []Tag) {
+	for j := range t.tags {
+		t.tags[j] = t.defs[j]
 	}
 
 	if len(tags) == 0 {
 		return
 	}
 
-	for _, t := range tags {
-		k := string(t.Key)
-		j := execute.ColIdx(k, b.cols)
-		b.tags[j] = t.Value
+	for _, tag := range tags {
+		k := string(tag.Key)
+		j := execute.ColIdx(k, t.cols)
+		t.tags[j] = tag.Value
 	}
 }
 
-func (b *block) advance() bool {
-	for b.ms.more() {
+func (t *table) advance() bool {
+	for t.ms.more() {
 		//reset buffers
-		b.timeBuf = b.timeBuf[0:0]
-		b.boolBuf = b.boolBuf[0:0]
-		b.intBuf = b.intBuf[0:0]
-		b.uintBuf = b.uintBuf[0:0]
-		b.stringBuf = b.stringBuf[0:0]
-		b.floatBuf = b.floatBuf[0:0]
+		t.timeBuf = t.timeBuf[0:0]
+		t.boolBuf = t.boolBuf[0:0]
+		t.intBuf = t.intBuf[0:0]
+		t.uintBuf = t.uintBuf[0:0]
+		t.stringBuf = t.stringBuf[0:0]
+		t.floatBuf = t.floatBuf[0:0]
 
-		switch p := b.ms.peek(); readFrameType(p) {
+		switch p := t.ms.peek(); readFrameType(p) {
 		case groupType:
 			return false
 		case seriesType:
-			if !b.ms.key().Equal(b.key) {
-				// We have reached the end of data for this block
+			if !t.ms.key().Equal(t.key) {
+				// We have reached the end of data for this table
 				return false
 			}
 			s := p.GetSeries()
-			b.readTags(s.Tags)
+			t.readTags(s.Tags)
 
 			// Advance to next frame
-			b.ms.next()
+			t.ms.next()
 
-			if b.readSpec.PointsLimit == -1 {
+			if t.readSpec.PointsLimit == -1 {
 				// do not expect points frames
-				b.l = 0
+				t.l = 0
 				return true
 			}
 		case boolPointsType:
-			if b.cols[valueColIdx].Type != query.TBool {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TBool)
+			if t.cols[valueColIdx].Type != query.TBool {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TBool)
 				// TODO: Add error handling
 				// Type changed,
 				return false
 			}
-			b.empty = false
+			t.empty = false
 			// read next frame
-			frame := b.ms.next()
+			frame := t.ms.next()
 			p := frame.GetBooleanPoints()
 			l := len(p.Timestamps)
-			b.l = l
-			if l > cap(b.timeBuf) {
-				b.timeBuf = make([]execute.Time, l)
+			t.l = l
+			if l > cap(t.timeBuf) {
+				t.timeBuf = make([]execute.Time, l)
 			} else {
-				b.timeBuf = b.timeBuf[:l]
+				t.timeBuf = t.timeBuf[:l]
 			}
-			if l > cap(b.boolBuf) {
-				b.boolBuf = make([]bool, l)
+			if l > cap(t.boolBuf) {
+				t.boolBuf = make([]bool, l)
 			} else {
-				b.boolBuf = b.boolBuf[:l]
+				t.boolBuf = t.boolBuf[:l]
 			}
 
 			for i, c := range p.Timestamps {
-				b.timeBuf[i] = execute.Time(c)
-				b.boolBuf[i] = p.Values[i]
+				t.timeBuf[i] = execute.Time(c)
+				t.boolBuf[i] = p.Values[i]
 			}
-			b.colBufs[timeColIdx] = b.timeBuf
-			b.colBufs[valueColIdx] = b.boolBuf
-			b.appendTags()
-			b.appendBounds()
+			t.colBufs[timeColIdx] = t.timeBuf
+			t.colBufs[valueColIdx] = t.boolBuf
+			t.appendTags()
+			t.appendBounds()
 			return true
 		case intPointsType:
-			if b.cols[valueColIdx].Type != query.TInt {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TInt)
+			if t.cols[valueColIdx].Type != query.TInt {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TInt)
 				// TODO: Add error handling
 				// Type changed,
 				return false
 			}
-			b.empty = false
+			t.empty = false
 			// read next frame
-			frame := b.ms.next()
+			frame := t.ms.next()
 			p := frame.GetIntegerPoints()
 			l := len(p.Timestamps)
-			b.l = l
-			if l > cap(b.timeBuf) {
-				b.timeBuf = make([]execute.Time, l)
+			t.l = l
+			if l > cap(t.timeBuf) {
+				t.timeBuf = make([]execute.Time, l)
 			} else {
-				b.timeBuf = b.timeBuf[:l]
+				t.timeBuf = t.timeBuf[:l]
 			}
-			if l > cap(b.uintBuf) {
-				b.intBuf = make([]int64, l)
+			if l > cap(t.uintBuf) {
+				t.intBuf = make([]int64, l)
 			} else {
-				b.intBuf = b.intBuf[:l]
+				t.intBuf = t.intBuf[:l]
 			}
 
 			for i, c := range p.Timestamps {
-				b.timeBuf[i] = execute.Time(c)
-				b.intBuf[i] = p.Values[i]
+				t.timeBuf[i] = execute.Time(c)
+				t.intBuf[i] = p.Values[i]
 			}
-			b.colBufs[timeColIdx] = b.timeBuf
-			b.colBufs[valueColIdx] = b.intBuf
-			b.appendTags()
-			b.appendBounds()
+			t.colBufs[timeColIdx] = t.timeBuf
+			t.colBufs[valueColIdx] = t.intBuf
+			t.appendTags()
+			t.appendBounds()
 			return true
 		case uintPointsType:
-			if b.cols[valueColIdx].Type != query.TUInt {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TUInt)
+			if t.cols[valueColIdx].Type != query.TUInt {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TUInt)
 				// TODO: Add error handling
 				// Type changed,
 				return false
 			}
-			b.empty = false
+			t.empty = false
 			// read next frame
-			frame := b.ms.next()
+			frame := t.ms.next()
 			p := frame.GetUnsignedPoints()
 			l := len(p.Timestamps)
-			b.l = l
-			if l > cap(b.timeBuf) {
-				b.timeBuf = make([]execute.Time, l)
+			t.l = l
+			if l > cap(t.timeBuf) {
+				t.timeBuf = make([]execute.Time, l)
 			} else {
-				b.timeBuf = b.timeBuf[:l]
+				t.timeBuf = t.timeBuf[:l]
 			}
-			if l > cap(b.intBuf) {
-				b.uintBuf = make([]uint64, l)
+			if l > cap(t.intBuf) {
+				t.uintBuf = make([]uint64, l)
 			} else {
-				b.uintBuf = b.uintBuf[:l]
+				t.uintBuf = t.uintBuf[:l]
 			}
 
 			for i, c := range p.Timestamps {
-				b.timeBuf[i] = execute.Time(c)
-				b.uintBuf[i] = p.Values[i]
+				t.timeBuf[i] = execute.Time(c)
+				t.uintBuf[i] = p.Values[i]
 			}
-			b.colBufs[timeColIdx] = b.timeBuf
-			b.colBufs[valueColIdx] = b.uintBuf
-			b.appendTags()
-			b.appendBounds()
+			t.colBufs[timeColIdx] = t.timeBuf
+			t.colBufs[valueColIdx] = t.uintBuf
+			t.appendTags()
+			t.appendBounds()
 			return true
 		case floatPointsType:
-			if b.cols[valueColIdx].Type != query.TFloat {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TFloat)
+			if t.cols[valueColIdx].Type != query.TFloat {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TFloat)
 				// TODO: Add error handling
 				// Type changed,
 				return false
 			}
-			b.empty = false
+			t.empty = false
 			// read next frame
-			frame := b.ms.next()
+			frame := t.ms.next()
 			p := frame.GetFloatPoints()
 
 			l := len(p.Timestamps)
-			b.l = l
-			if l > cap(b.timeBuf) {
-				b.timeBuf = make([]execute.Time, l)
+			t.l = l
+			if l > cap(t.timeBuf) {
+				t.timeBuf = make([]execute.Time, l)
 			} else {
-				b.timeBuf = b.timeBuf[:l]
+				t.timeBuf = t.timeBuf[:l]
 			}
-			if l > cap(b.floatBuf) {
-				b.floatBuf = make([]float64, l)
+			if l > cap(t.floatBuf) {
+				t.floatBuf = make([]float64, l)
 			} else {
-				b.floatBuf = b.floatBuf[:l]
+				t.floatBuf = t.floatBuf[:l]
 			}
 
 			for i, c := range p.Timestamps {
-				b.timeBuf[i] = execute.Time(c)
-				b.floatBuf[i] = p.Values[i]
+				t.timeBuf[i] = execute.Time(c)
+				t.floatBuf[i] = p.Values[i]
 			}
-			b.colBufs[timeColIdx] = b.timeBuf
-			b.colBufs[valueColIdx] = b.floatBuf
-			b.appendTags()
-			b.appendBounds()
+			t.colBufs[timeColIdx] = t.timeBuf
+			t.colBufs[valueColIdx] = t.floatBuf
+			t.appendTags()
+			t.appendBounds()
 			return true
 		case stringPointsType:
-			if b.cols[valueColIdx].Type != query.TString {
-				b.err = fmt.Errorf("value type changed from %s -> %s", b.cols[valueColIdx].Type, query.TString)
+			if t.cols[valueColIdx].Type != query.TString {
+				t.err = fmt.Errorf("value type changed from %s -> %s", t.cols[valueColIdx].Type, query.TString)
 				// TODO: Add error handling
 				// Type changed,
 				return false
 			}
-			b.empty = false
+			t.empty = false
 			// read next frame
-			frame := b.ms.next()
+			frame := t.ms.next()
 			p := frame.GetStringPoints()
 
 			l := len(p.Timestamps)
-			b.l = l
-			if l > cap(b.timeBuf) {
-				b.timeBuf = make([]execute.Time, l)
+			t.l = l
+			if l > cap(t.timeBuf) {
+				t.timeBuf = make([]execute.Time, l)
 			} else {
-				b.timeBuf = b.timeBuf[:l]
+				t.timeBuf = t.timeBuf[:l]
 			}
-			if l > cap(b.stringBuf) {
-				b.stringBuf = make([]string, l)
+			if l > cap(t.stringBuf) {
+				t.stringBuf = make([]string, l)
 			} else {
-				b.stringBuf = b.stringBuf[:l]
+				t.stringBuf = t.stringBuf[:l]
 			}
 
 			for i, c := range p.Timestamps {
-				b.timeBuf[i] = execute.Time(c)
-				b.stringBuf[i] = p.Values[i]
+				t.timeBuf[i] = execute.Time(c)
+				t.stringBuf[i] = p.Values[i]
 			}
-			b.colBufs[timeColIdx] = b.timeBuf
-			b.colBufs[valueColIdx] = b.stringBuf
-			b.appendTags()
-			b.appendBounds()
+			t.colBufs[timeColIdx] = t.timeBuf
+			t.colBufs[valueColIdx] = t.stringBuf
+			t.appendTags()
+			t.appendBounds()
 			return true
 		}
 	}
@@ -730,50 +730,50 @@ func (b *block) advance() bool {
 }
 
 // appendTags fills the colBufs for the tag columns with the tag value.
-func (b *block) appendTags() {
-	for j := range b.cols {
-		v := b.tags[j]
+func (t *table) appendTags() {
+	for j := range t.cols {
+		v := t.tags[j]
 		if v != nil {
-			if b.colBufs[j] == nil {
-				b.colBufs[j] = make([]string, b.l)
+			if t.colBufs[j] == nil {
+				t.colBufs[j] = make([]string, t.l)
 			}
-			colBuf := b.colBufs[j].([]string)
-			if cap(colBuf) < b.l {
-				colBuf = make([]string, b.l)
+			colBuf := t.colBufs[j].([]string)
+			if cap(colBuf) < t.l {
+				colBuf = make([]string, t.l)
 			} else {
-				colBuf = colBuf[:b.l]
+				colBuf = colBuf[:t.l]
 			}
 			vStr := string(v)
 			for i := range colBuf {
 				colBuf[i] = vStr
 			}
-			b.colBufs[j] = colBuf
+			t.colBufs[j] = colBuf
 		}
 	}
 }
 
 // appendBounds fills the colBufs for the time bounds
-func (b *block) appendBounds() {
-	bounds := []execute.Time{b.bounds.Start, b.bounds.Stop}
+func (t *table) appendBounds() {
+	bounds := []execute.Time{t.bounds.Start, t.bounds.Stop}
 	for j := range []int{startColIdx, stopColIdx} {
-		if b.colBufs[j] == nil {
-			b.colBufs[j] = make([]execute.Time, b.l)
+		if t.colBufs[j] == nil {
+			t.colBufs[j] = make([]execute.Time, t.l)
 		}
-		colBuf := b.colBufs[j].([]execute.Time)
-		if cap(colBuf) < b.l {
-			colBuf = make([]execute.Time, b.l)
+		colBuf := t.colBufs[j].([]execute.Time)
+		if cap(colBuf) < t.l {
+			colBuf = make([]execute.Time, t.l)
 		} else {
-			colBuf = colBuf[:b.l]
+			colBuf = colBuf[:t.l]
 		}
 		for i := range colBuf {
 			colBuf[i] = bounds[j]
 		}
-		b.colBufs[j] = colBuf
+		t.colBufs[j] = colBuf
 	}
 }
 
-func (b *block) Empty() bool {
-	return b.empty
+func (t *table) Empty() bool {
+	return t.empty
 }
 
 type streamState struct {

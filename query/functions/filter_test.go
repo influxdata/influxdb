@@ -530,8 +530,8 @@ func TestFilter_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.FilterProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
 			name: `_value>5`,
@@ -548,7 +548,7 @@ func TestFilter_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -558,7 +558,7 @@ func TestFilter_Process(t *testing.T) {
 					{execute.Time(2), 6.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -585,8 +585,8 @@ func TestFilter_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
 						{Label: "t1", Type: query.TString},
@@ -599,7 +599,7 @@ func TestFilter_Process(t *testing.T) {
 						{"a", execute.Time(2), 1.0},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
 						{Label: "t1", Type: query.TString},
@@ -613,7 +613,7 @@ func TestFilter_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -681,7 +681,7 @@ func TestFilter_Process(t *testing.T) {
 					},
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -694,7 +694,7 @@ func TestFilter_Process(t *testing.T) {
 					{execute.Time(3), 8.0, "a", "y"},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -714,7 +714,7 @@ func TestFilter_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					f, err := functions.NewFilterTransformation(d, c, tc.spec)
 					if err != nil {
 						t.Fatal(err)

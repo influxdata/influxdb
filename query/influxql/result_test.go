@@ -25,7 +25,7 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 			in: query.NewSliceResultIterator(
 				[]query.Result{&executetest.Result{
 					Nm: "0",
-					Blks: []*executetest.Block{{
+					Tbls: []*executetest.Table{{
 						KeyCols: []string{"_measurement", "host"},
 						ColMeta: []query.ColMeta{
 							{Label: "_time", Type: query.TTime},

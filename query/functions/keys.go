@@ -124,7 +124,7 @@ func createKeysTransformation(id execute.DatasetID, mode execute.AccumulationMod
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewKeysTransformation(d, cache, s)
 	return t, d, nil
@@ -132,12 +132,12 @@ func createKeysTransformation(id execute.DatasetID, mode execute.AccumulationMod
 
 type keysTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	except []string
 }
 
-func NewKeysTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *KeysProcedureSpec) *keysTransformation {
+func NewKeysTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *KeysProcedureSpec) *keysTransformation {
 	var except []string
 	if len(spec.Except) > 0 {
 		except = append([]string{}, spec.Except...)
@@ -151,20 +151,20 @@ func NewKeysTransformation(d execute.Dataset, cache execute.BlockBuilderCache, s
 	}
 }
 
-func (t *keysTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *keysTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *keysTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *keysTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("keys found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("keys found duplicate table with key: %v", tbl.Key())
 	}
 
-	execute.AddBlockKeyCols(b.Key(), builder)
+	execute.AddTableKeyCols(tbl.Key(), builder)
 	colIdx := builder.AddCol(query.ColMeta{Label: execute.DefaultValueColLabel, Type: query.TString})
 
-	cols := b.Cols()
+	cols := tbl.Cols()
 	sort.Slice(cols, func(i, j int) bool {
 		return cols[i].Label < cols[j].Label
 	})
@@ -175,7 +175,7 @@ func (t *keysTransformation) Process(id execute.DatasetID, b query.Block) error 
 		for i < len(cols) && j < len(t.except) {
 			c := strings.Compare(cols[i].Label, t.except[j])
 			if c < 0 {
-				execute.AppendKeyValues(b.Key(), builder)
+				execute.AppendKeyValues(tbl.Key(), builder)
 				builder.AppendString(colIdx, cols[i].Label)
 				i++
 			} else if c > 0 {
@@ -189,12 +189,12 @@ func (t *keysTransformation) Process(id execute.DatasetID, b query.Block) error 
 
 	// add remaining
 	for ; i < len(cols); i++ {
-		execute.AppendKeyValues(b.Key(), builder)
+		execute.AppendKeyValues(tbl.Key(), builder)
 		builder.AppendString(colIdx, cols[i].Label)
 	}
 
 	// TODO: this is a hack
-	return b.Do(func(query.ColReader) error {
+	return tbl.Do(func(query.ColReader) error {
 		return nil
 	})
 }

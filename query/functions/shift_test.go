@@ -32,17 +32,17 @@ func TestShift_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.ShiftProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
-			name: "one block",
+			name: "one table",
 			spec: &functions.ShiftProcedureSpec{
 				Columns: []string{execute.DefaultTimeColLabel},
 				Shift:   query.Duration(1),
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: cols,
 					Data: [][]interface{}{
@@ -51,7 +51,7 @@ func TestShift_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: cols,
@@ -63,13 +63,13 @@ func TestShift_Process(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple blocks",
+			name: "multiple tables",
 			spec: &functions.ShiftProcedureSpec{
 				Columns: []string{execute.DefaultTimeColLabel},
 				Shift:   query.Duration(2),
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: cols,
 					Data: [][]interface{}{
@@ -77,7 +77,7 @@ func TestShift_Process(t *testing.T) {
 						{"a", execute.Time(2), 1.0},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: cols,
 					Data: [][]interface{}{
@@ -86,7 +86,7 @@ func TestShift_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: cols,
@@ -113,7 +113,7 @@ func TestShift_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewShiftTransformation(d, c, tc.spec)
 				},
 			)

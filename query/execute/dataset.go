@@ -9,7 +9,7 @@ import (
 type Dataset interface {
 	Node
 
-	RetractBlock(key query.GroupKey) error
+	RetractTable(key query.GroupKey) error
 	UpdateProcessingTime(t Time) error
 	UpdateWatermark(mark Time) error
 	Finish(error)
@@ -19,13 +19,13 @@ type Dataset interface {
 
 // DataCache holds all working data for a transformation.
 type DataCache interface {
-	Block(query.GroupKey) (query.Block, error)
+	Table(query.GroupKey) (query.Table, error)
 
 	ForEach(func(query.GroupKey))
-	ForEachWithContext(func(query.GroupKey, Trigger, BlockContext))
+	ForEachWithContext(func(query.GroupKey, Trigger, TableContext))
 
-	DiscardBlock(query.GroupKey)
-	ExpireBlock(query.GroupKey)
+	DiscardTable(query.GroupKey)
+	ExpireTable(query.GroupKey)
 
 	SetTriggerSpec(t query.TriggerSpec)
 }
@@ -105,29 +105,29 @@ func (d *dataset) UpdateProcessingTime(time Time) error {
 }
 
 func (d *dataset) evalTriggers() (err error) {
-	d.cache.ForEachWithContext(func(key query.GroupKey, trigger Trigger, bc BlockContext) {
+	d.cache.ForEachWithContext(func(key query.GroupKey, trigger Trigger, bc TableContext) {
 		if err != nil {
 			// Skip the rest once we have encountered an error
 			return
 		}
 		c := TriggerContext{
-			Block:                 bc,
+			Table:                 bc,
 			Watermark:             d.watermark,
 			CurrentProcessingTime: d.processingTime,
 		}
 
 		if trigger.Triggered(c) {
-			err = d.triggerBlock(key)
+			err = d.triggerTable(key)
 		}
 		if trigger.Finished() {
-			d.expireBlock(key)
+			d.expireTable(key)
 		}
 	})
 	return err
 }
 
-func (d *dataset) triggerBlock(key query.GroupKey) error {
-	b, err := d.cache.Block(key)
+func (d *dataset) triggerTable(key query.GroupKey) error {
+	b, err := d.cache.Table(key)
 	if err != nil {
 		return err
 	}
@@ -139,10 +139,10 @@ func (d *dataset) triggerBlock(key query.GroupKey) error {
 				return err
 			}
 		}
-		d.cache.DiscardBlock(key)
+		d.cache.DiscardTable(key)
 	case AccumulatingRetractingMode:
 		for _, t := range d.ts {
-			if err := t.RetractBlock(d.id, b.Key()); err != nil {
+			if err := t.RetractTable(d.id, b.Key()); err != nil {
 				return err
 			}
 		}
@@ -157,14 +157,14 @@ func (d *dataset) triggerBlock(key query.GroupKey) error {
 	return nil
 }
 
-func (d *dataset) expireBlock(key query.GroupKey) {
-	d.cache.ExpireBlock(key)
+func (d *dataset) expireTable(key query.GroupKey) {
+	d.cache.ExpireTable(key)
 }
 
-func (d *dataset) RetractBlock(key query.GroupKey) error {
-	d.cache.DiscardBlock(key)
+func (d *dataset) RetractTable(key query.GroupKey) error {
+	d.cache.DiscardTable(key)
 	for _, t := range d.ts {
-		if err := t.RetractBlock(d.id, key); err != nil {
+		if err := t.RetractTable(d.id, key); err != nil {
 			return err
 		}
 	}
@@ -173,13 +173,13 @@ func (d *dataset) RetractBlock(key query.GroupKey) error {
 
 func (d *dataset) Finish(err error) {
 	if err == nil {
-		// Only trigger blocks we if we not finishing because of an error.
+		// Only trigger tables we if we not finishing because of an error.
 		d.cache.ForEach(func(bk query.GroupKey) {
 			if err != nil {
 				return
 			}
-			err = d.triggerBlock(bk)
-			d.cache.ExpireBlock(bk)
+			err = d.triggerTable(bk)
+			d.cache.ExpireTable(bk)
 		})
 	}
 	for _, t := range d.ts {

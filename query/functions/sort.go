@@ -100,7 +100,7 @@ func createSortTransformation(id execute.DatasetID, mode execute.AccumulationMod
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewSortTransformation(d, cache, s)
 	return t, d, nil
@@ -108,7 +108,7 @@ func createSortTransformation(id execute.DatasetID, mode execute.AccumulationMod
 
 type sortTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	cols []string
 	desc bool
@@ -116,7 +116,7 @@ type sortTransformation struct {
 	colMap []int
 }
 
-func NewSortTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *SortProcedureSpec) *sortTransformation {
+func NewSortTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *SortProcedureSpec) *sortTransformation {
 	return &sortTransformation{
 		d:     d,
 		cache: cache,
@@ -125,12 +125,12 @@ func NewSortTransformation(d execute.Dataset, cache execute.BlockBuilderCache, s
 	}
 }
 
-func (t *sortTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *sortTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *sortTransformation) Process(id execute.DatasetID, b query.Block) error {
-	key := b.Key()
+func (t *sortTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	key := tbl.Key()
 	for _, label := range t.cols {
 		if key.HasCol(label) {
 			key = t.sortedKey(key)
@@ -138,11 +138,11 @@ func (t *sortTransformation) Process(id execute.DatasetID, b query.Block) error 
 		}
 	}
 
-	builder, created := t.cache.BlockBuilder(key)
+	builder, created := t.cache.TableBuilder(key)
 	if !created {
-		return fmt.Errorf("sort found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("sort found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddBlockCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	ncols := builder.NCols()
 	if cap(t.colMap) < ncols {
@@ -154,7 +154,7 @@ func (t *sortTransformation) Process(id execute.DatasetID, b query.Block) error 
 		t.colMap = t.colMap[:ncols]
 	}
 
-	execute.AppendBlock(b, builder, t.colMap)
+	execute.AppendTable(tbl, builder, t.colMap)
 
 	builder.Sort(t.cols, t.desc)
 	return nil

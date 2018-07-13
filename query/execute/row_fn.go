@@ -225,7 +225,7 @@ func ValueForRow(i, j int, cr query.ColReader) values.Value {
 	}
 }
 
-func AppendValue(builder BlockBuilder, j int, v values.Value) {
+func AppendValue(builder TableBuilder, j int, v values.Value) {
 	switch k := v.Type().Kind(); k {
 	case semantic.Bool:
 		builder.AppendBool(j, v.Bool())

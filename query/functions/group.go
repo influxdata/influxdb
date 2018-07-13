@@ -102,11 +102,11 @@ const (
 
 	// GroupModeNone merges all series into a single group.
 	GroupModeNone GroupMode = 1 << iota
-	// GroupModeAll produces a separate block for each series.
+	// GroupModeAll produces a separate table for each series.
 	GroupModeAll
-	// GroupModeBy produces a block for each unique value of the specified GroupKeys.
+	// GroupModeBy produces a table for each unique value of the specified GroupKeys.
 	GroupModeBy
-	// GroupModeExcept produces a block for the unique values of all keys, except those specified by GroupKeys.
+	// GroupModeExcept produces a table for the unique values of all keys, except those specified by GroupKeys.
 	GroupModeExcept
 )
 
@@ -256,7 +256,7 @@ func createGroupTransformation(id execute.DatasetID, mode execute.AccumulationMo
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewGroupTransformation(d, cache, s)
 	return t, d, nil
@@ -264,13 +264,13 @@ func createGroupTransformation(id execute.DatasetID, mode execute.AccumulationMo
 
 type groupTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	mode GroupMode
 	keys []string
 }
 
-func NewGroupTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *GroupProcedureSpec) *groupTransformation {
+func NewGroupTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *GroupProcedureSpec) *groupTransformation {
 	t := &groupTransformation{
 		d:     d,
 		cache: cache,
@@ -281,22 +281,12 @@ func NewGroupTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	return t
 }
 
-func (t *groupTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) (err error) {
-	//TODO(nathanielc): Investigate if this can be smarter and not retract all blocks with the same time bounds.
+func (t *groupTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) (err error) {
 	panic("not implemented")
-	//t.cache.ForEachBuilder(func(bk execute.BlockKey, builder execute.BlockBuilder) {
-	//	if err != nil {
-	//		return
-	//	}
-	//	if meta.Bounds().Equal(builder.Bounds()) {
-	//		err = t.d.RetractBlock(bk)
-	//	}
-	//})
-	//return
 }
 
-func (t *groupTransformation) Process(id execute.DatasetID, b query.Block) error {
-	cols := b.Cols()
+func (t *groupTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	cols := tbl.Cols()
 	on := make(map[string]bool, len(cols))
 	if t.mode == GroupModeBy && len(t.keys) > 0 {
 		for _, k := range t.keys {
@@ -313,13 +303,13 @@ func (t *groupTransformation) Process(id execute.DatasetID, b query.Block) error
 			on[c.Label] = true
 		}
 	}
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			key := execute.GroupKeyForRowOn(i, cr, on)
-			builder, created := t.cache.BlockBuilder(key)
+			builder, created := t.cache.TableBuilder(key)
 			if created {
-				execute.AddBlockCols(b, builder)
+				execute.AddTableCols(tbl, builder)
 			}
 			execute.AppendRecord(i, cr, builder)
 		}

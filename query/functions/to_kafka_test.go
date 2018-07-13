@@ -83,18 +83,18 @@ func TestToKafka_Process(t *testing.T) {
 	}
 
 	type wanted struct {
-		Block  []*executetest.Block
+		Table  []*executetest.Table
 		Result [][]kafka.Message
 	}
 
 	testCases := []struct {
 		name string
 		spec *functions.ToKafkaProcedureSpec
-		data []query.Block
+		data []query.Table
 		want wanted
 	}{
 		{
-			name: "colblock with name in _measurement",
+			name: "coltable with name in _measurement",
 			spec: &functions.ToKafkaProcedureSpec{
 				Spec: &functions.ToKafkaOpSpec{
 					Brokers:      []string{"brokerurl:8989"},
@@ -104,7 +104,7 @@ func TestToKafka_Process(t *testing.T) {
 					NameColumn:   "_measurement",
 				},
 			},
-			data: []query.Block{execute.CopyBlock(&executetest.Block{
+			data: []query.Table{execute.CopyTable(&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_measurement", Type: query.TString},
@@ -120,7 +120,7 @@ func TestToKafka_Process(t *testing.T) {
 				},
 			}, executetest.UnlimitedAllocator)},
 			want: wanted{
-				Block: []*executetest.Block(nil),
+				Table: []*executetest.Table(nil),
 				Result: [][]kafka.Message{{
 					{Value: []byte("a _value=2 11"), Key: []byte{0xf1, 0xb0, 0x29, 0xd7, 0x9d, 0x04, 0x31, 0x7c}},
 					{Value: []byte("a _value=2 21"), Key: []byte{0xb5, 0xc2, 0xe4, 0x78, 0x95, 0xe0, 0x62, 0x66}},
@@ -131,7 +131,7 @@ func TestToKafka_Process(t *testing.T) {
 			},
 		},
 		{
-			name: "one block with measurement name in _measurement",
+			name: "one table with measurement name in _measurement",
 			spec: &functions.ToKafkaProcedureSpec{
 				Spec: &functions.ToKafkaOpSpec{
 					Brokers:      []string{"brokerurl:8989"},
@@ -141,7 +141,7 @@ func TestToKafka_Process(t *testing.T) {
 					NameColumn:   "_measurement",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_measurement", Type: query.TString},
@@ -157,7 +157,7 @@ func TestToKafka_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block: []*executetest.Block(nil),
+				Table: []*executetest.Table(nil),
 				Result: [][]kafka.Message{{
 					{Value: []byte("a _value=2 11"), Key: []byte{0xf1, 0xb0, 0x29, 0xd7, 0x9d, 0x04, 0x31, 0x7c}},
 					{Value: []byte("a _value=2 21"), Key: []byte{0xb5, 0xc2, 0xe4, 0x78, 0x95, 0xe0, 0x62, 0x66}},
@@ -168,7 +168,7 @@ func TestToKafka_Process(t *testing.T) {
 			},
 		},
 		{
-			name: "one block with measurement name in _measurement and tag",
+			name: "one table with measurement name in _measurement and tag",
 			spec: &functions.ToKafkaProcedureSpec{
 				Spec: &functions.ToKafkaOpSpec{
 					Brokers:      []string{"brokerurl:8989"},
@@ -179,7 +179,7 @@ func TestToKafka_Process(t *testing.T) {
 					NameColumn:   "_measurement",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_measurement", Type: query.TString},
@@ -195,7 +195,7 @@ func TestToKafka_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block: []*executetest.Block(nil),
+				Table: []*executetest.Table(nil),
 				Result: [][]kafka.Message{{
 					{Value: []byte("a,fred=one _value=2 11"), Key: []byte{0xe9, 0xde, 0xc5, 0x1e, 0xfb, 0x26, 0x77, 0xfe}},
 					{Value: []byte("a,fred=one _value=2 21"), Key: []byte{0x52, 0x6d, 0x0a, 0xe8, 0x1d, 0xb3, 0xe5, 0xeb}},
@@ -206,7 +206,7 @@ func TestToKafka_Process(t *testing.T) {
 			},
 		},
 		{
-			name: "one block",
+			name: "one table",
 			spec: &functions.ToKafkaProcedureSpec{
 				Spec: &functions.ToKafkaOpSpec{
 					Brokers:      []string{"brokerurl:8989"},
@@ -216,7 +216,7 @@ func TestToKafka_Process(t *testing.T) {
 					Name:         "one_block",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -229,7 +229,7 @@ func TestToKafka_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block: []*executetest.Block(nil),
+				Table: []*executetest.Table(nil),
 				Result: [][]kafka.Message{{
 					{Value: []byte("one_block _value=2 11"), Key: []byte{0x92, 0x7e, 0x77, 0xb1, 0x2c, 0x35, 0x13, 0x12}},
 					{Value: []byte("one_block _value=1 21"), Key: []byte{0x39, 0x39, 0xb2, 0x11, 0xd1, 0x1b, 0x44, 0x57}},
@@ -239,7 +239,7 @@ func TestToKafka_Process(t *testing.T) {
 			},
 		},
 		{
-			name: "one block with unused tag",
+			name: "one table with unused tag",
 			spec: &functions.ToKafkaProcedureSpec{
 				Spec: &functions.ToKafkaOpSpec{
 					Brokers:      []string{"brokerurl:8989"},
@@ -249,7 +249,7 @@ func TestToKafka_Process(t *testing.T) {
 					Name:         "one_block_w_unused_tag",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -263,7 +263,7 @@ func TestToKafka_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block: []*executetest.Block(nil),
+				Table: []*executetest.Table(nil),
 				Result: [][]kafka.Message{{
 					{Value: []byte("one_block_w_unused_tag _value=2 11"), Key: []byte{0x62, 0xda, 0xe8, 0xc3, 0x2b, 0x88, 0x74, 0x54}},
 					{Value: []byte("one_block_w_unused_tag _value=1 21"), Key: []byte{0xff, 0x23, 0xa3, 0x84, 0xe4, 0xcb, 0x77, 0x79}},
@@ -273,7 +273,7 @@ func TestToKafka_Process(t *testing.T) {
 			},
 		},
 		{
-			name: "one block with tag",
+			name: "one table with tag",
 			spec: &functions.ToKafkaProcedureSpec{
 				Spec: &functions.ToKafkaOpSpec{
 					Brokers:      []string{"brokerurl:8989"},
@@ -284,7 +284,7 @@ func TestToKafka_Process(t *testing.T) {
 					Name:         "one_block_w_tag",
 				},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -298,7 +298,7 @@ func TestToKafka_Process(t *testing.T) {
 				},
 			}},
 			want: wanted{
-				Block: []*executetest.Block(nil),
+				Table: []*executetest.Table(nil),
 				Result: [][]kafka.Message{{
 					{Value: []byte("one_block_w_tag,fred=one _value=2 11"), Key: []byte{0xca, 0xc3, 0xec, 0x04, 0x42, 0xec, 0x85, 0x84}},
 					{Value: []byte("one_block_w_tag,fred=seven _value=1 21"), Key: []byte{0x6c, 0x2b, 0xb7, 0xf8, 0x98, 0xce, 0x12, 0x64}},
@@ -308,7 +308,7 @@ func TestToKafka_Process(t *testing.T) {
 			},
 		},
 		{
-			name: "multi block",
+			name: "multi table",
 			spec: &functions.ToKafkaProcedureSpec{
 				Spec: &functions.ToKafkaOpSpec{
 					Brokers:      []string{"brokerurl:8989"},
@@ -319,8 +319,8 @@ func TestToKafka_Process(t *testing.T) {
 					Name:         "multi_block",
 				},
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
 						{Label: "_value", Type: query.TFloat},
@@ -332,7 +332,7 @@ func TestToKafka_Process(t *testing.T) {
 						{execute.Time(31), 3.0, "nine"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
 						{Label: "_value", Type: query.TFloat},
@@ -346,7 +346,7 @@ func TestToKafka_Process(t *testing.T) {
 				},
 			},
 			want: wanted{
-				Block: []*executetest.Block(nil),
+				Table: []*executetest.Table(nil),
 				Result: [][]kafka.Message{{
 					{Value: []byte("multi_block,fred=one _value=2 11"), Key: []byte{0x41, 0x9d, 0x7f, 0x17, 0xc8, 0x21, 0xfb, 0x69}},
 					{Value: []byte("multi_block,fred=seven _value=1 21"), Key: []byte{0x8f, 0x83, 0x72, 0x66, 0x7b, 0x78, 0x77, 0x18}},
@@ -359,7 +359,7 @@ func TestToKafka_Process(t *testing.T) {
 			},
 		},
 		{
-			name: "multi collist blocks",
+			name: "multi collist tables",
 			spec: &functions.ToKafkaProcedureSpec{
 				Spec: &functions.ToKafkaOpSpec{
 					Brokers:      []string{"brokerurl:8989"},
@@ -370,9 +370,9 @@ func TestToKafka_Process(t *testing.T) {
 					Name:         "multi_collist_blocks",
 				},
 			},
-			data: []query.Block{
-				execute.CopyBlock(
-					&executetest.Block{
+			data: []query.Table{
+				execute.CopyTable(
+					&executetest.Table{
 						ColMeta: []query.ColMeta{
 							{Label: "_time", Type: query.TTime},
 							{Label: "_value", Type: query.TFloat},
@@ -384,7 +384,7 @@ func TestToKafka_Process(t *testing.T) {
 							{execute.Time(31), 3.0, "nine"},
 						},
 					}, executetest.UnlimitedAllocator),
-				&executetest.Block{
+				&executetest.Table{
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
 						{Label: "_value", Type: query.TFloat},
@@ -398,7 +398,7 @@ func TestToKafka_Process(t *testing.T) {
 				},
 			},
 			want: wanted{
-				Block: []*executetest.Block(nil),
+				Table: []*executetest.Table(nil),
 				Result: [][]kafka.Message{{
 					{Value: []byte("multi_collist_blocks,fred=one _value=2 11"), Key: []byte{0xfc, 0xab, 0xa3, 0x68, 0x81, 0x48, 0x7d, 0x8a}},
 					{Value: []byte("multi_collist_blocks,fred=seven _value=1 21"), Key: []byte{0x9f, 0xe1, 0x82, 0x97, 0x49, 0x92, 0x56, 0x1a}},
@@ -418,8 +418,8 @@ func TestToKafka_Process(t *testing.T) {
 			executetest.ProcessTestHelper(
 				t,
 				tc.data,
-				tc.want.Block,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				tc.want.Table,
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewToKafkaTransformation(d, c, tc.spec)
 				},
 			)

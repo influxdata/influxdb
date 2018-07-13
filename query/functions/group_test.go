@@ -27,8 +27,8 @@ func TestGroup_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.GroupProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
 			name: "fan in",
@@ -36,8 +36,8 @@ func TestGroup_Process(t *testing.T) {
 				GroupMode: functions.GroupModeBy,
 				GroupKeys: []string{"t1"},
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"t1", "t2"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -49,7 +49,7 @@ func TestGroup_Process(t *testing.T) {
 						{execute.Time(1), 2.0, "a", "x"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1", "t2"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -61,7 +61,7 @@ func TestGroup_Process(t *testing.T) {
 						{execute.Time(2), 1.0, "a", "y"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1", "t2"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -73,7 +73,7 @@ func TestGroup_Process(t *testing.T) {
 						{execute.Time(1), 4.0, "b", "x"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1", "t2"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -86,7 +86,7 @@ func TestGroup_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -121,8 +121,8 @@ func TestGroup_Process(t *testing.T) {
 				GroupMode: functions.GroupModeExcept,
 				GroupKeys: []string{"_time", "_value", "t2"},
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"t1", "t2", "t3"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -135,7 +135,7 @@ func TestGroup_Process(t *testing.T) {
 						{execute.Time(1), 2.0, "a", "m", "x"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1", "t2", "t3"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -148,7 +148,7 @@ func TestGroup_Process(t *testing.T) {
 						{execute.Time(2), 1.0, "a", "n", "x"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1", "t2", "t3"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -161,7 +161,7 @@ func TestGroup_Process(t *testing.T) {
 						{execute.Time(1), 4.0, "b", "m", "x"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1", "t2", "t3"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -175,7 +175,7 @@ func TestGroup_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1", "t3"},
 					ColMeta: []query.ColMeta{
@@ -212,7 +212,7 @@ func TestGroup_Process(t *testing.T) {
 				GroupMode: functions.GroupModeBy,
 				GroupKeys: []string{"t1"},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -223,7 +223,7 @@ func TestGroup_Process(t *testing.T) {
 					{execute.Time(2), 1.0, "b"},
 				},
 			}},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -254,7 +254,7 @@ func TestGroup_Process(t *testing.T) {
 				GroupMode: functions.GroupModeExcept,
 				GroupKeys: []string{"_time", "_value", "t2"},
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -267,7 +267,7 @@ func TestGroup_Process(t *testing.T) {
 					{execute.Time(2), 1.0, "a", "n", "y"},
 				},
 			}},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1", "t3"},
 					ColMeta: []query.ColMeta{
@@ -304,7 +304,7 @@ func TestGroup_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewGroupTransformation(d, c, tc.spec)
 				},
 			)

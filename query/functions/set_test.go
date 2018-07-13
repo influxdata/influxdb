@@ -27,8 +27,8 @@ func TestSet_Process(t *testing.T) {
 	testCases := []struct {
 		name string
 		spec *functions.SetProcedureSpec
-		data []query.Block
-		want []*executetest.Block
+		data []query.Table
+		want []*executetest.Table
 	}{
 		{
 			name: "new col",
@@ -36,7 +36,7 @@ func TestSet_Process(t *testing.T) {
 				Key:   "t1",
 				Value: "bob",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -46,7 +46,7 @@ func TestSet_Process(t *testing.T) {
 					{execute.Time(2), 1.0},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -64,7 +64,7 @@ func TestSet_Process(t *testing.T) {
 				Key:   "t1",
 				Value: "bob",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -75,7 +75,7 @@ func TestSet_Process(t *testing.T) {
 					{execute.Time(2), 2.0, "sue"},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
 					{Label: "_value", Type: query.TFloat},
@@ -93,7 +93,7 @@ func TestSet_Process(t *testing.T) {
 				Key:   "t1",
 				Value: "bob",
 			},
-			data: []query.Block{&executetest.Block{
+			data: []query.Table{&executetest.Table{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -106,7 +106,7 @@ func TestSet_Process(t *testing.T) {
 					{execute.Time(2), 1.0, "alice", "b"},
 				},
 			}},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -121,13 +121,13 @@ func TestSet_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "replace common col, merging blocks",
+			name: "replace common col, merging tables",
 			spec: &functions.SetProcedureSpec{
 				Key:   "t1",
 				Value: "bob",
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -139,7 +139,7 @@ func TestSet_Process(t *testing.T) {
 						{execute.Time(2), 1.0, "alice"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -152,7 +152,7 @@ func TestSet_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{{
+			want: []*executetest.Table{{
 				KeyCols: []string{"t1"},
 				ColMeta: []query.ColMeta{
 					{Label: "_time", Type: query.TTime},
@@ -168,13 +168,13 @@ func TestSet_Process(t *testing.T) {
 			}},
 		},
 		{
-			name: "new common col, multiple blocks",
+			name: "new common col, multiple tables",
 			spec: &functions.SetProcedureSpec{
 				Key:   "t2",
 				Value: "bob",
 			},
-			data: []query.Block{
-				&executetest.Block{
+			data: []query.Table{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -186,7 +186,7 @@ func TestSet_Process(t *testing.T) {
 						{execute.Time(2), 1.0, "alice"},
 					},
 				},
-				&executetest.Block{
+				&executetest.Table{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
 						{Label: "_time", Type: query.TTime},
@@ -199,7 +199,7 @@ func TestSet_Process(t *testing.T) {
 					},
 				},
 			},
-			want: []*executetest.Block{
+			want: []*executetest.Table{
 				{
 					KeyCols: []string{"t1"},
 					ColMeta: []query.ColMeta{
@@ -236,7 +236,7 @@ func TestSet_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
-				func(d execute.Dataset, c execute.BlockBuilderCache) execute.Transformation {
+				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewSetTransformation(d, c, tc.spec)
 				},
 			)

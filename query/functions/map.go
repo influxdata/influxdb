@@ -98,7 +98,7 @@ func createMapTransformation(id execute.DatasetID, mode execute.AccumulationMode
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t, err := NewMapTransformation(d, cache, s)
 	if err != nil {
@@ -109,13 +109,13 @@ func createMapTransformation(id execute.DatasetID, mode execute.AccumulationMode
 
 type mapTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	fn       *execute.RowMapFn
 	mergeKey bool
 }
 
-func NewMapTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *MapProcedureSpec) (*mapTransformation, error) {
+func NewMapTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *MapProcedureSpec) (*mapTransformation, error) {
 	fn, err := execute.NewRowMapFn(spec.Fn)
 	if err != nil {
 		return nil, err
@@ -128,13 +128,13 @@ func NewMapTransformation(d execute.Dataset, cache execute.BlockBuilderCache, sp
 	}, nil
 }
 
-func (t *mapTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *mapTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
+func (t *mapTransformation) Process(id execute.DatasetID, tbl query.Table) error {
 	// Prepare the functions for the column types.
-	cols := b.Cols()
+	cols := tbl.Cols()
 	err := t.fn.Prepare(cols)
 	if err != nil {
 		// TODO(nathanielc): Should we not fail the query for failed compilation?
@@ -149,12 +149,12 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 	sort.Strings(keys)
 
 	// Determine on which cols to group
-	on := make(map[string]bool, len(b.Key().Cols()))
-	for _, c := range b.Key().Cols() {
+	on := make(map[string]bool, len(tbl.Key().Cols()))
+	for _, c := range tbl.Key().Cols() {
 		on[c.Label] = t.mergeKey || execute.ContainsStr(keys, c.Label)
 	}
 
-	return b.Do(func(cr query.ColReader) error {
+	return tbl.Do(func(cr query.ColReader) error {
 		l := cr.Len()
 		for i := 0; i < l; i++ {
 			m, err := t.fn.Eval(i, cr)
@@ -163,14 +163,14 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 				continue
 			}
 			key := groupKeyForObject(i, cr, m, on)
-			builder, created := t.cache.BlockBuilder(key)
+			builder, created := t.cache.TableBuilder(key)
 			if created {
 				if t.mergeKey {
-					execute.AddBlockKeyCols(b.Key(), builder)
+					execute.AddTableKeyCols(tbl.Key(), builder)
 				}
 				// Add columns from function in sorted order
 				for _, k := range keys {
-					if t.mergeKey && b.Key().HasCol(k) {
+					if t.mergeKey && tbl.Key().HasCol(k) {
 						continue
 					}
 					builder.AddCol(query.ColMeta{
@@ -182,8 +182,8 @@ func (t *mapTransformation) Process(id execute.DatasetID, b query.Block) error {
 			for j, c := range builder.Cols() {
 				v, ok := m.Get(c.Label)
 				if !ok {
-					if idx := execute.ColIdx(c.Label, b.Key().Cols()); t.mergeKey && idx >= 0 {
-						v = b.Key().Value(idx)
+					if idx := execute.ColIdx(c.Label, tbl.Key().Cols()); t.mergeKey && idx >= 0 {
+						v = tbl.Key().Value(idx)
 					} else {
 						// This should be unreachable
 						return fmt.Errorf("could not find value for column %q", c.Label)

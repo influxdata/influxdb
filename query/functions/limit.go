@@ -12,7 +12,7 @@ import (
 
 const LimitKind = "limit"
 
-// LimitOpSpec limits the number of rows returned per block.
+// LimitOpSpec limits the number of rows returned per table.
 // Currently offset is not supported.
 type LimitOpSpec struct {
 	N      int64 `json:"n"`
@@ -116,7 +116,7 @@ func createLimitTransformation(id execute.DatasetID, mode execute.AccumulationMo
 	if !ok {
 		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
 	}
-	cache := execute.NewBlockBuilderCache(a.Allocator())
+	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	t := NewLimitTransformation(d, cache, s)
 	return t, d, nil
@@ -124,14 +124,14 @@ func createLimitTransformation(id execute.DatasetID, mode execute.AccumulationMo
 
 type limitTransformation struct {
 	d     execute.Dataset
-	cache execute.BlockBuilderCache
+	cache execute.TableBuilderCache
 
 	n, offset int
 
 	colMap []int
 }
 
-func NewLimitTransformation(d execute.Dataset, cache execute.BlockBuilderCache, spec *LimitProcedureSpec) *limitTransformation {
+func NewLimitTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *LimitProcedureSpec) *limitTransformation {
 	return &limitTransformation{
 		d:      d,
 		cache:  cache,
@@ -140,16 +140,16 @@ func NewLimitTransformation(d execute.Dataset, cache execute.BlockBuilderCache, 
 	}
 }
 
-func (t *limitTransformation) RetractBlock(id execute.DatasetID, key query.GroupKey) error {
-	return t.d.RetractBlock(key)
+func (t *limitTransformation) RetractTable(id execute.DatasetID, key query.GroupKey) error {
+	return t.d.RetractTable(key)
 }
 
-func (t *limitTransformation) Process(id execute.DatasetID, b query.Block) error {
-	builder, created := t.cache.BlockBuilder(b.Key())
+func (t *limitTransformation) Process(id execute.DatasetID, tbl query.Table) error {
+	builder, created := t.cache.TableBuilder(tbl.Key())
 	if !created {
-		return fmt.Errorf("limit found duplicate block with key: %v", b.Key())
+		return fmt.Errorf("limit found duplicate table with key: %v", tbl.Key())
 	}
-	execute.AddBlockCols(b, builder)
+	execute.AddTableCols(tbl, builder)
 
 	ncols := builder.NCols()
 	if cap(t.colMap) < ncols {
@@ -161,10 +161,10 @@ func (t *limitTransformation) Process(id execute.DatasetID, b query.Block) error
 		t.colMap = t.colMap[:ncols]
 	}
 
-	// AppendBlock with limit
+	// AppendTable with limit
 	n := t.n
 	offset := t.offset
-	b.Do(func(cr query.ColReader) error {
+	tbl.Do(func(cr query.ColReader) error {
 		if n <= 0 {
 			// Returning an error terminates iteration
 			return errors.New("finished")
