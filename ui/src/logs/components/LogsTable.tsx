@@ -158,7 +158,7 @@ class LogsTable extends Component<Props, State> {
       visibleColumnsCount,
     }
 
-    this.loadMoreAboveRows = _.throttle(this.loadMoreAboveRows, 5000)
+    this.loadMoreAboveRows = _.throttle(this.loadMoreAboveRows, 50)
   }
 
   public componentDidUpdate() {
