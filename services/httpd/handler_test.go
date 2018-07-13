@@ -1099,19 +1099,18 @@ func TestThrottler_Handler(t *testing.T) {
 		throttler := httpd.NewThrottler(2, 1)
 		throttler.EnqueueTimeout = 1 * time.Millisecond
 
-		resp := make(chan struct{})
+		begin, end := make(chan struct{}), make(chan struct{})
 		h := throttler.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			resp <- struct{}{}
+			begin <- struct{}{}
+			end <- struct{}{}
 		}))
 
-		pending := make(chan struct{}, 2)
-
 		// First two requests should execute immediately.
-		go func() { pending <- struct{}{}; h.ServeHTTP(nil, nil) }()
-		go func() { pending <- struct{}{}; h.ServeHTTP(nil, nil) }()
+		go func() { h.ServeHTTP(nil, nil) }()
+		go func() { h.ServeHTTP(nil, nil) }()
 
-		<-pending
-		<-pending
+		<-begin
+		<-begin
 
 		// Third request should be enqueued but timeout.
 		w := httptest.NewRecorder()
@@ -1123,8 +1122,8 @@ func TestThrottler_Handler(t *testing.T) {
 		}
 
 		// Allow 2 existing requests to complete.
-		<-resp
-		<-resp
+		<-end
+		<-end
 	})
 
 	t.Run("ErrFull", func(t *testing.T) {
