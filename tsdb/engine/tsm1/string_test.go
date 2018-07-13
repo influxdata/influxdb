@@ -191,24 +191,23 @@ func BenchmarkStringDecoder_DecodeAll(b *testing.B) {
 		{1000, 10},
 	}
 	for _, bm := range benchmarks {
+		rand.Seed(int64(bm.n * 1e3))
+
+		s := NewStringEncoder(bm.n)
+		for c := 0; c < bm.n; c++ {
+			s.Write(testutil.MakeSentence(bm.w))
+		}
+		s.Flush()
+		bytes, err := s.Bytes()
+		if err != nil {
+			b.Fatalf("unexpected error: %v", err)
+		}
+
 		b.Run(fmt.Sprintf("%d", bm.n), func(b *testing.B) {
-			rand.Seed(int64(bm.n * 1e3))
-
-			s := NewStringEncoder(bm.n)
-			for c := 0; c < bm.n; c++ {
-				s.Write(testutil.MakeSentence(bm.w))
-			}
-			s.Flush()
-			bytes, err := s.Bytes()
-			if err != nil {
-				b.Fatalf("unexpected error: %v", err)
-			}
-			dst := make([]string, bm.n)
-
-			b.ReportAllocs()
 			b.SetBytes(int64(len(bytes)))
-			b.ResetTimer()
+			b.ReportAllocs()
 
+			dst := make([]string, bm.n)
 			for i := 0; i < b.N; i++ {
 				var it StringDecoder
 				if err := it.SetBytes(bytes); err != nil {

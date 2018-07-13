@@ -274,30 +274,27 @@ func BenchmarkFloatDecoder(b *testing.B) {
 }
 
 func BenchmarkFloatDecoder_DecodeAll(b *testing.B) {
-	benchmarks := []struct {
-		n int
-	}{
-		{1},
-		{55},
-		{550},
-		{1000},
+	benchmarks := []int{
+		1,
+		55,
+		550,
+		1000,
 	}
-	for _, bm := range benchmarks {
-		b.Run(fmt.Sprintf("%d", bm.n), func(b *testing.B) {
-			s := tsm1.NewFloatEncoder()
-			for c := 0; c < bm.n; c++ {
-				s.Write(twoHoursData[c%len(twoHoursData)])
-			}
-			s.Flush()
-			bytes, err := s.Bytes()
-			if err != nil {
-				b.Fatalf("unexpected error: %v", err)
-			}
-			dst := make([]float64, bm.n)
+	for _, size := range benchmarks {
+		s := tsm1.NewFloatEncoder()
+		for c := 0; c < size; c++ {
+			s.Write(twoHoursData[c%len(twoHoursData)])
+		}
+		s.Flush()
+		bytes, err := s.Bytes()
+		if err != nil {
+			b.Fatalf("unexpected error: %v", err)
+		}
 
+		b.Run(fmt.Sprintf("%d", size), func(b *testing.B) {
 			b.SetBytes(int64(len(bytes)))
-			b.ResetTimer()
 
+			dst := make([]float64, size)
 			for i := 0; i < b.N; i++ {
 				var it tsm1.FloatDecoder
 				if err := it.SetBytes(bytes); err != nil {
@@ -310,8 +307,8 @@ func BenchmarkFloatDecoder_DecodeAll(b *testing.B) {
 					i++
 				}
 
-				if len(dst) != bm.n {
-					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(dst), bm.n))
+				if len(dst) != size {
+					b.Fatalf("unexpected length -got/+exp\n%s", cmp.Diff(len(dst), size))
 				}
 			}
 		})

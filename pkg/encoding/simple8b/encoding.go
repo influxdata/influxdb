@@ -2,6 +2,8 @@
 // by Ann and Moffat in "Index compression using 64-bit words", Softw. Pract. Exper. 2010; 40:131–147
 //
 // It is capable of encoding multiple integers with values betweeen 0 and to 1^60 -1, in a single word.
+//
+// Imported from github.com/jwilder/encoding
 package simple8b
 
 // Simple8b is 64bit word-sized encoder that packs multiple integers into a single word using

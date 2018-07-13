@@ -64,7 +64,7 @@ func (a *{{ $typename }}) Exclude(min, max int64) {
 }
 
 // Include returns the subset values between min and max inclusive. The values must
-// be deduplicated and sorted before calling Exclude or the results are undefined.
+// be deduplicated and sorted before calling Include or the results are undefined.
 func (a *{{ $typename }}) Include(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
 	if rmin == -1 && rmax == -1 {
