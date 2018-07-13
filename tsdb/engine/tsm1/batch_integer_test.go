@@ -281,13 +281,11 @@ func TestIntegerBatchDecodeAll_Quick(t *testing.T) {
 }
 
 func BenchmarkIntegerBatchDecodeAllUncompressed(b *testing.B) {
-	benchmarks := []struct {
-		n int
-	}{
-		{5},
-		{55},
-		{555},
-		{1000},
+	benchmarks := []int{
+		5,
+		55,
+		555,
+		1000,
 	}
 
 	values := []int64{
@@ -301,22 +299,20 @@ func BenchmarkIntegerBatchDecodeAllUncompressed(b *testing.B) {
 		94468846694902125, -2394093124890745254, -2682139311758778198,
 	}
 
-	for _, bm := range benchmarks {
-		b.Run(fmt.Sprintf("%d", bm.n), func(b *testing.B) {
-			rand.Seed(int64(bm.n * 1e3))
+	for _, size := range benchmarks {
+		rand.Seed(int64(size * 1e3))
 
-			enc := NewIntegerEncoder(bm.n)
-			for i := 0; i < bm.n; i++ {
-				enc.Write(values[rand.Int()%len(values)])
-			}
-			bytes, _ := enc.Bytes()
+		enc := NewIntegerEncoder(size)
+		for i := 0; i < size; i++ {
+			enc.Write(values[rand.Int()%len(values)])
+		}
+		bytes, _ := enc.Bytes()
 
-			dst := make([]int64, bm.n)
-
+		b.Run(fmt.Sprintf("%d", size), func(b *testing.B) {
 			b.SetBytes(int64(len(bytes)))
 			b.ReportAllocs()
-			b.ResetTimer()
 
+			dst := make([]int64, size)
 			for i := 0; i < b.N; i++ {
 				dst, _ = IntegerBatchDecodeAll(bytes, dst)
 			}
@@ -325,31 +321,27 @@ func BenchmarkIntegerBatchDecodeAllUncompressed(b *testing.B) {
 }
 
 func BenchmarkIntegerBatchDecodeAllPackedSimple(b *testing.B) {
-	benchmarks := []struct {
-		n int
-	}{
-		{5},
-		{55},
-		{555},
-		{1000},
+	benchmarks := []int{
+		5,
+		55,
+		555,
+		1000,
 	}
-	for _, bm := range benchmarks {
-		b.Run(fmt.Sprintf("%d", bm.n), func(b *testing.B) {
-			rand.Seed(int64(bm.n * 1e3))
+	for _, size := range benchmarks {
+		rand.Seed(int64(size * 1e3))
 
-			enc := NewIntegerEncoder(bm.n)
-			for i := 0; i < bm.n; i++ {
-				// Small amount of randomness prevents RLE from being used
-				enc.Write(int64(i) + int64(rand.Intn(10)))
-			}
-			bytes, _ := enc.Bytes()
+		enc := NewIntegerEncoder(size)
+		for i := 0; i < size; i++ {
+			// Small amount of randomness prevents RLE from being used
+			enc.Write(int64(i) + int64(rand.Intn(10)))
+		}
+		bytes, _ := enc.Bytes()
 
-			dst := make([]int64, bm.n)
-
+		b.Run(fmt.Sprintf("%d", size), func(b *testing.B) {
 			b.SetBytes(int64(len(bytes)))
 			b.ReportAllocs()
-			b.ResetTimer()
 
+			dst := make([]int64, size)
 			for i := 0; i < b.N; i++ {
 				IntegerBatchDecodeAll(bytes, dst)
 			}
@@ -369,20 +361,19 @@ func BenchmarkIntegerBatchDecodeAllRLE(b *testing.B) {
 		{1000, 0},
 	}
 	for _, bm := range benchmarks {
+		rand.Seed(int64(bm.n * 1e3))
+
+		enc := NewIntegerEncoder(bm.n)
+		acc := int64(0)
+		for i := 0; i < bm.n; i++ {
+			enc.Write(acc)
+			acc += bm.delta
+		}
+		bytes, _ := enc.Bytes()
+
 		b.Run(fmt.Sprintf("%d_delta_%d", bm.n, bm.delta), func(b *testing.B) {
-			rand.Seed(int64(bm.n * 1e3))
-
-			enc := NewIntegerEncoder(bm.n)
-			acc := int64(0)
-			for i := 0; i < bm.n; i++ {
-				enc.Write(acc)
-				acc += bm.delta
-			}
-			bytes, _ := enc.Bytes()
-
 			b.SetBytes(int64(len(bytes)))
 			b.ReportAllocs()
-			b.ResetTimer()
 
 			dst := make([]int64, bm.n)
 			for i := 0; i < b.N; i++ {

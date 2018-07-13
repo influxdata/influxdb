@@ -66,7 +66,7 @@ func (a *FloatArray) Exclude(min, max int64) {
 }
 
 // Include returns the subset values between min and max inclusive. The values must
-// be deduplicated and sorted before calling Exclude or the results are undefined.
+// be deduplicated and sorted before calling Include or the results are undefined.
 func (a *FloatArray) Include(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
 	if rmin == -1 && rmax == -1 {
@@ -266,7 +266,7 @@ func (a *IntegerArray) Exclude(min, max int64) {
 }
 
 // Include returns the subset values between min and max inclusive. The values must
-// be deduplicated and sorted before calling Exclude or the results are undefined.
+// be deduplicated and sorted before calling Include or the results are undefined.
 func (a *IntegerArray) Include(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
 	if rmin == -1 && rmax == -1 {
@@ -466,7 +466,7 @@ func (a *UnsignedArray) Exclude(min, max int64) {
 }
 
 // Include returns the subset values between min and max inclusive. The values must
-// be deduplicated and sorted before calling Exclude or the results are undefined.
+// be deduplicated and sorted before calling Include or the results are undefined.
 func (a *UnsignedArray) Include(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
 	if rmin == -1 && rmax == -1 {
@@ -666,7 +666,7 @@ func (a *StringArray) Exclude(min, max int64) {
 }
 
 // Include returns the subset values between min and max inclusive. The values must
-// be deduplicated and sorted before calling Exclude or the results are undefined.
+// be deduplicated and sorted before calling Include or the results are undefined.
 func (a *StringArray) Include(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
 	if rmin == -1 && rmax == -1 {
@@ -866,7 +866,7 @@ func (a *BooleanArray) Exclude(min, max int64) {
 }
 
 // Include returns the subset values between min and max inclusive. The values must
-// be deduplicated and sorted before calling Exclude or the results are undefined.
+// be deduplicated and sorted before calling Include or the results are undefined.
 func (a *BooleanArray) Include(min, max int64) {
 	rmin, rmax := a.FindRange(min, max)
 	if rmin == -1 && rmax == -1 {

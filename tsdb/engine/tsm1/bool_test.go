@@ -133,28 +133,24 @@ func Test_BooleanDecoder_Corrupt(t *testing.T) {
 }
 
 func BenchmarkBooleanDecoder_DecodeAll(b *testing.B) {
-	benchmarks := []struct {
-		n int
-	}{
-		{1},
-		{55},
-		{555},
-		{1000},
+	benchmarks := []int{
+		1,
+		55,
+		555,
+		1000,
 	}
-	for _, bm := range benchmarks {
-		b.Run(fmt.Sprintf("%d", bm.n), func(b *testing.B) {
-			size := bm.n
-			e := tsm1.NewBooleanEncoder(size)
-			for i := 0; i < size; i++ {
-				e.Write(i&1 == 1)
-			}
-			bytes, err := e.Bytes()
-			if err != nil {
-				b.Fatalf("unexpected error: %v", err)
-			}
+	for _, size := range benchmarks {
+		e := tsm1.NewBooleanEncoder(size)
+		for i := 0; i < size; i++ {
+			e.Write(i&1 == 1)
+		}
+		bytes, err := e.Bytes()
+		if err != nil {
+			b.Fatalf("unexpected error: %v", err)
+		}
 
+		b.Run(fmt.Sprintf("%d", size), func(b *testing.B) {
 			b.SetBytes(int64(len(bytes)))
-			b.ResetTimer()
 
 			dst := make([]bool, size)
 			for i := 0; i < b.N; i++ {
