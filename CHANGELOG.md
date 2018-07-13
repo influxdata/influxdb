@@ -1,3 +1,11 @@
+v1.6.1 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#10012](https://github.com/influxdata/influxdb/pull/10012): Improve series segment recovery.
+-	[#10076](https://github.com/influxdata/influxdb/pull/10076): Fix windows mmap on zero length file.
+
 v1.6.0 [2018-07-05]
 -------------------
 
