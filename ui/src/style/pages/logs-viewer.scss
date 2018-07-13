@@ -259,13 +259,6 @@ $logs-viewer-gutter: 60px;
   border-bottom: 2px solid $g5-pepper;
 }
 
-.message--cell {
-  overflow: hidden;
-  white-space: nowrap;
-  display: block;
-  text-overflow: ellipsis;
-}
-
 // Clickable Cells
 .logs-viewer--clickable {
   display: inline-flex;

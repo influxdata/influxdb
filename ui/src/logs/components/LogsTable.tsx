@@ -6,6 +6,7 @@ import {Grid, AutoSizer, InfiniteLoader} from 'react-virtualized'
 import {color} from 'd3-color'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import ExpandableMessage from 'src/logs/components/expandable_message/ExpandableMessage'
 import {getDeep} from 'src/utils/wrappers'
 
 import {colorForSeverity} from 'src/logs/utils/colors'
@@ -517,6 +518,10 @@ class LogsTable extends Component<Props, State> {
     } else {
       formattedValue = formatColumnValue(column, value, this.rowCharLimit)
       title = formattedValue
+    }
+
+    if (column === 'message') {
+      formattedValue = <ExpandableMessage formattedValue={formattedValue} />
     }
 
     const highlightRow = rowIndex === this.state.currentRow
