@@ -53,7 +53,7 @@ func TestWriter_WriteOneBucketOneSeries(t *testing.T) {
 	for i := 0; i < len(ts); i++ {
 		var ip binary.IntegerPoints
 		assertTypeValue(t, &buf, binary.IntegerPointsType, &ip)
-		assertEqual(t, ip, binary.IntegerPoints{ts[i : i+1], vs[i : i+1]})
+		assertEqual(t, ip, binary.IntegerPoints{Timestamps: ts[i : i+1], Values: vs[i : i+1]})
 	}
 
 	// series footer
