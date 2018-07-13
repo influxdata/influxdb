@@ -1,5 +1,9 @@
 export default [
   {
+    text: 'now',
+    value: 0,
+  },
+  {
     text: '1m ago',
     value: 60,
   },

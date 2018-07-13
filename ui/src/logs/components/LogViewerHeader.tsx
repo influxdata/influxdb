@@ -8,10 +8,9 @@ import Dropdown from 'src/shared/components/Dropdown'
 import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
-import TimeMarkerDropdown from 'src/logs/components/TimeMarkerDropdown'
 import TimeWindowDropdown from 'src/logs/components/TimeWindowDropdown'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-import {TimeRange, TimeWindow, TimeMarker, LiveUpdating} from 'src/types/logs'
+import {TimeRange, TimeWindow, LiveUpdating} from 'src/types/logs'
 
 interface SourceItem {
   id: string
@@ -29,7 +28,6 @@ interface Props {
   onChangeLiveUpdatingStatus: () => void
   onShowOptionsOverlay: () => void
   timeRange: TimeRange
-  onSetTimeMarker: (timeMarker: TimeMarker) => void
   onSetTimeWindow: (timeWindow: TimeWindow) => void
   customTime?: string
   relativeTime?: number
@@ -61,7 +59,6 @@ class LogViewerHeader extends PureComponent<Props> {
     const {
       onShowOptionsOverlay,
       onSetTimeWindow,
-      onSetTimeMarker,
       customTime,
       relativeTime,
       onChooseCustomTime,
@@ -97,10 +94,6 @@ class LogViewerHeader extends PureComponent<Props> {
           relativeTime={relativeTime}
           onChooseCustomTime={onChooseCustomTime}
           onChooseRelativeTime={onChooseRelativeTime}
-        />
-        <TimeMarkerDropdown
-          onSetTimeMarker={onSetTimeMarker}
-          selectedTimeMarker={timeRange.timeOption}
         />
         <TimeWindowDropdown
           selectedTimeWindow={timeRange}

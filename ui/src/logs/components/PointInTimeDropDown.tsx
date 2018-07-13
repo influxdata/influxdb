@@ -133,7 +133,7 @@ class TimeRangeDropdown extends Component<Props, State> {
         return point.text
       }
 
-      return 'None'
+      return 'now'
     }
 
     return format(this.props.customTime)

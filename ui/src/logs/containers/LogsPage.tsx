@@ -228,14 +228,33 @@ class LogsPage extends Component<Props, State> {
     )
   }
 
-  private handleChooseCustomTime = (time: string) => {
+  private handleChooseCustomTime = async (time: string) => {
     this.props.setTableCustomTime(time)
     this.setState({hasScrolled: false})
+
+    await this.props.setTimeMarker({
+      timeOption: time,
+    })
+
+    this.handleSetTimeBounds()
   }
 
-  private handleChooseRelativeTime = (time: number) => {
+  private handleChooseRelativeTime = async (time: number) => {
     this.props.setTableRelativeTime(time)
     this.setState({hasScrolled: false})
+
+    let timeOption = {
+      timeOption: moment()
+        .subtract(time, 'seconds')
+        .toISOString(),
+    }
+
+    if (time === 0) {
+      timeOption = {timeOption: 'now'}
+    }
+
+    await this.props.setTimeMarker(timeOption)
+    this.handleSetTimeBounds()
   }
 
   private get tableData(): TableData {
@@ -353,7 +372,6 @@ class LogsPage extends Component<Props, State> {
     return (
       <LogViewerHeader
         timeRange={timeRange}
-        onSetTimeMarker={this.handleSetTimeMarker}
         onSetTimeWindow={this.handleSetTimeWindow}
         liveUpdating={this.liveUpdatingStatus}
         availableSources={sources}
@@ -418,9 +436,9 @@ class LogsPage extends Component<Props, State> {
   }
 
   private handleBarClick = (time: string): void => {
-    const timeOption = moment(time).toISOString()
+    const formattedTime = moment(time).toISOString()
 
-    this.handleSetTimeMarker({timeOption})
+    this.handleChooseCustomTime(formattedTime)
   }
 
   private handleSetTimeBounds = async () => {
@@ -448,11 +466,6 @@ class LogsPage extends Component<Props, State> {
 
   private handleSetTimeWindow = async (timeWindow: TimeWindow) => {
     await this.props.setTimeWindow(timeWindow)
-    this.handleSetTimeBounds()
-  }
-
-  private handleSetTimeMarker = async (timeMarker: TimeMarker) => {
-    await this.props.setTimeMarker(timeMarker)
     this.handleSetTimeBounds()
   }
 
