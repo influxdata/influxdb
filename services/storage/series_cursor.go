@@ -105,8 +105,8 @@ func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*t
 	}
 
 	var mitr tsdb.MeasurementIterator
-	name, ok := HasSingleMeasurementNoOR(p.measurementCond)
-	if ok {
+	name, singleMeasurement := HasSingleMeasurementNoOR(p.measurementCond)
+	if singleMeasurement {
 		mitr = tsdb.NewMeasurementSliceIterator([][]byte{[]byte(name)})
 	}
 
@@ -117,7 +117,7 @@ func newIndexSeriesCursor(ctx context.Context, predicate *Predicate, shards []*t
 		// single measurement. In this case we can efficiently produce all known
 		// field keys from the collection of shards without having to go via
 		// the query engine.
-		if ok {
+		if singleMeasurement {
 			fkeys := sg.FieldKeysByMeasurement([]byte(name))
 			if len(fkeys) == 0 {
 				goto CLEANUP
