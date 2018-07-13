@@ -171,54 +171,54 @@ func (t *differenceTransformation) Process(id execute.DatasetID, b query.Block) 
 	firstIdx := 1
 	return b.Do(func(cr query.ColReader) error {
 		l := cr.Len()
-		for j, c := range cols {
-			d := differences[j]
-			if l == 0 {
-				continue
-			}
 
-			switch c.Type {
-			case query.TBool:
-				builder.AppendBools(j, cr.Bools(j)[firstIdx:])
-			case query.TInt:
-				if d != nil {
-					for i := 0; i < l; i++ {
-						v := d.updateInt(cr.Ints(j)[i])
-						if i != 0 || firstIdx == 0 {
-							builder.AppendInt(j, v)
+		if l != 0 {
+			for j, c := range cols {
+				d := differences[j]
+				switch c.Type {
+				case query.TBool:
+					builder.AppendBools(j, cr.Bools(j)[firstIdx:])
+				case query.TInt:
+					if d != nil {
+						for i := 0; i < l; i++ {
+							v := d.updateInt(cr.Ints(j)[i])
+							if i != 0 || firstIdx == 0 {
+								builder.AppendInt(j, v)
+							}
 						}
+					} else {
+						builder.AppendInts(j, cr.Ints(j)[firstIdx:])
 					}
-				} else {
-					builder.AppendInts(j, cr.Ints(j)[firstIdx:])
-				}
-			case query.TUInt:
-				if d != nil {
-					for i := 0; i < l; i++ {
-						v := d.updateUInt(cr.UInts(j)[i])
-						if i != 0 || firstIdx == 0 {
-							builder.AppendInt(j, v)
+				case query.TUInt:
+					if d != nil {
+						for i := 0; i < l; i++ {
+							v := d.updateUInt(cr.UInts(j)[i])
+							if i != 0 || firstIdx == 0 {
+								builder.AppendInt(j, v)
+							}
 						}
+					} else {
+						builder.AppendUInts(j, cr.UInts(j)[firstIdx:])
 					}
-				} else {
-					builder.AppendUInts(j, cr.UInts(j)[firstIdx:])
-				}
-			case query.TFloat:
-				if d != nil {
-					for i := 0; i < l; i++ {
-						v := d.updateFloat(cr.Floats(j)[i])
-						if i != 0 || firstIdx == 0 {
-							builder.AppendFloat(j, v)
+				case query.TFloat:
+					if d != nil {
+						for i := 0; i < l; i++ {
+							v := d.updateFloat(cr.Floats(j)[i])
+							if i != 0 || firstIdx == 0 {
+								builder.AppendFloat(j, v)
+							}
 						}
+					} else {
+						builder.AppendFloats(j, cr.Floats(j)[firstIdx:])
 					}
-				} else {
-					builder.AppendFloats(j, cr.Floats(j)[firstIdx:])
+				case query.TString:
+					builder.AppendStrings(j, cr.Strings(j)[firstIdx:])
+				case query.TTime:
+					builder.AppendTimes(j, cr.Times(j)[firstIdx:])
 				}
-			case query.TString:
-				builder.AppendStrings(j, cr.Strings(j)[firstIdx:])
-			case query.TTime:
-				builder.AppendTimes(j, cr.Times(j)[firstIdx:])
 			}
 		}
+
 		// Now that we skipped the first row, start at 0 for the rest of the batches
 		firstIdx = 0
 		return nil
