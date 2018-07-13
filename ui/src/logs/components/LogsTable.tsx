@@ -6,13 +6,13 @@ import {Grid, AutoSizer, InfiniteLoader} from 'react-virtualized'
 import {color} from 'd3-color'
 
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import ExpandableMessage from 'src/logs/components/expandable_message/ExpandableMessage'
 import {getDeep} from 'src/utils/wrappers'
 
 import {colorForSeverity} from 'src/logs/utils/colors'
 import {
   ROW_HEIGHT,
   calculateRowCharWidth,
-  calculateMessageHeight,
   getColumnFromData,
   getValueFromData,
   getValuesFromData,
@@ -73,13 +73,11 @@ interface State {
   visibleColumnsCount: number
 }
 
-const calculateScrollTop = (currentMessageWidth, data, scrollToRow) => {
-  const rowCharLimit = calculateRowCharWidth(currentMessageWidth)
-
+const calculateScrollTop = scrollToRow => {
   return _.reduce(
     _.range(0, scrollToRow),
-    (acc, index) => {
-      return acc + calculateMessageHeight(index, data, rowCharLimit)
+    acc => {
+      return acc + ROW_HEIGHT
     },
     0
   )
@@ -110,7 +108,7 @@ class LogsTable extends Component<Props, State> {
     }
 
     if (scrollToRow) {
-      scrollTop = calculateScrollTop(currentMessageWidth, data, scrollToRow)
+      scrollTop = calculateScrollTop(scrollToRow)
     }
 
     const scrollLeft = _.get(state, 'scrollLeft', 0)
@@ -245,6 +243,7 @@ class LogsTable extends Component<Props, State> {
                   autoHide={false}
                 >
                   <Grid
+                    rowHeight={ROW_HEIGHT}
                     {...this.gridProperties(
                       width,
                       height,
@@ -278,7 +277,6 @@ class LogsTable extends Component<Props, State> {
     const result: any = {
       width,
       height,
-      rowHeight: this.calculateRowHeight,
       rowCount: this.rowCount(),
       scrollLeft,
       scrollTop,
@@ -449,18 +447,12 @@ class LogsTable extends Component<Props, State> {
 
     return _.reduce(
       data,
-      (acc, __, index) => {
-        return (
-          acc +
-          calculateMessageHeight(index, this.props.data, this.rowCharLimit)
-        )
+      (acc, __) => {
+        return acc + ROW_HEIGHT
       },
       0
     )
   }
-
-  private calculateRowHeight = ({index}: {index: number}): number =>
-    calculateMessageHeight(index, this.props.data, this.rowCharLimit)
 
   private headerRenderer = ({key, style, columnIndex}) => {
     const column = getColumnFromData(this.props.data, columnIndex)
@@ -525,6 +517,10 @@ class LogsTable extends Component<Props, State> {
     } else {
       formattedValue = formatColumnValue(column, value, this.rowCharLimit)
       title = formattedValue
+    }
+
+    if (column === 'message') {
+      formattedValue = <ExpandableMessage formattedValue={formattedValue} />
     }
 
     const highlightRow = rowIndex === this.state.currentRow
