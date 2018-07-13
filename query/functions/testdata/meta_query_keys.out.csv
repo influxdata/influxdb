@@ -1,5 +1,5 @@
 #datatype,string,long,string,string,string,string,string
-#partition,false,false,true,true,true,true,false
+#group,false,false,true,true,true,true,false
 #default,0,,,,,,
 ,result,table,_field,_measurement,cpu,host,_value
 ,,0,usage_guest,cpu,cpu-total,host.local,_field
@@ -34,7 +34,7 @@
 ,,4,usage_irq,cpu,cpu-total,host.local,host
 
 #datatype,string,long,string,string
-#partition,false,false,false,false
+#group,false,false,false,false
 #default,1,,,
 ,result,table,host,_value
 ,,0,host.local,host.local
