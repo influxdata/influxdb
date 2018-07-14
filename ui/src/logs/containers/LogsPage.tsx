@@ -492,10 +492,6 @@ class LogsPage extends Component<Props, State> {
     this.props.setNamespaceAsync(namespace)
   }
 
-  private turnOnUpdating() {
-    this.setState({liveUpdating: LiveUpdating.Play})
-  }
-
   private fetchNewDataset() {
     this.props.executeQueriesAsync()
   }
