@@ -3,7 +3,7 @@
     ----------------------------------------------------------------------------
 */
 
-$logs-viewer-graph-height: 220px;
+$logs-viewer-graph-height: 170px;
 $logs-viewer-search-height: 46px; 
 $logs-viewer-filter-height: 42px;
 $logs-viewer-results-text-indent: 33px;
@@ -33,7 +33,7 @@ $logs-viewer-gutter: 60px;
 }
 
 .logs-viewer--table-container {
-  padding: 12px $logs-viewer-gutter 30px $logs-viewer-gutter;
+  padding: 0 $logs-viewer-gutter 30px $logs-viewer-gutter;
   height: calc(
     100% - #{$logs-viewer-graph-height + $logs-viewer-search-height +
       $logs-viewer-filter-height}
@@ -243,7 +243,6 @@ $logs-viewer-gutter: 60px;
   font-family: $code-font;
 
   &.highlight {
-    background-color: $g5-pepper;
     color: $g20-white;
   }
 }
@@ -257,7 +256,7 @@ $logs-viewer-gutter: 60px;
 .logs-viewer--clickable {
   display: inline-flex;
   align-items: center;
-  padding: 1px 3px;
+  padding: 0px 3px;
   border-radius: 3px;
   @include no-user-select();
 

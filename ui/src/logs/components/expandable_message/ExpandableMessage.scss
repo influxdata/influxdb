@@ -31,10 +31,11 @@
   display: block;
   box-sizing: border-box;
   position: absolute;
-  top: 0;
+  top: -($ix-marg-b - 1px);
+  left: -($ix-marg-b - 4px);
   white-space: pre-wrap;
-  padding: $ix-marg-c;
-  width: 100%;
+  padding: $ix-marg-b;
+  width: calc(100% + #{$ix-marg-b});
   max-height: 300px;
   overflow-y: auto;
   background-color: $g5-pepper;

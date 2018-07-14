@@ -8,7 +8,7 @@ import {
   filterTableColumns,
 } from 'src/dashboards/utils/tableGraph'
 
-export const ROW_HEIGHT = 26
+export const ROW_HEIGHT = 18
 const CHAR_WIDTH = 9
 
 export const getValuesFromData = (data: TableData): string[][] =>

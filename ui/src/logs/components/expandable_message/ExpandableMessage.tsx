@@ -20,13 +20,14 @@ export class ExpandableMessage extends Component<Props, State> {
   }
 
   public render() {
-    const {formattedValue} = this.props
+    const formattedValue = `${this.props.formattedValue}`
+    const trimmedValue = formattedValue.trimLeft()
 
     return (
       <ClickOutside onClickOutside={this.handleClickOutside}>
         <div onClick={this.handleClick} className="expandable--message">
-          <div className="expandable--text">{formattedValue}</div>
-          <div className={this.isExpanded}>{formattedValue}</div>
+          <div className="expandable--text">{trimmedValue}</div>
+          <div className={this.isExpanded}>{trimmedValue}</div>
         </div>
       </ClickOutside>
     )
