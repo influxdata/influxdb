@@ -32,7 +32,7 @@ import {
   TimeMarker,
 } from 'src/types/logs'
 
-export const INITIAL_LIMIT = 100
+export const INITIAL_LIMIT = 1000
 
 const defaultTableData: TableData = {
   columns: [
