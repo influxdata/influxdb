@@ -157,8 +157,6 @@ class LogsTable extends Component<Props, State> {
       isMessageVisible,
       visibleColumnsCount,
     }
-
-    this.loadMoreAboveRows = _.throttle(this.loadMoreAboveRows, 50)
   }
 
   public componentDidUpdate() {
@@ -314,7 +312,7 @@ class LogsTable extends Component<Props, State> {
 
       this.setState({scrollTop})
 
-      if (scrollTop < 200 && scrollTop < previousTop) {
+      if (scrollTop < 200 && scrollTop <= previousTop) {
         this.loadMoreAboveRows()
       }
 

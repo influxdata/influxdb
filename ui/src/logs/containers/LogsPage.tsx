@@ -155,7 +155,9 @@ class LogsPage extends Component<Props, State> {
       this.fetchNewDataset()
     }
 
-    this.startUpdating()
+    if (getDeep<string>(this.props, 'timeRange.timeOption', '') === 'now') {
+      this.startUpdating()
+    }
   }
 
   public componentWillUnmount() {
@@ -235,7 +237,12 @@ class LogsPage extends Component<Props, State> {
 
   private handleChooseCustomTime = async (time: string) => {
     this.props.setTableCustomTime(time)
-    this.setState({hasScrolled: false})
+    const liveUpdating = LiveUpdating.Pause
+
+    this.setState({
+      hasScrolled: false,
+      liveUpdating,
+    })
 
     await this.props.setTimeMarker({
       timeOption: time,
@@ -254,10 +261,13 @@ class LogsPage extends Component<Props, State> {
         .toISOString(),
     }
 
+    let liveUpdating = LiveUpdating.Pause
     if (time === 0) {
       timeOption = {timeOption: 'now'}
+      liveUpdating = LiveUpdating.Play
     }
 
+    this.setState({liveUpdating})
     await this.props.setTimeMarker(timeOption)
     this.handleSetTimeBounds()
   }
@@ -482,8 +492,11 @@ class LogsPage extends Component<Props, State> {
     this.props.setNamespaceAsync(namespace)
   }
 
-  private fetchNewDataset() {
+  private turnOnUpdating() {
     this.setState({liveUpdating: LiveUpdating.Play})
+  }
+
+  private fetchNewDataset() {
     this.props.executeQueriesAsync()
   }
 
