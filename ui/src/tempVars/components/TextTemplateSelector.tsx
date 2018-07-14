@@ -7,11 +7,11 @@ import React, {
 
 import {getDeep} from 'src/utils/wrappers'
 
-import {Template, TemplateValueType} from 'src/types'
+import {Template, TemplateValueType, TemplateValue} from 'src/types'
 
 interface Props {
   template: Template
-  onUpdateTemplate: (template: Template) => Promise<void>
+  onPickValue: (v: TemplateValue) => void
 }
 
 interface State {
@@ -59,19 +59,14 @@ class TextTemplateSelector extends PureComponent<Props, State> {
   }
 
   private submit = (): void => {
-    const {template, onUpdateTemplate} = this.props
+    const {onPickValue} = this.props
     const {text} = this.state
 
-    onUpdateTemplate({
-      ...template,
-      values: [
-        {
-          value: text,
-          type: TemplateValueType.Constant,
-          selected: true,
-          localSelected: true,
-        },
-      ],
+    onPickValue({
+      value: text,
+      type: TemplateValueType.Constant,
+      selected: true,
+      localSelected: true,
     })
   }
 }

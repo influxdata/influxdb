@@ -4,6 +4,8 @@ import {NULL_HOVER_TIME} from 'src/shared/constants/tableGraph'
 import {DashboardUIState} from 'src/types/dashboards'
 import {Action, ActionType} from 'src/dashboards/actions'
 
+import {TemplateType} from 'src/types/tempVars'
+
 const {lower, upper} = timeRanges.find(tr => tr.lower === 'now() - 1h')
 
 export const initialState: DashboardUIState = {
@@ -155,11 +157,16 @@ export default (
             return template
           }
 
-          const values = template.values.map(value => {
-            const localSelected = value.value === newValue.value
+          let values
+          if (template.type === TemplateType.Text) {
+            values = [newValue]
+          } else {
+            values = template.values.map(value => {
+              const localSelected = value.value === newValue.value
 
-            return {...value, localSelected}
-          })
+              return {...value, localSelected}
+            })
+          }
 
           return {...template, values}
         })
