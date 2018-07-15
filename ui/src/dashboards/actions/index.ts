@@ -694,9 +694,8 @@ export const rehydrateTemplatesAsync = (
 ) => async (dispatch, getState): Promise<void> => {
   const dashboard = getDashboard(getState(), dashboardId)
 
-  const proxyUrl = source.links.proxy
   const templates = await hydrateTemplates(dashboard.templates, {
-    proxyUrl,
+    proxyUrl: source.links.proxy,
   })
 
   dispatch(updateTemplates(templates))

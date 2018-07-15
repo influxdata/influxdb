@@ -141,6 +141,7 @@ function isResolved(node: TemplateNode) {
 
 class CachingTemplateQueryFetcher implements TemplateQueryFetcher {
   private proxyUrl: string
+
   private cache: {
     [proxyUrl: string]: {
       [query: string]: QueryResult[]
@@ -151,7 +152,11 @@ class CachingTemplateQueryFetcher implements TemplateQueryFetcher {
     this.cache = {}
   }
 
-  public setProxyUrl(proxyUrl) {
+  public setProxyUrl(proxyUrl: string): CachingTemplateQueryFetcher {
+    if (!proxyUrl) {
+      throw new Error('Must supply proxyUrl')
+    }
+
     this.proxyUrl = proxyUrl
 
     if (!this.cache[proxyUrl]) {
@@ -188,23 +193,19 @@ interface HydrateTemplateOptions {
 export async function hydrateTemplate(
   template: Template,
   templates: Template[],
-  {proxyUrl, fetcher, selections = {}}: HydrateTemplateOptions
+  {
+    proxyUrl,
+    fetcher = defaultFetcher.setProxyUrl(proxyUrl),
+    selections = {},
+  }: HydrateTemplateOptions
 ): Promise<Template> {
   if (!template.query || !template.query.influxql) {
     return Promise.resolve(template)
   }
 
-  let thisFetcher
-
-  if (fetcher) {
-    thisFetcher = fetcher
-  } else {
-    defaultFetcher.setProxyUrl(proxyUrl)
-    thisFetcher = defaultFetcher
-  }
-
   const query = templateReplace(templateInternalReplace(template), templates)
-  const values = await thisFetcher.fetch(query)
+  const values = await fetcher.fetch(query)
+
   const templateValues = newTemplateValues(
     template,
     values,
