@@ -8,7 +8,7 @@ import {getSelectedValue, getLocalSelectedValue} from 'src/tempVars/utils'
 
 import {TEMPLATE_VARIABLE_TYPES} from 'src/tempVars/constants'
 
-import {Template, RemoteDataState} from 'src/types'
+import {Template, TemplateValue, RemoteDataState} from 'src/types'
 
 /*
   - Many scenarios invalidate the dependency graph
@@ -218,7 +218,7 @@ function newTemplateValues(
   template: Template,
   newValues: string[],
   hopefullySelectedValue?: string
-) {
+): TemplateValue[] {
   if (!newValues.length) {
     return []
   }
@@ -228,14 +228,23 @@ function newTemplateValues(
   let selectedValue = getSelectedValue(template)
 
   if (!selectedValue) {
+    // The persisted selected value may no longer exist as a result for the
+    // templates metaquery. In this case we select the first actual result
     selectedValue = newValues[0]
   }
 
-  let localSelectedValue =
-    hopefullySelectedValue || getLocalSelectedValue(template)
+  let localSelectedValue = hopefullySelectedValue
 
-  if (!localSelectedValue || !newValues.find(v => v === localSelectedValue)) {
+  if (!localSelectedValue) {
+    localSelectedValue = getLocalSelectedValue(template)
+  }
+
+  if (!localSelectedValue || !newValues.includes(localSelectedValue)) {
     localSelectedValue = selectedValue
+  }
+
+  if (!newValues.includes(localSelectedValue)) {
+    localSelectedValue = newValues[0]
   }
 
   return newValues.map(value => {
