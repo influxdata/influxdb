@@ -3406,7 +3406,7 @@ func TestServer(t *testing.T) {
 				body: `
 {
   "layouts": "/chronograf/v1/layouts",
-	"cells": "/chronograf/v2/cells",
+  "cells": "/chronograf/v2/cells",
   "users": "/chronograf/v1/organizations/default/users",
   "allUsers": "/chronograf/v1/users",
   "organizations": "/chronograf/v1/organizations",
@@ -3435,7 +3435,7 @@ func TestServer(t *testing.T) {
   "orgConfig": {
     "logViewer": "/chronograf/v1/org_config/logviewer",
     "self": "/chronograf/v1/org_config"
-	},
+  },
   "flux": {
     "ast": "/chronograf/v1/flux/ast",
     "self": "/chronograf/v1/flux",
@@ -3498,42 +3498,42 @@ func TestServer(t *testing.T) {
 				statusCode: 200,
 				body: `
 {
-	"layouts": "/chronograf/v1/layouts",
-	"cells": "/chronograf/v2/cells",
-	"users": "/chronograf/v1/organizations/1/users",
-	"allUsers": "/chronograf/v1/users",
-	"organizations": "/chronograf/v1/organizations",
-	"mappings": "/chronograf/v1/mappings",
-	"sources": "/chronograf/v1/sources",
-	"me": "/chronograf/v1/me",
-	"environment": "/chronograf/v1/env",
-	"dashboards": "/chronograf/v1/dashboards",
-	"config": {
-		"self": "/chronograf/v1/config",
-		"auth": "/chronograf/v1/config/auth"
-	},
+  "layouts": "/chronograf/v1/layouts",
+  "cells": "/chronograf/v2/cells",
+  "users": "/chronograf/v1/organizations/1/users",
+  "allUsers": "/chronograf/v1/users",
+  "organizations": "/chronograf/v1/organizations",
+  "mappings": "/chronograf/v1/mappings",
+  "sources": "/chronograf/v1/sources",
+  "me": "/chronograf/v1/me",
+  "environment": "/chronograf/v1/env",
+  "dashboards": "/chronograf/v1/dashboards",
+  "config": {
+    "self": "/chronograf/v1/config",
+    "auth": "/chronograf/v1/config/auth"
+  },
   "orgConfig": {
     "logViewer": "/chronograf/v1/org_config/logviewer",
     "self": "/chronograf/v1/org_config"
-	},
-	"auth": [
-		{
-			"name": "github",
-			"label": "Github",
-			"login": "/oauth/github/login",
-			"logout": "/oauth/github/logout",
-			"callback": "/oauth/github/callback"
-		}
-	],
-	"logout": "/oauth/logout",
-	"external": {
-		"statusFeed": ""
-	},
-	"flux": {
-		"ast": "/chronograf/v1/flux/ast",
-		"self": "/chronograf/v1/flux",
-		"suggestions": "/chronograf/v1/flux/suggestions"
-	}
+  },
+  "auth": [
+    {
+      "name": "github",
+      "label": "Github",
+      "login": "/oauth/github/login",
+      "logout": "/oauth/github/logout",
+      "callback": "/oauth/github/callback"
+    }
+  ],
+  "logout": "/oauth/logout",
+  "external": {
+    "statusFeed": ""
+  },
+  "flux": {
+    "ast": "/chronograf/v1/flux/ast",
+    "self": "/chronograf/v1/flux",
+    "suggestions": "/chronograf/v1/flux/suggestions"
+  }
 }
 `,
 			},
