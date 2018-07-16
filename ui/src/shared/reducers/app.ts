@@ -1,8 +1,19 @@
 import {combineReducers} from 'redux'
 
-import {AUTOREFRESH_DEFAULT} from 'shared/constants'
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
+import {ActionTypes, Action} from 'src/types/actions/app'
 
-const initialState = {
+interface State {
+  ephemeral: {
+    inPresentationMode: boolean
+  }
+  persisted: {
+    autoRefresh: number
+    showTemplateControlBar: boolean
+  }
+}
+
+const initialState: State = {
   ephemeral: {
     inPresentationMode: false,
   },
@@ -17,16 +28,19 @@ const {
   persisted: initialAppPersistedState,
 } = initialState
 
-const appEphemeralReducer = (state = initialAppEphemeralState, action) => {
+const appEphemeralReducer = (
+  state = initialAppEphemeralState,
+  action: Action
+) => {
   switch (action.type) {
-    case 'ENABLE_PRESENTATION_MODE': {
+    case ActionTypes.EnablePresentationMode: {
       return {
         ...state,
         inPresentationMode: true,
       }
     }
 
-    case 'DISABLE_PRESENTATION_MODE': {
+    case ActionTypes.DisablePresentationMode: {
       return {
         ...state,
         inPresentationMode: false,
@@ -38,16 +52,19 @@ const appEphemeralReducer = (state = initialAppEphemeralState, action) => {
   }
 }
 
-const appPersistedReducer = (state = initialAppPersistedState, action) => {
+const appPersistedReducer = (
+  state = initialAppPersistedState,
+  action: Action
+) => {
   switch (action.type) {
-    case 'SET_AUTOREFRESH': {
+    case ActionTypes.SetAutoRefresh: {
       return {
         ...state,
         autoRefresh: action.payload.milliseconds,
       }
     }
 
-    case 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED': {
+    case ActionTypes.TemplateControlBarVisibilityToggled: {
       const {showTemplateControlBar} = state
 
       return {...state, showTemplateControlBar: !showTemplateControlBar}
@@ -58,7 +75,7 @@ const appPersistedReducer = (state = initialAppPersistedState, action) => {
   }
 }
 
-const appReducer = combineReducers({
+const appReducer = combineReducers<State>({
   ephemeral: appEphemeralReducer,
   persisted: appPersistedReducer,
 })

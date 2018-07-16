@@ -1,13 +1,27 @@
 import {Dispatch} from 'redux'
 
+export enum ActionTypes {
+  EnablePresentationMode = 'ENABLE_PRESENTATION_MODE',
+  DisablePresentationMode = 'DISABLE_PRESENTATION_MODE',
+  SetAutoRefresh = 'SET_AUTOREFRESH',
+  TemplateControlBarVisibilityToggled = 'TemplateControlBarVisibilityToggledAction',
+  Noop = 'NOOP',
+}
+
+export type Action =
+  | EnablePresentationModeAction
+  | DisablePresentationModeAction
+  | SetAutoRefreshAction
+  | TemplateControlBarVisibilityToggledAction
+
 export type EnablePresentationModeActionCreator = () => EnablePresentationModeAction
 
 export interface EnablePresentationModeAction {
-  type: 'ENABLE_PRESENTATION_MODE'
+  type: ActionTypes.EnablePresentationMode
 }
 
 export interface DisablePresentationModeAction {
-  type: 'DISABLE_PRESENTATION_MODE'
+  type: ActionTypes.DisablePresentationMode
 }
 
 export type DelayEnablePresentationModeDispatcher = () => DelayEnablePresentationModeThunk
@@ -21,7 +35,7 @@ export type SetAutoRefreshActionCreator = (
 ) => SetAutoRefreshAction
 
 export interface SetAutoRefreshAction {
-  type: 'SET_AUTOREFRESH'
+  type: ActionTypes.SetAutoRefresh
   payload: {
     milliseconds: number
   }
@@ -30,10 +44,5 @@ export interface SetAutoRefreshAction {
 export type TemplateControlBarVisibilityToggledActionCreator = () => TemplateControlBarVisibilityToggledAction
 
 export interface TemplateControlBarVisibilityToggledAction {
-  type: 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED'
-}
-
-export interface NoopAction {
-  type: 'NOOP'
-  payload: object
+  type: ActionTypes.TemplateControlBarVisibilityToggled
 }

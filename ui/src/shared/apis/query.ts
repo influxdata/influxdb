@@ -9,12 +9,15 @@ import {analyzeQueries} from 'src/shared/apis'
 import {DEFAULT_DURATION_MS} from 'src/shared/constants'
 import replaceTemplates, {replaceInterval} from 'src/tempVars/utils/replace'
 import {proxy} from 'src/utils/queryUrlGenerator'
-import {noop} from 'src/shared/actions/app'
 
 import {Source} from 'src/types'
 
 import {Template} from 'src/types'
 
+const noop = () => ({
+  type: 'NOOP',
+  payload: {},
+})
 interface Query {
   text: string
   database?: string
