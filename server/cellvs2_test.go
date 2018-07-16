@@ -115,6 +115,28 @@ func TestService_CellsV2(t *testing.T) {
 }`,
 			},
 		},
+		{
+			name: "get all cells when there are none",
+			fields: fields{
+				&mocks.CellService{
+					FindCellsF: func(ctx context.Context, filter platform.CellFilter) ([]*platform.Cell, int, error) {
+						return []*platform.Cell{}, 0, nil
+					},
+				},
+			},
+			args: args{},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json",
+				body: `
+{
+  "links": {
+    "self": "/chronograf/v2/cells"
+  },
+  "cells": []
+}`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -213,6 +235,24 @@ func TestService_CellIDV2(t *testing.T) {
   }
 }
 `,
+			},
+		},
+		{
+			name: "not found",
+			fields: fields{
+				&mocks.CellService{
+					FindCellByIDF: func(ctx context.Context, id platform.ID) (*platform.Cell, error) {
+						return nil, platform.ErrCellNotFound
+					},
+				},
+			},
+			args: args{
+				id: "2",
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json",
+				body:        `{"code":404,"message":"cell not found"}`,
 			},
 		},
 	}
@@ -412,6 +452,24 @@ func TestService_RemoveCellV2(t *testing.T) {
 				statusCode: http.StatusNoContent,
 			},
 		},
+		{
+			name: "cell not found",
+			fields: fields{
+				&mocks.CellService{
+					DeleteCellF: func(ctx context.Context, id platform.ID) error {
+						return platform.ErrCellNotFound
+					},
+				},
+			},
+			args: args{
+				id: "2",
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json",
+				body:        `{"code":404,"message":"cell not found"}`,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -567,6 +625,25 @@ func TestService_UpdateCellV2(t *testing.T) {
 				statusCode:  http.StatusBadRequest,
 				contentType: "application/json",
 				body:        `{"code":400,"message":"expected at least one attribute to be updated"}`,
+			},
+		},
+		{
+			name: "cell not found",
+			fields: fields{
+				&mocks.CellService{
+					UpdateCellF: func(ctx context.Context, id platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+						return nil, platform.ErrCellNotFound
+					},
+				},
+			},
+			args: args{
+				id:   "2",
+				name: "hello",
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json",
+				body:        `{"code":404,"message":"cell not found"}`,
 			},
 		},
 	}

@@ -127,6 +127,11 @@ func (s *Service) CellIDV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cell, err := s.Store.Cells(ctx).FindCellByID(ctx, req.CellID)
+	if err == platform.ErrCellNotFound {
+		Error(w, http.StatusNotFound, err.Error(), s.Logger)
+		return
+	}
+
 	if err != nil {
 		Error(w, http.StatusInternalServerError, fmt.Sprintf("Error loading cell: %v", err), s.Logger)
 		return
@@ -159,7 +164,13 @@ func (s *Service) RemoveCellV2(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusBadRequest, err.Error(), s.Logger)
 		return
 	}
-	if err := s.Store.Cells(ctx).DeleteCell(ctx, req.CellID); err != nil {
+	err = s.Store.Cells(ctx).DeleteCell(ctx, req.CellID)
+	if err == platform.ErrCellNotFound {
+		Error(w, http.StatusNotFound, err.Error(), s.Logger)
+		return
+	}
+
+	if err != nil {
 		Error(w, http.StatusInternalServerError, fmt.Sprintf("Error deleting cell: %v", err), s.Logger)
 		return
 	}
@@ -188,6 +199,11 @@ func (s *Service) UpdateCellV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cell, err := s.Store.Cells(ctx).UpdateCell(ctx, req.CellID, req.Upd)
+	if err == platform.ErrCellNotFound {
+		Error(w, http.StatusNotFound, err.Error(), s.Logger)
+		return
+	}
+
 	if err != nil {
 		Error(w, http.StatusInternalServerError, fmt.Sprintf("Error updating cell: %v", err), s.Logger)
 		return
