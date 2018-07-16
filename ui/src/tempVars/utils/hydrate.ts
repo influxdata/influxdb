@@ -68,10 +68,8 @@ export function lexTemplateQuery(query: string): TemplateName[] {
 }
 
 function verifyAcyclic(graph: TemplateGraph): void {
-  const roots = findRoots(graph)
-
-  for (const root of roots) {
-    verifyAcyclicHelper(root, [])
+  for (const node of graph) {
+    verifyAcyclicHelper(node, [])
   }
 }
 
@@ -85,7 +83,7 @@ function verifyAcyclicHelper(node, seen) {
   }
 }
 
-function graphFromTemplates(templates: Template[]): TemplateGraph {
+export function graphFromTemplates(templates: Template[]): TemplateGraph {
   interface NodesById {
     [id: string]: TemplateNode
   }
@@ -125,10 +123,6 @@ function graphFromTemplates(templates: Template[]): TemplateGraph {
   verifyAcyclic(nodes)
 
   return nodes
-}
-
-function findRoots(graph: TemplateGraph): TemplateNode[] {
-  return graph.filter(node => !node.parents.length)
 }
 
 function findLeaves(graph: TemplateGraph): TemplateNode[] {
@@ -215,7 +209,7 @@ export async function hydrateTemplate(
   return {...template, values: templateValues}
 }
 
-function newTemplateValues(
+export function newTemplateValues(
   template: Template,
   newValues: string[],
   hopefullySelectedValue?: string
@@ -228,7 +222,7 @@ function newTemplateValues(
 
   let selectedValue = getSelectedValue(template)
 
-  if (!selectedValue) {
+  if (!selectedValue || !newValues.includes(selectedValue)) {
     // The persisted selected value may no longer exist as a result for the
     // templates metaquery. In this case we select the first actual result
     selectedValue = newValues[0]
@@ -242,10 +236,6 @@ function newTemplateValues(
 
   if (!localSelectedValue || !newValues.includes(localSelectedValue)) {
     localSelectedValue = selectedValue
-  }
-
-  if (!newValues.includes(localSelectedValue)) {
-    localSelectedValue = newValues[0]
   }
 
   return newValues.map(value => {
