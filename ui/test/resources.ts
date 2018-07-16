@@ -698,4 +698,5 @@ export const cell: Cell = {
       '/chronograf/v1/dashboards/10/cells/8b3b7897-49b1-422c-9443-e9b778bcbf12',
   },
   legend: {},
+  inView: true,
 }

@@ -185,6 +185,7 @@ export const cell: Cell = {
     self:
       '/chronograf/v1/dashboards/9/cells/67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
   },
+  inView: true,
 }
 
 export const fullTimeRange = {
