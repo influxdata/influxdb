@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
-import getLastValues, {TimeSeriesResponse} from 'src/shared/parsing/lastValues'
+import getLastValues from 'src/shared/parsing/lastValues'
 import Gauge from 'src/shared/components/Gauge'
 
 import {DEFAULT_GAUGE_COLORS} from 'src/shared/constants/thresholds'
@@ -9,6 +9,7 @@ import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {DecimalPlaces} from 'src/types/dashboards'
+import {TimeSeriesServerResponse} from 'src/types/series'
 
 interface Color {
   type: string
@@ -19,9 +20,8 @@ interface Color {
 }
 
 interface Props {
-  data: TimeSeriesResponse[]
+  data: TimeSeriesServerResponse[]
   decimalPlaces: DecimalPlaces
-  isFetchingInitially: boolean
   cellID: string
   cellHeight?: number
   colors?: Color[]
@@ -37,15 +37,7 @@ class GaugeChart extends PureComponent<Props> {
   }
 
   public render() {
-    const {isFetchingInitially, colors, prefix, suffix} = this.props
-
-    if (isFetchingInitially) {
-      return (
-        <div className="graph-empty">
-          <h3 className="graph-spinner" />
-        </div>
-      )
-    }
+    const {colors, prefix, suffix} = this.props
 
     return (
       <div className="single-stat">

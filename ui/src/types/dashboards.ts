@@ -76,6 +76,7 @@ export interface Cell {
   links: CellLinks
   legend: Legend
   isWidget?: boolean
+  inView: boolean
 }
 
 export enum CellType {

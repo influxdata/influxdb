@@ -19,6 +19,7 @@ import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/GraphTips'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import AutoRefresh from 'src/utils/AutoRefresh'
 
 import {VIS_VIEWS, AUTO_GROUP_BY, TEMPLATES} from 'src/shared/constants'
 import {MINIMUM_HEIGHTS, INITIAL_HEIGHTS} from 'src/data_explorer/constants'
@@ -63,8 +64,11 @@ export class DataExplorer extends PureComponent<Props, State> {
   }
 
   public componentDidMount() {
-    const {source} = this.props
+    const {source, autoRefresh} = this.props
     const {query} = qs.parse(location.search, {ignoreQueryPrefix: true})
+
+    AutoRefresh.poll(autoRefresh)
+
     if (query && query.length) {
       const qc = this.props.queryConfigs[0]
       this.props.queryConfigActions.editRawTextAsync(
@@ -72,6 +76,13 @@ export class DataExplorer extends PureComponent<Props, State> {
         qc.id,
         query
       )
+    }
+  }
+
+  public componentDidUpdate(prevProps: Props) {
+    const {autoRefresh} = this.props
+    if (autoRefresh !== prevProps.autoRefresh) {
+      AutoRefresh.poll(autoRefresh)
     }
   }
 
@@ -87,6 +98,10 @@ export class DataExplorer extends PureComponent<Props, State> {
       const pathname = stripPrefix(location.pathname)
       router.push(`${pathname}?${qsNew}`)
     }
+  }
+
+  public componentWillUnmount() {
+    AutoRefresh.stopPolling()
   }
 
   public render() {

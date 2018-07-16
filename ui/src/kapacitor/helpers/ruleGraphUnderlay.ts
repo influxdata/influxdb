@@ -1,33 +1,35 @@
-import {
-  EQUAL_TO,
-  LESS_THAN,
-  NOT_EQUAL_TO,
-  GREATER_THAN,
-  INSIDE_RANGE,
-  OUTSIDE_RANGE,
-  EQUAL_TO_OR_LESS_THAN,
-  EQUAL_TO_OR_GREATER_THAN,
-} from 'src/kapacitor/constants'
+import {ThresholdOperators} from 'src/kapacitor/constants'
 
 const HIGHLIGHT = 'rgba(78, 216, 160, 0.3)'
 const BACKGROUND = 'rgba(41, 41, 51, 1)'
 
-const getFillColor = operator => {
+const getFillColor = (operator: ThresholdOperators) => {
   const backgroundColor = BACKGROUND
   const highlightColor = HIGHLIGHT
 
-  if (operator === OUTSIDE_RANGE) {
+  if (operator === ThresholdOperators.OutsideRange) {
     return backgroundColor
   }
 
-  if (operator === NOT_EQUAL_TO) {
+  if (operator === ThresholdOperators.NotEqualTo) {
     return backgroundColor
   }
 
   return highlightColor
 }
 
-const underlayCallback = rule => (canvas, area, dygraph) => {
+interface Area {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+const underlayCallback = rule => (
+  canvas: CanvasRenderingContext2D,
+  area: Area,
+  dygraph: Dygraph
+) => {
   const {values} = rule
   const {operator, value} = values
 
@@ -40,21 +42,21 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
   let highlightEnd = 0
 
   switch (operator) {
-    case `${EQUAL_TO_OR_GREATER_THAN}`:
-    case `${GREATER_THAN}`: {
+    case ThresholdOperators.EqualToOrGreaterThan:
+    case ThresholdOperators.GreaterThan: {
       highlightStart = value
       highlightEnd = dygraph.yAxisRange()[1]
       break
     }
 
-    case `${EQUAL_TO_OR_LESS_THAN}`:
-    case `${LESS_THAN}`: {
+    case ThresholdOperators.EqualToOrLessThan:
+    case ThresholdOperators.LessThan: {
       highlightStart = dygraph.yAxisRange()[0]
       highlightEnd = value
       break
     }
 
-    case `${EQUAL_TO}`: {
+    case ThresholdOperators.LessThan: {
       const width =
         theOnePercent * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0])
       highlightStart = +value - width
@@ -62,7 +64,7 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
       break
     }
 
-    case `${NOT_EQUAL_TO}`: {
+    case ThresholdOperators.NotEqualTo: {
       const width =
         theOnePercent * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0])
       highlightStart = +value - width
@@ -73,7 +75,7 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
       break
     }
 
-    case `${OUTSIDE_RANGE}`: {
+    case ThresholdOperators.OutsideRange: {
       highlightStart = Math.min(+value, +values.rangeValue)
       highlightEnd = Math.max(+value, +values.rangeValue)
 
@@ -82,7 +84,7 @@ const underlayCallback = rule => (canvas, area, dygraph) => {
       break
     }
 
-    case `${INSIDE_RANGE}`: {
+    case ThresholdOperators.InsideRange: {
       highlightStart = Math.min(+value, +values.rangeValue)
       highlightEnd = Math.max(+value, +values.rangeValue)
       break

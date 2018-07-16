@@ -1,65 +1,48 @@
+// Libraries
 import React, {PureComponent, CSSProperties} from 'react'
 import Dygraph from 'src/shared/components/Dygraph'
+import {withRouter, RouteComponentProps} from 'react-router'
 import _ from 'lodash'
 
+// Components
 import SingleStat from 'src/shared/components/SingleStat'
+import {ErrorHandlingWith} from 'src/shared/decorators/errors'
+import InvalidData from 'src/shared/components/InvalidData'
+
+// Utils
 import {
   timeSeriesToDygraph,
   TimeSeriesToDyGraphReturnType,
 } from 'src/utils/timeSeriesTransformers'
 
-import {ErrorHandlingWith} from 'src/shared/decorators/errors'
-import InvalidData from 'src/shared/components/InvalidData'
-import {Query, Axes, RuleValues, TimeRange} from 'src/types'
-import {DecimalPlaces} from 'src/types/dashboards'
+// Types
 import {ColorString} from 'src/types/colors'
-import {Data} from 'src/types/dygraphs'
-
-const validateTimeSeries = ts => {
-  return _.every(ts, r =>
-    _.every(
-      r,
-      (v, i: number) =>
-        (i === 0 && Date.parse(v)) || _.isNumber(v) || _.isNull(v)
-    )
-  )
-}
+import {DecimalPlaces} from 'src/types/dashboards'
+import {TimeSeriesServerResponse} from 'src/types/series'
+import {Query, Axes, TimeRange, RemoteDataState, CellType} from 'src/types'
 
 interface Props {
   axes: Axes
-  title: string
+  type: CellType
+  queries: Query[]
+  timeRange: TimeRange
+  colors: ColorString[]
+  loading: RemoteDataState
+  decimalPlaces: DecimalPlaces
+  data: TimeSeriesServerResponse[]
   cellID: string
   cellHeight: number
-  isFetchingInitially: boolean
-  isRefreshing: boolean
-  isGraphFilled: boolean
-  isBarGraph: boolean
   staticLegend: boolean
-  showSingleStat: boolean
-  displayOptions: {
-    stepPlot: boolean
-    stackedGraph: boolean
-    animatedZooms: boolean
-  }
-  activeQueryIndex: number
-  ruleValues: RuleValues
-  timeRange: TimeRange
-  isInDataExplorer: boolean
   onZoom: () => void
-  data: Data
-  queries: Query[]
-  colors: ColorString[]
-  decimalPlaces: DecimalPlaces
-  underlayCallback?: () => void
-  setResolution: () => void
   handleSetHoverTime: () => void
+  activeQueryIndex?: number
 }
 
+type LineGraphProps = Props & RouteComponentProps<any, any>
+
 @ErrorHandlingWith(InvalidData)
-class LineGraph extends PureComponent<Props> {
-  public static defaultProps: Partial<Props> = {
-    underlayCallback: () => {},
-    isGraphFilled: true,
+class LineGraph extends PureComponent<LineGraphProps> {
+  public static defaultProps: Partial<LineGraphProps> = {
     staticLegend: false,
   }
 
@@ -67,15 +50,16 @@ class LineGraph extends PureComponent<Props> {
   private timeSeries: TimeSeriesToDyGraphReturnType
 
   public componentWillMount() {
-    const {data, isInDataExplorer} = this.props
-    this.parseTimeSeries(data, isInDataExplorer)
+    const {data} = this.props
+    this.parseTimeSeries(data)
   }
 
-  public parseTimeSeries(data, isInDataExplorer) {
-    this.timeSeries = timeSeriesToDygraph(data, isInDataExplorer)
-    this.isValidData = validateTimeSeries(
-      _.get(this.timeSeries, 'timeSeries', [])
-    )
+  public parseTimeSeries(data) {
+    const {location} = this.props
+
+    this.timeSeries = timeSeriesToDygraph(data, location.pathname)
+    const timeSeries = _.get(this.timeSeries, 'timeSeries', [])
+    this.isValidData = this.validateTimeSeries(timeSeries)
   }
 
   public componentWillUpdate(nextProps) {
@@ -84,7 +68,7 @@ class LineGraph extends PureComponent<Props> {
       data !== nextProps.data ||
       activeQueryIndex !== nextProps.activeQueryIndex
     ) {
-      this.parseTimeSeries(nextProps.data, nextProps.isInDataExplorer)
+      this.parseTimeSeries(nextProps.data)
     }
   }
 
@@ -96,54 +80,41 @@ class LineGraph extends PureComponent<Props> {
     const {
       data,
       axes,
-      title,
+      type,
       colors,
       cellID,
       onZoom,
+      loading,
       queries,
       timeRange,
       cellHeight,
-      ruleValues,
-      isBarGraph,
-      isRefreshing,
-      setResolution,
-      isGraphFilled,
-      showSingleStat,
-      displayOptions,
       staticLegend,
       decimalPlaces,
-      underlayCallback,
-      isFetchingInitially,
       handleSetHoverTime,
     } = this.props
 
     const {labels, timeSeries, dygraphSeries} = this.timeSeries
 
-    // If data for this graph is being fetched for the first time, show a graph-wide spinner.
-    if (isFetchingInitially) {
-      return <GraphSpinner />
-    }
-
     const options = {
-      ...displayOptions,
-      title,
-      labels,
       rightGap: 0,
       yRangePad: 10,
       labelsKMB: true,
       fillGraph: true,
-      underlayCallback,
       axisLabelWidth: 60,
+      animatedZooms: true,
       drawAxesAtZero: true,
       axisLineColor: '#383846',
       gridLineColor: '#383846',
       connectSeparatedPoints: true,
+      stepPlot: type === 'line-stepplot',
+      stackedGraph: type === 'line-stacked',
     }
 
     return (
       <div className="dygraph graph--hasYLabel" style={this.style}>
-        {isRefreshing && <GraphLoadingDots />}
+        {loading === RemoteDataState.Loading && <GraphLoadingDots />}
         <Dygraph
+          type={type}
           axes={axes}
           cellID={cellID}
           colors={colors}
@@ -152,17 +123,14 @@ class LineGraph extends PureComponent<Props> {
           queries={queries}
           options={options}
           timeRange={timeRange}
-          isBarGraph={isBarGraph}
           timeSeries={timeSeries}
-          ruleValues={ruleValues}
           staticLegend={staticLegend}
           dygraphSeries={dygraphSeries}
-          setResolution={setResolution}
+          isGraphFilled={this.isGraphFilled}
           containerStyle={this.containerStyle}
           handleSetHoverTime={handleSetHoverTime}
-          isGraphFilled={showSingleStat ? false : isGraphFilled}
         >
-          {showSingleStat && (
+          {type === CellType.LinePlusSingleStat && (
             <SingleStat
               data={data}
               lineGraph={true}
@@ -171,12 +139,31 @@ class LineGraph extends PureComponent<Props> {
               suffix={this.suffix}
               cellHeight={cellHeight}
               decimalPlaces={decimalPlaces}
-              isFetchingInitially={isFetchingInitially}
             />
           )}
         </Dygraph>
       </div>
     )
+  }
+
+  private validateTimeSeries = ts => {
+    return _.every(ts, r =>
+      _.every(
+        r,
+        (v, i: number) =>
+          (i === 0 && Date.parse(v)) || _.isNumber(v) || _.isNull(v)
+      )
+    )
+  }
+
+  private get isGraphFilled(): boolean {
+    const {type} = this.props
+
+    if (type === CellType.LinePlusSingleStat) {
+      return false
+    }
+
+    return true
   }
 
   private get style(): CSSProperties {
@@ -221,10 +208,4 @@ const GraphLoadingDots = () => (
   </div>
 )
 
-const GraphSpinner = () => (
-  <div className="graph-fetching">
-    <div className="graph-spinner" />
-  </div>
-)
-
-export default LineGraph
+export default withRouter<Props>(LineGraph)

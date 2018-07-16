@@ -1,31 +1,14 @@
 import _ from 'lodash'
 import {Data} from 'src/types/dygraphs'
+import {TimeSeriesServerResponse} from 'src/types/series'
 
 interface Result {
   lastValues: number[]
   series: string[]
 }
 
-type SeriesValue = number | string
-
-interface Series {
-  name: string
-  values: SeriesValue[][] | null
-  columns: string[] | null
-}
-
-interface TimeSeriesResult {
-  series: Series[]
-}
-
-export interface TimeSeriesResponse {
-  response: {
-    results: TimeSeriesResult[]
-  }
-}
-
 export default function(
-  timeSeriesResponse: TimeSeriesResponse[] | Data | null
+  timeSeriesResponse: TimeSeriesServerResponse[] | Data | null
 ): Result {
   const values = _.get(
     timeSeriesResponse,
