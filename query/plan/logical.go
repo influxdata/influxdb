@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/influxdata/platform/query"
 	uuid "github.com/satori/go.uuid"
@@ -14,6 +15,7 @@ type LogicalPlanSpec struct {
 	Procedures map[ProcedureID]*Procedure
 	Order      []ProcedureID
 	Resources  query.ResourceManagement
+	Now        time.Time
 }
 
 func (lp *LogicalPlanSpec) Do(f func(pr *Procedure)) {
@@ -49,6 +51,7 @@ func (p *logicalPlanner) Plan(q *query.Spec) (*LogicalPlanSpec, error) {
 	if err != nil {
 		return nil, err
 	}
+	p.plan.Now = q.Now
 	return p.plan, nil
 }
 

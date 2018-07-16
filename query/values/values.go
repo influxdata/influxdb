@@ -27,13 +27,6 @@ type Value interface {
 	Equal(Value) bool
 }
 
-// Function represents a callable type
-type Function interface {
-	Value
-	HasSideEffect() bool
-	Call(args Object) (Value, error)
-}
-
 type value struct {
 	t semantic.Type
 	v interface{}

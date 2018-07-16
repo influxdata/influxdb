@@ -10,19 +10,63 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Eval(program *semantic.Program, scope *Scope) ([]values.Value, error) {
-	itrp := interpreter{}
-	err := itrp.eval(program, scope)
-	return itrp.values, err
+// Interpreter used to interpret a Flux program
+type Interpreter struct {
+	values  []values.Value
+	options *Scope
+	globals *Scope
 }
 
-type interpreter struct {
-	values []values.Value
+// NewInterpreter instantiates a new Flux Interpreter
+func NewInterpreter(options, builtins map[string]values.Value) *Interpreter {
+	optionScope := NewScopeWithValues(options)
+	globalScope := optionScope.NestWithValues(builtins)
+	interpreter := new(Interpreter)
+	interpreter.options = optionScope
+	interpreter.globals = globalScope
+	return interpreter
 }
 
-func (itrp *interpreter) eval(program *semantic.Program, scope *Scope) error {
+// Return gives the return value from the block
+func (itrp *Interpreter) Return() values.Value {
+	return itrp.globals.Return()
+}
+
+// GlobalScope returns a pointer to the global scope of the program.
+// That is the scope nested directly below the options scope.
+func (itrp *Interpreter) GlobalScope() *Scope {
+	return itrp.globals
+}
+
+// SetVar adds a variable binding to the global scope
+func (itrp *Interpreter) SetVar(name string, val values.Value) {
+	itrp.globals.Set(name, val)
+}
+
+// SideEffects returns the evaluated expressions of a Flux program
+func (itrp *Interpreter) SideEffects() []values.Value {
+	return itrp.values
+}
+
+// Option returns a Flux option by name
+func (itrp *Interpreter) Option(name string) values.Value {
+	return itrp.options.Get(name)
+}
+
+// SetOption sets a new option binding
+func (itrp *Interpreter) SetOption(name string, val values.Value) {
+	itrp.options.Set(name, val)
+}
+
+// Eval evaluates the expressions composing a Flux program.
+func (itrp *Interpreter) Eval(program *semantic.Program) error {
+	return itrp.eval(program)
+}
+
+func (itrp *Interpreter) eval(program *semantic.Program) error {
+	topLevelScope := itrp.globals
 	for _, stmt := range program.Body {
-		val, err := itrp.doStatement(stmt, scope)
+		val, err := itrp.doStatement(stmt, topLevelScope)
 		if err != nil {
 			return err
 		}
@@ -34,11 +78,11 @@ func (itrp *interpreter) eval(program *semantic.Program, scope *Scope) error {
 }
 
 // doStatement returns the resolved value of a top-level statement
-func (itrp *interpreter) doStatement(stmt semantic.Statement, scope *Scope) (values.Value, error) {
+func (itrp *Interpreter) doStatement(stmt semantic.Statement, scope *Scope) (values.Value, error) {
 	scope.SetReturn(values.InvalidValue)
 	switch s := stmt.(type) {
 	case *semantic.OptionStatement:
-		return itrp.doStatement(s.Declaration, scope)
+		return itrp.doOptionStatement(s.Declaration.(*semantic.NativeVariableDeclaration), scope)
 	case *semantic.NativeVariableDeclaration:
 		return itrp.doVariableDeclaration(s, scope)
 	case *semantic.ExpressionStatement:
@@ -62,8 +106,8 @@ func (itrp *interpreter) doStatement(stmt semantic.Statement, scope *Scope) (val
 				}
 			}
 		}
-		// Propgate any return value from the nested scope out.
-		// Since a return statement is always last we do not have to worry about overriding an existing return value.
+		// Propgate any return value from the nested scope out. Since a return statement is
+		// always last we do not have to worry about overriding an existing return value.
 		scope.SetReturn(nested.Return())
 	case *semantic.ReturnStatement:
 		v, err := itrp.doExpression(s.Argument, scope)
@@ -77,7 +121,16 @@ func (itrp *interpreter) doStatement(stmt semantic.Statement, scope *Scope) (val
 	return nil, nil
 }
 
-func (itrp *interpreter) doVariableDeclaration(declaration *semantic.NativeVariableDeclaration, scope *Scope) (values.Value, error) {
+func (itrp *Interpreter) doOptionStatement(declaration *semantic.NativeVariableDeclaration, scope *Scope) (values.Value, error) {
+	value, err := itrp.doExpression(declaration.Init, scope)
+	if err != nil {
+		return nil, err
+	}
+	itrp.options.Set(declaration.Identifier.Name, value)
+	return value, nil
+}
+
+func (itrp *Interpreter) doVariableDeclaration(declaration *semantic.NativeVariableDeclaration, scope *Scope) (values.Value, error) {
 	value, err := itrp.doExpression(declaration.Init, scope)
 	if err != nil {
 		return nil, err
@@ -86,7 +139,7 @@ func (itrp *interpreter) doVariableDeclaration(declaration *semantic.NativeVaria
 	return value, nil
 }
 
-func (itrp *interpreter) doExpression(expr semantic.Expression, scope *Scope) (values.Value, error) {
+func (itrp *Interpreter) doExpression(expr semantic.Expression, scope *Scope) (values.Value, error) {
 	switch e := expr.(type) {
 	case semantic.Literal:
 		return itrp.doLiteral(e)
@@ -208,7 +261,7 @@ func (itrp *interpreter) doExpression(expr semantic.Expression, scope *Scope) (v
 	}
 }
 
-func (itrp *interpreter) doArray(a *semantic.ArrayExpression, scope *Scope) (values.Value, error) {
+func (itrp *Interpreter) doArray(a *semantic.ArrayExpression, scope *Scope) (values.Value, error) {
 	elements := make([]values.Value, len(a.Elements))
 	elementType := semantic.EmptyArrayType.ElementType()
 	for i, el := range a.Elements {
@@ -227,7 +280,7 @@ func (itrp *interpreter) doArray(a *semantic.ArrayExpression, scope *Scope) (val
 	return values.NewArrayWithBacking(elementType, elements), nil
 }
 
-func (itrp *interpreter) doObject(m *semantic.ObjectExpression, scope *Scope) (values.Value, error) {
+func (itrp *Interpreter) doObject(m *semantic.ObjectExpression, scope *Scope) (values.Value, error) {
 	obj := values.NewObject()
 	for _, p := range m.Properties {
 		v, err := itrp.doExpression(p.Value, scope)
@@ -242,7 +295,7 @@ func (itrp *interpreter) doObject(m *semantic.ObjectExpression, scope *Scope) (v
 	return obj, nil
 }
 
-func (itrp *interpreter) doLiteral(lit semantic.Literal) (values.Value, error) {
+func (itrp *Interpreter) doLiteral(lit semantic.Literal) (values.Value, error) {
 	switch l := lit.(type) {
 	case *semantic.DateTimeLiteral:
 		return values.NewTimeValue(values.Time(l.Value.UnixNano())), nil
@@ -288,7 +341,7 @@ func DoFunctionCall(f func(args Arguments) (values.Value, error), argsObj values
 	return v, nil
 }
 
-func (itrp *interpreter) doCall(call *semantic.CallExpression, scope *Scope) (values.Value, error) {
+func (itrp *Interpreter) doCall(call *semantic.CallExpression, scope *Scope) (values.Value, error) {
 	callee, err := itrp.doExpression(call.Callee, scope)
 	if err != nil {
 		return nil, err
@@ -319,7 +372,7 @@ func (itrp *interpreter) doCall(call *semantic.CallExpression, scope *Scope) (va
 	return value, nil
 }
 
-func (itrp *interpreter) doArguments(args *semantic.ObjectExpression, scope *Scope) (values.Object, error) {
+func (itrp *Interpreter) doArguments(args *semantic.ObjectExpression, scope *Scope) (values.Object, error) {
 	obj := values.NewObject()
 	if args == nil || len(args.Properties) == 0 {
 		return obj, nil
@@ -337,6 +390,7 @@ func (itrp *interpreter) doArguments(args *semantic.ObjectExpression, scope *Sco
 	return obj, nil
 }
 
+// TODO(Josh): Scope methods should be private
 type Scope struct {
 	parent      *Scope
 	values      map[string]values.Value
@@ -348,9 +402,35 @@ func NewScope() *Scope {
 		values: make(map[string]values.Value),
 	}
 }
-func NewScopeWithValues(values map[string]values.Value) *Scope {
+func NewScopeWithValues(vals map[string]values.Value) *Scope {
+	cp := make(map[string]values.Value, len(vals))
+	for k, v := range vals {
+		cp[k] = v
+	}
 	return &Scope{
-		values: values,
+		values: cp,
+	}
+}
+
+func (s *Scope) Get(name string) values.Value {
+	return s.values[name]
+}
+
+func (s *Scope) Set(name string, value values.Value) {
+	s.values[name] = value
+}
+
+func (s *Scope) Values() map[string]values.Value {
+	cp := make(map[string]values.Value, len(s.values))
+	for k, v := range s.values {
+		cp[k] = v
+	}
+	return cp
+}
+
+func (s *Scope) SetValues(vals map[string]values.Value) {
+	for k, v := range vals {
+		s.values[k] = v
 	}
 }
 
@@ -363,10 +443,6 @@ func (s *Scope) Lookup(name string) (values.Value, bool) {
 		return s.parent.Lookup(name)
 	}
 	return v, ok
-}
-
-func (s *Scope) Set(name string, value values.Value) {
-	s.values[name] = value
 }
 
 // SetReturn sets the return value of this scope.
@@ -393,6 +469,12 @@ func (s *Scope) Names() []string {
 // Nest returns a new nested scope.
 func (s *Scope) Nest() *Scope {
 	c := NewScope()
+	c.parent = s
+	return c
+}
+
+func (s *Scope) NestWithValues(values map[string]values.Value) *Scope {
+	c := NewScopeWithValues(values)
 	c.parent = s
 	return c
 }
@@ -455,7 +537,7 @@ type function struct {
 	scope *Scope
 	call  func(Arguments) (values.Value, error)
 
-	itrp *interpreter
+	itrp *Interpreter
 }
 
 func (f *function) Type() semantic.Type {

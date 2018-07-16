@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/platform/query"
@@ -62,7 +63,7 @@ func main() {
 			return
 		}
 
-		fluxSpec, err := query.Compile(context.Background(), string(fluxText))
+		fluxSpec, err := query.Compile(context.Background(), string(fluxText), time.Now().UTC())
 		if err != nil {
 			fmt.Printf("error compiling. \n query: \n %s \n err: %s", string(fluxText), err)
 			return

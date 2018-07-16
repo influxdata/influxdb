@@ -30,7 +30,7 @@ import (
 type REPL struct {
 	orgID platform.ID
 
-	scope        *interpreter.Scope
+	interpreter  *interpreter.Interpreter
 	declarations semantic.DeclarationScope
 	c            *control.Controller
 
@@ -38,7 +38,7 @@ type REPL struct {
 	cancelFunc context.CancelFunc
 }
 
-func addBuiltIn(script string, scope *interpreter.Scope, declarations semantic.DeclarationScope) error {
+func addBuiltIn(script string, itrp *interpreter.Interpreter, declarations semantic.DeclarationScope) error {
 	astProg, err := parser.NewAST(script)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse builtin")
@@ -48,20 +48,21 @@ func addBuiltIn(script string, scope *interpreter.Scope, declarations semantic.D
 		return errors.Wrap(err, "failed to create semantic graph for builtin")
 	}
 
-	if _, err := interpreter.Eval(semProg, scope); err != nil {
+	if err := itrp.Eval(semProg); err != nil {
 		return errors.Wrap(err, "failed to evaluate builtin")
 	}
 	return nil
 }
 
 func New(c *control.Controller, orgID platform.ID) *REPL {
-	scope, declarations := query.BuiltIns()
-	interpScope := interpreter.NewScopeWithValues(scope)
-	addBuiltIn("run = () => yield(table:_)", interpScope, declarations)
+	itrp := query.NewInterpreter()
+	_, decls := query.BuiltIns()
+	addBuiltIn("run = () => yield(table:_)", itrp, decls)
+
 	return &REPL{
 		orgID:        orgID,
-		scope:        interpScope,
-		declarations: declarations,
+		interpreter:  itrp,
+		declarations: decls,
 		c:            c,
 	}
 }
@@ -102,7 +103,7 @@ func (r *REPL) clearCancel() {
 }
 
 func (r *REPL) completer(d prompt.Document) []prompt.Suggest {
-	names := r.scope.Names()
+	names := r.interpreter.GlobalScope().Names()
 	sort.Strings(names)
 
 	s := make([]prompt.Suggest, 0, len(names))
@@ -170,11 +171,11 @@ func (r *REPL) executeLine(t string, expectYield bool) (values.Value, error) {
 		return nil, err
 	}
 
-	if _, err := interpreter.Eval(semProg, r.scope); err != nil {
+	if err := r.interpreter.Eval(semProg); err != nil {
 		return nil, err
 	}
 
-	v := r.scope.Return()
+	v := r.interpreter.Return()
 
 	// Check for yield and execute query
 	if v.Type() == query.TableObjectType {
@@ -186,7 +187,7 @@ func (r *REPL) executeLine(t string, expectYield bool) (values.Value, error) {
 		}
 	}
 
-	r.scope.Set("_", v)
+	r.interpreter.SetVar("_", v)
 
 	// Print value
 	if v.Type() != semantic.Invalid {

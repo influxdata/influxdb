@@ -4,10 +4,10 @@ import (
 	"math"
 	"testing"
 
-	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
+	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
 )
 

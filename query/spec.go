@@ -2,6 +2,7 @@ package query
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -11,6 +12,7 @@ type Spec struct {
 	Operations []*Operation       `json:"operations"`
 	Edges      []Edge             `json:"edges"`
 	Resources  ResourceManagement `json:"resources"`
+	Now        time.Time          `json:"now"`
 
 	sorted   []*Operation
 	children map[OperationID][]*Operation
