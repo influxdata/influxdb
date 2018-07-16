@@ -61,7 +61,7 @@ export function lexTemplateQuery(query: string): TemplateName[] {
   }
 
   if (inName) {
-    throw new Error(`Malformed template query: ${query}`)
+    throw new Error(`malformed template query ${query}`)
   }
 
   return names
@@ -73,9 +73,11 @@ function verifyAcyclic(graph: TemplateGraph): void {
   }
 }
 
-function verifyAcyclicHelper(node, seen) {
+function verifyAcyclicHelper(node: TemplateNode, seen: TemplateNode[]) {
   if (seen.includes(node)) {
-    throw new Error('TemplateGraph contains cyclic dependencies')
+    const tempVar = node.initialTemplate.tempVar
+
+    throw new Error(`cyclic dependency in template "${tempVar}"`)
   }
 
   for (const child of node.children) {

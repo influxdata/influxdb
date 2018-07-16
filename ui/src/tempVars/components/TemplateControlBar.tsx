@@ -7,6 +7,7 @@ import TemplateControl from 'src/tempVars/components/TemplateControl'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
+import {graphFromTemplates} from 'src/tempVars/utils/hydrate'
 
 import {Template, TemplateValue, Source} from 'src/types'
 
@@ -106,8 +107,12 @@ class TemplateControlBar extends Component<Props, State> {
 
   private handleCreateTemplate = async (template: Template): Promise<void> => {
     const {templates, onSaveTemplates} = this.props
+    const newTemplates = [...templates, template]
 
-    await onSaveTemplates([...templates, template])
+    // Verify adding template yields a valid template graph (will throw if not)
+    graphFromTemplates(newTemplates)
+
+    await onSaveTemplates(newTemplates)
 
     this.setState({isAdding: false})
   }
@@ -121,6 +126,9 @@ class TemplateControlBar extends Component<Props, State> {
 
       return [...acc, t]
     }, [])
+
+    // Verify update yields a valid template graph (will throw if not)
+    graphFromTemplates(newTemplates)
 
     await onSaveTemplates(newTemplates)
   }
