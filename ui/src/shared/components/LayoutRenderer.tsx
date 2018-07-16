@@ -34,14 +34,13 @@ interface Props {
   host: string
   autoRefresh: number
   manualRefresh: number
-  onEditCell: () => void
-  onDeleteCell: () => void
-  onCloneCell: () => void
-  onPositionChange?: (cells: Cell[]) => void
-  onSummonOverlayTechnologies: () => void
   isStatusPage: boolean
   isEditable: boolean
-  onZoom: () => void
+  onZoom?: () => void
+  onCloneCell?: () => void
+  onDeleteCell?: () => void
+  onSummonOverlayTechnologies?: () => void
+  onPositionChange?: (cells: Cell[]) => void
 }
 
 interface State {
