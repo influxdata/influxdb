@@ -3,35 +3,35 @@ package mocks
 import (
 	"context"
 
-	chronograf "github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/chronograf/v2"
 )
 
-var _ chronograf.CellService = &CellService{}
+var _ platform.CellService = &CellService{}
 
 type CellService struct {
-	CreateCellF   func(context.Context, *chronograf.Cell) error
-	FindCellByIDF func(context.Context, chronograf.ID) (*chronograf.Cell, error)
-	FindCellsF    func(context.Context, chronograf.CellFilter) ([]*chronograf.Cell, int, error)
-	UpdateCellF   func(context.Context, chronograf.ID, chronograf.CellUpdate) (*chronograf.Cell, error)
-	DeleteCellF   func(context.Context, chronograf.ID) error
+	CreateCellF   func(context.Context, *platform.Cell) error
+	FindCellByIDF func(context.Context, platform.ID) (*platform.Cell, error)
+	FindCellsF    func(context.Context, platform.CellFilter) ([]*platform.Cell, int, error)
+	UpdateCellF   func(context.Context, platform.ID, platform.CellUpdate) (*platform.Cell, error)
+	DeleteCellF   func(context.Context, platform.ID) error
 }
 
-func (s *CellService) FindCellByID(ctx context.Context, id chronograf.ID) (*chronograf.Cell, error) {
+func (s *CellService) FindCellByID(ctx context.Context, id platform.ID) (*platform.Cell, error) {
 	return s.FindCellByIDF(ctx, id)
 }
 
-func (s *CellService) FindCells(ctx context.Context, filter chronograf.CellFilter) ([]*chronograf.Cell, int, error) {
+func (s *CellService) FindCells(ctx context.Context, filter platform.CellFilter) ([]*platform.Cell, int, error) {
 	return s.FindCellsF(ctx, filter)
 }
 
-func (s *CellService) CreateCell(ctx context.Context, b *chronograf.Cell) error {
+func (s *CellService) CreateCell(ctx context.Context, b *platform.Cell) error {
 	return s.CreateCellF(ctx, b)
 }
 
-func (s *CellService) UpdateCell(ctx context.Context, id chronograf.ID, upd chronograf.CellUpdate) (*chronograf.Cell, error) {
+func (s *CellService) UpdateCell(ctx context.Context, id platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
 	return s.UpdateCellF(ctx, id, upd)
 }
 
-func (s *CellService) DeleteCell(ctx context.Context, id chronograf.ID) error {
+func (s *CellService) DeleteCell(ctx context.Context, id platform.ID) error {
 	return s.DeleteCellF(ctx, id)
 }
