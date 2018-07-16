@@ -495,6 +495,7 @@ func openService(ctx context.Context, buildInfo chronograf.BuildInfo, boltPath s
 			ConfigStore:             db.ConfigStore,
 			MappingsStore:           db.MappingsStore,
 			OrganizationConfigStore: db.OrganizationConfigStore,
+			CellService:             db,
 		},
 		Logger:    logger,
 		UseAuth:   useAuth,

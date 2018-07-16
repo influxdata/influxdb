@@ -29,9 +29,14 @@ func TestAllRoutes(t *testing.T) {
 	if err := json.Unmarshal(body, &routes); err != nil {
 		t.Error("TestAllRoutes not able to unmarshal JSON response")
 	}
-	want := `{"layouts":"/chronograf/v1/layouts","users":"/chronograf/v1/organizations/default/users","allUsers":"/chronograf/v1/users","organizations":"/chronograf/v1/organizations","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","environment":"/chronograf/v1/env","dashboards":"/chronograf/v1/dashboards","config":{"self":"/chronograf/v1/config","auth":"/chronograf/v1/config/auth"},"orgConfig":{"self":"/chronograf/v1/org_config","logViewer":"/chronograf/v1/org_config/logviewer"},"auth":[],"external":{"statusFeed":""},"flux":{"ast":"/chronograf/v1/flux/ast","self":"/chronograf/v1/flux","suggestions":"/chronograf/v1/flux/suggestions"}}
+	want := `{"orgConfig":{"self":"/chronograf/v1/org_config","logViewer":"/chronograf/v1/org_config/logviewer"},"cells":"/chronograf/v2/cells","layouts":"/chronograf/v1/layouts","users":"/chronograf/v1/organizations/default/users","allUsers":"/chronograf/v1/users","organizations":"/chronograf/v1/organizations","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","environment":"/chronograf/v1/env","dashboards":"/chronograf/v1/dashboards","config":{"self":"/chronograf/v1/config","auth":"/chronograf/v1/config/auth"},"auth":[],"external":{"statusFeed":""},"flux":{"ast":"/chronograf/v1/flux/ast","self":"/chronograf/v1/flux","suggestions":"/chronograf/v1/flux/suggestions"}}
 `
-	if want != string(body) {
+
+	eq, err := jsonEqual(want, string(body))
+	if err != nil {
+		t.Fatalf("error decoding json: %v", err)
+	}
+	if !eq {
 		t.Errorf("TestAllRoutes\nwanted\n*%s*\ngot\n*%s*", want, string(body))
 	}
 
@@ -67,9 +72,13 @@ func TestAllRoutesWithAuth(t *testing.T) {
 	if err := json.Unmarshal(body, &routes); err != nil {
 		t.Error("TestAllRoutesWithAuth not able to unmarshal JSON response")
 	}
-	want := `{"layouts":"/chronograf/v1/layouts","users":"/chronograf/v1/organizations/default/users","allUsers":"/chronograf/v1/users","organizations":"/chronograf/v1/organizations","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","environment":"/chronograf/v1/env","dashboards":"/chronograf/v1/dashboards","config":{"self":"/chronograf/v1/config","auth":"/chronograf/v1/config/auth"},"orgConfig":{"self":"/chronograf/v1/org_config","logViewer":"/chronograf/v1/org_config/logviewer"},"auth":[{"name":"github","label":"GitHub","login":"/oauth/github/login","logout":"/oauth/github/logout","callback":"/oauth/github/callback"}],"logout":"/oauth/logout","external":{"statusFeed":""},"flux":{"ast":"/chronograf/v1/flux/ast","self":"/chronograf/v1/flux","suggestions":"/chronograf/v1/flux/suggestions"}}
+	want := `{"orgConfig":{"self":"/chronograf/v1/org_config","logViewer":"/chronograf/v1/org_config/logviewer"},"cells":"/chronograf/v2/cells","layouts":"/chronograf/v1/layouts","users":"/chronograf/v1/organizations/default/users","allUsers":"/chronograf/v1/users","organizations":"/chronograf/v1/organizations","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","environment":"/chronograf/v1/env","dashboards":"/chronograf/v1/dashboards","config":{"self":"/chronograf/v1/config","auth":"/chronograf/v1/config/auth"},"auth":[{"name":"github","label":"GitHub","login":"/oauth/github/login","logout":"/oauth/github/logout","callback":"/oauth/github/callback"}],"logout":"/oauth/logout","external":{"statusFeed":""},"flux":{"ast":"/chronograf/v1/flux/ast","self":"/chronograf/v1/flux","suggestions":"/chronograf/v1/flux/suggestions"}}
 `
-	if want != string(body) {
+	eq, err := jsonEqual(want, string(body))
+	if err != nil {
+		t.Fatalf("error decoding json: %v", err)
+	}
+	if !eq {
 		t.Errorf("TestAllRoutesWithAuth\nwanted\n*%s*\ngot\n*%s*", want, string(body))
 	}
 }
@@ -100,9 +109,13 @@ func TestAllRoutesWithExternalLinks(t *testing.T) {
 	if err := json.Unmarshal(body, &routes); err != nil {
 		t.Error("TestAllRoutesWithExternalLinks not able to unmarshal JSON response")
 	}
-	want := `{"layouts":"/chronograf/v1/layouts","users":"/chronograf/v1/organizations/default/users","allUsers":"/chronograf/v1/users","organizations":"/chronograf/v1/organizations","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","environment":"/chronograf/v1/env","dashboards":"/chronograf/v1/dashboards","config":{"self":"/chronograf/v1/config","auth":"/chronograf/v1/config/auth"},"orgConfig":{"self":"/chronograf/v1/org_config","logViewer":"/chronograf/v1/org_config/logviewer"},"auth":[],"external":{"statusFeed":"http://pineapple.life/feed.json","custom":[{"name":"cubeapple","url":"https://cube.apple"}]},"flux":{"ast":"/chronograf/v1/flux/ast","self":"/chronograf/v1/flux","suggestions":"/chronograf/v1/flux/suggestions"}}
+	want := `{"orgConfig":{"self":"/chronograf/v1/org_config","logViewer":"/chronograf/v1/org_config/logviewer"},"cells":"/chronograf/v2/cells","layouts":"/chronograf/v1/layouts","users":"/chronograf/v1/organizations/default/users","allUsers":"/chronograf/v1/users","organizations":"/chronograf/v1/organizations","mappings":"/chronograf/v1/mappings","sources":"/chronograf/v1/sources","me":"/chronograf/v1/me","environment":"/chronograf/v1/env","dashboards":"/chronograf/v1/dashboards","config":{"self":"/chronograf/v1/config","auth":"/chronograf/v1/config/auth"},"auth":[],"external":{"statusFeed":"http://pineapple.life/feed.json","custom":[{"name":"cubeapple","url":"https://cube.apple"}]},"flux":{"ast":"/chronograf/v1/flux/ast","self":"/chronograf/v1/flux","suggestions":"/chronograf/v1/flux/suggestions"}}
 `
-	if want != string(body) {
+	eq, err := jsonEqual(want, string(body))
+	if err != nil {
+		t.Fatalf("error decoding json: %v", err)
+	}
+	if !eq {
 		t.Errorf("TestAllRoutesWithExternalLinks\nwanted\n*%s*\ngot\n*%s*", want, string(body))
 	}
 }
