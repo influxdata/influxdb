@@ -101,7 +101,7 @@ export const getCpuAndLoadForHosts = (
 
 async function getAllHosts(source) {
   const {
-    telegrafDB,
+    telegraf,
     links: {proxy: proxyLink},
   } = source
 
@@ -109,8 +109,9 @@ async function getAllHosts(source) {
     const resp = await proxy({
       source: proxyLink,
       query: 'show tag values with key = "host"',
-      db: telegrafDB,
+      db: telegraf,
     })
+
     const hosts = {}
     const allHostsSeries = _.get(resp, ['data', 'results', '0', 'series'], [])
 
