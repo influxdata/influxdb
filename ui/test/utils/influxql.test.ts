@@ -15,14 +15,15 @@ describe('buildInfluxQLQuery', () => {
   let timeBounds
   describe('when information is missing', () => {
     it('returns a null select statement', () => {
-      expect(buildInfluxQLQuery(null, mergeConfig({}))).toBe(null)
+      timeBounds = {lower: 'now() - 15m', upper: null}
+      expect(buildInfluxQLQuery(timeBounds, mergeConfig({}))).toBe(null)
 
       let merged = mergeConfig({database: 'db1'})
-      let actual = buildInfluxQLQuery(null, merged)
+      let actual = buildInfluxQLQuery(timeBounds, merged)
       expect(actual).toBe(null) // no measurement
 
       merged = mergeConfig({database: 'db1', measurement: 'm1'})
-      actual = buildInfluxQLQuery(null, merged)
+      actual = buildInfluxQLQuery(timeBounds, merged)
       expect(actual).toBe(null) // no fields
     })
   })
@@ -34,10 +35,11 @@ describe('buildInfluxQLQuery', () => {
         measurement: 'm1',
         fields: [{value: 'f1', type: 'field'}],
       })
+      timeBounds = {lower: null, upper: null}
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery(null, config)).toBe(
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(
         'SELECT "f1" FROM "db1".."m1"'
       )
     })
@@ -51,19 +53,21 @@ describe('buildInfluxQLQuery', () => {
         retentionPolicy: 'rp1',
         fields: [{value: 'f1', type: 'field'}],
       })
-      timeBounds = {lower: 'now() - 1hr'}
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery(null, config)).toBe(
-        'SELECT "f1" FROM "db1"."rp1"."m1"'
-      )
+      const actual = buildInfluxQLQuery(timeBounds, config)
+      const expected = 'SELECT "f1" FROM "db1"."rp1"."m1"'
+      expect(actual).toBe(expected)
     })
 
     it('builds the right query with a time range', () => {
-      expect(buildInfluxQLQuery(timeBounds, config)).toBe(
+      timeBounds = {lower: 'now() - 1hr', upper: null}
+      const actual = buildInfluxQLQuery(timeBounds, config)
+      const expected =
         'SELECT "f1" FROM "db1"."rp1"."m1" WHERE time > now() - 1hr'
-      )
+
+      expect(actual).toBe(expected)
     })
   })
 
@@ -75,10 +79,11 @@ describe('buildInfluxQLQuery', () => {
         retentionPolicy: 'rp1',
         fields: [{value: '*', type: 'field'}],
       })
+      timeBounds = {lower: null, upper: null}
     })
 
     it('does not quote the star', () => {
-      expect(buildInfluxQLQuery(null, config)).toBe(
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(
         'SELECT * FROM "db1"."rp1"."m1"'
       )
     })
@@ -196,7 +201,8 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery(null, config)).toBe(
+      timeBounds = {lower: null, upper: null}
+      expect(buildInfluxQLQuery(timeBounds, config)).toBe(
         'SELECT "f0", "f1" FROM "db1"."rp1"."m0"'
       )
     })
