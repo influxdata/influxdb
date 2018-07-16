@@ -25,16 +25,12 @@ interface Props {
   source: Source
   sources: Source[]
   host: string
-  isDragging: boolean
   autoRefresh: number
   isEditable: boolean
   manualRefresh: number
-  isStatusPage: boolean
   onZoom: () => void
   onDeleteCell: () => void
   onCloneCell: () => void
-  onPositionChange: () => void
-  onStopAddAnnotation: () => void
   onSummonOverlayTechnologies: () => void
 }
 
@@ -56,10 +52,8 @@ class Layout extends Component<Props> {
       manualRefresh,
       templates,
       isEditable,
-      isDragging,
       onCloneCell,
       onDeleteCell,
-      onStopAddAnnotation,
       onSummonOverlayTechnologies,
     } = this.props
     const {cellData} = this.state
@@ -88,11 +82,9 @@ class Layout extends Component<Props> {
             decimalPlaces={cell.decimalPlaces}
             timeRange={timeRange}
             templates={templates}
-            isDragging={isDragging}
             autoRefresh={autoRefresh}
             manualRefresh={manualRefresh}
             staticLegend={IS_STATIC_LEGEND(cell.legend)}
-            onStopAddAnnotation={onStopAddAnnotation}
             grabDataForDownload={this.grabDataForDownload}
             queries={buildQueriesForLayouts(cell, timeRange, host)}
             source={this.getSource(cell, source, sources, source)}
