@@ -66,8 +66,8 @@ class Gauge extends Component<Props> {
     this.resetCanvas(canvas, ctx)
 
     const centerX = canvas.width / 2
-    const centerY = (canvas.height / 2) * 1.13
-    const radius = (Math.min(canvas.width, canvas.height) / 2) * 0.5
+    const centerY = canvas.height / 2 * 1.13
+    const radius = Math.min(canvas.width, canvas.height) / 2 * 0.5
 
     const {minLineWidth, minFontSize} = GAUGE_SPECS
     const gradientThickness = Math.max(minLineWidth, radius / 4)
