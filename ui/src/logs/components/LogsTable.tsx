@@ -297,11 +297,10 @@ class LogsTable extends Component<Props, State> {
   private handleScrollbarScroll = (e: MouseEvent<JSX.Element>): void => {
     e.stopPropagation()
     e.preventDefault()
-    const {scrollTop, scrollLeft} = e.target as HTMLElement
+    const {scrollTop} = e.target as HTMLElement
 
     this.handleScroll({
       scrollTop,
-      scrollLeft,
     })
   }
 
