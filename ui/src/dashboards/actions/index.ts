@@ -674,12 +674,9 @@ export const getDashboardWithTemplatesAsync = (
     return
   }
 
-  // TODO: Reduce duplication with rehydrateNestedTemplatesAsync
-  const selections = templateSelectionsFromQueryParams()
-  const proxyUrl = source.links.proxy
   const templates = await hydrateTemplates(dashboard.templates, {
-    proxyUrl,
-    selections,
+    proxyUrl: source.links.proxy,
+    selections: templateSelectionsFromQueryParams(),
   })
 
   // TODO: Notify if any of the supplied query params were invalid

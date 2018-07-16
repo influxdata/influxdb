@@ -10,15 +10,6 @@ import {TEMPLATE_VARIABLE_TYPES} from 'src/tempVars/constants'
 
 import {Template, TemplateValue, RemoteDataState} from 'src/types'
 
-/*
-  - Many scenarios invalidate the dependency graph
-  - Many scenarios cause nodes in the graph to become stale
-  - Immutable graph data structures are clunky
-  - Template state is stored in Redux, which favors immutable data structures
-  - The dependency graph is cheap to construct (small number of templates)
-  - With a cache, the dependency graph is cheap to hydrate
-*/
-
 type TemplateName = string
 type QueryResult = string
 
