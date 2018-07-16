@@ -21,6 +21,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -30,6 +31,7 @@ describe('timeSeriesToDygraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -71,6 +73,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -100,6 +103,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -109,6 +113,7 @@ describe('timeSeriesToDygraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -124,6 +129,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm3',
@@ -160,6 +166,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -175,6 +182,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -212,6 +220,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -227,6 +236,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'm1',
@@ -240,8 +250,7 @@ describe('timeSeriesToDygraph', () => {
       },
     ]
 
-    const isInDataExplorer = true
-    const actual = timeSeriesToDygraph(influxResponse, isInDataExplorer)
+    const actual = timeSeriesToDygraph(influxResponse, 'data-explorer')
 
     const expected = {}
 
@@ -254,6 +263,7 @@ describe('timeSeriesToDygraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mb',
@@ -263,6 +273,7 @@ describe('timeSeriesToDygraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'ma',
@@ -272,6 +283,7 @@ describe('timeSeriesToDygraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mc',
@@ -281,6 +293,7 @@ describe('timeSeriesToDygraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mc',
@@ -309,6 +322,7 @@ describe('timeSeriesToTableGraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mb',
@@ -318,6 +332,7 @@ describe('timeSeriesToTableGraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'ma',
@@ -327,6 +342,7 @@ describe('timeSeriesToTableGraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mc',
@@ -336,6 +352,7 @@ describe('timeSeriesToTableGraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mc',
@@ -349,38 +366,7 @@ describe('timeSeriesToTableGraph', () => {
       },
     ]
 
-    const qASTs = [
-      {
-        groupBy: {
-          time: {
-            interval: '2s',
-          },
-        },
-      },
-      {
-        groupBy: {
-          time: {
-            interval: '2s',
-          },
-        },
-      },
-      {
-        groupBy: {
-          time: {
-            interval: '2s',
-          },
-        },
-      },
-      {
-        groupBy: {
-          time: {
-            interval: '2s',
-          },
-        },
-      },
-    ]
-
-    const actual = timeSeriesToTableGraph(influxResponse, qASTs)
+    const actual = timeSeriesToTableGraph(influxResponse)
     const expected = [
       ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2'],
       [1000, 1, 1, null, null],
@@ -397,6 +383,7 @@ describe('timeSeriesToTableGraph', () => {
         response: {
           results: [
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mb',
@@ -406,6 +393,7 @@ describe('timeSeriesToTableGraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'ma',
@@ -415,6 +403,7 @@ describe('timeSeriesToTableGraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mc',
@@ -424,6 +413,7 @@ describe('timeSeriesToTableGraph', () => {
               ],
             },
             {
+              statement_id: 0,
               series: [
                 {
                   name: 'mc',
@@ -437,38 +427,7 @@ describe('timeSeriesToTableGraph', () => {
       },
     ]
 
-    const qASTs = [
-      {
-        groupBy: {
-          time: {
-            interval: '2s',
-          },
-        },
-      },
-      {
-        groupBy: {
-          time: {
-            interval: '2s',
-          },
-        },
-      },
-      {
-        groupBy: {
-          time: {
-            interval: '2s',
-          },
-        },
-      },
-      {
-        groupBy: {
-          time: {
-            interval: '2s',
-          },
-        },
-      },
-    ]
-
-    const actual = timeSeriesToTableGraph(influxResponse, qASTs)
+    const actual = timeSeriesToTableGraph(influxResponse)
     const expected = ['time', 'ma.f1', 'mb.f1', 'mc.f1', 'mc.f2']
 
     expect(actual.data[0]).toEqual(expected)
@@ -476,10 +435,7 @@ describe('timeSeriesToTableGraph', () => {
 
   it('returns an array of an empty array if there is an empty response', () => {
     const influxResponse = []
-
-    const qASTs = []
-
-    const actual = timeSeriesToTableGraph(influxResponse, qASTs)
+    const actual = timeSeriesToTableGraph(influxResponse)
     const expected = [[]]
 
     expect(actual.data).toEqual(expected)
@@ -535,7 +491,12 @@ describe('transformTableData', () => {
       [3000, 2000, 1000],
     ]
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
-    const tableOptions = {verticalTimeAxis: true}
+    const sortBy = {internalName: 'time', displayName: 'Time', visible: true}
+    const tableOptions = {
+      verticalTimeAxis: true,
+      sortBy,
+      fixFirstColumn: true,
+    }
     const timeFormat = DEFAULT_TIME_FORMAT
     const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
@@ -552,6 +513,7 @@ describe('transformTableData', () => {
       timeFormat,
       decimalPlaces
     )
+
     const expected = [
       ['time', 'f1', 'f2'],
       [2000, 1000, 3000],
@@ -570,7 +532,12 @@ describe('transformTableData', () => {
       [3000, 2000, 1000],
     ]
     const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
-    const tableOptions = {verticalTimeAxis: true}
+    const sortBy = {internalName: 'time', displayName: 'Time', visible: true}
+    const tableOptions = {
+      verticalTimeAxis: true,
+      sortBy,
+      fixFirstColumn: true,
+    }
     const timeFormat = DEFAULT_TIME_FORMAT
     const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
@@ -602,7 +569,12 @@ describe('transformTableData', () => {
     ]
 
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
-    const tableOptions = {verticalTimeAxis: true}
+    const sortBy = {internalName: 'time', displayName: 'Time', visible: true}
+    const tableOptions = {
+      verticalTimeAxis: true,
+      sortBy,
+      fixFirstColumn: true,
+    }
     const timeFormat = DEFAULT_TIME_FORMAT
     const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
@@ -636,7 +608,12 @@ describe('if verticalTimeAxis is false', () => {
     ]
 
     const sort = {field: 'time', direction: DEFAULT_SORT_DIRECTION}
-    const tableOptions = {verticalTimeAxis: false}
+    const sortBy = {internalName: 'time', displayName: 'Time', visible: true}
+    const tableOptions = {
+      sortBy,
+      fixFirstColumn: true,
+      verticalTimeAxis: false,
+    }
     const timeFormat = DEFAULT_TIME_FORMAT
     const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [
@@ -672,7 +649,12 @@ describe('if verticalTimeAxis is false', () => {
     ]
 
     const sort = {field: 'f1', direction: DEFAULT_SORT_DIRECTION}
-    const tableOptions = {verticalTimeAxis: false}
+    const sortBy = {internalName: 'time', displayName: 'Time', visible: true}
+    const tableOptions = {
+      sortBy,
+      fixFirstColumn: true,
+      verticalTimeAxis: false,
+    }
     const timeFormat = DEFAULT_TIME_FORMAT
     const decimalPlaces = DEFAULT_DECIMAL_PLACES
     const fieldOptions = [

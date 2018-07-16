@@ -27,9 +27,10 @@ interface TimeSeriesToTableGraphReturnType {
 
 export const timeSeriesToDygraph = (
   raw: TimeSeriesServerResponse[],
-  pathname: string
+  pathname: string = ''
 ): TimeSeriesToDyGraphReturnType => {
   const isTable = false
+  const isInDataExplorer = pathname.includes('data-explorer')
   const {sortedLabels, sortedTimeSeries} = groupByTimeSeriesTransform(
     raw,
     isTable
@@ -48,7 +49,6 @@ export const timeSeriesToDygraph = (
   const dygraphSeries = fastReduce<Label, DygraphSeries>(
     sortedLabels,
     (acc, {label, responseIndex}) => {
-      const isInDataExplorer = pathname.includes('data-explorer')
       if (!isInDataExplorer) {
         acc[label] = {
           axis: responseIndex === 0 ? 'y' : 'y2',

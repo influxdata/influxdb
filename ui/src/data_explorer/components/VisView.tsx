@@ -4,7 +4,7 @@ import Table from './Table'
 import RefreshingGraph from 'src/shared/components/RefreshingGraph'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 
-import {Source, Query, Template} from 'src/types'
+import {Source, Query, Template, CellType} from 'src/types'
 
 interface Props {
   view: string
@@ -39,18 +39,18 @@ const DataExplorerVisView: SFC<Props> = ({
     return (
       <Table
         query={query}
-        editQueryStatus={editQueryStatus}
         source={source}
         templates={templates}
+        editQueryStatus={editQueryStatus}
       />
     )
   }
 
   return (
     <RefreshingGraph
-      type="line-graph"
       source={source}
       queries={queries}
+      type={CellType.Line}
       templates={templates}
       autoRefresh={autoRefresh}
       colors={DEFAULT_LINE_COLORS}
