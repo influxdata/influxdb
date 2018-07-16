@@ -114,6 +114,7 @@ class LineGraph extends PureComponent<LineGraphProps> {
       <div className="dygraph graph--hasYLabel" style={this.style}>
         {loading === RemoteDataState.Loading && <GraphLoadingDots />}
         <Dygraph
+          type={type}
           axes={axes}
           cellID={cellID}
           colors={colors}

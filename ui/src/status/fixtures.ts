@@ -2,8 +2,7 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {TEMP_VAR_DASHBOARD_TIME} from 'src/shared/constants'
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants/index'
 import {DEFAULT_AXIS} from 'src/dashboards/constants/cellEditor'
-import {Cell, CellQuery, Axes} from 'src/types'
-import {CellType} from 'src/types/dashboards'
+import {Cell, CellQuery, Axes, CellType} from 'src/types'
 
 const emptyQuery: CellQuery = {
   query: '',
