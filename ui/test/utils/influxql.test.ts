@@ -1,25 +1,28 @@
-import buildInfluxQLQuery, {buildQuery} from 'utils/influxql'
+import buildInfluxQLQuery, {buildQuery} from 'src/utils/influxql'
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
-import {NONE, NULL_STRING} from 'shared/constants/queryFillOptions'
+import {NONE, NULL_STRING} from 'src/shared/constants/queryFillOptions'
 import {TYPE_QUERY_CONFIG} from 'src/dashboards/constants'
 
-function mergeConfig(options) {
-  return Object.assign({}, defaultQueryConfig(123), options)
+import {QueryConfig} from 'src/types'
+
+function mergeConfig(options: Partial<QueryConfig>) {
+  return {...defaultQueryConfig({id: '123'}), ...options}
 }
 
 describe('buildInfluxQLQuery', () => {
-  let config, timeBounds
+  let config
+  let timeBounds
   describe('when information is missing', () => {
     it('returns a null select statement', () => {
-      expect(buildInfluxQLQuery({}, mergeConfig())).toBe(null)
+      expect(buildInfluxQLQuery(null, mergeConfig({}))).toBe(null)
 
       let merged = mergeConfig({database: 'db1'})
-      let actual = buildInfluxQLQuery({}, merged)
+      let actual = buildInfluxQLQuery(null, merged)
       expect(actual).toBe(null) // no measurement
 
       merged = mergeConfig({database: 'db1', measurement: 'm1'})
-      actual = buildInfluxQLQuery({}, merged)
+      actual = buildInfluxQLQuery(null, merged)
       expect(actual).toBe(null) // no fields
     })
   })
@@ -34,7 +37,7 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery({}, config)).toBe(
+      expect(buildInfluxQLQuery(null, config)).toBe(
         'SELECT "f1" FROM "db1".."m1"'
       )
     })
@@ -52,7 +55,7 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery({}, config)).toBe(
+      expect(buildInfluxQLQuery(null, config)).toBe(
         'SELECT "f1" FROM "db1"."rp1"."m1"'
       )
     })
@@ -75,7 +78,7 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('does not quote the star', () => {
-      expect(buildInfluxQLQuery({}, config)).toBe(
+      expect(buildInfluxQLQuery(null, config)).toBe(
         'SELECT * FROM "db1"."rp1"."m1"'
       )
     })
@@ -193,7 +196,7 @@ describe('buildInfluxQLQuery', () => {
     })
 
     it('builds the right query', () => {
-      expect(buildInfluxQLQuery({}, config)).toBe(
+      expect(buildInfluxQLQuery(null, config)).toBe(
         'SELECT "f0", "f1" FROM "db1"."rp1"."m0"'
       )
     })
