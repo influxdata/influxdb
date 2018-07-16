@@ -2,22 +2,9 @@ import reducer from 'src/data_explorer/reducers/ui'
 
 import {addQuery, deleteQuery} from 'src/data_explorer/actions/view'
 
-const noopAction = () => {
-  return {type: 'NOOP'}
-}
-
 let state
 
 describe('DataExplorer.Reducers.UI', () => {
-  it('it sets the default state for UI', () => {
-    const actual = reducer(state, noopAction())
-    const expected = {
-      queryIDs: [],
-    }
-
-    expect(actual).toEqual(expected)
-  })
-
   it('it can add a query', () => {
     const actual = reducer(state, addQuery())
     expect(actual.queryIDs.length).toBe(1)
