@@ -90,3 +90,11 @@ export interface AuthLinks {
   sources: string
   users: string
 }
+
+export interface AuthLink {
+  name: string
+  label: string
+  login: string
+  logout: string
+  callback: string
+}

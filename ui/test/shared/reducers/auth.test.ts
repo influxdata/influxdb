@@ -1,11 +1,11 @@
-import {default as authReducer, initialState} from 'shared/reducers/auth'
+import {default as authReducer, initialState} from 'src/shared/reducers/auth'
 
 import {
   authExpired,
   authRequested,
   meGetRequested,
   meGetCompleted,
-} from 'shared/actions/auth'
+} from 'src/shared/actions/auth'
 
 const defaultAuth = {
   links: [
@@ -17,6 +17,11 @@ const defaultAuth = {
       callback: '/oauth/github/callback',
     },
   ],
+  me: null,
+  isMeLoading: false,
+  isAuthLoading: false,
+  logoutLink: null,
+  isUsingAuth: false,
 }
 
 const defaultMe = {
@@ -88,6 +93,7 @@ describe('Shared.Reducers.authReducer', () => {
       meGetCompleted({
         me: defaultMe,
         auth: defaultAuth,
+        logoutLink: 'foo',
       })
     )
 
