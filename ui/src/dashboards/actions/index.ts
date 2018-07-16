@@ -39,7 +39,6 @@ import {
   notifyDashboardNotFound,
   notifyInvalidZoomedTimeRangeValueInURLQuery,
   notifyInvalidTimeRangeValueInURLQuery,
-  // notifyInvalidTempVarValueInMetaQuery,
 } from 'src/shared/copy/notifications'
 
 import {getDeep} from 'src/utils/wrappers'

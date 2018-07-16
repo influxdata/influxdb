@@ -11,7 +11,6 @@ import {TEMPLATE_VARIABLE_TYPES} from 'src/tempVars/constants'
 import {Template, TemplateValue, RemoteDataState} from 'src/types'
 
 type TemplateName = string
-type QueryResult = string
 
 interface TemplateNode {
   parents: TemplateNode[]
@@ -24,11 +23,11 @@ interface TemplateNode {
 type TemplateGraph = TemplateNode[]
 
 interface TemplateQueryFetcher {
-  fetch: (query: string) => Promise<QueryResult[]>
+  fetch: (query: string) => Promise<string[]>
 }
 
 interface Selections {
-  [tempVar: string]: QueryResult
+  [tempVar: string]: string
 }
 
 export function lexTemplateQuery(query: string): TemplateName[] {
@@ -64,7 +63,7 @@ function verifyAcyclic(graph: TemplateGraph): void {
   }
 }
 
-function verifyAcyclicHelper(node: TemplateNode, seen: TemplateNode[]) {
+function verifyAcyclicHelper(node: TemplateNode, seen: TemplateNode[]): void {
   if (seen.includes(node)) {
     const tempVar = node.initialTemplate.tempVar
 
@@ -77,11 +76,7 @@ function verifyAcyclicHelper(node: TemplateNode, seen: TemplateNode[]) {
 }
 
 export function graphFromTemplates(templates: Template[]): TemplateGraph {
-  interface NodesById {
-    [id: string]: TemplateNode
-  }
-
-  const nodesById: NodesById = templates.reduce(
+  const nodesById: {[id: string]: TemplateNode} = templates.reduce(
     (acc, t) => ({
       ...acc,
       [t.id]: {
@@ -122,7 +117,7 @@ function findLeaves(graph: TemplateGraph): TemplateNode[] {
   return graph.filter(node => !node.children.length)
 }
 
-function isResolved(node: TemplateNode) {
+function isResolved(node: TemplateNode): boolean {
   return node.status === RemoteDataState.Done
 }
 
@@ -131,7 +126,7 @@ class CachingTemplateQueryFetcher implements TemplateQueryFetcher {
 
   private cache: {
     [proxyUrl: string]: {
-      [query: string]: QueryResult[]
+      [query: string]: string[]
     }
   }
 

@@ -3,7 +3,7 @@ import qs from 'qs'
 
 import {formatTempVar} from 'src/tempVars/utils'
 
-import {Template, TemplateType} from 'src/types'
+import {Template} from 'src/types'
 import {TemplateSelections} from 'src/types/dashboards'
 
 export const templateSelectionsFromQueryParams = (): TemplateSelections => {
