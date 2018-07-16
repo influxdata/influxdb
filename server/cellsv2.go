@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bouk/httprouter"
-	chronograf "github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/chronograf/v2"
 )
 
 type cellV2Links struct {
@@ -15,18 +15,18 @@ type cellV2Links struct {
 }
 
 type cellV2Response struct {
-	chronograf.Cell
+	platform.Cell
 	Links cellV2Links `json:"links"`
 }
 
 func (r cellV2Response) MarshalJSON() ([]byte, error) {
-	vis, err := chronograf.MarshalVisualizationJSON(r.Visualization)
+	vis, err := platform.MarshalVisualizationJSON(r.Visualization)
 	if err != nil {
 		return nil, err
 	}
 
 	return json.Marshal(struct {
-		chronograf.CellContents
+		platform.CellContents
 		Links         cellV2Links     `json:"links"`
 		Visualization json.RawMessage `json:"visualization"`
 	}{
@@ -36,10 +36,10 @@ func (r cellV2Response) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func newCellV2Response(c *chronograf.Cell) cellV2Response {
+func newCellV2Response(c *platform.Cell) cellV2Response {
 	return cellV2Response{
 		Links: cellV2Links{
-			Self: fmt.Sprintf("/chronograf/v1/cells/%s", c.ID),
+			Self: fmt.Sprintf("/chronograf/v2/cells/%s", c.ID),
 		},
 		Cell: *c,
 	}
@@ -49,7 +49,7 @@ func newCellV2Response(c *chronograf.Cell) cellV2Response {
 func (s *Service) CellsV2(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// TODO: support filtering via query params
-	cells, _, err := s.Store.Cells(ctx).FindCells(ctx, chronograf.CellFilter{})
+	cells, _, err := s.Store.Cells(ctx).FindCells(ctx, platform.CellFilter{})
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading cells", s.Logger)
 		return
@@ -67,7 +67,7 @@ type getCellsResponse struct {
 	Cells []cellV2Response `json:"cells"`
 }
 
-func (s *Service) encodeGetCellsResponse(w http.ResponseWriter, cells []*chronograf.Cell) {
+func (s *Service) encodeGetCellsResponse(w http.ResponseWriter, cells []*platform.Cell) {
 	res := getCellsResponse{
 		Links: getCellsLinks{
 			Self: "/chronograf/v2/cells",
@@ -100,11 +100,11 @@ func (s *Service) NewCellV2(w http.ResponseWriter, r *http.Request) {
 }
 
 type postCellRequest struct {
-	Cell *chronograf.Cell
+	Cell *platform.Cell
 }
 
 func decodePostCellRequest(ctx context.Context, r *http.Request) (*postCellRequest, error) {
-	c := &chronograf.Cell{}
+	c := &platform.Cell{}
 	if err := json.NewDecoder(r.Body).Decode(c); err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func decodePostCellRequest(ctx context.Context, r *http.Request) (*postCellReque
 	}, nil
 }
 
-func (s *Service) encodePostCellResponse(w http.ResponseWriter, cell *chronograf.Cell) {
+func (s *Service) encodePostCellResponse(w http.ResponseWriter, cell *platform.Cell) {
 	encodeJSON(w, http.StatusCreated, newCellV2Response(cell), s.Logger)
 }
 
@@ -136,17 +136,17 @@ func (s *Service) CellIDV2(w http.ResponseWriter, r *http.Request) {
 }
 
 type getCellRequest struct {
-	CellID chronograf.ID
+	CellID platform.ID
 }
 
 func decodeGetCellRequest(ctx context.Context, r *http.Request) (*getCellRequest, error) {
 	param := httprouter.GetParamFromContext(ctx, "id")
 	return &getCellRequest{
-		CellID: chronograf.ID(param),
+		CellID: platform.ID(param),
 	}, nil
 }
 
-func (s *Service) encodeGetCellResponse(w http.ResponseWriter, cell *chronograf.Cell) {
+func (s *Service) encodeGetCellResponse(w http.ResponseWriter, cell *platform.Cell) {
 	encodeJSON(w, http.StatusOK, newCellV2Response(cell), s.Logger)
 }
 
@@ -168,13 +168,13 @@ func (s *Service) RemoveCellV2(w http.ResponseWriter, r *http.Request) {
 }
 
 type deleteCellRequest struct {
-	CellID chronograf.ID
+	CellID platform.ID
 }
 
 func decodeDeleteCellRequest(ctx context.Context, r *http.Request) (*deleteCellRequest, error) {
 	param := httprouter.GetParamFromContext(ctx, "id")
 	return &deleteCellRequest{
-		CellID: chronograf.ID(param),
+		CellID: platform.ID(param),
 	}, nil
 }
 
@@ -197,24 +197,39 @@ func (s *Service) UpdateCellV2(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchCellRequest struct {
-	CellID chronograf.ID
-	Upd    chronograf.CellUpdate
+	CellID platform.ID
+	Upd    platform.CellUpdate
 }
 
 func decodePatchCellRequest(ctx context.Context, r *http.Request) (*patchCellRequest, error) {
-	upd := chronograf.CellUpdate{}
+	req := &patchCellRequest{}
+	upd := platform.CellUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, err
 	}
 
+	req.Upd = upd
+
 	param := httprouter.GetParamFromContext(ctx, "id")
 
-	return &patchCellRequest{
-		CellID: chronograf.ID(param),
-		Upd:    upd,
-	}, nil
+	req.CellID = platform.ID(param)
+
+	if err := req.Valid(); err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
-func (s *Service) encodePatchCellResponse(w http.ResponseWriter, cell *chronograf.Cell) {
+// Valid validates that the cell ID is non zero valued and update has expected values set.
+func (r *patchCellRequest) Valid() error {
+	if r.CellID == "" {
+		return fmt.Errorf("missing cell ID")
+	}
+
+	return r.Upd.Valid()
+}
+
+func (s *Service) encodePatchCellResponse(w http.ResponseWriter, cell *platform.Cell) {
 	encodeJSON(w, http.StatusOK, newCellV2Response(cell), s.Logger)
 }

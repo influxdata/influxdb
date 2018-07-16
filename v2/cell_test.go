@@ -1,4 +1,4 @@
-package chronograf_test
+package platform_test
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 
 func TestCell_MarshalJSON(t *testing.T) {
 	type args struct {
-		cell chronograf.Cell
+		cell platform.Cell
 	}
 	type wants struct {
 		json string
@@ -22,12 +22,12 @@ func TestCell_MarshalJSON(t *testing.T) {
 	}{
 		{
 			args: args{
-				cell: chronograf.Cell{
-					CellContents: chronograf.CellContents{
-						ID:   chronograf.ID("0"),
+				cell: platform.Cell{
+					CellContents: platform.CellContents{
+						ID:   platform.ID("0"),
 						Name: "hello",
 					},
-					Visualization: chronograf.V1Visualization{
+					Visualization: platform.V1Visualization{
 						Type: "line",
 					},
 				},

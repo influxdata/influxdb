@@ -1,10 +1,13 @@
-package chronograf
+package platform
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 )
+
+// ErrCellNotFound is the error for a missing cell.
+const ErrCellNotFound = Error("cell not found")
 
 // ID is an ID
 type ID string
@@ -33,6 +36,16 @@ type CellService interface {
 type CellUpdate struct {
 	CellContentsUpdate
 	Visualization Visualization
+}
+
+// Valid validates the update struct. It expects minimal values to be set.
+func (u CellUpdate) Valid() error {
+	_, ok := u.Visualization.(EmptyVisualization)
+	if u.Name == nil && ok {
+		return fmt.Errorf("expected at least one attribute to be updated")
+	}
+
+	return nil
 }
 
 // CellContentsUpdate is a struct for updating the non visualization content of a cell.

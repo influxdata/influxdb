@@ -169,6 +169,7 @@ func (c *Client) initialize(ctx context.Context) error {
 		}
 		// Always create Cells bucket.
 		if err := c.initializeCells(ctx, tx); err != nil {
+			return err
 		}
 		return nil
 	}); err != nil {

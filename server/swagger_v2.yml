@@ -1,7 +1,7 @@
 openapi: "3.0.0"
 info:
-  title: Gateway Service
-  version: 0.1.0
+  title: Chronograf
+  version: 1.5.0.0
 servers:
   - url: /chronograf/v2
 paths:
@@ -34,27 +34,6 @@ paths:
       tags:
         - Cells
       summary: Get all cells
-      parameters:
-        - in: query
-          name: organization
-          schema:
-            type: string
-          description: filter for dashboards belonging to a particular organization
-        - in: query
-          name: organizationID
-          schema:
-            type: string
-          description: filter for dashboards belonging to a particular organizationID
-        - in: query
-          name: user
-          schema:
-            type: string
-          description: filter for dashboards belonging to a particular user
-        - in: query
-          name: userID
-          schema:
-            type: string
-          description: filter for dashboards belonging to a particular userID
       responses:
         '200':
           description: all cells
@@ -136,7 +115,7 @@ paths:
           required: true
           description: ID of cell to update
       responses:
-        '202':
+        '204':
           description: delete has been accepted
         default:
           description: unexpected error

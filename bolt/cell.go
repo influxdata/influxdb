@@ -3,11 +3,10 @@ package bolt
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 
 	"github.com/boltdb/bolt"
-	chronograf "github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/chronograf/v2"
 )
 
 var (
@@ -22,8 +21,8 @@ func (c *Client) initializeCells(ctx context.Context, tx *bolt.Tx) error {
 }
 
 // FindCellByID retrieves a cell by id.
-func (c *Client) FindCellByID(ctx context.Context, id chronograf.ID) (*chronograf.Cell, error) {
-	var d *chronograf.Cell
+func (c *Client) FindCellByID(ctx context.Context, id platform.ID) (*platform.Cell, error) {
+	var d *platform.Cell
 
 	err := c.db.View(func(tx *bolt.Tx) error {
 		dash, err := c.findCellByID(ctx, tx, id)
@@ -41,14 +40,13 @@ func (c *Client) FindCellByID(ctx context.Context, id chronograf.ID) (*chronogra
 	return d, nil
 }
 
-func (c *Client) findCellByID(ctx context.Context, tx *bolt.Tx, id chronograf.ID) (*chronograf.Cell, error) {
-	var d chronograf.Cell
+func (c *Client) findCellByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Cell, error) {
+	var d platform.Cell
 
 	v := tx.Bucket(cellBucket).Get([]byte(id))
 
 	if len(v) == 0 {
-		// TODO: Make standard error
-		return nil, fmt.Errorf("cell not found")
+		return nil, platform.ErrCellNotFound
 	}
 
 	if err := json.Unmarshal(v, &d); err != nil {
@@ -59,15 +57,15 @@ func (c *Client) findCellByID(ctx context.Context, tx *bolt.Tx, id chronograf.ID
 }
 
 // FindCell retrieves a cell using an arbitrary cell filter.
-func (c *Client) FindCell(ctx context.Context, filter chronograf.CellFilter) (*chronograf.Cell, error) {
+func (c *Client) FindCell(ctx context.Context, filter platform.CellFilter) (*platform.Cell, error) {
 	if filter.ID != nil {
 		return c.FindCellByID(ctx, *filter.ID)
 	}
 
-	var d *chronograf.Cell
+	var d *platform.Cell
 	err := c.db.View(func(tx *bolt.Tx) error {
 		filterFn := filterCellsFn(filter)
-		return c.forEachCell(ctx, tx, func(dash *chronograf.Cell) bool {
+		return c.forEachCell(ctx, tx, func(dash *platform.Cell) bool {
 			if filterFn(dash) {
 				d = dash
 				return false
@@ -81,34 +79,34 @@ func (c *Client) FindCell(ctx context.Context, filter chronograf.CellFilter) (*c
 	}
 
 	if d == nil {
-		return nil, fmt.Errorf("cell not found")
+		return nil, platform.ErrCellNotFound
 	}
 
 	return d, nil
 }
 
-func filterCellsFn(filter chronograf.CellFilter) func(d *chronograf.Cell) bool {
+func filterCellsFn(filter platform.CellFilter) func(d *platform.Cell) bool {
 	if filter.ID != nil {
-		return func(d *chronograf.Cell) bool {
+		return func(d *platform.Cell) bool {
 			return d.ID == *filter.ID
 		}
 	}
 
-	return func(d *chronograf.Cell) bool { return true }
+	return func(d *platform.Cell) bool { return true }
 }
 
 // FindCells retrives all cells that match an arbitrary cell filter.
-func (c *Client) FindCells(ctx context.Context, filter chronograf.CellFilter) ([]*chronograf.Cell, int, error) {
+func (c *Client) FindCells(ctx context.Context, filter platform.CellFilter) ([]*platform.Cell, int, error) {
 	if filter.ID != nil {
 		d, err := c.FindCellByID(ctx, *filter.ID)
 		if err != nil {
 			return nil, 0, err
 		}
 
-		return []*chronograf.Cell{d}, 1, nil
+		return []*platform.Cell{d}, 1, nil
 	}
 
-	ds := []*chronograf.Cell{}
+	ds := []*platform.Cell{}
 	err := c.db.View(func(tx *bolt.Tx) error {
 		dashs, err := c.findCells(ctx, tx, filter)
 		if err != nil {
@@ -125,11 +123,11 @@ func (c *Client) FindCells(ctx context.Context, filter chronograf.CellFilter) ([
 	return ds, len(ds), nil
 }
 
-func (c *Client) findCells(ctx context.Context, tx *bolt.Tx, filter chronograf.CellFilter) ([]*chronograf.Cell, error) {
-	ds := []*chronograf.Cell{}
+func (c *Client) findCells(ctx context.Context, tx *bolt.Tx, filter platform.CellFilter) ([]*platform.Cell, error) {
+	ds := []*platform.Cell{}
 
 	filterFn := filterCellsFn(filter)
-	err := c.forEachCell(ctx, tx, func(d *chronograf.Cell) bool {
+	err := c.forEachCell(ctx, tx, func(d *platform.Cell) bool {
 		if filterFn(d) {
 			ds = append(ds, d)
 		}
@@ -144,27 +142,26 @@ func (c *Client) findCells(ctx context.Context, tx *bolt.Tx, filter chronograf.C
 }
 
 // CreateCell creates a platform cell and sets d.ID.
-func (c *Client) CreateCell(ctx context.Context, d *chronograf.Cell) error {
+func (c *Client) CreateCell(ctx context.Context, d *platform.Cell) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-
 		id, err := tx.Bucket(cellBucket).NextSequence()
 		if err != nil {
 			return err
 		}
-		d.ID = chronograf.ID(strconv.Itoa(int(id)))
+		d.ID = platform.ID(strconv.Itoa(int(id)))
 
 		return c.putCell(ctx, tx, d)
 	})
 }
 
 // PutCell will put a cell without setting an ID.
-func (c *Client) PutCell(ctx context.Context, d *chronograf.Cell) error {
+func (c *Client) PutCell(ctx context.Context, d *platform.Cell) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.putCell(ctx, tx, d)
 	})
 }
 
-func (c *Client) putCell(ctx context.Context, tx *bolt.Tx, d *chronograf.Cell) error {
+func (c *Client) putCell(ctx context.Context, tx *bolt.Tx, d *platform.Cell) error {
 	v, err := json.Marshal(d)
 	if err != nil {
 		return err
@@ -176,10 +173,10 @@ func (c *Client) putCell(ctx context.Context, tx *bolt.Tx, d *chronograf.Cell) e
 }
 
 // forEachCell will iterate through all cells while fn returns true.
-func (c *Client) forEachCell(ctx context.Context, tx *bolt.Tx, fn func(*chronograf.Cell) bool) error {
+func (c *Client) forEachCell(ctx context.Context, tx *bolt.Tx, fn func(*platform.Cell) bool) error {
 	cur := tx.Bucket(cellBucket).Cursor()
 	for k, v := cur.First(); k != nil; k, v = cur.Next() {
-		d := &chronograf.Cell{}
+		d := &platform.Cell{}
 		if err := json.Unmarshal(v, d); err != nil {
 			return err
 		}
@@ -192,8 +189,8 @@ func (c *Client) forEachCell(ctx context.Context, tx *bolt.Tx, fn func(*chronogr
 }
 
 // UpdateCell updates a cell according the parameters set on upd.
-func (c *Client) UpdateCell(ctx context.Context, id chronograf.ID, upd chronograf.CellUpdate) (*chronograf.Cell, error) {
-	var d *chronograf.Cell
+func (c *Client) UpdateCell(ctx context.Context, id platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+	var d *platform.Cell
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		dash, err := c.updateCell(ctx, tx, id, upd)
 		if err != nil {
@@ -206,7 +203,7 @@ func (c *Client) UpdateCell(ctx context.Context, id chronograf.ID, upd chronogra
 	return d, err
 }
 
-func (c *Client) updateCell(ctx context.Context, tx *bolt.Tx, id chronograf.ID, upd chronograf.CellUpdate) (*chronograf.Cell, error) {
+func (c *Client) updateCell(ctx context.Context, tx *bolt.Tx, id platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
 	d, err := c.findCellByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
@@ -228,13 +225,13 @@ func (c *Client) updateCell(ctx context.Context, tx *bolt.Tx, id chronograf.ID, 
 }
 
 // DeleteCell deletes a cell and prunes it from the index.
-func (c *Client) DeleteCell(ctx context.Context, id chronograf.ID) error {
+func (c *Client) DeleteCell(ctx context.Context, id platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
 		return c.deleteCell(ctx, tx, id)
 	})
 }
 
-func (c *Client) deleteCell(ctx context.Context, tx *bolt.Tx, id chronograf.ID) error {
+func (c *Client) deleteCell(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
 	_, err := c.findCellByID(ctx, tx, id)
 	if err != nil {
 		return err

@@ -13,12 +13,12 @@ import (
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
-	chronograf "github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/chronograf/v2"
 )
 
 func TestService_CellsV2(t *testing.T) {
 	type fields struct {
-		CellService chronograf.CellService
+		CellService platform.CellService
 	}
 	type args struct {
 		queryParams map[string][]string
@@ -39,20 +39,20 @@ func TestService_CellsV2(t *testing.T) {
 			name: "get all cells",
 			fields: fields{
 				&mocks.CellService{
-					FindCellsF: func(ctx context.Context, filter chronograf.CellFilter) ([]*chronograf.Cell, int, error) {
-						return []*chronograf.Cell{
+					FindCellsF: func(ctx context.Context, filter platform.CellFilter) ([]*platform.Cell, int, error) {
+						return []*platform.Cell{
 							{
-								CellContents: chronograf.CellContents{
-									ID:   chronograf.ID("0"),
+								CellContents: platform.CellContents{
+									ID:   platform.ID("0"),
 									Name: "hello",
 								},
-								Visualization: chronograf.V1Visualization{
+								Visualization: platform.V1Visualization{
 									Type: "line",
 								},
 							},
 							{
-								CellContents: chronograf.CellContents{
-									ID:   chronograf.ID("2"),
+								CellContents: platform.CellContents{
+									ID:   platform.ID("2"),
 									Name: "example",
 								},
 							},
@@ -74,7 +74,7 @@ func TestService_CellsV2(t *testing.T) {
       "id": "0",
       "name": "hello",
       "links": {
-        "self": "/chronograf/v1/cells/0"
+        "self": "/chronograf/v2/cells/0"
       },
       "visualization": {
         "type": "chronograf-v1",
@@ -105,7 +105,7 @@ func TestService_CellsV2(t *testing.T) {
       "id": "2",
       "name": "example",
       "links": {
-        "self": "/chronograf/v1/cells/2"
+        "self": "/chronograf/v2/cells/2"
       },
       "visualization": {
         "type": "empty"
@@ -160,7 +160,7 @@ func TestService_CellsV2(t *testing.T) {
 
 func TestService_CellIDV2(t *testing.T) {
 	type fields struct {
-		CellService chronograf.CellService
+		CellService platform.CellService
 	}
 	type args struct {
 		id string
@@ -181,11 +181,11 @@ func TestService_CellIDV2(t *testing.T) {
 			name: "get a cell by id",
 			fields: fields{
 				&mocks.CellService{
-					FindCellByIDF: func(ctx context.Context, id chronograf.ID) (*chronograf.Cell, error) {
+					FindCellByIDF: func(ctx context.Context, id platform.ID) (*platform.Cell, error) {
 						if id == "2" {
-							return &chronograf.Cell{
-								CellContents: chronograf.CellContents{
-									ID:   chronograf.ID("2"),
+							return &platform.Cell{
+								CellContents: platform.CellContents{
+									ID:   platform.ID("2"),
 									Name: "example",
 								},
 							}, nil
@@ -206,7 +206,7 @@ func TestService_CellIDV2(t *testing.T) {
   "id": "2",
   "name": "example",
   "links": {
-    "self": "/chronograf/v1/cells/2"
+    "self": "/chronograf/v2/cells/2"
   },
   "visualization": {
     "type": "empty"
@@ -260,10 +260,10 @@ func TestService_CellIDV2(t *testing.T) {
 
 func TestService_NewCellV2(t *testing.T) {
 	type fields struct {
-		CellService chronograf.CellService
+		CellService platform.CellService
 	}
 	type args struct {
-		cell *chronograf.Cell
+		cell *platform.Cell
 	}
 	type wants struct {
 		statusCode  int
@@ -281,18 +281,18 @@ func TestService_NewCellV2(t *testing.T) {
 			name: "create a new cell",
 			fields: fields{
 				&mocks.CellService{
-					CreateCellF: func(ctx context.Context, c *chronograf.Cell) error {
+					CreateCellF: func(ctx context.Context, c *platform.Cell) error {
 						c.ID = "2"
 						return nil
 					},
 				},
 			},
 			args: args{
-				cell: &chronograf.Cell{
-					CellContents: chronograf.CellContents{
+				cell: &platform.Cell{
+					CellContents: platform.CellContents{
 						Name: "hello",
 					},
-					Visualization: chronograf.V1Visualization{
+					Visualization: platform.V1Visualization{
 						Type: "line",
 					},
 				},
@@ -305,7 +305,7 @@ func TestService_NewCellV2(t *testing.T) {
   "id": "2",
   "name": "hello",
   "links": {
-    "self": "/chronograf/v1/cells/2"
+    "self": "/chronograf/v2/cells/2"
   },
   "visualization": {
     "type": "chronograf-v1",
@@ -375,7 +375,7 @@ func TestService_NewCellV2(t *testing.T) {
 
 func TestService_RemoveCellV2(t *testing.T) {
 	type fields struct {
-		CellService chronograf.CellService
+		CellService platform.CellService
 	}
 	type args struct {
 		id string
@@ -396,7 +396,7 @@ func TestService_RemoveCellV2(t *testing.T) {
 			name: "remove a cell by id",
 			fields: fields{
 				&mocks.CellService{
-					DeleteCellF: func(ctx context.Context, id chronograf.ID) error {
+					DeleteCellF: func(ctx context.Context, id platform.ID) error {
 						if id == "2" {
 							return nil
 						}
@@ -457,11 +457,12 @@ func TestService_RemoveCellV2(t *testing.T) {
 
 func TestService_UpdateCellV2(t *testing.T) {
 	type fields struct {
-		CellService chronograf.CellService
+		CellService platform.CellService
 	}
 	type args struct {
-		id  string
-		upd chronograf.CellUpdate
+		id            string
+		name          string
+		visualization platform.Visualization
 	}
 	type wants struct {
 		statusCode  int
@@ -479,14 +480,77 @@ func TestService_UpdateCellV2(t *testing.T) {
 			name: "update a cell",
 			fields: fields{
 				&mocks.CellService{
-					UpdateCellF: func(ctx context.Context, id chronograf.ID, upd chronograf.CellUpdate) (*chronograf.Cell, error) {
+					UpdateCellF: func(ctx context.Context, id platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
 						if id == "2" {
-							return &chronograf.Cell{
-								CellContents: chronograf.CellContents{
-									ID:   chronograf.ID("2"),
+							return &platform.Cell{
+								CellContents: platform.CellContents{
+									ID:   platform.ID("2"),
 									Name: "example",
 								},
-								Visualization: chronograf.V1Visualization{
+								Visualization: platform.V1Visualization{
+									Type: "line",
+								},
+							}, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id:   "2",
+				name: "example",
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json",
+				body: `
+{
+  "id": "2",
+  "name": "example",
+  "links": {
+    "self": "/chronograf/v2/cells/2"
+  },
+  "visualization": {
+    "type": "chronograf-v1",
+    "queries": null,
+    "axes": null,
+    "visualizationType": "line",
+    "colors": null,
+    "legend": {},
+    "tableOptions": {
+      "verticalTimeAxis": false,
+      "sortBy": {
+        "internalName": "",
+        "displayName": "",
+        "visible": false
+      },
+      "wrapping": "",
+      "fixFirstColumn": false
+    },
+    "fieldOptions": null,
+    "timeFormat": "",
+    "decimalPlaces": {
+      "isEnforced": false,
+      "digits": 0
+    }
+  }
+}
+`,
+			},
+		},
+		{
+			name: "update a cell with empty request body",
+			fields: fields{
+				&mocks.CellService{
+					UpdateCellF: func(ctx context.Context, id platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+						if id == "2" {
+							return &platform.Cell{
+								CellContents: platform.CellContents{
+									ID:   platform.ID("2"),
+									Name: "example",
+								},
+								Visualization: platform.V1Visualization{
 									Type: "line",
 								},
 							}, nil
@@ -500,8 +564,9 @@ func TestService_UpdateCellV2(t *testing.T) {
 				id: "2",
 			},
 			wants: wants{
-				statusCode:  http.StatusOK,
+				statusCode:  http.StatusBadRequest,
 				contentType: "application/json",
+				body:        `{"code":400,"message":"expected at least one attribute to be updated"}`,
 			},
 		},
 	}
@@ -515,7 +580,15 @@ func TestService_UpdateCellV2(t *testing.T) {
 				Logger: log.New(log.DebugLevel),
 			}
 
-			b, err := json.Marshal(tt.args.upd)
+			upd := platform.CellUpdate{}
+			if tt.args.name != "" {
+				upd.Name = &tt.args.name
+			}
+			if tt.args.visualization != nil {
+				upd.Visualization = tt.args.visualization
+			}
+
+			b, err := json.Marshal(upd)
 			if err != nil {
 				t.Fatalf("failed to unmarshal cell update: %v", err)
 			}
@@ -540,13 +613,13 @@ func TestService_UpdateCellV2(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. RemoveCellV2() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+				t.Errorf("%q. UpdateCellV2() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
-				t.Errorf("%q. RemoveCellV2() = %v, want %v", tt.name, content, tt.wants.contentType)
+				t.Errorf("%q. UpdateCellV2() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. RemoveCellV2() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+				t.Errorf("%q. UpdateCellV2() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
 			}
 		})
 	}

@@ -2965,7 +2965,7 @@
           "200": {
             "description": "Returns an object with the organization-specific configurations",
             "schema": {
-              "$ref": "#/definitions/OrganizationConfig" 
+              "$ref": "#/definitions/OrganizationConfig"
             }
           },
           "404": {
