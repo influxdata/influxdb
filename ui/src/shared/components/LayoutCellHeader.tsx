@@ -1,8 +1,12 @@
-import React from 'react'
-import PropTypes from 'prop-types'
+import React, {SFC} from 'react'
 import {isCellUntitled} from 'src/dashboards/utils/cellGetters'
 
-const LayoutCellHeader = ({isEditable, cellName}) => {
+interface Props {
+  isEditable: boolean
+  cellName: string
+}
+
+const LayoutCellHeader: SFC<Props> = ({isEditable, cellName}) => {
   const headingClass = `dash-graph--heading ${
     isEditable ? 'dash-graph--draggable dash-graph--heading-draggable' : ''
   }`
@@ -20,13 +24,6 @@ const LayoutCellHeader = ({isEditable, cellName}) => {
       </span>
     </div>
   )
-}
-
-const {bool, string} = PropTypes
-
-LayoutCellHeader.propTypes = {
-  isEditable: bool,
-  cellName: string,
 }
 
 export default LayoutCellHeader

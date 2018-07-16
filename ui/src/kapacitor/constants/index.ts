@@ -98,6 +98,17 @@ export const OUTSIDE_RANGE: string = 'outside range'
 export const EQUAL_TO_OR_GREATER_THAN: string = 'equal to or greater'
 export const EQUAL_TO_OR_LESS_THAN: string = 'equal to or less than'
 
+export enum ThresholdOperators {
+  EqualTo = 'equal to',
+  LessThan = 'less than',
+  GreaterThan = 'greater than',
+  NotEqualTo = 'not equal to',
+  InsideRange = 'inside range',
+  OutsideRange = 'outside range',
+  EqualToOrGreaterThan = 'equal to or greater',
+  EqualToOrLessThan = 'equal to or less than',
+}
+
 export const THRESHOLD_OPERATORS: string[] = [
   GREATER_THAN,
   EQUAL_TO_OR_GREATER_THAN,

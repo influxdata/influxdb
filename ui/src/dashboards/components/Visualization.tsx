@@ -17,6 +17,7 @@ import {
 import {ColorString, ColorNumber} from 'src/types/colors'
 
 interface Props {
+  axes: Axes
   type: CellType
   source: Source
   autoRefresh: number
@@ -24,7 +25,6 @@ interface Props {
   timeRange: TimeRange
   queryConfigs: QueryConfig[]
   editQueryStatus: () => void
-  axes: Axes
   tableOptions: TableOptions
   timeFormat: string
   decimalPlaces: DecimalPlaces

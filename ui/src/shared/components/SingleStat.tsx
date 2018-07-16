@@ -8,11 +8,10 @@ import {DYGRAPH_CONTAINER_V_MARGIN} from 'src/shared/constants'
 import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 import {ColorString} from 'src/types/colors'
 import {CellType, DecimalPlaces} from 'src/types/dashboards'
-import {Data} from 'src/types/dygraphs'
+import {TimeSeriesServerResponse} from 'src/types/series'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  isFetchingInitially: boolean
   decimalPlaces: DecimalPlaces
   cellHeight: number
   colors: ColorString[]
@@ -20,7 +19,7 @@ interface Props {
   suffix?: string
   lineGraph: boolean
   staticLegendHeight?: number
-  data: Data
+  data: TimeSeriesServerResponse[]
 }
 
 @ErrorHandling
@@ -31,16 +30,6 @@ class SingleStat extends PureComponent<Props> {
   }
 
   public render() {
-    const {isFetchingInitially} = this.props
-
-    if (isFetchingInitially) {
-      return (
-        <div className="graph-empty">
-          <h3 className="graph-spinner" />
-        </div>
-      )
-    }
-
     return (
       <div className="single-stat" style={this.containerStyle}>
         {this.resizerBox}

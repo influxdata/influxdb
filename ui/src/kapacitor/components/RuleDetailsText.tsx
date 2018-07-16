@@ -1,19 +1,16 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+import {AlertRule} from 'src/types'
+
+interface Props {
+  rule: AlertRule
+  updateDetails: (id: string, value: string) => void
+}
+
 @ErrorHandling
-class RuleDetailsText extends Component {
-  constructor(props) {
-    super(props)
-  }
-
-  handleUpdateDetails = e => {
-    const {rule, updateDetails} = this.props
-    updateDetails(rule.id, e.target.value)
-  }
-
-  render() {
+class RuleDetailsText extends PureComponent<Props> {
+  public render() {
     const {rule} = this.props
     return (
       <div className="rule-builder--details">
@@ -27,13 +24,10 @@ class RuleDetailsText extends Component {
       </div>
     )
   }
+
+  private handleUpdateDetails = e => {
+    const {rule, updateDetails} = this.props
+    updateDetails(rule.id, e.target.value)
+  }
 }
-
-const {shape, func} = PropTypes
-
-RuleDetailsText.propTypes = {
-  rule: shape().isRequired,
-  updateDetails: func.isRequired,
-}
-
 export default RuleDetailsText

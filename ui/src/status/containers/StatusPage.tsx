@@ -1,18 +1,30 @@
+// Libraries
 import React, {Component} from 'react'
 
+// Components
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import LayoutRenderer from 'src/shared/components/LayoutRenderer'
-import {STATUS_PAGE_TIME_RANGE} from 'src/shared/data/timeRanges'
-import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
+// Constants
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
+import {STATUS_PAGE_TIME_RANGE} from 'src/shared/data/timeRanges'
 import {fixtureStatusPageCells} from 'src/status/fixtures'
-import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'src/shared/constants'
-import {Source, Cell} from 'src/types'
+
+// Types
+import {
+  Source,
+  Template,
+  Cell,
+  TemplateType,
+  TemplateValueType,
+} from 'src/types'
+
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface State {
   cells: Cell[]
@@ -39,36 +51,6 @@ class StatusPage extends Component<Props, State> {
     const {source} = this.props
     const {cells} = this.state
 
-    const dashboardTime = {
-      id: 'dashtime',
-      tempVar: TEMP_VAR_DASHBOARD_TIME,
-      type: 'constant',
-      values: [
-        {
-          value: timeRange.lower,
-          type: 'constant',
-          selected: true,
-          localSelected: true,
-        },
-      ],
-    }
-
-    const upperDashboardTime = {
-      id: 'upperdashtime',
-      tempVar: TEMP_VAR_UPPER_DASHBOARD_TIME,
-      type: 'constant',
-      values: [
-        {
-          value: 'now()',
-          type: 'constant',
-          selected: true,
-          localSelected: true,
-        },
-      ],
-    }
-
-    const templates = [dashboardTime, upperDashboardTime]
-
     return (
       <div className="page">
         <PageHeader
@@ -80,14 +62,16 @@ class StatusPage extends Component<Props, State> {
           <div className="dashboard container-fluid full-width">
             {cells.length ? (
               <LayoutRenderer
-                autoRefresh={autoRefresh}
-                timeRange={timeRange}
+                host=""
+                sources={[]}
                 cells={cells}
-                templates={templates}
                 source={source}
-                shouldNotBeEditable={true}
-                isStatusPage={true}
+                manualRefresh={0}
                 isEditable={false}
+                isStatusPage={true}
+                timeRange={timeRange}
+                templates={this.templates}
+                autoRefresh={autoRefresh}
               />
             ) : (
               <span>Loading Status Page...</span>
@@ -96,6 +80,40 @@ class StatusPage extends Component<Props, State> {
         </FancyScrollbar>
       </div>
     )
+  }
+
+  private get templates(): Template[] {
+    const dashboardTime = {
+      id: 'dashtime',
+      tempVar: TEMP_VAR_DASHBOARD_TIME,
+      type: TemplateType.Constant,
+      label: '',
+      values: [
+        {
+          value: timeRange.lower,
+          type: TemplateValueType.Constant,
+          selected: true,
+          localSelected: true,
+        },
+      ],
+    }
+
+    const upperDashboardTime = {
+      id: 'upperdashtime',
+      tempVar: TEMP_VAR_UPPER_DASHBOARD_TIME,
+      type: TemplateType.Constant,
+      label: '',
+      values: [
+        {
+          value: 'now()',
+          type: TemplateValueType.Constant,
+          selected: true,
+          localSelected: true,
+        },
+      ],
+    }
+
+    return [dashboardTime, upperDashboardTime]
   }
 }
 

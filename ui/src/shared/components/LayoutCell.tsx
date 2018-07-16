@@ -24,7 +24,6 @@ interface Props {
   isEditable: boolean
   cellData: TimeSeriesServerResponse[]
   templates: Template[]
-  resolution: number
 }
 
 @ErrorHandling
