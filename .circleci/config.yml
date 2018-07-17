@@ -21,7 +21,9 @@ jobs:
     working_directory: /go/src/github.com/influxdata/platform
     steps:
       - checkout
-      - run: make nightly
+      - run: |
+          docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+          make nightly
 
 
 workflows:
