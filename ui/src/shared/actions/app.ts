@@ -5,20 +5,28 @@ import {notifyPresentationMode} from 'src/shared/copy/notifications'
 
 import {Dispatch} from 'redux'
 
-import * as AppActions from 'src/types/actions/app'
+import {
+  ActionTypes,
+  EnablePresentationModeAction,
+  DisablePresentationModeAction,
+  DelayEnablePresentationModeDispatcher,
+  SetAutoRefreshActionCreator,
+  SetAutoRefreshAction,
+  TemplateControlBarVisibilityToggledAction,
+} from 'src/types/actions/app'
 
 // ephemeral state action creators
 
-export const enablePresentationMode = (): AppActions.EnablePresentationModeAction => ({
-  type: 'ENABLE_PRESENTATION_MODE',
+export const enablePresentationMode = (): EnablePresentationModeAction => ({
+  type: ActionTypes.EnablePresentationMode,
 })
 
-export const disablePresentationMode = (): AppActions.DisablePresentationModeAction => ({
-  type: 'DISABLE_PRESENTATION_MODE',
+export const disablePresentationMode = (): DisablePresentationModeAction => ({
+  type: ActionTypes.DisablePresentationMode,
 })
 
-export const delayEnablePresentationMode: AppActions.DelayEnablePresentationModeDispatcher = () => async (
-  dispatch: Dispatch<AppActions.EnablePresentationModeAction>
+export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher = () => async (
+  dispatch: Dispatch<EnablePresentationModeAction>
 ): Promise<NodeJS.Timer> =>
   setTimeout(() => {
     dispatch(enablePresentationMode())
@@ -27,20 +35,15 @@ export const delayEnablePresentationMode: AppActions.DelayEnablePresentationMode
 
 // persistent state action creators
 
-export const setAutoRefresh: AppActions.SetAutoRefreshActionCreator = (
+export const setAutoRefresh: SetAutoRefreshActionCreator = (
   milliseconds: number
-): AppActions.SetAutoRefreshAction => ({
-  type: 'SET_AUTOREFRESH',
+): SetAutoRefreshAction => ({
+  type: ActionTypes.SetAutoRefresh,
   payload: {
     milliseconds,
   },
 })
 
-export const templateControlBarVisibilityToggled = (): AppActions.TemplateControlBarVisibilityToggledAction => ({
-  type: 'TEMPLATE_CONTROL_BAR_VISIBILITY_TOGGLED',
-})
-
-export const noop = (): AppActions.NoopAction => ({
-  type: 'NOOP',
-  payload: {},
+export const templateControlBarVisibilityToggled = (): TemplateControlBarVisibilityToggledAction => ({
+  type: ActionTypes.TemplateControlBarVisibilityToggled,
 })

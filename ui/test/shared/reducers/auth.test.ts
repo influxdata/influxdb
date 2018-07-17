@@ -1,11 +1,11 @@
-import {default as authReducer, initialState} from 'shared/reducers/auth'
+import {default as authReducer, initialState} from 'src/shared/reducers/auth'
 
 import {
   authExpired,
   authRequested,
   meGetRequested,
   meGetCompleted,
-} from 'shared/actions/auth'
+} from 'src/shared/actions/auth'
 
 const defaultAuth = {
   links: [
@@ -17,9 +17,16 @@ const defaultAuth = {
       callback: '/oauth/github/callback',
     },
   ],
+  me: null,
+  isMeLoading: false,
+  isAuthLoading: false,
+  logoutLink: null,
+  isUsingAuth: false,
 }
 
 const defaultMe = {
+  roles: [],
+  currentOrganization: '',
   name: 'wishful_modal@overlay.technology',
   links: {
     self: '/chronograf/v1/users/wishful_modal@overlay.technology',
@@ -83,11 +90,13 @@ describe('Shared.Reducers.authReducer', () => {
       isAuthLoading: true,
       isMeLoading: true,
     }
+
     const reducedState = authReducer(
       loadingState,
       meGetCompleted({
         me: defaultMe,
         auth: defaultAuth,
+        logoutLink: '',
       })
     )
 

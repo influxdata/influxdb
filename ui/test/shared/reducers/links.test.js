@@ -2,7 +2,6 @@ import _ from 'lodash'
 
 import linksReducer from 'shared/reducers/links'
 import {linksGetCompleted} from 'shared/actions/links'
-import {noop} from 'shared/actions/app'
 
 const links = {
   layouts: '/chronograf/v1/layouts',
@@ -25,8 +24,7 @@ const links = {
 
 describe('Shared.Reducers.linksReducer', () => {
   it('can handle LINKS_GET_COMPLETED', () => {
-    const initial = linksReducer(undefined, noop())
-    const actual = linksReducer(initial, linksGetCompleted(links))
+    const actual = linksReducer(undefined, linksGetCompleted(links))
     const expected = links
     expect(_.isEqual(actual, expected)).toBe(true)
   })

@@ -1,8 +1,9 @@
 import _ from 'lodash'
 
 import {SUPERADMIN_ROLE, MEMBER_ROLE} from 'src/auth/Authorized'
+import {AuthMe} from 'src/types/auth'
 
-export const getMeRole = me => {
+export const getMeRole = (me: AuthMe): string => {
   const currentRoleOrg = me.roles.find(
     role => me.currentOrganization.id === role.organization
   )
