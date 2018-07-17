@@ -256,11 +256,11 @@ class Gauge extends Component<Props> {
 
     const gaugeValues = []
     for (let g = minValue; g < maxValue; g += incrementValue) {
-      const valueString = this.toDisplayString(g)
+      const valueString = this.labelToString(g)
       gaugeValues.push(valueString)
     }
 
-    gaugeValues.push(this.toDisplayString(maxValue))
+    gaugeValues.push(this.labelToString(maxValue))
 
     const startDegree = degree * 135
     const arcLength = Math.PI * 1.5
@@ -308,14 +308,34 @@ class Gauge extends Component<Props> {
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
 
-    const valueString = this.toDisplayString(gaugePosition)
+    const valueString = this.valueToString(gaugePosition)
 
     const textY = radius
     const textContent = `${prefix}${valueString}${suffix}`
     ctx.fillText(textContent, 0, textY)
   }
 
-  private toDisplayString(value: number): string {
+  private labelToString(value: number): string {
+    const {decimalPlaces} = this.props
+
+    let valueString
+
+    if (decimalPlaces.isEnforced) {
+      valueString = value.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: decimalPlaces.digits,
+      })
+    } else {
+      valueString = value.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 20,
+      })
+    }
+
+    return valueString
+  }
+
+  private valueToString(value: number): string {
     const {decimalPlaces} = this.props
 
     let valueString
@@ -326,8 +346,10 @@ class Gauge extends Component<Props> {
         maximumFractionDigits: decimalPlaces.digits,
       })
     } else {
-      const roundedValue = Math.round(value * 100) / 100
-      valueString = roundedValue.toLocaleString()
+      valueString = value.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 20,
+      })
     }
 
     return valueString

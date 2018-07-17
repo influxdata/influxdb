@@ -42,6 +42,7 @@ class GraphOptionsDecimalPlaces extends PureComponent<Props> {
         <label> Decimal Places </label>
         <OptIn
           min="0"
+          max="20"
           type="number"
           fixedPlaceholder=""
           customValue={this.value}

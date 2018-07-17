@@ -5,6 +5,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   min?: string
+  max?: string
   id: string
   type: string
   customPlaceholder: string
@@ -33,6 +34,7 @@ class ClickOutsideInput extends Component<Props> {
       onKeyDown,
       customValue,
       customPlaceholder,
+      max,
     } = this.props
 
     return (
@@ -40,6 +42,7 @@ class ClickOutsideInput extends Component<Props> {
         className="form-control input-sm"
         id={id}
         min={min}
+        max={max}
         type={type}
         name={customPlaceholder}
         ref={onGetRef}

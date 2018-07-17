@@ -8,6 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   min?: string
+  max?: string
   fixedPlaceholder?: string
   fixedValue?: string
   customPlaceholder?: string
@@ -54,7 +55,7 @@ export default class OptIn extends Component<Props, State> {
   }
 
   public render() {
-    const {fixedPlaceholder, customPlaceholder, type, min} = this.props
+    const {fixedPlaceholder, customPlaceholder, type, min, max} = this.props
     const {useCustomValue, customValue} = this.state
 
     return (
@@ -67,6 +68,7 @@ export default class OptIn extends Component<Props, State> {
           id={this.id}
           min={min}
           type={type}
+          max={max}
           customValue={customValue}
           onGetRef={this.handleInputRef}
           customPlaceholder={customPlaceholder}
