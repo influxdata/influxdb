@@ -11,16 +11,18 @@
 $rename-dash-title-padding: 7px;
 
 .rename-dashboard {
-  height: $chronograf-page-header-height;
-  display: flex;
-  align-items: center;
-  flex: 1 0 0;
+  height: $form-sm-height;
+  min-width: 0;
+  width: 100%;;
+}
+.dashboard-switcher + .rename-dashboard {
+  width: calc(100% - 38px);
 }
 
 .rename-dashboard--title {
   width: 100%;
   position: relative;
-  padding: 0 $rename-dash-title-padding;
+  padding: 0 $form-sm-height 0 $rename-dash-title-padding;
   border: $ix-border solid $g0-obsidian;
   height: $form-sm-height;
   white-space: nowrap;
@@ -33,16 +35,13 @@ $rename-dash-title-padding: 7px;
   color 0.25s ease,
   background-color 0.25s ease,
   border-color 0.25s ease;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: $form-sm-height - $ix-border;
+  margin: 0;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
   
-  h1 {
-    text-transform: none;
-    letter-spacing: 0;
-    line-height: $form-sm-height - $ix-border;
-    margin: 0;
-    font-size: $page-header-size;
-    font-weight: $page-header-weight;
-  }
-
   .icon {
     position: absolute;
     font-size: 15px;

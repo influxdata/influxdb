@@ -38,8 +38,11 @@ class DashboardEditHeader extends Component<Props, State> {
 
     return (
       <div className="rename-dashboard">
-        <div className="rename-dashboard--title">
-          <h1 onClick={this.handleStartEditing}>{name}</h1>
+        <div
+          className="rename-dashboard--title"
+          onClick={this.handleStartEditing}
+        >
+          {name}
           <span className="icon pencil" />
         </div>
       </div>
