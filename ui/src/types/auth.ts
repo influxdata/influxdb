@@ -8,8 +8,27 @@ export interface Organization {
 }
 
 export interface Me {
-  currentOrganization?: Organization
   role: Role
+  currentOrganization?: Organization
+}
+
+export interface AuthMe {
+  id?: string
+  role: string
+  name: string
+  provider: string
+  scheme: string
+  superAdmin: boolean
+  logoutLink: string
+  roles: Role[]
+  links: {
+    self: string
+  }
+  organizations?: Organization[]
+  currentOrganization?: Organization
+  isUsingAuth: boolean
+  isMeLoading: boolean
+  isAuthLoading: boolean
 }
 
 export enum InfluxDBPermissions {

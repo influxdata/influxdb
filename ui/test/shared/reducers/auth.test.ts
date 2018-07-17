@@ -25,6 +25,8 @@ const defaultAuth = {
 }
 
 const defaultMe = {
+  roles: [],
+  currentOrganization: '',
   name: 'wishful_modal@overlay.technology',
   links: {
     self: '/chronograf/v1/users/wishful_modal@overlay.technology',
@@ -88,12 +90,13 @@ describe('Shared.Reducers.authReducer', () => {
       isAuthLoading: true,
       isMeLoading: true,
     }
+
     const reducedState = authReducer(
       loadingState,
       meGetCompleted({
         me: defaultMe,
         auth: defaultAuth,
-        logoutLink: 'foo',
+        logoutLink: '',
       })
     )
 
