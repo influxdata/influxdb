@@ -6,6 +6,7 @@ import _ from 'lodash'
 
 import DashboardsContents from 'src/dashboards/components/DashboardsPageContents'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
+import {getDeep} from 'src/utils/wrappers'
 
 import {createDashboard} from 'src/dashboards/apis'
 import {
@@ -17,7 +18,11 @@ import {
 } from 'src/dashboards/actions'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-import {NEW_DASHBOARD, DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
+import {
+  NEW_DASHBOARD,
+  DEFAULT_DASHBOARD_NAME,
+  NEW_DEFAULT_DASHBOARD_CELL,
+} from 'src/dashboards/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {
   notifyDashboardExported,
@@ -26,7 +31,7 @@ import {
 
 import {Source, Dashboard} from 'src/types'
 import {Notification} from 'src/types/notifications'
-import {DashboardFile} from 'src/types/dashboards'
+import {DashboardFile, Cell} from 'src/types/dashboards'
 
 interface Props {
   source: Source
@@ -125,9 +130,16 @@ class DashboardsPage extends PureComponent<Props> {
     dashboard: Dashboard
   ): Promise<void> => {
     const name = _.get(dashboard, 'name', DEFAULT_DASHBOARD_NAME)
+    const cellsWithDefaultsApplied = getDeep<Cell[]>(
+      dashboard,
+      'cells',
+      []
+    ).map(c => ({...NEW_DEFAULT_DASHBOARD_CELL, ...c}))
+
     await this.props.handleImportDashboard({
       ...dashboard,
       name,
+      cells: cellsWithDefaultsApplied,
     })
   }
 }

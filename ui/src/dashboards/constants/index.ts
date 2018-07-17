@@ -11,8 +11,8 @@ export const TIME_FORMAT_TOOLTIP_LINK: string =
   'http://momentjs.com/docs/#/parsing/string-format/'
 
 export const DEFAULT_DECIMAL_PLACES: DecimalPlaces = {
-  isEnforced: false,
-  digits: 3,
+  isEnforced: true,
+  digits: 2,
 }
 
 export interface TimeField {
