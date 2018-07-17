@@ -1,6 +1,7 @@
 export const GAUGE_SPECS = {
   degree: Math.PI / 180,
-  lineCount: 6,
+  lineCount: 5,
+  smallLineCount: 10,
   lineColor: '#545667',
   labelColor: '#8E91A1',
   labelFontSize: 13,

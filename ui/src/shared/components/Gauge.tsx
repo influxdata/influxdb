@@ -178,15 +178,17 @@ class Gauge extends Component<Props> {
       lineStrokeLarge,
       tickSizeSmall,
       tickSizeLarge,
+      smallLineCount,
     } = GAUGE_SPECS
 
     const arcStart = Math.PI * 0.75
     const arcLength = Math.PI * 1.5
     const arcStop = arcStart + arcLength
-    const lineSmallCount = lineCount * 5
+    const totalSmallLineCount = lineCount * smallLineCount
+
     const startDegree = degree * 135
     const arcLargeIncrement = arcLength / lineCount
-    const arcSmallIncrement = arcLength / lineSmallCount
+    const arcSmallIncrement = arcLength / totalSmallLineCount
 
     // Semi-circle
     const arcRadius = radius + gradientThickness * 0.8
@@ -221,7 +223,7 @@ class Gauge extends Component<Props> {
     }
 
     // Draw Small ticks
-    for (let lt = 0; lt <= lineSmallCount; lt++) {
+    for (let lt = 0; lt <= totalSmallLineCount; lt++) {
       // Rototion before drawing line
       ctx.rotate(startDegree)
       ctx.rotate(lt * arcSmallIncrement)
