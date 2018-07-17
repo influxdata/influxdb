@@ -1,12 +1,14 @@
 import templateReplace, {replaceInterval} from 'src/tempVars/utils/replace'
 import {TemplateType, TemplateValueType} from 'src/types/tempVars'
-import {emptyTemplate} from 'test/resources'
 
 describe('templates.utils.replace', () => {
   it('can replace select with parameters', () => {
     const vars = [
       {
-        ...emptyTemplate,
+        id: '1',
+        type: TemplateType.CSV,
+        label: '',
+        query: {},
         tempVar: ':temperature:',
         values: [
           {
@@ -18,7 +20,10 @@ describe('templates.utils.replace', () => {
         ],
       },
       {
-        ...emptyTemplate,
+        id: '2',
+        type: TemplateType.FieldKeys,
+        label: '',
+        query: {},
         tempVar: ':field:',
         values: [
           {
@@ -30,7 +35,10 @@ describe('templates.utils.replace', () => {
         ],
       },
       {
-        ...emptyTemplate,
+        id: '3',
+        type: TemplateType.CSV,
+        label: '',
+        query: {},
         tempVar: ':method:',
         values: [
           {
@@ -42,7 +50,10 @@ describe('templates.utils.replace', () => {
         ],
       },
       {
-        ...emptyTemplate,
+        id: '4',
+        type: TemplateType.CSV,
+        label: '',
+        query: {},
         tempVar: ':measurement:',
         values: [
           {
@@ -65,7 +76,10 @@ describe('templates.utils.replace', () => {
   it('can replace all in a select with parameters and aggregates', () => {
     const vars = [
       {
-        ...emptyTemplate,
+        id: '1',
+        type: TemplateType.TagValues,
+        label: '',
+        query: {},
         tempVar: ':value:',
         values: [
           {
@@ -83,7 +97,10 @@ describe('templates.utils.replace', () => {
         ],
       },
       {
-        ...emptyTemplate,
+        id: '2',
+        type: TemplateType.TagKeys,
+        label: '',
+        query: {},
         tempVar: ':tag:',
         values: [
           {
@@ -101,7 +118,10 @@ describe('templates.utils.replace', () => {
         ],
       },
       {
-        ...emptyTemplate,
+        id: '3',
+        type: TemplateType.FieldKeys,
+        label: '',
+        query: {},
         tempVar: ':field:',
         values: [
           {
@@ -131,7 +151,10 @@ describe('templates.utils.replace', () => {
     it('replaces properly', () => {
       const vars = [
         {
-          ...emptyTemplate,
+          id: '1',
+          type: TemplateType.TagValues,
+          label: '',
+          query: {},
           tempVar: ':host:',
           values: [
             {
@@ -149,7 +172,10 @@ describe('templates.utils.replace', () => {
           ],
         },
         {
-          ...emptyTemplate,
+          id: '2',
+          type: TemplateType.TagValues,
+          label: '',
+          query: {},
           tempVar: ':region:',
           values: [
             {
@@ -167,7 +193,10 @@ describe('templates.utils.replace', () => {
           ],
         },
         {
-          ...emptyTemplate,
+          id: '3',
+          type: TemplateType.Constant,
+          label: '',
+          query: {},
           tempVar: ':dashboardTime:',
           values: [
             {
@@ -208,7 +237,10 @@ describe('templates.utils.replace', () => {
     it('does not do a replacement', () => {
       const vars = [
         {
-          ...emptyTemplate,
+          id: '1',
+          type: TemplateType.CSV,
+          label: '',
+          query: {},
           tempVar: ':field:',
           values: [],
         },
@@ -247,7 +279,10 @@ describe('templates.utils.replace', () => {
       it('can work with :dashboardTime:', () => {
         const vars = [
           {
-            ...emptyTemplate,
+            id: '1',
+            type: TemplateType.Constant,
+            label: '',
+            query: {},
             tempVar: ':dashboardTime:',
             values: [
               {
@@ -279,7 +314,10 @@ describe('templates.utils.replace', () => {
       it('can handle a failing condition', () => {
         const vars = [
           {
-            ...emptyTemplate,
+            id: '1',
+            type: TemplateType.Constant,
+            label: '',
+            query: {},
             tempVar: ':dashboardTime:',
             values: [
               {
