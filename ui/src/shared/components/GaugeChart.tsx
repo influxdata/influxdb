@@ -9,22 +9,15 @@ import {stringifyColorValues} from 'src/shared/constants/colorOperations'
 import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {DecimalPlaces} from 'src/types/dashboards'
+import {ColorString} from 'src/types/colors'
 import {TimeSeriesServerResponse} from 'src/types/series'
-
-interface Color {
-  type: string
-  hex: string
-  id: string
-  name: string
-  value: string
-}
 
 interface Props {
   data: TimeSeriesServerResponse[]
   decimalPlaces: DecimalPlaces
   cellID: string
   cellHeight?: number
-  colors?: Color[]
+  colors?: ColorString[]
   prefix: string
   suffix: string
   resizerTopHeight?: number
@@ -37,8 +30,7 @@ class GaugeChart extends PureComponent<Props> {
   }
 
   public render() {
-    const {colors, prefix, suffix} = this.props
-
+    const {colors, prefix, suffix, decimalPlaces} = this.props
     return (
       <div className="single-stat">
         <Gauge
@@ -48,6 +40,7 @@ class GaugeChart extends PureComponent<Props> {
           prefix={prefix}
           suffix={suffix}
           gaugePosition={this.lastValueForGauge}
+          decimalPlaces={decimalPlaces}
         />
       </div>
     )
@@ -70,16 +63,12 @@ class GaugeChart extends PureComponent<Props> {
   }
 
   private get lastValueForGauge(): number {
-    const {data, decimalPlaces} = this.props
+    const {data} = this.props
     const {lastValues} = getLastValues(data)
-    let lastValue = _.get(lastValues, 0, 0)
+    const lastValue = _.get(lastValues, 0, 0)
 
     if (!lastValue) {
       return 0
-    }
-
-    if (decimalPlaces.isEnforced) {
-      lastValue = +lastValue.toFixed(decimalPlaces.digits)
     }
 
     return lastValue
