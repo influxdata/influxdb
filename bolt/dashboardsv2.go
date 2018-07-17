@@ -219,10 +219,6 @@ func (c *Client) updateDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 		d.Cells = upd.Cells
 	}
 
-	if upd.Templates != nil {
-		d.Templates = upd.Templates
-	}
-
 	if err := c.putDashboard(ctx, tx, d); err != nil {
 		return nil, err
 	}

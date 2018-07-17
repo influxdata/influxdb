@@ -84,7 +84,6 @@ func TestService_DashboardsV2(t *testing.T) {
           "ref": "/chronograf/v2/cells/12"
         }
       ],
-      "templates": [],
       "links": {
         "self": "/chronograf/v2/dashboards/0"
       }
@@ -93,7 +92,6 @@ func TestService_DashboardsV2(t *testing.T) {
       "id": "2",
       "name": "example",
       "cells": [],
-      "templates": [],
       "links": {
         "self": "/chronograf/v2/dashboards/2"
       }
@@ -231,7 +229,6 @@ func TestService_DashboardIDV2(t *testing.T) {
       "ref": "/chronograf/v2/cells/12"
     }
   ],
-  "templates": [],
   "links": {
     "self": "/chronograf/v2/dashboards/2"
   }
@@ -359,7 +356,6 @@ func TestService_NewDashboardV2(t *testing.T) {
       "ref": "/chronograf/v2/cells/12"
     }
   ],
-  "templates": [],
   "links": {
     "self": "/chronograf/v2/dashboards/2"
   }
@@ -510,10 +506,9 @@ func TestService_UpdateDashboardV2(t *testing.T) {
 		DashboardService platform.DashboardService
 	}
 	type args struct {
-		id        string
-		name      string
-		cells     []platform.DashboardCell
-		templates []platform.Template
+		id    string
+		name  string
+		cells []platform.DashboardCell
 	}
 	type wants struct {
 		statusCode  int
@@ -555,10 +550,6 @@ func TestService_UpdateDashboardV2(t *testing.T) {
 								d.Cells = upd.Cells
 							}
 
-							if upd.Templates != nil {
-								d.Templates = upd.Templates
-							}
-
 							return d, nil
 						}
 
@@ -586,7 +577,6 @@ func TestService_UpdateDashboardV2(t *testing.T) {
       "ref": "/chronograf/v2/cells/12"
     }
   ],
-  "templates": [],
   "links": {
     "self": "/chronograf/v2/dashboards/2"
   }
@@ -620,10 +610,6 @@ func TestService_UpdateDashboardV2(t *testing.T) {
 
 							if upd.Cells != nil {
 								d.Cells = upd.Cells
-							}
-
-							if upd.Templates != nil {
-								d.Templates = upd.Templates
 							}
 
 							return d, nil
@@ -675,7 +661,6 @@ func TestService_UpdateDashboardV2(t *testing.T) {
       "ref": "/chronograf/v2/cells/1"
     }
   ],
-  "templates": [],
   "links": {
     "self": "/chronograf/v2/dashboards/2"
   }
@@ -737,9 +722,6 @@ func TestService_UpdateDashboardV2(t *testing.T) {
 			}
 			if tt.args.cells != nil {
 				upd.Cells = tt.args.cells
-			}
-			if tt.args.templates != nil {
-				upd.Templates = tt.args.templates
 			}
 
 			b, err := json.Marshal(upd)

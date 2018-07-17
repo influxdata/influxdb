@@ -66,6 +66,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cell"
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -97,6 +103,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cell"
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -117,6 +129,12 @@ paths:
       responses:
         '204':
           description: delete has been accepted
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -184,6 +202,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -215,6 +239,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -235,6 +265,12 @@ paths:
       responses:
         '204':
           description: delete has been accepted
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -570,64 +606,21 @@ components:
     DashboardCell:
       type: object
       properties:
-        X:
+        x:
           type: integer
           format: int32
-        Y:
+        y:
           type: integer
           format: int32
-        W:
+        w:
           type: integer
           format: int32
-        H:
+        h:
           type: integer
           format: int32
-        Ref:
+        ref:
           type: string
           description: The reference to a cell from the cells API
-    TemplateValue:
-      type: object
-      properties:
-        value:
-          type: string
-        type:
-          type: string
-        selected:
-          type: boolean
-        key:
-          type: string
-    TemplateQuery:
-      type: object
-      properties:
-        influxql:
-          type: string
-        db:
-          type: string
-        rp:
-          type: string
-        measurement:
-          type: string
-        tagKey:
-          type: string
-        fieldKey:
-          type: string
-    Template:
-      type: object
-      properties:
-        tempVar:
-          type: string
-        values:
-          type: array
-          items:
-            $ref: "#/components/schemas/TemplateValue"
-        id:
-          type: string
-        type:
-          type: string
-        label:
-          type: string
-        query:
-          $ref: "#/components/schemas/TemplateQuery"
     Dashboard:
       properties:
         links:
@@ -641,10 +634,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardCell"
-        templates:
-          type: array
-          items:
-            $ref: "#/components/schemas/Template"
     Dashboards:
       type: object
       properties:

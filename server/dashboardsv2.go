@@ -19,19 +19,16 @@ type dashboardV2Response struct {
 	Links dashboardV2Links `json:"links"`
 }
 
-func newDashboardV2Response(c *platform.Dashboard) dashboardV2Response {
+func newDashboardV2Response(d *platform.Dashboard) dashboardV2Response {
 	// Make nil slice values into empty array for front end.
-	if c.Cells == nil {
-		c.Cells = []platform.DashboardCell{}
-	}
-	if c.Templates == nil {
-		c.Templates = []platform.Template{}
+	if d.Cells == nil {
+		d.Cells = []platform.DashboardCell{}
 	}
 	return dashboardV2Response{
 		Links: dashboardV2Links{
-			Self: fmt.Sprintf("/chronograf/v2/dashboards/%s", c.ID),
+			Self: fmt.Sprintf("/chronograf/v2/dashboards/%s", d.ID),
 		},
-		Dashboard: *c,
+		Dashboard: *d,
 	}
 }
 
@@ -213,11 +210,9 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, err
 	}
-
 	req.Upd = upd
 
 	param := httprouter.GetParamFromContext(ctx, "id")
-
 	req.DashboardID = platform.ID(param)
 
 	if err := req.Valid(); err != nil {
