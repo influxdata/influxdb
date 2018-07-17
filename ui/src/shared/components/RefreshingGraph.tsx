@@ -62,7 +62,14 @@ class RefreshingGraph extends PureComponent<Props> {
   }
 
   public render() {
-    const {inView, type, queries, source, templates} = this.props
+    const {
+      inView,
+      type,
+      queries,
+      source,
+      templates,
+      editQueryStatus,
+    } = this.props
 
     if (!queries.length) {
       return (
@@ -78,6 +85,7 @@ class RefreshingGraph extends PureComponent<Props> {
         inView={inView}
         queries={this.queries}
         templates={templates}
+        editQueryStatus={editQueryStatus}
       >
         {({timeSeries, loading}) => {
           switch (type) {
