@@ -154,12 +154,6 @@ function topologicalSortHelper(
   acc.push(node)
 }
 
-export function sortTemplatesForReplace(templates: Template[]): Template[] {
-  return topologicalSort(graphFromTemplates(templates)).map(
-    t => t.initialTemplate
-  )
-}
-
 function findLeaves(graph: TemplateGraph): TemplateNode[] {
   return graph.filter(node => !node.children.length)
 }

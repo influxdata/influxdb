@@ -14,7 +14,7 @@ import {
   createDashboard as createDashboardAJAX,
 } from 'src/dashboards/apis'
 import {getMe} from 'src/shared/apis/auth'
-import {hydrateTemplates} from 'src/tempVars/utils/hydrate'
+import {hydrateTemplates} from 'src/tempVars/utils/graph'
 
 import {notify} from 'src/shared/actions/notifications'
 import {errorThrown} from 'src/shared/actions/errors'

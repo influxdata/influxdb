@@ -1,4 +1,4 @@
-import {sortTemplatesForReplace} from 'src/tempVars/utils/hydrate'
+import {topologicalSort, graphFromTemplates} from 'src/tempVars/utils/graph'
 
 import {
   Template,
@@ -11,6 +11,12 @@ import {
   DEFAULT_PIXELS,
   DEFAULT_DURATION_MS,
 } from 'src/shared/constants'
+
+function sortTemplates(templates: Template[]): Template[] {
+  const graph = graphFromTemplates(templates)
+
+  return topologicalSort(graph).map(t => t.initialTemplate)
+}
 
 export const replaceInterval = (
   query: string,
@@ -36,7 +42,7 @@ export const replaceInterval = (
 }
 
 const templateReplace = (query: string, templates: Template[]) => {
-  const sortedTemplates = sortTemplatesForReplace(templates)
+  const sortedTemplates = sortTemplates(templates)
 
   return sortedTemplates.reduce(
     (acc, template) => renderTemplate(acc, template),

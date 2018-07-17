@@ -4,7 +4,7 @@ import {
   hydrateTemplates,
   newTemplateValues,
   topologicalSort,
-} from 'src/tempVars/utils/hydrate'
+} from 'src/tempVars/utils/graph'
 
 import {TemplateType, TemplateValueType} from 'src/types'
 
