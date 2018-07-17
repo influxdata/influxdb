@@ -42,6 +42,7 @@ type getRoutesResponse struct {
 	Dashboards         string                             `json:"dashboards"`       // Location of the dashboards endpoint
 	Config             getConfigLinksResponse             `json:"config"`           // Location of the config endpoint and its various sections
 	Cells              string                             `json:"cells"`            // Location of the v2 cells
+	DashboardsV2       string                             `json:"dashboardsv2"`     // Location of the v2 dashboards
 	Auth               []AuthRoute                        `json:"auth"`             // Location of all auth routes.
 	Logout             *string                            `json:"logout,omitempty"` // Location of the logout route for all auth routes
 	ExternalLinks      getExternalLinksResponse           `json:"external"`         // All external links for the client to use
@@ -88,6 +89,7 @@ func (a *AllRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Environment:   "/chronograf/v1/env",
 		Mappings:      "/chronograf/v1/mappings",
 		Dashboards:    "/chronograf/v1/dashboards",
+		DashboardsV2:  "/chronograf/v2/dashboards",
 		Cells:         "/chronograf/v2/cells",
 		Config: getConfigLinksResponse{
 			Self: "/chronograf/v1/config",

@@ -331,6 +331,14 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v2/cells/:id", EnsureEditor(service.RemoveCellV2))
 	router.PATCH("/chronograf/v2/cells/:id", EnsureEditor(service.UpdateCellV2))
 
+	// V2 Dashboards
+	router.GET("/chronograf/v2/dashboards", EnsureViewer(service.DashboardsV2))
+	router.POST("/chronograf/v2/dashboards", EnsureEditor(service.NewDashboardV2))
+
+	router.GET("/chronograf/v2/dashboards/:id", EnsureViewer(service.DashboardIDV2))
+	router.DELETE("/chronograf/v2/dashboards/:id", EnsureEditor(service.RemoveDashboardV2))
+	router.PATCH("/chronograf/v2/dashboards/:id", EnsureEditor(service.UpdateDashboardV2))
+
 	allRoutes := &AllRoutes{
 		Logger:      opts.Logger,
 		StatusFeed:  opts.StatusFeedURL,
