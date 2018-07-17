@@ -42,35 +42,44 @@ func Compile(ctx context.Context, q string, now time.Time, opts ...Option) (*Spe
 	for _, opt := range opts {
 		opt(o)
 	}
+
 	s, _ := opentracing.StartSpanFromContext(ctx, "parse")
-	astProg, err := parser.NewAST(q)
-	if err != nil {
+	itrp := NewInterpreter()
+	itrp.SetOption(nowOption, nowFunc(now))
+	if err := Eval(itrp, q); err != nil {
 		return nil, err
 	}
 	s.Finish()
 	s, _ = opentracing.StartSpanFromContext(ctx, "compile")
 	defer s.Finish()
 
-	itrp := NewInterpreter()
-	itrp.SetOption(nowOption, nowFunc(now))
-
-	_, decls := builtIns(itrp)
-
-	// Convert AST program to a semantic program
-	semProg, err := semantic.New(astProg, decls)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := itrp.Eval(semProg); err != nil {
-		return nil, err
-	}
 	spec := toSpec(itrp)
 
 	if o.verbose {
 		log.Println("Query Spec: ", Formatted(spec, FmtJSON))
 	}
 	return spec, nil
+}
+
+// Eval evaluates the flux string q and update the given interpreter
+func Eval(itrp *interpreter.Interpreter, q string) error {
+	astProg, err := parser.NewAST(q)
+	if err != nil {
+		return err
+	}
+
+	_, decls := builtIns(itrp)
+
+	// Convert AST program to a semantic program
+	semProg, err := semantic.New(astProg, decls)
+	if err != nil {
+		return err
+	}
+
+	if err := itrp.Eval(semProg); err != nil {
+		return err
+	}
+	return nil
 }
 
 // NewInterpreter returns an interpreter instance with
