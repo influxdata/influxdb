@@ -3415,6 +3415,7 @@ func TestServer(t *testing.T) {
   "me": "/chronograf/v1/me",
   "environment": "/chronograf/v1/env",
   "dashboards": "/chronograf/v1/dashboards",
+	"dashboardsv2":"/chronograf/v2/dashboards",
   "config": {
     "self": "/chronograf/v1/config",
     "auth": "/chronograf/v1/config/auth"
@@ -3508,6 +3509,7 @@ func TestServer(t *testing.T) {
   "me": "/chronograf/v1/me",
   "environment": "/chronograf/v1/env",
   "dashboards": "/chronograf/v1/dashboards",
+	"dashboardsv2":"/chronograf/v2/dashboards",
   "config": {
     "self": "/chronograf/v1/config",
     "auth": "/chronograf/v1/config/auth"
