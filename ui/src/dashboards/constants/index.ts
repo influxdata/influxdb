@@ -114,3 +114,7 @@ export enum CEOTabs {
   Queries = 'Queries',
   Vis = 'Visualization',
 }
+
+export const MAX_TOLOCALESTRING_VAL = 20 // 20 is the max input to maximumFractionDigits in spec for tolocalestring
+export const MIN_DECIMAL_PLACES = '0'
+export const MAX_DECIMAL_PLACES = MAX_TOLOCALESTRING_VAL.toString()

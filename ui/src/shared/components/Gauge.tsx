@@ -8,6 +8,7 @@ import {
   COLOR_TYPE_MAX,
   MIN_THRESHOLDS,
 } from 'src/shared/constants/thresholds'
+import {MAX_TOLOCALESTRING_VAL} from 'src/dashboards/constants'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -321,14 +322,15 @@ class Gauge extends Component<Props> {
     let valueString
 
     if (decimalPlaces.isEnforced) {
+      const digits = Math.min(decimalPlaces.digits, MAX_TOLOCALESTRING_VAL)
       valueString = value.toLocaleString(undefined, {
         minimumFractionDigits: 0,
-        maximumFractionDigits: decimalPlaces.digits,
+        maximumFractionDigits: digits,
       })
     } else {
       valueString = value.toLocaleString(undefined, {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 20,
+        maximumFractionDigits: MAX_TOLOCALESTRING_VAL,
       })
     }
 
@@ -341,14 +343,15 @@ class Gauge extends Component<Props> {
     let valueString
 
     if (decimalPlaces.isEnforced) {
+      const digits = Math.min(decimalPlaces.digits, MAX_TOLOCALESTRING_VAL)
       valueString = value.toLocaleString(undefined, {
-        minimumFractionDigits: decimalPlaces.digits,
-        maximumFractionDigits: decimalPlaces.digits,
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
       })
     } else {
       valueString = value.toLocaleString(undefined, {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 20,
+        maximumFractionDigits: MAX_TOLOCALESTRING_VAL,
       })
     }
 

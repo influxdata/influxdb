@@ -1,6 +1,7 @@
 import React, {PureComponent} from 'react'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OptIn from 'src/shared/components/OptIn'
+import {MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
 
 import {DecimalPlaces} from 'src/types/dashboards'
 
@@ -41,8 +42,8 @@ class GraphOptionsDecimalPlaces extends PureComponent<Props> {
       <div className="form-group col-xs-6">
         <label> Decimal Places </label>
         <OptIn
-          min="0"
-          max="20"
+          min={MIN_DECIMAL_PLACES}
+          max={MAX_DECIMAL_PLACES}
           type="number"
           fixedPlaceholder=""
           customValue={this.value}
