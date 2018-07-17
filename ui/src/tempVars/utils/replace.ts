@@ -1,3 +1,5 @@
+import {sortTemplatesForReplace} from 'src/tempVars/utils/hydrate'
+
 import {
   Template,
   TemplateType,
@@ -33,27 +35,10 @@ export const replaceInterval = (
   return replaceAll(query, TEMP_VAR_INTERVAL, `${msPerPixel}ms`)
 }
 
-const TEMPLATES_SORTING_ORDER = {
-  [TemplateType.CSV]: 0,
-  [TemplateType.Map]: 0,
-  [TemplateType.AutoGroupBy]: 1,
-  [TemplateType.Constant]: 1,
-  [TemplateType.FieldKeys]: 1,
-  [TemplateType.Measurements]: 1,
-  [TemplateType.TagKeys]: 1,
-  [TemplateType.TagValues]: 1,
-  [TemplateType.Databases]: 1,
-  [TemplateType.MetaQuery]: 1,
-}
+const templateReplace = (query: string, templates: Template[]) => {
+  const sortedTemplates = sortTemplatesForReplace(templates)
 
-const sortTemplates = (a: Template, b: Template): number => {
-  return TEMPLATES_SORTING_ORDER[a.type] - TEMPLATES_SORTING_ORDER[b.type]
-}
-
-const templateReplace = (query: string, tempVars: Template[]) => {
-  const sortedTempVars = [...tempVars].sort(sortTemplates)
-
-  return sortedTempVars.reduce(
+  return sortedTemplates.reduce(
     (acc, template) => renderTemplate(acc, template),
     query
   )

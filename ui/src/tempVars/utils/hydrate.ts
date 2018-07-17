@@ -125,6 +125,41 @@ export function graphFromTemplates(templates: Template[]): TemplateGraph {
   return nodes
 }
 
+export function topologicalSort(nodes: TemplateGraph): TemplateGraph {
+  const acc = []
+  const seen = new Set()
+
+  for (const node of nodes) {
+    if (!seen.has(node)) {
+      topologicalSortHelper(node, seen, acc)
+    }
+  }
+
+  return acc.reverse()
+}
+
+function topologicalSortHelper(
+  node: TemplateNode,
+  seen: Set<TemplateNode>,
+  acc: TemplateNode[]
+) {
+  seen.add(node)
+
+  for (const child of node.children) {
+    if (!seen.has(child)) {
+      topologicalSortHelper(child, seen, acc)
+    }
+  }
+
+  acc.push(node)
+}
+
+export function sortTemplatesForReplace(templates: Template[]): Template[] {
+  return topologicalSort(graphFromTemplates(templates)).map(
+    t => t.initialTemplate
+  )
+}
+
 function findLeaves(graph: TemplateGraph): TemplateNode[] {
   return graph.filter(node => !node.children.length)
 }

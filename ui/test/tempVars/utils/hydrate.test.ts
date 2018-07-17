@@ -3,9 +3,14 @@ import {
   graphFromTemplates,
   hydrateTemplates,
   newTemplateValues,
+  topologicalSort,
 } from 'src/tempVars/utils/hydrate'
 
 import {TemplateType, TemplateValueType} from 'src/types'
+
+function expectInOrder(xs, a, b) {
+  expect(xs.indexOf(a)).toBeLessThan(xs.indexOf(b))
+}
 
 describe('getDependencyNames', () => {
   test('can extract template dependency names from query backed template', () => {
@@ -53,6 +58,83 @@ describe('getDependencyNames', () => {
     const actual = getDependencyNames(template)
 
     expect(new Set(actual)).toEqual(new Set(expected))
+  })
+})
+
+describe('topologicalSort', () => {
+  test('can sort a simple graph', () => {
+    // Attempt to sort the following graph:
+    //
+    //     a +---> b
+    //       |
+    //       +---> c +---> d +---> e
+    //
+    const templates = [
+      {
+        id: 'a',
+        label: '',
+        tempVar: ':a:',
+        type: TemplateType.MetaQuery,
+        query: {
+          influxql: ':b: :c:',
+        },
+        values: [],
+      },
+      {
+        id: 'b',
+        label: '',
+        tempVar: ':b:',
+        type: TemplateType.MetaQuery,
+        query: {
+          influxql: '',
+        },
+        values: [],
+      },
+      {
+        id: 'c',
+        label: '',
+        tempVar: ':c:',
+        type: TemplateType.MetaQuery,
+        query: {
+          influxql: ':d:',
+        },
+        values: [],
+      },
+      {
+        id: 'd',
+        label: '',
+        tempVar: ':d:',
+        type: TemplateType.MetaQuery,
+        query: {
+          influxql: ':e:',
+        },
+        values: [],
+      },
+      {
+        id: 'e',
+        label: '',
+        tempVar: ':e:',
+        type: TemplateType.MetaQuery,
+        query: {
+          influxql: '',
+        },
+        values: [],
+      },
+    ]
+
+    const graph = graphFromTemplates(templates)
+    const a = graph.find(n => n.initialTemplate.id === 'a')
+    const b = graph.find(n => n.initialTemplate.id === 'b')
+    const c = graph.find(n => n.initialTemplate.id === 'c')
+    const d = graph.find(n => n.initialTemplate.id === 'd')
+    const e = graph.find(n => n.initialTemplate.id === 'e')
+
+    const sorted = topologicalSort(graph)
+
+    expectInOrder(sorted, a, b)
+    expectInOrder(sorted, a, c)
+    expectInOrder(sorted, c, d)
+    expectInOrder(sorted, d, e)
   })
 })
 
