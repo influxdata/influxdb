@@ -1,5 +1,5 @@
 from(db:"testdb")
-  |> range(start: 2018-05-23T13:09:22.885021542Z)
+  |> range(start: 2018-05-22T19:53:26Z)
   |> filter(fn: (r) => r["name"] =~ /.*0/)
   |> group(by: ["_measurement"])
   |> map(fn: (r) => {_time: r._time, io_time: r._value})

@@ -1,3 +1,3 @@
 from(db:"test")
-    |> range(start:-5m)
+    |> range(start:2018-05-22T19:54:16Z)
     |> max() 

@@ -1,5 +1,5 @@
 from(db:"testdb")
-  |> range(start: -5s)
+  |> range(start:2018-05-22T19:53:26Z)
   |> group(by: ["_measurement"])
   |> window(every: 1s, start: 2,  ignoreGlobalBounds: true)
   |> mean(timeSrc: "_start")

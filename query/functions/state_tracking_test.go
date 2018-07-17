@@ -167,6 +167,7 @@ func TestStateTracking_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
+				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					tx, err := functions.NewStateTrackingTransformation(d, c, tc.spec)
 					if err != nil {

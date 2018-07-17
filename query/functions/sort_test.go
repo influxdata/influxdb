@@ -340,6 +340,7 @@ func TestSort_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
+				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewSortTransformation(d, c, tc.spec)
 				},

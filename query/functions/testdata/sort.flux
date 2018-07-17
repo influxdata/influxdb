@@ -1,3 +1,3 @@
 from(db:"testdb")
-  |> range(start: 2018-05-23T13:09:22.885021542Z)
-  |> sort(cols:["_value"])
+  |> range(start: 2018-05-22T19:53:26Z)
+  |> sort(cols:["_value", "_time"])

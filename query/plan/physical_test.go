@@ -43,6 +43,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 									Relative:   -1 * time.Hour,
 								},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("from"),
@@ -187,6 +188,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 									Relative:   -1 * time.Hour,
 								},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{
 							(plan.ProcedureIDFromOperationID("from")),
@@ -292,6 +294,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 									Relative:   -1 * time.Hour,
 								},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{plan.ProcedureIDFromOperationID("from")},
 						Children: []plan.ProcedureID{
@@ -413,6 +416,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 									Relative:   -1 * time.Hour,
 								},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{plan.ProcedureIDFromOperationID("from")},
 						Children: []plan.ProcedureID{
@@ -516,6 +520,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 									Relative:   -1 * time.Hour,
 								},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{plan.ProcedureIDFromOperationID("from")},
 						Children: []plan.ProcedureID{
@@ -621,6 +626,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 									Relative:   -1 * time.Hour,
 								},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{plan.ProcedureIDFromOperationID("from")},
 						Children: []plan.ProcedureID{
@@ -724,6 +730,7 @@ func TestPhysicalPlanner_Plan(t *testing.T) {
 									Relative:   -1 * time.Hour,
 								},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{plan.ProcedureIDFromOperationID("from")},
 						Children: []plan.ProcedureID{
@@ -938,6 +945,7 @@ func TestPhysicalPlanner_Plan_PushDown_Mixed(t *testing.T) {
 							Relative:   -1 * time.Hour,
 						},
 					},
+					TimeCol: "_time",
 				},
 				Parents: []plan.ProcedureID{
 					(plan.ProcedureIDFromOperationID("from")),

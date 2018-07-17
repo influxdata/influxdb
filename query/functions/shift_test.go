@@ -113,6 +113,7 @@ func TestShift_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
+				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewShiftTransformation(d, c, tc.spec)
 				},

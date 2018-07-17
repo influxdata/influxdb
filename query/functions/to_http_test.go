@@ -445,6 +445,7 @@ one_table_w_tag,fred=elevendyone _value=4 41
 				t,
 				tc.data,
 				tc.want.Table,
+				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewToHTTPTransformation(d, c, tc.spec)
 				},

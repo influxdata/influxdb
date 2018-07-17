@@ -35,7 +35,7 @@ func (b Bounds) Contains(t Time) bool {
 }
 
 func (b Bounds) Overlaps(o Bounds) bool {
-	return b.Contains(o.Start) || b.Contains(o.Stop)
+	return b.Contains(o.Start) || (b.Contains(o.Stop) && o.Stop > b.Start) || o.Contains(b.Start)
 }
 
 func (b Bounds) Equal(o Bounds) bool {

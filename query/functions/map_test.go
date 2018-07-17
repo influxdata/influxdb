@@ -691,6 +691,7 @@ func TestMap_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
+				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					f, err := functions.NewMapTransformation(d, c, tc.spec)
 					if err != nil {
