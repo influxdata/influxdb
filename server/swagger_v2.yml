@@ -123,6 +123,124 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /dashboards:
+    post:
+      tags:
+        - Dashboards
+      summary: Create a dashboard
+      requestBody:
+          description: dashboard to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+      responses:
+        '201':
+          description: Added dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Dashboards
+      summary: Get all dashboards
+      responses:
+        '200':
+          description: all dashboards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboards"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}':
+   get:
+    tags:
+      - Dashboards
+    summary: Get a single Dashboard
+    parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+    responses:
+        '200':
+          description: get a single dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   patch:
+      tags:
+        - Dashboards
+      summary: Update a single dashboard
+      requestBody:
+          description: patching of a dashboard
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '200':
+          description: Updated dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   delete:
+      tags:
+        - Dashboards
+      summary: Delete a dashboard
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '204':
+          description: delete has been accepted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   schemas:
     Link:
@@ -449,6 +567,93 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Cell"
+    DashboardCell:
+      type: object
+      properties:
+        X:
+          type: integer
+          format: int32
+        Y:
+          type: integer
+          format: int32
+        W:
+          type: integer
+          format: int32
+        H:
+          type: integer
+          format: int32
+        Ref:
+          type: string
+          description: The reference to a cell from the cells API
+    TemplateValue:
+      type: object
+      properties:
+        value:
+          type: string
+        type:
+          type: string
+        selected:
+          type: boolean
+        key:
+          type: string
+    TemplateQuery:
+      type: object
+      properties:
+        influxql:
+          type: string
+        db:
+          type: string
+        rp:
+          type: string
+        measurement:
+          type: string
+        tagKey:
+          type: string
+        fieldKey:
+          type: string
+    Template:
+      type: object
+      properties:
+        tempVar:
+          type: string
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateValue"
+        id:
+          type: string
+        type:
+          type: string
+        label:
+          type: string
+        query:
+          $ref: "#/components/schemas/TemplateQuery"
+    Dashboard:
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardCell"
+        templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Template"
+    Dashboards:
+      type: object
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        dashboards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dashboards"
     Error:
       properties:
         code:
