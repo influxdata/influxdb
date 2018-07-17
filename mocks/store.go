@@ -19,6 +19,7 @@ type Store struct {
 	ConfigStore             chronograf.ConfigStore
 	OrganizationConfigStore chronograf.OrganizationConfigStore
 	CellService             platform.CellService
+	DashboardService        platform.DashboardService
 }
 
 func (s *Store) Sources(ctx context.Context) chronograf.SourcesStore {
@@ -58,4 +59,8 @@ func (s *Store) OrganizationConfig(ctx context.Context) chronograf.OrganizationC
 
 func (s *Store) Cells(ctx context.Context) platform.CellService {
 	return s.CellService
+}
+
+func (s *Store) DashboardsV2(ctx context.Context) platform.DashboardService {
+	return s.DashboardService
 }
