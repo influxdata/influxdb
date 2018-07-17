@@ -4,12 +4,14 @@ import "github.com/prometheus/client_golang/prometheus"
 
 // controllerMetrics holds metrics related to the query controller.
 type controllerMetrics struct {
+	all        *prometheus.GaugeVec
 	compiling  *prometheus.GaugeVec
 	queueing   *prometheus.GaugeVec
 	requeueing *prometheus.GaugeVec
 	planning   *prometheus.GaugeVec
 	executing  *prometheus.GaugeVec
 
+	allDur        *prometheus.HistogramVec
 	compilingDur  *prometheus.HistogramVec
 	queueingDur   *prometheus.HistogramVec
 	requeueingDur *prometheus.HistogramVec
@@ -26,6 +28,13 @@ func newControllerMetrics() *controllerMetrics {
 	labels := []string{"org"}
 
 	return &controllerMetrics{
+		all: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "all_active",
+			Help:      "Number of queries in all states",
+		}, labels),
+
 		compiling: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -59,6 +68,14 @@ func newControllerMetrics() *controllerMetrics {
 			Subsystem: subsystem,
 			Name:      "executing_active",
 			Help:      "Number of queries actively executing",
+		}, labels),
+
+		allDur: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "all_duration_seconds",
+			Help:      "Histogram of total times spent in all query states",
+			Buckets:   prometheus.ExponentialBuckets(1e-3, 5, 7),
 		}, labels),
 
 		compilingDur: prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -106,12 +123,14 @@ func newControllerMetrics() *controllerMetrics {
 // PrometheusCollectors satisifies the prom.PrometheusCollector interface.
 func (cm *controllerMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
+		cm.all,
 		cm.compiling,
 		cm.queueing,
 		cm.requeueing,
 		cm.planning,
 		cm.executing,
 
+		cm.allDur,
 		cm.compilingDur,
 		cm.queueingDur,
 		cm.requeueingDur,

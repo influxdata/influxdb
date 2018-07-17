@@ -17,6 +17,8 @@ import (
 
 const (
 	queryPath = "/v1/query"
+
+	statsTrailer = "Influx-Query-Statistics"
 )
 
 type QueryHandler struct {
@@ -97,6 +99,11 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		results = rs
 	}
 
+	// Setup headers
+	stats, hasStats := results.(query.Statisticser)
+	if hasStats {
+		w.Header().Set("Trailer", statsTrailer)
+	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.WriteHeader(http.StatusOK)
@@ -114,7 +121,20 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 			h.Logger.Info("Failed to encode client response",
 				zap.Error(err),
 			)
+			return
 		}
+	}
+
+	if hasStats {
+		data, err := json.Marshal(stats.Statistics())
+		if err != nil {
+			h.Logger.Info("Failed to encode statisitcs",
+				zap.Error(err),
+			)
+			return
+		}
+		// Write statisitcs trailer
+		w.Header().Set(statsTrailer, string(data))
 	}
 }
 
@@ -208,5 +228,57 @@ func (s *QueryService) processResponse(resp *http.Response) (query.ResultIterato
 	default:
 		decoder = csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
 	}
-	return decoder.Decode(resp.Body)
+	result, err := decoder.Decode(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return &statsResultIterator{
+		result: result,
+		resp:   resp,
+	}, nil
+}
+
+// statsResultIterator implements query.ResultIterator and query.Statisticser by reading the HTTP trailers.
+type statsResultIterator struct {
+	result     query.ResultIterator
+	resp       *http.Response
+	statisitcs query.Statistics
+	err        error
+}
+
+func (s *statsResultIterator) More() bool {
+	more := s.result.More()
+	if !more {
+		s.readStats()
+	}
+	return more
+}
+
+func (s *statsResultIterator) Next() query.Result {
+	return s.result.Next()
+}
+
+func (s *statsResultIterator) Cancel() {
+	s.result.Cancel()
+	s.readStats()
+}
+
+func (s *statsResultIterator) Err() error {
+	err := s.result.Err()
+	if err != nil {
+		return err
+	}
+	return s.err
+}
+
+func (s *statsResultIterator) Statistics() query.Statistics {
+	return s.statisitcs
+}
+
+// readStats reads the query statisitcs off the response trailers.
+func (s *statsResultIterator) readStats() {
+	data := s.resp.Trailer.Get(statsTrailer)
+	if data != "" {
+		s.err = json.Unmarshal([]byte(data), &s.statisitcs)
+	}
 }
