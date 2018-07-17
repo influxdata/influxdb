@@ -54,12 +54,10 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
     uploadContent: string,
     fileName: string
   ): void => {
-    const {onImportDashboard, onDismissOverlay} = this.props
+    const {notify, onImportDashboard, onDismissOverlay} = this.props
     const fileExtensionRegex = new RegExp(`${this.validFileExtension}$`)
     if (!fileName.match(fileExtensionRegex)) {
-      this.props.notify(
-        notifyDashboardImportFailed(fileName, 'Please import a JSON file')
-      )
+      notify(notifyDashboardImportFailed(fileName, 'Please import a JSON file'))
       return
     }
 
@@ -68,16 +66,15 @@ class ImportDashboardOverlay extends PureComponent<Props, State> {
 
       if (!_.isEmpty(dashboard)) {
         onImportDashboard(dashboard)
+        onDismissOverlay()
       } else {
-        this.props.notify(
+        notify(
           notifyDashboardImportFailed(fileName, 'No dashboard found in file')
         )
       }
     } catch (error) {
-      this.props.notify(notifyDashboardImportFailed(fileName, error))
+      notify(notifyDashboardImportFailed(fileName, error))
     }
-
-    onDismissOverlay()
   }
 }
 
