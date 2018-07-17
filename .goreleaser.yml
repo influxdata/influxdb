@@ -62,3 +62,11 @@ s3:
     bucket: dl.influxdata.com
     region: us-east-1
     folder: "flux/nightlies/"
+
+dockers:
+  -
+    binary: fluxd
+    image: quay.io/influxdb/flux
+    dockerfile: docker/flux/Dockerfile
+    extra_files:
+      - docker/flux/entrypoint.sh
