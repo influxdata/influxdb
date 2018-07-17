@@ -1,5 +1,5 @@
 import {
-  lexTemplateQuery,
+  getDependencyNames,
   graphFromTemplates,
   hydrateTemplates,
   newTemplateValues,
@@ -7,14 +7,52 @@ import {
 
 import {TemplateType, TemplateValueType} from 'src/types'
 
-describe('lexTemplateQuery', () => {
-  test('can lex a query', () => {
-    const query = `SELECT :foo: FROM :bar: WHERE :baz: ~= /:yo:/`
+describe('getDependencyNames', () => {
+  test('can extract template dependency names from query backed template', () => {
+    const template = {
+      id: '',
+      label: '',
+      tempVar: '',
+      type: TemplateType.MetaQuery,
+      query: {
+        influxql: `SELECT :foo: FROM :bar: WHERE :baz: ~= /:yo:/`,
+      },
+      values: [],
+    }
 
     const expected = [':foo:', ':bar:', ':baz:', ':yo:']
-    const actual = lexTemplateQuery(query)
+    const actual = getDependencyNames(template)
 
-    expect(actual).toEqual(expected)
+    expect(new Set(actual)).toEqual(new Set(expected))
+  })
+
+  test('can extract template dependency names from a non-query backed template', () => {
+    const template = {
+      id: '',
+      label: '',
+      tempVar: '',
+      type: TemplateType.CSV,
+      query: {},
+      values: [
+        {
+          value: ':function:(:fieldKey:)',
+          type: TemplateValueType.CSV,
+          selected: true,
+          localSelected: false,
+        },
+        {
+          value: ':function:(mean(:fieldKey:))',
+          type: TemplateValueType.CSV,
+          selected: false,
+          localSelected: true,
+        },
+      ],
+    }
+
+    const expected = [':function:', ':fieldKey:']
+    const actual = getDependencyNames(template)
+
+    expect(new Set(actual)).toEqual(new Set(expected))
   })
 })
 

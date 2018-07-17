@@ -30,13 +30,29 @@ interface Selections {
   [tempVar: string]: string
 }
 
-export function lexTemplateQuery(query: string): TemplateName[] {
+export function getDependencyNames(template: Template): TemplateName[] {
+  if (template.query && template.query.influxql) {
+    return getDependencyNamesHelper(template.query.influxql)
+  }
+
+  const names = new Set()
+
+  for (const {value} of template.values) {
+    for (const name of getDependencyNamesHelper(value)) {
+      names.add(name)
+    }
+  }
+
+  return [...names]
+}
+
+function getDependencyNamesHelper(s: string): TemplateName[] {
   const names = []
 
   let inName = false
   let name = ''
 
-  for (const c of query) {
+  for (const c of s) {
     if (!inName && c === ':') {
       inName = true
       name = ':'
@@ -51,7 +67,7 @@ export function lexTemplateQuery(query: string): TemplateName[] {
   }
 
   if (inName) {
-    throw new Error(`malformed template query ${query}`)
+    throw new Error(`malformed template variable string \`${s}\``)
   }
 
   return names
@@ -93,11 +109,7 @@ export function graphFromTemplates(templates: Template[]): TemplateGraph {
   const nodes = Object.values(nodesById)
 
   for (const template of templates) {
-    if (!template.query || !template.query.influxql) {
-      continue
-    }
-
-    const childNames = lexTemplateQuery(template.query.influxql)
+    const childNames = getDependencyNames(template)
     const nodeIsChild = n => childNames.includes(n.initialTemplate.tempVar)
     const children = nodes.filter(nodeIsChild)
 
