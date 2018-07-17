@@ -25,6 +25,7 @@ interface Props {
   children: (r: RenderProps) => JSX.Element
   inView?: boolean
   templates?: Template[]
+  editQueryStatus?: () => void
 }
 
 interface State {
@@ -67,7 +68,7 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public executeQueries = async (isFirstFetch: boolean = false) => {
-    const {source, inView, queries, templates} = this.props
+    const {source, inView, queries, templates, editQueryStatus} = this.props
 
     if (!inView) {
       return
@@ -86,7 +87,8 @@ class TimeSeries extends Component<Props, State> {
         source,
         queries,
         TEMP_RES,
-        templates
+        templates,
+        editQueryStatus
       )
 
       const newSeries = timeSeries.map((response: TimeSeriesResponse) => ({
