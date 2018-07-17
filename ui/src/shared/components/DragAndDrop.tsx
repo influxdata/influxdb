@@ -7,6 +7,7 @@ interface Props {
   handleSubmit: (uploadContent: string, fileName: string) => void
   submitText?: string
   submitOnDrop?: boolean
+  submitOnUpload?: boolean
   compact?: boolean
 }
 
@@ -22,6 +23,7 @@ class DragAndDrop extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
     submitText: 'Write this File',
     submitOnDrop: false,
+    submitOnUpload: false,
     compact: false,
   }
 
@@ -179,7 +181,7 @@ class DragAndDrop extends PureComponent<Props, State> {
           uploadContent: loadEvent.target.result,
           fileName: file.name,
         },
-        this.handleSubmit
+        this.submitOnUpload
       )
     }
   }
@@ -213,6 +215,13 @@ class DragAndDrop extends PureComponent<Props, State> {
   private submitOnDrop() {
     const {submitOnDrop} = this.props
     if (submitOnDrop) {
+      this.handleSubmit()
+    }
+  }
+
+  private submitOnUpload() {
+    const {submitOnUpload} = this.props
+    if (submitOnUpload) {
       this.handleSubmit()
     }
   }

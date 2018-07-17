@@ -47,6 +47,7 @@ class MapTemplateBuilder extends PureComponent<TemplateBuilderProps, State> {
             fileTypesToAccept={this.validFileExtension}
             handleSubmit={this.handleUploadFile}
             submitOnDrop={true}
+            submitOnUpload={true}
             compact={true}
           />
         </div>
