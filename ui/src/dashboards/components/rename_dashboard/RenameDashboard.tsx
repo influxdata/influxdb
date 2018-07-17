@@ -1,84 +1,102 @@
-import React, {Component} from 'react'
-import PropTypes from 'prop-types'
+import React, {Component, KeyboardEvent} from 'react'
+import {ErrorHandling} from 'src/shared/decorators/errors'
+import './RenameDashboard.scss'
 import {
   DASHBOARD_NAME_MAX_LENGTH,
-  NEW_DASHBOARD,
+  DEFAULT_DASHBOARD_NAME,
 } from 'src/dashboards/constants/index'
-import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  onRename: (name: string) => void
+  name: string
+}
+
+interface State {
+  isEditing: boolean
+  reset: boolean
+}
 @ErrorHandling
-class DashboardEditHeader extends Component {
-  constructor(props) {
+class DashboardEditHeader extends Component<Props, State> {
+  private inputRef: HTMLInputElement
+
+  constructor(props: Props) {
     super(props)
 
     this.state = {
+      isEditing: false,
       reset: false,
     }
   }
 
-  handleInputBlur = e => {
-    const {onSave, onCancel} = this.props
+  public render() {
+    const {isEditing} = this.state
+    const {name} = this.props
+
+    if (isEditing) {
+      return <div className="rename-dashboard">{this.input}</div>
+    }
+
+    return (
+      <div className="rename-dashboard">
+        <div className="rename-dashboard--title">
+          <h1 onClick={this.handleStartEditing}>{name}</h1>
+          <span className="icon pencil" />
+        </div>
+      </div>
+    )
+  }
+
+  private get input(): JSX.Element {
+    const {name} = this.props
+
+    return (
+      <input
+        maxLength={DASHBOARD_NAME_MAX_LENGTH}
+        type="text"
+        className="rename-dashboard--input form-control input-sm"
+        defaultValue={name}
+        autoComplete="off"
+        autoFocus={true}
+        spellCheck={false}
+        onBlur={this.handleInputBlur}
+        onKeyDown={this.handleKeyDown}
+        onFocus={this.handleFocus}
+        placeholder="Name this Dashboard"
+        ref={r => (this.inputRef = r)}
+      />
+    )
+  }
+
+  private handleStartEditing = (): void => {
+    this.setState({isEditing: true})
+  }
+
+  private handleInputBlur = e => {
+    const {onRename} = this.props
     const {reset} = this.state
 
     if (reset) {
-      onCancel()
+      this.setState({isEditing: false})
     } else {
-      const newName = e.target.value || NEW_DASHBOARD.name
-      onSave(newName)
+      const newName = e.target.value || DEFAULT_DASHBOARD_NAME
+      onRename(newName)
     }
-    this.setState({reset: false})
+    this.setState({isEditing: false, reset: false})
   }
 
-  handleKeyDown = e => {
+  private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') {
       this.inputRef.blur()
     }
     if (e.key === 'Escape') {
-      this.inputRef.value = this.props.activeDashboard
+      this.inputRef.value = this.props.name
       this.setState({reset: true}, () => this.inputRef.blur())
     }
   }
 
-  handleFocus = e => {
+  private handleFocus = (e): void => {
     e.target.select()
   }
-
-  render() {
-    const {onEditDashboard, isEditMode, activeDashboard} = this.props
-
-    return (
-      <div className="dashboard-title">
-        {isEditMode ? (
-          <input
-            maxLength={DASHBOARD_NAME_MAX_LENGTH}
-            type="text"
-            className="dashboard-title--input form-control input-sm"
-            defaultValue={activeDashboard}
-            autoComplete="off"
-            autoFocus={true}
-            spellCheck={false}
-            onBlur={this.handleInputBlur}
-            onKeyDown={this.handleKeyDown}
-            onFocus={this.handleFocus}
-            placeholder="Name this Dashboard"
-            ref={r => (this.inputRef = r)}
-          />
-        ) : (
-          <h1 onClick={onEditDashboard}>{activeDashboard}</h1>
-        )}
-      </div>
-    )
-  }
-}
-
-const {bool, func, string} = PropTypes
-
-DashboardEditHeader.propTypes = {
-  activeDashboard: string.isRequired,
-  onSave: func.isRequired,
-  onCancel: func.isRequired,
-  isEditMode: bool,
-  onEditDashboard: func.isRequired,
 }
 
 export default DashboardEditHeader
