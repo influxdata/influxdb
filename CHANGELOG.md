@@ -14,6 +14,7 @@ v1.6.1 [unreleased]
 -	[#10076](https://github.com/influxdata/influxdb/pull/10076): Fix windows mmap on zero length file.
 -	[#10037](https://github.com/influxdata/influxdb/pull/10037): Ensure Filter iterators executed as late as possible.
 -	[#10061](https://github.com/influxdata/influxdb/pull/10061): Document UDP precision setting in config.
+-	[#10091](https://github.com/influxdata/influxdb/pull/10091): Allow tag keys to contain underscores.
 
 v1.6.0 [2018-07-05]
 -------------------
