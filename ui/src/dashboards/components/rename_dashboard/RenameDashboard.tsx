@@ -16,7 +16,7 @@ interface State {
   reset: boolean
 }
 @ErrorHandling
-class DashboardEditHeader extends Component<Props, State> {
+class RenameDashboard extends Component<Props, State> {
   private inputRef: HTMLInputElement
 
   constructor(props: Props) {
@@ -102,4 +102,4 @@ class DashboardEditHeader extends Component<Props, State> {
   }
 }
 
-export default DashboardEditHeader
+export default RenameDashboard
