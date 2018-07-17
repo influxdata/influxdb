@@ -61,8 +61,8 @@ func Compile(ctx context.Context, q string, now time.Time, opts ...Option) (*Spe
 	return spec, nil
 }
 
+// Eval evaluates the flux string q and update the given interpreter
 func Eval(itrp *interpreter.Interpreter, q string) error {
-
 	astProg, err := parser.NewAST(q)
 	if err != nil {
 		return err
