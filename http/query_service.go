@@ -106,7 +106,12 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Transfer-Encoding", "chunked")
-	w.WriteHeader(http.StatusOK)
+	// NOTE: We do not write the headers here.
+	// It is possible that if the encoding step fails
+	// that we can write an error header so long as
+	// the encoder did not write anything.
+	// As such we rely on the http.ResponseWriter behavior
+	// to write an StatusOK header with the first write.
 
 	switch r.Header.Get("Accept") {
 	case "text/csv":
@@ -115,22 +120,20 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		n, err := h.csvEncoder.Encode(w, results)
 		if err != nil {
 			if n == 0 {
+				// If the encoder did not write anything, we can write an error header.
 				EncodeError(ctx, err, w)
-				return
+			} else {
+				h.Logger.Info("Failed to encode client response",
+					zap.Error(err),
+				)
 			}
-			h.Logger.Info("Failed to encode client response",
-				zap.Error(err),
-			)
-			return
 		}
 	}
 
 	if hasStats {
 		data, err := json.Marshal(stats.Statistics())
 		if err != nil {
-			h.Logger.Info("Failed to encode statisitcs",
-				zap.Error(err),
-			)
+			h.Logger.Info("Failed to encode statistics", zap.Error(err))
 			return
 		}
 		// Write statisitcs trailer
