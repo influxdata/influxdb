@@ -8,7 +8,7 @@ import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTi
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/GraphTips'
-import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
+import RenameDashboard from 'src/dashboards/components/rename_dashboard/RenameDashboard'
 import DashboardSwitcher from 'src/dashboards/components/DashboardSwitcher'
 
 import * as AppActions from 'src/types/actions/app'
@@ -18,10 +18,8 @@ import * as QueriesModels from 'src/types/queries'
 interface Props {
   activeDashboard: string
   dashboard: DashboardsModels.Dashboard
-  onEditDashboard: () => void
   timeRange: QueriesModels.TimeRange
   autoRefresh: number
-  isEditMode?: boolean
   handleChooseTimeRange: (timeRange: QueriesModels.TimeRange) => void
   handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
   onManualRefresh: () => void
@@ -30,8 +28,7 @@ interface Props {
   onToggleTempVarControls: () => void
   showTemplateControlBar: boolean
   zoomedTimeRange: QueriesModels.TimeRange
-  onCancel: () => void
-  onSave: (name: string) => Promise<void>
+  onRenameDashboard: (name: string) => Promise<void>
   dashboardLinks: DashboardsModels.DashboardSwitcherLinks
   isHidden: boolean
 }
@@ -153,14 +150,7 @@ class DashboardHeader extends Component<Props> {
   }
 
   private get dashboardTitle(): JSX.Element {
-    const {
-      dashboard,
-      activeDashboard,
-      onSave,
-      onCancel,
-      onEditDashboard,
-      isEditMode,
-    } = this.props
+    const {dashboard, activeDashboard, onRenameDashboard} = this.props
 
     if (dashboard) {
       return (
@@ -170,12 +160,9 @@ class DashboardHeader extends Component<Props> {
             <PageHeaderTitle title={activeDashboard} />
           }
         >
-          <DashboardHeaderEdit
-            onSave={onSave}
-            onCancel={onCancel}
-            activeDashboard={activeDashboard}
-            onEditDashboard={onEditDashboard}
-            isEditMode={isEditMode}
+          <RenameDashboard
+            onRename={onRenameDashboard}
+            name={activeDashboard}
           />
         </Authorized>
       )

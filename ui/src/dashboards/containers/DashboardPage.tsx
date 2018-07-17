@@ -112,7 +112,6 @@ interface Props extends ManualRefreshProps, WithRouterProps {
 
 interface State {
   scrollTop: number
-  isEditMode: boolean
   windowHeight: number
   selectedCell: DashboardsModels.Cell | null
   dashboardLinks: DashboardsModels.DashboardSwitcherLinks
@@ -125,7 +124,6 @@ class DashboardPage extends Component<Props, State> {
 
     this.state = {
       scrollTop: 0,
-      isEditMode: false,
       selectedCell: null,
       windowHeight: window.innerHeight,
       dashboardLinks: EMPTY_LINKS,
@@ -255,7 +253,7 @@ class DashboardPage extends Component<Props, State> {
       templatesIncludingDashTime = []
     }
 
-    const {isEditMode, dashboardLinks} = this.state
+    const {dashboardLinks} = this.state
 
     return (
       <div className="page dashboard-page">
@@ -281,15 +279,12 @@ class DashboardPage extends Component<Props, State> {
         <DashboardHeader
           dashboard={dashboard}
           timeRange={timeRange}
-          isEditMode={isEditMode}
           autoRefresh={autoRefresh}
           isHidden={inPresentationMode}
           onAddCell={this.handleAddCell}
           onManualRefresh={onManualRefresh}
           zoomedTimeRange={zoomedTimeRange}
-          onSave={this.handleRenameDashboard}
-          onCancel={this.handleCancelEditDashboard}
-          onEditDashboard={this.handleEditDashboard}
+          onRenameDashboard={this.handleRenameDashboard}
           dashboardLinks={dashboardLinks}
           activeDashboard={dashboard ? dashboard.name : ''}
           showTemplateControlBar={showTemplateControlBar}
@@ -422,21 +417,12 @@ class DashboardPage extends Component<Props, State> {
     this.props.cloneDashboardCellAsync(dashboard, cell)
   }
 
-  private handleEditDashboard = (): void => {
-    this.setState({isEditMode: true})
-  }
-
-  private handleCancelEditDashboard = (): void => {
-    this.setState({isEditMode: false})
-  }
-
   private handleRenameDashboard = async (name: string): Promise<void> => {
     const {dashboard} = this.props
-    this.setState({isEditMode: false})
-    const newDashboard = {...dashboard, name}
+    const renamedDashboard = {...dashboard, name}
 
-    this.props.updateDashboard(newDashboard)
-    await this.props.putDashboard(newDashboard)
+    this.props.updateDashboard(renamedDashboard)
+    await this.props.putDashboard(renamedDashboard)
     this.updateActiveDashboard()
   }
 
