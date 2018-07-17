@@ -20,6 +20,7 @@ import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
 import {setAutoRefresh, delayEnablePresentationMode} from 'shared/actions/app'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import AutoRefresh from 'src/utils/AutoRefresh'
 
 @ErrorHandling
 class HostPage extends Component {
@@ -52,7 +53,9 @@ class HostPage extends Component {
     const {
       data: {layouts},
     } = await getLayouts()
-    const {location} = this.props
+    const {location, autoRefresh} = this.props
+
+    AutoRefresh.poll(autoRefresh)
 
     // fetching layouts and mappings can be done at the same time
     const {host, measurements} = await this.fetchHostsAndMeasurements(layouts)
@@ -74,6 +77,17 @@ class HostPage extends Component {
     const hostLinks = await this.getHostLinks()
 
     this.setState({layouts: filteredLayouts, hostLinks}) // eslint-disable-line react/no-did-mount-set-state
+  }
+
+  componentDidUpdate(prevProps) {
+    const {autoRefresh} = this.props
+    if (prevProps.autoRefresh !== autoRefresh) {
+      AutoRefresh.poll(autoRefresh)
+    }
+  }
+
+  componentWillUnmount() {
+    AutoRefresh.stopPolling()
   }
 
   handleChooseTimeRange = ({lower, upper}) => {
