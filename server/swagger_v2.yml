@@ -66,6 +66,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cell"
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -97,6 +103,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cell"
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -117,6 +129,148 @@ paths:
       responses:
         '204':
           description: delete has been accepted
+        '404':
+          description: cell not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /dashboards:
+    post:
+      tags:
+        - Dashboards
+      summary: Create a dashboard
+      requestBody:
+          description: dashboard to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+      responses:
+        '201':
+          description: Added dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Dashboards
+      summary: Get all dashboards
+      responses:
+        '200':
+          description: all dashboards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboards"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}':
+   get:
+    tags:
+      - Dashboards
+    summary: Get a single Dashboard
+    parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+    responses:
+        '200':
+          description: get a single dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   patch:
+      tags:
+        - Dashboards
+      summary: Update a single dashboard
+      requestBody:
+          description: patching of a dashboard
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '200':
+          description: Updated dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   delete:
+      tags:
+        - Dashboards
+      summary: Delete a dashboard
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -449,6 +603,46 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Cell"
+    DashboardCell:
+      type: object
+      properties:
+        x:
+          type: integer
+          format: int32
+        y:
+          type: integer
+          format: int32
+        w:
+          type: integer
+          format: int32
+        h:
+          type: integer
+          format: int32
+        ref:
+          type: string
+          description: The reference to a cell from the cells API
+    Dashboard:
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardCell"
+    Dashboards:
+      type: object
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        dashboards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dashboards"
     Error:
       properties:
         code:
