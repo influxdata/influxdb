@@ -64,6 +64,7 @@ v1.6.0 [2018-07-05]
 -	[#10002](https://github.com/influxdata/influxdb/pull/10002): Improve series segment recovery.
 -	[#9977](https://github.com/influxdata/influxdb/pull/9977): Allow value filtering on SHOW TAG VALUES.
 -	[#10051](https://github.com/influxdata/influxdb/pull/10051): Update example config with UDP precision option.
+-	[#10094](https://github.com/influxdata/influxdb/pull/10094): Fix a panic when matching on a specific type of regular expression.
 
 v1.5.0 [2018-03-06]
 -------------------
