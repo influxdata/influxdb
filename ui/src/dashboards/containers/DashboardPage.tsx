@@ -133,15 +133,14 @@ class DashboardPage extends Component<Props, State> {
   public async componentDidMount() {
     const {autoRefresh} = this.props
 
-    if (autoRefresh) {
-      AutoRefresh.poll(autoRefresh)
-      AutoRefresh.subscribe(this.fetchAnnotations)
-    }
+    AutoRefresh.poll(autoRefresh)
+    AutoRefresh.subscribe(this.fetchAnnotations)
 
     window.addEventListener('resize', this.handleWindowResize, true)
 
     await this.getDashboard()
 
+    this.fetchAnnotations()
     this.getDashboardLinks()
   }
 
