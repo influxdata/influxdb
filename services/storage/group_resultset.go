@@ -139,16 +139,21 @@ func (g *groupResultSet) seriesHasPoints(row *seriesRow) bool {
 	cur := g.mb.createCursor(*row)
 	var ts []int64
 	switch c := cur.(type) {
-	case tsdb.IntegerBatchCursor:
-		ts, _ = c.Next()
-	case tsdb.FloatBatchCursor:
-		ts, _ = c.Next()
-	case tsdb.UnsignedBatchCursor:
-		ts, _ = c.Next()
-	case tsdb.BooleanBatchCursor:
-		ts, _ = c.Next()
-	case tsdb.StringBatchCursor:
-		ts, _ = c.Next()
+	case tsdb.IntegerArrayCursor:
+		a := c.Next()
+		ts = a.Timestamps
+	case tsdb.FloatArrayCursor:
+		a := c.Next()
+		ts = a.Timestamps
+	case tsdb.UnsignedArrayCursor:
+		a := c.Next()
+		ts = a.Timestamps
+	case tsdb.BooleanArrayCursor:
+		a := c.Next()
+		ts = a.Timestamps
+	case tsdb.StringArrayCursor:
+		a := c.Next()
+		ts = a.Timestamps
 	case nil:
 		return false
 	default:
