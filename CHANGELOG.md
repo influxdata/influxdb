@@ -7,6 +7,7 @@ v1.6.1 [unreleased]
 -	[#10077](https://github.com/influxdata/influxdb/pull/10077): Add TSI index cardinality report to influx_inspect.
 -	[#10079](https://github.com/influxdata/influxdb/pull/10079): Update to Go 1.10.
 -	[#10080](https://github.com/influxdata/influxdb/pull/10080): Improve performance of buildtsi and TSI planning.
+-	[#10099](https://github.com/influxdata/influxdb/pull/10099): Improve performance of read service for single measurements.
 
 ### Bugfixes
 
