@@ -25,6 +25,25 @@ func ExampleWithSignals() {
 	// finished
 }
 
+func ExampleWithUnregisteredSignals() {
+	dctx, cancel := context.WithTimeout(context.TODO(), time.Millisecond*100)
+	defer cancel()
+
+	ctx := WithSignals(dctx, syscall.SIGUSR1)
+	go func() {
+		time.Sleep(10 * time.Millisecond) // after some time SIGUSR2 is sent
+		// mimicking a signal from the outside, WithSignals will not handle it
+		syscall.Kill(syscall.Getpid(), syscall.SIGUSR2)
+	}()
+
+	select {
+	case <-ctx.Done():
+		fmt.Println("finished")
+	}
+	// Output:
+	// finished
+}
+
 func TestWithSignals(t *testing.T) {
 	tests := []struct {
 		name       string

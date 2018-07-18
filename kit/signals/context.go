@@ -18,12 +18,8 @@ func WithSignals(ctx context.Context, sigs ...os.Signal) context.Context {
 		select {
 		case <-ctx.Done():
 			return
-		case sig := <-sigCh:
-			for _, s := range sigs {
-				if s == sig {
-					return
-				}
-			}
+		case <-sigCh:
+			return
 		}
 	}()
 	return ctx
