@@ -24,7 +24,7 @@ type BucketService struct {
 	DeleteBucketFn   func(context.Context, platform.ID) error
 }
 
-// NewBucketService returns an mock BucketService where its methods will return
+// NewBucketService returns a mock BucketService where its methods will return
 // zero values.
 func NewBucketService() *BucketService {
 	return &BucketService{
