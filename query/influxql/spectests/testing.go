@@ -10,9 +10,54 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
 )
+
+var dbrpMappingSvc = mock.NewDBRPMappingService()
+var organizationID = platform.ID("aaaa")
+var bucketID = platform.ID("bbbb")
+var altBucketID = platform.ID("cccc")
+
+func init() {
+	mapping := platform.DBRPMapping{
+		Cluster:         "cluster",
+		Database:        "db0",
+		RetentionPolicy: "autogen",
+		Default:         true,
+		OrganizationID:  organizationID,
+		BucketID:        bucketID,
+	}
+	altMapping := platform.DBRPMapping{
+		Cluster:         "cluster",
+		Database:        "db0",
+		RetentionPolicy: "autogen",
+		Default:         true,
+		OrganizationID:  organizationID,
+		BucketID:        altBucketID,
+	}
+	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
+		if rp == "alternate" {
+			return &altMapping, nil
+		}
+		return &mapping, nil
+	}
+	dbrpMappingSvc.FindFn = func(ctx context.Context, filter platform.DBRPMappingFilter) (*platform.DBRPMapping, error) {
+		if filter.RetentionPolicy != nil && *filter.RetentionPolicy == "alternate" {
+			return &altMapping, nil
+		}
+		return &mapping, nil
+	}
+	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilter, opt ...platform.FindOptions) ([]*platform.DBRPMapping, int, error) {
+		m := &mapping
+		if filter.RetentionPolicy != nil && *filter.RetentionPolicy == "alternate" {
+			m = &altMapping
+		}
+		return []*platform.DBRPMapping{m}, 1, nil
+	}
+}
 
 // Fixture is a structure that will run tests.
 type Fixture interface {
@@ -43,9 +88,12 @@ func (f *fixture) Run(t *testing.T) {
 			t.Fatalf("%s:%d: expected spec is not valid: %s", f.file, f.line, err)
 		}
 
-		transpiler := influxql.NewTranspilerWithConfig(influxql.Config{
-			NowFn: Now,
-		})
+		transpiler := influxql.NewTranspilerWithConfig(
+			dbrpMappingSvc,
+			influxql.Config{
+				NowFn: Now,
+			},
+		)
 		spec, err := transpiler.Transpile(context.Background(), f.stmt)
 		if err != nil {
 			t.Fatalf("%s:%d: unexpected error: %s", f.file, f.line, err)

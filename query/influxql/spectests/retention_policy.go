@@ -19,7 +19,7 @@ func init() {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							Bucket: "db0/alternate",
+							BucketID: altBucketID,
 						},
 					},
 					{

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/influxdata/platform/query/semantic/semantictest"
@@ -69,7 +71,7 @@ func main() {
 			return
 		}
 
-		transpiler := influxql.NewTranspiler()
+		transpiler := influxql.NewTranspiler(dbrpMappingSvc)
 		influxqlSpec, err := transpiler.Transpile(context.Background(), string(influxqlText))
 		if err != nil {
 			fmt.Printf("error transpiling. \n query: \n %s \n err: %s", string(influxqlText), err)
@@ -83,5 +85,30 @@ func main() {
 		difference := cmp.Diff(fluxSpec, influxqlSpec, opts...)
 
 		fmt.Printf("compiled vs transpiled diff: \n%s", difference)
+	}
+}
+
+// Setup mock DBRPMappingService to always return `db.rp`.
+var dbrpMappingSvc = mock.NewDBRPMappingService()
+
+func init() {
+	organizationID := platform.ID("aaaa")
+	bucketID := platform.ID("bbbb")
+	mapping := platform.DBRPMapping{
+		Cluster:         "cluster",
+		Database:        "db",
+		RetentionPolicy: "rp",
+		Default:         true,
+		OrganizationID:  organizationID,
+		BucketID:        bucketID,
+	}
+	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
+		return &mapping, nil
+	}
+	dbrpMappingSvc.FindFn = func(ctx context.Context, filter platform.DBRPMappingFilter) (*platform.DBRPMapping, error) {
+		return &mapping, nil
+	}
+	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilter, opt ...platform.FindOptions) ([]*platform.DBRPMapping, int, error) {
+		return []*platform.DBRPMapping{&mapping}, 1, nil
 	}
 }

@@ -15,9 +15,10 @@ import (
 type TranspilerQueryHandler struct {
 	*httprouter.Router
 
-	Logger       *zap.Logger
-	QueryService query.QueryService
-	OrgID        platform.ID
+	Logger             *zap.Logger
+	QueryService       query.QueryService
+	DBRPMappingService platform.DBRPMappingService
+	OrgID              platform.ID
 }
 
 // NewQueryHandler returns a new instance of QueryHandler.
@@ -52,7 +53,7 @@ func (h *TranspilerQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.
 
 	// Create a new transpiler from the http request.
 	ce := influxqlCE
-	transpiler := ce.transpiler(r)
+	transpiler := ce.transpiler(r, h.DBRPMappingService)
 
 	// Run the transpiler against the query service.
 	results, err := query.QueryWithTranspile(ctx, h.OrgID, queryStr, h.QueryService, transpiler)
@@ -77,18 +78,18 @@ func (h *TranspilerQueryHandler) PrometheusCollectors() []prometheus.Collector {
 
 // crossExecute contains the components needed to execute a transpiled query and encode results.
 type crossExecute struct {
-	transpiler  func(req *http.Request) query.Transpiler
+	transpiler  func(req *http.Request, dbrpMappingSvc platform.DBRPMappingService) query.Transpiler
 	encoder     query.MultiResultEncoder
 	contentType string
 }
 
 var influxqlCE = crossExecute{
-	transpiler: func(req *http.Request) query.Transpiler {
+	transpiler: func(req *http.Request, dbrpMappingSvc platform.DBRPMappingService) query.Transpiler {
 		config := influxql.Config{
 			DefaultDatabase:        req.FormValue("db"),
 			DefaultRetentionPolicy: req.FormValue("rp"),
 		}
-		return influxql.NewTranspilerWithConfig(config)
+		return influxql.NewTranspilerWithConfig(dbrpMappingSvc, config)
 	},
 	encoder:     influxql.NewMultiResultEncoder(),
 	contentType: "application/json",

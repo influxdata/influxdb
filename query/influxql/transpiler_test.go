@@ -5,10 +5,34 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/influxdata/platform/query/influxql/spectests"
 	"github.com/pkg/errors"
 )
+
+var dbrpMappingSvc = mock.NewDBRPMappingService()
+
+func init() {
+	mapping := platform.DBRPMapping{
+		Cluster:         "cluster",
+		Database:        "db0",
+		RetentionPolicy: "autogen",
+		Default:         true,
+		OrganizationID:  platform.ID("aaaa"),
+		BucketID:        platform.ID("bbbb"),
+	}
+	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
+		return &mapping, nil
+	}
+	dbrpMappingSvc.FindFn = func(ctx context.Context, filter platform.DBRPMappingFilter) (*platform.DBRPMapping, error) {
+		return &mapping, nil
+	}
+	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilter, opt ...platform.FindOptions) ([]*platform.DBRPMapping, int, error) {
+		return []*platform.DBRPMapping{&mapping}, 1, nil
+	}
+}
 
 func TestTranspiler(t *testing.T) {
 	for _, fixture := range spectests.All() {
@@ -361,9 +385,12 @@ func TestTranspiler_Compile(t *testing.T) {
 				}
 			}()
 
-			transpiler := influxql.NewTranspilerWithConfig(influxql.Config{
-				DefaultDatabase: "db0",
-			})
+			transpiler := influxql.NewTranspilerWithConfig(
+				dbrpMappingSvc,
+				influxql.Config{
+					DefaultDatabase: "db0",
+				},
+			)
 			if _, err := transpiler.Transpile(context.Background(), tt.s); err != nil {
 				if got, want := err.Error(), tt.err; got != want {
 					if cause := errors.Cause(err); strings.HasPrefix(cause.Error(), "unimplemented") {
