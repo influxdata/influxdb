@@ -181,8 +181,7 @@ func (r *REPL) executeLine(t string, expectYield bool) (values.Value, error) {
 	if v.Type() == query.TableObjectType {
 		t := v.(*query.TableObject)
 		if !expectYield || (expectYield && t.Kind == functions.YieldKind) {
-			spec := t.ToSpec()
-			// Do query
+			spec := query.ToSpec(r.interpreter, t)
 			return nil, r.doQuery(spec)
 		}
 	}

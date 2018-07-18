@@ -53,7 +53,7 @@ func Compile(ctx context.Context, q string, now time.Time, opts ...Option) (*Spe
 	s, _ = opentracing.StartSpanFromContext(ctx, "compile")
 	defer s.Finish()
 
-	spec := toSpec(itrp)
+	spec := toSpecFromSideEffecs(itrp)
 
 	if o.verbose {
 		log.Println("Query Spec: ", Formatted(spec, FmtJSON))
@@ -111,9 +111,12 @@ func nowFunc(now time.Time) values.Function {
 	return values.NewFunction(nowOption, ftype, call, sideEffect)
 }
 
-func toSpec(itrp *interpreter.Interpreter) *Spec {
-	operations := itrp.SideEffects()
+func toSpecFromSideEffecs(itrp *interpreter.Interpreter) *Spec {
+	return ToSpec(itrp, itrp.SideEffects()...)
+}
 
+// ToSpec creates a query spec from the interpreter and list of values.
+func ToSpec(itrp *interpreter.Interpreter, vals ...values.Value) *Spec {
 	ider := &ider{
 		id:     0,
 		lookup: make(map[*TableObject]OperationID),
@@ -121,9 +124,9 @@ func toSpec(itrp *interpreter.Interpreter) *Spec {
 
 	spec := new(Spec)
 	visited := make(map[*TableObject]bool)
-	nodes := make([]*TableObject, 0, len(operations))
+	nodes := make([]*TableObject, 0, len(vals))
 
-	for _, val := range operations {
+	for _, val := range vals {
 		if op, ok := val.(*TableObject); ok {
 			dup := false
 			for _, node := range nodes {
