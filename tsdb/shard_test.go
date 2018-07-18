@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"sort"
@@ -1201,6 +1202,42 @@ _reserved,region=uswest value="foo" 0
 			})
 		}
 		sh.Close()
+	}
+}
+
+func TestShards_FieldKeysByMeasurement(t *testing.T) {
+	var shards Shards
+
+	setup := func(index string) {
+		shards = NewShards(index, 2)
+		shards.MustOpen()
+
+		shards[0].MustWritePointsString(`cpu,host=serverA,region=uswest a=2.2,b=33.3,value=100 0`)
+
+		shards[1].MustWritePointsString(`
+			cpu,host=serverA,region=uswest a=2.2,c=12.3,value=100,z="hello" 0
+			disk q=100 0
+		`)
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		setup(index)
+		t.Run(fmt.Sprintf("%s_single_shard", index), func(t *testing.T) {
+			exp := []string{"a", "b", "value"}
+			if got := (tsdb.Shards{shards[0].Shard}).FieldKeysByMeasurement([]byte("cpu")); !reflect.DeepEqual(got, exp) {
+				shards.Close()
+				t.Fatalf("got keys %v, expected %v", got, exp)
+			}
+		})
+
+		t.Run(fmt.Sprintf("%s_multiple_shards", index), func(t *testing.T) {
+			exp := []string{"a", "b", "c", "value", "z"}
+			if got := shards.Shards().FieldKeysByMeasurement([]byte("cpu")); !reflect.DeepEqual(got, exp) {
+				shards.Close()
+				t.Fatalf("got keys %v, expected %v", got, exp)
+			}
+		})
+		shards.Close()
 	}
 }
 
