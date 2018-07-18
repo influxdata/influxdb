@@ -43,6 +43,7 @@ interface Props {
   notify: (message: Notification | NotificationFunc) => void
 }
 
+export const SourceContext = React.createContext()
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data sources, but not every page requires them to function.
 // Routes that do require data sources can be nested under this component.
@@ -63,8 +64,8 @@ export class CheckSources extends PureComponent<Props, State> {
 
   public async componentDidUpdate(prevProps) {
     const {loading} = this.state
-    const {router, location, params, sources, notify} = this.props
-    const source = sources.find(s => s.id === params.sourceID)
+    const {router, location, sources, notify} = this.props
+    const source = this.source
     const defaultSource = sources.find(s => s.default === true)
 
     const rest = location.pathname.match(/\/sources\/\d+?\/(.+)/)
@@ -99,12 +100,22 @@ export class CheckSources extends PureComponent<Props, State> {
 
   public render() {
     const {loading} = this.state
+    const source = this.source
 
-    if (loading === RemoteDataState.Loading) {
+    if (loading === RemoteDataState.Loading || !source) {
       return <div className="page-spinner" />
     }
 
-    return this.props.children
+    return (
+      <SourceContext.Provider value={source}>
+        {this.props.children}
+      </SourceContext.Provider>
+    )
+  }
+
+  private get source(): Source {
+    const {params, sources} = this.props
+    return sources.find(s => s.id === params.sourceID)
   }
 }
 

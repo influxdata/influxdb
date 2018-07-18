@@ -150,9 +150,7 @@ export const removeAndLoadSources = (source: Source) => async (
       }
     }
 
-    const {
-      data: {sources: newSources},
-    } = await getSourcesAJAX()
+    const newSources = await getSourcesAJAX()
     dispatch(loadSources(newSources))
   } catch (err) {
     dispatch(notify(notifyServerError))
@@ -204,11 +202,8 @@ export const deleteKapacitorAsync = (kapacitor: Kapacitor) => async (
 
 export const getSourcesAsync = () => async (dispatch): Promise<void> => {
   try {
-    const {
-      data: {sources},
-    } = await getSourcesAJAX()
+    const sources = await getSourcesAJAX()
     dispatch(loadSources(sources))
-    return sources
   } catch (error) {
     dispatch(errorThrown(error))
   }
