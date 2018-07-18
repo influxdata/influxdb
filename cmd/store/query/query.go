@@ -387,7 +387,6 @@ func (cmd *Command) processFrames(wr *bufio.Writer, frames []storage.ReadRespons
 				wr.Write(strconv.AppendInt(line, p.Timestamps[i], 10))
 				wr.WriteByte(' ')
 
-				line = buf[:0]
 				wr.WriteString(p.Values[i])
 				wr.WriteString("\n")
 				wr.Flush()
