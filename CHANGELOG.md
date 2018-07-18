@@ -114,7 +114,6 @@ v1.5.1 [2018-03-20]
 -	[#9566](https://github.com/influxdata/influxdb/pull/9566): Fix panic when checking fieldsets.
 -	[#9587](https://github.com/influxdata/influxdb/pull/9587): Fix data race in WAL.
 
-
 v1.5.0 [2018-03-06]
 -------------------
 
