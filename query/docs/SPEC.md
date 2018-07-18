@@ -166,7 +166,7 @@ It has an integer part and a duration unit part.
 Multiple duration may be specified together and the resulting duration is the sum of each smaller part.
 
     duration_lit        = { int_lit duration_unit } .
-    duration_unit       = "ns" | "u" | "µ" | "ms" | "s" | "m" | "h" | "d" | "w" .
+    duration_unit       = "ns" | "us" | "µs" | "ms" | "s" | "m" | "h" | "d" | "w" | "mo" | "y" .
 
 | Units    | Meaning                                 |
 | -----    | -------                                 |
@@ -176,11 +176,18 @@ Multiple duration may be specified together and the resulting duration is the su
 | s        | second                                  |
 | m        | minute (60 seconds)                     |
 | h        | hour (60 minutes)                       |
-| d        | day (24 hours)                          |
+| d        | day                                     |
 | w        | week (7 days)                           |
+| mo       | month                                   |
+| y        | year (12 months)                        |
 
-Durations represent a fixed length of time.
-They do not change based on time zones or other time related events like daylight savings or leap seconds.
+Durations represent a length of time.
+Durations can be combined via addition and subtraction.
+Durations can be multiplied by an integer value.
+
+Durations track the basic units of seconds, days and months independently.
+No amount of seconds is equal to a day, as days vary in their number of seconds.
+No amount of days is equal to a month, as months vary in their number of days.
 
 Examples:
 
@@ -188,6 +195,8 @@ Examples:
     10d
     1h15m // 1 hour and 15 minutes
     5w
+    1mo5d // 1 month and 5 days
+
 
 [IMPL#311](https://github.com/influxdata/platform/query/issues/311) Parse duration literals
 
@@ -208,7 +217,6 @@ The format follows the RFC 3339 specification.
     second            = decimal_digit decimal_digit .
     fractional_second = "."  { decimal_digit } .
     time_offset       = "Z" | ("+" | "-" ) hour ":" minute .
-
 
 #### String literals
 
@@ -337,6 +345,14 @@ The time type name is `time`.
 A _duration type_ represents a length of time with nanosecond precision.
 The duration type name is `duration`.
 
+Durations can be added to times to produce a new time.
+
+Examples:
+
+    2018-07-01T00:00:00Z + 1mo // 2018-08-01T00:00:00Z
+    2018-07-01T00:00:00Z + 2y  // 2020-07-01T00:00:00Z
+    2018-07-01T00:00:00Z + 5h  // 2018-07-01T05:00:00Z
+
 #### String types
 
 A _string type_ represents a possibly empty sequence of characters.
@@ -368,6 +384,13 @@ A _function type_ represents a set of all functions with the same argument and r
 
 
 [IMPL#315](https://github.com/influxdata/platform/query/issues/315) Specify type inference rules
+
+#### Generator types
+
+A _generator type_ represents a value that produces an unknown number of other values.
+The generated values may be of any other type but must all be the same type.
+
+[IMPL#XXX](https://github.com/influxdata/platform/query/issues/XXX) Implement generators
 
 ### Blocks
 
@@ -542,8 +565,16 @@ Grammatically, an option statement is just a variable assignment preceded by the
 
 Below is a list of all options that are currently implemented in the Flux language:
 
-* task
 * now
+* task
+* location
+
+##### now
+
+The `now` option is a function that returns a time value to be used as a proxy for the current system time.
+
+    // Query should execute as if the below time is the current system time
+    option now = () => 2006-01-02T15:04:05-07:00
 
 ##### task
 
@@ -557,12 +588,14 @@ The `task` option is used by a scheduler to schedule the execution of a Flux que
         retry: 5,           // number of times to retry a failed query
     }
 
-##### now
+##### location
 
-The `now` option is a function that returns a time value to be used as a proxy for the current system time.
+The `location` option is used to set the time zone of all times in the script.
+The location maps the UTC offset in use at that location for a given time.
+The default value is the location of the running process.
 
-    // Query should execute as if the below time is the current system time
-    option now = () => 2006-01-02T15:04:05Z07:00
+    option location = fixedZone(offset:-5h) // set timezone to be 5 hours west of UTC
+    option location = loadLocation(name:"America/Denver") // set location to be America/Denver
 
 #### Return statements
 
@@ -676,6 +709,147 @@ StateDuration computes the duration of a given state.
 
 Top and Bottom sort a table and limits the table to only n records.
 
+##### Time constants
+
+###### Days of the week
+
+Days of the week are represented as integers in the range `[0-6]`.
+The following builtin values are defined:
+
+```
+Sunday    = 0
+Monday    = 1
+Tuesday   = 2
+Wednesday = 3
+Thursday  = 4
+Friday    = 5
+Saturday  = 6
+```
+
+###### Months of the year
+
+Months are represented as integers in the range `[1-12]`.
+The following builtin values are defined:
+
+```
+January   = 1
+February  = 2
+March     = 3
+April     = 4
+May       = 5
+June      = 6
+July      = 7
+August    = 8
+September = 9
+October   = 10
+November  = 11
+December  = 12
+```
+
+##### Time and date functions
+
+These are builtin functions that all take a single `time` argument and return an integer.
+
+* `second` - integer
+    Second returns the second of the minute for the provided time in the range `[0-59]`.
+* `minute` - integer
+    Minute returns the minute of the hour for the provided time in the range `[0-59]`.
+* `hour` - integer
+    Hour returns the hour of the day for the provided time in the range `[0-59]`.
+* `weekDay` - integer
+    WeekDay returns the day of the week for the provided time in the range `[0-6]`.
+* `monthDay` - integer
+    MonthDay returns the day of the month for the provided time in the range `[1-31]`.
+* `yearDay` - integer
+    YearDay returns the day of the year for the provided time in the range `[1-366]`.
+* `month` - integer
+    Month returns the month of the year for the provided time in the range `[1-12]`.
+
+##### System Time
+
+The builtin function `systemTime` returns the current system time.
+All calls to `systemTime` within a single evaluation of a Flux script return the same time.
+
+[IMPL#XXX](https://github.com/influxdata/platform/query/issues/XXX) Make systemTime consistent for a single evaluation.
+
+#### Intervals
+
+Intervals is a function that produces a set of time intervals over an interval.
+An interval is an object with `start` and `stop` properties that correspond to the inclusive start and exclusive stop times of the time interval.
+The return value of `intervals` is another function that accepts `start` and `stop` time parameters and returns an interval generator.
+The generator is then used to produce the set of intervals.
+The `intervals` function is designed to be used with the `intervals` parameter of the `window` function.
+
+Intervals has the following parameters:
+
+* `every` duration
+    Every is the duration between starts of each of the intervals
+* `period` duration
+    Period is the length of each interval.
+    It can be negative, indicating the start and stop boundaries are reversed.
+    Defaults to the value of the `every` duration.
+* `offset` duration
+    Offset is the offset duration relative to the location offset.
+    It can be negative, indicating that the offset goes backwards in time.
+    Defaults to zero.
+* `filter` function
+    Filter accepts an interval object and returns a boolean value.
+    Each potential interval is passed to the filter function, when the function returns false, that interval is excluded from the set of intervals.
+    Defaults to include all intervals.
+
+Examples:
+
+    intervals(every:1h)                        // 1 hour intervals
+    intervals(every:1h, period:2h)             // 2 hour long intervals every 1 hour
+    intervals(every:1h, period:2h, offset:30m) // 2 hour long intervals every 1 hour starting at 30m past the hour
+    intervals(every:1w, offset:1d)             // 1 week intervals starting on Monday (by default weeks start on Sunday)
+    intervals(every:1d, period:-1h)            // the hour from 11PM - 12AM every night
+
+Examples using a predicate:
+
+    // 1 day intervals excluding weekends
+    intervals(
+        every:1d,
+        filter: (interval) => !(weekday(time: interval.start) in [Sunday, Saturday]),
+    )
+    // Work hours from 9AM - 5PM on work days.
+    intervals(
+        every:1d,
+        period:8h,
+        offset:9h,
+        filter:(interval) => !(weekday(time: interval.start) in [Sunday, Saturday]),
+    )
+
+
+[IMPL#XXX](https://github.com/influxdata/platform/query/issues/XXX) Implement intervals function
+
+
+### Builtin Intervals
+
+The following builtin intervals exist:
+
+    // 1 second intervals starting at the 0th millisecond
+    seconds = intervals(every:1s)
+    // 1 minute intervals starting at the 0th second
+    minutes = intervals(every:1m)
+    // 1 hour intervals starting at the 0th minute
+    hours = intervals(every:1h)
+    // 1 day intervals starting at midnight
+    days = intervals(every:1d)
+    // 1 day intervals excluding Sundays and Saturdays
+    weekdays = intervals(every:1d, filter: (interval) => weekday(time:interval.start) not in [Sunday, Saturday])
+    // 1 day intervals including only Sundays and Saturdays
+    weekdends = intervals(every:1d, filter: (interval) => weekday(time:interval.start) in [Sunday, Saturday])
+    // 1 week intervals starting on Sunday
+    weeks = intervals(every:1w)
+    // 1 month interval starting on the 1st of each month
+    months = intervals(every:1mo)
+    // 3 month intervals starting in January on the 1st of each month.
+    quarters = intervals(every:3mo)
+    // 1 year intervals starting on the 1st of January
+    years = intervals(every:1y)
+
+
 ## Query engine
 
 The execution of a query is separate and distinct from the execution of Flux the language.
@@ -695,7 +869,7 @@ An encoding must consist of three properties:
 
 * operations -  a list of operations and their specification.
 * edges - a list of edges declaring a parent child relation between operations.
-* resources - an optional set of contraints on the resources the query can consume.
+* resources - an optional set of constraints on the resources the query can consume.
 
 Each operation has three properties:
 
@@ -1082,7 +1256,7 @@ Range has the following properties:
     Specifies the oldest time to be included in the results
 * `stop` duration or timestamp
     Specifies the exclusive newest time to be included in the results.
-    Defaults to "now"
+    Defaults to the value of the `now` option time.
 
 #### Rename 
 
@@ -1206,24 +1380,37 @@ A single input record will be placed into zero or more output tables, depending 
 Window has the following properties:
 
 * `every` duration
-    Duration of time between windows
+    Duration of time between windows.
     Defaults to `period`'s value
+    One of `every`, `period` or `intervals` must be provided.
 * `period` duration
-    Duration of the windowed group
-    Default to `every`'s value
-* `start` time
-    The time of the initial window group
-* `round` duration
-    Rounds a window's bounds to the nearest duration
+    Duration of the window.
+    Period is the length of each interval.
+    It can be negative, indicating the start and stop boundaries are reversed.
     Defaults to `every`'s value
-* `column` string
-    Name of the time column to use. Defaults to `_time`.
+    One of `every`, `period` or `intervals` must be provided.
+* `offset` time
+    The offset duration relative to the location offset.
+    It can be negative, indicating that the offset goes backwards in time.
+    The default aligns the window boundaries to line up with the `now` option time.
+* `intervals` function that returns an interval generator
+    A set of intervals to be used as the windows.
+    One of `every`, `period` or `intervals` must be provided.
+    When `intervals` is provided, `every`, `period`, and `offset` must be zero.
+* `timeCol` string
+    Name of the time column to use.
+    Defaults to `_time`.
 * `startCol` string
-    Name of the column containing the window start time. Defaults to `_start`.
+    Name of the column containing the window start time.
+    Defaults to `_start`.
 * `stopCol` string
-    Name of the column containing the window stop time. Defaults to `_stop`.
+    Name of the column containing the window stop time.
+    Defaults to `_stop`.
 
-[IMPL#319](https://github.com/influxdata/platform/query/issues/319) Remove concept of Bounds from tables
+Examples:
+
+    window(every:1h) // window the data into 1 hour intervals
+    window(intervals: intervals(every:1d, period:8h, offset:9h)) // window the data into 8 hour intervals starting at 9AM every day.
 
 #### Collate
 
@@ -1400,6 +1587,7 @@ Shift has the following properties:
 * `columns` list of strings
     columns is the list of all columns that should be shifted.
     Defaults to `["_start", "_stop", "_time"]`
+
 
 #### Type conversion operations
 
@@ -1844,3 +2032,5 @@ Example error encoding with after a valid table has already been encoded.
 ```
 
 [IMPL#327](https://github.com/influxdata/platform/query/issues/327) Finalize csv encoding specification
+
+
