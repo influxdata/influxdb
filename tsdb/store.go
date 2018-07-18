@@ -232,11 +232,15 @@ func (s *Store) loadShards() error {
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
 	// Env var to disable throughput limiter.  This will be moved to a config option in 1.5.
+	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
 	if os.Getenv("INFLUXDB_DATA_COMPACTION_THROUGHPUT") == "" {
+		rate, burst := 48*1024*1024, 48*1024*1024
 		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(48*1024*1024, 48*1024*1024)
+		compactionSettings = append(compactionSettings, zap.Int("throughput_bytes_per_second", rate), zap.Int("throughput_burst_bytes", burst))
 	} else {
-		s.Logger.Info("Compaction throughput limit disabled")
+		compactionSettings = append(compactionSettings, zap.String("throughput_bytes_per_second", "unlimited"), zap.String("throughput_burst", "unlimited"))
 	}
+	s.Logger.Info("Compaction settings", compactionSettings...)
 
 	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
 	defer logEnd()
