@@ -35,6 +35,7 @@ v1.6.0 [2018-07-05]
 -	[#9856](https://github.com/influxdata/influxdb/pull/9856): Parallelize compression/decompression during backup and restore.
 -	[#9959](https://github.com/influxdata/influxdb/pull/9959): Improve the number of regex patterns that are optimized to static OR conditions.
 -	[#10044](https://github.com/influxdata/influxdb/pull/10044): Implement bitset iterator.
+-	[#10102](https://github.com/influxdata/influxdb/pull/10102): Remove max concurrent compaction limit.
 
 ### Bugfixes
 
