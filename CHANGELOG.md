@@ -15,6 +15,7 @@ v1.6.1 [unreleased]
 -	[#10037](https://github.com/influxdata/influxdb/pull/10037): Ensure Filter iterators executed as late as possible.
 -	[#10061](https://github.com/influxdata/influxdb/pull/10061): Document UDP precision setting in config.
 -	[#10091](https://github.com/influxdata/influxdb/pull/10091): Allow tag keys to contain underscores.
+-	[#10095](https://github.com/influxdata/influxdb/pull/10095): Fix a panic when matching on a specific type of regular expression.
 
 v1.6.0 [2018-07-05]
 -------------------
