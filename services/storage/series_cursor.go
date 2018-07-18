@@ -16,7 +16,7 @@ const measurementKey = "_measurement"
 
 var (
 	measurementKeyBytes = []byte(measurementKey)
-	fieldKey            = []byte("_field")
+	fieldKeyBytes       = []byte("_field")
 )
 
 type seriesCursor interface {
@@ -208,7 +208,7 @@ func (c *indexSeriesCursor) Next() *seriesRow {
 		}
 	}
 
-	c.tags.Set(fieldKey, c.row.field.nb)
+	c.tags.Set(fieldKeyBytes, c.row.field.nb)
 
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond
