@@ -129,12 +129,15 @@ func platformF(cmd *cobra.Command, args []string) {
 		authHandler.AuthorizationService = authSvc
 		authHandler.Logger = logger.With(zap.String("handler", "auth"))
 
+		assetHandler := http.NewAssetHandler()
+
 		platformHandler := &http.PlatformHandler{
 			BucketHandler:        bucketHandler,
 			OrgHandler:           orgHandler,
 			UserHandler:          userHandler,
 			AuthorizationHandler: authHandler,
 			DashboardHandler:     dashboardHandler,
+			AssetHandler:         assetHandler,
 		}
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
