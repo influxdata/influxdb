@@ -7,8 +7,8 @@ import (
 	"net/url"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/chronograf"
-	kapa "github.com/influxdata/chronograf/kapacitor"
+	"github.com/influxdata/platform/chronograf"
+	kapa "github.com/influxdata/platform/chronograf/kapacitor"
 )
 
 type postKapacitorRequest struct {

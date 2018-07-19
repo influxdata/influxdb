@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 // NewLogger returns a mock logger that implements chronograf.Logger

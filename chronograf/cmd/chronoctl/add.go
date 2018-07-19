@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 type AddCommand struct {

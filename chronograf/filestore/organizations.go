@@ -7,7 +7,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 // OrgExt is the the file extension searched for in the directory for org files

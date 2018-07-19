@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/oauth2"
-	"github.com/influxdata/chronograf/organizations"
-	"github.com/influxdata/chronograf/roles"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/oauth2"
+	"github.com/influxdata/platform/chronograf/organizations"
+	"github.com/influxdata/platform/chronograf/roles"
 )
 
 // HasAuthorizedToken extracts the token from a request and validates it using the authenticator.
@@ -195,7 +195,7 @@ func AuthorizedUser(
 
 		if hasAuthorizedRole(u, role) {
 			if len(u.Roles) != 1 {
-				msg := `User %d has too many role in organization. User: %#v.Please report this log at https://github.com/influxdata/chronograf/issues/new"`
+				msg := `User %d has too many role in organization. User: %#v.Please report this log at https://github.com/influxdata/platform/chronograf/issues/new"`
 				log.Error(fmt.Sprint(msg, u.ID, u))
 				unknownErrorWithMessage(w, fmt.Errorf("please have administrator check logs and report error"), logger)
 				return

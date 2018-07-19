@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/platform/chronograf/v2"
 )
 
 var _ platform.CellService = &CellService{}

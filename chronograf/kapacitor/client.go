@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/id"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/id"
 	client "github.com/influxdata/kapacitor/client/v1"
 )
 

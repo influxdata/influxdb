@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/bolt/internal"
-	"github.com/influxdata/chronograf/organizations"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/bolt/internal"
+	"github.com/influxdata/platform/chronograf/organizations"
 )
 
 // Ensure OrganizationsStore implements chronograf.OrganizationsStore.

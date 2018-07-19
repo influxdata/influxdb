@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/chronograf"
-	idgen "github.com/influxdata/chronograf/id"
+	"github.com/influxdata/platform/chronograf"
+	idgen "github.com/influxdata/platform/chronograf/id"
 )
 
 const (

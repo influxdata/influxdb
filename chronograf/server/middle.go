@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 // RouteMatchesPrincipal checks that the organization on context matches the organization

@@ -9,7 +9,7 @@ chris@influxdb.com
 @goller
 
 * Demo
-- Source: [[https://github.com/influxdata/chronograf]]
+- Source: [[https://github.com/influxdata/platform/chronograf]]
 - [[http://localhost:8888]]
 
 * Chronograf Goals

@@ -8,9 +8,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdata/chronograf/id"
+	"github.com/influxdata/platform/chronograf/id"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 const (

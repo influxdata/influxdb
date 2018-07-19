@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	clog "github.com/influxdata/chronograf/log"
-	"github.com/influxdata/chronograf/oauth2"
+	clog "github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf/oauth2"
 )
 
 var auth0Tests = []struct {

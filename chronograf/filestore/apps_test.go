@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/filestore"
-	clog "github.com/influxdata/chronograf/log"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/filestore"
+	clog "github.com/influxdata/platform/chronograf/log"
 )
 
 func TestAll(t *testing.T) {

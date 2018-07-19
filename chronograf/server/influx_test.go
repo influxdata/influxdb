@@ -10,9 +10,9 @@ import (
 
 	"github.com/bouk/httprouter"
 
-	"github.com/influxdata/chronograf/mocks"
+	"github.com/influxdata/platform/chronograf/mocks"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 func TestService_Influx(t *testing.T) {

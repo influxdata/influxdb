@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/kapacitor/pipeline"
 	"github.com/influxdata/kapacitor/pipeline/tick"
 )

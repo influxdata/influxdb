@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/influxdata/chronograf/enterprise"
-	"github.com/influxdata/chronograf/organizations"
+	"github.com/influxdata/platform/chronograf/enterprise"
+	"github.com/influxdata/platform/chronograf/organizations"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/influx"
 )
 
 type sourceLinks struct {

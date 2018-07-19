@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/mocks"
-	"github.com/influxdata/chronograf/server"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/influxdata/platform/chronograf/server"
 )
 
 func Test_Layouts(t *testing.T) {

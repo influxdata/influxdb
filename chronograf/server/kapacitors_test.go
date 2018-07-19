@@ -11,9 +11,9 @@ import (
 
 	"github.com/bouk/httprouter"
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/mocks"
-	"github.com/influxdata/chronograf/server"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/influxdata/platform/chronograf/server"
 )
 
 const tickScript = `

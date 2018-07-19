@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	gojwt "github.com/dgrijalva/jwt-go"
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 	"golang.org/x/oauth2"
 )
 

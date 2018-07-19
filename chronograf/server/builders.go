@@ -1,11 +1,11 @@
 package server
 
 import (
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/canned"
-	"github.com/influxdata/chronograf/filestore"
-	"github.com/influxdata/chronograf/memdb"
-	"github.com/influxdata/chronograf/multistore"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/canned"
+	"github.com/influxdata/platform/chronograf/filestore"
+	"github.com/influxdata/platform/chronograf/memdb"
+	"github.com/influxdata/platform/chronograf/multistore"
 )
 
 // LayoutBuilder is responsible for building Layouts

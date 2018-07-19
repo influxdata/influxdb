@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/id"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/id"
 )
 
 const (

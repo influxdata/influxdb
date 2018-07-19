@@ -10,7 +10,7 @@ class DefaultError extends Component {
     return (
       <p className="error">
         A Chronograf error has occurred. Please report the issue&nbsp;
-        <a href="https://github.com/influxdata/chronograf/issues">here</a>.
+        <a href="https://github.com/influxdata/platform/chronograf/issues">here</a>.
       </p>
     )
   }

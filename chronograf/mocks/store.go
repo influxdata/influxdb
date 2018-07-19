@@ -3,8 +3,8 @@ package mocks
 import (
 	"context"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/v2"
 )
 
 // Store is a server.DataStore

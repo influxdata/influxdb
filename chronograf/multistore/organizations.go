@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 // Ensure OrganizationsStore implements chronograf.OrganizationsStore.

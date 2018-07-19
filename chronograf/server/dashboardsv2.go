@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bouk/httprouter"
-	platform "github.com/influxdata/chronograf/v2"
+	platform "github.com/influxdata/platform/chronograf/v2"
 )
 
 type dashboardV2Links struct {

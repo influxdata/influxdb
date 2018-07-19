@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/boltdb/bolt"
-	platform "github.com/influxdata/chronograf/v2"
+	platform "github.com/influxdata/platform/chronograf/v2"
 )
 
 var (

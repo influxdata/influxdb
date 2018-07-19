@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/enterprise"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/enterprise"
 )
 
 func TestClient_Add(t *testing.T) {

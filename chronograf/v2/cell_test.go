@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/platform/chronograf/v2"
 )
 
 func TestCell_MarshalJSON(t *testing.T) {

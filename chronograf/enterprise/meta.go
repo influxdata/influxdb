@@ -13,8 +13,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/influx"
 )
 
 // Shared transports for all clients to prevent leaking connections

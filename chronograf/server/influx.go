@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/influx"
 )
 
 // ValidInfluxRequest checks if queries specify a command.

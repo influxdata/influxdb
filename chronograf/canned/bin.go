@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 //go:generate go-bindata -o bin_gen.go -ignore README|apps|.sh|go -pkg canned .

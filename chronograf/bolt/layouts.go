@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/bolt/internal"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/bolt/internal"
 )
 
 // Ensure LayoutsStore implements chronograf.LayoutsStore.

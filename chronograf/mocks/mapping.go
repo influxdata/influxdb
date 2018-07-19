@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 type MappingsStore struct {

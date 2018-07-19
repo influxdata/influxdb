@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/kapacitor/pipeline"
 	totick "github.com/influxdata/kapacitor/pipeline/tick"
 )

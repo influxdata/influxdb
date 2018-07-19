@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/log"
-	"github.com/influxdata/chronograf/mocks"
-	"github.com/influxdata/chronograf/roles"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/influxdata/platform/chronograf/roles"
 )
 
 func TestService_OrganizationID(t *testing.T) {

@@ -3,8 +3,8 @@ package mocks
 import (
 	"context"
 
-	"github.com/influxdata/chronograf"
-	platform "github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/platform/chronograf"
+	platform "github.com/influxdata/platform/chronograf/v2"
 )
 
 var _ chronograf.DashboardsStore = &DashboardsStore{}

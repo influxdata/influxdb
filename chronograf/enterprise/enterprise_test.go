@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/enterprise"
-	"github.com/influxdata/chronograf/influx"
-	"github.com/influxdata/chronograf/log"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/enterprise"
+	"github.com/influxdata/platform/chronograf/influx"
+	"github.com/influxdata/platform/chronograf/log"
 )
 
 func Test_Enterprise_FetchesDataNodes(t *testing.T) {

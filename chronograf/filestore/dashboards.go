@@ -9,7 +9,7 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/influxdata/chronograf"
+	"github.com/influxdata/platform/chronograf"
 )
 
 // DashExt is the the file extension searched for in the directory for dashboard files

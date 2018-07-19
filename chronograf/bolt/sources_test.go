@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/bolt"
+	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/chronograf/bolt"
 )
 
 // Ensure an SourceStore can store, retrieve, update, and delete sources.

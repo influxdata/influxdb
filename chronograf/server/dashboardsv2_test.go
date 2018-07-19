@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/chronograf/log"
-	"github.com/influxdata/chronograf/mocks"
-	"github.com/influxdata/chronograf/v2"
+	"github.com/influxdata/platform/chronograf/log"
+	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/influxdata/platform/chronograf/v2"
 )
 
 func TestService_DashboardsV2(t *testing.T) {

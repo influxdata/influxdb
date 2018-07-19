@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/platform/chronograf/influx"
 )
 
 func TestMetaClient_ShowCluster(t *testing.T) {
