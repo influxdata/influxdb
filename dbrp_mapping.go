@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"regexp"
+	"strings"
+	"unicode"
 )
 
 // DBRPMappingService provides a mapping of cluster, database and retention policy to an organization ID and bucket ID.
@@ -35,27 +36,16 @@ type DBRPMapping struct {
 	BucketID       ID `json:"bucket_id"`
 }
 
-var validPattern = regexp.MustCompile(`^[-\.\w]+$`)
-
 // Validate reports any validation errors for the mapping.
 func (m DBRPMapping) Validate() error {
-	if m.Cluster == "" {
-		return errors.New("Cluster is required")
+	if !validName(m.Cluster) {
+		return errors.New("Cluster must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
-	if !validPattern.MatchString(m.Cluster) {
-		return errors.New("Cluster must contain only letters, numbers, '_', '-', and '.'")
+	if !validName(m.Database) {
+		return errors.New("Database must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
-	if m.Database == "" {
-		return errors.New("Database is required")
-	}
-	if !validPattern.MatchString(m.Database) {
-		return errors.New("Database must contain only letters, numbers, '_', '-', and '.'")
-	}
-	if m.RetentionPolicy == "" {
-		return errors.New("RetentionPolicy is required")
-	}
-	if !validPattern.MatchString(m.RetentionPolicy) {
-		return errors.New("RetentionPolicy must contain only letters, numbers, '_', '-', and '.'")
+	if !validName(m.RetentionPolicy) {
+		return errors.New("RetentionPolicy must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
 	if len(m.OrganizationID) == 0 {
 		return errors.New("OrganizationID is required")
@@ -64,6 +54,20 @@ func (m DBRPMapping) Validate() error {
 		return errors.New("BucketID is required")
 	}
 	return nil
+}
+
+// validName checks to see if the given name can would be valid for DB/RP name
+func validName(name string) bool {
+	for _, r := range name {
+		if !unicode.IsPrint(r) {
+			return false
+		}
+	}
+
+	return name != "" &&
+		name != "." &&
+		name != ".." &&
+		!strings.ContainsAny(name, `/\`)
 }
 
 // Equal checks if the two mappings are identical.
