@@ -3,6 +3,7 @@ package tsm1
 import (
 	"compress/gzip"
 	"encoding/binary"
+	"encoding/json"
 	"io"
 )
 
@@ -23,6 +24,22 @@ type DigestWriter struct {
 func NewDigestWriter(w io.WriteCloser) (*DigestWriter, error) {
 	gw := gzip.NewWriter(w)
 	return &DigestWriter{w: w, F: gw}, nil
+}
+
+func (w *DigestWriter) WriteManifest(m *DigestManifest) error {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+
+	// Write length of manifest.
+	if err := binary.Write(w.F, binary.BigEndian, uint32(len(b))); err != nil {
+		return err
+	}
+
+	// Write manifest.
+	_, err = w.F.Write(b)
+	return err
 }
 
 func (w *DigestWriter) WriteTimeSpan(key string, t *DigestTimeSpan) error {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/binary"
+	"encoding/json"
 	"io"
 )
 
@@ -18,6 +19,19 @@ func NewDigestReader(r io.ReadCloser) (*DigestReader, error) {
 		return nil, err
 	}
 	return &DigestReader{r: r, gr: gr}, nil
+}
+
+func (w *DigestReader) ReadManifest() (*DigestManifest, error) {
+	var n uint32
+	// Read manifest length.
+	if err := binary.Read(w.gr, binary.BigEndian, &n); err != nil {
+		return nil, err
+	}
+
+	r := io.LimitReader(w.gr, int64(n))
+
+	m := &DigestManifest{}
+	return m, json.NewDecoder(r).Decode(m)
 }
 
 func (w *DigestReader) ReadTimeSpan() (string, *DigestTimeSpan, error) {

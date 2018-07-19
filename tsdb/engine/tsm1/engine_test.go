@@ -107,6 +107,11 @@ func TestEngine_Digest(t *testing.T) {
 		}
 		defer dr.Close()
 
+		_, err = dr.ReadManifest()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		got := []span{}
 
 		for {
