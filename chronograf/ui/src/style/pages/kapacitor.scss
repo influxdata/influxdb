@@ -1,0 +1,620 @@
+/*
+    Kapacitor Rule Builder
+    ---------------------------------------------------------------------------
+*/
+$rule-builder--accent-color: $c-rainforest;
+$rule-builder--left-gutter: 46px;
+$rule-builder--section-gap: ($chronograf-page-header-height / 2);
+$rule-builder--section-bg: $g3-castle;
+$rule-builder--section-border: $g2-kevlar;
+$rule-builder--dot: 6px;
+$rule-builder--accent-line-width: 3px;
+$rule-builder--accent-line-color: $g5-pepper;
+$rule-builder--font-size: 13px;
+$rule-builder--query-builder-height: 240px;
+
+$rule-builder--padding-sm: 8px;
+$rule-builder--padding-md: 13px;
+$rule-builder--padding-lg: 24px;
+$rule-builder--radius-lg: 5px;
+
+.rule-builder {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: 60px;
+}
+.rule-builder p {
+  margin: 0 ($rule-builder--padding-sm - 2px);
+  font-weight: 600;
+  color: $g15-platinum;
+  @include no-user-select();
+
+  &:first-child {
+    margin-left: 0;
+  }
+}
+
+/*
+  Generic Rule Section styles
+  -----------------------------------------------------------------------------
+*/
+.rule-section--heading,
+.rule-section--body {
+  padding-left: $rule-builder--left-gutter;
+  position: relative;
+
+  &:before,
+  &:after {
+    content: '';
+    display: block;
+    position: absolute;
+  }
+  // Vertical Line
+  &:before {
+    transform: translateX(-50%);
+    width: $rule-builder--accent-line-width;
+    height: 100%;
+    background-color: $rule-builder--accent-line-color;
+    top: 0;
+    left: ($rule-builder--dot/2);
+  }
+}
+.rule-section--heading {
+  margin: 0;
+  padding: $rule-builder--section-gap 0 $rule-builder--padding-md
+    $rule-builder--left-gutter;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  color: $g12-forge;
+  display: flex;
+  justify-content: space-between;
+  @include no-user-select();
+
+  // Dot
+  &:after {
+    transform: translateX(-50%);
+    width: $rule-builder--dot;
+    height: $rule-builder--dot;
+    background-color: $rule-builder--accent-color;
+    border: 8px solid $rule-builder--accent-line-color;
+    border-radius: 50%;
+    top: ($rule-builder--section-gap + 3px);
+    left: ($rule-builder--dot / 2);
+  }
+}
+.rule-section--sub-heading {
+  margin: 0;
+  padding: $rule-builder--section-gap 0 $rule-builder--padding-md 0;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  color: $g12-forge;
+  position: relative;
+
+  // Dot
+  &:after {
+    content: '';
+    position: absolute;
+    width: $rule-builder--dot;
+    height: $rule-builder--dot;
+    background-color: $rule-builder--accent-color;
+    border: 8px solid $rule-builder--accent-line-color;
+    border-radius: 50%;
+    top: ($rule-builder--section-gap + 3px);
+    left: -($rule-builder--left-gutter + $rule-builder--dot + 2px);
+  }
+}
+// Override appearance of lines and dots for first section
+.rule-section:first-of-type {
+  .rule-section--heading {
+    padding-top: 0;
+  }
+  .rule-section--heading:before {
+    top: 5px;
+    height: calc(100% - 5px);
+  }
+  .rule-section--heading:after {
+    top: 3px;
+  }
+}
+// Override appearance of lines and dots for last section
+.rule-section:last-of-type {
+  .rule-section--heading:before {
+    top: 0;
+    height: ($rule-builder--section-gap + 3px + 3px);
+  }
+  .rule-section--body:before {
+    display: none;
+  }
+}
+
+// Generic re-usable classes for rule builder sections
+.rule-section--border-top {
+  border-top: 2px solid $rule-builder--section-border;
+}
+.rule-section--border-bottom {
+  border-bottom: 2px solid $rule-builder--section-border;
+}
+.rule-section--row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  background-color: $rule-builder--section-bg;
+  padding: $rule-builder--padding-sm $rule-builder--padding-lg;
+}
+.rule-section--row-first {
+  border-top-left-radius: $rule-builder--radius-lg;
+  border-top-right-radius: $rule-builder--radius-lg;
+}
+.rule-section--row-last {
+  border-bottom-left-radius: $rule-builder--radius-lg;
+  border-bottom-right-radius: $rule-builder--radius-lg;
+}
+.rule-section--row .form-control + .form-control,
+.rule-section--row .dropdown + .form-control {
+  margin-left: $rule-builder--padding-sm - 2px;
+}
+
+/*
+  Section 1 - Select a Time Series
+  -----------------------------------------------------------------------------
+  Overrides are scoped to the page class .rule-builder
+*/
+.rule-builder {
+  /* Query Preview */
+  pre {
+    font-size: $rule-builder--font-size;
+    background-color: $rule-builder--section-bg;
+    border-radius: $rule-builder--radius-lg $rule-builder--radius-lg 0 0;
+    margin: 0;
+    padding: $rule-builder--padding-md $rule-builder--padding-lg;
+  }
+  pre code {
+    line-height: ($rule-builder--font-size + 3px);
+    white-space: pre-wrap;
+
+    &.metric-placeholder {
+      color: $g8-storm;
+      font-style: italic;
+    }
+  }
+  .query-builder {
+    height: $rule-builder--query-builder-height;
+    overflow: visible;
+  }
+  .query-builder--column {
+    margin-right: 2px;
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+  .query-builder--column:first-of-type .query-builder--list {
+    border-bottom-left-radius: $rule-builder--radius-lg;
+  }
+  .query-builder--column:first-of-type .query-builder--heading {
+    border-top-left-radius: $rule-builder--radius-lg;
+  }
+  .query-builder--column:last-of-type .query-builder--list,
+  .query-builder--column:last-of-type .query-builder--list-empty {
+    border-bottom-right-radius: $rule-builder--radius-lg;
+  }
+  .query-builder--column:last-of-type .query-builder--heading {
+    border-top-right-radius: $rule-builder--radius-lg;
+  }
+  .query-builder--heading {
+    background-color: $rule-builder--section-bg;
+    margin-bottom: 2px;
+  }
+  .query-builder--list {
+    @include custom-scrollbar($rule-builder--section-bg, $rule-builder--accent-color);
+  }
+  .group-by-tag.active {
+    background-color: $c-rainforest !important;
+    &:hover {
+      background-color: $c-honeydew !important;
+    }
+  }
+  .query-builder--list-item .query-builder--checkbox:after {
+    background-color: $c-rainforest;
+  }
+  .query-builder--filter {
+    input.form-control {
+      color: $c-rainforest !important;
+      &:focus {
+        color: $g20-white !important;
+        box-shadow: 0 0 6px 0px $c-rainforest !important;
+        border-color: $c-rainforest !important;
+      }
+      &:focus + span.icon {
+        color: $c-rainforest !important;
+      }
+    }
+  }
+}
+
+/*
+  Section 2 - Rule Conditions
+  -----------------------------------------------------------------------------
+*/
+.rule-builder--metric {
+  height: 30px;
+  line-height: 30px;
+  border-radius: 3px;
+  background-color: $g5-pepper;
+  color: $rule-builder--accent-color;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 9px;
+  @include no-user-select();
+}
+.rule-builder--graph,
+.rule-builder--graph-empty {
+  background-color: $rule-builder--section-bg;
+  border-radius: 0 0 $rule-builder--radius-lg $rule-builder--radius-lg;
+  height: (300px + ($rule-builder--padding-sm * 2));
+  position: relative;
+}
+.rule-builder--graph {
+  padding: 0 $rule-builder--padding-sm;
+
+  > div.dygraph {
+    position: absolute;
+    top: ($rule-builder--padding-lg * 2);
+    left: $rule-builder--padding-sm;
+    width: calc(100% - #{$rule-builder--padding-sm * 2});
+    height: calc(100% - #{$rule-builder--padding-lg * 2}) !important;
+  }
+  > .dygraph > .dygraph-child {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    padding: 8px 16px;
+  }
+}
+.rule-builder--graph-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  @include no-user-select();
+
+  p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 23px;
+    text-align: center;
+    color: $g12-forge;
+
+    strong {
+      color: $g18-cloud;
+      font-weight: 900;
+    }
+  }
+}
+.rule-builder--graph-options {
+  width: 100%;
+  padding: $rule-builder--padding-sm
+    (
+      $rule-builder--padding-lg - $rule-builder--padding-sm
+    );
+  display: flex;
+  align-items: center;
+  height: ($rule-builder--padding-lg * 2);
+
+  p {
+    font-weight: 600;
+    color: $g15-platinum;
+    margin: 0 6px 0 0;
+    @include no-user-select();
+  }
+}
+
+/*
+  Section 3 - Rule Message
+  -----------------------------------------------------------------------------
+*/
+.rule-builder--message {
+  background-color: $rule-builder--section-bg;
+  padding: $rule-builder--padding-lg - 2px;
+  padding-bottom: 0;
+  border-radius: $rule-builder--radius-lg $rule-builder--radius-lg 0 0;
+}
+.rule-builder--message textarea {
+  height: 100px;
+  min-width: 100%;
+  max-width: 100%;
+  @include custom-scrollbar($rule-builder--section-bg,$rule-builder--accent-color);
+}
+.rule-builder--message-template {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 ($rule-builder--padding-sm - 2px);
+  margin: 2px;
+  transition: color 0.25s ease;
+  @include no-user-select();
+
+  &:hover {
+    color: $rule-builder--accent-color;
+    cursor: pointer;
+  }
+}
+
+/*
+  Section 3 - Optional Alert Parameters
+  -----------------------------------------------------------------------------
+*/
+.optional-alert-parameters {
+  flex: 1 0 0;
+  display: flex;
+  flex-wrap: nowrap;
+
+  .form-group {
+    flex: 1 0 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0;
+    padding-right: 8px;
+    position: relative;
+
+    &:last-of-type {
+      padding-right: 0;
+    }
+  }
+  .form-group > input.form-control {
+    order: 2;
+    border-top-left-radius: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .form-group > label {
+    position: relative;
+    z-index: 2;
+    order: 1;
+    background-color: $g5-pepper;
+    border-radius: 4px 4px 0 0;
+    margin: 0;
+    height: 18px;
+    line-height: 20px;
+    transition: background-color 0.4s ease, color 0.4s ease,
+      box-shadow 0.4s ease;
+  }
+  .form-group > input.form-control:hover + label {
+    background-color: $g6-smoke;
+    color: $g13-mist;
+  }
+  .form-group > input.form-control:focus + label {
+    background-color: $c-rainforest;
+    color: $g2-kevlar;
+    box-shadow: 0 0 8px $c-rainforest;
+  }
+}
+
+/*
+  Color coding for alerts in Alert History table
+  -----------------------------------------------------------------------------
+*/
+.alert-level-ok {
+  &,
+  &:hover {
+    color: $c-rainforest !important;
+  }
+}
+.alert-level-warning {
+  &,
+  &:hover {
+    color: $c-pineapple !important;
+  }
+}
+.alert-level-critical {
+  &,
+  &:hover {
+    color: $c-dreamsicle !important;
+  }
+}
+
+/*
+  Styles for Endpoints section
+  -----------------------------------------------------------------------------
+*/
+.rule-message--endpoints {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+}
+
+.rule-message--add-endpoint {
+  margin-left: 4px;
+}
+.rule-message--add-endpoint .dropdown-menu {
+  max-height: 233px;
+}
+
+.rule-message--add-endpoint .dropdown-menu.dropdown-malachite li.dropdown-divider {
+  background: linear-gradient(to right, #a8e1cf 0%, #23adf6 100%) !important;
+}
+
+.endpoint-tabs {
+  width: 150px;
+  background-color: $rule-builder--section-border;
+  border-bottom-left-radius: $rule-builder--radius-lg;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.endpoint-tab {
+  display: block;
+  list-style: none;
+  @include no-user-select();
+  position: relative;
+  height: 40px;
+  line-height: 40px;
+  padding: 0 $rule-builder--padding-lg;
+  margin: 0 0 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: $g9-mountain;
+  font-size: 14.5px;
+  font-weight: 600;
+  border-right: 2px solid $rule-builder--section-border;
+  transition: color 0.25s ease, background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:hover {
+    cursor: pointer;
+    background-color: $rule-builder--section-bg;
+    color: $g15-platinum;
+  }
+
+  &.active {
+    color: $c-rainforest;
+    background-color: $rule-builder--section-bg;
+    border-color: $rule-builder--section-bg;
+  }
+}
+.endpoint-tab--delete {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  transition: background-color 0.25s ease;
+  outline: none;
+  background-color: transparent;
+  border: none;
+
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background-color: $g8-storm;
+    border-radius: 1px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    transition: background-color 0.25s ease;
+  }
+  &:before {
+    width: 12px;
+    height: 2px;
+  }
+  &:after {
+    width: 2px;
+    height: 12px;
+  }
+
+  &:hover {
+    background-color: $g5-pepper;
+    cursor: pointer;
+    &:before,
+    &:after {
+      background-color: $g20-white;
+    }
+  }
+  &:hover:active {
+    background-color: $c-curacao;
+  }
+}
+.endpoint-tab-contents {
+  flex: 1 0 0;
+  background-color: $rule-builder--section-bg;
+  border-bottom-right-radius: $rule-builder--radius-lg;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 350px;
+
+  h4 {
+    width: 100%;
+    margin: 0;
+    margin-bottom: 8px;
+    @include no-user-select();
+    font-size: 14.5px;
+    font-weight: 600;
+    color: $g15-platinum;
+  }
+}
+.endpoint-tab--parameters {
+  padding: $rule-builder--padding-lg;
+  padding-bottom: 0;
+
+  &:last-child {
+    padding-bottom: $rule-builder--padding-lg;
+  }
+}
+.endpoint-tab--parameters--empty {
+  align-items: center;
+  justify-content: center;
+  @include no-user-select();
+
+  p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 23px;
+    text-align: center;
+    color: $g12-forge;
+
+    strong {
+      color: $g18-cloud;
+      font-weight: 900;
+    }
+  }
+}
+.endpoint-tab--parameters .form-control-static {
+  min-height: 30px;
+  height: 30px;
+}
+.endpoint-tab--parameters .handler-checkbox {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+.redacted-handler {
+  height: 30px;
+  align-items: center;
+  justify-content: space-between;
+}
+.endpoint-tab--parameters h4 .btn {
+  margin-left: 6px;
+}
+
+/*
+ Rule Details
+  -----------------------------------------------------------------------------
+*/
+.rule-builder--details {
+  background-color: $rule-builder--section-bg;
+  padding-top: $rule-builder--padding-lg - 2px;
+  padding-left: 6px;
+  padding-right: 6px;
+  padding-bottom: 0;
+  border-radius: $rule-builder--radius-lg $rule-builder--radius-lg 0 0;
+}
+.rule-builder--details textarea {
+  height: 100px;
+  min-width: 100%;
+  max-width: 100%;
+  width: 100% !important;
+  @include custom-scrollbar($rule-builder--section-bg,$rule-builder--accent-color);
+}
+.rule-builder--details-template {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 ($rule-builder--padding-sm - 2px);
+  margin: 2px;
+  transition: color 0.25s ease;
+  @include no-user-select();
+
+  &:hover {
+    color: $rule-builder--accent-color;
+    cursor: pointer;
+  }
+}

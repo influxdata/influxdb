@@ -1,0 +1,77 @@
+required = ["github.com/kevinburke/go-bindata","github.com/gogo/protobuf/proto","github.com/gogo/protobuf/jsonpb","github.com/gogo/protobuf/protoc-gen-gogo","github.com/gogo/protobuf/gogoproto"]
+
+[[constraint]]
+  name = "github.com/NYTimes/gziphandler"
+  revision = "6710af535839f57c687b62c4c23d649f9545d885"
+
+[[constraint]]
+  name = "github.com/Sirupsen/logrus"
+  revision = "3ec0642a7fb6488f65b06f9040adc67e3990296a"
+
+[[constraint]]
+  name = "github.com/boltdb/bolt"
+  revision = "5cc10bbbc5c141029940133bb33c9e969512a698"
+
+[[constraint]]
+  name = "github.com/bouk/httprouter"
+  revision = "ee8b3818a7f51fbc94cc709b5744b52c2c725e91"
+
+[[constraint]]
+  name = "github.com/dgrijalva/jwt-go"
+  revision = "24c63f56522a87ec5339cc3567883f1039378fdb"
+
+[[constraint]]
+  name = "github.com/elazarl/go-bindata-assetfs"
+  revision = "9a6736ed45b44bf3835afeebb3034b57ed329f3e"
+
+[[constraint]]
+  name = "github.com/gogo/protobuf"
+  revision = "49944b4a4b085da44c43d4b233ea40787396371f"
+
+[[constraint]]
+  name = "github.com/google/go-github"
+  revision = "1bc362c7737e51014af7299e016444b654095ad9"
+
+[[constraint]]
+  name = "github.com/influxdata/usage-client"
+  revision = "6d3895376368aa52a3a81d2a16e90f0f52371967"
+
+[[constraint]]
+  name = "github.com/jessevdk/go-flags"
+  revision = "4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa"
+
+[[constraint]]
+  name = "github.com/kevinburke/go-bindata"
+  revision = "46eb4c183bfc1ebb527d9d19bcded39476302eb8"
+
+[[constraint]]
+  name = "github.com/satori/go.uuid"
+  revision = "b061729afc07e77a8aa4fad0a2fd840958f1942a"
+
+[[constraint]]
+  name = "github.com/sergi/go-diff"
+  revision = "1d28411638c1e67fe1930830df207bef72496ae9"
+
+[[constraint]]
+  name = "github.com/tylerb/graceful"
+  version = "^1.2.13"
+
+[[constraint]]
+  name = "golang.org/x/net"
+  revision = "749a502dd1eaf3e5bfd4f8956748c502357c0bbe"
+
+[[constraint]]
+  name = "golang.org/x/oauth2"
+  revision = "2f32c3ac0fa4fb807a0fcefb0b6f2468a0d99bd0"
+
+[[constraint]]
+  name = "google.golang.org/api"
+  revision = "bc20c61134e1d25265dd60049f5735381e79b631"
+
+[[constraint]]
+  name = "github.com/influxdata/influxdb"
+  version = "~1.1.0"
+
+[[constraint]]
+  name = "github.com/influxdata/kapacitor"
+  revision = "4f10efc41b4dcac070495cf95ba2c41cfcc2aa3a"

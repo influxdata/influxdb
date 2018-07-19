@@ -1,0 +1,9 @@
+/var/log/chronograf/chronograf.log {
+    daily
+    rotate 7
+    missingok
+    dateext
+    copytruncate
+    compress
+    notifempty
+}

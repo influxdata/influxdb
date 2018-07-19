@@ -1,0 +1,88 @@
+/*
+   Variables
+   -----------------------------------------------------------------------------
+*/
+
+$radius: 4px;
+$radius-small: 3px;
+$page-wrapper-padding: 60px;
+$page-wrapper-max-width: 1300px;
+$chronograf-page-header-height: 60px;
+
+$ix-marg-a: 4px;
+$ix-marg-b: 8px;
+$ix-marg-c: 16px;
+$ix-marg-d: 32px;
+$ix-marg-e: 64px;
+$ix-marg-f: 128px;
+
+$ix-border: 2px;
+$ix-radius: 4px;
+$ix-radius-sm: 3px;
+
+$ix-scrollbar: 14px;
+
+$ix-link-default: $c-pool;
+$ix-link-default-hover: $c-laser;
+$ix-link-success: $c-rainforest;
+$ix-link-success-hover: $c-honeydew;
+$ix-link-warning: $c-pineapple;
+$ix-link-warning-hover: $c-thunder;
+$ix-link-info: $c-star;
+$ix-link-info-hover: $c-comet;
+$ix-link-danger: $c-curacao;
+$ix-link-danger-hover:  $c-dreamsicle;
+
+$ix-text-default: $g13-mist;
+$ix-text-light: $g13-mist;
+$ix-text-lighter: $g13-mist;
+$ix-text-lightest: $g15-platinum;
+
+$ix-text-font: 'Roboto', Helvetica, Arial, Tahoma, Verdana, sans-serif;
+$ix-text-selection-bg: $c-pool;
+$ix-text-selection-color: $g20-white;
+$ix-text-scale: 1.19;
+$ix-icon-font: 'icomoon';
+
+$ix-text-tiny: 12.5px;
+$ix-text-base: 14.5px;
+$ix-text-base-1: (ceil($ix-text-base * $ix-text-scale));
+$ix-text-base-2: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale));
+$ix-text-base-3: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale));
+$ix-text-base-4: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale * $ix-text-scale));
+$ix-text-base-5: (ceil($ix-text-base * $ix-text-scale * $ix-text-scale * $ix-text-scale * $ix-text-scale * $ix-text-scale));
+
+$-ix-app-z: 2;
+
+$ix-sidebar-z: 10;
+$ix-sidebar-width: 60px;
+
+$ix-sidebar-drawer-max: 270px;
+
+$ix-app-heading-z: 5;
+$ix-app-heading-height: 60px;
+
+$ix-app-wrapper-z: 3;
+
+$form-xs-height: 22px;
+$form-xs-padding: 7px;
+$form-xs-font: 13px;
+
+$form-sm-height: 30px;
+$form-sm-padding: 11px;
+$form-sm-font: 13px;
+
+$form-md-height: 38px;
+$form-md-padding: 14px;
+$form-md-font: 15px;
+
+$form-lg-height: 46px;
+$form-lg-padding: 17px;
+$form-lg-font: 17px;
+
+// Drag & Drop
+$drag-and-drop--z-dropzone: 9000;
+$drag-and-drop--z-form: $drag-and-drop--z-dropzone + 10;
+
+// Overlays
+$overlay-dismiss--z: $drag-and-drop--z-dropzone + 10;

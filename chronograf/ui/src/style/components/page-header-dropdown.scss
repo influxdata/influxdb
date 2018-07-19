@@ -1,0 +1,44 @@
+.page-header-dropdown {
+  .dropdown-toggle {
+    height: 38px;
+    padding-left: 0;
+    padding-right: (11px + 12px); // caret width + offset
+    padding-top: 0;
+    padding-bottom: 0;
+    min-width: 50px;
+    width: auto;
+    border: 0;
+    background-color: transparent;
+    text-transform: none;
+    font-size: $page-header-size;
+    font-weight: $page-header-weight;
+    transition: color 0.25s ease;
+    @include no-user-select();
+  }
+  .dropdown-toggle > .caret {
+    right: 0;
+  }
+  .dropdown-toggle > .caret:after {
+    content: "\e910";
+    font-size: 17px;
+  }
+  /* Hover & Open State */
+  &.open .dropdown-toggle,
+  .dropdown-toggle:hover {
+    color: $c-pool;
+  }
+  /* Menu */
+  .dropdown-menu {
+    z-index: 9000;
+    width: 250px;
+    min-width: 250px;
+    max-width: 250px;
+
+    & > li > a {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      @include no-user-select();
+    }
+  }
+}

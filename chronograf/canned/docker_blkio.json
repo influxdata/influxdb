@@ -1,0 +1,46 @@
+{
+  "id": "0e980b97-c162-487b-a815-3f955df62440",
+  "measurement": "docker_container_blkio",
+  "app": "docker",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4c79cefb-5152-410c-9b88-74f9bff7ef50",
+      "name": "Docker - Container Block IO",
+      "queries": [
+        {
+          "query": "SELECT max(\"io_serviced_recursive_read\") AS \"max_io_read\" FROM \":db:\".\":rp:\".\"docker_container_blkio\"",
+          "groupbys": [
+            "\"container_name\""
+          ],
+          "wheres": []
+        },
+        {
+          "query": "SELECT max(\"io_serviced_recursive_sync\") AS \"max_io_sync\" FROM \":db:\".\":rp:\".\"docker_container_blkio\"",
+          "groupbys": [
+            "\"container_name\""
+          ],
+          "wheres": []
+        },
+        {
+          "query": "SELECT max(\"io_serviced_recursive_write\") AS \"max_io_write\" FROM \":db:\".\":rp:\".\"docker_container_blkio\"",
+          "groupbys": [
+            "\"container_name\""
+          ],
+          "wheres": []
+        },
+        {
+          "query": "SELECT max(\"io_serviced_recursive_total\") AS \"max_io_total\" FROM \":db:\".\":rp:\".\"docker_container_blkio\"",
+          "groupbys": [
+            "\"container_name\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

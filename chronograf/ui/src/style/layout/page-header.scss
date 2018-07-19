@@ -1,0 +1,127 @@
+/*
+  Page Header
+  ------------------------------------------------------------------------------
+*/
+$page-header-size: 19px;
+$page-header-weight: 400 !important;
+
+.page-header {
+  height: $chronograf-page-header-height;
+  width: 100%;
+  padding: 0 $page-wrapper-padding;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: $g0-obsidian;
+  border: none;
+  margin: 0;
+}
+
+.page-header--container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  width: 100%;
+  max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
+}
+
+// If specified as a full width page header
+.page-header.full-width .page-header--container {
+  max-width: 100%;
+}
+
+// Left, Center, and Right pieces of the page header
+.page-header--left,
+.page-header--right {
+  display: flex;
+  align-items: center;
+}
+.page-header--left {
+  flex: 1 0 0;
+  justify-content: flex-start;
+  > * {
+    margin: 0 4px 0 0;
+  }
+}
+.page-header--right {
+  justify-content: flex-end;
+  > * {
+    margin: 0 0 0 4px !important;
+
+    &:only-child {
+      margin-right: 0 !important;
+    }
+  }
+}
+
+// Intended to be a <h1>
+.page-header--title {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  margin: 0;
+  display: inline-block;
+  vertical-align: middle;
+  @include no-user-select();
+  cursor: default;
+}
+
+// Misc styles to be refactors
+.page-header--container.page-header__source-page {
+  justify-content: center;
+}
+.page-header__col-md-8 {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+@media screen and (min-width: 992px) {
+  /*
+    NOTE:
+    Breakpoint and % width are based on the bootstrap grid
+    If the source form column sizing is ever changed, this
+    will have to be manually updated
+  */
+  .page-header__col-md-8 {
+    width: 66.66667%;
+  }
+}
+.page-header__dismiss {
+  width: ($chronograf-page-header-height - 20px);
+  height: ($chronograf-page-header-height - 20px);
+  position: relative;
+
+  /* Use psuedo elements to render the X */
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 22px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g11-sidewalk;
+    transition: background-color 0.25s ease;
+  }
+  &:before {
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+  &:after {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+  /* Hover State */
+  &:hover {
+    cursor: pointer;
+  }
+  &:hover:before,
+  &:hover:after {
+    background-color: $g18-cloud;
+  }
+}

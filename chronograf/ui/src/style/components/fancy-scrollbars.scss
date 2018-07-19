@@ -1,0 +1,87 @@
+/*
+  Fancy Scrollbars
+  ------------------------------------------------------
+*/
+
+$scrollbar-track-size: 12px;
+$scrollbar-thumb-size: 6px;
+
+$scrollbar-color-a: $c-pool;
+$scrollbar-color-b: $c-comet;
+
+.fancy-scroll--track-h,
+.fancy-scroll--track-v {
+  &:hover {
+    cursor: pointer;
+  }
+}
+/* Horizontal Scrollbar Styles */
+.fancy-scroll--track-h {
+  padding: ($scrollbar-track-size - $scrollbar-thumb-size) / 2;
+  width: 100%;
+  height: $scrollbar-track-size !important;
+  bottom: 0;
+  left: 0;
+}
+.fancy-scroll--thumb-h {
+  height: $scrollbar-thumb-size !important;
+  border-radius: ($scrollbar-thumb-size / 2);
+  @include gradient-h($scrollbar-color-a, $scrollbar-color-b);
+}
+/* Vertical Scrollbar Styles */
+.fancy-scroll--track-v {
+  padding: ($scrollbar-track-size - $scrollbar-thumb-size) / 2;
+  width: $scrollbar-track-size !important;
+  height: 100%;
+  top: 0;
+  right: 0;
+}
+.fancy-scroll--thumb-v {
+  width: $scrollbar-thumb-size !important;
+  border-radius: ($scrollbar-thumb-size / 2);
+  @include gradient-v($scrollbar-color-a, $scrollbar-color-b);
+}
+
+/* Kapacitor Theme Scrollbars */
+$scrollbar-color-kap-a: $c-rainforest;
+$scrollbar-color-kap-b: $c-pool;
+
+.fancy-scroll--kapacitor {
+  .fancy-scroll--thumb-h {
+    @include gradient-h($scrollbar-color-kap-a, $scrollbar-color-kap-b);
+  }
+  .fancy-scroll--thumb-v {
+    @include gradient-v($scrollbar-color-kap-a, $scrollbar-color-kap-b);
+  }
+}
+
+/* Kapacitor Theme Scrollbars */
+$scrollbar-color-kap-a: $c-rainforest;
+$scrollbar-color-kap-b: $c-pool;
+
+.fancy-scroll--func-selector {
+  .fancy-scroll--thumb-h {
+    @include gradient-h($c-neutrino, $c-hydrogen);
+  }
+  .fancy-scroll--thumb-v {
+    @include gradient-v($c-neutrino, $c-hydrogen);
+  }
+}
+
+/* Dropdown Theme Scrollbars */
+ul.dropdown-menu {
+  .fancy-scroll--thumb-h {
+    @include gradient-h($c-neutrino, $c-laser);
+  }
+  .fancy-scroll--thumb-v {
+    @include gradient-v($c-neutrino, $c-laser);
+  }
+}
+/* Hacky Fix to make fancy scrollbars work in Safari */
+.query-builder--list {
+  position: relative;
+
+  .fancy-scroll--container {
+    position: absolute !important;
+  }
+}

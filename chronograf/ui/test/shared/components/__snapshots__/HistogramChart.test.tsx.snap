@@ -1,0 +1,430 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`HistogramChart displays a HistogramChartSkeleton if empty data is passed 1`] = `
+<HistogramChart
+  colorScale={[Function]}
+  colors={Array []}
+  data={Array []}
+  dataStatus="Done"
+  height={400}
+  sortBarGroups={[Function]}
+  width={600}
+>
+  <HistogramChartSkeleton
+    height={400}
+    margins={
+      Object {
+        "bottom": 20,
+        "left": 11,
+        "right": 0,
+        "top": 5,
+      }
+    }
+    width={600}
+  >
+    <svg
+      className="histogram-chart-skeleton"
+      height={400}
+      width={600}
+    >
+      <line
+        className="y-tick"
+        key="0"
+        x1={11}
+        x2={600}
+        y1={380}
+        y2={380}
+      />
+      <line
+        className="y-tick"
+        key="1"
+        x1={11}
+        x2={600}
+        y1={305}
+        y2={305}
+      />
+      <line
+        className="y-tick"
+        key="2"
+        x1={11}
+        x2={600}
+        y1={230}
+        y2={230}
+      />
+      <line
+        className="y-tick"
+        key="3"
+        x1={11}
+        x2={600}
+        y1={155}
+        y2={155}
+      />
+      <line
+        className="y-tick"
+        key="4"
+        x1={11}
+        x2={600}
+        y1={80}
+        y2={80}
+      />
+    </svg>
+  </HistogramChartSkeleton>
+</HistogramChart>
+`;
+
+exports[`HistogramChart displays a HistogramChartTooltip when hovering over bars 1`] = `
+<HistogramChartTooltip
+  colorScale={[Function]}
+  colors={Array []}
+  data={
+    Object {
+      "anchor": "left",
+      "data": Array [
+        Object {
+          "group": "a",
+          "key": "1",
+          "time": 1,
+          "value": 1,
+        },
+      ],
+      "x": 5,
+      "y": 0,
+    }
+  }
+>
+  <div
+    className="histogram-chart-tooltip"
+    style={
+      Object {
+        "left": 5,
+        "position": "fixed",
+        "top": 0,
+      }
+    }
+  >
+    <div
+      className="histogram-chart-tooltip--column"
+    >
+      <div
+        key="1"
+        style={
+          Object {
+            "color": "blue",
+          }
+        }
+      >
+        1
+      </div>
+    </div>
+    <div
+      className="histogram-chart-tooltip--column"
+    >
+      <div
+        key="1"
+        style={
+          Object {
+            "color": "blue",
+          }
+        }
+      >
+        a
+      </div>
+    </div>
+  </div>
+</HistogramChartTooltip>
+`;
+
+exports[`HistogramChart displays a nothing if passed width and height of 0 1`] = `
+<HistogramChart
+  colorScale={[Function]}
+  colors={Array []}
+  data={Array []}
+  dataStatus="Done"
+  height={0}
+  sortBarGroups={[Function]}
+  width={0}
+/>
+`;
+
+exports[`HistogramChart displays the visualization with bars if nonempty data is passed 1`] = `
+<HistogramChart
+  colorScale={[Function]}
+  colors={Array []}
+  data={
+    Array [
+      Object {
+        "group": "a",
+        "key": "0",
+        "time": 0,
+        "value": 0,
+      },
+      Object {
+        "group": "a",
+        "key": "1",
+        "time": 1,
+        "value": 1,
+      },
+      Object {
+        "group": "b",
+        "key": "2",
+        "time": 2,
+        "value": 2,
+      },
+    ]
+  }
+  dataStatus="Done"
+  height={400}
+  sortBarGroups={[Function]}
+  width={600}
+>
+  <div
+    className="histogram-chart"
+  >
+    <svg
+      className="histogram-chart"
+      height={400}
+      width={600}
+    >
+      <defs>
+        <clipPath
+          id="histogram-chart--bars-clip"
+        >
+          <rect
+            height={375}
+            width={575}
+            x="0"
+            y="0"
+          />
+        </clipPath>
+      </defs>
+      <g
+        className="histogram-chart--axes"
+      >
+        <HistogramChartAxes
+          height={400}
+          margins={
+            Object {
+              "bottom": 20,
+              "left": 25,
+              "right": 0,
+              "top": 5,
+            }
+          }
+          width={600}
+          xScale={[Function]}
+          yScale={[Function]}
+        >
+          <line
+            className="y-tick"
+            key="0-25-625-380"
+            x1={25}
+            x2={625}
+            y1={380}
+            y2={380}
+          />
+          <line
+            className="y-tick"
+            key="0.5-25-625-301.875"
+            x1={25}
+            x2={625}
+            y1={301.875}
+            y2={301.875}
+          />
+          <line
+            className="y-tick"
+            key="1-25-625-223.75"
+            x1={25}
+            x2={625}
+            y1={223.75}
+            y2={223.75}
+          />
+          <line
+            className="y-tick"
+            key="1.5-25-625-145.625"
+            x1={25}
+            x2={625}
+            y1={145.625}
+            y2={145.625}
+          />
+          <line
+            className="y-tick"
+            key="2-25-625-67.5"
+            x1={25}
+            x2={625}
+            y1={67.5}
+            y2={67.5}
+          />
+          <text
+            className="y-label"
+            key="0-25-625-380"
+            x={18}
+            y={380}
+          >
+            0
+          </text>
+          <text
+            className="y-label"
+            key="0.5-25-625-301.875"
+            x={18}
+            y={301.875}
+          >
+            0.5
+          </text>
+          <text
+            className="y-label"
+            key="1-25-625-223.75"
+            x={18}
+            y={223.75}
+          >
+            1
+          </text>
+          <text
+            className="y-label"
+            key="1.5-25-625-145.625"
+            x={18}
+            y={145.625}
+          >
+            1.5
+          </text>
+          <text
+            className="y-label"
+            key="2-25-625-67.5"
+            x={18}
+            y={67.5}
+          >
+            2
+          </text>
+          <text
+            className="x-label"
+            key=".001-287.5-388"
+            x={287.5}
+            y={388}
+          >
+            .001
+          </text>
+          <text
+            className="x-label"
+            key=".002-575-388"
+            x={575}
+            y={388}
+          >
+            .002
+          </text>
+        </HistogramChartAxes>
+      </g>
+      <g
+        className="histogram-chart--bars"
+        clipPath="url(#histogram-chart--bars-clip)"
+        transform="translate(25, 5)"
+      >
+        <HistogramChartBars
+          colorScale={[Function]}
+          colors={Array []}
+          data={
+            Array [
+              Object {
+                "group": "a",
+                "key": "0",
+                "time": 0,
+                "value": 0,
+              },
+              Object {
+                "group": "a",
+                "key": "1",
+                "time": 1,
+                "value": 1,
+              },
+              Object {
+                "group": "b",
+                "key": "2",
+                "time": 2,
+                "value": 2,
+              },
+            ]
+          }
+          height={375}
+          onHover={[Function]}
+          sortBarGroups={[Function]}
+          width={575}
+          xScale={[Function]}
+          yScale={[Function]}
+        >
+          <g
+            className="histogram-chart-bars--bars"
+            data-key="1-1-193.5"
+            key="1-1-193.5"
+            onClick={[Function]}
+            onMouseOut={[Function]}
+            onMouseOver={[Function]}
+          >
+            <defs>
+              <clipPath
+                id="histogram-chart-bars--clip-1-1-193.5"
+              >
+                <rect
+                  height={159.25}
+                  rx={3}
+                  ry={3}
+                  width={188}
+                  x={193.5}
+                  y={218.75}
+                />
+              </clipPath>
+            </defs>
+            <rect
+              className="histogram-chart-bars--bar"
+              clipPath="url(#histogram-chart-bars--clip-1-1-193.5)"
+              data-group="a"
+              data-key="1"
+              fill="#0000ff"
+              height={156.25}
+              key="1"
+              width={188}
+              x={193.5}
+              y={218.75}
+            />
+          </g>
+          <g
+            className="histogram-chart-bars--bars"
+            data-key="2-2-481"
+            key="2-2-481"
+            onClick={[Function]}
+            onMouseOut={[Function]}
+            onMouseOver={[Function]}
+          >
+            <defs>
+              <clipPath
+                id="histogram-chart-bars--clip-2-2-481"
+              >
+                <rect
+                  height={315.5}
+                  rx={3}
+                  ry={3}
+                  width={188}
+                  x={481}
+                  y={62.5}
+                />
+              </clipPath>
+            </defs>
+            <rect
+              className="histogram-chart-bars--bar"
+              clipPath="url(#histogram-chart-bars--clip-2-2-481)"
+              data-group="b"
+              data-key="2"
+              fill="#0000ff"
+              height={312.5}
+              key="2"
+              width={188}
+              x={481}
+              y={62.5}
+            />
+          </g>
+        </HistogramChartBars>
+      </g>
+    </svg>
+    <div
+      className="histogram-chart--overlays"
+    />
+  </div>
+</HistogramChart>
+`;

@@ -1,0 +1,464 @@
+/*
+   Buttons
+   -----------------------------------------------------------------------------
+*/
+
+.btn,
+button.btn,
+input.btn {
+  display: block;
+  text-decoration: none;
+  text-align: center;
+  box-shadow: none;
+  font-weight: 700;
+  font-family: $ix-text-font;
+  border-style: solid;
+  margin: 0;
+  position: relative;
+  transition: background-color 0.25s ease, color 0.25s ease,
+    border-color 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease;
+  outline: none !important;
+  border-radius: 4px;
+  padding: 0 $form-md-padding;
+  height: $form-md-height;
+  line-height: $form-md-height;
+  font-size: $form-md-font;
+  @extend %no-user-select;
+
+  // Icons
+  > .icon {
+    margin: 0 4px 0 0;
+    font-size: 1em;
+    position: relative;
+    top: -1px;
+  }
+  // Square Modifier
+  &-square {
+    padding: 0 !important;
+    width: $form-md-height;
+
+    .icon {
+      margin: 0 !important;
+    }
+  }
+  // Size Modifiers
+  &-xs {
+    border-radius: 3px;
+    padding: 0 $form-xs-padding;
+    height: $form-xs-height;
+    line-height: $form-xs-height;
+    font-size: $form-xs-font;
+    // Icons
+    > .icon {
+      margin-right: 3px;
+    }
+    &.btn-square {
+      width: $form-xs-height;
+    }
+  }
+  &-sm {
+    border-radius: 4px;
+    padding: 0 $form-sm-padding;
+    height: $form-sm-height;
+    line-height: $form-sm-height;
+    font-size: $form-sm-font;
+    // Icons
+    > .icon {
+      top: 0;
+      font-size: 1.125em;
+      margin-right: 6px;
+    }
+    &.btn-square {
+      width: $form-sm-height;
+    }
+  }
+  &-md {
+    border-radius: 4px;
+    padding: 0 $form-md-padding;
+    height: $form-md-height;
+    line-height: $form-md-height;
+    font-size: $form-md-font;
+    // Icons
+    > .icon {
+      margin-right: 6px;
+    }
+    &.btn-square {
+      width: $form-md-height;
+    }
+  }
+  &-lg {
+    border-radius: 4px;
+    padding: 0 $form-lg-padding;
+    height: $form-lg-height;
+    line-height: $form-lg-height;
+    font-size: $form-lg-font;
+    // Icons
+    > .icon {
+      margin-right: 8px;
+    }
+    &.btn-square {
+      width: $form-lg-height;
+    }
+  }
+}
+a.btn {
+  display: inline-block;
+}
+// Button Size Modifiers
+.btn-group-xs > .btn,
+.btn.btn-xs {
+  padding: 0 $form-xs-padding;
+  height: $form-xs-height;
+  line-height: $form-xs-height;
+  font-size: $form-xs-font;
+}
+.btn-group-sm > .btn,
+.btn.btn-sm {
+  padding: 0 $form-sm-padding;
+  height: $form-sm-height;
+  line-height: $form-sm-height;
+  font-size: $form-sm-font;
+}
+.btn-group-lg > .btn,
+.btn.btn-lg {
+  padding: 0 $form-lg-padding;
+  height: $form-lg-height;
+  line-height: $form-lg-height;
+  font-size: $form-lg-font;
+}
+
+.btn.btn-block {
+  width: 100%;
+}
+
+// Solid Button styles mixin
+// -----------------------------------------------------------------------------
+@mixin btn-base-styles(
+  $bg-color,
+  $bg-color-hover,
+  $bg-color-press,
+  $text-color,
+  $text-color-hover
+) {
+  // Default State
+  background-color: $bg-color;
+  color: $text-color;
+  text-shadow: none;
+  border-width: 0;
+
+  // Focus State
+  &:focus {
+    background-color: $bg-color;
+    color: $text-color;
+  }
+
+  // Hover State
+  &:hover,
+  &:focus:hover {
+    background-color: $bg-color-hover;
+    color: $text-color-hover;
+    cursor: pointer;
+  }
+
+  // MouseDown State
+  &.active,
+  &.active:hover,
+  &:active,
+  &:active:hover,
+  &:focus:active,
+  &:focus:active:hover,
+  .dropdown.open &.dropdown-toggle {
+    background-color: $bg-color-press;
+    color: $text-color-hover;
+    cursor: pointer;
+  }
+  // Disabled State
+  &.disabled,
+  &[disabled],
+  fieldset[disabled] & {
+    opacity: 1;
+    font-style: italic;
+    background-color: $g5-pepper;
+    color: $g7-graphite;
+    box-shadow: none;
+
+    &:hover,
+    &:active,
+    &:focus,
+    &.active,
+    &:active:focus {
+      opacity: 1;
+      background-color: $g5-pepper;
+      color: $g7-graphite;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    &:after {
+      display: none;
+    }
+  }
+}
+
+a.btn-default,
+div.btn-default,
+button.btn-default,
+input.btn-default {
+  @include btn-base-styles(
+    $g5-pepper,
+    $g6-smoke,
+    $g7-graphite,
+    $g14-chromium,
+    $g18-cloud
+  );
+}
+a.btn-primary,
+div.btn-primary,
+button.btn-primary,
+input.btn-primary {
+  @include btn-base-styles(
+    $c-pool,
+    $c-laser,
+    $c-hydrogen,
+    $g20-white,
+    $g20-white
+  );
+}
+a.btn-success,
+div.btn-success,
+button.btn-success,
+input.btn-success {
+  @include btn-base-styles(
+    $c-rainforest,
+    $c-honeydew,
+    $c-krypton,
+    $g20-white,
+    $g20-white
+  );
+}
+a.btn-info,
+div.btn-info,
+button.btn-info,
+input.btn-info {
+  @include btn-base-styles(
+    $g7-graphite,
+    $g8-storm,
+    $g9-mountain,
+    $g16-pearl,
+    $g20-white
+  );
+}
+a.btn-warning,
+div.btn-warning,
+button.btn-warning,
+input.btn-warning {
+  @include btn-base-styles(
+    $c-star,
+    $c-comet,
+    $c-potassium,
+    $g20-white,
+    $g20-white
+  );
+}
+a.btn-danger,
+div.btn-danger,
+button.btn-danger,
+input.btn-danger {
+  @include btn-base-styles(
+    $c-curacao,
+    $c-dreamsicle,
+    $c-tungsten,
+    $g20-white,
+    $g20-white
+  );
+}
+a.btn-alert,
+div.btn-alert,
+button.btn-alert,
+input.btn-alert {
+  @include btn-base-styles(
+    $c-pineapple,
+    $c-thunder,
+    $c-sulfur,
+    $g20-white,
+    $g20-white
+  );
+}
+
+// Outline Button styles mixin
+// -----------------------------------------------------------------------------
+@mixin btn-outline-styles(
+  $text-color,
+  $text-color-hover,
+  $border-color,
+  $border-color-hover,
+  $border-color-press
+) {
+  // Adjusting line height in response to more borders
+  line-height: $form-md-height - 4px;
+  &.btn-xs {
+    line-height: $form-xs-height - 4px;
+  }
+  &.btn-sm {
+    line-height: $form-sm-height - 4px;
+  }
+  &.btn-md {
+    line-height: $form-md-height - 4px;
+  }
+  &.btn-lg {
+    line-height: $form-lg-height - 4px;
+  }
+
+  // Default State
+  border-width: 2px;
+  background-color: transparent;
+  border-color: $border-color;
+  color: $text-color;
+  &:focus {
+    border-width: 2px;
+    background-color: transparent;
+    border-color: $border-color;
+    color: $text-color;
+  }
+
+  // Hover State
+  &:hover {
+    background-color: transparent;
+    border-color: $border-color-hover;
+    color: $text-color-hover;
+  }
+
+  // MouseDown State
+  &.active,
+  &.active:hover,
+  &:active,
+  &:active:hover,
+  .open &.dropdown-toggle {
+    box-shadow: none;
+    background-color: transparent;
+    border-color: $border-color-press;
+    color: $text-color-hover;
+  }
+
+  // Disabled State
+  &.disabled,
+  &[disabled],
+  fieldset[disabled] & {
+    opacity: 1;
+    background-color: transparent;
+    border-color: $g5-pepper;
+    color: $g7-graphite;
+    box-shadow: none;
+    font-style: italic;
+
+    &:hover,
+    &:active,
+    &:focus,
+    &.active,
+    &:active:focus {
+      opacity: 1;
+      background-color: transparent;
+      border-color: $g5-pepper;
+      color: $g7-graphite;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    &:after {
+      display: none;
+    }
+  }
+}
+
+a.btn-link,
+div.btn-link,
+button.btn-link {
+  @include btn-outline-styles(
+    $c-pool,
+    $c-laser,
+    $g5-pepper,
+    $g6-smoke,
+    $c-laser
+  );
+}
+a.btn-link-success,
+div.btn-link-success,
+button.btn-link-success {
+  @include btn-outline-styles(
+    $c-rainforest,
+    $c-honeydew,
+    $g5-pepper,
+    $g6-smoke,
+    $c-honeydew
+  );
+}
+a.btn-link-warning,
+div.btn-link-warning,
+button.btn-link-warning {
+  @include btn-outline-styles(
+    $c-star,
+    $c-comet,
+    $g5-pepper,
+    $g6-smoke,
+    $c-comet
+  );
+}
+a.btn-link-danger,
+div.btn-link-danger,
+button.btn-link-danger {
+  @include btn-outline-styles(
+    $c-curacao,
+    $c-dreamsicle,
+    $g5-pepper,
+    $g6-smoke,
+    $c-dreamsicle
+  );
+}
+a.btn-link-alert,
+div.btn-link-alert,
+button.btn-link-alert {
+  @include btn-outline-styles(
+    $c-pineapple,
+    $c-thunder,
+    $g5-pepper,
+    $g6-smoke,
+    $c-thunder
+  );
+}
+
+/*
+   Buttons Groups
+   -----------------------------------------------------------------------------
+*/
+
+.btn-group--left,
+.btn-group--center,
+.btn-group--right {
+  display: flex;
+  align-items: center;
+}
+
+.btn-group--left > .btn {
+  margin-right: 4px;
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+.btn-group--center > .btn {
+  margin-left: 2px;
+  margin-right: 2px;
+
+  &:first-child {
+    margin-left: 0;
+  }
+  
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+.btn-group--right > .btn {
+  margin-left: 4px;
+  &:first-child {
+    margin-left: 0;
+  }
+}

@@ -1,0 +1,305 @@
+/*
+  Cell Editor Overlay - Display Options
+  ------------------------------------------------------------------------------
+*/
+
+$graph-type--gutter: 4px;
+
+.display-options {
+  height: 100%;
+  display: flex;
+  background-color: $g2-kevlar;
+  padding: 0 18px 8px 18px;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.display-options--cell {
+  flex: 1 0 0;
+  margin-right: 8px;
+  border-radius: 3px;
+  background-color: $g3-castle;
+
+  &:last-of-type {
+    margin: 0;
+  }
+}
+.display-options--cellx2 {
+  flex: 2 0 0;
+}
+.display-options--cell-wrapper {
+  width: 100%;
+  position: relative;
+  display: inline-block;
+  padding: 30px;
+}
+
+.display-options--header {
+  margin: 0 0 12px 0;
+  font-weight: 400;
+  color: $g11-sidewalk;
+  @include no-user-select();
+}
+.viz-type-selector {
+  width: 100%;
+  display: inline-block;
+  margin: 0 (-$graph-type--gutter / 2);
+  margin-bottom: -$graph-type--gutter;
+}
+.viz-type-selector--option {
+  float: left;
+  width: 33.3333%;
+  padding-bottom: 33.3333%;
+  position: relative;
+
+  > div > p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 900;
+    position: absolute;
+    bottom: 18px;
+    left: 10px;
+    width: calc(100% - 20px);
+    text-align: center;
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Actual "card"
+  > div {
+    background-color: $g2-kevlar;
+    color: $g11-sidewalk;
+    border-radius: 4px;
+    width: calc(100% - #{$graph-type--gutter});
+    height: calc(100% - #{$graph-type--gutter});
+    position: absolute;
+    top: $graph-type--gutter / 2;
+    left: $graph-type--gutter / 2;
+    transition: color 0.25s ease, border-color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:hover {
+      cursor: pointer;
+      background-color: $g4-onyx;
+      color: $g15-platinum;
+    }
+  }
+}
+// Increase options per row as screen enlarges
+@media only screen and (min-width: 1000px) {
+  .viz-type-selector--option {
+    width: 25%;
+    padding-bottom: 25%;
+  }
+}
+@media only screen and (min-width: 1270px) {
+  .viz-type-selector--option {
+    width: 20%;
+    padding-bottom: 20%;
+  }
+}
+@media only screen and (min-width: 1600px) {
+  .viz-type-selector--option {
+    width: 16.6667%;
+    padding-bottom: 16.6667%;
+  }
+}
+@media only screen and (min-width: 2000px) {
+  .viz-type-selector--option {
+    width: 12.5%;
+    padding-bottom: 12.5%;
+  }
+}
+
+// Active state "card"
+.viz-type-selector--option.active > div,
+.viz-type-selector--option.active > div:hover {
+  background-color: $g5-pepper;
+  color: $g18-cloud;
+}
+
+.viz-type-selector--graphic {
+  width: calc(100% - 54px);
+  height: calc(100% - 54px);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  > svg,
+  > svg * {
+    transform: translate3d(0, 0, 0);
+  }
+  > svg {
+    width: 100%;
+    height: 100%;
+  }
+}
+.viz-type-selector--graphic-line {
+  stroke-width: 2px;
+  fill: none;
+  stroke-linecap: round;
+  stroke-miterlimit: 10;
+  // transition: all 0.5s ease;
+
+  &.graphic-line-a {
+    stroke: $g11-sidewalk;
+  }
+  &.graphic-line-b {
+    stroke: $g9-mountain;
+  }
+  &.graphic-line-c {
+    stroke: $g7-graphite;
+  }
+  &.graphic-line-d {
+    stroke: $g13-mist;
+  }
+}
+.viz-type-selector--graphic-fill {
+  opacity: 0.045;
+  // transition: opacity 0.5s ease;
+
+  &.graphic-fill-a {
+    fill: $g11-sidewalk;
+  }
+  &.graphic-fill-b {
+    fill: $g9-mountain;
+  }
+  &.graphic-fill-c {
+    fill: $g7-graphite;
+  }
+  &.graphic-fill-d {
+    fill: $g13-mist;
+    opacity: 1;
+  }
+}
+.viz-type-selector--option.active .viz-type-selector--graphic {
+  .viz-type-selector--graphic-line.graphic-line-a {
+    stroke: $c-pool;
+  }
+  .viz-type-selector--graphic-line.graphic-line-b {
+    stroke: $c-dreamsicle;
+  }
+  .viz-type-selector--graphic-line.graphic-line-c {
+    stroke: $c-rainforest;
+  }
+  .viz-type-selector--graphic-line.graphic-line-d {
+    stroke: $g17-whisper;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-a {
+    fill: $c-pool;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-b {
+    fill: $c-dreamsicle;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-c {
+    fill: $c-rainforest;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-a,
+  .viz-type-selector--graphic-fill.graphic-fill-b,
+  .viz-type-selector--graphic-fill.graphic-fill-c {
+    opacity: 0.22;
+  }
+  .viz-type-selector--graphic-fill.graphic-fill-d {
+    fill: $g17-whisper;
+    opacity: 1;
+  }
+}
+
+.display-options--cell .form-group .nav.nav-tablist {
+  display: flex;
+  width: 100%;
+
+  > li {
+    flex: 1 0 0;
+    justify-content: center;
+  }
+}
+
+.display-options--footnote {
+  color: $g11-sidewalk;
+  margin: 0;
+  margin-top: 8px;
+  font-style: italic;
+  display: inline-block;
+  width: 100%;
+  padding-left: 6px;
+  @include no-user-select();
+}
+
+/*
+  Cell Editor Overlay - Gauge Controls
+  ------------------------------------------------------------------------------
+*/
+.gauge-controls {
+  width: 100%;
+}
+
+.gauge-controls--section {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  height: 30px;
+  margin-top: 8px;
+
+  > * {
+    margin-left: 4px;
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+}
+button.btn.btn-primary.btn-sm.gauge-controls--add-threshold {
+  width: 100%;
+}
+
+%gauge-controls-label-styles {
+  height: 30px;
+  line-height: 30px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 11px;
+  border-radius: 4px;
+  @include no-user-select();
+}
+.gauge-controls--label {
+  @extend %gauge-controls-label-styles;
+  color: $g11-sidewalk;
+  background-color: $g4-onyx;
+  width: 120px;
+}
+.gauge-controls--label-editable {
+  @extend %gauge-controls-label-styles;
+  color: $g16-pearl;
+  width: 90px;
+}
+
+.gauge-controls--input {
+  flex: 1 0 0;
+}
+.gauge-controls--section .color-dropdown.color-dropdown--stretch {
+  width: auto;
+  flex: 1 0 0;
+}
+
+/*
+  Cell Editor Overlay - Single-Stat Controls
+  ------------------------------------------------------------------------------
+*/
+.graph-options-group {
+  margin-top: 30px;
+}
+.form-group-wrapper {
+  display: inline-flex;
+  flex-wrap: wrap;
+  width: calc(100% + 12px);
+  margin-left: -6px;
+  margin-right: -6px;
+
+  .form-group:last-of-type {
+    margin-bottom: 0;
+  }
+}

@@ -1,0 +1,15 @@
+/*
+  Crosshairs
+  ------------------------------------------------------------------------------
+*/
+
+.crosshair {
+  left: 0;
+  top: 0;
+  position: absolute;
+  width: 1px;
+  z-index: 3;
+  background: linear-gradient(to bottom, fade-out($g14-chromium, 1) 0%,$g14-chromium 7%,$g14-chromium 93%,fade-out($g14-chromium, 1) 100%);
+  pointer-events: none;
+  min-height: 20px;
+}

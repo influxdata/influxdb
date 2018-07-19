@@ -1,0 +1,22 @@
+/*
+    Source & Role Indicator component styles
+    ----------------------------------------------------------------------------
+*/
+.role-indicator,
+.source-indicator {
+  @include no-user-select();
+  display: inline-block;
+  padding: 0 4px;
+  border: 0;
+  height: 30px;
+  line-height: 30px;
+  color: $g13-mist;
+  font-weight: 700;
+  font-size: 12px;
+
+  > .icon {
+    display: inline-block;
+    font-size: 16px;
+    margin: 0 4px;
+  }
+}

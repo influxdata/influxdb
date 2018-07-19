@@ -1,0 +1,62 @@
+{
+  "id": "e0d70dc9-538a-4b29-8d27-4a76d5fc8a09",
+  "measurement": "influxdb_httpd",
+  "app": "influxdb",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "b4cbb2d6-a261-482a-942d-04e510f2b532",
+      "name": "InfluxDB - Write HTTP Requests",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"writeReq\")) AS \"http_requests\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
+          "label": "count/s",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "cb473467-1854-4c7c-930e-769f24beb761",
+      "name": "InfluxDB - Query Requests",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"queryReq\")) AS \"query_requests\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
+          "label": "count/s",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "type": "line-stepplot",
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "e0d70dc9-538a-4b29-8d27-4a76d5fc8a09",
+      "name": "InfluxDB - Client Failures",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"clientError\")) AS \"client_errors\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
+          "label": "count/s",
+          "groupbys": [],
+          "wheres": []
+        },
+        {
+          "query": "SELECT non_negative_derivative(max(\"authFail\"), 1s) AS \"auth_fail\" FROM \":db:\".\":rp:\".\"influxdb_httpd\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

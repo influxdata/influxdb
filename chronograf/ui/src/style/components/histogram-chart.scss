@@ -1,0 +1,73 @@
+.histogram-chart {
+  user-select: none;
+  position: relative;
+}
+
+.histogram-chart-bars--bar {
+  shape-rendering: crispEdges;
+  opacity: 1;
+  cursor: pointer;
+}
+
+.histogram-chart--axes, .histogram-chart-skeleton {
+  .x-label, .y-label {
+    fill: $g11-sidewalk;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .x-label {
+    text-anchor: middle;
+    dominant-baseline: hanging;
+  }
+
+  .y-label {
+    text-anchor: end;
+    dominant-baseline: middle;
+  }
+
+  .y-tick {
+    stroke-width: 1;
+    stroke: $g5-pepper;
+    shape-rendering: crispEdges;
+  }
+}
+
+
+.histogram-chart-skeleton, .histogram-chart .x-brush--area {
+  cursor: crosshair;
+}
+
+.histogram-chart .x-brush--area {
+  visibility: hidden;
+  pointer-events: all;
+}
+
+.histogram-chart .x-brush--selection {
+  fill: gray;
+  opacity: 0.5;
+}
+
+.histogram-chart-tooltip {
+  padding: 8px;
+  background-color: $g0-obsidian;
+  border-radius: $radius-small;
+  @extend %drop-shadow;
+  font-size: 12px;
+  font-weight: 600;
+  color: $g13-mist;
+  transform: translate(0, -50%);
+  pointer-events: none;
+  display: flex;
+  justify-content: space-between;
+}
+
+.histogram-chart-tooltip--column:first-child {
+  margin-right: 12px;
+}
+
+.histogram-chart--overlays {
+  position: absolute;
+  top: 0;
+  left: 0;
+}

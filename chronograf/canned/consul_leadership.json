@@ -1,0 +1,24 @@
+{
+    "id": "34611ae0-7c3e-4697-8db0-371b16bef345",
+    "measurement": "consul_raft_state_leader",
+    "app": "consul_telemetry",
+    "autoflow": true,
+    "cells": [
+        {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 4,
+            "i": "ef8eeeb5-b408-46d6-8cfc-20c00c9d7239",
+            "name": "Consul – Leadership Change",
+            "queries": [
+                {
+                    "query": "SELECT max(\"value\") as \"change\" FROM \":db:\".\":rp:\".\"consul_raft_state_leader\"",
+                    "label": "count",
+                    "groupbys": [],
+                    "wheres": []
+                }
+            ]
+        }
+    ]
+}

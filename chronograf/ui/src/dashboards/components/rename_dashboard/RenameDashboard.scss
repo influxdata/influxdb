@@ -1,0 +1,72 @@
+/*
+  Rename Dashboard Component Styles
+  ------------------------------------------------------------------------------
+*/
+
+@import 'src/style/modules/influx-colors';
+@import 'src/style/modules/variables';
+@import 'src/style/modules/mixins';
+@import 'src/style/layout/page-header';
+
+$rename-dash-title-padding: 7px;
+
+.rename-dashboard {
+  height: $form-sm-height;
+  min-width: 0;
+  width: 100%;;
+}
+.dashboard-switcher + .rename-dashboard {
+  width: calc(100% - 38px);
+}
+
+.rename-dashboard--title {
+  width: 100%;
+  position: relative;
+  padding: 0 $form-sm-height 0 $rename-dash-title-padding;
+  border: $ix-border solid $g0-obsidian;
+  height: $form-sm-height;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: $radius;
+  @include no-user-select();
+  color: $g17-whisper;
+  transition:
+  color 0.25s ease,
+  background-color 0.25s ease,
+  border-color 0.25s ease;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: $form-sm-height - $ix-border;
+  margin: 0;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  
+  .icon {
+    position: absolute;
+    font-size: 15px;
+    top: 50%;
+    right: $rename-dash-title-padding;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    color: $g11-sidewalk;
+  }
+
+  &:hover {
+    cursor: text;
+    color: $g20-white;
+    background-color: $g3-castle;
+    border-color: $g3-castle;
+  }
+
+  &:hover .icon {
+    opacity: 1;
+  }
+}
+
+input.form-control.input-sm.rename-dashboard--input {
+  padding: 0 $rename-dash-title-padding;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+}

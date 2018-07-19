@@ -1,0 +1,81 @@
+/*
+  Flip Toggle
+  ------------------------------------------------------------------------------
+  Toggles between 2 options using a 3D transition
+  Aesthetic and space conservative
+*/
+
+$flip-toggle-text: $g11-sidewalk;
+$flip-toggle-text-hover: $g18-cloud;
+$flip-toggle-bg: $g2-kevlar;
+$flip-toggle-border: $g6-smoke;
+$flip-toggle-border-hover: $g7-graphite;
+$flip-toggle-size: 28px;
+
+.flip-toggle {
+  width: $flip-toggle-size;
+  height: $flip-toggle-size;
+  perspective: 1000px;
+
+  &:hover {
+    cursor: pointer;
+
+    .flip-toggle--front,
+    .flip-toggle--back {
+      border-color: $flip-toggle-border-hover;
+      color: $flip-toggle-text-hover;
+    }
+  }
+}
+.flip-toggle--container {
+  transition: transform 0.6s ease;
+  transform-style: preserve-3d;
+  position: relative;
+}
+.flip-toggle--front,
+.flip-toggle--back {
+  border: 2px solid $flip-toggle-border;
+  background-color: $flip-toggle-bg;
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease;
+  border-radius: $radius-small;
+  width: $flip-toggle-size;
+  height: $flip-toggle-size;
+  text-align: center;
+  line-height: ($flip-toggle-size - 4px); /* Subtract for border width */
+  color: $flip-toggle-text;
+  position: absolute;
+  top: 0;
+  left: 0;
+  backface-visibility: hidden;
+}
+.flip-toggle--front {
+  z-index: 2;
+  transform: rotateY(0deg);
+}
+.flip-toggle--back {
+  z-index: 1;
+  transform: rotateY(180deg);
+}
+
+/* Flip Animation happens on class toggle */
+.flip-toggle.flipped .flip-toggle--container {
+  transform: rotateY(180deg);
+}
+
+/*
+  Disabled State
+  ------------------------------------------------------------------------------
+*/
+
+.flip-toggle.disabled,
+.flip-toggle.disabled:hover {
+  .flip-toggle--front,
+  .flip-toggle--back {
+    cursor: not-allowed;
+    background-color: $g3-castle;
+    color: $g9-mountain;
+    border-color: $g5-pepper;
+  }
+}

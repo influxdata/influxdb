@@ -1,0 +1,238 @@
+{
+  "id": "45c064fd-ebf7-45a1-bf8d-f53746d38a03",
+  "measurement": "haproxy",
+  "app": "haproxy",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "b846eda3-e068-4a34-91e9-c108c962a572",
+      "name": "HAProxy – Number of Servers",
+      "queries": [
+        {
+          "query": "select mean(\"active_servers\") AS active_servers, mean(\"backup_servers\") AS backup_servers FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "a5070a99-c65a-4dfd-b486-2d3a2582d9eb",
+      "name": "HAProxy – Sum HTTP 2xx",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(last(\"http_response.2xx\"), 1s) AS \"2xx\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "ab80deab-f9be-4506-b547-6f8286cb7660",
+      "name": "HAProxy – Sum HTTP 4xx",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(last(\"http_response.4xx\"), 1s) AS \"4xx\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "9754391d-3464-49cc-b3ef-de9332d3bc20",
+      "name": "HAProxy – Sum HTTP 5xx",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(last(\"http_response.5xx\"), 1s) AS \"5xx\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "c836d118-6b03-436c-af60-0f95a5df0c89",
+      "name": "HAProxy – Frontend HTTP Requests/Second  ",
+      "queries": [
+        {
+          "query": "SELECT mean(\"req_rate\") AS \"requests_per_second\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "cc411bc8-8f14-43bb-865b-4b921310aef3",
+      "name": "HAProxy – Frontend Sessions/Second ",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"rate\")) AS \"sessions_per_second\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "3cc170b6-cd89-4142-b6a7-ea61b78bbdff",
+      "name": "HAProxy – Frontend Session Usage %",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"scur\")) / non_negative_derivative(max(\"slim\")) * 100 AS \"session_usage_percent\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "724db2a3-f23d-46d6-aa5b-f9e44cac1ee2",
+      "name": "HAProxy – Frontend Security Denials/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"dreq\")) AS \"denials_per_second\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "082a4e23-9256-441c-8414-db253a2c6d94",
+      "name": "HAProxy – Frontend Request Errors/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"ereq\")) AS \"errors_per_second\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "c7de430d-5684-494d-b735-0c87e7ea14e3",
+      "name": "HAProxy – Frontend Bytes/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"bin\")) AS \"bytes_in_per_second\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        },
+        {
+          "query": "SELECT non_negative_derivative(max(\"bout\")) AS \"bytes_out_per_second\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "cde02d86-4243-48d4-b812-46f8119b2ac5",
+      "name": "HAProxy – Backend Average Response Time (ms)",
+      "queries": [
+        {
+          "query": "SELECT max(\"rtime\") AS \"response_time\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "2e8ef243-c993-4a53-b010-32de4beb1f81",
+      "name": "HAProxy – Backend Connection Errors/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"econ\")) AS \"errors_per_second\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "f4223249-d2fa-4778-bb27-449bf8863ea3",
+      "name": "HAProxy – Backend Queued Requests/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"qcur\")) AS \"queued_per_second\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "b3bcca49-7118-4f7e-921d-a8d47505795a",
+      "name": "HAProxy – Backend Average Request Queue Time (ms)",
+      "queries": [
+        {
+          "query": "SELECT max(\"qtime\") AS \"queue_time\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "dd925132-3419-4677-9f21-a3d34cf25c99",
+      "name": "HAProxy – Backend Error Responses/Second",
+      "queries": [
+        {
+          "query": "SELECT max(\"eresp\") AS \"error_response_rate\" FROM \":db:\".\":rp:\".\"haproxy\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
