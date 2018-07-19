@@ -35,7 +35,7 @@ type DBRPMapping struct {
 	BucketID       ID `json:"bucket_id"`
 }
 
-var validPattern = regexp.MustCompile(`^[\.\w]+$`)
+var validPattern = regexp.MustCompile(`^[-\.\w]+$`)
 
 // Validate reports any validation errors for the mapping.
 func (m DBRPMapping) Validate() error {
@@ -43,19 +43,19 @@ func (m DBRPMapping) Validate() error {
 		return errors.New("Cluster is required")
 	}
 	if !validPattern.MatchString(m.Cluster) {
-		return errors.New("Cluster must contain only letters, numbers,  '_' and '.'")
+		return errors.New("Cluster must contain only letters, numbers, '_', '-', and '.'")
 	}
 	if m.Database == "" {
 		return errors.New("Database is required")
 	}
 	if !validPattern.MatchString(m.Database) {
-		return errors.New("Database must contain only letters, numbers,  '_' and '.'")
+		return errors.New("Database must contain only letters, numbers, '_', '-', and '.'")
 	}
 	if m.RetentionPolicy == "" {
 		return errors.New("RetentionPolicy is required")
 	}
 	if !validPattern.MatchString(m.RetentionPolicy) {
-		return errors.New("RetentionPolicy must contain only letters, numbers,  '_' and '.'")
+		return errors.New("RetentionPolicy must contain only letters, numbers, '_', '-', and '.'")
 	}
 	if len(m.OrganizationID) == 0 {
 		return errors.New("OrganizationID is required")
@@ -66,6 +66,7 @@ func (m DBRPMapping) Validate() error {
 	return nil
 }
 
+// Equal checks if the two mappings are identical.
 func (m *DBRPMapping) Equal(o *DBRPMapping) bool {
 	if m == o {
 		return true
