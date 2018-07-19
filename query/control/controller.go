@@ -141,8 +141,12 @@ func (c *Controller) enqueueQuery(q *Query) error {
 		return errors.Wrap(err, "invalid query")
 	}
 	// Add query to the queue
-	c.newQueries <- q
-	return nil
+	select {
+	case c.newQueries <- q:
+		return nil
+	case <-q.parentCtx.Done():
+		return q.parentCtx.Err()
+	}
 }
 
 func (c *Controller) nextID() QueryID {
