@@ -1,6 +1,8 @@
 package platform
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestDBRPMapping_Validate(t *testing.T) {
 	type fields struct {
@@ -60,31 +62,26 @@ func TestDBRPMapping_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "cluster name cannoti have non-letters/numbers/_/./-",
+			name: "cluster name cannot have non-printable characters.",
 			fields: fields{
-				Cluster: "$€",
+				Cluster: string([]byte{0x0D}),
 			},
 			wantErr: true,
 		},
 		{
 			name: "db cannot have non-letters/numbers/_/./-",
 			fields: fields{
-				Cluster:         "12345_.",
-				Database:        "€",
-				RetentionPolicy: "autogen",
-				OrganizationID:  []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				BucketID:        []byte{0x5c, 0xa1, 0xab, 0x1e, 0xde, 0xad, 0xbe, 0xa7},
+				Cluster:  "12345_.",
+				Database: string([]byte{0x0D}),
 			},
 			wantErr: true,
 		},
 		{
-			name: "rp cannot have non-letters/numbers/_/./-",
+			name: "rp cannot have non-printable characters",
 			fields: fields{
 				Cluster:         "12345",
 				Database:        "telegraf",
-				RetentionPolicy: "$€",
-				OrganizationID:  []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				BucketID:        []byte{0x5c, 0xa1, 0xab, 0x1e, 0xde, 0xad, 0xbe, 0xa7},
+				RetentionPolicy: string([]byte{0x0D}),
 			},
 			wantErr: true,
 		},
@@ -112,6 +109,42 @@ func TestDBRPMapping_Validate(t *testing.T) {
 			}
 			if err := m.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("DBRPMapping.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_validName(t *testing.T) {
+	tests := []struct {
+		arg  string
+		name string
+		want bool
+	}{
+		{
+			name: "names cannot have unprintable characters",
+			arg:  string([]byte{0x0D}),
+			want: false,
+		},
+		{
+			name: "names cannot have .",
+			arg:  ".",
+			want: false,
+		},
+		{
+			name: "names cannot have ..",
+			arg:  "..",
+			want: false,
+		},
+		{
+			name: "names cannot have /",
+			arg:  "/",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := validName(tt.arg); got != tt.want {
+				t.Errorf("validName() = %v, want %v", got, tt.want)
 			}
 		})
 	}
