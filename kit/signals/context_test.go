@@ -25,7 +25,7 @@ func ExampleWithSignals() {
 	// finished
 }
 
-func ExampleWithUnregisteredSignals() {
+func Example_withUnregisteredSignals() {
 	dctx, cancel := context.WithTimeout(context.TODO(), time.Millisecond*100)
 	defer cancel()
 
