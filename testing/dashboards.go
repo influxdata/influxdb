@@ -12,6 +12,12 @@ import (
 	"github.com/influxdata/platform/mock"
 )
 
+const (
+	dashOneID   = "020f755c3c082000"
+	dashTwoID   = "020f755c3c082001"
+	dashThreeID = "020f755c3c082002"
+)
+
 var dashboardCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -54,19 +60,19 @@ func CreateDashboard(
 		{
 			name: "create dashboards with empty set",
 			fields: DashboardFields{
-				IDGenerator: mock.NewIDGenerator("id1"),
+				IDGenerator: mock.NewIDGenerator(dashOneID, t),
 				Dashboards:  []*platform.Dashboard{},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
 					Name:           "name1",
-					OrganizationID: platform.ID("org1"),
+					OrganizationID: idFromString(t, orgOneID),
 					Cells: []platform.DashboardCell{
 						{
 							DashboardCellContents: platform.DashboardCellContents{
@@ -87,13 +93,13 @@ func CreateDashboard(
 				dashboards: []*platform.Dashboard{
 					{
 						Name:           "name1",
-						ID:             platform.ID("id1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Cells: []platform.DashboardCell{
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id1"),
+									ID:   idFromString(t, dashOneID),
 									Name: "hello",
 									X:    10,
 									Y:    10,
@@ -114,46 +120,46 @@ func CreateDashboard(
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return platform.ID("2")
+						return idFromString(t, dashTwoID)
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("1"),
+						ID:             idFromString(t, dashOneID),
 						Name:           "dashboard1",
-						OrganizationID: platform.ID("org1"),
+						OrganizationID: idFromString(t, orgOneID),
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   platform.ID("org2"),
+						ID:   idFromString(t, orgTwoID),
 					},
 				},
 			},
 			args: args{
 				dashboard: &platform.Dashboard{
 					Name:           "dashboard2",
-					OrganizationID: platform.ID("org2"),
+					OrganizationID: idFromString(t, orgTwoID),
 				},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("1"),
+						ID:             idFromString(t, dashOneID),
 						Name:           "dashboard1",
 						Organization:   "theorg",
-						OrganizationID: platform.ID("org1"),
+						OrganizationID: idFromString(t, orgOneID),
 					},
 					{
-						ID:             platform.ID("2"),
+						ID:             idFromString(t, dashTwoID),
 						Name:           "dashboard2",
 						Organization:   "otherorg",
-						OrganizationID: platform.ID("org2"),
+						OrganizationID: idFromString(t, orgTwoID),
 					},
 				},
 			},
@@ -161,26 +167,22 @@ func CreateDashboard(
 		{
 			name: "basic create dashboard using org name",
 			fields: DashboardFields{
-				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return platform.ID("2")
-					},
-				},
+				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("1"),
+						ID:             idFromString(t, dashOneID),
 						Name:           "dashboard1",
-						OrganizationID: platform.ID("org1"),
+						OrganizationID: idFromString(t, orgOneID),
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   platform.ID("org2"),
+						ID:   idFromString(t, orgTwoID),
 					},
 				},
 			},
@@ -193,16 +195,16 @@ func CreateDashboard(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("1"),
+						ID:             idFromString(t, dashOneID),
 						Name:           "dashboard1",
 						Organization:   "theorg",
-						OrganizationID: platform.ID("org1"),
+						OrganizationID: idFromString(t, orgOneID),
 					},
 					{
-						ID:             platform.ID("2"),
+						ID:             idFromString(t, dashTwoID),
 						Name:           "dashboard2",
 						Organization:   "otherorg",
-						OrganizationID: platform.ID("org2"),
+						OrganizationID: idFromString(t, orgTwoID),
 					},
 				},
 			},
@@ -261,30 +263,30 @@ func FindDashboardByID(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "dashboard1",
 					},
 					{
-						ID:             platform.ID("2"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "dashboard2",
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 			},
 			args: args{
-				id: platform.ID("2"),
+				id: idFromString(t, dashTwoID),
 			},
 			wants: wants{
 				dashboard: &platform.Dashboard{
-					ID:             platform.ID("2"),
-					OrganizationID: platform.ID("org1"),
+					ID:             idFromString(t, dashTwoID),
+					OrganizationID: idFromString(t, orgOneID),
 					Organization:   "theorg",
 					Name:           "dashboard2",
 				},
@@ -341,27 +343,27 @@ func FindDashboardsByOrganizationName(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   platform.ID("org2"),
+						ID:   idFromString(t, orgTwoID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test2"),
-						OrganizationID: platform.ID("org2"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgTwoID),
 						Name:           "xyz",
 					},
 					{
-						ID:             platform.ID("test3"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashThreeID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "123",
 					},
 				},
@@ -372,14 +374,14 @@ func FindDashboardsByOrganizationName(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test3"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashThreeID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "123",
 					},
@@ -417,7 +419,7 @@ func FindDashboardsByOrganizationID(
 	t *testing.T,
 ) {
 	type args struct {
-		organizationID string
+		organizationID platform.ID
 	}
 
 	type wants struct {
@@ -436,45 +438,45 @@ func FindDashboardsByOrganizationID(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   platform.ID("org2"),
+						ID:   idFromString(t, orgTwoID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test2"),
-						OrganizationID: platform.ID("org2"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgTwoID),
 						Name:           "xyz",
 					},
 					{
-						ID:             platform.ID("test3"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashThreeID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "123",
 					},
 				},
 			},
 			args: args{
-				organizationID: "org1",
+				organizationID: idFromString(t, orgOneID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test3"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashThreeID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "123",
 					},
@@ -488,7 +490,7 @@ func FindDashboardsByOrganizationID(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			id := platform.ID(tt.args.organizationID)
+			id := tt.args.organizationID
 
 			dashboards, _, err := s.FindDashboardsByOrganizationID(ctx, id)
 			if (err != nil) != (tt.wants.err != nil) {
@@ -514,10 +516,10 @@ func FindDashboards(
 	t *testing.T,
 ) {
 	type args struct {
-		ID             string
+		ID             platform.ID
 		name           string
 		organization   string
-		organizationID string
+		organizationID platform.ID
 	}
 
 	type wants struct {
@@ -536,22 +538,22 @@ func FindDashboards(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   platform.ID("org2"),
+						ID:   idFromString(t, orgTwoID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test2"),
-						OrganizationID: platform.ID("org2"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgTwoID),
 						Name:           "xyz",
 					},
 				},
@@ -560,14 +562,14 @@ func FindDashboards(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test2"),
-						OrganizationID: platform.ID("org2"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgTwoID),
 						Organization:   "otherorg",
 						Name:           "xyz",
 					},
@@ -580,27 +582,27 @@ func FindDashboards(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   platform.ID("org2"),
+						ID:   idFromString(t, orgTwoID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test2"),
-						OrganizationID: platform.ID("org2"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgTwoID),
 						Name:           "xyz",
 					},
 					{
-						ID:             platform.ID("test3"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashThreeID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "123",
 					},
 				},
@@ -611,14 +613,14 @@ func FindDashboards(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test3"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashThreeID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "123",
 					},
@@ -631,45 +633,45 @@ func FindDashboards(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   platform.ID("org2"),
+						ID:   idFromString(t, orgTwoID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test2"),
-						OrganizationID: platform.ID("org2"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgTwoID),
 						Name:           "xyz",
 					},
 					{
-						ID:             platform.ID("test3"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashThreeID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "123",
 					},
 				},
 			},
 			args: args{
-				organizationID: "org1",
+				organizationID: idFromString(t, orgOneID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test3"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashThreeID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "123",
 					},
@@ -682,30 +684,30 @@ func FindDashboards(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 					},
 					{
-						ID:             platform.ID("test2"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "xyz",
 					},
 				},
 			},
 			args: args{
-				ID: "test2",
+				ID: idFromString(t, dashTwoID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test2"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "xyz",
 					},
@@ -721,13 +723,11 @@ func FindDashboards(
 			ctx := context.TODO()
 
 			filter := platform.DashboardFilter{}
-			if tt.args.ID != "" {
-				id := platform.ID(tt.args.ID)
-				filter.ID = &id
+			if tt.args.ID != nil {
+				filter.ID = &tt.args.ID
 			}
-			if tt.args.organizationID != "" {
-				id := platform.ID(tt.args.organizationID)
-				filter.OrganizationID = &id
+			if tt.args.organizationID != nil {
+				filter.OrganizationID = &tt.args.organizationID
 			}
 			if tt.args.organization != "" {
 				filter.Organization = &tt.args.organization
@@ -757,7 +757,7 @@ func DeleteDashboard(
 	t *testing.T,
 ) {
 	type args struct {
-		ID string
+		ID platform.ID
 	}
 	type wants struct {
 		err        error
@@ -776,31 +776,31 @@ func DeleteDashboard(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
 						Name:           "A",
-						ID:             platform.ID("abc"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 					},
 					{
 						Name:           "B",
-						ID:             platform.ID("xyz"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgOneID),
 					},
 				},
 			},
 			args: args{
-				ID: "abc",
+				ID: idFromString(t, dashOneID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
 						Name:           "B",
-						ID:             platform.ID("xyz"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 					},
 				},
@@ -812,38 +812,38 @@ func DeleteDashboard(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
 						Name:           "A",
-						ID:             platform.ID("abc"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 					},
 					{
 						Name:           "B",
-						ID:             platform.ID("xyz"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgOneID),
 					},
 				},
 			},
 			args: args{
-				ID: "123",
+				ID: idFromString(t, dashThreeID),
 			},
 			wants: wants{
 				err: fmt.Errorf("dashboard not found"),
 				dashboards: []*platform.Dashboard{
 					{
 						Name:           "A",
-						ID:             platform.ID("abc"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 					},
 					{
 						Name:           "B",
-						ID:             platform.ID("xyz"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 					},
 				},
@@ -856,7 +856,7 @@ func DeleteDashboard(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteDashboard(ctx, platform.ID(tt.args.ID))
+			err := s.DeleteDashboard(ctx, tt.args.ID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -906,30 +906,30 @@ func UpdateDashboard(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "dashboard1",
 					},
 					{
-						ID:             platform.ID("2"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashTwoID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "dashboard2",
 					},
 				},
 			},
 			args: args{
-				id:   platform.ID("1"),
+				id:   idFromString(t, dashOneID),
 				name: "changed",
 			},
 			wants: wants{
 				dashboard: &platform.Dashboard{
-					ID:             platform.ID("1"),
-					OrganizationID: platform.ID("org1"),
+					ID:             idFromString(t, dashOneID),
+					OrganizationID: idFromString(t, orgOneID),
 					Organization:   "theorg",
 					Name:           "changed",
 				},
@@ -989,23 +989,23 @@ func AddDashboardCell(
 		{
 			name: "add dashboard cell",
 			fields: DashboardFields{
-				IDGenerator: mock.NewIDGenerator("id1"),
+				IDGenerator: mock.NewIDGenerator(dashOneID, t),
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 					},
 				},
 			},
 			args: args{
-				dashboardID: platform.ID("test1"),
+				dashboardID: idFromString(t, dashOneID),
 				cell: &platform.DashboardCell{
 					DashboardCellContents: platform.DashboardCellContents{
 						Name: "hello",
@@ -1022,14 +1022,14 @@ func AddDashboardCell(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 						Cells: []platform.DashboardCell{
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id1"),
+									ID:   idFromString(t, dashOneID),
 									Name: "hello",
 									X:    10,
 									Y:    10,
@@ -1097,22 +1097,22 @@ func RemoveDashboardCell(
 		{
 			name: "remove dashboard cell",
 			fields: DashboardFields{
-				IDGenerator: mock.NewIDGenerator("id1"),
+				IDGenerator: mock.NewIDGenerator(dashOneID, t),
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 						Cells: []platform.DashboardCell{
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id1"),
+									ID:   idFromString(t, dashOneID),
 									Name: "hello",
 									X:    10,
 									Y:    10,
@@ -1125,7 +1125,7 @@ func RemoveDashboardCell(
 							},
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id2"),
+									ID:   idFromString(t, dashTwoID),
 									Name: "world",
 									X:    10,
 									Y:    10,
@@ -1138,7 +1138,7 @@ func RemoveDashboardCell(
 							},
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id3"),
+									ID:   idFromString(t, dashThreeID),
 									Name: "bar",
 									X:    10,
 									Y:    10,
@@ -1154,20 +1154,20 @@ func RemoveDashboardCell(
 				},
 			},
 			args: args{
-				dashboardID: platform.ID("test1"),
-				cellID:      platform.ID("id2"),
+				dashboardID: idFromString(t, dashOneID),
+				cellID:      idFromString(t, dashTwoID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 						Cells: []platform.DashboardCell{
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id1"),
+									ID:   idFromString(t, dashOneID),
 									Name: "hello",
 									X:    10,
 									Y:    10,
@@ -1180,7 +1180,7 @@ func RemoveDashboardCell(
 							},
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id3"),
+									ID:   idFromString(t, dashThreeID),
 									Name: "bar",
 									X:    10,
 									Y:    10,
@@ -1251,18 +1251,18 @@ func ReplaceDashboardCell(
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   platform.ID("org1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Name:           "abc",
 						Cells: []platform.DashboardCell{
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id1"),
+									ID:   idFromString(t, dashOneID),
 									Name: "hello",
 									X:    10,
 									Y:    10,
@@ -1278,10 +1278,10 @@ func ReplaceDashboardCell(
 				},
 			},
 			args: args{
-				dashboardID: platform.ID("test1"),
+				dashboardID: idFromString(t, dashOneID),
 				cell: &platform.DashboardCell{
 					DashboardCellContents: platform.DashboardCellContents{
-						ID:   platform.ID("id1"),
+						ID:   idFromString(t, dashOneID),
 						Name: "what",
 						X:    101,
 						Y:    102,
@@ -1296,14 +1296,14 @@ func ReplaceDashboardCell(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:             platform.ID("test1"),
-						OrganizationID: platform.ID("org1"),
+						ID:             idFromString(t, dashOneID),
+						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
 						Name:           "abc",
 						Cells: []platform.DashboardCell{
 							{
 								DashboardCellContents: platform.DashboardCellContents{
-									ID:   platform.ID("id1"),
+									ID:   idFromString(t, dashOneID),
 									Name: "what",
 									X:    101,
 									Y:    102,

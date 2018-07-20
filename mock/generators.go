@@ -1,6 +1,8 @@
 package mock
 
 import (
+	"testing"
+
 	"github.com/influxdata/platform"
 )
 
@@ -15,10 +17,14 @@ func (g IDGenerator) ID() platform.ID {
 }
 
 // NewIDGenerator is a simple way to create immutable id generator
-func NewIDGenerator(s string) IDGenerator {
+func NewIDGenerator(s string, t *testing.T) IDGenerator {
 	return IDGenerator{
 		IDFn: func() platform.ID {
-			return platform.ID(s)
+			id, err := platform.IDFromString(s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return *id
 		},
 	}
 }
