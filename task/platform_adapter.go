@@ -79,7 +79,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 	if err != nil {
 		return err
 	}
-	t.ID = id
+	t.ID = *id
 	t.Every = opts.Every.String()
 	t.Cron = opts.Cron
 
@@ -172,8 +172,8 @@ func toPlatformTask(t backend.StoreTask) (*platform.Task, error) {
 		Name:         t.Name,
 		Status:       "", // TODO: set and update status
 		Owner: platform.User{
-			ID:   append([]byte(nil), t.User...), // Copy just in case.
-			Name: "",                             // TODO(mr): how to get owner name?
+			ID:   t.User,
+			Name: "", // TODO(mr): how to get owner name?
 		},
 		Flux: t.Script,
 		Cron: opts.Cron,

@@ -155,10 +155,11 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 
 	userID := qp.Get("userID")
 	if userID != "" {
-		req.filter.UserID = &platform.ID{}
-		if err := req.filter.UserID.DecodeFromString(userID); err != nil {
+		id, err := platform.IDFromString(userID)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.UserID = id
 	}
 
 	user := qp.Get("user")
@@ -168,10 +169,11 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 
 	authID := qp.Get("id")
 	if authID != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(authID); err != nil {
+		id, err := platform.IDFromString(authID)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.ID = id
 	}
 
 	return req, nil

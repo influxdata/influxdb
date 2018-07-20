@@ -2,7 +2,7 @@ package platform
 
 import "context"
 
-// User is a user. 🎉
+// User is an user. 🎉
 type User struct {
 	ID   ID     `json:"id,omitempty"`
 	Name string `json:"name"`

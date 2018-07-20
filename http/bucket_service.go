@@ -348,10 +348,11 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	req := &getBucketsRequest{}
 
 	if id := qp.Get("orgID"); id != "" {
-		req.filter.OrganizationID = &platform.ID{}
-		if err := req.filter.OrganizationID.DecodeFromString(id); err != nil {
+		temp, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.OrganizationID = temp
 	}
 
 	if org := qp.Get("org"); org != "" {
@@ -359,10 +360,11 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	}
 
 	if id := qp.Get("id"); id != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(id); err != nil {
+		temp, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.ID = temp
 	}
 
 	if name := qp.Get("name"); name != "" {

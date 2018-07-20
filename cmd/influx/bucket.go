@@ -71,12 +71,12 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 	}
 
 	if bucketCreateFlags.orgID != "" {
-		var id platform.ID
-		if err := id.DecodeFromString(bucketCreateFlags.orgID); err != nil {
+		id, err := platform.IDFromString(bucketCreateFlags.orgID)
+		if err != nil {
 			fmt.Printf("error parsing organization id: %v\n", err)
 			os.Exit(1)
 		}
-		b.OrganizationID = id
+		b.OrganizationID = *id
 	}
 
 	if err := s.CreateBucket(context.Background(), b); err != nil {
@@ -139,12 +139,12 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 	}
 
 	if bucketFindFlags.id != "" {
-		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(bucketFindFlags.id)
+		id, err := platform.IDFromString(bucketFindFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		filter.ID = id
 	}
 
 	if bucketFindFlags.orgID != "" && bucketFindFlags.org != "" {
@@ -154,12 +154,12 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 	}
 
 	if bucketFindFlags.orgID != "" {
-		filter.OrganizationID = &platform.ID{}
-		err := filter.OrganizationID.DecodeFromString(bucketFindFlags.orgID)
+		orgID, err := platform.IDFromString(bucketFindFlags.orgID)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		filter.OrganizationID = orgID
 	}
 
 	if bucketFindFlags.org != "" {

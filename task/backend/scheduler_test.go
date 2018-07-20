@@ -25,7 +25,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	defer o.Stop()
 
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  1,
@@ -44,7 +44,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 
 	// For every second, can queue for timestamps 4 and 5.
 	task = &backend.StoreTask{
-		ID: platform.ID{2},
+		ID: platform.ID(2),
 	}
 	meta = &backend.StoreTaskMeta{
 		MaxConcurrency:  99,
@@ -99,7 +99,7 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	defer o.Stop()
 
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  2,
@@ -169,7 +169,7 @@ func TestScheduler_Release(t *testing.T) {
 	defer o.Stop()
 
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  99,
@@ -205,7 +205,7 @@ func TestScheduler_Queue(t *testing.T) {
 	defer o.Stop()
 
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  1,
@@ -418,7 +418,7 @@ func TestScheduler_Metrics(t *testing.T) {
 
 	// Claim a task that starts later.
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  99,

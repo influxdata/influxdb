@@ -2,7 +2,7 @@ package platform
 
 import "context"
 
-// Organization is a organization. 🎉
+// Organization is an organization. 🎉
 type Organization struct {
 	ID   ID     `json:"id"`
 	Name string `json:"name"`

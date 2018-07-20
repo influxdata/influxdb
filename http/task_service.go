@@ -100,24 +100,27 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request) (*getTasksReque
 	req := &getTasksRequest{}
 
 	if id := qp.Get("after"); id != "" {
-		req.filter.After = &platform.ID{}
-		if err := req.filter.After.DecodeFromString(id); err != nil {
+		temp, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.After = temp
 	}
 
 	if id := qp.Get("organization"); id != "" {
-		req.filter.Organization = &platform.ID{}
-		if err := req.filter.Organization.DecodeFromString(id); err != nil {
+		temp, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.Organization = temp
 	}
 
 	if id := qp.Get("user"); id != "" {
-		req.filter.User = &platform.ID{}
-		if err := req.filter.User.DecodeFromString(id); err != nil {
+		userID, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.User = userID
 	}
 
 	return req, nil
@@ -337,10 +340,11 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	}
 
 	req := &getLogsRequest{}
-	req.filter.Task = &platform.ID{}
-	if err := req.filter.Task.DecodeFromString(id); err != nil {
+	taskID, err := platform.IDFromString(id)
+	if err != nil {
 		return nil, err
 	}
+	req.filter.Task = taskID
 
 	qp := r.URL.Query()
 
@@ -354,10 +358,11 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	}
 
 	if id := params.ByName("rid"); id != "" {
-		req.filter.Run = &platform.ID{}
-		if err := req.filter.Run.DecodeFromString(id); err != nil {
+		temp, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.Run = temp
 	}
 
 	return req, nil
@@ -409,10 +414,11 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	}
 
 	req := &getRunsRequest{}
-	req.filter.Task = &platform.ID{}
-	if err := req.filter.Task.DecodeFromString(id); err != nil {
+	taskID, err := platform.IDFromString(id)
+	if err != nil {
 		return nil, err
 	}
+	req.filter.Task = taskID
 
 	qp := r.URL.Query()
 
@@ -426,10 +432,11 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.Or
 	}
 
 	if id := qp.Get("after"); id != "" {
-		req.filter.After = &platform.ID{}
-		if err := req.filter.After.DecodeFromString(id); err != nil {
+		afterID, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.After = afterID
 	}
 
 	if limit := qp.Get("limit"); limit != "" {

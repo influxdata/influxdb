@@ -16,6 +16,8 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query/influxql"
+	"github.com/influxdata/platform/query/semantic/semantictest"
+	platformtesting "github.com/influxdata/platform/testing"
 
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/unicode/norm"
@@ -92,15 +94,13 @@ func main() {
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
 func init() {
-	organizationID := platform.ID("aaaa")
-	bucketID := platform.ID("bbbb")
 	mapping := platform.DBRPMapping{
 		Cluster:         "cluster",
 		Database:        "db",
 		RetentionPolicy: "rp",
 		Default:         true,
-		OrganizationID:  organizationID,
-		BucketID:        bucketID,
+		OrganizationID:  platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
+		BucketID:        platformtesting.MustIDFromString("bbbbbbbbbbbbbbbb"),
 	}
 	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
 		return &mapping, nil

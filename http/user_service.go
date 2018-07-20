@@ -257,10 +257,11 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 	req := &getUsersRequest{}
 
 	if id := qp.Get("id"); id != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(id); err != nil {
+		temp, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.ID = temp
 	}
 
 	if name := qp.Get("name"); name != "" {

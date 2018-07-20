@@ -2,7 +2,6 @@
 package mock
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -134,7 +133,7 @@ func (s *Scheduler) ReleaseError(err error) {
 type DesiredState struct {
 	mu sync.Mutex
 	// Map of stringified task ID to last ID used for run.
-	runIDs map[string]uint32
+	runIDs map[string]uint64
 
 	// Map of stringified, concatenated task and platform ID, to runs that have been created.
 	created map[string]backend.QueuedRun
@@ -147,7 +146,7 @@ var _ backend.DesiredState = (*DesiredState)(nil)
 
 func NewDesiredState() *DesiredState {
 	return &DesiredState{
-		runIDs:  make(map[string]uint32),
+		runIDs:  make(map[string]uint64),
 		created: make(map[string]backend.QueuedRun),
 		meta:    make(map[string]backend.StoreTaskMeta),
 	}
@@ -217,7 +216,7 @@ func (d *DesiredState) CreatedFor(taskID platform.ID) []backend.QueuedRun {
 
 	var qrs []backend.QueuedRun
 	for _, qr := range d.created {
-		if bytes.Equal(qr.TaskID, taskID) {
+		if qr.TaskID == taskID {
 			qrs = append(qrs, qr)
 		}
 	}
@@ -289,7 +288,7 @@ func (e *Executor) RunningFor(taskID platform.ID) []*RunPromise {
 
 	var rps []*RunPromise
 	for _, rp := range e.running {
-		if bytes.Equal(rp.Run().TaskID, taskID) {
+		if rp.Run().TaskID == taskID {
 			rps = append(rps, rp)
 		}
 	}

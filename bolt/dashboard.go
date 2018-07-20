@@ -45,9 +45,13 @@ func (c *Client) FindDashboardByID(ctx context.Context, id platform.ID) (*platfo
 }
 
 func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Dashboard, error) {
-	var d platform.Dashboard
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
 
-	v := tx.Bucket(dashboardBucket).Get([]byte(id))
+	var d platform.Dashboard
+	v := tx.Bucket(dashboardBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		return nil, platform.ErrDashboardNotFound
@@ -326,7 +330,11 @@ func (c *Client) putDashboard(ctx context.Context, tx *bolt.Tx, d *platform.Dash
 	if err != nil {
 		return err
 	}
-	if err := tx.Bucket(dashboardBucket).Put([]byte(d.ID), v); err != nil {
+	encodedID, err := d.ID.Encode()
+	if err != nil {
+		return err
+	}
+	if err := tx.Bucket(dashboardBucket).Put(encodedID, v); err != nil {
 		return err
 	}
 	return nil
@@ -397,5 +405,9 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 			return err
 		}
 	}
-	return tx.Bucket(dashboardBucket).Delete([]byte(id))
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(dashboardBucket).Delete(encodedID)
 }

@@ -14,12 +14,13 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query/influxql"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 var dbrpMappingSvc = mock.NewDBRPMappingService()
-var organizationID = platform.ID("aaaa")
-var bucketID = platform.ID("bbbb")
-var altBucketID = platform.ID("cccc")
+var organizationID platform.ID
+var bucketID platform.ID
+var altBucketID platform.ID
 
 func init() {
 	mapping := platform.DBRPMapping{
@@ -83,6 +84,10 @@ func NewFixture(stmt string, spec *flux.Spec) Fixture {
 }
 
 func (f *fixture) Run(t *testing.T) {
+	organizationID = platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa")
+	bucketID = platformtesting.MustIDFromString("bbbbbbbbbbbbbbbb")
+	altBucketID = platformtesting.MustIDFromString("cccccccccccccccc")
+
 	t.Run(f.stmt, func(t *testing.T) {
 		if err := f.spec.Validate(); err != nil {
 			t.Fatalf("%s:%d: expected spec is not valid: %s", f.file, f.line, err)

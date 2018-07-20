@@ -111,7 +111,7 @@ func CreateOrganization(
 				organizations: []*platform.Organization{
 					{
 						Name: "name1",
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 					},
 				},
 			},
@@ -122,7 +122,7 @@ func CreateOrganization(
 				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
 				Organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -135,23 +135,23 @@ func CreateOrganization(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 					{
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "organization2",
 					},
 				},
 			},
 		},
 		{
-			name: "names should not be unique",
+			name: "names should be unique",
 			fields: OrganizationFields{
 				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
 				Organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -164,7 +164,7 @@ func CreateOrganization(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -188,7 +188,11 @@ func CreateOrganization(
 					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
 				}
 			}
+
+			// Delete only newly created organizations
+			// if tt.args.organization.ID != nil {
 			defer s.DeleteOrganization(ctx, tt.args.organization.ID)
+			// }
 
 			organizations, _, err := s.FindOrganizations(ctx, platform.OrganizationFilter{})
 			if err != nil {
@@ -225,21 +229,21 @@ func FindOrganizationByID(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 					{
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "organization2",
 					},
 				},
 			},
 			args: args{
-				id: idFromString(t, orgTwoID),
+				id: MustIDFromString(orgTwoID),
 			},
 			wants: wants{
 				organization: &platform.Organization{
-					ID:   idFromString(t, orgTwoID),
+					ID:   MustIDFromString(orgTwoID),
 					Name: "organization2",
 				},
 			},
@@ -295,11 +299,11 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -308,11 +312,11 @@ func FindOrganizations(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -323,22 +327,22 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
 			},
 			args: args{
-				ID: idFromString(t, orgTwoID),
+				ID: MustIDFromString(orgTwoID),
 			},
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -349,11 +353,11 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -364,7 +368,7 @@ func FindOrganizations(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -379,7 +383,7 @@ func FindOrganizations(
 			ctx := context.TODO()
 
 			filter := platform.OrganizationFilter{}
-			if tt.args.ID != nil {
+			if tt.args.ID.Valid() {
 				filter.ID = &tt.args.ID
 			}
 			if tt.args.name != "" {
@@ -429,22 +433,22 @@ func DeleteOrganization(
 				Organizations: []*platform.Organization{
 					{
 						Name: "orgA",
-						ID:   platform.ID("abc"),
+						ID:   MustIDFromString(orgOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   platform.ID("xyz"),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
 			args: args{
-				ID: "abc",
+				ID: orgOneID,
 			},
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
 						Name: "orgB",
-						ID:   platform.ID("xyz"),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
@@ -455,27 +459,27 @@ func DeleteOrganization(
 				Organizations: []*platform.Organization{
 					{
 						Name: "orgA",
-						ID:   platform.ID("abc"),
+						ID:   MustIDFromString(orgOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   platform.ID("xyz"),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
 			args: args{
-				ID: "123",
+				ID: "1234567890654321",
 			},
 			wants: wants{
 				err: fmt.Errorf("organization not found"),
 				organizations: []*platform.Organization{
 					{
 						Name: "orgA",
-						ID:   platform.ID("abc"),
+						ID:   MustIDFromString(orgOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   platform.ID("xyz"),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
@@ -487,7 +491,7 @@ func DeleteOrganization(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteOrganization(ctx, platform.ID(tt.args.ID))
+			err := s.DeleteOrganization(ctx, MustIDFromString(tt.args.ID))
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -535,11 +539,11 @@ func FindOrganization(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("a"),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   platform.ID("b"),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -549,7 +553,7 @@ func FindOrganization(
 			},
 			wants: wants{
 				organization: &platform.Organization{
-					ID:   platform.ID("a"),
+					ID:   MustIDFromString(orgOneID),
 					Name: "abc",
 				},
 			},
@@ -609,22 +613,22 @@ func UpdateOrganization(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("1"),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 					{
-						ID:   platform.ID("2"),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "organization2",
 					},
 				},
 			},
 			args: args{
-				id:   platform.ID("1"),
+				id:   MustIDFromString(orgOneID),
 				name: "changed",
 			},
 			wants: wants{
 				organization: &platform.Organization{
-					ID:   platform.ID("1"),
+					ID:   MustIDFromString(orgOneID),
 					Name: "changed",
 				},
 			},
