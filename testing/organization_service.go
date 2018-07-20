@@ -12,6 +12,11 @@ import (
 	"github.com/influxdata/platform/mock"
 )
 
+const (
+	orgOneID = "020f755c3c082000"
+	orgTwoID = "020f755c3c082001"
+)
+
 var organizationCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -53,7 +58,7 @@ func CreateOrganization(
 		{
 			name: "create organizations with empty set",
 			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator("id1"),
+				IDGenerator:   mock.NewIDGenerator(orgOneID, t),
 				Organizations: []*platform.Organization{},
 			},
 			args: args{
@@ -65,7 +70,7 @@ func CreateOrganization(
 				organizations: []*platform.Organization{
 					{
 						Name: "name1",
-						ID:   platform.ID("id1"),
+						ID:   idFromString(t, orgOneID),
 					},
 				},
 			},
@@ -73,14 +78,10 @@ func CreateOrganization(
 		{
 			name: "basic create organization",
 			fields: OrganizationFields{
-				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return platform.ID("2")
-					},
-				},
+				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
 				Organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -93,11 +94,11 @@ func CreateOrganization(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "organization1",
 					},
 					{
-						ID:   platform.ID("2"),
+						ID:   idFromString(t, orgTwoID),
 						Name: "organization2",
 					},
 				},
@@ -106,14 +107,10 @@ func CreateOrganization(
 		{
 			name: "names should not be unique",
 			fields: OrganizationFields{
-				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return platform.ID("2")
-					},
-				},
+				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
 				Organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -126,7 +123,7 @@ func CreateOrganization(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -187,21 +184,21 @@ func FindOrganizationByID(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "organization1",
 					},
 					{
-						ID:   platform.ID("2"),
+						ID:   idFromString(t, orgTwoID),
 						Name: "organization2",
 					},
 				},
 			},
 			args: args{
-				id: platform.ID("2"),
+				id: idFromString(t, orgTwoID),
 			},
 			wants: wants{
 				organization: &platform.Organization{
-					ID:   platform.ID("2"),
+					ID:   idFromString(t, orgTwoID),
 					Name: "organization2",
 				},
 			},
@@ -238,7 +235,7 @@ func FindOrganizations(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   string
+		ID   platform.ID
 		name string
 	}
 
@@ -257,11 +254,11 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("test1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   platform.ID("test2"),
+						ID:   idFromString(t, orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -270,11 +267,11 @@ func FindOrganizations(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("test1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   platform.ID("test2"),
+						ID:   idFromString(t, orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -285,22 +282,22 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("test1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   platform.ID("test2"),
+						ID:   idFromString(t, orgTwoID),
 						Name: "xyz",
 					},
 				},
 			},
 			args: args{
-				ID: "test2",
+				ID: idFromString(t, orgTwoID),
 			},
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("test2"),
+						ID:   idFromString(t, orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -311,11 +308,11 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("test1"),
+						ID:   idFromString(t, orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   platform.ID("test2"),
+						ID:   idFromString(t, orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -326,7 +323,7 @@ func FindOrganizations(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   platform.ID("test2"),
+						ID:   idFromString(t, orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -341,9 +338,8 @@ func FindOrganizations(
 			ctx := context.TODO()
 
 			filter := platform.OrganizationFilter{}
-			if tt.args.ID != "" {
-				id := platform.ID(tt.args.ID)
-				filter.ID = &id
+			if tt.args.ID != nil {
+				filter.ID = &tt.args.ID
 			}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
