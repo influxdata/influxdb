@@ -1,12 +1,15 @@
 package platform
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 )
 
+const maxIDLength = 16
+
 // ID is a unique identifier.
-type ID []byte
+type ID uint64
 
 // IDGenerator represents a generator for IDs.
 type IDGenerator interface {
@@ -26,12 +29,15 @@ func IDFromString(idstr string) (*ID, error) {
 
 // Decode parses b as a hex-encoded byte-slice-string.
 func (i *ID) Decode(b []byte) error {
-	dst := make([]byte, hex.DecodedLen(len(b)))
+	dst := make([]byte, hex.DecodedLen(maxIDLength))
+	if len(b) > maxIDLength {
+		b = b[:maxIDLength]
+	}
 	_, err := hex.Decode(dst, b)
 	if err != nil {
 		return err
 	}
-	*i = dst
+	*i = ID(binary.LittleEndian.Uint64(dst))
 	return nil
 }
 
@@ -42,8 +48,11 @@ func (i *ID) DecodeFromString(s string) error {
 
 // Encode converts ID to a hex-encoded byte-slice-string.
 func (i ID) Encode() []byte {
-	dst := make([]byte, hex.EncodedLen(len(i)))
-	hex.Encode(dst, i)
+	b := make([]byte, hex.DecodedLen(maxIDLength))
+	binary.LittleEndian.PutUint64(b, uint64(i))
+
+	dst := make([]byte, hex.EncodedLen(len(b)))
+	hex.Encode(dst, b)
 	return dst
 }
 
