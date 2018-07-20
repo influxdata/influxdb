@@ -14,6 +14,16 @@ type IDGenerator interface {
 	ID() ID
 }
 
+// IDFromString creates an ID from a given string
+func IDFromString(idstr string) (*ID, error) {
+	var id ID
+	err := id.DecodeFromString(idstr)
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
+}
+
 // Decode parses b as a hex-encoded byte-slice-string.
 func (i *ID) Decode(b []byte) error {
 	dst := make([]byte, hex.DecodedLen(len(b)))
