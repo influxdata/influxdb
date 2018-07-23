@@ -27,3 +27,9 @@ func (m OwnerMapping) Validate() error {
 	}
 	return nil
 }
+
+// OwnerMappingFilter represents a set of filters that restrict the returned results.
+type OwnerMappingFilter struct {
+	ResourceID ID
+	Owner      *Owner
+}
