@@ -12,13 +12,17 @@
 #
 
 SUBDIRS := query
+GOBINDATA := $(shell go list -f {{.Root}}  github.com/kevinburke/go-bindata 2> /dev/null)
+UISOURCES := $(shell find chronograf/ui -type f -not \( -path chronograf/ui/build/\* -o -path chronograf/ui/node_modules/\* -prune \) )
+YARN := $(shell command -v yarn 2> /dev/null)
+
 
 GO_ARGS=-tags '$(GO_TAGS)'
 
 # Test vars can be used by all recursive Makefiles
 export GOOS=$(shell go env GOOS)
 export GO_BUILD=go build $(GO_ARGS)
-export GO_TEST=go test $(GO_ARGS)
+export GO_TEST=go test -count=1 $(GO_ARGS)
 export GO_GENERATE=go generate $(GO_ARGS)
 export GO_VET= go vet $(GO_ARGS)
 
@@ -46,7 +50,7 @@ UTILS := \
 #
 # This target setups the dependencies to correctly build all commands.
 # Other targets must depend on this target to correctly builds CMDS.
-all: Gopkg.lock $(UTILS) subdirs $(CMDS)
+all: dep Gopkg.lock $(UTILS) subdirs $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -72,6 +76,23 @@ bin/$(GOOS)/cmpgen: ./query/ast/asttest/cmpgen/main.go
 bin/$(GOOS)/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
 	go build -i -o $@ ./vendor/github.com/goreleaser/goreleaser
 
+dep: .jsdep .godep
+
+.godep:
+ifndef GOBINDATA
+	@echo "Installing go-bindata"
+	go get -u github.com/kevinburke/go-bindata/...
+endif
+	@touch .godep
+
+.jsdep: chronograf/ui/yarn.lock
+ifndef YARN
+	$(error Please install yarn 0.19.1+)
+else
+	mkdir -p chronograf/ui/build && cd chronograf/ui && yarn --no-progress --no-emoji
+	@touch .jsdep
+endif
+
 #
 # Define how source dependencies are managed
 #
@@ -94,9 +115,15 @@ fmt: $(SOURCES_NO_VENDOR)
 	goimports -w $^
 
 test: all
+	$(GO_GENERATE) ./chronograf/dist
+	$(GO_GENERATE) ./chronograf/server
+	$(GO_GENERATE) ./chronograf/canned
 	$(GO_TEST) ./...
 
 test-race: all
+	$(GO_GENERATE) ./chronograf/dist
+	$(GO_GENERATE) ./chronograf/server
+	$(GO_GENERATE) ./chronograf/canned
 	$(GO_TEST) -race ./...
 
 vet: all

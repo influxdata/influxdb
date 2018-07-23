@@ -444,6 +444,12 @@
   revision = "d1898390779332322e6b5ca5011da4bf249bb056"
 
 [[projects]]
+  name = "github.com/kevinburke/go-bindata"
+  packages = ["."]
+  revision = "fb8a22f0e4d56d895765b12de81fcc127b096a77"
+  version = "v3.9.0"
+
+[[projects]]
   name = "github.com/magiconair/properties"
   packages = ["."]
   revision = "c3beff4c2358b44d0493c7dda585e7db7ff28ae6"
@@ -841,6 +847,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0c99d4557f7029cca0e72a5895fc448d7ebd02e187f3d2fa3c0b167855ba8f39"
+  inputs-digest = "71484856c934c966b4322dfb4c502a190b6ac0538a67d37f616cbe0010eaa5e4"
   solver-name = "gps-cdcl"
   solver-version = 1
