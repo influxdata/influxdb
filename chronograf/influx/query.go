@@ -12,10 +12,12 @@ import (
 
 // TimeRangeAsEpochNano extracs the min and max epoch times from the expression
 func TimeRangeAsEpochNano(expr influxql.Expr, now time.Time) (min, max int64, err error) {
-	tmin, tmax, err := influxql.TimeRange(expr)
+	// TODO(desa): is this OK?
+	_, trange, err := influxql.ConditionExpr(expr, nil)
 	if err != nil {
 		return 0, 0, err
 	}
+	tmin, tmax := trange.Min, trange.Max
 	if tmin.IsZero() {
 		min = time.Unix(0, influxql.MinTime).UnixNano()
 	} else {
