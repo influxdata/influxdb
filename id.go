@@ -4,12 +4,15 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 )
 
 const maxIDLength = 16
 
 // ID is a unique identifier.
-type ID uint64
+type ID struct {
+	value *uint64
+}
 
 // IDGenerator represents a generator for IDs.
 type IDGenerator interface {
@@ -27,17 +30,24 @@ func IDFromString(idstr string) (*ID, error) {
 	return &id, nil
 }
 
+// Empty tells whether the ID is empty or not.
+func (i *ID) Empty() bool {
+	return i.value == nil
+}
+
 // Decode parses b as a hex-encoded byte-slice-string.
 func (i *ID) Decode(b []byte) error {
-	dst := make([]byte, hex.DecodedLen(maxIDLength))
-	if len(b) > maxIDLength {
-		b = b[:maxIDLength]
+	if len(b) != maxIDLength {
+		return fmt.Errorf("input must be an array of 8 bytes")
 	}
+
+	dst := make([]byte, hex.DecodedLen(maxIDLength))
 	_, err := hex.Decode(dst, b)
 	if err != nil {
 		return err
 	}
-	*i = ID(binary.LittleEndian.Uint64(dst))
+	out := binary.BigEndian.Uint64(dst)
+	i.value = &out
 	return nil
 }
 
@@ -47,18 +57,25 @@ func (i *ID) DecodeFromString(s string) error {
 }
 
 // Encode converts ID to a hex-encoded byte-slice-string.
-func (i ID) Encode() []byte {
+func (i ID) Encode() ([]byte, error) {
+	if i.Empty() {
+		return nil, fmt.Errorf("cannot encode an empty ID")
+	}
 	b := make([]byte, hex.DecodedLen(maxIDLength))
-	binary.LittleEndian.PutUint64(b, uint64(i))
+	binary.BigEndian.PutUint64(b, *i.value)
 
 	dst := make([]byte, hex.EncodedLen(len(b)))
 	hex.Encode(dst, b)
-	return dst
+	return dst, nil
 }
 
 // String returns the ID as a hex encoded string
 func (i ID) String() string {
-	return string(i.Encode())
+	res, err := i.Encode()
+	if err != nil {
+		return ""
+	}
+	return string(res)
 }
 
 // UnmarshalJSON implements JSON unmarshaller for IDs.
@@ -69,6 +86,9 @@ func (i *ID) UnmarshalJSON(b []byte) error {
 
 // MarshalJSON implements JSON marshaller for IDs.
 func (i ID) MarshalJSON() ([]byte, error) {
-	id := i.Encode()
+	id, err := i.Encode()
+	if err != nil {
+		return nil, err
+	}
 	return json.Marshal(string(id[:]))
 }
