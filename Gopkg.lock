@@ -14,6 +14,27 @@
   version = "v1.0.6"
 
 [[projects]]
+  name = "github.com/alecthomas/kingpin"
+  packages = ["."]
+  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
+  version = "v2.2.6"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/alecthomas/template"
+  packages = [
+    ".",
+    "parse"
+  ]
+  revision = "a0175ee3bccc567396460bf5acd36800cb10c49c"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/alecthomas/units"
+  packages = ["."]
+  revision = "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
+
+[[projects]]
   branch = "master"
   name = "github.com/andreyvit/diff"
   packages = ["."]
@@ -21,9 +42,62 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/apex/log"
+  packages = [
+    ".",
+    "handlers/cli"
+  ]
+  revision = "941dea75d3ebfbdd905a5d8b7b232965c5e5c684"
+
+[[projects]]
+  name = "github.com/aws/aws-sdk-go"
+  packages = [
+    "aws",
+    "aws/awserr",
+    "aws/awsutil",
+    "aws/client",
+    "aws/client/metadata",
+    "aws/corehandlers",
+    "aws/credentials",
+    "aws/credentials/ec2rolecreds",
+    "aws/credentials/endpointcreds",
+    "aws/credentials/stscreds",
+    "aws/csm",
+    "aws/defaults",
+    "aws/ec2metadata",
+    "aws/endpoints",
+    "aws/request",
+    "aws/session",
+    "aws/signer/v4",
+    "internal/sdkio",
+    "internal/sdkrand",
+    "internal/sdkuri",
+    "internal/shareddefaults",
+    "private/protocol",
+    "private/protocol/eventstream",
+    "private/protocol/eventstream/eventstreamapi",
+    "private/protocol/query",
+    "private/protocol/query/queryutil",
+    "private/protocol/rest",
+    "private/protocol/restxml",
+    "private/protocol/xml/xmlutil",
+    "service/s3",
+    "service/sts"
+  ]
+  revision = "bc3f534c19ffdf835e524e11f0f825b3eaf541c3"
+  version = "v1.14.31"
+
+[[projects]]
+  branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/blakesmith/ar"
+  packages = ["."]
+  revision = "8bd4349a67f2533b078dbc524689d15dba0f4659"
 
 [[projects]]
   name = "github.com/boltdb/bolt"
@@ -42,6 +116,18 @@
   packages = ["."]
   revision = "e99fbc797b795e0a7a94affc8d44f6a0350d85f0"
   version = "v0.2.1"
+
+[[projects]]
+  name = "github.com/caarlos0/ctrlc"
+  packages = ["."]
+  revision = "70dc48d5d792f20f684a8f1d29bbac298f4b2ef4"
+  version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/campoy/unique"
+  packages = ["."]
+  revision = "88950e537e7e644cd746a3102037b5d2b723e9f5"
 
 [[projects]]
   name = "github.com/cespare/xxhash"
@@ -74,10 +160,22 @@
   version = "v1.0.0"
 
 [[projects]]
+  name = "github.com/fatih/color"
+  packages = ["."]
+  revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
+  version = "v1.5.0"
+
+[[projects]]
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
   revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
   version = "v1.4.7"
+
+[[projects]]
+  name = "github.com/go-ini/ini"
+  packages = ["."]
+  revision = "358ee7663966325963d4e8b2e1fbd570c5195153"
+  version = "v1.38.1"
 
 [[projects]]
   name = "github.com/gogo/protobuf"
@@ -181,9 +279,10 @@
   version = "v0.2.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/google/go-github"
   packages = ["github"]
-  revision = "1bc362c7737e51014af7299e016444b654095ad9"
+  revision = "e1be32f26e66c63933619603172ead18ebf4f79d"
 
 [[projects]]
   branch = "master"
@@ -192,30 +291,70 @@
   revision = "53e6ce116135b80d037921a7fdd5138cf32d7a8a"
 
 [[projects]]
+  name = "github.com/goreleaser/archive"
+  packages = [
+    ".",
+    "tar",
+    "zip"
+  ]
+  revision = "f83c3f651b008c42ee5d316770ebf54f383ffe13"
+  version = "v1.1.2"
+
+[[projects]]
   name = "github.com/goreleaser/goreleaser"
   packages = [
     ".",
+    "build",
     "checksum",
     "config",
     "context",
-    "goreleaserlib",
+    "internal/artifact",
+    "internal/builders/golang",
     "internal/client",
-    "internal/ext",
-    "internal/tar",
-    "internal/zip",
+    "internal/deprecate",
+    "internal/git",
+    "internal/http",
+    "internal/linux",
+    "internal/semerrgroup",
+    "internal/tmpl",
     "pipeline",
     "pipeline/archive",
+    "pipeline/artifactory",
+    "pipeline/before",
     "pipeline/brew",
     "pipeline/build",
+    "pipeline/changelog",
     "pipeline/checksums",
     "pipeline/defaults",
+    "pipeline/dist",
+    "pipeline/docker",
+    "pipeline/effectiveconfig",
     "pipeline/env",
     "pipeline/fpm",
     "pipeline/git",
-    "pipeline/release"
+    "pipeline/nfpm",
+    "pipeline/project",
+    "pipeline/put",
+    "pipeline/release",
+    "pipeline/s3",
+    "pipeline/scoop",
+    "pipeline/sign",
+    "pipeline/snapcraft",
+    "pipeline/snapshot"
   ]
-  revision = "2f60fec71c1a298b594a56dc42216202bcdfad50"
-  version = "v0.20.2"
+  revision = "170e6c6b25b0f3375ebf409651e38874b1199d2e"
+  version = "v0.81.0"
+
+[[projects]]
+  name = "github.com/goreleaser/nfpm"
+  packages = [
+    ".",
+    "deb",
+    "glob",
+    "rpm"
+  ]
+  revision = "923d6a7473bfdbe7a583b7f3df1f3f780b1b73ab"
+  version = "v0.9.3"
 
 [[projects]]
   branch = "master"
@@ -233,6 +372,12 @@
     "json/token"
   ]
   revision = "ef8a98b0bbce4a65b5aa4c368430a80ddc533168"
+
+[[projects]]
+  name = "github.com/imdario/mergo"
+  packages = ["."]
+  revision = "9316a62528ac99aaecb4e47eadd6dc8aa6533d58"
+  version = "v0.3.5"
 
 [[projects]]
   name = "github.com/inconshreveable/mousetrap"
@@ -283,6 +428,11 @@
   version = "v1.4.0"
 
 [[projects]]
+  name = "github.com/jmespath/go-jmespath"
+  packages = ["."]
+  revision = "0b12d6b5"
+
+[[projects]]
   name = "github.com/jsternberg/zap-logfmt"
   packages = ["."]
   revision = "ac4bd917e18a4548ce6e0e765b29a4e7f397b0b6"
@@ -298,6 +448,12 @@
   packages = ["."]
   revision = "c3beff4c2358b44d0493c7dda585e7db7ff28ae6"
   version = "v1.7.6"
+
+[[projects]]
+  name = "github.com/masterminds/semver"
+  packages = ["."]
+  revision = "c7af12943936e8c39859482e61f0574c2fd7fc75"
+  version = "v1.4.2"
 
 [[projects]]
   name = "github.com/mattn/go-colorable"
@@ -331,6 +487,12 @@
   packages = ["pbutil"]
   revision = "3247c84500bff8d9fb6d579d800f20b3e091582c"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/go-homedir"
+  packages = ["."]
+  revision = "3864e76763d94a6df2f9960b16a20a33da9f9a66"
 
 [[projects]]
   branch = "master"
@@ -504,12 +666,6 @@
   version = "v1.5.0"
 
 [[projects]]
-  name = "github.com/urfave/cli"
-  packages = ["."]
-  revision = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1"
-  version = "v1.20.0"
-
-[[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
   revision = "4e336646b2ef9fc6e47be8e21594178f98e5ebcf"
@@ -677,12 +833,6 @@
   version = "v1.13.0"
 
 [[projects]]
-  branch = "v1"
-  name = "gopkg.in/yaml.v1"
-  packages = ["."]
-  revision = "9f9df34309c04878acc86042b16630b0f696e1de"
-
-[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
@@ -691,6 +841,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e37bcbec35c7a74d2853a51812a5ec62104ec4b00bc22e5b4ee537447b3da57b"
+  inputs-digest = "0c99d4557f7029cca0e72a5895fc448d7ebd02e187f3d2fa3c0b167855ba8f39"
   solver-name = "gps-cdcl"
   solver-version = 1

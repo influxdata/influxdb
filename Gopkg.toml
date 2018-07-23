@@ -33,6 +33,10 @@ required = [
 ]
 
 [[constraint]]
+  name = "github.com/goreleaser/goreleaser"
+  version = "0.81.0"
+
+[[constraint]]
   name = "github.com/google/go-cmp"
   version = "0.2.0"
 
@@ -80,4 +84,4 @@ required = [
 
 [[constraint]]
   name = "github.com/google/go-github"
-  revision = "1bc362c7737e51014af7299e016444b654095ad9"
+  branch = "master"
