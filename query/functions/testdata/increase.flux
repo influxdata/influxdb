@@ -1,8 +1,4 @@
-increase = (table=<-) => 
-    difference(table: table, nonNegative: true)
-    |> cumulativeSum()
-  
 from(db: "test")
-    |> range(start:-5m)
-    |> increase()
+   |> range(start:2018-05-22T19:53:26Z)
+   |> increase()
 
