@@ -9,30 +9,44 @@ import (
 func TestIDFromString(t *testing.T) {
 	tests := []struct {
 		name    string
-		idstr   string
+		id      string
 		want    *ID
 		wantErr bool
+		err     string
 	}{
 		{
-			name:  "Is able to decode an id",
-			idstr: "020f755c3c082000",
-			want:  &ID{0x02, 0x0f, 0x75, 0x5c, 0x3c, 0x08, 0x20, 0x00},
+			name: "Should be able to decode an ID",
+			id:   "0000000000000000", //020f755c3c082000
+			want: &ID{value: func(i uint64) *uint64 { return &i }(0)},
 		},
 		{
-			name:    "It should not be able to decode an id that's not hex",
-			idstr:   "gggggggggggggg",
+			name:    "Should not be able to decode a non hex ID",
+			id:      "gggggggggggggggg",
 			wantErr: true,
+			err:     "encoding/hex: invalid byte: U+0067 'g'",
+		},
+		{
+			name:    "Should not be able to decode inputs with length other than 8 bytes",
+			id:      "abc",
+			wantErr: true,
+			err:     "input must be an array of 8 bytes",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := IDFromString(tt.idstr)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("IDFromString() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := IDFromString(tt.id)
+
+			// Check negative test cases
+			if (err != nil) && tt.wantErr {
+				if tt.err != err.Error() {
+					t.Errorf("IDFromString() errors out \"%s\", want \"%s\"", err, tt.err)
+				}
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("IDFromString() = %v, want %v", got, tt.want)
+
+			// Check positive test cases
+			if !reflect.DeepEqual(got, tt.want) && !tt.wantErr {
+				t.Errorf("IDFromString() outputs %v, want %v", got, tt.want)
 			}
 		})
 	}
