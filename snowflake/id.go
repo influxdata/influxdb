@@ -1,15 +1,12 @@
 package snowflake
 
 import (
-	"encoding/binary"
 	"math/rand"
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/snowflake"
 	"github.com/influxdata/platform"
 )
-
-// TODO: rename to id.go
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -27,8 +24,5 @@ func NewIDGenerator() *IDGenerator {
 }
 
 func (g *IDGenerator) ID() platform.ID {
-	id := make(platform.ID, 8)
-	i := g.Generator.Next()
-	binary.BigEndian.PutUint64(id, i)
-	return id
+	return platform.ID(g.Generator.Next())
 }

@@ -10,7 +10,7 @@ import (
 func TestIDLength(t *testing.T) {
 	gen := NewIDGenerator()
 	id := gen.ID()
-	if len(id) != 8 {
+	if len(id.Encode()) != 16 {
 		t.Fail()
 	}
 }
@@ -21,7 +21,7 @@ func TestToFromString(t *testing.T) {
 	var clone platform.ID
 	if err := clone.DecodeFromString(id.String()); err != nil {
 		t.Error(err)
-	} else if !bytes.Equal(id, clone) {
+	} else if !bytes.Equal(id.Encode(), clone.Encode()) {
 		t.Errorf("id started as %x but got back %x", id, clone)
 	}
 }
