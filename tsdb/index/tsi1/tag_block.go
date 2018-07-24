@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/influxdata/influxdb/pkg/rhh"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // TagBlockVersion is the version of the tag block.
@@ -20,7 +21,8 @@ const (
 
 // Tag value flag constants.
 const (
-	TagValueTombstoneFlag = 0x01
+	TagValueTombstoneFlag   = 0x01
+	TagValueSeriesIDSetFlag = 0x02
 )
 
 // TagBlock variable size constants.
@@ -141,15 +143,6 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 		return nil
 	}
 	return &valueElem
-}
-
-// TagValueElem returns an element for a tag value.
-func (blk *TagBlock) TagValueSeriesData(key, value []byte) (uint64, []byte) {
-	var valueElem TagBlockValueElem
-	if !blk.DecodeTagValueElem(key, value, &valueElem) {
-		return 0, nil
-	}
-	return valueElem.series.n, valueElem.series.data
 }
 
 // DecodeTagValueElem returns an element for a tag value.
@@ -318,12 +311,15 @@ func (e *TagBlockKeyElem) unmarshal(buf, data []byte) {
 
 // TagBlockValueElem represents a tag value element.
 type TagBlockValueElem struct {
-	flag   byte
-	value  []byte
+	flag  byte
+	value []byte
+
 	series struct {
 		n    uint64 // Series count
 		data []byte // Raw series data
 	}
+
+	seriesIDSetData []byte
 
 	size int
 }
@@ -347,6 +343,14 @@ func (e *TagBlockValueElem) SeriesID(i int) uint64 {
 
 // SeriesIDs returns a list decoded series ids.
 func (e *TagBlockValueElem) SeriesIDs() ([]uint64, error) {
+	if e.seriesIDSetData != nil {
+		ss, err := e.SeriesIDSet()
+		if err != nil {
+			return nil, err
+		}
+		return ss.Slice(), nil
+	}
+
 	a := make([]uint64, 0, e.series.n)
 	var prev uint64
 	for data := e.series.data; len(data) > 0; {
@@ -361,6 +365,34 @@ func (e *TagBlockValueElem) SeriesIDs() ([]uint64, error) {
 		prev = seriesID
 	}
 	return a, nil
+}
+
+// SeriesIDSet returns a set of series ids.
+func (e *TagBlockValueElem) SeriesIDSet() (*tsdb.SeriesIDSet, error) {
+	ss := tsdb.NewSeriesIDSet()
+
+	// Read bitmap data directly from mmap, if available.
+	if e.seriesIDSetData != nil {
+		if err := ss.UnmarshalBinaryUnsafe(e.seriesIDSetData); err != nil {
+			return nil, err
+		}
+		return ss, nil
+	}
+
+	// Otherwise decode series ids from uvarint encoding.
+	var prev uint64
+	for data := e.series.data; len(data) > 0; {
+		delta, n, err := uvarint(data)
+		if err != nil {
+			return nil, err
+		}
+		data = data[n:]
+
+		seriesID := prev + uint64(delta)
+		ss.AddNoLock(seriesID)
+		prev = seriesID
+	}
+	return ss, nil
 }
 
 // Size returns the size of the element.
@@ -386,9 +418,13 @@ func (e *TagBlockValueElem) unmarshal(buf []byte) {
 	sz, n = binary.Uvarint(buf)
 	buf = buf[n:]
 
-	// Save reference to series data.
-	e.series.data = buf[:sz]
-	buf = buf[sz:]
+	// Parse series data (original uvarint encoded or roaring bitmap).
+	if e.flag&TagValueSeriesIDSetFlag == 0 {
+		e.series.data, buf = buf[:sz], buf[sz:]
+	} else {
+		buf = memalign(buf)
+		e.seriesIDSetData, buf = buf, buf[sz:]
+	}
 
 	// Save length of elem.
 	e.size = start - len(buf)
@@ -591,17 +627,12 @@ func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []
 
 	// Build series data in buffer.
 	enc.buf.Reset()
-	var prev uint64
+	ss := tsdb.NewSeriesIDSet()
 	for _, seriesID := range seriesIDs {
-		delta := seriesID - prev
-
-		var buf [binary.MaxVarintLen32]byte
-		i := binary.PutUvarint(buf[:], uint64(delta))
-		if _, err := enc.buf.Write(buf[:i]); err != nil {
-			return err
-		}
-
-		prev = seriesID
+		ss.AddNoLock(seriesID)
+	}
+	if _, err := ss.WriteTo(&enc.buf); err != nil {
+		return err
 	}
 
 	// Write series count.
@@ -613,6 +644,14 @@ func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []
 	if err := writeUvarintTo(enc.w, uint64(enc.buf.Len()), &enc.n); err != nil {
 		return err
 	}
+
+	// Word align bitmap data.
+	if offset := (enc.n) % 8; offset != 0 {
+		if err := writeTo(enc.w, make([]byte, 8-offset), &enc.n); err != nil {
+			return err
+		}
+	}
+
 	nn, err := enc.buf.WriteTo(enc.w)
 	if enc.n += nn; err != nil {
 		return err
@@ -778,7 +817,7 @@ func encodeTagKeyFlag(deleted bool) byte {
 }
 
 func encodeTagValueFlag(deleted bool) byte {
-	var flag byte
+	flag := byte(TagValueSeriesIDSetFlag)
 	if deleted {
 		flag |= TagValueTombstoneFlag
 	}

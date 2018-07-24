@@ -395,15 +395,17 @@ func (fs *FileSet) TagValueIterator(name, key []byte) TagValueIterator {
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
-func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
+func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
 	for _, f := range fs.files {
-		itr := f.TagValueSeriesIDIterator(name, key, value)
-		if itr != nil {
+		itr, err := f.TagValueSeriesIDIterator(name, key, value)
+		if err != nil {
+			return nil, err
+		} else if itr != nil {
 			a = append(a, itr)
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...)
+	return tsdb.MergeSeriesIDIterators(a...), nil
 }
 
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
@@ -453,7 +455,7 @@ type File interface {
 	// Series iteration.
 	MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 	TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
-	TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator
+	TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error)
 
 	// Sketches for cardinality estimation
 	MergeMeasurementsSketches(s, t estimator.Sketch) error

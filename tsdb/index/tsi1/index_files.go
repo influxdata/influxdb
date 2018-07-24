@@ -139,16 +139,18 @@ func (p IndexFiles) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterat
 }
 
 // TagValueSeriesIDIterator returns an iterator that merges series across all files.
-func (p IndexFiles) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
+func (p IndexFiles) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	a := make([]tsdb.SeriesIDIterator, 0, len(p))
 
 	for i := range p {
-		itr := p[i].TagValueSeriesIDIterator(name, key, value)
-		if itr != nil {
+		itr, err := p[i].TagValueSeriesIDIterator(name, key, value)
+		if err != nil {
+			return nil, err
+		} else if itr != nil {
 			a = append(a, itr)
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...)
+	return tsdb.MergeSeriesIDIterators(a...), nil
 }
 
 // CompactTo merges all index files and writes them to w.
@@ -183,6 +185,13 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, 
 	// Write tagset blocks in measurement order.
 	if err := p.writeTagsetsTo(bw, &info, &n); err != nil {
 		return n, err
+	}
+
+	// Ensure block is word aligned.
+	if offset := (n) % 8; offset != 0 {
+		if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
+			return n, err
+		}
 	}
 
 	// Write measurement block.
@@ -289,6 +298,13 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 	default:
 	}
 
+	// Ensure block is word aligned.
+	if offset := (*n) % 8; offset != 0 {
+		if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
+			return err
+		}
+	}
+
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
 		return err
@@ -309,8 +325,10 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 
 			// Merge all series together.
 			if err := func() error {
-				sitr := p.TagValueSeriesIDIterator(name, ke.Key(), ve.Value())
-				if sitr != nil {
+				sitr, err := p.TagValueSeriesIDIterator(name, ke.Key(), ve.Value())
+				if err != nil {
+					return err
+				} else if sitr != nil {
 					defer sitr.Close()
 					for {
 						se, err := sitr.Next()
