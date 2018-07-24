@@ -207,14 +207,14 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, 
 
 	// Generate sketches from series sets.
 	sketch := hll.NewDefaultPlus()
-	seriesIDSet.ForEach(func(id uint64) {
+	seriesIDSet.ForEach(func(id tsdb.SeriesID) {
 		if key := sfile.SeriesKey(id); key != nil {
 			sketch.Add(key)
 		}
 	})
 
 	tSketch := hll.NewDefaultPlus()
-	tombstoneSeriesIDSet.ForEach(func(id uint64) {
+	tombstoneSeriesIDSet.ForEach(func(id tsdb.SeriesID) {
 		if key := sfile.SeriesKey(id); key != nil {
 			tSketch.Add(key)
 		}
@@ -287,7 +287,7 @@ func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
 func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
-	var seriesIDs []uint64
+	var seriesIDs []tsdb.SeriesID
 
 	// Check for cancellation.
 	select {
@@ -374,12 +374,12 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 				itr := p.MeasurementSeriesIDIterator(name)
 				defer itr.Close()
 
-				var seriesIDs []uint64
+				var seriesIDs []tsdb.SeriesID
 				for {
 					e, err := itr.Next()
 					if err != nil {
 						return err
-					} else if e.SeriesID == 0 {
+					} else if e.SeriesID.IsZero() {
 						break
 					}
 					seriesIDs = append(seriesIDs, e.SeriesID)
@@ -393,7 +393,7 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 						}
 					}
 				}
-				sort.Sort(uint64Slice(seriesIDs))
+				sort.Slice(seriesIDs, func(i, j int) bool { return seriesIDs[i].Less(seriesIDs[j]) })
 
 				// Add measurement to writer.
 				pos := info.tagSets[string(name)]

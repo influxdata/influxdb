@@ -39,15 +39,15 @@ func TestSeriesIDSet_AndNot(t *testing.T) {
 			// Build sets.
 			a, b := NewSeriesIDSet(), NewSeriesIDSet()
 			for _, v := range example[0] {
-				a.Add(v)
+				a.Add(NewSeriesID(v))
 			}
 			for _, v := range example[1] {
-				b.Add(v)
+				b.Add(NewSeriesID(v))
 			}
 
 			expected := NewSeriesIDSet()
 			for _, v := range example[2] {
-				expected.Add(v)
+				expected.Add(NewSeriesID(v))
 			}
 
 			got := a.AndNot(b)
@@ -79,13 +79,13 @@ func BenchmarkSeriesIDSet_Contains(b *testing.B) {
 		// Setup...
 		set := NewSeriesIDSet()
 		for i := uint64(0); i < cardinality; i++ {
-			set.Add(i)
+			set.Add(NewSeriesID(i))
 		}
 
 		lookup := cardinality / 2
 		b.Run(fmt.Sprint(cardinality), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				resultBool = set.Contains(lookup)
+				resultBool = set.Contains(NewSeriesID(lookup))
 			}
 		})
 	}
@@ -111,16 +111,16 @@ func BenchmarkSeriesIDSet_AddMore(b *testing.B) {
 		// Setup...
 		set = NewSeriesIDSet()
 		for i := uint64(0); i < cardinality-1; i++ {
-			set.Add(i)
+			set.Add(NewSeriesID(i))
 		}
 
 		b.Run(fmt.Sprint(cardinality), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				// Add next value
-				set.Add(cardinality)
+				set.Add(NewSeriesID(cardinality))
 
 				b.StopTimer()
-				set.Remove(cardinality)
+				set.Remove(NewSeriesID(cardinality))
 				b.StartTimer()
 			}
 		})
@@ -140,14 +140,14 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	// Setup...
 	set = NewSeriesIDSet()
 	for i := uint64(0); i < 1000000; i++ {
-		set.Add(i)
+		set.Add(NewSeriesID(i))
 	}
 	lookup := uint64(300032)
 
 	// Add the same value over and over.
 	b.Run(fmt.Sprint("cardinality_1000000_add_same"), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			set.Add(lookup)
+			set.Add(NewSeriesID(lookup))
 		}
 	})
 
@@ -156,8 +156,8 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	b.Run(fmt.Sprint("cardinality_1000000_check_add_global_lock"), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			set.Lock()
-			if !set.ContainsNoLock(lookup) {
-				set.AddNoLock(lookup)
+			if !set.ContainsNoLock(NewSeriesID(lookup)) {
+				set.AddNoLock(NewSeriesID(lookup))
 			}
 			set.Unlock()
 		}
@@ -166,8 +166,8 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 	// Check if the value exists before adding it under two locks.
 	b.Run(fmt.Sprint("cardinality_1000000_check_add_multi_lock"), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if !set.Contains(lookup) {
-				set.Add(lookup)
+			if !set.Contains(NewSeriesID(lookup)) {
+				set.Add(NewSeriesID(lookup))
 			}
 		}
 	})
@@ -186,14 +186,14 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	// Setup...
 	set = NewSeriesIDSet()
 	for i := uint64(0); i < 1000000; i++ {
-		set.Add(i)
+		set.Add(NewSeriesID(i))
 	}
 	lookup := uint64(300032)
 
 	// Remove the same value over and over.
 	b.Run(fmt.Sprint("cardinality_1000000_remove_same"), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			set.Remove(lookup)
+			set.Remove(NewSeriesID(lookup))
 		}
 	})
 
@@ -202,8 +202,8 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	b.Run(fmt.Sprint("cardinality_1000000_check_remove_global_lock"), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			set.Lock()
-			if set.ContainsNoLock(lookup) {
-				set.RemoveNoLock(lookup)
+			if set.ContainsNoLock(NewSeriesID(lookup)) {
+				set.RemoveNoLock(NewSeriesID(lookup))
 			}
 			set.Unlock()
 		}
@@ -212,8 +212,8 @@ func BenchmarkSeriesIDSet_Remove(b *testing.B) {
 	// Check if the value exists before adding it under two locks.
 	b.Run(fmt.Sprint("cardinality_1000000_check_remove_multi_lock"), func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			if set.Contains(lookup) {
-				set.Remove(lookup)
+			if set.Contains(NewSeriesID(lookup)) {
+				set.Remove(NewSeriesID(lookup))
 			}
 		}
 	})
@@ -240,7 +240,7 @@ func BenchmarkSeriesIDSet_Merge_Duplicates(b *testing.B) {
 	for _, cardinality := range cardinalities {
 		set = NewSeriesIDSet()
 		for i := 0; i < cardinality; i++ {
-			set.Add(uint64(i))
+			set.Add(NewSeriesID(uint64(i)))
 		}
 
 		for _, shard := range shards {
@@ -284,7 +284,7 @@ func BenchmarkSeriesIDSet_Merge_Unique(b *testing.B) {
 	for _, cardinality := range cardinalities {
 		set = NewSeriesIDSet()
 		for i := 0; i < cardinality; i++ {
-			set.Add(uint64(i))
+			set.Add(NewSeriesID(uint64(i)))
 		}
 
 		for _, shard := range shards {
@@ -292,7 +292,7 @@ func BenchmarkSeriesIDSet_Merge_Unique(b *testing.B) {
 			for s := 1; s <= shard; s++ {
 				other := NewSeriesIDSet()
 				for i := 0; i < cardinality; i++ {
-					other.Add(uint64(i + (s * cardinality)))
+					other.Add(NewSeriesID(uint64(i + (s * cardinality))))
 				}
 				others = append(others, other)
 			}

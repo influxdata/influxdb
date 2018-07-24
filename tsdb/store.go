@@ -706,7 +706,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				var tagsBuf models.Tags // Buffer for tags container.
 				var err error
 
-				ss.ForEach(func(id uint64) {
+				ss.ForEach(func(id SeriesID) {
 					skey := sfile.SeriesKey(id) // Series File series key
 					if skey == nil {
 						return
@@ -724,7 +724,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 				}
 			}
 
-			ss.ForEach(func(id uint64) {
+			ss.ForEach(func(id SeriesID) {
 				sfile.DeleteSeriesID(id)
 			})
 		}

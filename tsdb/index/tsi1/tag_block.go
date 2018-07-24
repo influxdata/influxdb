@@ -393,7 +393,7 @@ func (e *TagBlockValueElem) SeriesIDSet() (*tsdb.SeriesIDSet, error) {
 		data = data[n:]
 
 		seriesID := prev + uint64(delta)
-		ss.AddNoLock(seriesID)
+		ss.AddNoLock(tsdb.NewSeriesID(seriesID))
 		prev = seriesID
 	}
 	return ss, nil

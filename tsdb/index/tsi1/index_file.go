@@ -276,7 +276,7 @@ func (f *IndexFile) MeasurementHasSeries(ss *tsdb.SeriesIDSet, name []byte) (ok 
 	}
 
 	var exists bool
-	e.ForEachSeriesID(func(id uint64) error {
+	e.ForEachSeriesID(func(id tsdb.SeriesID) error {
 		if ss.Contains(id) {
 			exists = true
 			return errors.New("done")

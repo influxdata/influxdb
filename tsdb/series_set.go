@@ -38,7 +38,7 @@ func (s *SeriesIDSet) Bytes() int {
 }
 
 // Add adds the series id to the set.
-func (s *SeriesIDSet) Add(id uint64) {
+func (s *SeriesIDSet) Add(id SeriesID) {
 	s.Lock()
 	defer s.Unlock()
 	s.AddNoLock(id)
@@ -46,12 +46,12 @@ func (s *SeriesIDSet) Add(id uint64) {
 
 // AddNoLock adds the series id to the set. Add is not safe for use from multiple
 // goroutines. Callers must manage synchronization.
-func (s *SeriesIDSet) AddNoLock(id uint64) {
-	s.bitmap.Add(uint32(id))
+func (s *SeriesIDSet) AddNoLock(id SeriesID) {
+	s.bitmap.Add(uint32(id.RawID()))
 }
 
 // Contains returns true if the id exists in the set.
-func (s *SeriesIDSet) Contains(id uint64) bool {
+func (s *SeriesIDSet) Contains(id SeriesID) bool {
 	s.RLock()
 	x := s.ContainsNoLock(id)
 	s.RUnlock()
@@ -60,12 +60,12 @@ func (s *SeriesIDSet) Contains(id uint64) bool {
 
 // ContainsNoLock returns true if the id exists in the set. ContainsNoLock is
 // not safe for use from multiple goroutines. The caller must manage synchronization.
-func (s *SeriesIDSet) ContainsNoLock(id uint64) bool {
-	return s.bitmap.Contains(uint32(id))
+func (s *SeriesIDSet) ContainsNoLock(id SeriesID) bool {
+	return s.bitmap.Contains(uint32(id.RawID()))
 }
 
 // Remove removes the id from the set.
-func (s *SeriesIDSet) Remove(id uint64) {
+func (s *SeriesIDSet) Remove(id SeriesID) {
 	s.Lock()
 	defer s.Unlock()
 	s.RemoveNoLock(id)
@@ -73,8 +73,8 @@ func (s *SeriesIDSet) Remove(id uint64) {
 
 // RemoveNoLock removes the id from the set. RemoveNoLock is not safe for use
 // from multiple goroutines. The caller must manage synchronization.
-func (s *SeriesIDSet) RemoveNoLock(id uint64) {
-	s.bitmap.Remove(uint32(id))
+func (s *SeriesIDSet) RemoveNoLock(id SeriesID) {
+	s.bitmap.Remove(uint32(id.RawID()))
 }
 
 // Cardinality returns the cardinality of the SeriesIDSet.
@@ -143,20 +143,20 @@ func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
 
 // ForEach calls f for each id in the set. The function is applied to the IDs
 // in ascending order.
-func (s *SeriesIDSet) ForEach(f func(id uint64)) {
+func (s *SeriesIDSet) ForEach(f func(id SeriesID)) {
 	s.RLock()
 	defer s.RUnlock()
 	itr := s.bitmap.Iterator()
 	for itr.HasNext() {
-		f(uint64(itr.Next()))
+		f(NewSeriesID(uint64(itr.Next())))
 	}
 }
 
 // ForEachNoLock calls f for each id in the set without taking a lock.
-func (s *SeriesIDSet) ForEachNoLock(f func(id uint64)) {
+func (s *SeriesIDSet) ForEachNoLock(f func(id SeriesID)) {
 	itr := s.bitmap.Iterator()
 	for itr.HasNext() {
-		f(uint64(itr.Next()))
+		f(NewSeriesID(uint64(itr.Next())))
 	}
 }
 

@@ -118,9 +118,9 @@ func (p *SeriesPartition) openSegments() error {
 
 	// Find max series id by searching segments in reverse order.
 	for i := len(p.segments) - 1; i >= 0; i-- {
-		if seq := p.segments[i].MaxSeriesID(); seq >= p.seq {
+		if seq := p.segments[i].MaxSeriesID(); seq.RawID() >= p.seq {
 			// Reset our sequence num to the next one to assign
-			p.seq = seq + SeriesFilePartitionN
+			p.seq = seq.RawID() + SeriesFilePartitionN
 			break
 		}
 	}
@@ -175,7 +175,7 @@ func (p *SeriesPartition) IndexPath() string { return filepath.Join(p.path, "ind
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
-func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitionIDs []int, ids []uint64) error {
+func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitionIDs []int, ids []SeriesID) error {
 	var writeRequired bool
 	p.mu.RLock()
 	if p.closed {
@@ -187,7 +187,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 			continue
 		}
 		id := p.index.FindIDBySeriesKey(p.segments, keys[i])
-		if id == 0 {
+		if id.IsZero() {
 			writeRequired = true
 			continue
 		}
@@ -201,7 +201,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	}
 
 	type keyRange struct {
-		id     uint64
+		id     SeriesID
 		offset int64
 	}
 	newKeyRanges := make([]keyRange, 0, len(keys))
@@ -215,19 +215,19 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	}
 
 	// Track offsets of duplicate series.
-	newIDs := make(map[string]uint64, len(ids))
+	newIDs := make(map[string]SeriesID, len(ids))
 
 	for i := range keys {
 		// Skip series that don't belong to the partition or have already been created.
-		if keyPartitionIDs[i] != p.id || ids[i] != 0 {
+		if keyPartitionIDs[i] != p.id || !ids[i].IsZero() {
 			continue
 		}
 
 		// Re-attempt lookup under write lock.
 		key := keys[i]
-		if ids[i] = newIDs[string(key)]; ids[i] != 0 {
+		if ids[i] = newIDs[string(key)]; !ids[i].IsZero() {
 			continue
-		} else if ids[i] = p.index.FindIDBySeriesKey(p.segments, key); ids[i] != 0 {
+		} else if ids[i] = p.index.FindIDBySeriesKey(p.segments, key); !ids[i].IsZero() {
 			continue
 		}
 
@@ -291,7 +291,7 @@ func (p *SeriesPartition) Compacting() bool {
 
 // DeleteSeriesID flags a series as permanently deleted.
 // If the series is reintroduced later then it must create a new id.
-func (p *SeriesPartition) DeleteSeriesID(id uint64) error {
+func (p *SeriesPartition) DeleteSeriesID(id SeriesID) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -317,7 +317,7 @@ func (p *SeriesPartition) DeleteSeriesID(id uint64) error {
 }
 
 // IsDeleted returns true if the ID has been deleted before.
-func (p *SeriesPartition) IsDeleted(id uint64) bool {
+func (p *SeriesPartition) IsDeleted(id SeriesID) bool {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -329,8 +329,8 @@ func (p *SeriesPartition) IsDeleted(id uint64) bool {
 }
 
 // SeriesKey returns the series key for a given id.
-func (p *SeriesPartition) SeriesKey(id uint64) []byte {
-	if id == 0 {
+func (p *SeriesPartition) SeriesKey(id SeriesID) []byte {
+	if id.IsZero() {
 		return nil
 	}
 	p.mu.RLock()
@@ -344,7 +344,7 @@ func (p *SeriesPartition) SeriesKey(id uint64) []byte {
 }
 
 // Series returns the parsed series name and tags for an offset.
-func (p *SeriesPartition) Series(id uint64) ([]byte, models.Tags) {
+func (p *SeriesPartition) Series(id SeriesID) ([]byte, models.Tags) {
 	key := p.SeriesKey(id)
 	if key == nil {
 		return nil, nil
@@ -353,11 +353,11 @@ func (p *SeriesPartition) Series(id uint64) ([]byte, models.Tags) {
 }
 
 // FindIDBySeriesKey return the series id for the series key.
-func (p *SeriesPartition) FindIDBySeriesKey(key []byte) uint64 {
+func (p *SeriesPartition) FindIDBySeriesKey(key []byte) SeriesID {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
-		return 0
+		return SeriesID{}
 	}
 	id := p.index.FindIDBySeriesKey(p.segments, key)
 	p.mu.RUnlock()
@@ -397,7 +397,7 @@ func (p *SeriesPartition) compactionsEnabled() bool {
 }
 
 // AppendSeriesIDs returns a list of all series ids.
-func (p *SeriesPartition) AppendSeriesIDs(a []uint64) []uint64 {
+func (p *SeriesPartition) AppendSeriesIDs(a []SeriesID) []SeriesID {
 	for _, segment := range p.segments {
 		a = segment.AppendSeriesIDs(a)
 	}
@@ -412,11 +412,11 @@ func (p *SeriesPartition) activeSegment() *SeriesSegment {
 	return p.segments[len(p.segments)-1]
 }
 
-func (p *SeriesPartition) insert(key []byte) (id uint64, offset int64, err error) {
-	id = p.seq
+func (p *SeriesPartition) insert(key []byte) (id SeriesID, offset int64, err error) {
+	id = NewSeriesID(p.seq)
 	offset, err = p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryInsertFlag, id, key))
 	if err != nil {
-		return 0, 0, err
+		return SeriesID{}, 0, err
 	}
 
 	p.seq += SeriesFilePartitionN
@@ -549,7 +549,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	for _, segment := range segments {
 		errDone := errors.New("done")
 
-		if err := segment.ForEachEntry(func(flag uint8, id uint64, offset int64, key []byte) error {
+		if err := segment.ForEachEntry(func(flag uint8, id SeriesID, offset int64, key []byte) error {
 			// Make sure we don't go past the offset where the compaction began.
 			if offset >= index.maxOffset {
 				return errDone
@@ -624,7 +624,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	return nil
 }
 
-func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, segments []*SeriesSegment, key []byte, offset int64, id uint64) error {
+func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, segments []*SeriesSegment, key []byte, offset int64, id SeriesID) error {
 	mask := capacity - 1
 	hash := rhh.HashKey(key)
 
@@ -635,10 +635,10 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 
 		// If empty slot found or matching offset, insert and exit.
 		elemOffset := int64(binary.BigEndian.Uint64(elem[:8]))
-		elemID := binary.BigEndian.Uint64(elem[8:])
+		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[8:]))
 		if elemOffset == 0 || elemOffset == offset {
 			binary.BigEndian.PutUint64(elem[:8], uint64(offset))
-			binary.BigEndian.PutUint64(elem[8:], id)
+			binary.BigEndian.PutUint64(elem[8:], id.RawID())
 			return nil
 		}
 
@@ -651,7 +651,7 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 		if d := rhh.Dist(elemHash, pos, capacity); d < dist {
 			// Insert current values.
 			binary.BigEndian.PutUint64(elem[:8], uint64(offset))
-			binary.BigEndian.PutUint64(elem[8:], id)
+			binary.BigEndian.PutUint64(elem[8:], id.RawID())
 
 			// Swap with values in that position.
 			hash, key, offset, id = elemHash, elemKey, elemOffset, elemID
@@ -662,9 +662,9 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 	}
 }
 
-func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64, id uint64, offset int64) {
+func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64, id SeriesID, offset int64) {
 	mask := capacity - 1
-	hash := rhh.HashUint64(id)
+	hash := rhh.HashUint64(id.RawID())
 
 	// Continue searching until we find an empty slot or lower probe distance.
 	for i, dist, pos := int64(0), int64(0), hash&mask; ; i, dist, pos = i+1, dist+1, (pos+1)&mask {
@@ -672,22 +672,22 @@ func (c *SeriesPartitionCompactor) insertIDOffsetMap(dst []byte, capacity int64,
 		elem := dst[(pos * SeriesIndexElemSize):]
 
 		// If empty slot found or matching id, insert and exit.
-		elemID := binary.BigEndian.Uint64(elem[:8])
+		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[:8]))
 		elemOffset := int64(binary.BigEndian.Uint64(elem[8:]))
 		if elemOffset == 0 || elemOffset == offset {
-			binary.BigEndian.PutUint64(elem[:8], id)
+			binary.BigEndian.PutUint64(elem[:8], id.RawID())
 			binary.BigEndian.PutUint64(elem[8:], uint64(offset))
 			return
 		}
 
 		// Hash key.
-		elemHash := rhh.HashUint64(elemID)
+		elemHash := rhh.HashUint64(elemID.RawID())
 
 		// If the existing elem has probed less than us, then swap places with
 		// existing elem, and keep going to find another slot for that elem.
 		if d := rhh.Dist(elemHash, pos, capacity); d < dist {
 			// Insert current values.
-			binary.BigEndian.PutUint64(elem[:8], id)
+			binary.BigEndian.PutUint64(elem[:8], id.RawID())
 			binary.BigEndian.PutUint64(elem[8:], uint64(offset))
 
 			// Swap with values in that position.

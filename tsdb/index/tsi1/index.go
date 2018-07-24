@@ -616,7 +616,7 @@ func (i *Index) InitializeSeries(keys, names [][]byte, tags []models.Tags) error
 
 // DropSeries drops the provided series from the index.  If cascade is true
 // and this is the last series to the measurement, the measurment will also be dropped.
-func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
+func (i *Index) DropSeries(seriesID tsdb.SeriesID, key []byte, cascade bool) error {
 	// Remove from partition.
 	if err := i.partition(key).DropSeries(seriesID); err != nil {
 		return err

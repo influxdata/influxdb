@@ -211,8 +211,8 @@ func (s *SeriesSegment) Flush() error {
 }
 
 // AppendSeriesIDs appends all the segments ids to a slice. Returns the new slice.
-func (s *SeriesSegment) AppendSeriesIDs(a []uint64) []uint64 {
-	s.ForEachEntry(func(flag uint8, id uint64, _ int64, _ []byte) error {
+func (s *SeriesSegment) AppendSeriesIDs(a []SeriesID) []SeriesID {
+	s.ForEachEntry(func(flag uint8, id SeriesID, _ int64, _ []byte) error {
 		if flag == SeriesEntryInsertFlag {
 			a = append(a, id)
 		}
@@ -222,10 +222,10 @@ func (s *SeriesSegment) AppendSeriesIDs(a []uint64) []uint64 {
 }
 
 // MaxSeriesID returns the highest series id in the segment.
-func (s *SeriesSegment) MaxSeriesID() uint64 {
-	var max uint64
-	s.ForEachEntry(func(flag uint8, id uint64, _ int64, _ []byte) error {
-		if flag == SeriesEntryInsertFlag && id > max {
+func (s *SeriesSegment) MaxSeriesID() SeriesID {
+	var max SeriesID
+	s.ForEachEntry(func(flag uint8, id SeriesID, _ int64, _ []byte) error {
+		if flag == SeriesEntryInsertFlag && id.Greater(max) {
 			max = id
 		}
 		return nil
@@ -234,7 +234,7 @@ func (s *SeriesSegment) MaxSeriesID() uint64 {
 }
 
 // ForEachEntry executes fn for every entry in the segment.
-func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id uint64, offset int64, key []byte) error) error {
+func (s *SeriesSegment) ForEachEntry(fn func(flag uint8, id SeriesID, offset int64, key []byte) error) error {
 	for pos := uint32(SeriesSegmentHeaderSize); pos < uint32(len(s.data)); {
 		flag, id, key, sz := ReadSeriesEntry(s.data[pos:])
 		if !IsValidSeriesEntryFlag(flag) {
@@ -365,14 +365,14 @@ func (hdr *SeriesSegmentHeader) WriteTo(w io.Writer) (n int64, err error) {
 	return buf.WriteTo(w)
 }
 
-func ReadSeriesEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) {
+func ReadSeriesEntry(data []byte) (flag uint8, id SeriesID, key []byte, sz int64) {
 	// If flag byte is zero then no more entries exist.
 	flag, data = uint8(data[0]), data[1:]
 	if !IsValidSeriesEntryFlag(flag) {
-		return 0, 0, nil, 1
+		return 0, SeriesID{}, nil, 1
 	}
 
-	id, data = binary.BigEndian.Uint64(data), data[8:]
+	id, data = NewSeriesID(binary.BigEndian.Uint64(data)), data[8:]
 	switch flag {
 	case SeriesEntryInsertFlag:
 		key, _ = ReadSeriesKey(data)
@@ -380,9 +380,9 @@ func ReadSeriesEntry(data []byte) (flag uint8, id uint64, key []byte, sz int64) 
 	return flag, id, key, int64(SeriesEntryHeaderSize + len(key))
 }
 
-func AppendSeriesEntry(dst []byte, flag uint8, id uint64, key []byte) []byte {
+func AppendSeriesEntry(dst []byte, flag uint8, id SeriesID, key []byte) []byte {
 	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, id)
+	binary.BigEndian.PutUint64(buf, id.RawID())
 
 	dst = append(dst, flag)
 	dst = append(dst, buf...)

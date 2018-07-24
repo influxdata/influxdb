@@ -109,14 +109,14 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 		t.Fatal("nil iterator")
 	}
 
-	var prevSeriesID uint64
+	var prevSeriesID tsdb.SeriesID
 	for i := 0; i < len(tvs); i++ {
 		elem, err := itr.Next()
 		if err != nil {
 			t.Fatal(err)
-		} else if elem.SeriesID == 0 {
+		} else if elem.SeriesID.IsZero() {
 			t.Fatal("got nil series")
-		} else if elem.SeriesID < prevSeriesID {
+		} else if elem.SeriesID.Less(prevSeriesID) {
 			t.Fatalf("series out of order: %d !< %d ", elem.SeriesID, prevSeriesID)
 		}
 		prevSeriesID = elem.SeriesID
@@ -195,7 +195,7 @@ func TestLogFile_Open(t *testing.T) {
 			t.Fatalf("unexpected series: %s,%s", name, tags.String())
 		} else if elem, err := itr.Next(); err != nil {
 			t.Fatal(err)
-		} else if elem.SeriesID != 0 {
+		} else if !elem.SeriesID.IsZero() {
 			t.Fatalf("expected eof, got: %#v", elem)
 		}
 
@@ -218,7 +218,7 @@ func TestLogFile_Open(t *testing.T) {
 			t.Fatalf("unexpected series: %s,%s", name, tags.String())
 		} else if elem, err := itr.Next(); err != nil {
 			t.Fatal(err)
-		} else if elem.SeriesID != 0 {
+		} else if !elem.SeriesID.IsZero() {
 			t.Fatalf("expected eof, got: %#v", elem)
 		}
 	})
@@ -260,7 +260,7 @@ func TestLogFile_Open(t *testing.T) {
 			t.Fatalf("unexpected series: %s,%s", name, tags.String())
 		} else if elem, err := itr.Next(); err != nil {
 			t.Fatal(err)
-		} else if elem.SeriesID != 0 {
+		} else if !elem.SeriesID.IsZero() {
 			t.Fatalf("expected eof, got: %#v", elem)
 		}
 	})

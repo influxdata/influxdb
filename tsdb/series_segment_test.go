@@ -25,7 +25,7 @@ func TestSeriesSegment(t *testing.T) {
 
 	// Write initial entry.
 	key1 := tsdb.AppendSeriesKey(nil, []byte("m0"), nil)
-	offset, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 1, key1))
+	offset, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(1), key1))
 	if err != nil {
 		t.Fatal(err)
 	} else if offset != tsdb.SeriesSegmentHeaderSize {
@@ -34,27 +34,27 @@ func TestSeriesSegment(t *testing.T) {
 
 	// Write a large entry (3mb).
 	key2 := tsdb.AppendSeriesKey(nil, bytes.Repeat([]byte("m"), 3*(1<<20)), nil)
-	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2, key2)); err != nil {
+	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(2), key2)); err != nil {
 		t.Fatal(err)
 	} else if offset != tsdb.SeriesSegmentHeaderSize {
 		t.Fatalf("unexpected offset: %d", offset)
 	}
 
 	// Write another entry that is too large for the remaining segment space.
-	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 3, tsdb.AppendSeriesKey(nil, bytes.Repeat([]byte("n"), 3*(1<<20)), nil))); err != tsdb.ErrSeriesSegmentNotWritable {
+	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(3), tsdb.AppendSeriesKey(nil, bytes.Repeat([]byte("n"), 3*(1<<20)), nil))); err != tsdb.ErrSeriesSegmentNotWritable {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
 	// Verify two entries exist.
 	var n int
-	segment.ForEachEntry(func(flag uint8, id uint64, offset int64, key []byte) error {
+	segment.ForEachEntry(func(flag uint8, id tsdb.SeriesID, offset int64, key []byte) error {
 		switch n {
 		case 0:
-			if flag != tsdb.SeriesEntryInsertFlag || id != 1 || !bytes.Equal(key1, key) {
+			if flag != tsdb.SeriesEntryInsertFlag || id != tsdb.NewSeriesID(1) || !bytes.Equal(key1, key) {
 				t.Fatalf("unexpected entry(0): %d, %d, %q", flag, id, key)
 			}
 		case 1:
-			if flag != tsdb.SeriesEntryInsertFlag || id != 2 || !bytes.Equal(key2, key) {
+			if flag != tsdb.SeriesEntryInsertFlag || id != tsdb.NewSeriesID(2) || !bytes.Equal(key2, key) {
 				t.Fatalf("unexpected entry(1): %d, %d, %q", flag, id, key)
 			}
 		default:
@@ -81,17 +81,17 @@ func TestSeriesSegment_AppendSeriesIDs(t *testing.T) {
 	defer segment.Close()
 
 	// Write entries.
-	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 10, tsdb.AppendSeriesKey(nil, []byte("m0"), nil))); err != nil {
+	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(10), tsdb.AppendSeriesKey(nil, []byte("m0"), nil))); err != nil {
 		t.Fatal(err)
-	} else if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 11, tsdb.AppendSeriesKey(nil, []byte("m1"), nil))); err != nil {
+	} else if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(11), tsdb.AppendSeriesKey(nil, []byte("m1"), nil))); err != nil {
 		t.Fatal(err)
 	} else if err := segment.Flush(); err != nil {
 		t.Fatal(err)
 	}
 
 	// Collect series ids with existing set.
-	a := segment.AppendSeriesIDs([]uint64{1, 2})
-	if diff := cmp.Diff(a, []uint64{1, 2, 10, 11}); diff != "" {
+	a := segment.AppendSeriesIDs(toSeriesIDs([]uint64{1, 2}))
+	if diff := cmp.Diff(a, toSeriesIDs([]uint64{1, 2, 10, 11})); diff != "" {
 		t.Fatal(diff)
 	}
 }
@@ -109,16 +109,16 @@ func TestSeriesSegment_MaxSeriesID(t *testing.T) {
 	defer segment.Close()
 
 	// Write entries.
-	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 10, tsdb.AppendSeriesKey(nil, []byte("m0"), nil))); err != nil {
+	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(10), tsdb.AppendSeriesKey(nil, []byte("m0"), nil))); err != nil {
 		t.Fatal(err)
-	} else if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 11, tsdb.AppendSeriesKey(nil, []byte("m1"), nil))); err != nil {
+	} else if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(11), tsdb.AppendSeriesKey(nil, []byte("m1"), nil))); err != nil {
 		t.Fatal(err)
 	} else if err := segment.Flush(); err != nil {
 		t.Fatal(err)
 	}
 
 	// Verify maximum.
-	if max := segment.MaxSeriesID(); max != 11 {
+	if max := segment.MaxSeriesID(); max != tsdb.NewSeriesID(11) {
 		t.Fatalf("unexpected max: %d", max)
 	}
 }
@@ -155,13 +155,13 @@ func TestSeriesSegment_PartialWrite(t *testing.T) {
 	defer segment.Close()
 
 	// Write two entries.
-	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 1, tsdb.AppendSeriesKey(nil, []byte("A"), nil))); err != nil {
+	if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(1), tsdb.AppendSeriesKey(nil, []byte("A"), nil))); err != nil {
 		t.Fatal(err)
-	} else if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2, tsdb.AppendSeriesKey(nil, []byte("B"), nil))); err != nil {
+	} else if _, err := segment.WriteLogEntry(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(2), tsdb.AppendSeriesKey(nil, []byte("B"), nil))); err != nil {
 		t.Fatal(err)
 	}
 	sz := segment.Size()
-	entrySize := len(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, 2, tsdb.AppendSeriesKey(nil, []byte("B"), nil)))
+	entrySize := len(tsdb.AppendSeriesEntry(nil, tsdb.SeriesEntryInsertFlag, tsdb.NewSeriesID(2), tsdb.AppendSeriesKey(nil, []byte("B"), nil)))
 
 	// Close segment.
 	if err := segment.Close(); err != nil {
@@ -245,10 +245,10 @@ func TestSeriesSegmentSize(t *testing.T) {
 
 func TestSeriesEntry(t *testing.T) {
 	seriesKey := tsdb.AppendSeriesKey(nil, []byte("m0"), nil)
-	buf := tsdb.AppendSeriesEntry(nil, 1, 2, seriesKey)
+	buf := tsdb.AppendSeriesEntry(nil, 1, tsdb.NewSeriesID(2), seriesKey)
 	if flag, id, key, sz := tsdb.ReadSeriesEntry(buf); flag != 1 {
 		t.Fatalf("unexpected flag: %d", flag)
-	} else if id != 2 {
+	} else if id != tsdb.NewSeriesID(2) {
 		t.Fatalf("unexpected id: %d", id)
 	} else if !bytes.Equal(seriesKey, key) {
 		t.Fatalf("unexpected key: %q", key)

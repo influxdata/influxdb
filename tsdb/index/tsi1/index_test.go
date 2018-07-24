@@ -93,7 +93,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 
 	name, tags := []byte("cpu"), models.NewTags(map[string]string{"region": "east"})
 	sid := idx.Index.SeriesFile().SeriesID(name, tags, nil)
-	if sid == 0 {
+	if sid.IsZero() {
 		t.Fatalf("got 0 series id for %s/%v", name, tags)
 	}
 
@@ -114,7 +114,7 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	// Delete second series.
 	tags.Set([]byte("region"), []byte("west"))
 	sid = idx.Index.SeriesFile().SeriesID(name, tags, nil)
-	if sid == 0 {
+	if sid.IsZero() {
 		t.Fatalf("got 0 series id for %s/%v", name, tags)
 	}
 	if err := idx.DropSeries(sid, models.MakeKey(name, tags), true); err != nil {
