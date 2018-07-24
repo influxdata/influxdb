@@ -15,10 +15,16 @@ type SeriesIDSet struct {
 }
 
 // NewSeriesIDSet returns a new instance of SeriesIDSet.
-func NewSeriesIDSet() *SeriesIDSet {
-	return &SeriesIDSet{
-		bitmap: roaring.NewBitmap(),
+func NewSeriesIDSet(a ...uint64) *SeriesIDSet {
+	ss := &SeriesIDSet{bitmap: roaring.NewBitmap()}
+	if len(a) > 0 {
+		a32 := make([]uint32, len(a))
+		for i := range a {
+			a32[i] = uint32(a[i])
+		}
+		ss.bitmap.AddMany(a32)
 	}
+	return ss
 }
 
 // Bytes estimates the memory footprint of this SeriesIDSet, in bytes.
@@ -197,11 +203,32 @@ func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
 	return s.bitmap.UnmarshalBinary(data)
 }
 
+// UnmarshalBinaryUnsafe unmarshals data into the set.
+// References to the underlying data are used so data should not be reused by caller.
+func (s *SeriesIDSet) UnmarshalBinaryUnsafe(data []byte) error {
+	s.Lock()
+	defer s.Unlock()
+	_, err := s.bitmap.FromBuffer(data)
+	return err
+}
+
 // WriteTo writes the set to w.
 func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.WriteTo(w)
+}
+
+// Slice returns a slice of series ids.
+func (s *SeriesIDSet) Slice() []uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	a := make([]uint64, 0, s.bitmap.GetCardinality())
+	for _, seriesID := range s.bitmap.ToArray() {
+		a = append(a, uint64(seriesID))
+	}
+	return a
 }
 
 type SeriesIDSetIterable interface {
