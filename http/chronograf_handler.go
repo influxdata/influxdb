@@ -222,10 +222,10 @@ func NewChronografHandler(s *server.Service) *ChronografHandler {
 	h.HandlerFunc("PATCH", "/chronograf/v2/dashboards/:id", h.Service.UpdateDashboardV2)
 
 	allRoutes := &server.AllRoutes{
-	// TODO(desa): what to do here
-	//Logger:      opts.Logger,
-	//StatusFeed:  opts.StatusFeedURL,
-	//CustomLinks: opts.CustomLinks,
+		// TODO(desa): what to do here
+		//Logger:      opts.Logger,
+		//CustomLinks: opts.CustomLinks,
+		StatusFeed: "https://www.influxdata.com/feed/json",
 	}
 
 	h.Handler("GET", "/chronograf/v1/", allRoutes)

@@ -254,7 +254,7 @@ module.exports = {
     },
     proxy: {
       '/chronograf/v1': {
-        target: 'http://localhost:8888',
+        target: 'http://localhost:9999',
         secure: false,
       },
     },

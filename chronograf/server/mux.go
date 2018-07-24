@@ -12,9 +12,10 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/platform/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
+	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/oauth2"
 	"github.com/influxdata/platform/chronograf/roles"
+	jhttprouter "github.com/julienschmidt/httprouter"
 )
 
 const (
@@ -461,7 +462,7 @@ func notFound(w http.ResponseWriter, id interface{}, logger chronograf.Logger) {
 
 func paramID(key string, r *http.Request) (int, error) {
 	ctx := r.Context()
-	param := httprouter.GetParamFromContext(ctx, key)
+	param := jhttprouter.ParamsFromContext(ctx).ByName(key)
 	id, err := strconv.Atoi(param)
 	if err != nil {
 		return -1, fmt.Errorf("Error converting ID %s", param)
@@ -471,7 +472,7 @@ func paramID(key string, r *http.Request) (int, error) {
 
 func paramInt64(key string, r *http.Request) (int64, error) {
 	ctx := r.Context()
-	param := httprouter.GetParamFromContext(ctx, key)
+	param := jhttprouter.ParamsFromContext(ctx).ByName(key)
 	v, err := strconv.ParseInt(param, 10, 64)
 	if err != nil {
 		return -1, fmt.Errorf("Error converting parameter %s", param)
@@ -481,6 +482,6 @@ func paramInt64(key string, r *http.Request) (int64, error) {
 
 func paramStr(key string, r *http.Request) (string, error) {
 	ctx := r.Context()
-	param := httprouter.GetParamFromContext(ctx, key)
+	param := jhttprouter.ParamsFromContext(ctx).ByName(key)
 	return param, nil
 }

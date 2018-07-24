@@ -62,7 +62,7 @@ export class CheckSources extends PureComponent<Props, State> {
     this.setState({loading: RemoteDataState.Done})
   }
 
-  public async componentDidUpdate(prevProps) {
+  public async componentDidUpdate() {
     const {loading} = this.state
     const {router, location, sources, notify} = this.props
     const source = this.source
@@ -72,10 +72,6 @@ export class CheckSources extends PureComponent<Props, State> {
     const restString = rest === null ? DEFAULT_HOME_PAGE : rest[1]
 
     const isDoneLoading = loading === RemoteDataState.Done
-
-    if (location.pathname === prevProps.location.pathname) {
-      return
-    }
 
     if (isDoneLoading && !source) {
       if (defaultSource) {
@@ -99,17 +95,24 @@ export class CheckSources extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {loading} = this.state
     const source = this.source
-
-    if (loading === RemoteDataState.Loading || !source) {
+    if (this.isLoading || !source) {
       return <div className="page-spinner" />
     }
 
     return (
       <SourceContext.Provider value={source}>
-        {this.props.children}
+        {this.props.children &&
+          React.cloneElement(this.props.children, {...this.props, source})}
       </SourceContext.Provider>
+    )
+  }
+
+  private get isLoading(): boolean {
+    const {loading} = this.state
+    return (
+      loading === RemoteDataState.Loading ||
+      loading === RemoteDataState.NotStarted
     )
   }
 

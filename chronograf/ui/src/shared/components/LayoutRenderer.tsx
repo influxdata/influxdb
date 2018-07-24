@@ -27,10 +27,10 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   source: Source
+  sources: Source[]
   cells: Cell[]
   timeRange: TimeRange
   templates: Template[]
-  sources: Source[]
   host: string
   autoRefresh: number
   manualRefresh: number

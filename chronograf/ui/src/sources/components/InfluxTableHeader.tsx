@@ -5,12 +5,15 @@ import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
 import {Me, Source} from 'src/types'
 
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
 interface Props {
   me: Me
   source: Source
   isUsingAuth: boolean
 }
 
+@ErrorHandling
 class InfluxTableHeader extends PureComponent<Props> {
   public render() {
     const {source} = this.props

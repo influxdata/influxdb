@@ -32,6 +32,9 @@ interface State {
 
 interface Props {
   source: Source
+  params: {
+    sourceID: string
+  }
 }
 
 const autoRefresh = AUTOREFRESH_DEFAULT
@@ -48,8 +51,8 @@ class StatusPage extends Component<Props, State> {
   }
 
   public render() {
-    const {source} = this.props
     const {cells} = this.state
+    const {source} = this.props
 
     return (
       <div className="page">

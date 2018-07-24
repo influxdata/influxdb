@@ -60,8 +60,10 @@ CodeMirror.simpleMode = function (config, states) {
         s.persistentStates = {
           mode: pers.mode,
           spec: pers.spec,
-          state: pers.state === state.localState ?
-            s.localState : CodeMirror.copyState(pers.mode, pers.state),
+          state:
+            pers.state === state.localState
+              ? s.localState
+              : CodeMirror.copyState(pers.mode, pers.state),
           next: s.persistentStates,
         }
       }

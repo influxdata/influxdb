@@ -244,6 +244,12 @@ func (s *Service) SourceHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO(desa): add real support for a default source
+	if id == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	ctx := r.Context()
 	src, err := s.Store.Sources(ctx).Get(ctx, id)
 	if err != nil {

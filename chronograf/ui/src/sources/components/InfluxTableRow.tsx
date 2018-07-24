@@ -1,31 +1,23 @@
 import React, {PureComponent, ReactElement} from 'react'
 import {Link} from 'react-router'
 
-import * as actions from 'src/shared/actions/sources'
-
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
-import KapacitorDropdown from 'src/sources/components/KapacitorDropdown'
 import ConnectionLink from 'src/sources/components/ConnectionLink'
 
 import {Source} from 'src/types'
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   source: Source
   currentSource: Source
   onDeleteSource: (source: Source) => void
-  setActiveKapacitor: actions.SetActiveKapacitor
-  deleteKapacitor: actions.DeleteKapacitor
 }
 
+@ErrorHandling
 class InfluxTableRow extends PureComponent<Props> {
   public render() {
-    const {
-      source,
-      currentSource,
-      setActiveKapacitor,
-      deleteKapacitor,
-    } = this.props
+    const {source, currentSource} = this.props
 
     return (
       <tr className={this.className}>
@@ -44,14 +36,6 @@ class InfluxTableRow extends PureComponent<Props> {
               customClass="delete-source table--show-on-row-hover"
             />
           </Authorized>
-        </td>
-        <td className="source-table--kapacitor">
-          <KapacitorDropdown
-            source={source}
-            kapacitors={source.kapacitors}
-            deleteKapacitor={deleteKapacitor}
-            setActiveKapacitor={setActiveKapacitor}
-          />
         </td>
       </tr>
     )
@@ -83,7 +67,7 @@ class InfluxTableRow extends PureComponent<Props> {
 
   private get className(): string {
     if (this.isCurrentSource) {
-      return 'hightlight'
+      return 'highlight'
     }
 
     return ''

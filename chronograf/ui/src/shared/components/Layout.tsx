@@ -98,7 +98,7 @@ class Layout extends Component<Props> {
     this.setState({cellData})
   }
 
-  private getSource = (cell, source, sources, defaultSource) => {
+  private getSource = (cell, source, sources, defaultSource): Source => {
     const s = _.get(cell, ['queries', '0', 'source'], null)
 
     if (!s) {

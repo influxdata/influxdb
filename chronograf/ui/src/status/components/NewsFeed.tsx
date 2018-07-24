@@ -29,7 +29,6 @@ class NewsFeed extends Component<Props> {
           <p>Failed to load News Feed</p>
         </div>
       ) : (
-        // TODO: Factor this out of here and AutoRefresh
         <div className="graph-fetching">
           <div className="graph-spinner" />
         </div>
@@ -39,7 +38,6 @@ class NewsFeed extends Component<Props> {
     return (
       <FancyScrollbar autoHide={false} className="newsfeed--container">
         {isFetching ? (
-          // TODO: Factor this out of here and AutoRefresh
           <div className="graph-panel__refreshing">
             <div />
             <div />
@@ -56,7 +54,6 @@ class NewsFeed extends Component<Props> {
     )
   }
 
-  // TODO: implement interval polling a la AutoRefresh
   public componentDidMount() {
     const {statusFeedURL, fetchJSONFeed} = this.props
 

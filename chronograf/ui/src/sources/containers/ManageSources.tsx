@@ -30,22 +30,8 @@ declare var VERSION: string
 
 @ErrorHandling
 class ManageSources extends PureComponent<Props> {
-  public componentDidMount() {
-    this.props.sources.forEach(source => {
-      this.props.fetchKapacitors(source)
-    })
-  }
-
-  public componentDidUpdate(prevProps: Props) {
-    if (prevProps.sources.length !== this.props.sources.length) {
-      this.props.sources.forEach(source => {
-        this.props.fetchKapacitors(source)
-      })
-    }
-  }
-
   public render() {
-    const {sources, source, deleteKapacitor} = this.props
+    const {sources, source} = this.props
 
     return (
       <div className="page" id="manage-sources-page">
@@ -55,9 +41,7 @@ class ManageSources extends PureComponent<Props> {
             <InfluxTable
               source={source}
               sources={sources}
-              deleteKapacitor={deleteKapacitor}
               onDeleteSource={this.handleDeleteSource}
-              setActiveKapacitor={this.handleSetActiveKapacitor}
             />
             <p className="version-number">Chronograf Version: {VERSION}</p>
           </div>
@@ -76,10 +60,6 @@ class ManageSources extends PureComponent<Props> {
       notify(notifySourceDeleteFailed(source.name))
     }
   }
-
-  private handleSetActiveKapacitor = ({kapacitor}) => {
-    this.props.setActiveKapacitor(kapacitor)
-  }
 }
 
 const mstp = ({sources}) => ({
@@ -88,9 +68,6 @@ const mstp = ({sources}) => ({
 
 const mdtp = {
   removeAndLoadSources: actions.removeAndLoadSources,
-  fetchKapacitors: actions.fetchKapacitorsAsync,
-  setActiveKapacitor: actions.setActiveKapacitorAsync,
-  deleteKapacitor: actions.deleteKapacitorAsync,
   notify: notifyAction,
 }
 
