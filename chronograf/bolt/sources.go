@@ -3,7 +3,7 @@ package bolt
 import (
 	"context"
 
-	"github.com/boltdb/bolt"
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/bolt/internal"
 	"github.com/influxdata/platform/chronograf/roles"

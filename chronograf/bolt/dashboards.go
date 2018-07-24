@@ -4,7 +4,7 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/boltdb/bolt"
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/bolt/internal"
 )
