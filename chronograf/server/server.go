@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"time"
 
+	bbolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/bolt"
 	idgen "github.com/influxdata/platform/chronograf/id"
@@ -431,6 +432,38 @@ func (s *Server) Serve(ctx context.Context) error {
 		Info("Stopped serving chronograf at ", scheme, "://", s.Listener.Addr())
 
 	return nil
+}
+
+func NewServiceV2(ctx context.Context, d *bbolt.DB) (*Service, error) {
+	db := bolt.NewClient()
+	db.WithDB(d)
+
+	if err := db.Open(ctx, nil, chronograf.BuildInfo{}); err != nil {
+		return nil, err
+	}
+
+	logger := &chronograf.NoopLogger{}
+
+	return &Service{
+		TimeSeriesClient: &InfluxClient{},
+		Store: &DirectStore{
+			LayoutsStore:            db.LayoutsStore,
+			DashboardsStore:         db.DashboardsStore,
+			SourcesStore:            db.SourcesStore,
+			ServersStore:            db.ServersStore,
+			OrganizationsStore:      db.OrganizationsStore,
+			UsersStore:              db.UsersStore,
+			ConfigStore:             db.ConfigStore,
+			MappingsStore:           db.MappingsStore,
+			OrganizationConfigStore: db.OrganizationConfigStore,
+			CellService:             db,
+		},
+		// TODO(desa): what to do about logger
+		Logger: logger,
+		Databases: &influx.Client{
+			Logger: logger,
+		},
+	}, nil
 }
 
 func openService(ctx context.Context, buildInfo chronograf.BuildInfo, boltPath string, builder builders, logger chronograf.Logger, useAuth bool) Service {

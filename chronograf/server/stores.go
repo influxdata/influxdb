@@ -232,3 +232,85 @@ func (s *Store) Cells(ctx context.Context) platform.CellService {
 func (s *Store) DashboardsV2(ctx context.Context) platform.DashboardService {
 	return s.DashboardService
 }
+
+// ensure that DirectStore implements a DataStore
+var _ DataStore = &DirectStore{}
+
+// Store implements the DataStore interface
+type DirectStore struct {
+	SourcesStore            chronograf.SourcesStore
+	ServersStore            chronograf.ServersStore
+	LayoutsStore            chronograf.LayoutsStore
+	UsersStore              chronograf.UsersStore
+	DashboardsStore         chronograf.DashboardsStore
+	MappingsStore           chronograf.MappingsStore
+	OrganizationsStore      chronograf.OrganizationsStore
+	ConfigStore             chronograf.ConfigStore
+	OrganizationConfigStore chronograf.OrganizationConfigStore
+	CellService             platform.CellService
+	DashboardService        platform.DashboardService
+}
+
+// Sources returns a noop.SourcesStore if the context has no organization specified
+// and an organization.SourcesStore otherwise.
+func (s *DirectStore) Sources(ctx context.Context) chronograf.SourcesStore {
+	return s.SourcesStore
+}
+
+// Servers returns a noop.ServersStore if the context has no organization specified
+// and an organization.ServersStore otherwise.
+func (s *DirectStore) Servers(ctx context.Context) chronograf.ServersStore {
+	return s.ServersStore
+}
+
+// Layouts returns all layouts in the underlying layouts store.
+func (s *DirectStore) Layouts(ctx context.Context) chronograf.LayoutsStore {
+	return s.LayoutsStore
+}
+
+// Users returns a chronograf.UsersStore.
+// If the context is a server context, then the underlying chronograf.UsersStore
+// is returned.
+// If there is an organization specified on context, then an organizations.UsersStore
+// is returned.
+// If niether are specified, a noop.UsersStore is returned.
+func (s *DirectStore) Users(ctx context.Context) chronograf.UsersStore {
+	return s.UsersStore
+}
+
+// Dashboards returns a noop.DashboardsStore if the context has no organization specified
+// and an organization.DashboardsStore otherwise.
+func (s *DirectStore) Dashboards(ctx context.Context) chronograf.DashboardsStore {
+	return s.DashboardsStore
+}
+
+// OrganizationConfig returns a noop.OrganizationConfigStore if the context has no organization specified
+// and an organization.OrganizationConfigStore otherwise.
+func (s *DirectStore) OrganizationConfig(ctx context.Context) chronograf.OrganizationConfigStore {
+	return s.OrganizationConfigStore
+}
+
+// Organizations returns the underlying OrganizationsStore.
+func (s *DirectStore) Organizations(ctx context.Context) chronograf.OrganizationsStore {
+	return s.OrganizationsStore
+}
+
+// Config returns the underlying ConfigStore.
+func (s *DirectStore) Config(ctx context.Context) chronograf.ConfigStore {
+	return s.ConfigStore
+}
+
+// Mappings returns the underlying MappingsStore.
+func (s *DirectStore) Mappings(ctx context.Context) chronograf.MappingsStore {
+	return s.MappingsStore
+}
+
+// Cells returns the underlying CellService.
+func (s *DirectStore) Cells(ctx context.Context) platform.CellService {
+	return s.CellService
+}
+
+// DashboardsV2 returns the underlying DashboardsService.
+func (s *DirectStore) DashboardsV2(ctx context.Context) platform.DashboardService {
+	return s.DashboardService
+}

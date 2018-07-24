@@ -67,6 +67,12 @@ func NewClient() *Client {
 	return c
 }
 
+// WithDB sets the boltdb database for a client. It should not be called
+// after a call to Open.
+func (c *Client) WithDB(db *bolt.DB) {
+	c.db = db
+}
+
 // Option to change behavior of Open()
 type Option interface {
 	Backup() bool
@@ -88,32 +94,34 @@ func (b Backup) Backup() bool {
 
 // Open / create boltDB file.
 func (c *Client) Open(ctx context.Context, logger chronograf.Logger, build chronograf.BuildInfo, opts ...Option) error {
-	if _, err := os.Stat(c.Path); os.IsNotExist(err) {
-		c.isNew = true
-	} else if err != nil {
-		return err
-	}
+	if c.db == nil {
+		if _, err := os.Stat(c.Path); os.IsNotExist(err) {
+			c.isNew = true
+		} else if err != nil {
+			return err
+		}
 
-	// Open database file.
-	db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
-		return fmt.Errorf(ErrUnableToOpen, err)
-	}
-	c.db = db
-	c.logger = logger
+		// Open database file.
+		db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
+		if err != nil {
+			return fmt.Errorf(ErrUnableToOpen, err)
+		}
+		c.db = db
+		c.logger = logger
 
-	for _, opt := range opts {
-		if opt.Backup() {
-			if err = c.backup(ctx, build); err != nil {
-				return fmt.Errorf(ErrUnableToBackup, err)
+		for _, opt := range opts {
+			if opt.Backup() {
+				if err = c.backup(ctx, build); err != nil {
+					return fmt.Errorf(ErrUnableToBackup, err)
+				}
 			}
 		}
 	}
 
-	if err = c.initialize(ctx); err != nil {
+	if err := c.initialize(ctx); err != nil {
 		return fmt.Errorf(ErrUnableToInitialize, err)
 	}
-	if err = c.migrate(ctx, build); err != nil {
+	if err := c.migrate(ctx, build); err != nil {
 		return fmt.Errorf(ErrUnableToMigrate, err)
 	}
 

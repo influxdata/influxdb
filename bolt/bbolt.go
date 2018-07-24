@@ -40,6 +40,11 @@ func NewClient() *Client {
 	}
 }
 
+// DB returns the clients DB.
+func (c *Client) DB() *bolt.DB {
+	return c.db
+}
+
 // Open / create boltDB file.
 func (c *Client) Open(ctx context.Context) error {
 	if _, err := os.Stat(c.Path); err != nil && !os.IsNotExist(err) {

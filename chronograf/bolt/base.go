@@ -65,7 +65,9 @@ func (m Migration) Migrate(client *Client) error {
 		return nil
 	}
 
-	client.logger.Info("Running migration ", m.ID, "")
+	if client.logger != nil {
+		client.logger.Info("Running migration ", m.ID, "")
+	}
 
 	if err = m.Up(client.db); err != nil {
 		return err

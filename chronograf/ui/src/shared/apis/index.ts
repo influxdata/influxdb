@@ -5,10 +5,7 @@ import {Kapacitor, Source, Service, NewService, QueryConfig} from 'src/types'
 export const getSources = async (): Promise<Source[]> => {
   try {
     const {data} = await AJAX({
-      url: '/v1/sources',
-      headers: {
-        Authorization: 'Token 123', // TODO: remove this garbage
-      },
+      url: '/chronograf/v1/sources',
     })
 
     return data.sources

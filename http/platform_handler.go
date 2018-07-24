@@ -17,6 +17,7 @@ type PlatformHandler struct {
 	AuthorizationHandler *AuthorizationHandler
 	DashboardHandler     *DashboardHandler
 	AssetHandler         *AssetHandler
+	ChronografHandler    *ChronografHandler
 }
 
 func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -37,8 +38,13 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 
 	// Server the chronograf assets for any basepath that does not start with addressable parts
 	// of the platform API.
-	if !strings.HasPrefix(r.URL.Path, "/v1/") {
+	if !strings.HasPrefix(r.URL.Path, "/v1/") && !strings.HasPrefix(r.URL.Path, "/chronograf/") {
 		h.AssetHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/chronograf/") {
+		h.ChronografHandler.ServeHTTP(w, r)
 		return
 	}
 
