@@ -20,8 +20,8 @@
 [[projects]]
   name = "github.com/RoaringBitmap/roaring"
   packages = ["."]
-  revision = "d6540aab65a17321470b1661bfc52da1823871e9"
-  version = "v0.4.3"
+  revision = "084ecabb327a0f98dbfca86a3774eb313921f90f"
+  source = "https://github.com/benbjohnson/roaring.git"
 
 [[projects]]
   branch = "master"
@@ -361,6 +361,10 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
+<<<<<<< HEAD
   inputs-digest = "37fc1dd54acc8029895612ba7f41e566b72cd868f8ea60ddf6b235d68de3f80b"
+=======
+  inputs-digest = "7930c85c9857de37ed365f33b510cf55d632fae1a07dabe92a5e0badf8e5ca43"
+>>>>>>> fdfd03840... Add roaring bitmaps to TSI index files.
   solver-name = "gps-cdcl"
   solver-version = 1

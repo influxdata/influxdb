@@ -197,11 +197,31 @@ func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
 	return s.bitmap.UnmarshalBinary(data)
 }
 
+// UnmarshalBinaryUnsafe unmarshals data into the set.
+// References to the underlying data are used so data should not be reused by caller.
+func (s *SeriesIDSet) UnmarshalBinaryUnsafe(data []byte) error {
+	s.RLock()
+	defer s.RUnlock()
+	return s.bitmap.UnmarshalBinaryUnsafe(data)
+}
+
 // WriteTo writes the set to w.
 func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.WriteTo(w)
+}
+
+// Slice returns a slice of series ids.
+func (s *SeriesIDSet) Slice() []uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	var a []uint64
+	for _, seriesID := range s.bitmap.ToArray() {
+		a = append(a, uint64(seriesID))
+	}
+	return a
 }
 
 type SeriesIDSetIterable interface {

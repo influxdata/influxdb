@@ -3,8 +3,11 @@ package tsi1
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
+	"unsafe"
 
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -545,8 +548,17 @@ func uvarint(data []byte) (value uint64, n int, err error) {
 	return
 }
 
+// memalign returns data if its memory address is word align.
+// Otherwise returns the next word aligned memory location.
+func memalign(data []byte) []byte {
+	if n := int(uintptr(unsafe.Pointer(&data[0])) % 8); n != 0 {
+		data = data[8-n:]
+	}
+	return data
+}
+
 // hexdump is a helper for dumping binary data to stderr.
-// func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }
+func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }
 
 // stack is a helper for dumping a stack trace.
 // func stack() string {

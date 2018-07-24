@@ -451,28 +451,28 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a tag value.
-func (f *LogFile) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
+func (f *LogFile) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	tk, ok := mm.tagSet[string(key)]
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	tv, ok := tk.tagValues[string(value)]
 	if !ok {
-		return nil
+		return nil, nil
 	} else if tv.cardinality() == 0 {
-		return nil
+		return nil, nil
 	}
 
-	return tsdb.NewSeriesIDSetIterator(tv.seriesIDSet())
+	return tsdb.NewSeriesIDSetIterator(tv.seriesIDSet()), nil
 }
 
 // MeasurementN returns the total number of measurements.
@@ -846,6 +846,13 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 		return n, err
 	}
 
+	// Ensure block is word aligned.
+	if offset := n % 8; offset != 0 {
+		if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
+			return n, err
+		}
+	}
+
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
 	if err := f.writeMeasurementBlockTo(bw, names, info, &n); err != nil {
@@ -922,6 +929,13 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 	case <-info.cancel:
 		return ErrCompactionInterrupted
 	default:
+	}
+
+	// Ensure block is word aligned.
+	if offset := (*n) % 8; offset != 0 {
+		if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
+			return err
+		}
 	}
 
 	enc := NewTagBlockEncoder(w)
