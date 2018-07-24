@@ -24,7 +24,7 @@ func TestDashboardCell_MarshalJSON(t *testing.T) {
 			args: args{
 				cell: platform.DashboardCell{
 					DashboardCellContents: platform.DashboardCellContents{
-						ID:   platform.ID("0"), // This ends up being id 30 encoded
+						ID:   platform.ID(17302173492791589393), // This ends up being id 30 encoded
 						Name: "hello",
 						X:    10,
 						Y:    10,
@@ -39,7 +39,7 @@ func TestDashboardCell_MarshalJSON(t *testing.T) {
 			wants: wants{
 				json: `
 {
-  "id": "30",
+  "id": "f01dab1ef005ba11",
   "name": "hello",
   "x": 10,
   "y": 10,

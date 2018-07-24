@@ -10,8 +10,8 @@ func TestDBRPMapping_Validate(t *testing.T) {
 		Database        string
 		RetentionPolicy string
 		Default         bool
-		OrganizationID  ID
-		BucketID        ID
+		OrganizationID  *ID
+		BucketID        *ID
 	}
 	tests := []struct {
 		name    string
@@ -57,7 +57,7 @@ func TestDBRPMapping_Validate(t *testing.T) {
 				Cluster:         "abc",
 				Database:        "telegraf",
 				RetentionPolicy: "autogen",
-				OrganizationID:  []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				OrganizationID:  func(x ID) *ID { return &x }(ID(16049353393640947439)),
 			},
 			wantErr: true,
 		},
@@ -85,15 +85,14 @@ func TestDBRPMapping_Validate(t *testing.T) {
 			},
 			wantErr: true,
 		},
-
 		{
 			name: "dash accepted as valid database",
 			fields: fields{
 				Cluster:         "12345_.",
 				Database:        "howdy-doody",
 				RetentionPolicy: "autogen",
-				OrganizationID:  []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-				BucketID:        []byte{0x5c, 0xa1, 0xab, 0x1e, 0xde, 0xad, 0xbe, 0xa7},
+				OrganizationID:  func(x ID) *ID { return &x }(ID(16049353393640947439)),
+				BucketID:        func(x ID) *ID { return &x }(ID(6674804271813082791)),
 			},
 		},
 	}
@@ -107,6 +106,7 @@ func TestDBRPMapping_Validate(t *testing.T) {
 				OrganizationID:  tt.fields.OrganizationID,
 				BucketID:        tt.fields.BucketID,
 			}
+
 			if err := m.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("DBRPMapping.Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
