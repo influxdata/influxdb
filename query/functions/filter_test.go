@@ -67,6 +67,9 @@ func TestFilter_NewQuery(t *testing.T) {
 								Relative:   -2 * time.Hour,
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
@@ -154,6 +157,9 @@ func TestFilter_NewQuery(t *testing.T) {
 								Relative:   -2 * time.Hour,
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
@@ -226,6 +232,9 @@ func TestFilter_NewQuery(t *testing.T) {
 								Relative:   -2 * time.Hour,
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
@@ -298,6 +307,9 @@ func TestFilter_NewQuery(t *testing.T) {
 								Relative:   -2 * time.Hour,
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
@@ -370,6 +382,9 @@ func TestFilter_NewQuery(t *testing.T) {
 								Relative:   -2 * time.Hour,
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
@@ -714,6 +729,7 @@ func TestFilter_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
+				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					f, err := functions.NewFilterTransformation(d, c, tc.spec)
 					if err != nil {

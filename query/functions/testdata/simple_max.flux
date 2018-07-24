@@ -1,5 +1,5 @@
 from(db:"test")
-  |> range(start:-5m)
+  |> range(start:2018-04-17T00:00:00Z)
   |> group(by: ["_measurement"])
   |> max(column: "_value")
   |> map(fn: (r) => {_time: r._time,max:r._value})

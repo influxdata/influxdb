@@ -59,6 +59,7 @@ func TestLogicalPlanner_Plan(t *testing.T) {
 							Bounds: plan.BoundsSpec{
 								Start: query.Time{Relative: -1 * time.Hour},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("0"),
@@ -99,6 +100,7 @@ func TestLogicalPlanner_Plan(t *testing.T) {
 							Bounds: plan.BoundsSpec{
 								Start: query.Time{Relative: -1 * time.Hour},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("select0"),
@@ -127,6 +129,7 @@ func TestLogicalPlanner_Plan(t *testing.T) {
 							Bounds: plan.BoundsSpec{
 								Start: query.Time{Relative: -1 * time.Hour},
 							},
+							TimeCol: "_time",
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("select1"),

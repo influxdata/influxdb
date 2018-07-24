@@ -390,6 +390,7 @@ func TestCovariance_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want,
+				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewCovarianceTransformation(d, c, tc.spec)
 				},

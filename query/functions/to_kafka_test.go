@@ -419,6 +419,7 @@ func TestToKafka_Process(t *testing.T) {
 				t,
 				tc.data,
 				tc.want.Table,
+				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
 					return functions.NewToKafkaTransformation(d, c, tc.spec)
 				},

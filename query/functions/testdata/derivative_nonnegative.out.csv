@@ -2,12 +2,12 @@
 #group,false,false,false,false,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
-,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:55:00Z,2018-05-22T19:53:46Z,0,usage_guest_nice,cpu,cpu-total,host.local
-,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:55:00Z,2018-05-22T19:53:56Z,0,usage_guest_nice,cpu,cpu-total,host.local
-,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:55:00Z,2018-05-22T19:54:06Z,0.02,usage_guest_nice,cpu,cpu-total,host.local
-,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:55:00Z,2018-05-22T19:54:16Z,0.08,usage_guest_nice,cpu,cpu-total,host.local
-,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:55:00Z,2018-05-22T19:54:26Z,0.04,usage_guest_nice,cpu,cpu-total,host.local
-,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:55:00Z,2018-05-22T19:54:36Z,0.16,usage_guest_nice,cpu,cpu-total,host.local
-,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:55:00Z,2018-05-22T19:54:46Z,0.07,usage_guest_nice,cpu,cpu-total,host.local
-,,0,2018-05-22T19:53:24.421470485Z,2018-05-22T19:55:00Z,2018-05-22T19:54:56Z,0.03,usage_guest_nice,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:26Z,2018-05-22T19:55:00Z,2018-05-22T19:53:46Z,0,usage_guest_nice,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:26Z,2018-05-22T19:55:00Z,2018-05-22T19:53:56Z,0,usage_guest_nice,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:26Z,2018-05-22T19:55:00Z,2018-05-22T19:54:06Z,0.02,usage_guest_nice,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:26Z,2018-05-22T19:55:00Z,2018-05-22T19:54:16Z,0.08,usage_guest_nice,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:26Z,2018-05-22T19:55:00Z,2018-05-22T19:54:26Z,0.04,usage_guest_nice,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:26Z,2018-05-22T19:55:00Z,2018-05-22T19:54:36Z,0.16,usage_guest_nice,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:26Z,2018-05-22T19:55:00Z,2018-05-22T19:54:46Z,0.07,usage_guest_nice,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:26Z,2018-05-22T19:55:00Z,2018-05-22T19:54:56Z,0.03,usage_guest_nice,cpu,cpu-total,host.local
 

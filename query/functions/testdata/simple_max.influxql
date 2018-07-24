@@ -1,1 +1,1 @@
-select max(f1) from test..m1 where time >= now() - 5m and time < now()
+select max(f1) from test..m1 where time >= '2018-04-17T00:00:00Z' and time < now()

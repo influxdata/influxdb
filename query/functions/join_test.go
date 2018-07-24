@@ -43,6 +43,9 @@ join(tables:{a:a,b:b}, on:["host"], fn: (t) => t.a["_value"] + t.b["_value"])`,
 							Stop: query.Time{
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
@@ -61,6 +64,9 @@ join(tables:{a:a,b:b}, on:["host"], fn: (t) => t.a["_value"] + t.b["_value"])`,
 							Stop: query.Time{
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
@@ -128,6 +134,9 @@ join(tables:{a:a,b:b}, on:["host"], fn: (t) => t.a["_value"] + t.b["_value"])`,
 							Stop: query.Time{
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
@@ -146,6 +155,9 @@ join(tables:{a:a,b:b}, on:["host"], fn: (t) => t.a["_value"] + t.b["_value"])`,
 							Stop: query.Time{
 								IsRelative: true,
 							},
+							TimeCol:  "_time",
+							StartCol: "_start",
+							StopCol:  "_stop",
 						},
 					},
 					{
