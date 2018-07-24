@@ -63,6 +63,26 @@ type Logger interface {
 	Writer() *io.PipeWriter
 }
 
+// NoopLogger is a chronograf logger that does nothing.
+type NoopLogger struct{}
+
+func (l *NoopLogger) Debug(...interface{}) {
+}
+
+func (l *NoopLogger) Info(...interface{}) {
+}
+
+func (l *NoopLogger) Error(...interface{}) {
+}
+
+func (l *NoopLogger) WithField(string, interface{}) Logger {
+	return l
+}
+
+func (l *NoopLogger) Writer() *io.PipeWriter {
+	return nil
+}
+
 // Router is an abstracted Router based on the API provided by the
 // julienschmidt/httprouter package.
 type Router interface {

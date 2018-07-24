@@ -2,11 +2,16 @@ import AJAX from 'src/utils/ajax'
 import {AlertTypes} from 'src/kapacitor/constants'
 import {Kapacitor, Source, Service, NewService, QueryConfig} from 'src/types'
 
-export function getSources() {
-  return AJAX({
-    url: null,
-    resource: 'sources',
-  })
+export const getSources = async (): Promise<Source[]> => {
+  try {
+    const {data} = await AJAX({
+      url: '/chronograf/v1/sources',
+    })
+
+    return data.sources
+  } catch (error) {
+    throw error
+  }
 }
 
 export const getSource = async (id: string): Promise<Source> => {

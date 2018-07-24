@@ -50,7 +50,7 @@ UTILS := \
 #
 # This target setups the dependencies to correctly build all commands.
 # Other targets must depend on this target to correctly builds CMDS.
-all: dep Gopkg.lock $(UTILS) subdirs $(CMDS)
+all: dep generate Gopkg.lock $(UTILS) subdirs $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
@@ -83,6 +83,7 @@ ifndef GOBINDATA
 	@echo "Installing go-bindata"
 	go get -u github.com/kevinburke/go-bindata/...
 endif
+	echo "herer"
 	@touch .godep
 
 .jsdep: chronograf/ui/yarn.lock
@@ -114,16 +115,18 @@ vendor/github.com/goreleaser/goreleaser/main.go: Gopkg.lock
 fmt: $(SOURCES_NO_VENDOR)
 	goimports -w $^
 
-test: all
-	$(GO_GENERATE) ./chronograf/dist
-	$(GO_GENERATE) ./chronograf/server
-	$(GO_GENERATE) ./chronograf/canned
+generate:
+	$(GO_GENERATE) ./chronograf/dist/...
+	$(GO_GENERATE) ./chronograf/server/...
+	$(GO_GENERATE) ./chronograf/canned/...
+
+jstest:
+	cd chronograf/ui && yarn test --runInBand
+
+test: all jstest
 	$(GO_TEST) ./...
 
 test-race: all
-	$(GO_GENERATE) ./chronograf/dist
-	$(GO_GENERATE) ./chronograf/server
-	$(GO_GENERATE) ./chronograf/canned
 	$(GO_TEST) -race ./...
 
 vet: all

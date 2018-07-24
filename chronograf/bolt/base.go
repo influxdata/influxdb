@@ -3,7 +3,7 @@ package bolt
 import (
 	"time"
 
-	"github.com/boltdb/bolt"
+	bolt "github.com/coreos/bbolt"
 )
 
 // SchemaVersionBucket stores ids of completed migrations
@@ -65,7 +65,9 @@ func (m Migration) Migrate(client *Client) error {
 		return nil
 	}
 
-	client.logger.Info("Running migration ", m.ID, "")
+	if client.logger != nil {
+		client.logger.Info("Running migration ", m.ID, "")
+	}
 
 	if err = m.Up(client.db); err != nil {
 		return err

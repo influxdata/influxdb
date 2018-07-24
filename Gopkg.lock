@@ -100,12 +100,6 @@
   revision = "8bd4349a67f2533b078dbc524689d15dba0f4659"
 
 [[projects]]
-  name = "github.com/boltdb/bolt"
-  packages = ["."]
-  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
-  version = "v1.3.1"
-
-[[projects]]
   name = "github.com/bouk/httprouter"
   packages = ["."]
   revision = "ee8b3818a7f51fbc94cc709b5744b52c2c725e91"
@@ -847,6 +841,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "71484856c934c966b4322dfb4c502a190b6ac0538a67d37f616cbe0010eaa5e4"
+  inputs-digest = "b9db764d51c0ab5a91f4bedf6befa4ca7d562b9f310441e77dd74dfa1f739d71"
   solver-name = "gps-cdcl"
   solver-version = 1
