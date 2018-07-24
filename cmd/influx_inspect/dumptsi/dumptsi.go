@@ -238,7 +238,7 @@ func (cmd *Command) printSeries(sfile *tsdb.SeriesFile) error {
 		e, err := itr.Next()
 		if err != nil {
 			return err
-		} else if e.SeriesID == 0 {
+		} else if e.SeriesID.IsZero() {
 			break
 		}
 		name, tags := tsdb.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
@@ -361,7 +361,7 @@ func (cmd *Command) printTagValueSeries(sfile *tsdb.SeriesFile, fs *tsi1.FileSet
 		e, err := itr.Next()
 		if err != nil {
 			return err
-		} else if e.SeriesID == 0 {
+		} else if e.SeriesID.IsZero() {
 			break
 		}
 

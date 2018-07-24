@@ -133,10 +133,10 @@ func (f *SeriesFile) Wait() {
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The returned ids slice returns IDs for every name+tags, creating new series IDs as needed.
-func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
+func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]SeriesID, error) {
 	keys := GenerateSeriesKeys(names, tagsSlice)
 	keyPartitionIDs := f.SeriesKeysPartitionIDs(keys)
-	ids := make([]uint64, len(keys))
+	ids := make([]SeriesID, len(keys))
 
 	var g errgroup.Group
 	for i := range f.partitions {
@@ -153,7 +153,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 
 // DeleteSeriesID flags a series as permanently deleted.
 // If the series is reintroduced later then it must create a new id.
-func (f *SeriesFile) DeleteSeriesID(id uint64) error {
+func (f *SeriesFile) DeleteSeriesID(id SeriesID) error {
 	p := f.SeriesIDPartition(id)
 	if p == nil {
 		return ErrInvalidSeriesPartitionID
@@ -162,7 +162,7 @@ func (f *SeriesFile) DeleteSeriesID(id uint64) error {
 }
 
 // IsDeleted returns true if the ID has been deleted before.
-func (f *SeriesFile) IsDeleted(id uint64) bool {
+func (f *SeriesFile) IsDeleted(id SeriesID) bool {
 	p := f.SeriesIDPartition(id)
 	if p == nil {
 		return false
@@ -171,8 +171,8 @@ func (f *SeriesFile) IsDeleted(id uint64) bool {
 }
 
 // SeriesKey returns the series key for a given id.
-func (f *SeriesFile) SeriesKey(id uint64) []byte {
-	if id == 0 {
+func (f *SeriesFile) SeriesKey(id SeriesID) []byte {
+	if id.IsZero() {
 		return nil
 	}
 	p := f.SeriesIDPartition(id)
@@ -183,7 +183,7 @@ func (f *SeriesFile) SeriesKey(id uint64) []byte {
 }
 
 // SeriesKeys returns a list of series keys from a list of ids.
-func (f *SeriesFile) SeriesKeys(ids []uint64) [][]byte {
+func (f *SeriesFile) SeriesKeys(ids []SeriesID) [][]byte {
 	keys := make([][]byte, len(ids))
 	for i := range ids {
 		keys[i] = f.SeriesKey(ids[i])
@@ -192,7 +192,7 @@ func (f *SeriesFile) SeriesKeys(ids []uint64) [][]byte {
 }
 
 // Series returns the parsed series name and tags for an offset.
-func (f *SeriesFile) Series(id uint64) ([]byte, models.Tags) {
+func (f *SeriesFile) Series(id SeriesID) ([]byte, models.Tags) {
 	key := f.SeriesKey(id)
 	if key == nil {
 		return nil, nil
@@ -201,18 +201,18 @@ func (f *SeriesFile) Series(id uint64) ([]byte, models.Tags) {
 }
 
 // SeriesID return the series id for the series.
-func (f *SeriesFile) SeriesID(name []byte, tags models.Tags, buf []byte) uint64 {
+func (f *SeriesFile) SeriesID(name []byte, tags models.Tags, buf []byte) SeriesID {
 	key := AppendSeriesKey(buf[:0], name, tags)
 	keyPartition := f.SeriesKeyPartition(key)
 	if keyPartition == nil {
-		return 0
+		return SeriesID{}
 	}
 	return keyPartition.FindIDBySeriesKey(key)
 }
 
 // HasSeries return true if the series exists.
 func (f *SeriesFile) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
-	return f.SeriesID(name, tags, buf) > 0
+	return !f.SeriesID(name, tags, buf).IsZero()
 }
 
 // SeriesCount returns the number of series.
@@ -226,19 +226,19 @@ func (f *SeriesFile) SeriesCount() uint64 {
 
 // SeriesIterator returns an iterator over all the series.
 func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
-	var ids []uint64
+	var ids []SeriesID
 	for _, p := range f.partitions {
 		ids = p.AppendSeriesIDs(ids)
 	}
-	sort.Sort(uint64Slice(ids))
+	sort.Slice(ids, func(i, j int) bool { return ids[i].Less(ids[j]) })
 	return NewSeriesIDSliceIterator(ids)
 }
 
-func (f *SeriesFile) SeriesIDPartitionID(id uint64) int {
-	return int((id - 1) % SeriesFilePartitionN)
+func (f *SeriesFile) SeriesIDPartitionID(id SeriesID) int {
+	return int((id.RawID() - 1) % SeriesFilePartitionN)
 }
 
-func (f *SeriesFile) SeriesIDPartition(id uint64) *SeriesPartition {
+func (f *SeriesFile) SeriesIDPartition(id SeriesID) *SeriesPartition {
 	partitionID := f.SeriesIDPartitionID(id)
 	if partitionID >= len(f.partitions) {
 		return nil

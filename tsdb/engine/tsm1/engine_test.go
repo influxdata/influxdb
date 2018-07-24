@@ -953,7 +953,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 		engine.MustAddSeries("mem", map[string]string{"host": "z"})
 
 		// Collect series IDs.
-		seriesIDMap := map[string]uint64{}
+		seriesIDMap := map[string]tsdb.SeriesID{}
 		var e tsdb.SeriesIDElem
 		var err error
 
@@ -961,7 +961,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 		for e, err = itr.Next(); ; e, err = itr.Next() {
 			if err != nil {
 				return err
-			} else if e.SeriesID == 0 {
+			} else if e.SeriesID.IsZero() {
 				break
 			}
 
@@ -1156,7 +1156,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if elem.SeriesID == 0 {
+			if elem.SeriesID.IsZero() {
 				t.Fatalf("series index mismatch: EOF, exp 2 series")
 			}
 
@@ -1189,7 +1189,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			if elem, err = iter.Next(); err != nil {
 				t.Fatal(err)
 			}
-			if elem.SeriesID != 0 {
+			if !elem.SeriesID.IsZero() {
 				t.Fatalf("got an undeleted series id, but series should be dropped from index")
 			}
 		})
@@ -1281,7 +1281,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if elem.SeriesID == 0 {
+			if elem.SeriesID.IsZero() {
 				t.Fatalf("series index mismatch: EOF, exp 2 series")
 			}
 
@@ -1314,7 +1314,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 			if elem, err = iter.Next(); err != nil {
 				t.Fatal(err)
 			}
-			if elem.SeriesID != 0 {
+			if !elem.SeriesID.IsZero() {
 				t.Fatalf("got an undeleted series id, but series should be dropped from index")
 			}
 		})
@@ -1387,7 +1387,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 
 			if elem, err := iter.Next(); err != nil {
 				t.Fatal(err)
-			} else if elem.SeriesID != 0 {
+			} else if !elem.SeriesID.IsZero() {
 				t.Fatalf("got an undeleted series id, but series should be dropped from index")
 			}
 
@@ -1402,7 +1402,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 
 			if elem, err := iter.Next(); err != nil {
 				t.Fatal(err)
-			} else if elem.SeriesID == 0 {
+			} else if elem.SeriesID.IsZero() {
 				t.Fatalf("got an undeleted series id, but series should be dropped from index")
 			}
 		})
@@ -1494,7 +1494,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if elem.SeriesID == 0 {
+			if elem.SeriesID.IsZero() {
 				t.Fatalf("series index mismatch: EOF, exp 2 series")
 			}
 
@@ -1527,7 +1527,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 			if elem, err = iter.Next(); err != nil {
 				t.Fatal(err)
 			}
-			if elem.SeriesID != 0 {
+			if !elem.SeriesID.IsZero() {
 				t.Fatalf("got an undeleted series id, but series should be dropped from index")
 			}
 		})
@@ -1596,7 +1596,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if elem.SeriesID == 0 {
+			if elem.SeriesID.IsZero() {
 				t.Fatalf("series index mismatch: EOF, exp 1 series")
 			}
 

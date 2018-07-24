@@ -21,37 +21,45 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+func toSeriesIDs(ids []uint64) []tsdb.SeriesID {
+	sids := make([]tsdb.SeriesID, 0, len(ids))
+	for _, id := range ids {
+		sids = append(sids, tsdb.NewSeriesID(id))
+	}
+	return sids
+}
+
 // Ensure iterator can merge multiple iterators together.
 func TestMergeSeriesIDIterators(t *testing.T) {
 	itr := tsdb.MergeSeriesIDIterators(
-		tsdb.NewSeriesIDSliceIterator([]uint64{1, 2, 3}),
+		tsdb.NewSeriesIDSliceIterator(toSeriesIDs([]uint64{1, 2, 3})),
 		tsdb.NewSeriesIDSliceIterator(nil),
-		tsdb.NewSeriesIDSliceIterator([]uint64{1, 2, 3, 4}),
+		tsdb.NewSeriesIDSliceIterator(toSeriesIDs([]uint64{1, 2, 3, 4})),
 	)
 
 	if e, err := itr.Next(); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 1}) {
+	} else if !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: tsdb.NewSeriesID(1)}) {
 		t.Fatalf("unexpected elem(0): %#v", e)
 	}
 	if e, err := itr.Next(); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 2}) {
+	} else if !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: tsdb.NewSeriesID(2)}) {
 		t.Fatalf("unexpected elem(1): %#v", e)
 	}
 	if e, err := itr.Next(); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 3}) {
+	} else if !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: tsdb.NewSeriesID(3)}) {
 		t.Fatalf("unexpected elem(2): %#v", e)
 	}
 	if e, err := itr.Next(); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: 4}) {
+	} else if !reflect.DeepEqual(e, tsdb.SeriesIDElem{SeriesID: tsdb.NewSeriesID(4)}) {
 		t.Fatalf("unexpected elem(3): %#v", e)
 	}
 	if e, err := itr.Next(); err != nil {
 		t.Fatal(err)
-	} else if e.SeriesID != 0 {
+	} else if !e.SeriesID.IsZero() {
 		t.Fatalf("expected nil elem: %#v", e)
 	}
 }

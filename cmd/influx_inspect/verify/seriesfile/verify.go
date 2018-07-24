@@ -126,7 +126,7 @@ func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 	}
 
 	segments := make([]*tsdb.SeriesSegment, 0, len(segmentInfos))
-	ids := make(map[uint64]IDData)
+	ids := make(map[tsdb.SeriesID]IDData)
 
 	// check every segment
 	for _, segmentInfo := range segmentInfos {
@@ -180,7 +180,7 @@ type IDData struct {
 // VerifySegment performs verifications on a segment of a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map is populated with information about the ids stored in the segment.
-func (v Verify) VerifySegment(segmentPath string, ids map[uint64]IDData) (valid bool, err error) {
+func (v Verify) VerifySegment(segmentPath string, ids map[tsdb.SeriesID]IDData) (valid bool, err error) {
 	segmentName := filepath.Base(segmentPath)
 	v.Logger = v.Logger.With(zap.String("segment", segmentName))
 	v.Logger.Info("Verifying segment")
@@ -214,7 +214,7 @@ func (v Verify) VerifySegment(segmentPath string, ids map[uint64]IDData) (valid 
 		return false, nil
 	}
 
-	prevID, firstID := uint64(0), true
+	prevID, firstID := tsdb.SeriesID{}, true
 
 entries:
 	for len(buf.data) > 0 {
@@ -229,10 +229,10 @@ entries:
 		// Check the flag is valid and for id monotonicity.
 		switch flag {
 		case tsdb.SeriesEntryInsertFlag:
-			if !firstID && prevID > id {
+			if !firstID && prevID.Greater(id) {
 				v.Logger.Error("ID is not monotonically increasing",
-					zap.Uint64("prev_id", prevID),
-					zap.Uint64("id", id),
+					zap.Uint64("prev_id", prevID.RawID()),
+					zap.Uint64("id", id.RawID()),
 					zap.Int64("offset", buf.offset))
 				return false, nil
 			}
@@ -308,7 +308,7 @@ entries:
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map must be built from verifying the passed in segments.
 func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
-	ids map[uint64]IDData) (valid bool, err error) {
+	ids map[tsdb.SeriesID]IDData) (valid bool, err error) {
 	v.Logger.Info("Verifying index")
 
 	defer func() {
@@ -332,12 +332,12 @@ func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 
 	// we check all the ids in a consistent order to get the same errors if
 	// there is a problem
-	idsList := make([]uint64, 0, len(ids))
+	idsList := make([]tsdb.SeriesID, 0, len(ids))
 	for id := range ids {
 		idsList = append(idsList, id)
 	}
 	sort.Slice(idsList, func(i, j int) bool {
-		return idsList[i] < idsList[j]
+		return idsList[i].Less(idsList[j])
 	})
 
 	for _, id := range idsList {
@@ -351,7 +351,7 @@ func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 
 		expectedOffset, expectedID := IDData.Offset, id
 		if IDData.Deleted {
-			expectedOffset, expectedID = 0, 0
+			expectedOffset, expectedID = 0, tsdb.SeriesID{}
 		}
 
 		// check both that the offset is right and that we get the right
@@ -359,7 +359,7 @@ func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 
 		if gotOffset := index.FindOffsetByID(id); gotOffset != expectedOffset {
 			v.Logger.Error("Index inconsistency",
-				zap.Uint64("id", id),
+				zap.Uint64("id", id.RawID()),
 				zap.Int64("got_offset", gotOffset),
 				zap.Int64("expected_offset", expectedOffset))
 			return false, nil
@@ -367,9 +367,9 @@ func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 
 		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != expectedID {
 			v.Logger.Error("Index inconsistency",
-				zap.Uint64("id", id),
-				zap.Uint64("got_id", gotID),
-				zap.Uint64("expected_id", expectedID))
+				zap.Uint64("id", id.RawID()),
+				zap.Uint64("got_id", gotID.RawID()),
+				zap.Uint64("expected_id", expectedID.RawID()))
 			return false, nil
 		}
 	}

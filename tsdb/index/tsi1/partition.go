@@ -607,7 +607,7 @@ func (p *Partition) DropMeasurement(name []byte) error {
 			elem, err := itr.Next()
 			if err != nil {
 				return err
-			} else if elem.SeriesID == 0 {
+			} else if elem.SeriesID.IsZero() {
 				break
 			}
 			if err := p.activeLogFile.DeleteSeriesID(elem.SeriesID); err != nil {
@@ -669,7 +669,7 @@ func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	return ids, nil
 }
 
-func (p *Partition) DropSeries(seriesID uint64) error {
+func (p *Partition) DropSeries(seriesID tsdb.SeriesID) error {
 	// Delete series from index.
 	if err := p.activeLogFile.DeleteSeriesID(seriesID); err != nil {
 		return err

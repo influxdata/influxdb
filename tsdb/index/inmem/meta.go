@@ -10,7 +10,6 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
-	"github.com/influxdata/influxdb/pkg/radix"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -29,8 +28,8 @@ type measurement struct {
 	fieldNames map[string]struct{}
 
 	// in-memory index fields
-	seriesByID          map[uint64]*series      // lookup table for series by their id
-	seriesByTagKeyValue map[string]*tagKeyValue // map from tag key to value to sorted set of series ids
+	seriesByID          map[tsdb.SeriesID]*series // lookup table for series by their id
+	seriesByTagKeyValue map[string]*tagKeyValue   // map from tag key to value to sorted set of series ids
 
 	// lazyily created sorted series IDs
 	sortedSeriesIDs seriesIDs // sorted list of series IDs in this measurement
@@ -48,7 +47,7 @@ func newMeasurement(database, name string) *measurement {
 		NameBytes: []byte(name),
 
 		fieldNames:          make(map[string]struct{}),
-		seriesByID:          make(map[uint64]*series),
+		seriesByID:          make(map[tsdb.SeriesID]*series),
 		seriesByTagKeyValue: make(map[string]*tagKeyValue),
 	}
 }
@@ -117,21 +116,21 @@ func (m *measurement) HasField(name string) bool {
 }
 
 // SeriesByID returns a series by identifier.
-func (m *measurement) SeriesByID(id uint64) *series {
+func (m *measurement) SeriesByID(id tsdb.SeriesID) *series {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.seriesByID[id]
 }
 
 // SeriesByIDMap returns the internal seriesByID map.
-func (m *measurement) SeriesByIDMap() map[uint64]*series {
+func (m *measurement) SeriesByIDMap() map[tsdb.SeriesID]*series {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.seriesByID
 }
 
 // SeriesByIDSlice returns a list of series by identifiers.
-func (m *measurement) SeriesByIDSlice(ids []uint64) []*series {
+func (m *measurement) SeriesByIDSlice(ids []tsdb.SeriesID) []*series {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	a := make([]*series, len(ids))
@@ -142,7 +141,7 @@ func (m *measurement) SeriesByIDSlice(ids []uint64) []*series {
 }
 
 // AppendSeriesKeysByID appends keys for a list of series ids to a buffer.
-func (m *measurement) AppendSeriesKeysByID(dst []string, ids []uint64) []string {
+func (m *measurement) AppendSeriesKeysByID(dst []string, ids []tsdb.SeriesID) []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, id := range ids {
@@ -276,7 +275,7 @@ func (m *measurement) AddSeries(s *series) bool {
 
 	m.seriesByID[s.ID] = s
 
-	if len(m.seriesByID) == 1 || (len(m.sortedSeriesIDs) == len(m.seriesByID)-1 && s.ID > m.sortedSeriesIDs[len(m.sortedSeriesIDs)-1]) {
+	if len(m.seriesByID) == 1 || (len(m.sortedSeriesIDs) == len(m.seriesByID)-1 && s.ID.Greater(m.sortedSeriesIDs[len(m.sortedSeriesIDs)-1])) {
 		m.sortedSeriesIDs = append(m.sortedSeriesIDs, s.ID)
 	}
 
@@ -354,7 +353,7 @@ func (m *measurement) Rebuild() *measurement {
 
 // filters walks the where clause of a select statement and returns a map with all series ids
 // matching the where clause and any filter expression that should be applied to each
-func (m *measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]influxql.Expr, error) {
+func (m *measurement) filters(condition influxql.Expr) ([]tsdb.SeriesID, map[tsdb.SeriesID]influxql.Expr, error) {
 	if condition == nil {
 		return m.SeriesIDs(), nil, nil
 	}
@@ -459,11 +458,11 @@ func (m *measurement) TagSets(shardSeriesIDs *tsdb.SeriesIDSet, opt query.Iterat
 // intersectSeriesFilters performs an intersection for two sets of ids and filter expressions.
 func intersectSeriesFilters(lids, rids seriesIDs, lfilters, rfilters FilterExprs) (seriesIDs, FilterExprs) {
 	// We only want to allocate a slice and map of the smaller size.
-	var ids []uint64
+	var ids []tsdb.SeriesID
 	if len(lids) > len(rids) {
-		ids = make([]uint64, 0, len(rids))
+		ids = make([]tsdb.SeriesID, 0, len(rids))
 	} else {
-		ids = make([]uint64, 0, len(lids))
+		ids = make([]tsdb.SeriesID, 0, len(lids))
 	}
 
 	var filters FilterExprs
@@ -501,7 +500,7 @@ func intersectSeriesFilters(lids, rids seriesIDs, lfilters, rfilters FilterExprs
 				filters[lid] = expr
 			}
 			lids, rids = lids[1:], rids[1:]
-		} else if lid < rid {
+		} else if lid.Less(rid) {
 			lids = lids[1:]
 		} else {
 			rids = rids[1:]
@@ -512,7 +511,7 @@ func intersectSeriesFilters(lids, rids seriesIDs, lfilters, rfilters FilterExprs
 
 // unionSeriesFilters performs a union for two sets of ids and filter expressions.
 func unionSeriesFilters(lids, rids seriesIDs, lfilters, rfilters FilterExprs) (seriesIDs, FilterExprs) {
-	ids := make([]uint64, 0, len(lids)+len(rids))
+	ids := make([]tsdb.SeriesID, 0, len(lids)+len(rids))
 
 	// Setup the filters with the smallest size since we will discard filters
 	// that do not have a match on the other side.
@@ -547,7 +546,7 @@ func unionSeriesFilters(lids, rids seriesIDs, lfilters, rfilters FilterExprs) (s
 				filters[lid] = expr
 			}
 			lids, rids = lids[1:], rids[1:]
-		} else if lid < rid {
+		} else if lid.Less(rid) {
 			ids = append(ids, lid)
 
 			filter := lfilters[lid]
@@ -786,7 +785,7 @@ func (m *measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, influxql.Ex
 }
 
 // FilterExprs represents a map of series IDs to filter expressions.
-type FilterExprs map[uint64]influxql.Expr
+type FilterExprs map[tsdb.SeriesID]influxql.Expr
 
 // DeleteBoolLiteralTrues deletes all elements whose filter expression is a boolean literal true.
 func (fe FilterExprs) DeleteBoolLiteralTrues() {
@@ -1010,14 +1009,14 @@ type series struct {
 	deleted bool
 
 	// immutable
-	ID          uint64
+	ID          tsdb.SeriesID
 	Measurement *measurement
 	Key         string
 	Tags        models.Tags
 }
 
 // newSeries returns an initialized series struct
-func newSeries(id uint64, m *measurement, key string, tags models.Tags) *series {
+func newSeries(id tsdb.SeriesID, m *measurement, key string, tags models.Tags) *series {
 	return &series{
 		ID:          id,
 		Measurement: m,
@@ -1109,7 +1108,7 @@ func (t *tagKeyValue) Contains(value string) bool {
 }
 
 // InsertSeriesIDByte adds a series id to the tag key value.
-func (t *tagKeyValue) InsertSeriesIDByte(value []byte, id uint64) {
+func (t *tagKeyValue) InsertSeriesIDByte(value []byte, id tsdb.SeriesID) {
 	t.mu.Lock()
 	entry := t.entries[string(value)]
 	if entry == nil {
@@ -1161,12 +1160,12 @@ func (t *tagKeyValue) RangeAll(f func(k string, a seriesIDs)) {
 }
 
 type tagKeyValueEntry struct {
-	m map[uint64]struct{} // series id set
-	a seriesIDs           // lazily sorted list of series.
+	m map[tsdb.SeriesID]struct{} // series id set
+	a seriesIDs                  // lazily sorted list of series.
 }
 
 func newTagKeyValueEntry() *tagKeyValueEntry {
-	return &tagKeyValueEntry{m: make(map[uint64]struct{})}
+	return &tagKeyValueEntry{m: make(map[tsdb.SeriesID]struct{})}
 }
 
 func (e *tagKeyValueEntry) ids() seriesIDs {
@@ -1182,7 +1181,8 @@ func (e *tagKeyValueEntry) ids() seriesIDs {
 	for id := range e.m {
 		a = append(a, id)
 	}
-	radix.SortUint64s(a)
+	sort.Sort(a)
+	// radix.SortUint64s(a)
 
 	e.a = a
 	return e.a
@@ -1191,13 +1191,13 @@ func (e *tagKeyValueEntry) ids() seriesIDs {
 
 // SeriesIDs is a convenience type for sorting, checking equality, and doing
 // union and intersection of collections of series ids.
-type seriesIDs []uint64
+type seriesIDs []tsdb.SeriesID
 
 // Len implements sort.Interface.
 func (a seriesIDs) Len() int { return len(a) }
 
 // Less implements sort.Interface.
-func (a seriesIDs) Less(i, j int) bool { return a[i] < a[j] }
+func (a seriesIDs) Less(i, j int) bool { return a[i].Less(a[j]) }
 
 // Swap implements sort.Interface.
 func (a seriesIDs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
@@ -1231,13 +1231,13 @@ func (a seriesIDs) Intersect(other seriesIDs) seriesIDs {
 	// That is, don't run comparisons against lower values that we've already passed
 	var i, j int
 
-	ids := make([]uint64, 0, len(l))
+	ids := make([]tsdb.SeriesID, 0, len(l))
 	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
 			ids = append(ids, l[i])
 			i++
 			j++
-		} else if l[i] < r[j] {
+		} else if l[i].Less(r[j]) {
 			i++
 		} else {
 			j++
@@ -1252,14 +1252,14 @@ func (a seriesIDs) Intersect(other seriesIDs) seriesIDs {
 func (a seriesIDs) Union(other seriesIDs) seriesIDs {
 	l := a
 	r := other
-	ids := make([]uint64, 0, len(l)+len(r))
+	ids := make([]tsdb.SeriesID, 0, len(l)+len(r))
 	var i, j int
 	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
 			ids = append(ids, l[i])
 			i++
 			j++
-		} else if l[i] < r[j] {
+		} else if l[i].Less(r[j]) {
 			ids = append(ids, l[i])
 			i++
 		} else {
@@ -1285,12 +1285,12 @@ func (a seriesIDs) Reject(other seriesIDs) seriesIDs {
 	r := other
 	var i, j int
 
-	ids := make([]uint64, 0, len(l))
+	ids := make([]tsdb.SeriesID, 0, len(l))
 	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
 			i++
 			j++
-		} else if l[i] < r[j] {
+		} else if l[i].Less(r[j]) {
 			ids = append(ids, l[i])
 			i++
 		} else {
@@ -1309,7 +1309,7 @@ func (a seriesIDs) Reject(other seriesIDs) seriesIDs {
 // seriesID is a series id that may or may not have been evicted from the
 // current id list.
 type seriesID struct {
-	val   uint64
+	val   tsdb.SeriesID
 	evict bool
 }
 
@@ -1322,7 +1322,7 @@ type evictSeriesIDs struct {
 
 // newEvictSeriesIDs copies the ids into a new slice that can be used for
 // evicting series from the slice.
-func newEvictSeriesIDs(ids []uint64) evictSeriesIDs {
+func newEvictSeriesIDs(ids []tsdb.SeriesID) evictSeriesIDs {
 	a := make([]seriesID, len(ids))
 	for i, id := range ids {
 		a[i].val = id
@@ -1335,7 +1335,7 @@ func newEvictSeriesIDs(ids []uint64) evictSeriesIDs {
 
 // mark marks all of the ids in the sorted slice to be evicted from the list of
 // series ids. If an id to be evicted does not exist, it just gets ignored.
-func (a *evictSeriesIDs) mark(ids []uint64) {
+func (a *evictSeriesIDs) mark(ids []tsdb.SeriesID) {
 	sIDs := a.ids
 	for _, id := range ids {
 		if len(sIDs) == 0 {
@@ -1346,9 +1346,9 @@ func (a *evictSeriesIDs) mark(ids []uint64) {
 		// the first element does not match the value we're
 		// looking for.
 		i := 0
-		if sIDs[0].val < id {
+		if sIDs[0].val.Less(id) {
 			i = sort.Search(len(sIDs), func(i int) bool {
-				return sIDs[i].val >= id
+				return !sIDs[i].val.Less(id)
 			})
 		}
 
@@ -1374,7 +1374,7 @@ func (a *evictSeriesIDs) evict() (ids seriesIDs) {
 	}
 
 	// Make a new slice with only the remaining ids.
-	ids = make([]uint64, 0, a.sz)
+	ids = make([]tsdb.SeriesID, 0, a.sz)
 	for _, id := range a.ids {
 		if id.evict {
 			continue

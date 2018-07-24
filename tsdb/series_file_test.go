@@ -72,7 +72,7 @@ func TestSeriesFile_Series(t *testing.T) {
 
 	// Verify all series exist.
 	for i, s := range series {
-		if seriesID := sfile.SeriesID(s.Name, s.Tags, nil); seriesID == 0 {
+		if seriesID := sfile.SeriesID(s.Name, s.Tags, nil); seriesID.IsZero() {
 			t.Fatalf("series does not exist: i=%d", i)
 		}
 	}
@@ -118,7 +118,7 @@ func TestSeriesFileCompactor(t *testing.T) {
 
 	// Verify all series exist.
 	for i := range names {
-		if seriesID := sfile.SeriesID(names[i], tagsSlice[i], nil); seriesID == 0 {
+		if seriesID := sfile.SeriesID(names[i], tagsSlice[i], nil); seriesID.IsZero() {
 			t.Fatalf("series does not exist: %s,%s", names[i], tagsSlice[i].String())
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -104,9 +105,9 @@ func TestMeasurementBlockTrailer_WriteTo(t *testing.T) {
 // Ensure measurement blocks can be written and opened.
 func TestMeasurementBlockWriter(t *testing.T) {
 	ms := Measurements{
-		NewMeasurement([]byte("foo"), false, 100, 10, []uint64{1, 3, 4}),
-		NewMeasurement([]byte("bar"), false, 200, 20, []uint64{2}),
-		NewMeasurement([]byte("baz"), false, 300, 30, []uint64{5, 6}),
+		NewMeasurement([]byte("foo"), false, 100, 10, toSeriesIDs([]uint64{1, 3, 4})),
+		NewMeasurement([]byte("bar"), false, 200, 20, toSeriesIDs([]uint64{2})),
+		NewMeasurement([]byte("baz"), false, 300, 30, toSeriesIDs([]uint64{5, 6})),
 	}
 
 	// Write the measurements to writer.
@@ -134,7 +135,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 100 || e.TagBlockSize() != 10 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
-	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint64{1, 3, 4}) {
+	} else if !reflect.DeepEqual(e.SeriesIDs(), toSeriesIDs([]uint64{1, 3, 4})) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
@@ -142,7 +143,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 200 || e.TagBlockSize() != 20 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
-	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint64{2}) {
+	} else if !reflect.DeepEqual(e.SeriesIDs(), toSeriesIDs([]uint64{2})) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
@@ -150,7 +151,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatal("expected element")
 	} else if e.TagBlockOffset() != 300 || e.TagBlockSize() != 30 {
 		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
-	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint64{5, 6}) {
+	} else if !reflect.DeepEqual(e.SeriesIDs(), toSeriesIDs([]uint64{5, 6})) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
@@ -167,10 +168,10 @@ type Measurement struct {
 	Deleted bool
 	Offset  int64
 	Size    int64
-	ids     []uint64
+	ids     []tsdb.SeriesID
 }
 
-func NewMeasurement(name []byte, deleted bool, offset, size int64, ids []uint64) Measurement {
+func NewMeasurement(name []byte, deleted bool, offset, size int64, ids []tsdb.SeriesID) Measurement {
 	return Measurement{
 		Name:    name,
 		Deleted: deleted,
@@ -178,4 +179,12 @@ func NewMeasurement(name []byte, deleted bool, offset, size int64, ids []uint64)
 		Size:    size,
 		ids:     ids,
 	}
+}
+
+func toSeriesIDs(ids []uint64) []tsdb.SeriesID {
+	sids := make([]tsdb.SeriesID, 0, len(ids))
+	for _, id := range ids {
+		sids = append(sids, tsdb.NewSeriesID(id))
+	}
+	return sids
 }

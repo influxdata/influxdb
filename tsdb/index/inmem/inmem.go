@@ -885,7 +885,7 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 	if m == nil {
 		return nil, nil
 	}
-	return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDsByTagKey(key))), nil
+	return tsdb.NewSeriesIDSliceIterator([]tsdb.SeriesID(m.SeriesIDsByTagKey(key))), nil
 }
 
 func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
@@ -896,7 +896,7 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	if m == nil {
 		return nil, nil
 	}
-	return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDsByTagValue(key, value))), nil
+	return tsdb.NewSeriesIDSliceIterator([]tsdb.SeriesID(m.SeriesIDsByTagValue(key, value))), nil
 }
 
 func (i *Index) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
@@ -950,7 +950,7 @@ func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influ
 
 	// Return all series if no condition specified.
 	if condition == nil {
-		return tsdb.NewSeriesIDSliceIterator([]uint64(m.SeriesIDs())), nil
+		return tsdb.NewSeriesIDSliceIterator([]tsdb.SeriesID(m.SeriesIDs())), nil
 	}
 
 	// Get series IDs that match the WHERE clause.
@@ -969,7 +969,7 @@ func (i *Index) MeasurementSeriesKeysByExprIterator(name []byte, condition influ
 		return nil, errors.New("fields not supported in WHERE clause during deletion")
 	}
 
-	return tsdb.NewSeriesIDSliceIterator([]uint64(ids)), nil
+	return tsdb.NewSeriesIDSliceIterator([]tsdb.SeriesID(ids)), nil
 }
 
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error) {
@@ -1098,7 +1098,7 @@ type ShardIndex struct {
 
 // DropSeries removes the provided series id from the local bitset that tracks
 // series in this shard only.
-func (idx *ShardIndex) DropSeries(seriesID uint64, _ []byte, _ bool) error {
+func (idx *ShardIndex) DropSeries(seriesID tsdb.SeriesID, _ []byte, _ bool) error {
 	// Remove from shard-local bitset if it exists.
 	idx.seriesIDSet.Lock()
 	if idx.seriesIDSet.ContainsNoLock(seriesID) {

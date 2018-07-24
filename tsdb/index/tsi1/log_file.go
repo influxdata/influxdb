@@ -562,7 +562,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 }
 
 // DeleteSeriesID adds a tombstone for a series id.
-func (f *LogFile) DeleteSeriesID(id uint64) error {
+func (f *LogFile) DeleteSeriesID(id tsdb.SeriesID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -635,7 +635,7 @@ func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 	mm := f.createMeasurementIfNotExists(e.Name)
 	mm.deleted = true
 	mm.tagSet = make(map[string]logTagKey)
-	mm.series = make(map[uint64]struct{})
+	mm.series = make(map[tsdb.SeriesID]struct{})
 	mm.seriesSet = nil
 }
 
@@ -742,7 +742,7 @@ func (f *LogFile) SeriesIDIterator() tsdb.SeriesIDIterator {
 		}
 
 		// measurement is not using seriesSet to store series IDs.
-		mm.forEach(func(seriesID uint64) {
+		mm.forEach(func(seriesID tsdb.SeriesID) {
 			ss.AddNoLock(seriesID)
 		})
 	}
@@ -762,7 +762,7 @@ func (f *LogFile) createMeasurementIfNotExists(name []byte) *logMeasurement {
 		mm = &logMeasurement{
 			name:   name,
 			tagSet: make(map[string]logTagKey),
-			series: make(map[uint64]struct{}),
+			series: make(map[tsdb.SeriesID]struct{}),
 		}
 		f.mms[string(name)] = mm
 	}
@@ -1056,13 +1056,13 @@ func (f *LogFile) seriesSketches() (sketch, tSketch estimator.Sketch, err error)
 
 // LogEntry represents a single log entry in the write-ahead log.
 type LogEntry struct {
-	Flag     byte   // flag
-	SeriesID uint64 // series id
-	Name     []byte // measurement name
-	Key      []byte // tag key
-	Value    []byte // tag value
-	Checksum uint32 // checksum of flag/name/tags.
-	Size     int    // total size of record, in bytes.
+	Flag     byte          // flag
+	SeriesID tsdb.SeriesID // series id
+	Name     []byte        // measurement name
+	Key      []byte        // tag key
+	Value    []byte        // tag value
+	Checksum uint32        // checksum of flag/name/tags.
+	Size     int           // total size of record, in bytes.
 
 	cached   bool        // Hint to LogFile that series data is already parsed
 	name     []byte      // series naem, this is a cached copy of the parsed measurement name
@@ -1090,7 +1090,7 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	if seriesID, n, err = uvarint(data); err != nil {
 		return err
 	}
-	e.SeriesID, data = seriesID, data[n:]
+	e.SeriesID, data = tsdb.NewSeriesID(seriesID), data[n:]
 
 	// Parse name length.
 	if sz, n, err = uvarint(data); err != nil {
@@ -1155,7 +1155,7 @@ func appendLogEntry(dst []byte, e *LogEntry) []byte {
 	dst = append(dst, e.Flag)
 
 	// Append series id.
-	n := binary.PutUvarint(buf[:], uint64(e.SeriesID))
+	n := binary.PutUvarint(buf[:], e.SeriesID.RawID())
 	dst = append(dst, buf[:n]...)
 
 	// Append name.
@@ -1201,7 +1201,7 @@ type logMeasurement struct {
 	name      []byte
 	tagSet    map[string]logTagKey
 	deleted   bool
-	series    map[uint64]struct{}
+	series    map[tsdb.SeriesID]struct{}
 	seriesSet *tsdb.SeriesIDSet
 }
 
@@ -1218,7 +1218,7 @@ func (m *logMeasurement) bytes() int {
 	return b
 }
 
-func (m *logMeasurement) addSeriesID(x uint64) {
+func (m *logMeasurement) addSeriesID(x tsdb.SeriesID) {
 	if m.seriesSet != nil {
 		m.seriesSet.AddNoLock(x)
 		return
@@ -1236,7 +1236,7 @@ func (m *logMeasurement) addSeriesID(x uint64) {
 	}
 }
 
-func (m *logMeasurement) removeSeriesID(x uint64) {
+func (m *logMeasurement) removeSeriesID(x tsdb.SeriesID) {
 	if m.seriesSet != nil {
 		m.seriesSet.RemoveNoLock(x)
 		return
@@ -1252,7 +1252,7 @@ func (m *logMeasurement) cardinality() int64 {
 }
 
 // forEach applies fn to every series ID in the logMeasurement.
-func (m *logMeasurement) forEach(fn func(uint64)) {
+func (m *logMeasurement) forEach(fn func(tsdb.SeriesID)) {
 	if m.seriesSet != nil {
 		m.seriesSet.ForEachNoLock(fn)
 		return
@@ -1264,17 +1264,17 @@ func (m *logMeasurement) forEach(fn func(uint64)) {
 }
 
 // seriesIDs returns a sorted set of seriesIDs.
-func (m *logMeasurement) seriesIDs() []uint64 {
-	a := make([]uint64, 0, m.cardinality())
+func (m *logMeasurement) seriesIDs() []tsdb.SeriesID {
+	a := make([]tsdb.SeriesID, 0, m.cardinality())
 	if m.seriesSet != nil {
-		m.seriesSet.ForEachNoLock(func(id uint64) { a = append(a, id) })
+		m.seriesSet.ForEachNoLock(func(id tsdb.SeriesID) { a = append(a, id) })
 		return a // IDs are already sorted.
 	}
 
 	for seriesID := range m.series {
 		a = append(a, seriesID)
 	}
-	sort.Sort(uint64Slice(a))
+	sort.Slice(a, func(i, j int) bool { return a[i].Less(a[j]) })
 	return a
 }
 
@@ -1366,7 +1366,7 @@ func (tk *logTagKey) TagValueIterator() TagValueIterator {
 func (tk *logTagKey) createTagValueIfNotExists(value []byte) logTagValue {
 	tv, ok := tk.tagValues[string(value)]
 	if !ok {
-		tv = logTagValue{name: value, series: make(map[uint64]struct{})}
+		tv = logTagValue{name: value, series: make(map[tsdb.SeriesID]struct{})}
 	}
 	return tv
 }
@@ -1381,7 +1381,7 @@ func (a logTagKeySlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[
 type logTagValue struct {
 	name      []byte
 	deleted   bool
-	series    map[uint64]struct{}
+	series    map[tsdb.SeriesID]struct{}
 	seriesSet *tsdb.SeriesIDSet
 }
 
@@ -1394,7 +1394,7 @@ func (tv *logTagValue) bytes() int {
 	return b
 }
 
-func (tv *logTagValue) addSeriesID(x uint64) {
+func (tv *logTagValue) addSeriesID(x tsdb.SeriesID) {
 	if tv.seriesSet != nil {
 		tv.seriesSet.AddNoLock(x)
 		return
@@ -1412,7 +1412,7 @@ func (tv *logTagValue) addSeriesID(x uint64) {
 	}
 }
 
-func (tv *logTagValue) removeSeriesID(x uint64) {
+func (tv *logTagValue) removeSeriesID(x tsdb.SeriesID) {
 	if tv.seriesSet != nil {
 		tv.seriesSet.RemoveNoLock(x)
 		return

@@ -225,19 +225,19 @@ type cardinality struct {
 	set   *tsdb.SeriesIDSet
 }
 
-func (c *cardinality) add(x uint64) {
+func (c *cardinality) add(x tsdb.SeriesID) {
 	if c.set != nil {
 		c.set.AddNoLock(x)
 		return
 	}
 
-	c.short = append(c.short, uint32(x)) // Series IDs never get beyond 2^32
+	c.short = append(c.short, uint32(x.RawID())) // Series IDs never get beyond 2^32
 
 	// Cheaper to store in bitmap.
 	if len(c.short) > useBitmapN {
 		c.set = tsdb.NewSeriesIDSet()
 		for i := 0; i < len(c.short); i++ {
-			c.set.AddNoLock(uint64(c.short[i]))
+			c.set.AddNoLock(tsdb.NewSeriesID(uint64(c.short[i])))
 		}
 		c.short = nil
 		return
@@ -295,8 +295,8 @@ OUTER:
 		}
 
 		var e tsdb.SeriesIDElem
-		for e, err = sitr.Next(); err == nil && e.SeriesID != 0; e, err = sitr.Next() {
-			if e.SeriesID > math.MaxUint32 {
+		for e, err = sitr.Next(); err == nil && !e.SeriesID.IsZero(); e, err = sitr.Next() {
+			if e.SeriesID.RawID() > math.MaxUint32 {
 				panic(fmt.Sprintf("series ID is too large: %d (max %d). Corrupted series file?", e.SeriesID, uint32(math.MaxUint32)))
 			}
 			c.add(e.SeriesID)
@@ -325,7 +325,7 @@ func (r *result) addShort(ids []uint32) {
 	// There is already a bitset of this result.
 	if r.set != nil {
 		for _, id := range ids {
-			r.set.AddNoLock(uint64(id))
+			r.set.AddNoLock(tsdb.NewSeriesID(uint64(id)))
 		}
 		return
 	}
@@ -343,7 +343,7 @@ func (r *result) addShort(ids []uint32) {
 	if len(r.lowCardinality) > useBitmapN {
 		r.set = tsdb.NewSeriesIDSet()
 		for id := range r.lowCardinality {
-			r.set.AddNoLock(uint64(id))
+			r.set.AddNoLock(tsdb.NewSeriesID(uint64(id)))
 		}
 		r.lowCardinality = nil
 	}
@@ -353,7 +353,7 @@ func (r *result) merge(other *tsdb.SeriesIDSet) {
 	if r.set == nil {
 		r.set = tsdb.NewSeriesIDSet()
 		for id := range r.lowCardinality {
-			r.set.AddNoLock(uint64(id))
+			r.set.AddNoLock(tsdb.NewSeriesID(uint64(id)))
 		}
 		r.lowCardinality = nil
 	}

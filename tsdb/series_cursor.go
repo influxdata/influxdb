@@ -138,7 +138,7 @@ func (cur *seriesCursor) readSeriesKeys(name []byte) error {
 		elem, err := sitr.Next()
 		if err != nil {
 			return err
-		} else if elem.SeriesID == 0 {
+		} else if elem.SeriesID.IsZero() {
 			break
 		}
 
