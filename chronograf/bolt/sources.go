@@ -15,12 +15,24 @@ var _ chronograf.SourcesStore = &SourcesStore{}
 // SourcesBucket is the bolt bucket used to store source information
 var SourcesBucket = []byte("Sources")
 
+var defaultSource = &chronograf.Source{
+	ID:      0,
+	Name:    "autogen",
+	Type:    "influx",
+	URL:     "http://localhost:9999",
+	Default: true,
+}
+
 // SourcesStore is a bolt implementation to store time-series source information.
 type SourcesStore struct {
 	client *Client
 }
 
 func (s *SourcesStore) Migrate(ctx context.Context) error {
+	if err := s.Put(ctx, defaultSource); err != nil {
+		return err
+	}
+
 	sources, err := s.All(ctx)
 	if err != nil {
 		return err
@@ -138,6 +150,28 @@ func (s *SourcesStore) all(ctx context.Context, tx *bolt.Tx) ([]chronograf.Sourc
 		return srcs, err
 	}
 	return srcs, nil
+}
+
+func (s *SourcesStore) Put(ctx context.Context, src *chronograf.Source) error {
+	return s.client.db.Update(func(tx *bolt.Tx) error {
+		return s.put(ctx, src, tx)
+	})
+}
+
+func (s *SourcesStore) put(ctx context.Context, src *chronograf.Source, tx *bolt.Tx) error {
+	if src.Default {
+		if err := s.resetDefaultSource(ctx, tx); err != nil {
+			return err
+		}
+	}
+	b := tx.Bucket(SourcesBucket)
+
+	if v, err := internal.MarshalSource(*src); err != nil {
+		return err
+	} else if err := b.Put(itob(src.ID), v); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *SourcesStore) add(ctx context.Context, src *chronograf.Source, tx *bolt.Tx) error {
