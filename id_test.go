@@ -10,14 +10,19 @@ func TestIDFromString(t *testing.T) {
 	tests := []struct {
 		name    string
 		id      string
-		want    *ID
+		want    ID
 		wantErr bool
 		err     string
 	}{
 		{
+			name: "Should be able to decode an all zeros ID",
+			id:   "0000000000000000",
+			want: ID(0),
+		},
+		{
 			name: "Should be able to decode an ID",
-			id:   "0000000000000000", //020f755c3c082000
-			want: &ID{value: func(i uint64) *uint64 { return &i }(0)},
+			id:   "020f755c3c082000",
+			want: ID(148466351731122176),
 		},
 		{
 			name:    "Should not be able to decode a non hex ID",
@@ -45,7 +50,7 @@ func TestIDFromString(t *testing.T) {
 			}
 
 			// Check positive test cases
-			if !reflect.DeepEqual(got, tt.want) && !tt.wantErr {
+			if !reflect.DeepEqual(*got, tt.want) && !tt.wantErr {
 				t.Errorf("IDFromString() outputs %v, want %v", got, tt.want)
 			}
 		})
@@ -59,7 +64,7 @@ func TestDecodeFromString(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 	want := []byte{48, 50, 48, 102, 55, 53, 53, 99, 51, 99, 48, 56, 50, 48, 48, 48}
-	got, _ := id.Encode()
+	got := id.Encode()
 	if !bytes.Equal(want, got) {
 		t.Errorf("encoding error")
 	}
@@ -70,20 +75,15 @@ func TestDecodeFromString(t *testing.T) {
 
 func TestEncode(t *testing.T) {
 	var id ID
-	if !id.Empty() {
-		t.Errorf("ID must be empty at first stage")
-	}
-	got, err := id.Encode()
-	if len(got) != 0 {
-		t.Errorf("encoding an empty ID must result in an empty byte array plus an error")
-	}
-	if err == nil {
-		t.Errorf("encoding an empty ID must result in an empty byte array plus an error")
+	want := []byte{48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48}
+	got := id.Encode()
+	if !bytes.Equal(got, want) {
+		t.Errorf("encoding an empty ID must result in a zeros ID")
 	}
 
 	id.DecodeFromString("5ca1ab1eba5eba11")
-	want := []byte{53, 99, 97, 49, 97, 98, 49, 101, 98, 97, 53, 101, 98, 97, 49, 49}
-	got, err = id.Encode()
+	want = []byte{53, 99, 97, 49, 97, 98, 49, 101, 98, 97, 53, 101, 98, 97, 49, 49}
+	got = id.Encode()
 	if !bytes.Equal(want, got) {
 		t.Errorf("encoding error")
 	}
@@ -98,7 +98,7 @@ func TestDecodeFromShorterString(t *testing.T) {
 	if err == nil {
 		t.Errorf("expecting shorter inputs to error")
 	}
-	if id.String() != "" {
+	if id.String() != "0000000000000000" {
 		t.Errorf("expecting empty ID to be serialized into empty string")
 	}
 }
@@ -109,7 +109,7 @@ func TestDecodeFromLongerString(t *testing.T) {
 	if err == nil {
 		t.Errorf("expecting shorter inputs to error")
 	}
-	if id.String() != "" {
+	if id.String() != "0000000000000000" {
 		t.Errorf("expecting empty ID to be serialized into empty string")
 	}
 }
@@ -120,18 +120,7 @@ func TestDecodeFromEmptyString(t *testing.T) {
 	if err == nil {
 		t.Errorf("expecting empty inputs to error")
 	}
-	if !id.Empty() {
-		t.Errorf("expecting ID to be empty")
-	}
-	if id.String() != "" {
+	if id.String() != "0000000000000000" {
 		t.Errorf("expecting empty ID to be serialized into empty string")
-	}
-}
-
-func TestAllZerosDoesNotMeanEmpty(t *testing.T) {
-	var id ID
-	id.DecodeFromString("0000000000000000")
-	if id.Empty() {
-		t.Errorf("expecting id to not be empty")
 	}
 }
