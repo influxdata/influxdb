@@ -2,6 +2,7 @@ package platform
 
 import (
 	"bytes"
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -122,5 +123,25 @@ func TestDecodeFromEmptyString(t *testing.T) {
 	}
 	if id.String() != "0000000000000000" {
 		t.Errorf("expecting empty ID to be serialized into empty string")
+	}
+}
+
+func TestMarshalling(t *testing.T) {
+	init := "ca55e77eca55e77e"
+	id1, err := IDFromString(init)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	serialized, err := json.Marshal(id1)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+
+	var id2 ID
+	json.Unmarshal(serialized, &id2)
+
+	if !bytes.Equal(id1.Encode(), id2.Encode()) {
+		t.Errorf("error marshalling/unmarshalling ID")
 	}
 }
