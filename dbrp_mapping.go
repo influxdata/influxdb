@@ -32,8 +32,8 @@ type DBRPMapping struct {
 	// Default indicates if this mapping is the default for the cluster and database.
 	Default bool `json:"default"`
 
-	OrganizationID ID `json:"organization_id"`
-	BucketID       ID `json:"bucket_id"`
+	OrganizationID *ID `json:"organization_id"`
+	BucketID       *ID `json:"bucket_id"`
 }
 
 // Validate reports any validation errors for the mapping.
@@ -47,10 +47,10 @@ func (m DBRPMapping) Validate() error {
 	if !validName(m.RetentionPolicy) {
 		return errors.New("RetentionPolicy must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
-	if len(m.OrganizationID) == 0 {
+	if m.OrganizationID == nil {
 		return errors.New("OrganizationID is required")
 	}
-	if len(m.BucketID) == 0 {
+	if m.BucketID == nil {
 		return errors.New("BucketID is required")
 	}
 	return nil
@@ -82,8 +82,11 @@ func (m *DBRPMapping) Equal(o *DBRPMapping) bool {
 		m.Database == o.Database &&
 		m.RetentionPolicy == o.RetentionPolicy &&
 		m.Default == o.Default &&
-		bytes.Equal(m.OrganizationID, o.OrganizationID) &&
-		bytes.Equal(m.BucketID, o.BucketID)
+		// Since empty IDs encodes into a byte array of zeros we could want to check if they are empty or not
+		// m.OrganizationID != nil &&
+		// m.BucketID != nil &&
+		bytes.Equal(m.OrganizationID.Encode(), o.OrganizationID.Encode()) &&
+		bytes.Equal(m.BucketID.Encode(), o.BucketID.Encode())
 }
 
 // DBRPMappingFilter represents a set of filters that restrict the returned results by cluster, database and retention policy.

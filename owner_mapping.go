@@ -13,16 +13,16 @@ type OwnerMappingService interface {
 
 // OwnerMapping represents a mapping of a resource to its owner
 type OwnerMapping struct {
-	ResourceID ID    `json:"resource_id"`
+	ResourceID *ID   `json:"resource_id"`
 	Owner      Owner `json:"owner_id"`
 }
 
 // Validate reports any validation errors for the mapping.
 func (m OwnerMapping) Validate() error {
-	if len(m.ResourceID) == 0 {
+	if m.ResourceID == nil {
 		return errors.New("ResourceID is required")
 	}
-	if len(m.Owner.ID) == 0 {
+	if m.Owner.ID == nil {
 		return errors.New("An Owner with an ID is required")
 	}
 	return nil
