@@ -58,14 +58,12 @@ func (a *FloatArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
-		} else {
-			a.Timestamps = a.Timestamps[:rmin]
-			a.Values = a.Values[:rmin]
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
@@ -261,14 +259,12 @@ func (a *IntegerArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
-		} else {
-			a.Timestamps = a.Timestamps[:rmin]
-			a.Values = a.Values[:rmin]
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
@@ -464,14 +460,12 @@ func (a *UnsignedArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
-		} else {
-			a.Timestamps = a.Timestamps[:rmin]
-			a.Values = a.Values[:rmin]
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
@@ -667,14 +661,12 @@ func (a *StringArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
-		} else {
-			a.Timestamps = a.Timestamps[:rmin]
-			a.Values = a.Values[:rmin]
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
@@ -870,14 +862,12 @@ func (a *BooleanArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
-		} else {
-			a.Timestamps = a.Timestamps[:rmin]
-			a.Values = a.Values[:rmin]
+			return
 		}
-	} else {
-		a.Timestamps = a.Timestamps[:rmin]
-		a.Values = a.Values[:rmin]
 	}
+
+	a.Timestamps = a.Timestamps[:rmin]
+	a.Values = a.Values[:rmin]
 }
 
 // Include returns the subset values between min and max inclusive. The values must
