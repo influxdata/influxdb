@@ -10,9 +10,7 @@ import (
 const maxIDLength = 16
 
 // ID is a unique identifier.
-type ID struct {
-	value *uint64
-}
+type ID uint64
 
 // IDGenerator represents a generator for IDs.
 type IDGenerator interface {
@@ -20,19 +18,14 @@ type IDGenerator interface {
 	ID() ID
 }
 
-// IDFromString creates an ID from a given string
-func IDFromString(idstr string) (*ID, error) {
+// IDFromString creates an ID from a given string.
+func IDFromString(str string) (*ID, error) {
 	var id ID
-	err := id.DecodeFromString(idstr)
+	err := id.DecodeFromString(str)
 	if err != nil {
 		return nil, err
 	}
 	return &id, nil
-}
-
-// Empty tells whether the ID is empty or not.
-func (i *ID) Empty() bool {
-	return i.value == nil
 }
 
 // Decode parses b as a hex-encoded byte-slice-string.
@@ -46,8 +39,7 @@ func (i *ID) Decode(b []byte) error {
 	if err != nil {
 		return err
 	}
-	out := binary.BigEndian.Uint64(dst)
-	i.value = &out
+	*i = ID(binary.BigEndian.Uint64(dst))
 	return nil
 }
 
@@ -57,25 +49,18 @@ func (i *ID) DecodeFromString(s string) error {
 }
 
 // Encode converts ID to a hex-encoded byte-slice-string.
-func (i ID) Encode() ([]byte, error) {
-	if i.Empty() {
-		return nil, fmt.Errorf("cannot encode an empty ID")
-	}
+func (i ID) Encode() []byte {
 	b := make([]byte, hex.DecodedLen(maxIDLength))
-	binary.BigEndian.PutUint64(b, *i.value)
+	binary.BigEndian.PutUint64(b, uint64(i))
 
 	dst := make([]byte, hex.EncodedLen(len(b)))
 	hex.Encode(dst, b)
-	return dst, nil
+	return dst
 }
 
 // String returns the ID as a hex encoded string
 func (i ID) String() string {
-	res, err := i.Encode()
-	if err != nil {
-		return ""
-	}
-	return string(res)
+	return string(i.Encode())
 }
 
 // UnmarshalJSON implements JSON unmarshaller for IDs.
@@ -86,9 +71,5 @@ func (i *ID) UnmarshalJSON(b []byte) error {
 
 // MarshalJSON implements JSON marshaller for IDs.
 func (i ID) MarshalJSON() ([]byte, error) {
-	id, err := i.Encode()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(string(id[:]))
+	return json.Marshal(string(i.Encode()))
 }
