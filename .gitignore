@@ -1,5 +1,6 @@
 vendor
 .netrc
+.vs
 
 # binary databases
 idpdb.bolt
