@@ -56,6 +56,9 @@ func (a *{{ $typename }}) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+		} else {
+			a.Timestamps = a.Timestamps[:rmin]
+			a.Values = a.Values[:rmin]
 		}
 	} else {
 		a.Timestamps = a.Timestamps[:rmin]

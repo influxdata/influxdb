@@ -58,6 +58,9 @@ func (a *FloatArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+		} else {
+			a.Timestamps = a.Timestamps[:rmin]
+			a.Values = a.Values[:rmin]
 		}
 	} else {
 		a.Timestamps = a.Timestamps[:rmin]
@@ -258,6 +261,9 @@ func (a *IntegerArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+		} else {
+			a.Timestamps = a.Timestamps[:rmin]
+			a.Values = a.Values[:rmin]
 		}
 	} else {
 		a.Timestamps = a.Timestamps[:rmin]
@@ -458,6 +464,9 @@ func (a *UnsignedArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+		} else {
+			a.Timestamps = a.Timestamps[:rmin]
+			a.Values = a.Values[:rmin]
 		}
 	} else {
 		a.Timestamps = a.Timestamps[:rmin]
@@ -658,6 +667,9 @@ func (a *StringArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+		} else {
+			a.Timestamps = a.Timestamps[:rmin]
+			a.Values = a.Values[:rmin]
 		}
 	} else {
 		a.Timestamps = a.Timestamps[:rmin]
@@ -858,6 +870,9 @@ func (a *BooleanArray) Exclude(min, max int64) {
 			vs := a.Values[:rmin+rest]
 			copy(vs[rmin:], a.Values[rmax:])
 			a.Values = vs
+		} else {
+			a.Timestamps = a.Timestamps[:rmin]
+			a.Values = a.Values[:rmin]
 		}
 	} else {
 		a.Timestamps = a.Timestamps[:rmin]
