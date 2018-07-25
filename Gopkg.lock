@@ -8,12 +8,6 @@
   version = "v1.0.1"
 
 [[projects]]
-  name = "github.com/Sirupsen/logrus"
-  packages = ["."]
-  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
-  version = "v1.0.6"
-
-[[projects]]
   name = "github.com/alecthomas/kingpin"
   packages = ["."]
   revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
@@ -592,6 +586,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
+  version = "v1.0.6"
+
+[[projects]]
   name = "github.com/spf13/afero"
   packages = [
     ".",
@@ -841,6 +841,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b9db764d51c0ab5a91f4bedf6befa4ca7d562b9f310441e77dd74dfa1f739d71"
+  inputs-digest = "98278f4964b8c10b5c7667b2d695a8249efda38bdf7e11d756afeb0c76fa7005"
   solver-name = "gps-cdcl"
   solver-version = 1
