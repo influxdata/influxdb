@@ -22,13 +22,22 @@ import (
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
 func init() {
+	orgID, err := platform.IDFromString("cadecadecadecade")
+	if err != nil {
+		panic(err)
+	}
+	bucketID, err := platform.IDFromString("da7aba5e5eedca5e")
+	if err != nil {
+		panic(err)
+	}
+
 	mapping := platform.DBRPMapping{
 		Cluster:         "cluster",
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
-		OrganizationID:  platform.ID("org"),
-		BucketID:        platform.ID("bucket"),
+		OrganizationID:  orgID,
+		BucketID:        bucketID,
 	}
 	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
 		return &mapping, nil

@@ -16,10 +16,10 @@ import (
 const FromKind = "from"
 
 type FromOpSpec struct {
-	Database string      `json:"db,omitempty"`
-	Bucket   string      `json:"bucket,omitempty"`
-	BucketID platform.ID `json:"bucket_id,omitempty"`
-	Hosts    []string    `json:"hosts"`
+	Database string       `json:"db,omitempty"`
+	Bucket   string       `json:"bucket,omitempty"`
+	BucketID *platform.ID `json:"bucket_id,omitempty"`
+	Hosts    []string     `json:"hosts"`
 }
 
 var fromSignature = semantic.FunctionSignature{
@@ -54,16 +54,17 @@ func createFromOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 	if bucketID, ok, err := args.GetString("bucketID"); err != nil {
 		return nil, err
 	} else if ok {
-		err := spec.BucketID.DecodeFromString(bucketID)
+		id, err := platform.IDFromString(bucketID)
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid bucket ID")
 		}
+		spec.BucketID = id
 	}
 
-	if spec.Database == "" && spec.Bucket == "" && len(spec.BucketID) == 0 {
+	if spec.Database == "" && spec.Bucket == "" && spec.BucketID == nil {
 		return nil, errors.New("must specify one of db or bucket")
 	}
-	if spec.Database != "" && spec.Bucket != "" && len(spec.BucketID) == 0 {
+	if spec.Database != "" && spec.Bucket != "" && spec.BucketID == nil {
 		return nil, errors.New("must specify only one of db or bucket")
 	}
 
@@ -90,7 +91,7 @@ func (s *FromOpSpec) Kind() query.OperationKind {
 type FromProcedureSpec struct {
 	Database string
 	Bucket   string
-	BucketID platform.ID
+	BucketID *platform.ID
 	Hosts    []string
 
 	BoundsSet bool
@@ -144,9 +145,8 @@ func (s *FromProcedureSpec) Copy() plan.ProcedureSpec {
 
 	ns.Database = s.Database
 	ns.Bucket = s.Bucket
-	if len(s.BucketID) > 0 {
-		ns.BucketID = make(platform.ID, len(s.BucketID))
-		copy(ns.BucketID, s.BucketID)
+	if s.BucketID != nil {
+		ns.BucketID = s.BucketID
 	}
 
 	if len(s.Hosts) > 0 {
@@ -210,9 +210,13 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 	switch {
 	case spec.Database != "":
 		// The bucket ID will be treated as the database name
-		bucketID = platform.ID(spec.Database)
-	case len(spec.BucketID) != 0:
-		bucketID = spec.BucketID
+		id, err := platform.IDFromString(spec.Database)
+		if err != nil {
+			return nil, err
+		}
+		bucketID = *id
+	case spec.BucketID != nil:
+		bucketID = *spec.BucketID
 	case spec.Bucket != "":
 		b, ok := deps.BucketLookup.Lookup(orgID, spec.Bucket)
 		if !ok {
@@ -225,8 +229,8 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 		dsid,
 		deps.Reader,
 		storage.ReadSpec{
-			OrganizationID:  orgID,
-			BucketID:        bucketID,
+			OrganizationID:  orgID.Encode(),
+			BucketID:        bucketID.Encode(),
 			Hosts:           spec.Hosts,
 			Predicate:       spec.Filter,
 			PointsLimit:     spec.PointsLimit,

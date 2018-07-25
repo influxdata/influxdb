@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/querytest"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 func TestFrom_NewQuery(t *testing.T) {
@@ -40,13 +40,13 @@ func TestFrom_NewQuery(t *testing.T) {
 		},
 		{
 			Name: "from bucket ID",
-			Raw:  `from(bucketID:"aaaaaaaa")`,
+			Raw:  `from(bucketID:"aaaaaaaaaaaaaaaa")`,
 			Want: &query.Spec{
 				Operations: []*query.Operation{
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							BucketID: platform.ID{170, 170, 170, 170},
+							BucketID: platformtesting.MustIDFromString(t, "aaaaaaaaaaaaaaaa"),
 						},
 					},
 				},

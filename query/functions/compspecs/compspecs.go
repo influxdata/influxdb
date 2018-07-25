@@ -92,8 +92,15 @@ func main() {
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
 func init() {
-	organizationID := platform.ID("aaaa")
-	bucketID := platform.ID("bbbb")
+	organizationID, err := platform.IDFromString("aaaaaaaaaaaaaaaa")
+	if err != nil {
+		panic(err)
+	}
+	bucketID, err := platform.IDFromString("bbbbbbbbbbbbbbbb")
+	if err != nil {
+		panic(err)
+	}
+
 	mapping := platform.DBRPMapping{
 		Cluster:         "cluster",
 		Database:        "db",
