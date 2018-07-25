@@ -10,7 +10,10 @@ import (
 func TestIDLength(t *testing.T) {
 	gen := NewIDGenerator()
 	id := gen.ID()
-	if len(id.Encode()) != 16 {
+	if id == nil {
+		t.Fail()
+	}
+	if len(id.Encode()) != platform.IDLength {
 		t.Fail()
 	}
 }
