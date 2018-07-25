@@ -120,7 +120,7 @@ func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 			continue
 		}
 
-		if err := segment.ForEachEntry(func(flag uint8, id SeriesID, offset int64, key []byte) error {
+		if err := segment.ForEachEntry(func(flag uint8, id SeriesIDTyped, offset int64, key []byte) error {
 			if offset <= idx.maxOffset {
 				return nil
 			}
@@ -144,13 +144,14 @@ func (idx *SeriesIndex) OnDiskCount() uint64 { return idx.count }
 // InMemCount returns the number of series in the in-memory index.
 func (idx *SeriesIndex) InMemCount() uint64 { return uint64(len(idx.idOffsetMap)) }
 
-func (idx *SeriesIndex) Insert(key []byte, id SeriesID, offset int64) {
+func (idx *SeriesIndex) Insert(key []byte, id SeriesIDTyped, offset int64) {
 	idx.execEntry(SeriesEntryInsertFlag, id, offset, key)
 }
 
 // Delete marks the series id as deleted.
 func (idx *SeriesIndex) Delete(id SeriesID) {
-	idx.execEntry(SeriesEntryTombstoneFlag, id, 0, nil)
+	// TODO(jeff): WithType(0) kinda sucks here, but we know it will be masked off.
+	idx.execEntry(SeriesEntryTombstoneFlag, id.WithType(0), 0, nil)
 }
 
 // IsDeleted returns true if series id has been deleted.
@@ -159,35 +160,36 @@ func (idx *SeriesIndex) IsDeleted(id SeriesID) bool {
 	return ok
 }
 
-func (idx *SeriesIndex) execEntry(flag uint8, id SeriesID, offset int64, key []byte) {
+func (idx *SeriesIndex) execEntry(flag uint8, id SeriesIDTyped, offset int64, key []byte) {
+	untypedID := id.SeriesID()
 	switch flag {
 	case SeriesEntryInsertFlag:
 		idx.keyIDMap.Put(key, id)
-		idx.idOffsetMap[id] = offset
+		idx.idOffsetMap[untypedID] = offset
 
-		if id.Greater(idx.maxSeriesID) {
-			idx.maxSeriesID = id
+		if untypedID.Greater(idx.maxSeriesID) {
+			idx.maxSeriesID = untypedID
 		}
 		if offset > idx.maxOffset {
 			idx.maxOffset = offset
 		}
 
 	case SeriesEntryTombstoneFlag:
-		idx.tombstones[id] = struct{}{}
+		idx.tombstones[untypedID] = struct{}{}
 
 	default:
 		panic("unreachable")
 	}
 }
 
-func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte) SeriesID {
+func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte) SeriesIDTyped {
 	if v := idx.keyIDMap.Get(key); v != nil {
-		if id, _ := v.(SeriesID); !id.IsZero() && !idx.IsDeleted(id) {
+		if id, _ := v.(SeriesIDTyped); !id.IsZero() && !idx.IsDeleted(id.SeriesID()) {
 			return id
 		}
 	}
 	if len(idx.data) == 0 {
-		return SeriesID{}
+		return SeriesIDTyped{}
 	}
 
 	hash := rhh.HashKey(key)
@@ -196,33 +198,33 @@ func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte)
 		elemOffset := int64(binary.BigEndian.Uint64(elem[:8]))
 
 		if elemOffset == 0 {
-			return SeriesID{}
+			return SeriesIDTyped{}
 		}
 
 		elemKey := ReadSeriesKeyFromSegments(segments, elemOffset+SeriesEntryHeaderSize)
 		elemHash := rhh.HashKey(elemKey)
 		if d > rhh.Dist(elemHash, pos, idx.capacity) {
-			return SeriesID{}
+			return SeriesIDTyped{}
 		} else if elemHash == hash && bytes.Equal(elemKey, key) {
-			id := NewSeriesID(binary.BigEndian.Uint64(elem[8:]))
-			if idx.IsDeleted(id) {
-				return SeriesID{}
+			id := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[8:]))
+			if idx.IsDeleted(id.SeriesID()) {
+				return SeriesIDTyped{}
 			}
 			return id
 		}
 	}
 }
 
-func (idx *SeriesIndex) FindIDByNameTags(segments []*SeriesSegment, name []byte, tags models.Tags, buf []byte) SeriesID {
+func (idx *SeriesIndex) FindIDByNameTags(segments []*SeriesSegment, name []byte, tags models.Tags, buf []byte) SeriesIDTyped {
 	id := idx.FindIDBySeriesKey(segments, AppendSeriesKey(buf[:0], name, tags))
-	if _, ok := idx.tombstones[id]; ok {
-		return SeriesID{}
+	if _, ok := idx.tombstones[id.SeriesID()]; ok {
+		return SeriesIDTyped{}
 	}
 	return id
 }
 
-func (idx *SeriesIndex) FindIDListByNameTags(segments []*SeriesSegment, names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []SeriesID, ok bool) {
-	ids, ok = make([]SeriesID, len(names)), true
+func (idx *SeriesIndex) FindIDListByNameTags(segments []*SeriesSegment, names [][]byte, tagsSlice []models.Tags, buf []byte) (ids []SeriesIDTyped, ok bool) {
+	ids, ok = make([]SeriesIDTyped, len(names)), true
 	for i := range names {
 		id := idx.FindIDByNameTags(segments, names[i], tagsSlice[i], buf)
 		if id.IsZero() {

@@ -191,7 +191,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 			writeRequired = true
 			continue
 		}
-		ids[i] = id
+		ids[i] = id.SeriesID()
 	}
 	p.mu.RUnlock()
 
@@ -201,7 +201,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	}
 
 	type keyRange struct {
-		id     SeriesID
+		id     SeriesIDTyped
 		offset int64
 	}
 	newKeyRanges := make([]keyRange, 0, len(keys))
@@ -227,19 +227,20 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 		key := keys[i]
 		if ids[i] = newIDs[string(key)]; !ids[i].IsZero() {
 			continue
-		} else if ids[i] = p.index.FindIDBySeriesKey(p.segments, key); !ids[i].IsZero() {
+		} else if ids[i] = p.index.FindIDBySeriesKey(p.segments, key).SeriesID(); !ids[i].IsZero() {
 			continue
 		}
 
 		// Write to series log and save offset.
-		id, offset, err := p.insert(key)
+		id, offset, err := p.insert(key, models.Empty) // TODO(jeff): use the right type
 		if err != nil {
 			return err
 		}
 
 		// Append new key to be added to hash map after flush.
-		ids[i] = id
-		newIDs[string(key)] = id
+		untypedID := id.SeriesID()
+		ids[i] = untypedID
+		newIDs[string(key)] = untypedID
 		newKeyRanges = append(newKeyRanges, keyRange{id, offset})
 	}
 
@@ -304,8 +305,8 @@ func (p *SeriesPartition) DeleteSeriesID(id SeriesID) error {
 		return nil
 	}
 
-	// Write tombstone entry.
-	_, err := p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryTombstoneFlag, id, nil))
+	// Write tombstone entry. The type is ignored in tombstones.
+	_, err := p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryTombstoneFlag, id.WithType(models.Empty), nil))
 	if err != nil {
 		return err
 	}
@@ -361,7 +362,7 @@ func (p *SeriesPartition) FindIDBySeriesKey(key []byte) SeriesID {
 	}
 	id := p.index.FindIDBySeriesKey(p.segments, key)
 	p.mu.RUnlock()
-	return id
+	return id.SeriesID()
 }
 
 // SeriesCount returns the number of series.
@@ -412,11 +413,11 @@ func (p *SeriesPartition) activeSegment() *SeriesSegment {
 	return p.segments[len(p.segments)-1]
 }
 
-func (p *SeriesPartition) insert(key []byte) (id SeriesID, offset int64, err error) {
-	id = NewSeriesID(p.seq)
+func (p *SeriesPartition) insert(key []byte, typ models.FieldType) (id SeriesIDTyped, offset int64, err error) {
+	id = NewSeriesID(p.seq).WithType(typ)
 	offset, err = p.writeLogEntry(AppendSeriesEntry(nil, SeriesEntryInsertFlag, id, key))
 	if err != nil {
-		return SeriesID{}, 0, err
+		return SeriesIDTyped{}, 0, err
 	}
 
 	p.seq += SeriesFilePartitionN
@@ -549,7 +550,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	for _, segment := range segments {
 		errDone := errors.New("done")
 
-		if err := segment.ForEachEntry(func(flag uint8, id SeriesID, offset int64, key []byte) error {
+		if err := segment.ForEachEntry(func(flag uint8, id SeriesIDTyped, offset int64, key []byte) error {
 			// Make sure we don't go past the offset where the compaction began.
 			if offset >= index.maxOffset {
 				return errDone
@@ -573,16 +574,18 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 				return fmt.Errorf("unexpected series partition log entry flag: %d", flag)
 			}
 
+			untypedID := id.SeriesID()
+
 			// Ignore entry if tombstoned.
-			if index.IsDeleted(id) {
+			if index.IsDeleted(untypedID) {
 				return nil
 			}
 
 			// Save max series identifier processed.
-			hdr.MaxSeriesID, hdr.MaxOffset = id, offset
+			hdr.MaxSeriesID, hdr.MaxOffset = untypedID, offset
 
 			// Insert into maps.
-			c.insertIDOffsetMap(idOffsetMap, hdr.Capacity, id, offset)
+			c.insertIDOffsetMap(idOffsetMap, hdr.Capacity, untypedID, offset)
 			return c.insertKeyIDMap(keyIDMap, hdr.Capacity, segments, key, offset, id)
 		}); err == errDone {
 			break
@@ -624,7 +627,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	return nil
 }
 
-func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, segments []*SeriesSegment, key []byte, offset int64, id SeriesID) error {
+func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, segments []*SeriesSegment, key []byte, offset int64, id SeriesIDTyped) error {
 	mask := capacity - 1
 	hash := rhh.HashKey(key)
 
@@ -635,7 +638,7 @@ func (c *SeriesPartitionCompactor) insertKeyIDMap(dst []byte, capacity int64, se
 
 		// If empty slot found or matching offset, insert and exit.
 		elemOffset := int64(binary.BigEndian.Uint64(elem[:8]))
-		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[8:]))
+		elemID := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[8:]))
 		if elemOffset == 0 || elemOffset == offset {
 			binary.BigEndian.PutUint64(elem[:8], uint64(offset))
 			binary.BigEndian.PutUint64(elem[8:], id.RawID())
