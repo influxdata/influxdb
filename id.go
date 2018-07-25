@@ -16,7 +16,7 @@ type ID uint64
 // IDGenerator represents a generator for IDs.
 type IDGenerator interface {
 	// ID creates unique byte slice ID.
-	ID() ID
+	ID() *ID
 }
 
 // IDFromString creates an ID from a given string.

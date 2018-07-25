@@ -109,8 +109,8 @@ func CreateUser(
 			name: "names should be unique",
 			fields: UserFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return *MustIDFromString(t, userOneID)
+					IDFn: func() *platform.ID {
+						return MustIDFromString(t, userOneID)
 					},
 				},
 				Users: []*platform.User{

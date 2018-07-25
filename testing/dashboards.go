@@ -119,8 +119,8 @@ func CreateDashboard(
 			name: "basic create dashboard",
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return *MustIDFromString(t, dashTwoID)
+					IDFn: func() *platform.ID {
+						return MustIDFromString(t, dashTwoID)
 					},
 				},
 				Dashboards: []*platform.Dashboard{

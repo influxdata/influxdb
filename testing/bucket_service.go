@@ -91,8 +91,8 @@ func CreateBucket(
 			name: "basic create bucket",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return *MustIDFromString(t, bucketTwoID)
+					IDFn: func() *platform.ID {
+						return MustIDFromString(t, bucketTwoID)
 					},
 				},
 				Buckets: []*platform.Bucket{
@@ -140,8 +140,8 @@ func CreateBucket(
 			name: "basic create bucket using org name",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return *MustIDFromString(t, bucketTwoID)
+					IDFn: func() *platform.ID {
+						return MustIDFromString(t, bucketTwoID)
 					},
 				},
 				Buckets: []*platform.Bucket{
@@ -189,8 +189,8 @@ func CreateBucket(
 			name: "names should be unique within an organization",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return *MustIDFromString(t, bucketTwoID)
+					IDFn: func() *platform.ID {
+						return MustIDFromString(t, bucketTwoID)
 					},
 				},
 				Buckets: []*platform.Bucket{
@@ -233,8 +233,8 @@ func CreateBucket(
 			name: "names should not be unique across organizations",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
-						return *MustIDFromString(t, bucketTwoID)
+					IDFn: func() *platform.ID {
+						return MustIDFromString(t, bucketTwoID)
 					},
 				},
 				Organizations: []*platform.Organization{
