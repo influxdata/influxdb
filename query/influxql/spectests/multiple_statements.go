@@ -240,6 +240,7 @@ func init() {
 					{Parent: "max0", Child: "map1"},
 					{Parent: "map1", Child: "yield1"},
 				},
+				Now: Now(),
 			},
 		),
 	)

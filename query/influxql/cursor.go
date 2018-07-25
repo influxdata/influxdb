@@ -53,7 +53,7 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 		return nil, err
 	}
 
-	valuer := influxql.NowValuer{Now: t.now}
+	valuer := influxql.NowValuer{Now: t.spec.Now}
 	_, tr, err := influxql.ConditionExpr(t.stmt.Condition, &valuer)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func createVarRefCursor(t *transpilerState, ref *influxql.VarRef) (cursor, error
 	// the end time will be set to now.
 	if tr.Max.IsZero() {
 		if window, err := t.stmt.GroupByInterval(); err == nil && window > 0 {
-			tr.Max = t.now
+			tr.Max = t.spec.Now
 		}
 	}
 

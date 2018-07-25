@@ -119,6 +119,7 @@ func init() {
 					{Parent: "group0", Child: "map0"},
 					{Parent: "map0", Child: "yield0"},
 				},
+				Now: Now(),
 			},
 		),
 	)

@@ -133,7 +133,7 @@ func (gr *groupInfo) createCursor(t *transpilerState) (cursor, error) {
 		tags map[influxql.VarRef]struct{}
 		cond influxql.Expr
 	)
-	valuer := influxql.NowValuer{Now: t.now}
+	valuer := influxql.NowValuer{Now: t.spec.Now}
 	if t.stmt.Condition != nil {
 		var err error
 		if cond, _, err = influxql.ConditionExpr(t.stmt.Condition, &valuer); err != nil {
@@ -312,7 +312,7 @@ func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 							} else if len(lit2.Args) != 0 {
 								return nil, errors.New("time dimension offset now() function requires no arguments")
 							}
-							now := t.now
+							now := t.spec.Now
 							windowOffset = now.Sub(now.Truncate(windowEvery))
 
 							// Use the evaluated offset to replace the argument. Ideally, we would
