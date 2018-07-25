@@ -189,10 +189,11 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	req := &getDashboardsRequest{}
 
 	if id := qp.Get("orgID"); id != "" {
-		req.filter.OrganizationID = &platform.ID{}
-		if err := req.filter.OrganizationID.DecodeFromString(id); err != nil {
+		temp, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.OrganizationID = temp
 	}
 
 	if org := qp.Get("org"); org != "" {
@@ -200,10 +201,11 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	}
 
 	if id := qp.Get("id"); id != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(id); err != nil {
+		temp, err := platform.IDFromString(id)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.ID = temp
 	}
 
 	return req, nil
@@ -359,7 +361,7 @@ func decodePutDashboardCellRequest(ctx context.Context, r *http.Request) (*putDa
 		return nil, err
 	}
 
-	if !bytes.Equal(req.Cell.ID, cid) {
+	if req.Cell.ID == nil || *req.Cell.ID != cid {
 		return nil, fmt.Errorf("url cell_id does not match id on provided cell")
 	}
 
@@ -652,7 +654,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, dashboardID pla
 
 // ReplaceDashboardCell replaces a single dashboard cell. It expects ID to be set on the provided cell.
 func (s *DashboardService) ReplaceDashboardCell(ctx context.Context, dashboardID platform.ID, cell *platform.DashboardCell) error {
-	u, err := newURL(s.Addr, dashboardCellPath(dashboardID, cell.ID))
+	u, err := newURL(s.Addr, dashboardCellPath(dashboardID, *cell.ID))
 	if err != nil {
 		return err
 	}
