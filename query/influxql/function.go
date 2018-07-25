@@ -65,9 +65,39 @@ func parseFunction(expr *influxql.Call) (*function, error) {
 		default:
 			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
 		}
+	case "percentile":
+		if exp, got := 2, len(expr.Args); exp != got {
+			return nil, fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+		}
+
+		var functionRef *influxql.VarRef
+
+		switch ref := expr.Args[0].(type) {
+		case *influxql.VarRef:
+			functionRef = ref
+		case *influxql.Wildcard:
+			return nil, errors.New("unimplemented: wildcard function")
+		case *influxql.RegexLiteral:
+			return nil, errors.New("unimplemented: wildcard regex function")
+		default:
+			return nil, fmt.Errorf("expected field argument in %s()", expr.Name)
+		}
+
+		switch expr.Args[1].(type) {
+		case *influxql.IntegerLiteral:
+		case *influxql.NumberLiteral:
+		default:
+			return nil, fmt.Errorf("expected float argument in %s()", expr.Name)
+		}
+
+		return &function{
+			Ref:  functionRef,
+			call: expr,
+		}, nil
 	default:
 		return nil, fmt.Errorf("unimplemented function: %q", expr.Name)
 	}
+
 }
 
 // createFunctionCursor creates a new cursor that calls a function on one of the columns
@@ -167,6 +197,42 @@ func createFunctionCursor(t *transpilerState, call *influxql.Call, in cursor) (c
 			},
 		}, in.ID())
 		cur.value = value
+		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
+	case "percentile":
+		if len(call.Args) != 2 {
+			return nil, errors.New("percentile function requires two arguments field_key and N")
+		}
+
+		fieldName, ok := in.Value(call.Args[0])
+		if !ok {
+			return nil, fmt.Errorf("undefined variable: %s", call.Args[0])
+		}
+
+		var percentile float64
+		switch arg := call.Args[1].(type) {
+		case *influxql.NumberLiteral:
+			percentile = arg.Val / 100.0
+		case *influxql.IntegerLiteral:
+			percentile = float64(arg.Val) / 100.0
+		default:
+			return nil, errors.New("argument N must be a float type")
+		}
+
+		if percentile < 0 || percentile > 1 {
+			return nil, errors.New("argument N must be between 0 and 100")
+		}
+
+		cur.id = t.op("percentile", &functions.PercentileOpSpec{
+			Percentile:  percentile,
+			Compression: 0,
+			Method:      "exact_selector",
+			AggregateConfig: execute.AggregateConfig{
+				Columns: []string{fieldName},
+				TimeSrc: execute.DefaultStartColLabel,
+				TimeDst: execute.DefaultTimeColLabel,
+			},
+		}, in.ID())
+		cur.value = fieldName
 		cur.exclude = map[influxql.Expr]struct{}{call.Args[0]: {}}
 	default:
 		return nil, fmt.Errorf("unimplemented function: %q", call.Name)

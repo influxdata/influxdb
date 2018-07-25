@@ -137,6 +137,188 @@ func TestPercentile_Process(t *testing.T) {
 	}
 }
 
+func TestPercentileSelector_Process(t *testing.T) {
+	testCases := []struct {
+		name     string
+		quantile float64
+		data     *executetest.Table
+		want     []execute.Row
+	}{
+		{
+			name:     "select_10",
+			quantile: 0.1,
+			data: &executetest.Table{
+				KeyCols: []string{"t1"},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(0), 1.0, "a", "y"},
+					{execute.Time(10), 2.0, "a", "x"},
+					{execute.Time(20), 3.0, "a", "y"},
+					{execute.Time(30), 4.0, "a", "x"},
+					{execute.Time(40), 5.0, "a", "y"},
+				},
+			},
+			want: []execute.Row{{
+				Values: []interface{}{execute.Time(0), 1.0, "a", "y"},
+			}},
+		},
+		{
+			name:     "select_20",
+			quantile: 0.2,
+			data: &executetest.Table{
+				KeyCols: []string{"t1"},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(0), 1.0, "a", "y"},
+					{execute.Time(10), 2.0, "a", "x"},
+					{execute.Time(20), 3.0, "a", "y"},
+					{execute.Time(30), 4.0, "a", "x"},
+					{execute.Time(40), 5.0, "a", "y"},
+				},
+			},
+			want: []execute.Row{{
+				Values: []interface{}{execute.Time(0), 1.0, "a", "y"},
+			}},
+		},
+		{
+			name:     "select_40",
+			quantile: 0.4,
+			data: &executetest.Table{
+				KeyCols: []string{"t1"},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(0), 1.0, "a", "y"},
+					{execute.Time(10), 2.0, "a", "x"},
+					{execute.Time(20), 3.0, "a", "y"},
+					{execute.Time(30), 4.0, "a", "x"},
+					{execute.Time(40), 5.0, "a", "y"},
+				},
+			},
+			want: []execute.Row{{
+				Values: []interface{}{execute.Time(10), 2.0, "a", "x"},
+			}},
+		},
+		{
+			name:     "select_50",
+			quantile: 0.5,
+			data: &executetest.Table{
+				KeyCols: []string{"t1"},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(0), 1.0, "a", "y"},
+					{execute.Time(10), 2.0, "a", "x"},
+					{execute.Time(20), 3.0, "a", "y"},
+					{execute.Time(30), 4.0, "a", "x"},
+					{execute.Time(40), 5.0, "a", "y"},
+				},
+			},
+			want: []execute.Row{{
+				Values: []interface{}{execute.Time(20), 3.0, "a", "y"},
+			}},
+		},
+		{
+			name:     "select_80",
+			quantile: 0.8,
+			data: &executetest.Table{
+				KeyCols: []string{"t1"},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(0), 1.0, "a", "y"},
+					{execute.Time(10), 2.0, "a", "x"},
+					{execute.Time(20), 3.0, "a", "y"},
+					{execute.Time(30), 4.0, "a", "x"},
+					{execute.Time(40), 5.0, "a", "y"},
+				},
+			},
+			want: []execute.Row{{
+				Values: []interface{}{execute.Time(30), 4.0, "a", "x"},
+			}},
+		},
+		{
+			name:     "select_90",
+			quantile: 0.9,
+			data: &executetest.Table{
+				KeyCols: []string{"t1"},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(0), 1.0, "a", "y"},
+					{execute.Time(10), 2.0, "a", "x"},
+					{execute.Time(20), 3.0, "a", "y"},
+					{execute.Time(30), 4.0, "a", "x"},
+					{execute.Time(40), 5.0, "a", "y"},
+				},
+			},
+			want: []execute.Row{{
+				Values: []interface{}{execute.Time(40), 5.0, "a", "y"},
+			}},
+		},
+		{
+			name:     "select_100",
+			quantile: 1.0,
+			data: &executetest.Table{
+				KeyCols: []string{"t1"},
+				ColMeta: []query.ColMeta{
+					{Label: "_time", Type: query.TTime},
+					{Label: "_value", Type: query.TFloat},
+					{Label: "t1", Type: query.TString},
+					{Label: "t2", Type: query.TString},
+				},
+				Data: [][]interface{}{
+					{execute.Time(0), 1.0, "a", "y"},
+					{execute.Time(10), 2.0, "a", "x"},
+					{execute.Time(20), 3.0, "a", "y"},
+					{execute.Time(30), 4.0, "a", "x"},
+					{execute.Time(40), 5.0, "a", "y"},
+				},
+			},
+			want: []execute.Row{{
+				Values: []interface{}{execute.Time(40), 5.0, "a", "y"},
+			}},
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			executetest.RowSelectorFuncTestHelper(
+				t,
+				&functions.ExactPercentileSelector{Quantile: tc.quantile},
+				tc.data,
+				tc.want,
+			)
+		})
+	}
+}
+
 func BenchmarkPercentile(b *testing.B) {
 	executetest.AggFuncBenchmarkHelper(
 		b,

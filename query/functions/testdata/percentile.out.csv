@@ -1,0 +1,6 @@
+#datatype,string,long,string,dateTime:RFC3339,double
+#group,false,false,true,false,false
+#default,0,,,,
+,result,table,_measurement,_time,percentile
+,,0,disk,2018-05-22T19:53:46Z,34.982447293755506
+

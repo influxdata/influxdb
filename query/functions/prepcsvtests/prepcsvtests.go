@@ -83,6 +83,7 @@ func main() {
 			return
 		}
 
+		fmt.Printf("FLUX:\n %s\n\n", querytext)
 		fmt.Printf("CHECK RESULT:\n%s\n____________________________________________________________", result)
 
 		reader := bufio.NewReader(os.Stdin)
