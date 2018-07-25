@@ -7,10 +7,10 @@ import (
 
 // Authorization is a authorization. 🎉
 type Authorization struct {
-	ID          ID           `json:"id"`
+	ID          *ID          `json:"id"`
 	Token       string       `json:"token"`
 	User        string       `json:"user,omitempty"`
-	UserID      ID           `json:"userID,omitempty"`
+	UserID      *ID          `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions"`
 }
 
@@ -30,7 +30,7 @@ type AuthorizationService interface {
 	CreateAuthorization(ctx context.Context, a *Authorization) error
 
 	// Removes a authorization by token.
-	DeleteAuthorization(ctx context.Context, id ID) error
+	DeleteAuthorization(ctx context.Context, id *ID) error
 }
 
 // AuthorizationFilter represents a set of filter that restrict the returned results.
@@ -80,19 +80,19 @@ func (p Permission) String() string {
 }
 
 var (
-	// CreateUser is a permission for creating users.
+	// CreateUserPermission is a permission for creating users.
 	CreateUserPermission = Permission{
 		Action:   CreateAction,
 		Resource: UserResource,
 	}
-	// DeleteUser is a permission for deleting users.
+	// DeleteUserPermission is a permission for deleting users.
 	DeleteUserPermission = Permission{
 		Action:   DeleteAction,
 		Resource: UserResource,
 	}
 )
 
-// ReadBucket constructs a permission for reading a bucket.
+// ReadBucketPermission constructs a permission for reading a bucket.
 func ReadBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   ReadAction,
@@ -100,7 +100,7 @@ func ReadBucketPermission(id ID) Permission {
 	}
 }
 
-// WriteBucket constructs a permission for writing to a bucket.
+// WriteBucketPermission constructs a permission for writing to a bucket.
 func WriteBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   WriteAction,
