@@ -6,7 +6,12 @@ import _ from 'lodash'
 import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
 
 import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-import {Source, Me} from 'src/types'
+import {Source, Role, Organization} from 'src/types'
+
+interface Me {
+  role: Role
+  currentOrganization: Organization
+}
 
 interface Props {
   me: Me
@@ -33,7 +38,7 @@ export class SourceForm extends PureComponent<Props> {
     } = this.props
     return (
       <div className="panel-body">
-        {isUsingAuth && isInitialSource && this.authIndicatior}
+        {isUsingAuth && isInitialSource && this.authIndicator}
         <form onSubmit={onSubmit}>
           <div className="form-group col-xs-12 col-sm-6">
             <label htmlFor="connect-string">Connection String</label>
@@ -167,7 +172,7 @@ export class SourceForm extends PureComponent<Props> {
     )
   }
 
-  private get authIndicatior(): JSX.Element {
+  private get authIndicator(): JSX.Element {
     const {me} = this.props
     return (
       <div className="text-center">

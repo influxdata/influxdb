@@ -9,7 +9,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import AllUsersTable from 'src/admin/components/chronograf/AllUsersTable'
 import {
-  AuthLinks,
+  Links,
   Organization,
   Role,
   User,
@@ -19,7 +19,7 @@ import {
 
 interface Props {
   notify: (message: Notification | NotificationFunc) => void
-  links: AuthLinks
+  links: Links
   meID: string
   users: User[]
   organizations: Organization[]
