@@ -21,7 +21,7 @@ type TranspilerQueryHandler struct {
 	OrgID              platform.ID
 }
 
-// NewQueryHandler returns a new instance of QueryHandler.
+// NewTranspilerQueryHandler returns a new instance of QueryHandler.
 func NewTranspilerQueryHandler(orgID platform.ID) *TranspilerQueryHandler {
 	h := &TranspilerQueryHandler{
 		OrgID:  orgID,

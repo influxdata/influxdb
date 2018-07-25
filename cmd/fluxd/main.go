@@ -176,7 +176,7 @@ type bucketLookup struct {
 	BucketService platform.BucketService
 }
 
-func (b bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
+func (b bucketLookup) Lookup(orgID platform.ID, name string) (*platform.ID, bool) {
 	oid := platform.ID(orgID)
 	filter := platform.BucketFilter{
 		OrganizationID: &oid,
@@ -190,12 +190,16 @@ func (b bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool)
 }
 
 var (
-	staticBucketID, staticOrgID platform.ID
+	staticBucketID, staticOrgID *platform.ID
 )
 
 func init() {
-	staticBucketID.DecodeFromString("abba")
-	staticOrgID.DecodeFromString("baab")
+	var err error
+	staticBucketID, err = platform.IDFromString("abbaabbaabbaabba")
+	staticOrgID, err = platform.IDFromString("baabbaabbaabbaab")
+	if err != nil {
+		panic(err)
+	}
 }
 
 // StaticOrganizationService connects to Influx via HTTP using tokens to manage organizations.

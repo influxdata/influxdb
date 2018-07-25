@@ -222,7 +222,7 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 		if !ok {
 			return nil, fmt.Errorf("could not find bucket %q", spec.Bucket)
 		}
-		bucketID = b
+		bucketID = *b
 	}
 
 	return storage.NewSource(
