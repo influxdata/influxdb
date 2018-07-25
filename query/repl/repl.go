@@ -202,7 +202,14 @@ func (r *REPL) doQuery(spec *query.Spec) error {
 	defer cancelFunc()
 	defer r.clearCancel()
 
-	q, err := r.c.Query(ctx, r.orgID, spec)
+	req := &query.Request{
+		OrganizationID: r.orgID,
+		Compiler: query.SpecCompiler{
+			Spec: spec,
+		},
+	}
+
+	q, err := r.c.Query(ctx, req)
 	if err != nil {
 		return err
 	}

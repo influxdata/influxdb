@@ -2,25 +2,41 @@ package query
 
 import (
 	"context"
-	"sort"
+	"encoding/json"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/influxdata/platform"
 )
 
-// QueryService represents a service for performing queries.
+// QueryService represents a type capable of performing queries.
 type QueryService interface {
-	// Query submits a query spec for execution returning a results iterator.
-	Query(ctx context.Context, orgID platform.ID, query *Spec) (ResultIterator, error)
-	// Query submits a query string for execution returning a results iterator.
-	QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (ResultIterator, error)
+	// Query submits a query for execution returning a results iterator.
+	// Cancel must be called on any returned results to free resources.
+	Query(ctx context.Context, req *Request) (ResultIterator, error)
+}
+
+// AsyncQueryService represents a service for performing queries where the results are delivered asynchronously.
+type AsyncQueryService interface {
+	// Query submits a query for execution returning immediately.
+	// Done must be called on any returned Query objects.
+	Query(ctx context.Context, req *Request) (Query, error)
+}
+
+// ProxyQueryService performs queries and encodes the result into a writer.
+// The results are opaque to a ProxyQueryService.
+type ProxyQueryService interface {
+	// Query performs the requested query and encodes the results into w.
+	// The number of bytes written to w is returned __independent__ of any error.
+	Query(ctx context.Context, w io.Writer, req *ProxyRequest) (int64, error)
 }
 
 // ResultIterator allows iterating through all results
+// Cancel must be called to free resources.
 // ResultIterators may implement Statisticser.
 type ResultIterator interface {
 	// More indicates if there are more results.
-	// More must be called until it returns false in order to free all resources.
 	More() bool
 
 	// Next returns the next result.
@@ -28,11 +44,205 @@ type ResultIterator interface {
 	Next() Result
 
 	// Cancel discards the remaining results.
-	// If not all results are going to be read, Cancel must be called to free resources.
+	// Cancel must always be called to free resources.
+	// It is safe to call Cancel multiple times.
 	Cancel()
 
 	// Err reports the first error encountered.
+	// Err will not report anything unless More has returned false,
+	// or the query has been cancelled.
 	Err() error
+}
+
+// Query represents an active query.
+type Query interface {
+	// Spec returns the spec used to execute this query.
+	// Spec must not be modified.
+	Spec() *Spec
+
+	// Ready returns a channel that will deliver the query results.
+	// Its possible that the channel is closed before any results arrive,
+	// in which case the query should be inspected for an error using Err().
+	Ready() <-chan map[string]Result
+
+	// Done must always be called to free resources.
+	Done()
+
+	// Cancel will stop the query execution.
+	// Done must still be called to free resources.
+	// It is safe to call Cancel multiple times.
+	Cancel()
+
+	// Err reports any error the query may have encountered.
+	Err() error
+
+	Statisticser
+}
+
+// Request respresents the query to run.
+type Request struct {
+	// Scope
+	Authorization  *platform.Authorization `json:"authorization,omitempty"`
+	OrganizationID platform.ID             `json:"organization_id"`
+
+	// Command
+
+	// Compiler converts the query to a specification to run against the data.
+	Compiler Compiler `json:"compiler"`
+
+	// compilerMappings maps compiler types to creation methods
+	compilerMappings CompilerMappings
+}
+
+// WithCompilerMappings sets the query type mappings on the request.
+func (r *Request) WithCompilerMappings(mappings CompilerMappings) {
+	r.compilerMappings = mappings
+}
+
+// UnmarshalJSON populates the request from the JSON data.
+// WithCompilerMappings must have been called or an error will occur.
+func (r *Request) UnmarshalJSON(data []byte) error {
+	type Alias Request
+	raw := struct {
+		*Alias
+		CompilerType CompilerType    `json:"compiler_type"`
+		Compiler     json.RawMessage `json:"compiler"`
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	createCompiler, ok := r.compilerMappings[raw.CompilerType]
+	if !ok {
+		return fmt.Errorf("unsupported compiler type %q", raw.CompilerType)
+	}
+
+	c := createCompiler()
+	if err := json.Unmarshal(raw.Compiler, c); err != nil {
+		return err
+	}
+	r.Compiler = c
+
+	return nil
+}
+
+func (r Request) MarshalJSON() ([]byte, error) {
+	type Alias Request
+	raw := struct {
+		Alias
+		CompilerType CompilerType `json:"compiler_type"`
+	}{
+		Alias:        (Alias)(r),
+		CompilerType: r.Compiler.CompilerType(),
+	}
+	return json.Marshal(raw)
+}
+
+// Compiler produces a specification for the query.
+type Compiler interface {
+	// Compile produces a specification for the query.
+	Compile(ctx context.Context) (*Spec, error)
+	CompilerType() CompilerType
+}
+
+// CompilerType is the name of a query compiler.
+type CompilerType string
+type CreateCompiler func() Compiler
+type CompilerMappings map[CompilerType]CreateCompiler
+
+func (m CompilerMappings) Add(t CompilerType, c CreateCompiler) error {
+	if _, ok := m[t]; ok {
+		return fmt.Errorf("duplicate compiler mapping for %q", t)
+	}
+	m[t] = c
+	return nil
+}
+
+// ProxyRequest specifies a query request and the dialect for the results.
+type ProxyRequest struct {
+	// Request is the basic query request
+	Request Request `json:"request"`
+
+	// Dialect is the result encoder
+	Dialect Dialect `json:"dialect"`
+
+	// dialectMappings maps dialect types to creation methods
+	dialectMappings DialectMappings
+}
+
+// WithCompilerMappings sets the compiler type mappings on the request.
+func (r *ProxyRequest) WithCompilerMappings(mappings CompilerMappings) {
+	r.Request.WithCompilerMappings(mappings)
+}
+
+// WithDialectMappings sets the dialect type mappings on the request.
+func (r *ProxyRequest) WithDialectMappings(mappings DialectMappings) {
+	r.dialectMappings = mappings
+}
+
+// UnmarshalJSON populates the request from the JSON data.
+// WithCompilerMappings and WithDialectMappings must have been called or an error will occur.
+func (r *ProxyRequest) UnmarshalJSON(data []byte) error {
+	type Alias ProxyRequest
+	raw := struct {
+		*Alias
+		DialectType DialectType     `json:"dialect_type"`
+		Dialect     json.RawMessage `json:"dialect"`
+	}{
+		Alias: (*Alias)(r),
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	createDialect, ok := r.dialectMappings[raw.DialectType]
+	if !ok {
+		return fmt.Errorf("unsupported dialect type %q", raw.DialectType)
+	}
+
+	d := createDialect()
+	if err := json.Unmarshal(raw.Dialect, d); err != nil {
+		return err
+	}
+	r.Dialect = d
+
+	return nil
+}
+
+func (r ProxyRequest) MarshalJSON() ([]byte, error) {
+	type Alias ProxyRequest
+	raw := struct {
+		Alias
+		DialectType DialectType `json:"dialect_type"`
+	}{
+		Alias:       (Alias)(r),
+		DialectType: r.Dialect.DialectType(),
+	}
+	return json.Marshal(raw)
+}
+
+// Dialect describes how to encode results.
+type Dialect interface {
+	// Encoder creates an encoder for the results
+	Encoder() MultiResultEncoder
+	// DialectType report the type of the dialect
+	DialectType() DialectType
+}
+
+// DialectType is the name of a query result dialect.
+type DialectType string
+type CreateDialect func() Dialect
+
+type DialectMappings map[DialectType]CreateDialect
+
+func (m DialectMappings) Add(t DialectType, c CreateDialect) error {
+	if _, ok := m[t]; ok {
+		return fmt.Errorf("duplicate dialect mapping for %q", t)
+	}
+	m[t] = c
+	return nil
 }
 
 // Statisticser reports statisitcs about query processing.
@@ -61,182 +271,4 @@ type Statistics struct {
 	Concurrency int `json:"concurrency"`
 	// MaxAllocated is the maximum number of bytes the query allocated.
 	MaxAllocated int64 `json:"max_allocated"`
-}
-
-// AsyncQueryService represents a service for performing queries where the results are delivered asynchronously.
-type AsyncQueryService interface {
-	// Query submits a query for execution returning immediately.
-	// The spec must not be modified while the query is still active.
-	// Done must be called on any returned Query objects.
-	Query(ctx context.Context, orgID platform.ID, query *Spec) (Query, error)
-
-	// QueryWithCompile submits a query for execution returning immediately.
-	// The query string will be compiled before submitting for execution.
-	// Done must be called on returned Query objects.
-	QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (Query, error)
-}
-
-// Query represents an active query.
-type Query interface {
-	// Spec returns the spec used to execute this query.
-	// Spec must not be modified.
-	Spec() *Spec
-
-	// Ready returns a channel that will deliver the query results.
-	// Its possible that the channel is closed before any results arrive,
-	// in which case the query should be inspected for an error using Err().
-	Ready() <-chan map[string]Result
-
-	// Done must always be called to free resources.
-	Done()
-
-	// Cancel will stop the query execution.
-	// Done must still be called to free resources.
-	Cancel()
-
-	// Err reports any error the query may have encountered.
-	Err() error
-
-	Statisticser
-}
-
-// QueryServiceBridge implements the QueryService interface while consuming the AsyncQueryService interface.
-type QueryServiceBridge struct {
-	AsyncQueryService AsyncQueryService
-}
-
-func (b QueryServiceBridge) Query(ctx context.Context, orgID platform.ID, spec *Spec) (ResultIterator, error) {
-	query, err := b.AsyncQueryService.Query(ctx, orgID, spec)
-	if err != nil {
-		return nil, err
-	}
-	return newResultIterator(query), nil
-}
-func (b QueryServiceBridge) QueryWithCompile(ctx context.Context, orgID platform.ID, queryStr string) (ResultIterator, error) {
-	query, err := b.AsyncQueryService.QueryWithCompile(ctx, orgID, queryStr)
-	if err != nil {
-		return nil, err
-	}
-	return newResultIterator(query), nil
-}
-
-// resultIterator implements a ResultIterator while consuming a Query
-type resultIterator struct {
-	query   Query
-	cancel  chan struct{}
-	ready   bool
-	results *MapResultIterator
-}
-
-func newResultIterator(q Query) *resultIterator {
-	return &resultIterator{
-		query:  q,
-		cancel: make(chan struct{}),
-	}
-}
-
-func (r *resultIterator) More() bool {
-	if !r.ready {
-		select {
-		case <-r.cancel:
-			goto DONE
-		case results, ok := <-r.query.Ready():
-			if !ok {
-				goto DONE
-			}
-			r.ready = true
-			r.results = NewMapResultIterator(results)
-		}
-	}
-	if r.results.More() {
-		return true
-	}
-
-DONE:
-	r.query.Done()
-	return false
-}
-
-func (r *resultIterator) Next() Result {
-	return r.results.Next()
-}
-
-func (r *resultIterator) Cancel() {
-	select {
-	case <-r.cancel:
-	default:
-		close(r.cancel)
-	}
-	r.query.Cancel()
-}
-
-func (r *resultIterator) Err() error {
-	return r.query.Err()
-}
-
-func (r *resultIterator) Statistics() Statistics {
-	return r.query.Statistics()
-}
-
-type MapResultIterator struct {
-	results map[string]Result
-	order   []string
-}
-
-func NewMapResultIterator(results map[string]Result) *MapResultIterator {
-	order := make([]string, 0, len(results))
-	for k := range results {
-		order = append(order, k)
-	}
-	sort.Strings(order)
-	return &MapResultIterator{
-		results: results,
-		order:   order,
-	}
-}
-
-func (r *MapResultIterator) More() bool {
-	return len(r.order) > 0
-}
-
-func (r *MapResultIterator) Next() Result {
-	next := r.order[0]
-	r.order = r.order[1:]
-	return r.results[next]
-}
-
-func (r *MapResultIterator) Cancel() {
-
-}
-
-func (r *MapResultIterator) Err() error {
-	return nil
-}
-
-type SliceResultIterator struct {
-	results []Result
-}
-
-func NewSliceResultIterator(results []Result) *SliceResultIterator {
-	return &SliceResultIterator{
-		results: results,
-	}
-}
-
-func (r *SliceResultIterator) More() bool {
-	return len(r.results) > 0
-}
-
-func (r *SliceResultIterator) Next() Result {
-	next := r.results[0]
-	r.results = r.results[1:]
-	return next
-}
-
-func (r *SliceResultIterator) Cancel() {
-	r.results = nil
-}
-
-func (r *SliceResultIterator) Err() error {
-	return nil
 }

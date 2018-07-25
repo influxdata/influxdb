@@ -275,6 +275,11 @@ paths:
           enum:
             - application/json
       - in: query
+        name: organization
+        description: specifies the name of the organization executing the query.
+        schema:
+          type: string
+      - in: query
         name: query
         description: flux query string to execute; used if there is no POST body.
         schema:
@@ -287,6 +292,16 @@ paths:
               oneOf:
                 -  $ref: "#/components/schemas/Query"
                 -  $ref: "#/components/schemas/QuerySpecification"
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                organization:
+                  description: specifies the name of the organization executing the query.
+                  type: string
+                query:
+                  description: flux query string to execute
+                  type: string
     responses:
         '200':
           description: query results
@@ -1057,11 +1072,6 @@ components:
               description: separator between cells; the default is ,
               type: string
               default: ","
-              maxLength: 1
-            quoteChar:
-              description: set the quoting char for strings; cannot be the same as delimiter
-              type: string
-              default: \"
               maxLength: 1
             annotations:
               description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns

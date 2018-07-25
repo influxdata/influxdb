@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"reflect"
 	"sync"
@@ -48,7 +49,7 @@ func newFakeQueryService() *fakeQueryService {
 	return &fakeQueryService{queries: make(map[string]*fakeQuery)}
 }
 
-func (s *fakeQueryService) Query(ctx context.Context, orgID platform.ID, q *query.Spec) (query.Query, error) {
+func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (query.Query, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.queryErr != nil {
@@ -57,30 +58,17 @@ func (s *fakeQueryService) Query(ctx context.Context, orgID platform.ID, q *quer
 		return nil, err
 	}
 
-	fq := &fakeQuery{
-		wait:  make(chan struct{}),
-		ready: make(chan map[string]query.Result),
-	}
-	s.queries[makeSpecString(q)] = fq
-	go fq.run()
-
-	return fq, nil
-}
-
-func (s *fakeQueryService) QueryWithCompile(ctx context.Context, orgID platform.ID, q string) (query.Query, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.queryErr != nil {
-		err := s.queryErr
-		s.queryErr = nil
-		return nil, err
+	sc, ok := req.Compiler.(query.SpecCompiler)
+	if !ok {
+		return nil, fmt.Errorf("fakeQueryService only supports the query.SpecCompiler, got %T", req.Compiler)
 	}
 
 	fq := &fakeQuery{
 		wait:  make(chan struct{}),
 		ready: make(chan map[string]query.Result),
 	}
-	s.queries[makeSpecString(makeSpec(q))] = fq
+	s.queries[makeSpecString(sc.Spec)] = fq
+
 	go fq.run()
 
 	return fq, nil

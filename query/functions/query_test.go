@@ -1,12 +1,13 @@
 package functions_test
 
 import (
+	"bytes"
 	"context"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
@@ -57,7 +58,7 @@ var skipTests = map[string]string{
 	"drop_referenced":     `failed to run query: function references unknown column "_field"`,
 }
 
-var qs = querytest.GetQueryServiceBridge()
+var pqs = querytest.GetProxyQueryServiceBridge()
 
 func withEachFluxFile(t testing.TB, fn func(prefix, caseName string)) {
 	dir, err := os.Getwd()
@@ -80,7 +81,6 @@ func withEachFluxFile(t testing.TB, fn func(prefix, caseName string)) {
 }
 
 func Test_QueryEndToEnd(t *testing.T) {
-	influxqlTranspiler := influxql.NewTranspiler(dbrpMappingSvc)
 	withEachFluxFile(t, func(prefix, caseName string) {
 		reason, skip := skipTests[caseName]
 
@@ -90,21 +90,23 @@ func Test_QueryEndToEnd(t *testing.T) {
 			if skip {
 				t.Skip(reason)
 			}
-			queryTester(t, qs, prefix, ".flux")
+			testFlux(t, pqs, prefix, ".flux")
 		})
 		t.Run(influxqlName, func(t *testing.T) {
 			if skip {
 				t.Skip(reason)
 			}
-			queryTranspileTester(t, influxqlTranspiler, qs, prefix, ".influxql")
+			testInfluxQL(t, pqs, prefix, ".influxql")
 		})
 	})
 }
 
 func Benchmark_QueryEndToEnd(b *testing.B) {
-	influxqlTranspiler := influxql.NewTranspiler(dbrpMappingSvc)
 	withEachFluxFile(b, func(prefix, caseName string) {
 		reason, skip := skipTests[caseName]
+		if skip {
+			b.Skip(reason)
+		}
 
 		fluxName := caseName + ".flux"
 		influxqlName := caseName + ".influxql"
@@ -112,92 +114,107 @@ func Benchmark_QueryEndToEnd(b *testing.B) {
 			if skip {
 				b.Skip(reason)
 			}
-
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				queryTester(b, qs, prefix, ".flux")
+				testFlux(b, pqs, prefix, ".flux")
 			}
 		})
 		b.Run(influxqlName, func(b *testing.B) {
 			if skip {
 				b.Skip(reason)
 			}
-
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				queryTranspileTester(b, influxqlTranspiler, qs, prefix, ".influxql")
+				testInfluxQL(b, pqs, prefix, ".influxql")
 			}
 		})
 	})
 }
 
-func queryTester(t testing.TB, qs query.QueryService, prefix, queryExt string) {
-	q, err := querytest.GetTestData(prefix, queryExt)
+func testFlux(t testing.TB, pqs query.ProxyQueryService, prefix, queryExt string) {
+	q, err := ioutil.ReadFile(prefix + queryExt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	csvOut, err := querytest.GetTestData(prefix, ".out.csv")
+	csvInFilename := prefix + ".in.csv"
+	csvOut, err := ioutil.ReadFile(prefix + ".out.csv")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	spec, err := query.Compile(context.Background(), q, time.Now().UTC())
-	if err != nil {
-		t.Fatalf("failed to compile: %v", err)
+	compiler := query.FluxCompiler{
+		Query: string(q),
+	}
+	req := &query.ProxyRequest{
+		Request: query.Request{
+			Compiler: querytest.FromCSVCompiler{
+				Compiler:  compiler,
+				InputFile: csvInFilename,
+			},
+		},
+		Dialect: csv.DefaultDialect(),
 	}
 
-	csvIn := prefix + ".in.csv"
-	enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
-
-	QueryTestCheckSpec(t, qs, spec, csvIn, csvOut, enc)
+	QueryTestCheckSpec(t, pqs, req, string(csvOut))
 }
 
-func queryTranspileTester(t testing.TB, transpiler query.Transpiler, qs query.QueryService, prefix, queryExt string) {
-	q, err := querytest.GetTestData(prefix, queryExt)
+func testInfluxQL(t testing.TB, pqs query.ProxyQueryService, prefix, queryExt string) {
+	q, err := ioutil.ReadFile(prefix + queryExt)
 	if err != nil {
-		if os.IsNotExist(err) {
-			t.Skip("query missing")
-		} else {
+		if !os.IsNotExist(err) {
 			t.Fatal(err)
 		}
+		t.Skip("influxql query is missing")
 	}
 
-	csvOut, err := querytest.GetTestData(prefix, ".out.csv")
+	csvInFilename := prefix + ".in.csv"
+	csvOut, err := ioutil.ReadFile(prefix + ".out.csv")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	spec, err := transpiler.Transpile(context.Background(), q)
-	if err != nil {
-		t.Fatalf("failed to transpile: %v", err)
+	compiler := influxql.NewCompiler(dbrpMappingSvc)
+	compiler.Cluster = "cluster"
+	compiler.DB = "db0"
+	compiler.Query = string(q)
+	req := &query.ProxyRequest{
+		Request: query.Request{
+			Compiler: querytest.FromCSVCompiler{
+				Compiler:  compiler,
+				InputFile: csvInFilename,
+			},
+		},
+		Dialect: csv.DefaultDialect(),
 	}
+	QueryTestCheckSpec(t, pqs, req, string(csvOut))
 
-	csvIn := prefix + ".in.csv"
-	enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
-	QueryTestCheckSpec(t, qs, spec, csvIn, csvOut, enc)
+	// Rerun test for InfluxQL JSON dialect
+	req.Dialect = new(influxql.Dialect)
 
-	enc = influxql.NewMultiResultEncoder()
-	jsonOut, err := querytest.GetTestData(prefix, ".out.json")
+	jsonOut, err := ioutil.ReadFile(prefix + ".out.json")
 	if err != nil {
-		t.Logf("skipping json evaluation: %s", err)
-		return
+		if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		t.Skip("influxql expected json is missing")
 	}
-	QueryTestCheckSpec(t, qs, spec, csvIn, jsonOut, enc)
+	QueryTestCheckSpec(t, pqs, req, string(jsonOut))
 }
 
-func QueryTestCheckSpec(t testing.TB, qs query.QueryService, spec *query.Spec, inputFile, want string, enc query.MultiResultEncoder) {
+func QueryTestCheckSpec(t testing.TB, pqs query.ProxyQueryService, req *query.ProxyRequest, want string) {
 	t.Helper()
 
-	querytest.ReplaceFromSpec(spec, inputFile)
-
-	got, err := querytest.GetQueryEncodedResults(qs, spec, inputFile, enc)
+	var buf bytes.Buffer
+	_, err := pqs.Query(context.Background(), &buf, req)
 	if err != nil {
 		t.Errorf("failed to run query: %v", err)
 		return
 	}
+
+	got := buf.String()
 
 	if g, w := strings.TrimSpace(got), strings.TrimSpace(want); g != w {
 		t.Errorf("result not as expected want(-) got (+):\n%v", diff.LineDiff(w, g))
