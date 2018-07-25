@@ -761,7 +761,7 @@ func (i *Partition) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterat
 func (i *Partition) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	fs, err := p.RetainFileSet()
 	if err != nil {
-		return nil, err // TODO(edd): this should probably return an error.
+		return nil, err
 	}
 
 	itr, err := fs.TagValueSeriesIDIterator(name, key, value)

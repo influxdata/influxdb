@@ -18,12 +18,6 @@
   revision = "a368813c5e648fee92e5f6c30e3944ff9d5e8895"
 
 [[projects]]
-  name = "github.com/RoaringBitmap/roaring"
-  packages = ["."]
-  revision = "084ecabb327a0f98dbfca86a3774eb313921f90f"
-  source = "https://github.com/benbjohnson/roaring.git"
-
-[[projects]]
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
@@ -114,6 +108,11 @@
     "internal"
   ]
   revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
+
+[[projects]]
+  name = "github.com/influxdata/roaring"
+  packages = ["."]
+  revision = "ec86e26aba5545a1819e1ad68e9faa0f1745fff5"
 
 [[projects]]
   branch = "master"
@@ -362,9 +361,13 @@
   analyzer-name = "dep"
   analyzer-version = 1
 <<<<<<< HEAD
+<<<<<<< HEAD
   inputs-digest = "37fc1dd54acc8029895612ba7f41e566b72cd868f8ea60ddf6b235d68de3f80b"
 =======
   inputs-digest = "7930c85c9857de37ed365f33b510cf55d632fae1a07dabe92a5e0badf8e5ca43"
 >>>>>>> fdfd03840... Add roaring bitmaps to TSI index files.
+=======
+  inputs-digest = "439d8ce7614902915daae4a9b249a987b3fd5ce17e6f096cffa61b20b63b40d2"
+>>>>>>> cb828f018... Fix roaring dependency, minor PR fixes.
   solver-name = "gps-cdcl"
   solver-version = 1

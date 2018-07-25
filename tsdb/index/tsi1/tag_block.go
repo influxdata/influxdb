@@ -314,11 +314,15 @@ type TagBlockValueElem struct {
 	flag  byte
 	value []byte
 
+	// Legacy uvarint-encoded series data.
+	// Mutually exclusive with seriesIDSetData field.
 	series struct {
 		n    uint64 // Series count
 		data []byte // Raw series data
 	}
 
+	// Roaring bitmap encoded series data.
+	// Mutually exclusive with series.data field.
 	seriesIDSetData []byte
 
 	size int

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/RoaringBitmap/roaring"
+	"github.com/influxdata/roaring"
 )
 
 // SeriesIDSet represents a lockable bitmap of series ids.
@@ -200,8 +200,8 @@ func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
 // UnmarshalBinaryUnsafe unmarshals data into the set.
 // References to the underlying data are used so data should not be reused by caller.
 func (s *SeriesIDSet) UnmarshalBinaryUnsafe(data []byte) error {
-	s.RLock()
-	defer s.RUnlock()
+	s.Lock()
+	defer s.Unlock()
 	return s.bitmap.UnmarshalBinaryUnsafe(data)
 }
 
@@ -217,7 +217,7 @@ func (s *SeriesIDSet) Slice() []uint64 {
 	s.RLock()
 	defer s.RUnlock()
 
-	var a []uint64
+	a := make([]uint64, 0, s.bitmap.GetCardinality())
 	for _, seriesID := range s.bitmap.ToArray() {
 		a = append(a, uint64(seriesID))
 	}
