@@ -3,6 +3,7 @@ package platform
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -32,10 +33,10 @@ func TestIDFromString(t *testing.T) {
 			err:     "encoding/hex: invalid byte: U+0067 'g'",
 		},
 		{
-			name:    "Should not be able to decode inputs with length other than 8 bytes",
+			name:    "Should not be able to decode inputs with length other than 16 bytes",
 			id:      "abc",
 			wantErr: true,
-			err:     "input must be an array of 8 bytes",
+			err:     fmt.Sprintf("input must be an array of %d bytes", IDLength),
 		},
 	}
 	for _, tt := range tests {

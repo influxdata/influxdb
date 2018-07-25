@@ -7,7 +7,8 @@ import (
 	"fmt"
 )
 
-const maxIDLength = 16
+// IDLength is the exact length a byte slice must have in order to be decoded into an ID
+const IDLength = 16
 
 // ID is a unique identifier.
 type ID uint64
@@ -30,11 +31,11 @@ func IDFromString(str string) (*ID, error) {
 
 // Decode parses b as a hex-encoded byte-slice-string.
 func (i *ID) Decode(b []byte) error {
-	if len(b) != maxIDLength {
-		return fmt.Errorf("input must be an array of 8 bytes")
+	if len(b) != IDLength {
+		return fmt.Errorf("input must be an array of %d bytes", IDLength)
 	}
 
-	dst := make([]byte, hex.DecodedLen(maxIDLength))
+	dst := make([]byte, hex.DecodedLen(IDLength))
 	_, err := hex.Decode(dst, b)
 	if err != nil {
 		return err
@@ -50,7 +51,7 @@ func (i *ID) DecodeFromString(s string) error {
 
 // Encode converts ID to a hex-encoded byte-slice-string.
 func (i ID) Encode() []byte {
-	b := make([]byte, hex.DecodedLen(maxIDLength))
+	b := make([]byte, hex.DecodedLen(IDLength))
 	binary.BigEndian.PutUint64(b, uint64(i))
 
 	dst := make([]byte, hex.EncodedLen(len(b)))
