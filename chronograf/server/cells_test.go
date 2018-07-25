@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bouk/httprouter"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/julienschmidt/httprouter"
 )
 
 func Test_Cells_CorrectAxis(t *testing.T) {
@@ -220,7 +220,11 @@ func Test_Service_DashboardCells(t *testing.T) {
 					Value: v,
 				})
 			}
-			ctx = httprouter.WithParams(ctx, params)
+			ctx = context.WithValue(
+				context.TODO(),
+				httprouter.ParamsKey,
+				params,
+			)
 
 			// setup response recorder and request
 			rr := httptest.NewRecorder()
@@ -674,6 +678,19 @@ func TestService_ReplaceDashboardCell(t *testing.T) {
 				"id":  tt.ID,
 				"cid": tt.CID,
 			})
+			tt.r = tt.r.WithContext(context.WithValue(
+				context.TODO(),
+				httprouter.ParamsKey,
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: tt.ID,
+					},
+					{
+						Key:   "cid",
+						Value: tt.CID,
+					},
+				}))
 			s.ReplaceDashboardCell(tt.w, tt.r)
 			got := tt.w.Body.String()
 			if got != tt.want {

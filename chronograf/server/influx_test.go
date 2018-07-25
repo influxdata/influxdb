@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bouk/httprouter"
+	"github.com/julienschmidt/httprouter"
 
 	"github.com/influxdata/platform/chronograf/mocks"
 
@@ -83,15 +83,15 @@ func TestService_Influx(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
 					Value: tt.ID,
 				},
-			},
-		))
+			}))
 		h := &Service{
 			Store: &mocks.Store{
 				SourcesStore: tt.fields.SourcesStore,

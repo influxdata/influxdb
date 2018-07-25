@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/julienschmidt/httprouter"
 )
 
 func TestService_GetDatabases(t *testing.T) {
@@ -562,8 +562,9 @@ func TestService_Measurements(t *testing.T) {
 				"http://any.url",
 				nil,
 			)
-			r = r.WithContext(httprouter.WithParams(
-				context.Background(),
+			r = r.WithContext(context.WithValue(
+				context.TODO(),
+				httprouter.ParamsKey,
 				httprouter.Params{
 					{
 						Key:   "id",

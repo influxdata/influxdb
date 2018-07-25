@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
 	idgen "github.com/influxdata/platform/chronograf/id"
+	"github.com/julienschmidt/httprouter"
 )
 
 const (
@@ -273,7 +273,7 @@ func (s *Service) DashboardCellID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	boards := newDashboardResponse(dash)
-	cid := httprouter.GetParamFromContext(ctx, "cid")
+	cid := httprouter.ParamsFromContext(ctx).ByName("cid")
 	for _, cell := range boards.Cells {
 		if cell.ID == cid {
 			encodeJSON(w, http.StatusOK, cell, s.Logger)
@@ -298,7 +298,7 @@ func (s *Service) RemoveDashboardCell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cid := httprouter.GetParamFromContext(ctx, "cid")
+	cid := httprouter.ParamsFromContext(ctx).ByName("cid")
 	cellid := -1
 	for i, cell := range dash.Cells {
 		if cell.ID == cid {
@@ -335,7 +335,7 @@ func (s *Service) ReplaceDashboardCell(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cid := httprouter.GetParamFromContext(ctx, "cid")
+	cid := httprouter.ParamsFromContext(ctx).ByName("cid")
 	cellid := -1
 	for i, cell := range dash.Cells {
 		if cell.ID == cid {

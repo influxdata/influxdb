@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/julienschmidt/httprouter"
 )
 
 func TestService_Permissions(t *testing.T) {
@@ -80,8 +80,9 @@ func TestService_Permissions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",

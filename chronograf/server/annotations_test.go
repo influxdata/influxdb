@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/julienschmidt/httprouter"
 )
 
 func TestService_Annotations(t *testing.T) {
@@ -168,8 +168,9 @@ func TestService_Annotations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.r = tt.r.WithContext(httprouter.WithParams(
-				context.Background(),
+			tt.r = tt.r.WithContext(context.WithValue(
+				context.TODO(),
+				httprouter.ParamsKey,
 				httprouter.Params{
 					{
 						Key:   "id",

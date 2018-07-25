@@ -146,8 +146,8 @@ func TestSourceStore(t *testing.T) {
 
 	if bsrcs, err := s.All(ctx); err != nil {
 		t.Fatal(err)
-	} else if len(bsrcs) != 2 {
-		t.Fatalf("After delete All returned incorrect number of srcs; got %d, expected %d", len(bsrcs), 2)
+	} else if len(bsrcs) != 3 {
+		t.Fatalf("After delete All returned incorrect number of srcs; got %d, expected %d", len(bsrcs), 3)
 	} else if !reflect.DeepEqual(bsrcs[0], srcs[1]) {
 		t.Fatalf("After delete All returned incorrect source; got %v, expected %v", bsrcs[0], srcs[1])
 	}
@@ -157,6 +157,9 @@ func TestSourceStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.Delete(ctx, srcs[2]); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Delete(ctx, *bolt.DefaultSource); err != nil {
 		t.Fatal(err)
 	}
 

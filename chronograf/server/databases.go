@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/bouk/httprouter"
 	"github.com/influxdata/platform/chronograf"
+	"github.com/julienschmidt/httprouter"
 )
 
 const (
@@ -221,7 +221,7 @@ func (h *Service) DropDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := httprouter.GetParamFromContext(ctx, "db")
+	db := httprouter.ParamsFromContext(ctx).ByName("db")
 
 	dropErr := dbsvc.DropDB(ctx, db)
 	if dropErr != nil {
@@ -255,7 +255,7 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := httprouter.GetParamFromContext(ctx, "db")
+	db := httprouter.ParamsFromContext(ctx).ByName("db")
 	res, err := h.allRPs(ctx, dbsvc, srcID, db)
 	if err != nil {
 		msg := fmt.Sprintf("Unable to connect get RPs %d: %v", srcID, err)
@@ -319,7 +319,7 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := httprouter.GetParamFromContext(ctx, "db")
+	db := httprouter.ParamsFromContext(ctx).ByName("db")
 	rp, err := dbsvc.CreateRP(ctx, db, postedRP)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
@@ -369,8 +369,9 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	db := httprouter.GetParamFromContext(ctx, "db")
-	rp := httprouter.GetParamFromContext(ctx, "rp")
+	params := httprouter.ParamsFromContext(ctx)
+	db := params.ByName("db")
+	rp := params.ByName("rp")
 	p, err := dbsvc.UpdateRP(ctx, db, rp, postedRP)
 
 	if err != nil {
@@ -412,8 +413,9 @@ func (s *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := httprouter.GetParamFromContext(ctx, "db")
-	rp := httprouter.GetParamFromContext(ctx, "rp")
+	params := httprouter.ParamsFromContext(ctx)
+	db := params.ByName("db")
+	rp := params.ByName("rp")
 	dropErr := dbsvc.DropRP(ctx, db, rp)
 	if dropErr != nil {
 		Error(w, http.StatusBadRequest, dropErr.Error(), s.Logger)
@@ -452,7 +454,7 @@ func (h *Service) Measurements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db := httprouter.GetParamFromContext(ctx, "db")
+	db := httprouter.ParamsFromContext(ctx).ByName("db")
 	measurements, err := dbsvc.GetMeasurements(ctx, db, limit, offset)
 	if err != nil {
 		msg := fmt.Sprintf("Unable to get measurements %d: %v", srcID, err)

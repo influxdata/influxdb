@@ -10,11 +10,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/bouk/httprouter"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/log"
 	"github.com/influxdata/platform/chronograf/mocks"
+	"github.com/julienschmidt/httprouter"
 )
 
 func Test_ValidSourceRequest(t *testing.T) {
@@ -449,8 +449,9 @@ func TestService_SourcesID(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
@@ -553,8 +554,9 @@ func TestService_UpdateSource(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
@@ -857,8 +859,9 @@ func TestService_NewSourceUser(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
@@ -1027,8 +1030,9 @@ func TestService_SourceUsers(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
@@ -1194,8 +1198,9 @@ func TestService_SourceUserID(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
@@ -1291,8 +1296,9 @@ func TestService_RemoveSourceUser(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
@@ -1471,16 +1477,13 @@ func TestService_UpdateSourceUser(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
 					Value: tt.ID,
-				},
-				{
-					Key:   "uid",
-					Value: tt.UID,
 				},
 			}))
 		h := &Service{
@@ -1715,8 +1718,9 @@ func TestService_NewSourceRole(t *testing.T) {
 			TimeSeriesClient: tt.fields.TimeSeries,
 			Logger:           tt.fields.Logger,
 		}
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
@@ -1831,16 +1835,13 @@ func TestService_UpdateSourceRole(t *testing.T) {
 			Logger:           tt.fields.Logger,
 		}
 
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
 					Value: tt.ID,
-				},
-				{
-					Key:   "rid",
-					Value: tt.RoleID,
 				},
 			}))
 
@@ -1956,16 +1957,13 @@ func TestService_SourceRoleID(t *testing.T) {
 			Logger:           tt.fields.Logger,
 		}
 
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
 					Value: tt.ID,
-				},
-				{
-					Key:   "rid",
-					Value: tt.RoleID,
 				},
 			}))
 
@@ -2054,16 +2052,13 @@ func TestService_RemoveSourceRole(t *testing.T) {
 			Logger:           tt.fields.Logger,
 		}
 
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
 					Value: tt.ID,
-				},
-				{
-					Key:   "rid",
-					Value: tt.RoleID,
 				},
 			}))
 
@@ -2168,16 +2163,13 @@ func TestService_SourceRoles(t *testing.T) {
 			Logger:           tt.fields.Logger,
 		}
 
-		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
-			context.Background(),
+		tt.args.r = tt.args.r.WithContext(context.WithValue(
+			context.TODO(),
+			httprouter.ParamsKey,
 			httprouter.Params{
 				{
 					Key:   "id",
 					Value: tt.ID,
-				},
-				{
-					Key:   "rid",
-					Value: tt.RoleID,
 				},
 			}))
 
