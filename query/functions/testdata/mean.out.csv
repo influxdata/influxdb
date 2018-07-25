@@ -1,6 +1,6 @@
 #datatype,string,long,dateTime:RFC3339,string,dateTime:RFC3339,double
 #group,false,false,true,true,false,false
 #default,0,,,,,
-,result,table,_start,_measurement,_time,max
-,,0,2018-04-17T00:00:00Z,m1,2018-04-17T00:00:01Z,43
+,result,table,_start,_measurement,_time,mean
+,,0,2018-05-22T19:53:26Z,disk,2018-05-22T19:53:26Z,34.98231343678598
 

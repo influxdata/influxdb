@@ -70,7 +70,7 @@ func init() {
 						{
 							ID: "group0",
 							Spec: &functions.GroupOpSpec{
-								By: []string{"_measurement", "host"},
+								By: []string{"_measurement", "_start", "host"},
 							},
 						},
 						&aggregate,

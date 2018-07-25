@@ -1,7 +1,7 @@
-#datatype,string,long,string,string,dateTime:RFC3339,long
-#group,false,false,true,true,false,false
-#default,0,,,,,
-,result,table,_measurement,name,_time,max
-,,0,diskio,disk0,2018-05-22T19:54:16Z,15205755
-,,1,diskio,disk2,2018-05-22T19:53:26Z,648
+#datatype,string,long,dateTime:RFC3339,string,string,dateTime:RFC3339,long
+#group,false,false,true,true,true,false,false
+#default,0,,,,,,
+,result,table,_start,_measurement,name,_time,max
+,,0,2018-05-22T19:53:26Z,diskio,disk0,2018-05-22T19:54:16Z,15205755
+,,1,2018-05-22T19:53:26Z,diskio,disk2,2018-05-22T19:53:26Z,648
 

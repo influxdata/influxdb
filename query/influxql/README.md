@@ -77,9 +77,10 @@ At this point, generate the `filter` call to evaluate the condition. If there is
 We group together the streams based on the `GROUP BY` clause. As an example:
 
     > SELECT mean(usage_user) FROM telegraf..cpu WHERE time >= now() - 5m GROUP BY time(5m), host
-    ... |> group(by: ["_measurement", "host"]) |> window(every: 5m, ignoreGlobalBounds: true)
+    ... |> group(by: ["_measurement", "_start", "host"]) |> window(every: 5m, ignoreGlobalBounds: true)
 
-If the `GROUP BY time(...)` doesn't exist, `window()` is skipped. If there is no `GROUP BY` clause, it always groups by `_measurement`. If a wildcard is used for grouping, then this step is skipped. We also add `ignoreGlobalBounds` to every invocation of `window()` so the boundaries aren't clamped by the `range()` call.
+If the `GROUP BY time(...)` doesn't exist, `window()` is skipped. Grouping will have a default of [`_measurement`, `_start`], regardless of whether a GROUP BY clause is present.
+If there are keys in the group by clause, they are concatenated with the default list. If a wildcard is used for grouping, then this step is skipped. We also add `ignoreGlobalBounds` to every invocation of `window()` so the boundaries aren't clamped by the `range()` call.
 
 ### <a name="evaluate-function"></a> Evaluate the function
 

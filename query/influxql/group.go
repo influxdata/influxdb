@@ -268,7 +268,7 @@ type groupCursor struct {
 func (gr *groupInfo) group(t *transpilerState, in cursor) (cursor, error) {
 	var windowEvery time.Duration
 	var windowStart time.Time
-	tags := []string{"_measurement"}
+	tags := []string{"_measurement", "_start"}
 	if len(t.stmt.Dimensions) > 0 {
 		// Maintain a set of the dimensions we have encountered.
 		// This is so we don't duplicate groupings, but we still maintain the
