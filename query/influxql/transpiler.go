@@ -56,7 +56,6 @@ type transpilerState struct {
 	config         Config
 	spec           *query.Spec
 	nextID         map[string]int
-	now            time.Time
 	dbrpMappingSvc platform.DBRPMappingService
 }
 
@@ -74,7 +73,7 @@ func newTranspilerState(dbrpMappingSvc platform.DBRPMappingService, config *Conf
 	}
 
 	// Stamp the current time using the now function from the config or the default.
-	state.now = state.config.NowFn()
+	state.spec.Now = state.config.NowFn()
 	return state
 }
 

@@ -147,6 +147,7 @@ func init() {
 						{Parent: "window1", Child: "map0"},
 						{Parent: "map0", Child: "yield0"},
 					},
+					Now: Now(),
 				}
 		}),
 	)
