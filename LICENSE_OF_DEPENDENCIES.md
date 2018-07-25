@@ -2,7 +2,7 @@
 - bootstrap 3.3.5 [MIT LICENSE](https://github.com/twbs/bootstrap/blob/master/LICENSE)
 - collectd.org [ISC LICENSE](https://github.com/collectd/go-collectd/blob/master/LICENSE)
 - github.com/BurntSushi/toml [MIT LICENSE](https://github.com/BurntSushi/toml/blob/master/COPYING)
-- github.com/RoaringBitmap/roaring [APACHE LICENSE](https://github.com/RoaringBitmap/roaring/blob/master/LICENSE)
+- github.com/influxdata/roaring [APACHE LICENSE](https://github.com/influxdata/roaring/blob/master/LICENSE)
 - github.com/beorn7/perks [MIT LICENSE](https://github.com/beorn7/perks/blob/master/LICENSE)
 - github.com/bmizerany/pat [MIT LICENSE](https://github.com/bmizerany/pat#license)
 - github.com/boltdb/bolt [MIT LICENSE](https://github.com/boltdb/bolt/blob/master/LICENSE)

@@ -188,7 +188,7 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, 
 	}
 
 	// Ensure block is word aligned.
-	if offset := (n) % 8; offset != 0 {
+	if offset := n % 8; offset != 0 {
 		if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
 			return n, err
 		}
