@@ -30,7 +30,7 @@ type AuthorizationService interface {
 	CreateAuthorization(ctx context.Context, a *Authorization) error
 
 	// Removes a authorization by token.
-	DeleteAuthorization(ctx context.Context, id *ID) error
+	DeleteAuthorization(ctx context.Context, id ID) error
 }
 
 // AuthorizationFilter represents a set of filter that restrict the returned results.

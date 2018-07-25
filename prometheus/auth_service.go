@@ -96,7 +96,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 }
 
 // DeleteAuthorization deletes an authorization, records function call latency, and counts function calls.
-func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id *platform.ID) (err error) {
+func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) (err error) {
 	defer func(start time.Time) {
 		labels := prometheus.Labels{
 			"method": "DeleteAuthorization",

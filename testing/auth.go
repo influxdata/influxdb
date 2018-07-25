@@ -181,7 +181,9 @@ func CreateAuthorization(
 					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
 				}
 			}
-			defer s.DeleteAuthorization(ctx, tt.args.authorization.ID)
+			if tt.args.authorization.ID != nil {
+				defer s.DeleteAuthorization(ctx, *tt.args.authorization.ID)
+			}
 
 			authorizations, _, err := s.FindAuthorizations(ctx, platform.AuthorizationFilter{})
 			if err != nil {
@@ -786,7 +788,7 @@ func DeleteAuthorization(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteAuthorization(ctx, tt.args.ID)
+			err := s.DeleteAuthorization(ctx, *tt.args.ID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}

@@ -34,7 +34,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 			}
 		}
 		for _, a := range f.Authorizations {
-			if err := c.DeleteAuthorization(ctx, a.ID); err != nil {
+			if err := c.DeleteAuthorization(ctx, *a.ID); err != nil {
 				t.Logf("failed to remove authorizations: %v", err)
 			}
 		}

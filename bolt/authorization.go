@@ -267,9 +267,9 @@ func (c *Client) uniqueAuthorizationToken(ctx context.Context, tx *bolt.Tx, a *p
 }
 
 // DeleteAuthorization deletes a authorization and prunes it from the index.
-func (c *Client) DeleteAuthorization(ctx context.Context, id *platform.ID) error {
+func (c *Client) DeleteAuthorization(ctx context.Context, id platform.ID) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		return c.deleteAuthorization(ctx, tx, *id)
+		return c.deleteAuthorization(ctx, tx, id)
 	})
 }
 

@@ -34,7 +34,7 @@ func (a *authzSvc) CreateAuthorization(context.Context, *platform.Authorization)
 	return a.Err
 }
 
-func (a *authzSvc) DeleteAuthorization(context.Context, *platform.ID) error {
+func (a *authzSvc) DeleteAuthorization(context.Context, platform.ID) error {
 	return a.Err
 }
 
@@ -85,7 +85,8 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 		t.Fatalf("exp 1 request, got %v", got)
 	}
 
-	if err := svc.DeleteAuthorization(ctx, nil); err != nil {
+	var tempID platform.ID
+	if err := svc.DeleteAuthorization(ctx, tempID); err != nil {
 		t.Fatal(err)
 	}
 	mfs = promtest.MustGather(t, reg)
@@ -133,7 +134,7 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 		t.Fatalf("exp 1 request, got %v", got)
 	}
 
-	if err := svc.DeleteAuthorization(ctx, nil); err != forced {
+	if err := svc.DeleteAuthorization(ctx, tempID); err != forced {
 		t.Fatalf("expected forced error, got %v", err)
 	}
 	mfs = promtest.MustGather(t, reg)
