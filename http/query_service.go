@@ -39,8 +39,15 @@ func NewQueryHandler() *QueryHandler {
 		csvEncoder: csv.NewMultiResultEncoder(csv.DefaultEncoderConfig()),
 	}
 
+	h.HandlerFunc("GET", "/ping", h.handlePing)
 	h.HandlerFunc("POST", queryPath, h.handlePostQuery)
 	return h
+}
+
+// handlePing returns a simple response to let the client know the server is running.
+func (h *QueryHandler) handlePing(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handlePostQuery is the HTTP handler for the POST /v1/query route.
