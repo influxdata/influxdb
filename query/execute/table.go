@@ -613,6 +613,30 @@ func (t *ColListTable) Copy() *ColListTable {
 	return cpy
 }
 
+// GetRow takes a row index and returns the record located at that index in the cache
+func (t *ColListTable) GetRow(row int) values.Object {
+	record := values.NewObject()
+	var val values.Value
+	for j, col := range t.colMeta {
+		switch col.Type {
+		case query.TBool:
+			val = values.NewBoolValue(t.cols[j].(*boolColumn).data[row])
+		case query.TInt:
+			val = values.NewIntValue(t.cols[j].(*intColumn).data[row])
+		case query.TUInt:
+			val = values.NewUIntValue(t.cols[j].(*uintColumn).data[row])
+		case query.TFloat:
+			val = values.NewFloatValue(t.cols[j].(*floatColumn).data[row])
+		case query.TString:
+			val = values.NewStringValue(t.cols[j].(*stringColumn).data[row])
+		case query.TTime:
+			val = values.NewTimeValue(t.cols[j].(*timeColumn).data[row])
+		}
+		record.Set(col.Label, val)
+	}
+	return record
+}
+
 type colListTableSorter struct {
 	cols []int
 	desc bool

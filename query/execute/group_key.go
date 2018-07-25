@@ -26,6 +26,12 @@ func (k *groupKey) Cols() []query.ColMeta {
 func (k *groupKey) HasCol(label string) bool {
 	return ColIdx(label, k.cols) >= 0
 }
+func (k *groupKey) LabelValue(label string) values.Value {
+	if !k.HasCol(label) {
+		return nil
+	}
+	return k.Value(ColIdx(label, k.cols))
+}
 func (k *groupKey) Value(j int) values.Value {
 	return k.values[j]
 }

@@ -127,33 +127,6 @@ func init() {
 						ID: "join0",
 						Spec: &functions.JoinOpSpec{
 							On: []string{"_measurement"},
-							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{{
-									Key: &semantic.Identifier{Name: "tables"},
-								}},
-								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
-										{
-											Key: &semantic.Identifier{Name: "val0"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "tables",
-												},
-												Property: "t0",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "val1"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "tables",
-												},
-												Property: "t1",
-											},
-										},
-									},
-								},
-							},
 							TableNames: map[query.OperationID]string{
 								"filter0": "t0",
 								"filter1": "t1",
