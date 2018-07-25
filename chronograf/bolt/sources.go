@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"context"
+	"math"
 
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform/chronograf"
@@ -15,8 +16,9 @@ var _ chronograf.SourcesStore = &SourcesStore{}
 // SourcesBucket is the bolt bucket used to store source information
 var SourcesBucket = []byte("Sources")
 
+// DefaultSource is a temporary measure for single-binary.
 var DefaultSource = &chronograf.Source{
-	ID:      9223372036854775807, // Make largest int64 so that there won't be collisions
+	ID:      math.MaxInt32, // Use large number to avoid possible collisions in older chronograf.
 	Name:    "autogen",
 	Type:    "influx",
 	URL:     "http://localhost:9999",
@@ -28,8 +30,8 @@ type SourcesStore struct {
 	client *Client
 }
 
+// Migrate adds the default source to an existing boltdb.
 func (s *SourcesStore) Migrate(ctx context.Context) error {
-
 	sources, err := s.All(ctx)
 	if err != nil {
 		return err
@@ -154,6 +156,7 @@ func (s *SourcesStore) all(ctx context.Context, tx *bolt.Tx) ([]chronograf.Sourc
 	return srcs, nil
 }
 
+// Put updates the source.
 func (s *SourcesStore) Put(ctx context.Context, src *chronograf.Source) error {
 	return s.client.db.Update(func(tx *bolt.Tx) error {
 		return s.put(ctx, src, tx)
