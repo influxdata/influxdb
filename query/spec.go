@@ -45,6 +45,9 @@ func (q *Spec) Walk(f func(o *Operation) error) error {
 
 // Validate ensures the query is a valid DAG.
 func (q *Spec) Validate() error {
+	if q.Now.IsZero() {
+		return errors.New("now time must be set")
+	}
 	return q.prepare()
 }
 
