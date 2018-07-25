@@ -936,6 +936,9 @@ type arguments struct {
 }
 
 func newArguments(obj values.Object) *arguments {
+	if obj == nil {
+		return new(arguments)
+	}
 	return &arguments{
 		obj:  obj,
 		used: make(map[string]bool, obj.Len()),
@@ -1094,10 +1097,12 @@ func (a *arguments) get(name string, kind semantic.Kind, required bool) (values.
 
 func (a *arguments) listUnused() []string {
 	var unused []string
-	a.obj.Range(func(k string, v values.Value) {
-		if !a.used[k] {
-			unused = append(unused, k)
-		}
-	})
+	if a.obj != nil {
+		a.obj.Range(func(k string, v values.Value) {
+			if !a.used[k] {
+				unused = append(unused, k)
+			}
+		})
+	}
 	return unused
 }
