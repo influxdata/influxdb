@@ -1,10 +1,26 @@
 openapi: "3.0.0"
 info:
-  title: Gateway Service
+  title: Influx API Service
   version: 0.1.0
 servers:
   - url: /v1
 paths:
+  /ping:
+    servers:
+      - url: /
+    get:
+      tags:
+        - Health
+      summary: Report if service is running
+      responses:
+        '204':
+          description: Server is healthy
+        default:
+          description: Any response other than 204 is an internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /authorizations:
     get:
       tags:
