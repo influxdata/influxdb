@@ -23,7 +23,7 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	return c, func() {
 		defer closeFn()
 		for _, u := range f.Users {
-			if err := c.DeleteUser(ctx, u.ID); err != nil {
+			if err := c.DeleteUser(ctx, *u.ID); err != nil {
 				t.Logf("failed to remove users: %v", err)
 			}
 		}

@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -50,7 +49,7 @@ func (c *Client) FindOrganizationByID(ctx context.Context, id platform.ID) (*pla
 func (c *Client) findOrganizationByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Organization, error) {
 	var o platform.Organization
 
-	v := tx.Bucket(organizationBucket).Get(id)
+	v := tx.Bucket(organizationBucket).Get(id.Encode())
 
 	if len(v) == 0 {
 		// TODO: Make standard error
@@ -81,8 +80,11 @@ func (c *Client) FindOrganizationByName(ctx context.Context, n string) (*platfor
 }
 
 func (c *Client) findOrganizationByName(ctx context.Context, tx *bolt.Tx, n string) (*platform.Organization, error) {
-	id := tx.Bucket(organizationIndex).Get(organizationIndexKey(n))
-	return c.findOrganizationByID(ctx, tx, platform.ID(id))
+	var id platform.ID
+	if err := id.Decode(tx.Bucket(organizationIndex).Get(organizationIndexKey(n))); err != nil {
+		return nil, err
+	}
+	return c.findOrganizationByID(ctx, tx, id)
 }
 
 // FindOrganization retrives a organization using an arbitrary organization filter.
@@ -124,7 +126,7 @@ func (c *Client) FindOrganization(ctx context.Context, filter platform.Organizat
 func filterOrganizationsFn(filter platform.OrganizationFilter) func(o *platform.Organization) bool {
 	if filter.ID != nil {
 		return func(o *platform.Organization) bool {
-			return bytes.Equal(o.ID, *filter.ID)
+			return o.ID != nil && *o.ID == *filter.ID
 		}
 	}
 
@@ -206,10 +208,10 @@ func (c *Client) putOrganization(ctx context.Context, tx *bolt.Tx, o *platform.O
 		return err
 	}
 
-	if err := tx.Bucket(organizationIndex).Put(organizationIndexKey(o.Name), o.ID); err != nil {
+	if err := tx.Bucket(organizationIndex).Put(organizationIndexKey(o.Name), o.ID.Encode()); err != nil {
 		return err
 	}
-	return tx.Bucket(organizationBucket).Put(o.ID, v)
+	return tx.Bucket(organizationBucket).Put(o.ID.Encode(), v)
 }
 
 func organizationIndexKey(n string) []byte {
@@ -292,7 +294,7 @@ func (c *Client) deleteOrganization(ctx context.Context, tx *bolt.Tx, id platfor
 	if err := tx.Bucket(organizationIndex).Delete(organizationIndexKey(o.Name)); err != nil {
 		return err
 	}
-	return tx.Bucket(organizationBucket).Delete(id)
+	return tx.Bucket(organizationBucket).Delete(id.Encode())
 }
 
 func (c *Client) deleteOrganizationsBuckets(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
@@ -304,7 +306,7 @@ func (c *Client) deleteOrganizationsBuckets(ctx context.Context, tx *bolt.Tx, id
 		return err
 	}
 	for _, b := range bs {
-		if err := c.deleteBucket(ctx, tx, b.ID); err != nil {
+		if err := c.deleteBucket(ctx, tx, *b.ID); err != nil {
 			return err
 		}
 	}

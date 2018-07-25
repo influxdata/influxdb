@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -50,7 +49,7 @@ func (c *Client) FindUserByID(ctx context.Context, id platform.ID) (*platform.Us
 func (c *Client) findUserByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.User, error) {
 	var u platform.User
 
-	v := tx.Bucket(userBucket).Get(id)
+	v := tx.Bucket(userBucket).Get(id.Encode())
 
 	if len(v) == 0 {
 		// TODO: Make standard error
@@ -81,8 +80,11 @@ func (c *Client) FindUserByName(ctx context.Context, n string) (*platform.User, 
 }
 
 func (c *Client) findUserByName(ctx context.Context, tx *bolt.Tx, n string) (*platform.User, error) {
-	id := tx.Bucket(userIndex).Get(userIndexKey(n))
-	return c.findUserByID(ctx, tx, platform.ID(id))
+	var id platform.ID
+	if err := id.Decode(tx.Bucket(userIndex).Get(userIndexKey(n))); err != nil {
+		return nil, err
+	}
+	return c.findUserByID(ctx, tx, id)
 }
 
 // FindUser retrives a user using an arbitrary user filter.
@@ -124,7 +126,7 @@ func (c *Client) FindUser(ctx context.Context, filter platform.UserFilter) (*pla
 func filterUsersFn(filter platform.UserFilter) func(u *platform.User) bool {
 	if filter.ID != nil {
 		return func(u *platform.User) bool {
-			return bytes.Equal(u.ID, *filter.ID)
+			return u.ID != nil && *u.ID == *filter.ID
 		}
 	}
 
@@ -206,10 +208,10 @@ func (c *Client) putUser(ctx context.Context, tx *bolt.Tx, u *platform.User) err
 		return err
 	}
 
-	if err := tx.Bucket(userIndex).Put(userIndexKey(u.Name), u.ID); err != nil {
+	if err := tx.Bucket(userIndex).Put(userIndexKey(u.Name), u.ID.Encode()); err != nil {
 		return err
 	}
-	return tx.Bucket(userBucket).Put(u.ID, v)
+	return tx.Bucket(userBucket).Put(u.ID.Encode(), v)
 }
 
 func userIndexKey(n string) []byte {
@@ -293,7 +295,7 @@ func (c *Client) deleteUser(ctx context.Context, tx *bolt.Tx, id platform.ID) er
 	if err := tx.Bucket(userIndex).Delete(userIndexKey(u.Name)); err != nil {
 		return err
 	}
-	return tx.Bucket(userBucket).Delete(id)
+	return tx.Bucket(userBucket).Delete(id.Encode())
 }
 
 func (c *Client) deleteUsersAuthorizations(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
@@ -305,7 +307,7 @@ func (c *Client) deleteUsersAuthorizations(ctx context.Context, tx *bolt.Tx, id 
 		return err
 	}
 	for _, a := range as {
-		if err := c.deleteAuthorization(ctx, tx, a.ID); err != nil {
+		if err := c.deleteAuthorization(ctx, tx, *a.ID); err != nil {
 			return err
 		}
 	}

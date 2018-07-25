@@ -28,12 +28,12 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 	return c, func() {
 		defer closeFn()
 		for _, o := range f.Organizations {
-			if err := c.DeleteOrganization(ctx, o.ID); err != nil {
+			if err := c.DeleteOrganization(ctx, *o.ID); err != nil {
 				t.Logf("failed to remove organization: %v", err)
 			}
 		}
 		for _, b := range f.Dashboards {
-			if err := c.DeleteDashboard(ctx, b.ID); err != nil {
+			if err := c.DeleteDashboard(ctx, *b.ID); err != nil {
 				t.Logf("failed to remove dashboard: %v", err)
 			}
 		}
