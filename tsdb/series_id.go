@@ -1,7 +1,6 @@
 package tsdb
 
 import (
-	"fmt"
 	"unsafe"
 
 	"github.com/influxdata/influxdb/models"
@@ -31,7 +30,9 @@ func (s SeriesID) IsZero() bool { return s.ID == 0 }
 func (s SeriesID) RawID() uint64 { return s.ID }
 
 // WithType constructs a SeriesIDTyped with the given type.
-func (s SeriesID) WithType(typ models.FieldType) SeriesIDTyped { return NewSeriesIDTyped(s.ID, typ) }
+func (s SeriesID) WithType(typ models.FieldType) SeriesIDTyped {
+	return NewSeriesIDTyped(s.ID | seriesIDTypeFlag | (uint64(typ&0xFF) << seriesIDTypeShift))
+}
 
 // Greater returns if the SeriesID is greater than the passed in value.
 func (s SeriesID) Greater(o SeriesID) bool { return s.ID > o.ID }
@@ -43,12 +44,10 @@ func (s SeriesID) Less(o SeriesID) bool { return s.ID < o.ID }
 type SeriesIDTyped struct{ ID uint64 }
 
 // NewSeriesIDTyped constructs a typed series id from the raw values.
-func NewSeriesIDTyped(id uint64, typ models.FieldType) SeriesIDTyped {
-	if typ&0xFF != typ {
-		panic(fmt.Sprintf("unknown/invalid type: %d", typ))
-	}
-	return SeriesIDTyped{ID: id | seriesIDTypeFlag | (uint64(typ&0xFF) << seriesIDTypeShift)}
-}
+func NewSeriesIDTyped(id uint64) SeriesIDTyped { return SeriesIDTyped{ID: id} }
+
+// IsZero returns if the SeriesIDTyped is zero. It ignores any type information.
+func (s SeriesIDTyped) IsZero() bool { return s.ID&seriesIDValueMask == 0 }
 
 // ID returns the raw id for the SeriesIDTyped.
 func (s SeriesIDTyped) RawID() uint64 { return s.ID }

@@ -224,7 +224,8 @@ entries:
 			return false, nil
 		}
 
-		flag, id, key, sz := tsdb.ReadSeriesEntry(buf.data)
+		flag, typedID, key, sz := tsdb.ReadSeriesEntry(buf.data)
+		id := typedID.SeriesID()
 
 		// Check the flag is valid and for id monotonicity.
 		switch flag {
@@ -365,10 +366,10 @@ func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 			return false, nil
 		}
 
-		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != expectedID {
+		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID.SeriesID() != expectedID {
 			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id.RawID()),
-				zap.Uint64("got_id", gotID.RawID()),
+				zap.Uint64("got_id", gotID.SeriesID().RawID()),
 				zap.Uint64("expected_id", expectedID.RawID()))
 			return false, nil
 		}
