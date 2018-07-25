@@ -1,0 +1,153 @@
+/*
+  Yield Node Styles
+  ------------------------------------------------------------------------------
+*/
+
+$flux-builder-vis-height: 550px;
+$flux-builder-yield-tabs-min-width: 180px;
+$flux-builder-yield-tabs-max-width: 400px;
+
+.yield-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - #{$flux-node-gap});
+  height: $flux-builder-vis-height;
+  margin-bottom: $flux-node-tooltip-gap / 2;
+  margin-top: $flux-node-tooltip-gap / 2;
+  margin-left: $flux-node-gap;
+
+  // Hide Horizontal Line
+  & > .func-node--connector:after {
+    content: none;
+  }
+}
+
+.yield-node--controls {
+  background-color: $g3-castle;
+  padding: $flux-node-padding;
+  border-radius: $radius $radius 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.yield-node--name {
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 6px;
+  @include no-user-select();
+  color: $c-honeydew;
+}
+
+.yield-node--visualization {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: none;
+  width: 100%;
+  height: 100%;
+}
+
+// Sidebar
+.yield-node--sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  width: 25%;
+  min-width: $flux-builder-yield-tabs-min-width;
+  max-width: $flux-builder-yield-tabs-max-width;
+  background-color: $g2-kevlar;
+  overflow: hidden;
+  border-radius: $radius 0 0 $radius;
+}
+
+.yield-node--sidebar-heading {
+  padding: $flux-node-padding;
+}
+
+.yield-node--sidebar-filter.form-control.input-xs {
+  font-size: 12px;
+}
+
+// Tabs
+.yield-node--tabs {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+
+  // Shadow
+  &:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: $flux-node-padding;
+    height: 100%;
+    @include gradient-h(fade-out($g2-kevlar, 1), fade-out($g2-kevlar, 0.4));
+    pointer-events: none;
+  }
+}
+
+.yield-node--tab {
+  @include no-user-select();
+  color: $g11-sidewalk;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 $flux-node-padding;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  white-space: nowrap;
+  overflow-x: hidden;
+
+  &:hover {
+    background-color: $g4-onyx;
+    color: $g15-platinum;
+    cursor: pointer;
+  }
+
+  &.active {
+    background-color: $g5-pepper;
+    color: $g18-cloud;
+  }
+
+  > span {
+    padding-right: 1px;
+    padding-left: 1px;
+  }
+
+  > span.key {
+    color: $g9-mountain;
+  }
+
+  > span.value {
+    padding-right: 5px;
+    color: $g11-sidewalk;
+  }
+}
+
+
+// Table 
+.yield-node--table {
+  border-left: 1px solid $g5-pepper;
+  flex: 1 0 0;
+  background-color: $g3-castle;
+  overflow: hidden;
+  border-radius: 0 0 $radius $radius;
+
+  &:only-child {
+    border: 0;
+  }
+}
+
+// Line Graph
+.yield-node--graph {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 8px 16px;
+  background-color: $g3-castle;
+  border-radius: 0 0 $radius $radius;
+}

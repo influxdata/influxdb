@@ -1,0 +1,522 @@
+/*
+  Form Elements
+   -----------------------------------------------------------------------------
+*/
+
+.form-control {
+  width: 100%;
+  border: 2px solid $g5-pepper;
+  border-radius: $radius;
+  color: $g15-platinum;
+  letter-spacing: 0px;
+  background-color: $g2-kevlar;
+  font-family: $ix-text-font;
+  font-weight: 600;
+  box-shadow: none;
+  outline: none;
+  -moz-appearance: none;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.4s ease,
+    box-shadow 0.4s ease;
+
+  &:hover {
+    border-color: $g6-smoke;
+  }
+  &:focus {
+    border-color: $c-pool;
+    color: $g20-white;
+    box-shadow: 0 0 6px 0 $c-pool;
+    background-color: $g2-kevlar;
+  }
+
+  // Disabled State
+  &[disabled],
+  &[readonly],
+  fieldset[disabled] &,
+  &.disabled {
+    &, &:hover {
+      border-color: $g5-pepper;
+      background-color: $g3-castle !important;
+      color: $g9-mountain !important;
+      @extend %no-user-select;
+    }
+  }
+
+  .has-error &,
+  .has-success &,
+  .has-warning & {
+    box-shadow: none;
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease,
+      border-color 0.4s ease,
+      box-shadow 0.4s ease;
+
+      &:focus {
+        background-color: $g2-kevlar;
+      }
+  }
+
+  // Success State
+  .has-success & {
+    border-color: $c-rainforest;
+    &:focus {
+      border-color: $c-honeydew;
+      box-shadow: 0 0 8px $c-rainforest;
+    }
+    &::selection {background-color: $c-rainforest;}
+    &::-moz-selection {background-color: $c-rainforest;}
+  }
+
+  // Error State
+  .has-error & {
+    background-color: $g2-kevlar;
+    border-color: $c-curacao;
+    &:focus {
+      background-color: $c-basalt;
+      border-color: $c-dreamsicle;
+      box-shadow: 0 0 8px $c-fire;
+    }
+    &::selection {background-color: $c-dreamsicle;}
+    &::-moz-selection {background-color: $c-dreamsicle;}
+  }
+
+  // Warning State
+  .has-warning & {
+    border-color: $c-star;
+    &:focus {
+      border-color: $c-comet;
+      box-shadow: 0 0 8px $c-star;
+    }
+    &::selection {background-color: $c-comet;}
+    &::-moz-selection {background-color: $c-comet;}
+  }
+}
+
+//  Placeholder Text
+//  ----------------------------------------------------------------------------
+.form-control,
+textarea,
+input {
+  &::-webkit-input-placeholder { color: $g9-mountain; font-weight: 600 !important; font-style: italic;}
+  &::-moz-placeholder { color: $g9-mountain; font-weight: 600 !important; font-style: italic;}
+  &:-ms-input-placeholder { color: $g9-mountain; font-weight: 600 !important; font-style: italic;}
+  &:-moz-placeholder { color: $g9-mountain; font-weight: 600 !important; font-style: italic;}
+}
+
+//  Size Modifiers
+//  ----------------------------------------------------------------------------
+input.form-control {
+  &.input-xs {
+    height: $form-xs-height;
+    padding: 0 $form-xs-padding;
+    font-size: $form-xs-font;
+  }
+  &.input-sm {
+    height: $form-sm-height;
+    padding: 0 $form-sm-padding;
+    font-size: $form-sm-font;
+  }
+  &, &.input-md {
+    height: $form-md-height;
+    padding: 0 $form-md-padding;
+    font-size: $form-md-font;
+  }
+  &.input-lg {
+    height: $form-lg-height;
+    padding: 0 $form-lg-padding;
+    font-size: $form-lg-font;
+  }
+}
+
+textarea.form-control {
+  &.input-xs {
+    padding: $form-xs-padding;
+    font-size: $form-xs-font;
+  }
+  &.input-sm {
+    padding: $form-sm-padding;
+    font-size: $form-sm-font;
+  }
+  &, &.input-md {
+    padding: $form-md-padding;
+    font-size: $form-md-font;
+  }
+  &.input-lg {
+    padding: $form-lg-padding;
+    font-size: $form-lg-font;
+  }
+}
+
+//  Form Add-Ons
+//  ----------------------------------------------------------------------------
+.input-group-addon {
+  border: 2px solid $g5-pepper;
+  background-color: $g4-onyx;
+  color: $g10-wolf;
+  font-weight: 600;
+  padding-left: 13px;
+  padding-right: 13px;
+  @extend %no-user-select;
+
+  // Error State
+  .has-error & {
+    background-color: $g4-onyx;
+    color: $c-dreamsicle;
+    border-color: $c-curacao;
+  }
+
+  // Success State
+  .has-success & {
+    background-color: $g4-onyx;
+    color: $c-rainforest;
+    border-color: $c-rainforest;
+  }
+
+  // Warning State
+  .has-warning & {
+    background-color: $g4-onyx;
+    color: $c-comet;
+    border-color: $c-star;
+  }
+}
+
+//  Form Groups
+//  ----------------------------------------------------------------------------
+.form-group {
+  margin-bottom: 8px;
+}
+.form-group > .btn {
+  display: inline-block;
+}
+.form-group > label,
+label.form-label {
+  width: 100%;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: $g11-sidewalk;
+  margin: 0 0 4px 0;
+  padding: 0 ($form-sm-padding + $ix-border);
+  @extend %no-user-select;
+}
+label.form-helper {
+  font-style: italic;
+  line-height: 16px;
+  @extend %no-user-select;
+}
+
+//  Static Elements
+//  ----------------------------------------------------------------------------
+.form-control-static {
+  min-height: $form-md-height;
+  padding: ($ix-marg-b - 1px) ($ix-marg-b + 1px);
+  border: $ix-border solid $g5-pepper;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  label {
+    font-weight: 500;
+    font-size: 14px;
+    @extend %no-user-select;
+  }
+}
+
+//  Checkboxes
+//  ----------------------------------------------------------------------------
+$form-control-checkbox: 20px;
+$form-control-checkdot: 8px;
+$form-control-checkbox-gap: 30px;
+
+.form-control-static {
+  input[type="checkbox"] {
+    position: relative;
+    left: -9999px;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    margin: 0;
+  }
+  input[type="checkbox"] + label {
+    transition: color 0.25s ease;
+    padding-left: $form-control-checkbox-gap;
+    position: relative;
+    color: $g11-sidewalk;
+
+    // Checkbox
+    &:before {
+      box-sizing: border-box;
+      content: '';
+      display: block;
+      position: absolute;
+      top: 50%;
+      left: 0;
+      transform: translateY(-50%);
+      width: $form-control-checkbox;
+      height: $form-control-checkbox;
+      border-radius: 3px;
+      border: $ix-border solid $g5-pepper;
+      background-color: $g2-kevlar;
+      transition: border-color 0.25s ease;
+    }
+    // Check Dot
+    &:after {
+      box-sizing: border-box;
+      content: '';
+      display: block;
+      position: absolute;
+      top: 50%;
+      left: ($form-control-checkbox / 2);
+      transform: translate(-50%,-50%) scale(2,2);
+      width: $form-control-checkdot;
+      height: $form-control-checkdot;
+      background-color: $c-pool;
+      border-radius: 50%;
+      transition:
+        transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+        opacity 0.25s ease;
+      opacity: 0;
+    }
+    // Hover State
+    &:hover {
+      color: $g18-cloud;
+      cursor: pointer;
+
+      &:before {border-color: $g6-smoke;}
+    }
+  }
+  // Animate checked state
+  input[type="checkbox"]:checked + label {
+    color: $g18-cloud;
+  }
+  input[type="checkbox"]:checked + label:after {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1,1);
+  }
+}
+
+//  Radio Buttons
+//  ----------------------------------------------------------------------------
+.form-control-static {
+  > .radio-item {
+    width: 100%;
+    margin-bottom: 6px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  input[type="radio"] {
+    position: relative;
+    left: -9999px;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    margin: 0;
+  }
+  input[type="radio"] + label {
+    transition: color 0.25s ease;
+    padding-left: $form-control-checkbox-gap;
+    position: relative;
+    color: $g11-sidewalk;
+
+    // Radio Circle
+    &:before {
+      box-sizing: border-box;
+      content: '';
+      display: block;
+      position: absolute;
+      top: 50%;
+      left: 0;
+      transform: translateY(-50%);
+      width: $form-control-checkbox;
+      height: $form-control-checkbox;
+      border-radius: 50%;
+      border: $ix-border solid $g5-pepper;
+      background-color: $g2-kevlar;
+      transition: border-color 0.25s ease;
+    }
+    // Radio Dot
+    &:after {
+      box-sizing: border-box;
+      content: '';
+      display: block;
+      position: absolute;
+      top: 50%;
+      left: ($form-control-checkbox / 2);
+      transform: translate(-50%,-50%) scale(2,2);
+      width: $form-control-checkdot;
+      height: $form-control-checkdot;
+      background-color: $c-pool;
+      border-radius: 50%;
+      transition:
+        transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+        opacity 0.25s ease;
+      opacity: 0;
+    }
+    // Hover State
+    &:hover {
+      color: $g18-cloud;
+      cursor: pointer;
+
+      &:before {border-color: $g6-smoke;}
+    }
+  }
+  // Animate checked state
+  input[type="radio"]:checked + label {
+    color: $g18-cloud;
+  }
+  input[type="radio"]:checked + label:after {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1,1);
+  }
+}
+
+
+//  Themed Text Inputs
+//  ----------------------------------------------------------------------------
+input.form-control,
+textarea.form-control {
+  // Blue
+  &.form-plutonium {
+    color: $c-pool;
+    &:focus {color: $g20-white;}
+  }
+  // Green
+  &.form-malachite {
+    color: $c-rainforest;
+    &:focus {
+      border-color: $c-rainforest;
+      color: $g20-white;
+      box-shadow: 0 0 8px $c-rainforest;
+    }
+    &::selection {background-color: $c-rainforest;}
+    &::-moz-selection {background-color: $c-rainforest;}
+  }
+  // Purple
+  &.form-astronaut {
+    color: $c-comet;
+    &:focus {
+      border-color: $c-star;
+      color: $g20-white;
+      box-shadow: 0 0 8px $c-star;
+    }
+    &::selection {background-color: $c-comet;}
+    &::-moz-selection {background-color: $c-comet;}
+  }
+  // Red
+  &.form-volcano {
+    color: $c-dreamsicle;
+    &:focus {
+      background-color: $c-basalt;
+      border-color: $c-dreamsicle;
+      color: $c-flan;
+      box-shadow: 0 0 8px $c-curacao;
+    }
+    &::selection {background-color: $c-curacao;}
+    &::-moz-selection {background-color: $c-curacao;}
+  }
+}
+
+
+//  Monospace Inputs
+//  ----------------------------------------------------------------------------
+.form-control.monotype {
+  font-family: $code-font;
+}
+
+//  Generic Checkboxes
+//  ----------------------------------------------------------------------------
+.dark-checkbox {
+  input {
+    position: absolute;
+    left: -9999px;
+    visibility: hidden;
+  }
+  label {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-color: $g1-raven;
+    border-radius: 3px;
+    position: relative;
+    vertical-align: middle;
+    margin: 0;
+    transition: background-color 0.25s ease;
+  }
+  label:hover {
+    cursor: pointer;
+    background-color: $g2-kevlar;
+  }
+  label:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    background-color: $c-pool;
+    border-radius: 50%;
+    transform: translate(-50%,-50%) scale(2,2);
+    opacity: 0;
+    z-index: 3;
+    transition:
+      opacity 0.25s ease,
+      transform 0.25s ease;
+  }
+  input:checked + label:after {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1,1);
+  }
+}
+
+//  Generic Radio Inputs
+//  ----------------------------------------------------------------------------
+.dark-radio {
+  input {
+    position: absolute;
+    left: -9999px;
+    visibility: hidden;
+  }
+  label {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background-color: $g1-raven;
+    border-radius: 50%;
+    position: relative;
+    vertical-align: middle;
+    margin: 0;
+    transition: background-color 0.25s ease;
+  }
+  label:hover {
+    cursor: pointer;
+    background-color: $g2-kevlar;
+  }
+  label:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    background-color: $c-pool;
+    border-radius: 50%;
+    transform: translate(-50%,-50%) scale(2,2);
+    opacity: 0;
+    z-index: 3;
+    transition:
+      opacity 0.25s ease,
+      transform 0.25s ease;
+  }
+  input:checked + label:after {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1,1);
+  }
+}

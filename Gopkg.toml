@@ -29,8 +29,13 @@ required = [
     # Pigeon is the command used to generate the Flux parser from the PEG description
     "github.com/mna/pigeon",
     # goreleaser is a utility to build and upload to S3
-    "github.com/goreleaser/goreleaser"
+    "github.com/goreleaser/goreleaser",
+    "github.com/kevinburke/go-bindata"
 ]
+
+[[constraint]]
+  name = "github.com/goreleaser/goreleaser"
+  version = "0.81.0"
 
 [[constraint]]
   name = "github.com/google/go-cmp"
@@ -77,3 +82,7 @@ required = [
 [[constraint]]
   branch = "master"
   name = "github.com/gonum/stat"
+
+[[constraint]]
+  name = "github.com/google/go-github"
+  branch = "master"

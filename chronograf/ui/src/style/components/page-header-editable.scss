@@ -1,0 +1,41 @@
+/*
+    Click to Rename Page Header
+    ----------------------------------------------------------------
+*/
+.page-header--editable {
+  transition: color 0.25s ease;
+
+  &:hover {
+    color: $c-pool;
+    cursor: text !important;
+  }
+  &.kapacitor-theme:hover {
+    color: $c-rainforest;
+  }
+  .icon {
+    cursor: inherit;
+    margin-left: 5px;
+    position: relative;
+    top: -1.5px;
+  }
+}
+.page-header--editing {
+  border: 0;
+  outline: none;
+  background-color: $g0-obsidian;
+  font-size: $page-header-size;
+  font-weight: $page-header-weight;
+  padding: 0;
+  flex: 1;
+
+  &:focus {
+    color: $c-pool;
+  }
+  &.kapacitor-theme:focus {
+    color: $c-rainforest;
+  }
+  &::-webkit-input-placeholder { color: $g9-mountain; }
+  &::-moz-placeholder { color: $g9-mountain; }
+  &:-ms-input-placeholder { color: $g9-mountain; }
+  &:-moz-placeholder { color: $g9-mountain; }
+}

@@ -1,0 +1,134 @@
+/*
+    Custom Tooltips
+    ----------------------------------------------
+
+    Using npm/react-tooltip
+    http://wwayne.com/react-tooltip/
+*/
+
+$tooltip-padding: 8px;
+$tooltip-radius: 5px;
+$tooltip-font: 13px;
+
+$tooltip-bg: $g5-pepper;
+$tooltip-text: $g19-ghost;
+$tooltip-accent: $c-pool;
+
+$tooltip-code-bg: $g2-kevlar;
+$tooltip-code-color: $c-potassium;
+
+.__react_component_tooltip.influx-tooltip {
+  font-size: $tooltip-font;
+  font-weight: 500;
+  line-height: 1.3em;
+  padding: $tooltip-padding;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  border-radius: $tooltip-radius;
+  text-transform: none;
+  text-align: left;
+  cursor: default;
+
+  &.type-dark {
+    background-color: $tooltip-bg;
+    color: $tooltip-text;
+    border: 2px solid $tooltip-accent;
+  }
+  &.type-dark.place-top:after {border-top-color: $tooltip-accent;}
+  &.type-dark.place-right:after {border-right-color: $tooltip-accent;}
+  &.type-dark.place-bottom:after {border-bottom-color: $tooltip-accent;}
+  &.type-dark.place-left:after {border-left-color: $tooltip-accent;}
+
+
+  h1 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 8px 0;
+    line-height: 1.125em;
+    letter-spacing: 0;
+    font-family: $default-font;
+
+    &:first-of-type {
+      margin-top: 0;
+    }
+  }
+
+  p {
+    margin: 0;
+    width: 100%;
+    display: inline-block;
+    padding: 0;
+    white-space: nowrap;
+  }
+
+  code {
+    background-color: $tooltip-code-bg;
+    border: 0;
+    padding: 3px 6px 4px 6px;
+    font-size: ($tooltip-font - 2px);
+    border-radius: 3px;
+    margin: 1px 2px 1px 0;
+    color: $tooltip-code-color;
+    white-space: nowrap;
+    display: inline-block;
+    font-weight: 900;
+  }
+
+  /* Kapacitor Style Tooltip */
+  &.kapacitor-tooltip {
+    border-color: $c-rainforest !important;
+
+    code {
+      color: $c-pool !important;
+    }
+    &.type-dark.place-top:after {border-top-color: $c-rainforest;}
+    &.type-dark.place-right:after {border-right-color: $c-rainforest;}
+    &.type-dark.place-bottom:after {border-bottom-color: $c-rainforest;}
+    &.type-dark.place-left:after {border-left-color: $c-rainforest;}
+  }
+}
+
+.influx-tooltip__hover {
+  @extend .influx-tooltip;
+  pointer-events: auto !important;
+  &:hover {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+}
+
+/*
+    Question Mark Tooltip
+    ----------------------------------------------
+*/
+$qmark-tooltip-size: 15px;
+
+.question-mark-tooltip {
+  display: inline-block;
+}
+.question-mark-tooltip--icon {
+  position: relative;
+  top: -1px;
+  vertical-align: middle;
+  display: inline-block;
+  width: $qmark-tooltip-size;
+  height: $qmark-tooltip-size;
+  border-radius: 50%;
+  text-align: center;
+  line-height: ($qmark-tooltip-size + 1px);
+  font-weight: 900;
+  background-color: $g10-wolf;
+  color: $g0-obsidian;
+  margin: 0 5px;
+  transition: background-color 0.25s ease;
+}
+.question-mark-tooltip:hover {
+  cursor: default;
+  .question-mark-tooltip--icon {
+    background-color: $c-pool;
+  }
+}
+
+a > .question-mark-tooltip:hover {
+  cursor: pointer;
+}

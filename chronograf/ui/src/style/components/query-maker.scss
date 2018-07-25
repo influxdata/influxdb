@@ -1,0 +1,202 @@
+/*
+    Query Maker
+    -------------------------------------------------------------
+    Consists of two parts:
+      - Query Editor (Manual query entry)
+      - Query Builder (Asssited query construction)
+*/
+
+.query-maker {
+  height: 100%;
+  margin: 0 $page-wrapper-padding;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/*
+    Variables
+    -------------------------------------------------------------
+*/
+$query-maker--gutter: 16px;
+
+$query-maker--tabs-height: 44px;
+$query-maker--tabs-header-text: $g18-cloud;
+
+$query-maker--tab-width: 340px;
+$query-maker--tab-text: $g11-sidewalk;
+$query-maker--tab-text-hover: $g15-platinum;
+$query-maker--tab-text-active: $g18-cloud;
+$query-maker--tab-bg: $g3-castle;
+$query-maker--tab-bg-hover: $g4-onyx;
+$query-maker--tab-bg-active: $g5-pepper;
+
+$query-maker--tab-contents-bg: $g3-castle;
+$query-maker--empty-text: $g10-wolf;
+
+$query-editor--bg: $query-maker--tab-bg-active;
+$query-editor--field-text: $c-pool;
+$query-editor--field-bg: $g2-kevlar;
+$query-editor--field-height: 52px;
+$query-editor--status-height: 34px;
+/* ^ These 2 should total 86px */
+$query-editor--status-default: $g11-sidewalk;
+$query-editor--status-success: $c-rainforest;
+$query-editor--status-warning: $c-pineapple;
+$query-editor--status-error: $c-dreamsicle;
+$query-editor--templates-width: 135px;
+$query-editor--templates-height: 22px;
+$query-editor--templates-offset: 15px;
+$query-editor--templates-menu-width: 200px;
+
+$query-builder--heading-height: 50px;
+$query-builder--heading-text: $g13-mist;
+$query-builder--heading-bg: $query-maker--tab-bg-active;
+
+$query-builder--list-bg: $g3-castle;
+$query-builder--list-empty-text: $g10-wolf;
+$query-builder--list-gutter: 11px;
+$query-builder--list-item-height: 28px;
+$query-builder--list-item-bg: transparent;
+$query-builder--list-item-text: $g11-sidewalk;
+$query-builder--list-item-bg-hover: $g4-onyx;
+$query-builder--list-item-text-hover: $g15-platinum;
+$query-builder--list-item-bg-active: $g4-onyx;
+$query-builder--list-item-text-active: $g18-cloud;
+$query-builder--list-item-text-disabled: $g9-mountain;
+
+$query-builder--sub-list-gutter: 24px;
+$query-builder--sub-list-bg: $query-builder--list-item-bg-active;
+
+$query-editor-tab-inactive: $g2-kevlar;
+$query-editor-tab-active: $g3-castle;
+
+/*
+    Tabs & Tab Contents
+    -------------------------------------------------------------
+    Controls which query is currently being modified
+*/
+
+.query-maker--tabs {
+  margin: $query-maker--gutter 0 0 0;
+  display: flex;
+  height: $query-maker--tabs-height;
+  align-items: center;
+}
+.query-maker--tabs > div.btn.query-maker--new {
+  margin-left: 6px;
+  padding: 0 8px !important;
+}
+.query-maker--new > span.icon {
+  margin: 0 !important;
+}
+.query-maker--tab {
+  border-radius: $radius $radius 0 0;
+  height: $query-maker--tabs-height;
+  margin: 0 2px 0 0;
+  max-width: $query-maker--tab-width;
+  flex: 1 0 0;
+  color: $query-maker--tab-text;
+  background: $query-maker--tab-bg;
+  position: relative;
+  transition:
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+  &:hover {
+    cursor: pointer;
+    color: $query-maker--tab-text-hover;
+    background-color: $query-maker--tab-bg-hover;
+  }
+  &.active {
+    color: $query-maker--tab-text-active;
+    background: $query-maker--tab-bg-active;
+  }
+}
+.query-maker--tab > label,
+.query-maker--delete {
+  top: 50%;
+  transform: translateY(-50%);
+  position: absolute;
+}
+.query-maker--tab > label {
+  left: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  width: calc(100% - #{$query-maker--tabs-height});
+  text-overflow: ellipsis;
+  @include no-user-select();
+  cursor: inherit !important;
+}
+.query-maker--delete {
+  margin: 0;
+  width: 18px;
+  height: 18px;
+  background-color: transparent;
+  display: block;
+  right: 9px;
+
+  &:before,
+  &:after {
+    display: block;
+    content: '';
+    width: 10px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g8-storm;
+    transition:
+      background-color 0.25s ease;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+  }
+  &:before {
+    transform: translate(-50%,-50%) rotate(45deg);
+  }
+  &:after {
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+
+  &:hover {
+    &:before,
+    &:after {
+      background-color: $c-dreamsicle;
+    }
+  }
+}
+.query-maker--tab-contents {
+  border-radius: 0 $radius $radius $radius;
+  display: flex;
+  flex-direction: column;
+}
+.query-maker--tab-contents,
+.query-maker--empty {
+  flex: 1 0 0%;
+  margin: 0 0 $query-maker--gutter 0;
+  background-color: $query-maker--tab-contents-bg;
+}
+.query-maker--empty {
+  border-radius: $radius;
+  text-align: center;
+  color: $query-maker--empty-text;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  &,
+  & > * {
+    @include no-user-select();
+  }
+}
+
+/*
+    Sub-Components
+    -------------------------------------------------------------
+*/
+@import 'query-editor';
+@import 'query-builder';
+@import 'query-maker-responsive';

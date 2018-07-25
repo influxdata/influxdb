@@ -1,0 +1,85 @@
+/*
+    Page Layout
+    ----------------------------------------------------------------------------
+*/
+
+$dygraph-legend-z: 500;
+$dash-ceo-z: $dygraph-legend-z + 10;
+
+.chronograf-root {
+  display: flex;
+  align-items: stretch;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  color: $g17-whisper;
+}
+.page {
+  flex-grow: 1;
+}
+.page-contents,
+.page-contents--split {
+  position: absolute !important;
+  top: $chronograf-page-header-height;
+  left: 0;
+  width: 100%;
+  height: calc(100% - #{$chronograf-page-header-height}) !important;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+
+  &:only-child {
+    top: 0;
+    height: 100% !important;
+  }
+}
+.page-contents--split {
+  display: flex;
+  align-items: stretch;
+}
+.template-control-bar.show + .page-contents {
+  top: $chronograf-page-header-height * 2;
+  height: calc(100% - #{$chronograf-page-header-height * 2}) !important;
+}
+.container-fluid {
+  margin: 0 auto;
+  padding: ($chronograf-page-header-height / 2) $page-wrapper-padding;
+  max-width: $page-wrapper-max-width;
+
+  &.full-width {
+    max-width: 100%;
+  }
+}
+
+/* Presentation Mode */
+.page-contents.presentation-mode {
+  top: 0;
+  height: 100% !important;
+
+  .container-fluid {padding: 8px !important;}
+  .template-control--manage {display: none;}
+}
+
+/*
+  Dashboard Page
+  ------------------------------------------------------------------------------
+  Using a flex based layout so that the Template Variable Control Bar can
+  have any height without disrupting the layout
+*/
+.page.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+
+  .page-header {
+    position: relative;
+  }
+  
+  .page-contents {
+    position: relative !important;
+    flex: 1 0 0;
+    height: 100% !important;
+    top: 0;
+  }
+}

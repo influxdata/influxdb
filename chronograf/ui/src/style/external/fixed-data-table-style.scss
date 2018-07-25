@@ -1,0 +1,190 @@
+/**
+ * FixedDataTable v0.6.1
+ *
+ * Copyright (c) 2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ */
+
+/**
+ * Copyright (c) 2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule fixedDataTable
+ *
+ */
+
+/**
+ * Table.
+ */
+.public_fixedDataTable_main {
+  width: 100% !important;
+  border-color: $g6-smoke;
+  border-width: 8px;
+  border-radius: 0 3px 3px 3px;
+}
+
+.public_fixedDataTable_header,
+.public_fixedDataTable_hasBottomBorder {
+  border-color: $g6-smoke;
+}
+
+.public_fixedDataTable_header .public_fixedDataTableCell_main {
+  font-weight: bold;
+}
+
+.public_fixedDataTable_header,
+.public_fixedDataTable_header .public_fixedDataTableCell_main {
+  background-color: $g6-smoke;
+  border-color: $g7-graphite;
+}
+
+.public_fixedDataTable_footer .public_fixedDataTableCell_main {
+  background-color: $g6-smoke;
+  border-color: $g6-smoke;
+}
+
+.public_fixedDataTable_topShadow {}
+
+.public_fixedDataTable_bottomShadow {}
+
+.public_fixedDataTable_horizontalScrollbar .public_Scrollbar_mainHorizontal {
+  background-color: #fff;
+}
+/**
+ * Copyright (c) 2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule fixedDataTableCell
+ */
+
+/**
+ * Table cell.
+ */
+.public_fixedDataTableCell_main {
+  background-color: $g4-onyx;
+  border-color: $g6-smoke;
+  line-height: 34px;
+  padding: 0 8px;
+  color: $g15-platinum;
+
+  span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    display: inline-block;
+    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+    font-size: 13px;
+  }
+}
+
+.public_fixedDataTableCell_highlighted {
+  background-color: $g3-castle;
+}
+
+.public_fixedDataTableCell_cellContent {
+  // padding: 8px;
+}
+
+.public_fixedDataTableCell_columnResizerKnob {
+  background-color: $c-pool;
+}
+/**
+ * Copyright (c) 2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule fixedDataTableColumnResizerLine
+ *
+ */
+
+/**
+ * Column resizer line.
+ */
+.public_fixedDataTableColumnResizerLine_main {
+  border-color: $c-pool;
+}
+/**
+ * Copyright (c) 2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule fixedDataTableRow
+ */
+
+/**
+ * Table row.
+ */
+.fixedDataTableLayout_header.fixedDataTableRowLayout_main {
+  background-color: $g6-smoke !important;
+}
+.public_fixedDataTableRow_main {
+  background-color: $g4-onyx;
+}
+
+
+.public_fixedDataTableRow_highlighted,
+.public_fixedDataTableRow_highlighted .public_fixedDataTableCell_main {
+  background-color: $g3-castle;
+}
+
+.public_fixedDataTableRow_fixedColumnsDivider {
+  border-color: $g6-smoke;
+}
+
+.public_fixedDataTableRow_columnsShadow {}
+/**
+ * Copyright (c) 2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule Scrollbar
+ *
+ */
+
+/**
+ * Scrollbars.
+ */
+
+/* Touching the scroll-track directly makes the scroll-track bolder */
+.public_Scrollbar_main.public_Scrollbar_mainActive,
+.public_Scrollbar_main:hover {
+  background-color: $g5-pepper;
+}
+
+.public_Scrollbar_mainOpaque,
+.public_Scrollbar_mainOpaque.public_Scrollbar_mainActive,
+.public_Scrollbar_mainOpaque:hover {
+  background-color: $g6-smoke;
+}
+
+.public_Scrollbar_face:after {
+  background-color: $g7-graphite;
+}
+
+.public_Scrollbar_main:hover .public_Scrollbar_face:after,
+.public_Scrollbar_mainActive .public_Scrollbar_face:after,
+.public_Scrollbar_faceActive:after {
+  background-color: $c-pool;
+}

@@ -1,0 +1,118 @@
+/*
+   Panels
+   -----------------------------------------------------------------------------
+*/
+
+$panel-gutter: 30px;
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-bottom: $panel-gutter;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $panel-gutter 0;
+}
+
+.panel-title {
+  font-weight: 400;
+  font-size: 19px;
+  color: $g12-forge;
+  letter-spacing: 0.015em;
+  margin: 0;
+  line-height: 1em;
+  @extend %no-user-select;
+}
+
+.panel-controls {
+  display: flex;
+  align-items: center;
+
+  &:nth-child(1) {
+    justify-content: flex-start;
+    > * {
+      margin-right: 8px;
+    }
+  }
+
+  &:nth-child(2) {
+    justify-content: flex-end;
+    > * {
+      margin-left: 8px;
+    }
+  }
+}
+
+.panel-body {
+  background-color: $g3-castle;
+  padding: $panel-gutter;
+
+  .panel-heading + &,
+  &:first-child {
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+  }
+  &:last-child {
+    border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 4px;
+  }
+
+  > *:first-child {
+    margin-top: 0;
+  }
+  > *:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.panel-footer {
+  padding: 14px $panel-gutter;
+  border-radius: 0 0 4px 4px;
+  @include gradient-v($g2-kevlar, $g3-castle);
+  color: $g9-mountain;
+}
+
+//  Tables directly inside Panels
+//  ----------------------------------------------------------------------------
+.panel > .table {
+  border-top: $ix-border;
+  * {
+    border-color: $g19-ghost;
+  }
+}
+.panel-heading + .table {
+  border: none;
+}
+.panel > .table td:first-child,
+.panel > .table th:first-child {
+  padding-left: $panel-gutter;
+}
+.panel > .table td:last-child,
+.panel > .table th:last-child {
+  padding-right: $panel-gutter;
+}
+
+//  Solid Panels
+//  ----------------------------------------------------------------------------
+.panel.panel-solid {
+  background-color: $g3-castle;
+  border-radius: 4px;
+
+  .panel-heading {
+    padding: $panel-gutter;
+  }
+  .panel-body {
+    background-color: transparent;
+  }
+}
+
+//  Horizontal Rules directly inside Panels
+//  ----------------------------------------------------------------------------
+.panel-body hr {
+  margin: 16px 0;
+}

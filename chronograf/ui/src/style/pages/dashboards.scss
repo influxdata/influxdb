@@ -1,0 +1,515 @@
+/*
+  Variables
+  ------------------------------------------------------
+*/
+
+$dash-graph-heading: 30px;
+$dash-graph-heading-context: $dash-graph-heading - 8px;
+$dash-graph-options-arrow: 8px;
+/*
+  Animations
+  ------------------------------------------------------
+*/
+
+@keyframes refreshingSpinnerA {
+  0% {
+    transform: translate(-50%, -50%) scale(1.75);
+    background-color: $g7-graphite;
+  }
+  33% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  66% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+}
+
+@keyframes refreshingSpinnerB {
+  0% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  33% {
+    transform: translate(-50%, -50%) scale(1.75);
+    background-color: $g7-graphite;
+  }
+  66% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+}
+
+@keyframes refreshingSpinnerC {
+  0% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  33% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+  66% {
+    transform: translate(-50%, -50%) scale(1.75);
+    background-color: $g7-graphite;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1, 1);
+  }
+}
+
+/*
+  Default Dashboard Mode
+  ------------------------------------------------------
+*/
+
+.cell-shell {
+  background-color: $g3-castle;
+  border-radius: $radius;
+  border: 2px solid $g3-castle;
+  transition-property: left, top, border-color, background-color;
+}
+
+.dashboard {
+  .react-grid-item {
+    @extend .cell-shell;
+  }
+  .graph-empty {
+    background-color: transparent;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+}
+
+.dash-graph {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+.dash-graph--container {
+  user-select: none !important;
+  -o-user-select: none !important;
+  -moz-user-select: none !important;
+  -webkit-user-select: none !important;
+  background-color: transparent;
+  position: absolute;
+  width: 100%;
+  height: calc(100% - #{$dash-graph-heading});
+  top: $dash-graph-heading;
+  left: 0;
+  padding: 0;
+  .dygraph {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .dygraph .dygraph-child {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    padding: 8px 16px;
+  }
+  .graph-panel__refreshing {
+    top: (-$dash-graph-heading + 5px) !important;
+  }
+}
+
+.dash-graph--heading {
+  user-select: none !important;
+  -o-user-select: none !important;
+  -moz-user-select: none !important;
+  -webkit-user-select: none !important;
+  background-color: transparent;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: $dash-graph-heading;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: $radius-small;
+  font-weight: 600;
+  font-size: 13px;
+  color: $g14-chromium;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  &.dash-graph--heading-draggable:hover {
+    cursor: move;
+    background-color: $g5-pepper;
+  }
+}
+
+.dash-graph--name {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: $radius;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  height: $dash-graph-heading;
+  line-height: $dash-graph-heading;
+  width: calc(100% - 78px);
+  padding-left: 10px;
+  transition: color 0.25s ease, background-color 0.25s ease,
+    border-color 0.25s ease;
+  &:only-child {
+    width: 100%;
+  }
+}
+
+.dash-graph--name.dash-graph--name__default {
+  font-style: italic;
+}
+
+.dash-graph--draggable {
+  cursor: move !important;
+}
+
+.dash-graph--custom-indicators {
+  height: 24px;
+  border-radius: 3px;
+  display: flex;
+  cursor: default;
+  > .custom-indicator,
+  > .source-indicator {
+    font-size: 10px;
+    line-height: 24px;
+    padding: 0 7px;
+    font-style: normal;
+    font-family: $code-font;
+    color: $c-pool;
+    background-color: $g2-kevlar;
+    margin-right: 2px;
+    border-radius: 3px;
+  }
+  > .source-indicator {
+    height: 24px;
+    > .icon {
+      font-size: 12px;
+      margin: 0;
+    }
+  }
+}
+
+.dash-graph-context {
+  z-index: 2;
+  position: absolute;
+  top: 0;
+  right: 3px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.dash-graph:hover .dash-graph-context {
+  opacity: 1;
+}
+
+.dash-graph-context.dash-graph-context__open {
+  z-index: 20;
+}
+
+.dash-graph-context--buttons {
+  display: flex;
+}
+
+.dash-graph-context--button {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  font-size: 12px;
+  position: relative;
+  color: $g11-sidewalk;
+  margin-right: 2px;
+  transition: color 0.25s ease, background-color 0.25s ease;
+  &:hover,
+  &.active {
+    cursor: pointer;
+    color: $g20-white;
+    background-color: $g5-pepper;
+  }
+  &:last-child {
+    margin-right: 0;
+  }
+  > .icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  &.active {
+    position: relative;
+    z-index: 20;
+  }
+}
+
+.dash-graph-context--menu,
+.dash-graph-context--menu.default {
+  z-index: 3;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  background-color: $g6-smoke;
+  transform: translateX(-50%);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  &:before {
+    position: absolute;
+    content: '';
+    border: 6px solid transparent;
+    border-bottom-color: $g6-smoke;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -100%);
+    transition: border-color 0.25s ease;
+  }
+  .dash-graph-context--menu-item {
+    @include no-user-select();
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 26px;
+    height: 26px;
+    padding: 0 10px;
+    color: $g20-white;
+    transition: background-color 0.25s ease;
+    &:first-child {
+      border-top-left-radius: 3px;
+      border-top-right-radius: 3px;
+    }
+    &:last-child {
+      border-bottom-left-radius: 3px;
+      border-bottom-right-radius: 3px;
+    }
+    &:hover {
+      background-color: $g8-storm;
+      cursor: pointer;
+    }
+    &.disabled,
+    &.disabled:hover {
+      cursor: default;
+      background-color: transparent;
+      font-style: italic;
+      color: $g11-sidewalk;
+    }
+  }
+}
+
+.dash-graph-context--menu.primary {
+  background-color: $c-ocean;
+  &:before {
+    border-bottom-color: $c-ocean;
+  }
+  .dash-graph-context--menu-item:hover {
+    background-color: $c-pool;
+  }
+}
+
+.dash-graph-context--menu.warning {
+  background-color: $c-star;
+  &:before {
+    border-bottom-color: $c-star;
+  }
+  .dash-graph-context--menu-item:hover {
+    background-color: $c-comet;
+  }
+}
+
+.dash-graph-context--menu.success {
+  background-color: $c-rainforest;
+  &:before {
+    border-bottom-color: $c-rainforest;
+  }
+  .dash-graph-context--menu-item:hover {
+    background-color: $c-honeydew;
+  }
+}
+
+.dash-graph-context--menu.danger {
+  background-color: $c-curacao;
+  &:before {
+    border-bottom-color: $c-curacao;
+  }
+  .dash-graph-context--menu-item:hover {
+    background-color: $c-dreamsicle;
+  }
+}
+
+/* Presentation Mode */
+
+.presentation-mode {
+  .dash-graph-context {
+    display: none;
+  }
+  .dash-graph--name {
+    width: 100%;
+  }
+}
+
+.graph-panel__refreshing {
+  position: absolute;
+  top: -18px !important;
+  transform: translate(0, 0);
+  right: 50%;
+  transform: translateX(50%);
+  width: 16px;
+  height: 18px;
+  > div {
+    width: 4px;
+    height: 4px;
+    background-color: $g6-smoke;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  div:nth-child(1) {
+    left: 0;
+    animation: refreshingSpinnerA 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
+  div:nth-child(2) {
+    left: 50%;
+    animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
+  div:nth-child(3) {
+    left: 100%;
+    animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1)
+      infinite;
+  }
+}
+
+/*
+  Dashboard Edit Mode
+  ------------------------------------------------------
+*/
+
+.react-grid-placeholder {
+  @include gradient-diag-down($c-pool, $c-comet);
+  border: 0 !important;
+  opacity: 0.3;
+  z-index: 2;
+  border-radius: $radius !important;
+}
+
+.react-grid-item {
+  &.resizing {
+    background-color: fade-out($g3-castle, 0.09);
+    border-color: $c-pool;
+    border-image-slice: 3%;
+    border-image-repeat: initial;
+    border-image-outset: 0;
+    border-image-width: 2px;
+    border-image-source: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyhpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNi1jMDY3IDc5LjE1Nzc0NywgMjAxNS8wMy8zMC0yMzo0MDo0MiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIDIwMTUgKE1hY2ludG9zaCkiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MTg0NjVDRkVGMEVFMTFFNkE0QjVFRTJGNEI1ODc0RDMiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MTg0NjVDRkZGMEVFMTFFNkE0QjVFRTJGNEI1ODc0RDMiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDoxODQ2NUNGQ0YwRUUxMUU2QTRCNUVFMkY0QjU4NzREMyIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDoxODQ2NUNGREYwRUUxMUU2QTRCNUVFMkY0QjU4NzREMyIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PpeetfIAAAMnSURBVHja7N1PatwwFMfxJ5NlKT1DIfQKWZfSA/Q0hexDL9McoOQAPUKglwhp6dZ9Ho/HfyTZs6l+b/E1GDm27IH5oH9Pyji9//7XfLtNZt88/eT722TzlvrFseXHaXFmypuO8vd5nmW6nyeNefrKfZv7i9f75blU/NzafXvns2dV7tl8zqsnT55+9f3Xjf/xwQ9+evou+xLB+N8Ydi4AX3z/6PnvOj94AEOGMV/rB4P00J2rKTC0GNOTPne0GWEwhv1NB0YYjNPWgREHI00gYMTAOIGAEQdjuKcDIw7GXGWBEQJjrLLACIORrFBlgaHDsG2VBYYWY1VlgaHHSH3WqIOhxLB1ow6GGmPRqIMRAeMMAkYUDFuGTsDQYwxP6MCIg1Hp9oKhwih0e8FQYthuLAuM5hj1WBYYEoxUjGWBIcOwrFEHQ4qxLiFgyDFOvSww4mCM8yFghMEoDgzB0GGk2owhGBoMq5UQMDQYxRIChg4ja0PA0GLYMrgIhh7jUkLAiIExV1lghMA4GBiC0RrjNIULRhyMysAQDBVGYWAIhhJjM6cOhhpjUULAiIAxr1wEIwTGPDAEIwTGWGWBEQajHu0FQ4JRjvaCIcPIo71gSDHW0V4w5Bj5SB0MKUZxoRwYOoxsPgQMLcZqPgQMPUaxUQdDh2HVcQgYEoxUHIeAIcPIqywwpBjrKgsMOcb8f+pghMDIwu9gaDFWI3Uw9Bg2N+pgRMA497LAiIJRXf0OhgajuPodDB3G1dFeMNpgXBXtBaMdxmG0F4y2GLvRXjDaY2wGhmCoMawU7QVDh5G20V4wtBjzwBCMEBiXVx6BEQPjsJcFRluM3V4WGO0xqr0sMDQYVuplgaHDWL1YEgw9hi17WWDoMVJ1ChcMCYYVp3DBkGFUl5KCocGw6deAwIiBYUfBRTDaYmTdXjC0GFYLLoKhwSj+cAAYOgzbBhfB0GKsgotg6DGuWrkIRjuMudsLRgiMsQ0BIwzG5ZVHYMTAmKqsVzBiYPj2Z+j2PoERAmM4/2MoIfe+v4Ahx3jx5H4AefYLd37q0Y9/g9EcY/jOHz11A3v+J8AA9wisahRCWTQAAAAASUVORK5CYII=);
+    z-index: 3;
+    & > .react-resizable-handle {
+      &:before,
+      &:after {
+        background-color: $c-comet;
+      }
+    }
+  }
+  &.react-draggable-dragging {
+    background-color: fade-out($g3-castle, 0.09);
+    border-color: $c-pool;
+    border-image-slice: 3%;
+    border-image-repeat: initial;
+    border-image-outset: 0;
+    border-image-width: 2px;
+    border-image-source: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyhpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNi1jMDY3IDc5LjE1Nzc0NywgMjAxNS8wMy8zMC0yMzo0MDo0MiAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIDIwMTUgKE1hY2ludG9zaCkiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6MTg0NjVDRkVGMEVFMTFFNkE0QjVFRTJGNEI1ODc0RDMiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6MTg0NjVDRkZGMEVFMTFFNkE0QjVFRTJGNEI1ODc0RDMiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDoxODQ2NUNGQ0YwRUUxMUU2QTRCNUVFMkY0QjU4NzREMyIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDoxODQ2NUNGREYwRUUxMUU2QTRCNUVFMkY0QjU4NzREMyIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PpeetfIAAAMnSURBVHja7N1PatwwFMfxJ5NlKT1DIfQKWZfSA/Q0hexDL9McoOQAPUKglwhp6dZ9Ho/HfyTZs6l+b/E1GDm27IH5oH9Pyji9//7XfLtNZt88/eT722TzlvrFseXHaXFmypuO8vd5nmW6nyeNefrKfZv7i9f75blU/NzafXvns2dV7tl8zqsnT55+9f3Xjf/xwQ9+evou+xLB+N8Ydi4AX3z/6PnvOj94AEOGMV/rB4P00J2rKTC0GNOTPne0GWEwhv1NB0YYjNPWgREHI00gYMTAOIGAEQdjuKcDIw7GXGWBEQJjrLLACIORrFBlgaHDsG2VBYYWY1VlgaHHSH3WqIOhxLB1ow6GGmPRqIMRAeMMAkYUDFuGTsDQYwxP6MCIg1Hp9oKhwih0e8FQYthuLAuM5hj1WBYYEoxUjGWBIcOwrFEHQ4qxLiFgyDFOvSww4mCM8yFghMEoDgzB0GGk2owhGBoMq5UQMDQYxRIChg4ja0PA0GLYMrgIhh7jUkLAiIExV1lghMA4GBiC0RrjNIULRhyMysAQDBVGYWAIhhJjM6cOhhpjUULAiIAxr1wEIwTGPDAEIwTGWGWBEQajHu0FQ4JRjvaCIcPIo71gSDHW0V4w5Bj5SB0MKUZxoRwYOoxsPgQMLcZqPgQMPUaxUQdDh2HVcQgYEoxUHIeAIcPIqywwpBjrKgsMOcb8f+pghMDIwu9gaDFWI3Uw9Bg2N+pgRMA497LAiIJRXf0OhgajuPodDB3G1dFeMNpgXBXtBaMdxmG0F4y2GLvRXjDaY2wGhmCoMawU7QVDh5G20V4wtBjzwBCMEBiXVx6BEQPjsJcFRluM3V4WGO0xqr0sMDQYVuplgaHDWL1YEgw9hi17WWDoMVJ1ChcMCYYVp3DBkGFUl5KCocGw6deAwIiBYUfBRTDaYmTdXjC0GFYLLoKhwSj+cAAYOgzbBhfB0GKsgotg6DGuWrkIRjuMudsLRgiMsQ0BIwzG5ZVHYMTAmKqsVzBiYPj2Z+j2PoERAmM4/2MoIfe+v4Ahx3jx5H4AefYLd37q0Y9/g9EcY/jOHz11A3v+J8AA9wisahRCWTQAAAAASUVORK5CYII=);
+    cursor: move;
+    &:hover {
+      cursor: move;
+    }
+    .dash-graph--heading {
+      background-color: $g5-pepper;
+      cursor: move;
+    }
+  }
+  & > .react-resizable-handle {
+    background-image: none;
+    cursor: nwse-resize;
+    &:before,
+    &:after {
+      content: '';
+      display: block;
+      position: absolute;
+      height: 2px;
+      border-radius: 1px;
+      background-color: $g6-smoke;
+      transition: background-color 0.25s ease;
+      top: 50%;
+      left: 50%;
+      border: 0;
+    }
+    &:before {
+      width: 20px;
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+    &:after {
+      width: 12px;
+      transform: translate(-3px, 2px) rotate(-45deg);
+    }
+    &:hover {
+      &:before,
+      &:after {
+        background-color: $c-comet;
+      }
+    }
+  }
+}
+
+/*
+  Dashboard Empty State
+  ------------------------------------------------------
+*/
+
+@import '../components/dashboard-empty';
+/*
+  Template Control Bar
+  ------------------------------------------------------
+*/
+
+@import '../components/template-control-bar';
+/*
+  Cell Editor Overlay
+  ------------------------------------------------------
+*/
+
+@import 'cell-editor-overlay';
+/*
+  Template Variables Manager
+  ------------------------------------------------------
+*/
+
+@import '../components/template-variables-manager';
+/*
+  Edit Template Variable
+  ------------------------------------------------------
+*/
+
+@import '../components/edit-template-variable';
+/*
+  Write Data Form
+  ------------------------------------------------------
+*/
+
+@import '../components/write-data-form';

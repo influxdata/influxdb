@@ -1,0 +1,1 @@
+**We've moved our documentation!** Check out the latest [authentication content](https://docs.influxdata.com/chronograf/latest/administration/managing-security/#oauth-2-0-providers-with-jwt-tokens) on InfluxData's [main docs site](https://docs.influxdata.com/chronograf/latest/).

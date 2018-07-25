@@ -1,0 +1,115 @@
+/*
+    Resizable Container
+    ----------------------------------------------
+*/
+
+$resizer-line-width: 2px;
+$resizer-line-z: 2;
+$resizer-handle-width: 10px;
+$resizer-handle-z: 3;
+$resizer-click-area: 28px;
+$resizer-glow: 14px;
+$resizer-dots: $g3-castle;
+$resizer-color: $g5-pepper;
+$resizer-color-hover: $g8-storm;
+$resizer-color-active: $c-pool;
+$resizer-color-kapacitor: $c-rainforest;
+.resize--container {
+  overflow: hidden !important;
+  &.resize--dragging * {
+    @include no-user-select();
+  }
+}
+
+.resize--top,
+.resize--bottom {
+  position: absolute;
+  width: 100%;
+  left: 0;
+}
+
+.resizer--full-size {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+    Resizable Container Handle
+    ----------------------------------------------
+*/
+
+.resizer--handle {
+  top: 60%;
+  left: 0;
+  height: $resizer-click-area;
+  margin-top: -$resizer-click-area/2;
+  margin-bottom: -$resizer-click-area/2;
+  width: 100%;
+  z-index: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  position: absolute; // Psuedo element for handle
+  &:before {
+    z-index: $resizer-handle-z;
+    color: $resizer-dots;
+    letter-spacing: 1.3px;
+    font-size: 7px;
+    content: '●●●●●●●●●●●●●●●●●●●●●●';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 160px;
+    height: $resizer-handle-width;
+    line-height: $resizer-handle-width;
+    background-color: $resizer-color;
+    border-radius: 3px;
+    white-space: nowrap;
+    text-align: center;
+    transition: background-color 0.25s ease;
+  } // Psuedo element for line
+  &:after {
+    z-index: $resizer-line-z;
+    content: '';
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    width: 100%;
+    height: $resizer-line-width;
+    background-color: $resizer-color;
+    box-shadow: 0 0 0 transparent;
+    transition: background-color 0.19s ease;
+  }
+  &:hover {
+    cursor: ns-resize;
+    &:before {
+      background-color: $resizer-color-hover;
+    }
+    &:after {
+      background-color: $resizer-color-hover;
+    }
+  }
+  &.dragging {
+    &:before,
+    &:after {
+      transition: box-shadow 0.3s ease, background-color 0.3s ease;
+      background-color: $resizer-color-active;
+      box-shadow: 0 0 $resizer-glow $resizer-color-active;
+    }
+  }
+}
+
+/* Kapacitor Theme */
+
+.resizer--handle.resizer--malachite.dragging {
+  &:before,
+  &:after {
+    background-color: $resizer-color-kapacitor;
+    box-shadow: 0 0 $resizer-glow $resizer-color-kapacitor;
+  }
+}

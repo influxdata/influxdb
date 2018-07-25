@@ -1,0 +1,137 @@
+/*
+   Tables
+   -----------------------------------------------------------------------------
+*/
+
+$table--border-color: $g5-pepper;
+$table--highlight-color: $g4-onyx;
+
+.table {
+  width: 100%;
+  max-width: 100%;
+  border-spacing: 0;
+  border-collapse: collapse;
+  margin: 0;
+
+  th,
+  td {
+    font-size: 13px;
+    text-align: left;
+
+    &.monotype {
+      font-family: $code-font;
+      letter-spacing: 0;
+    }
+    &.text-left {
+      text-align: left;
+    }
+    &.text-center {
+      text-align: center;
+    }
+    &.text-right {
+      text-align: right;
+    }
+    & > .text-ellipsis {
+      display: inline-block;
+      width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  // Header
+  > thead > tr > th,
+  > thead > tr > td {
+    color: $g17-whisper;
+    font-weight: 600;
+    padding: 8px;
+    @extend %no-user-select;
+    border: 0;
+    border-bottom: $ix-border solid $table--border-color;
+  }
+
+  // Body
+  > tbody > tr > td {
+    text-align: left;
+    color: $g13-mist;
+    font-weight: 500;
+    padding: 4px 8px;
+    border: 0;
+  }
+}
+
+.table.v-center {
+  td,
+  td > * {
+    vertical-align: middle;
+  }
+}
+
+.table.table-bordered {
+  border: $ix-border solid $table--border-color;
+
+  > thead,
+  > tbody {
+    > tr {
+      > th,
+      > td {
+        border: $ix-border solid $table--border-color;
+      }
+    }
+  }
+}
+
+.table.table-striped {
+  > tbody > tr {
+    &:nth-child(odd) {
+      background-color: $table--highlight-color;
+    }
+    &:nth-child(even) {
+      background-color: transparent;
+    }
+  }
+}
+
+.table.table-highlight > tbody > tr:hover {
+  background-color: $table--highlight-color;
+}
+
+.table > tbody > tr .table--show-on-row-hover {
+  visibility: hidden;
+}
+.table > tbody > tr:hover .table--show-on-row-hover,
+.table > tbody > tr .table--show-on-row-hover.active {
+  visibility: visible;
+}
+
+// For use in a Status column
+.table-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: $g17-whisper;
+
+  &.dot-success {
+    background-color: $c-rainforest;
+  }
+  &.dot-primary {
+    background-color: $c-pool;
+  }
+  &.dot-warning {
+    background-color: $c-pineapple;
+  }
+  &.dot-danger {
+    background-color: $c-dreamsicle;
+  }
+  &.dot-critical {
+    background-color: $c-fire;
+  }
+}
+
+// Ensuring buttons inside tables don't get huge
+.table th .btn,
+.table td .btn {
+  display: inline-block;
+}

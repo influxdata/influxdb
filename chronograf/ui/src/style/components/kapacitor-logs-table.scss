@@ -1,0 +1,128 @@
+/*
+    Styles for Kapacitor Logs Table
+    ----------------------------------------------------------------------------
+*/
+
+$logs-table-header-height: 60px;
+$logs-table-padding: 60px;
+$logs-row-indent: 6px;
+$logs-level-dot: 8px;
+$logs-margin: 4px;
+
+.logs-table {
+  width: 50%;
+  position: relative;
+  height: 100%;
+}
+.logs-table--header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  height: $logs-table-header-height;
+  padding: 0 $logs-table-padding 0 ($logs-table-padding / 2);
+  background-color: $g4-onyx;
+  white-space: nowrap;
+  font-size: 17px;
+  @include no-user-select();
+  letter-spacing: 0.015em;
+  font-weight: 500;
+}
+.logs-table--container {
+  position: absolute !important;
+  top: $logs-table-header-height;
+  left: 0;
+  width: 100%;
+  height: calc(100% - #{$logs-table-header-height}) !important;
+  @include gradient-v(mix($g3-castle, $g2-kevlar),mix($g1-raven, $g0-obsidian));
+}
+
+.logs-table--row {
+  position: relative;
+  padding: 8px ($logs-table-padding - 16px) 8px ($logs-table-padding / 2);
+  border-bottom: 2px solid $g3-castle;
+  transition: background-color 0.25s ease;
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+}
+.logs-table--divider {
+  display: flex;
+  align-items: center;
+}
+.logs-table--level {
+  width: $logs-level-dot;
+  height: $logs-level-dot;
+  border-radius: 50%;
+  position: relative;
+  margin-right: $logs-row-indent;
+
+  &.debug {background-color: $c-comet;}
+  &.info {background-color: $g6-smoke;}
+  &.warn {background-color: $c-pineapple;}
+  &.ok {background-color: $c-pool;}
+  &.error {background-color: $c-dreamsicle;}
+}
+.logs-table--timestamp {
+  font-family: $code-font;
+  font-weight: 500;
+  font-size: 13px;
+  color: $g9-mountain;
+  flex: 1 0 0;
+}
+.logs-table--details {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: $g11-sidewalk;
+  font-weight: 600;
+  padding-left: ($logs-level-dot + $logs-row-indent);
+
+  .error {color: $c-dreamsicle;}
+  .debug {color: $c-comet;}
+}
+
+/* Logs Table Item Types */
+.logs-table--service,
+.logs-table--column h1 {
+  margin-top: 2px;
+}
+.logs-table--session {
+  text-transform: capitalize;
+  font-style: italic;
+}
+.logs-table--service {
+  width: 140px;
+}
+.logs-table--columns {
+  display: flex;
+  flex: 1 0 0;
+  flex-wrap: wrap;
+}
+.logs-table--column {
+  color: $g11-sidewalk;
+  flex: 1 0 50%;
+}
+.logs-table--column h1 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: normal;
+  line-height: 1.42857143em;
+  text-transform: uppercase;
+  color: $g16-pearl;
+}
+.logs-table--key-value {
+  white-space: nowrap;
+  span {
+    color: $c-rainforest;
+  }
+}
+.logs-table--scrollbox {
+  width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  @include custom-scrollbar-round($g0-obsidian,$c-rainforest);
+}

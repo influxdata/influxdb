@@ -1,0 +1,64 @@
+/*
+    Page Sub-Sections
+    ----------------------------------------------------------------------------
+*/
+
+$subsection-font: 17px;
+
+.subsection {
+    .panel {
+        border-top-left-radius: 0;
+    }
+    .panel-heading {
+        height: 60px;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+    .panel-heading + .panel-body {
+        padding-top: 0;
+    }
+    .panel-body {
+        min-height: 500px;
+    }
+    .panel-title {
+        font-size: $subsection-font;
+    }
+}
+
+.subsection--tabs {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.subsection--tab {
+    border-radius: $radius 0 0 $radius;
+    padding: 0 8px 0 16px;
+    height: $chronograf-page-header-height;
+    white-space: nowrap;
+    line-height: $chronograf-page-header-height;
+    text-align: left;
+    font-size: $subsection-font;
+    font-weight: 500;
+    color: $g11-sidewalk;
+    @include no-user-select();
+    transition: background-color 0.25s ease, color 0.25s ease;
+
+    &:hover,
+    &.active {
+        cursor: pointer;
+        color: $g18-cloud;
+        background-color: $g3-castle;
+    }
+}
+
+@media screen and (min-width: $grid--breakpoint-md) {
+    .subsection {
+        .subsection--nav {
+            padding-right: 0;
+        }
+        .subsection--content {
+            padding-left: 0;
+        }
+    }
+}

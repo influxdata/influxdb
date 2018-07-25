@@ -1,0 +1,66 @@
+/*
+  Newsfeed Cell (Status Dash)
+  ------------------------------------------------------
+*/
+
+.newsfeed--container {
+  .fancy-scroll--track-h {
+    display: none;
+  }
+}
+.newsfeed {
+  padding: 0 16px;
+}
+.newsfeed--post {
+  position: relative;
+  margin-bottom: 4px;
+  background-color: $g2-kevlar;
+  border-radius: 3px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+.newsfeed--post-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: $g18-cloud;
+  padding: 12px;
+  padding-right: 76px;
+}
+.newsfeed--date {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 22px;
+  line-height: 20px;
+  background-color: $g3-castle;
+  color: $g10-wolf;
+  font-size: 13px;
+  font-weight: 900;
+  width: 56px;
+  text-align: center;
+  border-bottom-left-radius: 8px;
+}
+.newsfeed--content {
+  padding: 12px;
+
+  /* Condensing default typography styles to better suit the context */
+  p {margin-top: 0;}
+  p, li {font-size: 13px;}
+  blockquote {
+    margin: 0 0 8px 0;
+    padding: 0 12px;
+
+    &:before, &:after {content: none;}
+  }
+  ol, ul {margin: 0 0 8px 0;}
+  li {padding-left: 0;}
+  hr {margin: 8px 0;}
+
+  img {
+    width: calc(100% - 48px);
+    margin: 8px 24px;
+    border-radius: 3px;
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "id": "0fa47984-825b-46f1-9ca5-0366e3220000",
+  "measurement": "mesos",
+  "app": "mesos",
+  "autoflow": true,
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0fa47984-825b-46f1-9ca5-0366e3220007",
+      "name": "Mesos Active Slaves",
+      "queries": [
+        {
+          "query": "SELECT max(\"master/slaves_active\") AS \"Active Slaves\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "label": "count",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0fa47984-825b-46f1-9ca5-0366e3220001",
+      "name": "Mesos Tasks Active",
+      "queries": [
+        {
+          "query": "SELECT max(\"master/tasks_running\") AS \"num tasks\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "label": "count",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0fa47984-825b-46f1-9ca5-0366e3220004",
+      "name": "Mesos Tasks",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"master/tasks_finished\"), 60s) AS \"tasks finished\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "label": "count",
+          "groupbys": [],
+          "wheres": []
+        },
+        {
+          "query": "SELECT non_negative_derivative(max(\"master/tasks_failed\"), 60s) AS \"tasks failed\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "groupbys": [],
+          "wheres": []
+        },
+        {
+          "query": "SELECT non_negative_derivative(max(\"master/tasks_killed\"), 60s) AS \"tasks killed\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0fa47984-825b-46f1-9ca5-0366e3220005",
+      "name": "Mesos Outstanding offers",
+      "queries": [
+        {
+          "query": "SELECT max(\"master/outstanding_offers\") AS \"Outstanding Offers\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "label": "count",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0fa47984-825b-46f1-9ca5-0366e3220002",
+      "name": "Mesos Available/Used CPUs",
+      "queries": [
+        {
+          "query": "SELECT max(\"master/cpus_total\") AS \"cpu total\", max(\"master/cpus_used\") AS \"cpu used\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "label": "count",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0fa47984-825b-46f1-9ca5-0366e3220003",
+      "name": "Mesos Available/Used Memory",
+      "queries": [
+        {
+          "query": "SELECT max(\"master/mem_total\") AS \"memory total\", max(\"master/mem_used\") AS \"memory used\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "label": "MB",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0fa47984-825b-46f1-9ca5-0366e3220008",
+      "name": "Mesos Master Uptime",
+      "colors": [],
+      "type": "single-stat",
+      "queries": [
+        {
+          "query": "SELECT max(\"master/uptime_secs\") AS \"uptime\" FROM \":db:\".\":rp:\".\"mesos\"",
+          "label": "Seconds",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

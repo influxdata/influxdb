@@ -1,0 +1,256 @@
+/*
+   Typography
+   -----------------------------------------------------------------------------
+*/
+
+body {
+  font-family: $ix-text-font;
+  color: $ix-text-default;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Base Link Styles
+// -----------------------------------------------------------------------------
+a:link,
+a:visited {
+  color: $ix-link-default;
+  transition: color 0.2s ease;
+  text-decoration: none;
+  font-weight: 700;
+
+  &.link-danger {
+    color: $ix-link-danger;
+  }
+  &.link-success {
+    color: $ix-link-success;
+  }
+  &.link-warning {
+    color: $ix-link-warning;
+  }
+  &.link-info {
+    color: $ix-link-info;
+  }
+}
+a:hover,
+a:active {
+  color: $ix-link-default-hover;
+  text-decoration: none;
+
+  &.link-danger {
+    color: $ix-link-danger-hover;
+  }
+  &.link-success {
+    color: $ix-link-success-hover;
+  }
+  &.link-warning {
+    color: $ix-link-warning-hover;
+  }
+  &.link-info {
+    color: $ix-link-info-hover;
+  }
+}
+
+// Selection Styles
+// -----------------------------------------------------------------------------
+::selection {
+  background-color: $ix-text-selection-bg;
+  color: $ix-text-selection-color; /* WebKit/Blink Browsers */
+}
+::-moz-selection {
+  background-color: $ix-text-selection-bg;
+  color: $ix-text-selection-color; /* Gecko Browsers */
+}
+
+// Typography Base Styles
+// -----------------------------------------------------------------------------
+
+%type-base-styles {
+  margin: $ix-marg-b 0 0.55em 0;
+}
+%type-small-styles {
+  small {
+    font-size: 0.8em;
+    font-weight: inherit;
+    color: $ix-text-lighter;
+  }
+}
+
+// Typographic Elements
+// -----------------------------------------------------------------------------
+p {
+  @extend %type-base-styles;
+  font-size: $ix-text-base;
+  line-height: 1.55em;
+  font-weight: 400;
+
+  b,strong {
+    font-weight: 900;
+  }
+
+  small {
+    color: $ix-text-light;
+    font-size: $ix-text-tiny;
+    font-weight: 500;
+  }
+}
+
+h1 {
+  @extend %type-base-styles;
+  @extend %type-small-styles;
+  line-height: 1.25em;
+  font-size: $ix-text-base-5;
+  font-weight: 300;
+  letter-spacing: -1px;
+}
+h2 {
+  @extend %type-base-styles;
+  @extend %type-small-styles;
+  line-height: 1.25em;
+  font-size: $ix-text-base-4;
+  font-weight: 300;
+  letter-spacing: -1px;
+}
+h3 {
+  @extend %type-base-styles;
+  @extend %type-small-styles;
+  line-height: 1.25em;
+  font-size: $ix-text-base-3;
+  font-weight: 400;
+  small {
+    font-weight: 400;
+  }
+}
+h4 {
+  @extend %type-base-styles;
+  @extend %type-small-styles;
+  line-height: 1.25em;
+  font-size: $ix-text-base-2;
+  font-weight: 400;
+  small {
+    font-weight: 400;
+  }
+}
+h5 {
+  @extend %type-base-styles;
+  @extend %type-small-styles;
+  line-height: 1.25em;
+  font-size: $ix-text-base-1;
+  font-weight: 600;
+  small {
+    font-weight: 500;
+  }
+}
+h6 {
+  @extend %type-base-styles;
+  @extend %type-small-styles;
+  line-height: 1.25em;
+  font-size: $ix-text-base;
+  font-weight: 900;
+  small {
+    font-weight: 500;
+  }
+}
+ol,ul {
+  @extend %type-base-styles;
+  padding-left: $ix-marg-c;
+  font-size: $ix-text-base;
+  line-height: 1.55em;
+  font-weight: 500;
+}
+li {
+  margin: 0 0 $ix-marg-b 0;
+  padding-left: $ix-marg-b;
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+blockquote {
+  @extend %type-base-styles;
+  font-size: $ix-text-base;
+  line-height: 1.55em;
+  font-weight: 400;
+  border: 0;
+  padding: $ix-marg-b $ix-marg-c;
+  color: $ix-text-light;
+  font-style: italic;
+  position: relative;
+
+  &:before,
+  &:after {
+    content: '';
+    position: absolute;
+    width: $ix-marg-e;
+    height: $ix-marg-d;
+    border-style: solid;
+    border-color: $g5-pepper;
+  }
+  &:before {
+    top: 0;
+    left: 0;
+    border-width: $ix-border 0 0 $ix-border;
+  }
+  &:after {
+    bottom: 0;
+    right: 0;
+    border-width: 0 $ix-border $ix-border 0;
+  }
+
+  b,strong {
+    font-weight: 900;
+  }
+}
+hr {
+  border:0;
+  height: 2px;
+  margin: $ix-marg-c 0 $ix-marg-d 0;
+  background-color: $g5-pepper;
+  border-radius: 1px;
+  &.dark {
+    background-color: $g3-castle;
+  }
+}
+
+// Type Formatting
+b,strong {
+  font-weight: 900;
+}
+mark {
+  background-color: $c-emerald;
+  color: $c-honeydew;
+  padding: $ix-border $ix-marg-a;
+  border-radius: $ix-radius-sm;
+}
+
+// Text Selection Styling
+::selection {
+  background-color: $c-pool;
+  color: $g20-white;
+}
+::-moz-selection {
+  background-color: $c-pool;
+  color: $g20-white;
+}
+br {
+  @extend %no-user-select;
+}
+
+//  Colored Text Utilities
+//  ----------------------------------------------------------------------------
+span.text-color {
+  &-primary {
+    color: $c-pool;
+  }
+  &-success {
+    color: $c-rainforest;
+  }
+  &-warning {
+    color: $c-pineapple;
+  }
+  &-danger {
+    color: $c-curacao;
+  }
+  &-info {
+    color: $c-star;
+  }
+}

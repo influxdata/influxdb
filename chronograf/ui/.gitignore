@@ -1,0 +1,9 @@
+node_modules/
+artifacts/
+spec/allSpecs.js
+dev/
+dist/
+bower_components/
+log/
+.tern-project
+yarn-error.log

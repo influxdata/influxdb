@@ -1,0 +1,29 @@
+/*
+    Search Widget
+    ----------------------------------------------------------------------------
+*/
+
+.search-widget {
+  position: relative;
+
+  input.form-control {
+    position: relative;
+    z-index: 1;
+    padding-left: 34px;
+
+    &:focus + .icon {
+      color: $c-pool;
+    }
+  }
+
+  .icon {
+    position: absolute;
+    color: $g10-wolf;
+    top: 50%;
+    left: 20px;
+    transform: translate(-50%,-50%);
+    z-index: 4;
+    transition:
+      color 0.25s ease;
+  }
+}

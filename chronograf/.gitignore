@@ -1,0 +1,25 @@
+# Directories
+ui/reports/
+build/
+backup/
+.vscode/
+
+# Binaries
+/chronograf
+/chronoctl
+
+# Dotfiles
+.pull-request
+.DS_Store
+.godep
+.jsdep
+.jssrc
+.dev-jssrc
+.bindata
+
+# Files
+chronograf*.db
+*_gen.go
+canned/apps_gen.go
+npm-debug.log
+yarn-error.log

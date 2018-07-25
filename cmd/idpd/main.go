@@ -15,6 +15,7 @@ import (
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
+	"github.com/influxdata/platform/chronograf/server"
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/kit/prom"
 	"github.com/prometheus/client_golang/prometheus"
@@ -102,6 +103,12 @@ func platformF(cmd *cobra.Command, args []string) {
 		dashboardSvc = c
 	}
 
+	chronografSvc, err := server.NewServiceV2(context.TODO(), c.DB())
+	if err != nil {
+		logger.Error("failed creating chronograf service", zap.Error(err))
+		os.Exit(1)
+	}
+
 	errc := make(chan error)
 
 	sigs := make(chan os.Signal, 1)
@@ -129,12 +136,19 @@ func platformF(cmd *cobra.Command, args []string) {
 		authHandler.AuthorizationService = authSvc
 		authHandler.Logger = logger.With(zap.String("handler", "auth"))
 
+		assetHandler := http.NewAssetHandler()
+
+		// TODO(desa): what to do about idpe.
+		chronografHandler := http.NewChronografHandler(chronografSvc)
+
 		platformHandler := &http.PlatformHandler{
 			BucketHandler:        bucketHandler,
 			OrgHandler:           orgHandler,
 			UserHandler:          userHandler,
 			AuthorizationHandler: authHandler,
 			DashboardHandler:     dashboardHandler,
+			AssetHandler:         assetHandler,
+			ChronografHandler:    chronografHandler,
 		}
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
 

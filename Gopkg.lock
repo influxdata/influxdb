@@ -2,6 +2,18 @@
 
 
 [[projects]]
+  name = "github.com/NYTimes/gziphandler"
+  packages = ["."]
+  revision = "2600fb119af974220d3916a5916d6e31176aac1b"
+  version = "v1.0.1"
+
+[[projects]]
+  name = "github.com/Sirupsen/logrus"
+  packages = ["."]
+  revision = "3e01752db0189b9157070a0e1668a620f9a85da2"
+  version = "v1.0.6"
+
+[[projects]]
   name = "github.com/alecthomas/kingpin"
   packages = ["."]
   revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
@@ -35,7 +47,7 @@
     ".",
     "handlers/cli"
   ]
-  revision = "ff0f66940b829dc66c81dad34746d4349b83eb9e"
+  revision = "941dea75d3ebfbdd905a5d8b7b232965c5e5c684"
 
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
@@ -50,6 +62,7 @@
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
     "aws/credentials/stscreds",
+    "aws/csm",
     "aws/defaults",
     "aws/ec2metadata",
     "aws/endpoints",
@@ -58,8 +71,11 @@
     "aws/signer/v4",
     "internal/sdkio",
     "internal/sdkrand",
+    "internal/sdkuri",
     "internal/shareddefaults",
     "private/protocol",
+    "private/protocol/eventstream",
+    "private/protocol/eventstream/eventstreamapi",
     "private/protocol/query",
     "private/protocol/query/queryutil",
     "private/protocol/rest",
@@ -68,8 +84,8 @@
     "service/s3",
     "service/sts"
   ]
-  revision = "cf00d544fc3c02f31e05e8d02444a1325d3a840b"
-  version = "v1.13.53"
+  revision = "bc3f534c19ffdf835e524e11f0f825b3eaf541c3"
+  version = "v1.14.31"
 
 [[projects]]
   branch = "master"
@@ -82,6 +98,12 @@
   name = "github.com/blakesmith/ar"
   packages = ["."]
   revision = "8bd4349a67f2533b078dbc524689d15dba0f4659"
+
+[[projects]]
+  name = "github.com/bouk/httprouter"
+  packages = ["."]
+  revision = "ee8b3818a7f51fbc94cc709b5744b52c2c725e91"
+  version = "v2.0"
 
 [[projects]]
   name = "github.com/c-bata/go-prompt"
@@ -120,6 +142,18 @@
   version = "v1.3.0"
 
 [[projects]]
+  name = "github.com/dgrijalva/jwt-go"
+  packages = ["."]
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
+
+[[projects]]
+  name = "github.com/elazarl/go-bindata-assetfs"
+  packages = ["."]
+  revision = "30f82fa23fd844bd5bb1e5f216db87fd77b5eb43"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/fatih/color"
   packages = ["."]
   revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
@@ -134,8 +168,8 @@
 [[projects]]
   name = "github.com/go-ini/ini"
   packages = ["."]
-  revision = "6529cf7c58879c08d927016dde4477f18a0634cb"
-  version = "v1.36.0"
+  revision = "358ee7663966325963d4e8b2e1fbd570c5195153"
+  version = "v1.38.1"
 
 [[projects]]
   name = "github.com/gogo/protobuf"
@@ -242,7 +276,7 @@
   branch = "master"
   name = "github.com/google/go-github"
   packages = ["github"]
-  revision = "8ea2e2657df890db8fb434a9274799d641bd698c"
+  revision = "e1be32f26e66c63933619603172ead18ebf4f79d"
 
 [[projects]]
   branch = "master"
@@ -257,8 +291,8 @@
     "tar",
     "zip"
   ]
-  revision = "c373877947a8e6aeca89a9baf33c313c8371a7b8"
-  version = "v1.1.1"
+  revision = "f83c3f651b008c42ee5d316770ebf54f383ffe13"
+  version = "v1.1.2"
 
 [[projects]]
   name = "github.com/goreleaser/goreleaser"
@@ -272,10 +306,11 @@
     "internal/builders/golang",
     "internal/client",
     "internal/deprecate",
-    "internal/filenametemplate",
     "internal/git",
+    "internal/http",
     "internal/linux",
-    "internal/nametemplate",
+    "internal/semerrgroup",
+    "internal/tmpl",
     "pipeline",
     "pipeline/archive",
     "pipeline/artifactory",
@@ -293,6 +328,7 @@
     "pipeline/git",
     "pipeline/nfpm",
     "pipeline/project",
+    "pipeline/put",
     "pipeline/release",
     "pipeline/s3",
     "pipeline/scoop",
@@ -300,8 +336,8 @@
     "pipeline/snapcraft",
     "pipeline/snapshot"
   ]
-  revision = "b5c789ec896c13a787719ecb799f83b04d16cd6f"
-  version = "v0.76.0"
+  revision = "170e6c6b25b0f3375ebf409651e38874b1199d2e"
+  version = "v0.81.0"
 
 [[projects]]
   name = "github.com/goreleaser/nfpm"
@@ -311,8 +347,8 @@
     "glob",
     "rpm"
   ]
-  revision = "d2eaeef92bdb3ead4ee45852b10b81f4c650f4fc"
-  version = "v0.9.0"
+  revision = "923d6a7473bfdbe7a583b7f3df1f3f780b1b73ab"
+  version = "v0.9.3"
 
 [[projects]]
   branch = "master"
@@ -334,8 +370,8 @@
 [[projects]]
   name = "github.com/imdario/mergo"
   packages = ["."]
-  revision = "9d5f1277e9a8ed20c3684bda8fde67c05628518c"
-  version = "v0.3.4"
+  revision = "9316a62528ac99aaecb4e47eadd6dc8aa6533d58"
+  version = "v0.3.5"
 
 [[projects]]
   name = "github.com/inconshreveable/mousetrap"
@@ -374,6 +410,18 @@
   revision = "a7d76c6f093a59b94a01c6c2b8429122d444a8cc"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/influxdata/usage-client"
+  packages = ["v1"]
+  revision = "6d3895376368aa52a3a81d2a16e90f0f52371967"
+
+[[projects]]
+  name = "github.com/jessevdk/go-flags"
+  packages = ["."]
+  revision = "c6ca198ec95c841fdb89fc0de7496fed11ab854e"
+  version = "v1.4.0"
+
+[[projects]]
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
   revision = "0b12d6b5"
@@ -388,6 +436,12 @@
   name = "github.com/julienschmidt/httprouter"
   packages = ["."]
   revision = "d1898390779332322e6b5ca5011da4bf249bb056"
+
+[[projects]]
+  name = "github.com/kevinburke/go-bindata"
+  packages = ["."]
+  revision = "fb8a22f0e4d56d895765b12de81fcc127b096a77"
+  version = "v3.9.0"
 
 [[projects]]
   name = "github.com/magiconair/properties"
@@ -438,7 +492,7 @@
   branch = "master"
   name = "github.com/mitchellh/go-homedir"
   packages = ["."]
-  revision = "b8bc1bf767474819792c23f32d8286a45736f1c6"
+  revision = "3864e76763d94a6df2f9960b16a20a33da9f9a66"
 
 [[projects]]
   branch = "master"
@@ -577,6 +631,12 @@
   version = "v1.0.2"
 
 [[projects]]
+  name = "github.com/tylerb/graceful"
+  packages = ["."]
+  revision = "4654dfbb6ad53cb5e27f37d99b02e16c1872fbbb"
+  version = "v1.2.15"
+
+[[projects]]
   name = "github.com/uber/jaeger-client-go"
   packages = [
     ".",
@@ -633,6 +693,12 @@
 
 [[projects]]
   branch = "master"
+  name = "golang.org/x/crypto"
+  packages = ["ssh/terminal"]
+  revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -651,6 +717,8 @@
   name = "golang.org/x/oauth2"
   packages = [
     ".",
+    "github",
+    "heroku",
     "internal"
   ]
   revision = "dd5f5d8e78ce062a4aa881dff95a94f2a0fd405a"
@@ -664,7 +732,10 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix"]
+  packages = [
+    "unix",
+    "windows"
+  ]
   revision = "7c87d13f8e835d2fb3a70a2912c811ed0c1d241b"
 
 [[projects]]
@@ -697,6 +768,17 @@
     "internal/fastwalk"
   ]
   revision = "28aef64757f4d432485ab970b094e1af8b301e84"
+
+[[projects]]
+  branch = "master"
+  name = "google.golang.org/api"
+  packages = [
+    "gensupport",
+    "googleapi",
+    "googleapi/internal/uritemplates",
+    "oauth2/v2"
+  ]
+  revision = "cd7aead8ef3786a3a18faf2d54d3960991153b64"
 
 [[projects]]
   name = "google.golang.org/appengine"
@@ -759,6 +841,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "442e221842c1496bc229b0fe37cae582da6a0d3bdf8a8b2d9e905522cdc2e132"
+  inputs-digest = "b9db764d51c0ab5a91f4bedf6befa4ca7d562b9f310441e77dd74dfa1f739d71"
   solver-name = "gps-cdcl"
   solver-version = 1

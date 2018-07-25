@@ -1,0 +1,358 @@
+/*
+    Sidebar Navigation Styles
+    ----------------------------------------------
+*/
+
+$sidebar--width: 60px;
+
+$sidebar--gradient-start: $g7-graphite;
+$sidebar--gradient-end: $g4-onyx;
+
+$sidebar--logo-bg: $g19-ghost;
+$sidebar--logo-color: $c-pool;
+$sidebar--logo-bg-hover: $g20-white;
+$sidebar--logo-color-hover: $c-laser;
+
+$sidebar--item-bg: transparent;
+$sidebar--item-bg-hover: $c-pool;
+$sidebar--item-bg-active: $g4-onyx;
+$sidebar--icon: $g11-sidewalk;
+$sidebar--icon-hover: $g20-white;
+$sidebar--icon-active: $g20-white;
+
+$sidebar-menu--bg: $c-pool;
+$sidebar-menu--bg-accent: $c-comet;
+$sidebar-menu--item-bg: $c-ocean;
+$sidebar-menu--item-bg-accent: $c-star;
+$sidebar-menu--item-bg-hover: $c-laser;
+$sidebar-menu--item-bg-hover-accent: $c-potassium;
+$sidebar-menu--item-text: $c-neutrino;
+$sidebar-menu--item-text-hover: $g20-white;
+$sidebar-menu--item-text-active: $g20-white;
+$sidebar-menu--gutter: 18px;
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: $sidebar--width;
+  @include gradient-v($sidebar--gradient-start,$sidebar--gradient-end);
+}
+.sidebar--bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: $sidebar--width;
+}
+
+/*
+    Sidebar Items
+    ----------------------------------------------
+*/
+.sidebar--item {
+  width: $sidebar--width;
+  height: $sidebar--width;
+  position: relative;
+}
+.sidebar--square {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: $sidebar--item-bg;
+  transition: none;
+}
+.sidebar--icon {
+  position: absolute;
+  color: $sidebar--icon;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: $sidebar--width * 0.4222;
+  transition:
+    text-shadow 0.4s ease;
+}
+/*
+  Sidebar Item Active State
+*/
+.sidebar--item.active {
+  .sidebar--square {background-color: $sidebar--item-bg-active;}
+  .sidebar--icon {
+    color: $sidebar--icon-active;
+    text-shadow:
+      0 0 9px $c-laser,
+      0 0 15px $c-ocean,
+      0 0 20px $c-amethyst;
+  }
+}
+
+/*
+  Sidebar Item Hover State
+*/
+.sidebar--item:hover {
+  cursor: pointer;
+  z-index: 5;
+
+  .sidebar--square {background-color: $sidebar--item-bg-hover;}
+  .sidebar--icon {color: $sidebar--icon-hover;}
+  .sidebar-menu {display: flex;}
+}
+.sidebar--item.active:hover .sidebar--icon {
+  text-shadow:
+    0 0 9px $c-yeti,
+    0 0 15px $c-hydrogen,
+    0 0 20px $c-laser;
+}
+/*
+  Sidebar Logo Square
+*/
+.sidebar--square.sidebar--logo {
+  background-color: $sidebar--logo-bg;
+  .sidebar--icon {color: $sidebar--logo-color;}
+}
+.sidebar--item:hover .sidebar--square.sidebar--logo {
+  background-color: $sidebar--logo-bg-hover;
+  .sidebar--icon {color: $sidebar--logo-color-hover;}
+}
+.sidebar--item.active .sidebar--square.sidebar--logo {
+  background-color: $sidebar--logo-bg-hover;
+  .sidebar--icon {
+    color: $sidebar--logo-color-hover;
+    text-shadow:
+      0 0 9px $c-hydrogen,
+      0 0 15px $c-neutrino,
+      0 0 20px $c-yeti;
+  }
+}
+
+/*
+    Sidebar Sub Menus
+    ----------------------------------------------
+*/
+.sidebar-menu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  border-radius: 0 $radius $radius 0;
+  @include gradient-h($sidebar-menu--bg,$sidebar-menu--bg-accent);
+  transition: opacity 0.25s ease;
+  display: none;
+  flex-direction: column;
+}
+.sidebar-menu--heading,
+.sidebar-menu--item {
+  width: 100%;
+  white-space: nowrap;
+  display: block;
+  @include no-user-select();
+  &:hover {
+    cursor: pointer;
+  }
+}
+.sidebar-menu--heading.sidebar--no-hover,
+.sidebar-menu--heading.sidebar--no-hover:hover {
+  cursor: default;
+}
+.sidebar-menu--item,
+.sidebar-menu--item:link,
+.sidebar-menu--item:active,
+.sidebar-menu--item:visited {
+  color: $sidebar-menu--item-text;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  position: relative;
+  padding: 4px $sidebar-menu--gutter;
+  transition: none;
+
+  // Rounding bottom outside corner of match container
+  &:nth-last-child(2) {border-bottom-right-radius: $radius;}
+}
+.sidebar-menu--item.active,
+.sidebar-menu--item.active:link,
+.sidebar-menu--item.active:active,
+.sidebar-menu--item.active:visited {
+  @include gradient-h($sidebar-menu--item-bg,$sidebar-menu--item-bg-accent);
+  color: $sidebar-menu--item-text-active;
+  font-weight: 700;
+}
+.sidebar-menu--item:hover,
+.sidebar-menu--item.active:hover {
+  @include gradient-h($sidebar-menu--item-bg-hover,$sidebar-menu--item-bg-hover-accent);
+  color: $sidebar-menu--item-text-hover;
+}
+.sidebar-menu--heading,
+.sidebar-menu--heading:link,
+.sidebar-menu--heading:visited,
+.sidebar-menu--heading:active,
+.sidebar-menu--heading:hover, {
+  color: $g20-white;
+  height: $sidebar--width;
+  line-height: $sidebar--width;
+  font-size: 19px;
+  font-weight: 400;
+  padding: 0px $sidebar-menu--gutter;
+}
+.sidebar-menu--item > strong {
+  opacity: 0.6;
+}
+// Invisible triangle for easier mouse movement when navigating to sub items
+.sidebar-menu--triangle {
+  position: absolute;
+  z-index: -1;
+}
+.sidebar-menu .sidebar-menu--triangle {
+  width: 50px;
+  height: 60px;
+  bottom: 12px;
+  left: 6px;
+  transform: translate(-50%,-50%) rotate(30deg);
+}
+
+.sidebar-menu--section {
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 22px;
+  font-weight: 600;
+  padding: 4px $sidebar-menu--gutter;
+  text-transform: uppercase;
+  color: $c-hydrogen;
+  @include no-user-select();
+  position: relative;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    @include gradient-h($c-laser,$c-potassium);
+  }
+}
+
+// SuperAdminIndicator
+span.icon.sidebar--icon.sidebar--icon__superadmin {
+  font-size: 11px;
+  top: 26%;
+}
+.sidebar-menu--superadmin {
+  padding: 4px $sidebar-menu--gutter;
+  font-size: 15px;
+  font-weight: 500;
+  @include no-user-select();
+
+  > div {
+    @include gradient-h($c-pineapple,$c-tiger);
+    color: $c-sapphire;
+  }
+  span.icon {
+    display: inline-block;
+    margin-right: 6px;
+    position: relative;
+    top: -2px;
+  }
+  &:hover {
+    cursor: default;
+  }
+}
+
+.sidebar-menu--provider {
+  padding: 4px $sidebar-menu--gutter;
+  font-size: 15px;
+  font-weight: 500;
+  @include no-user-select();
+
+  > div {
+    @include gradient-h($c-rainforest,$c-pool);
+    color: $g20-white;
+  }
+  span.icon {
+    display: inline-block;
+    margin-right: 6px;
+    position: relative;
+    top: -2px;
+  }
+  &:hover {
+    cursor: default;
+  }
+}
+.sidebar-menu--superadmin > div,
+.sidebar-menu--provider > div {
+  display: flex;
+  padding: 4px 8px;
+  align-items: center;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.fancy-scroll--container.sidebar-menu--scrollbar {
+  .fancy-scroll--thumb-h {display: none !important;}
+  .fancy-scroll--thumb-v { @include gradient-v($g20-white,$c-neutrino); }
+}
+
+.sidebar-menu--user-nav {
+  top: initial;
+  bottom: 0;
+
+  .sidebar-menu--section__custom-links  { order: 0; }
+  .sidebar-menu--item__link-name        { order: 1; }
+  .sidebar-menu--section__switch-orgs   { order: 2; }
+  .sidebar-menu--scrollbar              { order: 3; }
+  .sidebar-menu--section__account       { order: 4; }
+  .sidebar-menu--provider               { order: 5; }
+  .sidebar-menu--item__logout           { order: 6; }
+  .sidebar-menu--heading                { order: 7; }
+  .sidebar-menu--triangle               { order: 8; }
+  
+  .sidebar-menu--section__custom-links:after {
+    display: none;
+    border-top-right-radius: $radius;
+  }
+}
+
+@media only screen and (min-height: 800px) {
+  .sidebar-menu--user-nav {
+    top: 0;
+    bottom: initial;
+
+    .sidebar-menu--heading                { order: 0; }
+    .sidebar-menu--section__account       { order: 1; }
+    .sidebar-menu--provider               { order: 2; }
+    .sidebar-menu--item__logout           { order: 3; }
+    .sidebar-menu--section__switch-orgs   { order: 4; }
+    .sidebar-menu--scrollbar              { order: 5; }
+    .sidebar-menu--section__custom-links  { order: 6; }
+    .sidebar-menu--item__link-name        { order: 7; }
+    .sidebar-menu--triangle               { order: 8; }
+  
+    .sidebar-menu--section__custom-links:after {
+      display: initial;
+      border-top-right-radius: 0;
+    }
+  
+    .sidebar-menu--triangle {
+      width: 40px;
+      height: 40px;
+      top: $sidebar--width;
+      left: 0;
+      transform: translate(-50%,-50%) rotate(45deg);
+    }
+  }
+}
+
+// Ensures that sidebar menus appear above the rest of the app on hover
+.page, .sidebar {
+  position: relative;
+}
+.page {
+  z-index: 2;
+}
+.sidebar {
+  z-index: 1;
+
+  &:hover {z-index: 2;}
+  &:hover + .page {z-index: 1;}
+}

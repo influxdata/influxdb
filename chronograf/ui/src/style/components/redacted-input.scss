@@ -1,0 +1,13 @@
+.redacted-input {
+  height: 38px;
+  align-items: center;
+  justify-content: space-between;
+}
+.alert-value-set {
+  font-weight: 700;
+  font-size: 13px;
+  color: $c-rainforest;
+  @include no-user-select();
+
+  .icon {margin-right: 5px;}
+}

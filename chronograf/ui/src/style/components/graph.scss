@@ -1,0 +1,166 @@
+/*
+  Variables
+  ---------------------------------------------
+*/
+$graph-heading-height: 44px;
+$graph-gutter: 16px;
+
+/*
+  Graph Styles
+  ---------------------------------------------
+*/
+.graph,
+.graph-heading,
+.graph-container,
+.graph > .table-container {
+  position: relative;
+}
+.graph {
+  margin: 0 $page-wrapper-padding;
+  height: 100%;
+}
+.graph-heading {
+  background-color: $g3-castle;
+  border-radius: $radius $radius 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: $graph-heading-height;
+  top: $graph-gutter;
+  padding: 0 7px;
+  transition:
+    background-color 0.25s ease;
+
+  .toggle-btn {
+    text-transform: capitalize;
+  }
+}
+.graph-name {
+  width: 100%;
+  background-color: transparent;
+  color: $g13-mist;
+  font-size: 15px;
+  line-height: 28px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  position: relative;
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+
+  &:after {
+    content: "\f058";
+    font-family: 'icomoon';
+    position: absolute;
+    font-size: 15px;
+    top: 50%;
+    right: 11px;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    color: $g11-sidewalk;
+  }
+  &:hover {
+    cursor: text;
+    background-color: $g5-pepper;
+    color: $g20-white;
+
+    &:after {opacity: 1;}
+  }
+}
+.graph-name__untitled {
+  color: $g9-mountain;
+  font-style: italic;
+}
+.graph-heading > input[type="text"].form-control {
+  font-size: 14px;
+  line-height: 26px;
+}
+.graph-heading > input[type="text"].form-control,
+.graph-name {
+  height: 30px;
+  font-weight: 600;
+  padding: 0 11px;
+  letter-spacing: 0;
+  font-stretch: normal;
+}
+.graph .table-container,
+.graph-container {
+  top: $graph-gutter;
+  background-color: $g3-castle;
+  border-radius: 0 0 $radius $radius;
+  height: calc(100% - #{($graph-heading-height + ($graph-gutter * 2))});
+}
+.graph .table-container {
+  padding: 8px 16px;
+
+  & > div > div:last-child {
+    position: absolute;
+    top: 30px;
+    height: calc(100% - 30px) !important;
+    width: 100%;
+  }
+  .fixedDataTableLayout_main {
+    height: 100% !important;
+  }
+}
+.graph-container {
+  @include no-user-select();
+
+  & > .dygraph {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+  }
+  & > .dygraph > .dygraph-child {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    padding: 8px 16px;
+  }
+}
+
+.graph-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-content: center;
+  @include no-user-select();
+
+  > p {
+    font-size: 20px;
+    font-weight: 400;
+    margin: 0;
+    text-align: center;
+    color: $g8-storm;
+    white-space: pre-wrap;
+  }
+}
+.graph-fetching {
+  width: 100%;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.graph-spinner {
+  width: 121px !important;
+  height: 121px !important;
+  background-image: url(assets/images/laser-spinner.png);
+  background-size: 100% 100%;
+  background-position: center center;
+  background-repeat: no-repeat;
+  animation: graph-panel-spinner 1s infinite linear;
+}
+
+@keyframes graph-panel-spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
