@@ -34,7 +34,7 @@ func (a *authzSvc) CreateAuthorization(context.Context, *platform.Authorization)
 	return a.Err
 }
 
-func (a *authzSvc) DeleteAuthorization(context.Context, platform.ID) error {
+func (a *authzSvc) DeleteAuthorization(context.Context, *platform.ID) error {
 	return a.Err
 }
 
@@ -47,7 +47,7 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 	reg.MustRegister(svc.PrometheusCollectors()...)
 
 	ctx := context.Background()
-	id := platform.ID{1}
+	id := platform.ID(1)
 
 	if _, err := svc.FindAuthorizationByID(ctx, id); err != nil {
 		t.Fatal(err)
