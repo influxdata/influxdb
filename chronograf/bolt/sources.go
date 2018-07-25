@@ -18,7 +18,7 @@ var SourcesBucket = []byte("Sources")
 
 // DefaultSource is a temporary measure for single-binary.
 var DefaultSource = &chronograf.Source{
-	ID:      math.MaxInt32, // Make largest int64 so that there won't be collisions
+	ID:      math.MaxInt32, // Use large number to avoid possible collisions in older chronograf.
 	Name:    "autogen",
 	Type:    "influx",
 	URL:     "http://localhost:9999",
