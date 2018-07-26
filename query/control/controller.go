@@ -81,12 +81,19 @@ func (c *Controller) QueryWithCompile(ctx context.Context, orgID platform.ID, qu
 	return q, err
 }
 
-// Query submits a query for execution returning immediately.
-// The spec must not be modified while the query is still active.
-// Done must be called on any returned Query objects.
+// Query submits a query for execution returning immediately. Once a query
+// is submitted, that is once a query is enqueued, the query spec must not
+// be modified. Done must be called on any returned Query objects.
 func (c *Controller) Query(ctx context.Context, orgID platform.ID, qSpec *query.Spec) (query.Query, error) {
 	q := c.createQuery(ctx, orgID)
 	q.spec = *qSpec
+
+	// Incoming query spec may have been produced by an entity other than the
+	// Flux interpreter, so we must set the default Now time if not already set.
+	if q.spec.Now.IsZero() {
+		q.spec.Now = q.now
+	}
+
 	err := c.enqueueQuery(q)
 	return q, err
 }
