@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/influxdata/platform/query/querytest"
-	"github.com/pkg/errors"
 
 	"github.com/andreyvit/diff"
 )
@@ -52,11 +51,9 @@ var skipTests = map[string]string{
 	"string_interp":             "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
 }
 
-func Test_QueryEndToEnd(t *testing.T) {
-	qs := querytest.GetQueryServiceBridge()
+var qs = querytest.GetQueryServiceBridge()
 
-	influxqlTranspiler := influxql.NewTranspiler(dbrpMappingSvc)
-
+func withEachFluxFile(t testing.TB, fn func(prefix, caseName string)) {
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -71,33 +68,66 @@ func Test_QueryEndToEnd(t *testing.T) {
 	for _, fluxFile := range fluxFiles {
 		ext := filepath.Ext(fluxFile)
 		prefix := fluxFile[0 : len(fluxFile)-len(ext)]
-
 		_, caseName := filepath.Split(prefix)
-		if reason, ok := skipTests[caseName]; ok {
-			t.Run(caseName, func(t *testing.T) {
-				t.Skip(reason)
-			})
-			continue
-		}
+		fn(prefix, caseName)
+	}
+}
+
+func Test_QueryEndToEnd(t *testing.T) {
+	influxqlTranspiler := influxql.NewTranspiler(dbrpMappingSvc)
+	withEachFluxFile(t, func(prefix, caseName string) {
+		reason, skip := skipTests[caseName]
 
 		fluxName := caseName + ".flux"
 		influxqlName := caseName + ".influxql"
 		t.Run(fluxName, func(t *testing.T) {
-			err := queryTester(t, qs, prefix, ".flux")
-			if err != nil {
-				qs = querytest.GetQueryServiceBridge()
+			if skip {
+				t.Skip(reason)
 			}
+			queryTester(t, qs, prefix, ".flux")
 		})
 		t.Run(influxqlName, func(t *testing.T) {
-			err := queryTranspileTester(t, influxqlTranspiler, qs, prefix, ".influxql")
-			if err != nil {
-				qs = querytest.GetQueryServiceBridge()
+			if skip {
+				t.Skip(reason)
 			}
+			queryTranspileTester(t, influxqlTranspiler, qs, prefix, ".influxql")
 		})
-	}
+	})
 }
 
-func queryTester(t *testing.T, qs query.QueryService, prefix, queryExt string) error {
+func Benchmark_QueryEndToEnd(b *testing.B) {
+	influxqlTranspiler := influxql.NewTranspiler(dbrpMappingSvc)
+	withEachFluxFile(b, func(prefix, caseName string) {
+		reason, skip := skipTests[caseName]
+
+		fluxName := caseName + ".flux"
+		influxqlName := caseName + ".influxql"
+		b.Run(fluxName, func(b *testing.B) {
+			if skip {
+				b.Skip(reason)
+			}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				queryTester(b, qs, prefix, ".flux")
+			}
+		})
+		b.Run(influxqlName, func(b *testing.B) {
+			if skip {
+				b.Skip(reason)
+			}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				queryTranspileTester(b, influxqlTranspiler, qs, prefix, ".influxql")
+			}
+		})
+	})
+}
+
+func queryTester(t testing.TB, qs query.QueryService, prefix, queryExt string) {
 	q, err := querytest.GetTestData(prefix, queryExt)
 	if err != nil {
 		t.Fatal(err)
@@ -116,10 +146,10 @@ func queryTester(t *testing.T, qs query.QueryService, prefix, queryExt string) e
 	csvIn := prefix + ".in.csv"
 	enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
 
-	return QueryTestCheckSpec(t, qs, spec, csvIn, csvOut, enc)
+	QueryTestCheckSpec(t, qs, spec, csvIn, csvOut, enc)
 }
 
-func queryTranspileTester(t *testing.T, transpiler query.Transpiler, qs query.QueryService, prefix, queryExt string) error {
+func queryTranspileTester(t testing.TB, transpiler query.Transpiler, qs query.QueryService, prefix, queryExt string) {
 	q, err := querytest.GetTestData(prefix, queryExt)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -147,12 +177,12 @@ func queryTranspileTester(t *testing.T, transpiler query.Transpiler, qs query.Qu
 	jsonOut, err := querytest.GetTestData(prefix, ".out.json")
 	if err != nil {
 		t.Logf("skipping json evaluation: %s", err)
-		return nil
+		return
 	}
-	return QueryTestCheckSpec(t, qs, spec, csvIn, jsonOut, enc)
+	QueryTestCheckSpec(t, qs, spec, csvIn, jsonOut, enc)
 }
 
-func QueryTestCheckSpec(t *testing.T, qs query.QueryService, spec *query.Spec, inputFile, want string, enc query.MultiResultEncoder) error {
+func QueryTestCheckSpec(t testing.TB, qs query.QueryService, spec *query.Spec, inputFile, want string, enc query.MultiResultEncoder) {
 	t.Helper()
 
 	querytest.ReplaceFromSpec(spec, inputFile)
@@ -160,11 +190,10 @@ func QueryTestCheckSpec(t *testing.T, qs query.QueryService, spec *query.Spec, i
 	got, err := querytest.GetQueryEncodedResults(qs, spec, inputFile, enc)
 	if err != nil {
 		t.Errorf("failed to run query: %v", err)
-		return errors.New("Error running query")
+		return
 	}
 
 	if g, w := strings.TrimSpace(got), strings.TrimSpace(want); g != w {
 		t.Errorf("result not as expected want(-) got (+):\n%v", diff.LineDiff(w, g))
 	}
-	return nil
 }

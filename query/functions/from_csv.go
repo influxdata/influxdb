@@ -3,7 +3,6 @@ package functions
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 
 	"context"
@@ -168,14 +167,12 @@ func (c *CSVSource) Run(ctx context.Context) {
 
 	if maxSet {
 		for _, t := range c.ts {
-			log.Println("UpdateWatermark", max)
 			t.UpdateWatermark(c.id, max)
 		}
 	}
 
 FINISH:
 	for _, t := range c.ts {
-		log.Println("FINISH")
 		t.Finish(c.id, err)
 	}
 }
