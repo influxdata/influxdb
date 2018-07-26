@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"testing"
 )
@@ -20,6 +21,11 @@ func TestIDFromString(t *testing.T) {
 			name: "Should be able to decode an all zeros ID",
 			id:   "0000000000000000",
 			want: ID(0),
+		},
+		{
+			name: "Should be able to decode an all f ID",
+			id:   "ffffffffffffffff",
+			want: ID(math.MaxUint64),
 		},
 		{
 			name: "Should be able to decode an ID",

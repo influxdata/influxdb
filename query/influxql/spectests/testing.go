@@ -18,9 +18,9 @@ import (
 )
 
 var dbrpMappingSvc = mock.NewDBRPMappingService()
-var organizationID *platform.ID //= platform.ID("aaaa")
-var bucketID *platform.ID       //= platform.ID("bbbb")
-var altBucketID *platform.ID    //= platform.ID("cccc")
+var organizationID *platform.ID
+var bucketID *platform.ID
+var altBucketID *platform.ID
 
 func init() {
 	mapping := platform.DBRPMapping{
