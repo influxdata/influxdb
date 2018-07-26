@@ -39,7 +39,9 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 
 	// Server the chronograf assets for any basepath that does not start with addressable parts
 	// of the platform API.
-	if !strings.HasPrefix(r.URL.Path, "/v1/") && !strings.HasPrefix(r.URL.Path, "/chronograf/") {
+	if !strings.HasPrefix(r.URL.Path, "/v1/") &&
+		!strings.HasPrefix(r.URL.Path, "/v2/") &&
+		!strings.HasPrefix(r.URL.Path, "/chronograf/") {
 		h.AssetHandler.ServeHTTP(w, r)
 		return
 	}
@@ -83,7 +85,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	}
 
 	if strings.HasPrefix(r.URL.Path, "/v2/sources") {
-		h.DashboardHandler.ServeHTTP(w, r)
+		h.SourceHandler.ServeHTTP(w, r)
 		return
 	}
 
