@@ -450,8 +450,8 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 	return f.FlushAndSync()
 }
 
-// TagValueSeriesIDIterator returns a series iterator for a tag value.
-func (f *LogFile) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+// TagValueSeriesIDSet returns a series iterator for a tag value.
+func (f *LogFile) TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -472,7 +472,7 @@ func (f *LogFile) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.Series
 		return nil, nil
 	}
 
-	return tsdb.NewSeriesIDSetIterator(tv.seriesIDSet()), nil
+	return tv.seriesIDSet(), nil
 }
 
 // MeasurementN returns the total number of measurements.
@@ -960,7 +960,7 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 		// Add each value.
 		for _, v := range values {
 			value := tag.tagValues[v]
-			if err := enc.EncodeValue(value.name, value.deleted, value.seriesIDs()); err != nil {
+			if err := enc.EncodeValue(value.name, value.deleted, value.seriesIDSet()); err != nil {
 				return err
 			}
 
