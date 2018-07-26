@@ -86,3 +86,8 @@ required = [
 [[constraint]]
   name = "github.com/google/go-github"
   branch = "master"
+
+# We are using v2 branch because no releases have been made using v2.
+[[constraint]]
+  name = "gopkg.in/robfig/cron.v2"
+  branch = "v2"

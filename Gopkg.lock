@@ -1022,6 +1022,14 @@
 
 [[projects]]
   branch = "v2"
+  digest = "1:e8c48aa61ea272e211858e52979ad4d114c60bfe6900d12431ac697482100b0a"
+  name = "gopkg.in/robfig/cron.v2"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "be2e0b0deed5a68ffee390b4583a13aff8321535"
+
+[[projects]]
+  branch = "v2"
   digest = "1:342378ac4dcb378a5448dd723f0784ae519383532f5e70ade24132c4c8693202"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -1082,6 +1090,7 @@
     "golang.org/x/text/unicode/norm",
     "google.golang.org/api/oauth2/v2",
     "google.golang.org/grpc",
+    "gopkg.in/robfig/cron.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
