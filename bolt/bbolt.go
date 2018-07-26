@@ -88,6 +88,11 @@ func (c *Client) initialize(ctx context.Context) error {
 		if err := c.initializeAuthorizations(ctx, tx); err != nil {
 			return err
 		}
+
+		// Always create Source bucket.
+		if err := c.initializeSources(ctx, tx); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return err
