@@ -329,9 +329,8 @@ func (f *IndexFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterat
 	return tsdb.MergeSeriesIDIterators(itrs...)
 }
 
-// TagValueSeriesIDIterator returns a series iterator for a tag value and a flag
-// indicating if a tombstone exists on the measurement, key, or value.
-func (f *IndexFile) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+// TagValueSeriesIDSet returns a series id set for a tag value.
+func (f *IndexFile) TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error) {
 	tblk := f.tblks[string(name)]
 	if tblk == nil {
 		return nil, nil
@@ -341,21 +340,10 @@ func (f *IndexFile) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.Seri
 	var valueElem TagBlockValueElem
 	if !tblk.DecodeTagValueElem(key, value, &valueElem) {
 		return nil, nil
-	}
-
-	// Return iterator based on uvarint encoding, if set.
-	if valueElem.SeriesN() == 0 {
+	} else if valueElem.SeriesN() == 0 {
 		return nil, nil
-	} else if valueElem.SeriesData() != nil {
-		return &rawSeriesIDIterator{n: valueElem.SeriesN(), data: valueElem.SeriesData()}, nil
 	}
-
-	// Otherwise return iterator over roaring.
-	ss, err := valueElem.SeriesIDSet()
-	if err != nil {
-		return nil, err
-	}
-	return tsdb.NewSeriesIDSetIterator(ss), nil
+	return valueElem.SeriesIDSet()
 }
 
 // TagKey returns a tag key.

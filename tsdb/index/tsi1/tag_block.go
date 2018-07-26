@@ -600,7 +600,7 @@ func (enc *TagBlockEncoder) EncodeKey(key []byte, deleted bool) error {
 
 // EncodeValue writes a tag value to the underlying writer.
 // The tag key must be lexicographical sorted after the previous encoded tag key.
-func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []uint64) error {
+func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, ss *tsdb.SeriesIDSet) error {
 	if len(enc.keys) == 0 {
 		return fmt.Errorf("tag key must be encoded before encoding values")
 	} else if len(value) == 0 {
@@ -631,16 +631,12 @@ func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []
 
 	// Build series data in buffer.
 	enc.buf.Reset()
-	ss := tsdb.NewSeriesIDSet()
-	for _, seriesID := range seriesIDs {
-		ss.AddNoLock(seriesID)
-	}
 	if _, err := ss.WriteTo(&enc.buf); err != nil {
 		return err
 	}
 
 	// Write series count.
-	if err := writeUvarintTo(enc.w, uint64(len(seriesIDs)), &enc.n); err != nil {
+	if err := writeUvarintTo(enc.w, uint64(ss.Cardinality()), &enc.n); err != nil {
 		return err
 	}
 

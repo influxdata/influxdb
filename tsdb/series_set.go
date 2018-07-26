@@ -15,10 +15,16 @@ type SeriesIDSet struct {
 }
 
 // NewSeriesIDSet returns a new instance of SeriesIDSet.
-func NewSeriesIDSet() *SeriesIDSet {
-	return &SeriesIDSet{
-		bitmap: roaring.NewBitmap(),
+func NewSeriesIDSet(a ...uint64) *SeriesIDSet {
+	ss := &SeriesIDSet{bitmap: roaring.NewBitmap()}
+	if len(a) > 0 {
+		a32 := make([]uint32, len(a))
+		for i := range a {
+			a32[i] = uint32(a[i])
+		}
+		ss.bitmap.AddMany(a32)
 	}
+	return ss
 }
 
 // Bytes estimates the memory footprint of this SeriesIDSet, in bytes.

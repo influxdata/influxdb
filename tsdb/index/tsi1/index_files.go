@@ -138,19 +138,17 @@ func (p IndexFiles) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterat
 	return tsdb.MergeSeriesIDIterators(a...)
 }
 
-// TagValueSeriesIDIterator returns an iterator that merges series across all files.
-func (p IndexFiles) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
-	a := make([]tsdb.SeriesIDIterator, 0, len(p))
-
+// TagValueSeriesIDSet returns an iterator that merges series across all files.
+func (p IndexFiles) TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error) {
+	ss := tsdb.NewSeriesIDSet()
 	for i := range p {
-		itr, err := p[i].TagValueSeriesIDIterator(name, key, value)
-		if err != nil {
+		if fss, err := p[i].TagValueSeriesIDSet(name, key, value); err != nil {
 			return nil, err
-		} else if itr != nil {
-			a = append(a, itr)
+		} else if fss != nil {
+			ss.Merge(fss)
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...), nil
+	return ss, nil
 }
 
 // CompactTo merges all index files and writes them to w.
@@ -310,7 +308,6 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 		return err
 	}
 
-	var seriesN int
 	enc := NewTagBlockEncoder(w)
 	for ke := kitr.Next(); ke != nil; ke = kitr.Next() {
 		// Encode key.
@@ -325,33 +322,11 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 
 			// Merge all series together.
 			if err := func() error {
-				sitr, err := p.TagValueSeriesIDIterator(name, ke.Key(), ve.Value())
+				ss, err := p.TagValueSeriesIDSet(name, ke.Key(), ve.Value())
 				if err != nil {
 					return err
-				} else if sitr != nil {
-					defer sitr.Close()
-					for {
-						se, err := sitr.Next()
-						if err != nil {
-							return err
-						} else if se.SeriesID == 0 {
-							break
-						}
-						seriesIDs = append(seriesIDs, se.SeriesID)
-
-						// Check for cancellation periodically.
-						if seriesN++; seriesN%1000 == 0 {
-							select {
-							case <-info.cancel:
-								return ErrCompactionInterrupted
-							default:
-							}
-						}
-					}
 				}
-
-				// Encode value.
-				return enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs)
+				return enc.EncodeValue(ve.Value(), ve.Deleted(), ss)
 			}(); err != nil {
 				return nil
 			}
