@@ -10,11 +10,11 @@ import {
   notifyCopyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 
-import {Service, NotificationAction} from 'src/types'
+import {Source, NotificationAction} from 'src/types'
 
 interface Props {
   db: string
-  service: Service
+  source: Source
   notify: NotificationAction
 }
 
@@ -35,10 +35,10 @@ class DatabaseListItem extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {db, service} = this.props
+    const {db, source} = this.props
 
     try {
-      const response = await fetchTagKeys(service, db, [])
+      const response = await fetchTagKeys(source, db, [])
       const tags = parseValuesColumn(response)
       this.setState({tags})
     } catch (error) {
@@ -82,7 +82,7 @@ class DatabaseListItem extends PureComponent<Props, State> {
   }
 
   private get filterAndTagList(): JSX.Element {
-    const {db, service} = this.props
+    const {db, source, notify} = this.props
     const {isOpen, searchTerm} = this.state
 
     return (
@@ -99,7 +99,13 @@ class DatabaseListItem extends PureComponent<Props, State> {
             onChange={this.onSearch}
           />
         </div>
-        <TagList db={db} service={service} tags={this.tags} filter={[]} />
+        <TagList
+          db={db}
+          source={source}
+          tags={this.tags}
+          filter={[]}
+          notify={notify}
+        />
       </div>
     )
   }

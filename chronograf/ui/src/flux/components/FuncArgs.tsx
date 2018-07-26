@@ -6,12 +6,12 @@ import {Func, OnGenerateScript} from 'src/types/flux'
 import {funcNames} from 'src/flux/constants'
 import JoinArgs from 'src/flux/components/JoinArgs'
 import FilterArgs from 'src/flux/components/FilterArgs'
-import {Service} from 'src/types'
+import {Source} from 'src/types'
 import {getDeep} from 'src/utils/wrappers'
 
 interface Props {
   func: Func
-  service: Service
+  source: Source
   bodyID: string
   onChangeArg: OnChangeArg
   declarationID: string
@@ -53,7 +53,7 @@ export default class FuncArgs extends PureComponent<Props> {
     const {
       func,
       bodyID,
-      service,
+      source,
       onChangeArg,
       declarationID,
       onGenerateScript,
@@ -71,7 +71,7 @@ export default class FuncArgs extends PureComponent<Props> {
         bodyID={bodyID}
         funcID={funcID}
         funcName={funcName}
-        service={service}
+        source={source}
         onChangeArg={onChangeArg}
         declarationID={declarationID}
         onGenerateScript={onGenerateScript}
@@ -83,7 +83,7 @@ export default class FuncArgs extends PureComponent<Props> {
     const {
       func,
       bodyID,
-      service,
+      source,
       onChangeArg,
       declarationID,
       onGenerateScript,
@@ -98,7 +98,7 @@ export default class FuncArgs extends PureComponent<Props> {
         declarationID={declarationID}
         onChangeArg={onChangeArg}
         onGenerateScript={onGenerateScript}
-        service={service}
+        source={source}
         db={'telegraf'}
       />
     )

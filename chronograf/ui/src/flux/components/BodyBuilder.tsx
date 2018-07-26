@@ -8,11 +8,9 @@ import FuncSelector from 'src/flux/components/FuncSelector'
 import BodyDelete from 'src/flux/components/BodyDelete'
 import {funcNames} from 'src/flux/constants'
 
-import {Service} from 'src/types'
 import {Body, Suggestion} from 'src/types/flux'
 
 interface Props {
-  service: Service
   body: Body[]
   suggestions: Suggestion[]
   onAppendFrom: () => void

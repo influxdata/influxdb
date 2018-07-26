@@ -13,7 +13,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 import {
-  Service,
+  Source,
   SchemaFilter,
   RemoteDataState,
   NotificationAction,
@@ -21,7 +21,7 @@ import {
 
 interface Props {
   db: string
-  service: Service
+  source: Source
   tagKey: string
   value: string
   filter: SchemaFilter[]
@@ -47,7 +47,7 @@ class TagValueListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {db, service, value} = this.props
+    const {db, source, value, notify} = this.props
     const {searchTerm, isOpen} = this.state
 
     return (
@@ -85,7 +85,8 @@ class TagValueListItem extends PureComponent<Props, State> {
               )}
               <TagList
                 db={db}
-                service={service}
+                notify={notify}
+                source={source}
                 tags={this.tags}
                 filter={this.filter}
               />
@@ -113,12 +114,12 @@ class TagValueListItem extends PureComponent<Props, State> {
   }
 
   private async getTags() {
-    const {db, service} = this.props
+    const {db, source} = this.props
 
     this.setState({loading: RemoteDataState.Loading})
 
     try {
-      const response = await fetchTagKeys(service, db, this.filter)
+      const response = await fetchTagKeys(source, db, this.filter)
       const tags = parseValuesColumn(response)
       this.setState({tags, loading: RemoteDataState.Done})
     } catch (error) {

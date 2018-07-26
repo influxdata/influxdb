@@ -29,6 +29,7 @@ export interface Source {
 }
 
 export interface SourceLinks {
+  query: string
   self: string
   kapacitors: string
   proxy: string

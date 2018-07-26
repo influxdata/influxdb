@@ -9,10 +9,11 @@ import FromDatabaseDropdown from 'src/flux/components/FromDatabaseDropdown'
 
 import {funcNames, argTypes} from 'src/flux/constants'
 import {OnChangeArg, Arg, OnGenerateScript} from 'src/types/flux'
-import {Service} from 'src/types'
+
+import {Source} from 'src/types'
 
 interface Props {
-  service: Service
+  source: Source
   funcName: string
   funcID: string
   argKey: string
@@ -34,7 +35,7 @@ class FuncArg extends PureComponent<Props> {
       type,
       bodyID,
       funcID,
-      service,
+      source,
       funcName,
       onChangeArg,
       declarationID,
@@ -44,7 +45,7 @@ class FuncArg extends PureComponent<Props> {
     if (funcName === funcNames.FROM) {
       return (
         <FromDatabaseDropdown
-          service={service}
+          source={source}
           argKey={argKey}
           funcID={funcID}
           value={this.value}

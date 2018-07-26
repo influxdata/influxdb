@@ -1,7 +1,6 @@
 import React, {PureComponent, MouseEvent} from 'react'
 import _ from 'lodash'
 
-import {SchemaFilter, Service} from 'src/types'
 import {
   OnChangeArg,
   Func,
@@ -16,9 +15,11 @@ import FilterTagListItem from 'src/flux/components/FilterTagListItem'
 import FancyScrollbar from '../../shared/components/FancyScrollbar'
 import {getDeep} from 'src/utils/wrappers'
 
+import {SchemaFilter, Source} from 'src/types'
+
 interface Props {
   db: string
-  service: Service
+  source: Source
   tags: string[]
   filter: SchemaFilter[]
   onChangeArg: OnChangeArg
@@ -130,7 +131,7 @@ export default class FilterTagList extends PureComponent<Props> {
   public render() {
     const {
       db,
-      service,
+      source,
       tags,
       filter,
       bodyID,
@@ -173,7 +174,7 @@ export default class FilterTagList extends PureComponent<Props> {
               operator={this.operator(t)}
               onChangeValue={this.handleChangeValue}
               onSetEquality={this.handleSetEquality}
-              service={service}
+              source={source}
               filter={filter}
             />
           ))}

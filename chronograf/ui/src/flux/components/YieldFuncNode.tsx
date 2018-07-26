@@ -6,11 +6,11 @@ import TimeMachineVis from 'src/flux/components/TimeMachineVis'
 import {getTimeSeries} from 'src/flux/apis'
 import {getDeep} from 'src/utils/wrappers'
 
-import {FluxTable, Service} from 'src/types'
+import {FluxTable, Source} from 'src/types'
 import {Func} from 'src/types/flux'
 
 interface Props {
-  service: Service
+  source: Source
   data: FluxTable[]
   index: number
   bodyID: string
@@ -58,8 +58,8 @@ class YieldFuncNode extends PureComponent<Props, State> {
   }
 
   private getData = async (): Promise<void> => {
-    const {script, service} = this.props
-    const results = await getTimeSeries(service, script)
+    const {script, source} = this.props
+    const results = await getTimeSeries(source.links.query, script)
     const data = getDeep<FluxTable[]>(results, 'tables', [])
     this.setState({data})
   }

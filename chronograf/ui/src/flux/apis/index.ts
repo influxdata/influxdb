@@ -49,16 +49,9 @@ interface GetTimeSeriesResult {
 }
 
 export const getTimeSeries = async (
-  service: Service,
+  url: string, // query URI
   script: string
 ): Promise<GetTimeSeriesResult> => {
-  const and = encodeURIComponent('&')
-  const mark = encodeURIComponent('?')
-  const garbage = script.replace(/\s/g, '') // server cannot handle whitespace
-  const url = `${window.basepath}${
-    service.links.proxy
-  }?path=/v1/query${mark}orgName=defaulorgname${and}q=${garbage}`
-
   let responseBody: string
   let responseByteLength: number
 
@@ -69,7 +62,11 @@ export const getTimeSeries = async (
     // seems to be broken at the moment. We might use this option instead of
     // the `fetch` API in the future, if it is ever fixed.  See
     // https://github.com/axios/axios/issues/1491.
-    const resp = await fetch(url, {method: 'POST'})
+    const resp = await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify({script}),
+    })
+
     const {body, byteLength} = await decodeFluxRespWithLimit(resp)
 
     responseBody = body

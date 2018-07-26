@@ -7,7 +7,6 @@ import React, {
 
 import _ from 'lodash'
 
-import {Service, SchemaFilter, RemoteDataState} from 'src/types'
 import {tagValues as fetchTagValues} from 'src/shared/apis/flux/metaQueries'
 import {explorer} from 'src/flux/constants'
 import {
@@ -20,6 +19,8 @@ import FilterTagValueList from 'src/flux/components/FilterTagValueList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 import LoadingSpinner from 'src/flux/components/LoadingSpinner'
 
+import {Source, SchemaFilter, RemoteDataState} from 'src/types'
+
 interface Props {
   tagKey: string
   onSetEquality: SetEquality
@@ -27,7 +28,7 @@ interface Props {
   conditions: FilterTagCondition[]
   operator: string
   db: string
-  service: Service
+  source: Source
   filter: SchemaFilter[]
 }
 
@@ -89,7 +90,7 @@ export default class FilterTagListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {tagKey, db, service, filter} = this.props
+    const {tagKey, db, filter} = this.props
     const {tagValues, searchTerm, loadingMore, count, limit} = this.state
     const selectedValues = this.props.conditions.map(c => c.value)
 
@@ -132,16 +133,15 @@ export default class FilterTagListItem extends PureComponent<Props, State> {
             {!this.isLoading && (
               <FilterTagValueList
                 db={db}
-                service={service}
+                tagKey={tagKey}
+                filter={filter}
                 values={tagValues}
                 selectedValues={selectedValues}
-                tagKey={tagKey}
+                loadMoreCount={this.loadMoreCount}
+                shouldShowMoreValues={limit < count}
                 onChangeValue={this.props.onChangeValue}
-                filter={filter}
                 onLoadMoreValues={this.handleLoadMoreValues}
                 isLoadingMoreValues={loadingMore === RemoteDataState.Loading}
-                shouldShowMoreValues={limit < count}
-                loadMoreCount={this.loadMoreCount}
               />
             )}
           </div>
@@ -236,10 +236,10 @@ export default class FilterTagListItem extends PureComponent<Props, State> {
   }
 
   private getTagValues = async () => {
-    const {db, service, tagKey, filter} = this.props
+    const {db, source, tagKey, filter} = this.props
     const {searchTerm, limit} = this.state
     const response = await fetchTagValues({
-      service,
+      source,
       db,
       filter,
       tagKey,
@@ -271,11 +271,11 @@ export default class FilterTagListItem extends PureComponent<Props, State> {
   }
 
   private async getCount() {
-    const {service, db, filter, tagKey} = this.props
+    const {source, db, filter, tagKey} = this.props
     const {limit, searchTerm} = this.state
     try {
       const response = await fetchTagValues({
-        service,
+        source,
         db,
         filter,
         tagKey,

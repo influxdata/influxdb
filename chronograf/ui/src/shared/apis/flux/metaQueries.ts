@@ -1,10 +1,10 @@
 import _ from 'lodash'
 
 import AJAX from 'src/utils/ajax'
-import {Service, SchemaFilter} from 'src/types'
+import {Source, SchemaFilter} from 'src/types'
 
 export const measurements = async (
-  service: Service,
+  source: Source,
   db: string
 ): Promise<any> => {
   const script = `
@@ -15,11 +15,11 @@ export const measurements = async (
         |> group()
     `
 
-  return proxy(service, script)
+  return metaQuery(source, script)
 }
 
 export const tagKeys = async (
-  service: Service,
+  source: Source,
   db: string,
   filter: SchemaFilter[]
 ): Promise<any> => {
@@ -41,11 +41,11 @@ export const tagKeys = async (
       ${tagKeyFilter}
     `
 
-  return proxy(service, script)
+  return metaQuery(source, script)
 }
 
 interface TagValuesParams {
-  service: Service
+  source: Source
   db: string
   tagKey: string
   limit: number
@@ -56,7 +56,7 @@ interface TagValuesParams {
 
 export const tagValues = async ({
   db,
-  service,
+  source,
   tagKey,
   limit,
   filter = [],
@@ -84,11 +84,11 @@ export const tagValues = async ({
       ${countFunc}
   `
 
-  return proxy(service, script)
+  return metaQuery(source, script)
 }
 
 export const tagsFromMeasurement = async (
-  service: Service,
+  source: Source,
   db: string,
   measurement: string
 ): Promise<any> => {
@@ -100,7 +100,7 @@ export const tagsFromMeasurement = async (
       |> keys(except:["_time","_value","_start","_stop"])
   `
 
-  return proxy(service, script)
+  return metaQuery(source, script)
 }
 
 const tagsetFilter = (filter: SchemaFilter[]): string => {
@@ -113,17 +113,15 @@ const tagsetFilter = (filter: SchemaFilter[]): string => {
   return `|> filter(fn: (r) => ${predicates.join(' and ')} )`
 }
 
-const proxy = async (service: Service, script: string) => {
-  const and = encodeURIComponent('&')
-  const mark = encodeURIComponent('?')
-  const garbage = script.replace(/\s/g, '') // server cannot handle whitespace
-
+const metaQuery = async (source: Source, script: string) => {
+  const url = source.links.query
   try {
     const response = await AJAX({
       method: 'POST',
-      url: `${
-        service.links.proxy
-      }?path=/v1/query${mark}orgName=defaulorgname${and}q=${garbage}`,
+      url,
+      data: {
+        script,
+      },
     })
 
     return response.data

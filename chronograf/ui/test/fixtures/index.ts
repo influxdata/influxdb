@@ -23,6 +23,7 @@ import {LineColor, ColorNumber} from 'src/types/colors'
 import {ServerLogConfig, ServerColumn} from 'src/types/logs'
 
 export const sourceLinks: SourceLinks = {
+  query: '/chronograf/v1/query/4',
   services: '/chronograf/v1/sources/4',
   self: '/chronograf/v1/sources/4',
   kapacitors: '/chronograf/v1/sources/4/kapacitors',

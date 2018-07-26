@@ -3,11 +3,10 @@ import _ from 'lodash'
 
 import FilterTagValueListItem from 'src/flux/components/FilterTagValueListItem'
 import LoadingSpinner from 'src/flux/components/LoadingSpinner'
-import {Service, SchemaFilter} from 'src/types'
+import {SchemaFilter} from 'src/types'
 import {SetFilterTagValue} from 'src/types/flux'
 
 interface Props {
-  service: Service
   db: string
   tagKey: string
   values: string[]
