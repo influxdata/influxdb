@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/binary"
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/tlv"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -74,14 +75,15 @@ type intCursor struct {
 func (c *intCursor) Close()     {}
 func (c *intCursor) Err() error { return nil }
 
-func (c *intCursor) Next() (keys []int64, values []int64) {
+func (c *intCursor) Next() *tsdb.IntegerArray {
 	if c.c > len(c.keys) {
 		c.c = len(c.keys)
 	}
 
-	k, v := c.keys[:c.c], c.vals[:c.c]
+	var a tsdb.IntegerArray
+	a.Timestamps, a.Values = c.keys[:c.c], c.vals[:c.c]
 	c.keys, c.vals = c.keys[c.c:], c.vals[c.c:]
-	return k, v
+	return &a
 }
 
 func assertEqual(t *testing.T, got, exp interface{}) {

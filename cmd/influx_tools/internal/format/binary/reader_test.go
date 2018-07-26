@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/binary"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
 
@@ -373,14 +374,15 @@ type floatCursor struct {
 func (c *floatCursor) Close()     {}
 func (c *floatCursor) Err() error { return nil }
 
-func (c *floatCursor) Next() (keys []int64, values []float64) {
+func (c *floatCursor) Next() *tsdb.FloatArray {
 	if c.c > len(c.keys) {
 		c.c = len(c.keys)
 	}
 
-	k, v := c.keys[:c.c], c.vals[:c.c]
+	var a tsdb.FloatArray
+	a.Timestamps, a.Values = c.keys[:c.c], c.vals[:c.c]
 	c.keys, c.vals = c.keys[c.c:], c.vals[c.c:]
-	return k, v
+	return &a
 }
 
 type unsignedCursor struct {
@@ -392,14 +394,15 @@ type unsignedCursor struct {
 func (c *unsignedCursor) Close()     {}
 func (c *unsignedCursor) Err() error { return nil }
 
-func (c *unsignedCursor) Next() (keys []int64, values []uint64) {
+func (c *unsignedCursor) Next() *tsdb.UnsignedArray {
 	if c.c > len(c.keys) {
 		c.c = len(c.keys)
 	}
 
-	k, v := c.keys[:c.c], c.vals[:c.c]
+	var a tsdb.UnsignedArray
+	a.Timestamps, a.Values = c.keys[:c.c], c.vals[:c.c]
 	c.keys, c.vals = c.keys[c.c:], c.vals[c.c:]
-	return k, v
+	return &a
 }
 
 type booleanCursor struct {
@@ -411,14 +414,15 @@ type booleanCursor struct {
 func (c *booleanCursor) Close()     {}
 func (c *booleanCursor) Err() error { return nil }
 
-func (c *booleanCursor) Next() (keys []int64, values []bool) {
+func (c *booleanCursor) Next() *tsdb.BooleanArray {
 	if c.c > len(c.keys) {
 		c.c = len(c.keys)
 	}
 
-	k, v := c.keys[:c.c], c.vals[:c.c]
+	var a tsdb.BooleanArray
+	a.Timestamps, a.Values = c.keys[:c.c], c.vals[:c.c]
 	c.keys, c.vals = c.keys[c.c:], c.vals[c.c:]
-	return k, v
+	return &a
 }
 
 type stringCursor struct {
@@ -430,14 +434,15 @@ type stringCursor struct {
 func (c *stringCursor) Close()     {}
 func (c *stringCursor) Err() error { return nil }
 
-func (c *stringCursor) Next() (keys []int64, values []string) {
+func (c *stringCursor) Next() *tsdb.StringArray {
 	if c.c > len(c.keys) {
 		c.c = len(c.keys)
 	}
 
-	k, v := c.keys[:c.c], c.vals[:c.c]
+	var a tsdb.StringArray
+	a.Timestamps, a.Values = c.keys[:c.c], c.vals[:c.c]
 	c.keys, c.vals = c.keys[c.c:], c.vals[c.c:]
-	return k, v
+	return &a
 }
 
 func assertNil(t *testing.T, got interface{}) {

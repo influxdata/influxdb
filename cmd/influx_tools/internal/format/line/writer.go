@@ -51,24 +51,24 @@ func (w *Writer) BeginSeries(name, field []byte, typ influxql.DataType, tags mod
 
 func (w *Writer) EndSeries() {}
 
-func (w *Writer) WriteIntegerCursor(cur tsdb.IntegerBatchCursor) {
+func (w *Writer) WriteIntegerCursor(cur tsdb.IntegerArrayCursor) {
 	if w.err != nil {
 		return
 	}
 
 	buf := w.key
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
-		for i := range ts {
+		for i := range a.Timestamps {
 			buf = buf[:len(w.key)] // Re-slice buf to be "<series_key> <field>=".
 
-			buf = strconv.AppendInt(buf, vs[i], 10)
+			buf = strconv.AppendInt(buf, a.Values[i], 10)
 			buf = append(buf, 'i')
 			buf = append(buf, ' ')
-			buf = strconv.AppendInt(buf, ts[i], 10)
+			buf = strconv.AppendInt(buf, a.Timestamps[i], 10)
 			buf = append(buf, '\n')
 			if _, w.err = w.w.Write(buf); w.err != nil {
 				return
@@ -77,23 +77,23 @@ func (w *Writer) WriteIntegerCursor(cur tsdb.IntegerBatchCursor) {
 	}
 }
 
-func (w *Writer) WriteFloatCursor(cur tsdb.FloatBatchCursor) {
+func (w *Writer) WriteFloatCursor(cur tsdb.FloatArrayCursor) {
 	if w.err != nil {
 		return
 	}
 
 	buf := w.key
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
-		for i := range ts {
+		for i := range a.Timestamps {
 			buf = buf[:len(w.key)] // Re-slice buf to be "<series_key> <field>=".
 
-			buf = strconv.AppendFloat(buf, vs[i], 'g', -1, 64)
+			buf = strconv.AppendFloat(buf, a.Values[i], 'g', -1, 64)
 			buf = append(buf, ' ')
-			buf = strconv.AppendInt(buf, ts[i], 10)
+			buf = strconv.AppendInt(buf, a.Timestamps[i], 10)
 			buf = append(buf, '\n')
 			if _, w.err = w.w.Write(buf); w.err != nil {
 				return
@@ -102,24 +102,24 @@ func (w *Writer) WriteFloatCursor(cur tsdb.FloatBatchCursor) {
 	}
 }
 
-func (w *Writer) WriteUnsignedCursor(cur tsdb.UnsignedBatchCursor) {
+func (w *Writer) WriteUnsignedCursor(cur tsdb.UnsignedArrayCursor) {
 	if w.err != nil {
 		return
 	}
 
 	buf := w.key
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
-		for i := range ts {
+		for i := range a.Timestamps {
 			buf = buf[:len(w.key)] // Re-slice buf to be "<series_key> <field>=".
 
-			buf = strconv.AppendUint(buf, vs[i], 10)
+			buf = strconv.AppendUint(buf, a.Values[i], 10)
 			buf = append(buf, 'u')
 			buf = append(buf, ' ')
-			buf = strconv.AppendInt(buf, ts[i], 10)
+			buf = strconv.AppendInt(buf, a.Timestamps[i], 10)
 			buf = append(buf, '\n')
 			if _, w.err = w.w.Write(buf); w.err != nil {
 				return
@@ -128,23 +128,23 @@ func (w *Writer) WriteUnsignedCursor(cur tsdb.UnsignedBatchCursor) {
 	}
 }
 
-func (w *Writer) WriteBooleanCursor(cur tsdb.BooleanBatchCursor) {
+func (w *Writer) WriteBooleanCursor(cur tsdb.BooleanArrayCursor) {
 	if w.err != nil {
 		return
 	}
 
 	buf := w.key
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
-		for i := range ts {
+		for i := range a.Timestamps {
 			buf = buf[:len(w.key)] // Re-slice buf to be "<series_key> <field>=".
 
-			buf = strconv.AppendBool(buf, vs[i])
+			buf = strconv.AppendBool(buf, a.Values[i])
 			buf = append(buf, ' ')
-			buf = strconv.AppendInt(buf, ts[i], 10)
+			buf = strconv.AppendInt(buf, a.Timestamps[i], 10)
 			buf = append(buf, '\n')
 			if _, w.err = w.w.Write(buf); w.err != nil {
 				return
@@ -153,25 +153,25 @@ func (w *Writer) WriteBooleanCursor(cur tsdb.BooleanBatchCursor) {
 	}
 }
 
-func (w *Writer) WriteStringCursor(cur tsdb.StringBatchCursor) {
+func (w *Writer) WriteStringCursor(cur tsdb.StringArrayCursor) {
 	if w.err != nil {
 		return
 	}
 
 	buf := w.key
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
-		for i := range ts {
+		for i := range a.Timestamps {
 			buf = buf[:len(w.key)] // Re-slice buf to be "<series_key> <field>=".
 
 			buf = append(buf, '"')
-			buf = append(buf, models.EscapeStringField(vs[i])...)
+			buf = append(buf, models.EscapeStringField(a.Values[i])...)
 			buf = append(buf, '"')
 			buf = append(buf, ' ')
-			buf = strconv.AppendInt(buf, ts[i], 10)
+			buf = strconv.AppendInt(buf, a.Timestamps[i], 10)
 			buf = append(buf, '\n')
 			if _, w.err = w.w.Write(buf); w.err != nil {
 				return
