@@ -3,6 +3,7 @@ import {
   updateService as updateServiceAJAX,
   getServices as getServicesAJAX,
   createService as createServiceAJAX,
+  deleteService as deleteServiceAJAX,
 } from 'src/shared/apis'
 import {notify} from './notifications'
 import {couldNotGetServices} from 'src/shared/copy/notifications'
@@ -102,13 +103,62 @@ export const setActiveService = (
   },
 })
 
-export type FetchServicesAsync = (source: Source) => (dispatch) => Promise<void>
-export const fetchServicesAsync = (source: Source) => async (
+export type SetActiveServiceAsync = (
+  source: Source,
+  activeService: Service,
+  prevActiveService: Service
+) => (dispatch) => Promise<void>
+
+export const setActiveServiceAsync = (
+  source: Source,
+  activeService: Service,
+  prevActiveService: Service
+) => async (dispatch): Promise<void> => {
+  try {
+    activeService = {...activeService, metadata: {active: true}}
+    await updateServiceAJAX(activeService)
+
+    if (prevActiveService) {
+      prevActiveService = {...prevActiveService, metadata: {active: false}}
+      await updateServiceAJAX(prevActiveService)
+    }
+
+    dispatch(setActiveService(source, activeService))
+  } catch (err) {
+    console.error(err.data)
+  }
+}
+
+export type FetchAllFluxServicesAsync = (
+  sources: Source[]
+) => (dispatch) => Promise<void>
+
+export const fetchAllFluxServicesAsync: FetchAllFluxServicesAsync = sources => async (
+  dispatch
+): Promise<void> => {
+  const allServices: Service[] = []
+  sources.forEach(async source => {
+    try {
+      const services = await getServicesAJAX(source.links.services)
+      const fluxServices = services.filter(s => s.type === 'flux')
+      allServices.push(...fluxServices)
+    } catch (err) {
+      dispatch(notify(couldNotGetServices))
+    }
+  })
+  dispatch(loadServices(allServices))
+}
+
+export type FetchFluxServicesForSourceAsync = (
+  source: Source
+) => (dispatch) => Promise<void>
+export const fetchFluxServicesForSourceAsync: FetchFluxServicesForSourceAsync = source => async (
   dispatch
 ): Promise<void> => {
   try {
     const services = await getServicesAJAX(source.links.services)
-    dispatch(loadServices(services))
+    const fluxServices = services.filter(s => s.type === 'flux')
+    dispatch(loadServices(fluxServices))
   } catch (err) {
     dispatch(notify(couldNotGetServices))
   }
@@ -117,15 +167,17 @@ export const fetchServicesAsync = (source: Source) => async (
 export type CreateServiceAsync = (
   source: Source,
   service: NewService
-) => (dispatch) => Promise<void>
+) => Service
 
 export const createServiceAsync = (
   source: Source,
   service: NewService
-) => async (dispatch): Promise<void> => {
+) => async (dispatch): Promise<Service> => {
   try {
-    const s = await createServiceAJAX(source, service)
+    const metadata = {active: true}
+    const s = await createServiceAJAX(source, {...service, metadata})
     dispatch(addService(s))
+    return s
   } catch (err) {
     console.error(err.data)
     throw err.data
@@ -141,6 +193,21 @@ export const updateServiceAsync = (service: Service) => async (
   try {
     const s = await updateServiceAJAX(service)
     dispatch(updateService(s))
+  } catch (err) {
+    console.error(err.data)
+    throw err.data
+  }
+}
+
+export type DeleteServiceAsync = (
+  service: Service
+) => (dispatch) => Promise<void>
+export const deleteServiceAsync = (service: Service) => async (
+  dispatch
+): Promise<void> => {
+  try {
+    await deleteServiceAJAX(service)
+    dispatch(deleteService(service))
   } catch (err) {
     console.error(err.data)
     throw err.data

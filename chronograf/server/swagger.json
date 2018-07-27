@@ -1936,6 +1936,417 @@
         }
       }
     },
+    "/sources/{id}/services": {
+      "get": {
+        "tags": ["sources", "services"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          }
+        ],
+        "summary": "Retrieve list of services for a source",
+        "responses": {
+          "200": {
+            "description": "An array of services",
+            "schema": {
+              "$ref": "#/definitions/Services"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["sources", "services"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          },
+          {
+            "name": "service",
+            "in": "body",
+            "description": "Configuration options for the service",
+            "schema": {
+              "$ref": "#/definitions/Service"
+            }
+          }
+        ],
+        "summary": "Create a new service",
+        "responses": {
+          "200": {
+            "description": "Returns the newly created service",
+            "schema": {
+              "$ref": "#/definitions/Service"
+            }
+          },
+          "504": {
+            "description": "Gateway timeout happens when the server cannot connect to the service",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/sources/{id}/services/{srv_id}": {
+      "get": {
+        "tags": ["sources", "services"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          },
+          {
+            "name": "srv_id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the service",
+            "required": true
+          }
+        ],
+        "summary": "Retrieve a service",
+        "description": "Retrieve a single service by id",
+        "responses": {
+          "200": {
+            "description": "Service connection information",
+            "schema": {
+              "$ref": "#/definitions/Service"
+            }
+          },
+          "404": {
+            "description": "Unknown data source or service id",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["sources", "services"],
+        "summary": "Update service configuration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          },
+          {
+            "name": "srv_id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of a service backend",
+            "required": true
+          },
+          {
+            "name": "service",
+            "in": "body",
+            "description": "service configuration",
+            "schema": {
+              "$ref": "#/definitions/Service"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service configuration was changed",
+            "schema": {
+              "$ref": "#/definitions/Service"
+            }
+          },
+          "504": {
+            "description": "Gateway timeout happens when the server cannot connect to the service",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity happens when the service ID provided does not exist",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "A processing or an unexpected error.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["sources", "services"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          },
+          {
+            "name": "srv_id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the service",
+            "required": true
+          }
+        ],
+        "summary": "Remove Service backend",
+        "description":
+          "This specific service will be removed.",
+        "responses": {
+          "204": {
+            "description": "service has been removed."
+          },
+          "404": {
+            "description": "Unknown Data source or Service id",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Unexpected internal server error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        }
+      }
+    },
+    "/sources/{id}/services/{srv_id}/proxy": {
+      "get": {
+        "tags": ["sources", "services", "proxy"],
+        "description":
+          "GET to `path` of Service.  The response and status code from Service is directly returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          },
+          {
+            "name": "srv_id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the service backend.",
+            "required": true
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "type": "string",
+            "description":
+              "The Service API path to use in the proxy redirect",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Service returned no content"
+          },
+          "404": {
+            "description": "Data source or Service ID does not exist.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Response directly from the service",
+            "schema": {
+              "$ref": "#/definitions/ServiceProxyResponse"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["sources", "services", "proxy"],
+        "description":
+          "DELETE to `path` of Service. The response and status code from the service is directly returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          },
+          {
+            "name": "srv_id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the Service backend.",
+            "required": true
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "type": "string",
+            "description":
+              "The Service API path to use in the proxy redirect",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Service returned no content"
+          },
+          "404": {
+            "description": "Data source or Service ID does not exist.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Response directly from the service",
+            "schema": {
+              "$ref": "#/definitions/ServiceProxyResponse"
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["sources", "services", "proxy"],
+        "description":
+          "PATCH body directly to configured service.  The response and status code from Service is directly returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          },
+          {
+            "name": "srv_id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the Service backend.",
+            "required": true
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "type": "string",
+            "description":
+              "The Service API path to use in the proxy redirect",
+            "required": true
+          },
+          {
+            "name": "query",
+            "in": "body",
+            "description": "Service body",
+            "schema": {
+              "$ref": "#/definitions/ServiceProxy"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Service returned no content"
+          },
+          "404": {
+            "description": "Data source or Service ID does not exist.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Response directly from Service",
+            "schema": {
+              "$ref": "#/definitions/ServiceProxyResponse"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["sources", "services", "proxy"],
+        "description":
+          "POST body directly to configured Service.  The response and status code from Service is directly returned.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the source",
+            "required": true
+          },
+          {
+            "name": "srv_id",
+            "in": "path",
+            "type": "string",
+            "description": "ID of the Service backend.",
+            "required": true
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "type": "string",
+            "description":
+              "The Service API path to use in the proxy redirect",
+            "required": true
+          },
+          {
+            "name": "query",
+            "in": "body",
+            "description": "Service body",
+            "schema": {
+              "$ref": "#/definitions/ServiceProxy"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Service returned no content"
+          },
+          "404": {
+            "description": "Service ID does not exist.",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "default": {
+            "description": "Response directly from Service",
+            "schema": {
+              "$ref": "#/definitions/ServiceProxyResponse"
+            }
+          }
+        }
+      }
+    },
     "/mappings": {
       "get": {
         "tags": ["layouts", "mappings"],
@@ -3395,6 +3806,111 @@
     },
     "KapacitorProxyResponse": {
       "description": "Entire response from the kapacitor backend.",
+      "type": "object"
+    },
+    "Services": {
+      "type": "object",
+      "required": ["services"],
+      "properties": {
+        "services": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Service"
+          }
+        }
+      }
+    },
+    "Service": {
+      "type": "object",
+      "required": ["name", "url"],
+      "example": {
+        "id": "1",
+        "sourceID": "1",
+        "url": "http://localhost:8093",
+        "insecureSkipVerify": false,
+        "type": "flux",
+        "metadata": {
+          "active": true
+        },
+        "links": {
+          "proxy": "/chronograf/v1/sources/1/services/1/proxy",
+          "self": "/chronograf/v1/sources/1/services/1",
+          "source": "/chronograf/v1/sources/1"
+        }
+      },
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier representing a service.",
+          "readOnly": true
+        },
+        "sourceID": {
+          "type": "string",
+          "description": "Unique identifier of the source associated with this service"
+        },
+        "name": {
+          "type": "string",
+          "description": "User facing name of the service."
+        },
+        "username": {
+          "type": "string",
+          "description": "Credentials for using this service"
+        },
+        "url": {
+          "type": "string",
+          "format": "url",
+          "description":
+            "URL for the service backend (e.g. http://localhost:8093)"
+        },
+        "insecureSkipVerify": {
+          "type": "boolean",
+          "description":
+            "True means any certificate presented by the service is accepted. Typically used for self-signed certs. Probably should only be used for testing."
+        },
+        "type": {
+          "type": "string",
+          "description": "Indicates what kind of service this is (e.g. flux service)"
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "type": "boolean",
+              "description": "Indicates whether the service is the current service being used for a source"
+            }
+          }
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string",
+              "description": "Self link mapping to this resource",
+              "format": "url"
+            },
+            "proxy": {
+              "type": "string",
+              "description":
+                "URL location of proxy endpoint for this service",
+              "format": "url"
+            },
+            "source": {
+              "type": "string",
+              "description":
+                "URL location of the source this service is associated with",
+              "format": "url"
+            }
+          }
+        }
+      }
+    },
+    "ServiceProxy": {
+      "description":
+        "Entirely used as the body for the request to the service backend.",
+      "type": "object"
+    },
+    "ServiceProxyResponse": {
+      "description": "Entire response from the service backend.",
       "type": "object"
     },
     "Rules": {

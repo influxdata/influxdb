@@ -16,6 +16,7 @@ import {UpdateScript} from 'src/flux/actions'
 import {bodyNodes} from 'src/flux/helpers'
 import {getSuggestions, getAST, getTimeSeries} from 'src/flux/apis'
 import {builder, argTypes, emptyAST} from 'src/flux/constants'
+import {getDeep} from 'src/utils/wrappers'
 
 import {Source, Service, Notification, FluxTable} from 'src/types'
 import {
@@ -41,6 +42,7 @@ interface Props {
   notify: (message: Notification) => void
   script: string
   updateScript: UpdateScript
+  onGoToEditFlux: (service: Service) => void
 }
 
 interface Body extends FlatBody {
@@ -123,17 +125,27 @@ export class FluxPage extends PureComponent<Props, State> {
   }
 
   private get header(): JSX.Element {
-    const {services} = this.props
+    const {services, onGoToEditFlux} = this.props
 
     if (!services.length) {
       return null
     }
 
-    return <FluxHeader service={this.service} />
+    return (
+      <FluxHeader
+        service={this.service}
+        services={services}
+        onGoToEditFlux={onGoToEditFlux}
+      />
+    )
   }
 
   private get service(): Service {
-    return this.props.services[0]
+    const {services} = this.props
+    const activeService = services.find(s => {
+      return getDeep<boolean>(s, 'metadata.active', false)
+    })
+    return activeService || services[0]
   }
 
   private get getContext(): Context {

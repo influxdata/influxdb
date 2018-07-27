@@ -4,20 +4,30 @@ import {Link} from 'react-router'
 import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import ConnectionLink from 'src/sources/components/ConnectionLink'
+import FluxDropdown from 'src/sources/components/FluxDropdown'
 
-import {Source} from 'src/types'
+import {Source, Service} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   source: Source
   currentSource: Source
+  services: Service[]
   onDeleteSource: (source: Source) => void
+  setActiveFlux: (source: Source, service: Service) => void
+  deleteFlux: (fluxService: Service) => void
 }
 
 @ErrorHandling
 class InfluxTableRow extends PureComponent<Props> {
   public render() {
-    const {source, currentSource} = this.props
+    const {
+      source,
+      services,
+      currentSource,
+      setActiveFlux,
+      deleteFlux,
+    } = this.props
 
     return (
       <tr className={this.className}>
@@ -36,6 +46,14 @@ class InfluxTableRow extends PureComponent<Props> {
               customClass="delete-source table--show-on-row-hover"
             />
           </Authorized>
+        </td>
+        <td className="source-table--kapacitor">
+          <FluxDropdown
+            services={services}
+            source={source}
+            setActiveFlux={setActiveFlux}
+            deleteFlux={deleteFlux}
+          />
         </td>
       </tr>
     )

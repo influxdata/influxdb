@@ -6,6 +6,7 @@ import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
 import {Source, Service} from 'src/types'
 import {SetActiveService} from 'src/shared/actions/services'
+import {getDeep} from 'src/utils/wrappers'
 
 interface Props {
   source: Source
@@ -101,7 +102,10 @@ class ServiceDropdown extends PureComponent<
   }
 
   private get activeService(): Service {
-    return this.props.services.find(s => s.active)
+    const service = this.props.services.find(s => {
+      return getDeep<boolean>(s, 'metadata.active', false)
+    })
+    return service || this.props.services[0]
   }
 
   private get selected(): string {

@@ -1,12 +1,14 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/influxdata/platform/chronograf"
+	"github.com/influxdata/platform/flux"
 )
 
 type postServiceRequest struct {
@@ -119,6 +121,15 @@ func (s *Service) NewService(w http.ResponseWriter, r *http.Request) {
 	if err := req.Valid(defaultOrg.ID); err != nil {
 		invalidData(w, err, s.Logger)
 		return
+	}
+
+	if req.Type != nil && req.URL != nil && *req.Type == "flux" {
+		err := pingFlux(ctx, *req.URL, req.InsecureSkipVerify)
+		if err != nil {
+			msg := fmt.Sprintf("Unable to reach flux %s: %v", *req.URL, err)
+			Error(w, http.StatusGatewayTimeout, msg, s.Logger)
+			return
+		}
 	}
 
 	srv := chronograf.Server{
@@ -241,7 +252,7 @@ func (p *patchServiceRequest) Valid() error {
 	if p.URL != nil {
 		url, err := url.ParseRequestURI(*p.URL)
 		if err != nil {
-			return fmt.Errorf("invalid source URI: %v", err)
+			return fmt.Errorf("invalid service URI: %v", err)
 		}
 		if len(url.Scheme) == 0 {
 			return fmt.Errorf("Invalid URL; no URL scheme defined")
@@ -309,6 +320,15 @@ func (s *Service) UpdateService(w http.ResponseWriter, r *http.Request) {
 		srv.Metadata = *req.Metadata
 	}
 
+	if srv.Type == "flux" {
+		err := pingFlux(ctx, srv.URL, srv.InsecureSkipVerify)
+		if err != nil {
+			msg := fmt.Sprintf("Unable to reach flux %s: %v", srv.URL, err)
+			Error(w, http.StatusGatewayTimeout, msg, s.Logger)
+			return
+		}
+	}
+
 	if err := s.Store.Servers(ctx).Update(ctx, srv); err != nil {
 		msg := fmt.Sprintf("Error updating service ID %d", id)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
@@ -317,4 +337,16 @@ func (s *Service) UpdateService(w http.ResponseWriter, r *http.Request) {
 
 	res := newService(srv)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+func pingFlux(ctx context.Context, address string, insecureSkipVerify bool) error {
+	url, err := url.ParseRequestURI(address)
+	if err != nil {
+		return fmt.Errorf("invalid service URI: %v", err)
+	}
+	client := &flux.Client{
+		URL:                url,
+		InsecureSkipVerify: insecureSkipVerify,
+	}
+	return client.Ping(ctx)
 }
