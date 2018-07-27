@@ -1,11 +1,10 @@
 import React, {PureComponent, ReactChildren} from 'react'
 import {connect} from 'react-redux'
-import {WithRouterProps} from 'react-router'
+import {WithRouterProps, withRouter} from 'react-router'
 
 import {FluxPage} from 'src/flux'
 import EmptyFluxPage from 'src/flux/components/EmptyFluxPage'
-import FluxOverlay from 'src/flux/components/FluxOverlay'
-import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
+
 import {Source, Service, Notification} from 'src/types'
 import {Links} from 'src/types/flux'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -21,27 +20,16 @@ interface Props {
   sources: Source[]
   services: Service[]
   children: ReactChildren
-  fetchServicesAsync: actions.FetchServicesAsync
+  fetchServicesAsync: actions.FetchFluxServicesForSourceAsync
   notify: (message: Notification) => void
   updateScript: UpdateScript
   script: string
   links: Links
 }
 
-interface State {
-  isOverlayShown: boolean
-}
-
-export class CheckServices extends PureComponent<
-  Props & WithRouterProps,
-  State
-> {
+export class CheckServices extends PureComponent<Props & WithRouterProps> {
   constructor(props: Props & WithRouterProps) {
     super(props)
-
-    this.state = {
-      isOverlayShown: false,
-    }
   }
 
   public async componentDidMount() {
@@ -54,22 +42,13 @@ export class CheckServices extends PureComponent<
     }
 
     await this.props.fetchServicesAsync(source)
-
-    if (!this.props.services.length) {
-      this.setState({isOverlayShown: true})
-    }
   }
 
   public render() {
     const {services, notify, updateScript, links, script} = this.props
 
     if (!this.props.services.length) {
-      return (
-        <EmptyFluxPage
-          onShowOverlay={this.handleShowOverlay}
-          overlay={this.renderOverlay}
-        />
-      )
+      return <EmptyFluxPage onGoToNewService={this.handleGoToNewFlux} />
     }
 
     return (
@@ -81,10 +60,24 @@ export class CheckServices extends PureComponent<
           script={script}
           notify={notify}
           updateScript={updateScript}
+          onGoToEditFlux={this.handleGoToEditFlux}
         />
-        {this.renderOverlay}
       </NotificationContext.Provider>
     )
+  }
+
+  private handleGoToNewFlux = () => {
+    const {router} = this.props
+    const addFluxResource = `/sources/${this.source.id}/flux/new`
+    router.push(addFluxResource)
+  }
+
+  private handleGoToEditFlux = (service: Service) => {
+    const {router} = this.props
+    const editFluxResource = `/sources/${this.source.id}/flux/${
+      service.id
+    }/edit`
+    router.push(editFluxResource)
   }
 
   private get source(): Source {
@@ -92,32 +85,10 @@ export class CheckServices extends PureComponent<
 
     return sources.find(s => s.id === params.sourceID)
   }
-
-  private get renderOverlay(): JSX.Element {
-    const {isOverlayShown} = this.state
-
-    return (
-      <OverlayTechnology visible={isOverlayShown}>
-        <FluxOverlay
-          mode="new"
-          source={this.source}
-          onDismiss={this.handleDismissOverlay}
-        />
-      </OverlayTechnology>
-    )
-  }
-
-  private handleShowOverlay = (): void => {
-    this.setState({isOverlayShown: true})
-  }
-
-  private handleDismissOverlay = (): void => {
-    this.setState({isOverlayShown: false})
-  }
 }
 
 const mdtp = {
-  fetchServicesAsync: actions.fetchServicesAsync,
+  fetchServicesAsync: actions.fetchFluxServicesForSourceAsync,
   updateScript: updateScriptAction,
   notify: notifyAction,
 }
@@ -131,4 +102,4 @@ const mstp = ({sources, services, links, script}) => {
   }
 }
 
-export default connect(mstp, mdtp)(CheckServices)
+export default withRouter<Props>(connect(mstp, mdtp)(CheckServices))

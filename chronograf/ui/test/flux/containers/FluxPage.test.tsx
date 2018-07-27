@@ -30,6 +30,7 @@ const setup = () => {
         },
       }
     },
+    onGoToEditFlux: () => {},
   }
 
   const wrapper = shallow(<FluxPage {...props} />)

@@ -36,7 +36,7 @@ import {
 } from 'src/kapacitor'
 import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
-import {CheckServices} from 'src/flux'
+import {CheckServices, FluxConnectionPage} from 'src/flux'
 import NotFound from 'src/shared/components/NotFound'
 
 import {getLinksAsync} from 'src/shared/actions/links'
@@ -152,6 +152,8 @@ class Root extends PureComponent<{}, State> {
                 path="kapacitors/:id/edit:hash"
                 component={KapacitorPage}
               />
+              <Route path="flux/new" component={FluxConnectionPage} />
+              <Route path="flux/:id/edit" component={FluxConnectionPage} />
               <Route
                 path="admin-chronograf/:tab"
                 component={AdminChronografPage}

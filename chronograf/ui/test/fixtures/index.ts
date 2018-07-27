@@ -1,5 +1,6 @@
 import {interval} from 'src/shared/constants'
 import {
+  Service,
   Source,
   SourceAuthenticationMethod,
   CellQuery,
@@ -48,6 +49,23 @@ export const source: Source = {
   links: sourceLinks,
   insecureSkipVerify: false,
   authentication: SourceAuthenticationMethod.Basic,
+}
+
+export const service: Service = {
+  id: '1',
+  sourceID: '1',
+  name: 'Flux',
+  url: 'http://localhost:8093',
+  insecureSkipVerify: false,
+  type: 'flux',
+  metadata: {
+    active: true,
+  },
+  links: {
+    proxy: '/chronograf/v1/sources/1/services/1/proxy',
+    self: '/chronograf/v1/sources/1/services/1',
+    source: '/chronograf/v1/sources/1',
+  },
 }
 
 export const queryConfig: QueryConfig = {

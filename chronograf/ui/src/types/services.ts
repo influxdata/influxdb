@@ -4,8 +4,10 @@ export interface NewService {
   type: string
   username?: string
   password?: string
-  active: boolean
   insecureSkipVerify: boolean
+  metadata?: {
+    [x: string]: any
+  }
 }
 
 export interface Service {
@@ -16,7 +18,6 @@ export interface Service {
   type: string
   username?: string
   password?: string
-  active: boolean
   insecureSkipVerify: boolean
   metadata: {
     [x: string]: any

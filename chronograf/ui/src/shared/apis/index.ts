@@ -381,6 +381,23 @@ export const getServices = async (url: string): Promise<Service[]> => {
   }
 }
 
+export const getService = async (
+  url: string,
+  serviceID: string
+): Promise<Service> => {
+  try {
+    const {data} = await AJAX({
+      url: `${url}/${serviceID}`,
+      method: 'GET',
+    })
+
+    return data
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export const createService = async (
   source: Source,
   {
@@ -390,13 +407,14 @@ export const createService = async (
     username,
     password,
     insecureSkipVerify,
+    metadata,
   }: NewService
 ): Promise<Service> => {
   try {
     const {data} = await AJAX({
       url: source.links.services,
       method: 'POST',
-      data: {url, name, type, username, password, insecureSkipVerify},
+      data: {url, name, type, username, password, insecureSkipVerify, metadata},
     })
 
     return data
@@ -415,6 +433,18 @@ export const updateService = async (service: Service): Promise<Service> => {
     })
 
     return data
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const deleteService = async (service: Service): Promise<void> => {
+  try {
+    await AJAX({
+      url: service.links.self,
+      method: 'DELETE',
+    })
   } catch (error) {
     console.error(error)
     throw error

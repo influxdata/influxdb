@@ -1,26 +1,18 @@
 import React, {PureComponent} from 'react'
 
-import FluxOverlay from 'src/flux/components/FluxOverlay'
-import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
 import {Service} from 'src/types'
 
 interface Props {
   service: Service
+  services: Service[]
+  onGoToEditFlux: (service: Service) => void
 }
 
-interface State {
-  isOverlayVisible: boolean
-}
-
-class FluxHeader extends PureComponent<Props, State> {
+class FluxHeader extends PureComponent<Props> {
   constructor(props: Props) {
     super(props)
-
-    this.state = {
-      isOverlayVisible: false,
-    }
   }
 
   public render() {
@@ -31,19 +23,14 @@ class FluxHeader extends PureComponent<Props, State> {
           fullWidth={true}
           optionsComponents={this.optionsComponents}
         />
-        {this.overlay}
       </>
     )
-  }
-
-  private handleToggleOverlay = (): void => {
-    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
   }
 
   private get optionsComponents(): JSX.Element {
     return (
       <button
-        onClick={this.handleToggleOverlay}
+        onClick={this.handleGoToEditFlux}
         className="btn btn-sm btn-default"
       >
         Edit Connection
@@ -51,19 +38,9 @@ class FluxHeader extends PureComponent<Props, State> {
     )
   }
 
-  private get overlay(): JSX.Element {
-    const {service} = this.props
-    const {isOverlayVisible} = this.state
-
-    return (
-      <OverlayTechnology visible={isOverlayVisible}>
-        <FluxOverlay
-          mode="edit"
-          service={service}
-          onDismiss={this.handleToggleOverlay}
-        />
-      </OverlayTechnology>
-    )
+  private handleGoToEditFlux = () => {
+    const {service, onGoToEditFlux} = this.props
+    onGoToEditFlux(service)
   }
 }
 
