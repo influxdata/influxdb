@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/platform/query/builtin"
+	"github.com/influxdata/platform/query/complete"
 	"github.com/influxdata/platform/query/parser"
 )
 
@@ -47,7 +47,7 @@ func (s *Service) Flux(w http.ResponseWriter, r *http.Request) {
 
 // FluxSuggestions returns a list of available Flux functions for the Flux Builder
 func (s *Service) FluxSuggestions(w http.ResponseWriter, r *http.Request) {
-	completer := query.DefaultCompleter()
+	completer := complete.DefaultCompleter()
 	names := completer.FunctionNames()
 	var functions []SuggestionResponse
 	for _, name := range names {
@@ -80,7 +80,7 @@ func (s *Service) FluxSuggestions(w http.ResponseWriter, r *http.Request) {
 func (s *Service) FluxSuggestion(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	name := httprouter.GetParamFromContext(ctx, "name")
-	completer := query.DefaultCompleter()
+	completer := complete.DefaultCompleter()
 
 	suggestion, err := completer.FunctionSuggestion(name)
 	if err != nil {

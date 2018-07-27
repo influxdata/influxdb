@@ -1,3 +1,4 @@
+// Package complete provides types to aid with auto-completion of Flux scripts in editors.
 package complete
 
 import (
@@ -5,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -13,40 +15,40 @@ type functionType interface {
 	Params() map[string]semantic.Type
 }
 
-// FunctionSuggestion provides information about a function
+// FunctionSuggestion provides suggestion information about a function.
 type FunctionSuggestion struct {
 	Params map[string]string
 }
 
-// Completer provides methods for suggestions in Flux queries
+// Completer provides methods for suggestions in Flux queries.
 type Completer struct {
 	scope        *interpreter.Scope
 	declarations semantic.DeclarationScope
 }
 
-// NewCompleter creates a new completer from scope and declarations
+// NewCompleter creates a new completer from scope and declarations.
 func NewCompleter(scope *interpreter.Scope, declarations semantic.DeclarationScope) Completer {
 	return Completer{scope: scope, declarations: declarations}
 }
 
-// Names returns the slice of names of declared expressions
+// Names returns the slice of names of declared expressions.
 func (c Completer) Names() []string {
 	names := c.scope.Names()
 	sort.Strings(names)
 	return names
 }
 
-// Declaration returns a declaration based on the expression name, if one exists
+// Declaration returns a declaration based on the expression name, if one exists.
 func (c Completer) Declaration(name string) (semantic.VariableDeclaration, error) {
 	d, ok := c.declarations[name]
 	if !ok {
-		return d, errors.New("could not find declaration")
+		return nil, errors.New("could not find declaration")
 	}
 
 	return d, nil
 }
 
-// FunctionNames returns all declaration names of the Function Kind
+// FunctionNames returns the names of all function declarations.
 func (c Completer) FunctionNames() []string {
 	funcs := []string{}
 
@@ -61,7 +63,7 @@ func (c Completer) FunctionNames() []string {
 	return funcs
 }
 
-// FunctionSuggestion returns information needed for autocomplete suggestions for a function
+// FunctionSuggestion returns information needed for autocomplete suggestions for the function with the given name.
 func (c Completer) FunctionSuggestion(name string) (FunctionSuggestion, error) {
 	var s FunctionSuggestion
 
@@ -79,9 +81,11 @@ func (c Completer) FunctionSuggestion(name string) (FunctionSuggestion, error) {
 		return s, errors.New("could not cast function type")
 	}
 
-	params := map[string]string{}
+	fParams := funcType.Params()
 
-	for k, v := range funcType.Params() {
+	params := make(map[string]string, len(fParams))
+
+	for k, v := range fParams {
 		params[k] = v.Kind().String()
 	}
 
@@ -90,6 +94,13 @@ func (c Completer) FunctionSuggestion(name string) (FunctionSuggestion, error) {
 	}
 
 	return s, nil
+}
+
+// DefaultCompleter creates a completer with builtin scope and declarations.
+func DefaultCompleter() Completer {
+	scope, declarations := query.BuiltIns()
+	interpScope := interpreter.NewScopeWithValues(scope)
+	return NewCompleter(interpScope, declarations)
 }
 
 func isFunction(d semantic.VariableDeclaration) bool {
