@@ -435,6 +435,9 @@ func (q *Query) Done() {
 // Statistics reports the statisitcs for the query.
 // The statisitcs are not complete until the query is finished.
 func (q *Query) Statistics() query.Statistics {
+	q.mu.Lock()
+	defer q.mu.Lock()
+
 	stats := query.Statistics{}
 	stats.TotalDuration = q.parentSpan.Duration
 	if q.compileSpan != nil {
@@ -453,7 +456,9 @@ func (q *Query) Statistics() query.Statistics {
 		stats.ExecuteDuration = q.executeSpan.Duration
 	}
 	stats.Concurrency = q.concurrency
-	stats.MaxAllocated = q.alloc.Max()
+	if q.alloc != nil {
+		stats.MaxAllocated = q.alloc.Max()
+	}
 	return stats
 }
 
