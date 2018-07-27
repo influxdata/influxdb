@@ -15,22 +15,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {DEFAULT_ORG_ID} from 'src/admin/constants/chronografAdmin'
 import {USER_ROLES} from 'src/admin/constants/chronografAdmin'
 import {Organization} from 'src/types'
+import {Links} from 'src/types/auth'
 
 interface CurrentOrganization {
   name: string
   id: string
-}
-
-interface ExternalLink {
-  name: string
-  url: string
-}
-interface ExternalLinks {
-  custom: ExternalLink[]
-}
-interface Links {
-  me: string
-  external: ExternalLinks
 }
 
 interface Props {

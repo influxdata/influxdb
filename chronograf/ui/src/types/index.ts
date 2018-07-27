@@ -1,6 +1,6 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
-import {AuthLinks, Organization, Role, Permission, User, Me} from './auth'
+import {Links, Organization, Role, Permission, User, Me} from './auth'
 import {Cell, CellQuery, Legend, Axes, Dashboard, CellType} from './dashboards'
 import {
   Template,
@@ -54,7 +54,7 @@ import {WriteDataMode} from './dataExplorer'
 
 export {
   Me,
-  AuthLinks,
+  Links,
   Role,
   User,
   Organization,

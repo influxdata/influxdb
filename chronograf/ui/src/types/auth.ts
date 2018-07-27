@@ -8,27 +8,14 @@ export interface Organization {
 }
 
 export interface Me {
-  role: Role
   currentOrganization?: Organization
-}
-
-export interface AuthMe {
-  id?: string
-  role: string
-  name: string
-  provider: string
-  scheme: string
   superAdmin: boolean
-  logoutLink: string
+  role: string
+  scheme: string
+  provider: string
+  name: string
   roles: Role[]
-  links: {
-    self: string
-  }
-  organizations?: Organization[]
-  currentOrganization?: Organization
-  isUsingAuth: boolean
-  isMeLoading: boolean
-  isAuthLoading: boolean
+  organizations: Organization[]
 }
 
 export enum InfluxDBPermissions {
@@ -79,7 +66,7 @@ export interface User {
   superAdmin: boolean
 }
 
-export interface Auth {
+export interface AuthLink {
   callback: string
   label: string
   login: string
@@ -92,15 +79,13 @@ export interface AuthConfig {
   self: string
 }
 
-export interface AuthLinks {
+export interface Links {
   allUsers: string
-  auth: Auth[]
+  auth: AuthLink[]
   config: AuthConfig
   dashboards: string
   environment: string
-  external: {
-    statusFeed?: string
-  }
+  external: ExternalLinks
   layouts: string
   logout: string
   mappings: string
@@ -110,10 +95,12 @@ export interface AuthLinks {
   users: string
 }
 
-export interface AuthLink {
+export interface ExternalLink {
   name: string
-  label: string
-  login: string
-  logout: string
-  callback: string
+  url: string
+}
+
+interface ExternalLinks {
+  statusFeed?: string
+  custom?: ExternalLink[]
 }
