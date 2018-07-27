@@ -443,7 +443,7 @@ func (q *Query) Done() {
 // The statisitcs are not complete until the query is finished.
 func (q *Query) Statistics() query.Statistics {
 	q.mu.Lock()
-	defer q.mu.Lock()
+	defer q.mu.Unlock()
 
 	stats := query.Statistics{}
 	stats.TotalDuration = q.parentSpan.Duration
