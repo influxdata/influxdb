@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -16,7 +17,7 @@ type ID uint64
 // IDGenerator represents a generator for IDs.
 type IDGenerator interface {
 	// ID creates unique byte slice ID.
-	ID() *ID
+	ID() ID
 }
 
 // IDFromString creates an ID from a given string.
@@ -34,6 +35,9 @@ func (i *ID) Decode(b []byte) error {
 	if len(b) != IDLength {
 		return fmt.Errorf("input must be an array of %d bytes", IDLength)
 	}
+	if bytes.Equal(b, make([]byte, IDLength)) {
+		return fmt.Errorf("all 0s is not a valid ID")
+	}
 
 	dst := make([]byte, hex.DecodedLen(IDLength))
 	_, err := hex.Decode(dst, b)
@@ -50,18 +54,33 @@ func (i *ID) DecodeFromString(s string) error {
 }
 
 // Encode converts ID to a hex-encoded byte-slice-string.
-func (i ID) Encode() []byte {
+func (i ID) Encode() ([]byte, error) {
+	if i == 0 {
+		return nil, fmt.Errorf("all 0s is not a valid ID")
+	}
+
 	b := make([]byte, hex.DecodedLen(IDLength))
 	binary.BigEndian.PutUint64(b, uint64(i))
 
 	dst := make([]byte, hex.EncodedLen(len(b)))
 	hex.Encode(dst, b)
-	return dst
+	return dst, nil
 }
 
-// String returns the ID as a hex encoded string
+// Valid checks whether the receiving ID is a valid one or not.
+func (i ID) Valid() bool {
+	if _, err := i.Encode(); err != nil {
+		return false
+	}
+	return true
+}
+
+// String returns the ID as a hex encoded string.
+//
+// Returns an empty string in the case the ID is invalid.
 func (i ID) String() string {
-	return string(i.Encode())
+	enc, _ := i.Encode()
+	return string(enc)
 }
 
 // UnmarshalJSON implements JSON unmarshaller for IDs.
@@ -72,5 +91,9 @@ func (i *ID) UnmarshalJSON(b []byte) error {
 
 // MarshalJSON implements JSON marshaller for IDs.
 func (i ID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string(i.Encode()))
+	enc, err := i.Encode()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(string(enc))
 }
