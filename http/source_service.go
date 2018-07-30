@@ -30,7 +30,58 @@ func NewSourceHandler() *SourceHandler {
 	h.HandlerFunc("GET", "/v2/sources/:id", h.handleGetSource)
 	h.HandlerFunc("PATCH", "/v2/sources/:id", h.handlePatchSource)
 	h.HandlerFunc("DELETE", "/v2/sources/:id", h.handleDeleteSource)
+
+	h.HandlerFunc("GET", "/v2/sources/:id/buckets", h.handleGetSourcesBuckets)
 	return h
+}
+
+// handleGetSourcesBuckets is the HTTP handler for the GET /v2/sources/:id/buckets route.
+func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetSourceBucketsRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	s, err := h.SourceService.FindSourceByID(ctx, req.SourceID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	bs, _, err := s.BucketService.FindBuckets(ctx, req.filter)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	// TODO(desa): enrich returned data structure.
+	if err := encodeResponse(ctx, w, http.StatusOK, bs); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type getSourceBucketsRequest struct {
+	*getSourceRequest
+	*getBucketsRequest
+}
+
+func decodeGetSourceBucketsRequest(ctx context.Context, r *http.Request) (*getSourceBucketsRequest, error) {
+	getSrcReq, err := decodeGetSourceRequest(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	getBucketsReq, err := decodeGetBucketsRequest(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	return &getSourceBucketsRequest{
+		getBucketsRequest: getBucketsReq,
+		getSourceRequest:  getSrcReq,
+	}, nil
 }
 
 // handlePostSource is the HTTP handler for the POST /v1/sources route.
