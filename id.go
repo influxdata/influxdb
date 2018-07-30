@@ -12,6 +12,8 @@ import (
 const IDLength = 16
 
 // ID is a unique identifier.
+//
+// Its zero value is not a valid ID.
 type ID uint64
 
 // IDGenerator represents a generator for IDs.
@@ -21,6 +23,8 @@ type IDGenerator interface {
 }
 
 // IDFromString creates an ID from a given string.
+//
+// It errors if the input string does not match a valid ID.
 func IDFromString(str string) (*ID, error) {
 	var id ID
 	err := id.DecodeFromString(str)
@@ -31,6 +35,9 @@ func IDFromString(str string) (*ID, error) {
 }
 
 // Decode parses b as a hex-encoded byte-slice-string.
+//
+// It errors if the input byte slice does not have the correct length
+// or if it contains all zeros.
 func (i *ID) Decode(b []byte) error {
 	if len(b) != IDLength {
 		return fmt.Errorf("input must be an array of %d bytes", IDLength)
@@ -54,6 +61,8 @@ func (i *ID) DecodeFromString(s string) error {
 }
 
 // Encode converts ID to a hex-encoded byte-slice-string.
+//
+// It errors if the receiving ID holds its zero value.
 func (i ID) Encode() ([]byte, error) {
 	if i == 0 {
 		return nil, fmt.Errorf("all 0s is not a valid ID")

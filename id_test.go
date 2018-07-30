@@ -1,4 +1,4 @@
-package platform
+package platform_test
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/platform"
 	platformtesting "github.com/influxdata/platform/testing"
 )
 
@@ -14,7 +15,7 @@ func TestIDFromString(t *testing.T) {
 	tests := []struct {
 		name    string
 		id      string
-		want    ID
+		want    platform.ID
 		wantErr bool
 		err     string
 	}{
@@ -44,12 +45,12 @@ func TestIDFromString(t *testing.T) {
 			name:    "Should not be able to decode inputs with length other than 16 bytes",
 			id:      "abc",
 			wantErr: true,
-			err:     fmt.Sprintf("input must be an array of %d bytes", IDLength),
+			err:     fmt.Sprintf("input must be an array of %d bytes", platform.IDLength),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := IDFromString(tt.id)
+			got, err := platform.IDFromString(tt.id)
 
 			// Check negative test cases
 			if (err != nil) && tt.wantErr {
@@ -68,7 +69,7 @@ func TestIDFromString(t *testing.T) {
 }
 
 func TestDecodeFromString(t *testing.T) {
-	var id ID
+	var id platform.ID
 	err := id.DecodeFromString("020f755c3c082000")
 	if err != nil {
 		t.Errorf(err.Error())
@@ -87,7 +88,7 @@ func TestDecodeFromString(t *testing.T) {
 }
 
 func TestEncode(t *testing.T) {
-	var id ID
+	var id platform.ID
 	if _, err := id.Encode(); err == nil {
 		t.Errorf("encoding an invalid ID should not be possible")
 	}
@@ -107,15 +108,15 @@ func TestEncode(t *testing.T) {
 }
 
 func TestDecodeFromAllZeros(t *testing.T) {
-	var id ID
-	err := id.Decode(make([]byte, IDLength))
+	var id platform.ID
+	err := id.Decode(make([]byte, platform.IDLength))
 	if err == nil {
 		t.Errorf("expecting all zeros ID to not be a valid ID")
 	}
 }
 
 func TestDecodeFromShorterString(t *testing.T) {
-	var id ID
+	var id platform.ID
 	err := id.DecodeFromString("020f75")
 	if err == nil {
 		t.Errorf("expecting shorter inputs to error")
@@ -126,7 +127,7 @@ func TestDecodeFromShorterString(t *testing.T) {
 }
 
 func TestDecodeFromLongerString(t *testing.T) {
-	var id ID
+	var id platform.ID
 	err := id.DecodeFromString("020f755c3c082000aaa")
 	if err == nil {
 		t.Errorf("expecting shorter inputs to error")
@@ -137,7 +138,7 @@ func TestDecodeFromLongerString(t *testing.T) {
 }
 
 func TestDecodeFromEmptyString(t *testing.T) {
-	var id ID
+	var id platform.ID
 	err := id.DecodeFromString("")
 	if err == nil {
 		t.Errorf("expecting empty inputs to error")
@@ -148,14 +149,14 @@ func TestDecodeFromEmptyString(t *testing.T) {
 }
 
 func TestMarshalling(t *testing.T) {
-	var id0 ID
+	var id0 platform.ID
 	_, err := json.Marshal(id0)
 	if err == nil {
 		t.Errorf("expecting empty ID to not be a valid one")
 	}
 
 	init := "ca55e77eca55e77e"
-	id1, err := IDFromString(init)
+	id1, err := platform.IDFromString(init)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -165,7 +166,7 @@ func TestMarshalling(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 
-	var id2 ID
+	var id2 platform.ID
 	json.Unmarshal(serialized, &id2)
 
 	bytes1, _ := id1.Encode()
@@ -177,7 +178,7 @@ func TestMarshalling(t *testing.T) {
 }
 
 func TestValid(t *testing.T) {
-	var id ID
+	var id platform.ID
 	if id.Valid() {
 		t.Errorf("expecting initial ID to be invalid")
 	}
