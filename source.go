@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"fmt"
 )
 
 type Error string
@@ -18,10 +19,9 @@ const (
 type SourceType string
 
 const (
-	SelfSourceType         = "self"
-	V2SourceType           = "v2"
-	V1OSSSourceType        = "ossv1"
-	V1EnterpriseSourceType = "enterprisev1"
+	V2SourceType   = "v2"
+	V1SourceType   = "v1"
+	SelfSourceType = "self"
 )
 
 // Source is an external Influx with time series data.
@@ -38,7 +38,8 @@ type Source struct {
 	Telegraf           string     `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 	SourceFields
 	V1SourceFields
-	// TODO(desa): put capabilities here?
+
+	BucketService BucketService `json:"-"`
 }
 
 // V1SourceFields are the fields for connecting to a 1.0 source (oss or enterprise)
@@ -47,7 +48,6 @@ type V1SourceFields struct {
 	Password     string `json:"password,omitempty"`     // Password is in CLEARTEXT
 	SharedSecret string `json:"sharedSecret,omitempty"` // ShareSecret is the optional signing secret for Influx JWT authorization
 	MetaURL      string `json:"metaUrl,omitempty"`      // MetaURL is the url for the meta node
-	Role         string `json:"role,omitempty"`         // Not Currently Used. Role is the name of the minimum role.
 	DefaultRP    string `json:"defaultRP"`              // DefaultRP is the default retention policy used in database queries to this source
 }
 
@@ -120,12 +120,50 @@ func (u SourceUpdate) Apply(s *Source) error {
 	if u.MetaURL != nil {
 		s.MetaURL = *u.MetaURL
 	}
-	if u.Role != nil {
-		s.Role = *u.Role
-	}
 	if u.DefaultRP != nil {
 		s.DefaultRP = *u.DefaultRP
 	}
 
 	return nil
+}
+func (s *Source) FindBucketByID(ctx context.Context, id ID) (*Bucket, error) {
+	if s.BucketService == nil {
+		return nil, fmt.Errorf("not supported")
+	}
+	return s.BucketService.FindBucketByID(ctx, id)
+}
+
+func (s *Source) FindBucket(ctx context.Context, filter BucketFilter) (*Bucket, error) {
+	if s.BucketService == nil {
+		return nil, fmt.Errorf("not supported")
+	}
+	return s.BucketService.FindBucket(ctx, filter)
+}
+
+func (s *Source) FindBuckets(ctx context.Context, filter BucketFilter, opt ...FindOptions) ([]*Bucket, int, error) {
+	if s.BucketService == nil {
+		return nil, 0, fmt.Errorf("not supported")
+	}
+	return s.BucketService.FindBuckets(ctx, filter, opt...)
+}
+
+func (s *Source) CreateBucket(ctx context.Context, b *Bucket) error {
+	if s.BucketService == nil {
+		return fmt.Errorf("not supported")
+	}
+	return s.BucketService.CreateBucket(ctx, b)
+}
+
+func (s *Source) UpdateBucket(ctx context.Context, id ID, upd BucketUpdate) (*Bucket, error) {
+	if s.BucketService == nil {
+		return nil, fmt.Errorf("not supported")
+	}
+	return s.BucketService.UpdateBucket(ctx, id, upd)
+}
+
+func (s *Source) DeleteBucket(ctx context.Context, id ID) error {
+	if s.BucketService == nil {
+		return fmt.Errorf("not supported")
+	}
+	return s.BucketService.DeleteBucket(ctx, id)
 }
