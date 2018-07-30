@@ -32,7 +32,7 @@ func TestScheduler_EveryValidation(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
-	tid := platform.ID{1}
+	tid := platform.ID(1)
 
 	badScripts := []string{
 		`option task = {
@@ -69,7 +69,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
-	tid := platform.ID{1}
+	tid := platform.ID(1)
 	if err := o.ClaimTask(tid, scriptEveryMinute, 3, 99); err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	}
 
 	// For every second, can queue for timestamps 4 and 5.
-	tid = platform.ID{2}
+	tid = platform.ID(2)
 	if err := o.ClaimTask(tid, scriptEverySecond, 3, 5); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestScheduler_CreateRunOnTick(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
-	tid := platform.ID{1}
+	tid := platform.ID(1)
 	if err := o.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestScheduler_Release(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
-	tid := platform.ID{1}
+	tid := platform.ID(1)
 	if err := o.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestScheduler_RunLog(t *testing.T) {
 	s := backend.NewScheduler(d, e, rl, 5)
 
 	// Claim a task that starts later.
-	tid := platform.ID{1}
+	tid := platform.ID(1)
 	if err := s.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +292,7 @@ func TestScheduler_Metrics(t *testing.T) {
 	reg.MustRegister(s.(prom.PrometheusCollector).PrometheusCollectors()...)
 
 	// Claim a task that starts later.
-	tid := platform.ID{1}
+	tid := platform.ID(1)
 	if err := s.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
 		t.Fatal(err)
 	}

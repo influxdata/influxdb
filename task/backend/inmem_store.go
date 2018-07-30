@@ -3,7 +3,6 @@ package backend
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
@@ -36,7 +35,7 @@ func NewInMemStore() Store {
 	}
 }
 
-func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string) (platform.ID, error) {
+func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string) (*platform.ID, error) {
 	o, err := StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
 		return nil, err
@@ -60,7 +59,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 	s.runners[id.String()] = pb.StoredTaskInternalMeta{MaxConcurrency: int32(o.Concurrency)}
 	s.mu.Unlock()
 
-	return id, nil
+	return &id, nil
 }
 
 func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) error {
@@ -72,7 +71,7 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 	defer s.mu.Unlock()
 
 	for n, t := range s.tasks {
-		if bytes.Equal(t.ID, id) {
+		if t.ID == id {
 			t.Script = script
 			s.tasks[n] = t
 			return nil
@@ -82,7 +81,7 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 }
 
 func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTask, error) {
-	if len(params.Org) > 0 && len(params.User) > 0 {
+	if params.Org.Valid() && params.User.Valid() {
 		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
 	}
 
@@ -113,13 +112,19 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 	defer s.mu.RUnlock()
 
 	for _, t := range s.tasks {
-		if len(after) > 0 && bytes.Compare(after, t.ID) >= 0 {
+		taskIDBytes, err := t.ID.Encode()
+		if err != nil {
+			return nil, err
+		}
+		afterBytes, _ := after.Encode()
+
+		if bytes.Compare(afterBytes, taskIDBytes) >= 0 {
 			continue
 		}
-		if len(org) > 0 && !bytes.Equal(org, t.Org) {
+		if org.Valid() && org != t.Org {
 			continue
 		}
-		if len(user) > 0 && !bytes.Equal(user, t.User) {
+		if user.Valid() && user != t.User {
 			continue
 		}
 
@@ -137,7 +142,7 @@ func (s *inmem) FindTaskByID(_ context.Context, id platform.ID) (*StoreTask, err
 	defer s.mu.RUnlock()
 
 	for _, t := range s.tasks {
-		if bytes.Equal(t.ID, id) {
+		if t.ID == id {
 			// Return a copy of the task.
 			task := new(StoreTask)
 			*task = t
@@ -162,7 +167,7 @@ func (s *inmem) DeleteTask(_ context.Context, id platform.ID) (deleted bool, err
 
 	idx := -1
 	for i, t := range s.tasks {
-		if bytes.Equal(t.ID, id) {
+		if t.ID == id {
 			idx = i
 			break
 		}
@@ -199,7 +204,7 @@ func (s *inmem) CreateRun(ctx context.Context, taskID platform.ID, now int64) (Q
 	running := &pb.StoredTaskInternalMeta_RunningList{
 		NowTimestampUnix: now,
 		Try:              1,
-		RunID:            binary.BigEndian.Uint64(runID),
+		RunID:            uint64(runID),
 	}
 
 	stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
@@ -215,7 +220,7 @@ func (s *inmem) CreateRun(ctx context.Context, taskID platform.ID, now int64) (Q
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
-	intID := binary.BigEndian.Uint64(runID)
+	intID := uint64(runID)
 
 	stm, ok := s.runners[taskID.String()]
 	if !ok {
