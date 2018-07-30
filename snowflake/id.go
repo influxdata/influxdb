@@ -26,7 +26,13 @@ func NewIDGenerator() *IDGenerator {
 }
 
 // ID returns a pointer to a generated ID.
-func (g *IDGenerator) ID() *platform.ID {
-	id := platform.ID(g.Generator.Next())
-	return &id
+func (g *IDGenerator) ID() platform.ID {
+	var id platform.ID
+	for {
+		id = platform.ID(g.Generator.Next())
+		if id.Valid() {
+			break
+		}
+	}
+	return id
 }
