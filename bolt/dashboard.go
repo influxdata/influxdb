@@ -116,13 +116,13 @@ func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFil
 func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashboard) bool {
 	if filter.ID != nil {
 		return func(d *platform.Dashboard) bool {
-			return d.ID == *filter.ID
+			return d.ID.Valid() && d.ID == *filter.ID
 		}
 	}
 
 	if filter.OrganizationID != nil {
 		return func(d *platform.Dashboard) bool {
-			return d.OrganizationID == *filter.OrganizationID
+			return d.OrganizationID.Valid() && d.OrganizationID == *filter.OrganizationID
 		}
 	}
 
