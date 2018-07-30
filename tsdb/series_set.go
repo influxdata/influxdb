@@ -208,7 +208,8 @@ func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
 func (s *SeriesIDSet) UnmarshalBinaryUnsafe(data []byte) error {
 	s.Lock()
 	defer s.Unlock()
-	return s.bitmap.UnmarshalBinaryUnsafe(data)
+	_, err := s.bitmap.FromBuffer(data)
+	return err
 }
 
 // WriteTo writes the set to w.

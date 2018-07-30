@@ -461,7 +461,7 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	if e.flag&MeasurementSeriesIDSetFlag == 0 {
 		e.series.data, data = data[:sz], data[sz:]
 	} else {
-		data = memalign(data)
+		// data = memalign(data)
 		e.seriesIDSet = tsdb.NewSeriesIDSet()
 		if err = e.seriesIDSet.UnmarshalBinaryUnsafe(data[:sz]); err != nil {
 			return err
@@ -644,11 +644,11 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 	}
 
 	// Word align bitmap data.
-	if offset := (*n) % 8; offset != 0 {
-		if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
-			return err
-		}
-	}
+	// if offset := (*n) % 8; offset != 0 {
+	// 	if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	nn, err := mw.buf.WriteTo(w)
 	*n += nn
