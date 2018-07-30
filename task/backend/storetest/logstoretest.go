@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 type CreateRunStoreFunc func(*testing.T) (backend.LogWriter, backend.LogReader)
@@ -40,10 +41,10 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platform.ID([]byte("task"))
+	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
 	queuedAt := time.Unix(1, 0)
 	run := platform.Run{
-		ID:       platform.ID([]byte("run")),
+		ID:       platformtesting.MustIDFromString(t, "ab02ab02ab02ab02"),
 		Status:   "queued",
 		QueuedAt: queuedAt.Format(time.RFC3339),
 	}
@@ -99,9 +100,9 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platform.ID([]byte("task"))
+	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
 	run := platform.Run{
-		ID:       platform.ID([]byte("run")),
+		ID:       platformtesting.MustIDFromString(t, "ab02ab02ab02ab02"),
 		Status:   "queued",
 		QueuedAt: time.Now().Format(time.RFC3339),
 	}
@@ -144,7 +145,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platform.ID([]byte("task"))
+	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
 
 	if _, err := reader.ListRuns(context.Background(), platform.RunFilter{Task: &taskID}); err == nil {
 		t.Fatal("failed to error on bad id")
@@ -154,7 +155,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	for i := 0; i < len(runs); i++ {
 		queuedAt := time.Unix(int64(i), 0)
 		runs[i] = platform.Run{
-			ID:       platform.ID([]byte(fmt.Sprintf("run%d", i))),
+			ID:       platform.ID(i),
 			Status:   "queued",
 			QueuedAt: queuedAt.Format(time.RFC3339),
 		}
@@ -236,13 +237,15 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	if _, err := reader.FindRunByID(context.Background(), platform.ID([]byte("ugly")), platform.ID([]byte("bad"))); err == nil {
+	var emptyID platform.ID
+
+	if _, err := reader.FindRunByID(context.Background(), emptyID, emptyID); err == nil {
 		t.Fatal("failed to error with bad id")
 	}
 
-	taskID := platform.ID([]byte("task"))
+	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
 	run := platform.Run{
-		ID:       platform.ID([]byte("run")),
+		ID:       platformtesting.MustIDFromString(t, "ab02ab02ab02ab02"),
 		Status:   "queued",
 		QueuedAt: time.Now().Format(time.RFC3339),
 	}
@@ -276,7 +279,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platform.ID([]byte("task"))
+	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
 
 	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{}); err == nil {
 		t.Fatal("failed to error with no filter")
@@ -288,7 +291,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	runs := make([]platform.Run, 20)
 	for i := 0; i < len(runs); i++ {
 		runs[i] = platform.Run{
-			ID:       platform.ID([]byte(fmt.Sprintf("run%d", i))),
+			ID:       platform.ID(i),
 			Status:   "started",
 			QueuedAt: time.Unix(int64(i), 0).Format(time.RFC3339),
 		}
