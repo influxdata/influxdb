@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/platform/kit/prom"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.uber.org/zap"
 )
 
 const (
@@ -34,6 +35,9 @@ type Handler struct {
 
 	requests   *prometheus.CounterVec
 	requestDur *prometheus.HistogramVec
+
+	// Logger if set will log all HTTP requests as they are served
+	Logger *zap.Logger
 }
 
 // NewHandler creates a new handler with the given name.
@@ -73,21 +77,31 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w = statusW
 
 	// TODO: This could be problematic eventually. But for now it should be fine.
-	defer func() {
+	defer func(start time.Time) {
+		duration := time.Since(start)
+		statusClass := statusW.statusCodeClass()
+		statusCode := statusW.code()
 		h.requests.With(prometheus.Labels{
 			"handler": h.name,
 			"method":  r.Method,
 			"path":    r.URL.Path,
-			"status":  statusW.statusCodeClass(),
+			"status":  statusClass,
 		}).Inc()
-	}()
-	defer func(start time.Time) {
 		h.requestDur.With(prometheus.Labels{
 			"handler": h.name,
 			"method":  r.Method,
 			"path":    r.URL.Path,
-			"status":  statusW.statusCodeClass(),
-		}).Observe(time.Since(start).Seconds())
+			"status":  statusClass,
+		}).Observe(duration.Seconds())
+		if h.Logger != nil {
+			h.Logger.Info("served http request",
+				zap.String("handler", h.name),
+				zap.String("method", r.Method),
+				zap.String("path", r.URL.Path),
+				zap.Int("status", statusCode),
+				zap.Int("duration_ns", int(duration)),
+			)
+		}
 	}(time.Now())
 
 	switch {

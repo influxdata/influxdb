@@ -19,13 +19,21 @@ func (w *statusResponseWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
+func (w *statusResponseWriter) code() int {
+	code := w.statusCode
+	if code == 0 {
+		// When statusCode is 0 then WriteHeader was never called and we can assume that
+		// the ResponseWriter wrote an http.StatusOK.
+		code = http.StatusOK
+	}
+	return code
+}
 func (w *statusResponseWriter) statusCodeClass() string {
 	class := "XXX"
-	switch w.statusCode / 100 {
+	switch w.code() / 100 {
 	case 1:
 		class = "1XX"
-	case 0, 2:
-		// When statusCode is 0 then WriteHeader was never called and we can assume that the ResponseWriter wrote an http.StatusOK.
+	case 2:
 		class = "2XX"
 	case 3:
 		class = "3XX"
