@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/rand"
 	"github.com/influxdata/platform/snowflake"
+	"go.uber.org/zap"
 )
 
 const (
@@ -25,8 +26,9 @@ const (
 
 // Client is a client for the boltDB data store.
 type Client struct {
-	Path string
-	db   *bolt.DB
+	Path   string
+	db     *bolt.DB
+	Logger *zap.Logger
 
 	IDGenerator    platform.IDGenerator
 	TokenGenerator platform.TokenGenerator
@@ -35,6 +37,7 @@ type Client struct {
 // NewClient returns an instance of a Client.
 func NewClient() *Client {
 	return &Client{
+		Logger:         zap.NewNop(),
 		IDGenerator:    snowflake.NewIDGenerator(),
 		TokenGenerator: rand.NewTokenGenerator(64),
 	}
@@ -43,6 +46,12 @@ func NewClient() *Client {
 // DB returns the clients DB.
 func (c *Client) DB() *bolt.DB {
 	return c.db
+}
+
+// WithLogger sets the logger an a client. It should not be called after
+// the client has been open.
+func (c *Client) WithLogger(l *zap.Logger) {
+	c.Logger = l
 }
 
 // Open / create boltDB file.
