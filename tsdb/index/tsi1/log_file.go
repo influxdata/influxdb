@@ -847,11 +847,11 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 	}
 
 	// Ensure block is word aligned.
-	if offset := n % 8; offset != 0 {
-		if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
-			return n, err
-		}
-	}
+	// if offset := n % 8; offset != 0 {
+	// 	if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
+	// 		return n, err
+	// 	}
+	// }
 
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
@@ -932,11 +932,11 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 	}
 
 	// Ensure block is word aligned.
-	if offset := (*n) % 8; offset != 0 {
-		if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
-			return err
-		}
-	}
+	// if offset := (*n) % 8; offset != 0 {
+	// 	if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	enc := NewTagBlockEncoder(w)
 	var valueN int

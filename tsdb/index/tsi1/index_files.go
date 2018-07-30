@@ -186,11 +186,11 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, 
 	}
 
 	// Ensure block is word aligned.
-	if offset := n % 8; offset != 0 {
-		if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
-			return n, err
-		}
-	}
+	// if offset := n % 8; offset != 0 {
+	// 	if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
+	// 		return n, err
+	// 	}
+	// }
 
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
@@ -297,11 +297,11 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 	}
 
 	// Ensure block is word aligned.
-	if offset := (*n) % 8; offset != 0 {
-		if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
-			return err
-		}
-	}
+	// if offset := (*n) % 8; offset != 0 {
+	// 	if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {

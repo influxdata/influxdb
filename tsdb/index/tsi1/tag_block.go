@@ -426,7 +426,7 @@ func (e *TagBlockValueElem) unmarshal(buf []byte) {
 	if e.flag&TagValueSeriesIDSetFlag == 0 {
 		e.series.data, buf = buf[:sz], buf[sz:]
 	} else {
-		buf = memalign(buf)
+		// buf = memalign(buf)
 		e.seriesIDSetData, buf = buf, buf[sz:]
 	}
 
@@ -646,11 +646,11 @@ func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, ss *tsdb.Ser
 	}
 
 	// Word align bitmap data.
-	if offset := (enc.n) % 8; offset != 0 {
-		if err := writeTo(enc.w, make([]byte, 8-offset), &enc.n); err != nil {
-			return err
-		}
-	}
+	// if offset := (enc.n) % 8; offset != 0 {
+	// 	if err := writeTo(enc.w, make([]byte, 8-offset), &enc.n); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	nn, err := enc.buf.WriteTo(enc.w)
 	if enc.n += nn; err != nil {
