@@ -1,39 +1,42 @@
-package platform
+package platform_test
 
 import (
-  "testing"
+	"testing"
+
+	"github.com/influxdata/platform"
+	platformtesting "github.com/influxdata/platform/testing"
 )
 
 func TestOwnerMappingValidate(t *testing.T) {
 	type fields struct {
-		ResourceID ID
-		Owner      Owner
+		ResourceID platform.ID
+		Owner      platform.Owner
 	}
 	tests := []struct {
 		name    string
 		fields  fields
 		wantErr bool
 	}{
-    {
-  		name: "mapping requires a resourceid",
-  		fields: fields{
-  			Owner: Owner{
-  				ID: []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-  			},
-      },
-      wantErr: true,
+		{
+			name: "mapping requires a resourceid",
+			fields: fields{
+				Owner: platform.Owner{
+					ID: platformtesting.MustIDFromString(t, "debac1e0deadbeef"),
+				},
+			},
+			wantErr: true,
 		},
-    {
-      name: "mapping requires an Owner",
-      fields: fields{
-        ResourceID: []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
-      },
-      wantErr: true,
-    },
+		{
+			name: "mapping requires an Owner",
+			fields: fields{
+				ResourceID: platformtesting.MustIDFromString(t, "debac1e0deadbeef"),
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := OwnerMapping{
+			m := platform.OwnerMapping{
 				ResourceID: tt.fields.ResourceID,
 				Owner:      tt.fields.Owner,
 			}
