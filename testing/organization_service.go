@@ -149,9 +149,9 @@ func CreateOrganization(
 			}
 
 			// Delete only newly created organizations
-			if tt.args.organization.ID != nil {
-				defer s.DeleteOrganization(ctx, *tt.args.organization.ID)
-			}
+			// if tt.args.organization.ID != nil {
+			defer s.DeleteOrganization(ctx, tt.args.organization.ID)
+			// }
 
 			organizations, _, err := s.FindOrganizations(ctx, platform.OrganizationFilter{})
 			if err != nil {
@@ -198,7 +198,7 @@ func FindOrganizationByID(
 				},
 			},
 			args: args{
-				id: *MustIDFromString(t, orgTwoID),
+				id: MustIDFromString(t, orgTwoID),
 			},
 			wants: wants{
 				organization: &platform.Organization{
@@ -239,7 +239,7 @@ func FindOrganizations(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   *platform.ID
+		ID   platform.ID
 		name string
 	}
 
@@ -342,8 +342,8 @@ func FindOrganizations(
 			ctx := context.TODO()
 
 			filter := platform.OrganizationFilter{}
-			if tt.args.ID != nil {
-				filter.ID = tt.args.ID
+			if tt.args.ID.Valid() {
+				filter.ID = &tt.args.ID
 			}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
@@ -450,7 +450,7 @@ func DeleteOrganization(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteOrganization(ctx, *MustIDFromString(t, tt.args.ID))
+			err := s.DeleteOrganization(ctx, MustIDFromString(t, tt.args.ID))
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -582,7 +582,7 @@ func UpdateOrganization(
 				},
 			},
 			args: args{
-				id:   *MustIDFromString(t, orgOneID),
+				id:   MustIDFromString(t, orgOneID),
 				name: "changed",
 			},
 			wants: wants{

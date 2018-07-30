@@ -29,8 +29,8 @@ type DBRPMapping struct {
 	// Default indicates if this mapping is the default for the cluster and database.
 	Default bool `json:"default"`
 
-	OrganizationID *ID `json:"organization_id"`
-	BucketID       *ID `json:"bucket_id"`
+	OrganizationID ID `json:"organization_id"`
+	BucketID       ID `json:"bucket_id"`
 }
 
 // Validate reports any validation errors for the mapping.
@@ -44,10 +44,10 @@ func (m DBRPMapping) Validate() error {
 	if !m.RetentionPolicy.Valid() {
 		return errors.New("RetentionPolicy must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
-	if m.OrganizationID == nil {
+	if !m.OrganizationID.Valid() {
 		return errors.New("OrganizationID is required")
 	}
-	if m.BucketID == nil {
+	if !m.BucketID.Valid() {
 		return errors.New("BucketID is required")
 	}
 	return nil
@@ -65,12 +65,12 @@ func (m *DBRPMapping) Equal(o *DBRPMapping) bool {
 		m.Database == o.Database &&
 		m.RetentionPolicy == o.RetentionPolicy &&
 		m.Default == o.Default &&
-		m.OrganizationID != nil &&
-		o.OrganizationID != nil &&
-		m.BucketID != nil &&
-		o.BucketID != nil &&
-		*m.OrganizationID == *o.OrganizationID &&
-		*m.BucketID == *o.BucketID
+		m.OrganizationID.Valid() &&
+		o.OrganizationID.Valid() &&
+		m.BucketID.Valid() &&
+		o.BucketID.Valid() &&
+		m.OrganizationID == o.OrganizationID &&
+		m.BucketID == o.BucketID
 }
 
 // DBRPMappingFilter represents a set of filters that restrict the returned results by cluster, database and retention policy.

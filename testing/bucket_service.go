@@ -91,7 +91,7 @@ func CreateBucket(
 			name: "basic create bucket",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() *platform.ID {
+					IDFn: func() platform.ID {
 						return MustIDFromString(t, bucketTwoID)
 					},
 				},
@@ -140,7 +140,7 @@ func CreateBucket(
 			name: "basic create bucket using org name",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() *platform.ID {
+					IDFn: func() platform.ID {
 						return MustIDFromString(t, bucketTwoID)
 					},
 				},
@@ -189,7 +189,7 @@ func CreateBucket(
 			name: "names should be unique within an organization",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() *platform.ID {
+					IDFn: func() platform.ID {
 						return MustIDFromString(t, bucketTwoID)
 					},
 				},
@@ -233,7 +233,7 @@ func CreateBucket(
 			name: "names should not be unique across organizations",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() *platform.ID {
+					IDFn: func() platform.ID {
 						return MustIDFromString(t, bucketTwoID)
 					},
 				},
@@ -297,9 +297,9 @@ func CreateBucket(
 			}
 
 			// Delete only newly created buckets - ie., with a not nil ID
-			if tt.args.bucket.ID != nil {
-				defer s.DeleteBucket(ctx, *tt.args.bucket.ID)
-			}
+			// if tt.args.bucket.ID.Valid() {
+			defer s.DeleteBucket(ctx, tt.args.bucket.ID)
+			// }
 
 			buckets, _, err := s.FindBuckets(ctx, platform.BucketFilter{})
 			if err != nil {
@@ -318,7 +318,7 @@ func FindBucketByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id *platform.ID
+		id platform.ID
 	}
 	type wants struct {
 		err    error
@@ -373,7 +373,7 @@ func FindBucketByID(
 			defer done()
 			ctx := context.TODO()
 
-			bucket, err := s.FindBucketByID(ctx, *tt.args.id)
+			bucket, err := s.FindBucketByID(ctx, tt.args.id)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
 			}
@@ -397,10 +397,10 @@ func FindBuckets(
 	t *testing.T,
 ) {
 	type args struct {
-		ID             *platform.ID
+		ID             platform.ID
 		name           string
 		organization   string
-		organizationID *platform.ID
+		organizationID platform.ID
 	}
 
 	type wants struct {
@@ -640,11 +640,11 @@ func FindBuckets(
 			ctx := context.TODO()
 
 			filter := platform.BucketFilter{}
-			if tt.args.ID != nil {
-				filter.ID = tt.args.ID
+			if tt.args.ID.Valid() {
+				filter.ID = &tt.args.ID
 			}
-			if tt.args.organizationID != nil {
-				filter.OrganizationID = tt.args.organizationID
+			if tt.args.organizationID.Valid() {
+				filter.OrganizationID = &tt.args.organizationID
 			}
 			if tt.args.organization != "" {
 				filter.Organization = &tt.args.organization
@@ -776,7 +776,7 @@ func DeleteBucket(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteBucket(ctx, *MustIDFromString(t, tt.args.ID))
+			err := s.DeleteBucket(ctx, MustIDFromString(t, tt.args.ID))
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -806,7 +806,7 @@ func FindBucket(
 ) {
 	type args struct {
 		name           string
-		organizationID *platform.ID
+		organizationID platform.ID
 	}
 
 	type wants struct {
@@ -866,8 +866,8 @@ func FindBucket(
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
 			}
-			if tt.args.organizationID != nil {
-				filter.OrganizationID = tt.args.organizationID
+			if tt.args.organizationID.Valid() {
+				filter.OrganizationID = &tt.args.organizationID
 			}
 
 			bucket, err := s.FindBucket(ctx, filter)
@@ -895,7 +895,7 @@ func UpdateBucket(
 ) {
 	type args struct {
 		name      string
-		id        *platform.ID
+		id        platform.ID
 		retention int
 	}
 	type wants struct {
@@ -1034,7 +1034,7 @@ func UpdateBucket(
 				upd.RetentionPeriod = &d
 			}
 
-			bucket, err := s.UpdateBucket(ctx, *tt.args.id, upd)
+			bucket, err := s.UpdateBucket(ctx, tt.args.id, upd)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}

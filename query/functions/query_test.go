@@ -36,8 +36,8 @@ func init() {
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
-		OrganizationID:  orgID,
-		BucketID:        bucketID,
+		OrganizationID:  *orgID,
+		BucketID:        *bucketID,
 	}
 	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
 		return &mapping, nil

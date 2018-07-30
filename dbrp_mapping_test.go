@@ -13,8 +13,8 @@ func TestDBRPMapping_Validate(t *testing.T) {
 		Database        platform.Name
 		RetentionPolicy platform.Name
 		Default         bool
-		OrganizationID  *platform.ID
-		BucketID        *platform.ID
+		OrganizationID  platform.ID
+		BucketID        platform.ID
 	}
 	tests := []struct {
 		name    string

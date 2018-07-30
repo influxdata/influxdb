@@ -28,12 +28,12 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 	return c, func() {
 		defer closeFn()
 		for _, o := range f.Organizations {
-			if err := c.DeleteOrganization(ctx, *o.ID); err != nil {
+			if err := c.DeleteOrganization(ctx, o.ID); err != nil {
 				t.Logf("failed to remove organization: %v", err)
 			}
 		}
 		for _, b := range f.Buckets {
-			if err := c.DeleteBucket(ctx, *b.ID); err != nil {
+			if err := c.DeleteBucket(ctx, b.ID); err != nil {
 				t.Logf("failed to remove bucket: %v", err)
 			}
 		}

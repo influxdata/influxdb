@@ -21,7 +21,7 @@ func (c *Client) initializeDashboards(ctx context.Context, tx *bolt.Tx) error {
 }
 
 func (c *Client) setOrganizationOnDashboard(ctx context.Context, tx *bolt.Tx, d *platform.Dashboard) error {
-	o, err := c.findOrganizationByID(ctx, tx, *d.OrganizationID)
+	o, err := c.findOrganizationByID(ctx, tx, d.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -50,9 +50,13 @@ func (c *Client) FindDashboardByID(ctx context.Context, id platform.ID) (*platfo
 }
 
 func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Dashboard, error) {
-	var d platform.Dashboard
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
 
-	v := tx.Bucket(dashboardBucket).Get(id.Encode())
+	var d platform.Dashboard
+	v := tx.Bucket(dashboardBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		// TODO: Make standard error
@@ -85,7 +89,7 @@ func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFil
 			if err != nil {
 				return err
 			}
-			filter.OrganizationID = o.ID
+			filter.OrganizationID = &o.ID
 		}
 
 		filterFn := filterDashboardsFn(filter)
@@ -112,13 +116,13 @@ func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFil
 func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashboard) bool {
 	if filter.ID != nil {
 		return func(d *platform.Dashboard) bool {
-			return d.ID != nil && *d.ID == *filter.ID
+			return d.ID == *filter.ID
 		}
 	}
 
 	if filter.OrganizationID != nil {
 		return func(d *platform.Dashboard) bool {
-			return d.OrganizationID != nil && *d.OrganizationID == *filter.OrganizationID
+			return d.OrganizationID == *filter.OrganizationID
 		}
 	}
 
@@ -172,7 +176,7 @@ func (c *Client) findDashboards(ctx context.Context, tx *bolt.Tx, filter platfor
 		if err != nil {
 			return nil, err
 		}
-		filter.OrganizationID = o.ID
+		filter.OrganizationID = &o.ID
 	}
 
 	filterFn := filterDashboardsFn(filter)
@@ -193,7 +197,7 @@ func (c *Client) findDashboards(ctx context.Context, tx *bolt.Tx, filter platfor
 // CreateDashboard creates a platform dashboard and sets d.ID.
 func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if d.OrganizationID == nil {
+		if !d.OrganizationID.Valid() {
 			o, err := c.findOrganizationByName(ctx, tx, d.Organization)
 			if err != nil {
 				return err
@@ -225,7 +229,11 @@ func (c *Client) putDashboard(ctx context.Context, tx *bolt.Tx, d *platform.Dash
 	if err != nil {
 		return err
 	}
-	if err := tx.Bucket(dashboardBucket).Put(d.ID.Encode(), v); err != nil {
+	encodedID, err := d.ID.Encode()
+	if err != nil {
+		return err
+	}
+	if err := tx.Bucket(dashboardBucket).Put(encodedID, v); err != nil {
 		return err
 	}
 	return c.setOrganizationOnDashboard(ctx, tx, d)
@@ -298,7 +306,11 @@ func (c *Client) deleteDashboard(ctx context.Context, tx *bolt.Tx, id platform.I
 	if err != nil {
 		return err
 	}
-	return tx.Bucket(dashboardBucket).Delete(id.Encode())
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(dashboardBucket).Delete(encodedID)
 }
 
 // AddDashboardCell adds a cell to a dashboard.
@@ -323,7 +335,7 @@ func (c *Client) ReplaceDashboardCell(ctx context.Context, dashboardID platform.
 		}
 		idx := -1
 		for i, cell := range d.Cells {
-			if dc.ID != nil && cell.ID != nil && *dc.ID == *cell.ID {
+			if dc.ID.Valid() && cell.ID.Valid() && dc.ID == cell.ID {
 				idx = i
 				break
 			}
@@ -348,7 +360,7 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID platform.I
 		}
 		idx := -1
 		for i, cell := range d.Cells {
-			if cell.ID != nil && cellID == *cell.ID {
+			if cell.ID.Valid() && cellID == cell.ID {
 				idx = i
 				break
 			}

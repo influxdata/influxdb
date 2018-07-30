@@ -8,23 +8,23 @@ import (
 
 // IDGenerator is mock implementation of platform.IDGenerator.
 type IDGenerator struct {
-	IDFn func() *platform.ID
+	IDFn func() platform.ID
 }
 
 // ID generates a new platform.ID from a mock function.
-func (g IDGenerator) ID() *platform.ID {
+func (g IDGenerator) ID() platform.ID {
 	return g.IDFn()
 }
 
 // NewIDGenerator is a simple way to create immutable id generator
 func NewIDGenerator(s string, t *testing.T) IDGenerator {
 	return IDGenerator{
-		IDFn: func() *platform.ID {
+		IDFn: func() platform.ID {
 			id, err := platform.IDFromString(s)
 			if err != nil {
 				t.Fatal(err)
 			}
-			return id
+			return *id
 		},
 	}
 }

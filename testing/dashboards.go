@@ -119,7 +119,7 @@ func CreateDashboard(
 			name: "basic create dashboard",
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() *platform.ID {
+					IDFn: func() platform.ID {
 						return MustIDFromString(t, dashTwoID)
 					},
 				},
@@ -226,7 +226,7 @@ func CreateDashboard(
 					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
 				}
 			}
-			defer s.DeleteDashboard(ctx, *tt.args.dashboard.ID)
+			defer s.DeleteDashboard(ctx, tt.args.dashboard.ID)
 
 			dashboards, _, err := s.FindDashboards(ctx, platform.DashboardFilter{})
 			if err != nil {
@@ -245,7 +245,7 @@ func FindDashboardByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id *platform.ID
+		id platform.ID
 	}
 	type wants struct {
 		err       error
@@ -300,7 +300,7 @@ func FindDashboardByID(
 			defer done()
 			ctx := context.TODO()
 
-			dashboard, err := s.FindDashboardByID(ctx, *tt.args.id)
+			dashboard, err := s.FindDashboardByID(ctx, tt.args.id)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
 			}
@@ -419,7 +419,7 @@ func FindDashboardsByOrganizationID(
 	t *testing.T,
 ) {
 	type args struct {
-		organizationID *platform.ID
+		organizationID platform.ID
 	}
 
 	type wants struct {
@@ -492,7 +492,7 @@ func FindDashboardsByOrganizationID(
 			ctx := context.TODO()
 			id := tt.args.organizationID
 
-			dashboards, _, err := s.FindDashboardsByOrganizationID(ctx, *id)
+			dashboards, _, err := s.FindDashboardsByOrganizationID(ctx, id)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
 			}
@@ -516,10 +516,10 @@ func FindDashboards(
 	t *testing.T,
 ) {
 	type args struct {
-		ID             *platform.ID
+		ID             platform.ID
 		name           string
 		organization   string
-		organizationID *platform.ID
+		organizationID platform.ID
 	}
 
 	type wants struct {
@@ -723,11 +723,11 @@ func FindDashboards(
 			ctx := context.TODO()
 
 			filter := platform.DashboardFilter{}
-			if tt.args.ID != nil {
-				filter.ID = tt.args.ID
+			if tt.args.ID.Valid() {
+				filter.ID = &tt.args.ID
 			}
-			if tt.args.organizationID != nil {
-				filter.OrganizationID = tt.args.organizationID
+			if tt.args.organizationID.Valid() {
+				filter.OrganizationID = &tt.args.organizationID
 			}
 			if tt.args.organization != "" {
 				filter.Organization = &tt.args.organization
@@ -757,7 +757,7 @@ func DeleteDashboard(
 	t *testing.T,
 ) {
 	type args struct {
-		ID *platform.ID
+		ID platform.ID
 	}
 	type wants struct {
 		err        error
@@ -856,7 +856,7 @@ func DeleteDashboard(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteDashboard(ctx, *tt.args.ID)
+			err := s.DeleteDashboard(ctx, tt.args.ID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -886,7 +886,7 @@ func UpdateDashboard(
 ) {
 	type args struct {
 		name      string
-		id        *platform.ID
+		id        platform.ID
 		retention int
 	}
 	type wants struct {
@@ -948,7 +948,7 @@ func UpdateDashboard(
 				upd.Name = &tt.args.name
 			}
 
-			dashboard, err := s.UpdateDashboard(ctx, *tt.args.id, upd)
+			dashboard, err := s.UpdateDashboard(ctx, tt.args.id, upd)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -972,7 +972,7 @@ func AddDashboardCell(
 	t *testing.T,
 ) {
 	type args struct {
-		dashboardID *platform.ID
+		dashboardID platform.ID
 		cell        *platform.DashboardCell
 	}
 
@@ -1052,7 +1052,7 @@ func AddDashboardCell(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.AddDashboardCell(ctx, *tt.args.dashboardID, tt.args.cell)
+			err := s.AddDashboardCell(ctx, tt.args.dashboardID, tt.args.cell)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
 			}
@@ -1154,8 +1154,8 @@ func RemoveDashboardCell(
 				},
 			},
 			args: args{
-				dashboardID: *MustIDFromString(t, dashOneID),
-				cellID:      *MustIDFromString(t, dashTwoID),
+				dashboardID: MustIDFromString(t, dashOneID),
+				cellID:      MustIDFromString(t, dashTwoID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
@@ -1278,7 +1278,7 @@ func ReplaceDashboardCell(
 				},
 			},
 			args: args{
-				dashboardID: *MustIDFromString(t, dashOneID),
+				dashboardID: MustIDFromString(t, dashOneID),
 				cell: &platform.DashboardCell{
 					DashboardCellContents: platform.DashboardCellContents{
 						ID:   MustIDFromString(t, dashOneID),

@@ -16,10 +16,10 @@ import (
 const FromKind = "from"
 
 type FromOpSpec struct {
-	Database string       `json:"db,omitempty"`
-	Bucket   string       `json:"bucket,omitempty"`
-	BucketID *platform.ID `json:"bucket_id,omitempty"`
-	Hosts    []string     `json:"hosts"`
+	Database string      `json:"db,omitempty"`
+	Bucket   string      `json:"bucket,omitempty"`
+	BucketID platform.ID `json:"bucket_id,omitempty"`
+	Hosts    []string    `json:"hosts"`
 }
 
 var fromSignature = semantic.FunctionSignature{
@@ -58,13 +58,13 @@ func createFromOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid bucket ID")
 		}
-		spec.BucketID = id
+		spec.BucketID = *id
 	}
 
-	if spec.Database == "" && spec.Bucket == "" && spec.BucketID == nil {
+	if spec.Database == "" && spec.Bucket == "" && !spec.BucketID.Valid() {
 		return nil, errors.New("must specify one of db or bucket")
 	}
-	if spec.Database != "" && spec.Bucket != "" && spec.BucketID == nil {
+	if spec.Database != "" && spec.Bucket != "" && !spec.BucketID.Valid() {
 		return nil, errors.New("must specify only one of db or bucket")
 	}
 
@@ -218,19 +218,28 @@ func createFromSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execu
 	case spec.BucketID != nil:
 		bucketID = *spec.BucketID
 	case spec.Bucket != "":
-		b, ok := deps.BucketLookup.Lookup(orgID, spec.Bucket)
+		bID, ok := deps.BucketLookup.Lookup(orgID, spec.Bucket)
 		if !ok {
 			return nil, fmt.Errorf("could not find bucket %q", spec.Bucket)
 		}
-		bucketID = *b
+		bucketID = *bID
+	}
+
+	orgEncodedID, err := orgID.Encode()
+	if err != nil {
+		return nil, err
+	}
+	bucketEncodedID, err := bucketID.Encode()
+	if err != nil {
+		return nil, err
 	}
 
 	return storage.NewSource(
 		dsid,
 		deps.Reader,
 		storage.ReadSpec{
-			OrganizationID:  orgID.Encode(),
-			BucketID:        bucketID.Encode(),
+			OrganizationID:  orgEncodedID,
+			BucketID:        bucketEncodedID,
 			Hosts:           spec.Hosts,
 			Predicate:       spec.Filter,
 			PointsLimit:     spec.PointsLimit,

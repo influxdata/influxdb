@@ -29,12 +29,12 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	return c, func() {
 		defer closeFn()
 		for _, u := range f.Users {
-			if err := c.DeleteUser(ctx, *u.ID); err != nil {
+			if err := c.DeleteUser(ctx, u.ID); err != nil {
 				t.Logf("failed to remove user: %v", err)
 			}
 		}
 		for _, a := range f.Authorizations {
-			if err := c.DeleteAuthorization(ctx, *a.ID); err != nil {
+			if err := c.DeleteAuthorization(ctx, a.ID); err != nil {
 				t.Logf("failed to remove authorizations: %v", err)
 			}
 		}

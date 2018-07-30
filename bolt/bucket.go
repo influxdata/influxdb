@@ -25,7 +25,7 @@ func (c *Client) initializeBuckets(ctx context.Context, tx *bolt.Tx) error {
 }
 
 func (c *Client) setOrganizationOnBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) error {
-	o, err := c.findOrganizationByID(ctx, tx, *b.OrganizationID)
+	o, err := c.findOrganizationByID(ctx, tx, b.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,12 @@ func (c *Client) FindBucketByID(ctx context.Context, id platform.ID) (*platform.
 func (c *Client) findBucketByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Bucket, error) {
 	var b platform.Bucket
 
-	v := tx.Bucket(bucketBucket).Get(id.Encode())
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	v := tx.Bucket(bucketBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		// TODO: Make standard error
@@ -93,11 +98,16 @@ func (c *Client) FindBucketByName(ctx context.Context, orgID platform.ID, n stri
 
 func (c *Client) findBucketByName(ctx context.Context, tx *bolt.Tx, orgID platform.ID, n string) (*platform.Bucket, error) {
 	b := &platform.Bucket{
-		OrganizationID: &orgID,
+		OrganizationID: orgID,
 		Name:           n,
 	}
+	key, err := bucketIndexKey(b)
+	if err != nil {
+		return nil, err
+	}
+
 	var id platform.ID
-	if err := id.Decode(tx.Bucket(bucketIndex).Get(bucketIndexKey(b))); err != nil {
+	if err := id.Decode(tx.Bucket(bucketIndex).Get(key)); err != nil {
 		return nil, err
 	}
 	return c.findBucketByID(ctx, tx, id)
@@ -122,7 +132,7 @@ func (c *Client) FindBucket(ctx context.Context, filter platform.BucketFilter) (
 			if err != nil {
 				return err
 			}
-			filter.OrganizationID = o.ID
+			filter.OrganizationID = &o.ID
 		}
 
 		filterFn := filterBucketsFn(filter)
@@ -149,13 +159,13 @@ func (c *Client) FindBucket(ctx context.Context, filter platform.BucketFilter) (
 func filterBucketsFn(filter platform.BucketFilter) func(b *platform.Bucket) bool {
 	if filter.ID != nil {
 		return func(b *platform.Bucket) bool {
-			return b.ID != nil && *b.ID == *filter.ID
+			return b.ID == *filter.ID
 		}
 	}
 
 	if filter.Name != nil && filter.OrganizationID != nil {
 		return func(b *platform.Bucket) bool {
-			return b.Name == *filter.Name && b.OrganizationID != nil && *b.OrganizationID == *filter.OrganizationID
+			return b.Name == *filter.Name && b.OrganizationID == *filter.OrganizationID
 		}
 	}
 
@@ -167,7 +177,7 @@ func filterBucketsFn(filter platform.BucketFilter) func(b *platform.Bucket) bool
 
 	if filter.OrganizationID != nil {
 		return func(b *platform.Bucket) bool {
-			return b.OrganizationID != nil && *b.OrganizationID == *filter.OrganizationID
+			return b.OrganizationID == *filter.OrganizationID
 		}
 	}
 
@@ -220,7 +230,7 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 		if err != nil {
 			return nil, err
 		}
-		filter.OrganizationID = o.ID
+		filter.OrganizationID = &o.ID
 	}
 
 	filterFn := filterBucketsFn(filter)
@@ -241,7 +251,7 @@ func (c *Client) findBuckets(ctx context.Context, tx *bolt.Tx, filter platform.B
 // CreateBucket creates a platform bucket and sets b.ID.
 func (c *Client) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 	return c.db.Update(func(tx *bolt.Tx) error {
-		if b.OrganizationID == nil {
+		if !b.OrganizationID.Valid() {
 			o, err := c.findOrganizationByName(ctx, tx, b.Organization)
 			if err != nil {
 				return err
@@ -276,22 +286,33 @@ func (c *Client) putBucket(ctx context.Context, tx *bolt.Tx, b *platform.Bucket)
 		return err
 	}
 
-	if err := tx.Bucket(bucketIndex).Put(bucketIndexKey(b), b.ID.Encode()); err != nil {
+	encodedID, err := b.ID.Encode()
+	if err != nil {
 		return err
 	}
-	if err := tx.Bucket(bucketBucket).Put(b.ID.Encode(), v); err != nil {
+	key, err := bucketIndexKey(b)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Bucket(bucketIndex).Put(key, encodedID); err != nil {
+		return err
+	}
+	if err := tx.Bucket(bucketBucket).Put(encodedID, v); err != nil {
 		return err
 	}
 	return c.setOrganizationOnBucket(ctx, tx, b)
 }
 
-func bucketIndexKey(b *platform.Bucket) []byte {
-	orgID := b.OrganizationID.Encode()
-	lenOrgID := len(orgID)
-	k := make([]byte, lenOrgID+len(b.Name))
+func bucketIndexKey(b *platform.Bucket) ([]byte, error) {
+	orgID, err := b.OrganizationID.Encode()
+	if err != nil {
+		return nil, err
+	}
+	k := make([]byte, platform.IDLength+len(b.Name))
 	copy(k, orgID)
-	copy(k[lenOrgID:], []byte(b.Name))
-	return k
+	copy(k[platform.IDLength:], []byte(b.Name))
+	return k, nil
 }
 
 // forEachBucket will iterate through all buckets while fn returns true.
@@ -314,7 +335,11 @@ func (c *Client) forEachBucket(ctx context.Context, tx *bolt.Tx, fn func(*platfo
 }
 
 func (c *Client) uniqueBucketName(ctx context.Context, tx *bolt.Tx, b *platform.Bucket) bool {
-	v := tx.Bucket(bucketIndex).Get(bucketIndexKey(b))
+	key, err := bucketIndexKey(b)
+	if err != nil {
+		return false
+	}
+	v := tx.Bucket(bucketIndex).Get(key)
 	return len(v) == 0
 }
 
@@ -344,9 +369,12 @@ func (c *Client) updateBucket(ctx context.Context, tx *bolt.Tx, id platform.ID, 
 	}
 
 	if upd.Name != nil {
-		// Buckets are indexed by name and so the bucket index must be pruned when name
-		// is modified.
-		if err := tx.Bucket(bucketIndex).Delete(bucketIndexKey(b)); err != nil {
+		key, err := bucketIndexKey(b)
+		if err != nil {
+			return nil, err
+		}
+		// Buckets are indexed by name and so the bucket index must be pruned when name is modified.
+		if err := tx.Bucket(bucketIndex).Delete(key); err != nil {
 			return nil, err
 		}
 		b.Name = *upd.Name
@@ -375,9 +403,17 @@ func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 	if err != nil {
 		return err
 	}
-	// make lowercase deleteBucket with tx
-	if err := tx.Bucket(bucketIndex).Delete(bucketIndexKey(b)); err != nil {
+	key, err := bucketIndexKey(b)
+	if err != nil {
 		return err
 	}
-	return tx.Bucket(bucketBucket).Delete(id.Encode())
+	// make lowercase deleteBucket with tx
+	if err := tx.Bucket(bucketIndex).Delete(key); err != nil {
+		return err
+	}
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+	return tx.Bucket(bucketBucket).Delete(encodedID)
 }

@@ -181,9 +181,9 @@ func CreateAuthorization(
 					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
 				}
 			}
-			if tt.args.authorization.ID != nil {
-				defer s.DeleteAuthorization(ctx, *tt.args.authorization.ID)
-			}
+			// if tt.args.authorization.ID != nil {
+			defer s.DeleteAuthorization(ctx, tt.args.authorization.ID)
+			// }
 
 			authorizations, _, err := s.FindAuthorizations(ctx, platform.AuthorizationFilter{})
 			if err != nil {
@@ -202,7 +202,7 @@ func FindAuthorizationByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id *platform.ID
+		id platform.ID
 	}
 	type wants struct {
 		err           error
@@ -271,7 +271,7 @@ func FindAuthorizationByID(
 			defer done()
 			ctx := context.TODO()
 
-			authorization, err := s.FindAuthorizationByID(ctx, *tt.args.id)
+			authorization, err := s.FindAuthorizationByID(ctx, tt.args.id)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected errors to be equal '%v' got '%v'", tt.wants.err, err)
 			}
@@ -407,8 +407,8 @@ func FindAuthorizations(
 	t *testing.T,
 ) {
 	type args struct {
-		ID     *platform.ID
-		UserID *platform.ID
+		ID     platform.ID
+		UserID platform.ID
 		token  string
 	}
 
@@ -623,11 +623,11 @@ func FindAuthorizations(
 			ctx := context.TODO()
 
 			filter := platform.AuthorizationFilter{}
-			if tt.args.ID != nil {
-				filter.ID = tt.args.ID
+			if tt.args.ID.Valid() {
+				filter.ID = &tt.args.ID
 			}
-			if tt.args.UserID != nil {
-				filter.UserID = tt.args.UserID
+			if tt.args.UserID.Valid() {
+				filter.UserID = &tt.args.UserID
 			}
 			if tt.args.token != "" {
 				filter.Token = &tt.args.token
@@ -657,7 +657,7 @@ func DeleteAuthorization(
 	t *testing.T,
 ) {
 	type args struct {
-		ID *platform.ID
+		ID platform.ID
 	}
 	type wants struct {
 		err            error
@@ -788,7 +788,7 @@ func DeleteAuthorization(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteAuthorization(ctx, *tt.args.ID)
+			err := s.DeleteAuthorization(ctx, tt.args.ID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}

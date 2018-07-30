@@ -186,20 +186,22 @@ func (b bucketLookup) Lookup(orgID platform.ID, name string) (*platform.ID, bool
 	if err != nil {
 		return nil, false
 	}
-	return bucket.ID, true
+	return &bucket.ID, true
 }
 
 var (
-	staticBucketID, staticOrgID *platform.ID
+	staticBucketID, staticOrgID platform.ID
 )
 
 func init() {
 	var err error
-	staticBucketID, err = platform.IDFromString("abbaabbaabbaabba")
-	staticOrgID, err = platform.IDFromString("baabbaabbaabbaab")
+	bucketID, err := platform.IDFromString("abbaabbaabbaabba")
+	orgID, err := platform.IDFromString("baabbaabbaabbaab")
 	if err != nil {
 		panic(err)
 	}
+	staticBucketID = *bucketID
+	staticOrgID = *orgID
 }
 
 // StaticOrganizationService connects to Influx via HTTP using tokens to manage organizations.

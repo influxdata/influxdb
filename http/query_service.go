@@ -54,7 +54,7 @@ func (h *QueryHandler) handlePing(w http.ResponseWriter, r *http.Request) {
 func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var orgID *platform.ID
+	var orgID platform.ID
 	if id := r.FormValue("orgID"); id != "" {
 		err := orgID.DecodeFromString(id)
 		if err != nil {
@@ -73,7 +73,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		orgID = org.ID
 	}
 
-	if orgID == nil {
+	if !orgID.Valid() {
 		EncodeError(ctx, errors.New("must pass organization name or ID as string in orgName or orgID parameter", errors.MalformedData), w)
 		return
 	}
@@ -86,7 +86,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		rs, err := h.QueryService.Query(ctx, *orgID, req.Spec)
+		rs, err := h.QueryService.Query(ctx, orgID, req.Spec)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return
@@ -98,7 +98,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 			EncodeError(ctx, errors.New("must pass query string in q parameter", errors.MalformedData), w)
 			return
 		}
-		rs, err := h.QueryService.QueryWithCompile(ctx, *orgID, queryStr)
+		rs, err := h.QueryService.QueryWithCompile(ctx, orgID, queryStr)
 		if err != nil {
 			EncodeError(ctx, err, w)
 			return

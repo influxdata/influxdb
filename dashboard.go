@@ -57,8 +57,8 @@ type DashboardUpdate struct {
 // Dashboard represents all visual and query data for a dashboard
 type Dashboard struct {
 	// TODO: add meta information fields like created_at, updated_at, created_by, etc
-	ID             *ID             `json:"id"`
-	OrganizationID *ID             `json:"organizationID"`
+	ID             ID              `json:"id"`
+	OrganizationID ID              `json:"organizationID"`
 	Organization   string          `json:"organization"`
 	Name           string          `json:"name"`
 	Cells          []DashboardCell `json:"cells"`
@@ -72,7 +72,7 @@ type DashboardCell struct {
 
 // DashboardCellContents holds the positional info of a cell.
 type DashboardCellContents struct {
-	ID   *ID    `json:"id"`
+	ID   ID     `json:"id"`
 	Name string `json:"name"`
 
 	X int32 `json:"x"`

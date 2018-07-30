@@ -109,7 +109,7 @@ func CreateUser(
 			name: "names should be unique",
 			fields: UserFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() *platform.ID {
+					IDFn: func() platform.ID {
 						return MustIDFromString(t, userOneID)
 					},
 				},
@@ -154,8 +154,8 @@ func CreateUser(
 			}
 
 			// Delete only created users - ie., having a not nil ID
-			if tt.args.user.ID != nil {
-				defer s.DeleteUser(ctx, *tt.args.user.ID)
+			if tt.args.user.ID.Valid() {
+				defer s.DeleteUser(ctx, tt.args.user.ID)
 			}
 
 			users, _, err := s.FindUsers(ctx, platform.UserFilter{})
@@ -203,7 +203,7 @@ func FindUserByID(
 				},
 			},
 			args: args{
-				id: *MustIDFromString(t, userTwoID),
+				id: MustIDFromString(t, userTwoID),
 			},
 			wants: wants{
 				user: &platform.User{
@@ -244,7 +244,7 @@ func FindUsers(
 	t *testing.T,
 ) {
 	type args struct {
-		ID   *platform.ID
+		ID   platform.ID
 		name string
 	}
 
@@ -347,8 +347,8 @@ func FindUsers(
 			ctx := context.TODO()
 
 			filter := platform.UserFilter{}
-			if tt.args.ID != nil {
-				filter.ID = tt.args.ID
+			if tt.args.ID.Valid() {
+				filter.ID = &tt.args.ID
 			}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
@@ -406,7 +406,7 @@ func DeleteUser(
 				},
 			},
 			args: args{
-				ID: *MustIDFromString(t, userOneID),
+				ID: MustIDFromString(t, userOneID),
 			},
 			wants: wants{
 				users: []*platform.User{
@@ -432,7 +432,7 @@ func DeleteUser(
 				},
 			},
 			args: args{
-				ID: *MustIDFromString(t, userThreeID),
+				ID: MustIDFromString(t, userThreeID),
 			},
 			wants: wants{
 				err: fmt.Errorf("user not found"),
@@ -587,7 +587,7 @@ func UpdateUser(
 				},
 			},
 			args: args{
-				id:   *MustIDFromString(t, userOneID),
+				id:   MustIDFromString(t, userOneID),
 				name: "changed",
 			},
 			wants: wants{

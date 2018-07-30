@@ -28,7 +28,7 @@ func (b *BucketLookup) Lookup(orgID platform.ID, name string) (*platform.ID, boo
 	if err != nil {
 		return nil, false
 	}
-	return bucket.ID, true
+	return &bucket.ID, true
 }
 
 // FromOrganizationService wraps a platform.OrganizationService in the OrganizationLookup interface.
@@ -51,5 +51,5 @@ func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (*platform
 	if err != nil {
 		return nil, false
 	}
-	return org.ID, true
+	return &org.ID, true
 }

@@ -76,7 +76,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 			fmt.Printf("error parsing organization id: %v\n", err)
 			os.Exit(1)
 		}
-		b.OrganizationID = id
+		b.OrganizationID = *id
 	}
 
 	if err := s.CreateBucket(context.Background(), b); err != nil {

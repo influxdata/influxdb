@@ -47,9 +47,13 @@ func (c *Client) FindUserByID(ctx context.Context, id platform.ID) (*platform.Us
 }
 
 func (c *Client) findUserByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.User, error) {
-	var u platform.User
+	encodedID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
 
-	v := tx.Bucket(userBucket).Get(id.Encode())
+	var u platform.User
+	v := tx.Bucket(userBucket).Get(encodedID)
 
 	if len(v) == 0 {
 		// TODO: Make standard error
@@ -126,7 +130,7 @@ func (c *Client) FindUser(ctx context.Context, filter platform.UserFilter) (*pla
 func filterUsersFn(filter platform.UserFilter) func(u *platform.User) bool {
 	if filter.ID != nil {
 		return func(u *platform.User) bool {
-			return u.ID != nil && *u.ID == *filter.ID
+			return u.ID.Valid() && u.ID == *filter.ID
 		}
 	}
 
@@ -207,11 +211,14 @@ func (c *Client) putUser(ctx context.Context, tx *bolt.Tx, u *platform.User) err
 	if err != nil {
 		return err
 	}
-
-	if err := tx.Bucket(userIndex).Put(userIndexKey(u.Name), u.ID.Encode()); err != nil {
+	encodedID, err := u.ID.Encode()
+	if err != nil {
 		return err
 	}
-	return tx.Bucket(userBucket).Put(u.ID.Encode(), v)
+	if err := tx.Bucket(userIndex).Put(userIndexKey(u.Name), encodedID); err != nil {
+		return err
+	}
+	return tx.Bucket(userBucket).Put(encodedID, v)
 }
 
 func userIndexKey(n string) []byte {
@@ -291,11 +298,14 @@ func (c *Client) deleteUser(ctx context.Context, tx *bolt.Tx, id platform.ID) er
 	if err != nil {
 		return err
 	}
-
+	encodedID, err := id.Encode()
+	if err != nil {
+		return err
+	}
 	if err := tx.Bucket(userIndex).Delete(userIndexKey(u.Name)); err != nil {
 		return err
 	}
-	return tx.Bucket(userBucket).Delete(id.Encode())
+	return tx.Bucket(userBucket).Delete(encodedID)
 }
 
 func (c *Client) deleteUsersAuthorizations(ctx context.Context, tx *bolt.Tx, id platform.ID) error {
@@ -307,7 +317,7 @@ func (c *Client) deleteUsersAuthorizations(ctx context.Context, tx *bolt.Tx, id 
 		return err
 	}
 	for _, a := range as {
-		if err := c.deleteAuthorization(ctx, tx, *a.ID); err != nil {
+		if err := c.deleteAuthorization(ctx, tx, a.ID); err != nil {
 			return err
 		}
 	}

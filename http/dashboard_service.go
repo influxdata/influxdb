@@ -361,7 +361,7 @@ func decodePutDashboardCellRequest(ctx context.Context, r *http.Request) (*putDa
 		return nil, err
 	}
 
-	if req.Cell.ID == nil || *req.Cell.ID != cid {
+	if !req.Cell.ID.Valid() || req.Cell.ID != cid {
 		return nil, fmt.Errorf("url cell_id does not match id on provided cell")
 	}
 
@@ -654,7 +654,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, dashboardID pla
 
 // ReplaceDashboardCell replaces a single dashboard cell. It expects ID to be set on the provided cell.
 func (s *DashboardService) ReplaceDashboardCell(ctx context.Context, dashboardID platform.ID, cell *platform.DashboardCell) error {
-	u, err := newURL(s.Addr, dashboardCellPath(dashboardID, *cell.ID))
+	u, err := newURL(s.Addr, dashboardCellPath(dashboardID, cell.ID))
 	if err != nil {
 		return err
 	}
