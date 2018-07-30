@@ -264,10 +264,7 @@ func (c *Client) setServices(ctx context.Context, s *platform.Source) error {
 		}
 	case platform.V1SourceType:
 		s.BucketService = &influxdb.BucketService{
-			Addr:               s.URL,
-			InsecureSkipVerify: s.InsecureSkipVerify,
-			Username:           s.Username,
-			Password:           s.Password,
+			Source: s,
 		}
 	default:
 		return fmt.Errorf("unsupported source type %s", s.Type)
