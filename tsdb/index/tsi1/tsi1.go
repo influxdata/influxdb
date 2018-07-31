@@ -544,11 +544,3 @@ func uvarint(data []byte) (value uint64, n int, err error) {
 	}
 	return
 }
-
-// hexdump is a helper for dumping binary data to stderr.
-// func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }
-
-// stack is a helper for dumping a stack trace.
-// func stack() string {
-// 	return "------------------------\n" + string(debug.Stack()) + "------------------------\n\n"
-// }
