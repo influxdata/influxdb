@@ -5,7 +5,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/influxdata/roaring"
+	"github.com/RoaringBitmap/roaring"
 )
 
 // SeriesIDSet represents a lockable bitmap of series ids.

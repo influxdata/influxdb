@@ -1,5 +1,6 @@
 collectd.org 2ce144541b8903101fb8f1483cc0497a68798122
 github.com/BurntSushi/toml a368813c5e648fee92e5f6c30e3944ff9d5e8895
+github.com/RoaringBitmap/roaring 4c23670306840b0f8755db247d2e9b8369fc356e
 github.com/beorn7/perks 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
 github.com/bmizerany/pat 6226ea591a40176dd3ff9cd8eff81ed6ca721a00
 github.com/boltdb/bolt 2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8
