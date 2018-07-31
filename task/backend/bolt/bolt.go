@@ -158,7 +158,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 
 		// metadata
 		stm := pb.StoredTaskInternalMeta{
-			MaxConcurrency: 1,
+			MaxConcurrency: int32(o.Concurrency),
 		}
 
 		stmBytes, err := stm.Marshal()
@@ -348,6 +348,30 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 		Name:   string(name),
 		Script: string(script),
 	}, err
+}
+
+func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.StoredTaskInternalMeta, error) {
+	var stmBytes []byte
+	paddedID := padID(id)
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket)
+		stmBytes = b.Bucket(taskMetaPath).Get(paddedID)
+		if stmBytes == nil {
+			return errors.New("task meta not found")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	stm := pb.StoredTaskInternalMeta{}
+	err = stm.Unmarshal(stmBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &stm, nil
 }
 
 // DeleteTask deletes the task
