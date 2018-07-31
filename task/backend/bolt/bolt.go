@@ -523,3 +523,119 @@ func padID(id platform.ID) platform.ID {
 	copy(buf[len(buf)-len(id):], id)
 	return buf[:]
 }
+
+// DeleteUser syncronously deletes a user and all their tasks from a bolt store.
+func (s *Store) DeleteUser(ctx context.Context, id platform.ID) error {
+	userID := padID(id)
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket)
+		ub := b.Bucket(usersPath).Bucket(userID)
+		if ub == nil {
+			return backend.ErrUserNotFound
+		}
+		c := ub.Cursor()
+		i := 0
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			i++
+			// check for cancelation every 256 tasks deleted
+			if i&0xFF == 0 {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+			}
+			if err := b.Bucket(tasksPath).Delete(k); err != nil {
+				return err
+			}
+			if err := b.Bucket(taskMetaPath).Delete(k); err != nil {
+				return err
+			}
+			if err := b.Bucket(orgByTaskID).Delete(k); err != nil {
+				return err
+			}
+			if err := b.Bucket(userByTaskID).Delete(k); err != nil {
+				return err
+			}
+			if err := b.Bucket(nameByTaskID).Delete(k); err != nil {
+				return err
+			}
+
+			org := b.Bucket(orgByTaskID).Get(k)
+			if len(org) > 0 {
+				ob := b.Bucket(orgsPath).Bucket(org)
+				if ob != nil {
+					if err := ob.Delete(k); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		// check for cancelation one last time before we return
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			return b.Bucket(usersPath).DeleteBucket(userID)
+		}
+	})
+
+	return err
+}
+
+// DeleteOrg syncronously deletes an org and all their tasks from a bolt store.
+func (s *Store) DeleteOrg(ctx context.Context, id platform.ID) error {
+	orgID := padID(id)
+	return s.db.Batch(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket)
+		ob := b.Bucket(orgsPath).Bucket(orgID)
+		if ob == nil {
+			return backend.ErrOrgNotFound
+		}
+		c := ob.Cursor()
+		i := 0
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			i++
+			// check for cancelation every 256 tasks deleted
+			if i&0xFF == 0 {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+			}
+			if err := b.Bucket(tasksPath).Delete(k); err != nil {
+				return err
+			}
+			if err := b.Bucket(taskMetaPath).Delete(k); err != nil {
+				return err
+			}
+			if err := b.Bucket(orgByTaskID).Delete(k); err != nil {
+				return err
+			}
+			if err := b.Bucket(userByTaskID).Delete(k); err != nil {
+				return err
+			}
+			if err := b.Bucket(nameByTaskID).Delete(k); err != nil {
+				return err
+			}
+			user := b.Bucket(userByTaskID).Get(k)
+			if len(user) > 0 {
+				ub := b.Bucket(usersPath).Bucket(user)
+				if ub != nil {
+					if err := ub.Delete(k); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		// check for cancelation one last time before we return
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			return b.Bucket(orgsPath).DeleteBucket(orgID)
+		}
+	})
+}

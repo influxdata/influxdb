@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,12 @@ import (
 	"github.com/influxdata/platform/task/backend/pb"
 	"github.com/influxdata/platform/task/options"
 )
+
+// ErrUserNotFound is an error for when we can't find a user
+var ErrUserNotFound = errors.New("user not found")
+
+// ErrOrgNotFound is an error for when we can't find an org
+var ErrOrgNotFound = errors.New("org not found")
 
 // Store is the interface around persisted tasks.
 type Store interface {
@@ -41,6 +48,12 @@ type Store interface {
 
 	// FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 	FinishRun(ctx context.Context, taskID, runID platform.ID) error
+
+	// DeleteOrg deletes the org.
+	DeleteOrg(ctx context.Context, orgID platform.ID) error
+
+	// DeleteUser deletes a user with userID.
+	DeleteUser(ctx context.Context, userID platform.ID) error
 
 	// Close closes the store for usage and cleans up running processes.
 	Close() error

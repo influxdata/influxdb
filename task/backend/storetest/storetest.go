@@ -3,6 +3,7 @@ package storetest
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"strings"
@@ -40,6 +41,8 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 		"DeleteTask": testStoreDelete,
 		"CreateRun":  testStoreCreateRun,
 		"FinishRun":  testStoreFinishRun,
+		"DeleteOrg":  testStoreDeleteOrg,
+		"DeleteUser": testStoreDeleteUser,
 	}
 
 	return func(t *testing.T) {
@@ -71,12 +74,10 @@ from(db:"test") |> range(start:-1h)`
 	t.Run("happy path", func(t *testing.T) {
 		s := create(t)
 		defer destroy(t, s)
-
 		if _, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script); err != nil {
 			t.Fatal(err)
 		}
 	})
-
 	for _, args := range []struct {
 		caseName     string
 		org, user    platform.ID
@@ -547,4 +548,81 @@ from(db:"test") |> range(start:-1h)`
 	if err := s.FinishRun(context.Background(), task, run.RunID); err == nil {
 		t.Fatal("expected failure when removing run that doesnt exist")
 	}
+}
+
+func testStoreDeleteUser(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+	s := create(t)
+	defer destroy(t, s)
+	ids := createABunchOFTasks(t, s,
+		func(u, _ uint64) bool {
+			return u == 0
+		},
+	)
+	user := make(platform.ID, 8)
+	err := s.DeleteUser(context.Background(), user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range ids {
+		task, err := s.FindTaskByID(context.Background(), ids[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task != nil {
+			t.Fatal("expected task to be deleted but it was not")
+		}
+	}
+}
+
+func testStoreDeleteOrg(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+	s := create(t)
+	defer destroy(t, s)
+	ids := createABunchOFTasks(t, s,
+		func(_, o uint64) bool {
+			return o == 0
+		},
+	)
+	org := make(platform.ID, 8)
+	err := s.DeleteOrg(context.Background(), org)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range ids {
+		task, err := s.FindTaskByID(context.Background(), ids[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if task != nil {
+			t.Fatal("expected task to be deleted but it was not")
+		}
+	}
+}
+
+func createABunchOFTasks(t *testing.T, s backend.Store, filter func(user, org uint64) bool) []platform.ID {
+	const script = `option task = {
+		name: "a task",
+		cron: "* * * * *",
+	}
+
+from(db:"test") |> range(start:-1h)`
+	var id platform.ID
+	var ids []platform.ID
+	var err error
+	for i := 0; i < 15; i++ {
+		for userInt := uint64(0); userInt < 4; userInt++ {
+			for orgInt := uint64(0); orgInt < 3; orgInt++ {
+				org := make(platform.ID, 8)
+				user := make(platform.ID, 8)
+				binary.BigEndian.PutUint64(org, orgInt)
+				binary.BigEndian.PutUint64(user, userInt)
+				if id, err = s.CreateTask(context.Background(), org, user, script); err != nil {
+					t.Fatal(err)
+				}
+				if filter(userInt, orgInt) {
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+	return ids
 }

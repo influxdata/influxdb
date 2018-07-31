@@ -244,3 +244,54 @@ func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 
 	return nil
 }
+
+func (s *inmem) delete(ctx context.Context, id platform.ID, f func(StoreTask) platform.ID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	newTasks := []StoreTask{}
+	deletingTasks := []platform.ID{}
+	for i := range s.tasks {
+		if !bytes.Equal(f(s.tasks[i]), id) {
+			newTasks = append(newTasks, s.tasks[i])
+		} else {
+			deletingTasks = append(deletingTasks, s.tasks[i].ID)
+		}
+		//check for cancelations
+		if i&(1024-1) == 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+		}
+	}
+	//last check for cancelations
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	for i := range deletingTasks {
+		delete(s.runners, s.tasks[i].ID.String())
+	}
+	s.tasks = newTasks
+	return nil
+}
+
+func getUser(st StoreTask) platform.ID {
+	return st.User
+}
+
+func getOrg(st StoreTask) platform.ID {
+	return st.Org
+}
+
+// DeleteOrg synchronously deletes an org and all their tasks from a from an in-mem store store.
+func (s *inmem) DeleteOrg(ctx context.Context, id platform.ID) error {
+	return s.delete(ctx, id, getOrg)
+}
+
+// DeleteUser synchronously deletes a user and all their tasks from a from an in-mem store store.
+func (s *inmem) DeleteUser(ctx context.Context, id platform.ID) error {
+	return s.delete(ctx, id, getUser)
+}
