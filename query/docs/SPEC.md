@@ -1084,6 +1084,61 @@ Range has the following properties:
     Specifies the exclusive newest time to be included in the results.
     Defaults to "now"
 
+#### Rename 
+
+Rename will rename specified columns in a data table. 
+There are two variants: one which takes a map of old column names to new column names,
+ and one which takes a mapping function.
+
+Rename has the following properties: 
+* `columns` object
+	A map of columns to rename and their corresponding new names. Cannot be used with `fn`. 
+* `fn` function 
+    A function which takes a single string parameter (the old column name) and returns a string representing 
+    the new column name. Cannot be used with `columns`.
+
+Example usage:
+
+Rename a single column: `rename(columns:{host: "server"})`
+
+Rename all columns with `fn` parameter: `rename(fn: (col) => "{col}_new")`
+
+#### Drop 
+
+Drop will exclude specified columns from a returned data table. Columns to exclude can be specified either through a 
+list, or a predicate function. 
+
+Drop has the following properties:
+* `columns` array of strings 
+    An array of columns which should be excluded from the resulting table. Cannot be used with `fn`.
+* `fn` function 
+    A function which takes a column name as a parameter and returns a boolean indicating whether
+    or not the column should be excluded from the resulting table. Cannot be used with `columns`.  
+
+Example Usage:
+
+Drop a list of columns: `drop(columns: ["host", "_measurement"])`
+
+Drop all columns matching a predicate: `drop(fn: (col) => col =~ /usage*/)`
+
+#### Keep 
+
+Keep can be thought of as the inverse of drop. It will return a table containing only columns that are specified,
+ignoring all others.
+
+Keep has the following properties: 
+* `columns` array of strings
+    An array of columns that should be included in the resulting table. Cannot be used with `fn`.
+* `fn` function
+    A function which takes a column name as a parameter and returns a boolean indicating whether or not
+    the column should be included in the resulting table. Cannot be used with `columns`. 
+
+Example Usage:
+
+Keep a list of columns: `keep(columns: ["_time", "_value"])`
+
+Keep all columns matching a predicate: `keep(fn: (col) => col =~ /inodes*/)`
+
 
 #### Set
 
