@@ -4,17 +4,64 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"path"
+
+	"go.uber.org/zap"
 
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
 
+const (
+	sourceHTTPPath = "/v2/sources"
+)
+
+type sourceResponse struct {
+	*platform.Source
+	Links map[string]interface{} `json:"links"`
+}
+
+func newSourceResponse(s *platform.Source) *sourceResponse {
+	s.Password = ""
+	s.SharedSecret = ""
+	return &sourceResponse{
+		Source: s,
+		Links: map[string]interface{}{
+			"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
+			"query":   fmt.Sprintf("%s/%s/query", sourceHTTPPath, s.ID.String()),
+			"buckets": fmt.Sprintf("%s/%s/buckets", sourceHTTPPath, s.ID.String()),
+		},
+	}
+}
+
+type sourcesResponse struct {
+	Sources []*sourceResponse      `json:"sources"`
+	Links   map[string]interface{} `json:"links"`
+}
+
+func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
+	res := &sourcesResponse{
+		Links: map[string]interface{}{
+			"self": sourceHTTPPath,
+		},
+	}
+
+	res.Sources = make([]*sourceResponse, 0, len(srcs))
+	for _, src := range srcs {
+		res.Sources = append(res.Sources, newSourceResponse(src))
+	}
+
+	return res
+}
+
 // SourceHandler is a handler for sources
 type SourceHandler struct {
 	*httprouter.Router
+	Logger *zap.Logger
 
 	SourceService platform.SourceService
 }
@@ -23,6 +70,7 @@ type SourceHandler struct {
 func NewSourceHandler() *SourceHandler {
 	h := &SourceHandler{
 		Router: httprouter.New(),
+		Logger: zap.NewNop(),
 	}
 
 	h.HandlerFunc("POST", "/v2/sources", h.handlePostSource)
@@ -32,7 +80,59 @@ func NewSourceHandler() *SourceHandler {
 	h.HandlerFunc("DELETE", "/v2/sources/:id", h.handleDeleteSource)
 
 	h.HandlerFunc("GET", "/v2/sources/:id/buckets", h.handleGetSourcesBuckets)
+	h.HandlerFunc("POST", "/v2/sources/:id/query", h.handlePostSourceQuery)
 	return h
+}
+
+// handlePostSourceQuery is the HTTP handler for POST /v2/sources/:id/query
+func (h *SourceHandler) handlePostSourceQuery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodePostSourceQuery(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	s, err := h.SourceService.FindSourceByID(ctx, req.SourceID)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	res, err := s.SourceQuerier.Query(ctx, req.sourceQuery)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := io.Copy(w, res.Reader); err != nil {
+		h.Logger.Info("error copying query response", zap.Error(err))
+	}
+
+}
+
+type postSourceQuery struct {
+	*getSourceRequest
+	sourceQuery *platform.SourceQuery
+}
+
+func decodePostSourceQuery(ctx context.Context, r *http.Request) (*postSourceQuery, error) {
+	getSrcReq, err := decodeGetSourceRequest(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	q := &platform.SourceQuery{}
+	if err := json.NewDecoder(r.Body).Decode(q); err != nil {
+		return nil, err
+	}
+
+	return &postSourceQuery{
+		getSourceRequest: getSrcReq,
+		sourceQuery:      q,
+	}, nil
 }
 
 // handleGetSourcesBuckets is the HTTP handler for the GET /v2/sources/:id/buckets route.
@@ -130,13 +230,15 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	b, err := h.SourceService.FindSourceByID(ctx, req.SourceID)
+	s, err := h.SourceService.FindSourceByID(ctx, req.SourceID)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	res := newSourceResponse(s)
+
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -214,13 +316,15 @@ func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	bs, _, err := h.SourceService.FindSources(ctx, req.findOptions)
+	srcs, _, err := h.SourceService.FindSources(ctx, req.findOptions)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, bs); err != nil {
+	res := newSourcesResponse(srcs)
+
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}

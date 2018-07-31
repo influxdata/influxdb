@@ -30,6 +30,18 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 	}
 }
 
+var platformLinks = map[string]interface{}{
+	"sources": "/v2/sources",
+}
+
+func (h *PlatformHandler) serveLinks(w nethttp.ResponseWriter, r *nethttp.Request) {
+	ctx := r.Context()
+	if err := encodeResponse(ctx, w, nethttp.StatusOK, platformLinks); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
 // ServeHTTP delegates a request to the appropriate subhandler.
 func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request) {
 
@@ -40,10 +52,15 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 
 	// Server the chronograf assets for any basepath that does not start with addressable parts
 	// of the platform API.
-	if !strings.HasPrefix(r.URL.Path, "/v1/") &&
-		!strings.HasPrefix(r.URL.Path, "/v2/") &&
+	if !strings.HasPrefix(r.URL.Path, "/v1") &&
+		!strings.HasPrefix(r.URL.Path, "/v2") &&
 		!strings.HasPrefix(r.URL.Path, "/chronograf/") {
 		h.AssetHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if r.URL.Path == "/v2" {
+		h.serveLinks(w, r)
 		return
 	}
 
@@ -55,8 +72,8 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	ctx := r.Context()
 	var err error
 	if ctx, err = extractAuthorization(ctx, r); err != nil {
-		nethttp.Error(w, err.Error(), nethttp.StatusBadRequest)
-		return
+		// TODO(desa): add back eventually when things have settled
+		//nethttp.Error(w, err.Error(), nethttp.StatusBadRequest)
 	}
 	r = r.WithContext(ctx)
 

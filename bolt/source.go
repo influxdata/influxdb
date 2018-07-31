@@ -270,6 +270,9 @@ func (c *Client) setServices(ctx context.Context, s *platform.Source) error {
 		s.BucketService = &influxdb.BucketService{
 			Source: s,
 		}
+		s.SourceQuerier = &influxdb.SourceQuerier{
+			Source: s,
+		}
 	default:
 		return fmt.Errorf("unsupported source type %s", s.Type)
 	}

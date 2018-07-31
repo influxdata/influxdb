@@ -40,6 +40,8 @@ type Source struct {
 	V1SourceFields
 
 	BucketService BucketService `json:"-"`
+	// TODO(desa): is this a good idea?
+	SourceQuerier SourceQuerier `json:"-"`
 }
 
 // V1SourceFields are the fields for connecting to a 1.0 source (oss or enterprise)
