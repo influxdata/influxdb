@@ -3,7 +3,6 @@ package influxdb
 import (
 	"context"
 	"fmt"
-	"path"
 	"time"
 
 	"github.com/influxdata/platform"
@@ -47,7 +46,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 			b := &platform.Bucket{
 				// TODO(desa): what to do about IDs?
 				RetentionPeriod: d,
-				Name:            path.Join(db.Name, rp.Name),
+				Name:            fmt.Sprintf("%v.%v", db.Name, rp.Name),
 			}
 
 			bs = append(bs, b)
