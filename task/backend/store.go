@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/task/backend/pb"
 	"github.com/influxdata/platform/task/options"
 )
 
@@ -25,6 +26,9 @@ type Store interface {
 	// FindTaskByID returns the task with the given ID.
 	// If no task matches the ID, the returned task is nil.
 	FindTaskByID(ctx context.Context, id platform.ID) (*StoreTask, error)
+
+	// FindTaskMetaByID returns the metadata about a task.
+	FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.StoredTaskInternalMeta, error)
 
 	// DeleteTask returns whether an entry matching the given ID was deleted.
 	// If err is non-nil, deleted is false.

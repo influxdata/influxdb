@@ -57,7 +57,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 
 	s.mu.Lock()
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = pb.StoredTaskInternalMeta{MaxConcurrency: 1} // TODO:  make settable in the create
+	s.runners[id.String()] = pb.StoredTaskInternalMeta{MaxConcurrency: int32(o.Concurrency)} // TODO:  make settable in the create
 	s.mu.Unlock()
 
 	return id, nil
@@ -146,6 +146,14 @@ func (s *inmem) FindTaskByID(_ context.Context, id platform.ID) (*StoreTask, err
 	}
 
 	return nil, nil
+}
+func (s *inmem) FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.StoredTaskInternalMeta, error) {
+	meta, ok := s.runners[id.String()]
+	if !ok {
+		return nil, errors.New("task meta not found")
+	}
+
+	return &meta, nil
 }
 
 func (s *inmem) DeleteTask(_ context.Context, id platform.ID) (deleted bool, err error) {

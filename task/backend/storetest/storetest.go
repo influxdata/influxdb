@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
@@ -14,32 +15,43 @@ import (
 
 type CreateStoreFunc func(*testing.T) backend.Store
 type DestroyStoreFunc func(*testing.T, backend.Store)
+type TestFunc func(*testing.T, CreateStoreFunc, DestroyStoreFunc)
 
 // NewStoreTest creates a test function for a given store.
-func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc) func(t *testing.T) {
+func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcNames ...string) func(t *testing.T) {
+	if len(funcNames) == 0 {
+		funcNames = []string{
+			"CreateTask",
+			"ModifyTask",
+			"ListTasks",
+			"FindTask",
+			"findMeta",
+			"DeleteTask",
+			"CreateRun",
+			"FinishRun",
+		}
+	}
+	availableFuncs := map[string]TestFunc{
+		"CreateTask": testStoreCreate,
+		"ModifyTask": testStoreModify,
+		"ListTasks":  testStoreListTasks,
+		"FindTask":   testStoreFindTask,
+		"findMeta":   testStoreFindMeta,
+		"DeleteTask": testStoreDelete,
+		"CreateRun":  testStoreCreateRun,
+		"FinishRun":  testStoreFinishRun,
+	}
+
 	return func(t *testing.T) {
+		fn := func(funcName string, tf TestFunc) {
+			t.Run(funcName, func(t *testing.T) {
+				tf(t, cf, df)
+			})
+		}
 		t.Run(name, func(t *testing.T) {
-			t.Run("CreateTask", func(t *testing.T) {
-				testStoreCreate(t, cf, df)
-			})
-			t.Run("ModifyTask", func(t *testing.T) {
-				testStoreModify(t, cf, df)
-			})
-			t.Run("ListTasks", func(t *testing.T) {
-				testStoreListTasks(t, cf, df)
-			})
-			t.Run("FindTask", func(t *testing.T) {
-				testStoreFindTask(t, cf, df)
-			})
-			t.Run("DeleteTask", func(t *testing.T) {
-				testStoreDelete(t, cf, df)
-			})
-			t.Run("CreateRun", func(t *testing.T) {
-				testStoreCreateRun(t, cf, df)
-			})
-			t.Run("FinishRun", func(t *testing.T) {
-				testStoreFinishRun(t, cf, df)
-			})
+			for _, funcName := range funcNames {
+				fn(funcName, availableFuncs[funcName])
+			}
 		})
 	}
 }
@@ -361,6 +373,65 @@ from(db:"test") |> range(start:-1h)`
 	})
 }
 
+func testStoreFindMeta(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+	const script = `option task = {
+		name: "a task",
+		cron: "* * * * *",
+		concurrency: 3,
+	}
+
+from(db:"test") |> range(start:-1h)`
+
+	s := create(t)
+	defer destroy(t, s)
+
+	org := []byte{1}
+	user := []byte{2}
+
+	id, err := s.CreateTask(context.Background(), org, user, script)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err := s.FindTaskMetaByID(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if meta.MaxConcurrency != 3 {
+		t.Fatal("failed to set max concurrency")
+	}
+
+	badID := []byte("bad")
+	meta, err = s.FindTaskMetaByID(context.Background(), badID)
+	if err == nil {
+		t.Fatalf("failed to error on bad taskID")
+	}
+	if meta != nil {
+		t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
+	}
+
+	qr, err := s.CreateRun(context.Background(), id, time.Unix(1, 0).Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.CreateRun(context.Background(), id, time.Unix(2, 0).Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = s.FinishRun(context.Background(), id, qr.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err = s.FindTaskMetaByID(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
 func testStoreDelete(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
 	const script = `option task = {
 		name: "a task",
