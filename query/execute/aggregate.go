@@ -133,7 +133,8 @@ func (t *aggregateTransformation) Process(id DatasetID, tbl query.Table) error {
 			vf = t.agg.NewFloatAgg()
 		case query.TString:
 			vf = t.agg.NewStringAgg()
-		default:
+		}
+		if vf == nil {
 			return fmt.Errorf("unsupported aggregate column type %v", c.Type)
 		}
 		aggregates[j] = vf
