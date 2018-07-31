@@ -128,6 +128,7 @@ func newFromProcedure(qs query.OperationSpec, pa plan.Administration) (plan.Proc
 	return &FromProcedureSpec{
 		Database: spec.Database,
 		Bucket:   spec.Bucket,
+		BucketID: spec.BucketID,
 		Hosts:    spec.Hosts,
 	}, nil
 }
