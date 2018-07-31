@@ -27,8 +27,11 @@ func init() {
 						{
 							ID: "range0",
 							Spec: &functions.RangeOpSpec{
-								Start: query.Time{Absolute: Now().Add(-10 * time.Minute)},
-								Stop:  query.Time{Absolute: Now()},
+								Start:    query.Time{Absolute: Now().Add(-10 * time.Minute)},
+								Stop:     query.Time{Absolute: Now()},
+								TimeCol:  execute.DefaultTimeColLabel,
+								StartCol: execute.DefaultStartColLabel,
+								StopCol:  execute.DefaultStopColLabel,
 							},
 						},
 						{

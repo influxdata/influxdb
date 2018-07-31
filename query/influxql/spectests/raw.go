@@ -6,6 +6,7 @@ import (
 	"github.com/influxdata/influxql"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/ast"
+	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/semantic"
 )
@@ -25,8 +26,11 @@ func init() {
 					{
 						ID: "range0",
 						Spec: &functions.RangeOpSpec{
-							Start: query.Time{Absolute: time.Unix(0, influxql.MinTime)},
-							Stop:  query.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+							Start:    query.Time{Absolute: time.Unix(0, influxql.MinTime)},
+							Stop:     query.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+							TimeCol:  execute.DefaultTimeColLabel,
+							StartCol: execute.DefaultStartColLabel,
+							StopCol:  execute.DefaultStopColLabel,
 						},
 					},
 					{
