@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
 )
@@ -23,6 +24,7 @@ var sourceCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
+	cmpopts.IgnoreFields(platform.Source{}, "BucketService"),
 	cmp.Transformer("Sort", func(in []*platform.Source) []*platform.Source {
 		out := append([]*platform.Source(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
@@ -72,7 +74,7 @@ func CreateSource(
 				sources: []*platform.Source{
 					{
 						Name:    "autogen",
-						Type:    "v2",
+						Type:    "self",
 						ID:      idFromString(t, defaultSourceID),
 						Default: true,
 					},
@@ -165,7 +167,7 @@ func FindSourceByID(
 			wants: wants{
 				source: &platform.Source{
 					Name:    "autogen",
-					Type:    "v2",
+					Type:    "self",
 					ID:      idFromString(t, defaultSourceID),
 					Default: true,
 				},
@@ -235,7 +237,7 @@ func FindSources(
 				sources: []*platform.Source{
 					{
 						Name:    "autogen",
-						Type:    "v2",
+						Type:    "self",
 						ID:      idFromString(t, defaultSourceID),
 						Default: true,
 					},
@@ -312,7 +314,7 @@ func DeleteSource(
 				sources: []*platform.Source{
 					{
 						Name:    "autogen",
-						Type:    "v2",
+						Type:    "self",
 						ID:      idFromString(t, defaultSourceID),
 						Default: true,
 					},
@@ -333,7 +335,7 @@ func DeleteSource(
 				sources: []*platform.Source{
 					{
 						Name:    "autogen",
-						Type:    "v2",
+						Type:    "self",
 						ID:      idFromString(t, defaultSourceID),
 						Default: true,
 					},
