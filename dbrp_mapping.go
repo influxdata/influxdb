@@ -3,6 +3,8 @@ package platform
 import (
 	"context"
 	"errors"
+	"strings"
+	"unicode"
 )
 
 // DBRPMappingService provides a mapping of cluster, database and retention policy to an organization ID and bucket ID.
@@ -22,9 +24,9 @@ type DBRPMappingService interface {
 
 // DBRPMapping represents a mapping of a cluster, database and retention policy to an organization ID and bucket ID.
 type DBRPMapping struct {
-	Cluster         Name `json:"cluster"`
-	Database        Name `json:"database"`
-	RetentionPolicy Name `json:"retention_policy"`
+	Cluster         string `json:"cluster"`
+	Database        string `json:"database"`
+	RetentionPolicy string `json:"retention_policy"`
 
 	// Default indicates if this mapping is the default for the cluster and database.
 	Default bool `json:"default"`
@@ -35,13 +37,13 @@ type DBRPMapping struct {
 
 // Validate reports any validation errors for the mapping.
 func (m DBRPMapping) Validate() error {
-	if !m.Cluster.Valid() {
+	if !validName(m.Cluster) {
 		return errors.New("Cluster must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
-	if !m.Database.Valid() {
+	if !validName(m.Database) {
 		return errors.New("Database must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
-	if !m.RetentionPolicy.Valid() {
+	if !validName(m.RetentionPolicy) {
 		return errors.New("RetentionPolicy must contain at least one character and only be letters, numbers, '_', '-', and '.'")
 	}
 	if !m.OrganizationID.Valid() {
@@ -51,6 +53,19 @@ func (m DBRPMapping) Validate() error {
 		return errors.New("BucketID is required")
 	}
 	return nil
+}
+
+// validName checks to see if the given name can would be valid for DB/RP name
+func validName(name string) bool {
+	for _, r := range name {
+		if !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return name != "" &&
+		name != "." &&
+		name != ".." &&
+		!strings.ContainsAny(name, `/\`)
 }
 
 // Equal checks if the two mappings are identical.

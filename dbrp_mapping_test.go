@@ -9,9 +9,9 @@ import (
 
 func TestDBRPMapping_Validate(t *testing.T) {
 	type fields struct {
-		Cluster         platform.Name
-		Database        platform.Name
-		RetentionPolicy platform.Name
+		Cluster         string
+		Database        string
+		RetentionPolicy string
 		Default         bool
 		OrganizationID  platform.ID
 		BucketID        platform.ID
@@ -67,7 +67,7 @@ func TestDBRPMapping_Validate(t *testing.T) {
 		{
 			name: "cluster name cannot have non-printable characters.",
 			fields: fields{
-				Cluster: platform.Name([]byte{0x0D}),
+				Cluster: string([]byte{0x0D}),
 			},
 			wantErr: true,
 		},
@@ -75,7 +75,7 @@ func TestDBRPMapping_Validate(t *testing.T) {
 			name: "db cannot have non-letters/numbers/_/./-",
 			fields: fields{
 				Cluster:  "12345_.",
-				Database: platform.Name([]byte{0x0D}),
+				Database: string([]byte{0x0D}),
 			},
 			wantErr: true,
 		},
@@ -84,7 +84,7 @@ func TestDBRPMapping_Validate(t *testing.T) {
 			fields: fields{
 				Cluster:         "12345",
 				Database:        "telegraf",
-				RetentionPolicy: platform.Name([]byte{0x0D}),
+				RetentionPolicy: string([]byte{0x0D}),
 			},
 			wantErr: true,
 		},
