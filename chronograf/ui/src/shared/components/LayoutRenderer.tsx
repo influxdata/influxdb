@@ -3,7 +3,6 @@ import React, {Component} from 'react'
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
 // Components
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import Layout from 'src/shared/components/Layout'
 const GridLayout = WidthProvider(ReactGridLayout)
 
@@ -12,11 +11,10 @@ import {fastMap} from 'src/utils/fast'
 
 // Constants
 import {
-  // TODO: get these const values dynamically
-  STATUS_PAGE_ROW_COUNT,
+  LAYOUT_MARGIN,
   PAGE_HEADER_HEIGHT,
   PAGE_CONTAINER_MARGIN,
-  LAYOUT_MARGIN,
+  STATUS_PAGE_ROW_COUNT,
   DASHBOARD_LAYOUT_ROW_HEIGHT,
 } from 'src/shared/constants'
 
@@ -78,55 +76,39 @@ class LayoutRenderer extends Component<Props, State> {
     const isDashboard = !!this.props.onPositionChange
 
     return (
-      <Authorized
-        requiredRole={EDITOR_ROLE}
-        propsOverride={{
-          isDraggable: false,
-          isResizable: false,
-          draggableHandle: null,
-        }}
+      <GridLayout
+        layout={cells}
+        cols={12}
+        rowHeight={rowHeight}
+        margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
+        containerPadding={[0, 0]}
+        useCSSTransforms={false}
+        onLayoutChange={this.handleLayoutChange}
+        draggableHandle={'.dash-graph--draggable'}
+        isDraggable={isDashboard}
+        isResizable={isDashboard}
       >
-        <GridLayout
-          layout={cells}
-          cols={12}
-          rowHeight={rowHeight}
-          margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
-          containerPadding={[0, 0]}
-          useCSSTransforms={false}
-          onLayoutChange={this.handleLayoutChange}
-          draggableHandle={'.dash-graph--draggable'}
-          isDraggable={isDashboard}
-          isResizable={isDashboard}
-        >
-          {fastMap(cells, cell => (
-            <div key={cell.i}>
-              <Authorized
-                requiredRole={EDITOR_ROLE}
-                propsOverride={{
-                  isEditable: false,
-                }}
-              >
-                <Layout
-                  key={cell.i}
-                  cell={cell}
-                  host={host}
-                  source={source}
-                  onZoom={onZoom}
-                  sources={sources}
-                  templates={templates}
-                  timeRange={timeRange}
-                  isEditable={isEditable}
-                  autoRefresh={autoRefresh}
-                  onDeleteCell={onDeleteCell}
-                  onCloneCell={onCloneCell}
-                  manualRefresh={manualRefresh}
-                  onSummonOverlayTechnologies={onSummonOverlayTechnologies}
-                />
-              </Authorized>
-            </div>
-          ))}
-        </GridLayout>
-      </Authorized>
+        {fastMap(cells, cell => (
+          <div key={cell.i}>
+            <Layout
+              key={cell.i}
+              cell={cell}
+              host={host}
+              source={source}
+              onZoom={onZoom}
+              sources={sources}
+              templates={templates}
+              timeRange={timeRange}
+              isEditable={isEditable}
+              autoRefresh={autoRefresh}
+              onDeleteCell={onDeleteCell}
+              onCloneCell={onCloneCell}
+              manualRefresh={manualRefresh}
+              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+            />
+          </div>
+        ))}
+      </GridLayout>
     )
   }
 

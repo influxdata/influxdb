@@ -8,7 +8,6 @@ import MenuTooltipButton, {
   MenuItem,
 } from 'src/shared/components/MenuTooltipButton'
 import CustomTimeIndicator from 'src/shared/components/CustomTimeIndicator'
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {EDITING} from 'src/shared/annotations/helpers'
 import {cellSupportsAnnotations} from 'src/shared/constants/index'
 import {Cell} from 'src/types/dashboards'
@@ -88,13 +87,11 @@ class LayoutCellMenu extends Component<Props, State> {
       return (
         <div className="dash-graph-context--buttons">
           {this.pencilMenu}
-          <Authorized requiredRole={EDITOR_ROLE}>
-            <MenuTooltipButton
-              icon="duplicate"
-              menuItems={this.cloneMenuItems}
-              informParent={this.handleToggleSubMenu}
-            />
-          </Authorized>
+          <MenuTooltipButton
+            icon="duplicate"
+            menuItems={this.cloneMenuItems}
+            informParent={this.handleToggleSubMenu}
+          />
           <MenuTooltipButton
             icon="trash"
             theme="danger"

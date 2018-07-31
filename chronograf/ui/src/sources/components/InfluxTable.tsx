@@ -1,20 +1,16 @@
 import React, {PureComponent} from 'react'
-import {connect} from 'react-redux'
 
 import InfluxTableHead from 'src/sources/components/InfluxTableHead'
 import InfluxTableHeader from 'src/sources/components/InfluxTableHeader'
 import InfluxTableRow from 'src/sources/components/InfluxTableRow'
 
-import {Source, Me, Service} from 'src/types'
+import {Source} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  me: Me
   source: Source
   sources: Source[]
-  services: Service[]
-  isUsingAuth: boolean
   onDeleteSource: (source: Source) => void
   setActiveFlux: (source: Source, service: Service) => void
   deleteFlux: (fluxService: Service) => void
@@ -23,25 +19,13 @@ interface Props {
 @ErrorHandling
 class InfluxTable extends PureComponent<Props> {
   public render() {
-    const {
-      source,
-      sources,
-      setActiveFlux,
-      onDeleteSource,
-      deleteFlux,
-      isUsingAuth,
-      me,
-    } = this.props
+    const {source, sources, onDeleteSource} = this.props
 
     return (
       <div className="row">
         <div className="col-md-12">
           <div className="panel">
-            <InfluxTableHeader
-              me={me}
-              source={source}
-              isUsingAuth={isUsingAuth}
-            />
+            <InfluxTableHeader source={source} />
             <div className="panel-body">
               <table className="table v-center margin-bottom-zero table-highlight">
                 <InfluxTableHead />
@@ -75,6 +59,4 @@ class InfluxTable extends PureComponent<Props> {
   }
 }
 
-const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})
-
-export default connect(mapStateToProps)(InfluxTable)
+export default InfluxTable

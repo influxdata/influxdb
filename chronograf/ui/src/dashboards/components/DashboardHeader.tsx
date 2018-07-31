@@ -1,8 +1,6 @@
 import React, {Component} from 'react'
 import classnames from 'classnames'
 
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 import AutoRefreshDropdown from 'src/shared/components/AutoRefreshDropdown'
@@ -110,12 +108,10 @@ class DashboardHeader extends Component<Props> {
 
     if (dashboard) {
       return (
-        <Authorized requiredRole={EDITOR_ROLE}>
-          <button className="btn btn-primary btn-sm" onClick={onAddCell}>
-            <span className="icon plus" />
-            Add Cell
-          </button>
-        </Authorized>
+        <button className="btn btn-primary btn-sm" onClick={onAddCell}>
+          <span className="icon plus" />
+          Add Cell
+        </button>
       )
     }
   }
@@ -154,17 +150,7 @@ class DashboardHeader extends Component<Props> {
 
     if (dashboard) {
       return (
-        <Authorized
-          requiredRole={EDITOR_ROLE}
-          replaceWithIfNotAuthorized={
-            <PageHeaderTitle title={activeDashboard} />
-          }
-        >
-          <RenameDashboard
-            onRename={onRenameDashboard}
-            name={activeDashboard}
-          />
-        </Authorized>
+        <RenameDashboard onRename={onRenameDashboard} name={activeDashboard} />
       )
     }
 

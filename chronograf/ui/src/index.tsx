@@ -15,12 +15,6 @@ import {getRootNode} from 'src/utils/nodes'
 import {getBasepath} from 'src/utils/basepath'
 
 import App from 'src/App'
-import {
-  Login,
-  UserIsAuthenticated,
-  UserIsNotAuthenticated,
-  Purgatory,
-} from 'src/auth'
 import CheckSources from 'src/CheckSources'
 import {StatusPage} from 'src/status'
 import {HostsPage, HostPage} from 'src/hosts'
@@ -34,21 +28,17 @@ import {
   KapacitorRulesPage,
   TickscriptPage,
 } from 'src/kapacitor'
-import {AdminChronografPage, AdminInfluxDBPage} from 'src/admin'
 import {SourcePage, ManageSources} from 'src/sources'
 import {CheckServices, FluxConnectionPage} from 'src/flux'
 import NotFound from 'src/shared/components/NotFound'
 
 import {getLinksAsync} from 'src/shared/actions/links'
-import {getMeAsync} from 'src/shared/actions/auth'
 
 import {disablePresentationMode} from 'src/shared/actions/app'
 import {errorThrown} from 'src/shared/actions/errors'
 import {notify} from 'src/shared/actions/notifications'
 
 import 'src/style/chronograf.scss'
-
-import {HEARTBEAT_INTERVAL} from 'src/shared/constants'
 
 import * as ErrorsModels from 'src/types/errors'
 
@@ -94,7 +84,6 @@ interface State {
 
 class Root extends PureComponent<{}, State> {
   private getLinks = bindActionCreators(getLinksAsync, dispatch)
-  private getMe = bindActionCreators(getMeAsync, dispatch)
 
   constructor(props) {
     super(props)
@@ -108,7 +97,6 @@ class Root extends PureComponent<{}, State> {
 
     try {
       await this.getLinks()
-      await this.checkAuth()
       this.setState({ready: true})
     } catch (error) {
       dispatch(errorThrown(error))
@@ -119,17 +107,12 @@ class Root extends PureComponent<{}, State> {
     return this.state.ready ? (
       <Provider store={store}>
         <Router history={history}>
-          <Route path="/" component={UserIsAuthenticated(CheckSources)} />
-          <Route path="/login" component={UserIsNotAuthenticated(Login)} />
-          <Route path="/purgatory" component={UserIsAuthenticated(Purgatory)} />
-          <Route component={UserIsAuthenticated(App)}>
+          <Route path="/" component={CheckSources} />
+          <Route component={App}>
             <Route path="/logs" component={LogsPage} />
           </Route>
-          <Route
-            path="/sources/new"
-            component={UserIsAuthenticated(SourcePage)}
-          />
-          <Route path="/sources/:sourceID" component={UserIsAuthenticated(App)}>
+          <Route path="/sources/new" component={SourcePage} />
+          <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckSources}>
               <Route path="status" component={StatusPage} />
               <Route path="hosts" component={HostsPage} />
@@ -152,13 +135,6 @@ class Root extends PureComponent<{}, State> {
                 path="kapacitors/:id/edit:hash"
                 component={KapacitorPage}
               />
-              <Route path="flux/new" component={FluxConnectionPage} />
-              <Route path="flux/:id/edit" component={FluxConnectionPage} />
-              <Route
-                path="admin-chronograf/:tab"
-                component={AdminChronografPage}
-              />
-              <Route path="admin-influxdb/:tab" component={AdminInfluxDBPage} />
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
@@ -171,16 +147,6 @@ class Root extends PureComponent<{}, State> {
     ) : (
       <div className="page-spinner" />
     )
-  }
-
-  private async performHeartbeat({shouldResetMe = false} = {}) {
-    await this.getMe({shouldResetMe})
-
-    setTimeout(() => {
-      if (store.getState().auth.me !== null) {
-        this.performHeartbeat()
-      }
-    }, HEARTBEAT_INTERVAL)
   }
 
   private flushErrorsQueue() {
@@ -198,14 +164,6 @@ class Root extends PureComponent<{}, State> {
           )
         }
       })
-    }
-  }
-
-  private async checkAuth() {
-    try {
-      await this.performHeartbeat({shouldResetMe: true})
-    } catch (error) {
-      dispatch(errorThrown(error))
     }
   }
 }

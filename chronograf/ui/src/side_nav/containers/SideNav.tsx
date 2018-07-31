@@ -117,17 +117,6 @@ class SideNav extends PureComponent<Props> {
           <NavHeader link={'/logs'} title="Log Viewer" />
         </NavBlock>
         <NavBlock
-          highlightWhen={['admin-influxdb']}
-          icon="crown-outline"
-          link={`${sourcePrefix}/admin-influxdb/databases`}
-          location={location}
-        >
-          <NavHeader
-            link={`${sourcePrefix}/admin-influxdb/databases`}
-            title="InfluxDB Admin"
-          />
-        </NavBlock>
-        <NavBlock
           highlightWhen={['manage-sources', 'kapacitors']}
           icon="wrench"
           link={`${sourcePrefix}/manage-sources`}

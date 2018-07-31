@@ -5,20 +5,11 @@ import _ from 'lodash'
 
 import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
 
-import {SUPERADMIN_ROLE} from 'src/auth/Authorized'
-import {Source, Role, Organization} from 'src/types'
-
-interface Me {
-  role: Role
-  currentOrganization: Organization
-}
+import {Source} from 'src/types'
 
 interface Props {
-  me: Me
   source: Partial<Source>
   editMode: boolean
-  isUsingAuth: boolean
-  gotoPurgatory: () => void
   isInitialSource: boolean
   onSubmit: (e: MouseEvent<HTMLFormElement>) => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
@@ -30,15 +21,13 @@ export class SourceForm extends PureComponent<Props> {
     const {
       source,
       onSubmit,
-      isUsingAuth,
       onInputChange,
-      gotoPurgatory,
       onBlurSourceURL,
       isInitialSource,
     } = this.props
     return (
       <div className="panel-body">
-        {isUsingAuth && isInitialSource && this.authIndicator}
+        {isInitialSource}
         <form onSubmit={onSubmit}>
           <div className="form-group col-xs-12 col-sm-6">
             <label htmlFor="connect-string">Connection String</label>
@@ -161,32 +150,8 @@ export class SourceForm extends PureComponent<Props> {
             </button>
 
             <br />
-            {isUsingAuth && (
-              <button className="btn btn-link btn-sm" onClick={gotoPurgatory}>
-                <span className="icon shuffle" /> Switch Orgs
-              </button>
-            )}
           </div>
         </form>
-      </div>
-    )
-  }
-
-  private get authIndicator(): JSX.Element {
-    const {me} = this.props
-    return (
-      <div className="text-center">
-        {me.role.name === SUPERADMIN_ROLE ? (
-          <h3>
-            <strong>{me.currentOrganization.name}</strong> has no connections
-          </h3>
-        ) : (
-          <h3>
-            <strong>{me.currentOrganization.name}</strong> has no connections
-            available to <em>{me.role}s</em>
-          </h3>
-        )}
-        <h6>Add a Connection below:</h6>
       </div>
     )
   }

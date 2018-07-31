@@ -1,5 +1,4 @@
 import app from './app'
-import auth from './auth'
 import config from './config'
 import errors from './errors'
 import links from './links'
@@ -9,7 +8,6 @@ import annotations from './annotations'
 
 export default {
   app,
-  auth,
   links,
   config,
   errors,

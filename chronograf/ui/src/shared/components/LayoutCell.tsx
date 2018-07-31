@@ -1,7 +1,6 @@
 import React, {Component, ReactElement} from 'react'
 import _ from 'lodash'
 
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import LayoutCellMenu from 'src/shared/components/LayoutCellMenu'
 import LayoutCellHeader from 'src/shared/components/LayoutCellHeader'
 import {notify} from 'src/shared/actions/notifications'
@@ -33,18 +32,16 @@ export default class LayoutCell extends Component<Props> {
 
     return (
       <div className="dash-graph">
-        <Authorized requiredRole={EDITOR_ROLE}>
-          <LayoutCellMenu
-            cell={cell}
-            queries={this.queries}
-            dataExists={!!cellData.length}
-            isEditable={isEditable}
-            onDelete={onDeleteCell}
-            onEdit={this.handleSummonOverlay}
-            onClone={onCloneCell}
-            onCSVDownload={this.handleCSVDownload}
-          />
-        </Authorized>
+        <LayoutCellMenu
+          cell={cell}
+          queries={this.queries}
+          dataExists={!!cellData.length}
+          isEditable={isEditable}
+          onDelete={onDeleteCell}
+          onEdit={this.handleSummonOverlay}
+          onClone={onCloneCell}
+          onCSVDownload={this.handleCSVDownload}
+        />
         <LayoutCellHeader cellName={this.cellName} isEditable={isEditable} />
         <div className="dash-graph--container">{this.renderGraph}</div>
       </div>
@@ -109,14 +106,12 @@ export default class LayoutCell extends Component<Props> {
   private get emptyGraph(): JSX.Element {
     return (
       <div className="graph-empty">
-        <Authorized requiredRole={EDITOR_ROLE}>
-          <button
-            className="no-query--button btn btn-md btn-primary"
-            onClick={this.handleSummonOverlay}
-          >
-            <span className="icon plus" /> Add Data
-          </button>
-        </Authorized>
+        <button
+          className="no-query--button btn btn-md btn-primary"
+          onClick={this.handleSummonOverlay}
+        >
+          <span className="icon plus" /> Add Data
+        </button>
       </div>
     )
   }
