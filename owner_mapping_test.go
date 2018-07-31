@@ -21,7 +21,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 			name: "mapping requires a resourceid",
 			fields: fields{
 				Owner: platform.Owner{
-					ID: platformtesting.MustIDFromString(t, "debac1e0deadbeef"),
+					ID: platformtesting.MustIDFromString("debac1e0deadbeef"),
 				},
 			},
 			wantErr: true,
@@ -29,7 +29,7 @@ func TestOwnerMappingValidate(t *testing.T) {
 		{
 			name: "mapping requires an Owner",
 			fields: fields{
-				ResourceID: platformtesting.MustIDFromString(t, "debac1e0deadbeef"),
+				ResourceID: platformtesting.MustIDFromString("debac1e0deadbeef"),
 			},
 			wantErr: true,
 		},

@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
+	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -194,14 +195,8 @@ var (
 )
 
 func init() {
-	var err error
-	bucketID, err := platform.IDFromString("abbaabbaabbaabba")
-	orgID, err := platform.IDFromString("baabbaabbaabbaab")
-	if err != nil {
-		panic(err)
-	}
-	staticBucketID = *bucketID
-	staticOrgID = *orgID
+	staticBucketID = platformtesting.MustIDFromString("abbaabbaabbaabba")
+	staticOrgID = platformtesting.MustIDFromString("baabbaabbaabbaab")
 }
 
 // StaticOrganizationService connects to Influx via HTTP using tokens to manage organizations.

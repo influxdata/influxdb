@@ -84,9 +84,9 @@ func NewFixture(stmt string, spec *query.Spec) Fixture {
 }
 
 func (f *fixture) Run(t *testing.T) {
-	organizationID = platformtesting.MustIDFromString(t, "aaaaaaaaaaaaaaaa")
-	bucketID = platformtesting.MustIDFromString(t, "bbbbbbbbbbbbbbbb")
-	altBucketID = platformtesting.MustIDFromString(t, "cccccccccccccccc")
+	organizationID = platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa")
+	bucketID = platformtesting.MustIDFromString("bbbbbbbbbbbbbbbb")
+	altBucketID = platformtesting.MustIDFromString("cccccccccccccccc")
 
 	t.Run(f.stmt, func(t *testing.T) {
 		if err := f.spec.Validate(); err != nil {

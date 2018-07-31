@@ -28,12 +28,12 @@ func TestIDFromString(t *testing.T) {
 		{
 			name: "Should be able to decode an all f ID",
 			id:   "ffffffffffffffff",
-			want: platformtesting.MustIDFromString(t, "ffffffffffffffff"),
+			want: platformtesting.MustIDFromString("ffffffffffffffff"),
 		},
 		{
 			name: "Should be able to decode an ID",
 			id:   "020f755c3c082000",
-			want: platformtesting.MustIDFromString(t, "020f755c3c082000"),
+			want: platformtesting.MustIDFromString("020f755c3c082000"),
 		},
 		{
 			name:    "Should not be able to decode a non hex ID",

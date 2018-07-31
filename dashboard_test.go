@@ -25,7 +25,7 @@ func TestDashboardCell_MarshalJSON(t *testing.T) {
 			args: args{
 				cell: platform.DashboardCell{
 					DashboardCellContents: platform.DashboardCellContents{
-						ID:   platformtesting.MustIDFromString(t, "f01dab1ef005ba11"),
+						ID:   platformtesting.MustIDFromString("f01dab1ef005ba11"),
 						Name: "hello",
 						X:    10,
 						Y:    10,

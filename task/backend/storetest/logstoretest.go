@@ -41,10 +41,10 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
+	taskID := platformtesting.MustIDFromString("ab01ab01ab01ab01")
 	queuedAt := time.Unix(1, 0)
 	run := platform.Run{
-		ID:       platformtesting.MustIDFromString(t, "ab02ab02ab02ab02"),
+		ID:       platformtesting.MustIDFromString("ab02ab02ab02ab02"),
 		Status:   "queued",
 		QueuedAt: queuedAt.Format(time.RFC3339),
 	}
@@ -100,9 +100,9 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
+	taskID := platformtesting.MustIDFromString("ab01ab01ab01ab01")
 	run := platform.Run{
-		ID:       platformtesting.MustIDFromString(t, "ab02ab02ab02ab02"),
+		ID:       platformtesting.MustIDFromString("ab02ab02ab02ab02"),
 		Status:   "queued",
 		QueuedAt: time.Now().Format(time.RFC3339),
 	}
@@ -145,7 +145,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
+	taskID := platformtesting.MustIDFromString("ab01ab01ab01ab01")
 
 	if _, err := reader.ListRuns(context.Background(), platform.RunFilter{Task: &taskID}); err == nil {
 		t.Fatal("failed to error on bad id")
@@ -243,9 +243,9 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		t.Fatal("failed to error with bad id")
 	}
 
-	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
+	taskID := platformtesting.MustIDFromString("ab01ab01ab01ab01")
 	run := platform.Run{
-		ID:       platformtesting.MustIDFromString(t, "ab02ab02ab02ab02"),
+		ID:       platformtesting.MustIDFromString("ab02ab02ab02ab02"),
 		Status:   "queued",
 		QueuedAt: time.Now().Format(time.RFC3339),
 	}
@@ -279,7 +279,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platformtesting.MustIDFromString(t, "ab01ab01ab01ab01")
+	taskID := platformtesting.MustIDFromString("ab01ab01ab01ab01")
 
 	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{}); err == nil {
 		t.Fatal("failed to error with no filter")

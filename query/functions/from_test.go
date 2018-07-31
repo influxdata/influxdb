@@ -46,7 +46,7 @@ func TestFrom_NewQuery(t *testing.T) {
 					{
 						ID: "from0",
 						Spec: &functions.FromOpSpec{
-							BucketID: platformtesting.MustIDFromString(t, "aaaaaaaaaaaaaaaa"),
+							BucketID: platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
 						},
 					},
 				},

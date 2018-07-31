@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/platform/query/csv"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/influxdata/platform/query/querytest"
+	platformtesting "github.com/influxdata/platform/testing"
 
 	"github.com/andreyvit/diff"
 )
@@ -22,22 +23,13 @@ import (
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
 func init() {
-	orgID, err := platform.IDFromString("cadecadecadecade")
-	if err != nil {
-		panic(err)
-	}
-	bucketID, err := platform.IDFromString("da7aba5e5eedca5e")
-	if err != nil {
-		panic(err)
-	}
-
 	mapping := platform.DBRPMapping{
 		Cluster:         "cluster",
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
-		OrganizationID:  *orgID,
-		BucketID:        *bucketID,
+		OrganizationID:  platformtesting.MustIDFromString("cadecadecadecade"),
+		BucketID:        platformtesting.MustIDFromString("da7aba5e5eedca5e"),
 	}
 	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
 		return &mapping, nil

@@ -9,28 +9,20 @@ import (
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/influxdata/platform/query/influxql/spectests"
+	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/pkg/errors"
 )
 
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
 func init() {
-	orgID, err := platform.IDFromString("aaaaaaaaaaaaaaaa")
-	if err != nil {
-		panic(err)
-	}
-	bucketID, err := platform.IDFromString("bbbbbbbbbbbbbbbb")
-	if err != nil {
-		panic(err)
-	}
-
 	mapping := platform.DBRPMapping{
 		Cluster:         "cluster",
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
-		OrganizationID:  *orgID,
-		BucketID:        *bucketID,
+		OrganizationID:  platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
+		BucketID:        platformtesting.MustIDFromString("bbbbbbbbbbbbbbbb"),
 	}
 	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
 		return &mapping, nil

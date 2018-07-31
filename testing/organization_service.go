@@ -70,7 +70,7 @@ func CreateOrganization(
 				organizations: []*platform.Organization{
 					{
 						Name: "name1",
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 					},
 				},
 			},
@@ -81,7 +81,7 @@ func CreateOrganization(
 				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
 				Organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -94,11 +94,11 @@ func CreateOrganization(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "organization2",
 					},
 				},
@@ -110,7 +110,7 @@ func CreateOrganization(
 				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
 				Organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -123,7 +123,7 @@ func CreateOrganization(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 				},
@@ -188,21 +188,21 @@ func FindOrganizationByID(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "organization2",
 					},
 				},
 			},
 			args: args{
-				id: MustIDFromString(t, orgTwoID),
+				id: MustIDFromString(orgTwoID),
 			},
 			wants: wants{
 				organization: &platform.Organization{
-					ID:   MustIDFromString(t, orgTwoID),
+					ID:   MustIDFromString(orgTwoID),
 					Name: "organization2",
 				},
 			},
@@ -258,11 +258,11 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -271,11 +271,11 @@ func FindOrganizations(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -286,22 +286,22 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
 			},
 			args: args{
-				ID: MustIDFromString(t, orgTwoID),
+				ID: MustIDFromString(orgTwoID),
 			},
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -312,11 +312,11 @@ func FindOrganizations(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -327,7 +327,7 @@ func FindOrganizations(
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -392,11 +392,11 @@ func DeleteOrganization(
 				Organizations: []*platform.Organization{
 					{
 						Name: "orgA",
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
@@ -407,7 +407,7 @@ func DeleteOrganization(
 				organizations: []*platform.Organization{
 					{
 						Name: "orgB",
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
@@ -418,11 +418,11 @@ func DeleteOrganization(
 				Organizations: []*platform.Organization{
 					{
 						Name: "orgA",
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
@@ -434,11 +434,11 @@ func DeleteOrganization(
 				organizations: []*platform.Organization{
 					{
 						Name: "orgA",
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
@@ -450,7 +450,7 @@ func DeleteOrganization(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.TODO()
-			err := s.DeleteOrganization(ctx, MustIDFromString(t, tt.args.ID))
+			err := s.DeleteOrganization(ctx, MustIDFromString(tt.args.ID))
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -498,11 +498,11 @@ func FindOrganization(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "xyz",
 					},
 				},
@@ -512,7 +512,7 @@ func FindOrganization(
 			},
 			wants: wants{
 				organization: &platform.Organization{
-					ID:   MustIDFromString(t, orgOneID),
+					ID:   MustIDFromString(orgOneID),
 					Name: "abc",
 				},
 			},
@@ -572,22 +572,22 @@ func UpdateOrganization(
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{
 					{
-						ID:   MustIDFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 						Name: "organization1",
 					},
 					{
-						ID:   MustIDFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 						Name: "organization2",
 					},
 				},
 			},
 			args: args{
-				id:   MustIDFromString(t, orgOneID),
+				id:   MustIDFromString(orgOneID),
 				name: "changed",
 			},
 			wants: wants{
 				organization: &platform.Organization{
-					ID:   MustIDFromString(t, orgOneID),
+					ID:   MustIDFromString(orgOneID),
 					Name: "changed",
 				},
 			},
