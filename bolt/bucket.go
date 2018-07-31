@@ -309,9 +309,9 @@ func bucketIndexKey(b *platform.Bucket) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	k := make([]byte, platform.IDLength+len(b.Name))
+	k := make([]byte, platform.IDStringLength+len(b.Name))
 	copy(k, orgID)
-	copy(k[platform.IDLength:], []byte(b.Name))
+	copy(k[platform.IDStringLength:], []byte(b.Name))
 	return k, nil
 }
 

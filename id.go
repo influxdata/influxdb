@@ -8,8 +8,8 @@ import (
 	"fmt"
 )
 
-// IDLength is the exact length a byte slice must have in order to be decoded into an ID
-const IDLength = 16
+// IDStringLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.
+const IDStringLength = 16
 
 // ID is a unique identifier.
 //
@@ -39,14 +39,14 @@ func IDFromString(str string) (*ID, error) {
 // It errors if the input byte slice does not have the correct length
 // or if it contains all zeros.
 func (i *ID) Decode(b []byte) error {
-	if len(b) != IDLength {
-		return fmt.Errorf("input must be an array of %d bytes", IDLength)
+	if len(b) != IDStringLength {
+		return fmt.Errorf("input must be an array of %d bytes", IDStringLength)
 	}
-	if bytes.Equal(b, make([]byte, IDLength)) {
+	if bytes.Equal(b, make([]byte, IDStringLength)) {
 		return fmt.Errorf("all 0s is not a valid ID")
 	}
 
-	dst := make([]byte, hex.DecodedLen(IDLength))
+	dst := make([]byte, hex.DecodedLen(IDStringLength))
 	_, err := hex.Decode(dst, b)
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func (i ID) Encode() ([]byte, error) {
 		return nil, fmt.Errorf("all 0s is not a valid ID")
 	}
 
-	b := make([]byte, hex.DecodedLen(IDLength))
+	b := make([]byte, hex.DecodedLen(IDStringLength))
 	binary.BigEndian.PutUint64(b, uint64(i))
 
 	dst := make([]byte, hex.EncodedLen(len(b)))

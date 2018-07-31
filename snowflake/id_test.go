@@ -6,14 +6,14 @@ import (
 	"github.com/influxdata/platform"
 )
 
-func TestIDLength(t *testing.T) {
+func TestIDStringLength(t *testing.T) {
 	gen := NewIDGenerator()
 	id := gen.ID()
 	if !id.Valid() {
 		t.Fail()
 	}
 	enc, _ := id.Encode()
-	if len(enc) != platform.IDLength {
+	if len(enc) != platform.IDStringLength {
 		t.Fail()
 	}
 }

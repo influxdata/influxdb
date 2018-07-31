@@ -45,7 +45,7 @@ func TestIDFromString(t *testing.T) {
 			name:    "Should not be able to decode inputs with length other than 16 bytes",
 			id:      "abc",
 			wantErr: true,
-			err:     fmt.Sprintf("input must be an array of %d bytes", platform.IDLength),
+			err:     fmt.Sprintf("input must be an array of %d bytes", platform.IDStringLength),
 		},
 	}
 	for _, tt := range tests {
@@ -109,7 +109,7 @@ func TestEncode(t *testing.T) {
 
 func TestDecodeFromAllZeros(t *testing.T) {
 	var id platform.ID
-	err := id.Decode(make([]byte, platform.IDLength))
+	err := id.Decode(make([]byte, platform.IDStringLength))
 	if err == nil {
 		t.Errorf("expecting all zeros ID to not be a valid ID")
 	}
