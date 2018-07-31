@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"log"
+	"math"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
@@ -73,6 +74,7 @@ type source struct {
 	ts []execute.Transformation
 
 	currentTime execute.Time
+	overflow    bool
 }
 
 func NewSource(id execute.DatasetID, r Reader, readSpec ReadSpec, bounds execute.Bounds, w execute.Window, currentTime execute.Time) execute.Source {
@@ -133,13 +135,25 @@ func (s *source) run(ctx context.Context) error {
 }
 
 func (s *source) next(ctx context.Context, trace map[string]string) (query.TableIterator, execute.Time, bool) {
+	if s.overflow {
+		return nil, 0, false
+	}
+
 	start := s.currentTime - execute.Time(s.window.Period)
 	stop := s.currentTime
-
-	s.currentTime = s.currentTime + execute.Time(s.window.Every)
 	if stop > s.bounds.Stop {
 		return nil, 0, false
 	}
+
+	// Check if we will overflow, if so we are done after this pass
+	every := execute.Time(s.window.Every)
+	if every > 0 {
+		s.overflow = s.currentTime > math.MaxInt64-every
+	} else {
+		s.overflow = s.currentTime < math.MinInt64-every
+	}
+	s.currentTime = s.currentTime + every
+
 	bi, err := s.reader.Read(
 		ctx,
 		trace,
