@@ -1435,21 +1435,6 @@ func (tv *logTagValue) cardinality() int64 {
 	return int64(len(tv.series))
 }
 
-// seriesIDs returns a sorted set of seriesIDs.
-func (tv *logTagValue) seriesIDs() []uint64 {
-	a := make([]uint64, 0, tv.cardinality())
-	if tv.seriesSet != nil {
-		tv.seriesSet.ForEachNoLock(func(id uint64) { a = append(a, id) })
-		return a // IDs are already sorted.
-	}
-
-	for seriesID := range tv.series {
-		a = append(a, seriesID)
-	}
-	sort.Sort(uint64Slice(a))
-	return a
-}
-
 // seriesIDSet returns a copy of the logMeasurement's seriesSet, or creates a new
 // one
 func (tv *logTagValue) seriesIDSet() *tsdb.SeriesIDSet {
