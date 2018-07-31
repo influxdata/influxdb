@@ -208,7 +208,7 @@
   version = "v1.38.1"
 
 [[projects]]
-  digest = "1:8cab0d635f075344e3c0ee979c1995bb6880fba073a583bc52ab01df416e0a6b"
+  digest = "1:32e6bf93f32b6562d44dcdae34fd11a819224db80627bbc4ee108bfc01f81922"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -236,8 +236,6 @@
     "protoc-gen-gogofaster",
     "sortkeys",
     "types",
-    "vanity",
-    "vanity/command",
   ]
   pruneopts = "UT"
   revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
@@ -1044,6 +1042,7 @@
 
 [[projects]]
   branch = "v2"
+<<<<<<< HEAD
   digest = "1:e8c48aa61ea272e211858e52979ad4d114c60bfe6900d12431ac697482100b0a"
   name = "gopkg.in/robfig/cron.v2"
   packages = ["."]
@@ -1052,6 +1051,8 @@
 
 [[projects]]
   branch = "v2"
+=======
+>>>>>>> chore(testing): update test package to use correct source type
   digest = "1:342378ac4dcb378a5448dd723f0784ae519383532f5e70ade24132c4c8693202"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -1072,7 +1073,10 @@
     "github.com/elazarl/go-bindata-assetfs",
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
+<<<<<<< HEAD
     "github.com/gogo/protobuf/protoc-gen-gogofaster",
+=======
+>>>>>>> chore(testing): update test package to use correct source type
     "github.com/gogo/protobuf/types",
     "github.com/gonum/stat/distuv",
     "github.com/google/go-cmp/cmp",
@@ -1113,7 +1117,10 @@
     "golang.org/x/text/unicode/norm",
     "google.golang.org/api/oauth2/v2",
     "google.golang.org/grpc",
+<<<<<<< HEAD
     "gopkg.in/robfig/cron.v2",
+=======
+>>>>>>> chore(testing): update test package to use correct source type
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
