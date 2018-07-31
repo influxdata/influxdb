@@ -7,7 +7,7 @@ import (
 
 // Bucket is a bucket. 🎉
 type Bucket struct {
-	ID              ID            `json:"id"`
+	ID              ID            `json:"id,omitempty"`
 	OrganizationID  ID            `json:"organizationID,omitempty"`
 	Organization    string        `json:"organization,omitempty"`
 	Name            string        `json:"name"`
