@@ -3,7 +3,6 @@ package platform_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -23,7 +22,7 @@ func TestIDFromString(t *testing.T) {
 			name:    "Should be able to decode an all zeros ID",
 			id:      "0000000000000000",
 			wantErr: true,
-			err:     "all 0s is not a valid ID",
+			err:     platform.ErrInvalidID.Error(),
 		},
 		{
 			name: "Should be able to decode an all f ID",
@@ -42,10 +41,16 @@ func TestIDFromString(t *testing.T) {
 			err:     "encoding/hex: invalid byte: U+0067 'g'",
 		},
 		{
-			name:    "Should not be able to decode inputs with length other than 16 bytes",
+			name:    "Should not be able to decode inputs with length less than 16 bytes",
 			id:      "abc",
 			wantErr: true,
-			err:     fmt.Sprintf("input must be an array of %d bytes", platform.IDStringLength),
+			err:     platform.ErrInvalidIDLength.Error(),
+		},
+		{
+			name:    "Should not be able to decode inputs with length greater than 16 bytes",
+			id:      "abcdabcdabcdabcd0",
+			wantErr: true,
+			err:     platform.ErrInvalidIDLength.Error(),
 		},
 	}
 	for _, tt := range tests {

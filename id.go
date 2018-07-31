@@ -1,15 +1,20 @@
 package platform
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"errors"
 )
 
 // IDStringLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.
 const IDStringLength = 16
+
+// ErrInvalidID is the error thrown to notify invalid IDs.
+var ErrInvalidID = errors.New("invalid ID")
+
+// ErrInvalidIDLength is the error thrown to notify input does not match the wanted length.
+var ErrInvalidIDLength = errors.New("input must be an array of 16 bytes")
 
 // ID is a unique identifier.
 //
@@ -40,10 +45,7 @@ func IDFromString(str string) (*ID, error) {
 // or if it contains all zeros.
 func (i *ID) Decode(b []byte) error {
 	if len(b) != IDStringLength {
-		return fmt.Errorf("input must be an array of %d bytes", IDStringLength)
-	}
-	if bytes.Equal(b, make([]byte, IDStringLength)) {
-		return fmt.Errorf("all 0s is not a valid ID")
+		return ErrInvalidIDLength
 	}
 
 	dst := make([]byte, hex.DecodedLen(IDStringLength))
@@ -52,6 +54,11 @@ func (i *ID) Decode(b []byte) error {
 		return err
 	}
 	*i = ID(binary.BigEndian.Uint64(dst))
+
+	if !i.Valid() {
+		return ErrInvalidID
+	}
+
 	return nil
 }
 
@@ -64,8 +71,8 @@ func (i *ID) DecodeFromString(s string) error {
 //
 // It errors if the receiving ID holds its zero value.
 func (i ID) Encode() ([]byte, error) {
-	if i == 0 {
-		return nil, fmt.Errorf("all 0s is not a valid ID")
+	if !i.Valid() {
+		return nil, ErrInvalidID
 	}
 
 	b := make([]byte, hex.DecodedLen(IDStringLength))
@@ -78,10 +85,7 @@ func (i ID) Encode() ([]byte, error) {
 
 // Valid checks whether the receiving ID is a valid one or not.
 func (i ID) Valid() bool {
-	if _, err := i.Encode(); err != nil {
-		return false
-	}
-	return true
+	return i != 0
 }
 
 // String returns the ID as a hex encoded string.
