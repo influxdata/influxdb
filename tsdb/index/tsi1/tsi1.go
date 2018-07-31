@@ -3,10 +3,8 @@ package tsi1
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
 	"unsafe"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -556,11 +554,3 @@ func memalign(data []byte) []byte {
 	}
 	return data
 }
-
-// hexdump is a helper for dumping binary data to stderr.
-func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }
-
-// stack is a helper for dumping a stack trace.
-// func stack() string {
-// 	return "------------------------\n" + string(debug.Stack()) + "------------------------\n\n"
-// }
