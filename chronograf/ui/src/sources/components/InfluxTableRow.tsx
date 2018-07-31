@@ -44,14 +44,6 @@ class InfluxTableRow extends PureComponent<Props> {
             customClass="delete-source table--show-on-row-hover"
           />
         </td>
-        <td className="source-table--kapacitor">
-          <FluxDropdown
-            services={services}
-            source={source}
-            setActiveFlux={setActiveFlux}
-            deleteFlux={deleteFlux}
-          />
-        </td>
       </tr>
     )
   }
