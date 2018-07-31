@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"unsafe"
 
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -544,13 +543,4 @@ func uvarint(data []byte) (value uint64, n int, err error) {
 		err = fmt.Errorf("parsing binary-encoded uint64 value failed; binary.Uvarint() returned %d", n)
 	}
 	return
-}
-
-// memalign returns data if its memory address is word align.
-// Otherwise returns the next word aligned memory location.
-func memalign(data []byte) []byte {
-	if n := int(uintptr(unsafe.Pointer(&data[0])) % 8); n != 0 {
-		data = data[8-n:]
-	}
-	return data
 }
