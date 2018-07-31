@@ -1,33 +1,30 @@
-import _ from 'lodash'
+// Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, Link} from 'react-router'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
-import Authorized, {ADMIN_ROLE} from 'src/auth/Authorized'
-
-import UserNavBlock from 'src/side_nav/components/UserNavBlock'
-
+// Components
 import {
   NavBlock,
   NavHeader,
   NavListItem,
 } from 'src/side_nav/components/NavItems'
 
+// Constants
 import {DEFAULT_HOME_PAGE} from 'src/shared/constants'
-import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {Params, Location, Links, Me} from 'src/types/sideNav'
+// Types
+import {Params, Location} from 'src/types/sideNav'
 import {Source} from 'src/types'
+
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   sources: Source[]
   params: Params
   location: Location
   isHidden: boolean
-  isUsingAuth?: boolean
-  logoutLink?: string
-  links?: Links
-  me: Me
 }
 
 @ErrorHandling
@@ -41,10 +38,6 @@ class SideNav extends PureComponent<Props> {
       params: {sourceID},
       location: {pathname: location},
       isHidden,
-      isUsingAuth,
-      logoutLink,
-      links,
-      me,
       sources = [],
     } = this.props
 
@@ -123,43 +116,17 @@ class SideNav extends PureComponent<Props> {
         >
           <NavHeader link={'/logs'} title="Log Viewer" />
         </NavBlock>
-
-        <Authorized
-          requiredRole={ADMIN_ROLE}
-          replaceWithIfNotUsingAuth={
-            <NavBlock
-              highlightWhen={['admin-influxdb']}
-              icon="crown-outline"
-              link={`${sourcePrefix}/admin-influxdb/databases`}
-              location={location}
-            >
-              <NavHeader
-                link={`${sourcePrefix}/admin-influxdb/databases`}
-                title="InfluxDB Admin"
-              />
-            </NavBlock>
-          }
+        <NavBlock
+          highlightWhen={['admin-influxdb']}
+          icon="crown-outline"
+          link={`${sourcePrefix}/admin-influxdb/databases`}
+          location={location}
         >
-          <NavBlock
-            highlightWhen={['admin-chronograf', 'admin-influxdb']}
-            icon="crown-outline"
-            link={`${sourcePrefix}/admin-chronograf/current-organization`}
-            location={location}
-          >
-            <NavHeader
-              link={`${sourcePrefix}/admin-chronograf/current-organization`}
-              title="Admin"
-            />
-            <NavListItem
-              link={`${sourcePrefix}/admin-chronograf/current-organization`}
-            >
-              Chronograf
-            </NavListItem>
-            <NavListItem link={`${sourcePrefix}/admin-influxdb/databases`}>
-              InfluxDB
-            </NavListItem>
-          </NavBlock>
-        </Authorized>
+          <NavHeader
+            link={`${sourcePrefix}/admin-influxdb/databases`}
+            title="InfluxDB Admin"
+          />
+        </NavBlock>
         <NavBlock
           highlightWhen={['manage-sources', 'kapacitors']}
           icon="wrench"
@@ -171,14 +138,6 @@ class SideNav extends PureComponent<Props> {
             title="Configuration"
           />
         </NavBlock>
-        {isUsingAuth ? (
-          <UserNavBlock
-            logoutLink={logoutLink}
-            links={links}
-            me={me}
-            sourcePrefix={sourcePrefix}
-          />
-        ) : null}
       </nav>
     )
   }
@@ -186,18 +145,12 @@ class SideNav extends PureComponent<Props> {
 
 const mapStateToProps = ({
   sources,
-  auth: {isUsingAuth, logoutLink, me},
   app: {
     ephemeral: {inPresentationMode},
   },
-  links,
 }) => ({
   sources,
   isHidden: inPresentationMode,
-  isUsingAuth,
-  logoutLink,
-  links,
-  me,
 })
 
 export default connect(mapStateToProps)(withRouter(SideNav))
