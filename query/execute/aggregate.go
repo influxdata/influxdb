@@ -207,20 +207,20 @@ func (t *aggregateTransformation) Finish(id DatasetID, err error) {
 func AppendAggregateTime(srcTime, dstTime string, key query.GroupKey, builder TableBuilder) error {
 	srcTimeIdx := ColIdx(srcTime, key.Cols())
 	if srcTimeIdx < 0 {
-		return fmt.Errorf("timeValue column %q does not exist", srcTime)
+		return fmt.Errorf("timeSrc column %q does not exist", srcTime)
 	}
 	srcTimeCol := key.Cols()[srcTimeIdx]
 	if srcTimeCol.Type != query.TTime {
-		return fmt.Errorf("timeValue column %q does not have type time", srcTime)
+		return fmt.Errorf("timeSrc column %q does not have type time", srcTime)
 	}
 
 	dstTimeIdx := ColIdx(dstTime, builder.Cols())
 	if dstTimeIdx < 0 {
-		return fmt.Errorf("timeValue column %q does not exist", dstTime)
+		return fmt.Errorf("timeDst column %q does not exist", dstTime)
 	}
 	dstTimeCol := builder.Cols()[dstTimeIdx]
 	if dstTimeCol.Type != query.TTime {
-		return fmt.Errorf("timeValue column %q does not have type time", dstTime)
+		return fmt.Errorf("timeDst column %q does not have type time", dstTime)
 	}
 
 	builder.AppendTime(dstTimeIdx, key.ValueTime(srcTimeIdx))
