@@ -18,6 +18,12 @@
   revision = "a368813c5e648fee92e5f6c30e3944ff9d5e8895"
 
 [[projects]]
+  name = "github.com/RoaringBitmap/roaring"
+  packages = ["."]
+  revision = "4c23670306840b0f8755db247d2e9b8369fc356e"
+  version = "v0.4.15"
+
+[[projects]]
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
@@ -114,11 +120,6 @@
     "internal"
   ]
   revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
-
-[[projects]]
-  name = "github.com/influxdata/roaring"
-  packages = ["."]
-  revision = "ec86e26aba5545a1819e1ad68e9faa0f1745fff5"
 
 [[projects]]
   branch = "master"
@@ -406,6 +407,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "439d8ce7614902915daae4a9b249a987b3fd5ce17e6f096cffa61b20b63b40d2"
+  inputs-digest = "723d26554e6600a23282694d241e3d78788ab5dc5614361ffd874144ce15465f"
   solver-name = "gps-cdcl"
   solver-version = 1

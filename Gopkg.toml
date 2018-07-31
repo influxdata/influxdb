@@ -7,8 +7,8 @@
   branch = "master"
 
 [[constraint]]
-  name = "github.com/influxdata/roaring"
-  revision = "ec86e26aba5545a1819e1ad68e9faa0f1745fff5"
+  name = "github.com/RoaringBitmap/roaring"
+  version = "=0.4.15"
 
 [[constraint]]
   name = "github.com/boltdb/bolt"
