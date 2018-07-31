@@ -25,7 +25,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 			"ModifyTask",
 			"ListTasks",
 			"FindTask",
-			"findMeta",
+			"FindMeta",
 			"DeleteTask",
 			"CreateRun",
 			"FinishRun",
@@ -36,7 +36,7 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 		"ModifyTask": testStoreModify,
 		"ListTasks":  testStoreListTasks,
 		"FindTask":   testStoreFindTask,
-		"findMeta":   testStoreFindMeta,
+		"FindMeta":   testStoreFindMeta,
 		"DeleteTask": testStoreDelete,
 		"CreateRun":  testStoreCreateRun,
 		"FinishRun":  testStoreFinishRun,
@@ -411,12 +411,12 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
 	}
 
-	qr, err := s.CreateRun(context.Background(), id, time.Unix(1, 0).Unix())
+	qr, err := s.CreateRun(context.Background(), id, time.Unix(1, 0).UTC().Unix())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = s.CreateRun(context.Background(), id, time.Unix(2, 0).Unix())
+	_, err = s.CreateRun(context.Background(), id, time.Unix(2, 0).UTC().Unix())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,7 +431,15 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal(err)
 	}
 
+	if len(meta.CurrentlyRunning) != 1 {
+		t.Fatal("creating and finishing runs doesn't work")
+	}
+
+	if meta.LastCompletedTimestampUnix != time.Unix(1, 0).UTC().Unix() {
+		t.Fatal("LastCompletedTime not set")
+	}
 }
+
 func testStoreDelete(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
 	const script = `option task = {
 		name: "a task",

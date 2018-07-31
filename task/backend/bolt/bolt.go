@@ -357,7 +357,7 @@ func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.Store
 		b := tx.Bucket(s.bucket)
 		stmBytes = b.Bucket(taskMetaPath).Get(paddedID)
 		if stmBytes == nil {
-			return ErrNotFound
+			return errors.New("task meta not found")
 		}
 		return nil
 	})
@@ -371,7 +371,7 @@ func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.Store
 		return nil, err
 	}
 
-	return &stm, err
+	return &stm, nil
 }
 
 // DeleteTask deletes the task

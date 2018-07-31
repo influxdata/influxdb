@@ -57,7 +57,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 
 	s.mu.Lock()
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = pb.StoredTaskInternalMeta{MaxConcurrency: int32(o.Concurrency)} // TODO:  make settable in the create
+	s.runners[id.String()] = pb.StoredTaskInternalMeta{MaxConcurrency: int32(o.Concurrency)}
 	s.mu.Unlock()
 
 	return id, nil
