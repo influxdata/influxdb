@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	_ "net/http/pprof"
 	"strings"
@@ -94,12 +95,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"status":  statusClass,
 		}).Observe(duration.Seconds())
 		if h.Logger != nil {
+			err := errors.New(w.Header().Get(ErrorHeader))
+			errReference := w.Header().Get(ReferenceHeader)
 			h.Logger.Info("served http request",
 				zap.String("handler", h.name),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
 				zap.Int("status", statusCode),
 				zap.Int("duration_ns", int(duration)),
+				zap.Error(err),
+				zap.String("reference", errReference),
 			)
 		}
 	}(time.Now())
