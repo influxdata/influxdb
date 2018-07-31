@@ -64,8 +64,11 @@ func init() {
 						{
 							ID: "range0",
 							Spec: &functions.RangeOpSpec{
-								Start: query.Time{Absolute: time.Unix(0, influxql.MinTime)},
-								Stop:  query.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+								Start:    query.Time{Absolute: time.Unix(0, influxql.MinTime)},
+								Stop:     query.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+								TimeCol:  execute.DefaultTimeColLabel,
+								StartCol: execute.DefaultStartColLabel,
+								StopCol:  execute.DefaultStopColLabel,
 							},
 						},
 						{
