@@ -10,7 +10,8 @@ import {
   notifyCopyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 
-import {Source, NotificationAction} from 'src/types'
+import {NotificationAction} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   db: string

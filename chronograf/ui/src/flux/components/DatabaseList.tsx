@@ -1,15 +1,15 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import _ from 'lodash'
 
 // Components
 import DatabaseListItem from 'src/flux/components/DatabaseListItem'
 
 // APIs
-import {showDatabases} from 'src/shared/apis/metaQuery'
-import showDatabasesParser from 'src/shared/parsing/showDatabases'
+import {getBuckets} from 'src/shared/apis/v2/buckets'
 
 // Types
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 import {NotificationAction} from 'src/types/notifications'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -41,11 +41,11 @@ class DatabaseList extends PureComponent<Props, State> {
     const {source} = this.props
 
     try {
-      const {data} = await showDatabases(`${source.links.self}/proxy`)
-      const {databases} = showDatabasesParser(data)
-      const sorted = databases.sort()
+      const buckets = await getBuckets(source.links.buckets)
+      const sorted = _.sortBy(buckets, b => b.name.toLocaleLowerCase())
+      const databases = sorted.map(db => db.name)
 
-      this.setState({databases: sorted})
+      this.setState({databases})
     } catch (err) {
       console.error(err)
     }

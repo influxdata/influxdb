@@ -6,8 +6,9 @@ import TagValueListItem from 'src/flux/components/TagValueListItem'
 import LoadingSpinner from 'src/flux/components/LoadingSpinner'
 
 // Types
-import {Source, SchemaFilter} from 'src/types'
+import {SchemaFilter} from 'src/types'
 import {NotificationAction} from 'src/types/notifications'
+import {Source} from 'src/types/v2'
 
 interface Props {
   source: Source

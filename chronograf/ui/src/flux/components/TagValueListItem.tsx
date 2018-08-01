@@ -1,23 +1,26 @@
+// Libraries
 import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
-
 import {CopyToClipboard} from 'react-copy-to-clipboard'
 
-import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
-import parseValuesColumn from 'src/shared/parsing/flux/values'
+// Components
 import TagList from 'src/flux/components/TagList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 
+// APIs
+import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
+
+// Utils
+import parseValuesColumn from 'src/shared/parsing/flux/values'
+
+// Constants
 import {
   notifyCopyToClipboardSuccess,
   notifyCopyToClipboardFailed,
 } from 'src/shared/copy/notifications'
 
-import {
-  Source,
-  SchemaFilter,
-  RemoteDataState,
-  NotificationAction,
-} from 'src/types'
+// Types
+import {Source} from 'src/types/v2'
+import {SchemaFilter, RemoteDataState, NotificationAction} from 'src/types'
 
 interface Props {
   db: string

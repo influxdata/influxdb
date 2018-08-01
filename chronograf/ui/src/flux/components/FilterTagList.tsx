@@ -15,7 +15,8 @@ import FilterTagListItem from 'src/flux/components/FilterTagListItem'
 import FancyScrollbar from '../../shared/components/FancyScrollbar'
 import {getDeep} from 'src/utils/wrappers'
 
-import {SchemaFilter, Source} from 'src/types'
+import {SchemaFilter} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   db: string

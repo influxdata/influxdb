@@ -2,8 +2,9 @@ import React, {PureComponent, MouseEvent} from 'react'
 
 import TagListItem from 'src/flux/components/TagListItem'
 
-import {SchemaFilter, Source} from 'src/types'
+import {SchemaFilter} from 'src/types'
 import {NotificationAction} from 'src/types/notifications'
+import {Source} from 'src/types/v2'
 
 interface Props {
   db: string

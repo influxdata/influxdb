@@ -26,7 +26,8 @@ import {explorer} from 'src/flux/constants'
 
 // Types
 import {NotificationAction} from 'src/types'
-import {Source, SchemaFilter, RemoteDataState} from 'src/types'
+import {SchemaFilter, RemoteDataState} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   tagKey: string

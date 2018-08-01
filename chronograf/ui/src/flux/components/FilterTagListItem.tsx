@@ -19,7 +19,8 @@ import FilterTagValueList from 'src/flux/components/FilterTagValueList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 import LoadingSpinner from 'src/flux/components/LoadingSpinner'
 
-import {Source, SchemaFilter, RemoteDataState} from 'src/types'
+import {SchemaFilter, RemoteDataState} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   tagKey: string

@@ -1,13 +1,21 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+
+// Components
+import FilterTagList from 'src/flux/components/FilterTagList'
+
+// APIs
 import {getAST} from 'src/flux/apis'
 import {tagKeys as fetchTagKeys} from 'src/shared/apis/flux/metaQueries'
+
+// Utils
 import parseValuesColumn from 'src/shared/parsing/flux/values'
-import FilterTagList from 'src/flux/components/FilterTagList'
 import Walker from 'src/flux/ast/walker'
 import {makeCancelable} from 'src/utils/promises'
 
-import {Source} from 'src/types'
+// Types
+import {Source} from 'src/types/v2'
 import {Links, OnChangeArg, Func, FilterNode} from 'src/types/flux'
 import {WrappedCancelablePromise} from 'src/types/promises'
 

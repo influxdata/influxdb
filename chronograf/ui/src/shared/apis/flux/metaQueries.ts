@@ -1,7 +1,8 @@
 import _ from 'lodash'
 
 import AJAX from 'src/utils/ajax'
-import {Source, SchemaFilter} from 'src/types'
+import {SchemaFilter} from 'src/types'
+import {Source} from 'src/types/v2'
 
 export const measurements = async (
   source: Source,

@@ -10,7 +10,7 @@ import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 import {NotificationAction} from 'src/types/notifications'
 
 interface Props {
