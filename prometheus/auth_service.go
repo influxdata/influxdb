@@ -109,7 +109,6 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	return s.AuthorizationService.DeleteAuthorization(ctx, id)
 }
 
-// PrometheusCollectors returns the collectors
 func (s *AuthorizationService) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		s.requestCount,

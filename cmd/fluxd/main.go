@@ -20,7 +20,6 @@ import (
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/functions/storage"
 	"github.com/influxdata/platform/query/functions/storage/pb"
-	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -177,7 +176,7 @@ type bucketLookup struct {
 	BucketService platform.BucketService
 }
 
-func (b bucketLookup) Lookup(orgID platform.ID, name string) (*platform.ID, bool) {
+func (b bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
 	oid := platform.ID(orgID)
 	filter := platform.BucketFilter{
 		OrganizationID: &oid,
@@ -187,7 +186,7 @@ func (b bucketLookup) Lookup(orgID platform.ID, name string) (*platform.ID, bool
 	if err != nil {
 		return nil, false
 	}
-	return &bucket.ID, true
+	return bucket.ID, true
 }
 
 var (
@@ -195,8 +194,8 @@ var (
 )
 
 func init() {
-	staticBucketID = platformtesting.MustIDFromString("abbaabbaabbaabba")
-	staticOrgID = platformtesting.MustIDFromString("baabbaabbaabbaab")
+	staticBucketID.DecodeFromString("abba")
+	staticOrgID.DecodeFromString("baab")
 }
 
 // StaticOrganizationService connects to Influx via HTTP using tokens to manage organizations.

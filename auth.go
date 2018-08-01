@@ -80,19 +80,19 @@ func (p Permission) String() string {
 }
 
 var (
-	// CreateUserPermission is a permission for creating users.
+	// CreateUser is a permission for creating users.
 	CreateUserPermission = Permission{
 		Action:   CreateAction,
 		Resource: UserResource,
 	}
-	// DeleteUserPermission is a permission for deleting users.
+	// DeleteUser is a permission for deleting users.
 	DeleteUserPermission = Permission{
 		Action:   DeleteAction,
 		Resource: UserResource,
 	}
 )
 
-// ReadBucketPermission constructs a permission for reading a bucket.
+// ReadBucket constructs a permission for reading a bucket.
 func ReadBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   ReadAction,
@@ -100,7 +100,7 @@ func ReadBucketPermission(id ID) Permission {
 	}
 }
 
-// WriteBucketPermission constructs a permission for writing to a bucket.
+// WriteBucket constructs a permission for writing to a bucket.
 func WriteBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   WriteAction,

@@ -9,7 +9,6 @@ import (
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query/influxql"
 	"github.com/influxdata/platform/query/influxql/spectests"
-	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/pkg/errors"
 )
 
@@ -21,8 +20,8 @@ func init() {
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
-		OrganizationID:  platformtesting.MustIDFromString("aaaaaaaaaaaaaaaa"),
-		BucketID:        platformtesting.MustIDFromString("bbbbbbbbbbbbbbbb"),
+		OrganizationID:  platform.ID("aaaa"),
+		BucketID:        platform.ID("bbbb"),
 	}
 	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
 		return &mapping, nil

@@ -70,7 +70,6 @@ type DashboardCell struct {
 	Visualization Visualization
 }
 
-// DashboardCellContents holds the positional info of a cell.
 type DashboardCellContents struct {
 	ID   ID     `json:"id"`
 	Name string `json:"name"`

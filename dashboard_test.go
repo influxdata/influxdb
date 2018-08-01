@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
-	platformtesting "github.com/influxdata/platform/testing"
 )
 
 func TestDashboardCell_MarshalJSON(t *testing.T) {
@@ -25,7 +24,7 @@ func TestDashboardCell_MarshalJSON(t *testing.T) {
 			args: args{
 				cell: platform.DashboardCell{
 					DashboardCellContents: platform.DashboardCellContents{
-						ID:   platformtesting.MustIDFromString("f01dab1ef005ba11"),
+						ID:   platform.ID("0"), // This ends up being id 30 encoded
 						Name: "hello",
 						X:    10,
 						Y:    10,
@@ -40,7 +39,7 @@ func TestDashboardCell_MarshalJSON(t *testing.T) {
 			wants: wants{
 				json: `
 {
-  "id": "f01dab1ef005ba11",
+  "id": "30",
   "name": "hello",
   "x": 10,
   "y": 10,

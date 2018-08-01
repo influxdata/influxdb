@@ -28,9 +28,8 @@ func TestController_CancelQuery(t *testing.T) {
 	ctrl := New(Config{})
 	ctrl.executor = executor
 
-	var id platform.ID
 	// Run a query that will cause the controller to stall.
-	q, err := ctrl.Query(context.Background(), id, testQuerySpec)
+	q, err := ctrl.Query(context.Background(), nil, testQuerySpec)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -53,7 +52,7 @@ func TestController_CancelQuery(t *testing.T) {
 		}
 	}()
 
-	if _, err := ctrl.Query(ctx, id, testQuerySpec); err == nil {
+	if _, err := ctrl.Query(ctx, nil, testQuerySpec); err == nil {
 		t.Fatal("expected error")
 	} else if got, want := err, context.Canceled; got != want {
 		t.Fatalf("unexpected error: got=%q want=%q", got, want)

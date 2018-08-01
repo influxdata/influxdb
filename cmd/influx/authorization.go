@@ -149,23 +149,23 @@ func authorizationFindF(cmd *cobra.Command, args []string) {
 
 	filter := platform.AuthorizationFilter{}
 	if authorizationFindFlags.id != "" {
-		fID, err := platform.IDFromString(authorizationFindFlags.id)
+		filter.ID = &platform.ID{}
+		err := filter.ID.DecodeFromString(authorizationFindFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		filter.ID = fID
 	}
 	if authorizationFindFlags.user != "" {
 		filter.User = &authorizationFindFlags.user
 	}
 	if authorizationFindFlags.userID != "" {
-		uID, err := platform.IDFromString(authorizationFindFlags.userID)
+		filter.UserID = &platform.ID{}
+		err := filter.UserID.DecodeFromString(authorizationFindFlags.userID)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		filter.UserID = uID
 	}
 
 	authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
@@ -226,20 +226,20 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) {
 		Token: flags.token,
 	}
 
-	id, err := platform.IDFromString(authorizationDeleteFlags.id)
-	if err != nil {
+	id := platform.ID{}
+	if err := id.DecodeFromString(authorizationDeleteFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
 	ctx := context.TODO()
-	a, err := s.FindAuthorizationByID(ctx, *id)
+	a, err := s.FindAuthorizationByID(ctx, id)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if err := s.DeleteAuthorization(context.Background(), *id); err != nil {
+	if err := s.DeleteAuthorization(context.Background(), id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

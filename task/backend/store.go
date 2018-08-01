@@ -21,7 +21,7 @@ var ErrOrgNotFound = errors.New("org not found")
 // Store is the interface around persisted tasks.
 type Store interface {
 	// CreateTask saves the given task.
-	CreateTask(ctx context.Context, org, user platform.ID, script string) (*platform.ID, error)
+	CreateTask(ctx context.Context, org, user platform.ID, script string) (platform.ID, error)
 
 	// ModifyTask updates the script of an existing task.
 	// It returns an error if there was no task matching the given ID.
@@ -139,10 +139,10 @@ func (StoreValidation) CreateArgs(org, user platform.ID, script string) (options
 
 	var missing []string
 
-	if !org.Valid() {
+	if len(org) == 0 {
 		missing = append(missing, "organization ID")
 	}
-	if !user.Valid() {
+	if len(user) == 0 {
 		missing = append(missing, "user ID")
 	}
 	if script == "" {
@@ -166,7 +166,7 @@ func (StoreValidation) ModifyArgs(taskID platform.ID, script string) (options.Op
 
 	var missing []string
 
-	if !taskID.Valid() {
+	if len(taskID) == 0 {
 		missing = append(missing, "task ID")
 	}
 	if script == "" {

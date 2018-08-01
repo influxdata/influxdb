@@ -19,16 +19,17 @@ type BucketLookup struct {
 }
 
 // Lookup returns the bucket id and its existence given an org id and bucket name.
-func (b *BucketLookup) Lookup(orgID platform.ID, name string) (*platform.ID, bool) {
+func (b *BucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
+	oid := platform.ID(orgID)
 	filter := platform.BucketFilter{
-		OrganizationID: &orgID,
+		OrganizationID: &oid,
 		Name:           &name,
 	}
 	bucket, err := b.BucketService.FindBucket(context.Background(), filter)
 	if err != nil {
 		return nil, false
 	}
-	return &bucket.ID, true
+	return bucket.ID, true
 }
 
 // FromOrganizationService wraps a platform.OrganizationService in the OrganizationLookup interface.
@@ -42,7 +43,7 @@ type OrganizationLookup struct {
 }
 
 // Lookup returns the organization ID and its existence given an organization name.
-func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (*platform.ID, bool) {
+func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (platform.ID, bool) {
 	org, err := o.OrganizationService.FindOrganization(
 		ctx,
 		platform.OrganizationFilter{Name: &name},
@@ -51,5 +52,5 @@ func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (*platform
 	if err != nil {
 		return nil, false
 	}
-	return &org.ID, true
+	return org.ID, true
 }

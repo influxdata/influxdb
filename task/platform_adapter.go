@@ -69,7 +69,7 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 	if err != nil {
 		return err
 	}
-	t.ID = *id
+	t.ID = id
 	t.Every = opts.Every.String()
 	t.Cron = opts.Cron
 
@@ -125,8 +125,7 @@ func (p pAdapter) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*p
 func (p pAdapter) FindRunByID(ctx context.Context, id platform.ID) (*platform.Run, error) {
 	// TODO(lh): the inmem FindRunByID method doesnt need the taskId but we will need it PlatformAdapter
 	// this call to the store is a filler until platform.TaskService gets the update to add the id
-	replaceID, _ := platform.IDFromString("0000000000000001")
-	return p.r.FindRunByID(ctx, *replaceID, id)
+	return p.r.FindRunByID(ctx, platform.ID([]byte("replace")), id)
 }
 
 func (p pAdapter) RetryRun(ctx context.Context, id platform.ID) (*platform.Run, error) {
@@ -145,8 +144,8 @@ func toPlatformTask(t backend.StoreTask) (*platform.Task, error) {
 		Name:         t.Name,
 		Status:       "", // TODO: set and update status
 		Owner: platform.User{
-			ID:   t.User,
-			Name: "", // TODO(mr): how to get owner name?
+			ID:   append([]byte(nil), t.User...), // Copy just in case.
+			Name: "",                             // TODO(mr): how to get owner name?
 		},
 		Flux:  t.Script,
 		Every: opts.Every.String(),

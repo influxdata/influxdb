@@ -155,12 +155,11 @@ func userFindF(cmd *cobra.Command, args []string) {
 		filter.Name = &userFindFlags.name
 	}
 	if userFindFlags.id != "" {
-		id, err := platform.IDFromString(userFindFlags.id)
-		if err != nil {
+		filter.ID = &platform.ID{}
+		if err := filter.ID.DecodeFromString(userFindFlags.id); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		filter.ID = id
 	}
 
 	users, _, err := s.FindUsers(context.Background(), filter)
