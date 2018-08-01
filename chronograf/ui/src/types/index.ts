@@ -26,7 +26,6 @@ import {
   Tags,
   TagValues,
 } from './queries'
-import {AlertRule, Kapacitor, Task, RuleValues} from './kapacitor'
 import {
   NewSource,
   Source,
@@ -73,8 +72,6 @@ export {
   Tag,
   Tags,
   TagValues,
-  AlertRule,
-  Kapacitor,
   NewSource,
   Source,
   SourceLinks,
@@ -82,8 +79,6 @@ export {
   DropdownAction,
   DropdownItem,
   TimeRange,
-  Task,
-  RuleValues,
   DygraphData,
   DygraphSeries,
   DygraphValue,

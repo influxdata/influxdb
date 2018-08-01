@@ -14,7 +14,6 @@ import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
 interface DatabaseListProps {
   query: QueryConfig
   source: Source
-  querySource?: Source
   onChooseNamespace: (namespace: Namespace) => void
 }
 
@@ -42,13 +41,13 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
   }
 
   public componentDidUpdate({
-    querySource: prevSource,
     query: prevQuery,
+    source: prevSource,
   }: {
-    querySource?: Source
     query: QueryConfig
+    source: Source
   }) {
-    const {querySource: nextSource, query: nextQuery} = this.props
+    const {source: nextSource, query: nextQuery} = this.props
     const differentSource = !_.isEqual(prevSource, nextSource)
 
     const newMetaQuery =
@@ -62,11 +61,10 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
   }
 
   public async getDbRp() {
-    const {querySource, source} = this.props
-    const proxy = _.get(querySource, ['links', 'proxy'], source.links.proxy)
+    const {source} = this.props
 
     try {
-      const sorted = await getDatabasesWithRetentionPolicies(proxy)
+      const sorted = await getDatabasesWithRetentionPolicies(source.links.proxy)
       this.setState({namespaces: sorted})
     } catch (err) {
       console.error(err)

@@ -1,5 +1,3 @@
-import {Service} from './'
-
 export type NewSource = Pick<Source, Exclude<keyof Source, 'id'>>
 
 export enum SourceAuthenticationMethod {
@@ -24,25 +22,11 @@ export interface Source {
   links: SourceLinks
   defaultRP?: string
   text?: string // added client-side for dropdowns
-  services?: Service[]
   authentication?: SourceAuthenticationMethod
 }
 
 export interface SourceLinks {
   self: string
-  kapacitors: string
-  proxy: string
-  queries: string
-  write: string
-  permissions: string
-  users: string
-  roles?: string
-  databases: string
-  annotations: string
-  health: string
-  services: string
-}
-
-export interface SourceOption extends Source {
-  text: string
+  buckets: string
+  query: string
 }

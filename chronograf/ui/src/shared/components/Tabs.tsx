@@ -7,7 +7,6 @@ interface TabProps {
   onClick?: () => void
   isDisabled?: boolean
   isActive?: boolean
-  isKapacitorTab?: boolean
   isConfigured?: boolean
 }
 
@@ -16,20 +15,8 @@ export const Tab: SFC<TabProps> = ({
   onClick,
   isDisabled,
   isActive,
-  isKapacitorTab,
   isConfigured,
 }) => {
-  if (isKapacitorTab) {
-    return (
-      <li
-        className={classnames({active: isActive})}
-        onClick={isDisabled ? null : onClick}
-      >
-        {children}
-      </li>
-    )
-  }
-
   return (
     <div
       className={classnames('btn tab', {
@@ -47,7 +34,6 @@ interface TabListProps {
   children: JSX.Element[] | JSX.Element
   activeIndex?: number
   onActivate?: (index: number) => void
-  isKapacitorTabs?: string
   customClass?: string
 }
 
@@ -55,7 +41,6 @@ export const TabList: SFC<TabListProps> = ({
   children,
   activeIndex,
   onActivate,
-  isKapacitorTabs,
   customClass,
 }) => {
   const kids = React.Children.map(
@@ -68,17 +53,6 @@ export const TabList: SFC<TabListProps> = ({
     }
   )
 
-  if (isKapacitorTabs === 'true') {
-    return (
-      <div className="rule-section--row rule-section--row-first rule-section--row-last">
-        <p>Choose One:</p>
-        <div className="nav nav-tablist nav-tablist-sm nav-tablist-malachite">
-          {kids}
-        </div>
-      </div>
-    )
-  }
-
   if (customClass) {
     return (
       <div className={customClass}>
@@ -88,10 +62,6 @@ export const TabList: SFC<TabListProps> = ({
   }
 
   return <div className="btn-group btn-group-lg tab-group">{kids}</div>
-}
-
-TabList.defaultProps = {
-  isKapacitorTabs: '',
 }
 
 interface TabPanelsProps {

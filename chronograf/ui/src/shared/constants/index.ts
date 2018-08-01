@@ -73,11 +73,6 @@ export const PERMISSIONS = {
     displayName: 'Copy Shard',
     description: 'Can copy shards',
   },
-  // TODO: get clarification on this one
-  // KapacitorAPI: {
-  //   displayName: 'Kapacitor',
-  //   description: 'Can access the Kapacitor API',
-  // },
 }
 
 export const DEFAULT_LINE_COLORS = [

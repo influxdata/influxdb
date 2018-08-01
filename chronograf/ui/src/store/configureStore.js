@@ -9,7 +9,6 @@ import statusReducers from 'src/status/reducers'
 import logsReducer from 'src/logs/reducers'
 import sharedReducers from 'src/shared/reducers'
 import dataExplorerReducers from 'src/data_explorer/reducers'
-import kapacitorReducers from 'src/kapacitor/reducers'
 import dashboardUI from 'src/dashboards/reducers/ui'
 import cellEditorOverlay from 'src/dashboards/reducers/cellEditorOverlay'
 import dashTimeV1 from 'src/dashboards/reducers/dashTimeV1'
@@ -21,7 +20,6 @@ const rootReducer = combineReducers({
   ...statusReducers,
   ...sharedReducers,
   ...dataExplorerReducers,
-  ...kapacitorReducers,
   dashboardUI,
   cellEditorOverlay,
   dashTimeV1,

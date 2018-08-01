@@ -34,12 +34,11 @@ const setup = (override = {}) => {
 
 describe('Sources.Components.SourceForm', () => {
   describe('rendering', () => {
-    it('renders default retention policy field', () => {
+    it('renders inputs', () => {
       const {wrapper} = setup()
       const inputs = wrapper.find('input')
-      const defaultRP = inputs.find({id: 'defaultRP'})
 
-      expect(defaultRP.exists()).toBe(true)
+      expect(inputs.exists()).toBe(true)
     })
   })
 })

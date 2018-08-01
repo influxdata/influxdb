@@ -21,13 +21,6 @@ import {HostsPage, HostPage} from 'src/hosts'
 import DataExplorerPage from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {LogsPage} from 'src/logs'
-import AlertsApp from 'src/alerts'
-import {
-  KapacitorPage,
-  KapacitorRulePage,
-  KapacitorRulesPage,
-  TickscriptPage,
-} from 'src/kapacitor'
 import {SourcePage, ManageSources} from 'src/sources'
 import {CheckServices, FluxConnectionPage} from 'src/flux'
 import NotFound from 'src/shared/components/NotFound'
@@ -123,18 +116,6 @@ class Root extends PureComponent<{}, State> {
               />
               <Route path="dashboards" component={DashboardsPage} />
               <Route path="dashboards/:dashboardID" component={DashboardPage} />
-              <Route path="alerts" component={AlertsApp} />
-              <Route path="alert-rules" component={KapacitorRulesPage} />
-              <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
-              <Route path="alert-rules/new" component={KapacitorRulePage} />
-              <Route path="tickscript/new" component={TickscriptPage} />
-              <Route path="tickscript/:ruleID" component={TickscriptPage} />
-              <Route path="kapacitors/new" component={KapacitorPage} />
-              <Route path="kapacitors/:id/edit" component={KapacitorPage} />
-              <Route
-                path="kapacitors/:id/edit:hash"
-                component={KapacitorPage}
-              />
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
