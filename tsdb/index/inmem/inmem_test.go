@@ -11,15 +11,17 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 )
 
-func createData(lo, hi int) (keys, names [][]byte, tags []models.Tags) {
+func createData(lo, hi int) *tsdb.SeriesCollection {
+	c := new(tsdb.SeriesCollection)
 	for i := lo; i < hi; i++ {
-		keys = append(keys, []byte(fmt.Sprintf("m0,tag0=t%d", i)))
-		names = append(names, []byte("m0"))
+		c.Keys = append(c.Keys, []byte(fmt.Sprintf("m0,tag0=t%d", i)))
+		c.Names = append(c.Names, []byte("m0"))
 		var t models.Tags
 		t.Set([]byte("tag0"), []byte(fmt.Sprintf("%d", i)))
-		tags = append(tags, t)
+		c.Tags = append(c.Tags, t)
+		c.Types = append(c.Types, models.Integer)
 	}
-	return
+	return c
 }
 
 func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesExceeded(b *testing.B) {
@@ -29,14 +31,18 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesExceeded(b *testin
 	opt.Config.MaxValuesPerTag = 10
 	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
-	keys, names, tags := createData(0, 10)
-	si.CreateSeriesListIfNotExists(keys, names, tags)
+	collection := createData(0, 10)
+	si.CreateSeriesListIfNotExists(collection)
+	collection = createData(9, 5010)
+	copy := *collection
+	si.CreateSeriesListIfNotExists(&copy)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	keys, names, tags = createData(9, 5010)
 	for i := 0; i < b.N; i++ {
-		si.CreateSeriesListIfNotExists(keys, names, tags)
+		copy = *collection
+		si.CreateSeriesListIfNotExists(&copy)
 	}
 }
 
@@ -47,14 +53,18 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesNotExceeded(b *tes
 	opt.Config.MaxValuesPerTag = 100000
 	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
-	keys, names, tags := createData(0, 10)
-	si.CreateSeriesListIfNotExists(keys, names, tags)
+	collection := createData(0, 10)
+	si.CreateSeriesListIfNotExists(collection)
+	collection = createData(9, 5010)
+	copy := *collection
+	si.CreateSeriesListIfNotExists(&copy)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	keys, names, tags = createData(9, 5010)
 	for i := 0; i < b.N; i++ {
-		si.CreateSeriesListIfNotExists(keys, names, tags)
+		copy = *collection
+		si.CreateSeriesListIfNotExists(&copy)
 	}
 }
 
@@ -64,14 +74,18 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_NoMaxValues(b *testing.B) {
 	opt := tsdb.EngineOptions{InmemIndex: inmem.NewIndex("foo", sfile.SeriesFile)}
 	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
-	keys, names, tags := createData(0, 10)
-	si.CreateSeriesListIfNotExists(keys, names, tags)
+	collection := createData(0, 10)
+	si.CreateSeriesListIfNotExists(collection)
+	collection = createData(9, 5010)
+	copy := *collection
+	si.CreateSeriesListIfNotExists(&copy)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	keys, names, tags = createData(9, 5010)
 	for i := 0; i < b.N; i++ {
-		si.CreateSeriesListIfNotExists(keys, names, tags)
+		copy = *collection
+		si.CreateSeriesListIfNotExists(&copy)
 	}
 }
 
@@ -83,14 +97,18 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxSeriesExceeded(b *testin
 	opt.Config.MaxSeriesPerDatabase = 10
 	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
-	keys, names, tags := createData(0, 10)
-	si.CreateSeriesListIfNotExists(keys, names, tags)
+	collection := createData(0, 10)
+	si.CreateSeriesListIfNotExists(collection)
+	collection = createData(9, 5010)
+	copy := *collection
+	si.CreateSeriesListIfNotExists(&copy)
+
 	b.ReportAllocs()
 	b.ResetTimer()
 
-	keys, names, tags = createData(9, 5010)
 	for i := 0; i < b.N; i++ {
-		si.CreateSeriesListIfNotExists(keys, names, tags)
+		copy = *collection
+		si.CreateSeriesListIfNotExists(&copy)
 	}
 }
 
@@ -103,7 +121,7 @@ func TestIndex_Bytes(t *testing.T) {
 	indexBaseBytes := si.Bytes()
 
 	name := []byte("name")
-	err := si.CreateSeriesIfNotExists(name, name, models.Tags{})
+	err := si.CreateSeriesIfNotExists(name, name, models.Tags{}, models.Integer)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

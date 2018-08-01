@@ -520,27 +520,40 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) error {
-	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
-	if err != nil {
-		return err
+func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.SeriesCollection) error {
+	if len(collection.SeriesIDs) == 0 {
+		if err := f.sfile.CreateSeriesListIfNotExists(collection); err != nil {
+			return err
+		}
 	}
 
-	var writeRequired bool
-	entries := make([]LogEntry, 0, len(names))
+	var entries []LogEntry
+
 	seriesSet.RLock()
-	for i := range names {
-		if seriesSet.ContainsNoLock(seriesIDs[i]) {
+	for iter := collection.Iterator(); iter.Next(); {
+		seriesID := iter.SeriesID()
+
+		if seriesSet.ContainsNoLock(seriesID) {
 			// We don't need to allocate anything for this series.
 			continue
 		}
-		writeRequired = true
-		entries = append(entries, LogEntry{SeriesID: seriesIDs[i], name: names[i], tags: tagsSlice[i], cached: true})
+
+		// lazy allocation of entries to avoid common case of no new series
+		if entries == nil {
+			entries = make([]LogEntry, 0, collection.Length())
+		}
+
+		entries = append(entries, LogEntry{
+			SeriesID: seriesID,
+			name:     iter.Name(),
+			tags:     iter.Tags(),
+			cached:   true,
+		})
 	}
 	seriesSet.RUnlock()
 
 	// Exit if all series already exist.
-	if !writeRequired {
+	if entries == nil {
 		return nil
 	}
 

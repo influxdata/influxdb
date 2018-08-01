@@ -143,6 +143,7 @@ type TestSeries struct {
 	Measurement string
 	Key         string
 	Tags        models.Tags
+	Type        models.FieldType
 }
 
 func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
@@ -155,6 +156,7 @@ func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
 				Measurement: m,
 				Key:         fmt.Sprintf("%s:%s", m, string(tsdb.MarshalTags(ts))),
 				Tags:        models.NewTags(ts),
+				Type:        models.Integer,
 			})
 		}
 	}

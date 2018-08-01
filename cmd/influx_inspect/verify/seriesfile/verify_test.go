@@ -89,15 +89,15 @@ func NewTest(t *testing.T) *Test {
 			partition.CompactThreshold = compactionThreshold
 		}
 
-		var names [][]byte
-		var tagsSlice []models.Tags
+		collection := new(tsdb.SeriesCollection)
 
 		for i := 0; i < numSeries; i++ {
-			names = append(names, []byte(fmt.Sprintf("series%d", i)))
-			tagsSlice = append(tagsSlice, nil)
+			collection.Names = append(collection.Names, []byte(fmt.Sprintf("series%d", i)))
+			collection.Tags = append(collection.Tags, nil)
+			collection.Types = append(collection.Types, models.Integer)
 		}
 
-		_, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
+		err := seriesFile.CreateSeriesListIfNotExists(collection)
 		if err != nil {
 			return err
 		}

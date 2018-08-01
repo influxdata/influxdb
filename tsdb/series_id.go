@@ -55,6 +55,9 @@ func (s SeriesIDTyped) RawID() uint64 { return s.ID }
 // SeriesID constructs a SeriesID, discarding any type information.
 func (s SeriesIDTyped) SeriesID() SeriesID { return NewSeriesID(s.ID) }
 
+// HasType returns if the id actually contains a type.
+func (s SeriesIDTyped) HasType() bool { return s.ID&seriesIDTypeFlag > 0 }
+
 // Type returns the associated type.
 func (s SeriesIDTyped) Type() models.FieldType {
 	return models.FieldType((s.ID & seriesIDTypeMask) >> seriesIDTypeShift)

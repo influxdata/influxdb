@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/errlist"
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/shard"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -221,11 +222,11 @@ func (i *importer) startSeriesFile() error {
 	return nil
 }
 
-func (i *importer) AddSeries(seriesKey []byte) error {
+func (i *importer) AddSeries(seriesKey []byte, typ models.FieldType) error {
 	if i.skipShard {
 		return nil
 	}
-	return i.sw.AddSeries(seriesKey)
+	return i.sw.AddSeries(seriesKey, typ)
 }
 
 func (i *importer) closeSeriesFile() error {

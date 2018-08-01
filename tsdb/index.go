@@ -35,9 +35,9 @@ type Index interface {
 	DropMeasurement(name []byte) error
 	ForEachMeasurementName(fn func(name []byte) error) error
 
-	InitializeSeries(keys, names [][]byte, tags []models.Tags) error
-	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
-	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
+	InitializeSeries(*SeriesCollection) error
+	CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error
+	CreateSeriesListIfNotExists(*SeriesCollection) error
 	DropSeries(seriesID SeriesID, key []byte, cascade bool) error
 	DropMeasurementIfSeriesNotExist(name []byte) error
 

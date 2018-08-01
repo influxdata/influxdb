@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/errlist"
-
 	"github.com/influxdata/influxdb/cmd/influx_tools/internal/format/binary"
 	"github.com/influxdata/influxdb/cmd/influx_tools/server"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"go.uber.org/zap"
@@ -96,7 +96,7 @@ func importShard(reader *binary.Reader, i *importer, start int64, end int64) err
 	var sh *binary.SeriesHeader
 	var next bool
 	for sh, err = reader.NextSeries(); (sh != nil) && (err == nil); sh, err = reader.NextSeries() {
-		i.AddSeries(sh.SeriesKey)
+		i.AddSeries(sh.SeriesKey, modelsFieldType(sh.FieldType))
 		pr := reader.Points()
 		seriesFieldKey := tsm1.SeriesFieldKeyBytes(string(sh.SeriesKey), string(sh.Field))
 
@@ -141,4 +141,21 @@ func (cmd *Command) parseFlags(args []string) error {
 	}
 
 	return nil
+}
+
+func modelsFieldType(typ binary.FieldType) models.FieldType {
+	switch typ {
+	case binary.FloatFieldType:
+		return models.Float
+	case binary.IntegerFieldType:
+		return models.Integer
+	case binary.UnsignedFieldType:
+		return models.Unsigned
+	case binary.BooleanFieldType:
+		return models.Boolean
+	case binary.StringFieldType:
+		return models.String
+	default:
+		return models.Empty
+	}
 }

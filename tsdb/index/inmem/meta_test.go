@@ -120,7 +120,7 @@ func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
 
 func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 	m := newMeasurement("foo", "cpu")
-	s := newSeries(tsdb.NewSeriesID(1), m, "cpu,host=foo", models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
+	s := newSeries(tsdb.NewSeriesID(1), m, "cpu,host=foo", models.Tags{models.NewTag([]byte("host"), []byte("foo"))}, models.Integer)
 	m.AddSeries(s)
 
 	var dst []string
@@ -136,10 +136,10 @@ func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 
 func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	m := newMeasurement("foo", "cpu")
-	s1 := newSeries(tsdb.NewSeriesID(1), m, "cpu,host=foo", models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
+	s1 := newSeries(tsdb.NewSeriesID(1), m, "cpu,host=foo", models.Tags{models.NewTag([]byte("host"), []byte("foo"))}, models.Integer)
 	m.AddSeries(s1)
 
-	s2 := newSeries(tsdb.NewSeriesID(2), m, "cpu,host=bar", models.Tags{models.NewTag([]byte("host"), []byte("bar"))})
+	s2 := newSeries(tsdb.NewSeriesID(2), m, "cpu,host=bar", models.Tags{models.NewTag([]byte("host"), []byte("bar"))}, models.Integer)
 	m.AddSeries(s2)
 
 	m.DropSeries(s1)
@@ -158,7 +158,8 @@ func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 	for i := 0; i < 100000; i++ {
 		s := newSeries(tsdb.NewSeriesID(uint64(i)), m, "cpu", models.Tags{models.NewTag(
 			[]byte("host"),
-			[]byte(fmt.Sprintf("host%d", i)))})
+			[]byte(fmt.Sprintf("host%d", i)))},
+			models.Integer)
 		m.AddSeries(s)
 	}
 
@@ -188,7 +189,8 @@ func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 	for i := 0; i < 100000; i++ {
 		s := newSeries(tsdb.NewSeriesID(uint64(i)), m, "cpu", models.Tags{models.Tag{
 			Key:   []byte("host"),
-			Value: []byte(fmt.Sprintf("host%d", i))}})
+			Value: []byte(fmt.Sprintf("host%d", i))}},
+			models.Integer)
 		m.AddSeries(s)
 	}
 
@@ -220,7 +222,7 @@ func benchmarkTagSets(b *testing.B, n int, opt query.IteratorOptions) {
 
 	for i := 0; i < n; i++ {
 		tags := map[string]string{"tag1": "value1", "tag2": "value2"}
-		s := newSeries(tsdb.NewSeriesID(uint64(i)), m, fmt.Sprintf("m,tag1=value1,tag2=value2"), models.NewTags(tags))
+		s := newSeries(tsdb.NewSeriesID(uint64(i)), m, fmt.Sprintf("m,tag1=value1,tag2=value2"), models.NewTags(tags), models.String)
 		ss.Add(tsdb.NewSeriesID(uint64(i)))
 		m.AddSeries(s)
 	}
