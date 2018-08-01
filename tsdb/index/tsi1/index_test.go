@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -410,4 +411,39 @@ func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 		tags = append(tags, s.Tags)
 	}
 	return idx.CreateSeriesListIfNotExists(keys, names, tags)
+}
+
+var tsiditr tsdb.SeriesIDIterator
+
+// Calling TagValueSeriesIDIterator on the index involves merging several
+// SeriesIDSets together.BenchmarkIndex_TagValueSeriesIDIterator, which can have
+// a non trivial cost. In the case of `tsi` files, the mmapd sets are merged
+// together. In the case of tsl files the sets need to are cloned and then merged.
+func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
+	var err error
+	sfile := NewSeriesFile()
+	// Load index
+	idx := tsi1.NewIndex(sfile.SeriesFile, "foo",
+		tsi1.WithPath("testdata/index-file-index"),
+		tsi1.DisableCompactions(),
+	)
+	defer sfile.Close()
+
+	if err = idx.Open(); err != nil {
+		b.Fatal(err)
+	}
+	defer idx.Close()
+
+	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
+	b.Run("78888 series TagValueSeriesIDIterator", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			tsiditr, err = idx.TagValueSeriesIDIterator([]byte("m4"), []byte("tag0"), []byte("value4"))
+			if err != nil {
+				b.Fatal(err)
+			} else if tsiditr == nil {
+				b.Fatal("got nil iterator")
+			}
+		}
+	})
 }
