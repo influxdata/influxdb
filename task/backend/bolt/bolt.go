@@ -20,7 +20,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -413,11 +412,14 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 }
 
 func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.StoredTaskInternalMeta, error) {
+	encID, err := id.Encode()
+	if err != nil {
+		return nil, err
+	}
 	var stmBytes []byte
-	paddedID := padID(id)
-	err := s.db.View(func(tx *bolt.Tx) error {
+	err = s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		stmBytes = b.Bucket(taskMetaPath).Get(paddedID)
+		stmBytes = b.Bucket(taskMetaPath).Get(encID)
 		if stmBytes == nil {
 			return errors.New("task meta not found")
 		}
@@ -572,33 +574,17 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// unpadID returns a copy of id with leading 0-bytes removed.
-// This allows user-facing IDs to look prettier.
-func unpadID(id platform.ID) platform.ID {
-	trimmed := bytes.TrimLeft(id, "\x00")
-	return append([]byte(nil), trimmed...)
-}
-
-// padID returns an id, copying it and padding it with leading `0` bytes, if it is less than 8 long.
-// it does not copy the id if it is already 8 long
-// This allows us to accept pretty user-facing IDs but pad them internally for boltdb sorting.
-func padID(id platform.ID) platform.ID {
-	if len(id) >= 8 {
-		// don't pad if the id is long enough
-		return id
-	}
-
-	var buf [8]byte
-	copy(buf[len(buf)-len(id):], id)
-	return buf[:]
-}
-
 // DeleteUser syncronously deletes a user and all their tasks from a bolt store.
 func (s *Store) DeleteUser(ctx context.Context, id platform.ID) error {
-	userID := padID(id)
-	err := s.db.Update(func(tx *bolt.Tx) error {
+	encUserID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+
+	err = s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		ub := b.Bucket(usersPath).Bucket(userID)
+
+		ub := b.Bucket(usersPath).Bucket(encUserID)
 		if ub == nil {
 			return backend.ErrUserNotFound
 		}
@@ -646,7 +632,7 @@ func (s *Store) DeleteUser(ctx context.Context, id platform.ID) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			return b.Bucket(usersPath).DeleteBucket(userID)
+			return b.Bucket(usersPath).DeleteBucket(encUserID)
 		}
 	})
 
@@ -655,10 +641,15 @@ func (s *Store) DeleteUser(ctx context.Context, id platform.ID) error {
 
 // DeleteOrg syncronously deletes an org and all their tasks from a bolt store.
 func (s *Store) DeleteOrg(ctx context.Context, id platform.ID) error {
-	orgID := padID(id)
+	encOrgID, err := id.Encode()
+	if err != nil {
+		return err
+	}
+
 	return s.db.Batch(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
-		ob := b.Bucket(orgsPath).Bucket(orgID)
+
+		ob := b.Bucket(orgsPath).Bucket(encOrgID)
 		if ob == nil {
 			return backend.ErrOrgNotFound
 		}
@@ -704,7 +695,7 @@ func (s *Store) DeleteOrg(ctx context.Context, id platform.ID) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			return b.Bucket(orgsPath).DeleteBucket(orgID)
+			return b.Bucket(orgsPath).DeleteBucket(encOrgID)
 		}
 	})
 }

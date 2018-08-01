@@ -2,7 +2,6 @@ package storetest
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math"
 	"strings"
@@ -406,15 +405,15 @@ from(db:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	org := []byte{1}
-	user := []byte{2}
+	org := platform.ID(1)
+	user := platform.ID(2)
 
 	id, err := s.CreateTask(context.Background(), org, user, script)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	meta, err := s.FindTaskMetaByID(context.Background(), id)
+	meta, err := s.FindTaskMetaByID(context.Background(), *id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +422,7 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("failed to set max concurrency")
 	}
 
-	badID := []byte("bad")
+	var badID platform.ID
 	meta, err = s.FindTaskMetaByID(context.Background(), badID)
 	if err == nil {
 		t.Fatalf("failed to error on bad taskID")
@@ -432,22 +431,22 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
 	}
 
-	qr, err := s.CreateRun(context.Background(), id, time.Unix(1, 0).UTC().Unix())
+	qr, err := s.CreateRun(context.Background(), *id, time.Unix(1, 0).UTC().Unix())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = s.CreateRun(context.Background(), id, time.Unix(2, 0).UTC().Unix())
+	_, err = s.CreateRun(context.Background(), *id, time.Unix(2, 0).UTC().Unix())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = s.FinishRun(context.Background(), id, qr.RunID)
+	err = s.FinishRun(context.Background(), *id, qr.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	meta, err = s.FindTaskMetaByID(context.Background(), id)
+	meta, err = s.FindTaskMetaByID(context.Background(), *id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -578,7 +577,7 @@ func testStoreDeleteUser(t *testing.T, create CreateStoreFunc, destroy DestroySt
 			return u == 0
 		},
 	)
-	user := make(platform.ID, 8)
+	var user platform.ID
 	err := s.DeleteUser(context.Background(), user)
 	if err != nil {
 		t.Fatal(err)
@@ -602,7 +601,7 @@ func testStoreDeleteOrg(t *testing.T, create CreateStoreFunc, destroy DestroySto
 			return o == 0
 		},
 	)
-	org := make(platform.ID, 8)
+	var org platform.ID
 	err := s.DeleteOrg(context.Background(), org)
 	if err != nil {
 		t.Fatal(err)
@@ -625,21 +624,19 @@ func createABunchOFTasks(t *testing.T, s backend.Store, filter func(user, org ui
 	}
 
 from(db:"test") |> range(start:-1h)`
-	var id platform.ID
+	var id *platform.ID
 	var ids []platform.ID
 	var err error
 	for i := 0; i < 15; i++ {
 		for userInt := uint64(0); userInt < 4; userInt++ {
 			for orgInt := uint64(0); orgInt < 3; orgInt++ {
-				org := make(platform.ID, 8)
-				user := make(platform.ID, 8)
-				binary.BigEndian.PutUint64(org, orgInt)
-				binary.BigEndian.PutUint64(user, userInt)
+				org := platform.ID(orgInt)
+				user := platform.ID(userInt)
 				if id, err = s.CreateTask(context.Background(), org, user, script); err != nil {
 					t.Fatal(err)
 				}
 				if filter(userInt, orgInt) {
-					ids = append(ids, id)
+					ids = append(ids, *id)
 				}
 			}
 		}

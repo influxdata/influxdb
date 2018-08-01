@@ -129,8 +129,9 @@ func newFromProcedure(qs query.OperationSpec, pa plan.Administration) (plan.Proc
 	return &FromProcedureSpec{
 		Database: spec.Database,
 		Bucket:   spec.Bucket,
-		BucketID: spec.BucketID,
-		Hosts:    spec.Hosts,
+		// (fixme) > this breaks logical_test.go since the result of plan will contain an invalid ID (0) not nil
+		// BucketID: spec.BucketID,
+		Hosts: spec.Hosts,
 	}, nil
 }
 

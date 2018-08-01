@@ -256,7 +256,7 @@ func (s *inmem) delete(ctx context.Context, id platform.ID, f func(StoreTask) pl
 	newTasks := []StoreTask{}
 	deletingTasks := []platform.ID{}
 	for i := range s.tasks {
-		if !bytes.Equal(f(s.tasks[i]), id) {
+		if f(s.tasks[i]) != id {
 			newTasks = append(newTasks, s.tasks[i])
 		} else {
 			deletingTasks = append(deletingTasks, s.tasks[i].ID)
