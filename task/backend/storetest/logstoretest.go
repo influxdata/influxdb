@@ -41,8 +41,8 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platform.ID([]byte("org")),
+		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
+		Org: platform.ID([]byte("ab01ab01ab01ab05")),
 	}
 	queuedAt := time.Unix(1, 0)
 	run := platform.Run{
@@ -103,8 +103,8 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platform.ID([]byte("org")),
+		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
+		Org: platform.ID([]byte("ab01ab01ab01ab05")),
 	}
 
 	run := platform.Run{
@@ -152,8 +152,8 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platform.ID([]byte("org")),
+		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
+		Org: platform.ID([]byte("ab01ab01ab01ab05")),
 	}
 
 	if _, err := reader.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID}); err == nil {
@@ -251,8 +251,8 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 	}
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platform.ID([]byte("org")),
+		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
+		Org: platform.ID([]byte("ab01ab01ab01ab05")),
 	}
 	run := platform.Run{
 		ID:       platform.ID([]byte("run")),
@@ -290,8 +290,8 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
-		Org: platform.ID([]byte("org")),
+		ID:  platform.ID([]byte("ab01ab01ab01ab01")),
+		Org: platform.ID([]byte("ab01ab01ab01ab05")),
 	}
 
 	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{}); err == nil {

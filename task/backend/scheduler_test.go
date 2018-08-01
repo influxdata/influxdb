@@ -19,40 +19,6 @@ func TestScheduler_EveryValidation(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
-<<<<<<< HEAD
-	tid := platform.ID{1}
-=======
-<<<<<<< HEAD
-	tid := platform.ID(1)
->>>>>>> feat(task): update the scheduler and logwriter interface
-
-	badScripts := []string{
-		`option task = {
-			name: "name",
-			every: 1ms,
-		}
-from(bucket:"b") |> toHTTP(url: "http://example.com")`,
-		`option task = {
-			name: "name",
-			every: -1h,
-		}
-from(bucket:"b") |> toHTTP(url: "http://example.com")`,
-		`option task = {
-			name: "name",
-			every: 1500ms,
-		}
-from(bucket:"b") |> toHTTP(url: "http://example.com")`,
-		`option task = {
-			name: "name",
-			every: 12.32s,
-		}
-from(bucket:"b") |> toHTTP(url: "http://example.com")`,
-	}
-
-	for _, badScript := range badScripts {
-		if err := o.ClaimTask(tid, badScript, 3, 99); err == nil {
-			t.Fatal("no error returned for :", badScript)
-=======
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
@@ -75,7 +41,6 @@ from(bucket:"b") |> toHTTP(url: "http://example.com")`,
 	for _, badOption := range badOptions {
 		if err := o.ClaimTask(task, 3, &badOption); err == nil {
 			t.Fatal("no error returned for :", badOption)
->>>>>>> feat(task): update the scheduler and logwriter interface
 		}
 	}
 }
@@ -85,20 +50,11 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
-<<<<<<< HEAD
-	tid := platform.ID{1}
-=======
-<<<<<<< HEAD
-	tid := platform.ID(1)
->>>>>>> feat(task): update the scheduler and logwriter interface
-	if err := o.ClaimTask(tid, scriptEveryMinute, 3, 99); err != nil {
-=======
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
 	opts := &options.Options{Every: time.Minute}
 	if err := o.ClaimTask(task, 3, opts); err != nil {
->>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
@@ -108,20 +64,11 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	}
 
 	// For every second, can queue for timestamps 4 and 5.
-<<<<<<< HEAD
-	tid = platform.ID{2}
-=======
-<<<<<<< HEAD
-	tid = platform.ID(2)
->>>>>>> feat(task): update the scheduler and logwriter interface
-	if err := o.ClaimTask(tid, scriptEverySecond, 3, 5); err != nil {
-=======
 	task = &backend.StoreTask{
 		ID: platform.ID{2},
 	}
 	opts = &options.Options{Every: time.Second, Concurrency: 99}
 	if err := o.ClaimTask(task, 3, opts); err != nil {
->>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
@@ -135,21 +82,12 @@ func TestScheduler_CreateRunOnTick(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
-<<<<<<< HEAD
-	tid := platform.ID{1}
-=======
-<<<<<<< HEAD
-	tid := platform.ID(1)
->>>>>>> feat(task): update the scheduler and logwriter interface
-	if err := o.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
-=======
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
 
 	opts := &options.Options{Every: time.Second, Concurrency: 2}
 	if err := o.ClaimTask(task, 5, opts); err != nil {
->>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
@@ -187,21 +125,12 @@ func TestScheduler_Release(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
-<<<<<<< HEAD
-	tid := platform.ID{1}
-=======
-<<<<<<< HEAD
-	tid := platform.ID(1)
->>>>>>> feat(task): update the scheduler and logwriter interface
-	if err := o.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
-=======
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
 
 	opts := &options.Options{Every: time.Second, Concurrency: 99}
 	if err := o.ClaimTask(task, 5, opts); err != nil {
->>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
@@ -227,21 +156,12 @@ func TestScheduler_RunLog(t *testing.T) {
 	s := backend.NewScheduler(d, e, rl, 5)
 
 	// Claim a task that starts later.
-<<<<<<< HEAD
-	tid := platform.ID{1}
-=======
-<<<<<<< HEAD
-	tid := platform.ID(1)
->>>>>>> feat(task): update the scheduler and logwriter interface
-	if err := s.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
-=======
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
 
 	opts := &options.Options{Every: time.Second, Concurrency: 99}
 	if err := s.ClaimTask(task, 5, opts); err != nil {
->>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
@@ -371,21 +291,12 @@ func TestScheduler_Metrics(t *testing.T) {
 	reg.MustRegister(s.(prom.PrometheusCollector).PrometheusCollectors()...)
 
 	// Claim a task that starts later.
-<<<<<<< HEAD
-	tid := platform.ID{1}
-=======
-<<<<<<< HEAD
-	tid := platform.ID(1)
->>>>>>> feat(task): update the scheduler and logwriter interface
-	if err := s.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
-=======
 	task := &backend.StoreTask{
 		ID: platform.ID{1},
 	}
 
 	opts := &options.Options{Every: time.Second, Concurrency: 99}
 	if err := s.ClaimTask(task, 5, opts); err != nil {
->>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
