@@ -1,5 +1,7 @@
 package platform
 
+import "encoding/hex"
+
 // Owner represents a resource owner
 type Owner struct {
 	ID ID
@@ -7,10 +9,11 @@ type Owner struct {
 
 // Decode parses b as a hex-encoded byte-slice-string.
 func (o *Owner) Decode(b []byte) error {
-	var id ID
-	if err := id.Decode(b); err != nil {
+	dst := make([]byte, hex.DecodedLen(len(b)))
+	_, err := hex.Decode(dst, b)
+	if err != nil {
 		return err
 	}
-	o.ID = id
+	o.ID = dst
 	return nil
 }

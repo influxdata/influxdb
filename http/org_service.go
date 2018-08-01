@@ -146,11 +146,10 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 	req := &getOrgsRequest{}
 
 	if id := qp.Get("id"); id != "" {
-		temp, err := platform.IDFromString(id)
-		if err != nil {
+		req.filter.ID = &platform.ID{}
+		if err := req.filter.ID.DecodeFromString(id); err != nil {
 			return nil, err
 		}
-		req.filter.ID = temp
 	}
 
 	if name := qp.Get("name"); name != "" {

@@ -1,6 +1,7 @@
 package snowflake
 
 import (
+	"encoding/binary"
 	"math/rand"
 	"time"
 
@@ -8,16 +9,16 @@ import (
 	"github.com/influxdata/platform"
 )
 
+// TODO: rename to id.go
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// IDGenerator holds the ID generator.
 type IDGenerator struct {
 	Generator *snowflake.Generator
 }
 
-// NewIDGenerator creates a new ID generator.
 func NewIDGenerator() *IDGenerator {
 	return &IDGenerator{
 		// Maximum machine id is 1023
@@ -25,14 +26,9 @@ func NewIDGenerator() *IDGenerator {
 	}
 }
 
-// ID returns a pointer to a generated ID.
 func (g *IDGenerator) ID() platform.ID {
-	var id platform.ID
-	for {
-		id = platform.ID(g.Generator.Next())
-		if id.Valid() {
-			break
-		}
-	}
+	id := make(platform.ID, 8)
+	i := g.Generator.Next()
+	binary.BigEndian.PutUint64(id, i)
 	return id
 }

@@ -1,7 +1,9 @@
 package storetest
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"strings"
@@ -58,9 +60,6 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 }
 
 func testStoreCreate(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
-	id1 := platform.ID(1)
-	id2 := platform.ID(2)
-
 	const script = `option task = {
 		name: "a task",
 		cron: "* * * * *",
@@ -75,23 +74,19 @@ from(db:"test") |> range(start:-1h)`
 	t.Run("happy path", func(t *testing.T) {
 		s := create(t)
 		defer destroy(t, s)
-
-		if _, err := s.CreateTask(context.Background(), id1, id2, script); err != nil {
+		if _, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script); err != nil {
 			t.Fatal(err)
 		}
 	})
-
-	var emptyID platform.ID
-
 	for _, args := range []struct {
 		caseName     string
 		org, user    platform.ID
 		name, script string
 	}{
-		{caseName: "missing org", org: emptyID, user: id2, script: script},
-		{caseName: "missing user", org: id1, user: emptyID, script: script},
-		{caseName: "missing name", org: id1, user: id2, script: scriptNoName},
-		{caseName: "missing script", org: id1, user: id2, script: ""},
+		{caseName: "missing org", org: nil, user: []byte{2}, script: script},
+		{caseName: "missing user", org: []byte{1}, user: nil, script: script},
+		{caseName: "missing name", org: []byte{1}, user: []byte{2}, script: scriptNoName},
+		{caseName: "missing script", org: []byte{1}, user: []byte{2}, script: ""},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
 			s := create(t)
@@ -105,9 +100,6 @@ from(db:"test") |> range(start:-1h)`
 }
 
 func testStoreModify(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
-	id1 := platform.ID(1)
-	id2 := platform.ID(2)
-
 	const script = `option task = {
 		name: "a task",
 		cron: "* * * * *",
@@ -131,15 +123,15 @@ from(bucket:"y") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), id1, id2, script)
+		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := s.ModifyTask(context.Background(), *id, script2); err != nil {
+		if err := s.ModifyTask(context.Background(), id, script2); err != nil {
 			t.Fatal(err)
 		}
 
-		task, err := s.FindTaskByID(context.Background(), *id)
+		task, err := s.FindTaskByID(context.Background(), id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -148,18 +140,15 @@ from(bucket:"y") |> range(start:-1h)`
 		}
 	})
 
-	notPresentID := platform.ID(7123)
-	var emptyID platform.ID
-
 	for _, args := range []struct {
 		caseName string
 		id       platform.ID
 		script   string
 	}{
-		{caseName: "missing id", id: emptyID, script: script},
-		{caseName: "not found", id: notPresentID, script: script},
-		{caseName: "missing script", id: id1, script: ""},
-		{caseName: "missing name", id: id1, script: scriptNoName},
+		{caseName: "missing id", id: nil, script: script},
+		{caseName: "not found", id: []byte{7, 1, 2, 3}, script: script},
+		{caseName: "missing script", id: []byte{1}, script: ""},
+		{caseName: "missing name", id: []byte{1}, script: scriptNoName},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
 			s := create(t)
@@ -183,8 +172,8 @@ from(db:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		orgID := platform.ID(1)
-		userID := platform.ID(2)
+		orgID := []byte{1}
+		userID := []byte{2}
 
 		id, err := s.CreateTask(context.Background(), orgID, userID, script)
 		if err != nil {
@@ -198,7 +187,7 @@ from(db:"test") |> range(start:-1h)`
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if ts[0].ID != *id {
+		if !bytes.Equal(ts[0].ID, id) {
 			t.Fatalf("got task ID %v, exp %v", ts[0].ID, id)
 		}
 
@@ -209,11 +198,11 @@ from(db:"test") |> range(start:-1h)`
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if ts[0].ID != *id {
+		if !bytes.Equal(ts[0].ID, id) {
 			t.Fatalf("got task ID %v, exp %v", ts[0].ID, id)
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{Org: platform.ID(123)})
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{Org: []byte{1, 2, 3}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -221,7 +210,7 @@ from(db:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad org ID, got %d result(s)", len(ts))
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{User: platform.ID(123)})
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{User: []byte{1, 2, 3}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,14 +223,14 @@ from(db:"test") |> range(start:-1h)`
 			t.Fatal(err)
 		}
 
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{After: *id})
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{After: id})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(ts) != 1 {
 			t.Fatalf("expected 1 result, got %d", len(ts))
 		}
-		if ts[0].ID != *newID {
+		if !bytes.Equal(ts[0].ID, newID) {
 			t.Fatalf("got task ID %v, exp %v", ts[0].ID, newID)
 		}
 	})
@@ -250,8 +239,8 @@ from(db:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		orgID := platform.ID(1)
-		userID := platform.ID(2)
+		orgID := []byte{1}
+		userID := []byte{2}
 
 		type createdTask struct {
 			id           platform.ID
@@ -273,7 +262,7 @@ from(db:"test") |> range(start:-1h)`
 			if err != nil {
 				t.Fatalf("failed to create task %d: %v", i, err)
 			}
-			tasks[i].id = *id
+			tasks[i].id = id
 		}
 
 		for _, p := range []backend.TaskSearchParams{
@@ -282,7 +271,7 @@ from(db:"test") |> range(start:-1h)`
 		} {
 			got, err := s.ListTasks(context.Background(), p)
 			if err != nil {
-				t.Fatalf("failed to list tasks with search param %#v: %v", p, err)
+				t.Fatalf("failed to list tasks with search param %v: %v", p, err)
 			}
 
 			if len(got) != 100 {
@@ -290,15 +279,15 @@ from(db:"test") |> range(start:-1h)`
 			}
 
 			for i, g := range got {
-				if tasks[i].id != g.ID {
+				if !bytes.Equal(tasks[i].id, g.ID) {
 					t.Fatalf("task ID mismatch at index %d: got %x, expected %x", i, g.ID, tasks[i].id)
 				}
 
-				if orgID != g.Org {
+				if !bytes.Equal(orgID, g.Org) {
 					t.Fatalf("task org mismatch at index %d: got %x, expected %x", i, g.Org, orgID)
 				}
 
-				if userID != g.User {
+				if !bytes.Equal(userID, g.User) {
 					t.Fatalf("task user mismatch at index %d: got %x, expected %x", i, g.User, userID)
 				}
 
@@ -325,7 +314,7 @@ from(db:"test") |> range(start:-1h)`
 			t.Fatal("expected error for huge page size but got nil")
 		}
 
-		if _, err := s.ListTasks(context.Background(), backend.TaskSearchParams{Org: platform.ID(1), User: platform.ID(2)}); err == nil {
+		if _, err := s.ListTasks(context.Background(), backend.TaskSearchParams{Org: []byte{1}, User: []byte{2}}); err == nil {
 			t.Fatal("expected error when specifying both org and user, but got nil")
 		}
 	})
@@ -343,26 +332,26 @@ from(db:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		org := platform.ID(1)
-		user := platform.ID(2)
+		org := []byte{1}
+		user := []byte{2}
 
 		id, err := s.CreateTask(context.Background(), org, user, script)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		task, err := s.FindTaskByID(context.Background(), *id)
+		task, err := s.FindTaskByID(context.Background(), id)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if task.ID != *id {
+		if !bytes.Equal(task.ID, id) {
 			t.Fatalf("unexpected ID: got %v, exp %v", task.ID, id)
 		}
-		if task.Org != org {
+		if !bytes.Equal(task.Org, org) {
 			t.Fatalf("unexpected org: got %v, exp %v", task.Org, org)
 		}
-		if task.User != user {
+		if !bytes.Equal(task.User, user) {
 			t.Fatalf("unexpected user: got %v, exp %v", task.User, user)
 		}
 		if task.Name != "a task" {
@@ -372,16 +361,8 @@ from(db:"test") |> range(start:-1h)`
 			t.Fatalf("unexpected script %q", task.Script)
 		}
 
-		bytes, err := id.Encode()
-		if err != nil {
-			t.Error(err)
-		}
-		badBytes := append([]byte(nil), bytes...)
-		badBytes[len(badBytes)-1]++
-		var badID platform.ID
-		if err := badID.Decode(badBytes); err != nil {
-			t.Error(err)
-		}
+		badID := append([]byte(nil), id...)
+		badID[len(badID)-1]++
 
 		task, err = s.FindTaskByID(context.Background(), badID)
 		if err != nil {
@@ -405,15 +386,15 @@ from(db:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	org := platform.ID(1)
-	user := platform.ID(2)
+	org := []byte{1}
+	user := []byte{2}
 
 	id, err := s.CreateTask(context.Background(), org, user, script)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	meta, err := s.FindTaskMetaByID(context.Background(), *id)
+	meta, err := s.FindTaskMetaByID(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +403,7 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("failed to set max concurrency")
 	}
 
-	var badID platform.ID
+	badID := []byte("bad")
 	meta, err = s.FindTaskMetaByID(context.Background(), badID)
 	if err == nil {
 		t.Fatalf("failed to error on bad taskID")
@@ -431,22 +412,22 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
 	}
 
-	qr, err := s.CreateRun(context.Background(), *id, time.Unix(1, 0).UTC().Unix())
+	qr, err := s.CreateRun(context.Background(), id, time.Unix(1, 0).UTC().Unix())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = s.CreateRun(context.Background(), *id, time.Unix(2, 0).UTC().Unix())
+	_, err = s.CreateRun(context.Background(), id, time.Unix(2, 0).UTC().Unix())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = s.FinishRun(context.Background(), *id, qr.RunID)
+	err = s.FinishRun(context.Background(), id, qr.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	meta, err = s.FindTaskMetaByID(context.Background(), *id)
+	meta, err = s.FindTaskMetaByID(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -472,12 +453,12 @@ from(db:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script)
+		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		deleted, err := s.DeleteTask(context.Background(), *id)
+		deleted, err := s.DeleteTask(context.Background(), id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -486,7 +467,7 @@ from(db:"test") |> range(start:-1h)`
 		}
 
 		// Deleting a nonexistent ID should return false, nil.
-		deleted, err = s.DeleteTask(context.Background(), *id)
+		deleted, err = s.DeleteTask(context.Background(), id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -495,7 +476,7 @@ from(db:"test") |> range(start:-1h)`
 		}
 
 		// The deleted task should not be found.
-		task, err := s.FindTaskByID(context.Background(), *id)
+		task, err := s.FindTaskByID(context.Background(), id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -515,12 +496,12 @@ from(db:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script)
+	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	run, err := s.CreateRun(context.Background(), *task, 1)
+	run, err := s.CreateRun(context.Background(), task, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +514,7 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("run now mismatch")
 	}
 
-	if _, err := s.CreateRun(context.Background(), *task, 1); err == nil {
+	if _, err := s.CreateRun(context.Background(), task, 1); err == nil {
 		t.Fatal("expected error for exceeding MaxConcurrency")
 	} else if !strings.Contains(err.Error(), "MaxConcurrency") {
 		t.Fatalf("expected error for MaxConcurrency, got %v", err)
@@ -550,21 +531,21 @@ from(db:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), platform.ID(1), platform.ID(2), script)
+	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	run, err := s.CreateRun(context.Background(), *task, 1)
+	run, err := s.CreateRun(context.Background(), task, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.FinishRun(context.Background(), *task, run.RunID); err != nil {
+	if err := s.FinishRun(context.Background(), task, run.RunID); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.FinishRun(context.Background(), *task, run.RunID); err == nil {
+	if err := s.FinishRun(context.Background(), task, run.RunID); err == nil {
 		t.Fatal("expected failure when removing run that doesnt exist")
 	}
 }
@@ -577,7 +558,7 @@ func testStoreDeleteUser(t *testing.T, create CreateStoreFunc, destroy DestroySt
 			return u == 0
 		},
 	)
-	var user platform.ID
+	user := make(platform.ID, 8)
 	err := s.DeleteUser(context.Background(), user)
 	if err != nil {
 		t.Fatal(err)
@@ -601,7 +582,7 @@ func testStoreDeleteOrg(t *testing.T, create CreateStoreFunc, destroy DestroySto
 			return o == 0
 		},
 	)
-	var org platform.ID
+	org := make(platform.ID, 8)
 	err := s.DeleteOrg(context.Background(), org)
 	if err != nil {
 		t.Fatal(err)
@@ -624,19 +605,21 @@ func createABunchOFTasks(t *testing.T, s backend.Store, filter func(user, org ui
 	}
 
 from(db:"test") |> range(start:-1h)`
-	var id *platform.ID
+	var id platform.ID
 	var ids []platform.ID
 	var err error
 	for i := 0; i < 15; i++ {
 		for userInt := uint64(0); userInt < 4; userInt++ {
 			for orgInt := uint64(0); orgInt < 3; orgInt++ {
-				org := platform.ID(orgInt)
-				user := platform.ID(userInt)
+				org := make(platform.ID, 8)
+				user := make(platform.ID, 8)
+				binary.BigEndian.PutUint64(org, orgInt)
+				binary.BigEndian.PutUint64(user, userInt)
 				if id, err = s.CreateTask(context.Background(), org, user, script); err != nil {
 					t.Fatal(err)
 				}
 				if filter(userInt, orgInt) {
-					ids = append(ids, *id)
+					ids = append(ids, id)
 				}
 			}
 		}

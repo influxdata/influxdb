@@ -19,10 +19,10 @@ type OwnerMapping struct {
 
 // Validate reports any validation errors for the mapping.
 func (m OwnerMapping) Validate() error {
-	if !m.ResourceID.Valid() {
+	if len(m.ResourceID) == 0 {
 		return errors.New("ResourceID is required")
 	}
-	if !m.Owner.ID.Valid() {
+	if len(m.Owner.ID) == 0 {
 		return errors.New("An Owner with an ID is required")
 	}
 	return nil

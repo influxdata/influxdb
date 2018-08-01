@@ -70,27 +70,24 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request) (*getTasksReque
 	req := &getTasksRequest{}
 
 	if id := qp.Get("after"); id != "" {
-		temp, err := platform.IDFromString(id)
-		if err != nil {
+		req.filter.After = &platform.ID{}
+		if err := req.filter.After.DecodeFromString(id); err != nil {
 			return nil, err
 		}
-		req.filter.After = temp
 	}
 
 	if id := qp.Get("organization"); id != "" {
-		temp, err := platform.IDFromString(id)
-		if err != nil {
+		req.filter.Organization = &platform.ID{}
+		if err := req.filter.Organization.DecodeFromString(id); err != nil {
 			return nil, err
 		}
-		req.filter.Organization = temp
 	}
 
 	if id := qp.Get("user"); id != "" {
-		userID, err := platform.IDFromString(id)
-		if err != nil {
+		req.filter.User = &platform.ID{}
+		if err := req.filter.User.DecodeFromString(id); err != nil {
 			return nil, err
 		}
-		req.filter.User = userID
 	}
 
 	return req, nil
@@ -294,18 +291,16 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest
 	}
 
 	req := &getLogsRequest{}
-	taskID, err := platform.IDFromString(id)
-	if err != nil {
+	req.filter.Task = &platform.ID{}
+	if err := req.filter.Task.DecodeFromString(id); err != nil {
 		return nil, err
 	}
-	req.filter.Task = taskID
 
 	if id := params.ByName("rid"); id != "" {
-		temp, err := platform.IDFromString(id)
-		if err != nil {
+		req.filter.Run = &platform.ID{}
+		if err := req.filter.Run.DecodeFromString(id); err != nil {
 			return nil, err
 		}
-		req.filter.Run = temp
 	}
 
 	return req, nil
@@ -344,20 +339,18 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 	}
 
 	req := &getRunsRequest{}
-	taskID, err := platform.IDFromString(id)
-	if err != nil {
+	req.filter.Task = &platform.ID{}
+	if err := req.filter.Task.DecodeFromString(id); err != nil {
 		return nil, err
 	}
-	req.filter.Task = taskID
 
 	qp := r.URL.Query()
 
 	if id := qp.Get("after"); id != "" {
-		afterID, err := platform.IDFromString(id)
-		if err != nil {
+		req.filter.After = &platform.ID{}
+		if err := req.filter.After.DecodeFromString(id); err != nil {
 			return nil, err
 		}
-		req.filter.After = afterID
 	}
 
 	if limit := qp.Get("limit"); limit != "" {

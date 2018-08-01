@@ -1,10 +1,7 @@
-package platform_test
+package platform
 
 import (
 	"testing"
-
-	"github.com/influxdata/platform"
-	platformtesting "github.com/influxdata/platform/testing"
 )
 
 func TestDBRPMapping_Validate(t *testing.T) {
@@ -13,8 +10,8 @@ func TestDBRPMapping_Validate(t *testing.T) {
 		Database        string
 		RetentionPolicy string
 		Default         bool
-		OrganizationID  platform.ID
-		BucketID        platform.ID
+		OrganizationID  ID
+		BucketID        ID
 	}
 	tests := []struct {
 		name    string
@@ -60,7 +57,7 @@ func TestDBRPMapping_Validate(t *testing.T) {
 				Cluster:         "abc",
 				Database:        "telegraf",
 				RetentionPolicy: "autogen",
-				OrganizationID:  platformtesting.MustIDFromString("debac1e0deadbeef"),
+				OrganizationID:  []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
 			},
 			wantErr: true,
 		},
@@ -88,20 +85,21 @@ func TestDBRPMapping_Validate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+
 		{
 			name: "dash accepted as valid database",
 			fields: fields{
 				Cluster:         "12345_.",
 				Database:        "howdy-doody",
 				RetentionPolicy: "autogen",
-				OrganizationID:  platformtesting.MustIDFromString("debac1e0deadbeef"),
-				BucketID:        platformtesting.MustIDFromString("5ca1ab1edeadbea7"),
+				OrganizationID:  []byte{0xde, 0xba, 0xc1, 0xe0, 0xde, 0xad, 0xbe, 0xef},
+				BucketID:        []byte{0x5c, 0xa1, 0xab, 0x1e, 0xde, 0xad, 0xbe, 0xa7},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := platform.DBRPMapping{
+			m := DBRPMapping{
 				Cluster:         tt.fields.Cluster,
 				Database:        tt.fields.Database,
 				RetentionPolicy: tt.fields.RetentionPolicy,
@@ -109,9 +107,44 @@ func TestDBRPMapping_Validate(t *testing.T) {
 				OrganizationID:  tt.fields.OrganizationID,
 				BucketID:        tt.fields.BucketID,
 			}
-
 			if err := m.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("DBRPMapping.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_validName(t *testing.T) {
+	tests := []struct {
+		arg  string
+		name string
+		want bool
+	}{
+		{
+			name: "names cannot have unprintable characters",
+			arg:  string([]byte{0x0D}),
+			want: false,
+		},
+		{
+			name: "names cannot have .",
+			arg:  ".",
+			want: false,
+		},
+		{
+			name: "names cannot have ..",
+			arg:  "..",
+			want: false,
+		},
+		{
+			name: "names cannot have /",
+			arg:  "/",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := validName(tt.arg); got != tt.want {
+				t.Errorf("validName() = %v, want %v", got, tt.want)
 			}
 		})
 	}

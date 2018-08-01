@@ -78,7 +78,7 @@ func transpileF(cmd *cobra.Command, logger *zap.Logger, args []string) error {
 	// TODO(nathanielc): Allow QueryService to use multiple hosts.
 
 	logger.Info("Using fluxd service", zap.Strings("hosts", hosts), zap.Stringer("org-id", id))
-	transpileHandler := http.NewTranspilerQueryHandler(*id)
+	transpileHandler := http.NewTranspilerQueryHandler(id)
 	transpileHandler.QueryService = &http.QueryService{
 		Addr: hosts[0],
 	}
@@ -112,7 +112,7 @@ func getStrList(key string) ([]string, error) {
 	return strings.Split(valStr, ","), nil
 }
 
-func getOrganization() (*platform.ID, error) {
+func getOrganization() (platform.ID, error) {
 	v := viper.GetViper()
 	orgID := v.GetString("ORG_ID")
 	if orgID == "" {
@@ -123,7 +123,7 @@ func getOrganization() (*platform.ID, error) {
 	if err := id.DecodeFromString(orgID); err != nil {
 		return nil, fmt.Errorf("unable to decode organization id: %s", err)
 	}
-	return &id, nil
+	return id, nil
 }
 
 func discoverHosts() ([]string, error) {

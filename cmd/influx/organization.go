@@ -103,12 +103,11 @@ func organizationFindF(cmd *cobra.Command, args []string) {
 	}
 
 	if organizationFindFlags.id != "" {
-		id, err := platform.IDFromString(organizationFindFlags.id)
-		if err != nil {
+		filter.ID = &platform.ID{}
+		if err := filter.ID.DecodeFromString(organizationFindFlags.id); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		filter.ID = id
 	}
 
 	orgs, _, err := s.FindOrganizations(context.Background(), filter)

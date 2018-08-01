@@ -71,7 +71,7 @@ func CreateUser(
 				users: []*platform.User{
 					{
 						Name: "name1",
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 					},
 				},
 			},
@@ -82,7 +82,7 @@ func CreateUser(
 				IDGenerator: mock.NewIDGenerator(userTwoID, t),
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "user1",
 					},
 				},
@@ -95,27 +95,27 @@ func CreateUser(
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "user1",
 					},
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "user2",
 					},
 				},
 			},
 		},
 		{
-			name: "names should be unique",
+			name: "names should not be unique",
 			fields: UserFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return MustIDFromString(userOneID)
+						return idFromString(t, userOneID)
 					},
 				},
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "user1",
 					},
 				},
@@ -128,7 +128,7 @@ func CreateUser(
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "user1",
 					},
 				},
@@ -152,11 +152,7 @@ func CreateUser(
 					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
 				}
 			}
-
-			// Delete only created users - ie., having a not nil ID
-			if tt.args.user.ID.Valid() {
-				defer s.DeleteUser(ctx, tt.args.user.ID)
-			}
+			defer s.DeleteUser(ctx, tt.args.user.ID)
 
 			users, _, err := s.FindUsers(ctx, platform.UserFilter{})
 			if err != nil {
@@ -193,21 +189,21 @@ func FindUserByID(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "user1",
 					},
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "user2",
 					},
 				},
 			},
 			args: args{
-				id: MustIDFromString(userTwoID),
+				id: idFromString(t, userTwoID),
 			},
 			wants: wants{
 				user: &platform.User{
-					ID:   MustIDFromString(userTwoID),
+					ID:   idFromString(t, userTwoID),
 					Name: "user2",
 				},
 			},
@@ -263,11 +259,11 @@ func FindUsers(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "xyz",
 					},
 				},
@@ -276,11 +272,11 @@ func FindUsers(
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "xyz",
 					},
 				},
@@ -291,22 +287,22 @@ func FindUsers(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "xyz",
 					},
 				},
 			},
 			args: args{
-				ID: MustIDFromString(userTwoID),
+				ID: idFromString(t, userTwoID),
 			},
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "xyz",
 					},
 				},
@@ -317,11 +313,11 @@ func FindUsers(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "xyz",
 					},
 				},
@@ -332,7 +328,7 @@ func FindUsers(
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "xyz",
 					},
 				},
@@ -347,7 +343,7 @@ func FindUsers(
 			ctx := context.TODO()
 
 			filter := platform.UserFilter{}
-			if tt.args.ID.Valid() {
+			if tt.args.ID != nil {
 				filter.ID = &tt.args.ID
 			}
 			if tt.args.name != "" {
@@ -397,22 +393,22 @@ func DeleteUser(
 				Users: []*platform.User{
 					{
 						Name: "orgA",
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 					},
 				},
 			},
 			args: args{
-				ID: MustIDFromString(userOneID),
+				ID: idFromString(t, userOneID),
 			},
 			wants: wants{
 				users: []*platform.User{
 					{
 						Name: "orgB",
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 					},
 				},
 			},
@@ -423,27 +419,27 @@ func DeleteUser(
 				Users: []*platform.User{
 					{
 						Name: "orgA",
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 					},
 				},
 			},
 			args: args{
-				ID: MustIDFromString(userThreeID),
+				ID: idFromString(t, userThreeID),
 			},
 			wants: wants{
 				err: fmt.Errorf("user not found"),
 				users: []*platform.User{
 					{
 						Name: "orgA",
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 					},
 					{
 						Name: "orgB",
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 					},
 				},
 			},
@@ -503,11 +499,11 @@ func FindUser(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "abc",
 					},
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "xyz",
 					},
 				},
@@ -517,7 +513,7 @@ func FindUser(
 			},
 			wants: wants{
 				user: &platform.User{
-					ID:   MustIDFromString(userOneID),
+					ID:   idFromString(t, userOneID),
 					Name: "abc",
 				},
 			},
@@ -577,22 +573,22 @@ func UpdateUser(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDFromString(userOneID),
+						ID:   idFromString(t, userOneID),
 						Name: "user1",
 					},
 					{
-						ID:   MustIDFromString(userTwoID),
+						ID:   idFromString(t, userTwoID),
 						Name: "user2",
 					},
 				},
 			},
 			args: args{
-				id:   MustIDFromString(userOneID),
+				id:   idFromString(t, userOneID),
 				name: "changed",
 			},
 			wants: wants{
 				user: &platform.User{
-					ID:   MustIDFromString(userOneID),
+					ID:   idFromString(t, userOneID),
 					Name: "changed",
 				},
 			},

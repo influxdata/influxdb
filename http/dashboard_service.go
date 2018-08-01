@@ -189,11 +189,10 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	req := &getDashboardsRequest{}
 
 	if id := qp.Get("orgID"); id != "" {
-		temp, err := platform.IDFromString(id)
-		if err != nil {
+		req.filter.OrganizationID = &platform.ID{}
+		if err := req.filter.OrganizationID.DecodeFromString(id); err != nil {
 			return nil, err
 		}
-		req.filter.OrganizationID = temp
 	}
 
 	if org := qp.Get("org"); org != "" {
@@ -201,11 +200,10 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	}
 
 	if id := qp.Get("id"); id != "" {
-		temp, err := platform.IDFromString(id)
-		if err != nil {
+		req.filter.ID = &platform.ID{}
+		if err := req.filter.ID.DecodeFromString(id); err != nil {
 			return nil, err
 		}
-		req.filter.ID = temp
 	}
 
 	return req, nil
@@ -361,7 +359,7 @@ func decodePutDashboardCellRequest(ctx context.Context, r *http.Request) (*putDa
 		return nil, err
 	}
 
-	if !req.Cell.ID.Valid() || req.Cell.ID != cid {
+	if !bytes.Equal(req.Cell.ID, cid) {
 		return nil, fmt.Errorf("url cell_id does not match id on provided cell")
 	}
 

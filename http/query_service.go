@@ -73,7 +73,7 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 		orgID = org.ID
 	}
 
-	if !orgID.Valid() {
+	if len(orgID) == 0 {
 		EncodeError(ctx, errors.New("must pass organization name or ID as string in orgName or orgID parameter", errors.MalformedData), w)
 		return
 	}
