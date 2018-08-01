@@ -9,6 +9,7 @@ v1.6.1 [unreleased]
 -	[#10080](https://github.com/influxdata/influxdb/pull/10080): Improve performance of buildtsi and TSI planning.
 -	[#10099](https://github.com/influxdata/influxdb/pull/10099): Improve performance of read service for single measurements.
 -	[#10103](https://github.com/influxdata/influxdb/pull/10103): Remove max concurrent compaction limit.
+-	[#10143](https://github.com/influxdata/influxdb/pull/10143): Add roaring bitmaps to TSI index files.
 
 ### Bugfixes
 
