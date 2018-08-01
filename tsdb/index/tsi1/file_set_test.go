@@ -17,9 +17,9 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 
 	// Create initial set of series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"}), Type: models.Integer},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -47,9 +47,9 @@ func TestFileSet_SeriesIDIterator(t *testing.T) {
 
 	// Add more series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
-		{Name: []byte("disk")},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "north"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("disk"), Type: models.Integer},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "north"}), Type: models.Integer},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -86,9 +86,9 @@ func TestFileSet_MeasurementSeriesIDIterator(t *testing.T) {
 
 	// Create initial set of series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"}), Type: models.Integer},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -152,8 +152,8 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 	// Create initial set of series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
-		{Name: []byte("cpu")},
-		{Name: []byte("mem")},
+		{Name: []byte("cpu"), Type: models.Integer},
+		{Name: []byte("mem"), Type: models.Integer},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -186,8 +186,8 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 
 	// Add more series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
-		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"foo": "bar"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "north", "x": "y"})},
+		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"foo": "bar"}), Type: models.Integer},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "north", "x": "y"}), Type: models.Integer},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -226,9 +226,9 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 
 	// Create initial set of series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west", "type": "gpu"})},
-		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east", "misc": "other"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west", "type": "gpu"}), Type: models.Integer},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east", "misc": "other"}), Type: models.Integer},
 	}); err != nil {
 		t.Fatal(err)
 	}

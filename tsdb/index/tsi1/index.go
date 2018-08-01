@@ -631,22 +631,24 @@ func (i *Index) DropMeasurement(name []byte) error {
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) error {
-	// All slices must be of equal length.
-	if len(names) != len(tagsSlice) {
-		return errors.New("names/tags length mismatch in index")
+func (i *Index) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) error {
+	// Create the series list on the series file first. This validates all of the types for
+	// the collection.
+	err := i.sfile.CreateSeriesListIfNotExists(collection)
+	if err != nil {
+		return err
 	}
 
 	// We need to move different series into collections for each partition
 	// to process.
-	pNames := make([][][]byte, i.PartitionN)
-	pTags := make([][]models.Tags, i.PartitionN)
+	pCollections := make([]tsdb.SeriesCollection, i.PartitionN)
 
 	// Determine partition for series using each series key.
-	for ki, key := range keys {
-		pidx := i.partitionIdx(key)
-		pNames[pidx] = append(pNames[pidx], names[ki])
-		pTags[pidx] = append(pTags[pidx], tagsSlice[ki])
+	for iter := collection.Iterator(); iter.Next(); {
+		pCollection := &pCollections[i.partitionIdx(iter.Key())]
+		pCollection.Names = append(pCollection.Names, iter.Name())
+		pCollection.Tags = append(pCollection.Tags, iter.Tags())
+		pCollection.SeriesIDs = append(pCollection.SeriesIDs, iter.SeriesID())
 	}
 
 	// Process each subset of series on each partition.
@@ -664,7 +666,7 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 					return // No more work.
 				}
 
-				ids, err := i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+				ids, err := i.partitions[idx].createSeriesListIfNotExists(&pCollections[idx])
 
 				var updateCache bool
 				for _, id := range ids {
@@ -735,7 +737,17 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	ids, err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
+	collection := &tsdb.SeriesCollection{
+		Keys:  [][]byte{key},
+		Names: [][]byte{name},
+		Tags:  []models.Tags{tags},
+		Types: []models.FieldType{typ},
+	}
+	err := i.sfile.CreateSeriesListIfNotExists(collection)
+	if err != nil {
+		return err
+	}
+	ids, err := i.partition(key).createSeriesListIfNotExists(collection)
 	if err != nil {
 		return err
 	}
@@ -770,7 +782,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 }
 
 // InitializeSeries is a no-op. This only applies to the in-memory index.
-func (i *Index) InitializeSeries(keys, names [][]byte, tags []models.Tags) error {
+func (i *Index) InitializeSeries(*tsdb.SeriesCollection) error {
 	return nil
 }
 

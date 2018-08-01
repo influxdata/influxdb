@@ -175,28 +175,39 @@ func (p *SeriesPartition) IndexPath() string { return filepath.Join(p.path, "ind
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
-func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitionIDs []int, ids []SeriesID) error {
-	var writeRequired bool
+// If the type does not match the existing type for the key, a zero id is stored.
+func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollection,
+	keyPartitionIDs []int) error {
+
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
 		return ErrSeriesPartitionClosed
 	}
-	for i := range keys {
-		if keyPartitionIDs[i] != p.id {
+
+	writeRequired := 0
+	for iter := collection.Iterator(); iter.Next(); {
+		index := iter.Index()
+		if keyPartitionIDs[index] != p.id {
 			continue
 		}
-		id := p.index.FindIDBySeriesKey(p.segments, keys[i])
+		id := p.index.FindIDBySeriesKey(p.segments, iter.SeriesKey())
 		if id.IsZero() {
-			writeRequired = true
+			writeRequired++
 			continue
 		}
-		ids[i] = id.SeriesID()
+		if id.HasType() && id.Type() != iter.Type() {
+			iter.Invalid(fmt.Sprintf(
+				"series type mismatch: already %d but got %d",
+				id.Type(), iter.Type()))
+			continue
+		}
+		collection.SeriesIDs[index] = id.SeriesID()
 	}
 	p.mu.RUnlock()
 
 	// Exit if all series for this partition already exist.
-	if !writeRequired {
+	if writeRequired == 0 {
 		return nil
 	}
 
@@ -204,7 +215,10 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 		id     SeriesIDTyped
 		offset int64
 	}
-	newKeyRanges := make([]keyRange, 0, len(keys))
+
+	// Preallocate the space we'll need before grabbing the lock.
+	newKeyRanges := make([]keyRange, 0, writeRequired)
+	newIDs := make(map[string]SeriesIDTyped, writeRequired)
 
 	// Obtain write lock to create new series.
 	p.mu.Lock()
@@ -214,32 +228,46 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 		return ErrSeriesPartitionClosed
 	}
 
-	// Track offsets of duplicate series.
-	newIDs := make(map[string]SeriesID, len(ids))
+	for iter := collection.Iterator(); iter.Next(); {
+		index := iter.Index()
 
-	for i := range keys {
 		// Skip series that don't belong to the partition or have already been created.
-		if keyPartitionIDs[i] != p.id || !ids[i].IsZero() {
+		if keyPartitionIDs[index] != p.id || !iter.SeriesID().IsZero() {
 			continue
 		}
 
-		// Re-attempt lookup under write lock.
-		key := keys[i]
-		if ids[i] = newIDs[string(key)]; !ids[i].IsZero() {
-			continue
-		} else if ids[i] = p.index.FindIDBySeriesKey(p.segments, key).SeriesID(); !ids[i].IsZero() {
+		// Re-attempt lookup under write lock. Be sure to double check the type. If the type
+		// doesn't match what we found, we should not set the ids field for it, but we should
+		// stop processing the key.
+		key, typ := iter.SeriesKey(), iter.Type()
+
+		// First check the map, then the index.
+		id := newIDs[string(key)]
+		if id.IsZero() {
+			id = p.index.FindIDBySeriesKey(p.segments, key)
+		}
+
+		// If the id is found, we are done processing this key. We should only set the ids slice
+		// if the type matches.
+		if !id.IsZero() {
+			if id.HasType() && id.Type() != typ {
+				iter.Invalid(fmt.Sprintf(
+					"series type mismatch: already %d but got %d",
+					id.Type(), iter.Type()))
+				continue
+			}
+			collection.SeriesIDs[index] = id.SeriesID()
 			continue
 		}
 
 		// Write to series log and save offset.
-		id, offset, err := p.insert(key, models.Empty) // TODO(jeff): use the right type
+		id, offset, err := p.insert(key, typ)
 		if err != nil {
 			return err
 		}
 		// Append new key to be added to hash map after flush.
-		untypedID := id.SeriesID()
-		ids[i] = untypedID
-		newIDs[string(key)] = untypedID
+		collection.SeriesIDs[index] = id.SeriesID()
+		newIDs[string(key)] = id
 		newKeyRanges = append(newKeyRanges, keyRange{id, offset})
 	}
 

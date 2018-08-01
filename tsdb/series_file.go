@@ -131,24 +131,28 @@ func (f *SeriesFile) Wait() {
 	defer f.refs.Unlock()
 }
 
-// CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
-// The returned ids slice returns IDs for every name+tags, creating new series IDs as needed.
-func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]SeriesID, error) {
-	keys := GenerateSeriesKeys(names, tagsSlice)
-	keyPartitionIDs := f.SeriesKeysPartitionIDs(keys)
-	ids := make([]SeriesID, len(keys))
+// CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. It overwrites
+// the collection's Keys and SeriesIDs fields. The collection's SeriesIDs slice will have IDs for
+// every name+tags, creating new series IDs as needed. If any SeriesID is zero, then a type
+// conflict has occured for that series.
+func (f *SeriesFile) CreateSeriesListIfNotExists(collection *SeriesCollection) error {
+	collection.SeriesKeys = GenerateSeriesKeys(collection.Names, collection.Tags)
+	collection.SeriesIDs = make([]SeriesID, len(collection.SeriesKeys))
+	keyPartitionIDs := f.SeriesKeysPartitionIDs(collection.SeriesKeys)
 
 	var g errgroup.Group
 	for i := range f.partitions {
 		p := f.partitions[i]
 		g.Go(func() error {
-			return p.CreateSeriesListIfNotExists(keys, keyPartitionIDs, ids)
+			return p.CreateSeriesListIfNotExists(collection, keyPartitionIDs)
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return nil, err
+		return err
 	}
-	return ids, nil
+
+	collection.ApplyConcurrentDrops()
+	return nil
 }
 
 // DeleteSeriesID flags a series as permanently deleted.

@@ -55,12 +55,17 @@ func TestSeriesFile_Series(t *testing.T) {
 	defer sfile.Close()
 
 	series := []Series{
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"}), Type: models.Integer},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
 	}
 	for _, s := range series {
-		if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte(s.Name)}, []models.Tags{s.Tags}); err != nil {
+		collection := &tsdb.SeriesCollection{
+			Names: [][]byte{[]byte(s.Name)},
+			Tags:  []models.Tags{s.Tags},
+			Types: []models.FieldType{s.Type},
+		}
+		if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -93,18 +98,21 @@ func TestSeriesFileCompactor(t *testing.T) {
 		p.CompactThreshold = 0
 	}
 
-	var names [][]byte
-	var tagsSlice []models.Tags
+	collection := new(tsdb.SeriesCollection)
 	for i := 0; i < 10000; i++ {
-		names = append(names, []byte(fmt.Sprintf("m%d", i)))
-		tagsSlice = append(tagsSlice, models.NewTags(map[string]string{"foo": "bar"}))
+		collection.Names = append(collection.Names, []byte(fmt.Sprintf("m%d", i)))
+		collection.Tags = append(collection.Tags, models.NewTags(map[string]string{"foo": "bar"}))
+		collection.Types = append(collection.Types, models.Integer)
 	}
-	if _, err := sfile.CreateSeriesListIfNotExists(names, tagsSlice); err != nil {
+	if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+		t.Fatal(err)
+	}
+	if err := collection.PartialWriteError(); err != nil {
 		t.Fatal(err)
 	}
 
 	// Verify total number of series is correct.
-	if n := sfile.SeriesCount(); n != uint64(len(names)) {
+	if n := sfile.SeriesCount(); n != uint64(len(collection.Names)) {
 		t.Fatalf("unexpected series count: %d", n)
 	}
 
@@ -117,10 +125,47 @@ func TestSeriesFileCompactor(t *testing.T) {
 	}
 
 	// Verify all series exist.
-	for i := range names {
-		if seriesID := sfile.SeriesID(names[i], tagsSlice[i], nil); seriesID.IsZero() {
-			t.Fatalf("series does not exist: %s,%s", names[i], tagsSlice[i].String())
+	for iter := collection.Iterator(); iter.Next(); {
+		if seriesID := sfile.SeriesID(iter.Name(), iter.Tags(), nil); seriesID.IsZero() {
+			t.Fatalf("series does not exist: %s,%s", iter.Name(), iter.Tags().String())
 		}
+	}
+}
+
+// Ensures that types are tracked and checked by the series file.
+func TestSeriesFile_Type(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	// Add the series with some types.
+	collection := &tsdb.SeriesCollection{
+		Names: [][]byte{[]byte("a"), []byte("b"), []byte("c")},
+		Tags:  []models.Tags{{}, {}, {}},
+		Types: []models.FieldType{models.Integer, models.Float, models.Boolean},
+	}
+	if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+		t.Fatal(err)
+	}
+
+	// Attempt to add the series again but with different types.
+	collection = &tsdb.SeriesCollection{
+		Names: [][]byte{[]byte("a"), []byte("b"), []byte("c"), []byte("d")},
+		Tags:  []models.Tags{{}, {}, {}, {}},
+		Types: []models.FieldType{models.String, models.String, models.String, models.String},
+	}
+	if err := sfile.CreateSeriesListIfNotExists(collection); err != nil {
+		t.Fatal(err)
+	}
+
+	// All of the series except d should be dropped.
+	if err := collection.PartialWriteError(); err == nil {
+		t.Fatal("expected partial write error")
+	}
+	if collection.Length() != 1 {
+		t.Fatal("expected one series to remain in collection")
+	}
+	if got := string(collection.Names[0]); got != "d" {
+		t.Fatal("got invalid name on remaining series:", got)
 	}
 }
 
@@ -128,6 +173,7 @@ func TestSeriesFileCompactor(t *testing.T) {
 type Series struct {
 	Name    []byte
 	Tags    models.Tags
+	Type    models.FieldType
 	Deleted bool
 }
 

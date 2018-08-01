@@ -509,23 +509,42 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
-	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
-	if err != nil {
-		return nil, err
+func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, collection *tsdb.SeriesCollection) ([]uint64, error) {
+	if len(collection.SeriesIDs) == 0 {
+		seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(collection)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	var writeRequired bool
-	entries := make([]LogEntry, 0, len(names))
+	var entries []LogEntry
+
+	var i int // Track the index of the point in the batch
 	seriesSet.RLock()
-	for i := range names {
-		if seriesSet.ContainsNoLock(seriesIDs[i]) {
+	for iter := collection.Iterator(); iter.Next(); {
+		seriesID := iter.SeriesID()
+
+		if seriesSet.ContainsNoLock(seriesID) {
 			// We don't need to allocate anything for this series.
 			seriesIDs[i] = 0
+			i++
 			continue
 		}
 		writeRequired = true
-		entries = append(entries, LogEntry{SeriesID: seriesIDs[i], name: names[i], tags: tagsSlice[i], cached: true, batchidx: i})
+
+		// lazy allocation of entries to avoid common case of no new series
+		if entries == nil {
+			entries = make([]LogEntry, 0, collection.Length())
+		}
+
+		entries = append(entries, LogEntry{
+			SeriesID: seriesID,
+			name:     iter.Name(),
+			tags:     iter.Tags(),
+			cached:   true,
+			batchidx: i,
+		})
+		i++
 	}
 	seriesSet.RUnlock()
 

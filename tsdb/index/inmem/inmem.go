@@ -186,56 +186,62 @@ func (i *Index) MeasurementIterator() (tsdb.MeasurementIterator, error) {
 
 // CreateSeriesListIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, keys, names [][]byte, tagsSlice []models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
-	seriesIDs, err := i.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
+func (i *Index) CreateSeriesListIfNotExists(id uint64, seriesIDSet *tsdb.SeriesIDSet, collection *tsdb.SeriesCollection,
+	opt *tsdb.EngineOptions, ignoreLimits bool) error {
+
+	err := i.sfile.CreateSeriesListIfNotExists(collection)
 	if err != nil {
 		return err
 	}
 
+	// fast path: do no allocations if we have no new series
+	newSeriesN := 0
 	i.mu.RLock()
-	// if there is a series for this ids, it's already been added
-	seriesList := make([]*series, len(seriesIDs))
-	for j, key := range keys {
-		seriesList[j] = i.series[string(key)]
-	}
-	i.mu.RUnlock()
-
-	var hasNewSeries bool
-	for _, ss := range seriesList {
+	for iter := collection.Iterator(); iter.Next(); {
+		ss := i.series[string(iter.Key())]
 		if ss == nil {
-			hasNewSeries = true
+			newSeriesN++
 			continue
 		}
 
 		// This series might need to be added to the local bitset, if the series
 		// was created on another shard.
+		id := iter.SeriesID()
 		seriesIDSet.Lock()
-		if !seriesIDSet.ContainsNoLock(ss.ID) {
-			seriesIDSet.AddNoLock(ss.ID)
+		if !seriesIDSet.ContainsNoLock(id) {
+			seriesIDSet.AddNoLock(id)
 		}
 		seriesIDSet.Unlock()
 	}
-	if !hasNewSeries {
+	if newSeriesN == 0 {
+		i.mu.RUnlock()
 		return nil
 	}
 
+	length := collection.Length()
+	seriesList := make([]*series, 0, length)
+	for iter := collection.Iterator(); iter.Next(); {
+		seriesList = append(seriesList, i.series[string(iter.Key())])
+	}
+	i.mu.RUnlock()
+
 	// get or create the measurement index
-	mms := make([]*measurement, len(names))
-	for j, name := range names {
-		mms[j] = i.CreateMeasurementIndexIfNotExists(name)
+	mms := make([]*measurement, 0, length)
+	for iter := collection.Iterator(); iter.Next(); {
+		mms = append(mms, i.CreateMeasurementIndexIfNotExists(iter.Name()))
 	}
 
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
 	// Check for the series again under a write lock
-	var newSeriesN int
-	for j, key := range keys {
+	newSeriesN = 0
+	for iter, j := collection.Iterator(), 0; iter.Next(); j++ {
 		if seriesList[j] != nil {
 			continue
 		}
 
-		ss := i.series[string(key)]
+		ss := i.series[string(iter.Key())]
 		if ss == nil {
 			newSeriesN++
 			continue
@@ -256,20 +262,23 @@ func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, keys,
 
 	// Verify that the series will not exceed limit.
 	if !ignoreLimits {
-		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+len(keys) > max {
+		// TODO(jeff): this is weird because we already created a bunch of entries in the series
+		// file. why aren't we erroring earlier?
+		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+newSeriesN > max {
 			return errMaxSeriesPerDatabaseExceeded{limit: opt.Config.MaxSeriesPerDatabase}
 		}
 	}
 
-	for j, key := range keys {
+	for iter, j := collection.Iterator(), 0; iter.Next(); j++ {
 		if seriesList[j] != nil {
 			continue
 		}
 
 		// set the in memory ID for query processing on this shard
 		// The series key and tags are clone to prevent a memory leak
+		key := iter.Key()
 		skey := string(key)
-		ss := newSeries(seriesIDs[j], mms[j], skey, tagsSlice[j].Clone())
+		ss := newSeries(iter.SeriesID(), mms[j], skey, iter.Tags().Clone(), iter.Type())
 		i.series[skey] = ss
 
 		mms[j].AddSeries(ss)
@@ -278,7 +287,7 @@ func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, keys,
 		i.seriesSketch.Add(key)
 
 		// This series needs to be added to the bitset tracking undeleted series IDs.
-		seriesIDSet.Add(seriesIDs[j])
+		seriesIDSet.Add(iter.SeriesID())
 	}
 
 	return nil
@@ -1052,31 +1061,49 @@ func (i *Index) Rebuild() {
 	})
 }
 
-// assignExistingSeries assigns the existing series to shardID and returns the series, names and tags that
-// do not exists yet.
-func (i *Index) assignExistingSeries(shardID uint64, seriesIDSet *tsdb.SeriesIDSet, keys, names [][]byte, tagsSlice []models.Tags) ([][]byte, [][]byte, []models.Tags) {
+// assignExistingSeries assigns the existing series, moving them to the front of the collection. It
+// returns how many existing series there were, so that they may be sliced off.
+func (i *Index) assignExistingSeries(seriesIDSet *tsdb.SeriesIDSet, collection *tsdb.SeriesCollection) int {
+	assigned := 0
+	total := 0
+
 	i.mu.RLock()
-	var n int
-	for j, key := range keys {
-		if ss := i.series[string(key)]; ss == nil {
-			keys[n] = keys[j]
-			names[n] = names[j]
-			tagsSlice[n] = tagsSlice[j]
-			n++
-		} else {
-			// Add the existing series to this shard's bitset, since this may
-			// be the first time the series is added to this shard.
-			if !seriesIDSet.Contains(ss.ID) {
-				seriesIDSet.Lock()
-				if !seriesIDSet.ContainsNoLock(ss.ID) {
-					seriesIDSet.AddNoLock(ss.ID)
-				}
-				seriesIDSet.Unlock()
+	for iter := collection.Iterator(); iter.Next(); {
+		ss := i.series[string(iter.Key())]
+		if ss == nil {
+			// not yet assigned.
+			collection.Copy(total, iter.Index())
+			total++
+			continue
+		}
+
+		// We don't need to consider the series, but we need to add it to the shard's bitset,
+		// since this may be the first time the series is added to the shard.
+		if !seriesIDSet.Contains(ss.ID) {
+			seriesIDSet.Lock()
+			if !seriesIDSet.ContainsNoLock(ss.ID) {
+				seriesIDSet.AddNoLock(ss.ID)
 			}
+			seriesIDSet.Unlock()
+		}
+
+		if ss.Type != iter.Type() {
+			if collection.Reason == "" {
+				collection.Reason = fmt.Sprintf("series type conflict: already %d but got %d",
+					ss.Type, iter.Type())
+			}
+			collection.Dropped++
+			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
+		} else {
+			collection.Swap(assigned, iter.Index())
+			assigned++
+			total++
 		}
 	}
 	i.mu.RUnlock()
-	return keys[:n], names[:n], tagsSlice[:n]
+
+	collection.Truncate(total)
+	return assigned
 }
 
 // Ensure index implements interface.
@@ -1115,25 +1142,25 @@ func (idx *ShardIndex) DropMeasurementIfSeriesNotExist(name []byte) error {
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
-	keys, names, tagsSlice = idx.assignExistingSeries(idx.id, idx.seriesIDSet, keys, names, tagsSlice)
-	if len(keys) == 0 {
-		return nil
+func (idx *ShardIndex) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) error {
+	assigned := idx.assignExistingSeries(idx.seriesIDSet, collection)
+
+	// if they're all assigned, we can be finished
+	if collection.Length() == assigned {
+		return collection.PartialWriteError()
 	}
 
-	var (
-		reason      string
-		droppedKeys [][]byte
-	)
+	unassigned := collection.Duplicate()
+	unassigned.Advance(assigned)
 
 	// Ensure that no tags go over the maximum cardinality.
 	if maxValuesPerTag := idx.opt.Config.MaxValuesPerTag; maxValuesPerTag > 0 {
-		var n int
+		j := 0
 
 	outer:
-		for i, name := range names {
-			tags := tagsSlice[i]
-			for _, tag := range tags {
+		for iter := unassigned.Iterator(); iter.Next(); {
+			name := iter.Name()
+			for _, tag := range iter.Tags() {
 				// Skip if the tag value already exists.
 				if ok, _ := idx.HasTagValue(name, tag.Key, tag.Value); ok {
 					continue
@@ -1145,43 +1172,36 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 					continue
 				}
 
-				if reason == "" {
-					reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
+				if unassigned.Reason == "" {
+					unassigned.Reason = fmt.Sprintf(
+						"max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
 						n, maxValuesPerTag, name, string(tag.Key), string(tag.Value))
 				}
+				unassigned.Dropped++
+				unassigned.DroppedKeys = append(unassigned.DroppedKeys, iter.Key())
 
-				droppedKeys = append(droppedKeys, keys[i])
 				continue outer
 			}
 
-			// Increment success count if all checks complete.
-			if n != i {
-				keys[n], names[n], tagsSlice[n] = keys[i], names[i], tagsSlice[i]
-			}
-			n++
+			unassigned.Copy(j, iter.Index())
+			j++
 		}
 
-		// Slice to only include successful points.
-		keys, names, tagsSlice = keys[:n], names[:n], tagsSlice[:n]
+		unassigned.Truncate(j)
 	}
 
-	if err := idx.Index.CreateSeriesListIfNotExists(idx.seriesIDSet, keys, names, tagsSlice, &idx.opt, idx.opt.Config.MaxSeriesPerDatabase == 0); err != nil {
-		reason = err.Error()
-		droppedKeys = append(droppedKeys, keys...)
+	if err := idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, unassigned, &idx.opt, false); err != nil {
+		unassigned.InvalidateAll(err.Error())
 	}
+
+	// merge all of the dropped values from unassigned, and truncate down to the length + assigned.
+	collection.Reason = unassigned.Reason
+	collection.Dropped = unassigned.Dropped
+	collection.DroppedKeys = unassigned.DroppedKeys
+	collection.Truncate(assigned + unassigned.Length())
 
 	// Report partial writes back to shard.
-	if len(droppedKeys) > 0 {
-		dropped := len(droppedKeys) // number dropped before deduping
-		bytesutil.SortDedup(droppedKeys)
-		return &tsdb.PartialWriteError{
-			Reason:      reason,
-			Dropped:     dropped,
-			DroppedKeys: droppedKeys,
-		}
-	}
-
-	return nil
+	return collection.PartialWriteError()
 }
 
 // SeriesN returns the number of unique non-tombstoned series local to this shard.
@@ -1193,14 +1213,20 @@ func (idx *ShardIndex) SeriesN() int64 {
 
 // InitializeSeries is called during start-up.
 // This works the same as CreateSeriesListIfNotExists except it ignore limit errors.
-func (idx *ShardIndex) InitializeSeries(keys, names [][]byte, tags []models.Tags) error {
-	return idx.Index.CreateSeriesListIfNotExists(idx.seriesIDSet, keys, names, tags, &idx.opt, true)
+func (idx *ShardIndex) InitializeSeries(collection *tsdb.SeriesCollection) error {
+	return idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, collection, &idx.opt, true)
 }
 
 // CreateSeriesIfNotExists creates the provided series on the index if it is not
 // already present.
-func (idx *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return idx.Index.CreateSeriesListIfNotExists(idx.seriesIDSet, [][]byte{key}, [][]byte{name}, []models.Tags{tags}, &idx.opt, false)
+func (idx *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error {
+	collection := &tsdb.SeriesCollection{
+		Keys:  [][]byte{key},
+		Names: [][]byte{name},
+		Tags:  []models.Tags{tags},
+		Types: []models.FieldType{typ},
+	}
+	return idx.Index.CreateSeriesListIfNotExists(idx.id, idx.seriesIDSet, collection, &idx.opt, false)
 }
 
 // TagSets returns a list of tag sets based on series filtering.

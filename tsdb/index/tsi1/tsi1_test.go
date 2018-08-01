@@ -279,6 +279,7 @@ func MustTempPartitionDir() string {
 type Series struct {
 	Name    []byte
 	Tags    models.Tags
+	Type    models.FieldType
 	Deleted bool
 }
 

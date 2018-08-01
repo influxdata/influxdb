@@ -6099,11 +6099,11 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 	}
 
 	writes := []string{
-		fmt.Sprintf(`cpu alert_id="alert",tenant_id="tenant",_cust="johnson brothers" %d`, mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
-		fmt.Sprintf(`cpu alert_id="alert",tenant_id="tenant",_cust="johnson brothers" %d`, mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
+		fmt.Sprintf(`cpu,k=1 alert_id="alert",tenant_id="tenant",_cust="johnson brothers" %d`, mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
+		fmt.Sprintf(`cpu,k=1 alert_id="alert",tenant_id="tenant",_cust="johnson brothers" %d`, mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
 
-		fmt.Sprintf(`cpu load=100.0,core=4 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
-		fmt.Sprintf(`cpu load=80.0,core=2 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:01:02Z").UnixNano()),
+		fmt.Sprintf(`cpu,k=2 load=100.0,core=4 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
+		fmt.Sprintf(`cpu,k=2 load=80.0,core=2 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:01:02Z").UnixNano()),
 
 		fmt.Sprintf(`clicks local=true %d`, mustParseTime(time.RFC3339Nano, "2014-11-10T23:00:01Z").UnixNano()),
 		fmt.Sprintf(`clicks local=false %d`, mustParseTime(time.RFC3339Nano, "2014-11-10T23:00:02Z").UnixNano()),
@@ -6289,17 +6289,17 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 		},
 	}...)
 
-	for i, query := range test.queries {
+	var once sync.Once
+	for _, query := range test.queries {
 		t.Run(query.name, func(t *testing.T) {
-			if i == 0 {
+			once.Do(func() {
 				if err := test.init(s); err != nil {
 					t.Fatalf("test init failed: %s", err)
 				}
-			}
+			})
 			if query.skip {
 				t.Skipf("SKIP:: %s", query.name)
 			}
-
 			if err := query.Execute(s); err != nil {
 				t.Error(query.Error(err))
 			} else if !query.success() {

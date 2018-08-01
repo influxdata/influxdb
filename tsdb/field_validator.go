@@ -40,9 +40,10 @@ func (defaultFieldValidator) Validate(mf *MeasurementFields, point models.Point)
 		if f.Type != dataType {
 			return PartialWriteError{
 				Reason: fmt.Sprintf(
-					"%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s",
+					"%s: input field %q on measurement %q is type %s, already exists as type %s",
 					ErrFieldTypeConflict, iter.FieldKey(), point.Name(), dataType, f.Type),
-				Dropped: 1,
+				Dropped:     1,
+				DroppedKeys: [][]byte{point.Key()},
 			}
 		}
 	}

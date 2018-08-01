@@ -1222,34 +1222,54 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 // fields.
 func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType) error {
 	var field []byte
-	names := make([][]byte, 0, len(keys))
-	tags := make([]models.Tags, 0, len(keys))
+	collection := &tsdb.SeriesCollection{
+		Keys:  keys,
+		Names: make([][]byte, 0, len(keys)),
+		Tags:  make([]models.Tags, 0, len(keys)),
+		Types: make([]models.FieldType, 0, len(keys)),
+	}
 
 	for i := 0; i < len(keys); i++ {
 		// Replace tsm key format with index key format.
-		keys[i], field = SeriesAndFieldFromCompositeKey(keys[i])
-		name := models.ParseName(keys[i])
+		collection.Keys[i], field = SeriesAndFieldFromCompositeKey(collection.Keys[i])
+		name := models.ParseName(collection.Keys[i])
 		mf := e.fieldset.CreateFieldsIfNotExists(name)
 		if err := mf.CreateFieldIfNotExists(field, fieldTypes[i]); err != nil {
 			return err
 		}
 
-		names = append(names, name)
-		tags = append(tags, models.ParseTags(keys[i]))
+		collection.Names = append(collection.Names, name)
+		collection.Tags = append(collection.Tags, models.ParseTags(keys[i]))
+		collection.Types = append(collection.Types, fieldTypeFromDataType(fieldTypes[i]))
 	}
 
 	// Build in-memory index, if necessary.
 	if e.index.Type() == inmem.IndexName {
-		if err := e.index.InitializeSeries(keys, names, tags); err != nil {
+		if err := e.index.InitializeSeries(collection); err != nil {
 			return err
 		}
 	} else {
-		if err := e.index.CreateSeriesListIfNotExists(keys, names, tags); err != nil {
+		if err := e.index.CreateSeriesListIfNotExists(collection); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func fieldTypeFromDataType(dataType influxql.DataType) models.FieldType {
+	switch dataType {
+	case influxql.Float:
+		return models.Float
+	case influxql.Integer:
+		return models.Integer
+	case influxql.String:
+		return models.String
+	case influxql.Boolean:
+		return models.Boolean
+	default:
+		return models.Empty
+	}
 }
 
 // WritePoints writes metadata and point data into the engine.
@@ -1765,12 +1785,12 @@ func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
 	return e.index.ForEachMeasurementName(fn)
 }
 
-func (e *Engine) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
-	return e.index.CreateSeriesListIfNotExists(keys, names, tagsSlice)
+func (e *Engine) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) error {
+	return e.index.CreateSeriesListIfNotExists(collection)
 }
 
-func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return e.index.CreateSeriesIfNotExists(key, name, tags)
+func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, typ models.FieldType) error {
+	return e.index.CreateSeriesIfNotExists(key, name, tags, typ)
 }
 
 // WriteTo is not implemented.

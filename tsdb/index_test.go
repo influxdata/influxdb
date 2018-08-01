@@ -69,12 +69,12 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 	indexes := map[string]*Index{}
 	for _, name := range tsdb.RegisteredIndexes() {
 		idx := MustOpenNewIndex(name)
-		idx.AddSeries("cpu", map[string]string{"region": "east"})
-		idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"})
-		idx.AddSeries("disk", map[string]string{"secret": "foo"})
-		idx.AddSeries("mem", map[string]string{"region": "west"})
-		idx.AddSeries("gpu", map[string]string{"region": "east"})
-		idx.AddSeries("pci", map[string]string{"region": "east", "secret": "foo"})
+		idx.AddSeries("cpu", map[string]string{"region": "east"}, models.Integer)
+		idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"}, models.Integer)
+		idx.AddSeries("disk", map[string]string{"secret": "foo"}, models.Integer)
+		idx.AddSeries("mem", map[string]string{"region": "west"}, models.Integer)
+		idx.AddSeries("gpu", map[string]string{"region": "east"}, models.Integer)
+		idx.AddSeries("pci", map[string]string{"region": "east", "secret": "foo"}, models.Integer)
 		indexes[name] = idx
 		defer idx.Close()
 	}
@@ -258,7 +258,7 @@ func TestIndex_Sketches(t *testing.T) {
 		series := genTestSeries(10, 5, 3)
 		// Add series to index.
 		for _, serie := range series {
-			if err := idx.AddSeries(serie.Measurement, serie.Tags.Map()); err != nil {
+			if err := idx.AddSeries(serie.Measurement, serie.Tags.Map(), serie.Type); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -388,10 +388,10 @@ func (idx *Index) IndexSet() *tsdb.IndexSet {
 	return &tsdb.IndexSet{Indexes: []tsdb.Index{idx.Index}, SeriesFile: idx.sfile}
 }
 
-func (idx *Index) AddSeries(name string, tags map[string]string) error {
+func (idx *Index) AddSeries(name string, tags map[string]string, typ models.FieldType) error {
 	t := models.NewTags(tags)
 	key := fmt.Sprintf("%s,%s", name, t.HashKey())
-	return idx.CreateSeriesIfNotExists([]byte(key), []byte(name), t)
+	return idx.CreateSeriesIfNotExists([]byte(key), []byte(name), t, typ)
 }
 
 // Reopen closes and re-opens the underlying index, without removing any data.
@@ -447,10 +447,6 @@ func (i *Index) Close() error {
 // BenchmarkIndexSet_TagSets/1M_series/tsi1-8    	     100	  18995530 ns/op	 5221180 B/op	   20379 allocs/op
 func BenchmarkIndexSet_TagSets(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
-	keys := make([][]byte, 0, 1e6)
-	names := make([][]byte, 0, 1e6)
-	tags := make([]models.Tags, 0, 1e6)
-
 	// 1M series generated with:
 	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
 	fd, err := os.Open("testdata/line-protocol-1M.txt.gz")
@@ -478,21 +474,13 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	for _, pt := range points {
-		keys = append(keys, pt.Key())
-		names = append(names, pt.Name())
-		tags = append(tags, pt.Tags())
-	}
-
 	// setup writes all of the above points to the index.
 	setup := func(idx *Index) {
 		batchSize := 10000
 		for j := 0; j < 1; j++ {
-			for i := 0; i < len(keys); i += batchSize {
-				k := keys[i : i+batchSize]
-				n := names[i : i+batchSize]
-				t := tags[i : i+batchSize]
-				if err := idx.CreateSeriesListIfNotExists(k, n, t); err != nil {
+			for i := 0; i < len(points); i += batchSize {
+				collection := tsdb.NewSeriesCollection(points[i : i+batchSize])
+				if err := idx.CreateSeriesListIfNotExists(collection); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -562,10 +550,6 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 // BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000/no_cache-8     1	22242155616 ns/op	28277544136 B/op 79620463 allocs/op
 func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
-	keys := make([][]byte, 0, 1e6)
-	names := make([][]byte, 0, 1e6)
-	tags := make([]models.Tags, 0, 1e6)
-
 	// 1M series generated with:
 	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
 	fd, err := os.Open("testdata/line-protocol-1M.txt.gz")
@@ -591,12 +575,6 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	points, err := models.ParsePoints(data)
 	if err != nil {
 		b.Fatal(err)
-	}
-
-	for _, pt := range points {
-		keys = append(keys, pt.Key())
-		names = append(names, pt.Name())
-		tags = append(tags, pt.Tags())
 	}
 
 	runBenchmark := func(b *testing.B, index string, queryN int) {
@@ -638,11 +616,9 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		go func() { defer wg.Done(); runIter() }()
 		var once sync.Once
 		for j := 0; j < b.N; j++ {
-			for i := 0; i < len(keys); i += batchSize {
-				k := keys[i : i+batchSize]
-				n := names[i : i+batchSize]
-				t := tags[i : i+batchSize]
-				if err := idx.CreateSeriesListIfNotExists(k, n, t); err != nil {
+			for i := 0; i < len(points); i += batchSize {
+				collection := tsdb.NewSeriesCollection(points[i : i+batchSize])
+				if err := idx.CreateSeriesListIfNotExists(collection); err != nil {
 					b.Fatal(err)
 				}
 				once.Do(func() { close(begin) })

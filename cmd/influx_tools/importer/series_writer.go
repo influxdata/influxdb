@@ -16,6 +16,7 @@ type seriesWriter struct {
 	keys            [][]byte
 	names           [][]byte
 	tags            []models.Tags
+	types           []models.FieldType
 	seriesBatchSize int
 	sfile           *tsdb.SeriesFile
 	idx             seriesIndex
@@ -34,29 +35,40 @@ func newTSI1SeriesWriter(sfile *tsdb.SeriesFile, db string, dataPath string, sha
 	return &seriesWriter{seriesBatchSize: seriesBatchSize, sfile: sfile, idx: &tsi1Adapter{ti: ti}}, nil
 }
 
-func (sw *seriesWriter) AddSeries(key []byte) error {
+func (sw *seriesWriter) AddSeries(key []byte, typ models.FieldType) error {
 	seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
 	sw.keys = append(sw.keys, seriesKey)
 
 	name, tag := models.ParseKeyBytes(seriesKey)
 	sw.names = append(sw.names, name)
 	sw.tags = append(sw.tags, tag)
+	sw.types = append(sw.types, typ)
 
 	if len(sw.keys) == sw.seriesBatchSize {
-		if err := sw.idx.CreateSeriesListIfNotExists(sw.keys, sw.names, sw.tags); err != nil {
+		if err := sw.idx.CreateSeriesListIfNotExists(sw.collection()); err != nil {
 			return err
 		}
 		sw.keys = sw.keys[:0]
 		sw.names = sw.names[:0]
 		sw.tags = sw.tags[:0]
+		sw.types = sw.types[:0]
 	}
 
 	return nil
 }
 
+func (sw *seriesWriter) collection() *tsdb.SeriesCollection {
+	return &tsdb.SeriesCollection{
+		Keys:  sw.keys,
+		Names: sw.names,
+		Tags:  sw.tags,
+		Types: sw.types,
+	}
+}
+
 func (sw *seriesWriter) Close() error {
 	el := errlist.NewErrorList()
-	el.Add(sw.idx.CreateSeriesListIfNotExists(sw.keys, sw.names, sw.tags))
+	el.Add(sw.idx.CreateSeriesListIfNotExists(sw.collection()))
 	el.Add(sw.idx.Compact())
 	el.Add(sw.idx.Close())
 	el.Add(sw.sfile.Close())
@@ -64,7 +76,7 @@ func (sw *seriesWriter) Close() error {
 }
 
 type seriesIndex interface {
-	CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) (err error)
+	CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) (err error)
 	Compact() error
 	Close() error
 }
@@ -74,9 +86,8 @@ type seriesFileAdapter struct {
 	buf []byte
 }
 
-func (s *seriesFileAdapter) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) (err error) {
-	_, err = s.sf.CreateSeriesListIfNotExists(names, tagsSlice)
-	return err
+func (s *seriesFileAdapter) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) (err error) {
+	return s.sf.CreateSeriesListIfNotExists(collection)
 }
 
 func (s *seriesFileAdapter) Compact() error {
@@ -99,8 +110,8 @@ type tsi1Adapter struct {
 	ti *tsi1.Index
 }
 
-func (t *tsi1Adapter) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) (err error) {
-	return t.ti.CreateSeriesListIfNotExists(keys, names, tagsSlice)
+func (t *tsi1Adapter) CreateSeriesListIfNotExists(collection *tsdb.SeriesCollection) (err error) {
+	return t.ti.CreateSeriesListIfNotExists(collection)
 }
 
 func (t *tsi1Adapter) Compact() error {

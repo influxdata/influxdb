@@ -15,9 +15,9 @@ func TestIndexFiles_WriteTo(t *testing.T) {
 
 	// Write first file.
 	f0, err := CreateIndexFile(sfile.SeriesFile, []Series{
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"}), Type: models.Integer},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -25,8 +25,8 @@ func TestIndexFiles_WriteTo(t *testing.T) {
 
 	// Write second file.
 	f1, err := CreateIndexFile(sfile.SeriesFile, []Series{
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"}), Type: models.Integer},
+		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"region": "east"}), Type: models.Integer},
 	})
 	if err != nil {
 		t.Fatal(err)

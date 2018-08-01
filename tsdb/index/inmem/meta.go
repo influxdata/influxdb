@@ -1013,15 +1013,17 @@ type series struct {
 	Measurement *measurement
 	Key         string
 	Tags        models.Tags
+	Type        models.FieldType
 }
 
 // newSeries returns an initialized series struct
-func newSeries(id tsdb.SeriesID, m *measurement, key string, tags models.Tags) *series {
+func newSeries(id tsdb.SeriesID, m *measurement, key string, tags models.Tags, typ models.FieldType) *series {
 	return &series{
 		ID:          id,
 		Measurement: m,
 		Key:         key,
 		Tags:        tags,
+		Type:        typ,
 	}
 }
 
@@ -1037,6 +1039,7 @@ func (s *series) bytes() int {
 		b += int(unsafe.Sizeof(tag)) + len(tag.Key) + len(tag.Value)
 	}
 	b += int(unsafe.Sizeof(s.Tags))
+	b += int(unsafe.Sizeof(s.Type))
 	s.mu.RUnlock()
 	return b
 }

@@ -569,15 +569,20 @@ func (idx *Index) Run(t *testing.T, fn func(t *testing.T)) {
 
 // CreateSeriesSliceIfNotExists creates multiple series at a time.
 func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
-	keys := make([][]byte, 0, len(a))
-	names := make([][]byte, 0, len(a))
-	tags := make([]models.Tags, 0, len(a))
-	for _, s := range a {
-		keys = append(keys, models.MakeKey(s.Name, s.Tags))
-		names = append(names, s.Name)
-		tags = append(tags, s.Tags)
+	collection := &tsdb.SeriesCollection{
+		Keys:  make([][]byte, 0, len(a)),
+		Names: make([][]byte, 0, len(a)),
+		Tags:  make([]models.Tags, 0, len(a)),
+		Types: make([]models.FieldType, 0, len(a)),
 	}
-	return idx.CreateSeriesListIfNotExists(keys, names, tags)
+
+	for _, s := range a {
+		collection.Keys = append(collection.Keys, models.MakeKey(s.Name, s.Tags))
+		collection.Names = append(collection.Names, s.Name)
+		collection.Tags = append(collection.Tags, s.Tags)
+		collection.Types = append(collection.Types, s.Type)
+	}
+	return idx.CreateSeriesListIfNotExists(collection)
 }
 
 var tsiditr tsdb.SeriesIDIterator

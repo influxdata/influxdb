@@ -268,41 +268,42 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 		}
 
 		log.Info("Iterating over cache")
-		keysBatch := make([][]byte, 0, batchSize)
-		namesBatch := make([][]byte, 0, batchSize)
-		tagsBatch := make([]models.Tags, 0, batchSize)
+		collection := &tsdb.SeriesCollection{
+			Keys:  make([][]byte, 0, batchSize),
+			Names: make([][]byte, 0, batchSize),
+			Tags:  make([]models.Tags, 0, batchSize),
+			Types: make([]models.FieldType, 0, batchSize),
+		}
 
 		for _, key := range cache.Keys() {
 			seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
 			name, tags := models.ParseKeyBytes(seriesKey)
+			typ, _ := cache.Type(key)
 
 			if verboseLogging {
 				log.Info("Series", zap.String("name", string(name)), zap.String("tags", tags.String()))
 			}
 
-			keysBatch = append(keysBatch, seriesKey)
-			namesBatch = append(namesBatch, name)
-			tagsBatch = append(tagsBatch, tags)
+			collection.Keys = append(collection.Keys, seriesKey)
+			collection.Names = append(collection.Names, name)
+			collection.Tags = append(collection.Tags, tags)
+			collection.Types = append(collection.Types, typ)
 
 			// Flush batch?
-			if len(keysBatch) == batchSize {
-				if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
+			if collection.Length() == batchSize {
+				if err := tsiIndex.CreateSeriesListIfNotExists(collection); err != nil {
 					return fmt.Errorf("problem creating series: (%s)", err)
 				}
-				keysBatch = keysBatch[:0]
-				namesBatch = namesBatch[:0]
-				tagsBatch = tagsBatch[:0]
+				collection.Truncate(0)
 			}
 		}
 
 		// Flush any remaining series in the batches
-		if len(keysBatch) > 0 {
-			if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
+		if collection.Length() > 0 {
+			if err := tsiIndex.CreateSeriesListIfNotExists(collection); err != nil {
 				return fmt.Errorf("problem creating series: (%s)", err)
 			}
-			keysBatch = nil
-			namesBatch = nil
-			tagsBatch = nil
+			collection = nil
 		}
 	}
 
@@ -336,38 +337,45 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 	}
 	defer r.Close()
 
-	keysBatch := make([][]byte, 0, batchSize)
-	namesBatch := make([][]byte, 0, batchSize)
-	tagsBatch := make([]models.Tags, batchSize)
+	collection := &tsdb.SeriesCollection{
+		Keys:  make([][]byte, 0, batchSize),
+		Names: make([][]byte, 0, batchSize),
+		Tags:  make([]models.Tags, batchSize),
+		Types: make([]models.FieldType, 0, batchSize),
+	}
 	var ti int
 	for i := 0; i < r.KeyCount(); i++ {
 		key, _ := r.KeyAt(i)
 		seriesKey, _ := tsm1.SeriesAndFieldFromCompositeKey(key)
 		var name []byte
-		name, tagsBatch[ti] = models.ParseKeyBytesWithTags(seriesKey, tagsBatch[ti])
+		name, collection.Tags[ti] = models.ParseKeyBytesWithTags(seriesKey, collection.Tags[ti])
+		typ, _ := r.Type(key)
 
 		if verboseLogging {
-			log.Info("Series", zap.String("name", string(name)), zap.String("tags", tagsBatch[ti].String()))
+			log.Info("Series", zap.String("name", string(name)), zap.String("tags", collection.Tags[ti].String()))
 		}
 
-		keysBatch = append(keysBatch, seriesKey)
-		namesBatch = append(namesBatch, name)
+		collection.Keys = append(collection.Keys, seriesKey)
+		collection.Names = append(collection.Names, name)
+		collection.Types = append(collection.Types, modelsFieldType(typ))
 		ti++
 
 		// Flush batch?
-		if len(keysBatch) == batchSize {
-			if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
+		if len(collection.Keys) == batchSize {
+			collection.Truncate(ti)
+			if err := index.CreateSeriesListIfNotExists(collection); err != nil {
 				return fmt.Errorf("problem creating series: (%s)", err)
 			}
-			keysBatch = keysBatch[:0]
-			namesBatch = namesBatch[:0]
+			collection.Truncate(0)
+			collection.Tags = collection.Tags[:batchSize]
 			ti = 0 // Reset tags.
 		}
 	}
 
 	// Flush any remaining series in the batches
-	if len(keysBatch) > 0 {
-		if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
+	if len(collection.Keys) > 0 {
+		collection.Truncate(ti)
+		if err := index.CreateSeriesListIfNotExists(collection); err != nil {
 			return fmt.Errorf("problem creating series: (%s)", err)
 		}
 	}
@@ -415,4 +423,21 @@ func collectWALFiles(path string) ([]string, error) {
 func isRoot() bool {
 	user, _ := user.Current()
 	return user != nil && user.Username == "root"
+}
+
+func modelsFieldType(block byte) models.FieldType {
+	switch block {
+	case tsm1.BlockFloat64:
+		return models.Float
+	case tsm1.BlockInteger:
+		return models.Integer
+	case tsm1.BlockBoolean:
+		return models.Boolean
+	case tsm1.BlockString:
+		return models.String
+	case tsm1.BlockUnsigned:
+		return models.Unsigned
+	default:
+		return models.Empty
+	}
 }

@@ -20,7 +20,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
@@ -485,6 +484,41 @@ type FieldCreate struct {
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard.
 func (s *Shard) WritePoints(points []models.Point) error {
+	collection := NewSeriesCollection(points)
+
+	j := 0
+	for iter := collection.Iterator(); iter.Next(); {
+		tags := iter.Tags()
+
+		// Filter out any tags with key equal to "time": they are invalid.
+		if tags.Get(timeBytes) != nil {
+			if collection.Reason == "" {
+				collection.Reason = fmt.Sprintf(
+					"invalid tag key: input tag %q on measurement %q is invalid",
+					timeBytes, iter.Name())
+			}
+			collection.Dropped++
+			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
+			continue
+		}
+
+		// Drop any series with invalid unicode characters in the key.
+		if s.options.Config.ValidateKeys && !models.ValidKeyTokens(string(iter.Name()), tags) {
+			if collection.Reason == "" {
+				collection.Reason = fmt.Sprintf(
+					"key contains invalid unicode: %q",
+					iter.Key())
+			}
+			collection.Dropped++
+			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
+			continue
+		}
+
+		collection.Copy(j, iter.Index())
+		j++
+	}
+	collection.Truncate(j)
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -493,139 +527,73 @@ func (s *Shard) WritePoints(points []models.Point) error {
 		return err
 	}
 
-	var writeError error
 	atomic.AddInt64(&s.stats.WriteReq, 1)
 
-	points, fieldsToCreate, err := s.validateSeriesAndFields(points)
+	fieldsToCreate, err := s.validateSeriesAndFields(engine, collection)
 	if err != nil {
-		if _, ok := err.(PartialWriteError); !ok {
-			return err
-		}
-		// There was a partial write (points dropped), hold onto the error to return
-		// to the caller, but continue on writing the remaining points.
-		writeError = err
+		return err
 	}
-	atomic.AddInt64(&s.stats.FieldsCreated, int64(len(fieldsToCreate)))
 
-	// add any new fields and keep track of what needs to be saved
-	if err := s.createFieldsAndMeasurements(fieldsToCreate); err != nil {
+	// Add any new fields and keep track of what needs to be saved.
+	atomic.AddInt64(&s.stats.FieldsCreated, int64(len(fieldsToCreate)))
+	if err := s.createFieldsAndMeasurements(engine, fieldsToCreate); err != nil {
 		return err
 	}
 
 	// Write to the engine.
-	if err := engine.WritePoints(points); err != nil {
+	if err := engine.WritePoints(collection.Points); err != nil {
 		atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
 		atomic.AddInt64(&s.stats.WriteReqErr, 1)
 		return fmt.Errorf("engine: %s", err)
 	}
-	atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
+	atomic.AddInt64(&s.stats.WritePointsOK, int64(collection.Length()))
 	atomic.AddInt64(&s.stats.WriteReqOK, 1)
 
-	return writeError
+	return collection.PartialWriteError()
 }
 
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed.
-func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, []*FieldCreate, error) {
-	var (
-		fieldsToCreate []*FieldCreate
-		err            error
-		dropped        int
-		reason         string // only first error reason is set unless returned from CreateSeriesListIfNotExists
-	)
-
-	// Create all series against the index in bulk.
-	keys := make([][]byte, len(points))
-	names := make([][]byte, len(points))
-	tagsSlice := make([]models.Tags, len(points))
-
-	// Check if keys should be unicode validated.
-	validateKeys := s.options.Config.ValidateKeys
-
-	var j int
-	for i, p := range points {
-		tags := p.Tags()
-
-		// Drop any series w/ a "time" tag, these are illegal
-		if v := tags.Get(timeBytes); v != nil {
-			dropped++
-			if reason == "" {
-				reason = fmt.Sprintf(
-					"invalid tag key: input tag \"%s\" on measurement \"%s\" is invalid",
-					"time", string(p.Name()))
-			}
-			continue
-		}
-
-		// Drop any series with invalid unicode characters in the key.
-		if validateKeys && !models.ValidKeyTokens(string(p.Name()), tags) {
-			dropped++
-			if reason == "" {
-				reason = fmt.Sprintf("key contains invalid unicode: \"%s\"", string(p.Key()))
-			}
-			continue
-		}
-
-		keys[j] = p.Key()
-		names[j] = p.Name()
-		tagsSlice[j] = tags
-		points[j] = points[i]
-		j++
-	}
-	points, keys, names, tagsSlice = points[:j], keys[:j], names[:j], tagsSlice[:j]
-
-	engine, err := s.engineNoLock()
-	if err != nil {
-		return nil, nil, err
-	}
+func (s *Shard) validateSeriesAndFields(engine Engine, collection *SeriesCollection) ([]*FieldCreate, error) {
+	var fieldsToCreate []*FieldCreate
 
 	// Add new series. Check for partial writes.
-	var droppedKeys [][]byte
-	if err := engine.CreateSeriesListIfNotExists(keys, names, tagsSlice); err != nil {
-		switch err := err.(type) {
-		// TODO(jmw): why is this a *PartialWriteError when everything else is not a pointer?
-		// Maybe we can just change it to be consistent if we change it also in all
-		// the places that construct it.
-		case *PartialWriteError:
-			reason = err.Reason
-			dropped += err.Dropped
-			droppedKeys = err.DroppedKeys
-			atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
-		default:
-			return nil, nil, err
+	if err := engine.CreateSeriesListIfNotExists(collection); err != nil {
+		// ignore PartialWriteErrors. The collection captures it.
+		if _, ok := err.(PartialWriteError); !ok {
+			return nil, err
 		}
 	}
 
 	// Create a MeasurementFields cache.
 	mfCache := make(map[string]*MeasurementFields, 16)
-	j = 0
-	for i, p := range points {
+	j := 0
+	for iter := collection.Iterator(); iter.Next(); {
 		// Skip any points with only invalid fields.
-		iter := p.FieldIterator()
+		point := iter.Point()
+
+		fieldIter := point.FieldIterator()
 		validField := false
-		for iter.Next() {
-			if bytes.Equal(iter.FieldKey(), timeBytes) {
+		for fieldIter.Next() {
+			if bytes.Equal(fieldIter.FieldKey(), timeBytes) {
 				continue
 			}
 			validField = true
 			break
 		}
-		if !validField {
-			if reason == "" {
-				reason = fmt.Sprintf(
-					"invalid field name: input field \"%s\" on measurement \"%s\" is invalid",
-					"time", string(p.Name()))
-			}
-			dropped++
-			continue
-		}
 
-		// Skip any points whos keys have been dropped. Dropped has already been incremented for them.
-		if len(droppedKeys) > 0 && bytesutil.Contains(droppedKeys, keys[i]) {
+		if !validField {
+			if collection.Reason == "" {
+				collection.Reason = fmt.Sprintf(
+					"invalid field name: input field %q on measurement %q is invalid",
+					timeBytes, iter.Name())
+			}
+			collection.Dropped++
+			collection.DroppedKeys = append(collection.DroppedKeys, iter.Key())
 			continue
 		}
 
 		// Grab the MeasurementFields checking the local cache to avoid lock contention.
-		name := p.Name()
+		name := iter.Name()
 		mf := mfCache[string(name)]
 		if mf == nil {
 			mf = engine.MeasurementFields(name).Clone()
@@ -633,27 +601,27 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		}
 
 		// Check with the field validator.
-		if err := s.options.FieldValidator.Validate(mf, p); err != nil {
-			switch err := err.(type) {
+		if err := s.options.FieldValidator.Validate(mf, point); err != nil {
+			switch err := err.(type) { // combine in any partial write error
 			case PartialWriteError:
-				if reason == "" {
-					reason = err.Reason
+				if collection.Reason == "" {
+					collection.Reason = err.Reason
 				}
-				dropped += err.Dropped
-				atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
+				collection.Dropped += uint64(err.Dropped)
+				collection.DroppedKeys = append(collection.DroppedKeys, err.DroppedKeys...)
 			default:
-				return nil, nil, err
+				return nil, err
 			}
 			continue
 		}
 
-		points[j] = points[i]
+		collection.Copy(j, iter.Index())
 		j++
 
 		// Create any fields that are missing.
-		iter.Reset()
-		for iter.Next() {
-			fieldKey := iter.FieldKey()
+		fieldIter.Reset()
+		for fieldIter.Next() {
+			fieldKey := fieldIter.FieldKey()
 
 			// Skip fields named "time". They are illegal.
 			if bytes.Equal(fieldKey, timeBytes) {
@@ -664,7 +632,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				continue
 			}
 
-			dataType := dataTypeFromModelsFieldType(iter.Type())
+			dataType := dataTypeFromModelsFieldType(fieldIter.Type())
 			if dataType == influxql.Unknown {
 				continue
 			}
@@ -679,21 +647,13 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		}
 	}
 
-	if dropped > 0 {
-		err = PartialWriteError{Reason: reason, Dropped: dropped}
-	}
-
-	return points[:j], fieldsToCreate, err
+	collection.Truncate(j)
+	return fieldsToCreate, nil
 }
 
-func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
+func (s *Shard) createFieldsAndMeasurements(engine Engine, fieldsToCreate []*FieldCreate) error {
 	if len(fieldsToCreate) == 0 {
 		return nil
-	}
-
-	engine, err := s.engineNoLock()
-	if err != nil {
-		return err
 	}
 
 	// add fields
