@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
 	scheduler "github.com/influxdata/platform/task/backend"
+	"github.com/influxdata/platform/task/options"
 	"go.uber.org/zap"
 )
 
@@ -53,7 +54,7 @@ func (s *Scheduler) Tick(now int64) {
 
 func (s *Scheduler) WithLogger(l *zap.Logger) {}
 
-func (s *Scheduler) ClaimTask(taskID platform.ID, script string, startExecutionFrom int64, concurrencyLimit uint8) error {
+func (s *Scheduler) ClaimTask(task *backend.StoreTask, startExecutionFrom int64, opts *options.Options) error {
 	if s.claimError != nil {
 		return s.claimError
 	}
@@ -61,14 +62,14 @@ func (s *Scheduler) ClaimTask(taskID platform.ID, script string, startExecutionF
 	s.Lock()
 	defer s.Unlock()
 
-	_, ok := s.claims[taskID.String()]
+	_, ok := s.claims[task.ID.String()]
 	if ok {
 		return errors.New("task already in list")
 	}
 
-	t := &Task{script, startExecutionFrom, concurrencyLimit}
+	t := &Task{task.Script, startExecutionFrom, uint8(opts.Concurrency)}
 
-	s.claims[taskID.String()] = t
+	s.claims[task.ID.String()] = t
 
 	if s.createChan != nil {
 		s.createChan <- t

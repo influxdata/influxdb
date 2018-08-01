@@ -90,9 +90,7 @@ type Scheduler interface {
 	// you can set startExecutionFrom in the past to backfill a task.
 	// concurrencyLimit is how many runs may be concurrently queued or executing.
 	// concurrencyLimit must be positive.
-	// TODO(mr): concurrencyLimit should become a script option rather than explicit.
-	ClaimTask(taskID platform.ID, script string, startExecutionFrom int64, concurrencyLimit uint8) error
-
+	ClaimTask(task *StoreTask, startExecutionFrom int64, opt *options.Options) error
 	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
 	// and releases any resources related to management of that task.
 	ReleaseTask(taskID platform.ID) error
@@ -191,13 +189,8 @@ func (s *outerScheduler) Tick(now int64) {
 	}
 }
 
-func (s *outerScheduler) ClaimTask(taskID platform.ID, script string, startExecutionFrom int64, concurrencyLimit uint8) (err error) {
+func (s *outerScheduler) ClaimTask(task *StoreTask, startExecutionFrom int64, opts *options.Options) (err error) {
 	defer s.metrics.ClaimTask(err == nil)
-
-	opts, err := options.FromScript(script)
-	if err != nil {
-		return err
-	}
 
 	timer := opts.Cron
 
@@ -219,10 +212,10 @@ func (s *outerScheduler) ClaimTask(taskID platform.ID, script string, startExecu
 
 	ts := newTaskScheduler(
 		s,
-		taskID,
+		task,
 		sch,
 		startExecutionFrom,
-		concurrencyLimit,
+		uint8(opts.Concurrency),
 	)
 
 	if s.cronTimer != nil {
@@ -236,13 +229,13 @@ func (s *outerScheduler) ClaimTask(taskID platform.ID, script string, startExecu
 	}
 
 	s.mu.Lock()
-	_, ok := s.tasks[taskID.String()]
+	_, ok := s.tasks[task.ID.String()]
 	if ok {
 		s.mu.Unlock()
 		return errors.New("task has already been claimed")
 	}
 
-	s.tasks[taskID.String()] = ts
+	s.tasks[task.ID.String()] = ts
 
 	s.mu.Unlock()
 
@@ -278,8 +271,8 @@ func (s *outerScheduler) PrometheusCollectors() []prometheus.Collector {
 
 // taskScheduler is a lightweight wrapper around a collection of runners.
 type taskScheduler struct {
-	// ID of task.
-	id platform.ID
+	// Task we are scheduling for.
+	task *StoreTask
 
 	// Seconds since UTC epoch.
 	now int64
@@ -301,7 +294,7 @@ type taskScheduler struct {
 
 func newTaskScheduler(
 	s *outerScheduler,
-	taskID platform.ID,
+	task *StoreTask,
 	cron cron.Schedule,
 	startExecutionFrom int64,
 	concurrencyLimit uint8,
@@ -309,11 +302,11 @@ func newTaskScheduler(
 	firstScheduled := cron.Next(time.Unix(startExecutionFrom, 0).UTC()).Unix()
 	ctx, cancel := context.WithCancel(context.Background())
 	ts := &taskScheduler{
-		id:      taskID,
+		task:    task,
 		now:     startExecutionFrom,
 		cancel:  cancel,
 		runners: make([]*runner, concurrencyLimit),
-		logger:  s.logger.With(zap.String("task_id", taskID.String())),
+		logger:  s.logger.With(zap.String("task_id", task.ID.String())),
 	}
 
 	tt := &taskTimer{
@@ -327,7 +320,7 @@ func newTaskScheduler(
 	}
 
 	for i := range ts.runners {
-		ts.runners[i] = newRunner(ctx, ts.logger, taskID, s.desiredState, s.executor, s.logWriter, tt)
+		ts.runners[i] = newRunner(ctx, ts.logger, task, s.desiredState, s.executor, s.logWriter, tt)
 	}
 
 	return ts
@@ -409,7 +402,7 @@ type runner struct {
 	// Cancelable context from parent taskScheduler.
 	ctx context.Context
 
-	taskID platform.ID
+	task *StoreTask
 
 	desiredState DesiredState
 	executor     Executor
@@ -423,7 +416,7 @@ type runner struct {
 func newRunner(
 	ctx context.Context,
 	logger *zap.Logger,
-	taskID platform.ID,
+	task *StoreTask,
 	desiredState DesiredState,
 	executor Executor,
 	logWriter LogWriter,
@@ -432,7 +425,7 @@ func newRunner(
 	return &runner{
 		ctx:          ctx,
 		state:        new(uint32),
-		taskID:       taskID,
+		task:         task,
 		desiredState: desiredState,
 		executor:     executor,
 		logWriter:    logWriter,
@@ -475,7 +468,7 @@ func (r *runner) startFromWorking() {
 	if next, ready := r.tt.NextScheduledRun(); ready {
 		// It's possible that two runners may attempt to create the same run for this "next" timestamp,
 		// but the contract of DesiredState requires that only one succeeds.
-		qr, err := r.desiredState.CreateRun(r.ctx, r.taskID, next)
+		qr, err := r.desiredState.CreateRun(r.ctx, r.task.ID, next)
 		if err != nil {
 			r.logger.Info("Failed to create run", zap.Error(err))
 			atomic.StoreUint32(r.state, runnerIdle)
@@ -552,11 +545,11 @@ func (r *runner) executeAndWait(qr QueuedRun) {
 func (r *runner) updateRunState(qr QueuedRun, s RunStatus) {
 	switch s {
 	case RunStarted:
-		r.tt.metrics.StartRun(r.taskID.String())
+		r.tt.metrics.StartRun(r.task.ID.String())
 	case RunSuccess:
-		r.tt.metrics.FinishRun(r.taskID.String(), true)
+		r.tt.metrics.FinishRun(r.task.ID.String(), true)
 	case RunFail, RunCanceled:
-		r.tt.metrics.FinishRun(r.taskID.String(), false)
+		r.tt.metrics.FinishRun(r.task.ID.String(), false)
 	default:
 		// We are deliberately not handling RunQueued yet.
 		// There is not really a notion of being queued in this runner architecture.
@@ -567,7 +560,7 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus) {
 	// If we start seeing errors from this, we know the time limit is too short or the system is overloaded.
 	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Millisecond)
 	defer cancel()
-	if err := r.logWriter.UpdateRunState(ctx, r.taskID, qr.RunID, time.Now(), s); err != nil {
+	if err := r.logWriter.UpdateRunState(ctx, r.task, qr.RunID, time.Now(), s); err != nil {
 		r.logger.Info("Error updating run state", zap.Stringer("state", s), zap.Error(err))
 	}
 }
