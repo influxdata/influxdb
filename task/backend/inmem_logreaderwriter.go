@@ -49,7 +49,7 @@ func NewInMemRunReaderWriter() *runReaderWriter {
 	return &runReaderWriter{byRunID: map[string]*platform.Run{}, byTaskID: map[string][]*platform.Run{}}
 }
 
-func (r *runReaderWriter) UpdateRunState(ctx context.Context, taskID, runID platform.ID, when time.Time, status RunStatus) error {
+func (r *runReaderWriter) UpdateRunState(ctx context.Context, task *StoreTask, runID platform.ID, when time.Time, status RunStatus) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	timeSetter := func(r *platform.Run) {
@@ -69,7 +69,7 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, taskID, runID plat
 		run := &platform.Run{ID: runID, Status: status.String()}
 		timeSetter(run)
 		r.byRunID[runID.String()] = run
-		r.byTaskID[taskID.String()] = append(r.byTaskID[taskID.String()], run)
+		r.byTaskID[task.ID.String()] = append(r.byTaskID[task.ID.String()], run)
 		return nil
 	}
 
@@ -78,7 +78,7 @@ func (r *runReaderWriter) UpdateRunState(ctx context.Context, taskID, runID plat
 	return nil
 }
 
-func (r *runReaderWriter) AddRunLog(ctx context.Context, taskID, runID platform.ID, when time.Time, log string) error {
+func (r *runReaderWriter) AddRunLog(ctx context.Context, task *StoreTask, runID platform.ID, when time.Time, log string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

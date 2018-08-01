@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/kit/prom"
@@ -11,28 +12,19 @@ import (
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/task/backend"
 	"github.com/influxdata/platform/task/mock"
-)
-
-const (
-	scriptEveryMinute = `option task = {
-		name: "name",
-		cron: "* * * * *",
-	}
-// (every minute on the minute)
-from(bucket:"b") |> toHTTP(url: "http://example.com")`
-
-	scriptEverySecond = `option task = {
-		name: "name",
-		every: 1s,
-	}
-	from(bucket:"b") |> toHTTP(url: "http://example.com")`
+	"github.com/influxdata/platform/task/options"
 )
 
 func TestScheduler_EveryValidation(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
+<<<<<<< HEAD
 	tid := platform.ID{1}
+=======
+<<<<<<< HEAD
+	tid := platform.ID(1)
+>>>>>>> feat(task): update the scheduler and logwriter interface
 
 	badScripts := []string{
 		`option task = {
@@ -60,6 +52,30 @@ from(bucket:"b") |> toHTTP(url: "http://example.com")`,
 	for _, badScript := range badScripts {
 		if err := o.ClaimTask(tid, badScript, 3, 99); err == nil {
 			t.Fatal("no error returned for :", badScript)
+=======
+	task := &backend.StoreTask{
+		ID: platform.ID{1},
+	}
+
+	badOptions := []options.Options{
+		{
+			Every: time.Millisecond,
+		},
+		{
+			Every: time.Hour * -1,
+		},
+		{
+			Every: 1500 * time.Millisecond,
+		},
+		{
+			Every: 1232 * time.Millisecond,
+		},
+	}
+
+	for _, badOption := range badOptions {
+		if err := o.ClaimTask(task, 3, &badOption); err == nil {
+			t.Fatal("no error returned for :", badOption)
+>>>>>>> feat(task): update the scheduler and logwriter interface
 		}
 	}
 }
@@ -69,23 +85,47 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
+<<<<<<< HEAD
 	tid := platform.ID{1}
+=======
+<<<<<<< HEAD
+	tid := platform.ID(1)
+>>>>>>> feat(task): update the scheduler and logwriter interface
 	if err := o.ClaimTask(tid, scriptEveryMinute, 3, 99); err != nil {
+=======
+	task := &backend.StoreTask{
+		ID: platform.ID{1},
+	}
+	opts := &options.Options{Every: time.Minute}
+	if err := o.ClaimTask(task, 3, opts); err != nil {
+>>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
 	// No valid timestamps between 3 and 5 for every minute.
-	if n := len(d.CreatedFor(tid)); n > 0 {
+	if n := len(d.CreatedFor(task.ID)); n > 0 {
 		t.Fatalf("expected no runs queued, but got %d", n)
 	}
 
 	// For every second, can queue for timestamps 4 and 5.
+<<<<<<< HEAD
 	tid = platform.ID{2}
+=======
+<<<<<<< HEAD
+	tid = platform.ID(2)
+>>>>>>> feat(task): update the scheduler and logwriter interface
 	if err := o.ClaimTask(tid, scriptEverySecond, 3, 5); err != nil {
+=======
+	task = &backend.StoreTask{
+		ID: platform.ID{2},
+	}
+	opts = &options.Options{Every: time.Second, Concurrency: 99}
+	if err := o.ClaimTask(task, 3, opts); err != nil {
+>>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
-	if n := len(d.CreatedFor(tid)); n != 2 {
+	if n := len(d.CreatedFor(task.ID)); n != 2 {
 		t.Fatalf("expected 2 runs queued for 'every 1s' script, but got %d", n)
 	}
 }
@@ -95,36 +135,49 @@ func TestScheduler_CreateRunOnTick(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
+<<<<<<< HEAD
 	tid := platform.ID{1}
+=======
+<<<<<<< HEAD
+	tid := platform.ID(1)
+>>>>>>> feat(task): update the scheduler and logwriter interface
 	if err := o.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
+=======
+	task := &backend.StoreTask{
+		ID: platform.ID{1},
+	}
+
+	opts := &options.Options{Every: time.Second, Concurrency: 2}
+	if err := o.ClaimTask(task, 5, opts); err != nil {
+>>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
-	if x, err := d.PollForNumberCreated(tid, 0); err != nil {
+	if x, err := d.PollForNumberCreated(task.ID, 0); err != nil {
 		t.Fatalf("expected no runs queued, but got %d", len(x))
 	}
 
 	o.Tick(6)
-	if x, err := d.PollForNumberCreated(tid, 1); err != nil {
+	if x, err := d.PollForNumberCreated(task.ID, 1); err != nil {
 		t.Fatalf("expected 1 run queued, but got %d", len(x))
 	}
-	running, err := e.PollForNumberRunning(tid, 1)
+	running, err := e.PollForNumberRunning(task.ID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	run6 := running[0]
 
 	o.Tick(7)
-	if x, err := d.PollForNumberCreated(tid, 2); err != nil {
+	if x, err := d.PollForNumberCreated(task.ID, 2); err != nil {
 		t.Fatalf("expected 2 runs queued, but got %d", len(x))
 	}
 	o.Tick(8) // Can't exceed concurrency of 2.
-	if x, err := d.PollForNumberCreated(tid, 2); err != nil {
+	if x, err := d.PollForNumberCreated(task.ID, 2); err != nil {
 		t.Fatalf("expected 2 runs queued, but got %d", len(x))
 	}
 	run6.Cancel()
 
-	if x, err := d.PollForNumberCreated(tid, 1); err != nil {
+	if x, err := d.PollForNumberCreated(task.ID, 1); err != nil {
 		t.Fatal(err, x)
 	}
 }
@@ -134,22 +187,35 @@ func TestScheduler_Release(t *testing.T) {
 	e := mock.NewExecutor()
 	o := backend.NewScheduler(d, e, backend.NopLogWriter{}, 5)
 
+<<<<<<< HEAD
 	tid := platform.ID{1}
+=======
+<<<<<<< HEAD
+	tid := platform.ID(1)
+>>>>>>> feat(task): update the scheduler and logwriter interface
 	if err := o.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
+=======
+	task := &backend.StoreTask{
+		ID: platform.ID{1},
+	}
+
+	opts := &options.Options{Every: time.Second, Concurrency: 99}
+	if err := o.ClaimTask(task, 5, opts); err != nil {
+>>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
 	o.Tick(6)
 	o.Tick(7)
-	if n := len(d.CreatedFor(tid)); n != 2 {
+	if n := len(d.CreatedFor(task.ID)); n != 2 {
 		t.Fatalf("expected 2 runs queued, but got %d", n)
 	}
 
-	if err := o.ReleaseTask(tid); err != nil {
+	if err := o.ReleaseTask(task.ID); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := d.PollForNumberCreated(tid, 0); err != nil {
+	if _, err := d.PollForNumberCreated(task.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -161,22 +227,35 @@ func TestScheduler_RunLog(t *testing.T) {
 	s := backend.NewScheduler(d, e, rl, 5)
 
 	// Claim a task that starts later.
+<<<<<<< HEAD
 	tid := platform.ID{1}
+=======
+<<<<<<< HEAD
+	tid := platform.ID(1)
+>>>>>>> feat(task): update the scheduler and logwriter interface
 	if err := s.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
+=======
+	task := &backend.StoreTask{
+		ID: platform.ID{1},
+	}
+
+	opts := &options.Options{Every: time.Second, Concurrency: 99}
+	if err := s.ClaimTask(task, 5, opts); err != nil {
+>>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
-	if _, err := rl.ListRuns(context.Background(), platform.RunFilter{Task: &tid}); err != backend.ErrRunNotFound {
+	if _, err := rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID}); err != backend.ErrRunNotFound {
 		t.Fatal(err)
 	}
 
 	s.Tick(6)
-	promises, err := e.PollForNumberRunning(tid, 1)
+	promises, err := e.PollForNumberRunning(task.ID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	runs, err := rl.ListRuns(context.Background(), platform.RunFilter{Task: &tid})
+	runs, err := rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,11 +269,11 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	// Finish with success.
 	promises[0].Finish(mock.NewRunResult(nil, false), nil)
-	if _, err := e.PollForNumberRunning(tid, 0); err != nil {
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &tid})
+	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,12 +287,12 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	// Create a new run, but fail this time.
 	s.Tick(7)
-	promises, err = e.PollForNumberRunning(tid, 1)
+	promises, err = e.PollForNumberRunning(task.ID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &tid})
+	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,11 +306,11 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	// Finish with failure.
 	promises[0].Finish(nil, errors.New("forced failure"))
-	if _, err := e.PollForNumberRunning(tid, 0); err != nil {
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &tid})
+	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,12 +324,12 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	// One more run, but cancel this time.
 	s.Tick(8)
-	promises, err = e.PollForNumberRunning(tid, 1)
+	promises, err = e.PollForNumberRunning(task.ID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &tid})
+	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,11 +343,11 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	// Finish with failure.
 	promises[0].Cancel()
-	if _, err := e.PollForNumberRunning(tid, 0); err != nil {
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 
-	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &tid})
+	runs, err = rl.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,8 +371,21 @@ func TestScheduler_Metrics(t *testing.T) {
 	reg.MustRegister(s.(prom.PrometheusCollector).PrometheusCollectors()...)
 
 	// Claim a task that starts later.
+<<<<<<< HEAD
 	tid := platform.ID{1}
+=======
+<<<<<<< HEAD
+	tid := platform.ID(1)
+>>>>>>> feat(task): update the scheduler and logwriter interface
 	if err := s.ClaimTask(tid, scriptEverySecond, 5, 2); err != nil {
+=======
+	task := &backend.StoreTask{
+		ID: platform.ID{1},
+	}
+
+	opts := &options.Options{Every: time.Second, Concurrency: 99}
+	if err := s.ClaimTask(task, 5, opts); err != nil {
+>>>>>>> feat(task): update the scheduler and logwriter interface
 		t.Fatal(err)
 	}
 
@@ -309,7 +401,7 @@ func TestScheduler_Metrics(t *testing.T) {
 	}
 
 	s.Tick(6)
-	if _, err := e.PollForNumberRunning(tid, 1); err != nil {
+	if _, err := e.PollForNumberRunning(task.ID, 1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -319,13 +411,13 @@ func TestScheduler_Metrics(t *testing.T) {
 	if got := *m.Gauge.Value; got != 1 {
 		t.Fatalf("expected 1 total run active, got %v", got)
 	}
-	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": tid.String()})
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": task.ID.String()})
 	if got := *m.Gauge.Value; got != 1 {
-		t.Fatalf("expected 1 run active for task ID %s, got %v", tid.String(), got)
+		t.Fatalf("expected 1 run active for task ID %s, got %v", task.ID.String(), got)
 	}
 
 	s.Tick(7)
-	if _, err := e.PollForNumberRunning(tid, 2); err != nil {
+	if _, err := e.PollForNumberRunning(task.ID, 2); err != nil {
 		t.Fatal(err)
 	}
 
@@ -334,14 +426,14 @@ func TestScheduler_Metrics(t *testing.T) {
 	if got := *m.Gauge.Value; got != 2 {
 		t.Fatalf("expected 2 total runs active, got %v", got)
 	}
-	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": tid.String()})
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": task.ID.String()})
 	if got := *m.Gauge.Value; got != 2 {
-		t.Fatalf("expected 2 runs active for task ID %s, got %v", tid.String(), got)
+		t.Fatalf("expected 2 runs active for task ID %s, got %v", task.ID.String(), got)
 	}
 
 	// Runs active decreases as run finishes.
-	e.RunningFor(tid)[0].Finish(mock.NewRunResult(nil, false), nil)
-	if _, err := e.PollForNumberRunning(tid, 1); err != nil {
+	e.RunningFor(task.ID)[0].Finish(mock.NewRunResult(nil, false), nil)
+	if _, err := e.PollForNumberRunning(task.ID, 1); err != nil {
 		t.Fatal(err)
 	}
 	mfs = promtest.MustGather(t, reg)
@@ -349,17 +441,17 @@ func TestScheduler_Metrics(t *testing.T) {
 	if got := *m.Gauge.Value; got != 1 {
 		t.Fatalf("expected 1 total run active, got %v", got)
 	}
-	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": tid.String()})
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": task.ID.String()})
 	if got := *m.Gauge.Value; got != 1 {
-		t.Fatalf("expected 1 run active for task ID %s, got %v", tid.String(), got)
+		t.Fatalf("expected 1 run active for task ID %s, got %v", task.ID.String(), got)
 	}
-	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_complete", map[string]string{"task_id": tid.String(), "status": "success"})
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_complete", map[string]string{"task_id": task.ID.String(), "status": "success"})
 	if got := *m.Counter.Value; got != 1 {
-		t.Fatalf("expected 1 run succeeded for task ID %s, got %v", tid.String(), got)
+		t.Fatalf("expected 1 run succeeded for task ID %s, got %v", task.ID.String(), got)
 	}
 
-	e.RunningFor(tid)[0].Finish(mock.NewRunResult(nil, false), errors.New("failed to execute"))
-	if _, err := e.PollForNumberRunning(tid, 0); err != nil {
+	e.RunningFor(task.ID)[0].Finish(mock.NewRunResult(nil, false), errors.New("failed to execute"))
+	if _, err := e.PollForNumberRunning(task.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 	mfs = promtest.MustGather(t, reg)
@@ -367,27 +459,27 @@ func TestScheduler_Metrics(t *testing.T) {
 	if got := *m.Gauge.Value; got != 0 {
 		t.Fatalf("expected 0 total runs active, got %v", got)
 	}
-	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": tid.String()})
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": task.ID.String()})
 	if got := *m.Gauge.Value; got != 0 {
-		t.Fatalf("expected 0 runs active for task ID %s, got %v", tid.String(), got)
+		t.Fatalf("expected 0 runs active for task ID %s, got %v", task.ID.String(), got)
 	}
-	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_complete", map[string]string{"task_id": tid.String(), "status": "failure"})
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_complete", map[string]string{"task_id": task.ID.String(), "status": "failure"})
 	if got := *m.Counter.Value; got != 1 {
-		t.Fatalf("expected 1 run failed for task ID %s, got %v", tid.String(), got)
+		t.Fatalf("expected 1 run failed for task ID %s, got %v", task.ID.String(), got)
 	}
 
 	// Runs label removed after task released.
-	if err := s.ReleaseTask(tid); err != nil {
+	if err := s.ReleaseTask(task.ID); err != nil {
 		t.Fatal(err)
 	}
 	mfs = promtest.MustGather(t, reg)
-	if m := promtest.FindMetric(mfs, "task_scheduler_runs_active", map[string]string{"task_id": tid.String()}); m != nil {
+	if m := promtest.FindMetric(mfs, "task_scheduler_runs_active", map[string]string{"task_id": task.ID.String()}); m != nil {
 		t.Fatalf("expected metric to be removed after releasing a task, got %v", m)
 	}
-	if m := promtest.FindMetric(mfs, "task_scheduler_runs_complete", map[string]string{"task_id": tid.String(), "status": "success"}); m != nil {
+	if m := promtest.FindMetric(mfs, "task_scheduler_runs_complete", map[string]string{"task_id": task.ID.String(), "status": "success"}); m != nil {
 		t.Fatalf("expected metric to be removed after releasing a task, got %v", m)
 	}
-	if m := promtest.FindMetric(mfs, "task_scheduler_runs_complete", map[string]string{"task_id": tid.String(), "status": "failure"}); m != nil {
+	if m := promtest.FindMetric(mfs, "task_scheduler_runs_complete", map[string]string{"task_id": task.ID.String(), "status": "failure"}); m != nil {
 		t.Fatalf("expected metric to be removed after releasing a task, got %v", m)
 	}
 

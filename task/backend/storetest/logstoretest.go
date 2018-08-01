@@ -40,7 +40,10 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platform.ID([]byte("task"))
+	task := &backend.StoreTask{
+		ID:  platform.ID([]byte("task")),
+		Org: platform.ID([]byte("org")),
+	}
 	queuedAt := time.Unix(1, 0)
 	run := platform.Run{
 		ID:       platform.ID([]byte("run")),
@@ -48,12 +51,12 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 		QueuedAt: queuedAt.Format(time.RFC3339),
 	}
 
-	err := writer.UpdateRunState(context.Background(), taskID, run.ID, queuedAt, backend.RunQueued)
+	err := writer.UpdateRunState(context.Background(), task, run.ID, queuedAt, backend.RunQueued)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	returnedRun, err := reader.FindRunByID(context.Background(), taskID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,13 +66,13 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	}
 
 	startAt := time.Unix(2, 0)
-	if err := writer.UpdateRunState(context.Background(), taskID, run.ID, startAt, backend.RunStarted); err != nil {
+	if err := writer.UpdateRunState(context.Background(), task, run.ID, startAt, backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 	run.StartTime = startAt.Format(time.RFC3339)
 	run.Status = "started"
 
-	returnedRun, err = reader.FindRunByID(context.Background(), taskID, run.ID)
+	returnedRun, err = reader.FindRunByID(context.Background(), task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,13 +82,13 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	}
 
 	endAt := time.Unix(3, 0)
-	if err := writer.UpdateRunState(context.Background(), taskID, run.ID, endAt, backend.RunSuccess); err != nil {
+	if err := writer.UpdateRunState(context.Background(), task, run.ID, endAt, backend.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 	run.EndTime = endAt.Format(time.RFC3339)
 	run.Status = "success"
 
-	returnedRun, err = reader.FindRunByID(context.Background(), taskID, run.ID)
+	returnedRun, err = reader.FindRunByID(context.Background(), task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +102,11 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platform.ID([]byte("task"))
+	task := &backend.StoreTask{
+		ID:  platform.ID([]byte("task")),
+		Org: platform.ID([]byte("org")),
+	}
+
 	run := platform.Run{
 		ID:       platform.ID([]byte("run")),
 		Status:   "queued",
@@ -108,29 +115,29 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 
 	logTime := time.Now()
 
-	if err := writer.AddRunLog(context.Background(), taskID, run.ID, logTime, "bad"); err == nil {
+	if err := writer.AddRunLog(context.Background(), task, run.ID, logTime, "bad"); err == nil {
 		t.Fatal("shouldn't be able to log against non existing run")
 	}
 
-	err := writer.UpdateRunState(context.Background(), taskID, run.ID, time.Now(), backend.RunQueued)
+	err := writer.UpdateRunState(context.Background(), task, run.ID, time.Now(), backend.RunQueued)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := writer.AddRunLog(context.Background(), taskID, run.ID, logTime, "first"); err != nil {
+	if err := writer.AddRunLog(context.Background(), task, run.ID, logTime, "first"); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := writer.AddRunLog(context.Background(), taskID, run.ID, logTime, "second"); err != nil {
+	if err := writer.AddRunLog(context.Background(), task, run.ID, logTime, "second"); err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.AddRunLog(context.Background(), taskID, run.ID, logTime, "third"); err != nil {
+	if err := writer.AddRunLog(context.Background(), task, run.ID, logTime, "third"); err != nil {
 		t.Fatal(err)
 	}
 
 	fmtLogTime := logTime.Format(time.RFC3339)
 	run.Log = platform.Log(fmt.Sprintf("%s: first\n%s: second\n%s: third", fmtLogTime, fmtLogTime, fmtLogTime))
-	returnedRun, err := reader.FindRunByID(context.Background(), taskID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,9 +151,12 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platform.ID([]byte("task"))
+	task := &backend.StoreTask{
+		ID:  platform.ID([]byte("task")),
+		Org: platform.ID([]byte("org")),
+	}
 
-	if _, err := reader.ListRuns(context.Background(), platform.RunFilter{Task: &taskID}); err == nil {
+	if _, err := reader.ListRuns(context.Background(), platform.RunFilter{Task: &task.ID}); err == nil {
 		t.Fatal("failed to error on bad id")
 	}
 
@@ -159,7 +169,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 			QueuedAt: queuedAt.Format(time.RFC3339),
 		}
 
-		err := writer.UpdateRunState(context.Background(), taskID, runs[i].ID, queuedAt, backend.RunQueued)
+		err := writer.UpdateRunState(context.Background(), task, runs[i].ID, queuedAt, backend.RunQueued)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -171,7 +181,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	}
 
 	listRuns, err := reader.ListRuns(context.Background(), platform.RunFilter{
-		Task: &taskID,
+		Task: &task.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -182,7 +192,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	}
 
 	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
-		Task:  &taskID,
+		Task:  &task.ID,
 		After: &runs[20].ID,
 	})
 	if err != nil {
@@ -194,7 +204,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	}
 
 	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
-		Task:  &taskID,
+		Task:  &task.ID,
 		Limit: 30,
 	})
 	if err != nil {
@@ -207,7 +217,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	queuedAt, _ := time.Parse(time.RFC3339, runs[34].QueuedAt)
 	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
-		Task:      &taskID,
+		Task:      &task.ID,
 		AfterTime: queuedAt.Add(-1 * time.Nanosecond).Format(time.RFC3339),
 	})
 	if err != nil {
@@ -220,7 +230,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 
 	queuedAt, _ = time.Parse(time.RFC3339, runs[34].QueuedAt)
 	listRuns, err = reader.ListRuns(context.Background(), platform.RunFilter{
-		Task:       &taskID,
+		Task:       &task.ID,
 		BeforeTime: queuedAt.Add(time.Nanosecond).Format(time.RFC3339),
 	})
 	if err != nil {
@@ -240,18 +250,21 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 		t.Fatal("failed to error with bad id")
 	}
 
-	taskID := platform.ID([]byte("task"))
+	task := &backend.StoreTask{
+		ID:  platform.ID([]byte("task")),
+		Org: platform.ID([]byte("org")),
+	}
 	run := platform.Run{
 		ID:       platform.ID([]byte("run")),
 		Status:   "queued",
 		QueuedAt: time.Now().Format(time.RFC3339),
 	}
 
-	if err := writer.UpdateRunState(context.Background(), taskID, run.ID, time.Now(), backend.RunQueued); err != nil {
+	if err := writer.UpdateRunState(context.Background(), task, run.ID, time.Now(), backend.RunQueued); err != nil {
 		t.Fatal(err)
 	}
 
-	returnedRun, err := reader.FindRunByID(context.Background(), taskID, run.ID)
+	returnedRun, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +275,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 
 	returnedRun.Log = "cows"
 
-	rr2, err := reader.FindRunByID(context.Background(), taskID, run.ID)
+	rr2, err := reader.FindRunByID(context.Background(), task.ID, run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,12 +289,15 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	writer, reader := crf(t)
 	defer drf(t, writer, reader)
 
-	taskID := platform.ID([]byte("task"))
+	task := &backend.StoreTask{
+		ID:  platform.ID([]byte("task")),
+		Org: platform.ID([]byte("org")),
+	}
 
 	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{}); err == nil {
 		t.Fatal("failed to error with no filter")
 	}
-	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{Run: &taskID}); err == nil {
+	if _, err := reader.ListLogs(context.Background(), platform.LogFilter{Run: &task.ID}); err == nil {
 		t.Fatal("failed to error with no filter")
 	}
 
@@ -293,12 +309,12 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 			QueuedAt: time.Unix(int64(i), 0).Format(time.RFC3339),
 		}
 
-		err := writer.UpdateRunState(context.Background(), taskID, runs[i].ID, time.Now(), backend.RunQueued)
+		err := writer.UpdateRunState(context.Background(), task, runs[i].ID, time.Now(), backend.RunQueued)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		writer.AddRunLog(context.Background(), taskID, runs[i].ID, time.Unix(int64(i), 0), fmt.Sprintf("log%d", i))
+		writer.AddRunLog(context.Background(), task, runs[i].ID, time.Unix(int64(i), 0), fmt.Sprintf("log%d", i))
 	}
 
 	logs, err := reader.ListLogs(context.Background(), platform.LogFilter{Run: &runs[4].ID})
@@ -311,7 +327,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 		t.Fatalf("expected: %+v, got: %+v", fmtTimelog+": log4", string(logs[0]))
 	}
 
-	logs, err = reader.ListLogs(context.Background(), platform.LogFilter{Task: &taskID})
+	logs, err = reader.ListLogs(context.Background(), platform.LogFilter{Task: &task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
