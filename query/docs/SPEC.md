@@ -1086,9 +1086,10 @@ Range has the following properties:
 
 #### Rename 
 
-Rename will rename specified columns in a data table. 
+Rename will rename specified columns in a table. 
 There are two variants: one which takes a map of old column names to new column names,
- and one which takes a mapping function.
+and one which takes a mapping function. 
+If a column is renamed and is part of the group key, the column name in the group key will be updated.
 
 Rename has the following properties: 
 * `columns` object
@@ -1105,8 +1106,9 @@ Rename all columns with `fn` parameter: `rename(fn: (col) => "{col}_new")`
 
 #### Drop 
 
-Drop will exclude specified columns from a returned data table. Columns to exclude can be specified either through a 
+Drop will exclude specified columns from a table. Columns to exclude can be specified either through a 
 list, or a predicate function. 
+When a dropped column is part of the group key it will also be dropped from the key.
 
 Drop has the following properties:
 * `columns` array of strings 
@@ -1123,8 +1125,9 @@ Drop all columns matching a predicate: `drop(fn: (col) => col =~ /usage*/)`
 
 #### Keep 
 
-Keep can be thought of as the inverse of drop. It will return a table containing only columns that are specified,
-ignoring all others.
+Keep is the inverse of drop. It will return a table containing only columns that are specified,
+ignoring all others. 
+Only columns in the group key that are also specified in `keep` will be kept in the resulting group key.
 
 Keep has the following properties: 
 * `columns` array of strings
