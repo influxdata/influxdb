@@ -41,8 +41,6 @@ class SideNav extends PureComponent<Props> {
     const id = sourceID || _.get(defaultSource, 'id', 0)
 
     const sourcePrefix = `/sources/${id}`
-    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
-
     const isDefaultPage = location.split('/').includes(DEFAULT_HOME_PAGE)
 
     return isHidden ? null : (
@@ -64,14 +62,6 @@ class SideNav extends PureComponent<Props> {
           location={location}
         >
           <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
-        </NavBlock>
-        <NavBlock
-          highlightWhen={['data-explorer']}
-          icon="graphline-2"
-          link={dataExplorerLink}
-          location={location}
-        >
-          <NavHeader link={dataExplorerLink} title="Data Explorer" />
         </NavBlock>
         <NavBlock
           highlightWhen={['delorean']}

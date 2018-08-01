@@ -18,7 +18,6 @@ import App from 'src/App'
 import CheckSources from 'src/CheckSources'
 import {StatusPage} from 'src/status'
 import {HostsPage, HostPage} from 'src/hosts'
-import DataExplorerPage from 'src/data_explorer'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {LogsPage} from 'src/logs'
 import {SourcePage, ManageSources} from 'src/sources'
@@ -110,10 +109,6 @@ class Root extends PureComponent<{}, State> {
               <Route path="status" component={StatusPage} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
-              <Route
-                path="chronograf/data-explorer"
-                component={DataExplorerPage}
-              />
               <Route path="dashboards" component={DashboardsPage} />
               <Route path="dashboards/:dashboardID" component={DashboardPage} />
               <Route path="manage-sources" component={ManageSources} />
