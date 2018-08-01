@@ -1,7 +1,7 @@
 import React, {PureComponent} from 'react'
 
 import QueryEditor from './QueryEditor'
-import SchemaExplorer from 'src/shared/components/SchemaExplorer'
+import SchemaExplorer from 'src/data_explorer/components/SchemaExplorer'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {Source, QueryConfig} from 'src/types'

@@ -2,42 +2,37 @@ import React, {Component} from 'react'
 
 import _ from 'lodash'
 
-import {QueryConfig, Source} from 'src/types'
+import {QueryConfig} from 'src/types'
+import {Source, Bucket} from 'src/types/v2'
 import {Namespace} from 'src/types/queries'
 
 import DatabaseListItem from 'src/shared/components/DatabaseListItem'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
+import {getBuckets} from 'src/shared/apis/v2/buckets'
 
-interface DatabaseListProps {
+interface Props {
   query: QueryConfig
   source: Source
   onChooseNamespace: (namespace: Namespace) => void
 }
 
-interface DatabaseListState {
-  namespaces: Namespace[]
+interface State {
+  buckets: Bucket[]
 }
 
 @ErrorHandling
-class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
-  public static defaultProps: Partial<DatabaseListProps> = {
-    source: null,
-  }
-
+class BucketList extends Component<Props, State> {
   constructor(props) {
     super(props)
-    this.getDbRp = this.getDbRp.bind(this)
-    this.handleChooseNamespace = this.handleChooseNamespace.bind(this)
     this.state = {
-      namespaces: [],
+      buckets: [],
     }
   }
 
   public componentDidMount() {
-    this.getDbRp()
+    this.getBucketList()
   }
 
   public componentDidUpdate({
@@ -56,29 +51,27 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
       nextQuery.rawText !== prevQuery.rawText
 
     if (differentSource || newMetaQuery) {
-      this.getDbRp()
+      this.getBucketList()
     }
   }
 
-  public async getDbRp() {
+  public getBucketList = async () => {
     const {source} = this.props
 
     try {
-      const sorted = await getDatabasesWithRetentionPolicies(source.links.proxy)
-      this.setState({namespaces: sorted})
+      const buckets = await getBuckets(source.links.buckets)
+      this.setState({buckets})
     } catch (err) {
       console.error(err)
     }
   }
 
-  public handleChooseNamespace(namespace: Namespace) {
+  public handleChooseBucket(namespace: Namespace) {
     return () => this.props.onChooseNamespace(namespace)
   }
 
-  public isActive(query: QueryConfig, {database, retentionPolicy}: Namespace) {
-    return (
-      database === query.database && retentionPolicy === query.retentionPolicy
-    )
+  public isActive(query: QueryConfig, {name}: Bucket) {
+    return name === query.database
   }
 
   public render() {
@@ -87,12 +80,12 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
         <div className="query-builder--heading">DB.RetentionPolicy</div>
         <div className="query-builder--list">
           <FancyScrollbar>
-            {this.state.namespaces.map(namespace => (
+            {this.state.buckets.map(bucket => (
               <DatabaseListItem
-                isActive={this.isActive(this.props.query, namespace)}
-                namespace={namespace}
-                onChooseNamespace={this.handleChooseNamespace}
-                key={namespace.database + namespace.retentionPolicy}
+                bucket={bucket}
+                key={bucket.name}
+                isActive={this.isActive(this.props.query, bucket)}
+                onChooseNamespace={this.handleChooseBucket}
               />
             ))}
           </FancyScrollbar>
@@ -102,4 +95,4 @@ class DatabaseList extends Component<DatabaseListProps, DatabaseListState> {
   }
 }
 
-export default DatabaseList
+export default BucketList

@@ -1,10 +1,11 @@
 import React, {PureComponent} from 'react'
 
-import DatabaseList from 'src/shared/components/DatabaseList'
+import BucketList from 'src/data_explorer/components/BucketList'
 import MeasurementList from 'src/shared/components/MeasurementList'
 import FieldList from 'src/shared/components/FieldList'
 
-import {QueryConfig, Source} from 'src/types'
+import {QueryConfig} from 'src/types'
+import {Source} from 'src/types/v2'
 
 const actionBinder = (id, action) => (...args) => action(id, ...args)
 
@@ -42,7 +43,7 @@ class SchemaExplorer extends PureComponent<Props> {
 
     return (
       <div className="query-builder">
-        <DatabaseList
+        <BucketList
           query={query}
           source={source}
           onChooseNamespace={actionBinder(id, chooseNamespace)}

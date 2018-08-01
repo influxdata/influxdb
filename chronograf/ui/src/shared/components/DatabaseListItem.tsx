@@ -2,27 +2,26 @@ import React, {SFC} from 'react'
 
 import classnames from 'classnames'
 
-import {Namespace} from 'src/types/queries'
+import {Bucket} from 'src/types/v2'
 
 export interface DatabaseListItemProps {
   isActive: boolean
-  namespace: Namespace
-  onChooseNamespace: (namespace: Namespace) => () => void
+  bucket: Bucket
+  onChooseNamespace: (b: Bucket) => () => void
 }
 
 const DatabaseListItem: SFC<DatabaseListItemProps> = ({
   isActive,
-  namespace,
-  namespace: {database, retentionPolicy},
+  bucket,
   onChooseNamespace,
 }) => (
   <div
     className={classnames('query-builder--list-item', {
       active: isActive,
     })}
-    onClick={onChooseNamespace(namespace)}
+    onClick={onChooseNamespace(bucket)}
   >
-    {database}.{retentionPolicy}
+    {bucket.name}
   </div>
 )
 

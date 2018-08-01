@@ -435,7 +435,7 @@ export const DEFAULT_SOURCE = {
   telegraf: 'telegraf',
   insecureSkipVerify: false,
   metaUrl: '',
-  type: 'oss',
+  type: 'v1',
 }
 
 export const intervalValuesPoints = [
