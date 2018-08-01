@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/influxdata/platform/http"
@@ -38,8 +39,9 @@ func TestEncodeErrorWithError(t *testing.T) {
 		t.Errorf("expected X-Influx-Error: %s, got: %s", err.Error(), errHeader)
 	}
 
-	err = fmt.Errorf("there's a very long error here, it will be truncated so that we don't break webserver's pagesize")
-	expected := "there's a very long error here, it will be truncated so that we "
+	errMsg := strings.Repeat("x", 512)
+	err = fmt.Errorf(errMsg)
+	expected := errMsg[:256]
 	http.EncodeError(ctx, err, w)
 	errHeader = w.Header().Get("X-Influx-Error")
 	if errHeader != expected {

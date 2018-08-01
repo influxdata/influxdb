@@ -13,7 +13,7 @@ const (
 	ErrorHeader     = "X-Influx-Error"
 	ReferenceHeader = "X-Influx-Reference"
 
-	errorHeaderMaxLength = 64
+	errorHeaderMaxLength = 256
 )
 
 // CheckError reads the http.Response and returns an error if one exists.
