@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	nethttp "net/http"
 	"strings"
 
@@ -20,6 +22,7 @@ type PlatformHandler struct {
 	ChronografHandler    *ChronografHandler
 	SourceHandler        *SourceHandler
 	TaskHandler          *TaskHandler
+	FluxLangHandler      *FluxLangHandler
 }
 
 func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -32,6 +35,11 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 
 var platformLinks = map[string]interface{}{
 	"sources": "/v2/sources",
+	"flux": map[string]string{
+		"self":        "/v2/flux",
+		"ast":         "/v2/flux/ast",
+		"suggestions": "/v2/flux/suggestions",
+	},
 }
 
 func (h *PlatformHandler) serveLinks(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -59,8 +67,14 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
-	if r.URL.Path == "/v2" {
+	// Serve the links base links for the API.
+	if r.URL.Path == "/v2/" || r.URL.Path == "/v2" {
 		h.serveLinks(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/v2/flux") {
+		h.FluxLangHandler.ServeHTTP(w, r)
 		return
 	}
 
@@ -126,4 +140,13 @@ func extractAuthorization(ctx context.Context, r *nethttp.Request) (context.Cont
 		return ctx, err
 	}
 	return idpctx.SetToken(ctx, t), nil
+}
+
+func mustMarshalJSON(i interface{}) []byte {
+	b, err := json.Marshal(i)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal json: %v", err))
+	}
+
+	return b
 }

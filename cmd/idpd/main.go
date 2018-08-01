@@ -183,6 +183,7 @@ func platformF(cmd *cobra.Command, args []string) {
 		authHandler.Logger = logger.With(zap.String("handler", "auth"))
 
 		assetHandler := http.NewAssetHandler()
+		fluxLangHandler := http.NewFluxLangHandler()
 
 		sourceHandler := http.NewSourceHandler()
 		sourceHandler.SourceService = sourceSvc
@@ -200,6 +201,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			AuthorizationHandler: authHandler,
 			DashboardHandler:     dashboardHandler,
 			AssetHandler:         assetHandler,
+			FluxLangHandler:      fluxLangHandler,
 			ChronografHandler:    chronografHandler,
 			SourceHandler:        sourceHandler,
 			TaskHandler:          taskHandler,
