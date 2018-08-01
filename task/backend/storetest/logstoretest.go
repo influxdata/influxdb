@@ -41,7 +41,7 @@ func updateRunState(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFun
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("task")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
 		Org: platform.ID([]byte("org")),
 	}
 	queuedAt := time.Unix(1, 0)
@@ -103,7 +103,7 @@ func runLogTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc) {
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("task")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
 		Org: platform.ID([]byte("org")),
 	}
 
@@ -152,7 +152,7 @@ func listRunsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("task")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
 		Org: platform.ID([]byte("org")),
 	}
 
@@ -251,7 +251,7 @@ func findRunByIDTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFu
 	}
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("task")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
 		Org: platform.ID([]byte("org")),
 	}
 	run := platform.Run{
@@ -290,7 +290,7 @@ func listLogsTest(t *testing.T, crf CreateRunStoreFunc, drf DestroyRunStoreFunc)
 	defer drf(t, writer, reader)
 
 	task := &backend.StoreTask{
-		ID:  platform.ID([]byte("task")),
+		ID:  platformtesting.MustIDFromString("ab01ab01ab01ab01"),
 		Org: platform.ID([]byte("org")),
 	}
 
