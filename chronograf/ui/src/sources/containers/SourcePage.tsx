@@ -1,8 +1,9 @@
 import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 import _ from 'lodash'
-import {getSource} from 'src/shared/apis'
 import {createSource, updateSource} from 'src/shared/apis'
+
 import {
   addSource as addSourceAction,
   updateSource as updateSourceAction,
@@ -10,7 +11,6 @@ import {
   UpdateSource,
 } from 'src/shared/actions/sources'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
-import {connect} from 'react-redux'
 
 import Notifications from 'src/shared/components/Notifications'
 import SourceForm from 'src/sources/components/SourceForm'
@@ -21,27 +21,27 @@ import {DEFAULT_SOURCE} from 'src/shared/constants'
 const INITIAL_PATH = '/sources/new'
 
 import {
-  notifySourceUdpated,
-  notifySourceUdpateFailed,
+  notifySourceUpdated,
+  notifySourceUpdateFailed,
   notifySourceCreationFailed,
-  notifyErrorConnectingToSource,
   notifySourceCreationSucceeded,
 } from 'src/shared/copy/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import * as SourcesModels from 'src/types/sources'
+import {Source} from 'src/types'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
 interface Props extends WithRouterProps {
   notify: NotificationsActions.PublishNotificationActionCreator
   addSource: AddSource
   updateSource: UpdateSource
+  sourcesLink: string
+  sources: Source[]
 }
 
 interface State {
   isCreated: boolean
-  isLoading: boolean
-  source: Partial<SourcesModels.Source>
+  source: Partial<Source>
   editMode: boolean
   isInitialSource: boolean
 }
@@ -52,7 +52,6 @@ class SourcePage extends PureComponent<Props, State> {
     super(props)
 
     this.state = {
-      isLoading: true,
       isCreated: false,
       source: DEFAULT_SOURCE,
       editMode: props.params.id !== undefined,
@@ -61,31 +60,13 @@ class SourcePage extends PureComponent<Props, State> {
   }
 
   public async componentDidMount() {
-    const {editMode} = this.state
-    const {params, notify} = this.props
-
-    if (!editMode) {
-      return this.setState({isLoading: false})
-    }
-
-    try {
-      const source = await getSource(params.id)
-      this.setState({
-        source: {...DEFAULT_SOURCE, ...source},
-        isLoading: false,
-      })
-    } catch (error) {
-      notify(notifyErrorConnectingToSource(this.parseError(error)))
-      this.setState({isLoading: false})
-    }
+    this.setState({
+      source: this.source,
+    })
   }
 
   public render() {
-    const {isLoading, source, editMode, isInitialSource} = this.state
-
-    if (isLoading) {
-      return <div className="page-spinner" />
-    }
+    const {source, editMode, isInitialSource} = this.state
 
     return (
       <div className={`${isInitialSource ? '' : 'page'}`}>
@@ -103,7 +84,6 @@ class SourcePage extends PureComponent<Props, State> {
                     onSubmit={this.handleSubmit}
                     onBlurSourceURL={this.handleBlurSourceURL}
                     isInitialSource={isInitialSource}
-                    gotoPurgatory={this.gotoPurgatory}
                   />
                 </div>
               </div>
@@ -112,6 +92,12 @@ class SourcePage extends PureComponent<Props, State> {
         </FancyScrollbar>
       </div>
     )
+  }
+
+  private get source(): Partial<Source> {
+    const {sources, params} = this.props
+    const source = sources.find(s => s.id === params.id) || {}
+    return {...DEFAULT_SOURCE, ...source}
   }
 
   private handleSubmit = (e: MouseEvent<HTMLFormElement>): void => {
@@ -124,11 +110,6 @@ class SourcePage extends PureComponent<Props, State> {
     this.setState(this.normalizeSource, this.updateSource)
   }
 
-  private gotoPurgatory = (): void => {
-    const {router} = this.props
-    router.push('/purgatory')
-  }
-
   private normalizeSource({source}) {
     const url = source.url.trim()
     if (source.url.startsWith('http')) {
@@ -139,13 +120,14 @@ class SourcePage extends PureComponent<Props, State> {
 
   private createSourceOnBlur = async () => {
     const {source} = this.state
+    const {sourcesLink} = this.props
     // if there is a type on source it has already been created
     if (source.type) {
       return
     }
 
     try {
-      const sourceFromServer = await createSource(source)
+      const sourceFromServer = await createSource(sourcesLink, source)
       this.props.addSource(sourceFromServer)
       this.setState({
         source: {...DEFAULT_SOURCE, ...sourceFromServer},
@@ -160,9 +142,10 @@ class SourcePage extends PureComponent<Props, State> {
 
   private createSource = async () => {
     const {source} = this.state
-    const {notify} = this.props
+    const {notify, sourcesLink} = this.props
+
     try {
-      const sourceFromServer = await createSource(source)
+      const sourceFromServer = await createSource(sourcesLink, source)
       this.props.addSource(sourceFromServer)
       this.redirect(sourceFromServer)
       notify(notifySourceCreationSucceeded(source.name))
@@ -179,9 +162,9 @@ class SourcePage extends PureComponent<Props, State> {
       const sourceFromServer = await updateSource(source)
       this.props.updateSource(sourceFromServer)
       this.redirect(sourceFromServer)
-      notify(notifySourceUdpated(source.name))
+      notify(notifySourceUpdated(source.name))
     } catch (error) {
-      notify(notifySourceUdpateFailed(source.name, this.parseError(error)))
+      notify(notifySourceUpdateFailed(source.name, this.parseError(error)))
     }
   }
 
@@ -264,4 +247,9 @@ const mdtp = {
   updateSource: updateSourceAction,
 }
 
-export default connect(null, mdtp)(withRouter(SourcePage))
+const mstp = ({links, sources}) => ({
+  sourcesLink: links.sources,
+  sources,
+})
+
+export default connect(mstp, mdtp)(withRouter(SourcePage))

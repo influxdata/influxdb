@@ -22,7 +22,7 @@ export const generateForHosts = (source: Source): Template[] => [
     label: '',
     values: [
       {
-        value: source.defaultRP,
+        value: 'autogen',
         type: TemplateValueType.Constant,
         selected: true,
         localSelected: true,

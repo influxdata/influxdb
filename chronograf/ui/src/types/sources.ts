@@ -21,14 +21,11 @@ export interface Source {
   insecureSkipVerify: boolean
   default: boolean
   telegraf: string
-  organization: string
-  role: string
-  defaultRP: string
   links: SourceLinks
-  kapacitors?: Kapacitor[] // this field does not exist on the server type for Source and is added in the client in the reducer for loading kapacitors.
   text?: string // added client-side for dropdowns
   services?: Service[]
-  authentication: SourceAuthenticationMethod
+  authentication?: SourceAuthenticationMethod
+  kapacitors?: Kapacitor[]
 }
 
 export interface SourceLinks {

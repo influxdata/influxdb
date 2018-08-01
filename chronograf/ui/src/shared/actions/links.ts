@@ -4,13 +4,13 @@ import {getLinks as getLinksAJAX} from 'src/shared/apis/links'
 
 import {errorThrown} from 'src/shared/actions/errors'
 
-import {linksLink} from 'src/shared/constants'
-
 export enum ActionTypes {
   LinksGetRequested = 'LINKS_GET_REQUESTED',
   LinksGetCompleted = 'LINKS_GET_COMPLETED',
   LinksGetFailed = 'LINKS_GET_FAILED',
 }
+
+export type Action = LinksGetCompletedAction
 
 export interface LinksGetRequestedAction {
   type: ActionTypes.LinksGetRequested
@@ -42,10 +42,10 @@ export const getLinksAsync = () => async (
 ): Promise<void> => {
   dispatch(linksGetRequested())
   try {
-    const {data} = await getLinksAJAX()
-    dispatch(linksGetCompleted(data))
+    const links = await getLinksAJAX()
+    dispatch(linksGetCompleted(links))
   } catch (error) {
-    const message = `Failed to retrieve api links from ${linksLink}`
+    const message = `Failed to retrieve links`
     dispatch(errorThrown(error, message))
     dispatch(linksGetFailed())
   }

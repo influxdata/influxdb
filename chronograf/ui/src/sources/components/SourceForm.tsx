@@ -1,6 +1,5 @@
 import React, {PureComponent, FocusEvent, MouseEvent, ChangeEvent} from 'react'
 import classnames from 'classnames'
-import {connect} from 'react-redux'
 import _ from 'lodash'
 
 import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
@@ -103,17 +102,6 @@ export class SourceForm extends PureComponent<Props> {
               value={source.telegraf}
             />
           </div>
-          <div className="form-group col-xs-12 col-sm-6">
-            <label htmlFor="defaultRP">Default Retention Policy</label>
-            <input
-              type="text"
-              name="defaultRP"
-              className="form-control"
-              id="defaultRP"
-              onChange={onInputChange}
-              value={source.defaultRP}
-            />
-          </div>
           <div className="form-group col-xs-12">
             <div className="form-control-static">
               <input
@@ -189,6 +177,4 @@ export class SourceForm extends PureComponent<Props> {
   }
 }
 
-const mapStateToProps = ({auth: {isUsingAuth, me}}) => ({isUsingAuth, me})
-
-export default connect(mapStateToProps)(SourceForm)
+export default SourceForm

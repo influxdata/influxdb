@@ -52,9 +52,6 @@ export const source: Source = {
   insecureSkipVerify: true,
   default: false,
   telegraf: 'telegraf',
-  organization: '0',
-  role: 'viewer',
-  defaultRP: '',
   links: sourceLinks,
   authentication: SourceAuthenticationMethod.Basic,
 }

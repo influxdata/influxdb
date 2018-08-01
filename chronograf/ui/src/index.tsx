@@ -92,7 +92,7 @@ class Root extends PureComponent<{}, State> {
     }
   }
 
-  public async componentWillMount() {
+  public async componentDidMount() {
     this.flushErrorsQueue()
 
     try {

@@ -23,13 +23,7 @@ interface Props {
   sources: Source[]
   services: Service[]
   notify: (n: Notification) => void
-  deleteKapacitor: sourcesActions.DeleteKapacitorAsync
-  fetchKapacitors: sourcesActions.FetchKapacitorsAsync
-  removeAndLoadSources: sourcesActions.RemoveAndLoadSources
-  setActiveKapacitor: sourcesActions.SetActiveKapacitorAsync
-  fetchAllServices: servicesActions.FetchAllFluxServicesAsync
-  setActiveFlux: servicesActions.SetActiveServiceAsync
-  deleteFlux: servicesActions.DeleteServiceAsync
+  removeAndLoadSources: actions.RemoveAndLoadSources
 }
 
 declare var VERSION: string

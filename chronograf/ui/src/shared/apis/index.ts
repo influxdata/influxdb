@@ -5,7 +5,7 @@ import {Kapacitor, Source, Service, NewService, QueryConfig} from 'src/types'
 export const getSources = async (): Promise<Source[]> => {
   try {
     const {data} = await AJAX({
-      url: '/chronograf/v1/sources',
+      url: '/v2/sources',
     })
 
     return data.sources
@@ -14,12 +14,10 @@ export const getSources = async (): Promise<Source[]> => {
   }
 }
 
-export const getSource = async (id: string): Promise<Source> => {
+export const getSource = async (url: string): Promise<Source> => {
   try {
     const {data: source} = await AJAX({
-      url: null,
-      resource: 'sources',
-      id,
+      url,
     })
 
     return source
@@ -29,12 +27,12 @@ export const getSource = async (id: string): Promise<Source> => {
 }
 
 export const createSource = async (
+  url: string,
   attributes: Partial<Source>
 ): Promise<Source> => {
   try {
     const {data: source} = await AJAX({
-      url: null,
-      resource: 'sources',
+      url,
       method: 'POST',
       data: attributes,
     })
