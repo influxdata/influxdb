@@ -22,14 +22,6 @@
   revision = "a368813c5e648fee92e5f6c30e3944ff9d5e8895"
 
 [[projects]]
-  digest = "1:071bc10aade52ea2b6f919474e18900671903b24b12074b9bcc1c17698035586"
-  name = "github.com/RoaringBitmap/roaring"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "4c23670306840b0f8755db247d2e9b8369fc356e"
-  version = "v0.4.15"
-
-[[projects]]
   branch = "master"
   digest = "1:d6afaeed1502aa28e80a4ed0981d570ad91b2579193404256ce672ed0a609e0d"
   name = "github.com/beorn7/perks"
@@ -146,6 +138,12 @@
   ]
   pruneopts = "UT"
   revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
+
+[[projects]]
+  branch = "er-opt"
+  name = "github.com/influxdata/roaring"
+  packages = ["."]
+  revision = "02736e81caba338e6f1d0702b899a25a1f12ddce"
 
 [[projects]]
   branch = "master"
@@ -467,6 +465,7 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
+<<<<<<< HEAD
   input-imports = [
     "collectd.org/api",
     "collectd.org/network",
@@ -511,5 +510,8 @@
     "golang.org/x/text/transform",
     "golang.org/x/time/rate",
   ]
+=======
+  inputs-digest = "37ad3f3356c3abdb3c069d16bb15a25fec9ce0c43374820334f1894a808d6dac"
+>>>>>>> 332b60848... Switch to influxdata fork
   solver-name = "gps-cdcl"
   solver-version = 1
