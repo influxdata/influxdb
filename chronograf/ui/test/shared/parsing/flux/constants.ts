@@ -1,6 +1,6 @@
 // prettier-ignore
 export const RESPONSE_METADATA = `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
 ,,0,2018-05-23T17:42:29.536834648Z,2018-05-23T17:43:29.536834648Z,2018-05-23T17:42:29.654Z,0,usage_guest,cpu,cpu-total,WattsInfluxDB
@@ -43,7 +43,7 @@ export const EXPECTED_METADATA = [
     'string',
   ],
   [
-    'partition',
+    'group',
     'false',
     'false',
     'false',
@@ -59,7 +59,7 @@ export const EXPECTED_METADATA = [
 ]
 
 export const MEASUREMENTS_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,string,string
-#partition,false,false,false,false,false,false
+#group,false,false,false,false,false,false
 #default,_result,,,,,
 ,result,table,_start,_stop,_measurement,_value
 ,,0,2018-05-24T21:48:17.127227579Z,2018-05-24T22:48:17.127227579Z,disk,disk
@@ -77,7 +77,7 @@ From the following request:
       |> map(fn: (r) => r._value)
 */
 export const TAGS_RESPONSE = `#datatype,string,long,string
-#partition,false,false,false
+#group,false,false,false
 #default,_result,,
 ,result,table,_value
 ,,0,_field
@@ -93,14 +93,14 @@ export const TAGS_RESPONSE = `#datatype,string,long,string
 
 // prettier-ignore
 export const MULTI_SCHEMA_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
 ,,0,1677-09-21T00:12:43.145224192Z,2018-05-22T22:39:17.042276772Z,2018-05-22T22:39:12.584Z,0,usage_guest,cpu,cpu-total,WattsInfluxDB
 ,,1,1677-09-21T00:12:43.145224192Z,2018-05-22T22:39:17.042276772Z,2018-05-22T22:39:12.584Z,0,usage_guest_nice,cpu,cpu-total,WattsInfluxDB
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true,true,true,true
 #default,_result,,,,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,device,fstype,host,mode,path
 ,,2,1677-09-21T00:12:43.145224192Z,2018-05-22T22:39:17.042276772Z,2018-05-04T21:05:08.947Z,182180679680,free,disk,/Users/watts/Downloads/TablePlus.app,nullfs,WattsInfluxDB,ro,/private/var/folders/f4/zd7n1rqj7xj6w7c0njkmmjlh0000gn/T/AppTranslocation/F4D8D166-F848-4862-94F6-B51C00E2EB7A
@@ -111,7 +111,7 @@ export const MULTI_SCHEMA_RESPONSE = `#datatype,string,long,dateTime:RFC3339,dat
 
 export const CSV_TO_DYGRAPH = `
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
-#partition,false,false,true,true,false,false,true,true,true,true
+#group,false,false,true,true,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
 ,,1,2018-06-01T22:27:31.129555068Z,2018-06-01T22:28:31.129555068Z,2018-06-01T22:27:41Z,1,usage_idle,cpu,cpu-total,bertrand.local
@@ -126,7 +126,7 @@ export const CSV_TO_DYGRAPH = `
 
 export const CSV_TO_DYGRAPH_MISMATCHED = `
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
-#partition,false,false,true,true,false,false,true,true,true
+#group,false,false,true,true,false,false,true,true,true
 #default,_result,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,host
 ,,0,2018-06-04T17:12:21.025984999Z,2018-06-04T17:13:00Z,2018-06-04T17:12:25Z,1,active,mem,bertrand.local
@@ -137,12 +137,12 @@ export const CSV_TO_DYGRAPH_MISMATCHED = `
 
 export const TRUNCATED_RESPONSE = `
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
 ,,0,1677-09-21T00:12:43.145224192Z,2018-05-22T22:39:17.042276772Z,2018-05-22T22:39:12.584Z,0,usage_guest,cpu,cpu-total,WattsInfluxDB
 ,,1,1677-09-21T00:12:43.145224192Z,2018-05-22T22:39:17.042276772Z,2018-05-22T22:39:12.584Z,0,usage_guest_nice,cpu,cpu-total,WattsInfluxDB
 
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string,string,string,string,string
-#partition,false,false,false,false,false,false,true,true,true,true,true,true,true
+#group,false,false,false,false,false,false,true,true,true,true,true,true,true
 #default,_result,,,,,,,,,,,,`

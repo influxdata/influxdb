@@ -158,7 +158,7 @@ export interface FluxTable {
   id: string
   name: string
   data: string[][]
-  partitionKey: {
+  groupKey: {
     [key: string]: string
   }
 }

@@ -2,7 +2,7 @@ import React, {Fragment, PureComponent} from 'react'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface PartitionKey {
+interface GroupKey {
   [x: string]: string
 }
 
@@ -10,7 +10,7 @@ interface Props {
   name: string
   id: string
   isSelected: boolean
-  partitionKey: PartitionKey
+  groupKey: GroupKey
   onSelect: (id: string) => void
 }
 
@@ -29,7 +29,7 @@ export default class TableSidebarItem extends PureComponent<Props> {
 
   private get name(): JSX.Element[] {
     const keysIHate = ['_start', '_stop']
-    return Object.entries(this.props.partitionKey)
+    return Object.entries(this.props.groupKey)
       .filter(([k]) => !keysIHate.includes(k))
       .map(([k, v], i) => {
         return (
