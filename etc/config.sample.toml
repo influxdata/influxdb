@@ -487,7 +487,7 @@
   # bind-address = ":8089"
   # database = "udp"
   # retention-policy = ""
- 
+
   # InfluxDB precision for timestamps on received points ("" or "n", "u", "ms", "s", "m", "h")
   # precision = ""
 
@@ -525,3 +525,26 @@
 
   # interval for how often continuous queries will be checked if they need to run
   # run-interval = "1s"
+
+###
+### [tls]
+###
+### Global configuration settings for TLS in InfluxDB.
+###
+
+[tls]
+  # Determines the available set of cipher suites. See https://golang.org/pkg/crypto/tls/#pkg-constants
+  # for a list of available ciphers, which depends on the version of Go. If not specified, uses
+  # the default settings from crypto/tls.
+  # ciphers = [
+  #   "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305",
+  #   "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+  # ]
+
+  # Minimum version of the tls protocol that will be negotiated. If not specified, uses the
+  # default settings from crypto/tls.
+  # min-version = "tls1.2"
+
+  # Maximum version of the tls protocol that will be negotiated. If not specified, uses the
+  # default settings from crypto/tls.
+  # max-version = "tls1.2"
