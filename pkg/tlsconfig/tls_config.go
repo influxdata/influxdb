@@ -1,4 +1,4 @@
-package run
+package tlsconfig
 
 import (
 	"crypto/tls"
@@ -6,18 +6,22 @@ import (
 	"strings"
 )
 
-type TLSConfig struct {
+type Config struct {
 	Ciphers    []string `toml:"ciphers"`
 	MinVersion string   `toml:"min-version"`
 	MaxVersion string   `toml:"max-version"`
 }
 
-func (c TLSConfig) Validate() error {
+func NewConfig() Config {
+	return Config{}
+}
+
+func (c Config) Validate() error {
 	_, err := c.Parse()
 	return err
 }
 
-func (c TLSConfig) Parse() (out *tls.Config, err error) {
+func (c Config) Parse() (out *tls.Config, err error) {
 	if len(c.Ciphers) > 0 {
 		if out == nil {
 			out = new(tls.Config)
