@@ -63,16 +63,12 @@ func (s SeriesIDTyped) Type() models.FieldType {
 	return models.FieldType((s.ID & seriesIDTypeMask) >> seriesIDTypeShift)
 }
 
-// some static assertions that the SeriesIDSize matches
-const (
-	seriesIDStructSize      = unsafe.Sizeof(SeriesID{})
-	seriesIDTypedStructSize = unsafe.Sizeof(SeriesIDTyped{})
-)
-
 type (
+	// some static assertions that the SeriesIDSize matches the structs we defined.
 	// if the values are not the same, at least one will be negative causing a compilation failure
-	_ [SeriesIDSize - seriesIDStructSize]byte
-	_ [seriesIDStructSize - SeriesIDSize]byte
-	_ [SeriesIDSize - seriesIDTypedStructSize]byte
-	_ [seriesIDTypedStructSize - SeriesIDSize]byte
+	_ [SeriesIDSize - unsafe.Sizeof(SeriesID{})]byte
+	_ [unsafe.Sizeof(SeriesID{}) - SeriesIDSize]byte
+
+	_ [SeriesIDSize - unsafe.Sizeof(SeriesIDTyped{})]byte
+	_ [unsafe.Sizeof(SeriesIDTyped{}) - SeriesIDSize]byte
 )

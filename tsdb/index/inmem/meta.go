@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/pkg/radix"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -1184,8 +1185,10 @@ func (e *tagKeyValueEntry) ids() seriesIDs {
 	for id := range e.m {
 		a = append(a, id)
 	}
-	sort.Sort(a)
-	// radix.SortUint64s(a)
+	// this only works because we know a SeriesID has the same memory layout as a uint64
+	// there is a test that this doesn't go wrong.
+	uint64View := *(*[]uint64)(unsafe.Pointer(&a))
+	radix.SortUint64s(uint64View)
 
 	e.a = a
 	return e.a

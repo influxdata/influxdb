@@ -491,10 +491,4 @@ func (a seriesKeys) Less(i, j int) bool {
 	return CompareSeriesKeys(a[i], a[j]) == -1
 }
 
-type uint64Slice []uint64
-
-func (a uint64Slice) Len() int           { return len(a) }
-func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
-
 func nop() {}

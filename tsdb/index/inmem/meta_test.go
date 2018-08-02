@@ -2,6 +2,7 @@ package inmem
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 	"testing"
 
@@ -150,6 +151,23 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	m.TagSets(s, query.IteratorOptions{})
 	if got, exp := len(m.SeriesIDs()), 1; got != exp {
 		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTagKeyValueEntry_Sort(t *testing.T) {
+	entry := newTagKeyValueEntry()
+
+	for i := 0; i < 1000; i++ {
+		entry.m[tsdb.NewSeriesID(uint64(rand.Int63()))] = struct{}{}
+	}
+
+	ids := entry.ids()
+	prev := ids[0]
+	for _, id := range ids {
+		if prev.Greater(id) {
+			t.Fatal("unsorted:", prev, ">", id)
+		}
+		prev = id
 	}
 }
 
