@@ -895,7 +895,7 @@ func (i *Index) tagValueSeriesIDSet(name, key, value []byte) *tsdb.SeriesIDSet {
 	return nil
 }
 
-func (i *Index) putTagValueSeriesIDSet(name, key, value []byte, ss *tsdb.SeriesIDSet) *tsdb.SeriesIDSet {
+func (i *Index) putTagValueSeriesIDSet(name, key, value []byte, ss *tsdb.SeriesIDSet) {
 	i.cacheMu.Lock()
 	defer i.cacheMu.Unlock()
 	if mmap, ok := i.sscache[string(name)]; ok {
@@ -903,22 +903,23 @@ func (i *Index) putTagValueSeriesIDSet(name, key, value []byte, ss *tsdb.SeriesI
 
 			if _, ok := tkmap[string(value)]; ok {
 				// Already have it. Can happen with concurrent write.
-				fmt.Println("ALREADY HAVE IT")
+				return
 			}
 
 			// Add the set to the map
 			tkmap[string(value)] = ss
+			return
 		}
 
 		// No series set map for the tag key
 		mmap[string(key)] = map[string]*tsdb.SeriesIDSet{string(value): ss}
+		return
 	}
 
 	// No map for the measurement
 	i.sscache[string(name)] = map[string]map[string]*tsdb.SeriesIDSet{
 		string(key): map[string]*tsdb.SeriesIDSet{string(value): ss},
 	}
-	return nil
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
@@ -928,6 +929,8 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 		// fmt.Printf("Using cached set for %q %q %q\n", name, key, value)
 		return tsdb.NewSeriesIDSetIterator(ss), nil
 	}
+
+	fmt.Printf("CACHE MISS %q %q %q\n", name, key, value)
 
 	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
@@ -943,8 +946,9 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 
 	// Check if the iterator contains only series id sets. Cache them...
 	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
-		// fmt.Printf("Caching set for %q %q %q\n", name, key, value)
 		i.putTagValueSeriesIDSet(name, key, value, ssitr.SeriesIDSet())
+	} else {
+		fmt.Printf("UNABLE TO PUT %T for %q %q %q\n", itr, name, key, value)
 	}
 	return itr, nil
 }
