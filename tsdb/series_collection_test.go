@@ -31,9 +31,9 @@ func TestSeriesCollection(t *testing.T) {
 
 	t.Run("New", func(t *testing.T) {
 		points := []models.Point{
-			models.MustNewPoint("a", models.Tags{}, models.Fields{"f": "1"}, time.Now()),
-			models.MustNewPoint("b", models.Tags{}, models.Fields{"b": "t"}, time.Now()),
-			models.MustNewPoint("c", models.Tags{}, models.Fields{"i": "1i"}, time.Now()),
+			models.MustNewPoint("a", models.Tags{}, models.Fields{"f": 1.0}, time.Now()),
+			models.MustNewPoint("b", models.Tags{}, models.Fields{"b": true}, time.Now()),
+			models.MustNewPoint("c", models.Tags{}, models.Fields{"i": int64(1)}, time.Now()),
 		}
 		collection := NewSeriesCollection(points)
 
