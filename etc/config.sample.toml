@@ -534,17 +534,18 @@
 
 [tls]
   # Determines the available set of cipher suites. See https://golang.org/pkg/crypto/tls/#pkg-constants
-  # for a list of available ciphers, which depends on the version of Go. If not specified, uses
-  # the default settings from crypto/tls.
+  # for a list of available ciphers, which depends on the version of Go (use the query
+  # SHOW DIAGNOSTICS to see the version of Go used to build InfluxDB). If not specified, uses
+  # the default settings from Go's crypto/tls package.
   # ciphers = [
   #   "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305",
   #   "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
   # ]
 
   # Minimum version of the tls protocol that will be negotiated. If not specified, uses the
-  # default settings from crypto/tls.
+  # default settings from Go's crypto/tls package.
   # min-version = "tls1.2"
 
   # Maximum version of the tls protocol that will be negotiated. If not specified, uses the
-  # default settings from crypto/tls.
+  # default settings from Go's crypto/tls package.
   # max-version = "tls1.2"

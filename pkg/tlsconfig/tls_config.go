@@ -3,6 +3,7 @@ package tlsconfig
 import (
 	"crypto/tls"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -89,8 +90,14 @@ var ciphersMap = map[string]uint16{
 }
 
 func unknownCipher(name string) error {
-	// TODO(jeff): list available?
-	return fmt.Errorf("unknown cipher suite: %q", name)
+	available := make([]string, 0, len(ciphersMap))
+	for name := range ciphersMap {
+		available = append(available, name)
+	}
+	sort.Strings(available)
+
+	return fmt.Errorf("unknown cipher suite: %q. available ciphers: %s",
+		name, strings.Join(available, ", "))
 }
 
 var versionsMap = map[string]uint16{
@@ -104,6 +111,18 @@ var versionsMap = map[string]uint16{
 }
 
 func unknownVersion(name string) error {
-	// TODO(jeff): list available?
-	return fmt.Errorf("unknown tls version: %q", name)
+	available := make([]string, 0, len(versionsMap))
+	for name := range versionsMap {
+		// skip the ones that just begin with a number. they may be confusing
+		// due to the duplication, and just help if the user specifies without
+		// the TLS part.
+		if name[0] == '1' {
+			continue
+		}
+		available = append(available, name)
+	}
+	sort.Strings(available)
+
+	return fmt.Errorf("unknown tls version: %q. available versions: %s",
+		name, strings.Join(available, ", "))
 }
