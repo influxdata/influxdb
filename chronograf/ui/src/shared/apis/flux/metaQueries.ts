@@ -114,14 +114,16 @@ const tagsetFilter = (filter: SchemaFilter[]): string => {
   return `|> filter(fn: (r) => ${predicates.join(' and ')} )`
 }
 
-const metaQuery = async (source: Source, script: string) => {
+const metaQuery = async (source: Source, query: string) => {
   const url = source.links.query
+  const type = "flux"
   try {
     const response = await AJAX({
       method: 'POST',
       url,
       data: {
-        script,
+        type,
+        query,
       },
     })
 
