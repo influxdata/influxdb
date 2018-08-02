@@ -513,12 +513,6 @@ func writeUvarintTo(w io.Writer, v uint64, n *int64) error {
 	return err
 }
 
-type uint64Slice []uint64
-
-func (a uint64Slice) Len() int           { return len(a) }
-func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
-
 type byteSlices [][]byte
 
 func (a byteSlices) Len() int           { return len(a) }
