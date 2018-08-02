@@ -208,14 +208,36 @@
   version = "v1.38.1"
 
 [[projects]]
-  digest = "1:32e6bf93f32b6562d44dcdae34fd11a819224db80627bbc4ee108bfc01f81922"
+  digest = "1:8cab0d635f075344e3c0ee979c1995bb6880fba073a583bc52ab01df416e0a6b"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
+    "plugin/compare",
+    "plugin/defaultcheck",
+    "plugin/description",
+    "plugin/embedcheck",
+    "plugin/enumstringer",
+    "plugin/equal",
+    "plugin/face",
+    "plugin/gostring",
+    "plugin/marshalto",
+    "plugin/oneofcheck",
+    "plugin/populate",
+    "plugin/size",
+    "plugin/stringer",
+    "plugin/testgen",
+    "plugin/union",
+    "plugin/unmarshal",
     "proto",
     "protoc-gen-gogo/descriptor",
+    "protoc-gen-gogo/generator",
+    "protoc-gen-gogo/grpc",
+    "protoc-gen-gogo/plugin",
+    "protoc-gen-gogofaster",
     "sortkeys",
     "types",
+    "vanity",
+    "vanity/command",
   ]
   pruneopts = "UT"
   revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
@@ -1050,6 +1072,7 @@
     "github.com/elazarl/go-bindata-assetfs",
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
+    "github.com/gogo/protobuf/protoc-gen-gogofaster",
     "github.com/gogo/protobuf/types",
     "github.com/gonum/stat/distuv",
     "github.com/google/go-cmp/cmp",

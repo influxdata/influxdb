@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+package com.influxdata.platform.task.backend;
+
+option go_package = "backend";
+
+// StoreTaskMeta is the internal state of a task.
+message StoreTaskMeta {
+  int32 max_concurrency = 1;
+  int64 last_completed = 2;
+  repeated StoreTaskMetaRun currently_running = 3;
+}
+
+message StoreTaskMetaRun {
+  int64 now = 1;
+  uint32 try = 2;
+  bytes run_id = 3 [(gogoproto.customname) = "RunID"];
+}

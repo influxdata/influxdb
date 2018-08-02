@@ -11,7 +11,7 @@
 #    * All recursive Makefiles must support the targets: all and clean.
 #
 
-SUBDIRS := query
+SUBDIRS := query task
 GOBINDATA := $(shell go list -f {{.Root}}  github.com/kevinburke/go-bindata 2> /dev/null)
 UISOURCES := $(shell find chronograf/ui -type f -not \( -path chronograf/ui/build/\* -o -path chronograf/ui/node_modules/\* -prune \) )
 YARN := $(shell command -v yarn 2> /dev/null)
@@ -44,6 +44,7 @@ CMDS := \
 UTILS := \
 	bin/$(GOOS)/pigeon \
 	bin/$(GOOS)/cmpgen \
+	bin/$(GOOS)/protoc-gen-gogofaster \
 	bin/$(GOOS)/goreleaser
 
 # Default target to build all commands.
@@ -72,6 +73,9 @@ bin/$(GOOS)/pigeon: ./vendor/github.com/mna/pigeon/main.go
 
 bin/$(GOOS)/cmpgen: ./query/ast/asttest/cmpgen/main.go
 	go build -i -o $@ ./query/ast/asttest/cmpgen
+
+bin/$(GOOS)/protoc-gen-gogofaster: vendor $(call go_deps,./vendor/github.com/gogo/protobuf/protoc-gen-gogofaster)
+	$(GO_BUILD) -i -o $@ ./vendor/github.com/gogo/protobuf/protoc-gen-gogofaster
 
 bin/$(GOOS)/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
 	go build -i -o $@ ./vendor/github.com/goreleaser/goreleaser

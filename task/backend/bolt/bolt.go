@@ -3,7 +3,7 @@
 // The data stored in bolt is structured as follows:
 //
 //    bucket(/tasks/v1/tasks) key(:task_id) -> Content of submitted task (i.e. flux code).
-//    bucket(/tasks/v1/task_meta) Key(:task_id) -> Protocol Buffer encoded pb.StoredTaskInternalMeta,
+//    bucket(/tasks/v1/task_meta) Key(:task_id) -> Protocol Buffer encoded backend.StoreTaskMeta,
 //                                    so we have a consistent view of runs in progress and max concurrency.
 //    bucket(/tasks/v1/org_by_task_id) key(task_id) -> The organization ID (stored as encoded string) associated with given task.
 //    bucket(/tasks/v1/user_by_task_id) key(:task_id) -> The user ID (stored as encoded string) associated with given task.
@@ -29,7 +29,6 @@ import (
 	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
-	"github.com/influxdata/platform/task/backend/pb"
 )
 
 // ErrDBReadOnly is an error for when the database is set to read only.
@@ -157,7 +156,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		}
 
 		// metadata
-		stm := pb.StoredTaskInternalMeta{
+		stm := backend.StoreTaskMeta{
 			MaxConcurrency: int32(o.Concurrency),
 		}
 
@@ -335,7 +334,7 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 		return nil, err
 	}
 
-	stm := pb.StoredTaskInternalMeta{}
+	stm := backend.StoreTaskMeta{}
 	err = stm.Unmarshal(stmBytes)
 	if err != nil {
 		return nil, err
@@ -350,7 +349,7 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 	}, err
 }
 
-func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.StoredTaskInternalMeta, error) {
+func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.StoreTaskMeta, error) {
 	var stmBytes []byte
 	paddedID := padID(id)
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -365,7 +364,7 @@ func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.Store
 		return nil, err
 	}
 
-	stm := pb.StoredTaskInternalMeta{}
+	stm := backend.StoreTaskMeta{}
 	err = stm.Unmarshal(stmBytes)
 	if err != nil {
 		return nil, err
@@ -421,7 +420,7 @@ func (s *Store) DeleteTask(ctx context.Context, id platform.ID) (deleted bool, e
 // CreateRun adds `now` to the task's metaData if we have not exceeded 'max_concurrency'.
 func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (backend.QueuedRun, error) {
 	queuedRun := backend.QueuedRun{TaskID: append([]byte(nil), taskID...), Now: now}
-	stm := pb.StoredTaskInternalMeta{}
+	stm := backend.StoreTaskMeta{}
 	paddedID := padID(taskID)
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
@@ -432,15 +431,18 @@ func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (b
 		if len(stm.CurrentlyRunning) >= int(stm.MaxConcurrency) {
 			return ErrMaxConcurrency
 		}
-		intID, err := b.Bucket(runIDs).NextSequence()
+
+		id := make(platform.ID, 8)
+		idi, err := b.Bucket(runIDs).NextSequence()
 		if err != nil {
 			return err
 		}
 
-		running := &pb.StoredTaskInternalMeta_RunningList{
-			NowTimestampUnix: now,
-			Try:              1,
-			RunID:            intID,
+		binary.BigEndian.PutUint64(id, idi)
+		running := &backend.StoreTaskMetaRun{
+			Now:   now,
+			Try:   1,
+			RunID: id,
 		}
 
 		stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
@@ -449,9 +451,7 @@ func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (b
 			return err
 		}
 
-		var runID [8]byte
-		binary.BigEndian.PutUint64(runID[:], intID)
-		queuedRun.RunID = unpadID(runID[:])
+		queuedRun.RunID = id
 
 		return tx.Bucket(s.bucket).Bucket(taskMetaPath).Put(paddedID, stmBytes)
 	}); err != nil {
@@ -463,10 +463,8 @@ func (s *Store) CreateRun(ctx context.Context, taskID platform.ID, now int64) (b
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
-	stm := pb.StoredTaskInternalMeta{}
+	stm := backend.StoreTaskMeta{}
 	paddedID := padID(taskID)
-
-	intID := binary.BigEndian.Uint64(padID(runID))
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(s.bucket)
@@ -476,11 +474,11 @@ func (s *Store) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 		}
 		found := false
 		for i, runner := range stm.CurrentlyRunning {
-			if runner.RunID == intID {
+			if platform.ID(runner.RunID).String() == runID.String() {
 				found = true
 				stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
-				if runner.NowTimestampUnix > stm.LastCompletedTimestampUnix {
-					stm.LastCompletedTimestampUnix = runner.NowTimestampUnix
+				if runner.Now > stm.LastCompleted {
+					stm.LastCompleted = runner.Now
 					break
 				}
 			}

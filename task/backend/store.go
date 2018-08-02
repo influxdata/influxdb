@@ -1,5 +1,9 @@
 package backend
 
+// The tooling needed to correctly run go generate is managed by the Makefile.
+// Run `make` from the project root to ensure these generate commands execute correctly.
+//go:generate protoc -I ../../vendor -I . --plugin ../../bin/${GOOS}/protoc-gen-gogofaster --gogofaster_out=plugins=grpc:. ./meta.proto
+
 import (
 	"context"
 	"errors"
@@ -8,7 +12,6 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/task/backend/pb"
 	"github.com/influxdata/platform/task/options"
 )
 
@@ -35,7 +38,7 @@ type Store interface {
 	FindTaskByID(ctx context.Context, id platform.ID) (*StoreTask, error)
 
 	// FindTaskMetaByID returns the metadata about a task.
-	FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.StoredTaskInternalMeta, error)
+	FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error)
 
 	// DeleteTask returns whether an entry matching the given ID was deleted.
 	// If err is non-nil, deleted is false.
@@ -75,6 +78,7 @@ type NopLogWriter struct{}
 func (NopLogWriter) UpdateRunState(context.Context, *StoreTask, platform.ID, time.Time, RunStatus) error {
 	return nil
 }
+
 func (NopLogWriter) AddRunLog(context.Context, *StoreTask, platform.ID, time.Time, string) error {
 	return nil
 }
