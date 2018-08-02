@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
+	"github.com/influxdata/influxdb/pkg/tlsconfig"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -62,6 +63,9 @@ type Config struct {
 
 	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
 	BindAddress string `toml:"bind-address"`
+
+	// TLS provides configuration options for all https endpoints.
+	TLS tlsconfig.Config `toml:"tls"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -186,6 +190,10 @@ func (c *Config) Validate() error {
 		if err := collectd.Validate(); err != nil {
 			return fmt.Errorf("invalid collectd config: %v", err)
 		}
+	}
+
+	if err := c.TLS.Validate(); err != nil {
+		return err
 	}
 
 	return nil

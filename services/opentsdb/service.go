@@ -47,9 +47,10 @@ type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
-	wg   sync.WaitGroup
-	tls  bool
-	cert string
+	wg        sync.WaitGroup
+	tls       bool
+	tlsConfig *tls.Config
+	cert      string
 
 	mu    sync.RWMutex
 	ready bool          // Has the required database been created?
@@ -86,6 +87,7 @@ func NewService(c Config) (*Service, error) {
 
 	s := &Service{
 		tls:             d.TLSEnabled,
+		tlsConfig:       d.TLS,
 		cert:            d.Certificate,
 		BindAddress:     d.BindAddress,
 		Database:        d.Database,
@@ -98,6 +100,10 @@ func NewService(c Config) (*Service, error) {
 		stats:           &Statistics{},
 		defaultTags:     models.StatisticTags{"bind": d.BindAddress},
 	}
+	if s.tlsConfig == nil {
+		s.tlsConfig = new(tls.Config)
+	}
+
 	return s, nil
 }
 
@@ -127,9 +133,10 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		listener, err := tls.Listen("tcp", s.BindAddress, &tls.Config{
-			Certificates: []tls.Certificate{cert},
-		})
+		tlsConfig := s.tlsConfig.Clone()
+		tlsConfig.Certificates = []tls.Certificate{cert}
+
+		listener, err := tls.Listen("tcp", s.BindAddress, tlsConfig)
 		if err != nil {
 			return err
 		}

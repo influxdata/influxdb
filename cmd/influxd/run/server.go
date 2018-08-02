@@ -1,6 +1,7 @@
 package run
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
@@ -101,8 +102,30 @@ type Server struct {
 	config *Config
 }
 
+// updateTLSConfig stores with into the tls config pointed at by into but only if with is not nil
+// and into is nil. Think of it as setting the default value.
+func updateTLSConfig(into **tls.Config, with *tls.Config) {
+	if with != nil && into != nil && *into == nil {
+		*into = with
+	}
+}
+
 // NewServer returns a new instance of Server built from a config.
 func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
+	// First grab the base tls config we will use for all clients and servers
+	tlsConfig, err := c.TLS.Parse()
+	if err != nil {
+		return nil, fmt.Errorf("tls configuration: %v", err)
+	}
+
+	// Update the TLS values on each of the configs to be the parsed one if
+	// not already specified (set the default).
+	updateTLSConfig(&c.HTTPD.TLS, tlsConfig)
+	updateTLSConfig(&c.Subscriber.TLS, tlsConfig)
+	for i := range c.OpenTSDBInputs {
+		updateTLSConfig(&c.OpenTSDBInputs[i].TLS, tlsConfig)
+	}
+
 	// We need to ensure that a meta directory always exists even if
 	// we don't start the meta store.  node.json is always stored under
 	// the meta directory.
@@ -122,7 +145,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
-	_, err := influxdb.LoadNode(c.Meta.Dir)
+	_, err = influxdb.LoadNode(c.Meta.Dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
