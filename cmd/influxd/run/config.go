@@ -62,6 +62,9 @@ type Config struct {
 
 	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
 	BindAddress string `toml:"bind-address"`
+
+	// TLS provides configuration options for all https endpoints.
+	TLS TLSConfig `toml:"tls"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
