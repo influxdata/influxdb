@@ -116,6 +116,9 @@ type Index struct {
 	partitions []*Partition
 	opened     bool
 
+	cacheMu sync.RWMutex
+	sscache map[string]map[string]map[string]*tsdb.SeriesIDSet
+
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
 	disableCompactions bool        // Initially disables compactions on the index.
@@ -146,6 +149,7 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
+		sscache:        map[string]map[string]map[string]*tsdb.SeriesIDSet{},
 		maxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 		logger:         zap.NewNop(),
 		version:        Version,
@@ -878,8 +882,53 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 	return tsdb.MergeSeriesIDIterators(a...), nil
 }
 
+func (i *Index) tagValueSeriesIDSet(name, key, value []byte) *tsdb.SeriesIDSet {
+	i.cacheMu.RLock()
+	defer i.cacheMu.RUnlock()
+	if tkmap, ok := i.sscache[string(name)]; ok {
+		if tvmap, ok := tkmap[string(key)]; ok {
+			if ss, ok := tvmap[string(value)]; ok {
+				return ss.Clone() // to be safe.
+			}
+		}
+	}
+	return nil
+}
+
+func (i *Index) putTagValueSeriesIDSet(name, key, value []byte, ss *tsdb.SeriesIDSet) *tsdb.SeriesIDSet {
+	i.cacheMu.Lock()
+	defer i.cacheMu.Unlock()
+	if mmap, ok := i.sscache[string(name)]; ok {
+		if tkmap, ok := mmap[string(key)]; ok {
+
+			if _, ok := tkmap[string(value)]; ok {
+				// Already have it. Can happen with concurrent write.
+				fmt.Println("ALREADY HAVE IT")
+			}
+
+			// Add the set to the map
+			tkmap[string(value)] = ss
+		}
+
+		// No series set map for the tag key
+		mmap[string(key)] = map[string]*tsdb.SeriesIDSet{string(value): ss}
+	}
+
+	// No map for the measurement
+	i.sscache[string(name)] = map[string]map[string]*tsdb.SeriesIDSet{
+		string(key): map[string]*tsdb.SeriesIDSet{string(value): ss},
+	}
+	return nil
+}
+
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+	// Check series ID set cache...
+	if ss := i.tagValueSeriesIDSet(name, key, value); ss != nil {
+		// fmt.Printf("Using cached set for %q %q %q\n", name, key, value)
+		return tsdb.NewSeriesIDSetIterator(ss), nil
+	}
+
 	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
 		itr, err := p.TagValueSeriesIDIterator(name, key, value)
@@ -889,7 +938,15 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 			a = append(a, itr)
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...), nil
+
+	itr := tsdb.MergeSeriesIDIterators(a...)
+
+	// Check if the iterator contains only series id sets. Cache them...
+	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
+		// fmt.Printf("Caching set for %q %q %q\n", name, key, value)
+		i.putTagValueSeriesIDSet(name, key, value, ssitr.SeriesIDSet())
+	}
+	return itr, nil
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
