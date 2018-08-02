@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"crypto/tls"
 	"time"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -50,6 +51,7 @@ type Config struct {
 	MaxConcurrentWriteLimit int           `toml:"max-concurrent-write-limit"`
 	MaxEnqueuedWriteLimit   int           `toml:"max-enqueued-write-limit"`
 	EnqueuedWriteTimeout    time.Duration `toml:"enqueued-write-timeout"`
+	TLS                     *tls.Config   `toml:"-"`
 }
 
 // NewConfig returns a new Config with default settings.

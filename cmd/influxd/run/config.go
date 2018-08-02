@@ -191,6 +191,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if err := c.TLS.Validate(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

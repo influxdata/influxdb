@@ -12,11 +12,18 @@ type TLSConfig struct {
 	MaxVersion string   `toml:"max-version"`
 }
 
-func ParseTLSConfig(config TLSConfig) (*tls.Config, error) {
-	out := new(tls.Config)
+func (c TLSConfig) Validate() error {
+	_, err := c.Parse()
+	return err
+}
 
-	if len(config.Ciphers) > 0 {
-		for _, name := range config.Ciphers {
+func (c TLSConfig) Parse() (out *tls.Config, err error) {
+	if len(c.Ciphers) > 0 {
+		if out == nil {
+			out = new(tls.Config)
+		}
+
+		for _, name := range c.Ciphers {
 			cipher, ok := ciphersMap[strings.ToUpper(name)]
 			if !ok {
 				return nil, unknownCipher(name)
@@ -25,18 +32,26 @@ func ParseTLSConfig(config TLSConfig) (*tls.Config, error) {
 		}
 	}
 
-	if config.MinVersion != "" {
-		version, ok := versionsMap[strings.ToUpper(config.MinVersion)]
+	if c.MinVersion != "" {
+		if out == nil {
+			out = new(tls.Config)
+		}
+
+		version, ok := versionsMap[strings.ToUpper(c.MinVersion)]
 		if !ok {
-			return nil, unknownVersion(config.MinVersion)
+			return nil, unknownVersion(c.MinVersion)
 		}
 		out.MinVersion = version
 	}
 
-	if config.MaxVersion != "" {
-		version, ok := versionsMap[strings.ToUpper(config.MaxVersion)]
+	if c.MaxVersion != "" {
+		if out == nil {
+			out = new(tls.Config)
+		}
+
+		version, ok := versionsMap[strings.ToUpper(c.MaxVersion)]
 		if !ok {
-			return nil, unknownVersion(config.MaxVersion)
+			return nil, unknownVersion(c.MaxVersion)
 		}
 		out.MaxVersion = version
 	}
@@ -77,8 +92,11 @@ func unknownCipher(name string) error {
 var versionsMap = map[string]uint16{
 	"SSL3.0": tls.VersionSSL30,
 	"TLS1.0": tls.VersionTLS10,
+	"1.0":    tls.VersionTLS11,
 	"TLS1.1": tls.VersionTLS11,
+	"1.1":    tls.VersionTLS11,
 	"TLS1.2": tls.VersionTLS12,
+	"1.2":    tls.VersionTLS12,
 }
 
 func unknownVersion(name string) error {
