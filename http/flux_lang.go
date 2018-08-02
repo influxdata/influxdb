@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	query "github.com/desa/platform/query/builtin"
+	query "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/parser"
 	"github.com/julienschmidt/httprouter"
 )

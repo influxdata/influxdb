@@ -50,10 +50,11 @@ interface GetTimeSeriesResult {
 
 export const getTimeSeries = async (
   url: string, // query URI
-  script: string
+  query: string
 ): Promise<GetTimeSeriesResult> => {
   let responseBody: string
   let responseByteLength: number
+  const type = 'flux'
 
   try {
     // We are using the `fetch` API here since the `AJAX` utility lacks support
@@ -64,7 +65,7 @@ export const getTimeSeries = async (
     // https://github.com/axios/axios/issues/1491.
     const resp = await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({script}),
+      body: JSON.stringify({query, type}),
     })
 
     const {body, byteLength} = await decodeFluxRespWithLimit(resp)
