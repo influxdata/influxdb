@@ -116,7 +116,7 @@ const tagsetFilter = (filter: SchemaFilter[]): string => {
 
 const metaQuery = async (source: Source, query: string) => {
   const url = source.links.query
-  const type = "flux"
+  const type = 'flux'
   try {
     const response = await AJAX({
       method: 'POST',

@@ -1,24 +1,35 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
+/// Components
 import TimeMachine from 'src/flux/components/TimeMachine'
-import {ErrorHandling} from 'src/shared/decorators/errors'
 import KeyboardShortcuts from 'src/shared/components/KeyboardShortcuts'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 
+// APIs
+import {getSuggestions, getAST, getTimeSeries} from 'src/flux/apis'
+
+// Constants
 import {
   validateSuccess,
   fluxTimeSeriesError,
   fluxResponseTruncatedError,
 } from 'src/shared/copy/notifications'
-import {UpdateScript} from 'src/flux/actions'
-
-import {bodyNodes} from 'src/flux/helpers'
-import {getSuggestions, getAST, getTimeSeries} from 'src/flux/apis'
 import {builder, argTypes, emptyAST} from 'src/flux/constants'
-import {getDeep} from 'src/utils/wrappers'
 
+// Actions
+import {
+  UpdateScript,
+  updateScript as updateScriptAction,
+} from 'src/flux/actions'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+
+// Utils
+import {bodyNodes} from 'src/flux/helpers'
+
+// Types
 import {Source, Notification, FluxTable} from 'src/types'
 import {
   Suggestion,
@@ -30,6 +41,8 @@ import {
   Func,
   ScriptStatus,
 } from 'src/types/flux'
+
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Status {
   type: string
@@ -124,33 +137,6 @@ export class FluxPage extends PureComponent<Props, State> {
     )
   }
 
-<<<<<<< HEAD
-  private get header(): JSX.Element {
-    const {services, onGoToEditFlux} = this.props
-
-    if (!services.length) {
-      return null
-    }
-
-    return (
-      <FluxHeader
-        service={this.service}
-        services={services}
-        onGoToEditFlux={onGoToEditFlux}
-      />
-    )
-  }
-
-  private get service(): Service {
-    const {services} = this.props
-    const activeService = services.find(s => {
-      return getDeep<boolean>(s, 'metadata.active', false)
-    })
-    return activeService || services[0]
-  }
-
-=======
->>>>>>> feature(chronograf): use sources instead of services for flux builder
   private get getContext(): Context {
     return {
       onAddNode: this.handleAddNode,
@@ -691,6 +677,11 @@ export class FluxPage extends PureComponent<Props, State> {
   }
 }
 
+const mdtp = {
+  updateScript: updateScriptAction,
+  notify: notifyAction,
+}
+
 const mstp = ({links, script}) => {
   return {
     links: links.flux,
@@ -698,4 +689,4 @@ const mstp = ({links, script}) => {
   }
 }
 
-export default connect(mstp, null)(FluxPage)
+export default connect(mstp, mdtp)(FluxPage)
