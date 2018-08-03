@@ -56,14 +56,6 @@ class SideNav extends PureComponent<Props> {
           </Link>
         </div>
         <NavBlock
-          highlightWhen={['hosts']}
-          icon="eye"
-          link={`${sourcePrefix}/hosts`}
-          location={location}
-        >
-          <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
-        </NavBlock>
-        <NavBlock
           highlightWhen={['delorean']}
           icon="capacitor2"
           link={`${sourcePrefix}/delorean`}

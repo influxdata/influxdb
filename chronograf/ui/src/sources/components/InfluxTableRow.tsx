@@ -65,7 +65,7 @@ class InfluxTableRow extends PureComponent<Props> {
     return (
       <Link
         className="btn btn-default btn-xs source-table--connect"
-        to={`/sources/${source.id}/hosts`}
+        to={`/sources/${source.id}/manage-sources`}
       >
         Connect
       </Link>
