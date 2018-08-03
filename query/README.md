@@ -5,47 +5,68 @@ servers.
 
 `fluxd` runs on port `8093` by default
 
-### Specification
+## Specification
 
 A complete specification can be found in [SPEC.md](./docs/SPEC.md).
 
-### INSTALLATION
+## Installation
 
-1. Use InfluxDB nightly builds, which can be found here: https://portal.influxdata.com/downloads .
+### Generic Installation
 
+1. Use InfluxDB nightly builds, which can be found here: https://portal.influxdata.com/downloads. Write data to the instance by using telegraf or some other data source.
 
-2. Update the InfluxDB configuration file to enable **Flux** processing; restart
-the InfluxDB server. InfluxDB will open port `8082` to accept **Flux** queries.
+**Note:** InfluxDB uses port `8082` for handling Flux queries. Ensure this port is accessible. _This port has no authentication._
 
-> **This port has no authentication.**
+2. Download `fluxd` from nightly builds: https://portal.influxdata.com/downloads .
 
-> **The config uses the name `ifql` which is an older name for Flux.**
-
-```
-[ifql]
-  enabled = true
-  log-enabled = true
-  bind-address = ":8082"
-```
-
-3. Download `fluxd` from nightly builds: https://portal.influxdata.com/downloads .
-
-4. Start `fluxd` with the InfluxDB host and port of `8082`.
-To run in federated mode (see below), add the `--host` option for each InfluxDB host.
+3. Start `fluxd`. It will connect to the default host and port which is `localhost:8082`.
+To run in federated mode, add the `--storage-hosts` option with each host separated by a comma.
 
 ```sh
-fluxd --verbose --host localhost:8082
+fluxd --storage-hosts localhost:8082
 ```
 
-5. To run a query POST an **Flux** query string to `/v1/query` as the `q` parameter:
+4. To run a query, POST a **Flux** query string to `/v1/query` as the `q` parameter:
+
 ```sh
 curl -XPOST --data-urlencode \
 'q=from(db:"telegraf")
     |> filter(fn: (r) => r["_measurement"] == "cpu" AND r["_field"] == "usage_user")
     |> range(start:-170h)
     |> sum()' \
-http://localhost:8093/v1/query
+http://localhost:8093/v1/query?orgName=my-org
 ```
+
+Any value can be used for the `orgName` parameter. It does not apply to running flux queries against the InfluxDB 1.x nightlies.
+
+### Docker Installation
+
+There are now images for Flux and InfluxDB nightlies. If you have docker installed on your machine, this can be an easier method of trying out Flux on your local computer.
+
+1. Create a docker network.
+
+```sh
+docker network create influxdb
+```
+
+2. Start the InfluxDB nightly. You can use either the `nightly` or `nightly-alpine` tag.
+
+```sh
+docker volume create influxdb
+docker run -d --name=influxdb --net=influxdb -p 8086:8086 -v influxdb:/var/lib/influxdb quay.io/influxdb/influxdb:nightly
+```
+
+**Note:** If you run `influxd` in a container and `fluxd` outside of a container, you must add `-p 8082:8082` to expose the flux port.
+
+3. Start fluxd using the nightly image. There is no `alpine` image for this yet.
+
+```sh
+docker run -d --name=flux --net=influxdb -p 8093:8093 quay.io/influxdb/flux:nightly
+```
+
+4. Follow the instructions from the General Installation section for how to query the server.
+
+5. When updating, ensure that you pull both nightlies and restart them at the same time. We are making changes often and using the nightlies from the same night will result in fewer problems than only updating one of them.
 
 ### Prometheus metrics
 
@@ -54,567 +75,137 @@ Metrics are exposed on `/metrics`.
 
 ### Federated Mode
 
-By passing the `--host` option multiple times `fluxd` will query multiple
-InfluxDB servers.
+By passing multiple hosts to the `--storage-hosts` option, `fluxd` will query multiple InfluxDB servers.
 
 For example:
 
 ```sh
-fluxd --host influxdb1:8082 --host influxdb2:8082
+fluxd --storage-hosts influxdb1:8082,influxdb2:8082
 ```
 
-The results from multiple InfluxDB are merged together as if there was
-one server.
+The results from multiple InfluxDB are merged together as if there was one server.
+
+## Getting Started
+
+Flux runs a query by reading a data source into a collection of tables and then passing each table through transformation steps to describe the desired query operations. Each table is composed of zero or more rows. Transformations are represented as functions which take a table of data as an input argument and return a new table that has been transformed. There are also special functions that combine and separate existing tables into new tables with a different grouping.
 
 ### Basic Syntax
 
-Flux constructs a query by starting with a table of data and passing the table through transformations steps to describe the desired query operations.
-Transformations are represented as functions which take a table of data as an input argument and return a new table that has been transformed.
-There is a special function `from` which is a source function, meaning it does not accept a table as input, but rather produces a table.
-All other transformation functions accept at least one table and return a table as a result.
-
-For example to get the last point for each series in a database you start by creating a table using `from` and then pass that table into the `limit` function.
+All queries begin with the function `from`. It is a source function that does not accept any input, but produces a stream of tables as output. All queries must be followed by a `range` function which will limit the time range that data is selected from. Even if you want all data, you must specify a time range. This is so it is explicit that a user wants to query the entire database instead of the much more common range of time data.
 
 ```
-// Select the last point per series in the telegraf database.
-limit(table:from(db:"telegraf"), n:1)
+from(db: "telegraf") |> range(start: -5m)
 ```
 
-Since it is common to chain long lists of transformations together the pipe forward operator `|>` can be used to make reading the code easier.
-These two expressions are equivalent:
+Function parameters are all keyword arguments. There are no positional arguments. The `from` function takes a single parameter: `db`. This specifies the InfluxDB database it should read from. At the moment, it is not possible to read from anything other than the default retention policy for a database. The `from` function will organize the data so that each series is its own table. That means that all transformations will happen _per series_ unless this is changed by using `group` or `window` (explained below). If you are familiar with InfluxDB 1.x, this is the opposite of InfluxQL's default behavior. InfluxQL would automatically group all series into the same table.
+
+Functions are separated by the `|>` operator. This operator will take the stream of tables from one function and it will send it as input to another function that takes a stream of tables as the input. In this case, the `from` function outputs a stream of tables and sends that output to the `range` function which filters out any rows from each table that are not within the specified time range. The `range` function takes two parameters: `start` and `stop`. The default `stop` time is the current time and a duration, like `-5m`, can be used to specify a relative time from the current time. That means the above query is asking for all data within the last 5 minutes.
+
+The `from` function creates a table where each row has the following attributes:
+
+* `_measurement` - the measurement of the series
+* `_field` - the field of the series
+* `_value` - the output value
+* `_start` - the start time of the table (equal to the range start)
+* `_stop` - the stop time of the table (equal to the range stop)
+* `_time` - the time for each row
+
+The `|>` operator is used extensively in flux so you will see it in all of the query examples. Each transformation can be chained to another transformation so, while the examples below will be simple, they can be combined to yield the desired query and table structure.
+
+### Filter rows with an anonymous function
+
+The rows can be filtered by using the `filter` function. When communicating with `influxd`, the measurement name is put into the `_measurement` tag and the field name is put into the `_field` tag. If you wanted to filter by a specific measurement or field, you could do that by using filter like this:
 
 ```
-// Select the last point per series in the telegraf database.
-limit(table:from(db:"telegraf"), n:1)
-
-
-// Same as above, but uses the pipe forward operator to indicate the flow of data.
-from(db:"telegraf") |> limit(n:1)
+from(db: "telegraf") |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
 ```
 
+The `filter` function takes a function returning a boolean as its only parameter. The function parameter name is `fn`. An anonymous function is defined by using parenthesis to specify the function arguments, using the `=>` operator, and then either followed by a single line with the expression. See the User Defined Functions section for more information about defining functions and how to create your own.
 
-Long list of functions can thus be chained together:
+When accessing data in a table, dot syntax or indexing syntax can be used. In the above, we used dot syntax. You can also use the indexing syntax like this: `r["_measurement"]`. This document will use the dot syntax, but either one can be used anywhere.
 
-```
-// Get the first point per host from the last minute of data.
-from(db:"telegraf") |> range(start:-1m) |> group(by:["host"]) |> first()
-```
+It is also common in flux to break up longer lines by including a newline between the different function calls. It is convention to have a newline followed by a tab and the pipe operator before writing the next function.
 
+### Limit the number of rows
 
-
-### Supported Functions
-
-Below is a list of supported functions.
-
-#### from
-
-Starting point for all queires. Get data from the specified database.
-
-Example: `from(db:"telegraf")`
-
-##### options
-* `db` string
-    `from(db:"telegraf")`
-
-* `hosts` array of strings
-    `from(db:"telegraf", hosts:["host1", "host2"])`
-
-#### count
-
-Counts the number of results
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example: `from(db:"telegraf") |> count()`
-
-#### filter
-
-Filters the results using an expression
-
-Example:
-```
-from(db:"foo")
-    |> filter(fn: (r) => r["_measurement"]=="cpu" AND
-                r["_field"] == "usage_system" AND
-                r["service"] == "app-server")
-    |> range(start:-12h)
-    |> max()
-```
-
-##### options
-
-* `fn` function(record) bool
-
-Function to when filtering the records.
-The function must accept a single parameter which will be the records and return a boolean value.
-Records which evaluate to true, will be included in the results.
-
-
-#### first
-
-Returns the first result of the query
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example: `from(db:"telegraf") |> first()`
-
-#### group
-Groups results by a user-specified set of tags
-
-##### options
-
-*  `by` array of strings
-Group by these specific tag names
-Cannot be used with `except` option
-
-Example: `from(db: "telegraf") |> range(start: -30m) |> group(by: ["tag_a", "tag_b"])`
-
-*  `keep` array of strings
-Keep specific tag keys that were not in `by` in the results
-
-Example: `from(db: "telegraf") |> range(start: -30m) |> group(by: ["tag_a", "tag_b"], keep:["tag_c"])`
-*  `except` array of strings
-Group by all but these tag keys
-Cannot be used with `by` option
-
-Example: `from(db: "telegraf") |> range(start: -30m) |> group(except: ["tag_a"], keep:["tag_b", "tag_c"])`
-
-#### join
-
-Join two time series together on time and the list of `on` keys.
-
-Example:
+The `limit` function can be used to limit the number of points in each table. It takes a single parameter which is `n`.
 
 ```
-cpu = from(db: "telegraf") |> filter(fn: (r) => r["_measurement"] == "cpu" and r["_field"] == "usage_user") |> range(start: -30m)
-mem = from(db: "telegraf") |> filter(fn: (r) => r["_measurement"] == "mem" and r["_field"] == "used_percent") |> range(start: -30m)
-join(tables:{cpu:cpu, mem:mem}, on:["host"], fn: (tables) => tables.cpu["_value"] + tables.mem["_value"])
+from(db: "telegraf") |> range(start: -5m) |> limit(n: 1)
 ```
 
-##### options
+### Aggregates and Selectors
 
-* `tables` map of tables
-Map of tables to join. Currently only two tables are allowed.
+Aggregates and selectors will execute the aggregation/selection function on each table. The output is defined for each function, but most aggregates will output a single row for each table and most selectors will select a single row for each table.
 
-* `on` array of strings
-List of tag keys that when equal produces a result set.
+To find the mean of each table, you could use the `mean()` function.
 
-* `fn`
-
-Defines the function that merges the values of the tables.
-The function must defined to accept a single parameter.
-The parameter is a map, which uses the same keys found in the `tables` map.
-The function is called for each joined set of records from the tables.
-
-#### last
-
-Returns the last result of the query
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example: `from(db: "telegraf") |> last()`
-
-#### limit
-Restricts the number of rows returned in the results.
-
-Example: `from(db: "telegraf") |> limit(n: 10)`
-
-#### map
-
-Applies a function to each row of the table.
-
-##### options
-
-* `fn` function
-
-Function to apply to each row. The return value of the function may be a single value or an object.
-
-Example:
 ```
-from(db:"foo")
-    |> filter(fn: (r) => r["_measurement"]=="cpu" AND
-                r["_field"] == "usage_system" AND
-                r["service"] == "app-server")
-    |> range(start:-12h)
-    // Square the value
-    |> map(fn: (r) => r._value * r._value)
+from(db: "telegraf") |> range(start: -5m) |> mean()
 ```
 
-Example:
+If you wanted to find the maximum value in each table, you could use `max()`.
+
 ```
-from(db:"foo")
-    |> filter(fn: (r) => r["_measurement"]=="cpu" AND
-                r["_field"] == "usage_system" AND
-                r["service"] == "app-server")
-    |> range(start:-12h)
-    // Square the value and keep the original value
-    |> map(fn: (r) => ({value: r._value, value2:r._value * r._value}))
+from(db: "telegraf") |> range(start: -5m) |> max()
 ```
 
-#### max
+The full list of aggregation and selection functions is located in the spec.
 
-Returns the max value within the results
+### Grouping and Windowing
 
-##### options
+Since flux will group each series into its own table, we sometimes need to modify this grouping if we wanted to combine different series. As an example, what if we wanted to know the average user cpu usage for each AWS region? A common schema would be to have two tags: `region` and `host`. We would write that query like this:
 
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example:
 ```
-from(db:"foo")
-    |> filter(fn: (r) => r["_measurement"]=="cpu" AND
-                r["_field"] == "usage_system" AND
-                r["service"] == "app-server")
-    |> range(start:-12h)
-    |> window(every:10m)
-    |> max()
-```
-
-#### mean
-
-Returns the mean of the values within the results
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example:
-```
-from(db:"foo")
-    |> filter(fn: (r) => r["_measurement"] == "mem" AND
-            r["_field"] == "used_percent")
-    |> range(start:-12h)
-    |> window(every:10m)
+from(db: "telegraf") |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
+    |> group(by: ["region"])
     |> mean()
 ```
 
-#### min
+The `group` function would take every row that had the same `region` value and put it into a single table. If we had servers in two different regions, it would result in us having two different tables.
 
-Returns the min value within the results
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example:
-```
-from(db:"foo")
-    |> filter(fn: (r) => r[ "_measurement"] == "cpu" AND
-               r["_field" ]== "usage_system")
-    |> range(start:-12h)
-    |> window(every:10m, period: 5m)
-    |> min()
-```
-
-
-#### range
-Filters the results by time boundaries
-
-Example:
-```
-from(db:"foo")
-    |> filter(fn: (r) => r["_measurement"] == "cpu" AND
-               r["_field"] == "usage_system")
-    |> range(start:-12h, stop: -15m)
-```
-
-##### options
-* start duration
-Specifies the oldest time to be included in the results
-
-* stop duration or timestamp
-Specifies exclusive upper time bound
-Defaults to "now"
-
-#### sample
-
-Sample values from a table.
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-* `n`
-Sample every Nth element
-* `pos`
-Position offset from start of results to begin sampling
-`pos` must be less than `n`
-If `pos` less than 0, a random offset is used.
-Default is -1 (random offset)
-
-Example to sample every fifth point starting from the second element:
-```
-from(db:"foo")
-    |> filter(fn: (r) => r["_measurement"] == "cpu" AND
-               r["_field"] == "usage_system")
-    |> range(start:-1d)
-    |> sample(n: 5, pos: 1)
-```
-
-#### set
-Add tag of key and value to set
-Example: `from(db: "telegraf") |> set(key: "mykey", value: "myvalue")`
-##### options
-* `key` string
-* `value` string
-
-#### skew
-
-Skew of the results
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example: `from(db: "telegraf") |> range(start: -30m, stop: -15m) |> skew()`
-
-#### sort
-Sorts the results by the specified columns
-Default sort is ascending
-
-Example:
-```
-from(db:"telegraf")
-    |> filter(fn: (r) => r["_measurement"] == "system" AND
-               r["_field"] == "uptime")
-    |> range(start:-12h)
-    |> sort(cols:["region", "host", "value"])
-```
-
-##### options
-* `cols` array of strings
-List of columns used to sort; precedence from left to right.
-Default is `["value"]`
-
-For example, this sorts by uptime descending to find the longest
-running instances.
+Similarly, if we wanted to group points into buckets of time, the `window` function can do that. We can modify the above function to give us the mean for every minute pretty easily.
 
 ```
-from(db:"telegraf")
-    |> filter(fn: (r) => r["_measurement"] == "system" AND
-               r["_field"] == "uptime")
-    |> range(start:-12h)
-    |> sort(desc: true)
+from(db: "telegraf") |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
+    |> group(by: ["region"])
+    |> window(every: 1m)
+    |> mean()
 ```
 
-* `desc` bool
-Sort results descending
+### Map
 
-#### spread
-
-Difference between min and max values
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example: `from(db: "telegraf") |> range(start: -30m) |> spread()`
-
-#### stddev
-
-Standard Deviation of the results
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example: `from(db: "telegraf") |> range(start: -30m, stop: -15m) |> stddev()`
-
-#### sum
-
-Sum of the results
-
-##### options
-
-*  `useStartTime` boolean
-Use the start time as the timestamp of the resulting aggregate.
-
-Example: `from(db: "telegraf") |> range(start: -30m, stop: -15m) |> sum()`
-
-### toBool
-
-Convert a value to a bool.
-
-Example: `from(db: "telegraf") |> filter(fn:(r) => r._measurement == "mem" and r._field == "used") |> toBool()`
-
-The function `toBool` is defined as `toBool = (table=<-) => table |> map(fn:(r) => bool(v:r._value))`.
-If you need to convert other columns use the `map` function directly with the `bool` function.
-
-### toInt
-
-Convert a value to a int.
-
-Example: `from(db: "telegraf") |> filter(fn:(r) => r._measurement == "mem" and r._field == "used") |> toInt()`
-
-The function `toInt` is defined as `toInt = (table=<-) => table |> map(fn:(r) => int(v:r._value))`.
-If you need to convert other columns use the `map` function directly with the `int` function.
-
-### toFloat
-
-Convert a value to a float.
-
-Example: `from(db: "telegraf") |> filter(fn:(r) => r._measurement == "mem" and r._field == "used") |> toFloat()`
-
-The function `toFloat` is defined as `toFloat = (table=<-) => table |> map(fn:(r) => float(v:r._value))`.
-If you need to convert other columns use the `map` function directly with the `float` function.
-
-### toDuration
-
-Convert a value to a duration.
-
-Example: `from(db: "telegraf") |> filter(fn:(r) => r._measurement == "mem" and r._field == "used") |> toDuration()`
-
-The function `toDuration` is defined as `toDuration = (table=<-) => table |> map(fn:(r) => duration(v:r._value))`.
-If you need to convert other columns use the `map` function directly with the `duration` function.
-
-### toString
-
-Convert a value to a string.
-
-Example: `from(db: "telegraf") |> filter(fn:(r) => r._measurement == "mem" and r._field == "used") |> toString()`
-
-The function `toString` is defined as `toString = (table=<-) => table |> map(fn:(r) => string(v:r._value))`.
-If you need to convert other columns use the `map` function directly with the `string` function.
-
-### toTime
-
-Convert a value to a time.
-
-Example: `from(db: "telegraf") |> filter(fn:(r) => r._measurement == "mem" and r._field == "used") |> toTime()`
-
-The function `toTime` is defined as `toTime = (table=<-) => table |> map(fn:(r) => time(v:r._value))`.
-If you need to convert other columns use the `map` function directly with the `time` function.
-
-### toUInt
-
-Convert a value to a uint.
-
-Example: `from(db: "telegraf") |> filter(fn:(r) => r._measurement == "mem" and r._field == "used") |> toUInt()`
-
-The function `toUInt` is defined as `toUInt = (table=<-) => table |> map(fn:(r) => uint(v:r._value))`.
-If you need to convert other columns use the `map` function directly with the `uint` function.
-
-
-#### window
-
-Groups the results by a given time range
-
-##### options
-* `every` duration
-Duration of time between windows
-
-Defaults to `period`'s value
-```
-from(db:"foo")
-    |> range(start:-12h)
-    |> window(every:10m)
-    |> max()
-```
-
-* `period` duration
-Duration of the windowed parition
-```
-from(db:"foo")
-    |> range(start:-12h)
-    |> window(every:10m)
-    |> max()
-```
-
-Default to `every`'s value
-* `start` time
-The time of the initial window parition.
-
-* `round` duration
-Rounds a window's bounds to the nearest duration
-
-Example:
-```
-from(db:"foo")
-    |> range(start:-12h)
-    |> window(every:10m)
-    |> max()
-```
-
-### Custom Functions
-
-Flux also allows the user to define their own functions.
-The function syntax is:
+It is also possible to perform math and rename the columns by using the `map` function. The `map` function takes a function and will execute that function on each row to output a new row for the output table.
 
 ```
-(parameter list) => <function body>
+from(db: "telegraf") |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
+    |> map(fn: (r) => {_value: r._value / 100})
 ```
 
-The list of parameters is simply a list of identifiers with optional default values.
-The function body is either a single expression which is returned or a block of statements.
-Functions may be assigned to identifiers to given them a name.
+The function passed into map must return an object. An object is a key/value structure. By default, the `map` function will merge any columns within the grouping key into the new row so you do not have to specify all of the existing columns that you do not want to modify. If you do not want to automtaically merge those columns, you can use `mergeKey: false` as a parameter to `map`.
 
-Examples:
+**Note:** Math support is limited right now and the filter is required because the query engine will throw an error if the value is of different types with different series. So you must filter the results so only fields with a single type are selected at the moment.
 
-```
-// Define a simple addition function
-add = (a,b) => a + b
+## User Defined Functions
 
-// Define a helper function to get data from a telegraf measurement.
-// By default the database is expected to be named "telegraf".
-telegrafM = (measurement, db="telegraf") =>
-    from(db:db)
-         |> filter(fn: (r) => r._measurement == measurement)
-
-// Define a helper function for a common join operation
-// Use block syntax since we have more than a single expression
-abJoin = (measurementA, measurementB, on) => {
-    a = telegrafM(measurement:measurementA)
-    b = telegrafM(measurement:measurementB)
-    return join(
-        tables:{a:a, b:b},
-        on:on,
-        // Return a map from the join fn,
-        // this creates a table with a column for each key in the map.
-        // Note the () around the map to indicate a single map expression instead of function block.
-        fn: (t) => ({
-            a: t.a._value,
-            b: t.b._value,
-        }),
-    )
-}
-```
-
-#### Pipe Arguments
-
-Functions may also declare that an argument can be piped into from an pipe forward operator by specifing a special default value:
+A user can define their own function which can then be reused. To do this, we use the function syntax and assign it to a variable.
 
 ```
-// Define add function which accepts `a` as the piped argument.
-add = (a=<-, b) => a + b
-
-// Call add using the pipe forward syntax.
-1 |> add(b:3) // 4
-
-// Define measurement function which accepts table as the piped argument.
-measurement = (m, table=<-) => table |> filter(fn: (r) => r._measurement == m)
-
-// Define field function which accepts table as the piped argument
-field = (field, table=<-) => table |> filter(fn: (r) => r._field == field)
-
-// Query usage_idle from the cpu measurement and the telegraf database.
-// Using the measurement and field functions.
-from(db:"telegraf")
-    |> measurement(m:"cpu")
-    |> field(field:"usage_idle")
+add = (table=<-, n) => map(table: table, fn: (r) => {_value: r._value + n})
+from(db: "telegraf") |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
+    |> add(n: 5)
 ```
 
+When defining a function, default arguments can be specified by using an equals sign. In addition, a table processing function can be specified by including one parameter that takes `<-` as an input. The typical parameter name for these is `table`, but it can be any name since the pipe operator does not use a specific name. In the above example, we build a new function around the existing `map` function by passing the table to the `map` function as a parameter instead of with the pipe. If you wanted to use the pipe operator instead, the following is also valid:
+
+```
+add = (table=<-, n) => table |> map(fn: (r) => {_value: r._value + n})
+from(db: "telegraf") |> range(start: -5m)
+    |> filter(fn: (r) => r._measurement == "cpu" and r._field == "usage_user")
+    |> add(n: 5)
+```
