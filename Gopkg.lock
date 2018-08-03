@@ -20,8 +20,8 @@
 [[projects]]
   name = "github.com/RoaringBitmap/roaring"
   packages = ["."]
-  revision = "4c23670306840b0f8755db247d2e9b8369fc356e"
-  version = "v0.4.15"
+  revision = "d6540aab65a17321470b1661bfc52da1823871e9"
+  version = "v0.4.3"
 
 [[projects]]
   branch = "master"
@@ -361,6 +361,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "723d26554e6600a23282694d241e3d78788ab5dc5614361ffd874144ce15465f"
+  inputs-digest = "37fc1dd54acc8029895612ba7f41e566b72cd868f8ea60ddf6b235d68de3f80b"
   solver-name = "gps-cdcl"
   solver-version = 1

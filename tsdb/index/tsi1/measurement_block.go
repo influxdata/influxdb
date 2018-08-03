@@ -19,8 +19,7 @@ const MeasurementBlockVersion = 1
 
 // Measurement flag constants.
 const (
-	MeasurementTombstoneFlag   = 0x01
-	MeasurementSeriesIDSetFlag = 0x02
+	MeasurementTombstoneFlag = 0x01
 )
 
 // Measurement field size constants.
@@ -162,9 +161,6 @@ func (blk *MeasurementBlock) SeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 	e, ok := blk.Elem(name)
 	if !ok {
 		return &rawSeriesIDIterator{}
-	}
-	if e.seriesIDSet != nil {
-		return tsdb.NewSeriesIDSetIterator(e.seriesIDSet)
 	}
 	return &rawSeriesIDIterator{n: e.series.n, data: e.series.data}
 }
@@ -347,8 +343,6 @@ type MeasurementBlockElem struct {
 		data []byte // serialized series data
 	}
 
-	seriesIDSet *tsdb.SeriesIDSet
-
 	// size in bytes, set after unmarshaling.
 	size int
 }
@@ -394,17 +388,6 @@ func (e *MeasurementBlockElem) SeriesIDs() []uint64 {
 }
 
 func (e *MeasurementBlockElem) ForEachSeriesID(fn func(uint64) error) error {
-	// Read from roaring, if available.
-	if e.seriesIDSet != nil {
-		itr := e.seriesIDSet.Iterator()
-		for itr.HasNext() {
-			if err := fn(uint64(itr.Next())); err != nil {
-				return err
-			}
-		}
-	}
-
-	// Read from uvarint encoded data, if available.
 	var prev uint64
 	for data := e.series.data; len(data) > 0; {
 		delta, n, err := uvarint(data)
@@ -443,31 +426,18 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	}
 	e.name, data = data[n:n+int(sz)], data[n+int(sz):]
 
-	// Parse series count.
+	// Parse series data.
 	v, n, err := uvarint(data)
 	if err != nil {
 		return err
 	}
 	e.series.n, data = uint64(v), data[n:]
-
-	// Parse series data size.
 	sz, n, err = uvarint(data)
 	if err != nil {
 		return err
 	}
 	data = data[n:]
-
-	// Parse series data (original uvarint encoded or roaring bitmap).
-	if e.flag&MeasurementSeriesIDSetFlag == 0 {
-		e.series.data, data = data[:sz], data[sz:]
-	} else {
-		// data = memalign(data)
-		e.seriesIDSet = tsdb.NewSeriesIDSet()
-		if err = e.seriesIDSet.UnmarshalBinaryUnsafe(data[:sz]); err != nil {
-			return err
-		}
-		data = data[sz:]
-	}
+	e.series.data, data = data[:sz], data[sz:]
 
 	// Save length of elem.
 	e.size = start - len(data)
@@ -499,14 +469,7 @@ func (mw *MeasurementBlockWriter) Add(name []byte, deleted bool, offset, size in
 	mm.deleted = deleted
 	mm.tagBlock.offset = offset
 	mm.tagBlock.size = size
-
-	if mm.seriesIDSet == nil {
-		mm.seriesIDSet = tsdb.NewSeriesIDSet()
-	}
-	for _, seriesID := range seriesIDs {
-		mm.seriesIDSet.AddNoLock(seriesID)
-	}
-
+	mm.seriesIDs = seriesIDs
 	mw.mms[string(name)] = mm
 
 	if deleted {
@@ -629,12 +592,21 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 
 	// Write series data to buffer.
 	mw.buf.Reset()
-	if _, err := mm.seriesIDSet.WriteTo(&mw.buf); err != nil {
-		return err
+	var prev uint64
+	for _, seriesID := range mm.seriesIDs {
+		delta := seriesID - prev
+
+		var buf [binary.MaxVarintLen32]byte
+		i := binary.PutUvarint(buf[:], uint64(delta))
+		if _, err := mw.buf.Write(buf[:i]); err != nil {
+			return err
+		}
+
+		prev = seriesID
 	}
 
 	// Write series count.
-	if err := writeUvarintTo(w, mm.seriesIDSet.Cardinality(), n); err != nil {
+	if err := writeUvarintTo(w, uint64(len(mm.seriesIDs)), n); err != nil {
 		return err
 	}
 
@@ -642,14 +614,6 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 	if err := writeUvarintTo(w, uint64(mw.buf.Len()), n); err != nil {
 		return err
 	}
-
-	// Word align bitmap data.
-	// if offset := (*n) % 8; offset != 0 {
-	// 	if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
-	// 		return err
-	// 	}
-	// }
-
 	nn, err := mw.buf.WriteTo(w)
 	*n += nn
 	return err
@@ -675,12 +639,12 @@ type measurement struct {
 		offset int64
 		size   int64
 	}
-	seriesIDSet *tsdb.SeriesIDSet
-	offset      int64
+	seriesIDs []uint64
+	offset    int64
 }
 
 func (mm measurement) flag() byte {
-	flag := byte(MeasurementSeriesIDSetFlag)
+	var flag byte
 	if mm.deleted {
 		flag |= MeasurementTombstoneFlag
 	}

@@ -49,31 +49,6 @@ func TestGenerateIndexFile(t *testing.T) {
 	}
 }
 
-// Ensure index file generated with uvarint encoding can be loaded.
-func TestGenerateIndexFile_Uvarint(t *testing.T) {
-	// Load previously generated series file.
-	sfile := tsdb.NewSeriesFile("testdata/uvarint/_series")
-	if err := sfile.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer sfile.Close()
-
-	// Load legacy index file from buffer.
-	f := tsi1.NewIndexFile(sfile)
-	f.SetPath("testdata/uvarint/index")
-	if err := f.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	// Verify that tag/value series can be fetched.
-	if e := f.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); e == nil {
-		t.Fatal("expected element")
-	} else if n := e.(*tsi1.TagBlockValueElem).SeriesN(); n == 0 {
-		t.Fatal("expected series")
-	}
-}
-
 // Ensure a MeasurementHashSeries returns false when all series are tombstoned.
 func TestIndexFile_MeasurementHasSeries_Tombstoned(t *testing.T) {
 	sfile := MustOpenSeriesFile()
