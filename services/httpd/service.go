@@ -46,13 +46,14 @@ const (
 
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
-	ln    net.Listener
-	addr  string
-	https bool
-	cert  string
-	key   string
-	limit int
-	err   chan error
+	ln        net.Listener
+	addr      string
+	https     bool
+	cert      string
+	key       string
+	limit     int
+	tlsConfig *tls.Config
+	err       chan error
 
 	unixSocket         bool
 	unixSocketPerm     uint32
@@ -73,12 +74,16 @@ func NewService(c Config) *Service {
 		cert:           c.HTTPSCertificate,
 		key:            c.HTTPSPrivateKey,
 		limit:          c.MaxConnectionLimit,
+		tlsConfig:      c.TLS,
 		err:            make(chan error),
 		unixSocket:     c.UnixSocketEnabled,
 		unixSocketPerm: uint32(c.UnixSocketPermissions),
 		bindSocket:     c.BindSocket,
 		Handler:        NewHandler(c),
 		Logger:         zap.NewNop(),
+	}
+	if s.tlsConfig == nil {
+		s.tlsConfig = new(tls.Config)
 	}
 	if s.key == "" {
 		s.key = s.cert
@@ -103,9 +108,10 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		listener, err := tls.Listen("tcp", s.addr, &tls.Config{
-			Certificates: []tls.Certificate{cert},
-		})
+		tlsConfig := s.tlsConfig.Clone()
+		tlsConfig.Certificates = []tls.Certificate{cert}
+
+		listener, err := tls.Listen("tcp", s.addr, tlsConfig)
 		if err != nil {
 			return err
 		}

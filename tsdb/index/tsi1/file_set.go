@@ -187,21 +187,6 @@ func (fs *FileSet) LastContiguousIndexFilesByLevel(level int) []*IndexFile {
 	return a
 }
 
-/*
-// SeriesIDIterator returns an iterator over all series in the index.
-func (fs *FileSet) SeriesIDIterator() tsdb.SeriesIDIterator {
-	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
-	for _, f := range fs.files {
-		itr := f.SeriesIDIterator()
-		if itr == nil {
-			continue
-		}
-		a = append(a, itr)
-	}
-	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
-}
-*/
-
 // Measurement returns a measurement by name.
 func (fs *FileSet) Measurement(name []byte) MeasurementElem {
 	for _, f := range fs.files {
@@ -395,15 +380,32 @@ func (fs *FileSet) TagValueIterator(name, key []byte) TagValueIterator {
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
-func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
-	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
-	for _, f := range fs.files {
-		itr := f.TagValueSeriesIDIterator(name, key, value)
-		if itr != nil {
-			a = append(a, itr)
+func (fs *FileSet) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+	ss := tsdb.NewSeriesIDSet()
+
+	var ftss *tsdb.SeriesIDSet
+	for i := len(fs.files) - 1; i >= 0; i-- {
+		f := fs.files[i]
+
+		// Remove tombstones set in previous file.
+		if ftss != nil && ftss.Cardinality() > 0 {
+			ss = ss.AndNot(ftss)
+		}
+
+		// Fetch tag value series set for this file and merge into overall set.
+		fss, err := f.TagValueSeriesIDSet(name, key, value)
+		if err != nil {
+			return nil, err
+		} else if fss != nil {
+			ss.Merge(fss)
+		}
+
+		// Fetch tombstone set to be processed on next file.
+		if ftss, err = f.TombstoneSeriesIDSet(); err != nil {
+			return nil, err
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...)
+	return tsdb.NewSeriesIDSetIterator(ss), nil
 }
 
 // MeasurementsSketches returns the merged measurement sketches for the FileSet.
@@ -453,7 +455,7 @@ type File interface {
 	// Series iteration.
 	MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator
 	TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
-	TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator
+	TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error)
 
 	// Sketches for cardinality estimation
 	MergeMeasurementsSketches(s, t estimator.Sketch) error

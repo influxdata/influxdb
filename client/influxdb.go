@@ -118,6 +118,7 @@ type Config struct {
 	WriteConsistency string
 	UnsafeSsl        bool
 	Proxy            func(req *http.Request) (*url.URL, error)
+	TLS              *tls.Config
 }
 
 // NewConfig will create a config to be used in connecting to the client
@@ -154,9 +155,11 @@ const (
 
 // NewClient will instantiate and return a connected client to issue commands to the server.
 func NewClient(c Config) (*Client, error) {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: c.UnsafeSsl,
+	tlsConfig := new(tls.Config)
+	if c.TLS != nil {
+		tlsConfig = c.TLS.Clone()
 	}
+	tlsConfig.InsecureSkipVerify = c.UnsafeSsl
 
 	tr := &http.Transport{
 		Proxy:           c.Proxy,

@@ -221,7 +221,7 @@ func (bw *bucketWriter) EndSeries() {
 	bw.w.state = writeSeries
 }
 
-func (bw *bucketWriter) WriteIntegerCursor(cur tsdb.IntegerBatchCursor) {
+func (bw *bucketWriter) WriteIntegerCursor(cur tsdb.IntegerArrayCursor) {
 	if bw.hasErr() {
 		return
 	}
@@ -236,19 +236,19 @@ func (bw *bucketWriter) WriteIntegerCursor(cur tsdb.IntegerBatchCursor) {
 
 	var msg IntegerPoints
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 
-		bw.n += len(ts)
-		msg.Timestamps = ts
-		msg.Values = vs
+		bw.n += a.Len()
+		msg.Timestamps = a.Timestamps
+		msg.Values = a.Values
 		bw.w.writeTypeMessage(IntegerPointsType, &msg)
 	}
 }
 
-func (bw *bucketWriter) WriteFloatCursor(cur tsdb.FloatBatchCursor) {
+func (bw *bucketWriter) WriteFloatCursor(cur tsdb.FloatArrayCursor) {
 	if bw.hasErr() {
 		return
 	}
@@ -263,19 +263,19 @@ func (bw *bucketWriter) WriteFloatCursor(cur tsdb.FloatBatchCursor) {
 
 	var msg FloatPoints
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 
-		bw.n += len(ts)
-		msg.Timestamps = ts
-		msg.Values = vs
+		bw.n += a.Len()
+		msg.Timestamps = a.Timestamps
+		msg.Values = a.Values
 		bw.w.writeTypeMessage(FloatPointsType, &msg)
 	}
 }
 
-func (bw *bucketWriter) WriteUnsignedCursor(cur tsdb.UnsignedBatchCursor) {
+func (bw *bucketWriter) WriteUnsignedCursor(cur tsdb.UnsignedArrayCursor) {
 	if bw.hasErr() {
 		return
 	}
@@ -290,19 +290,19 @@ func (bw *bucketWriter) WriteUnsignedCursor(cur tsdb.UnsignedBatchCursor) {
 
 	var msg UnsignedPoints
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 
-		bw.n += len(ts)
-		msg.Timestamps = ts
-		msg.Values = vs
+		bw.n += a.Len()
+		msg.Timestamps = a.Timestamps
+		msg.Values = a.Values
 		bw.w.writeTypeMessage(UnsignedPointsType, &msg)
 	}
 }
 
-func (bw *bucketWriter) WriteBooleanCursor(cur tsdb.BooleanBatchCursor) {
+func (bw *bucketWriter) WriteBooleanCursor(cur tsdb.BooleanArrayCursor) {
 	if bw.hasErr() {
 		return
 	}
@@ -317,19 +317,19 @@ func (bw *bucketWriter) WriteBooleanCursor(cur tsdb.BooleanBatchCursor) {
 
 	var msg BooleanPoints
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 
-		bw.n += len(ts)
-		msg.Timestamps = ts
-		msg.Values = vs
+		bw.n += a.Len()
+		msg.Timestamps = a.Timestamps
+		msg.Values = a.Values
 		bw.w.writeTypeMessage(BooleanPointsType, &msg)
 	}
 }
 
-func (bw *bucketWriter) WriteStringCursor(cur tsdb.StringBatchCursor) {
+func (bw *bucketWriter) WriteStringCursor(cur tsdb.StringArrayCursor) {
 	if bw.hasErr() {
 		return
 	}
@@ -344,14 +344,14 @@ func (bw *bucketWriter) WriteStringCursor(cur tsdb.StringBatchCursor) {
 
 	var msg StringPoints
 	for {
-		ts, vs := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 
-		bw.n += len(ts)
-		msg.Timestamps = ts
-		msg.Values = vs
+		bw.n += a.Len()
+		msg.Timestamps = a.Timestamps
+		msg.Values = a.Values
 		bw.w.writeTypeMessage(StringPointsType, &msg)
 	}
 }

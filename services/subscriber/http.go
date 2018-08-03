@@ -17,12 +17,12 @@ type HTTP struct {
 
 // NewHTTP returns a new HTTP points writer with default options.
 func NewHTTP(addr string, timeout time.Duration) (*HTTP, error) {
-	return NewHTTPS(addr, timeout, false, "")
+	return NewHTTPS(addr, timeout, false, "", nil)
 }
 
 // NewHTTPS returns a new HTTPS points writer with default options and HTTPS configured.
-func NewHTTPS(addr string, timeout time.Duration, unsafeSsl bool, caCerts string) (*HTTP, error) {
-	tlsConfig, err := createTLSConfig(caCerts)
+func NewHTTPS(addr string, timeout time.Duration, unsafeSsl bool, caCerts string, tlsConfig *tls.Config) (*HTTP, error) {
+	tlsConfig, err := createTLSConfig(caCerts, tlsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -54,22 +54,28 @@ func (h *HTTP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
 	return
 }
 
-func createTLSConfig(caCerts string) (*tls.Config, error) {
+func createTLSConfig(caCerts string, tlsConfig *tls.Config) (*tls.Config, error) {
 	if caCerts == "" {
+		if tlsConfig != nil {
+			return tlsConfig.Clone(), nil
+		}
 		return nil, nil
 	}
-	return loadCaCerts(caCerts)
+	return loadCaCerts(caCerts, tlsConfig)
 }
 
-func loadCaCerts(caCerts string) (*tls.Config, error) {
+func loadCaCerts(caCerts string, tlsConfig *tls.Config) (*tls.Config, error) {
 	caCert, err := ioutil.ReadFile(caCerts)
 	if err != nil {
 		return nil, err
 	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
 
-	return &tls.Config{
-		RootCAs: caCertPool,
-	}, nil
+	out := new(tls.Config)
+	if tlsConfig != nil {
+		out = tlsConfig.Clone()
+	}
+
+	out.RootCAs = x509.NewCertPool()
+	out.RootCAs.AppendCertsFromPEM(caCert)
+	return out, nil
 }

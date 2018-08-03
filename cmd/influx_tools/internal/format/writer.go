@@ -28,11 +28,11 @@ type BucketWriter interface {
 	BeginSeries(name, field []byte, typ influxql.DataType, tags models.Tags)
 	EndSeries()
 
-	WriteIntegerCursor(cur tsdb.IntegerBatchCursor)
-	WriteFloatCursor(cur tsdb.FloatBatchCursor)
-	WriteUnsignedCursor(cur tsdb.UnsignedBatchCursor)
-	WriteBooleanCursor(cur tsdb.BooleanBatchCursor)
-	WriteStringCursor(cur tsdb.StringBatchCursor)
+	WriteIntegerCursor(cur tsdb.IntegerArrayCursor)
+	WriteFloatCursor(cur tsdb.FloatArrayCursor)
+	WriteUnsignedCursor(cur tsdb.UnsignedArrayCursor)
+	WriteBooleanCursor(cur tsdb.BooleanArrayCursor)
+	WriteStringCursor(cur tsdb.StringArrayCursor)
 	Close() error
 }
 
@@ -53,15 +53,15 @@ func WriteBucket(w Writer, start, end int64, rs *storage.ResultSet) error {
 		for ci.Next() {
 			cur := ci.Cursor()
 			switch c := cur.(type) {
-			case tsdb.IntegerBatchCursor:
+			case tsdb.IntegerArrayCursor:
 				bw.WriteIntegerCursor(c)
-			case tsdb.FloatBatchCursor:
+			case tsdb.FloatArrayCursor:
 				bw.WriteFloatCursor(c)
-			case tsdb.UnsignedBatchCursor:
+			case tsdb.UnsignedArrayCursor:
 				bw.WriteUnsignedCursor(c)
-			case tsdb.BooleanBatchCursor:
+			case tsdb.BooleanArrayCursor:
 				bw.WriteBooleanCursor(c)
-			case tsdb.StringBatchCursor:
+			case tsdb.StringArrayCursor:
 				bw.WriteStringCursor(c)
 			case nil:
 				// no data for series key + field combination in this shard
@@ -95,61 +95,61 @@ func (w *devNull) EndSeries()                                                   
 func (w *devNull) Err() error   { return nil }
 func (w *devNull) Close() error { return nil }
 
-func (w *devNull) WriteIntegerCursor(cur tsdb.IntegerBatchCursor) {
+func (w *devNull) WriteIntegerCursor(cur tsdb.IntegerArrayCursor) {
 	if !w.r {
 		return
 	}
 	for {
-		ts, _ := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 	}
 }
 
-func (w *devNull) WriteFloatCursor(cur tsdb.FloatBatchCursor) {
+func (w *devNull) WriteFloatCursor(cur tsdb.FloatArrayCursor) {
 	if !w.r {
 		return
 	}
 	for {
-		ts, _ := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 	}
 }
 
-func (w *devNull) WriteUnsignedCursor(cur tsdb.UnsignedBatchCursor) {
+func (w *devNull) WriteUnsignedCursor(cur tsdb.UnsignedArrayCursor) {
 	if !w.r {
 		return
 	}
 	for {
-		ts, _ := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 	}
 }
 
-func (w *devNull) WriteBooleanCursor(cur tsdb.BooleanBatchCursor) {
+func (w *devNull) WriteBooleanCursor(cur tsdb.BooleanArrayCursor) {
 	if !w.r {
 		return
 	}
 	for {
-		ts, _ := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 	}
 }
 
-func (w *devNull) WriteStringCursor(cur tsdb.StringBatchCursor) {
+func (w *devNull) WriteStringCursor(cur tsdb.StringArrayCursor) {
 	if !w.r {
 		return
 	}
 	for {
-		ts, _ := cur.Next()
-		if len(ts) == 0 {
+		a := cur.Next()
+		if a.Len() == 0 {
 			break
 		}
 	}

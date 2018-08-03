@@ -120,7 +120,7 @@ func (bw *aggregateBucketWriter) conflictState(other influxql.DataType) {
 	}
 }
 
-func (bw *aggregateBucketWriter) WriteIntegerCursor(cur tsdb.IntegerBatchCursor) {
+func (bw *aggregateBucketWriter) WriteIntegerCursor(cur tsdb.IntegerArrayCursor) {
 	if bw.typ == influxql.Integer {
 		bw.w.WriteIntegerCursor(cur)
 	} else {
@@ -129,7 +129,7 @@ func (bw *aggregateBucketWriter) WriteIntegerCursor(cur tsdb.IntegerBatchCursor)
 	}
 }
 
-func (bw *aggregateBucketWriter) WriteFloatCursor(cur tsdb.FloatBatchCursor) {
+func (bw *aggregateBucketWriter) WriteFloatCursor(cur tsdb.FloatArrayCursor) {
 	if bw.typ == influxql.Float {
 		bw.w.WriteFloatCursor(cur)
 	} else {
@@ -138,7 +138,7 @@ func (bw *aggregateBucketWriter) WriteFloatCursor(cur tsdb.FloatBatchCursor) {
 	}
 }
 
-func (bw *aggregateBucketWriter) WriteUnsignedCursor(cur tsdb.UnsignedBatchCursor) {
+func (bw *aggregateBucketWriter) WriteUnsignedCursor(cur tsdb.UnsignedArrayCursor) {
 	if bw.typ == influxql.Unsigned {
 		bw.w.WriteUnsignedCursor(cur)
 	} else {
@@ -147,7 +147,7 @@ func (bw *aggregateBucketWriter) WriteUnsignedCursor(cur tsdb.UnsignedBatchCurso
 	}
 }
 
-func (bw *aggregateBucketWriter) WriteBooleanCursor(cur tsdb.BooleanBatchCursor) {
+func (bw *aggregateBucketWriter) WriteBooleanCursor(cur tsdb.BooleanArrayCursor) {
 	if bw.typ == influxql.Boolean {
 		bw.w.WriteBooleanCursor(cur)
 	} else {
@@ -156,7 +156,7 @@ func (bw *aggregateBucketWriter) WriteBooleanCursor(cur tsdb.BooleanBatchCursor)
 	}
 }
 
-func (bw *aggregateBucketWriter) WriteStringCursor(cur tsdb.StringBatchCursor) {
+func (bw *aggregateBucketWriter) WriteStringCursor(cur tsdb.StringArrayCursor) {
 	if bw.typ == influxql.String {
 		bw.w.WriteStringCursor(cur)
 	} else {
