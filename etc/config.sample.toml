@@ -116,6 +116,11 @@
   # disabled by setting it to 0.
   # max-values-per-tag = 100000
 
+  # If true, then the mmap advise value MADV_WILLNEED will be provided to the kernel with respect to
+  # TSM files. This setting has been found to be problematic on some kernels, and defaults to off.
+  # It might help users who have slow disks in some cases.
+  # tsm-use-madv-willneed = false
+
 ###
 ### [coordinator]
 ###

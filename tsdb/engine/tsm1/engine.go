@@ -211,6 +211,8 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	if opt.FileStoreObserver != nil {
 		fs.WithObserver(opt.FileStoreObserver)
 	}
+	fs.tsmMMAPWillNeed = opt.Config.TSMWillNeed
+
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
 
 	c := NewCompactor()
