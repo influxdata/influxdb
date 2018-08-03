@@ -40,6 +40,9 @@ var platformLinks = map[string]interface{}{
 		"ast":         "/v2/flux/ast",
 		"suggestions": "/v2/flux/suggestions",
 	},
+	"external": map[string]string{
+		"statusFeed": "https://www.influxdata.com/feed/json",
+	},
 }
 
 func (h *PlatformHandler) serveLinks(w nethttp.ResponseWriter, r *nethttp.Request) {
