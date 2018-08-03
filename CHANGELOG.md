@@ -11,6 +11,7 @@ v1.6.1 [unreleased]
 -	[#10103](https://github.com/influxdata/influxdb/pull/10103): Remove max concurrent compaction limit.
 -	[#10143](https://github.com/influxdata/influxdb/pull/10143): Add roaring bitmaps to TSI index files.
 -	[#10154](https://github.com/influxdata/influxdb/pull/10154): Provide configurable TLS options.
+-	[#10155](https://github.com/influxdata/influxdb/pull/10155): Add option to hint MADV_WILLNEED to kernel.
 
 ### Bugfixes
 
