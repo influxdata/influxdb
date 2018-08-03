@@ -27,7 +27,7 @@
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
-  revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
+  revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
   branch = "master"
@@ -63,13 +63,13 @@
   branch = "master"
   name = "github.com/dgryski/go-bitstream"
   packages = ["."]
-  revision = "9f22ccc24718d9643ac427c8c897ae1a01575783"
+  revision = "3522498ce2c8ea06df73e55df58edfbfb33cfdd6"
 
 [[projects]]
   branch = "master"
   name = "github.com/glycerine/go-unsnap-stream"
   packages = ["."]
-  revision = "62a9a9eb44fd8932157b1a8ace2149eff5971af6"
+  revision = "9f0cb55181dd3a0a4c168d3dbc72d4aca4853126"
 
 [[projects]]
   name = "github.com/gogo/protobuf"
@@ -80,8 +80,8 @@
     "sortkeys",
     "types"
   ]
-  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
-  version = "v1.0.0"
+  revision = "636bf0302bc95575d69441b25a2603156ffdddf1"
+  version = "v1.1.1"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -142,8 +142,8 @@
 [[projects]]
   name = "github.com/klauspost/compress"
   packages = ["flate"]
-  revision = "6c8db69c4b49dd4df1fff66996cf556176d0b9bf"
-  version = "v1.2.1"
+  revision = "b939724e787a27c0005cabe3f78e7ed7987ac74f"
+  version = "v1.4.0"
 
 [[projects]]
   name = "github.com/klauspost/cpuid"
@@ -170,10 +170,16 @@
   revision = "6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c"
 
 [[projects]]
+  name = "github.com/mattn/go-runewidth"
+  packages = ["."]
+  revision = "9e777a8366cce605130a531d2cd6363d07ad7317"
+  version = "v0.0.2"
+
+[[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
-  revision = "3247c84500bff8d9fb6d579d800f20b3e091582c"
-  version = "v1.0.0"
+  revision = "c12348ce28de40eed0136aa2b644d0ee0650e56c"
+  version = "v1.0.1"
 
 [[projects]]
   branch = "master"
@@ -189,7 +195,7 @@
     "ext",
     "log"
   ]
-  revision = "328fceb7548c744337cd010914152b74eaf4c4ab"
+  revision = "bd9c3193394760d98b2fa6ebb2291f0cd1d06a7d"
 
 [[projects]]
   name = "github.com/paulbellamy/ratecounter"
@@ -201,7 +207,7 @@
   branch = "master"
   name = "github.com/peterh/liner"
   packages = ["."]
-  revision = "6106ee4fe3e8435f18cd10e34557e5e50f0e792a"
+  revision = "8c1271fcf47f341a9e6771872262870e1ad7650c"
 
 [[projects]]
   name = "github.com/philhofer/fwd"
@@ -221,7 +227,7 @@
   branch = "master"
   name = "github.com/prometheus/client_model"
   packages = ["go"]
-  revision = "99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c"
+  revision = "5c3871d89910bfb32f5fcab2aa4b9ec68e65a99f"
 
 [[projects]]
   branch = "master"
@@ -231,7 +237,7 @@
     "internal/bitbucket.org/ww/goautoneg",
     "model"
   ]
-  revision = "e4aa40a9169a88835b849a6efb71e05dc04b88f0"
+  revision = "7600349dcfe1abd18d72d3a1770870d9800a7801"
 
 [[projects]]
   branch = "master"
@@ -242,7 +248,7 @@
     "nfs",
     "xfs"
   ]
-  revision = "54d17b57dd7d4a3aa092476596b3f8a933bde349"
+  revision = "ae68e2d4c00fed4943b5f6698d504a5fe083da8a"
 
 [[projects]]
   branch = "master"
@@ -266,13 +272,13 @@
   branch = "master"
   name = "github.com/xlab/treeprint"
   packages = ["."]
-  revision = "f3a15cfd24bf976c724324cb6846a8b54b88b639"
+  revision = "d6fb6747feb6e7cfdc44682a024bddf87ef07ec2"
 
 [[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
-  revision = "8474b86a5a6f79c443ce4b2992817ff32cf208b8"
-  version = "v1.3.1"
+  revision = "1ea20fb1cbb1cc08cbd0d913a96dead89aa18289"
+  version = "v1.3.2"
 
 [[projects]]
   name = "go.uber.org/multierr"
@@ -291,8 +297,8 @@
     "zapcore",
     "zaptest/observer"
   ]
-  revision = "35aad584952c3e7020db7b839f6b102de6271f89"
-  version = "v1.7.1"
+  revision = "4d45f9617f7d90f7a663ff21c7a4321dbe78098b"
+  version = "v1.9.0"
 
 [[projects]]
   branch = "master"
@@ -302,21 +308,21 @@
     "blowfish",
     "ssh/terminal"
   ]
-  revision = "c3a3ad6d03f7a915c0f7e194b7152974bb73d287"
+  revision = "a2144134853fc9a27a7b1e3eb4f19f1a76df13c9"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = [
     "context",
+    "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
     "internal/timeseries",
-    "lex/httplex",
     "trace"
   ]
-  revision = "92b859f39abd2d91a854c9f9c4621b2f5054a92d"
+  revision = "a680a1efc54dd51c040b3b5ce4939ea3cf2ea0d1"
 
 [[projects]]
   branch = "master"
@@ -331,7 +337,7 @@
     "unix",
     "windows"
   ]
-  revision = "d8e400bc7db4870d786864138af681469693d18c"
+  revision = "ac767d655b305d4e9612f5f6e33120b9176c4ad4"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -364,13 +370,13 @@
   branch = "master"
   name = "golang.org/x/time"
   packages = ["rate"]
-  revision = "26559e0f760e39c24d730d3224364aef164ee23f"
+  revision = "fbb02b2291d28baffd63558aa44b4b56f178d650"
 
 [[projects]]
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "ff3583edef7de132f219f0efc00e097cabcc0ec0"
+  revision = "fedd2861243fd1a8152376292b921b394c7bef7e"
 
 [[projects]]
   name = "google.golang.org/grpc"
