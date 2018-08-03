@@ -177,9 +177,9 @@ type FileStore struct {
 	currentGeneration int
 	dir               string
 
-	files []TSMFile
-
-	openLimiter limiter.Fixed // limit the number of concurrent opening TSM files.
+	files           []TSMFile
+	tsmMMAPWillNeed bool          // If true then the kernel will be advised MMAP_WILLNEED for TSM files.
+	openLimiter     limiter.Fixed // limit the number of concurrent opening TSM files.
 
 	logger       *zap.Logger // Logger to be used for important messages
 	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
@@ -532,7 +532,7 @@ func (f *FileStore) Open() error {
 			defer f.openLimiter.Release()
 
 			start := time.Now()
-			df, err := NewTSMReader(file)
+			df, err := NewTSMReader(file, WithMadviseWillNeed(f.tsmMMAPWillNeed))
 			f.logger.Info("Opened file",
 				zap.String("path", file.Name()),
 				zap.Int("id", idx),
@@ -750,7 +750,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			}
 		}
 
-		tsm, err := NewTSMReader(fd)
+		tsm, err := NewTSMReader(fd, WithMadviseWillNeed(f.tsmMMAPWillNeed))
 		if err != nil {
 			return err
 		}
