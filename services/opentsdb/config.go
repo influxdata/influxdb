@@ -1,6 +1,7 @@
 package opentsdb
 
 import (
+	"crypto/tls"
 	"time"
 
 	"github.com/influxdata/influxdb/monitor/diagnostics"
@@ -46,6 +47,7 @@ type Config struct {
 	BatchPending     int           `toml:"batch-pending"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
 	LogPointErrors   bool          `toml:"log-point-errors"`
+	TLS              *tls.Config   `toml:"-"`
 }
 
 // NewConfig returns a new config for the service.
