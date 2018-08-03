@@ -105,6 +105,12 @@ type Config struct {
 	MaxIndexLogFileSize toml.Size `toml:"max-index-log-file-size"`
 
 	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
+
+	// TSMWillNeed controls whether we hint to the kernel that we intend to
+	// page in mmap'd sections of TSM files. This setting defaults to off, as it has
+	// been found to be problematic in some cases. It may help users who have
+	// slow disks.
+	TSMWillNeed bool `toml:"tsm-use-madv-willneed"`
 }
 
 // NewConfig returns the default configuration for tsdb.
@@ -127,6 +133,7 @@ func NewConfig() Config {
 		MaxIndexLogFileSize: toml.Size(DefaultMaxIndexLogFileSize),
 
 		TraceLoggingEnabled: false,
+		TSMWillNeed:         false,
 	}
 }
 
