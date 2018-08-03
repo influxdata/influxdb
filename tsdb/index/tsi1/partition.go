@@ -758,20 +758,18 @@ func (i *Partition) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterat
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single key value.
-func (p *Partition) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
-	fs, err := p.RetainFileSet()
+func (i *Partition) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
+	fs, err := i.RetainFileSet()
 	if err != nil {
-		return nil, err
+		return nil // TODO(edd): this should probably return an error.
 	}
 
-	itr, err := fs.TagValueSeriesIDIterator(name, key, value)
-	if err != nil {
-		return nil, err
-	} else if itr == nil {
+	itr := fs.TagValueSeriesIDIterator(name, key, value)
+	if itr == nil {
 		fs.Release()
-		return nil, nil
+		return nil
 	}
-	return newFileSetSeriesIDIterator(fs, itr), nil
+	return newFileSetSeriesIDIterator(fs, itr)
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.

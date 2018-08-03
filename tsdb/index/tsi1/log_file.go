@@ -450,29 +450,29 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 	return f.FlushAndSync()
 }
 
-// TagValueSeriesIDSet returns a series iterator for a tag value.
-func (f *LogFile) TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error) {
+// TagValueSeriesIDIterator returns a series iterator for a tag value.
+func (f *LogFile) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	tk, ok := mm.tagSet[string(key)]
 	if !ok {
-		return nil, nil
+		return nil
 	}
 
 	tv, ok := tk.tagValues[string(value)]
 	if !ok {
-		return nil, nil
+		return nil
 	} else if tv.cardinality() == 0 {
-		return nil, nil
+		return nil
 	}
 
-	return tv.seriesIDSet(), nil
+	return tsdb.NewSeriesIDSetIterator(tv.seriesIDSet())
 }
 
 // MeasurementN returns the total number of measurements.
@@ -846,13 +846,6 @@ func (f *LogFile) CompactTo(w io.Writer, m, k uint64, cancel <-chan struct{}) (n
 		return n, err
 	}
 
-	// Ensure block is word aligned.
-	// if offset := n % 8; offset != 0 {
-	// 	if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
-	// 		return n, err
-	// 	}
-	// }
-
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
 	if err := f.writeMeasurementBlockTo(bw, names, info, &n); err != nil {
@@ -931,13 +924,6 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 	default:
 	}
 
-	// Ensure block is word aligned.
-	// if offset := (*n) % 8; offset != 0 {
-	// 	if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
-	// 		return err
-	// 	}
-	// }
-
 	enc := NewTagBlockEncoder(w)
 	var valueN int
 	for _, k := range mm.keys() {
@@ -960,7 +946,7 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 		// Add each value.
 		for _, v := range values {
 			value := tag.tagValues[v]
-			if err := enc.EncodeValue(value.name, value.deleted, value.seriesIDSet()); err != nil {
+			if err := enc.EncodeValue(value.name, value.deleted, value.seriesIDs()); err != nil {
 				return err
 			}
 
@@ -1433,6 +1419,21 @@ func (tv *logTagValue) cardinality() int64 {
 		return int64(tv.seriesSet.Cardinality())
 	}
 	return int64(len(tv.series))
+}
+
+// seriesIDs returns a sorted set of seriesIDs.
+func (tv *logTagValue) seriesIDs() []uint64 {
+	a := make([]uint64, 0, tv.cardinality())
+	if tv.seriesSet != nil {
+		tv.seriesSet.ForEachNoLock(func(id uint64) { a = append(a, id) })
+		return a // IDs are already sorted.
+	}
+
+	for seriesID := range tv.series {
+		a = append(a, seriesID)
+	}
+	sort.Sort(uint64Slice(a))
+	return a
 }
 
 // seriesIDSet returns a copy of the logMeasurement's seriesSet, or creates a new
