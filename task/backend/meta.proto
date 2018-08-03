@@ -9,11 +9,15 @@ option go_package = "backend";
 // StoreTaskMeta is the internal state of a task.
 message StoreTaskMeta {
   int32 max_concurrency = 1;
+
+  // last_completed is a unix time stamp of the last completed run.
   int64 last_completed = 2;
+
   repeated StoreTaskMetaRun currently_running = 3;
 }
 
 message StoreTaskMetaRun {
+  // now represents a unix timestamp
   int64 now = 1;
   uint32 try = 2;
   bytes run_id = 3 [(gogoproto.customname) = "RunID"];

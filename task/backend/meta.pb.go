@@ -33,7 +33,8 @@ const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 // StoreTaskMeta is the internal state of a task.
 type StoreTaskMeta struct {
-	MaxConcurrency   int32               `protobuf:"varint,1,opt,name=max_concurrency,json=maxConcurrency,proto3" json:"max_concurrency,omitempty"`
+	MaxConcurrency int32 `protobuf:"varint,1,opt,name=max_concurrency,json=maxConcurrency,proto3" json:"max_concurrency,omitempty"`
+	// last_completed is a unix time stamp of the last completed run.
 	LastCompleted    int64               `protobuf:"varint,2,opt,name=last_completed,json=lastCompleted,proto3" json:"last_completed,omitempty"`
 	CurrentlyRunning []*StoreTaskMetaRun `protobuf:"bytes,3,rep,name=currently_running,json=currentlyRunning" json:"currently_running,omitempty"`
 }
@@ -65,6 +66,7 @@ func (m *StoreTaskMeta) GetCurrentlyRunning() []*StoreTaskMetaRun {
 }
 
 type StoreTaskMetaRun struct {
+	// now represents a unix timestamp
 	Now   int64  `protobuf:"varint,1,opt,name=now,proto3" json:"now,omitempty"`
 	Try   uint32 `protobuf:"varint,2,opt,name=try,proto3" json:"try,omitempty"`
 	RunID []byte `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
