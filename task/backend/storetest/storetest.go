@@ -436,7 +436,7 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("creating and finishing runs doesn't work")
 	}
 
-	if meta.LastCompletedTimestampUnix != time.Unix(1, 0).UTC().Unix() {
+	if meta.LastCompleted != time.Unix(1, 0).UTC().Unix() {
 		t.Fatal("LastCompletedTime not set")
 	}
 }

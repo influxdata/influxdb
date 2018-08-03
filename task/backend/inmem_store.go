@@ -3,14 +3,12 @@ package backend
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/snowflake"
-	"github.com/influxdata/platform/task/backend/pb"
 )
 
 var _ Store = (*inmem)(nil)
@@ -25,14 +23,14 @@ type inmem struct {
 	// but then we wouldn't have guaranteed ordering for paging.
 	tasks []StoreTask
 
-	runners map[string]pb.StoredTaskInternalMeta
+	runners map[string]StoreTaskMeta
 }
 
 // NewInMemStore returns a new in-memory store.
 func NewInMemStore() Store {
 	return &inmem{
 		idgen:   snowflake.NewIDGenerator(),
-		runners: map[string]pb.StoredTaskInternalMeta{},
+		runners: map[string]StoreTaskMeta{},
 	}
 }
 
@@ -57,7 +55,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 
 	s.mu.Lock()
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = pb.StoredTaskInternalMeta{MaxConcurrency: int32(o.Concurrency)}
+	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency)}
 	s.mu.Unlock()
 
 	return id, nil
@@ -147,7 +145,7 @@ func (s *inmem) FindTaskByID(_ context.Context, id platform.ID) (*StoreTask, err
 
 	return nil, nil
 }
-func (s *inmem) FindTaskMetaByID(ctx context.Context, id platform.ID) (*pb.StoredTaskInternalMeta, error) {
+func (s *inmem) FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error) {
 	meta, ok := s.runners[id.String()]
 	if !ok {
 		return nil, errors.New("task meta not found")
@@ -196,10 +194,10 @@ func (s *inmem) CreateRun(ctx context.Context, taskID platform.ID, now int64) (Q
 
 	runID := s.idgen.ID()
 
-	running := &pb.StoredTaskInternalMeta_RunningList{
-		NowTimestampUnix: now,
-		Try:              1,
-		RunID:            binary.BigEndian.Uint64(runID),
+	running := &StoreTaskMetaRun{
+		Now:   now,
+		Try:   1,
+		RunID: runID,
 	}
 
 	stm.CurrentlyRunning = append(stm.CurrentlyRunning, running)
@@ -215,8 +213,6 @@ func (s *inmem) CreateRun(ctx context.Context, taskID platform.ID, now int64) (Q
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
 func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error {
-	intID := binary.BigEndian.Uint64(runID)
-
 	stm, ok := s.runners[taskID.String()]
 	if !ok {
 		return errors.New("taskRunner not found")
@@ -224,11 +220,11 @@ func (s *inmem) FinishRun(ctx context.Context, taskID, runID platform.ID) error 
 
 	found := false
 	for i, runner := range stm.CurrentlyRunning {
-		if runner.RunID == intID {
+		if string(runner.RunID) == string([]byte(runID)) {
 			found = true
 			stm.CurrentlyRunning = append(stm.CurrentlyRunning[:i], stm.CurrentlyRunning[i+1:]...)
-			if runner.NowTimestampUnix > stm.LastCompletedTimestampUnix {
-				stm.LastCompletedTimestampUnix = runner.NowTimestampUnix
+			if runner.Now > stm.LastCompleted {
+				stm.LastCompleted = runner.Now
 				break
 			}
 		}
