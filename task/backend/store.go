@@ -136,21 +136,24 @@ type StoreValidation struct{}
 // CreateArgs returns the script's parsed options,
 // and an error if any of the provided fields are invalid for creating a task.
 func (StoreValidation) CreateArgs(org, user platform.ID, script string) (options.Options, error) {
-	o, err := options.FromScript(script)
-	if err != nil {
-		return o, err
-	}
-
 	var missing []string
+	var o options.Options
+
+	if script == "" {
+		missing = append(missing, "script")
+	} else {
+		var err error
+		o, err = options.FromScript(script)
+		if err != nil {
+			return o, err
+		}
+	}
 
 	if len(org) == 0 {
 		missing = append(missing, "organization ID")
 	}
 	if len(user) == 0 {
 		missing = append(missing, "user ID")
-	}
-	if script == "" {
-		missing = append(missing, "script")
 	}
 
 	if len(missing) > 0 {
@@ -163,18 +166,21 @@ func (StoreValidation) CreateArgs(org, user platform.ID, script string) (options
 // ModifyArgs returns the script's parsed options,
 // and an error if any of the provided fields are invalid for modifying a task.
 func (StoreValidation) ModifyArgs(taskID platform.ID, script string) (options.Options, error) {
-	o, err := options.FromScript(script)
-	if err != nil {
-		return o, err
-	}
-
 	var missing []string
+	var o options.Options
+
+	if script == "" {
+		missing = append(missing, "script")
+	} else {
+		var err error
+		o, err = options.FromScript(script)
+		if err != nil {
+			return o, err
+		}
+	}
 
 	if len(taskID) == 0 {
 		missing = append(missing, "task ID")
-	}
-	if script == "" {
-		missing = append(missing, "script")
 	}
 
 	if len(missing) > 0 {
