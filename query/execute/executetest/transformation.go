@@ -29,12 +29,12 @@ func ProcessTestHelper(
 	for _, b := range data {
 		if err := tx.Process(parentID, b); err != nil {
 			if wantErr != nil && wantErr.Error() != err.Error() {
-				t.Fatalf("unexpected error -want/+got\n%s", cmp.Diff(err.Error(), wantErr.Error()))
+				t.Fatalf("unexpected error -want/+got\n%s", cmp.Diff(wantErr.Error(), err.Error()))
 			} else if wantErr == nil {
 				t.Fatalf("expected no error, got %s", err.Error())
 			}
 		} else if wantErr != nil {
-			t.Fatalf("expected error %s, got none", err.Error())
+			t.Fatalf("expected error %s, got none", wantErr.Error())
 		}
 	}
 
