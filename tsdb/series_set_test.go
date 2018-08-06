@@ -2,6 +2,7 @@ package tsdb
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 )
 
@@ -171,6 +172,82 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 			}
 		}
 	})
+}
+
+func BenchmarkSeriesIDSet_AddMany(b *testing.B) {
+	cardinalities := []int{1, 1e3, 1e4, 1e5, 1e6}
+	toAddCardinalities := []int{1e3, 1e4, 1e5}
+
+	for _, cardinality := range cardinalities {
+		ids := make([]uint64, 0, cardinality)
+		for i := 0; i < cardinality; i++ {
+			ids = append(ids, uint64(rand.Intn(200000000)))
+		}
+
+		// Setup...
+		set = NewSeriesIDSet(ids...)
+
+		// Check if the value exists before adding it under two locks.
+		b.Run(fmt.Sprintf("cardinality %d", cardinality), func(b *testing.B) {
+			for _, toAddCardinality := range toAddCardinalities {
+				ids := make([]uint64, 0, toAddCardinality)
+				for i := 0; i < toAddCardinality; i++ {
+					ids = append(ids, uint64(rand.Intn(200000000)))
+				}
+
+				b.Run(fmt.Sprintf("adding %d", toAddCardinality), func(b *testing.B) {
+					b.Run("AddNoLock", func(b *testing.B) {
+						clone := set.Clone()
+						for i := 0; i < b.N; i++ {
+							for _, id := range ids {
+								clone.AddNoLock(id)
+							}
+
+							b.StopTimer()
+							clone = set.Clone()
+							b.StartTimer()
+						}
+					})
+
+					b.Run("AddMany", func(b *testing.B) {
+						clone := set.Clone()
+						for i := 0; i < b.N; i++ {
+							clone.AddMany(ids...)
+							b.StopTimer()
+							clone = set.Clone()
+							b.StartTimer()
+						}
+					})
+
+					// Merge will involve a new bitmap being allocated.
+					b.Run("Merge", func(b *testing.B) {
+						clone := set.Clone()
+						for i := 0; i < b.N; i++ {
+							other := NewSeriesIDSet(ids...)
+							clone.Merge(other)
+
+							b.StopTimer()
+							clone = set.Clone()
+							b.StartTimer()
+						}
+					})
+
+					b.Run("MergeInPlace", func(b *testing.B) {
+						clone := set.Clone()
+						for i := 0; i < b.N; i++ {
+							other := NewSeriesIDSet(ids...)
+							clone.MergeInPlace(other)
+
+							b.StopTimer()
+							clone = set.Clone()
+							b.StartTimer()
+						}
+					})
+				})
+
+			}
+		})
+	}
 }
 
 // Remove benchmarks the cost of removing the same element in a set versus the

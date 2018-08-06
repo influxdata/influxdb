@@ -50,6 +50,23 @@ func (s *SeriesIDSet) AddNoLock(id uint64) {
 	s.bitmap.Add(uint32(id))
 }
 
+// AddMany adds multiple ids to the SeriesIDSet. AddMany takes a lock, so may not be
+// optimal to call many times with few ids.
+func (s *SeriesIDSet) AddMany(ids ...uint64) {
+	if len(ids) == 0 {
+		return
+	}
+
+	a32 := make([]uint32, len(ids))
+	for i := range ids {
+		a32[i] = uint32(ids[i])
+	}
+
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap.AddMany(a32)
+}
+
 // Contains returns true if the id exists in the set.
 func (s *SeriesIDSet) Contains(id uint64) bool {
 	s.RLock()
@@ -106,6 +123,19 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	s.Lock()
 	s.bitmap = result
 	s.Unlock()
+}
+
+// MergeInPlace merges other into s, modifying s in the process.
+func (s *SeriesIDSet) MergeInPlace(other *SeriesIDSet) {
+	if s == other {
+		return
+	}
+
+	other.RLock()
+	s.Lock()
+	s.bitmap.Or(other.bitmap)
+	s.Unlock()
+	other.RUnlock()
 }
 
 // Equals returns true if other and s are the same set of ids.
