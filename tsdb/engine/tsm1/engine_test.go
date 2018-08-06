@@ -399,14 +399,14 @@ func TestEngine_Export(t *testing.T) {
 	}
 
 	// TEST 1: did we get any extra files not found in the store?
-	for k, _ := range fileData {
+	for k := range fileData {
 		if _, ok := fileNames[k]; !ok {
 			t.Errorf("exported a file not in the store: %s", k)
 		}
 	}
 
 	// TEST 2: did we miss any files that the store had?
-	for k, _ := range fileNames {
+	for k := range fileNames {
 		if _, ok := fileData[k]; !ok {
 			t.Errorf("failed to export a file from the store: %s", k)
 		}
