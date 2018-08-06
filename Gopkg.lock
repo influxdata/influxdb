@@ -208,12 +208,7 @@
   version = "v1.38.1"
 
 [[projects]]
-<<<<<<< HEAD
   digest = "1:8cab0d635f075344e3c0ee979c1995bb6880fba073a583bc52ab01df416e0a6b"
-||||||| parent of 013a56c9b... chore(testing): update test package to use correct source type
-=======
-  digest = "1:32e6bf93f32b6562d44dcdae34fd11a819224db80627bbc4ee108bfc01f81922"
->>>>>>> 013a56c9b... chore(testing): update test package to use correct source type
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -1048,7 +1043,6 @@
   version = "v1.13.0"
 
 [[projects]]
-<<<<<<< HEAD
   branch = "v2"
   digest = "1:e8c48aa61ea272e211858e52979ad4d114c60bfe6900d12431ac697482100b0a"
   name = "gopkg.in/robfig/cron.v2"
@@ -1059,11 +1053,6 @@
 [[projects]]
   branch = "v2"
   digest = "1:342378ac4dcb378a5448dd723f0784ae519383532f5e70ade24132c4c8693202"
-||||||| parent of 013a56c9b... chore(testing): update test package to use correct source type
-=======
-  branch = "v2"
-  digest = "1:342378ac4dcb378a5448dd723f0784ae519383532f5e70ade24132c4c8693202"
->>>>>>> 013a56c9b... chore(testing): update test package to use correct source type
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   pruneopts = "UT"
@@ -1072,7 +1061,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-<<<<<<< HEAD
   input-imports = [
     "github.com/NYTimes/gziphandler",
     "github.com/andreyvit/diff",
@@ -1127,61 +1115,5 @@
     "google.golang.org/grpc",
     "gopkg.in/robfig/cron.v2",
   ]
-||||||| parent of 013a56c9b... chore(testing): update test package to use correct source type
-  inputs-digest = "98278f4964b8c10b5c7667b2d695a8249efda38bdf7e11d756afeb0c76fa7005"
-=======
-  input-imports = [
-    "github.com/NYTimes/gziphandler",
-    "github.com/andreyvit/diff",
-    "github.com/bouk/httprouter",
-    "github.com/c-bata/go-prompt",
-    "github.com/cespare/xxhash",
-    "github.com/coreos/bbolt",
-    "github.com/dgrijalva/jwt-go",
-    "github.com/elazarl/go-bindata-assetfs",
-    "github.com/gogo/protobuf/gogoproto",
-    "github.com/gogo/protobuf/proto",
-    "github.com/gogo/protobuf/types",
-    "github.com/gonum/stat/distuv",
-    "github.com/google/go-cmp/cmp",
-    "github.com/google/go-cmp/cmp/cmpopts",
-    "github.com/google/go-github/github",
-    "github.com/goreleaser/goreleaser",
-    "github.com/influxdata/influxdb/logger",
-    "github.com/influxdata/influxdb/pkg/snowflake",
-    "github.com/influxdata/influxql",
-    "github.com/influxdata/line-protocol",
-    "github.com/influxdata/tdigest",
-    "github.com/influxdata/usage-client/v1",
-    "github.com/jessevdk/go-flags",
-    "github.com/julienschmidt/httprouter",
-    "github.com/kevinburke/go-bindata",
-    "github.com/mna/pigeon",
-    "github.com/opentracing/opentracing-go",
-    "github.com/pkg/errors",
-    "github.com/prometheus/client_golang/prometheus",
-    "github.com/prometheus/client_golang/prometheus/promhttp",
-    "github.com/prometheus/client_model/go",
-    "github.com/prometheus/common/expfmt",
-    "github.com/satori/go.uuid",
-    "github.com/segmentio/kafka-go",
-    "github.com/sirupsen/logrus",
-    "github.com/spf13/cobra",
-    "github.com/spf13/viper",
-    "github.com/tylerb/graceful",
-    "github.com/uber/jaeger-client-go/config",
-    "github.com/uber/jaeger-client-go/log",
-    "github.com/uber/jaeger-lib/metrics",
-    "go.uber.org/zap",
-    "go.uber.org/zap/zaptest/observer",
-    "golang.org/x/net/context",
-    "golang.org/x/oauth2",
-    "golang.org/x/oauth2/github",
-    "golang.org/x/oauth2/heroku",
-    "golang.org/x/text/unicode/norm",
-    "google.golang.org/api/oauth2/v2",
-    "google.golang.org/grpc",
-  ]
->>>>>>> 013a56c9b... chore(testing): update test package to use correct source type
   solver-name = "gps-cdcl"
   solver-version = 1

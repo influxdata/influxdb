@@ -25,6 +25,7 @@ var DefaultSource = platform.Source{
 }
 
 func init() {
+	// TODO(desa): This ID is temporary. It should be updated to be 0 when we switch to integer ids.
 	if err := DefaultSource.ID.DecodeFromString("020f755c3c082000"); err != nil {
 		panic(fmt.Sprintf("failed to decode default source id: %v", err))
 	}
@@ -96,18 +97,19 @@ func (c *Client) FindSourceByID(ctx context.Context, id platform.ID) (*platform.
 }
 
 func (c *Client) findSourceByID(ctx context.Context, tx *bolt.Tx, id platform.ID) (*platform.Source, error) {
-	var s platform.Source
-
 	v := tx.Bucket(sourceBucket).Get(id)
 
 	if len(v) == 0 {
 		return nil, platform.ErrSourceNotFound
 	}
 
+	var s platform.Source
 	if err := json.Unmarshal(v, &s); err != nil {
 		return nil, err
 	}
 	if err := c.setServices(ctx, &s); err != nil {
+		// this function should not error if the source that is being set is
+		// not one of the supported types.
 		c.Logger.Debug("could not set services on source", zap.Error(err))
 	}
 
@@ -188,6 +190,8 @@ func (c *Client) forEachSource(ctx context.Context, tx *bolt.Tx, fn func(*platfo
 			return err
 		}
 		if err := c.setServices(ctx, s); err != nil {
+			// this function should not error if the source that is being set is
+			// not one of the supported types.
 			c.Logger.Debug("could not set services on source", zap.Error(err))
 		}
 		if !fn(s) {
