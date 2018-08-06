@@ -1,6 +1,7 @@
 package tsi1_test
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -446,4 +447,75 @@ func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 			}
 		}
 	})
+}
+
+var errResult error
+
+func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
+	// Read line-protocol and coerce into tsdb format.
+	keys := make([][]byte, 0, 1e6)
+	names := make([][]byte, 0, 1e6)
+	tags := make([]models.Tags, 0, 1e6)
+
+	// 1M series generated with:
+	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
+	fd, err := os.Open("testdata/line-protocol-1M.txt.gz")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	gzr, err := gzip.NewReader(fd)
+	if err != nil {
+		fd.Close()
+		b.Fatal(err)
+	}
+
+	data, err := ioutil.ReadAll(gzr)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	if err := fd.Close(); err != nil {
+		b.Fatal(err)
+	}
+
+	points, err := models.ParsePoints(data)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for _, pt := range points {
+		keys = append(keys, pt.Key())
+		names = append(names, pt.Name())
+		tags = append(tags, pt.Tags())
+	}
+
+	batchSizes := []int{1000, 10000, 100000}
+	partitions := []uint64{1, 2, 4, 8, 16}
+	for _, sz := range batchSizes {
+		b.Run(fmt.Sprintf("batch size %d", sz), func(b *testing.B) {
+			for _, partition := range partitions {
+				b.Run(fmt.Sprintf("partition %d", partition), func(b *testing.B) {
+					idx := MustOpenIndex(partition)
+					for j := 0; j < b.N; j++ {
+						for i := 0; i < len(keys); i += sz {
+							k := keys[i : i+sz]
+							n := names[i : i+sz]
+							t := tags[i : i+sz]
+							if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
+								b.Fatal(err)
+							}
+						}
+						// Reset the index...
+						b.StopTimer()
+						if err := idx.Close(); err != nil {
+							b.Fatal(err)
+						}
+						idx = MustOpenIndex(partition)
+						b.StartTimer()
+					}
+				})
+			}
+		})
+	}
 }
