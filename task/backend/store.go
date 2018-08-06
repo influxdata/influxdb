@@ -21,6 +21,39 @@ var ErrUserNotFound = errors.New("user not found")
 // ErrOrgNotFound is an error for when we can't find an org
 var ErrOrgNotFound = errors.New("org not found")
 
+type TaskStatus string
+
+const (
+	TaskEnabled  TaskStatus = "enabled"
+	TaskDisabled TaskStatus = "disabled"
+)
+
+type RunStatus int
+
+const (
+	RunQueued RunStatus = iota
+	RunStarted
+	RunSuccess
+	RunFail
+	RunCanceled
+)
+
+func (r RunStatus) String() string {
+	switch r {
+	case RunQueued:
+		return "queued"
+	case RunStarted:
+		return "started"
+	case RunSuccess:
+		return "success"
+	case RunFail:
+		return "failed"
+	case RunCanceled:
+		return "canceled"
+	}
+	panic(fmt.Sprintf("unknown RunStatus: %d", r))
+}
+
 // Store is the interface around persisted tasks.
 type Store interface {
 	// CreateTask saves the given task.
@@ -36,6 +69,12 @@ type Store interface {
 	// FindTaskByID returns the task with the given ID.
 	// If no task matches the ID, the returned task is nil.
 	FindTaskByID(ctx context.Context, id platform.ID) (*StoreTask, error)
+
+	// EnableTask updates task status to enabled.
+	EnableTask(ctx context.Context, id platform.ID) error
+
+	// disableTask updates task status to disabled.
+	DisableTask(ctx context.Context, id platform.ID) error
 
 	// FindTaskMetaByID returns the metadata about a task.
 	FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error)

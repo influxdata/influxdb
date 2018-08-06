@@ -19,32 +19,6 @@ type runReaderWriter struct {
 	byRunID  map[string]*platform.Run
 }
 
-type RunStatus int
-
-const (
-	RunQueued RunStatus = iota
-	RunStarted
-	RunSuccess
-	RunFail
-	RunCanceled
-)
-
-func (r RunStatus) String() string {
-	switch r {
-	case RunQueued:
-		return "queued"
-	case RunStarted:
-		return "started"
-	case RunSuccess:
-		return "success"
-	case RunFail:
-		return "failed"
-	case RunCanceled:
-		return "canceled"
-	}
-	panic(fmt.Sprintf("unknown RunStatus: %d", r))
-}
-
 func NewInMemRunReaderWriter() *runReaderWriter {
 	return &runReaderWriter{byRunID: map[string]*platform.Run{}, byTaskID: map[string][]*platform.Run{}}
 }

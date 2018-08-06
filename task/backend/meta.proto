@@ -12,8 +12,8 @@ message StoreTaskMeta {
 
   // last_completed is a unix time stamp of the last completed run.
   int64 last_completed = 2;
-
-  repeated StoreTaskMetaRun currently_running = 3;
+  string status = 3;
+  repeated StoreTaskMetaRun currently_running = 4;
 }
 
 message StoreTaskMetaRun {

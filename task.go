@@ -8,7 +8,7 @@ type Task struct {
 	Organization ID     `json:"organizationId"`
 	Name         string `json:"name"`
 	Status       string `json:"status"`
-	Owner				 User   `json:"owner"`
+	Owner        User   `json:"owner"`
 	Flux         string `json:"flux"`
 	Every        string `json:"every,omitempty"`
 	Cron         string `json:"cron,omitempty"`
@@ -61,7 +61,8 @@ type TaskService interface {
 
 // TaskUpdate represents updates to a task
 type TaskUpdate struct {
-	Flux *string `json:"flux"`
+	Flux   *string `json:"flux,omitempty"`
+	Status *string `json:"status,omitempty"`
 }
 
 // TaskFilter represents a set of filters that restrict the returned results

@@ -55,7 +55,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 
 	s.mu.Lock()
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency)}
+	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency), Status: string(TaskEnabled)}
 	s.mu.Unlock()
 
 	return id, nil
@@ -145,6 +145,38 @@ func (s *inmem) FindTaskByID(_ context.Context, id platform.ID) (*StoreTask, err
 
 	return nil, nil
 }
+
+func (s *inmem) EnableTask(ctx context.Context, id platform.ID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	strID := id.String()
+
+	meta, ok := s.runners[strID]
+	if !ok {
+		return errors.New("task meta not found")
+	}
+	meta.Status = string(TaskEnabled)
+	s.runners[strID] = meta
+
+	return nil
+}
+
+func (s *inmem) DisableTask(ctx context.Context, id platform.ID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	strID := id.String()
+
+	meta, ok := s.runners[strID]
+	if !ok {
+		return errors.New("task meta not found")
+	}
+	meta.Status = string(TaskDisabled)
+	s.runners[strID] = meta
+
+	return nil
+}
+
 func (s *inmem) FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTaskMeta, error) {
 	meta, ok := s.runners[id.String()]
 	if !ok {
