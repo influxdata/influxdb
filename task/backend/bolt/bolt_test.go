@@ -10,7 +10,13 @@ import (
 	"github.com/influxdata/platform/task/backend"
 	boltstore "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/storetest"
+	"github.com/influxdata/platform/task/options"
 )
+
+func init() {
+	// TODO(mr): remove as part of https://github.com/influxdata/platform/issues/484.
+	options.EnableScriptCacheForTest()
+}
 
 func TestBoltStore(t *testing.T) {
 	var f *os.File

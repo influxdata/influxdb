@@ -1,12 +1,25 @@
-// Package options provides ways to extract the task-related options from a Flux script or query Spec.
+// Package options provides ways to extract the task-related options from a Flux script.
 package options
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/influxdata/platform/query"
 )
+
+// optionCache is enabled for tests, to work around https://github.com/influxdata/platform/issues/484.
+var optionCache map[string]Options
+
+var optionCacheMu sync.Mutex
+
+// EnableScriptCacheForTest is used as a workaround for https://github.com/influxdata/platform/issues/484,
+// and should be removed after that issue is addressed.
+// Do not call this method in production code, as it will leak memory.
+func EnableScriptCacheForTest() {
+	optionCache = make(map[string]Options)
+}
 
 const maxConcurrency = 100
 const maxRetry = 10
@@ -32,6 +45,16 @@ type Options struct {
 
 // FromScript extracts Options from a Flux script.
 func FromScript(script string) (Options, error) {
+	if optionCache != nil {
+		optionCacheMu.Lock()
+		opt, ok := optionCache[script]
+		optionCacheMu.Unlock()
+
+		if ok {
+			return opt, nil
+		}
+	}
+
 	opt := Options{Retry: 1, Concurrency: 1}
 
 	inter := query.NewInterpreter()
@@ -93,5 +116,12 @@ func FromScript(script string) (Options, error) {
 		}
 		opt.Retry = retry
 	}
+
+	if optionCache != nil {
+		optionCacheMu.Lock()
+		optionCache[script] = opt
+		optionCacheMu.Unlock()
+	}
+
 	return opt, nil
 }
