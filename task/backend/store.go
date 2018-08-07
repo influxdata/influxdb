@@ -134,6 +134,22 @@ type LogReader interface {
 	ListLogs(ctx context.Context, logFilter platform.LogFilter) ([]platform.Log, error)
 }
 
+// NopLogWriter is a LogWriter that doesn't do anything when its methods are called.
+// This is useful for test, but not much else.
+type NopLogReader struct{}
+
+func (NopLogReader) ListRuns(ctx context.Context, runFilter platform.RunFilter) ([]*platform.Run, error) {
+	return nil, nil
+}
+
+func (NopLogReader) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+	return nil, nil
+}
+
+func (NopLogReader) ListLogs(ctx context.Context, logFilter platform.LogFilter) ([]platform.Log, error) {
+	return nil, nil
+}
+
 // TaskSearchParams is used when searching or listing tasks.
 type TaskSearchParams struct {
 	// Return tasks belonging to this exact organization ID. May be nil.

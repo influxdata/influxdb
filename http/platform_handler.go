@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	nethttp "net/http"
 	"strings"
 
@@ -19,6 +20,7 @@ type PlatformHandler struct {
 	AssetHandler         *AssetHandler
 	ChronografHandler    *ChronografHandler
 	SourceHandler        *SourceHandler
+	TaskHandler          *TaskHandler
 }
 
 func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -87,6 +89,11 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	if strings.HasPrefix(r.URL.Path, "/v2/sources") {
 		h.SourceHandler.ServeHTTP(w, r)
 		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/v1/tasks") {
+		fmt.Println("handled?")
+		h.TaskHandler.ServeHTTP(w, r)
 	}
 
 	nethttp.NotFound(w, r)
