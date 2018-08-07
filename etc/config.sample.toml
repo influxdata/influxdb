@@ -97,6 +97,15 @@
   # to cache snapshotting.
   # max-concurrent-compactions = 0
 
+  # CompactThroughput is the rate limit in bytes per second that we
+  # will allow TSM compactions to write to disk. Note that short bursts are allowed
+  # to happen at a possibly larger value, set by CompactThroughputBurst
+  # compact-throughput = "48m"
+
+  # CompactThroughputBurst is the rate limit in bytes per second that we
+  # will allow TSM compactions to write to disk.
+  # compact-throughput-burst = "48m"
+
   # The threshold, in bytes, when an index write-ahead log file will compact
   # into an index file. Lower sizes will cause log files to be compacted more
   # quickly and result in lower heap usage at the expense of write throughput.
