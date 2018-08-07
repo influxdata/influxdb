@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
@@ -77,29 +78,50 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 }
 
 func (p pAdapter) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
-	if upd.Flux == nil {
-		return nil, errors.New("cannot update task without a script")
+	if upd.Flux == nil && upd.Status == nil {
+		return nil, errors.New("cannot update task without content")
 	}
 
-	opts, err := options.FromScript(*upd.Flux)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := p.s.ModifyTask(ctx, id, *upd.Flux); err != nil {
-		return nil, err
-	}
-
-	return &platform.Task{
+	task := &platform.Task{
 		ID:     id,
 		Name:   "TODO",
 		Status: "TODO",
 		Owner:  platform.User{}, // TODO(mr): populate from context?
-		Flux:   *upd.Flux,
-		Every:  opts.Every.String(),
-		Cron:   opts.Cron,
-		Last:   platform.Run{}, // TODO(mr): how to get last run info?
-	}, nil
+		Last:   platform.Run{},  // TODO(mr): how to get last run info?
+	}
+	if upd.Flux != nil {
+		task.Flux = *upd.Flux
+
+		opts, err := options.FromScript(task.Flux)
+		if err != nil {
+			return nil, err
+		}
+		task.Every = opts.Every.String()
+		task.Cron = opts.Cron
+
+		if err := p.s.ModifyTask(ctx, id, task.Flux); err != nil {
+			return nil, err
+		}
+	}
+
+	if upd.Status != nil {
+		var err error
+		switch *upd.Status {
+		case string(backend.TaskEnabled):
+			err = p.s.EnableTask(ctx, id)
+		case string(backend.TaskDisabled):
+			err = p.s.DisableTask(ctx, id)
+		default:
+			err = fmt.Errorf("invalid status: %s", *upd.Status)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+		task.Status = *upd.Status
+	}
+
+	return task, nil
 }
 
 func (p pAdapter) DeleteTask(ctx context.Context, id platform.ID) error {

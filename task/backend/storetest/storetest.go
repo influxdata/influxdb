@@ -27,22 +27,24 @@ func NewStoreTest(name string, cf CreateStoreFunc, df DestroyStoreFunc, funcName
 			"ListTasks",
 			"FindTask",
 			"FindMeta",
+			"EnableDisableTask",
 			"DeleteTask",
 			"CreateRun",
 			"FinishRun",
 		}
 	}
 	availableFuncs := map[string]TestFunc{
-		"CreateTask": testStoreCreate,
-		"ModifyTask": testStoreModify,
-		"ListTasks":  testStoreListTasks,
-		"FindTask":   testStoreFindTask,
-		"FindMeta":   testStoreFindMeta,
-		"DeleteTask": testStoreDelete,
-		"CreateRun":  testStoreCreateRun,
-		"FinishRun":  testStoreFinishRun,
-		"DeleteOrg":  testStoreDeleteOrg,
-		"DeleteUser": testStoreDeleteUser,
+		"CreateTask":        testStoreCreate,
+		"ModifyTask":        testStoreModify,
+		"ListTasks":         testStoreListTasks,
+		"FindTask":          testStoreFindTask,
+		"FindMeta":          testStoreFindMeta,
+		"EnableDisableTask": testStoreTaskEnableDisable,
+		"DeleteTask":        testStoreDelete,
+		"CreateRun":         testStoreCreateRun,
+		"FinishRun":         testStoreFinishRun,
+		"DeleteOrg":         testStoreDeleteOrg,
+		"DeleteUser":        testStoreDeleteUser,
 	}
 
 	return func(t *testing.T) {
@@ -438,6 +440,61 @@ from(db:"test") |> range(start:-1h)`
 
 	if meta.LastCompleted != time.Unix(1, 0).UTC().Unix() {
 		t.Fatal("LastCompletedTime not set")
+	}
+}
+
+func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy DestroyStoreFunc) {
+	const script = `option task = {
+		name: "a task",
+		cron: "* * * * *",
+	}
+
+	from(db:"test") |> range(start:-1h)`
+
+	s := create(t)
+	defer destroy(t, s)
+
+	org := []byte{1}
+	user := []byte{2}
+
+	id, err := s.CreateTask(context.Background(), org, user, script)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err := s.FindTaskMetaByID(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if meta.Status != string(backend.TaskEnabled) {
+		t.Fatal("task status not set to enabled on create")
+	}
+
+	if err := s.DisableTask(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err = s.FindTaskMetaByID(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if meta.Status != string(backend.TaskDisabled) {
+		t.Fatal("task status not set to enabled on create")
+	}
+
+	if err := s.EnableTask(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+
+	meta, err = s.FindTaskMetaByID(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if meta.Status != string(backend.TaskEnabled) {
+		t.Fatal("task status not set to enabled on create")
 	}
 }
 

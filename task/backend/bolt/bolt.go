@@ -158,6 +158,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		// metadata
 		stm := backend.StoreTaskMeta{
 			MaxConcurrency: int32(o.Concurrency),
+			Status:         string(backend.TaskEnabled),
 		}
 
 		stmBytes, err := stm.Marshal()
@@ -347,6 +348,52 @@ func (s *Store) FindTaskByID(ctx context.Context, id platform.ID) (*backend.Stor
 		Name:   string(name),
 		Script: string(script),
 	}, err
+}
+
+func (s *Store) EnableTask(ctx context.Context, id platform.ID) error {
+	paddedID := padID(id)
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket).Bucket(taskMetaPath)
+		stmBytes := b.Get(paddedID)
+		if stmBytes == nil {
+			return errors.New("task meta not found")
+		}
+		stm := backend.StoreTaskMeta{}
+		err := stm.Unmarshal(stmBytes)
+		if err != nil {
+			return err
+		}
+		stm.Status = string(backend.TaskEnabled)
+		stmBytes, err = stm.Marshal()
+		if err != nil {
+			return err
+		}
+
+		return b.Put(paddedID, stmBytes)
+	})
+}
+
+func (s *Store) DisableTask(ctx context.Context, id platform.ID) error {
+	paddedID := padID(id)
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(s.bucket).Bucket(taskMetaPath)
+		stmBytes := b.Get(paddedID)
+		if stmBytes == nil {
+			return errors.New("task meta not found")
+		}
+		stm := backend.StoreTaskMeta{}
+		err := stm.Unmarshal(stmBytes)
+		if err != nil {
+			return err
+		}
+		stm.Status = string(backend.TaskDisabled)
+		stmBytes, err = stm.Marshal()
+		if err != nil {
+			return err
+		}
+
+		return b.Put(paddedID, stmBytes)
+	})
 }
 
 func (s *Store) FindTaskMetaByID(ctx context.Context, id platform.ID) (*backend.StoreTaskMeta, error) {
