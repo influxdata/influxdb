@@ -4,7 +4,7 @@ import {LogsState} from 'src/types/logs'
 export interface LocalStorage {
   VERSION: VERSION
   app: App
-  dashTimeV1: DashTimeV1
+  ranges: DashboardTimeRange[]
   dataExplorer: DataExplorer
   dataExplorerQueryConfigs: DataExplorerQueryConfigs
   timeRange: TimeRange
@@ -19,10 +19,6 @@ export interface App {
   persisted: Persisted
 }
 
-export interface DashTimeV1 {
-  ranges: DashboardTimeRange[]
-}
-
 export interface DataExplorer {
   queryIDs: string[]
 }
@@ -31,7 +27,7 @@ export interface DataExplorerQueryConfigs {
   [id: string]: QueryConfig
 }
 
-interface DashboardTimeRange {
+export interface DashboardTimeRange {
   dashboardID: number
   defaultGroupBy: string
   format: string

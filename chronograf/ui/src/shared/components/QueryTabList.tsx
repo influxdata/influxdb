@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import QueryMakerTab from 'src/data_explorer/components/QueryMakerTab'
+import QueryMakerTab from 'src/shared/components/QueryMakerTab'
 import buildInfluxQLQuery from 'src/utils/influxql'
 import {QueryConfig, TimeRange} from 'src/types/queries'
 

@@ -58,9 +58,8 @@ class Crosshair extends PureComponent<Props> {
   }
 }
 
-const mapStateToProps = ({dashboardUI, annotations: {mode}}) => ({
-  mode,
-  hoverTime: +dashboardUI.hoverTime,
+const mapStateToProps = ({hoverTime}) => ({
+  hoverTime: +hoverTime,
 })
 
 export default connect(mapStateToProps, null)(Crosshair)

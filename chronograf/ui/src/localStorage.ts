@@ -1,13 +1,13 @@
 import _ from 'lodash'
 import normalizer from 'src/normalizers/dashboardTime'
 import {
-  notifyNewVersion,
-  notifyLoadLocalSettingsFailed,
+  newVersion,
+  loadLocalSettingsFailed,
 } from 'src/shared/copy/notifications'
 
 import {LocalStorage} from 'src/types/localStorage'
 
-declare var VERSION: string
+declare const VERSION: string
 
 export const loadLocalStorage = (errorsQueue: any[]): LocalStorage | {} => {
   try {
@@ -18,33 +18,16 @@ export const loadLocalStorage = (errorsQueue: any[]): LocalStorage | {} => {
     if (state.VERSION && state.VERSION !== VERSION) {
       const version = VERSION ? ` (${VERSION})` : ''
 
-      console.log(notifyNewVersion(version).message) // tslint:disable-line no-console
-      errorsQueue.push(notifyNewVersion(version))
-
-      if (!state.dashTimeV1) {
-        window.localStorage.removeItem('state')
-        return {}
-      }
-
-      const ranges = normalizer(_.get(state, ['dashTimeV1', 'ranges'], []))
-      const dashTimeV1 = {ranges}
-
-      window.localStorage.setItem(
-        'state',
-        JSON.stringify({
-          dashTimeV1,
-        })
-      )
-
-      return {dashTimeV1}
+      console.log(newVersion(version).message) // tslint:disable-line no-console
+      errorsQueue.push(newVersion(version))
     }
 
     delete state.VERSION
 
     return state
   } catch (error) {
-    console.error(notifyLoadLocalSettingsFailed(error).message)
-    errorsQueue.push(notifyLoadLocalSettingsFailed(error))
+    console.error(loadLocalSettingsFailed(error).message)
+    errorsQueue.push(loadLocalSettingsFailed(error))
 
     return {}
   }
@@ -55,14 +38,12 @@ export const saveToLocalStorage = ({
   dataExplorerQueryConfigs,
   timeRange,
   dataExplorer,
-  dashTimeV1: {ranges},
+  ranges,
   logs,
   script,
 }: LocalStorage): void => {
   try {
     const appPersisted = {app: {persisted}}
-    const dashTimeV1 = {ranges: normalizer(ranges)}
-
     const minimalLogs = _.omit(logs, [
       'tableData',
       'histogramData',
@@ -75,7 +56,7 @@ export const saveToLocalStorage = ({
         ...appPersisted,
         VERSION,
         timeRange,
-        dashTimeV1,
+        ranges: normalizer(ranges),
         dataExplorer,
         dataExplorerQueryConfigs,
         script,

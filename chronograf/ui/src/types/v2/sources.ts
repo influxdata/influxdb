@@ -27,6 +27,7 @@ export interface Source {
 
 export interface SourceLinks {
   self: string
-  buckets: string
   query: string
+  buckets: string
+  health: string
 }

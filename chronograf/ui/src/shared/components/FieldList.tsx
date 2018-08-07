@@ -12,7 +12,7 @@ import {
 } from 'src/types'
 
 import QueryOptions from 'src/shared/components/QueryOptions'
-import FieldListItem from 'src/data_explorer/components/FieldListItem'
+import FieldListItem from 'src/shared/components/FieldListItem'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 
 import {showFieldKeys} from 'src/shared/apis/metaQuery'

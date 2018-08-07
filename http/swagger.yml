@@ -3,7 +3,7 @@ info:
   title: Influx API Service
   version: 0.1.0
 servers:
-  - url: /v1
+  - url: /v2
 paths:
   /:
     get:
@@ -31,8 +31,624 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /healthz:
+    get:
+      tags:
+        - Health
+      summary: Get the health of an instance
+      responses:
+        '200':
+          description: the instance is healthy
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sources:
+    post:
+      tags:
+        - Sources
+      summary: Creates a Source
+      requestBody:
+          description: source to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+      responses:
+        '201':
+          description: Created Source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Sources
+      summary: Get all sources
+      responses:
+        '200':
+          description: all sources
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sources"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sources/{sourceID}:
+    patch:
+      tags:
+        - Sources
+      summary: Updates a Source
+      parameters:
+          - in: path
+            name: sourceID
+            schema:
+              type: string
+            required: true
+            description: ID of the source
+      requestBody:
+          description: source update
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+      responses:
+        '200':
+          description: Created Source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        '404':
+          description: source not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Sources
+      summary: Get a source
+      parameters:
+          - in: path
+            name: sourceID
+            schema:
+              type: string
+            required: true
+            description: ID of the source
+      responses:
+        '200':
+          description: a source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        '404':
+          description: source not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sources/{sourceID}/health:
+    get:
+      tags:
+        - Sources
+      summary: Get a sources health
+      parameters:
+          - in: path
+            name: sourceID
+            schema:
+              type: string
+            required: true
+            description: ID of the source
+      responses:
+        '200':
+          description: a source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        '404':
+          description: source not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sources/{sourceID}/buckets:
+    get:
+      tags:
+        - Sources
+        - Buckets
+      summary: Get a sources buckets (will return dbrps in the form of buckets if it is a v1 source)
+      parameters:
+          - in: path
+            name: sourceID
+            schema:
+              type: string
+            required: true
+            description: ID of the source
+      responses:
+        '200':
+          description: a source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Buckets"
+        '404':
+          description: source not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /views:
+    post:
+      tags:
+        - Views
+      summary: A view contains information about the visual representation of data
+      requestBody:
+          description: view to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/View"
+      responses:
+        '201':
+          description: Added view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/View"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Views
+      summary: Get all views
+      responses:
+        '200':
+          description: all views
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Views"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/views/{viewID}':
+   get:
+    tags:
+      - Views
+    summary: Get a single View
+    parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of view to update
+    responses:
+        '200':
+          description: get a single view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/View"
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   patch:
+      tags:
+        - Views
+      summary: Update a single view
+      requestBody:
+          description: patching of a view
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/View"
+      parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of view to update
+      responses:
+        '200':
+          description: Updated view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/View"
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   delete:
+      tags:
+        - Views
+      summary: Delete a view
+      parameters:
+        - in: path
+          name: viewID
+          schema:
+            type: string
+          required: true
+          description: ID of view to update
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: view not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /dashboards:
+    post:
+      tags:
+        - Dashboards
+      summary: Create a dashboard
+      requestBody:
+          description: dashboard to create
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+      responses:
+        '201':
+          description: Added dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      tags:
+        - Dashboards
+      summary: Get all dashboards
+      responses:
+        '200':
+          description: all dashboards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboards"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}':
+   get:
+    tags:
+      - Dashboards
+    summary: Get a single Dashboard
+    parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+    responses:
+        '200':
+          description: get a single dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   patch:
+      tags:
+        - Dashboards
+      summary: Update a single dashboard
+      requestBody:
+          description: patching of a dashboard
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '200':
+          description: Updated dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   delete:
+      tags:
+        - Dashboards
+      summary: Delete a dashboard
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}/cells':
+   put:
+      tags:
+        - Cells
+        - Dashboards
+      summary: Replace a dashboards cells
+      requestBody:
+          description: batch replaces all of a dashboards cells (this is used primarily to update the positional information of all of the cells)
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cells"
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '200':
+          description: Replaced dashboard cells
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+   post:
+      tags:
+        - Cells
+        - Dashboards
+      summary: Create a dashboard cell
+      requestBody:
+          description: cell that will be added
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateCell"
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+      responses:
+        '201':
+          description: Cell successfully added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cell"
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/dashboards/{dashboardID}/cells/{cellID}':
+    patch:
+      tags:
+        - Cells
+        - Dashboards
+      summary: Update the non positional information related to a cell (because updates to a single cells positional data could cause grid conflicts)
+      requestBody:
+          description: updates the non positional information related to a cell
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CellUpdate"
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to update
+        - in: path
+          name: cellID
+          schema:
+            type: string
+          required: true
+          description: ID of cell to update
+      responses:
+        '200':
+          description: Updated dashboard cell
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cell"
+        '404':
+          description: cell or dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      tags:
+        - Cells
+        - Dashboards
+      summary: Delete a dashboard cell
+      parameters:
+        - in: path
+          name: dashboardID
+          schema:
+            type: string
+          required: true
+          description: ID of dashboard to delte
+        - in: path
+          name: cellID
+          schema:
+            type: string
+          required: true
+          description: ID of cell to delete
+      responses:
+        '204':
+          description: Cell successfully deleted
+        '404':
+          description: cell or dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /flux:
     get:
+      tags:
+        - FluxLanguage
       responses:
         '200':
           description: Links for flux language server
@@ -48,6 +664,8 @@ paths:
                 $ref: "#/components/schemas/Error"
   /flux/suggestions:
     get:
+      tags:
+        - FluxLanguage
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -70,6 +688,8 @@ paths:
         required: true
         description: name of branching suggestion
     get:
+      tags:
+        - FluxLanguage
       responses:
         '200':
           description: Suggestions for next functions in call chain
@@ -1444,3 +2064,452 @@ components:
           type: string
       required:
         - error
+    Field:
+      type: object
+      properties:
+        value:
+          description: >-
+            value is the value of the field.  Meaning of the value is implied by
+            the `type` key
+          type: string
+        type:
+          description: >-
+            type describes the field type. func is a function; field is a field
+            reference
+          type: string
+          enum:
+            - func
+            - field
+            - integer
+            - number
+            - regex
+            - wildcard
+        alias:
+          description: >-
+            Alias overrides the field name in the returned response.  Applies only
+            if type is `func`
+          type: string
+        args:
+          description: Args are the arguments to the function
+          type: array
+          items:
+            $ref: '#/components/schemas/Field'
+    QueryConfig:
+      type: object
+      required:
+        - database
+        - measurement
+        - retentionPolicy
+        - areTagsAccepted
+        - tags
+        - groupBy
+        - fields
+      properties:
+        id:
+          type: string
+        database:
+          type: string
+        measurement:
+          type: string
+        retentionPolicy:
+          type: string
+        areTagsAccepted:
+          type: boolean
+        rawText:
+          type: string
+        tags:
+          type: object
+        groupBy:
+          type: object
+          properties:
+            time:
+              type: string
+            tags:
+              type: array
+              items:
+                type: string
+          required:
+            - time
+            - tags
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/Field'
+        range:
+          type: object
+          properties:
+            lower:
+              type: string
+            upper:
+              type: string
+          required:
+            - lower
+            - upper
+    DashboardQuery:
+      type: object
+      required:
+        - query
+      properties:
+        label:
+          type: string
+          description: Optional Y-axis user-facing label
+        range:
+          description: Optional default range of the Y-axis
+          type: object
+          required:
+            - upper
+            - lower
+          properties:
+            upper:
+              description: Upper bound of the display range of the Y-axis
+              type: integer
+              format: int64
+            lower:
+              description: Lower bound of the display range of the Y-axis
+              type: integer
+              format: int64
+        query:
+          type: string
+        source:
+          type: string
+          format: url
+          description: Optional URI for data source for this query
+        queryConfig:
+          $ref: '#/components/schemas/QueryConfig'
+    Axis:
+      type: object
+      description: A description of a particular axis for a visualization
+      properties:
+        bounds:
+          type: array
+          minItems: 0
+          maxItems: 2
+          description: >-
+            The extents of an axis in the form [lower, upper]. Clients determine
+            whether bounds are to be inclusive or exclusive of their limits
+          items:
+            type: integer
+            format: int64
+        label:
+          description: label is a description of this Axis
+          type: string
+        prefix:
+          description: Prefix represents a label prefix for formatting axis values.
+          type: string
+        suffix:
+          description: Suffix represents a label suffix for formatting axis values.
+          type: string
+        base:
+          description: Base represents the radix for formatting axis values.
+          type: string
+        scale:
+          description: 'Scale is the axis formatting scale. Supported: "log", "linear"'
+          type: string
+    DashboardColor:
+      type: object
+      description: Color defines an encoding of data value into color space
+      properties:
+        id:
+          description: ID is the unique id of the view color
+          type: string
+        type:
+          description: Type is how the color is used.
+          type: string
+          enum:
+            - min
+            - max
+            - threshold
+        hex:
+          description: Hex is the hex number of the color
+          type: string
+          maxLength: 7
+          minLength: 7
+        name:
+          description: Name is the user-facing name of the hex color
+          type: string
+        value:
+          description: Value is the data value mapped to this color
+          type: string
+    RenamableField:
+      description: Describes a field that can be renamed and made visible or invisible
+      type: object
+      properties:
+        internalName:
+          description: This is the calculated name of a field
+          readOnly: true
+          type: string
+        displayName:
+          description: This is the name that a field is renamed to by the user
+          type: string
+        visible:
+          description: Indicates whether this field should be visible on the table
+          type: boolean
+    V1ViewProperties:
+      properties:
+        type:
+          type: string
+          enum: ["chronograf-v1"]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        axes:
+          description: The viewport for a View's visualizations
+          type: object
+          properties:
+            x:
+              $ref: '#/components/schemas/Axis'
+            y:
+              $ref: '#/components/schemas/Axis'
+            y2:
+              $ref: '#/components/schemas/Axis'
+        graphType:
+          description: The viewport for a view's graph/visualization
+          type: string
+          enum:
+            - single-stat
+            - line
+            - line-plus-single-stat
+            - line-stacked
+            - line-stepplot
+            - bar
+            - gauge
+            - table
+          default: line
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardColor"
+        legend:
+          description: Legend define encoding of data into a view's legend
+          type: object
+          properties:
+            type:
+              description: type is the style of the legend
+              type: string
+              enum:
+                - static
+            orientation:
+              description: >-
+                orientation is the location of the legend with respect to the view
+                graph
+              type: string
+              enum:
+                - top
+                - bottom
+                - left
+                - right
+        tableOptions:
+          properties:
+            verticalTimeAxis:
+              description: >-
+                verticalTimeAxis describes the orientation of the table by
+                indicating whether the time axis will be displayed vertically
+              type: boolean
+            sortBy:
+              $ref: "#/components/schemas/RenamableField"
+            wrapping:
+              description: wrapping describes the text wrapping style to be used in table views
+              type: string
+              enum:
+                - truncate
+                - wrap
+                - single-line
+            fixFirstColumn:
+              description: >-
+                fixFirstColumn indicates whether the first column of the table
+                should be locked
+              type: boolean
+        fieldOptions:
+          description: >-
+            fieldOptions represent the fields retrieved by the query with
+            customization options
+          type: array
+          items:
+            $ref: '#/components/schemas/RenamableField'
+        timeFormat:
+          description: >-
+            timeFormat describes the display format for time values according to
+            moment.js date formatting
+          type: string
+        decimalPoints:
+          description: >-
+            decimal points indicates whether and how many digits to show after
+            decimal point
+          type: object
+          properties:
+            isEnforced:
+              description: Indicates whether decimal point setting should be enforced
+              type: boolean
+            digits:
+              description: The number of digists after decimal to display
+              type: integer
+    EmptyViewProperties:
+      properties:
+        type:
+          type: string
+          enum: ["empty"]
+    View:
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        properties:
+          oneOf:
+            - $ref: "#/components/schemas/V1ViewProperties"
+            - $ref: "#/components/schemas/EmptyViewProperties"
+    Views:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+        views:
+          type: array
+          items:
+            $ref: "#/components/schemas/View"
+    CellUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+    CreateCell:
+      type: object
+      properties:
+        name:
+          type: string
+        x:
+          type: integer
+          format: int32
+        y:
+          type: integer
+          format: int32
+        w:
+          type: integer
+          format: int32
+        h:
+          type: integer
+          format: int32
+        viewID:
+          type: string
+          description: uses the view provided in the request
+        usingView:
+          type: string
+          description: makes a copy of the provided view
+    Cell:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+            view:
+              type: string
+        name:
+          type: string
+        x:
+          type: integer
+          format: int32
+        y:
+          type: integer
+          format: int32
+        w:
+          type: integer
+          format: int32
+        h:
+          type: integer
+          format: int32
+        viewID:
+          type: string
+          description: The reference to a view from the views API
+    Cells:
+      type: array
+      items:
+        $ref: "#/components/schemas/Cell"
+    Dashboard:
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+            cells:
+              type: string
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        cells:
+            $ref: "#/components/schemas/Cells"
+    Dashboards:
+      type: object
+      properties:
+        links:
+          $ref: "#/components/schemas/Links"
+        dashboards:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dashboard"
+    Source:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+        id:
+          type: string
+        organizationID:
+          type: string
+        default:
+          type: boolean
+        name:
+          type: string
+        type:
+          type: string
+          enum: ["v1","v2","self"]
+        url:
+          type: string
+        insecureSkipVerify:
+          type: boolean
+        telegraf:
+          type: string
+        token:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        sharedSecret:
+          type: string
+        metaUrl:
+          type: string
+        defaultRP:
+          type: string
+        fluxURL:
+          type: string
+    Sources:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/Source"

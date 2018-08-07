@@ -589,8 +589,8 @@ class TableGraph extends Component<Props, State> {
   }
 }
 
-const mstp = ({dashboardUI}) => ({
-  hoverTime: dashboardUI.hoverTime,
+const mstp = ({hoverTime}) => ({
+  hoverTime,
 })
 
 const mapDispatchToProps = dispatch => ({

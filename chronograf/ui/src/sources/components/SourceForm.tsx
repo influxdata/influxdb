@@ -4,7 +4,7 @@ import _ from 'lodash'
 
 import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   source: Partial<Source>

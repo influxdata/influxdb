@@ -199,22 +199,6 @@ func NewChronografHandler(s *server.Service) *ChronografHandler {
 
 	h.HandlerFunc("GET", "/chronograf/v1/env", h.Service.Environment)
 
-	/// V2 Cells
-	h.HandlerFunc("GET", "/chronograf/v2/cells", h.Service.CellsV2)
-	h.HandlerFunc("POST", "/chronograf/v2/cells", h.Service.NewCellV2)
-
-	h.HandlerFunc("GET", "/chronograf/v2/cells/:id", h.Service.CellIDV2)
-	h.HandlerFunc("DELETE", "/chronograf/v2/cells/:id", h.Service.RemoveCellV2)
-	h.HandlerFunc("PATCH", "/chronograf/v2/cells/:id", h.Service.UpdateCellV2)
-
-	// V2 Dashboards
-	h.HandlerFunc("GET", "/chronograf/v2/dashboards", h.Service.DashboardsV2)
-	h.HandlerFunc("POST", "/chronograf/v2/dashboards", h.Service.NewDashboardV2)
-
-	h.HandlerFunc("GET", "/chronograf/v2/dashboards/:id", h.Service.DashboardIDV2)
-	h.HandlerFunc("DELETE", "/chronograf/v2/dashboards/:id", h.Service.RemoveDashboardV2)
-	h.HandlerFunc("PATCH", "/chronograf/v2/dashboards/:id", h.Service.UpdateDashboardV2)
-
 	allRoutes := &server.AllRoutes{
 		// TODO(desa): what to do here
 		//Logger:      opts.Logger,

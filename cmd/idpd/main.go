@@ -113,6 +113,11 @@ func platformF(cmd *cobra.Command, args []string) {
 		dashboardSvc = c
 	}
 
+	var cellSvc platform.ViewService
+	{
+		cellSvc = c
+	}
+
 	var sourceSvc platform.SourceService
 	{
 		sourceSvc = c
@@ -180,6 +185,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		dashboardHandler := http.NewDashboardHandler()
 		dashboardHandler.DashboardService = dashboardSvc
 
+		cellHandler := http.NewViewHandler()
+		cellHandler.ViewService = cellSvc
+
 		authHandler := http.NewAuthorizationHandler()
 		authHandler.AuthorizationService = authSvc
 		authHandler.Logger = logger.With(zap.String("handler", "auth"))
@@ -207,6 +215,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			ChronografHandler:    chronografHandler,
 			SourceHandler:        sourceHandler,
 			TaskHandler:          taskHandler,
+			ViewHandler:          cellHandler,
 		}
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
 

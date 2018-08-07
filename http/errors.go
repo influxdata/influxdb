@@ -111,6 +111,8 @@ func statusCode(e kerrors.Error) int {
 		return http.StatusBadRequest
 	case kerrors.Forbidden:
 		return http.StatusForbidden
+	case kerrors.NotFound:
+		return http.StatusNotFound
 	default:
 		return http.StatusInternalServerError
 	}

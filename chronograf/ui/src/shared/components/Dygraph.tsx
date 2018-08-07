@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component, CSSProperties, MouseEvent} from 'react'
-import {connect} from 'react-redux'
 import _ from 'lodash'
 import NanoDate from 'nano-date'
 import ReactResizeDetector from 'react-resize-detector'
@@ -9,7 +8,6 @@ import ReactResizeDetector from 'react-resize-detector'
 import D from 'src/external/dygraph'
 import DygraphLegend from 'src/shared/components/DygraphLegend'
 import StaticLegend from 'src/shared/components/StaticLegend'
-import Annotations from 'src/shared/components/Annotations'
 import Crosshair from 'src/shared/components/Crosshair'
 
 // Utils
@@ -39,8 +37,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {
   Axes,
-  Query,
-  CellType,
   TimeRange,
   DygraphData,
   DygraphClass,
@@ -48,19 +44,20 @@ import {
   Constructable,
 } from 'src/types'
 import {LineColor} from 'src/types/colors'
+import {CellQuery, ViewType} from 'src/types/v2/dashboards'
 
 const Dygraphs = D as Constructable<DygraphClass>
 
 interface Props {
-  type: CellType
-  cellID: string
-  queries: Query[]
+  type: ViewType
+  cellID?: string
+  queries?: CellQuery[]
   timeSeries: DygraphData
   labels: string[]
   options: dygraphs.Options
   containerStyle: object // TODO
   dygraphSeries: DygraphSeries
-  timeRange: TimeRange
+  timeRange?: TimeRange
   colors: LineColor[]
   handleSetHoverTime: (t: string) => void
   axes?: Axes
@@ -162,7 +159,7 @@ class Dygraph extends Component<Props, State> {
       highlightCircleSize: 3,
     }
 
-    if (type === CellType.Bar) {
+    if (type === ViewType.Bar) {
       defaultOptions = {
         ...defaultOptions,
         plotter: barPlotter,
@@ -204,7 +201,7 @@ class Dygraph extends Component<Props, State> {
       )
     }
 
-    const timeSeries = this.timeSeries
+    const timeSeries: DygraphData = this.timeSeries
 
     const timeRangeChanged = !_.isEqual(
       prevProps.timeRange,
@@ -239,7 +236,7 @@ class Dygraph extends Component<Props, State> {
       },
       colors: LINE_COLORS,
       series: this.colorDygraphSeries,
-      plotter: type === CellType.Bar ? barPlotter : null,
+      plotter: type === ViewType.Bar ? barPlotter : null,
       underlayCallback,
     }
 
@@ -251,7 +248,7 @@ class Dygraph extends Component<Props, State> {
   }
 
   public render() {
-    const {staticLegendHeight, xAxisRange} = this.state
+    const {staticLegendHeight} = this.state
     const {staticLegend, cellID} = this.props
 
     return (
@@ -262,14 +259,6 @@ class Dygraph extends Component<Props, State> {
       >
         {this.dygraph && (
           <div className="dygraph-addons">
-            {this.areAnnotationsVisible && (
-              <Annotations
-                dygraph={this.dygraph}
-                dWidth={this.dygraph.width_}
-                staticLegendHeight={staticLegendHeight}
-                xAxisRange={xAxisRange}
-              />
-            )}
             <DygraphLegend
               cellID={cellID}
               dygraph={this.dygraph}
@@ -427,7 +416,7 @@ class Dygraph extends Component<Props, State> {
     )
   }
 
-  private get timeSeries() {
+  private get timeSeries(): DygraphData {
     const {timeSeries} = this.props
     // Avoid 'Can't plot empty data set' errors by falling back to a
     // default dataset that's valid for Dygraph.
@@ -449,10 +438,6 @@ class Dygraph extends Component<Props, State> {
       }
     }
     return coloredDygraphSeries
-  }
-
-  private get areAnnotationsVisible() {
-    return !!this.dygraph
   }
 
   private getLabel = (axis: string): string => {
@@ -490,8 +475,4 @@ class Dygraph extends Component<Props, State> {
   }
 }
 
-const mapStateToProps = ({annotations: {mode}}) => ({
-  mode,
-})
-
-export default connect(mapStateToProps, null)(Dygraph)
+export default Dygraph

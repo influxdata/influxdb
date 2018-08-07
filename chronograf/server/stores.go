@@ -7,7 +7,6 @@ import (
 	"github.com/influxdata/platform/chronograf/noop"
 	"github.com/influxdata/platform/chronograf/organizations"
 	"github.com/influxdata/platform/chronograf/roles"
-	platform "github.com/influxdata/platform/chronograf/v2"
 )
 
 // hasOrganizationContext retrieves organization specified on context
@@ -93,8 +92,6 @@ type DataStore interface {
 	Dashboards(ctx context.Context) chronograf.DashboardsStore
 	Config(ctx context.Context) chronograf.ConfigStore
 	OrganizationConfig(ctx context.Context) chronograf.OrganizationConfigStore
-	Cells(ctx context.Context) platform.CellService
-	DashboardsV2(ctx context.Context) platform.DashboardService
 }
 
 // ensure that Store implements a DataStore
@@ -111,8 +108,6 @@ type Store struct {
 	OrganizationsStore      chronograf.OrganizationsStore
 	ConfigStore             chronograf.ConfigStore
 	OrganizationConfigStore chronograf.OrganizationConfigStore
-	CellService             platform.CellService
-	DashboardService        platform.DashboardService
 }
 
 // Sources returns a noop.SourcesStore if the context has no organization specified
@@ -223,16 +218,6 @@ func (s *Store) Mappings(ctx context.Context) chronograf.MappingsStore {
 	return &noop.MappingsStore{}
 }
 
-// Cells returns the underlying CellService.
-func (s *Store) Cells(ctx context.Context) platform.CellService {
-	return s.CellService
-}
-
-// DashboardsV2 returns the underlying DashboardsService.
-func (s *Store) DashboardsV2(ctx context.Context) platform.DashboardService {
-	return s.DashboardService
-}
-
 // ensure that DirectStore implements a DataStore
 var _ DataStore = &DirectStore{}
 
@@ -247,8 +232,6 @@ type DirectStore struct {
 	OrganizationsStore      chronograf.OrganizationsStore
 	ConfigStore             chronograf.ConfigStore
 	OrganizationConfigStore chronograf.OrganizationConfigStore
-	CellService             platform.CellService
-	DashboardService        platform.DashboardService
 }
 
 // Sources returns a noop.SourcesStore if the context has no organization specified
@@ -303,14 +286,4 @@ func (s *DirectStore) Config(ctx context.Context) chronograf.ConfigStore {
 // Mappings returns the underlying MappingsStore.
 func (s *DirectStore) Mappings(ctx context.Context) chronograf.MappingsStore {
 	return s.MappingsStore
-}
-
-// Cells returns the underlying CellService.
-func (s *DirectStore) Cells(ctx context.Context) platform.CellService {
-	return s.CellService
-}
-
-// DashboardsV2 returns the underlying DashboardsService.
-func (s *DirectStore) DashboardsV2(ctx context.Context) platform.DashboardService {
-	return s.DashboardService
 }

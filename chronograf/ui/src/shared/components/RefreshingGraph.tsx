@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -12,39 +13,31 @@ import TimeSeries from 'src/shared/components/time_series/TimeSeries'
 
 // Constants
 import {emptyGraphCopy} from 'src/shared/copy/cell'
-import {
-  DEFAULT_TIME_FORMAT,
-  DEFAULT_DECIMAL_PLACES,
-} from 'src/dashboards/constants'
+import {DEFAULT_TIME_FORMAT} from 'src/dashboards/constants'
+
+// Utils
+import {buildQueries} from 'src/utils/buildQueriesForLayouts'
 
 // Actions
-import {setHoverTime} from 'src/dashboards/actions'
+import {setHoverTime} from 'src/dashboards/actions/v2/hoverTime'
 
 // Types
-import {ColorString} from 'src/types/colors'
-import {Source, Axes, TimeRange, Template, Query, CellType} from 'src/types'
-import {TableOptions, FieldOption, DecimalPlaces} from 'src/types/dashboards'
+import {TimeRange, Template, CellQuery} from 'src/types'
+import {V1View, ViewType} from 'src/types/v2/dashboards'
 
 interface Props {
-  axes: Axes
-  source: Source
-  queries: Query[]
+  link: string
   timeRange: TimeRange
-  colors: ColorString[]
   templates: Template[]
-  tableOptions: TableOptions
-  fieldOptions: FieldOption[]
-  decimalPlaces: DecimalPlaces
-  type: CellType
   cellID: string
   inView: boolean
   isInCEO: boolean
   timeFormat: string
   cellHeight: number
   autoRefresh: number
-  staticLegend: boolean
   manualRefresh: number
-  resizerTopHeight: number
+  options: V1View
+  staticLegend: boolean
   onZoom: () => void
   editQueryStatus: () => void
   onSetResolution: () => void
@@ -52,24 +45,16 @@ interface Props {
   handleSetHoverTime: () => void
 }
 
-class RefreshingGraph extends PureComponent<Props> {
+class RefreshingGraph extends PureComponent<Props & WithRouterProps> {
   public static defaultProps: Partial<Props> = {
     inView: true,
     manualRefresh: 0,
     staticLegend: false,
-    timeFormat: DEFAULT_TIME_FORMAT,
-    decimalPlaces: DEFAULT_DECIMAL_PLACES,
   }
 
   public render() {
-    const {
-      inView,
-      type,
-      queries,
-      source,
-      templates,
-      editQueryStatus,
-    } = this.props
+    const {link, inView, templates} = this.props
+    const {queries, type} = this.props.options
 
     if (!queries.length) {
       return (
@@ -81,19 +66,18 @@ class RefreshingGraph extends PureComponent<Props> {
 
     return (
       <TimeSeries
-        source={source}
+        link={link}
         inView={inView}
         queries={this.queries}
         templates={templates}
-        editQueryStatus={editQueryStatus}
       >
         {({timeSeries, loading}) => {
           switch (type) {
-            case CellType.SingleStat:
+            case ViewType.SingleStat:
               return this.singleStat(timeSeries)
-            case CellType.Table:
+            case ViewType.Table:
               return this.table(timeSeries)
-            case CellType.Gauge:
+            case ViewType.Gauge:
               return this.gauge(timeSeries)
             default:
               return this.lineGraph(timeSeries, loading)
@@ -104,7 +88,8 @@ class RefreshingGraph extends PureComponent<Props> {
   }
 
   private singleStat = (data): JSX.Element => {
-    const {colors, cellHeight, decimalPlaces, manualRefresh} = this.props
+    const {cellHeight, manualRefresh} = this.props
+    const {colors, decimalPlaces} = this.props.options
 
     return (
       <SingleStat
@@ -121,28 +106,24 @@ class RefreshingGraph extends PureComponent<Props> {
   }
 
   private table = (data): JSX.Element => {
+    const {manualRefresh, handleSetHoverTime, grabDataForDownload} = this.props
+
     const {
       colors,
       fieldOptions,
-      timeFormat,
       tableOptions,
       decimalPlaces,
-      manualRefresh,
-      handleSetHoverTime,
-      grabDataForDownload,
-      isInCEO,
-    } = this.props
+    } = this.props.options
 
     return (
       <TableGraph
         data={data}
         colors={colors}
-        isInCEO={isInCEO}
         key={manualRefresh}
         tableOptions={tableOptions}
         fieldOptions={fieldOptions}
-        timeFormat={timeFormat}
         decimalPlaces={decimalPlaces}
+        timeFormat={DEFAULT_TIME_FORMAT}
         grabDataForDownload={grabDataForDownload}
         handleSetHoverTime={handleSetHoverTime}
       />
@@ -150,14 +131,8 @@ class RefreshingGraph extends PureComponent<Props> {
   }
 
   private gauge = (data): JSX.Element => {
-    const {
-      colors,
-      cellID,
-      cellHeight,
-      decimalPlaces,
-      manualRefresh,
-      resizerTopHeight,
-    } = this.props
+    const {cellID, cellHeight, manualRefresh} = this.props
+    const {colors, decimalPlaces} = this.props.options
 
     return (
       <GaugeChart
@@ -169,26 +144,23 @@ class RefreshingGraph extends PureComponent<Props> {
         key={manualRefresh}
         cellHeight={cellHeight}
         decimalPlaces={decimalPlaces}
-        resizerTopHeight={resizerTopHeight}
+        resizerTopHeight={100}
       />
     )
   }
 
   private lineGraph = (data, loading): JSX.Element => {
     const {
-      axes,
-      type,
-      colors,
       onZoom,
       cellID,
-      queries,
       timeRange,
       cellHeight,
-      decimalPlaces,
       staticLegend,
       manualRefresh,
       handleSetHoverTime,
     } = this.props
+
+    const {decimalPlaces, axes, type, colors, queries} = this.props.options
 
     return (
       <LineGraph
@@ -210,13 +182,16 @@ class RefreshingGraph extends PureComponent<Props> {
     )
   }
 
-  private get queries(): Query[] {
-    const {queries, type} = this.props
-    if (type === CellType.SingleStat) {
+  private get queries(): CellQuery[] {
+    const {timeRange, options} = this.props
+    const {type} = options
+    const queries = buildQueries(options.queries, timeRange)
+
+    if (type === ViewType.SingleStat) {
       return [queries[0]]
     }
 
-    if (type === CellType.Gauge) {
+    if (type === ViewType.Gauge) {
       return [queries[0]]
     }
 
@@ -224,23 +199,29 @@ class RefreshingGraph extends PureComponent<Props> {
   }
 
   private get prefix(): string {
-    const {axes} = this.props
+    const {axes} = this.props.options
 
     return _.get(axes, 'y.prefix', '')
   }
 
   private get suffix(): string {
-    const {axes} = this.props
+    const {axes} = this.props.options
     return _.get(axes, 'y.suffix', '')
   }
 }
 
-const mapStateToProps = ({annotations: {mode}}) => ({
-  mode,
-})
+const mstp = ({sources, routing}): Partial<Props> => {
+  const sourceID = routing.locationBeforeTransitions.query.sourceID
+  const source = sources.find(s => s.id === sourceID)
+  const link = source.links.query
+
+  return {
+    link,
+  }
+}
 
 const mdtp = {
   handleSetHoverTime: setHoverTime,
 }
 
-export default connect(mapStateToProps, mdtp)(RefreshingGraph)
+export default connect(mstp, mdtp)(withRouter(RefreshingGraph))

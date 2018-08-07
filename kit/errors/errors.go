@@ -15,6 +15,8 @@ const (
 	InvalidData = 3
 	// Forbidden indicates a forbidden operation.
 	Forbidden = 4
+	// NotFound indicates a resource was not found.
+	NotFound = 5
 )
 
 // Error indicates an error with a reference code and an HTTP status code.

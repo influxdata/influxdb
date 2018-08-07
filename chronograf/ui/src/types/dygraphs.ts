@@ -1,4 +1,4 @@
-export type DygraphData = number[][]
+export type DygraphData = DygraphValue[][]
 
 export type Data = string | DygraphData | google.visualization.DataTable
 
@@ -499,8 +499,8 @@ export declare class DygraphClass {
 
   constructor(
     container: HTMLElement | string,
-    data: dygraphs.Data | (() => dygraphs.Data),
-    options?: dygraphs.Options
+    data: DygraphData | (() => DygraphData),
+    options?: Options
   )
 
   /**
@@ -795,10 +795,7 @@ export declare class DygraphClass {
    *         preventing redraws when it's not necessary (e.g. when updating a
    *         callback).
    */
-  public updateOptions(
-    inputAttrs: dygraphs.Options,
-    blockRedraw?: boolean
-  ): void
+  public updateOptions(inputAttrs: Options, blockRedraw?: boolean): void
 
   /**
    * Resizes the dygraph. If no parameters are specified, resizes to fill the
@@ -873,4 +870,545 @@ export declare class DygraphClass {
    * This is a good place to call setAnnotations().
    */
   public ready(callback: (g: Dygraph) => any): void
+}
+
+export interface Options extends PerSeriesOptions, PerAxisOptions {
+  /**
+   * Set this option to animate the transition between zoom windows. Applies to programmatic
+   * and interactive zooms. Note that if you also set a drawCallback, it will be called several
+   * times on each zoom. If you set a zoomCallback, it will only be called after the animation
+   * is complete.
+   */
+  animatedZooms?: boolean
+
+  /**
+   * If provided, this function is called whenever the user clicks on an annotation.
+   */
+  annotationClickHandler?: (
+    annotation: dygraphs.Annotation,
+    point: Point,
+    dygraph: Dygraph,
+    event: MouseEvent
+  ) => any
+
+  /**
+   * If provided, this function is called whenever the user double-clicks on an annotation.
+   */
+  annotationDblClickHandler?: (
+    annotation: dygraphs.Annotation,
+    point: Point,
+    dygraph: Dygraph,
+    event: MouseEvent
+  ) => any
+
+  /**
+   * If provided, this function is called whenever the user mouses out of an annotation.
+   */
+  annotationMouseOutHandler?: (
+    annotation: dygraphs.Annotation,
+    point: Point,
+    dygraph: Dygraph,
+    event: MouseEvent
+  ) => any
+
+  /**
+   * If provided, this function is called whenever the user mouses over an annotation.
+   */
+  annotationMouseOverHandler?: (
+    annotation: dygraphs.Annotation,
+    point: Point,
+    dygraph: Dygraph,
+    event: MouseEvent
+  ) => any
+
+  /**
+   * Defines per-axis options. Valid keys are 'x', 'y' and 'y2'. Only some options may be set
+   * on a per-axis basis. If an option may be set in this way, it will be noted on this page.
+   * See also documentation on <a href='http://dygraphs.com/per-axis.html'>per-series and
+   * per-axis options</a>.
+   */
+  axes?: {
+    x?: PerAxisOptions
+    y?: PerAxisOptions
+    y2?: PerAxisOptions
+  }
+
+  /**
+   * A function to call when the canvas is clicked.
+   */
+  clickCallback?: (e: MouseEvent, xval: number, points: Point[]) => any
+
+  /**
+   * If <strong>colors</strong> is not specified, saturation of the automatically-generated
+   * data series colors. (0.0-1.0).
+   */
+  colorSaturation?: number
+
+  /**
+   * If colors is not specified, value of the data series colors, as in hue/saturation/value.
+   * (0.0-1.0, default 0.5)
+   */
+  colorValue?: number
+
+  /**
+   * List of colors for the data series. These can be of the form "#AABBCC" or
+   * "rgb(255,100,200)" or "yellow", etc. If not specified, equally-spaced points around a
+   * color wheel are used. Overridden by the 'color' option.
+   */
+  colors?: string[]
+
+  /**
+   * Usually, when Dygraphs encounters a missing value in a data series, it interprets this as
+   * a gap and draws it as such. If, instead, the missing values represents an x-value for
+   * which only a different series has data, then you'll want to connect the dots by setting
+   * this to true. To explicitly include a gap with this option set, use a value of NaN.
+   */
+  connectSeparatedPoints?: boolean
+
+  /**
+   * When set, parse each CSV cell as "low;middle;high". Error bars will be drawn for each
+   * point between low and high, with the series itself going through middle.
+   */
+  customBars?: boolean
+
+  /**
+   * Custom DataHandler. This is an advanced customization. See http://bit.ly/151E7Aq.
+   */
+  dataHandler?: any
+
+  /**
+   * Initially zoom in on a section of the graph. Is of the form [earliest, latest], where
+   * earliest/latest are milliseconds since epoch. If the data for the x-axis is numeric, the
+   * values in dateWindow must also be numbers.
+   */
+  dateWindow?: number[]
+
+  /**
+   * The delimiter to look for when separating fields of a CSV file. Setting this to a tab is
+   * not usually necessary, since tab-delimited data is auto-detected.
+   */
+  delimiter?: string
+
+  /**
+   * Unless it's run in scientific mode (see the <code>sigFigs</code> option), dygraphs
+   * displays numbers with <code>digitsAfterDecimal</code> digits after the decimal point.
+   * Trailing zeros are not displayed, so with a value of 2 you'll get '0', '0.1', '0.12',
+   * '123.45' but not '123.456' (it will be rounded to '123.46'). Numbers with absolute value
+   * less than 0.1^digitsAfterDecimal (i.e. those which would show up as '0.00') will be
+   * displayed in scientific notation.
+   */
+  digitsAfterDecimal?: number
+
+  /**
+   * Only applies when Dygraphs is used as a GViz chart. Causes string columns following a data
+   * series to be interpreted as annotations on points in that series. This is the same format
+   * used by Google's AnnotatedTimeLine chart.
+   */
+  displayAnnotations?: boolean
+
+  /**
+   * When set, draw the X axis at the Y=0 position and the Y axis at the X=0 position if those
+   * positions are inside the graph's visible area. Otherwise, draw the axes at the bottom or
+   * left graph edge as usual.
+   */
+  drawAxesAtZero?: boolean
+
+  /**
+   * When set, this callback gets called every time the dygraph is drawn. This includes the
+   * initial draw, after zooming and repeatedly while panning.
+   */
+  // tslint:disable-next-line:variable-name
+  drawCallback?: (dygraph: Dygraph, is_initial: boolean) => any
+
+  /**
+   * Draw points at the edges of gaps in the data. This improves visibility of small data
+   * segments or other data irregularities.
+   */
+  drawGapEdgePoints?: boolean
+
+  /**
+   * Draw a custom item when a point is highlighted.    Default is a small dot matching the
+   * series color. This method should constrain drawing to within pointSize pixels from (cx,
+   * cy) Also see <a href='#drawPointCallback'>drawPointCallback</a>
+   */
+  drawHighlightPointCallback?: (
+    g: Dygraph,
+    seriesName: string,
+    canvasContext: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    color: string,
+    pointSize: number
+  ) => any
+
+  /**
+   * Draw a custom item when drawPoints is enabled. Default is a small dot matching the series
+   * color. This method should constrain drawing to within pointSize pixels from (cx, cy).
+   * Also see <a href='#drawHighlightPointCallback'>drawHighlightPointCallback</a>
+   */
+  drawPointCallback?: (
+    g: Dygraph,
+    seriesName: string,
+    canvasContext: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    color: string,
+    pointSize: number
+  ) => any
+
+  /**
+   * Does the data contain standard deviations? Setting this to true alters the input format.
+   */
+  errorBars?: boolean
+
+  /**
+   * Sets the data being displayed in the chart. This can only be set when calling
+   * updateOptions; it cannot be set from the constructor. For a full description of valid data
+   * formats, see the <a href='http://dygraphs.com/data.html'>Data Formats</a> page.
+   */
+  file?: Data
+
+  /**
+   * When set, attempt to parse each cell in the CSV file as "a/b", where a and b are integers.
+   * The ratio will be plotted. This allows computation of Wilson confidence intervals (see
+   * below).
+   */
+  fractions?: boolean
+
+  /**
+   * Height, in pixels, of the chart. If the container div has been explicitly sized, this will
+   * be ignored.
+   */
+  height?: number
+
+  /**
+   * Whether to hide the legend when the mouse leaves the chart area.
+   */
+  hideOverlayOnMouseOut?: boolean
+
+  /**
+   * When set, this callback gets called every time a new point is highlighted.
+   */
+  highlightCallback?: (
+    event: MouseEvent,
+    xval: number,
+    points: Point[],
+    row: number,
+    seriesName: string
+  ) => any
+
+  /**
+   * Fade the background while highlighting series. 1=fully visible background (disable
+   * fading), 0=hiddden background (show highlighted series only).
+   */
+  highlightSeriesBackgroundAlpha?: number
+
+  /**
+   * Sets the background color used to fade out the series in conjunction with 'highlightSeriesBackgroundAlpha'.
+   * Default: rgb(255, 255, 255)
+   */
+  highlightSeriesBackgroundColor?: string
+
+  /**
+   * When set, the options from this object are applied to the timeseries closest to the mouse
+   * pointer for interactive highlighting. See also 'highlightCallback'. Example:
+   * highlightSeriesOpts: { strokeWidth: 3 }.
+   */
+  highlightSeriesOpts?: PerSeriesOptions
+
+  /**
+   * Usually, dygraphs will use the range of the data plus some padding to set the range of the
+   * y-axis. If this option is set, the y-axis will always include zero, typically as the
+   * lowest value. This can be used to avoid exaggerating the variance in the data
+   */
+  includeZero?: boolean
+
+  interactionModel?: any
+
+  /**
+   * When this option is passed to updateOptions() along with either the
+   * <code>dateWindow</code> or <code>valueRange</code> options, the zoom flags are not changed
+   * to reflect a zoomed state. This is primarily useful for when the display area of a chart
+   * is changed programmatically and also where manual zooming is allowed and use is made of
+   * the <code>isZoomed</code> method to determine this.
+   */
+  isZoomedIgnoreProgrammaticZoom?: boolean
+
+  /**
+   * A name for each data series, including the independent (X) series. For CSV files and
+   * DataTable objections, this is determined by context. For raw data, this must be specified.
+   * If it is not, default values are supplied and a warning is logged.
+   */
+  labels?: string[]
+
+  /**
+   * Show data labels in an external div, rather than on the graph.    This value can either be a
+   * div element or a div id.
+   */
+  labelsDiv?: string | HTMLElement
+
+  /**
+   * Additional styles to apply to the currently-highlighted points div. For example, {
+   * 'fontWeight': 'bold' } will make the labels bold. In general, it is better to use CSS to
+   * style the .dygraph-legend class than to use this property.
+   */
+  labelsDivStyles?: {[cssProperty: string]: string}
+
+  /**
+   * Width (in pixels) of the div which shows information on the currently-highlighted points.
+   */
+  labelsDivWidth?: number
+
+  /**
+   * Put <code>&lt;br/&gt;</code> between lines in the label string. Often used in conjunction
+   * with <strong>labelsDiv</strong>.
+   */
+  labelsSeparateLines?: boolean
+
+  /**
+   * Show zero value labels in the labelsDiv.
+   */
+  labelsShowZeroValues?: boolean
+
+  /**
+   * Show date/time labels according to UTC (instead of local time).
+   */
+  labelsUTC?: boolean
+
+  /**
+   * When to display the legend. By default, it only appears when a user mouses over the chart.
+   * Set it to "always" to always display a legend of some sort. When set to "follow", legend
+   * follows highlighted points. If set to 'never' then it will not appear at all.
+   */
+  legend?: 'always' | 'follow' | 'onmouseover' | 'never'
+
+  /**
+   * for details see https://github.com/danvk/dygraphs/pull/683
+   */
+  legendFormatter?: (legendData: LegendData) => string
+
+  /**
+   * A value representing the farthest a graph may be panned, in percent of the display. For
+   * example, a value of 0.1 means that the graph can only be panned 10% pased the edges of the
+   * displayed values. null means no bounds.
+   */
+  panEdgeFraction?: number
+
+  /**
+   * A function (or array of functions) which plot each data series on the chart.
+   * TODO(danvk): more details! May be set per-series.
+   */
+  plotter?: any
+
+  /**
+   * Defines per-graph plugins. Useful for per-graph customization
+   */
+  plugins?: any[]
+
+  /**
+   * A function to call when a data point is clicked. and the point that was clicked.
+   */
+  pointClickCallback?: (e: MouseEvent, point: Point) => any
+
+  /**
+   * Height, in pixels, of the range selector widget. This option can only be specified at
+   * Dygraph creation time.
+   */
+  rangeSelectorHeight?: number
+
+  /**
+   * The range selector mini plot fill color. This can be of the form "#AABBCC" or
+   * "rgb(255,100,200)" or "yellow". You can also specify null or "" to turn off fill.
+   */
+  rangeSelectorPlotFillColor?: string
+
+  /**
+   * The range selector mini plot stroke color. This can be of the form "#AABBCC" or
+   * "rgb(255,100,200)" or "yellow". You can also specify null or "" to turn off stroke.
+   */
+  rangeSelectorPlotStrokeColor?: string
+
+  /**
+   * Number of pixels to leave blank at the right edge of the Dygraph. This makes it easier to
+   * highlight the right-most data point.
+   */
+  rightGap?: number
+
+  /**
+   * Number of days over which to average data. Discussed extensively above.
+   */
+  rollPeriod?: number
+
+  /**
+   * Defines per-series options. Its keys match the y-axis label names, and the values are
+   * dictionaries themselves that contain options specific to that series. When this option is
+   * missing, it falls back on the old-style of per-series options comingled with global
+   * options.
+   */
+  series?: {
+    [seriesName: string]: PerSeriesOptions
+  }
+
+  /**
+   * Whether to show the legend upon mouseover.
+   */
+  showLabelsOnHighlight?: boolean
+
+  /**
+   * Show or hide the range selector widget.
+   */
+  showRangeSelector?: boolean
+
+  /**
+   * If the rolling average period text box should be shown.
+   */
+  showRoller?: boolean
+
+  /**
+   * When errorBars is set, shade this many standard deviations above/below each point.
+   */
+  sigma?: number
+
+  /**
+   * If set, stack series on top of one another rather than drawing them independently. The
+   * first series specified in the input data will wind up on top of the chart and the last
+   * will be on bottom. NaN values are drawn as white areas without a line on top, see
+   * stackedGraphNaNFill for details.
+   */
+  stackedGraph?: boolean
+
+  /**
+   * Controls handling of NaN values inside a stacked graph. NaN values are
+   * interpolated/extended for stacking purposes, but the actual point value remains NaN in the
+   * legend display. Valid option values are "all" (interpolate internally, repeat leftmost and
+   * rightmost value as needed), "inside" (interpolate internally only, use zero outside
+   * leftmost and rightmost value), and "none" (treat NaN as zero everywhere).
+   */
+  stackedGraphNaNFill?: string
+
+  /**
+   * Text to display above the chart. You can supply any HTML for this value, not just text. If
+   * you wish to style it using CSS, use the 'dygraph-label' or 'dygraph-title' classes.
+   */
+  title?: string
+
+  /**
+   * Height of the chart title, in pixels. This also controls the default font size of the
+   * title. If you style the title on your own, this controls how much space is set aside above
+   * the chart for the title's div.
+   */
+  titleHeight?: number
+
+  /**
+   * When set, this callback gets called before the chart is drawn. It details on how to use
+   * this.
+   */
+  underlayCallback?: (
+    context: CanvasRenderingContext2D,
+    area: dygraphs.Area,
+    dygraph: Dygraph
+  ) => any
+
+  /**
+   * When set, this callback gets called every time the user stops highlighting any point by
+   * mousing out of the graph.
+   */
+  unhighlightCallback?: (event: MouseEvent) => any
+
+  /**
+   * Which series should initially be visible? Once the Dygraph has been constructed, you can
+   * access and modify the visibility of each series using the <code>visibility</code> and
+   * <code>setVisibility</code> methods.
+   */
+  visibility?: boolean[]
+
+  /**
+   * Width, in pixels, of the chart. If the container div has been explicitly sized, this will
+   * be ignored.
+   */
+  width?: number
+
+  /**
+   * Use in conjunction with the "fractions" option. Instead of plotting +/- N standard
+   * deviations, dygraphs will compute a Wilson confidence interval and plot that. This has
+   * more reasonable behavior for ratios close to 0 or 1.
+   */
+  wilsonInterval?: boolean
+
+  /**
+   * Height, in pixels, of the x-axis. If not set explicitly, this is computed based on
+   * axisLabelFontSize and axisTickSize.
+   */
+  xAxisHeight?: number
+
+  /**
+   * Height of the x-axis label, in pixels. This also controls the default font size of the
+   * x-axis label. If you style the label on your own, this controls how much space is set
+   * aside below the chart for the x-axis label's div.
+   */
+  xLabelHeight?: number
+
+  /**
+   * Add the specified amount of extra space (in pixels) around the X-axis value range to
+   * ensure points at the edges remain visible.
+   */
+  xRangePad?: number
+
+  /**
+   * A function which parses x-values (i.e. the dependent series). Must return a number, even
+   * when the values are dates. In this case, millis since epoch are used. This is used
+   * primarily for parsing CSV data. *=Dygraphs is slightly more accepting in the dates which
+   * it will parse. See code for details.
+   */
+  xValueParser?: (val: string) => number
+
+  /**
+   * Text to display below the chart's x-axis. You can supply any HTML for this value, not just
+   * text. If you wish to style it using CSS, use the 'dygraph-label' or 'dygraph-xlabel'
+   * classes.
+   */
+  xlabel?: string
+
+  /**
+   * Text to display to the right of the chart's secondary y-axis. This label is only displayed
+   * if a secondary y-axis is present. See <a
+   * href='http://dygraphs.com/tests/two-axes.html'>this test</a> for an example of how to do
+   * this. The comments for the 'ylabel' option generally apply here as well. This label gets a
+   * 'dygraph-y2label' instead of a 'dygraph-ylabel' class.
+   */
+  y2label?: string
+
+  /**
+   * Width of the div which contains the y-axis label. Since the y-axis label appears rotated
+   * 90 degrees, this actually affects the height of its div.
+   */
+  yLabelWidth?: number
+
+  /**
+   * If set, add the specified amount of extra space (in pixels) around the Y-axis value range
+   * to ensure points at the edges remain visible. If unset, use the traditional Y padding
+   * algorithm.
+   */
+  yRangePad?: number
+
+  /**
+   * Text to display to the left of the chart's y-axis. You can supply any HTML for this value,
+   * not just text. If you wish to style it using CSS, use the 'dygraph-label' or
+   * 'dygraph-ylabel' classes. The text will be rotated 90 degrees by default, so CSS rules may
+   * behave in unintuitive ways. No additional space is set aside for a y-axis label. If you
+   * need more space, increase the width of the y-axis tick labels using the yAxisLabelWidth
+   * option. If you need a wider div for the y-axis label, either style it that way with CSS
+   * (but remember that it's rotated, so width is controlled by the 'height' property) or set
+   * the yLabelWidth option.
+   */
+  ylabel?: string
+
+  /**
+   * A function to call when the zoom window is changed (either by zooming in or out).
+   */
+  zoomCallback?: (
+    minDate: number,
+    maxDate: number,
+    yRanges: Array<[number, number]>
+  ) => any
 }

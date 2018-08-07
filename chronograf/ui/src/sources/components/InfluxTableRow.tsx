@@ -4,7 +4,7 @@ import {Link} from 'react-router'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import ConnectionLink from 'src/sources/components/ConnectionLink'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -55,7 +55,7 @@ class InfluxTableRow extends PureComponent<Props> {
     return (
       <Link
         className="btn btn-default btn-xs source-table--connect"
-        to={`/sources/${source.id}/manage-sources`}
+        to={`/manage-sources?sourceID=${source.id}`}
       >
         Connect
       </Link>

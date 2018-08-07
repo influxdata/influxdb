@@ -1,38 +1,13 @@
 import AJAX from 'src/utils/ajax'
 
-import {
-  linksFromDashboards,
-  updateDashboardLinks,
-} from 'src/dashboards/utils/dashboardSwitcherLinks'
-
 import {AxiosResponse} from 'axios'
-import {
-  DashboardsResponse,
-  GetDashboards,
-  LoadLinksOptions,
-} from 'src/types/apis/dashboards'
-import {DashboardSwitcherLinks} from 'src/types/dashboards'
-import {Source} from 'src/types/sources'
+import {DashboardsResponse, GetDashboards} from 'src/types/apis/dashboards'
 
 export const getDashboards: GetDashboards = () => {
   return AJAX<DashboardsResponse>({
     method: 'GET',
     resource: 'dashboards',
   }) as Promise<AxiosResponse<DashboardsResponse>>
-}
-
-export const loadDashboardLinks = async (
-  source: Source,
-  {activeDashboard, dashboardsAJAX = getDashboards}: LoadLinksOptions
-): Promise<DashboardSwitcherLinks> => {
-  const {
-    data: {dashboards},
-  } = await dashboardsAJAX()
-
-  const links = linksFromDashboards(dashboards, source)
-  const dashboardLinks = updateDashboardLinks(links, activeDashboard)
-
-  return dashboardLinks
 }
 
 export const getDashboard = async dashboardID => {

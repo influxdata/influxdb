@@ -2,12 +2,12 @@ import React, {Component, MouseEvent} from 'react'
 
 import DashboardsTable from 'src/dashboards/components/DashboardsTable'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
-import SearchBar from 'src/hosts/components/SearchBar'
+import SearchBar from 'src/shared/components/SearchBar'
 import FancyScrollbar from 'src/shared/components/FancyScrollbar'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 
-import {Dashboard} from 'src/types'
+import {Dashboard} from 'src/types/v2'
 import {Notification} from 'src/types/notifications'
 
 interface Props {
@@ -20,7 +20,6 @@ interface Props {
   onExportDashboard: (dashboard: Dashboard) => () => void
   onImportDashboard: (dashboard: Dashboard) => void
   notify: (message: Notification) => void
-  dashboardLink: string
 }
 
 interface State {
@@ -45,7 +44,6 @@ class DashboardsPageContents extends Component<Props, State> {
       onCreateDashboard,
       onCloneDashboard,
       onExportDashboard,
-      dashboardLink,
     } = this.props
 
     return (
@@ -62,7 +60,6 @@ class DashboardsPageContents extends Component<Props, State> {
                     onCreateDashboard={onCreateDashboard}
                     onCloneDashboard={onCloneDashboard}
                     onExportDashboard={onExportDashboard}
-                    dashboardLink={dashboardLink}
                   />
                 </div>
               </div>

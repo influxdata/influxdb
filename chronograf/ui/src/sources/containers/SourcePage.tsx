@@ -2,7 +2,7 @@ import React, {PureComponent, MouseEvent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
-import {createSource, updateSource} from 'src/shared/apis'
+import {createSource, updateSource} from 'src/sources/apis/v2'
 
 import {
   addSource as addSourceAction,
@@ -21,14 +21,14 @@ import {DEFAULT_SOURCE} from 'src/shared/constants'
 const INITIAL_PATH = '/sources/new'
 
 import {
-  notifySourceUpdated,
-  notifySourceUpdateFailed,
-  notifySourceCreationFailed,
-  notifySourceCreationSucceeded,
+  sourceUpdated,
+  sourceUpdateFailed,
+  sourceCreationFailed,
+  sourceCreationSucceeded,
 } from 'src/shared/copy/notifications'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
 interface Props extends WithRouterProps {
@@ -148,10 +148,10 @@ class SourcePage extends PureComponent<Props, State> {
       const sourceFromServer = await createSource(sourcesLink, source)
       this.props.addSource(sourceFromServer)
       this.redirect(sourceFromServer)
-      notify(notifySourceCreationSucceeded(source.name))
+      notify(sourceCreationSucceeded(source.name))
     } catch (err) {
       // dont want to flash this until they submit
-      notify(notifySourceCreationFailed(source.name, this.parseError(err)))
+      notify(sourceCreationFailed(source.name, this.parseError(err)))
     }
   }
 
@@ -162,21 +162,21 @@ class SourcePage extends PureComponent<Props, State> {
       const sourceFromServer = await updateSource(source)
       this.props.updateSource(sourceFromServer)
       this.redirect(sourceFromServer)
-      notify(notifySourceUpdated(source.name))
+      notify(sourceUpdated(source.name))
     } catch (error) {
-      notify(notifySourceUpdateFailed(source.name, this.parseError(error)))
+      notify(sourceUpdateFailed(source.name, this.parseError(error)))
     }
   }
 
   private redirect = source => {
     const {isInitialSource} = this.state
-    const {params, router} = this.props
+    const {router} = this.props
 
     if (isInitialSource) {
       return this.redirectToApp(source)
     }
 
-    router.push(`/sources/${params.sourceID}/manage-sources`)
+    router.push(`/manage-sources`)
   }
 
   private parseError = (error): string => {

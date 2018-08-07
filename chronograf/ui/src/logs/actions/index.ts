@@ -2,8 +2,9 @@ import moment from 'moment'
 import _ from 'lodash'
 import {Dispatch} from 'redux'
 
-import {Source, Namespace, QueryConfig} from 'src/types'
-import {getSource} from 'src/shared/apis'
+import {Namespace, QueryConfig} from 'src/types'
+import {Source} from 'src/types/v2'
+import {getSource} from 'src/sources/apis/v2'
 import {getDatabasesWithRetentionPolicies} from 'src/shared/apis/databases'
 import {
   buildHistogramQueryConfig,

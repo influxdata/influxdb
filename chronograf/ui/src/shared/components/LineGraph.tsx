@@ -19,12 +19,13 @@ import {
 import {ColorString} from 'src/types/colors'
 import {DecimalPlaces} from 'src/types/dashboards'
 import {TimeSeriesServerResponse} from 'src/types/series'
-import {Query, Axes, TimeRange, RemoteDataState, CellType} from 'src/types'
+import {Axes, TimeRange, RemoteDataState} from 'src/types'
+import {ViewType, CellQuery} from 'src/types/v2'
 
 interface Props {
   axes: Axes
-  type: CellType
-  queries: Query[]
+  type: ViewType
+  queries: CellQuery[]
   timeRange: TimeRange
   colors: ColorString[]
   loading: RemoteDataState
@@ -130,7 +131,7 @@ class LineGraph extends PureComponent<LineGraphProps> {
           containerStyle={this.containerStyle}
           handleSetHoverTime={handleSetHoverTime}
         >
-          {type === CellType.LinePlusSingleStat && (
+          {type === ViewType.LinePlusSingleStat && (
             <SingleStat
               data={data}
               lineGraph={true}
@@ -159,7 +160,7 @@ class LineGraph extends PureComponent<LineGraphProps> {
   private get isGraphFilled(): boolean {
     const {type} = this.props
 
-    if (type === CellType.LinePlusSingleStat) {
+    if (type === ViewType.LinePlusSingleStat) {
       return false
     }
 

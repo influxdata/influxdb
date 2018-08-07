@@ -1,17 +1,27 @@
+// Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
+// Components
+import Dygraph from 'src/shared/components/Dygraph'
+
+// Utils
 import {fluxTablesToDygraph} from 'src/shared/parsing/flux/dygraph'
 
-import Dygraph from 'src/shared/components/Dygraph'
+// Actions
+import {setHoverTime as setHoverTimeAction} from 'src/dashboards/actions/v2/hoverTime'
+
+// Constants
+import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
+
+// Types
 import {FluxTable} from 'src/types'
 import {DygraphSeries, DygraphValue} from 'src/types'
-import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
-import {setHoverTime as setHoverTimeAction} from 'src/dashboards/actions'
+import {ViewType} from 'src/types/v2/dashboards'
 
 interface Props {
   data: FluxTable[]
-  setHoverTime: (time: number) => void
+  setHoverTime: (time: string) => void
 }
 
 class FluxGraph extends PureComponent<Props> {
@@ -25,6 +35,7 @@ class FluxGraph extends PureComponent<Props> {
     return (
       <div className="yield-node--graph">
         <Dygraph
+          type={ViewType.Line}
           labels={this.labels}
           staticLegend={false}
           timeSeries={this.timeSeries}

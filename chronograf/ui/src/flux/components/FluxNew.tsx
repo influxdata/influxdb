@@ -6,7 +6,7 @@ import {NewService, Source, Service, Notification} from 'src/types'
 import {
   fluxCreated,
   fluxNotCreated,
-  notifyFluxNameAlreadyTaken,
+  fluxNameAlreadyTaken,
 } from 'src/shared/copy/notifications'
 import {
   CreateServiceAsync,
@@ -75,7 +75,7 @@ class FluxNew extends PureComponent<Props, State> {
     const isNameTaken = services.some(s => s.name === service.name)
 
     if (isNameTaken) {
-      notify(notifyFluxNameAlreadyTaken(service.name))
+      notify(fluxNameAlreadyTaken(service.name))
       return
     }
 

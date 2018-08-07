@@ -1,4 +1,5 @@
 import {ReactNode} from 'react'
+import {DygraphData, Options} from 'src/types/dygraphs'
 
 export interface DropdownItem {
   text: string
@@ -18,9 +19,5 @@ export interface PageSection {
 }
 
 export interface Constructable<T> {
-  new (
-    container: HTMLElement | string,
-    data: dygraphs.Data | (() => dygraphs.Data),
-    options?: dygraphs.Options
-  ): T
+  new (container: HTMLElement | string, data: DygraphData, options?: Options): T
 }

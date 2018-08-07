@@ -12,12 +12,10 @@ const setup = (override?) => {
   const props = {
     getSources,
     sources: [source],
-    params: {
-      sourceID: source.id,
-    },
     router: {},
     location: {
       pathname: 'sources',
+      query: {sourceID: source.id},
     },
     auth: {
       isUsingAuth: false,

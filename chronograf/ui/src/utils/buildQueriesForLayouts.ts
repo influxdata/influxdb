@@ -6,51 +6,8 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'src/shared/constants'
-import {timeRanges} from 'src/shared/data/timeRanges'
 
-import {Cell, CellQuery, LayoutQuery, TimeRange} from 'src/types'
-
-const buildCannedDashboardQuery = (
-  query: LayoutQuery | CellQuery,
-  {lower, upper}: TimeRange,
-  host: string
-): string => {
-  const {defaultGroupBy} = timeRanges.find(range => range.lower === lower) || {
-    defaultGroupBy: '5m',
-  }
-
-  let text = query.query
-  const wheres = _.get(query, 'wheres')
-  const groupbys = _.get(query, 'groupbys')
-
-  if (upper) {
-    text += ` where time > '${lower}' AND time < '${upper}'`
-  } else {
-    text += ` where time > ${lower}`
-  }
-
-  if (host) {
-    text += ` and \"host\" = '${host}'`
-  }
-
-  if (wheres && wheres.length > 0) {
-    text += ` and ${wheres.join(' and ')}`
-  }
-
-  if (groupbys) {
-    if (groupbys.find(g => g.includes('time'))) {
-      text += ` group by ${groupbys.join(',')}`
-    } else if (groupbys.length > 0) {
-      text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`
-    } else {
-      text += ` group by time(${defaultGroupBy})`
-    }
-  } else {
-    text += ` group by time(${defaultGroupBy})`
-  }
-
-  return text
-}
+import {CellQuery, TimeRange} from 'src/types'
 
 const addTimeBoundsToRawText = (rawText: string): string => {
   if (!rawText) {
@@ -82,12 +39,11 @@ const addTimeBoundsToRawText = (rawText: string): string => {
   return rawText
 }
 
-export const buildQueriesForLayouts = (
-  cell: Cell,
-  timeRange: TimeRange,
-  host: string
+export const buildQueries = (
+  queries: CellQuery[],
+  timeRange: TimeRange
 ): CellQuery[] => {
-  return cell.queries.map(query => {
+  return queries.map(query => {
     let queryText: string
     // Canned dashboards use an different a schema different from queryConfig.
     if (query.queryConfig) {
@@ -112,8 +68,6 @@ export const buildQueriesForLayouts = (
 
         queryText = `${queryText};${shiftedQueries.join(';')}`
       }
-    } else {
-      queryText = buildCannedDashboardQuery(query, timeRange, host)
     }
 
     return {...query, text: queryText}
