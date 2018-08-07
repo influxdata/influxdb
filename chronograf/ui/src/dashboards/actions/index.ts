@@ -13,7 +13,7 @@ import {
   deleteDashboardCell as deleteDashboardCellAJAX,
   createDashboard as createDashboardAJAX,
 } from 'src/dashboards/apis'
-import {getMe} from 'src/shared/apis/auth'
+
 import {hydrateTemplates} from 'src/tempVars/utils/graph'
 
 import {notify} from 'src/shared/actions/notifications'
@@ -412,9 +412,7 @@ export const getDashboardsAsync = () => async (
 
 export const getChronografVersion = () => async (): Promise<string> => {
   try {
-    const results = await getMe()
-    const version = _.get(results, 'headers.x-chronograf-version')
-    return version
+    return Promise.resolve('2.0')
   } catch (error) {
     console.error(error)
   }

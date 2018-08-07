@@ -4,7 +4,6 @@ import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechno
 import TemplateDropdown from 'src/tempVars/components/TemplateDropdown'
 import TextTemplateSelector from 'src/tempVars/components/TextTemplateSelector'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {calculateDropdownWidth} from 'src/dashboards/constants/templateControlBar'
 
 import {Template, TemplateType, Source, TemplateValue} from 'src/types'
@@ -12,8 +11,6 @@ import {Template, TemplateType, Source, TemplateValue} from 'src/types'
 interface Props {
   template: Template
   templates: Template[]
-  meRole: string
-  isUsingAuth: boolean
   source: Source
   onPickValue: (v: TemplateValue) => void
   onCreateTemplate: (template: Template) => Promise<void>
@@ -62,13 +59,11 @@ class TemplateControl extends PureComponent<Props, State> {
 
         <label className="template-control--label">
           {template.tempVar}
-          <Authorized requiredRole={EDITOR_ROLE}>
-            <span
-              className="icon cog-thick"
-              onClick={this.handleShowSettings}
-              data-test="edit"
-            />
-          </Authorized>
+          <span
+            className="icon cog-thick"
+            onClick={this.handleShowSettings}
+            data-test="edit"
+          />
         </label>
 
         <OverlayTechnology visible={isEditing}>

@@ -6,14 +6,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import TemplateControl from 'src/tempVars/components/TemplateControl'
 import OverlayTechnology from 'src/reusable_ui/components/overlays/OverlayTechnology'
 import TemplateVariableEditor from 'src/tempVars/components/TemplateVariableEditor'
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {graphFromTemplates} from 'src/tempVars/utils/graph'
 
 import {Template, TemplateValue, Source} from 'src/types'
 
 interface Props {
-  meRole: string
-  isUsingAuth: boolean
   templates: Template[]
   isOpen: boolean
   source: Source
@@ -51,23 +48,21 @@ class TemplateControlBar extends Component<Props, State> {
               />
             </OverlayTechnology>
           </div>
-          <Authorized requiredRole={EDITOR_ROLE}>
-            <button
-              className="btn btn-primary btn-sm template-control--manage"
-              data-test="add-template-variable"
-              onClick={this.handleAddVariable}
-            >
-              <span className="icon plus" />
-              Add Variable
-            </button>
-          </Authorized>
+          <button
+            className="btn btn-primary btn-sm template-control--manage"
+            data-test="add-template-variable"
+            onClick={this.handleAddVariable}
+          >
+            <span className="icon plus" />
+            Add Variable
+          </button>
         </div>
       </div>
     )
   }
 
   public renderTemplateControls() {
-    const {templates, onPickTemplate, meRole, isUsingAuth, source} = this.props
+    const {templates, onPickTemplate, source} = this.props
 
     if (!templates || !templates.length) {
       return (
@@ -83,11 +78,9 @@ class TemplateControlBar extends Component<Props, State> {
       return (
         <TemplateControl
           key={template.id}
-          meRole={meRole}
-          isUsingAuth={isUsingAuth}
+          source={source}
           template={template}
           templates={templates}
-          source={source}
           onPickValue={onPickValue}
           onCreateTemplate={this.handleCreateTemplate}
           onUpdateTemplate={this.handleUpdateTemplate}

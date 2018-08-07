@@ -9,7 +9,6 @@ import PointInTimeDropDown from 'src/logs/components/PointInTimeDropDown'
 import PageHeader from 'src/reusable_ui/components/page_layout/PageHeader'
 import PageHeaderTitle from 'src/reusable_ui/components/page_layout/PageHeaderTitle'
 import TimeWindowDropdown from 'src/logs/components/TimeWindowDropdown'
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {TimeRange, TimeWindow, LiveUpdating} from 'src/types/logs'
 
 interface SourceItem {
@@ -99,14 +98,12 @@ class LogViewerHeader extends PureComponent<Props> {
           selectedTimeWindow={timeRange}
           onSetTimeWindow={onSetTimeWindow}
         />
-        <Authorized requiredRole={EDITOR_ROLE}>
-          <button
-            className="btn btn-sm btn-square btn-default"
-            onClick={onShowOptionsOverlay}
-          >
-            <span className="icon cog-thick" />
-          </button>
-        </Authorized>
+        <button
+          className="btn btn-sm btn-square btn-default"
+          onClick={onShowOptionsOverlay}
+        >
+          <span className="icon cog-thick" />
+        </button>
       </>
     )
   }

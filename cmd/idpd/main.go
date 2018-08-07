@@ -103,6 +103,11 @@ func platformF(cmd *cobra.Command, args []string) {
 		dashboardSvc = c
 	}
 
+	var sourceSvc platform.SourceService
+	{
+		sourceSvc = c
+	}
+
 	chronografSvc, err := server.NewServiceV2(context.TODO(), c.DB())
 	if err != nil {
 		logger.Error("failed creating chronograf service", zap.Error(err))
@@ -138,6 +143,9 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		assetHandler := http.NewAssetHandler()
 
+		sourceHandler := http.NewSourceHandler()
+		sourceHandler.SourceService = sourceSvc
+
 		// TODO(desa): what to do about idpe.
 		chronografHandler := http.NewChronografHandler(chronografSvc)
 
@@ -149,6 +157,7 @@ func platformF(cmd *cobra.Command, args []string) {
 			DashboardHandler:     dashboardHandler,
 			AssetHandler:         assetHandler,
 			ChronografHandler:    chronografHandler,
+			SourceHandler:        sourceHandler,
 		}
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
 

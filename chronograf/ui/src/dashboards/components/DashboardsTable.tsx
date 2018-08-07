@@ -2,7 +2,6 @@ import React, {PureComponent, MouseEvent} from 'react'
 import {Link} from 'react-router'
 import _ from 'lodash'
 
-import Authorized, {EDITOR_ROLE, VIEWER_ROLE} from 'src/auth/Authorized'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 
 import {getDeep} from 'src/utils/wrappers'
@@ -53,38 +52,26 @@ class DashboardsTable extends PureComponent<Props> {
               </td>
               <td>{this.getDashboardTemplates(dashboard)}</td>
               <td className="text-right">
-                <Authorized
-                  requiredRole={VIEWER_ROLE}
-                  replaceWithIfNotAuthorized={<div />}
+                <button
+                  className="btn btn-xs btn-default table--show-on-row-hover"
+                  onClick={onExportDashboard(dashboard)}
                 >
-                  <button
-                    className="btn btn-xs btn-default table--show-on-row-hover"
-                    onClick={onExportDashboard(dashboard)}
-                  >
-                    <span className="icon export" />Export
-                  </button>
-                </Authorized>
-                <Authorized
-                  requiredRole={EDITOR_ROLE}
-                  replaceWithIfNotAuthorized={<div />}
+                  <span className="icon export" />Export
+                </button>
+                <button
+                  className="btn btn-xs btn-default table--show-on-row-hover"
+                  onClick={onCloneDashboard(dashboard)}
                 >
-                  <>
-                    <button
-                      className="btn btn-xs btn-default table--show-on-row-hover"
-                      onClick={onCloneDashboard(dashboard)}
-                    >
-                      <span className="icon duplicate" />
-                      Clone
-                    </button>
-                    <ConfirmButton
-                      confirmAction={onDeleteDashboard(dashboard)}
-                      size="btn-xs"
-                      type="btn-danger"
-                      text="Delete"
-                      customClass="table--show-on-row-hover"
-                    />
-                  </>
-                </Authorized>
+                  <span className="icon duplicate" />
+                  Clone
+                </button>
+                <ConfirmButton
+                  confirmAction={onDeleteDashboard(dashboard)}
+                  size="btn-xs"
+                  type="btn-danger"
+                  text="Delete"
+                  customClass="table--show-on-row-hover"
+                />
               </td>
             </tr>
           ))}
@@ -112,33 +99,18 @@ class DashboardsTable extends PureComponent<Props> {
   private get emptyStateDashboard(): JSX.Element {
     const {onCreateDashboard} = this.props
     return (
-      <Authorized
-        requiredRole={EDITOR_ROLE}
-        replaceWithIfNotAuthorized={this.unauthorizedEmptyState}
-      >
-        <div className="generic-empty-state">
-          <h4 style={{marginTop: '90px'}}>
-            Looks like you don’t have any dashboards
-          </h4>
-          <br />
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={onCreateDashboard}
-            style={{marginBottom: '90px'}}
-          >
-            <span className="icon plus" /> Create Dashboard
-          </button>
-        </div>
-      </Authorized>
-    )
-  }
-
-  private get unauthorizedEmptyState(): JSX.Element {
-    return (
       <div className="generic-empty-state">
-        <h4 style={{margin: '90px 0'}}>
+        <h4 style={{marginTop: '90px'}}>
           Looks like you don’t have any dashboards
         </h4>
+        <br />
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={onCreateDashboard}
+          style={{marginBottom: '90px'}}
+        >
+          <span className="icon plus" /> Create Dashboard
+        </button>
       </div>
     )
   }

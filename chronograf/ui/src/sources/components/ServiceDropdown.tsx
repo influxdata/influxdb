@@ -1,8 +1,7 @@
-import React, {PureComponent, ReactElement} from 'react'
+import React, {PureComponent} from 'react'
 import {Link, withRouter, RouteComponentProps} from 'react-router'
 
 import Dropdown from 'src/shared/components/Dropdown'
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 
 import {Source, Service} from 'src/types'
 import {SetActiveService} from 'src/shared/actions/services'
@@ -29,58 +28,45 @@ class ServiceDropdown extends PureComponent<
 
     if (this.isServicesEmpty) {
       return (
-        <Authorized requiredRole={EDITOR_ROLE}>
-          <Link
-            to={`/sources/${source.id}/services/new`}
-            className="btn btn-xs btn-default"
-          >
-            <span className="icon plus" /> Add Service Connection
-          </Link>
-        </Authorized>
+        <Link
+          to={`/sources/${source.id}/services/new`}
+          className="btn btn-xs btn-default"
+        >
+          <span className="icon plus" /> Add Service Connection
+        </Link>
       )
     }
 
     return (
-      <Authorized
-        requiredRole={EDITOR_ROLE}
-        replaceWithIfNotAuthorized={this.UnauthorizedDropdown}
-      >
-        <Dropdown
-          className="dropdown-260"
-          buttonColor="btn-primary"
-          buttonSize="btn-xs"
-          items={this.serviceItems}
-          onChoose={setActiveService}
-          addNew={{
-            url: `/sources/${source.id}/services/new`,
-            text: 'Add Service Connection',
-          }}
-          actions={[
-            {
-              icon: 'pencil',
-              text: 'edit',
-              handler: item => {
-                router.push(`${item.resource}/edit`)
-              },
+      <Dropdown
+        className="dropdown-260"
+        buttonColor="btn-primary"
+        buttonSize="btn-xs"
+        items={this.serviceItems}
+        onChoose={setActiveService}
+        addNew={{
+          url: `/sources/${source.id}/services/new`,
+          text: 'Add Service Connection',
+        }}
+        actions={[
+          {
+            icon: 'pencil',
+            text: 'edit',
+            handler: item => {
+              router.push(`${item.resource}/edit`)
             },
-            {
-              icon: 'trash',
-              text: 'delete',
-              handler: item => {
-                deleteService(item.service)
-              },
-              confirmable: true,
+          },
+          {
+            icon: 'trash',
+            text: 'delete',
+            handler: item => {
+              deleteService(item.service)
             },
-          ]}
-          selected={this.selected}
-        />
-      </Authorized>
-    )
-  }
-
-  private get UnauthorizedDropdown(): ReactElement<HTMLDivElement> {
-    return (
-      <div className="source-table--service__view-only">{this.selected}</div>
+            confirmable: true,
+          },
+        ]}
+        selected={this.selected}
+      />
     )
   }
 

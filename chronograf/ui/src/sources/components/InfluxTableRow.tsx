@@ -1,7 +1,6 @@
 import React, {PureComponent, ReactElement} from 'react'
 import {Link} from 'react-router'
 
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import ConnectionLink from 'src/sources/components/ConnectionLink'
 import FluxDropdown from 'src/sources/components/FluxDropdown'
@@ -37,15 +36,13 @@ class InfluxTableRow extends PureComponent<Props> {
           <span>{source.url}</span>
         </td>
         <td className="text-right">
-          <Authorized requiredRole={EDITOR_ROLE}>
-            <ConfirmButton
-              type="btn-danger"
-              size="btn-xs"
-              text="Delete Connection"
-              confirmAction={this.handleDeleteSource}
-              customClass="delete-source table--show-on-row-hover"
-            />
-          </Authorized>
+          <ConfirmButton
+            type="btn-danger"
+            size="btn-xs"
+            text="Delete Connection"
+            confirmAction={this.handleDeleteSource}
+            customClass="delete-source table--show-on-row-hover"
+          />
         </td>
         <td className="source-table--kapacitor">
           <FluxDropdown

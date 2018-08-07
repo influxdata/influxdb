@@ -1,6 +1,5 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
-import {Links, Organization, Role, Permission, User, Me} from './auth'
 import {Cell, CellQuery, Legend, Axes, Dashboard, CellType} from './dashboards'
 import {
   Template,
@@ -53,12 +52,6 @@ import {AnnotationInterface} from './annotations'
 import {WriteDataMode} from './dataExplorer'
 
 export {
-  Me,
-  Links,
-  Role,
-  User,
-  Organization,
-  Permission,
   Constructable,
   Template,
   TemplateQuery,

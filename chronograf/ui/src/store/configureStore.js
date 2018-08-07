@@ -3,14 +3,12 @@ import {combineReducers} from 'redux'
 import {routerReducer, routerMiddleware} from 'react-router-redux'
 import thunkMiddleware from 'redux-thunk'
 
-import errorsMiddleware from 'shared/middleware/errors'
-import {resizeLayout} from 'shared/middleware/resizeLayout'
-import {queryStringConfig} from 'shared/middleware/queryStringConfig'
+import {resizeLayout} from 'src/shared/middleware/resizeLayout'
+import {queryStringConfig} from 'src/shared/middleware/queryStringConfig'
 import statusReducers from 'src/status/reducers'
 import logsReducer from 'src/logs/reducers'
-import sharedReducers from 'shared/reducers'
+import sharedReducers from 'src/shared/reducers'
 import dataExplorerReducers from 'src/data_explorer/reducers'
-import adminReducers from 'src/admin/reducers'
 import kapacitorReducers from 'src/kapacitor/reducers'
 import dashboardUI from 'src/dashboards/reducers/ui'
 import cellEditorOverlay from 'src/dashboards/reducers/cellEditorOverlay'
@@ -24,7 +22,6 @@ const rootReducer = combineReducers({
   ...sharedReducers,
   ...dataExplorerReducers,
   ...kapacitorReducers,
-  ...adminReducers,
   dashboardUI,
   cellEditorOverlay,
   dashTimeV1,
@@ -43,7 +40,6 @@ export default function configureStore(initialState, browserHistory) {
     applyMiddleware(
       thunkMiddleware,
       routingMiddleware,
-      errorsMiddleware,
       queryStringConfig,
       resizeLayout
     )

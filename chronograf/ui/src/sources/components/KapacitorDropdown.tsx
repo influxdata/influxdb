@@ -1,8 +1,7 @@
-import React, {PureComponent, ReactElement} from 'react'
+import React, {PureComponent} from 'react'
 import {Link, withRouter, RouteComponentProps} from 'react-router'
 
 import Dropdown from 'src/shared/components/Dropdown'
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
 import {Source, Kapacitor} from 'src/types'
 import {SetActiveKapacitor} from 'src/shared/actions/sources'
 
@@ -27,58 +26,45 @@ class KapacitorDropdown extends PureComponent<
 
     if (this.isKapacitorsEmpty) {
       return (
-        <Authorized requiredRole={EDITOR_ROLE}>
-          <Link
-            to={`/sources/${source.id}/kapacitors/new`}
-            className="btn btn-xs btn-default"
-          >
-            <span className="icon plus" /> Add Kapacitor Connection
-          </Link>
-        </Authorized>
+        <Link
+          to={`/sources/${source.id}/kapacitors/new`}
+          className="btn btn-xs btn-default"
+        >
+          <span className="icon plus" /> Add Kapacitor Connection
+        </Link>
       )
     }
 
     return (
-      <Authorized
-        requiredRole={EDITOR_ROLE}
-        replaceWithIfNotAuthorized={this.UnauthorizedDropdown}
-      >
-        <Dropdown
-          className="dropdown-260"
-          buttonColor="btn-primary"
-          buttonSize="btn-xs"
-          items={this.kapacitorItems}
-          onChoose={setActiveKapacitor}
-          addNew={{
-            url: `/sources/${source.id}/kapacitors/new`,
-            text: 'Add Kapacitor Connection',
-          }}
-          actions={[
-            {
-              icon: 'pencil',
-              text: 'edit',
-              handler: item => {
-                router.push(`${item.resource}/edit`)
-              },
+      <Dropdown
+        className="dropdown-260"
+        buttonColor="btn-primary"
+        buttonSize="btn-xs"
+        items={this.kapacitorItems}
+        onChoose={setActiveKapacitor}
+        addNew={{
+          url: `/sources/${source.id}/kapacitors/new`,
+          text: 'Add Kapacitor Connection',
+        }}
+        actions={[
+          {
+            icon: 'pencil',
+            text: 'edit',
+            handler: item => {
+              router.push(`${item.resource}/edit`)
             },
-            {
-              icon: 'trash',
-              text: 'delete',
-              handler: item => {
-                deleteKapacitor(item.kapacitor)
-              },
-              confirmable: true,
+          },
+          {
+            icon: 'trash',
+            text: 'delete',
+            handler: item => {
+              deleteKapacitor(item.kapacitor)
             },
-          ]}
-          selected={this.selected}
-        />
-      </Authorized>
-    )
-  }
-
-  private get UnauthorizedDropdown(): ReactElement<HTMLDivElement> {
-    return (
-      <div className="source-table--kapacitor__view-only">{this.selected}</div>
+            confirmable: true,
+          },
+        ]}
+        selected={this.selected}
+      />
     )
   }
 

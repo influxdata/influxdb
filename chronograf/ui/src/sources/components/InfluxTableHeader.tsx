@@ -1,16 +1,12 @@
-import React, {PureComponent, ReactElement} from 'react'
+import React, {PureComponent} from 'react'
 import {Link} from 'react-router'
 
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-
-import {Me, Source} from 'src/types'
+import {Source} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  me: Me
   source: Source
-  isUsingAuth: boolean
 }
 
 @ErrorHandling
@@ -20,30 +16,17 @@ class InfluxTableHeader extends PureComponent<Props> {
 
     return (
       <div className="panel-heading">
-        <h2 className="panel-title">{this.title}</h2>
-        <Authorized requiredRole={EDITOR_ROLE}>
-          <Link
-            to={`/sources/${source.id}/manage-sources/new`}
-            className="btn btn-sm btn-primary"
-          >
-            <span className="icon plus" /> Add Connection
-          </Link>
-        </Authorized>
+        <h2 className="panel-title">
+          <span>Connections</span>
+        </h2>
+        <Link
+          to={`/sources/${source.id}/manage-sources/new`}
+          className="btn btn-sm btn-primary"
+        >
+          <span className="icon plus" /> Add Connection
+        </Link>
       </div>
     )
-  }
-
-  private get title(): ReactElement<HTMLSpanElement> {
-    const {isUsingAuth, me} = this.props
-    if (isUsingAuth) {
-      return (
-        <span>
-          Connections for <em>{me.currentOrganization.name}</em>
-        </span>
-      )
-    }
-
-    return <span>Connections</span>
   }
 }
 

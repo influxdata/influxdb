@@ -1,7 +1,5 @@
 import React, {Component, MouseEvent} from 'react'
 
-import Authorized, {EDITOR_ROLE} from 'src/auth/Authorized'
-
 import DashboardsTable from 'src/dashboards/components/DashboardsTable'
 import ImportDashboardOverlay from 'src/dashboards/components/ImportDashboardOverlay'
 import SearchBar from 'src/hosts/components/SearchBar'
@@ -87,22 +85,18 @@ class DashboardsPageContents extends Component<Props, State> {
               placeholder="Filter by Name..."
               onSearch={this.filterDashboards}
             />
-            <Authorized requiredRole={EDITOR_ROLE}>
-              <>
-                <button
-                  className="btn btn-sm btn-default"
-                  onClick={this.handleToggleOverlay}
-                >
-                  <span className="icon import" /> Import Dashboard
-                </button>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={onCreateDashboard}
-                >
-                  <span className="icon plus" /> Create Dashboard
-                </button>
-              </>
-            </Authorized>
+            <button
+              className="btn btn-sm btn-default"
+              onClick={this.handleToggleOverlay}
+            >
+              <span className="icon import" /> Import Dashboard
+            </button>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={onCreateDashboard}
+            >
+              <span className="icon plus" /> Create Dashboard
+            </button>
           </div>
         </div>
         {this.renderImportOverlay}

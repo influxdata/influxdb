@@ -79,8 +79,6 @@ interface Props extends ManualRefreshProps, WithRouterProps {
     status: object
   }
   errorThrown: ErrorsActions.ErrorThrownActionCreator
-  meRole: string
-  isUsingAuth: boolean
   router: InjectedRouter
   notify: NotificationsActions.PublishNotificationActionCreator
   getAnnotationsAsync: AnnotationsActions.GetAnnotationsDispatcher
@@ -181,8 +179,6 @@ class DashboardPage extends Component<Props, State> {
 
   public render() {
     const {
-      isUsingAuth,
-      meRole,
       source,
       sources,
       timeRange,
@@ -295,8 +291,6 @@ class DashboardPage extends Component<Props, State> {
         {inPresentationMode || (
           <TemplateControlBar
             templates={dashboard && dashboard.templates}
-            meRole={meRole}
-            isUsingAuth={isUsingAuth}
             onSaveTemplates={this.handleSaveTemplateVariables}
             onPickTemplate={this.handlePickTemplate}
             isOpen={showTemplateControlBar}
@@ -509,7 +503,6 @@ const mstp = (state, {params: {dashboardID}}) => {
     dashboardUI: {dashboards, cellQueryStatus, zoomedTimeRange},
     sources,
     dashTimeV1,
-    auth: {me, isUsingAuth},
     cellEditorOverlay: {
       cell,
       thresholdsListType,
@@ -518,8 +511,6 @@ const mstp = (state, {params: {dashboardID}}) => {
       lineColors,
     },
   } = state
-
-  const meRole = _.get(me, 'role', null)
 
   const timeRange =
     dashTimeV1.ranges.find(
@@ -534,13 +525,11 @@ const mstp = (state, {params: {dashboardID}}) => {
 
   return {
     sources,
-    meRole,
     dashboard,
     dashboardID: Number(dashboardID),
     timeRange,
     zoomedTimeRange,
     autoRefresh,
-    isUsingAuth,
     cellQueryStatus,
     inPresentationMode,
     showTemplateControlBar,
