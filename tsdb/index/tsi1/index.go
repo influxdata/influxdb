@@ -35,13 +35,20 @@ const DefaultSeriesIDSetCacheSize = 10
 var ErrCompactionInterrupted = errors.New("tsi1: compaction interrupted")
 
 func init() {
-	// FIXME(edd): Remove this.
-	if os.Getenv("TSI_PARTITIONS") != "" {
-		i, err := strconv.Atoi(os.Getenv("TSI_PARTITIONS"))
+	if os.Getenv("INFLUXDB_EXP_TSI_PARTITIONS") != "" {
+		i, err := strconv.Atoi(os.Getenv("INFLUXDB_EXP_TSI_PARTITIONS"))
 		if err != nil {
 			panic(err)
 		}
 		DefaultPartitionN = uint64(i)
+	}
+
+	var err error
+	if os.Getenv("INFLUXDB_EXP_TSI_CACHING") != "" {
+		EnableBitsetCache, err = strconv.ParseBool(os.Getenv("INFLUXDB_EXP_TSI_CACHING"))
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
@@ -56,6 +63,9 @@ func init() {
 // it must also be a power of 2.
 //
 var DefaultPartitionN uint64 = 8
+
+// EnableBitsetCache determines if bitsets are cached.
+var EnableBitsetCache = true
 
 // An IndexOption is a functional option for changing the configuration of
 // an Index.
@@ -966,6 +976,10 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 }
 
 func (i *Index) tagValueSeriesIDSet(name, key, value []byte) *list.Element {
+	if !EnableBitsetCache {
+		return nil
+	}
+
 	i.cacheMu.RLock()
 	defer i.cacheMu.RUnlock()
 	if tkmap, ok := i.sscache[string(name)]; ok {
@@ -979,6 +993,10 @@ func (i *Index) tagValueSeriesIDSet(name, key, value []byte) *list.Element {
 }
 
 func (i *Index) putTagValueSeriesIDSet(name, key, value []byte, ss *list.Element) {
+	if !EnableBitsetCache {
+		return
+	}
+
 	if mmap, ok := i.sscache[string(name)]; ok {
 		if tkmap, ok := mmap[string(key)]; ok {
 
@@ -1015,8 +1033,6 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 		// Return a clone because the set is mutable.
 		return tsdb.NewSeriesIDSetIterator(ss.Value.(*ssElement).SeriesIDSet.Clone()), nil
 	}
-
-	fmt.Printf("CACHE MISS %q %q %q\n", name, key, value)
 
 	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {

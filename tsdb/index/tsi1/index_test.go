@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -581,6 +582,10 @@ var tsiditr tsdb.SeriesIDIterator
 // SeriesIDSets together.BenchmarkIndex_TagValueSeriesIDIterator, which can have
 // a non trivial cost. In the case of `tsi` files, the mmapd sets are merged
 // together. In the case of tsl files the sets need to are cloned and then merged.
+//
+// Typical results on an i7 laptop
+// BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/cache-8   	  100000	     15049 ns/op	  100616 B/op	      39 allocs/op
+// BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/no_cache-8      10000	    131034 ns/op	  125080 B/op	     352 allocs/op
 func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 	var err error
 	sfile := NewSeriesFile()
@@ -596,9 +601,7 @@ func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 	}
 	defer idx.Close()
 
-	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
-	b.Run("78888 series TagValueSeriesIDIterator", func(b *testing.B) {
-		b.ReportAllocs()
+	runBenchMark := func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			tsiditr, err = idx.TagValueSeriesIDIterator([]byte("m4"), []byte("tag0"), []byte("value4"))
 			if err != nil {
@@ -607,11 +610,40 @@ func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 				b.Fatal("got nil iterator")
 			}
 		}
+	}
+
+	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
+	b.Run("78888 series TagValueSeriesIDIterator", func(b *testing.B) {
+		b.ReportAllocs()
+		b.Run("cache", func(b *testing.B) {
+			runBenchMark(b)
+		})
+
+		b.Run("no cache", func(b *testing.B) {
+			tsi1.EnableBitsetCache = false
+			runBenchMark(b)
+		})
 	})
 }
 
 var errResult error
 
+// Typical results on an i7 laptop
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_1-8         	       1	4004452124 ns/op	2381998144 B/op	21686990 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_2-8         	       1	2625853773 ns/op	2368913968 B/op	21765385 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_4-8         	       1	2127205189 ns/op	2338013584 B/op	21908381 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_8-8         	       1	2331960889 ns/op	2332643248 B/op	22191763 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_1000/partition_16-8        	       1	2398489751 ns/op	2299551824 B/op	22670465 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_1-8        	       1	3404683972 ns/op	2387236504 B/op	21600671 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_2-8        	       1	2173772186 ns/op	2329237224 B/op	21631104 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_4-8        	       1	1729089575 ns/op	2299161840 B/op	21699878 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_8-8        	       1	1644295339 ns/op	2161473200 B/op	21796469 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_10000/partition_16-8       	       1	1683275418 ns/op	2171872432 B/op	21925974 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_1-8       	       1	3330508160 ns/op	2333250904 B/op	21574887 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_2-8       	       1	2278604285 ns/op	2292600808 B/op	21628966 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_4-8       	       1	1760098762 ns/op	2243730672 B/op	21684608 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_8-8       	       1	1693312924 ns/op	2166924112 B/op	21753079 allocs/op
+// BenchmarkIndex_CreateSeriesListIfNotExists/batch_size_100000/partition_16-8      	       1	1663610452 ns/op	2131177160 B/op	21806209 allocs/op
 func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
 	keys := make([][]byte, 0, 1e6)
@@ -677,6 +709,141 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 					}
 				})
 			}
+		})
+	}
+}
+
+// This benchmark concurrently writes series to the index and fetches cached bitsets.
+// The idea is to emphasize the performance difference when bitset caching is on and off.
+//
+// Typical results for an i7 laptop
+// BenchmarkIndex_ConcurrentWriteQuery/partition_1/cache-8   	       1	5519979264 ns/op	19768957384 B/op	40035662 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_1/no_cache-8         	 1	4244426712 ns/op	5588384496 B/op		69527254 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_2/cache-8            	 1	5695594405 ns/op	17565272512 B/op	86973739 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_2/no_cache-8         	 1	4800202002 ns/op	6772213648 B/op		106802140 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_4/cache-8            	 1	9377769247 ns/op	22060334496 B/op	156652125 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_4/no_cache-8         	 1	9496432555 ns/op	11124867792 B/op	191979975 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_8/cache-8            	 1	13687588689 ns/op	24639425936 B/op	285704923 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_8/no_cache-8         	 1	14852905065 ns/op	21239729512 B/op	391653485 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_16/cache-8           	 1	18562123757 ns/op	30728182200 B/op	447833013 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_16/no_cache-8        	 1	19779330203 ns/op	29268458824 B/op	528321987 allocs/op
+func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
+	// Read line-protocol and coerce into tsdb format.
+	keys := make([][]byte, 0, 1e6)
+	names := make([][]byte, 0, 1e6)
+	tags := make([]models.Tags, 0, 1e6)
+
+	// 1M series generated with:
+	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
+	fd, err := os.Open("testdata/line-protocol-1M.txt.gz")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	gzr, err := gzip.NewReader(fd)
+	if err != nil {
+		fd.Close()
+		b.Fatal(err)
+	}
+
+	data, err := ioutil.ReadAll(gzr)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	if err := fd.Close(); err != nil {
+		b.Fatal(err)
+	}
+
+	points, err := models.ParsePoints(data)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for _, pt := range points {
+		keys = append(keys, pt.Key())
+		names = append(names, pt.Name())
+		tags = append(tags, pt.Tags())
+	}
+
+	runBenchmark := func(b *testing.B, sz int, partitions uint64) {
+		idx := MustOpenIndex(partitions)
+		done := make(chan struct{})
+		var wg sync.WaitGroup
+
+		// Run concurrent iterator...
+		runIter := func(done chan struct{}) {
+			keys := [][]string{
+				{"m0", "tag2", "value4"},
+				{"m1", "tag3", "value5"},
+				{"m2", "tag4", "value6"},
+				{"m3", "tag0", "value8"},
+				{"m4", "tag5", "value0"},
+			}
+
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+
+				for _, key := range keys {
+					itr, err := idx.TagValueSeriesIDIterator([]byte(key[0]), []byte(key[1]), []byte(key[2]))
+					if err != nil {
+						b.Fatal(err)
+					} else if itr == nil {
+						b.Fatal("got nil iterator")
+					}
+					if err := itr.Close(); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+		}
+
+		wg.Add(1)
+		go func() { defer wg.Done(); runIter(done) }()
+		for j := 0; j < b.N; j++ {
+			for i := 0; i < len(keys); i += sz {
+				k := keys[i : i+sz]
+				n := names[i : i+sz]
+				t := tags[i : i+sz]
+				if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
+					b.Fatal(err)
+				}
+			}
+			// Reset the index...
+			b.StopTimer()
+
+			close(done)
+			wg.Wait()
+
+			if err := idx.Close(); err != nil {
+				b.Fatal(err)
+			}
+
+			// Re-open everything
+			idx = MustOpenIndex(partitions)
+			done = make(chan struct{})
+			wg.Add(1)
+			go func() { defer wg.Done(); runIter(done) }()
+			b.StartTimer()
+		}
+	}
+
+	partitions := []uint64{1, 2, 4, 8, 16}
+	for _, partition := range partitions {
+		b.Run(fmt.Sprintf("partition %d", partition), func(b *testing.B) {
+			b.Run("cache", func(b *testing.B) {
+				tsi1.EnableBitsetCache = true
+				runBenchmark(b, 10000, partition)
+			})
+
+			b.Run("no cache", func(b *testing.B) {
+				tsi1.EnableBitsetCache = false
+				runBenchmark(b, 10000, partition)
+			})
 		})
 	}
 }
