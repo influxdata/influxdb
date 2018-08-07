@@ -821,16 +821,17 @@ func TestBatchPoints_SettersGetters(t *testing.T) {
 		RetentionPolicy:  "rp",
 		WriteConsistency: "wc",
 	})
-	if bp.Precision() != "ns" {
+	conf := bp.Config()
+	if bp.Precision() != "ns" || conf.Precision != "ns" {
 		t.Errorf("Expected: %s, got %s", bp.Precision(), "ns")
 	}
-	if bp.Database() != "db" {
+	if bp.Database() != "db" || conf.Database != "db" {
 		t.Errorf("Expected: %s, got %s", bp.Database(), "db")
 	}
-	if bp.RetentionPolicy() != "rp" {
+	if bp.RetentionPolicy() != "rp" || conf.RetentionPolicy != "rp" {
 		t.Errorf("Expected: %s, got %s", bp.RetentionPolicy(), "rp")
 	}
-	if bp.WriteConsistency() != "wc" {
+	if bp.WriteConsistency() != "wc" || conf.WriteConsistency != "wc" {
 		t.Errorf("Expected: %s, got %s", bp.WriteConsistency(), "wc")
 	}
 
@@ -853,6 +854,24 @@ func TestBatchPoints_SettersGetters(t *testing.T) {
 	}
 	if bp.WriteConsistency() != "wc2" {
 		t.Errorf("Expected: %s, got %s", bp.WriteConsistency(), "wc2")
+	}
+
+	err = bp.SetConfig(BatchPointsConfig{Precision: "us", Database: "db3", RetentionPolicy: "rp3", WriteConsistency: "wc3"})
+	if err != nil {
+		t.Errorf("Did not expect error: %s", err.Error())
+	}
+
+	if bp.Precision() != "us" {
+		t.Errorf("Expected: %s, got %s", bp.Precision(), "us")
+	}
+	if bp.Database() != "db3" {
+		t.Errorf("Expected: %s, got %s", bp.Database(), "db3")
+	}
+	if bp.RetentionPolicy() != "rp3" {
+		t.Errorf("Expected: %s, got %s", bp.RetentionPolicy(), "rp3")
+	}
+	if bp.WriteConsistency() != "wc3" {
+		t.Errorf("Expected: %s, got %s", bp.WriteConsistency(), "wc3")
 	}
 }
 

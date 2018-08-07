@@ -195,6 +195,11 @@ type BatchPoints interface {
 	// Points lists the points in the Batch.
 	Points() []*Point
 
+	// Config returns the currently configuration of this batch.
+	Config() BatchPointsConfig
+	// SetConfig sets the configuration of this batch.
+	SetConfig(config BatchPointsConfig) error
+
 	// Precision returns the currently set precision of this Batch.
 	Precision() string
 	// SetPrecision sets the precision of this batch.
@@ -253,6 +258,15 @@ func (bp *batchpoints) Points() []*Point {
 	return bp.points
 }
 
+func (bp *batchpoints) Config() BatchPointsConfig {
+	return BatchPointsConfig{
+		Precision: bp.precision,
+		Database: bp.database,
+		WriteConsistency: bp.writeConsistency,
+		RetentionPolicy: bp.retentionPolicy,
+	}
+}
+
 func (bp *batchpoints) Precision() string {
 	return bp.precision
 }
@@ -267,6 +281,13 @@ func (bp *batchpoints) WriteConsistency() string {
 
 func (bp *batchpoints) RetentionPolicy() string {
 	return bp.retentionPolicy
+}
+
+func (bp *batchpoints) SetConfig(conf BatchPointsConfig) error {
+	bp.SetDatabase(conf.Database)
+	bp.SetWriteConsistency(conf.WriteConsistency)
+	bp.SetRetentionPolicy(conf.RetentionPolicy)
+	return bp.SetPrecision(conf.Precision)
 }
 
 func (bp *batchpoints) SetPrecision(p string) error {
