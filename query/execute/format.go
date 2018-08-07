@@ -87,7 +87,8 @@ func (f *Formatter) WriteTo(out io.Writer) (int64, error) {
 	// Compute header widths
 	f.widths = make([]int, len(cols))
 	for j, c := range cols {
-		l := len(c.Label)
+		// Column header is "<label>:<type>"
+		l := len(c.Label) + len(c.Type.String()) + 1
 		min := minWidthsByType[c.Type]
 		if min > l {
 			l = min
