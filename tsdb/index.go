@@ -133,7 +133,6 @@ func (itr *seriesIteratorAdapter) Next() (SeriesElem, error) {
 
 		name, tags := ParseSeriesKey(key)
 		deleted := itr.sfile.IsDeleted(elem.SeriesID)
-
 		return &seriesElemAdapter{
 			name:    name,
 			tags:    tags,
