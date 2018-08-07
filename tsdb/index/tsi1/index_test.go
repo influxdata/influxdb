@@ -312,8 +312,10 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 }
 
 func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
-	idx := MustOpenDefaultIndex()
-	defer idx.Close()
+	idx1 := MustOpenDefaultIndex() // Uses the single series creation method CreateSeriesIfNotExists
+	defer idx1.Close()
+	idx2 := MustOpenDefaultIndex() // Uses the batch series creation method CreateSeriesListIfNotExists
+	defer idx2.Close()
 
 	// Add some series.
 	data := []struct {
@@ -334,43 +336,56 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 		{"disk,region=north,server=c", "disk", map[string]string{"region": "north", "server": "c"}},
 	}
 
+	var batchKeys [][]byte
+	var batchNames [][]byte
+	var batchTags []models.Tags
 	for _, pt := range data {
-		if err := idx.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags)); err != nil {
+		if err := idx1.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags)); err != nil {
 			t.Fatal(err)
 		}
+
+		batchKeys = append(batchKeys, []byte(pt.Key))
+		batchNames = append(batchNames, []byte(pt.Name))
+		batchTags = append(batchTags, models.NewTags(pt.Tags))
+	}
+
+	if err := idx2.CreateSeriesListIfNotExists(batchKeys, batchNames, batchTags); err != nil {
+		t.Fatal(err)
 	}
 
 	testTagValueSeriesIDIterator := func(t *testing.T, name, key, value string, expKeys []string) {
-		sitr, err := idx.TagValueSeriesIDIterator([]byte(name), []byte(key), []byte(value))
-		if err != nil {
-			t.Fatal(err)
-		} else if sitr == nil {
-			t.Fatal("series id iterater nil")
-		}
-
-		// Convert series ids to series keys.
-		itr := tsdb.NewSeriesIteratorAdapter(idx.SeriesFile.SeriesFile, sitr)
-		if itr == nil {
-			t.Fatal("got nil iterator")
-		}
-		defer itr.Close()
-
-		var keys []string
-		for e, err := itr.Next(); err == nil; e, err = itr.Next() {
-			if e == nil {
-				break
+		for i, idx := range []*Index{idx1, idx2} {
+			sitr, err := idx.TagValueSeriesIDIterator([]byte(name), []byte(key), []byte(value))
+			if err != nil {
+				t.Fatalf("[index %d] %v", i, err)
+			} else if sitr == nil {
+				t.Fatalf("[index %d] series id iterater nil", i)
 			}
-			keys = append(keys, string(models.MakeKey(e.Name(), e.Tags())))
-		}
 
-		if err != nil {
-			t.Fatal(err)
-		}
+			// Convert series ids to series keys.
+			itr := tsdb.NewSeriesIteratorAdapter(idx.SeriesFile.SeriesFile, sitr)
+			if itr == nil {
+				t.Fatalf("[index %d] got nil iterator", i)
+			}
+			defer itr.Close()
 
-		// Iterator was in series id order, which may not be series key order.
-		sort.Strings(keys)
-		if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
-			t.Fatalf("got %v, expected %v", got, exp)
+			var keys []string
+			for e, err := itr.Next(); err == nil; e, err = itr.Next() {
+				if e == nil {
+					break
+				}
+				keys = append(keys, string(models.MakeKey(e.Name(), e.Tags())))
+			}
+
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Iterator was in series id order, which may not be series key order.
+			sort.Strings(keys)
+			if got, exp := keys, expKeys; !reflect.DeepEqual(got, exp) {
+				t.Fatalf("[index %d] got %v, expected %v", i, got, exp)
+			}
 		}
 	}
 
@@ -386,6 +401,59 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 	// The result should now be cached, and the same result should be returned.
 	t.Run("cached", func(t *testing.T) {
 		testTagValueSeriesIDIterator(t, "mem", "region", "west", []string{
+			"mem,region=west,server=a",
+			"mem,region=west,server=b",
+			"mem,region=west,server=c",
+		})
+	})
+
+	// Adding a new series that would be referenced by some cached bitsets (in this case
+	// the bitsets for mem->region->west and mem->server->c) should cause the cached
+	// bitsets to be updated.
+	if err := idx1.CreateSeriesIfNotExists(
+		[]byte("mem,region=west,root=x,server=c"),
+		[]byte("mem"),
+		models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := idx2.CreateSeriesListIfNotExists(
+		[][]byte{[]byte("mem,region=west,root=x,server=c")},
+		[][]byte{[]byte("mem")},
+		[]models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("insert series", func(t *testing.T) {
+		testTagValueSeriesIDIterator(t, "mem", "region", "west", []string{
+			"mem,region=west,root=x,server=c",
+			"mem,region=west,server=a",
+			"mem,region=west,server=b",
+			"mem,region=west,server=c",
+		})
+	})
+
+	if err := idx1.CreateSeriesIfNotExists(
+		[]byte("mem,region=west,root=x,server=c"),
+		[]byte("mem"),
+		models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := idx2.CreateSeriesListIfNotExists(
+		[][]byte{[]byte("mem,region=west,root=x,server=c")},
+		[][]byte{[]byte("mem")},
+		[]models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("insert same series", func(t *testing.T) {
+		testTagValueSeriesIDIterator(t, "mem", "region", "west", []string{
+			"mem,region=west,root=x,server=c",
 			"mem,region=west,server=a",
 			"mem,region=west,server=b",
 			"mem,region=west,server=c",
