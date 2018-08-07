@@ -313,7 +313,6 @@ func MustNewIndex(index string) *Index {
 	opts.IndexVersion = index
 
 	rootPath, err := ioutil.TempDir("", "influxdb-tsdb")
-	fmt.Println(rootPath)
 	if err != nil {
 		panic(err)
 	}
