@@ -126,5 +126,4 @@ func TestCoordinator(t *testing.T) {
 	if task.Script != newScript {
 		t.Fatal("task sent to scheduler doesnt match task created")
 	}
-
 }

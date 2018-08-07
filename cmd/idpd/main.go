@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/platform/http"
 	"github.com/influxdata/platform/kit/prom"
 	"github.com/influxdata/platform/query"
+	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/task"
@@ -136,8 +137,7 @@ func platformF(cmd *cobra.Command, args []string) {
 	{
 		boltStore, err := taskbolt.New(c.DB(), "tasks")
 		if err != nil {
-			logger.Error("failed opening task bolt", zap.Error(err))
-			os.Exit(1)
+			logger.Fatal("failed opening task bolt", zap.Error(err))
 		}
 
 		executor := taskexecutor.NewQueryServiceExecutor(logger, queryService, boltStore)

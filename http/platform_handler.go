@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"fmt"
 	nethttp "net/http"
 	"strings"
 
@@ -92,7 +91,6 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	}
 
 	if strings.HasPrefix(r.URL.Path, "/v1/tasks") {
-		fmt.Println("handled?")
 		h.TaskHandler.ServeHTTP(w, r)
 	}
 
