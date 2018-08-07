@@ -38,6 +38,7 @@ v1.6.0 [2018-07-05]
 -	[#10102](https://github.com/influxdata/influxdb/pull/10102): Remove max concurrent compaction limit.
 -	[#10122](https://github.com/influxdata/influxdb/pull/10122): Add roaring bitmaps to TSI index files.
 -	[#10152](https://github.com/influxdata/influxdb/pull/10152): Add option to hint MADV_WILLNEED to kernel.
+-	[#9939](https://github.com/influxdata/influxdb/pull/9939): Add configuration parameter to expose rate limit for TSM compaction.
 
 ### Bugfixes
 
