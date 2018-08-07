@@ -520,10 +520,10 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 }
 
 // AddSeriesList adds a list of series to the log file in bulk.
-func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) error {
+func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
 	seriesIDs, err := f.sfile.CreateSeriesListIfNotExists(names, tagsSlice)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var writeRequired bool
@@ -532,6 +532,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 	for i := range names {
 		if seriesSet.ContainsNoLock(seriesIDs[i]) {
 			// We don't need to allocate anything for this series.
+			seriesIDs[i] = 0
 			continue
 		}
 		writeRequired = true
@@ -541,7 +542,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 
 	// Exit if all series already exist.
 	if !writeRequired {
-		return nil
+		return seriesIDs, nil
 	}
 
 	f.mu.Lock()
@@ -550,21 +551,25 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 	seriesSet.Lock()
 	defer seriesSet.Unlock()
 
-	for i := range entries {
+	for i := range entries { // NB - this doesn't evaluate all series ids returned from series file.
 		entry := &entries[i]
 		if seriesSet.ContainsNoLock(entry.SeriesID) {
 			// We don't need to allocate anything for this series.
+			seriesIDs[i] = 0
 			continue
 		}
 		if err := f.appendEntry(entry); err != nil {
-			return err
+			return nil, err
 		}
 		f.execEntry(entry)
 		seriesSet.AddNoLock(entry.SeriesID)
 	}
 
 	// Flush buffer and sync to disk.
-	return f.FlushAndSync()
+	if err := f.FlushAndSync(); err != nil {
+		return nil, err
+	}
+	return seriesIDs, nil
 }
 
 // DeleteSeriesID adds a tombstone for a series id.

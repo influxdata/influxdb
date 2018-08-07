@@ -649,7 +649,7 @@ func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []mode
 	// Ensure fileset cannot change during insert.
 	i.mu.RLock()
 	// Insert series into log file.
-	if err := i.activeLogFile.AddSeriesList(i.seriesIDSet, names, tagsSlice); err != nil {
+	if _, err := i.activeLogFile.AddSeriesList(i.seriesIDSet, names, tagsSlice); err != nil {
 		i.mu.RUnlock()
 		return err
 	}
