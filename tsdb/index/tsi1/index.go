@@ -656,7 +656,56 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 				if idx >= len(i.partitions) {
 					return // No more work.
 				}
-				errC <- i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+
+				ids, err := i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+
+				var updateCache bool
+				for _, id := range ids {
+					if id != 0 {
+						updateCache = true
+						break
+					}
+				}
+
+				if !updateCache {
+					errC <- err
+					continue
+				}
+
+				// Some cached bitset results may need to be updated.
+				i.cacheMu.RLock()
+				for j, id := range ids {
+					if id == 0 {
+						continue
+					}
+
+					name := pNames[idx][j]
+					tags := pTags[idx][j]
+					if tkmap, ok := i.sscache[string(name)]; ok {
+						for _, pair := range tags {
+							if tvmap, ok := tkmap[string(pair.Key)]; ok {
+								// TODO(edd): It's not clear to me yet whether it will be better to take a lock
+								// on every series id set, or whether to gather them all up under the cache rlock
+								// and then take the cache lock and update them all at once (without invoking a lock
+								// on each series id set).
+								//
+								// Taking the cache lock will block all queries, but is one lock. Taking each series set
+								// lock might be many lock/unlocks but will only block a query that needs that particular set.
+								//
+								// Need to think on it, but I think taking a lock on each series id set is the way to go.
+								//
+								// One other option here is to take a lock on the series id set when we first encounter it
+								// and then keep it locked until we're done with all the ids.
+								if ele, ok := tvmap[string(pair.Value)]; ok {
+									ele.Value.(*ssElement).SeriesIDSet.Add(id) // Takes a lock on the series id set
+								}
+							}
+						}
+					}
+				}
+				i.cacheMu.RUnlock()
+
+				errC <- err
 			}
 		}()
 	}
@@ -681,11 +730,39 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	if err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}); err != nil {
+	ids, err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
+	if err != nil {
 		return err
 	}
 	i.sSketch.Add(key)
 	i.mSketch.Add(name)
+
+	if ids[0] == 0 {
+		return nil // No new series, nothing further to update.
+	}
+
+	// If there are cached sets for any of the tag pairs, they will need to be
+	// updated with the series id.
+	i.cacheMu.RLock()
+	if tkmap, ok := i.sscache[string(name)]; ok {
+		for _, pair := range tags {
+			if tvmap, ok := tkmap[string(pair.Key)]; ok {
+				// TODO(edd): It's not clear to me yet whether it will be better to take a lock
+				// on every series id set, or whether to gather them all up under the cache rlock
+				// and then take the cache lock and update them all at once (without invoking a lock
+				// on each series id set).
+				//
+				// Taking the cache lock will block all queries, but is one lock. Taking each series set
+				// lock might be many lock/unlocks but will only block a query that needs that particular set.
+				//
+				// Need to think on it, but I think taking a lock on each series id set is the way to go.
+				if ele, ok := tvmap[string(pair.Value)]; ok {
+					ele.Value.(*ssElement).SeriesIDSet.Add(ids[0]) // Takes a lock on the series id set
+				}
+			}
+		}
+	}
+	i.cacheMu.RUnlock()
 	return nil
 }
 

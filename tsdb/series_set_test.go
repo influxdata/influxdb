@@ -152,6 +152,13 @@ func BenchmarkSeriesIDSet_Add(b *testing.B) {
 		}
 	})
 
+	// Add the same value over and over with no lock
+	b.Run(fmt.Sprint("cardinality_1000000_add_same_no_lock"), func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			set.AddNoLock(lookup)
+		}
+	})
+
 	// Check if the value exists before adding it. Subsequent repeats of the code
 	// will result in contains checks.
 	b.Run(fmt.Sprint("cardinality_1000000_check_add_global_lock"), func(b *testing.B) {
