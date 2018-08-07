@@ -233,31 +233,23 @@ func (s *Store) loadShards() error {
 	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
 	throughput := int(s.EngineOptions.Config.CompactThroughput)
 	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
-	compactionSettings = append(
-		compactionSettings,
-		zap.Int("throughput_bytes_per_second", throughput),
-		zap.Int("throughput_bytes_per_second_burst", throughputBurst),
-	)
 	if throughput > 0 {
 		if throughputBurst < throughput {
 			throughputBurst = throughput
 		}
-		s.Logger.Info(
-			"Compaction throughput enabled",
-			zap.String("throughput_bytes_per_second", fmt.Sprintf("%d%%", throughput)),
-			zap.String("throughput_bytes_per_second_burst", fmt.Sprintf("%d%%", throughputBurst)),
+
+		compactionSettings = append(
+			compactionSettings,
+			zap.Int("throughput_bytes_per_second", throughput),
+			zap.Int("throughput_bytes_per_second_burst", throughputBurst),
 		)
-		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(
-			throughput,
-			throughputBurst,
-		)
+		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(throughput, throughputBurst)
 	} else {
 		compactionSettings = append(
 			compactionSettings,
 			zap.String("throughput_bytes_per_second", "unlimited"),
 			zap.String("throughput_bytes_per_second_burst", "unlimited"),
 		)
-		s.Logger.Info("Compaction throughput limit disabled")
 	}
 
 	s.Logger.Info("Compaction settings", compactionSettings...)
