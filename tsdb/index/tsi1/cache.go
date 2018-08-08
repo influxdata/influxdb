@@ -128,7 +128,7 @@ EVICT:
 // item if it is.
 func (c *TagValueSeriesIDCache) checkEviction() {
 	if c.evictor.Len() > c.capacity {
-		// panic("CACHE FULL")   // FIXME(edd) remove
+		panic("CACHE FULL")   // FIXME(edd) remove
 		e := c.evictor.Back() // Least recently used item.
 		listElement := e.Value.(*seriesIDCacheElement)
 		name := listElement.name
