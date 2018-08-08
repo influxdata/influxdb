@@ -26,18 +26,18 @@ To run in federated mode, add the `--storage-hosts` option with each host separa
 fluxd --storage-hosts localhost:8082
 ```
 
-4. To run a query, POST a **Flux** query string to `/v1/query` as the `q` parameter:
+4. To run a query, POST a **Flux** query string to `/query` as the `query` parameter:
 
 ```sh
 curl -XPOST --data-urlencode \
-'q=from(db:"telegraf")
+'query=from(db:"telegraf")
     |> filter(fn: (r) => r["_measurement"] == "cpu" AND r["_field"] == "usage_user")
     |> range(start:-170h)
     |> sum()' \
-http://localhost:8093/v1/query?orgName=my-org
+http://localhost:8093/query?organization=my-org
 ```
 
-Any value can be used for the `orgName` parameter. It does not apply to running flux queries against the InfluxDB 1.x nightlies.
+Any value can be used for the `organization` parameter. It does not apply to running flux queries against the InfluxDB 1.x nightlies but is required.
 
 ### Docker Installation
 

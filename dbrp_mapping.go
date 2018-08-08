@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -92,4 +93,38 @@ type DBRPMappingFilter struct {
 	Database        *string
 	RetentionPolicy *string
 	Default         *bool
+}
+
+func (f DBRPMappingFilter) String() string {
+	var s strings.Builder
+	s.WriteString("{")
+
+	s.WriteString("cluster:")
+	if f.Cluster != nil {
+		s.WriteString(*f.Cluster)
+	} else {
+		s.WriteString("<nil>")
+	}
+	s.WriteString(" db:")
+	if f.Database != nil {
+		s.WriteString(*f.Database)
+	} else {
+		s.WriteString("<nil>")
+	}
+
+	s.WriteString(" rp:")
+	if f.RetentionPolicy != nil {
+		s.WriteString(*f.RetentionPolicy)
+	} else {
+		s.WriteString("<nil>")
+	}
+
+	s.WriteString(" default:")
+	if f.Default != nil {
+		s.WriteString(strconv.FormatBool(*f.Default))
+	} else {
+		s.WriteString("<nil>")
+	}
+	s.WriteString("}")
+	return s.String()
 }

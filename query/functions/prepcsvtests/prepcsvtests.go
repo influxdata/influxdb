@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
@@ -69,29 +69,34 @@ func main() {
 			return
 		}
 
-		qs := querytest.GetQueryServiceBridge()
-		qspec, err := query.Compile(context.Background(), string(querytext), time.Now().UTC())
-		if err != nil {
-			fmt.Printf("error compiling. \n query: \n %s \n err: %s", string(querytext), err)
-			return
+		pqs := querytest.GetProxyQueryServiceBridge()
+		req := &query.ProxyRequest{
+			Request: query.Request{
+				Compiler: querytest.FromCSVCompiler{
+					Compiler: query.FluxCompiler{
+						Query: string(querytext),
+					},
+					InputFile: incsv,
+				},
+			},
+			Dialect: csv.DefaultDialect(),
 		}
-		querytest.ReplaceFromSpec(qspec, incsv)
-		enc := csv.NewMultiResultEncoder(csv.DefaultEncoderConfig())
-		result, err := querytest.GetQueryEncodedResults(qs, qspec, incsv, enc)
+		var buf bytes.Buffer
+		_, err = pqs.Query(context.Background(), &buf, req)
 		if err != nil {
 			fmt.Printf("error: %s", err)
 			return
 		}
 
 		fmt.Printf("FLUX:\n %s\n\n", querytext)
-		fmt.Printf("CHECK RESULT:\n%s\n____________________________________________________________", result)
+		fmt.Printf("CHECK RESULT:\n%s\n____________________________________________________________", buf.String())
 
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Results ok (y/n)?: ")
 		text, _ := reader.ReadString('\n')
 		if text == "y\n" {
 			fmt.Printf("writing output file: %s", testName+".out.csv")
-			ioutil.WriteFile(testName+".out.csv", []byte(result), 0644)
+			ioutil.WriteFile(testName+".out.csv", buf.Bytes(), 0644)
 		}
 	}
 }

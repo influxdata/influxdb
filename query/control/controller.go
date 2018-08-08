@@ -68,33 +68,15 @@ func New(c Config) *Controller {
 	return ctrl
 }
 
-// QueryWithCompile submits a query for execution returning immediately.
-// The query will first be compiled before submitting for execution.
+// Query submits a query for execution returning immediately.
 // Done must be called on any returned Query objects.
-func (c *Controller) QueryWithCompile(ctx context.Context, orgID platform.ID, queryStr string) (query.Query, error) {
-	q := c.createQuery(ctx, orgID)
-	err := c.compileQuery(q, queryStr)
+func (c *Controller) Query(ctx context.Context, req *query.Request) (query.Query, error) {
+	q := c.createQuery(ctx, req.OrganizationID)
+	err := c.compileQuery(q, req.Compiler)
 	if err != nil {
 		return nil, err
 	}
 	err = c.enqueueQuery(q)
-	return q, err
-}
-
-// Query submits a query for execution returning immediately. Once a query
-// is submitted, that is once a query is enqueued, the query spec must not
-// be modified. Done must be called on any returned Query objects.
-func (c *Controller) Query(ctx context.Context, orgID platform.ID, qSpec *query.Spec) (query.Query, error) {
-	q := c.createQuery(ctx, orgID)
-	q.spec = *qSpec
-
-	// Incoming query spec may have been produced by an entity other than the
-	// Flux interpreter, so we must set the default Now time if not already set.
-	if q.spec.Now.IsZero() {
-		q.spec.Now = q.now
-	}
-
-	err := c.enqueueQuery(q)
 	return q, err
 }
 
@@ -125,14 +107,21 @@ func (c *Controller) createQuery(ctx context.Context, orgID platform.ID) *Query 
 	}
 }
 
-func (c *Controller) compileQuery(q *Query, queryStr string) error {
+func (c *Controller) compileQuery(q *Query, compiler query.Compiler) error {
 	if !q.tryCompile() {
 		return errors.New("failed to transition query to compiling state")
 	}
-	spec, err := query.Compile(q.compilingCtx, queryStr, q.now, query.Verbose(c.verbose))
+	spec, err := compiler.Compile(q.compilingCtx)
 	if err != nil {
 		return errors.Wrap(err, "failed to compile query")
 	}
+
+	// Incoming query spec may have been produced by an entity other than the
+	// Flux interpreter, so we must set the default Now time if not already set.
+	if spec.Now.IsZero() {
+		spec.Now = q.now
+	}
+
 	q.spec = *spec
 	return nil
 }
@@ -328,9 +317,10 @@ type Query struct {
 
 	ready chan map[string]query.Result
 
-	mu     sync.Mutex
-	state  State
-	cancel func()
+	mu       sync.Mutex
+	state    State
+	cancel   func()
+	canceled bool
 
 	parentCtx,
 	compilingCtx,
@@ -376,6 +366,11 @@ func (q *Query) Concurrency() int {
 func (q *Query) Cancel() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if q.canceled {
+		// We have already been canceled
+		return
+	}
+	q.canceled = true
 
 	// call cancel func
 	q.cancel()

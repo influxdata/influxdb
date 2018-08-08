@@ -5,13 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/url"
 
-	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/csv"
 	"github.com/julienschmidt/httprouter"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -26,17 +24,19 @@ type QueryHandler struct {
 
 	Logger *zap.Logger
 
-	csvEncoder query.MultiResultEncoder
+	csvDialect csv.Dialect
 
-	QueryService        query.QueryService
-	OrganizationService platform.OrganizationService
+	QueryService     query.QueryService
+	CompilerMappings query.CompilerMappings
 }
 
 // NewQueryHandler returns a new instance of QueryHandler.
 func NewQueryHandler() *QueryHandler {
 	h := &QueryHandler{
-		Router:     httprouter.New(),
-		csvEncoder: csv.NewMultiResultEncoder(csv.DefaultEncoderConfig()),
+		Router: httprouter.New(),
+		csvDialect: csv.Dialect{
+			ResultEncoderConfig: csv.DefaultEncoderConfig(),
+		},
 	}
 
 	h.HandlerFunc("GET", "/ping", h.handlePing)
@@ -54,66 +54,29 @@ func (h *QueryHandler) handlePing(w http.ResponseWriter, r *http.Request) {
 func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var orgID platform.ID
-	if id := r.FormValue("orgID"); id != "" {
-		err := orgID.DecodeFromString(id)
-		if err != nil {
-			EncodeError(ctx, errors.Wrap(err, "failed to decode orgID", errors.MalformedData), w)
-			return
-		}
-	}
-	if name := r.FormValue("orgName"); name != "" {
-		org, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{
-			Name: &name,
-		})
-		if err != nil {
-			EncodeError(ctx, errors.Wrap(err, "failed to load organization", errors.MalformedData), w)
-			return
-		}
-		orgID = org.ID
-	}
-
-	if len(orgID) == 0 {
-		EncodeError(ctx, errors.New("must pass organization name or ID as string in orgName or orgID parameter", errors.MalformedData), w)
+	var req query.Request
+	req.WithCompilerMappings(h.CompilerMappings)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		EncodeError(ctx, err, w)
 		return
 	}
 
-	var results query.ResultIterator
-	if r.Header.Get("Content-type") == "application/json" {
-		req, err := decodePostQueryRequest(ctx, r)
-		if err != nil {
-			EncodeError(ctx, errors.Wrap(err, "Failed to decode query request", errors.MalformedData), w)
-			return
-		}
-
-		rs, err := h.QueryService.Query(ctx, orgID, req.Spec)
-		if err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-		results = rs
-	} else {
-		queryStr := r.FormValue("q")
-		if queryStr == "" {
-			EncodeError(ctx, errors.New("must pass query string in q parameter", errors.MalformedData), w)
-			return
-		}
-		rs, err := h.QueryService.QueryWithCompile(ctx, orgID, queryStr)
-		if err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-		results = rs
+	results, err := h.QueryService.Query(ctx, &req)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
 	}
+	// Always cancel the results to free resources.
+	// If all results were consumed cancelling does nothing.
+	defer results.Cancel()
 
 	// Setup headers
 	stats, hasStats := results.(query.Statisticser)
 	if hasStats {
 		w.Header().Set("Trailer", statsTrailer)
 	}
-	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Transfer-Encoding", "chunked")
-	// NOTE: We do not write the headers here.
+
+	// NOTE: We do not write out the headers here.
 	// It is possible that if the encoding step fails
 	// that we can write an error header so long as
 	// the encoder did not write anything.
@@ -124,7 +87,9 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	case "text/csv":
 		fallthrough
 	default:
-		n, err := h.csvEncoder.Encode(w, results)
+		h.csvDialect.SetHeaders(w)
+		encoder := h.csvDialect.Encoder()
+		n, err := encoder.Encode(w, results)
 		if err != nil {
 			if n == 0 {
 				// If the encoder did not write anything, we can write an error header.
@@ -148,19 +113,10 @@ func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type postQueryRequest struct {
-	Spec *query.Spec `json:"spec"`
-}
-
-func decodePostQueryRequest(ctx context.Context, r *http.Request) (*postQueryRequest, error) {
-	s := new(query.Spec)
-	if err := json.NewDecoder(r.Body).Decode(s); err != nil {
-		return nil, err
-	}
-
-	return &postQueryRequest{
-		Spec: s,
-	}, nil
+// PrometheusCollectors satisifies the prom.PrometheusCollector interface.
+func (h *QueryHandler) PrometheusCollectors() []prometheus.Collector {
+	// TODO: gather and return relevant metrics.
+	return nil
 }
 
 type QueryService struct {
@@ -169,67 +125,30 @@ type QueryService struct {
 	InsecureSkipVerify bool
 }
 
-func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *query.Spec) (query.ResultIterator, error) {
+func (s *QueryService) Query(ctx context.Context, req *query.Request) (query.ResultIterator, error) {
 	u, err := newURL(s.Addr, queryPath)
 	if err != nil {
 		return nil, err
 	}
-	values := url.Values{}
-	values.Set("orgID", orgID.String())
-	u.RawQuery = values.Encode()
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(query); err != nil {
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(req); err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", u.String(), &buf)
+	hreq, err := http.NewRequest("POST", u.String(), &body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", s.Token)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/csv")
+	hreq.Header.Set("Authorization", s.Token)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
+	resp, err := hc.Do(hreq)
 	if err != nil {
 		return nil, err
 	}
-	return s.processResponse(resp)
-}
-
-func (s *QueryService) QueryWithCompile(ctx context.Context, orgID platform.ID, query string) (query.ResultIterator, error) {
-	u, err := newURL(s.Addr, queryPath)
-	if err != nil {
-		return nil, err
-	}
-	values := url.Values{}
-	values.Set("q", query)
-	values.Set("orgID", orgID.String())
-	u.RawQuery = values.Encode()
-
-	req, err := http.NewRequest("POST", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", s.Token)
-	req.Header.Set("Accept", "text/csv")
-
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	return s.processResponse(resp)
-}
-
-func (s *QueryService) processResponse(resp *http.Response) (query.ResultIterator, error) {
 	if err := CheckError(resp); err != nil {
 		return nil, err
 	}
-
-	// TODO(jsternberg): Handle a 204 response?
 
 	var decoder query.MultiResultDecoder
 	switch resp.Header.Get("Content-Type") {
@@ -238,43 +157,41 @@ func (s *QueryService) processResponse(resp *http.Response) (query.ResultIterato
 	default:
 		decoder = csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
 	}
-	result, err := decoder.Decode(resp.Body)
+	results, err := decoder.Decode(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	return &statsResultIterator{
-		result: result,
-		resp:   resp,
-	}, nil
+
+	statResults := &statsResultIterator{
+		results: results,
+		resp:    resp,
+	}
+	return statResults, nil
 }
 
 // statsResultIterator implements query.ResultIterator and query.Statisticser by reading the HTTP trailers.
 type statsResultIterator struct {
-	result     query.ResultIterator
+	results    query.ResultIterator
 	resp       *http.Response
 	statisitcs query.Statistics
 	err        error
 }
 
 func (s *statsResultIterator) More() bool {
-	more := s.result.More()
-	if !more {
-		s.readStats()
-	}
-	return more
+	return s.results.More()
 }
 
 func (s *statsResultIterator) Next() query.Result {
-	return s.result.Next()
+	return s.results.Next()
 }
 
 func (s *statsResultIterator) Cancel() {
-	s.result.Cancel()
+	s.results.Cancel()
 	s.readStats()
 }
 
 func (s *statsResultIterator) Err() error {
-	err := s.result.Err()
+	err := s.results.Err()
 	if err != nil {
 		return err
 	}

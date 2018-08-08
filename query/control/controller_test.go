@@ -6,15 +6,21 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
-	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/execute"
+	"github.com/influxdata/platform/query/mock"
 	"github.com/influxdata/platform/query/plan"
 )
 
-// testQuerySpec is a spec that can be used for queries.
-var testQuerySpec *query.Spec
+var mockCompiler *mock.Compiler
+
+func init() {
+	mockCompiler = new(mock.Compiler)
+	mockCompiler.CompileFn = func(ctx context.Context) (*query.Spec, error) {
+		return query.Compile(ctx, `from(bucket: "telegraf") |> range(start: -5m) |> mean()`, time.Now())
+	}
+}
 
 func TestController_CancelQuery(t *testing.T) {
 	done := make(chan struct{})
@@ -27,9 +33,13 @@ func TestController_CancelQuery(t *testing.T) {
 
 	ctrl := New(Config{})
 	ctrl.executor = executor
+	req := &query.Request{
+		OrganizationID: platform.ID("a"),
+		Compiler:       mockCompiler,
+	}
 
 	// Run a query that will cause the controller to stall.
-	q, err := ctrl.Query(context.Background(), nil, testQuerySpec)
+	q, err := ctrl.Query(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -52,17 +62,9 @@ func TestController_CancelQuery(t *testing.T) {
 		}
 	}()
 
-	if _, err := ctrl.Query(ctx, nil, testQuerySpec); err == nil {
+	if _, err := ctrl.Query(ctx, req); err == nil {
 		t.Fatal("expected error")
 	} else if got, want := err, context.Canceled; got != want {
 		t.Fatalf("unexpected error: got=%q want=%q", got, want)
 	}
-}
-
-func init() {
-	spec, err := query.Compile(context.Background(), `from(bucket: "telegraf") |> range(start: -5m) |> mean()`, time.Now())
-	if err != nil {
-		panic(err)
-	}
-	testQuerySpec = spec
 }

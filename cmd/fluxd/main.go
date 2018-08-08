@@ -104,15 +104,17 @@ func fluxF(cmd *cobra.Command, args []string) {
 
 	orgName, err := getStrList("ORGANIZATION_NAME")
 	if err != nil {
-		return
+		logger.Error("failed to get organization name", zap.Error(err))
 	}
-	orgSvc := StaticOrganizationService{Name: orgName[0]}
+	orgSvc := &StaticOrganizationService{Name: orgName[0]}
 
-	queryHandler := http.NewQueryHandler()
-	queryHandler.QueryService = query.QueryServiceBridge{
-		AsyncQueryService: c,
+	queryHandler := http.NewExternalQueryHandler()
+	queryHandler.ProxyQueryService = query.ProxyQueryServiceBridge{
+		QueryService: query.QueryServiceBridge{
+			AsyncQueryService: c,
+		},
 	}
-	queryHandler.OrganizationService = &orgSvc
+	queryHandler.OrganizationService = orgSvc
 	queryHandler.Logger = logger.With(zap.String("handler", "query"))
 
 	handler := http.NewHandlerFromRegistry("query", reg)

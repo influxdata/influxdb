@@ -123,7 +123,13 @@ func (p *syncRunPromise) doQuery() {
 		return
 	}
 
-	it, err := p.svc.Query(p.ctx, p.t.Org, spec)
+	req := &query.Request{
+		OrganizationID: p.t.Org,
+		Compiler: query.SpecCompiler{
+			Spec: spec,
+		},
+	}
+	it, err := p.svc.Query(p.ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
 		p.finish(nil, err)
@@ -176,7 +182,13 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 		return nil, err
 	}
 
-	q, err := e.svc.Query(ctx, t.Org, spec)
+	req := &query.Request{
+		OrganizationID: t.Org,
+		Compiler: query.SpecCompiler{
+			Spec: spec,
+		},
+	}
+	q, err := e.svc.Query(ctx, req)
 	if err != nil {
 		return nil, err
 	}
