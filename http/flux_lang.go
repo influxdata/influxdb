@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	query "github.com/influxdata/platform/query/builtin"
+	"github.com/influxdata/platform/query/complete"
 	"github.com/influxdata/platform/query/parser"
 	"github.com/julienschmidt/httprouter"
 )
@@ -96,7 +96,7 @@ func (h *FluxLangHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 // getFluxSuggestions returns a list of available Flux functions for the Flux Builder
 func (h *FluxLangHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	completer := query.DefaultCompleter()
+	completer := complete.DefaultCompleter()
 	names := completer.FunctionNames()
 	var functions []suggestionResponse
 	for _, name := range names {
@@ -132,7 +132,7 @@ func (h *FluxLangHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Requ
 func (h *FluxLangHandler) getFluxSuggestion(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	name := httprouter.ParamsFromContext(ctx).ByName("name")
-	completer := query.DefaultCompleter()
+	completer := complete.DefaultCompleter()
 
 	suggestion, err := completer.FunctionSuggestion(name)
 	if err != nil {

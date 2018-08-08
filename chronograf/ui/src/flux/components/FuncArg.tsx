@@ -10,7 +10,7 @@ import FromDatabaseDropdown from 'src/flux/components/FromDatabaseDropdown'
 import {funcNames, argTypes} from 'src/flux/constants'
 import {OnChangeArg, Arg, OnGenerateScript} from 'src/types/flux'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   source: Source

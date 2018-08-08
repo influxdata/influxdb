@@ -1,5 +1,5 @@
 // function definitions
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 export type OnDeleteFuncNode = (ids: DeleteFuncNodeArgs) => void
 export type OnChangeArg = (inputArg: InputArg) => void
 export type OnAddNode = (

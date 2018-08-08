@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import FuncArg from 'src/flux/components/FuncArg'
-import {source} from 'test/resources'
+import {source} from 'test/resources/v2'
 
 const setup = () => {
   const props = {

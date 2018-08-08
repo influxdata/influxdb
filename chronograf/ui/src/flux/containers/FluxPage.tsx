@@ -30,7 +30,8 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {bodyNodes} from 'src/flux/helpers'
 
 // Types
-import {Source, Notification, FluxTable} from 'src/types'
+import {Source} from 'src/types/v2'
+import {Notification, FluxTable} from 'src/types'
 import {
   Suggestion,
   FlatBody,
@@ -55,7 +56,6 @@ interface Props {
   notify: (message: Notification) => void
   script: string
   updateScript: UpdateScript
-  onGoToEditFlux: (service: Service) => void
 }
 
 interface Body extends FlatBody {

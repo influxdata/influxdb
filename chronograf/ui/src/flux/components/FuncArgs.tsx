@@ -6,7 +6,7 @@ import {Func, OnGenerateScript} from 'src/types/flux'
 import {funcNames} from 'src/flux/constants'
 import JoinArgs from 'src/flux/components/JoinArgs'
 import FilterArgs from 'src/flux/components/FilterArgs'
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 import {getDeep} from 'src/utils/wrappers'
 
 interface Props {

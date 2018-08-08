@@ -6,8 +6,9 @@ import TimeMachineVis from 'src/flux/components/TimeMachineVis'
 import {getTimeSeries} from 'src/flux/apis'
 import {getDeep} from 'src/utils/wrappers'
 
-import {FluxTable, Source} from 'src/types'
+import {FluxTable} from 'src/types'
 import {Func} from 'src/types/flux'
+import {Source} from 'src/types/v2'
 
 interface Props {
   source: Source

@@ -12,7 +12,7 @@ import {
   ScriptStatus,
 } from 'src/types/flux'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 

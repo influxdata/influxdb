@@ -3,30 +3,20 @@ import {Link} from 'react-router'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
 import ConnectionLink from 'src/sources/components/ConnectionLink'
-import FluxDropdown from 'src/sources/components/FluxDropdown'
 
-import {Source, Service} from 'src/types'
+import {Source} from 'src/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   source: Source
   currentSource: Source
-  services: Service[]
   onDeleteSource: (source: Source) => void
-  setActiveFlux: (source: Source, service: Service) => void
-  deleteFlux: (fluxService: Service) => void
 }
 
 @ErrorHandling
 class InfluxTableRow extends PureComponent<Props> {
   public render() {
-    const {
-      source,
-      services,
-      currentSource,
-      setActiveFlux,
-      deleteFlux,
-    } = this.props
+    const {source, currentSource} = this.props
 
     return (
       <tr className={this.className}>

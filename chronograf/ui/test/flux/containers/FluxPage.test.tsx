@@ -4,7 +4,7 @@ import {shallow} from 'enzyme'
 import {FluxPage} from 'src/flux/containers/FluxPage'
 import TimeMachine from 'src/flux/components/TimeMachine'
 import {ActionTypes} from 'src/flux/actions'
-import {source} from 'test/resources'
+import {source} from 'test/resources/v2'
 
 jest.mock('src/flux/apis', () => require('mocks/flux/apis'))
 

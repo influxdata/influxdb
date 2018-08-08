@@ -15,7 +15,7 @@ import {
 } from 'src/types/flux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   func: Func

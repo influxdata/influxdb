@@ -6,7 +6,7 @@ import showDatabasesParser from 'src/shared/parsing/showDatabases'
 import Dropdown from 'src/shared/components/Dropdown'
 import {OnChangeArg} from 'src/types/flux'
 
-import {Source} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   funcID: string
@@ -38,8 +38,8 @@ class FromDatabaseDropdown extends PureComponent<Props, State> {
     const {source} = this.props
 
     try {
-      // (watts): TODO: hit actual showDatabases API
-      const {data} = await showDatabases(source.links.proxy)
+      // (watts): TODO: hit actual buckets API
+      const {data} = await showDatabases(source.links.buckets)
       const {databases} = showDatabasesParser(data)
       const sorted = databases.sort()
 
