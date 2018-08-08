@@ -5,6 +5,7 @@ package executor
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform/query"
@@ -116,7 +117,13 @@ func (p *syncRunPromise) finish(res *runResult, err error) {
 }
 
 func (p *syncRunPromise) doQuery() {
-	it, err := p.svc.QueryWithCompile(p.ctx, p.t.Org, p.t.Script)
+	spec, err := query.Compile(p.ctx, p.t.Script, time.Unix(p.qr.Now, 0))
+	if err != nil {
+		p.finish(nil, err)
+		return
+	}
+
+	it, err := p.svc.Query(p.ctx, p.t.Org, spec)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
 		p.finish(nil, err)
@@ -164,7 +171,12 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 		return nil, err
 	}
 
-	q, err := e.svc.QueryWithCompile(ctx, t.Org, t.Script)
+	spec, err := query.Compile(ctx, t.Script, time.Unix(run.Now, 0))
+	if err != nil {
+		return nil, err
+	}
+
+	q, err := e.svc.Query(ctx, t.Org, spec)
 	if err != nil {
 		return nil, err
 	}
