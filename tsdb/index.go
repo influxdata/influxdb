@@ -2179,8 +2179,9 @@ func (is IndexSet) matchTagValueEqualEmptySeriesIDIterator(name, key []byte, val
 				itr, err := is.tagValueSeriesIDIterator(name, key, e)
 				if err != nil {
 					return err
+				} else if itr != nil {
+					itrs = append(itrs, itr)
 				}
-				itrs = append(itrs, itr)
 			}
 		}
 		return nil
@@ -2222,8 +2223,9 @@ func (is IndexSet) matchTagValueEqualNotEmptySeriesIDIterator(name, key []byte, 
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
+			} else if itr != nil {
+				itrs = append(itrs, itr)
 			}
-			itrs = append(itrs, itr)
 		}
 	}
 	return MergeSeriesIDIterators(itrs...), nil
@@ -2253,8 +2255,9 @@ func (is IndexSet) matchTagValueNotEqualEmptySeriesIDIterator(name, key []byte, 
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
+			} else if itr != nil {
+				itrs = append(itrs, itr)
 			}
-			itrs = append(itrs, itr)
 		}
 	}
 	return MergeSeriesIDIterators(itrs...), nil
@@ -2283,8 +2286,9 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 			if err != nil {
 				SeriesIDIterators(itrs).Close()
 				return nil, err
+			} else if itr != nil {
+				itrs = append(itrs, itr)
 			}
-			itrs = append(itrs, itr)
 		}
 	}
 
