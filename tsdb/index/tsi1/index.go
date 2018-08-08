@@ -1008,7 +1008,19 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	// Check if the iterator contains only series id sets. Cache them...
 	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
 		i.cacheMu.Lock()
+
+		// Check once more under write lock.
+		if tkmap, ok := i.sscache[string(name)]; ok {
+			if tvmap, ok := tkmap[string(key)]; ok {
+				if _, ok := tvmap[string(value)]; ok {
+					i.cacheMu.Unlock()
+					return itr, nil // Already in cache
+				}
+			}
+		}
+
 		// Create element and put at front of eviction queue.
+		ssitr.SeriesIDSet().SetCOW(true)
 		ele := i.ssevict.PushFront(&ssElement{
 			name:        name,
 			key:         key,
@@ -1021,6 +1033,7 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 
 		// Does something need to be evicted from the cache?
 		if i.ssevict.Len() > DefaultSeriesIDSetCacheSize {
+			panic("CACHE FULL") // FIXME(edd) remove
 			e := i.ssevict.Back()
 			i.ssevict.Remove(e)
 
