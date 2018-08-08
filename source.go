@@ -174,3 +174,10 @@ func (s *Source) DeleteBucket(ctx context.Context, id ID) error {
 	}
 	return s.BucketService.DeleteBucket(ctx, id)
 }
+
+func (s *Source) Query(ctx context.Context, q *SourceQuery) (*SourceQueryResult, error) {
+	if s.SourceQuerier == nil {
+		return nil, fmt.Errorf("not supported")
+	}
+	return s.SourceQuerier.Query(ctx, q)
+}
