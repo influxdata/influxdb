@@ -584,8 +584,8 @@ var tsiditr tsdb.SeriesIDIterator
 // together. In the case of tsl files the sets need to are cloned and then merged.
 //
 // Typical results on an i7 laptop
-// BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/cache-8   	  100000	     15049 ns/op	  100616 B/op	      39 allocs/op
-// BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/no_cache-8      10000	    131034 ns/op	  125080 B/op	     352 allocs/op
+// BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/cache-8   	 2000000	       643 ns/op	     744 B/op	      13 allocs/op
+// BenchmarkIndex_IndexFile_TagValueSeriesIDIterator/78888_series_TagValueSeriesIDIterator/no_cache-8      10000	    130749 ns/op	  124952 B/op	     350 allocs/op
 func BenchmarkIndex_IndexFile_TagValueSeriesIDIterator(b *testing.B) {
 	var err error
 	sfile := NewSeriesFile()
@@ -717,16 +717,14 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 // The idea is to emphasize the performance difference when bitset caching is on and off.
 //
 // Typical results for an i7 laptop
-// BenchmarkIndex_ConcurrentWriteQuery/partition_1/cache-8   	       1	5519979264 ns/op	19768957384 B/op	40035662 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_1/no_cache-8         	 1	4244426712 ns/op	5588384496 B/op		69527254 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_2/cache-8            	 1	5695594405 ns/op	17565272512 B/op	86973739 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_2/no_cache-8         	 1	4800202002 ns/op	6772213648 B/op		106802140 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_4/cache-8            	 1	9377769247 ns/op	22060334496 B/op	156652125 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_4/no_cache-8         	 1	9496432555 ns/op	11124867792 B/op	191979975 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_8/cache-8            	 1	13687588689 ns/op	24639425936 B/op	285704923 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_8/no_cache-8         	 1	14852905065 ns/op	21239729512 B/op	391653485 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_16/cache-8           	 1	18562123757 ns/op	30728182200 B/op	447833013 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/partition_16/no_cache-8        	 1	19779330203 ns/op	29268458824 B/op	528321987 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_1/queries_100000/cache-8   	       	1	3836451407 ns/op	2453296232 B/op		22648482 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_4/queries_100000/cache-8            	1	1836598730 ns/op	2435668224 B/op		22908705 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_8/queries_100000/cache-8            	1	1714771527 ns/op	2341518456 B/op		23450621 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_16/queries_100000/cache-8           	1	1810658403 ns/op	2401239408 B/op		23868079 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_1/queries_100000/no_cache-8           	1	4044478305 ns/op	4414915048 B/op		27292357 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_4/queries_100000/no_cache-8         	1	18663345153 ns/op	23035974472 B/op	54015704 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_8/queries_100000/no_cache-8         	1	22242979152 ns/op	28178915600 B/op	80156305 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_16/queries_100000/no_cache-8        	1	24817283922 ns/op	34613960984 B/op	150356327 allocs/op
 func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
 	keys := make([][]byte, 0, 1e6)
@@ -766,13 +764,12 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		tags = append(tags, pt.Tags())
 	}
 
-	runBenchmark := func(b *testing.B, sz int, partitions uint64) {
+	runBenchmark := func(b *testing.B, queryN int, partitions uint64) {
 		idx := MustOpenIndex(partitions)
-		done := make(chan struct{})
 		var wg sync.WaitGroup
 
 		// Run concurrent iterator...
-		runIter := func(done chan struct{}) {
+		runIter := func() {
 			keys := [][]string{
 				{"m0", "tag2", "value4"},
 				{"m1", "tag3", "value5"},
@@ -781,13 +778,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 				{"m4", "tag5", "value0"},
 			}
 
-			for {
-				select {
-				case <-done:
-					return
-				default:
-				}
-
+			for i := 0; i < queryN/5; i++ {
 				for _, key := range keys {
 					itr, err := idx.TagValueSeriesIDIterator([]byte(key[0]), []byte(key[1]), []byte(key[2]))
 					if err != nil {
@@ -803,47 +794,52 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		}
 
 		wg.Add(1)
-		go func() { defer wg.Done(); runIter(done) }()
-		for j := 0; j < b.N; j++ {
-			for i := 0; i < len(keys); i += sz {
-				k := keys[i : i+sz]
-				n := names[i : i+sz]
-				t := tags[i : i+sz]
+		go func() { defer wg.Done(); runIter() }()
+		batchSize := 10000
+		for j := 0; j < 1; j++ {
+			for i := 0; i < len(keys); i += batchSize {
+				k := keys[i : i+batchSize]
+				n := names[i : i+batchSize]
+				t := tags[i : i+batchSize]
 				if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
 					b.Fatal(err)
 				}
 			}
-			// Reset the index...
-			b.StopTimer()
 
-			close(done)
+			// Wait for queries to finish
 			wg.Wait()
 
+			// Reset the index...
+			b.StopTimer()
 			if err := idx.Close(); err != nil {
 				b.Fatal(err)
 			}
 
 			// Re-open everything
 			idx = MustOpenIndex(partitions)
-			done = make(chan struct{})
 			wg.Add(1)
-			go func() { defer wg.Done(); runIter(done) }()
+			go func() { defer wg.Done(); runIter() }()
 			b.StartTimer()
 		}
 	}
 
-	partitions := []uint64{1, 2, 4, 8, 16}
+	partitions := []uint64{1, 4, 8, 16}
+	queries := []int{1e5}
 	for _, partition := range partitions {
 		b.Run(fmt.Sprintf("partition %d", partition), func(b *testing.B) {
-			b.Run("cache", func(b *testing.B) {
-				tsi1.EnableBitsetCache = true
-				runBenchmark(b, 10000, partition)
-			})
+			for _, queryN := range queries {
+				b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
+					b.Run("cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = true
+						runBenchmark(b, queryN, partition)
+					})
 
-			b.Run("no cache", func(b *testing.B) {
-				tsi1.EnableBitsetCache = false
-				runBenchmark(b, 10000, partition)
-			})
+					b.Run("no cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = false
+						runBenchmark(b, queryN, partition)
+					})
+				})
+			}
 		})
 	}
 }
