@@ -1,7 +1,6 @@
 package tsi1
 
 import (
-	"container/list"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -130,9 +129,7 @@ type Index struct {
 	partitions []*Partition
 	opened     bool
 
-	cacheMu sync.RWMutex
-	sscache map[string]map[string]map[string]*list.Element
-	ssevict *list.List
+	tagValueCache *TagValueSeriesIDCache
 
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
@@ -160,8 +157,7 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
-		sscache:        map[string]map[string]map[string]*list.Element{},
-		ssevict:        list.New(),
+		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
 		maxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 		logger:         zap.NewNop(),
 		version:        Version,
@@ -627,7 +623,7 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 				}
 
 				// Some cached bitset results may need to be updated.
-				i.cacheMu.RLock()
+				i.tagValueCache.mu.RLock()
 				for j, id := range ids {
 					if id == 0 {
 						continue
@@ -635,29 +631,27 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 
 					name := pNames[idx][j]
 					tags := pTags[idx][j]
-					if tkmap, ok := i.sscache[string(name)]; ok {
+					if i.tagValueCache.measurementContainsSets(name) {
 						for _, pair := range tags {
-							if tvmap, ok := tkmap[string(pair.Key)]; ok {
-								// TODO(edd): It's not clear to me yet whether it will be better to take a lock
-								// on every series id set, or whether to gather them all up under the cache rlock
-								// and then take the cache lock and update them all at once (without invoking a lock
-								// on each series id set).
-								//
-								// Taking the cache lock will block all queries, but is one lock. Taking each series set
-								// lock might be many lock/unlocks but will only block a query that needs that particular set.
-								//
-								// Need to think on it, but I think taking a lock on each series id set is the way to go.
-								//
-								// One other option here is to take a lock on the series id set when we first encounter it
-								// and then keep it locked until we're done with all the ids.
-								if ele, ok := tvmap[string(pair.Value)]; ok {
-									ele.Value.(*ssElement).SeriesIDSet.Add(id) // Takes a lock on the series id set
-								}
-							}
+							// TODO(edd): It's not clear to me yet whether it will be better to take a lock
+							// on every series id set, or whether to gather them all up under the cache rlock
+							// and then take the cache lock and update them all at once (without invoking a lock
+							// on each series id set).
+							//
+							// Taking the cache lock will block all queries, but is one lock. Taking each series set
+							// lock might be many lock/unlocks but will only block a query that needs that particular set.
+							//
+							// Need to think on it, but I think taking a lock on each series id set is the way to go.
+							//
+							// One other option here is to take a lock on the series id set when we first encounter it
+							// and then keep it locked until we're done with all the ids.
+							//
+							// Note: this will only add `id` to the set if it exists.
+							i.tagValueCache.addToSet(name, pair.Key, pair.Value, id) // Takes a lock on the series id set
 						}
 					}
 				}
-				i.cacheMu.RUnlock()
+				i.tagValueCache.mu.RUnlock()
 
 				errC <- err
 			}
@@ -686,26 +680,24 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 
 	// If there are cached sets for any of the tag pairs, they will need to be
 	// updated with the series id.
-	i.cacheMu.RLock()
-	if tkmap, ok := i.sscache[string(name)]; ok {
+	i.tagValueCache.mu.RLock()
+	if i.tagValueCache.measurementContainsSets(name) {
 		for _, pair := range tags {
-			if tvmap, ok := tkmap[string(pair.Key)]; ok {
-				// TODO(edd): It's not clear to me yet whether it will be better to take a lock
-				// on every series id set, or whether to gather them all up under the cache rlock
-				// and then take the cache lock and update them all at once (without invoking a lock
-				// on each series id set).
-				//
-				// Taking the cache lock will block all queries, but is one lock. Taking each series set
-				// lock might be many lock/unlocks but will only block a query that needs that particular set.
-				//
-				// Need to think on it, but I think taking a lock on each series id set is the way to go.
-				if ele, ok := tvmap[string(pair.Value)]; ok {
-					ele.Value.(*ssElement).SeriesIDSet.Add(ids[0]) // Takes a lock on the series id set
-				}
-			}
+			// TODO(edd): It's not clear to me yet whether it will be better to take a lock
+			// on every series id set, or whether to gather them all up under the cache rlock
+			// and then take the cache lock and update them all at once (without invoking a lock
+			// on each series id set).
+			//
+			// Taking the cache lock will block all queries, but is one lock. Taking each series set
+			// lock might be many lock/unlocks but will only block a query that needs that particular set.
+			//
+			// Need to think on it, but I think taking a lock on each series id set is the way to go.
+			//
+			// Note this will only add `id` to the set if it exists.
+			i.tagValueCache.addToSet(name, pair.Key, pair.Value, ids[0]) // Takes a lock on the series id set
 		}
 	}
-	i.cacheMu.RUnlock()
+	i.tagValueCache.mu.RUnlock()
 	return nil
 }
 
@@ -934,63 +926,14 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 	return tsdb.MergeSeriesIDIterators(a...), nil
 }
 
-func (i *Index) tagValueSeriesIDSet(name, key, value []byte) *list.Element {
-	if !EnableBitsetCache {
-		return nil
-	}
-
-	i.cacheMu.RLock()
-	defer i.cacheMu.RUnlock()
-	if tkmap, ok := i.sscache[string(name)]; ok {
-		if tvmap, ok := tkmap[string(key)]; ok {
-			if ele, ok := tvmap[string(value)]; ok {
-				return ele
-			}
-		}
-	}
-	return nil
-}
-
-func (i *Index) putTagValueSeriesIDSet(name, key, value []byte, ss *list.Element) {
-	if !EnableBitsetCache {
-		return
-	}
-
-	if mmap, ok := i.sscache[string(name)]; ok {
-		if tkmap, ok := mmap[string(key)]; ok {
-
-			if _, ok := tkmap[string(value)]; ok {
-				// Already have it. Can happen with concurrent write.
-				return
-			}
-
-			// Add the set to the map
-			tkmap[string(value)] = ss
-			return
-		}
-
-		// No series set map for the tag key
-		mmap[string(key)] = map[string]*list.Element{string(value): ss}
-		return
-	}
-
-	// No map for the measurement
-	i.sscache[string(name)] = map[string]map[string]*list.Element{
-		string(key): map[string]*list.Element{string(value): ss},
-	}
-}
-
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	// Check series ID set cache...
-	if ss := i.tagValueSeriesIDSet(name, key, value); ss != nil {
-		// Move this series set to the front of the eviction queue.
-		i.cacheMu.Lock()
-		i.ssevict.MoveToFront(ss)
-		i.cacheMu.Unlock()
-
-		// Return a clone because the set is mutable.
-		return tsdb.NewSeriesIDSetIterator(ss.Value.(*ssElement).SeriesIDSet.Clone()), nil
+	if EnableBitsetCache {
+		if ss := i.tagValueCache.Get(name, key, value); ss != nil {
+			// Return a clone because the set is mutable.
+			return tsdb.NewSeriesIDSetIterator(ss.Clone()), nil
+		}
 	}
 
 	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
@@ -1004,43 +947,15 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 	}
 
 	itr := tsdb.MergeSeriesIDIterators(a...)
+	if !EnableBitsetCache {
+		return itr, nil
+	}
 
 	// Check if the iterator contains only series id sets. Cache them...
 	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
-		i.cacheMu.Lock()
-
-		// Check once more under write lock.
-		if tkmap, ok := i.sscache[string(name)]; ok {
-			if tvmap, ok := tkmap[string(key)]; ok {
-				if _, ok := tvmap[string(value)]; ok {
-					i.cacheMu.Unlock()
-					return itr, nil // Already in cache
-				}
-			}
-		}
-
-		// Create element and put at front of eviction queue.
-		ssitr.SeriesIDSet().SetCOW(true)
-		ele := i.ssevict.PushFront(&ssElement{
-			name:        name,
-			key:         key,
-			value:       value,
-			SeriesIDSet: ssitr.SeriesIDSet(),
-		})
-
-		// Add element to cache.
-		i.putTagValueSeriesIDSet(name, key, value, ele)
-
-		// Does something need to be evicted from the cache?
-		if i.ssevict.Len() > DefaultSeriesIDSetCacheSize {
-			panic("CACHE FULL") // FIXME(edd) remove
-			e := i.ssevict.Back()
-			i.ssevict.Remove(e)
-
-			ele := e.Value.(*ssElement)
-			delete(i.sscache[string(ele.name)][string(ele.key)], string(ele.value))
-		}
-		i.cacheMu.Unlock()
+		ss := ssitr.SeriesIDSet()
+		ss.SetCOW(true) // This is important to speed the clone up.
+		i.tagValueCache.Put(name, key, value, ss)
 	} else {
 		fmt.Printf("UNABLE TO PUT %T for %q %q %q\n", itr, name, key, value)
 	}
