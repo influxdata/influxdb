@@ -1,7 +1,10 @@
 package tsi1
 
 import (
+	"math/rand"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -125,6 +128,74 @@ func TestTagValueSeriesIDCache_eviction(t *testing.T) {
 	cache.Has(t, "m3", "k0", "v0", m3k0v0)
 }
 
+func TestTagValueSeriesIDCache_addToSet(t *testing.T) {
+	cache := TestCache{NewTagValueSeriesIDCache(4)}
+	cache.PutByString("m0", "k0", "v0", nil) // Puts a nil set in the cache.
+	s2 := tsdb.NewSeriesIDSet(100)
+	cache.PutByString("m0", "k0", "v1", s2)
+	cache.Has(t, "m0", "k0", "v0", nil)
+	cache.Has(t, "m0", "k0", "v1", s2)
+
+	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v0"), 20)  // No non-nil set exists so one will be created
+	cache.addToSet([]byte("m0"), []byte("k0"), []byte("v1"), 101) // No non-nil set exists so one will be created
+	cache.Has(t, "m0", "k0", "v1", s2)
+
+	ss := cache.GetByString("m0", "k0", "v0")
+	if !tsdb.NewSeriesIDSet(20).Equals(ss) {
+		t.Fatalf("series id set was %v", ss)
+	}
+
+}
+
+func TestTagValueSeriesIDCache_ConcurrentGetPut(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping long test")
+	}
+
+	a := []string{"a", "b", "c", "d", "e"}
+	rnd := func() []byte {
+		return []byte(a[rand.Intn(len(a)-1)])
+	}
+
+	cache := TestCache{NewTagValueSeriesIDCache(100)}
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				cache.Put(rnd(), rnd(), rnd(), tsdb.NewSeriesIDSet())
+			}
+		}()
+	}
+
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+				}
+				_ = cache.Get(rnd(), rnd(), rnd())
+			}
+		}()
+	}
+
+	time.Sleep(10 * time.Second)
+	close(done)
+	wg.Wait()
+}
+
 type TestCache struct {
 	*TagValueSeriesIDCache
 }
@@ -139,6 +210,10 @@ func (c TestCache) HasNot(t *testing.T, name, key, value string) {
 	if got := c.Get([]byte(name), []byte(key), []byte(value)); got != nil {
 		t.Fatalf("got non-nil set %v for {%q, %q, %q}", got, name, key, value)
 	}
+}
+
+func (c TestCache) GetByString(name, key, value string) *tsdb.SeriesIDSet {
+	return c.Get([]byte(name), []byte(key), []byte(value))
 }
 
 func (c TestCache) PutByString(name, key, value string, ss *tsdb.SeriesIDSet) {

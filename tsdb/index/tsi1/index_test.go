@@ -460,6 +460,10 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 			"mem,region=west,server=c",
 		})
 	})
+
+	t.Run("no matching series", func(t *testing.T) {
+		testTagValueSeriesIDIterator(t, "foo", "bar", "zoo", nil)
+	})
 }
 
 // Index is a test wrapper for tsi1.Index.
