@@ -1,6 +1,10 @@
 v1.7.0 [unreleased]
 -------------------
 
+### Breaking changes
+
+-	The `ifql` section in the configuration has been changed to `flux` and it is enabled by default on port `:8082`.
+
 ### Features
 
 -	[#9964](https://github.com/influxdata/influxdb/pull/9964): Enable the storage service by default.
