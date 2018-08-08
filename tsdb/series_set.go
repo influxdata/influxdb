@@ -75,6 +75,16 @@ func (s *SeriesIDSet) Contains(id uint64) bool {
 	return x
 }
 
+// SetCOW sets the copy-on-write status of the underlying bitmap. When SetCOW(true)
+// is called, modifications to the bitmap will result in copies of the relevant
+// data structures being made, preventing consumers of clones of the bitmap from
+// seeing those modifications.
+func (s *SeriesIDSet) SetCOW(b bool) {
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap.SetCopyOnWrite(b)
+}
+
 // ContainsNoLock returns true if the id exists in the set. ContainsNoLock is
 // not safe for use from multiple goroutines. The caller must manage synchronization.
 func (s *SeriesIDSet) ContainsNoLock(id uint64) bool {
@@ -247,6 +257,18 @@ func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.WriteTo(w)
+}
+
+// Clear clears the underlying bitmap for re-use. Clear is safe for use by multiple goroutines.
+func (s *SeriesIDSet) Clear() {
+	s.Lock()
+	defer s.Unlock()
+	s.ClearNoLock()
+}
+
+// ClearNoLock clears the underlying bitmap for re-use without taking a lock.
+func (s *SeriesIDSet) ClearNoLock() {
+	s.bitmap.Clear()
 }
 
 // Slice returns a slice of series ids.
