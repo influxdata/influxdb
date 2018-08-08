@@ -9,7 +9,6 @@ v1.6.1 [2018-08-03]
 -	[#10080](https://github.com/influxdata/influxdb/pull/10080): Improve performance of buildtsi and TSI planning.
 -	[#10099](https://github.com/influxdata/influxdb/pull/10099): Improve performance of read service for single measurements.
 -	[#10103](https://github.com/influxdata/influxdb/pull/10103): Remove max concurrent compaction limit.
--	[#10143](https://github.com/influxdata/influxdb/pull/10143): Add roaring bitmaps to TSI index files.
 -	[#10154](https://github.com/influxdata/influxdb/pull/10154): Provide configurable TLS options.
 -	[#10155](https://github.com/influxdata/influxdb/pull/10155): Add option to hint MADV_WILLNEED to kernel.
 
