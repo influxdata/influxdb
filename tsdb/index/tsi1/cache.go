@@ -2,7 +2,6 @@ package tsi1
 
 import (
 	"container/list"
-	"fmt"
 	"sync"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -40,8 +39,8 @@ func NewTagValueSeriesIDCache(c int) *TagValueSeriesIDCache {
 // Get returns the SeriesIDSet associated with the {name, key, value} tuple if it
 // exists.
 func (c *TagValueSeriesIDCache) Get(name, key, value []byte) *tsdb.SeriesIDSet {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.get(name, key, value)
 }
 
@@ -57,6 +56,17 @@ func (c *TagValueSeriesIDCache) get(name, key, value []byte) *tsdb.SeriesIDSet {
 	return nil
 }
 
+// exists returns true if the an item exists for the tuple {name, key, value}.
+func (c *TagValueSeriesIDCache) exists(name, key, value []byte) bool {
+	if mmap, ok := c.cache[string(name)]; ok {
+		if tkmap, ok := mmap[string(key)]; ok {
+			_, ok := tkmap[string(value)]
+			return ok
+		}
+	}
+	return false
+}
+
 // addToSet adds x to the SeriesIDSet associated with the tuple {name, key, value}
 // if it exists. This method takes a lock on the underlying SeriesIDSet.
 //
@@ -66,6 +76,11 @@ func (c *TagValueSeriesIDCache) addToSet(name, key, value []byte, x uint64) {
 	if mmap, ok := c.cache[string(name)]; ok {
 		if tkmap, ok := mmap[string(key)]; ok {
 			if ele, ok := tkmap[string(value)]; ok {
+				ss := ele.Value.(*seriesIDCacheElement).SeriesIDSet
+				if ss == nil {
+					ele.Value.(*seriesIDCacheElement).SeriesIDSet = tsdb.NewSeriesIDSet(x)
+					return
+				}
 				ele.Value.(*seriesIDCacheElement).SeriesIDSet.Add(x)
 			}
 		}
@@ -83,7 +98,7 @@ func (c *TagValueSeriesIDCache) measurementContainsSets(name []byte) bool {
 func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSet) {
 	c.mu.Lock()
 	// Check under the write lock if the relevant item is now in the cache.
-	if c.get(name, key, value) != nil {
+	if c.exists(name, key, value) {
 		c.mu.Unlock()
 		return
 	}
@@ -128,22 +143,21 @@ EVICT:
 // item if it is.
 func (c *TagValueSeriesIDCache) checkEviction() {
 	if c.evictor.Len() > c.capacity {
-		panic("CACHE FULL")   // FIXME(edd) remove
 		e := c.evictor.Back() // Least recently used item.
 		listElement := e.Value.(*seriesIDCacheElement)
 		name := listElement.name
 		key := listElement.key
 		value := listElement.value
-		fmt.Printf("goint to remove %q %q %q\n", name, key, value)
+
 		c.evictor.Remove(e)                                       // Remove from evictor
 		delete(c.cache[string(name)][string(key)], string(value)) // Remove from hashmap of items.
 
-		// Check if there are no tag values for the tag key.
+		// Check if there are no more tag values for the tag key.
 		if len(c.cache[string(name)][string(key)]) == 0 {
 			delete(c.cache[string(name)], string(key))
 		}
 
-		// Check there are no tag keys for the measurement.
+		// Check there are no more tag keys for the measurement.
 		if len(c.cache[string(name)]) == 0 {
 			delete(c.cache, string(name))
 		}
