@@ -1,3 +1,10 @@
+v1.5.5 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#10184](https://github.com/influxdata/influxdb/pull/10184): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr
+
 v1.5.4 [2018-06-21]
 -------------------
 
