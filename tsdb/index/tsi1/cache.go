@@ -2,6 +2,7 @@ package tsi1
 
 import (
 	"container/list"
+	"fmt"
 	"sync"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -117,7 +118,8 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 		if tkmap, ok := mmap[string(key)]; ok {
 			if _, ok := tkmap[string(value)]; ok {
 				// FIXME(edd): only here whilst testing.
-				panic("existence of cache item breaks invariant")
+				fmt.Println("existence of cache item breaks invariant")
+				goto EVICT
 			}
 
 			// Add the set to the map

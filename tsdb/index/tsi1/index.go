@@ -42,6 +42,7 @@ func init() {
 		DefaultPartitionN = uint64(i)
 	}
 
+	// TODO(edd): To remove when feature finalised.
 	var err error
 	if os.Getenv("INFLUXDB_EXP_TSI_CACHING") != "" {
 		EnableBitsetCache, err = strconv.ParseBool(os.Getenv("INFLUXDB_EXP_TSI_CACHING"))
@@ -956,8 +957,6 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 		ss := ssitr.SeriesIDSet()
 		ss.SetCOW(true) // This is important to speed the clone up.
 		i.tagValueCache.Put(name, key, value, ss)
-	} else {
-		fmt.Printf("UNABLE TO PUT %T for %q %q %q\n", itr, name, key, value)
 	}
 	return itr, nil
 }

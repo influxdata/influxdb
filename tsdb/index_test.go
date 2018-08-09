@@ -487,7 +487,6 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 		TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
 	}
 
-	var tsResult []*query.TagSet
 	var errResult error
 
 	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
@@ -521,7 +520,7 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 			b.Run(indexType, func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					// Will call TagSets on the appropriate implementation.
-					tsResult, errResult = ts()
+					_, errResult = ts()
 					if errResult != nil {
 						b.Fatal(err)
 					}

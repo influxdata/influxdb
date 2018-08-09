@@ -140,10 +140,12 @@
   revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
 
 [[projects]]
-  branch = "er-opt"
+  branch = "master"
+  digest = "1:ca1ab73a1e54a6e820ce3d55c7f7ae02a73815d270c42a5b272727b01af0aa36"
   name = "github.com/influxdata/roaring"
   packages = ["."]
-  revision = "02736e81caba338e6f1d0702b899a25a1f12ddce"
+  pruneopts = "UT"
+  revision = "fc520f41fab6dcece280e8d4853d87a09a67f9e0"
 
 [[projects]]
   branch = "master"
@@ -465,12 +467,10 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-<<<<<<< HEAD
   input-imports = [
     "collectd.org/api",
     "collectd.org/network",
     "github.com/BurntSushi/toml",
-    "github.com/RoaringBitmap/roaring",
     "github.com/bmizerany/pat",
     "github.com/boltdb/bolt",
     "github.com/cespare/xxhash",
@@ -484,6 +484,7 @@
     "github.com/google/go-cmp/cmp",
     "github.com/google/go-cmp/cmp/cmpopts",
     "github.com/influxdata/influxql",
+    "github.com/influxdata/roaring",
     "github.com/influxdata/usage-client/v1",
     "github.com/influxdata/yarpc",
     "github.com/influxdata/yarpc/yarpcproto",
@@ -510,8 +511,5 @@
     "golang.org/x/text/transform",
     "golang.org/x/time/rate",
   ]
-=======
-  inputs-digest = "37ad3f3356c3abdb3c069d16bb15a25fec9ce0c43374820334f1894a808d6dac"
->>>>>>> 332b60848... Switch to influxdata fork
   solver-name = "gps-cdcl"
   solver-version = 1

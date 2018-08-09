@@ -1,6 +1,5 @@
 collectd.org 2ce144541b8903101fb8f1483cc0497a68798122
 github.com/BurntSushi/toml a368813c5e648fee92e5f6c30e3944ff9d5e8895
-github.com/RoaringBitmap/roaring 4c23670306840b0f8755db247d2e9b8369fc356e
 github.com/beorn7/perks 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
 github.com/bmizerany/pat 6226ea591a40176dd3ff9cd8eff81ed6ca721a00
 github.com/boltdb/bolt 2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8
@@ -13,7 +12,8 @@ github.com/gogo/protobuf 1adfc126b41513cc696b209667c8656ea7aac67c
 github.com/golang/protobuf 925541529c1fa6821df4e44ce2723319eb2be768
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
 github.com/google/go-cmp 3af367b6b30c263d47e8895973edcca9a49cf029
-github.com/influxdata/influxql c661ab7db8ad858626cc7a2114e786f4e7463564 
+github.com/influxdata/influxql c661ab7db8ad858626cc7a2114e786f4e7463564
+github.com/influxdata/roaring fc520f41fab6dcece280e8d4853d87a09a67f9e0
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/influxdata/yamux 1f58ded512de5feabbe30b60c7d33a7a896c5f16
 github.com/influxdata/yarpc f0da2db138cad2fb425541938fc28dd5a5bc6918
