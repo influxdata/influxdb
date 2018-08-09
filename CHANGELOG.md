@@ -73,6 +73,7 @@ v1.6.0 [2018-07-05]
 -	[#9977](https://github.com/influxdata/influxdb/pull/9977): Allow value filtering on SHOW TAG VALUES.
 -	[#10051](https://github.com/influxdata/influxdb/pull/10051): Update example config with UDP precision option.
 -	[#10094](https://github.com/influxdata/influxdb/pull/10094): Fix a panic when matching on a specific type of regular expression.
+-	[#10175](https://github.com/influxdata/influxdb/pull/10175): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr.
 
 v1.5.4 [2018-06-21]
 -------------------
