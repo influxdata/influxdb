@@ -22,14 +22,6 @@
   revision = "a368813c5e648fee92e5f6c30e3944ff9d5e8895"
 
 [[projects]]
-  digest = "1:071bc10aade52ea2b6f919474e18900671903b24b12074b9bcc1c17698035586"
-  name = "github.com/RoaringBitmap/roaring"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "4c23670306840b0f8755db247d2e9b8369fc356e"
-  version = "v0.4.15"
-
-[[projects]]
   branch = "master"
   digest = "1:d6afaeed1502aa28e80a4ed0981d570ad91b2579193404256ce672ed0a609e0d"
   name = "github.com/beorn7/perks"
@@ -146,6 +138,14 @@
   ]
   pruneopts = "UT"
   revision = "c661ab7db8ad858626cc7a2114e786f4e7463564"
+
+[[projects]]
+  branch = "master"
+  digest = "1:ca1ab73a1e54a6e820ce3d55c7f7ae02a73815d270c42a5b272727b01af0aa36"
+  name = "github.com/influxdata/roaring"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "fc520f41fab6dcece280e8d4853d87a09a67f9e0"
 
 [[projects]]
   branch = "master"
@@ -471,7 +471,6 @@
     "collectd.org/api",
     "collectd.org/network",
     "github.com/BurntSushi/toml",
-    "github.com/RoaringBitmap/roaring",
     "github.com/bmizerany/pat",
     "github.com/boltdb/bolt",
     "github.com/cespare/xxhash",
@@ -485,6 +484,7 @@
     "github.com/google/go-cmp/cmp",
     "github.com/google/go-cmp/cmp/cmpopts",
     "github.com/influxdata/influxql",
+    "github.com/influxdata/roaring",
     "github.com/influxdata/usage-client/v1",
     "github.com/influxdata/yarpc",
     "github.com/influxdata/yarpc/yarpcproto",

@@ -1,17 +1,20 @@
 package tsdb_test
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
@@ -313,7 +316,6 @@ func MustNewIndex(index string) *Index {
 	opts.IndexVersion = index
 
 	rootPath, err := ioutil.TempDir("", "influxdb-tsdb")
-	fmt.Println(rootPath)
 	if err != nil {
 		panic(err)
 	}
@@ -415,4 +417,248 @@ func (i *Index) Close() error {
 	}
 	//return os.RemoveAll(i.rootPath)
 	return nil
+}
+
+// This benchmark compares the TagSets implementation across index types.
+//
+// In the case of the TSI index, TagSets has to merge results across all several
+// index partitions.
+//
+// Typical results on an i7 laptop.
+//
+// BenchmarkIndexSet_TagSets/1M_series/inmem-8   	     100	  10959963 ns/op	 3556728 B/op	      51 allocs/op
+// BenchmarkIndexSet_TagSets/1M_series/tsi1-8    	     100	  23632757 ns/op	12677328 B/op	   80067 allocs/op
+func BenchmarkIndexSet_TagSets(b *testing.B) {
+	// Read line-protocol and coerce into tsdb format.
+	keys := make([][]byte, 0, 1e6)
+	names := make([][]byte, 0, 1e6)
+	tags := make([]models.Tags, 0, 1e6)
+
+	// 1M series generated with:
+	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
+	fd, err := os.Open("testdata/line-protocol-1M.txt.gz")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	gzr, err := gzip.NewReader(fd)
+	if err != nil {
+		fd.Close()
+		b.Fatal(err)
+	}
+
+	data, err := ioutil.ReadAll(gzr)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	if err := fd.Close(); err != nil {
+		b.Fatal(err)
+	}
+
+	points, err := models.ParsePoints(data)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for _, pt := range points {
+		keys = append(keys, pt.Key())
+		names = append(names, pt.Name())
+		tags = append(tags, pt.Tags())
+	}
+
+	// setup writes all of the above points to the index.
+	setup := func(idx *Index) {
+		batchSize := 10000
+		for j := 0; j < 1; j++ {
+			for i := 0; i < len(keys); i += batchSize {
+				k := keys[i : i+batchSize]
+				n := names[i : i+batchSize]
+				t := tags[i : i+batchSize]
+				if err := idx.CreateSeriesListIfNotExists(k, n, t); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+	}
+
+	// TODO(edd): refactor how we call into tag sets in the tsdb package.
+	type indexTagSets interface {
+		TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
+	}
+
+	var errResult error
+
+	// This benchmark will merge eight bitsets each containing ~10,000 series IDs.
+	b.Run("1M series", func(b *testing.B) {
+		b.ReportAllocs()
+		for _, indexType := range tsdb.RegisteredIndexes() {
+			idx := MustOpenNewIndex(indexType)
+			setup(idx)
+
+			name := []byte("m4")
+			opt := query.IteratorOptions{Condition: influxql.MustParseExpr(`"tag5"::tag = 'value0'`)}
+			indexSet := tsdb.IndexSet{
+				SeriesFile: idx.sfile,
+				Indexes:    []tsdb.Index{idx.Index},
+			} // For TSI implementation
+
+			var ts func() ([]*query.TagSet, error)
+			// TODO(edd): this is somewhat awkward. We should unify this difference somewhere higher
+			// up than the engine. I don't want to open an engine do a benchmark on
+			// different index implementations.
+			if indexType == "inmem" {
+				ts = func() ([]*query.TagSet, error) {
+					return idx.Index.(indexTagSets).TagSets(name, opt)
+				}
+			} else {
+				ts = func() ([]*query.TagSet, error) {
+					return indexSet.TagSets(idx.sfile, name, opt)
+				}
+			}
+
+			b.Run(indexType, func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					// Will call TagSets on the appropriate implementation.
+					_, errResult = ts()
+					if errResult != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+
+			if err := idx.Close(); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+// This benchmark concurrently writes series to the index and fetches cached bitsets.
+// The idea is to emphasize the performance difference when bitset caching is on and off.
+//
+// Typical results for an i7 laptop
+// BenchmarkIndex_ConcurrentWriteQuery/partition_1/queries_100000/cache-8   	       	1	3836451407 ns/op	2453296232 B/op		22648482 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_4/queries_100000/cache-8            	1	1836598730 ns/op	2435668224 B/op		22908705 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_8/queries_100000/cache-8            	1	1714771527 ns/op	2341518456 B/op		23450621 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_16/queries_100000/cache-8           	1	1810658403 ns/op	2401239408 B/op		23868079 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_1/queries_100000/no_cache-8           	1	4044478305 ns/op	4414915048 B/op		27292357 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_4/queries_100000/no_cache-8         	1	18663345153 ns/op	23035974472 B/op	54015704 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_8/queries_100000/no_cache-8         	1	22242979152 ns/op	28178915600 B/op	80156305 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/partition_16/queries_100000/no_cache-8        	1	24817283922 ns/op	34613960984 B/op	150356327 allocs/op
+func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
+	// Read line-protocol and coerce into tsdb format.
+	keys := make([][]byte, 0, 1e6)
+	names := make([][]byte, 0, 1e6)
+	tags := make([]models.Tags, 0, 1e6)
+
+	// 1M series generated with:
+	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
+	fd, err := os.Open("index/tsi1/testdata/line-protocol-1M.txt.gz")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	gzr, err := gzip.NewReader(fd)
+	if err != nil {
+		fd.Close()
+		b.Fatal(err)
+	}
+
+	data, err := ioutil.ReadAll(gzr)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	if err := fd.Close(); err != nil {
+		b.Fatal(err)
+	}
+
+	points, err := models.ParsePoints(data)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for _, pt := range points {
+		keys = append(keys, pt.Key())
+		names = append(names, pt.Name())
+		tags = append(tags, pt.Tags())
+	}
+
+	runBenchmark := func(b *testing.B, index string, queryN int) {
+		idx := MustOpenNewIndex(index)
+		var wg sync.WaitGroup
+
+		// Run concurrent iterator...
+		runIter := func() {
+			keys := [][]string{
+				{"m0", "tag2", "value4"},
+				{"m1", "tag3", "value5"},
+				{"m2", "tag4", "value6"},
+				{"m3", "tag0", "value8"},
+				{"m4", "tag5", "value0"},
+			}
+
+			for i := 0; i < queryN/5; i++ {
+				for _, key := range keys {
+					itr, err := idx.TagValueSeriesIDIterator([]byte(key[0]), []byte(key[1]), []byte(key[2]))
+					if err != nil {
+						b.Fatal(err)
+					} else if itr == nil {
+						b.Logf("got nil iterator")
+					} else if err := itr.Close(); err != nil {
+						b.Fatal(err)
+					}
+				}
+			}
+		}
+
+		wg.Add(1)
+		go func() { defer wg.Done(); runIter() }()
+		batchSize := 10000
+		for j := 0; j < 1; j++ {
+			for i := 0; i < len(keys); i += batchSize {
+				k := keys[i : i+batchSize]
+				n := names[i : i+batchSize]
+				t := tags[i : i+batchSize]
+				if err := idx.CreateSeriesListIfNotExists(k, n, t); err != nil {
+					b.Fatal(err)
+				}
+			}
+
+			// Wait for queries to finish
+			wg.Wait()
+
+			// Reset the index...
+			b.StopTimer()
+			if err := idx.Close(); err != nil {
+				b.Fatal(err)
+			}
+
+			// Re-open everything
+			idx = MustOpenNewIndex(index)
+			wg.Add(1)
+			go func() { defer wg.Done(); runIter() }()
+			b.StartTimer()
+		}
+	}
+
+	queries := []int{1e5}
+	for _, indexType := range tsdb.RegisteredIndexes() {
+		b.Run(indexType, func(b *testing.B) {
+			for _, queryN := range queries {
+				b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
+					b.Run("cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = true
+						runBenchmark(b, indexType, queryN)
+					})
+
+					b.Run("no cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = false
+						runBenchmark(b, indexType, queryN)
+					})
+				})
+			}
+		})
+	}
 }

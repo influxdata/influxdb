@@ -236,7 +236,6 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 		if err != nil {
 			return err
 		}
-
 		// Append new key to be added to hash map after flush.
 		ids[i] = id
 		newIDs[string(key)] = id

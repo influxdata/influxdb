@@ -631,31 +631,35 @@ func (i *Partition) DropMeasurement(name []byte) error {
 
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
 // bulk.
-func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) error {
+func (i *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
 	// Is there anything to do? The partition may have been sent an empty batch.
 	if len(names) == 0 {
-		return nil
+		return nil, nil
 	} else if len(names) != len(tagsSlice) {
-		return fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", i.id, len(names), len(tagsSlice))
+		return nil, fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", i.id, len(names), len(tagsSlice))
 	}
 
 	// Maintain reference count on files in file set.
 	fs, err := i.RetainFileSet()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer fs.Release()
 
 	// Ensure fileset cannot change during insert.
 	i.mu.RLock()
 	// Insert series into log file.
-	if err := i.activeLogFile.AddSeriesList(i.seriesIDSet, names, tagsSlice); err != nil {
+	ids, err := i.activeLogFile.AddSeriesList(i.seriesIDSet, names, tagsSlice)
+	if err != nil {
 		i.mu.RUnlock()
-		return err
+		return nil, err
 	}
 	i.mu.RUnlock()
 
-	return i.CheckLogFile()
+	if err := i.CheckLogFile(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (i *Partition) DropSeries(seriesID uint64) error {

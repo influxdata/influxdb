@@ -26,18 +26,29 @@ import (
 // IndexName is the name of the index.
 const IndexName = "tsi1"
 
+// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache.
+const DefaultSeriesIDSetCacheSize = 100
+
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.
 var ErrCompactionInterrupted = errors.New("tsi1: compaction interrupted")
 
 func init() {
-	// FIXME(edd): Remove this.
-	if os.Getenv("TSI_PARTITIONS") != "" {
-		i, err := strconv.Atoi(os.Getenv("TSI_PARTITIONS"))
+	if os.Getenv("INFLUXDB_EXP_TSI_PARTITIONS") != "" {
+		i, err := strconv.Atoi(os.Getenv("INFLUXDB_EXP_TSI_PARTITIONS"))
 		if err != nil {
 			panic(err)
 		}
 		DefaultPartitionN = uint64(i)
+	}
+
+	// TODO(edd): To remove when feature finalised.
+	var err error
+	if os.Getenv("INFLUXDB_EXP_TSI_CACHING") != "" {
+		EnableBitsetCache, err = strconv.ParseBool(os.Getenv("INFLUXDB_EXP_TSI_CACHING"))
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	tsdb.RegisterIndex(IndexName, func(_ uint64, db, path string, _ *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile, opt tsdb.EngineOptions) tsdb.Index {
@@ -52,6 +63,9 @@ func init() {
 // it must also be a power of 2.
 //
 var DefaultPartitionN uint64 = 8
+
+// EnableBitsetCache determines if bitsets are cached.
+var EnableBitsetCache = true
 
 // An IndexOption is a functional option for changing the configuration of
 // an Index.
@@ -116,6 +130,8 @@ type Index struct {
 	partitions []*Partition
 	opened     bool
 
+	tagValueCache *TagValueSeriesIDCache
+
 	// The following may be set when initializing an Index.
 	path               string      // Root directory of the index partitions.
 	disableCompactions bool        // Initially disables compactions on the index.
@@ -142,6 +158,7 @@ func (i *Index) UniqueReferenceID() uintptr {
 // NewIndex returns a new instance of Index.
 func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *Index {
 	idx := &Index{
+		tagValueCache:  NewTagValueSeriesIDCache(DefaultSeriesIDSetCacheSize),
 		maxLogFileSize: tsdb.DefaultMaxIndexLogFileSize,
 		logger:         zap.NewNop(),
 		version:        Version,
@@ -590,7 +607,54 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 				if idx >= len(i.partitions) {
 					return // No more work.
 				}
-				errC <- i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+
+				ids, err := i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+
+				var updateCache bool
+				for _, id := range ids {
+					if id != 0 {
+						updateCache = true
+						break
+					}
+				}
+
+				if !updateCache {
+					errC <- err
+					continue
+				}
+
+				// Some cached bitset results may need to be updated.
+				i.tagValueCache.mu.RLock()
+				for j, id := range ids {
+					if id == 0 {
+						continue
+					}
+
+					name := pNames[idx][j]
+					tags := pTags[idx][j]
+					if i.tagValueCache.measurementContainsSets(name) {
+						for _, pair := range tags {
+							// TODO(edd): It's not clear to me yet whether it will be better to take a lock
+							// on every series id set, or whether to gather them all up under the cache rlock
+							// and then take the cache lock and update them all at once (without invoking a lock
+							// on each series id set).
+							//
+							// Taking the cache lock will block all queries, but is one lock. Taking each series set
+							// lock might be many lock/unlocks but will only block a query that needs that particular set.
+							//
+							// Need to think on it, but I think taking a lock on each series id set is the way to go.
+							//
+							// One other option here is to take a lock on the series id set when we first encounter it
+							// and then keep it locked until we're done with all the ids.
+							//
+							// Note: this will only add `id` to the set if it exists.
+							i.tagValueCache.addToSet(name, pair.Key, pair.Value, id) // Takes a lock on the series id set
+						}
+					}
+				}
+				i.tagValueCache.mu.RUnlock()
+
+				errC <- err
 			}
 		}()
 	}
@@ -606,7 +670,36 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
+	ids, err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
+	if err != nil {
+		return err
+	}
+
+	if ids[0] == 0 {
+		return nil // No new series, nothing further to update.
+	}
+
+	// If there are cached sets for any of the tag pairs, they will need to be
+	// updated with the series id.
+	i.tagValueCache.mu.RLock()
+	if i.tagValueCache.measurementContainsSets(name) {
+		for _, pair := range tags {
+			// TODO(edd): It's not clear to me yet whether it will be better to take a lock
+			// on every series id set, or whether to gather them all up under the cache rlock
+			// and then take the cache lock and update them all at once (without invoking a lock
+			// on each series id set).
+			//
+			// Taking the cache lock will block all queries, but is one lock. Taking each series set
+			// lock might be many lock/unlocks but will only block a query that needs that particular set.
+			//
+			// Need to think on it, but I think taking a lock on each series id set is the way to go.
+			//
+			// Note this will only add `id` to the set if it exists.
+			i.tagValueCache.addToSet(name, pair.Key, pair.Value, ids[0]) // Takes a lock on the series id set
+		}
+	}
+	i.tagValueCache.mu.RUnlock()
+	return nil
 }
 
 // InitializeSeries is a no-op. This only applies to the in-memory index.
@@ -836,6 +929,14 @@ func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator,
 
 // TagValueSeriesIDIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
+	// Check series ID set cache...
+	if EnableBitsetCache {
+		if ss := i.tagValueCache.Get(name, key, value); ss != nil {
+			// Return a clone because the set is mutable.
+			return tsdb.NewSeriesIDSetIterator(ss.Clone()), nil
+		}
+	}
+
 	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
 		itr, err := p.TagValueSeriesIDIterator(name, key, value)
@@ -845,7 +946,19 @@ func (i *Index) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesID
 			a = append(a, itr)
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...), nil
+
+	itr := tsdb.MergeSeriesIDIterators(a...)
+	if !EnableBitsetCache {
+		return itr, nil
+	}
+
+	// Check if the iterator contains only series id sets. Cache them...
+	if ssitr, ok := itr.(tsdb.SeriesIDSetIterator); ok {
+		ss := ssitr.SeriesIDSet()
+		ss.SetCOW(true) // This is important to speed the clone up.
+		i.tagValueCache.Put(name, key, value, ss)
+	}
+	return itr, nil
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
