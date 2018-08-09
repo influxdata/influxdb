@@ -548,8 +548,10 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 //
 // Typical results for an i7 laptop
 //
-// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000-8         	       1	5866592461 ns/op	2499768464 B/op		23964591 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000-8          	       1	30059490078 ns/op	32582973824 B/op	96705317 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000/cache-8   	  1	5963346204 ns/op	2499655768 B/op	 23964183 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000/no_cache-8    1	5314841090 ns/op	2499495280 B/op	 23963322 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000/cache-8        1	1645048376 ns/op	2215402840 B/op	 23048978 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000/no_cache-8     1	22242155616 ns/op	28277544136 B/op 79620463 allocs/op
 func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
 	keys := make([][]byte, 0, 1e6)
@@ -662,7 +664,15 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 		b.Run(indexType, func(b *testing.B) {
 			for _, queryN := range queries {
 				b.Run(fmt.Sprintf("queries %d", queryN), func(b *testing.B) {
-					runBenchmark(b, indexType, queryN)
+					b.Run("cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = true
+						runBenchmark(b, indexType, queryN)
+					})
+
+					b.Run("no cache", func(b *testing.B) {
+						tsi1.EnableBitsetCache = false
+						runBenchmark(b, indexType, queryN)
+					})
 				})
 			}
 		})
