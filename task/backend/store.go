@@ -21,6 +21,9 @@ var ErrUserNotFound = errors.New("user not found")
 // ErrOrgNotFound is an error for when we can't find an org
 var ErrOrgNotFound = errors.New("org not found")
 
+// ErrTaskNameTaken is an error for when a task name is already taken
+var ErrTaskNameTaken = errors.New("task name already in use by current user or target organization")
+
 type TaskStatus string
 
 const (
