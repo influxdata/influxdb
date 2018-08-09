@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -1302,7 +1303,7 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.E
 			names = append(names, e)
 		}
 	}
-	return names, nil
+	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
 func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
