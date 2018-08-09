@@ -2,8 +2,6 @@ package http
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	nethttp "net/http"
 	"strings"
 
@@ -89,7 +87,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	ctx := r.Context()
 	var err error
 	if ctx, err = extractAuthorization(ctx, r); err != nil {
-		// TODO(desa): add back eventually when things have settled
+		// TODO(desa): add back eventually when things have settled. See https://github.com/influxdata/platform/issues/593
 		//nethttp.Error(w, err.Error(), nethttp.StatusBadRequest)
 	}
 	r = r.WithContext(ctx)
@@ -143,13 +141,4 @@ func extractAuthorization(ctx context.Context, r *nethttp.Request) (context.Cont
 		return ctx, err
 	}
 	return idpctx.SetToken(ctx, t), nil
-}
-
-func mustMarshalJSON(i interface{}) []byte {
-	b, err := json.Marshal(i)
-	if err != nil {
-		panic(fmt.Sprintf("failed to marshal json: %v", err))
-	}
-
-	return b
 }

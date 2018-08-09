@@ -48,6 +48,7 @@ type suggestionResponse struct {
 type fluxLinks struct {
 	Self        string `json:"self"`        // Self link mapping to this resource
 	Suggestions string `json:"suggestions"` // URL for flux builder function suggestions
+	AST         string `json:"ast"`         // URL for flux ast
 }
 
 type fluxResponse struct {
@@ -57,6 +58,7 @@ type fluxResponse struct {
 var getFluxResponse = fluxResponse{
 	Links: fluxLinks{
 		Self:        "/v2/flux",
+		AST:         "/v2/flux/ast",
 		Suggestions: "/v2/flux/suggestions",
 	},
 }

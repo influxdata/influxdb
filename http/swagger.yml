@@ -5,6 +5,16 @@ info:
 servers:
   - url: /v1
 paths:
+  /:
+    get:
+      summary: Map of all top level routes available
+      responses:
+        default:
+          description: All routes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Routes"
   /ping:
     servers:
       - url: /
@@ -17,6 +27,58 @@ paths:
           description: Server is healthy
         default:
           description: Any response other than 204 is an internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /flux:
+    get:
+      responses:
+        '200':
+          description: Links for flux language server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FluxLinks"
+        default:
+          description: Any response other than 200 is an internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /flux/suggestions:
+    get:
+      responses:
+        '200':
+          description: Suggestions for next functions in call chain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FluxSuggestions"
+        default:
+          description: Any response other than 200 is an internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /flux/suggestions/{name}:
+    parameters:
+      - in: path
+        name: name
+        schema:
+          type: string
+        required: true
+        description: name of branching suggestion
+    get:
+      responses:
+        '200':
+          description: Suggestions for next functions in call chain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FluxSuggestions"
+        default:
+          description: Any response other than 200 is an internal server error
           content:
             application/json:
               schema:
@@ -1239,6 +1301,36 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/User"
+    FluxSuggestions:
+      type: object
+      properties:
+        funcs:
+          type: object
+          properties:
+            name:
+              type: string
+            params:
+              type: object
+    FluxLinks:
+      type: object
+      properties:
+        ast:
+          type: string
+        self:
+          type: string
+        suggestions:
+          type: string
+    Routes:
+      properties:
+        external:
+          type: object
+          properties:
+            statusFeed:
+              type: string
+        sources:
+          type: string
+        flux:
+          $ref: "#/components/schemas/FluxLinks"
     Error:
       properties:
         code:
