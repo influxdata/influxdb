@@ -2523,6 +2523,11 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 		maxSeriesN = int(^uint(0) >> 1)
 	}
 
+	// The tag sets require a string for each series key in the set, The series
+	// file formatted keys need to be parsed into models format. Since they will
+	// end up as strings we can re-use an intermediate buffer for this process.
+	var keyBuf []byte
+	var tagsBuf models.Tags // Buffer for tags. Tags are not needed outside of each loop iteration.
 	for {
 		se, err := itr.Next()
 		if err != nil {
@@ -2550,14 +2555,15 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
 		}
 
-		_, tags := ParseSeriesKey(key)
-		if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(db, name, tags) {
+		// NOTE - must not escape this loop iteration.
+		_, tagsBuf = ParseSeriesKeyInto(key, tagsBuf)
+		if opt.Authorizer != nil && !opt.Authorizer.AuthorizeSeriesRead(db, name, tagsBuf) {
 			continue
 		}
 
 		var tagsAsKey []byte
 		if len(dims) > 0 {
-			tagsAsKey = MakeTagsKey(dims, tags)
+			tagsAsKey = MakeTagsKey(dims, tagsBuf)
 		}
 
 		tagSet, ok := tagSets[string(tagsAsKey)]
@@ -2570,7 +2576,9 @@ func (is IndexSet) TagSets(sfile *SeriesFile, name []byte, opt query.IteratorOpt
 		}
 
 		// Associate the series and filter with the Tagset.
-		tagSet.AddFilter(string(models.MakeKey(name, tags)), se.Expr)
+		keyBuf = models.AppendMakeKey(keyBuf, name, tagsBuf)
+		tagSet.AddFilter(string(keyBuf), se.Expr)
+		keyBuf = keyBuf[:0]
 
 		// Ensure it's back in the map.
 		tagSets[string(tagsAsKey)] = tagSet

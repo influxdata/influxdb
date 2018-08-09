@@ -426,8 +426,8 @@ func (i *Index) Close() error {
 //
 // Typical results on an i7 laptop.
 //
-// BenchmarkIndexSet_TagSets/1M_series/inmem-8   	     100	  12377082 ns/op	 3556728 B/op	      51 allocs/op
-// BenchmarkIndexSet_TagSets/1M_series/tsi1-8    	      50	  24705967 ns/op	12740609 B/op	   80375 allocs/op
+// BenchmarkIndexSet_TagSets/1M_series/inmem-8   	     100	  10430732 ns/op	 3556728 B/op	      51 allocs/op
+// BenchmarkIndexSet_TagSets/1M_series/tsi1-8    	     100	  18995530 ns/op	 5221180 B/op	   20379 allocs/op
 func BenchmarkIndexSet_TagSets(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
 	keys := make([][]byte, 0, 1e6)
@@ -539,8 +539,8 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 //
 // Typical results for an i7 laptop
 //
-// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000-8         	       1	 6334019648 ns/op	 2499546744 B/op	23963221 allocs/op
-// BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000-8          	       1	31291015688 ns/op	32656096728 B/op	96879549 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/inmem/queries_100000-8         	       1	5866592461 ns/op	2499768464 B/op		23964591 allocs/op
+// BenchmarkIndex_ConcurrentWriteQuery/tsi1/queries_100000-8          	       1	30059490078 ns/op	32582973824 B/op	96705317 allocs/op
 func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	// Read line-protocol and coerce into tsdb format.
 	keys := make([][]byte, 0, 1e6)
