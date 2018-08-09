@@ -525,7 +525,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 			continue
 		}
 		writeRequired = true
-		entries = append(entries, LogEntry{SeriesID: seriesIDs[i], name: names[i], tags: tagsSlice[i], cached: true})
+		entries = append(entries, LogEntry{SeriesID: seriesIDs[i], name: names[i], tags: tagsSlice[i], cached: true, batchidx: i})
 	}
 	seriesSet.RUnlock()
 
@@ -544,7 +544,7 @@ func (f *LogFile) AddSeriesList(seriesSet *tsdb.SeriesIDSet, names [][]byte, tag
 		entry := &entries[i]
 		if seriesSet.ContainsNoLock(entry.SeriesID) {
 			// We don't need to allocate anything for this series.
-			seriesIDs[i] = 0
+			seriesIDs[entry.batchidx] = 0
 			continue
 		}
 		if err := f.appendEntry(entry); err != nil {
@@ -1064,9 +1064,10 @@ type LogEntry struct {
 	Checksum uint32 // checksum of flag/name/tags.
 	Size     int    // total size of record, in bytes.
 
-	cached bool        // Hint to LogFile that series data is already parsed
-	name   []byte      // series naem, this is a cached copy of the parsed measurement name
-	tags   models.Tags // series tags, this is a cached copied of the parsed tags
+	cached   bool        // Hint to LogFile that series data is already parsed
+	name     []byte      // series naem, this is a cached copy of the parsed measurement name
+	tags     models.Tags // series tags, this is a cached copied of the parsed tags
+	batchidx int         // position of entry in batch.
 }
 
 // UnmarshalBinary unmarshals data into e.

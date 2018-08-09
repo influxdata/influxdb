@@ -27,7 +27,7 @@ import (
 const IndexName = tsdb.TSI1IndexName
 
 // DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache.
-const DefaultSeriesIDSetCacheSize = 10
+const DefaultSeriesIDSetCacheSize = 100
 
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.
@@ -1119,13 +1119,4 @@ func IsIndexDir(path string) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-// ssElement is is stored within the LRU. It makes it possible to do constant
-// time access via a hashmap and also storage inside a linked list.
-type ssElement struct {
-	name        []byte
-	key         []byte
-	value       []byte
-	SeriesIDSet *tsdb.SeriesIDSet
 }
