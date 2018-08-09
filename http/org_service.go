@@ -83,7 +83,7 @@ func newOrgResponse(o *platform.Organization) *orgResponse {
 	}
 }
 
-// handlePostOrg is the HTTP handler for the POST /v1/orgs route.
+// handlePostOrg is the HTTP handler for the POST /v2/orgs route.
 func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -119,7 +119,7 @@ func decodePostOrgRequest(ctx context.Context, r *http.Request) (*postOrgRequest
 	}, nil
 }
 
-// handleGetOrg is the HTTP handler for the GET /v1/orgs/:id route.
+// handleGetOrg is the HTTP handler for the GET /v2/orgs/:id route.
 func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -164,7 +164,7 @@ func decodeGetOrgRequest(ctx context.Context, r *http.Request) (*getOrgRequest, 
 	return req, nil
 }
 
-// handleGetOrgs is the HTTP handler for the GET /v1/orgs route.
+// handleGetOrgs is the HTTP handler for the GET /v2/orgs route.
 func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -208,7 +208,7 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 	return req, nil
 }
 
-// handleDeleteOrganization is the HTTP handler for the DELETE /v1/organizations/:id route.
+// handleDeleteOrganization is the HTTP handler for the DELETE /v2/orgs/:id route.
 func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -248,7 +248,7 @@ func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*del
 	return req, nil
 }
 
-// handlePatchOrg is the HTTP handler for the PATH /v1/orgs route.
+// handlePatchOrg is the HTTP handler for the PATH /v2/orgs route.
 func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -432,7 +432,7 @@ func decodeDeleteOrgMemberRequest(ctx context.Context, r *http.Request) (*delete
 }
 
 const (
-	organizationPath = "/v1/orgs"
+	organizationPath = "/v2/orgs"
 )
 
 // OrganizationService connects to Influx via HTTP using tokens to manage organizations.

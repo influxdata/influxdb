@@ -25,15 +25,15 @@ func NewUserHandler() *UserHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/users", h.handlePostUser)
-	h.HandlerFunc("GET", "/v1/users", h.handleGetUsers)
-	h.HandlerFunc("GET", "/v1/users/:id", h.handleGetUser)
-	h.HandlerFunc("PATCH", "/v1/users/:id", h.handlePatchUser)
-	h.HandlerFunc("DELETE", "/v1/users/:id", h.handleDeleteUser)
+	h.HandlerFunc("POST", "/v2/users", h.handlePostUser)
+	h.HandlerFunc("GET", "/v2/users", h.handleGetUsers)
+	h.HandlerFunc("GET", "/v2/users/:id", h.handleGetUser)
+	h.HandlerFunc("PATCH", "/v2/users/:id", h.handlePatchUser)
+	h.HandlerFunc("DELETE", "/v2/users/:id", h.handleDeleteUser)
 	return h
 }
 
-// handlePostUser is the HTTP handler for the POST /v1/users route.
+// handlePostUser is the HTTP handler for the POST /v2/users route.
 func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -69,7 +69,7 @@ func decodePostUserRequest(ctx context.Context, r *http.Request) (*postUserReque
 	}, nil
 }
 
-// handleGetUser is the HTTP handler for the GET /v1/users/:id route.
+// handleGetUser is the HTTP handler for the GET /v2/users/:id route.
 func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -114,7 +114,7 @@ func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest
 	return req, nil
 }
 
-// handleDeleteUser is the HTTP handler for the DELETE /v1/users/:id route.
+// handleDeleteUser is the HTTP handler for the DELETE /v2/users/:id route.
 func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -193,7 +193,7 @@ func newUserResponse(u *platform.User) *userResponse {
 	}
 }
 
-// handleGetUsers is the HTTP handler for the GET /v1/users route.
+// handleGetUsers is the HTTP handler for the GET /v2/users route.
 func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -238,7 +238,7 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 	return req, nil
 }
 
-// handlePatchUser is the HTTP handler for the PATCH /v1/users/:id route.
+// handlePatchUser is the HTTP handler for the PATCH /v2/users/:id route.
 func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -385,7 +385,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 }
 
 const (
-	userPath = "/v1/users"
+	userPath = "/v2/users"
 )
 
 // CreateUser creates a new user and sets u.ID with the new identifier.
