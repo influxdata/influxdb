@@ -395,13 +395,17 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 	}
 
 	var maxKeyErr error
-	walkFields(fields, func(k, v []byte) bool {
+	err = walkFields(fields, func(k, v []byte) bool {
 		if sz := seriesKeySize(key, k); sz > MaxKeyLength {
 			maxKeyErr = fmt.Errorf("max key length exceeded: %v > %v", sz, MaxKeyLength)
 			return false
 		}
 		return true
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	if maxKeyErr != nil {
 		return nil, maxKeyErr
@@ -1546,11 +1550,14 @@ func walkTags(buf []byte, fn func(key, value []byte) bool) {
 
 // walkFields walks each field key and value via fn.  If fn returns false, the iteration
 // is stopped.  The values are the raw byte slices and not the converted types.
-func walkFields(buf []byte, fn func(key, value []byte) bool) {
+func walkFields(buf []byte, fn func(key, value []byte) bool) error {
 	var i int
 	var key, val []byte
 	for len(buf) > 0 {
 		i, key = scanTo(buf, 0, '=')
+		if i > len(buf)-2 {
+			return fmt.Errorf("invalid value: field-key=%s", key)
+		}
 		buf = buf[i+1:]
 		i, val = scanFieldValue(buf, 0)
 		buf = buf[i:]
@@ -1563,6 +1570,7 @@ func walkFields(buf []byte, fn func(key, value []byte) bool) {
 			buf = buf[1:]
 		}
 	}
+	return nil
 }
 
 // parseTags parses buf into the provided destination tags, returning destination
