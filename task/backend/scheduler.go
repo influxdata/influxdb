@@ -320,7 +320,8 @@ func newTaskScheduler(
 	}
 
 	for i := range ts.runners {
-		ts.runners[i] = newRunner(ctx, ts.logger, task, s.desiredState, s.executor, s.logWriter, tt)
+		logger := ts.logger.With(zap.Int("run_slot", i))
+		ts.runners[i] = newRunner(ctx, logger, task, s.desiredState, s.executor, s.logWriter, tt)
 	}
 
 	return ts
@@ -475,15 +476,16 @@ func (r *runner) startFromWorking() {
 			return
 		}
 
-		// The runner should only be executing on a single goroutine at any time,
-		// so it should be safe to modify this field.
-		r.logger = r.logger.With(zap.String("run_id", qr.RunID.String()))
+		// Create a new child logger for the individual run.
+		// We can't do r.logger = r.logger.With(zap.String("run_id", qr.RunID.String()) because zap doesn't deduplicate fields,
+		// and we'll quickly end up with many run_ids associated with the log.
+		runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()))
 
 		r.tt.StartRun(next)
 
-		go r.executeAndWait(qr)
+		go r.executeAndWait(qr, runLogger)
 
-		r.updateRunState(qr, RunStarted)
+		r.updateRunState(qr, RunStarted, runLogger)
 		return
 	}
 
@@ -491,12 +493,12 @@ func (r *runner) startFromWorking() {
 	atomic.StoreUint32(r.state, runnerIdle)
 }
 
-func (r *runner) executeAndWait(qr QueuedRun) {
+func (r *runner) executeAndWait(qr QueuedRun, runLogger *zap.Logger) {
 	rp, err := r.executor.Execute(r.ctx, qr)
 	if err != nil {
 		// TODO(mr): retry? and log error.
 		atomic.StoreUint32(r.state, runnerIdle)
-		r.updateRunState(qr, RunFail)
+		r.updateRunState(qr, RunFail, runLogger)
 		return
 	}
 
@@ -518,31 +520,31 @@ func (r *runner) executeAndWait(qr QueuedRun) {
 	if err != nil {
 		if err == ErrRunCanceled {
 			_ = r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID)
-			r.updateRunState(qr, RunCanceled)
+			r.updateRunState(qr, RunCanceled, runLogger)
 		} else {
-			r.logger.Info("Failed to wait for execution result", zap.Error(err))
+			runLogger.Info("Failed to wait for execution result", zap.Error(err))
 			// TODO(mr): retry?
-			r.updateRunState(qr, RunFail)
+			r.updateRunState(qr, RunFail, runLogger)
 		}
 		atomic.StoreUint32(r.state, runnerIdle)
 		return
 	}
 
 	if err := r.desiredState.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
-		r.logger.Info("Failed to finish run", zap.Error(err))
+		runLogger.Info("Failed to finish run", zap.Error(err))
 		// TODO(mr): retry?
 		// Need to think about what it means if there was an error finishing a run.
 		atomic.StoreUint32(r.state, runnerIdle)
-		r.updateRunState(qr, RunFail)
+		r.updateRunState(qr, RunFail, runLogger)
 		return
 	}
-	r.updateRunState(qr, RunSuccess)
+	r.updateRunState(qr, RunSuccess, runLogger)
 
 	// Check again if there is a new run available, without returning to idle state.
 	r.startFromWorking()
 }
 
-func (r *runner) updateRunState(qr QueuedRun, s RunStatus) {
+func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger) {
 	switch s {
 	case RunStarted:
 		r.tt.metrics.StartRun(r.task.ID.String())
@@ -553,7 +555,7 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus) {
 	default:
 		// We are deliberately not handling RunQueued yet.
 		// There is not really a notion of being queued in this runner architecture.
-		r.logger.Warn("Unhandled run state", zap.Stringer("state", s))
+		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
 	}
 
 	// Arbitrarily chosen short time limit for how fast the log write must complete.
@@ -561,6 +563,6 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus) {
 	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Millisecond)
 	defer cancel()
 	if err := r.logWriter.UpdateRunState(ctx, r.task, qr.RunID, time.Now(), s); err != nil {
-		r.logger.Info("Error updating run state", zap.Stringer("state", s), zap.Error(err))
+		runLogger.Info("Error updating run state", zap.Stringer("state", s), zap.Error(err))
 	}
 }
