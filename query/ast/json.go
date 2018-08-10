@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"time"
 )
 
 func (p *Program) MarshalJSON() ([]byte, error) {
@@ -729,36 +728,12 @@ func (l *DurationLiteral) MarshalJSON() ([]byte, error) {
 	raw := struct {
 		Type string `json:"type"`
 		*Alias
-		Value string `json:"value"`
 	}{
 		Type:  l.Type(),
 		Alias: (*Alias)(l),
-		Value: l.Value.String(),
 	}
 	return json.Marshal(raw)
 }
-func (l *DurationLiteral) UnmarshalJSON(data []byte) error {
-	type Alias DurationLiteral
-	raw := struct {
-		*Alias
-		Value string `json:"value"`
-	}{}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	if raw.Alias != nil {
-		*l = *(*DurationLiteral)(raw.Alias)
-	}
-
-	value, err := time.ParseDuration(raw.Value)
-	if err != nil {
-		return err
-	}
-	l.Value = value
-	return nil
-}
-
 func (l *DateTimeLiteral) MarshalJSON() ([]byte, error) {
 	type Alias DateTimeLiteral
 	raw := struct {

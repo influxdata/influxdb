@@ -1324,8 +1324,16 @@ func analyzeDateTimeLiteral(lit *ast.DateTimeLiteral, declarations DeclarationSc
 	}, nil
 }
 func analyzeDurationLiteral(lit *ast.DurationLiteral, declarations DeclarationScope) (*DurationLiteral, error) {
+	var duration time.Duration
+	for _, d := range lit.Values {
+		dur, err := toDuration(d)
+		if err != nil {
+			return nil, err
+		}
+		duration += dur
+	}
 	return &DurationLiteral{
-		Value: lit.Value,
+		Value: duration,
 	}, nil
 }
 func analyzeFloatLiteral(lit *ast.FloatLiteral, declarations DeclarationScope) (*FloatLiteral, error) {
@@ -1357,4 +1365,23 @@ func analyzeRegexpLiteral(lit *ast.RegexpLiteral, declarations DeclarationScope)
 	return &RegexpLiteral{
 		Value: lit.Value,
 	}, nil
+}
+func toDuration(lit ast.Duration) (time.Duration, error) {
+	var dur time.Duration
+	var err error
+	mag := lit.Magnitude
+	unit := lit.Unit
+	switch unit {
+	case "w":
+		mag *= 7
+		unit = "d"
+		fallthrough
+	case "d":
+		mag *= 24
+		unit = "h"
+		fallthrough
+	default:
+		dur, err = time.ParseDuration(strconv.FormatInt(mag, 10) + unit)
+	}
+	return dur, err
 }

@@ -362,6 +362,12 @@ MinuteUnits
 HourUnits
   = "h"
 
+DayUnits
+  = "d"
+
+WeekUnits
+  = "w"
+
 DurationUnits
   = (
         NanoSecondUnits
@@ -370,14 +376,18 @@ DurationUnits
       / SecondUnits
       / MinuteUnits
       / HourUnits
+      / DayUnits
+      / WeekUnits
     )
 
 SingleDuration
-  = Integer DurationUnits
+  = mag:IntegerLiteral unit:DurationUnits {
+    return singleDuration(mag, unit, c.text, c.pos)
+  }
 
 DurationLiteral
-  = SingleDuration+ {
-      return durationLiteral(c.text, c.pos)
+  = durations:SingleDuration+ {
+      return durationLiteral(durations, c.text, c.pos)
     }
 
 StringLiteral

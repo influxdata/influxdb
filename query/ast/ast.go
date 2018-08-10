@@ -791,12 +791,19 @@ func (l *RegexpLiteral) Copy() Node {
 	return nl
 }
 
+// Duration is a pair consisting of length of time and the unit of time measured.
+// It is the atomic unit from which all duration literals are composed.
+type Duration struct {
+	Magnitude int64  `json:"magnitude"`
+	Unit      string `json:"unit"`
+}
+
 // DurationLiteral represents the elapsed time between two instants as an
 // int64 nanosecond count with syntax of golang's time.Duration
 // TODO: this may be better as a class initialization
 type DurationLiteral struct {
 	*BaseNode
-	Value time.Duration `json:"value"`
+	Values []Duration `json:"values"`
 }
 
 // Type is the abstract type
