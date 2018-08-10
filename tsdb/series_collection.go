@@ -42,7 +42,7 @@ type seriesCollectionState struct {
 // of invalid points.
 func NewSeriesCollection(points []models.Point) *SeriesCollection {
 	out := &SeriesCollection{
-		Points: points,
+		Points: append([]models.Point(nil), points...),
 		Keys:   make([][]byte, 0, len(points)),
 		Names:  make([][]byte, 0, len(points)),
 		Tags:   make([]models.Tags, 0, len(points)),

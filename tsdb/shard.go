@@ -542,7 +542,7 @@ func (s *Shard) WritePoints(points []models.Point) error {
 
 	// Write to the engine.
 	if err := engine.WritePoints(collection.Points); err != nil {
-		atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
+		atomic.AddInt64(&s.stats.WritePointsErr, int64(collection.Length()))
 		atomic.AddInt64(&s.stats.WriteReqErr, 1)
 		return fmt.Errorf("engine: %s", err)
 	}
