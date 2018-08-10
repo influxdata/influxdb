@@ -474,15 +474,15 @@
   version = "v1.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:2fc879f3aea6394bcf801604a723d1e2c922a533b5cd0503ef36e293e06afe7e"
+  branch = "platform"
+  digest = "1:df76ff18681306ead8b17e7e3b7983fdd86910b4f923dd2856fbe7264aca034a"
   name = "github.com/influxdata/influxdb"
   packages = [
     "logger",
     "pkg/snowflake",
   ]
   pruneopts = "UT"
-  revision = "200fda999f915dfc13c2b4030a2db6e0b08c689f"
+  revision = "12f7f457079a7d3b62f8596eec6197cbb84086b2"
 
 [[projects]]
   branch = "master"
