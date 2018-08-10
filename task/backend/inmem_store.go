@@ -27,6 +27,7 @@ type inmem struct {
 }
 
 // NewInMemStore returns a new in-memory store.
+// This store is not designed to be efficient, it is here for testing purposes.
 func NewInMemStore() Store {
 	return &inmem{
 		idgen:   snowflake.NewIDGenerator(),
@@ -54,15 +55,21 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 	}
 
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.tasks {
+		if s.tasks[i].Name == task.Name {
+			return nil, ErrTaskNameTaken
+		}
+	}
 	s.tasks = append(s.tasks, task)
 	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency), Status: string(TaskEnabled)}
-	s.mu.Unlock()
 
 	return id, nil
 }
 
 func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) error {
-	if _, err := StoreValidator.ModifyArgs(id, script); err != nil {
+	op, err := StoreValidator.ModifyArgs(id, script)
+	if err != nil {
 		return err
 	}
 
@@ -71,6 +78,14 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 
 	for n, t := range s.tasks {
 		if bytes.Equal(t.ID, id) {
+			if t.Name != op.Name {
+				for i := range s.tasks {
+					if s.tasks[i].Name == op.Name && i != n {
+						return ErrTaskNameTaken
+					}
+				}
+				t.Name = op.Name
+			}
 			t.Script = script
 			s.tasks[n] = t
 			return nil
