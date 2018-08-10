@@ -57,14 +57,7 @@ class TemplateControl extends PureComponent<Props, State> {
           <TemplateDropdown template={template} onPickValue={onPickValue} />
         )}
 
-        <label className="template-control--label">
-          {template.tempVar}
-          <span
-            className="icon cog-thick"
-            onClick={this.handleShowSettings}
-            data-test="edit"
-          />
-        </label>
+        <label className="template-control--label">{template.tempVar}</label>
 
         <OverlayTechnology visible={isEditing}>
           <TemplateVariableEditor
@@ -79,10 +72,6 @@ class TemplateControl extends PureComponent<Props, State> {
         </OverlayTechnology>
       </div>
     )
-  }
-
-  private handleShowSettings = (): void => {
-    this.setState({isEditing: true})
   }
 
   private handleHideSettings = (): void => {

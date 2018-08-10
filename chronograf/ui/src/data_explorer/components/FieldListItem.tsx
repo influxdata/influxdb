@@ -13,7 +13,6 @@ interface Props {
   isSelected: boolean
   onToggleField: (field: Field) => void
   onApplyFuncsToField: (args: ApplyFuncsToFieldArgs) => void
-  isKapacitorRule: boolean
   funcs: string[]
   isDisabled: boolean
 }
@@ -32,7 +31,7 @@ class FieldListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {isKapacitorRule, isSelected, funcs, isDisabled} = this.props
+    const {isSelected, funcs, isDisabled} = this.props
     const {isOpen} = this.state
     const fieldName = this.getFieldName()
 
@@ -82,7 +81,6 @@ class FieldListItem extends PureComponent<Props, State> {
           <FunctionSelector
             onApply={this.handleApplyFunctions}
             selectedItems={funcs}
-            singleSelect={isKapacitorRule}
           />
         ) : null}
       </div>

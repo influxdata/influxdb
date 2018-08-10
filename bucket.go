@@ -7,11 +7,12 @@ import (
 
 // Bucket is a bucket. 🎉
 type Bucket struct {
-	ID              ID            `json:"id,omitempty"`
-	OrganizationID  ID            `json:"organizationID,omitempty"`
-	Organization    string        `json:"organization,omitempty"`
-	Name            string        `json:"name"`
-	RetentionPeriod time.Duration `json:"retentionPeriod"`
+	ID                  ID            `json:"id,omitempty"`
+	OrganizationID      ID            `json:"organizationID,omitempty"`
+	Organization        string        `json:"organization,omitempty"`
+	Name                string        `json:"name"`
+	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
+	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 }
 
 // BucketService represents a service for managing bucket data.

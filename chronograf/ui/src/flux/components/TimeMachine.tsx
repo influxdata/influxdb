@@ -12,12 +12,12 @@ import {
   ScriptStatus,
 } from 'src/types/flux'
 
-import {Service} from 'src/types'
+import {Source} from 'src/types/v2'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {HANDLE_VERTICAL, HANDLE_HORIZONTAL} from 'src/shared/constants'
 
 interface Props {
-  service: Service
+  source: Source
   script: string
   body: Body[]
   status: ScriptStatus
@@ -67,7 +67,6 @@ class TimeMachine extends PureComponent<Props> {
   private get builder() {
     const {
       body,
-      service,
       suggestions,
       onAppendFrom,
       onDeleteBody,
@@ -82,7 +81,6 @@ class TimeMachine extends PureComponent<Props> {
       render: () => (
         <BodyBuilder
           body={body}
-          service={service}
           suggestions={suggestions}
           onDeleteBody={onDeleteBody}
           onAppendFrom={onAppendFrom}
@@ -96,7 +94,7 @@ class TimeMachine extends PureComponent<Props> {
     const {
       script,
       status,
-      service,
+      source,
       onValidate,
       suggestions,
       onChangeScript,
@@ -134,7 +132,7 @@ class TimeMachine extends PureComponent<Props> {
         handlePixels: 44,
         headerButtons: [],
         menuOptions: [],
-        render: () => <SchemaExplorer service={service} />,
+        render: () => <SchemaExplorer source={source} />,
         headerOrientation: HANDLE_VERTICAL,
       },
     ]

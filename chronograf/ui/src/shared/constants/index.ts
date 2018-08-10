@@ -73,11 +73,6 @@ export const PERMISSIONS = {
     displayName: 'Copy Shard',
     description: 'Can copy shards',
   },
-  // TODO: get clarification on this one
-  // KapacitorAPI: {
-  //   displayName: 'Kapacitor',
-  //   description: 'Can access the Kapacitor API',
-  // },
 }
 
 export const DEFAULT_LINE_COLORS = [
@@ -440,6 +435,7 @@ export const DEFAULT_SOURCE = {
   telegraf: 'telegraf',
   insecureSkipVerify: false,
   metaUrl: '',
+  type: 'v1',
 }
 
 export const intervalValuesPoints = [
@@ -463,8 +459,6 @@ export const TEMPLATES = [interval]
 
 export const IS_STATIC_LEGEND = legend =>
   _.get(legend, 'type', false) === 'static'
-
-export const linksLink = '/chronograf/v1'
 
 export const cellSupportsAnnotations = cellType => {
   const supportedTypes = [

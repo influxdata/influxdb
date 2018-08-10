@@ -1,7 +1,7 @@
 import React from 'react'
 import {shallow} from 'enzyme'
 import FromDatabaseDropdown from 'src/flux/components/FromDatabaseDropdown'
-import {service} from 'test/resources'
+import {source} from 'test/resources/v2'
 
 jest.mock('src/shared/apis/metaQuery', () => require('mocks/flux/apis'))
 
@@ -12,7 +12,7 @@ const setup = () => {
     value: 'db1',
     bodyID: '2',
     declarationID: '1',
-    service,
+    source,
     onChangeArg: () => {},
   }
 

@@ -20,6 +20,7 @@ type PlatformHandler struct {
 	ChronografHandler    *ChronografHandler
 	SourceHandler        *SourceHandler
 	TaskHandler          *TaskHandler
+	FluxLangHandler      *FluxLangHandler
 }
 
 func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -27,6 +28,26 @@ func setCORSResponseHeaders(w nethttp.ResponseWriter, r *nethttp.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
+	}
+}
+
+var platformLinks = map[string]interface{}{
+	"sources": "/v2/sources",
+	"flux": map[string]string{
+		"self":        "/v2/flux",
+		"ast":         "/v2/flux/ast",
+		"suggestions": "/v2/flux/suggestions",
+	},
+	"external": map[string]string{
+		"statusFeed": "https://www.influxdata.com/feed/json",
+	},
+}
+
+func (h *PlatformHandler) serveLinks(w nethttp.ResponseWriter, r *nethttp.Request) {
+	ctx := r.Context()
+	if err := encodeResponse(ctx, w, nethttp.StatusOK, platformLinks); err != nil {
+		EncodeError(ctx, err, w)
+		return
 	}
 }
 
@@ -40,10 +61,21 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 
 	// Server the chronograf assets for any basepath that does not start with addressable parts
 	// of the platform API.
-	if !strings.HasPrefix(r.URL.Path, "/v1/") &&
-		!strings.HasPrefix(r.URL.Path, "/v2/") &&
+	if !strings.HasPrefix(r.URL.Path, "/v1") &&
+		!strings.HasPrefix(r.URL.Path, "/v2") &&
 		!strings.HasPrefix(r.URL.Path, "/chronograf/") {
 		h.AssetHandler.ServeHTTP(w, r)
+		return
+	}
+
+	// Serve the links base links for the API.
+	if r.URL.Path == "/v2/" || r.URL.Path == "/v2" {
+		h.serveLinks(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/v2/flux") {
+		h.FluxLangHandler.ServeHTTP(w, r)
 		return
 	}
 
@@ -55,8 +87,8 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	ctx := r.Context()
 	var err error
 	if ctx, err = extractAuthorization(ctx, r); err != nil {
-		nethttp.Error(w, err.Error(), nethttp.StatusBadRequest)
-		return
+		// TODO(desa): add back eventually when things have settled. See https://github.com/influxdata/platform/issues/593
+		//nethttp.Error(w, err.Error(), nethttp.StatusBadRequest)
 	}
 	r = r.WithContext(ctx)
 

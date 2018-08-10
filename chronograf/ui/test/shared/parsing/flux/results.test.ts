@@ -26,9 +26,9 @@ describe('Flux results parser', () => {
     })
   })
 
-  describe('partition key', () => {
-    it('parses the partition key propertly', () => {
-      const actual = parseResponse(MULTI_SCHEMA_RESPONSE)[0].partitionKey
+  describe('group key', () => {
+    it('parses the group key properly', () => {
+      const actual = parseResponse(MULTI_SCHEMA_RESPONSE)[0].groupKey
       const expected = {
         _field: 'usage_guest',
         _measurement: 'cpu',

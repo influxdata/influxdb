@@ -1,31 +1,38 @@
+// Libraries
 import React, {
   PureComponent,
   CSSProperties,
   ChangeEvent,
   MouseEvent,
 } from 'react'
-
 import _ from 'lodash'
 import {CopyToClipboard} from 'react-copy-to-clipboard'
 
-import {Service, SchemaFilter, RemoteDataState} from 'src/types'
-import {tagValues as fetchTagValues} from 'src/shared/apis/flux/metaQueries'
-import {explorer} from 'src/flux/constants'
-import parseValuesColumn from 'src/shared/parsing/flux/values'
+// Components
 import TagValueList from 'src/flux/components/TagValueList'
 import LoaderSkeleton from 'src/flux/components/LoaderSkeleton'
 import LoadingSpinner from 'src/flux/components/LoadingSpinner'
+
+// APIs
+import {tagValues as fetchTagValues} from 'src/shared/apis/flux/metaQueries'
+import parseValuesColumn from 'src/shared/parsing/flux/values'
+
+// Constants
 import {
   notifyCopyToClipboardSuccess,
   notifyCopyToClipboardFailed,
 } from 'src/shared/copy/notifications'
+import {explorer} from 'src/flux/constants'
 
+// Types
 import {NotificationAction} from 'src/types'
+import {SchemaFilter, RemoteDataState} from 'src/types'
+import {Source} from 'src/types/v2'
 
 interface Props {
   tagKey: string
   db: string
-  service: Service
+  source: Source
   filter: SchemaFilter[]
   notify: NotificationAction
 }
@@ -65,7 +72,7 @@ export default class TagListItem extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {tagKey, db, service, filter} = this.props
+    const {tagKey, db, source, filter, notify} = this.props
     const {
       tagValues,
       searchTerm,
@@ -110,7 +117,8 @@ export default class TagListItem extends PureComponent<Props, State> {
           {!this.isLoading && (
             <TagValueList
               db={db}
-              service={service}
+              notify={notify}
+              source={source}
               values={tagValues}
               tagKey={tagKey}
               filter={filter}
@@ -218,10 +226,10 @@ export default class TagListItem extends PureComponent<Props, State> {
   }
 
   private getTagValues = async () => {
-    const {db, service, tagKey, filter} = this.props
+    const {db, source, tagKey, filter} = this.props
     const {searchTerm, limit} = this.state
     const response = await fetchTagValues({
-      service,
+      source,
       db,
       filter,
       tagKey,
@@ -269,11 +277,11 @@ export default class TagListItem extends PureComponent<Props, State> {
   }
 
   private async getCount() {
-    const {service, db, filter, tagKey} = this.props
+    const {source, db, filter, tagKey} = this.props
     const {limit, searchTerm} = this.state
     try {
       const response = await fetchTagValues({
-        service,
+        source,
         db,
         filter,
         tagKey,

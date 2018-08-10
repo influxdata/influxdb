@@ -41,7 +41,6 @@ import {
   Axes,
   Query,
   CellType,
-  RuleValues,
   TimeRange,
   DygraphData,
   DygraphClass,
@@ -64,7 +63,6 @@ interface Props {
   timeRange: TimeRange
   colors: LineColor[]
   handleSetHoverTime: (t: string) => void
-  ruleValues?: RuleValues
   axes?: Axes
   isGraphFilled?: boolean
   staticLegend?: boolean
@@ -345,14 +343,13 @@ class Dygraph extends Component<Props, State> {
     const {
       options,
       axes: {y},
-      ruleValues,
     } = this.props
 
     if (options.stackedGraph) {
       return getStackedRange(y.bounds)
     }
 
-    const range = getRange(timeSeries, y.bounds, ruleValues)
+    const range = getRange(timeSeries, y.bounds)
     const [min, max] = range
 
     // Bug in Dygraph calculates a negative range for logscale when min range is 0

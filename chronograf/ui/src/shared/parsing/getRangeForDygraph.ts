@@ -1,9 +1,3 @@
-import BigNumber from 'bignumber.js'
-import {RuleValues} from 'src/types'
-
-const ADD_FACTOR = 1.1
-const SUB_FACTOR = 0.9
-
 const checkNumeric = num => (isFinite(num) ? num : null)
 
 const considerEmpty = (userNumber, num) => {
@@ -16,37 +10,13 @@ const considerEmpty = (userNumber, num) => {
 
 const getRange = (
   timeSeries,
-  userSelectedRange = [null, null],
-  ruleValues?: RuleValues
+  userSelectedRange = [null, null]
 ): [number, number] => {
-  if (!ruleValues) {
-    ruleValues = {value: null, rangeValue: null, operator: ''}
-  }
-
-  const {value, rangeValue, operator} = ruleValues
-
   const [uMin, uMax] = userSelectedRange
   const userMin = checkNumeric(uMin)
   const userMax = checkNumeric(uMax)
 
-  const addPad = bigNum => bigNum.times(ADD_FACTOR).toNumber()
-  const subPad = bigNum => bigNum.times(SUB_FACTOR).toNumber()
-
-  const pad = v => {
-    if (v === null || v === '' || !isFinite(v)) {
-      return null
-    }
-
-    const val = new BigNumber(v)
-
-    if (operator === 'less than') {
-      return val.lessThan(0) ? addPad(val) : subPad(val)
-    }
-
-    return val.lessThan(0) ? subPad(val) : addPad(val)
-  }
-
-  const points = [...timeSeries, [null, pad(value)], [null, pad(rangeValue)]]
+  const points = [...timeSeries, [null, uMax], [null, uMax]]
 
   const range = points.reduce(
     // tslint:disable-next-line

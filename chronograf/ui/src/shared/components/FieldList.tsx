@@ -45,7 +45,6 @@ interface Props {
   onTimeShift?: (shift: TimeShiftOption) => void
   onToggleField: (field: Field) => void
   removeFuncs: (fields: Field[]) => void
-  isKapacitorRule: boolean
   querySource?: {
     links: Links
   }
@@ -61,7 +60,6 @@ interface State {
 @ErrorHandling
 class FieldList extends PureComponent<Props, State> {
   public static defaultProps: Partial<Props> = {
-    isKapacitorRule: false,
     initialGroupByTime: null,
   }
 
@@ -109,12 +107,11 @@ class FieldList extends PureComponent<Props, State> {
     const {
       query: {database, measurement, fields = [], groupBy, fill, shifts},
       isQuerySupportedByExplorer,
-      isKapacitorRule,
     } = this.props
 
     const hasAggregates = numFunctions(fields) > 0
     const noDBorMeas = !database || !measurement
-    const isDisabled = !isKapacitorRule && !isQuerySupportedByExplorer
+    const isDisabled = !isQuerySupportedByExplorer
 
     return (
       <div className="query-builder--column">
@@ -126,7 +123,6 @@ class FieldList extends PureComponent<Props, State> {
               shift={_.first(shifts)}
               groupBy={groupBy}
               onFill={this.handleFill}
-              isKapacitorRule={isKapacitorRule}
               onTimeShift={this.handleTimeShift}
               onGroupByTime={this.handleGroupByTime}
               isDisabled={isDisabled}
@@ -164,7 +160,6 @@ class FieldList extends PureComponent<Props, State> {
                     isSelected={!!selectedFields.length}
                     fieldFuncs={fieldFuncs}
                     funcs={functionNames(funcs)}
-                    isKapacitorRule={isKapacitorRule}
                     isDisabled={isDisabled}
                   />
                 )
@@ -190,11 +185,10 @@ class FieldList extends PureComponent<Props, State> {
       onToggleField,
       addInitialField,
       initialGroupByTime: time,
-      isKapacitorRule,
       isQuerySupportedByExplorer,
     } = this.props
     const {fields, groupBy} = query
-    const isDisabled = !isKapacitorRule && !isQuerySupportedByExplorer
+    const isDisabled = !isQuerySupportedByExplorer
 
     if (isDisabled) {
       return
@@ -202,9 +196,7 @@ class FieldList extends PureComponent<Props, State> {
     const initialGroupBy = {...groupBy, time}
 
     if (!_.size(fields)) {
-      return isKapacitorRule
-        ? onToggleField(field)
-        : addInitialField(field, initialGroupBy)
+      return addInitialField(field, initialGroupBy)
     }
 
     onToggleField(field)

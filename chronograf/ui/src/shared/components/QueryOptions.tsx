@@ -12,7 +12,6 @@ interface Props {
   groupBy: GroupBy
   shift: TimeShift
   onGroupByTime: (groupBy: GroupBy) => void
-  isKapacitorRule: boolean
   onTimeShift: (shift: TimeShift) => void
   isDisabled: boolean
 }
@@ -24,7 +23,6 @@ const QueryOptions: SFC<Props> = ({
   groupBy,
   onTimeShift,
   onGroupByTime,
-  isKapacitorRule,
   isDisabled,
 }) => (
   <div className="query-builder--groupby-fill-container">
@@ -33,15 +31,12 @@ const QueryOptions: SFC<Props> = ({
       onChooseGroupByTime={onGroupByTime}
       isDisabled={isDisabled}
     />
-    {isKapacitorRule ? null : (
-      <TimeShiftDropdown
-        selected={shift && shift.label}
-        onChooseTimeShift={onTimeShift}
-        isDisabled={isDisabled}
-      />
-    )}
-    {isKapacitorRule ? null : (
-      <FillQuery value={fill} onChooseFill={onFill} isDisabled={isDisabled} />
+    <TimeShiftDropdown
+      selected={shift && shift.label}
+      onChooseTimeShift={onTimeShift}
+      isDisabled={isDisabled}
+    />
+    <FillQuery value={fill} onChooseFill={onFill} isDisabled={isDisabled} />
     )}
   </div>
 )

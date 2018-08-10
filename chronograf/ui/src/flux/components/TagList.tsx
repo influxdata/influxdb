@@ -1,36 +1,35 @@
 import React, {PureComponent, MouseEvent} from 'react'
 
 import TagListItem from 'src/flux/components/TagListItem'
-import {NotificationContext} from 'src/flux/containers/CheckServices'
 
-import {SchemaFilter, Service} from 'src/types'
+import {SchemaFilter} from 'src/types'
+import {NotificationAction} from 'src/types/notifications'
+import {Source} from 'src/types/v2'
 
 interface Props {
   db: string
-  service: Service
+  source: Source
   tags: string[]
   filter: SchemaFilter[]
+  notify: NotificationAction
 }
 
 export default class TagList extends PureComponent<Props> {
   public render() {
-    const {db, service, tags, filter} = this.props
+    const {db, source, tags, filter, notify} = this.props
 
     if (tags.length) {
       return (
         <>
           {tags.map(t => (
-            <NotificationContext.Consumer key={t}>
-              {({notify}) => (
-                <TagListItem
-                  db={db}
-                  tagKey={t}
-                  service={service}
-                  filter={filter}
-                  notify={notify}
-                />
-              )}
-            </NotificationContext.Consumer>
+            <TagListItem
+              key={t}
+              db={db}
+              tagKey={t}
+              source={source}
+              filter={filter}
+              notify={notify}
+            />
           ))}
         </>
       )

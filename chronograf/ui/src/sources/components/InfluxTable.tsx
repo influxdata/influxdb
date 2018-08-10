@@ -12,8 +12,6 @@ interface Props {
   source: Source
   sources: Source[]
   onDeleteSource: (source: Source) => void
-  setActiveFlux: (source: Source, service: Service) => void
-  deleteFlux: (fluxService: Service) => void
 }
 
 @ErrorHandling
@@ -35,11 +33,8 @@ class InfluxTable extends PureComponent<Props> {
                       <InfluxTableRow
                         key={s.id}
                         source={s}
-                        services={this.getServicesForSource(s.id)}
                         currentSource={source}
                         onDeleteSource={onDeleteSource}
-                        setActiveFlux={setActiveFlux}
-                        deleteFlux={deleteFlux}
                       />
                     )
                   })}
@@ -50,12 +45,6 @@ class InfluxTable extends PureComponent<Props> {
         </div>
       </div>
     )
-  }
-
-  private getServicesForSource(sourceID: string) {
-    return this.props.services.filter(s => {
-      return s.sourceID === sourceID
-    })
   }
 }
 
