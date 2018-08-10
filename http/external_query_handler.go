@@ -49,19 +49,16 @@ func decodeQueryRequest(r *http.Request, req *query.ProxyRequest, orgSvc platfor
 	req.Request.OrganizationID = o.ID
 	request := struct {
 		Spec    *query.Spec `json:"spec"`
+		Query   string      `json:"query"`
+		Type    string      `json:"type"`
 		Dialect struct {
-			Header         bool     `json:"header"`
+			Header         *bool    `json:"header"`
 			Delimiter      string   `json:"delimiter"`
 			CommentPrefix  string   `json:"commentPrefix"`
 			DateTimeFormat string   `json:"dateTimeFormat"`
 			Annotations    []string `json:"annotations"`
 		}
 	}{}
-	// Set defaults
-	request.Dialect.Header = true
-	request.Dialect.Delimiter = ","
-	// TODO(nathanielc): Set commentPrefix and dateTimeFormat defaults
-	// once they are supported.
 
 	switch r.Header.Get("Content-Type") {
 	case "application/json":
@@ -69,8 +66,54 @@ func decodeQueryRequest(r *http.Request, req *query.ProxyRequest, orgSvc platfor
 		if err != nil {
 			return err
 		}
-		req.Request.Compiler = query.SpecCompiler{
-			Spec: request.Spec,
+
+		// Set defaults
+		if request.Type == "" {
+			request.Type = "flux"
+		}
+
+		if request.Dialect.Header == nil {
+			header := true
+			request.Dialect.Header = &header
+		}
+		if request.Dialect.Delimiter == "" {
+			request.Dialect.Delimiter = ","
+		}
+		if request.Dialect.DateTimeFormat == "" {
+			request.Dialect.DateTimeFormat = "RFC3339"
+		}
+
+		if request.Type != "flux" {
+			return fmt.Errorf(`unknown query type: %s`, request.Type)
+		}
+		if len(request.Dialect.CommentPrefix) > 1 {
+			return fmt.Errorf("invalid dialect comment prefix: must be length 0 or 1")
+		}
+		if len(request.Dialect.Delimiter) != 1 {
+			return fmt.Errorf("invalid dialect delimeter: must be length  1")
+		}
+		for _, a := range request.Dialect.Annotations {
+			switch a {
+			case "group", "datatype", "default":
+			default:
+				return fmt.Errorf(`unknown dialect annotation type: %s`, a)
+			}
+		}
+
+		switch request.Dialect.DateTimeFormat {
+		case "RFC3339", "RFC3339Nano":
+		default:
+			return fmt.Errorf(`unknown dialect date time format: %s`, request.Dialect.DateTimeFormat)
+		}
+
+		if request.Query != "" {
+			req.Request.Compiler = query.FluxCompiler{Query: request.Query}
+		} else if request.Spec != nil {
+			req.Request.Compiler = query.SpecCompiler{
+				Spec: request.Spec,
+			}
+		} else {
+			return errors.New(`request body requires either spec or query`)
 		}
 	default:
 		q := r.FormValue("query")
@@ -95,14 +138,10 @@ func decodeQueryRequest(r *http.Request, req *query.ProxyRequest, orgSvc platfor
 		if dialect.Delimiter != "" {
 			delimiter, _ = utf8.DecodeRuneInString(dialect.Delimiter)
 		}
-		if dialect.CommentPrefix != "" {
-			return errors.New("commentPrefix is not yet supported")
-		}
-		if dialect.DateTimeFormat != "" {
-			return errors.New("dateTimeFormat is not yet supported")
-		}
+		// TODO(nathanielc): Use commentPrefix and dateTimeFormat
+		// once they are supported.
 		config := csv.ResultEncoderConfig{
-			NoHeader:    !dialect.Header,
+			NoHeader:    !*dialect.Header,
 			Delimiter:   delimiter,
 			Annotations: dialect.Annotations,
 		}

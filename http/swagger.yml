@@ -1073,6 +1073,7 @@ components:
               type: string
               default: ","
               maxLength: 1
+              minLength: 1
             annotations:
               description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
               type: array
@@ -1089,6 +1090,7 @@ components:
               type: string
               default: \#
               maxLength: 1
+              minLength: 0
             dateTimeFormat:
               description: format of timestamps
               type: string
