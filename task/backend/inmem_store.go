@@ -35,7 +35,7 @@ func NewInMemStore() Store {
 	}
 }
 
-func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string) (platform.ID, error) {
+func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	o, err := StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 		}
 	}
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency), Status: string(TaskEnabled)}
+	s.runners[id.String()] = StoreTaskMeta{MaxConcurrency: int32(o.Concurrency), Status: string(TaskEnabled), LastCompleted: scheduleAfter}
 
 	return id, nil
 }

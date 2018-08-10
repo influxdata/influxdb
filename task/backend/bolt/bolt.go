@@ -122,7 +122,7 @@ func (s *Store) checkIfNameIsUsed(b *bolt.Bucket, name []byte, org, user, taskID
 }
 
 // CreateTask creates a task in the boltdb task store.
-func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script string) (platform.ID, error) {
+func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	o, err := backend.StoreValidator.CreateArgs(org, user, script)
 	if err != nil {
 		return nil, err
@@ -210,6 +210,7 @@ func (s *Store) CreateTask(ctx context.Context, org, user platform.ID, script st
 		stm := backend.StoreTaskMeta{
 			MaxConcurrency: int32(o.Concurrency),
 			Status:         string(backend.TaskEnabled),
+			LastCompleted:  scheduleAfter,
 		}
 
 		stmBytes, err := stm.Marshal()

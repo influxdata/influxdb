@@ -250,7 +250,7 @@ const testScript = `option task = {
 func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 	sys := fn()
 	t.Run(sys.name+"/QuerySuccess", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript)
+		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -300,7 +300,7 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 	sys := fn()
 	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript)
+		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -326,7 +326,7 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 	sys := fn()
 	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript)
+		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -351,7 +351,7 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 func testExecutorServiceError(t *testing.T, fn createSysFn) {
 	sys := fn()
 	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
-		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript)
+		tid, err := sys.st.CreateTask(context.Background(), platform.ID("org"), platform.ID("user"), testScript, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

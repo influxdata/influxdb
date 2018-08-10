@@ -42,7 +42,10 @@ type Executor interface {
 // but whose execution has not necessarily started.
 type QueuedRun struct {
 	TaskID, RunID platform.ID
-	Now           int64
+
+	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set
+	// as the "now" option when executing the task.
+	Now int64
 }
 
 // RunPromise represents an in-progress run whose result is not yet known.

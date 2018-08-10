@@ -40,13 +40,13 @@ func New(scheduler backend.Scheduler, st backend.Store, opts ...Option) backend.
 	return c
 }
 
-func (c *Coordinator) CreateTask(ctx context.Context, org, user platform.ID, script string) (platform.ID, error) {
+func (c *Coordinator) CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
 	opt, err := options.FromScript(script)
 	if err != nil {
 		return nil, err
 	}
 
-	id, err := c.Store.CreateTask(ctx, org, user, script)
+	id, err := c.Store.CreateTask(ctx, org, user, script, scheduleAfter)
 	if err != nil {
 		return id, err
 	}

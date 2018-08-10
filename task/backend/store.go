@@ -59,8 +59,11 @@ func (r RunStatus) String() string {
 
 // Store is the interface around persisted tasks.
 type Store interface {
-	// CreateTask saves the given task.
-	CreateTask(ctx context.Context, org, user platform.ID, script string) (platform.ID, error)
+	// CreateTask creates a task with the given script, belonging to the given org and user.
+	// The scheduleAfter parameter is a Unix timestamp (seconds elapsed since January 1, 1970 UTC),
+	// and the first run of the task will be run according to the earliest time after scheduleAfter,
+	// matching the task's schedule via its cron or every option.
+	CreateTask(ctx context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error)
 
 	// ModifyTask updates the script of an existing task.
 	// It returns an error if there was no task matching the given ID.

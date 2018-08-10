@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
@@ -66,7 +67,9 @@ func (p pAdapter) CreateTask(ctx context.Context, t *platform.Task) error {
 		return err
 	}
 
-	id, err := p.s.CreateTask(ctx, t.Organization, t.Owner.ID, t.Flux)
+	// TODO(mr): decide whether we allow user to configure scheduleAfter. https://github.com/influxdata/platform/issues/595
+	scheduleAfter := time.Now().Unix()
+	id, err := p.s.CreateTask(ctx, t.Organization, t.Owner.ID, t.Flux, scheduleAfter)
 	if err != nil {
 		return err
 	}

@@ -8,7 +8,6 @@ import (
 	"math"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
@@ -92,13 +91,12 @@ from(db:"test") |> range(start:-1h)`
 		{caseName: "repeated name, org, and user", org: []byte{1}, user: []byte{2}, script: script},
 	} {
 		t.Run(args.caseName, func(t *testing.T) {
-			_, err := s.CreateTask(context.Background(), args.org, args.user, args.script)
+			_, err := s.CreateTask(context.Background(), args.org, args.user, args.script, 0)
 			if args.noerr && err != nil {
 				t.Fatalf("expected err!=nil but got nil instead")
 			} else if err == nil && !args.noerr {
 				t.Fatalf("expected nil error but got %v", err)
 			}
-
 		})
 	}
 }
@@ -133,7 +131,7 @@ from(bucket:"y") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,11 +173,11 @@ from(bucket:"y") |> range(start:-1h)`
 	t.Run("name repetition", func(t *testing.T) {
 		s := create(t)
 		defer destroy(t, s)
-		id1, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+		id1, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = s.CreateTask(context.Background(), []byte{1}, []byte{2}, script2)
+		_, err = s.CreateTask(context.Background(), []byte{1}, []byte{2}, script2, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -203,7 +201,7 @@ from(db:"test") |> range(start:-1h)`
 		orgID := []byte{1}
 		userID := []byte{2}
 
-		id, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 0))
+		id, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 0), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -246,7 +244,7 @@ from(db:"test") |> range(start:-1h)`
 			t.Fatalf("expected no results for bad user ID, got %d result(s)", len(ts))
 		}
 
-		newID, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 1))
+		newID, err := s.CreateTask(context.Background(), orgID, userID, fmt.Sprintf(scriptFmt, 1), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -286,7 +284,7 @@ from(db:"test") |> range(start:-1h)`
 			tasks[i].name = fmt.Sprintf("my_bucket_%d", i)
 			tasks[i].script = fmt.Sprintf(script, i, i)
 
-			id, err := s.CreateTask(context.Background(), orgID, userID, tasks[i].script)
+			id, err := s.CreateTask(context.Background(), orgID, userID, tasks[i].script, 0)
 			if err != nil {
 				t.Fatalf("failed to create task %d: %v", i, err)
 			}
@@ -363,7 +361,7 @@ from(db:"test") |> range(start:-1h)`
 		org := []byte{1}
 		user := []byte{2}
 
-		id, err := s.CreateTask(context.Background(), org, user, script)
+		id, err := s.CreateTask(context.Background(), org, user, script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -417,7 +415,7 @@ from(db:"test") |> range(start:-1h)`
 	org := []byte{1}
 	user := []byte{2}
 
-	id, err := s.CreateTask(context.Background(), org, user, script)
+	id, err := s.CreateTask(context.Background(), org, user, script, 6000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,6 +429,10 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("failed to set max concurrency")
 	}
 
+	if meta.LastCompleted != 6000 {
+		t.Fatalf("last completed should have been set to 6000, got %d", meta.LastCompleted)
+	}
+
 	badID := []byte("bad")
 	meta, err = s.FindTaskMetaByID(context.Background(), badID)
 	if err == nil {
@@ -440,12 +442,12 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatalf("expected nil meta when finding nonexistent ID, got %#v", meta)
 	}
 
-	qr, err := s.CreateRun(context.Background(), id, time.Unix(1, 0).UTC().Unix())
+	qr, err := s.CreateRun(context.Background(), id, 6060)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = s.CreateRun(context.Background(), id, time.Unix(2, 0).UTC().Unix())
+	_, err = s.CreateRun(context.Background(), id, 6120)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -464,8 +466,8 @@ from(db:"test") |> range(start:-1h)`
 		t.Fatal("creating and finishing runs doesn't work")
 	}
 
-	if meta.LastCompleted != time.Unix(1, 0).UTC().Unix() {
-		t.Fatal("LastCompletedTime not set")
+	if meta.LastCompleted != 6060 {
+		t.Fatalf("expected LastCompleted to be updated by finished run, but it wasn't; LastCompleted=%d", meta.LastCompleted)
 	}
 }
 
@@ -483,7 +485,7 @@ func testStoreTaskEnableDisable(t *testing.T, create CreateStoreFunc, destroy De
 	org := []byte{1}
 	user := []byte{2}
 
-	id, err := s.CreateTask(context.Background(), org, user, script)
+	id, err := s.CreateTask(context.Background(), org, user, script, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +538,7 @@ from(db:"test") |> range(start:-1h)`
 		s := create(t)
 		defer destroy(t, s)
 
-		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+		id, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -579,7 +581,7 @@ from(db:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,7 +616,7 @@ from(db:"test") |> range(start:-1h)`
 	s := create(t)
 	defer destroy(t, s)
 
-	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script)
+	task, err := s.CreateTask(context.Background(), []byte{1}, []byte{2}, script, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -698,7 +700,7 @@ from(db:"test") |> range(start:-1h)`
 				user := make(platform.ID, 8)
 				binary.BigEndian.PutUint64(org, orgInt)
 				binary.BigEndian.PutUint64(user, userInt)
-				if id, err = s.CreateTask(context.Background(), org, user, script); err != nil {
+				if id, err = s.CreateTask(context.Background(), org, user, script, 0); err != nil {
 					t.Fatal(err)
 				}
 				if filter(userInt, orgInt) {
