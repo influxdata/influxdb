@@ -65,15 +65,7 @@ func Join(t *transpilerState, cursors []cursor, on, except []string) cursor {
 	}
 	id := t.op("join", &functions.JoinOpSpec{
 		TableNames: tables,
-		Fn: &semantic.FunctionExpression{
-			Params: []*semantic.FunctionParam{{
-				Key: &semantic.Identifier{Name: "tables"},
-			}},
-			Body: &semantic.ObjectExpression{
-				Properties: properties,
-			},
-		},
-		On: on,
+		On:         on,
 		// TODO(jsternberg): This option needs to be included.
 		//Except: except,
 	}, parents...)

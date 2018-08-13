@@ -9,13 +9,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/ast"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/execute/executetest"
 	"github.com/influxdata/platform/query/functions"
 	"github.com/influxdata/platform/query/plan"
-	"github.com/influxdata/platform/query/semantic"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -162,73 +160,6 @@ func TestExecutor_Execute(t *testing.T) {
 								plan.ProcedureIDFromOperationID("count"): "count",
 							},
 							On: []string{"_time", "_start", "_stop"},
-							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{{Key: &semantic.Identifier{Name: "t"}}},
-								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
-										{
-											Key: &semantic.Identifier{Name: "_time"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.MemberExpression{
-													Object: &semantic.IdentifierExpression{
-														Name: "t",
-													},
-													Property: "sum",
-												},
-												Property: "_time",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "_start"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.MemberExpression{
-													Object: &semantic.IdentifierExpression{
-														Name: "t",
-													},
-													Property: "sum",
-												},
-												Property: "_start",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "_stop"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.MemberExpression{
-													Object: &semantic.IdentifierExpression{
-														Name: "t",
-													},
-													Property: "sum",
-												},
-												Property: "_stop",
-											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "_value"},
-											Value: &semantic.BinaryExpression{
-												Operator: ast.DivisionOperator,
-												Left: &semantic.MemberExpression{
-													Object: &semantic.MemberExpression{
-														Object: &semantic.IdentifierExpression{
-															Name: "t",
-														},
-														Property: "sum",
-													},
-													Property: "_value",
-												},
-												Right: &semantic.MemberExpression{
-													Object: &semantic.MemberExpression{
-														Object: &semantic.IdentifierExpression{
-															Name: "t",
-														},
-														Property: "count",
-													},
-													Property: "_value",
-												},
-											},
-										},
-									},
-								},
-							},
 						},
 						Parents: []plan.ProcedureID{
 							plan.ProcedureIDFromOperationID("sum"),
@@ -248,12 +179,220 @@ func TestExecutor_Execute(t *testing.T) {
 						{Label: "_start", Type: query.TTime},
 						{Label: "_stop", Type: query.TTime},
 						{Label: "_time", Type: query.TTime},
-						{Label: "_value", Type: query.TInt},
+						{Label: "count__value", Type: query.TInt},
+						{Label: "sum__value", Type: query.TInt},
 					},
 					Data: [][]interface{}{
-						{execute.Time(0), execute.Time(5), execute.Time(5), int64(3)},
+						{execute.Time(0), execute.Time(5), execute.Time(5), int64(5), int64(15)},
 					},
 				}},
+			},
+		},
+		{
+			name: "join with multiple tables",
+			plan: &plan.PlanSpec{
+				Now: epoch.Add(5),
+				Resources: query.ResourceManagement{
+					ConcurrencyQuota: 1,
+					MemoryBytesQuota: math.MaxInt64,
+				},
+				Bounds: plan.BoundsSpec{
+					Start: query.Time{Absolute: time.Unix(0, 1)},
+					Stop:  query.Time{Absolute: time.Unix(0, 5)},
+				},
+				Procedures: map[plan.ProcedureID]*plan.Procedure{
+					plan.ProcedureIDFromOperationID("from"): {
+						ID: plan.ProcedureIDFromOperationID("from"),
+						Spec: &testFromProcedureSource{
+							data: []query.Table{
+								&executetest.Table{
+									KeyCols: []string{"_start", "_stop", "_key"},
+									ColMeta: []query.ColMeta{
+										{Label: "_start", Type: query.TTime},
+										{Label: "_stop", Type: query.TTime},
+										{Label: "_time", Type: query.TTime},
+										{Label: "_key", Type: query.TString},
+										{Label: "_value", Type: query.TInt},
+									},
+									Data: [][]interface{}{
+										{execute.Time(0), execute.Time(5), execute.Time(0), "a", int64(1)},
+									},
+								},
+								&executetest.Table{
+									KeyCols: []string{"_start", "_stop", "_key"},
+									ColMeta: []query.ColMeta{
+										{Label: "_start", Type: query.TTime},
+										{Label: "_stop", Type: query.TTime},
+										{Label: "_time", Type: query.TTime},
+										{Label: "_key", Type: query.TString},
+										{Label: "_value", Type: query.TInt},
+									},
+									Data: [][]interface{}{
+										{execute.Time(0), execute.Time(5), execute.Time(1), "b", int64(2)},
+									},
+								},
+								&executetest.Table{
+									KeyCols: []string{"_start", "_stop", "_key"},
+									ColMeta: []query.ColMeta{
+										{Label: "_start", Type: query.TTime},
+										{Label: "_stop", Type: query.TTime},
+										{Label: "_time", Type: query.TTime},
+										{Label: "_key", Type: query.TString},
+										{Label: "_value", Type: query.TInt},
+									},
+									Data: [][]interface{}{
+										{execute.Time(0), execute.Time(5), execute.Time(2), "c", int64(3)},
+									},
+								},
+								&executetest.Table{
+									KeyCols: []string{"_start", "_stop", "_key"},
+									ColMeta: []query.ColMeta{
+										{Label: "_start", Type: query.TTime},
+										{Label: "_stop", Type: query.TTime},
+										{Label: "_time", Type: query.TTime},
+										{Label: "_key", Type: query.TString},
+										{Label: "_value", Type: query.TInt},
+									},
+									Data: [][]interface{}{
+										{execute.Time(0), execute.Time(5), execute.Time(3), "d", int64(4)},
+									},
+								},
+								&executetest.Table{
+									KeyCols: []string{"_start", "_stop", "_key"},
+									ColMeta: []query.ColMeta{
+										{Label: "_start", Type: query.TTime},
+										{Label: "_stop", Type: query.TTime},
+										{Label: "_time", Type: query.TTime},
+										{Label: "_key", Type: query.TString},
+										{Label: "_value", Type: query.TInt},
+									},
+									Data: [][]interface{}{
+										{execute.Time(0), execute.Time(5), execute.Time(4), "e", int64(5)},
+									},
+								},
+							},
+						},
+						Parents:  nil,
+						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("sum")},
+					},
+					plan.ProcedureIDFromOperationID("sum"): {
+						ID: plan.ProcedureIDFromOperationID("sum"),
+						Spec: &functions.SumProcedureSpec{
+							AggregateConfig: execute.DefaultAggregateConfig,
+						},
+						Parents: []plan.ProcedureID{
+							plan.ProcedureIDFromOperationID("from"),
+						},
+						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("join")},
+					},
+					plan.ProcedureIDFromOperationID("count"): {
+						ID: plan.ProcedureIDFromOperationID("count"),
+						Spec: &functions.CountProcedureSpec{
+							AggregateConfig: execute.DefaultAggregateConfig,
+						},
+						Parents: []plan.ProcedureID{
+							plan.ProcedureIDFromOperationID("from"),
+						},
+						Children: []plan.ProcedureID{plan.ProcedureIDFromOperationID("join")},
+					},
+					plan.ProcedureIDFromOperationID("join"): {
+						ID: plan.ProcedureIDFromOperationID("join"),
+						Spec: &functions.MergeJoinProcedureSpec{
+							TableNames: map[plan.ProcedureID]string{
+								plan.ProcedureIDFromOperationID("sum"):   "sum",
+								plan.ProcedureIDFromOperationID("count"): "count",
+							},
+							On: []string{"_start", "_stop", "_key"},
+						},
+						Parents: []plan.ProcedureID{
+							plan.ProcedureIDFromOperationID("sum"),
+							plan.ProcedureIDFromOperationID("count"),
+						},
+						Children: nil,
+					},
+				},
+				Results: map[string]plan.YieldSpec{
+					plan.DefaultYieldName: {ID: plan.ProcedureIDFromOperationID("join")},
+				},
+			},
+			want: map[string][]*executetest.Table{
+				plan.DefaultYieldName: []*executetest.Table{
+					{
+						KeyCols: []string{"_key", "_start", "_stop"},
+						ColMeta: []query.ColMeta{
+							{Label: "_key", Type: query.TString},
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "count__time", Type: query.TTime},
+							{Label: "count__value", Type: query.TInt},
+							{Label: "sum__time", Type: query.TTime},
+							{Label: "sum__value", Type: query.TInt},
+						},
+						Data: [][]interface{}{
+							{"a", execute.Time(0), execute.Time(5), execute.Time(5), int64(1), execute.Time(5), int64(1)},
+						},
+					},
+					{
+						KeyCols: []string{"_key", "_start", "_stop"},
+						ColMeta: []query.ColMeta{
+							{Label: "_key", Type: query.TString},
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "count__time", Type: query.TTime},
+							{Label: "count__value", Type: query.TInt},
+							{Label: "sum__time", Type: query.TTime},
+							{Label: "sum__value", Type: query.TInt},
+						},
+						Data: [][]interface{}{
+							{"b", execute.Time(0), execute.Time(5), execute.Time(5), int64(1), execute.Time(5), int64(2)},
+						},
+					},
+					{
+						KeyCols: []string{"_key", "_start", "_stop"},
+						ColMeta: []query.ColMeta{
+							{Label: "_key", Type: query.TString},
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "count__time", Type: query.TTime},
+							{Label: "count__value", Type: query.TInt},
+							{Label: "sum__time", Type: query.TTime},
+							{Label: "sum__value", Type: query.TInt},
+						},
+						Data: [][]interface{}{
+							{"c", execute.Time(0), execute.Time(5), execute.Time(5), int64(1), execute.Time(5), int64(3)},
+						},
+					},
+					{
+						KeyCols: []string{"_key", "_start", "_stop"},
+						ColMeta: []query.ColMeta{
+							{Label: "_key", Type: query.TString},
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "count__time", Type: query.TTime},
+							{Label: "count__value", Type: query.TInt},
+							{Label: "sum__time", Type: query.TTime},
+							{Label: "sum__value", Type: query.TInt},
+						},
+						Data: [][]interface{}{
+							{"d", execute.Time(0), execute.Time(5), execute.Time(5), int64(1), execute.Time(5), int64(4)},
+						},
+					},
+					{
+						KeyCols: []string{"_key", "_start", "_stop"},
+						ColMeta: []query.ColMeta{
+							{Label: "_key", Type: query.TString},
+							{Label: "_start", Type: query.TTime},
+							{Label: "_stop", Type: query.TTime},
+							{Label: "count__time", Type: query.TTime},
+							{Label: "count__value", Type: query.TInt},
+							{Label: "sum__time", Type: query.TTime},
+							{Label: "sum__value", Type: query.TInt},
+						},
+						Data: [][]interface{}{
+							{"e", execute.Time(0), execute.Time(5), execute.Time(5), int64(1), execute.Time(5), int64(5)},
+						},
+					},
+				},
 			},
 		},
 		{

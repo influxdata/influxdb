@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/influxdata/platform/query"
-	"github.com/influxdata/platform/query/compiler"
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/interpreter"
 	"github.com/influxdata/platform/query/plan"
@@ -19,17 +18,21 @@ import (
 const JoinKind = "join"
 const MergeJoinKind = "merge-join"
 
+// All supported join types in Flux
+var methods map[string]bool = map[string]bool{
+	"inner": true,
+}
+
 type JoinOpSpec struct {
 	// On is a list of tags on which to join.
 	On []string `json:"on"`
-	// Fn is a function accepting a single parameter.
-	// The parameter is map if records for each of the parent operations.
-	Fn *semantic.FunctionExpression `json:"fn"`
 	// TableNames are the names to give to each parent when populating the parameter for the function.
 	// The first parent is referenced by the first name and so forth.
 	// TODO(nathanielc): Change this to a map of parent operation IDs to names.
 	// Then make it possible for the transformation to map operation IDs to parent IDs.
 	TableNames map[query.OperationID]string `json:"table_names"`
+	// Method is a the type of join to perform
+	Method string `json:"method"`
 	// tableNames maps each TableObject being joined to the parameter that holds it.
 	tableNames map[*query.TableObject]string
 }
@@ -70,8 +73,8 @@ func (params *joinParams) Less(i, j int) bool {
 var joinSignature = semantic.FunctionSignature{
 	Params: map[string]semantic.Type{
 		"tables": semantic.Object,
-		"fn":     semantic.Function,
 		"on":     semantic.NewArrayType(semantic.String),
+		"method": semantic.String,
 	},
 	ReturnType:   query.TableObjectType,
 	PipeArgument: "tables",
@@ -86,20 +89,14 @@ func init() {
 }
 
 func createJoinOpSpec(args query.Arguments, a *query.Administration) (query.OperationSpec, error) {
-	f, err := args.GetRequiredFunction("fn")
-	if err != nil {
-		return nil, err
-	}
-	fn, err := interpreter.ResolveFunction(f)
-	if err != nil {
-		return nil, err
-	}
 	spec := &JoinOpSpec{
-		Fn:         fn,
 		TableNames: make(map[query.OperationID]string),
 		tableNames: make(map[*query.TableObject]string),
 	}
 
+	// On specifies the columns to join on. If 'on' is not present in the arguments
+	// to join, the default value will be set when the join tables are processed.
+	// Specifically when the schema of the output table is able to be constructed.
 	if array, ok, err := args.GetArray("on", semantic.String); err != nil {
 		return nil, err
 	} else if ok {
@@ -109,36 +106,54 @@ func createJoinOpSpec(args query.Arguments, a *query.Administration) (query.Oper
 		}
 	}
 
-	if m, ok, err := args.GetObject("tables"); err != nil {
+	// Method is an optional parameter that when not specified defaults to
+	// the inner join type.
+	if joinType, ok, err := args.GetString("method"); err != nil {
 		return nil, err
-	} else if ok {
-		var err error
-		joinParams := newJoinParams(m.Len())
-		m.Range(func(k string, t values.Value) {
-			if err != nil {
-				return
-			}
-			if t.Type().Kind() != semantic.Object {
-				err = fmt.Errorf("value for key %q in tables must be an object: got %v", k, t.Type().Kind())
-				return
-			}
-			if t.Type() != query.TableObjectType {
-				err = fmt.Errorf("value for key %q in tables must be an table object: got %v", k, t.Type())
-				return
-			}
-			p := t.(*query.TableObject)
-			joinParams.add(k, p)
-			spec.tableNames[p] = k
-		})
+	} else if ok && !methods[joinType] {
+		return nil, fmt.Errorf("%s is not a valid join type", joinType)
+	} else if ok && methods[joinType] {
+		spec.Method = joinType
+	} else {
+		spec.Method = "inner"
+	}
+
+	// It is not valid to specify a list of 'on' columns for a cross product
+	if spec.Method == "cross" && spec.On != nil {
+		return nil, errors.New("cross product and 'on' are mutually exclusive")
+	}
+
+	tables, err := args.GetRequiredObject("tables")
+	if err != nil {
+		return nil, err
+	}
+
+	joinParams := newJoinParams(tables.Len())
+	tables.Range(func(k string, t values.Value) {
 		if err != nil {
-			return nil, err
+			return
 		}
-		// Add parents in a consistent manner by sorting
-		// based on their corresponding function parameter.
-		sort.Sort(joinParams)
-		for _, p := range joinParams.vals {
-			a.AddParent(p)
+		if t.Type().Kind() != semantic.Object {
+			err = fmt.Errorf("value for key %q in tables must be an object: got %v", k, t.Type().Kind())
+			return
 		}
+		if t.Type() != query.TableObjectType {
+			err = fmt.Errorf("value for key %q in tables must be an table object: got %v", k, t.Type())
+			return
+		}
+		p := t.(*query.TableObject)
+		joinParams.add(k, p)
+		spec.tableNames[p] = k
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Add parents in a consistent manner by sorting
+	// based on their corresponding function parameter.
+	sort.Sort(joinParams)
+	for _, p := range joinParams.vals {
+		a.AddParent(p)
 	}
 
 	return spec, nil
@@ -159,9 +174,8 @@ func (s *JoinOpSpec) Kind() query.OperationKind {
 }
 
 type MergeJoinProcedureSpec struct {
-	On         []string                     `json:"keys"`
-	Fn         *semantic.FunctionExpression `json:"f"`
-	TableNames map[plan.ProcedureID]string  `json:"table_names"`
+	On         []string                    `json:"keys"`
+	TableNames map[plan.ProcedureID]string `json:"table_names"`
 }
 
 func newMergeJoinProcedure(qs query.OperationSpec, pa plan.Administration) (plan.ProcedureSpec, error) {
@@ -178,7 +192,6 @@ func newMergeJoinProcedure(qs query.OperationSpec, pa plan.Administration) (plan
 
 	p := &MergeJoinProcedureSpec{
 		On:         spec.On,
-		Fn:         spec.Fn,
 		TableNames: tableNames,
 	}
 	sort.Strings(p.On)
@@ -193,8 +206,6 @@ func (s *MergeJoinProcedureSpec) Copy() plan.ProcedureSpec {
 
 	ns.On = make([]string, len(s.On))
 	copy(ns.On, s.On)
-
-	ns.Fn = s.Fn.Copy().(*semantic.FunctionExpression)
 
 	return ns
 }
@@ -222,14 +233,8 @@ func createMergeJoinTransformation(id execute.DatasetID, mode execute.Accumulati
 		id := a.ConvertID(pid)
 		tableNames[id] = name
 	}
-	leftName := tableNames[parents[0]]
-	rightName := tableNames[parents[1]]
 
-	joinFn, err := NewRowJoinFunction(s.Fn, parents, tableNames)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "invalid expression")
-	}
-	cache := NewMergeJoinCache(joinFn, a.Allocator(), leftName, rightName, s.On)
+	cache := NewMergeJoinCache(a.Allocator(), parents, tableNames, s.On)
 	d := execute.NewDataset(id, mode, cache)
 	t := NewMergeJoinTransformation(d, cache, s, parents, tableNames)
 	return t, d, nil
@@ -241,7 +246,7 @@ type mergeJoinTransformation struct {
 	mu sync.Mutex
 
 	d     execute.Dataset
-	cache MergeJoinCache
+	cache *MergeJoinCache
 
 	leftID, rightID     execute.DatasetID
 	leftName, rightName string
@@ -251,7 +256,7 @@ type mergeJoinTransformation struct {
 	keys []string
 }
 
-func NewMergeJoinTransformation(d execute.Dataset, cache MergeJoinCache, spec *MergeJoinProcedureSpec, parents []execute.DatasetID, tableNames map[execute.DatasetID]string) *mergeJoinTransformation {
+func NewMergeJoinTransformation(d execute.Dataset, cache *MergeJoinCache, spec *MergeJoinProcedureSpec, parents []execute.DatasetID, tableNames map[execute.DatasetID]string) *mergeJoinTransformation {
 	t := &mergeJoinTransformation{
 		d:         d,
 		cache:     cache,
@@ -278,60 +283,23 @@ func (t *mergeJoinTransformation) RetractTable(id execute.DatasetID, key query.G
 	panic("not implemented")
 }
 
+// Process processes a table from an incoming data stream.
+// It adds the table to an internal buffer and stores any output
+// group keys that can be constructed as a result of the new addition.
 func (t *mergeJoinTransformation) Process(id execute.DatasetID, tbl query.Table) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	tables := t.cache.Tables(tbl.Key())
+	t.cache.insertIntoBuffer(id, tbl)
 
-	var references []string
-	var table execute.TableBuilder
-	switch id {
-	case t.leftID:
-		table = tables.left
-		references = tables.joinFn.references[t.leftName]
-	case t.rightID:
-		table = tables.right
-		references = tables.joinFn.references[t.rightName]
+	// Check if enough data sources have been seen to produce an output schema
+	if !t.cache.isBufferEmpty(t.leftID) && !t.cache.isBufferEmpty(t.rightID) && !t.cache.postJoinSchemaBuilt() {
+		t.cache.buildPostJoinSchema()
 	}
 
-	// Add columns to table
-	labels := unionStrs(t.keys, references)
-	colMap := make([]int, len(labels))
-	for _, label := range labels {
-		tableIdx := execute.ColIdx(label, tbl.Cols())
-		if tableIdx < 0 {
-			return fmt.Errorf("no column %q exists", label)
-		}
-		// Only add the column if it does not already exist
-		builderIdx := execute.ColIdx(label, table.Cols())
-		if builderIdx < 0 {
-			c := tbl.Cols()[tableIdx]
-			builderIdx = table.AddCol(c)
-		}
-		colMap[builderIdx] = tableIdx
-	}
-
-	execute.AppendTable(tbl, table, colMap)
+	// Register any new output group keys that can be constructed from the new table
+	t.cache.registerKey(id, tbl.Key())
 	return nil
-}
-
-func unionStrs(as, bs []string) []string {
-	u := make([]string, len(bs), len(as)+len(bs))
-	copy(u, bs)
-	for _, a := range as {
-		found := false
-		for _, b := range bs {
-			if a == b {
-				found = true
-				break
-			}
-		}
-		if !found {
-			u = append(u, a)
-		}
-	}
-	return u
 }
 
 func (t *mergeJoinTransformation) UpdateWatermark(id execute.DatasetID, mark execute.Time) error {
@@ -382,230 +350,607 @@ func (t *mergeJoinTransformation) Finish(id execute.DatasetID, err error) {
 	}
 }
 
-type MergeJoinCache interface {
-	Tables(query.GroupKey) *joinTables
-}
+// MergeJoinCache implements execute.DataCache
+// This is where the all the tables to be joined are stored.
+//
+// buffers:         Buffers to hold the tables for each incoming stream.
+//
+// postJoinKeys:    The post-join group keys for all joined tables.
+//                  These group keys are constructed and stored as soon
+//                  as a table is consumed by the join operator, but prior
+//                  to actually joining the data.
+//
+// reverseLookup:   Each output group key that is stored is mapped to its
+//                  corresponding pre-join group keys. These pre-join group
+//                  keys are then used to retrieve their correspoinding
+//                  tables from the buffers.
+//
+// tables:          All output tables are materialized and stored in this
+//                  map before being sent to downstream operators.
+type MergeJoinCache struct {
+	leftID  execute.DatasetID
+	rightID execute.DatasetID
 
-type mergeJoinCache struct {
-	data  *execute.GroupLookup
-	alloc *execute.Allocator
+	names   map[execute.DatasetID]string
+	schemas map[execute.DatasetID]schema
+	buffers map[execute.DatasetID]*streamBuffer
 
-	keys []string
-	on   map[string]bool
+	on           map[string]bool
+	intersection map[string]bool
 
-	leftName, rightName string
+	schema    schema
+	colIndex  map[query.ColMeta]int
+	schemaMap map[tableCol]query.ColMeta
 
+	postJoinKeys  *execute.GroupLookup
+	reverseLookup map[query.GroupKey]preJoinGroupKeys
+
+	tables      map[query.GroupKey]query.Table
+	alloc       *execute.Allocator
 	triggerSpec query.TriggerSpec
-
-	joinFn *joinFunc
 }
 
-func NewMergeJoinCache(joinFn *joinFunc, a *execute.Allocator, leftName, rightName string, keys []string) *mergeJoinCache {
-	on := make(map[string]bool, len(keys))
-	for _, k := range keys {
+type streamBuffer struct {
+	data     map[query.GroupKey]*execute.ColListTableBuilder
+	consumed map[values.Value]int
+	ready    map[values.Value]bool
+	stale    map[query.GroupKey]bool
+	last     values.Value
+	alloc    *execute.Allocator
+}
+
+func newStreamBuffer(alloc *execute.Allocator) *streamBuffer {
+	return &streamBuffer{
+		data:     make(map[query.GroupKey]*execute.ColListTableBuilder),
+		consumed: make(map[values.Value]int),
+		ready:    make(map[values.Value]bool),
+		stale:    make(map[query.GroupKey]bool),
+		alloc:    alloc,
+	}
+}
+
+func (buf *streamBuffer) table(key query.GroupKey) *execute.ColListTableBuilder {
+	return buf.data[key]
+}
+
+func (buf *streamBuffer) insert(table query.Table) {
+	// Construct a new table builder with same schema as input table
+	builder := execute.NewColListTableBuilder(table.Key(), buf.alloc)
+	execute.AddTableCols(table, builder)
+
+	builderColumnsToTableColumns := make([]int, len(builder.Cols()))
+	for i := range builder.Cols() {
+		builderColumnsToTableColumns[i] = i
+	}
+
+	// Append the input table to this builder
+	execute.AppendTable(table, builder, builderColumnsToTableColumns)
+
+	// Insert this table into the buffer
+	buf.data[table.Key()] = builder
+
+	if len(table.Key().Cols()) > 0 {
+		leftKeyValue := table.Key().Value(0)
+
+		tablesConsumed := buf.consumed[leftKeyValue]
+		buf.consumed[leftKeyValue] = tablesConsumed + 1
+
+		if buf.last == nil {
+			buf.last = leftKeyValue
+		}
+
+		if !buf.last.Equal(leftKeyValue) {
+			buf.ready[buf.last] = true
+			buf.last = leftKeyValue
+		}
+	}
+}
+
+func (buf *streamBuffer) expire(key query.GroupKey) {
+	if !buf.stale[key] && len(key.Cols()) > 0 {
+		leftKeyValue := key.Value(0)
+		consumedTables := buf.consumed[leftKeyValue]
+		buf.consumed[leftKeyValue] = consumedTables - 1
+		buf.stale[key] = true
+	}
+}
+
+func (buf *streamBuffer) evict(key query.GroupKey) {
+	if builder, ok := buf.data[key]; ok {
+		builder.ClearData()
+		delete(buf.data, key)
+	}
+}
+
+func (buf *streamBuffer) clear(f func(query.GroupKey) bool) {
+	for key := range buf.stale {
+		if f(key) {
+			buf.evict(key)
+			delete(buf.stale, key)
+		}
+	}
+}
+
+func (buf *streamBuffer) iterate(f func(query.GroupKey)) {
+	for key := range buf.data {
+		f(key)
+	}
+}
+
+type tableCol struct {
+	table, col string
+}
+
+type preJoinGroupKeys struct {
+	left, right query.GroupKey
+}
+
+type schema struct {
+	key     []query.ColMeta
+	columns []query.ColMeta
+}
+
+func (s schema) Len() int {
+	return len(s.columns)
+
+}
+func (s schema) Less(i int, j int) bool {
+	return s.columns[i].Label < s.columns[j].Label
+}
+
+func (s schema) Swap(i int, j int) {
+	s.columns[i], s.columns[j] = s.columns[j], s.columns[i]
+}
+
+// NewMergeJoinCache constructs a new instance of a MergeJoinCache
+func NewMergeJoinCache(alloc *execute.Allocator, datasetIDs []execute.DatasetID, tableNames map[execute.DatasetID]string, key []string) *MergeJoinCache {
+	// Join currently only accepts two data sources(streams) as input
+	if len(datasetIDs) != 2 {
+		panic("Join only accepts two data sources")
+	}
+
+	names := make(map[execute.DatasetID]string, len(datasetIDs))
+	schemas := make(map[execute.DatasetID]schema, len(datasetIDs))
+	buffers := make(map[execute.DatasetID]*streamBuffer, len(datasetIDs))
+
+	for _, datasetID := range datasetIDs {
+		names[datasetID] = tableNames[datasetID]
+		buffers[datasetID] = newStreamBuffer(alloc)
+	}
+
+	on := make(map[string]bool, len(key))
+	intersection := make(map[string]bool, len(key))
+
+	for _, k := range key {
 		on[k] = true
+		intersection[k] = true
 	}
-	return &mergeJoinCache{
-		data:      execute.NewGroupLookup(),
-		keys:      keys,
-		on:        on,
-		joinFn:    joinFn,
-		alloc:     a,
-		leftName:  leftName,
-		rightName: rightName,
+
+	return &MergeJoinCache{
+		on:            on,
+		intersection:  intersection,
+		leftID:        datasetIDs[0],
+		rightID:       datasetIDs[1],
+		names:         names,
+		schemas:       schemas,
+		buffers:       buffers,
+		reverseLookup: make(map[query.GroupKey]preJoinGroupKeys),
+		postJoinKeys:  execute.NewGroupLookup(),
+		tables:        make(map[query.GroupKey]query.Table),
+		alloc:         alloc,
 	}
 }
 
-func (c *mergeJoinCache) Table(key query.GroupKey) (query.Table, error) {
-	t, ok := c.lookup(key)
+// Table joins the two tables associated with a single output group key and returns the resulting table
+func (c *MergeJoinCache) Table(key query.GroupKey) (query.Table, error) {
+	preJoinGroupKeys, ok := c.reverseLookup[key]
+
 	if !ok {
-		return nil, errors.New("table not found")
+		return nil, fmt.Errorf("No table exists with group key: %v", key)
 	}
-	return t.Join()
+
+	if _, ok := c.tables[key]; !ok {
+
+		left := c.buffers[c.leftID].table(preJoinGroupKeys.left)
+		if left == nil {
+			return nil, fmt.Errorf("No table in left join buffer with key: %v", key)
+		}
+
+		right := c.buffers[c.rightID].table(preJoinGroupKeys.right)
+		if left == nil {
+			return nil, fmt.Errorf("No table in right join buffer with key: %v", key)
+		}
+
+		table, err := c.join(left, right)
+		if err != nil {
+			return nil, fmt.Errorf("Table with group key (%v) could not be fetched", key)
+		}
+
+		c.tables[key] = table
+	}
+	return c.tables[key], nil
 }
 
-func (c *mergeJoinCache) ForEach(f func(query.GroupKey)) {
-	c.data.Range(func(key query.GroupKey, value interface{}) {
+// ForEach iterates over each table in the output stream
+func (c *MergeJoinCache) ForEach(f func(query.GroupKey)) {
+	c.postJoinKeys.Range(func(key query.GroupKey, value interface{}) {
+
+		if _, ok := c.tables[key]; !ok {
+
+			preJoinGroupKeys := c.reverseLookup[key]
+
+			leftKey := preJoinGroupKeys.left
+			rightKey := preJoinGroupKeys.right
+
+			leftBuilder := c.buffers[c.leftID].table(leftKey)
+			rightBuilder := c.buffers[c.rightID].table(rightKey)
+
+			table, err := c.join(leftBuilder, rightBuilder)
+			if err != nil || table.Empty() {
+				c.DiscardTable(key)
+				return
+			}
+
+			c.tables[key] = table
+		}
 		f(key)
 	})
 }
 
-func (c *mergeJoinCache) ForEachWithContext(f func(query.GroupKey, execute.Trigger, execute.TableContext)) {
-	c.data.Range(func(key query.GroupKey, value interface{}) {
-		tables := value.(*joinTables)
-		bc := execute.TableContext{
-			Key:   key,
-			Count: tables.Size(),
+// ForEachWithContext iterates over each table in the output stream
+func (c *MergeJoinCache) ForEachWithContext(f func(query.GroupKey, execute.Trigger, execute.TableContext)) {
+	trigger := execute.NewTriggerFromSpec(c.triggerSpec)
+
+	c.postJoinKeys.Range(func(key query.GroupKey, value interface{}) {
+
+		preJoinGroupKeys := c.reverseLookup[key]
+
+		leftKey := preJoinGroupKeys.left
+		rightKey := preJoinGroupKeys.right
+
+		leftBuilder := c.buffers[c.leftID].table(leftKey)
+		rightBuilder := c.buffers[c.rightID].table(rightKey)
+
+		if _, ok := c.tables[key]; !ok {
+
+			table, err := c.join(leftBuilder, rightBuilder)
+
+			if err != nil || table.Empty() {
+				c.DiscardTable(key)
+				return
+			}
+
+			c.tables[key] = table
 		}
-		f(key, tables.trigger, bc)
+
+		leftsize := leftBuilder.NRows()
+		rightsize := rightBuilder.NRows()
+
+		ctx := execute.TableContext{
+			Key:   key,
+			Count: leftsize + rightsize,
+		}
+
+		f(key, trigger, ctx)
 	})
 }
 
-func (c *mergeJoinCache) DiscardTable(key query.GroupKey) {
-	t, ok := c.lookup(key)
-	if ok {
-		t.ClearData()
+// DiscardTable removes a table from the output buffer
+func (c *MergeJoinCache) DiscardTable(key query.GroupKey) {
+	delete(c.tables, key)
+}
+
+// ExpireTable removes the a key from the set of postJoinKeys.
+// ExpireTable will be called after the table associated with key has already
+// been materialized. As a result, it cannot not be materialized again. Each
+// buffer is cleared of any stale data that arises as a result of this process.
+func (c *MergeJoinCache) ExpireTable(key query.GroupKey) {
+	// Remove this group key from the cache
+	c.postJoinKeys.Delete(key)
+	delete(c.tables, key)
+
+	// Clear any stale data
+	preJoinGroupKeys := c.reverseLookup[key]
+
+	leftBuffer := c.buffers[c.leftID]
+	rightBuffer := c.buffers[c.rightID]
+
+	leftBuffer.expire(preJoinGroupKeys.left)
+	rightBuffer.expire(preJoinGroupKeys.right)
+
+	if c.canEvictTables() {
+
+		leftBuffer.clear(func(key query.GroupKey) bool {
+			return rightBuffer.ready[key.Value(0)] &&
+				rightBuffer.consumed[key.Value(0)] == 0
+		})
+
+		rightBuffer.clear(func(key query.GroupKey) bool {
+			return leftBuffer.ready[key.Value(0)] &&
+				leftBuffer.consumed[key.Value(0)] == 0
+		})
 	}
 }
 
-func (c *mergeJoinCache) ExpireTable(key query.GroupKey) {
-	v, ok := c.data.Delete(key)
-	if ok {
-		v.(*joinTables).ClearData()
-	}
-}
-
-func (c *mergeJoinCache) SetTriggerSpec(spec query.TriggerSpec) {
+// SetTriggerSpec sets the trigger rule for this cache
+func (c *MergeJoinCache) SetTriggerSpec(spec query.TriggerSpec) {
 	c.triggerSpec = spec
 }
 
-func (c *mergeJoinCache) lookup(key query.GroupKey) (*joinTables, bool) {
-	v, ok := c.data.Lookup(key)
-	if !ok {
-		return nil, false
-	}
-	return v.(*joinTables), true
+// Currently tables are the smallest unit of data that can be evicted from the join's internal
+// buffers. This is the rule that specifies whether a data cache can early evict tables.
+func (c *MergeJoinCache) canEvictTables() bool {
+	leftKey := c.schemas[c.leftID].key
+	rightKey := c.schemas[c.rightID].key
+	return len(leftKey) > 0 && len(rightKey) > 0 &&
+		leftKey[0].Label == rightKey[0].Label && c.on[leftKey[0].Label]
 }
 
-func (c *mergeJoinCache) Tables(key query.GroupKey) *joinTables {
-	tables, ok := c.lookup(key)
-	if !ok {
-		tables = &joinTables{
-			keys:      c.keys,
-			key:       key,
-			on:        c.on,
-			alloc:     c.alloc,
-			left:      execute.NewColListTableBuilder(key, c.alloc),
-			right:     execute.NewColListTableBuilder(key, c.alloc),
-			leftName:  c.leftName,
-			rightName: c.rightName,
-			trigger:   execute.NewTriggerFromSpec(c.triggerSpec),
-			joinFn:    c.joinFn,
+// insertIntoBuffer adds the rows of an incoming table to one of the Join's internal buffers
+func (c *MergeJoinCache) insertIntoBuffer(id execute.DatasetID, tbl query.Table) {
+	// Initialize schema if tbl is first from its stream
+	if _, ok := c.schemas[id]; !ok {
+
+		c.schemas[id] = schema{
+			key:     make([]query.ColMeta, len(tbl.Key().Cols())),
+			columns: make([]query.ColMeta, len(tbl.Cols())),
 		}
-		c.data.Set(key, tables)
+
+		for j, column := range tbl.Cols() {
+			c.schemas[id].columns[j] = column
+		}
+
+		intersection := make(map[string]bool, len(c.intersection))
+
+		for j, column := range tbl.Key().Cols() {
+			c.schemas[id].key[j] = column
+
+			if c.intersection[column.Label] {
+				intersection[column.Label] = true
+			}
+		}
+
+		c.intersection = intersection
 	}
-	return tables
+	c.buffers[id].insert(tbl)
 }
 
-type joinTables struct {
-	keys []string
-	on   map[string]bool
-	key  query.GroupKey
+// registerKey takes a group key from the input stream associated with id and joins
+// it with all other group keys from the opposing input stream. If it is determined
+// that two group keys will not join (due to having different values on a join column)
+// they are skipped.
+func (c *MergeJoinCache) registerKey(id execute.DatasetID, key query.GroupKey) {
+	var empty struct{}
+	switch id {
 
-	alloc *execute.Allocator
+	case c.leftID:
 
-	left, right         *execute.ColListTableBuilder
-	leftName, rightName string
+		c.buffers[c.rightID].iterate(func(groupKey query.GroupKey) {
 
-	trigger execute.Trigger
+			keys := map[execute.DatasetID]query.GroupKey{
+				c.leftID:  key,
+				c.rightID: groupKey,
+			}
 
-	joinFn *joinFunc
-}
-
-func (t *joinTables) Size() int {
-	return t.left.NRows() + t.right.NRows()
-}
-
-func (t *joinTables) ClearData() {
-	t.left = execute.NewColListTableBuilder(t.key, t.alloc)
-	t.right = execute.NewColListTableBuilder(t.key, t.alloc)
-}
-
-// Join performs a sort-merge join
-func (t *joinTables) Join() (query.Table, error) {
-	// First prepare the join function
-	left := t.left.RawTable()
-	right := t.right.RawTable()
-	err := t.joinFn.Prepare(map[string]*execute.ColListTable{
-		t.leftName:  left,
-		t.rightName: right,
-	})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to prepare join function")
-	}
-	// Create a builder for the result of the join
-	builder := execute.NewColListTableBuilder(t.key, t.alloc)
-
-	// Add columns from function in sorted order
-	properties := t.joinFn.Type().Properties()
-	keys := make([]string, 0, len(properties))
-	for k := range properties {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		builder.AddCol(query.ColMeta{
-			Label: k,
-			Type:  execute.ConvertFromKind(properties[k].Kind()),
-		})
-	}
-
-	// Now that all columns have been added, keep a reference.
-	bCols := builder.Cols()
-
-	// Determine sort order for the joining tables
-	sortOrder := make([]string, len(t.keys))
-	for i, label := range t.keys {
-		sortOrder[i] = label
-	}
-	// Sort input tables
-	t.left.Sort(sortOrder, false)
-	t.right.Sort(sortOrder, false)
-
-	var (
-		leftSet, rightSet subset
-		leftKey, rightKey query.GroupKey
-	)
-
-	rows := map[string]int{
-		t.leftName:  -1,
-		t.rightName: -1,
-	}
-
-	leftSet, leftKey = t.advance(leftSet.Stop, left)
-	rightSet, rightKey = t.advance(rightSet.Stop, right)
-	for !leftSet.Empty() && !rightSet.Empty() {
-		if leftKey.Equal(rightKey) {
-			// Inner join
-			for l := leftSet.Start; l < leftSet.Stop; l++ {
-				for r := rightSet.Start; r < rightSet.Stop; r++ {
-					// Evaluate expression and add to table
-					rows[t.leftName] = l
-					rows[t.rightName] = r
-					m, err := t.joinFn.Eval(rows)
-					if err != nil {
-						return nil, errors.Wrap(err, "failed to evaluate join function")
-					}
-					for j, c := range bCols {
-						v, _ := m.Get(c.Label)
-						execute.AppendValue(builder, j, v)
-					}
+			for k := range c.intersection {
+				if !key.LabelValue(k).Equal(groupKey.LabelValue(k)) {
+					return
 				}
 			}
-			leftSet, leftKey = t.advance(leftSet.Stop, left)
-			rightSet, rightKey = t.advance(rightSet.Stop, right)
-		} else if leftKey.Less(rightKey) {
-			leftSet, leftKey = t.advance(leftSet.Stop, left)
-		} else {
-			rightSet, rightKey = t.advance(rightSet.Stop, right)
+
+			outputGroupKey := c.postJoinGroupKey(keys)
+			c.postJoinKeys.Set(outputGroupKey, empty)
+
+			c.reverseLookup[outputGroupKey] = preJoinGroupKeys{
+				left:  key,
+				right: groupKey,
+			}
+		})
+
+	case c.rightID:
+
+		c.buffers[c.leftID].iterate(func(groupKey query.GroupKey) {
+
+			keys := map[execute.DatasetID]query.GroupKey{
+				c.leftID:  groupKey,
+				c.rightID: key,
+			}
+
+			for k := range c.intersection {
+				if !key.LabelValue(k).Equal(groupKey.LabelValue(k)) {
+					return
+				}
+			}
+
+			outputGroupKey := c.postJoinGroupKey(keys)
+			c.postJoinKeys.Set(outputGroupKey, empty)
+
+			c.reverseLookup[outputGroupKey] = preJoinGroupKeys{
+				left:  groupKey,
+				right: key,
+			}
+		})
+	}
+}
+
+func (c *MergeJoinCache) isBufferEmpty(id execute.DatasetID) bool {
+	return len(c.buffers[id].data) == 0
+}
+
+func (c *MergeJoinCache) postJoinSchemaBuilt() bool {
+	return c.schemaMap != nil
+}
+
+func (c *MergeJoinCache) buildPostJoinSchema() {
+	left := c.schemas[c.leftID].columns
+	right := c.schemas[c.rightID].columns
+
+	// Find column names shared between the two tables
+	shared := make(map[string]bool, len(left))
+	for _, leftColumn := range left {
+		for _, rightColumn := range right {
+
+			if leftColumn.Label == rightColumn.Label {
+				shared[leftColumn.Label] = true
+				break
+			}
 		}
 	}
+
+	if len(c.on) == 0 {
+		c.on = shared
+	}
+
+	ncols := len(left) + len(right)
+
+	c.schema = schema{
+		columns: make([]query.ColMeta, 0, ncols-len(c.on)),
+		key:     make([]query.ColMeta, 0, ncols-len(c.on)),
+	}
+
+	c.colIndex = make(map[query.ColMeta]int, ncols-len(c.on))
+	c.schemaMap = make(map[tableCol]query.ColMeta, ncols)
+	added := make(map[string]bool, ncols-len(c.on))
+
+	// Build schema for output table
+	addColumnsToSchema(c.names[c.leftID], left, added, shared, c.on, &c.schema, c.schemaMap)
+	addColumnsToSchema(c.names[c.rightID], right, added, shared, c.on, &c.schema, c.schemaMap)
+
+	// Give schema an order
+	sort.Sort(c.schema)
+	for j, column := range c.schema.columns {
+		c.colIndex[column] = j
+	}
+}
+
+func (c *MergeJoinCache) join(left, right *execute.ColListTableBuilder) (query.Table, error) {
+	// Determine sort order for the joining tables
+	on := make([]string, len(c.on))
+
+	for k := range c.on {
+		on = append(on, k)
+	}
+
+	// Sort input tables
+	left.Sort(on, false)
+	right.Sort(on, false)
+
+	var leftSet, rightSet subset
+	var leftKey, rightKey query.GroupKey
+
+	leftTable, rightTable := left.RawTable(), right.RawTable()
+	leftSet, leftKey = c.advance(leftSet.Stop, leftTable)
+	rightSet, rightKey = c.advance(rightSet.Stop, rightTable)
+
+	keys := map[execute.DatasetID]query.GroupKey{
+		c.leftID:  left.Key(),
+		c.rightID: right.Key(),
+	}
+
+	// Instantiate a builder for the output table
+	groupKey := c.postJoinGroupKey(keys)
+	builder := execute.NewColListTableBuilder(groupKey, c.alloc)
+
+	for _, column := range c.schema.columns {
+		builder.AddCol(column)
+	}
+
+	// Perform sort merge join
+	for !leftSet.Empty() && !rightSet.Empty() {
+		if leftKey.Equal(rightKey) {
+
+			for l := leftSet.Start; l < leftSet.Stop; l++ {
+				for r := rightSet.Start; r < rightSet.Stop; r++ {
+
+					leftRecord := leftTable.GetRow(l)
+					rightRecord := rightTable.GetRow(r)
+
+					leftRecord.Range(func(columnName string, columnVal values.Value) {
+						column := tableCol{
+							table: c.names[c.leftID],
+							col:   columnName,
+						}
+						newColumn := c.schemaMap[column]
+						newColumnIdx := c.colIndex[newColumn]
+						execute.AppendValue(builder, newColumnIdx, columnVal)
+					})
+
+					rightRecord.Range(func(columnName string, columnVal values.Value) {
+						column := tableCol{
+							table: c.names[c.rightID],
+							col:   columnName,
+						}
+						newColumn := c.schemaMap[column]
+						newColumnIdx := c.colIndex[newColumn]
+
+						// No need to append value if column is part of the join key.
+						// Because value already appended when iterating over left record.
+						if !c.on[newColumn.Label] {
+							execute.AppendValue(builder, newColumnIdx, columnVal)
+						}
+					})
+				}
+			}
+			leftSet, leftKey = c.advance(leftSet.Stop, leftTable)
+			rightSet, rightKey = c.advance(rightSet.Stop, rightTable)
+		} else if leftKey.Less(rightKey) {
+			leftSet, leftKey = c.advance(leftSet.Stop, leftTable)
+		} else {
+			rightSet, rightKey = c.advance(rightSet.Stop, rightTable)
+		}
+	}
+
 	return builder.Table()
 }
 
-func (t *joinTables) advance(offset int, table *execute.ColListTable) (subset, query.GroupKey) {
-	if n := table.NRows(); n == offset {
+// postJoinGroupKey produces a new group key value from a left and a right group key value
+func (c *MergeJoinCache) postJoinGroupKey(keys map[execute.DatasetID]query.GroupKey) query.GroupKey {
+	key := groupKey{
+		cols: make([]query.ColMeta, 0, len(keys)*5),
+		vals: make([]values.Value, 0, len(keys)*5),
+	}
+
+	added := make(map[string]bool, len(keys)*5)
+
+	for id, groupKey := range keys {
+		for j, column := range groupKey.Cols() {
+
+			tableAndColumn := tableCol{
+				table: c.names[id],
+				col:   column.Label,
+			}
+
+			colMeta := c.schemaMap[tableAndColumn]
+
+			if !added[colMeta.Label] {
+				key.cols = append(key.cols, colMeta)
+				key.vals = append(key.vals, groupKey.Value(j))
+			}
+
+			added[colMeta.Label] = true
+		}
+	}
+
+	// Table columns are always sorted so need
+	// to sort the group key for consistency
+	sort.Sort(key)
+	return execute.NewGroupKey(key.cols, key.vals)
+}
+
+// advance advances the row pointer of a sorted table that is being joined
+func (c *MergeJoinCache) advance(offset int, table query.ColReader) (subset, query.GroupKey) {
+	if n := table.Len(); n == offset {
 		return subset{Start: n, Stop: n}, nil
 	}
 	start := offset
-	key := execute.GroupKeyForRowOn(start, table, t.on)
-	s := subset{Start: start}
+	key := execute.GroupKeyForRowOn(start, table, c.on)
+	sequence := subset{Start: start}
 	offset++
-	for offset < table.NRows() && equalRowKeys(start, offset, table, t.on) {
+	for offset < table.Len() && equalRowKeys(start, offset, table, c.on) {
 		offset++
 	}
-	s.Stop = offset
-	return s, key
+	sequence.Stop = offset
+	return sequence, key
 }
 
 type subset struct {
@@ -617,7 +962,8 @@ func (s subset) Empty() bool {
 	return s.Start == s.Stop
 }
 
-func equalRowKeys(x, y int, table *execute.ColListTable, on map[string]bool) bool {
+// equalRowKeys determines whether two rows of a table are equal on the set of columns defined by on
+func equalRowKeys(x, y int, table query.ColReader, on map[string]bool) bool {
 	for j, c := range table.Cols() {
 		if !on[c.Label] {
 			continue
@@ -654,138 +1000,53 @@ func equalRowKeys(x, y int, table *execute.ColListTable, on map[string]bool) boo
 	return true
 }
 
-type joinFunc struct {
-	fn               *semantic.FunctionExpression
-	compilationCache *compiler.CompilationCache
-	scope            compiler.Scope
+func addColumnsToSchema(name string, columns []query.ColMeta, added, shared, on map[string]bool, schema *schema, schemaMap map[tableCol]query.ColMeta) {
+	for _, column := range columns {
 
-	preparedFn compiler.Func
-
-	recordName string
-	record     *execute.Record
-
-	recordCols map[tableCol]int
-	references map[string][]string
-
-	isWrap  bool
-	wrapObj *execute.Record
-
-	tableData map[string]*execute.ColListTable
-}
-
-type tableCol struct {
-	table, col string
-}
-
-func NewRowJoinFunction(fn *semantic.FunctionExpression, parentIDs []execute.DatasetID, tableNames map[execute.DatasetID]string) (*joinFunc, error) {
-	if len(fn.Params) != 1 {
-		return nil, errors.New("join function should only have one parameter for the map of tables")
-	}
-	scope, decls := query.BuiltIns()
-	return &joinFunc{
-		compilationCache: compiler.NewCompilationCache(fn, scope, decls),
-		scope:            make(compiler.Scope, 1),
-		references:       findTableReferences(fn),
-		recordCols:       make(map[tableCol]int),
-		recordName:       fn.Params[0].Key.Name,
-	}, nil
-}
-
-func (f *joinFunc) Prepare(tables map[string]*execute.ColListTable) error {
-	f.tableData = tables
-	propertyTypes := make(map[string]semantic.Type, len(f.references))
-	// Prepare types and recordcols
-	for tbl, b := range tables {
-		cols := b.Cols()
-		tblPropertyTypes := make(map[string]semantic.Type, len(f.references[tbl]))
-		for _, r := range f.references[tbl] {
-			j := execute.ColIdx(r, cols)
-			if j < 0 {
-				return fmt.Errorf("function references unknown column %q of table %q", r, tbl)
-			}
-			c := cols[j]
-			f.recordCols[tableCol{table: tbl, col: c.Label}] = j
-			tblPropertyTypes[r] = execute.ConvertToKind(c.Type)
+		tableAndColumn := tableCol{
+			table: name,
+			col:   column.Label,
 		}
-		propertyTypes[tbl] = semantic.NewObjectType(tblPropertyTypes)
-	}
-	f.record = execute.NewRecord(semantic.NewObjectType(propertyTypes))
-	for tbl := range tables {
-		f.record.Set(tbl, execute.NewRecord(propertyTypes[tbl]))
-	}
-	// Compile fn for given types
-	fn, err := f.compilationCache.Compile(map[string]semantic.Type{
-		f.recordName: f.record.Type(),
-	})
-	if err != nil {
-		return err
-	}
-	f.preparedFn = fn
 
-	k := f.preparedFn.Type().Kind()
-	f.isWrap = k != semantic.Object
-	if f.isWrap {
-		f.wrapObj = execute.NewRecord(semantic.NewObjectType(map[string]semantic.Type{
-			execute.DefaultValueColLabel: f.preparedFn.Type(),
-		}))
-	}
-	return nil
-}
-
-func (f *joinFunc) Type() semantic.Type {
-	if f.isWrap {
-		return f.wrapObj.Type()
-	}
-	return f.preparedFn.Type()
-}
-
-func (f *joinFunc) Eval(rows map[string]int) (values.Object, error) {
-	for tbl, references := range f.references {
-		row := rows[tbl]
-		data := f.tableData[tbl]
-		obj, _ := f.record.Get(tbl)
-		o := obj.(*execute.Record)
-		for _, r := range references {
-			o.Set(r, execute.ValueForRow(row, f.recordCols[tableCol{table: tbl, col: r}], data))
+		newLabel := renameColumn(tableAndColumn, shared, on)
+		newColumn := query.ColMeta{
+			Label: newLabel,
+			Type:  column.Type,
 		}
-	}
-	f.scope[f.recordName] = f.record
 
-	v, err := f.preparedFn.Eval(f.scope)
-	if err != nil {
-		return nil, err
-	}
-	if f.isWrap {
-		f.wrapObj.Set(execute.DefaultValueColLabel, v)
-		return f.wrapObj, nil
-	}
-	return v.Object(), nil
-}
+		schemaMap[tableAndColumn] = newColumn
 
-func findTableReferences(fn *semantic.FunctionExpression) map[string][]string {
-	v := &tableReferenceVisitor{
-		record: fn.Params[0].Key.Name,
-		refs:   make(map[string][]string),
-	}
-	semantic.Walk(v, fn)
-	return v.refs
-}
-
-type tableReferenceVisitor struct {
-	record string
-	refs   map[string][]string
-}
-
-func (c *tableReferenceVisitor) Visit(node semantic.Node) semantic.Visitor {
-	if col, ok := node.(*semantic.MemberExpression); ok {
-		if table, ok := col.Object.(*semantic.MemberExpression); ok {
-			if record, ok := table.Object.(*semantic.IdentifierExpression); ok && record.Name == c.record {
-				c.refs[table.Property] = append(c.refs[table.Property], col.Property)
-				return nil
-			}
+		if !added[newLabel] {
+			schema.columns = append(schema.columns, newColumn)
 		}
+
+		added[newLabel] = true
 	}
-	return c
 }
 
-func (c *tableReferenceVisitor) Done() {}
+func renameColumn(col tableCol, share, on map[string]bool) string {
+	columnName := col.col
+
+	if share[columnName] && !on[columnName] {
+		return fmt.Sprintf("%s_%s", col.table, columnName)
+	}
+	return columnName
+}
+
+type groupKey struct {
+	cols []query.ColMeta
+	vals []values.Value
+}
+
+func (k groupKey) Len() int {
+	return len(k.cols)
+}
+
+func (k groupKey) Less(i, j int) bool {
+	return k.cols[i].Label < k.cols[j].Label
+}
+
+func (k groupKey) Swap(i, j int) {
+	k.cols[i], k.cols[j] = k.cols[j], k.cols[i]
+	k.vals[i], k.vals[j] = k.vals[j], k.vals[i]
+}

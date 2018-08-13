@@ -140,6 +140,7 @@ func TablesFromCache(c execute.DataCache) (tables []*Table, err error) {
 			return
 		}
 		tables = append(tables, cb)
+		c.ExpireTable(key)
 	})
 	return tables, nil
 }

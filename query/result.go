@@ -94,6 +94,7 @@ type GroupKey interface {
 	Cols() []ColMeta
 
 	HasCol(label string) bool
+	LabelValue(label string) values.Value
 
 	ValueBool(j int) bool
 	ValueUInt(j int) uint64

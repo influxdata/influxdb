@@ -38,9 +38,8 @@ cov = (x,y,on,pearsonr=false) =>
     join(
         tables:{x:x, y:y},
         on:on,
-        fn: (t) => ({x:t.x._value, y:t.y._value}),
     )
-    |> covariance(pearsonr:pearsonr, columns:["x","y"])
+    |> covariance(pearsonr:pearsonr, columns:["x__value","y__value"])
 
 pearsonr = (x,y,on) => cov(x:x, y:y, on:on, pearsonr:true)
 `

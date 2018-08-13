@@ -1231,24 +1231,111 @@ Window has the following properties:
 
 #### Join
 
-Join merges two or more input streams into a single output stream.
-Input tables are matched on their group keys and then each of their records are joined into a single output table.
-The output table group key will be the same as the input table.
+Join merges two or more input streams, whose values are equal on a set of common columns, into a single output stream.
+The resulting schema is the union of the input schemas, and the resulting group key is the union of the input group keys.
 
-The join operation compares values based on equality.
+For example, given the following two streams of data:
 
-Join has the following properties:
+* SF_Temperature
 
-* `tables` map of tables
-    Map of tables to join. Currently only two tables are allowed.
-* `on` array of strings
-    List of columns on which to join the tables.
-* `fn`
-    Defines the function that merges the values of the tables.
-    The function must defined to accept a single parameter.
-    The parameter is an object where the value of each key is a corresponding record from the input streams.
-    The return value must be an object which defines the output record structure.
+    | _time | _field | _value |
+    | ----- | ------ | ------ |
+    | 0001  | "temp" | 70 |
+    | 0002  | "temp" | 75 |
+    | 0003  | "temp" | 72 |
 
+* NY_Temperature
+
+    | _time | _field | _value |
+    | ----- | ------ | ------ |
+    | 0001  | "temp" | 55 |
+    | 0002  | "temp" | 56 |
+    | 0003  | "temp" | 55 |
+
+And the following join query: `join(tables: {sf: SF_Temperature, ny: NY_Temperature}, on: ["_time", "_field"])`
+
+The output will be:
+
+| _time | _field | ny__value | sf__value |
+| ----- | ------ |---------- | --------- |
+| 0001  | "temp" | 55 | 70 |
+| 0002  | "temp" | 56 | 75 |
+| 0003  | "temp" | 55 | 72 |
+
+
+##### options
+
+The join operator accepts the following named parameters:
+
+| Name | Type | Required | Default Value | Possible Values |
+| ---- | ---- | -------- | ------- | ------ |
+| tables    | map           | yes   | no default value - must be specified with every call | N/A |
+| on        | string array  | no    | list of columns to join on | N/A |
+| method    | string        | no    | inner | inner, cross, left, right, or outer |
+
+* tables
+
+    Map of tables (or streams) to join together. It is the one required parameter of the join.
+
+* on
+
+    An optional parameter for specifying a list of columns to join on.
+    Defaults to the set of columns that are common to all of the input streams.
+
+* method
+
+    An optional parameter that specifies the type of join to be performed.
+    When not specified, an inner join is performed.
+    The **method** parameter may take on any one of the following values:
+
+    * inner - inner join
+
+    * cross - cross product
+
+    * left - left outer join
+
+    * right - right outer join
+
+    * outer - full outer join
+
+The **on** parameter and the **cross** method are mutually exclusive.
+
+
+##### output schema
+
+The column schema of the output stream is the union of the input schemas, and the same goes for the output group key.
+Columns that must be renamed due to ambiguity (i.e. columns that occur in more than one input stream) are renamed
+according to the template `<table>_<column>`.
+
+Examples:
+
+* SF_Temperature
+* Group Key {"_field"}
+
+    | _time | _field | _value |
+    | ----- | ------ | ------ |
+    | 0001  | "temp" | 70 |
+    | 0002  | "temp" | 75 |
+    | 0003  | "temp" | 72 |
+
+* NY_Temperature
+* Group Key {"_time", "_field"}
+
+    | _time | _field | _value |
+    | ----- | ------ | ------ |
+    | 0001  | "temp" | 55 |
+    | 0002  | "temp" | 56 |
+    | 0003  | "temp" | 55 |
+
+`join(tables: {sf: SF_Temperature, ny: NY_Temperature}, on: ["_time"])` produces:
+
+* Group Key {"_time", "sf__field", "ny__field"}
+
+    | _time | sf__field | sf__value | ny__field | ny__value |
+    | ----- | ------ | ---------- | -------- |--------- |
+    | 0001  | "temp" | 70 | "temp" | 55 |
+    | 0002  | "temp" | 75 | "temp" | 56 |
+    | 0003  | "temp" | 72 | "temp: | 55 |
 
 
 #### Cumulative sum
