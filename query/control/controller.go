@@ -1,3 +1,23 @@
+// Package control controls which resources a query may consume.
+//
+// The Controller manages the resources available to each query and ensures
+// an optimal use of those resources to execute queries in a timely manner.
+// The controller also maintains the state of a query as it goes through the
+// various stages of execution and is responsible for killing currently
+// executing queries when requested by the user.
+//
+// The Controller manages when a query is executed. This can be based on
+// anything within the query's requested resources. For example, a basic
+// implementation of the Controller may decide to execute anything with a high
+// priority before anything with a low priority.  The implementation of the
+// Controller will vary and change over time and this package may provide
+// multiple implementations for different controller algorithms.
+//
+// During execution, the Controller manages the resources used by the query and
+// provides observabiility into what resources are being used and by which
+// queries. The Controller also imposes limitations so a query that uses more
+// than its allocated resources or more resources than available on the system
+// will be aborted.
 package control
 
 import (
