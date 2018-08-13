@@ -1,3 +1,4 @@
+// Package ast declares the types used to represent the syntax tree for Flux source code.
 package ast
 
 import (

@@ -1,18 +1,17 @@
+// Package repl implements the read-eval-print-loop for the command line flux query console.
 package repl
 
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"syscall"
-
-	"io/ioutil"
-
-	"path/filepath"
 
 	prompt "github.com/c-bata/go-prompt"
 	"github.com/influxdata/platform"

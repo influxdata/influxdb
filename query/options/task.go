@@ -1,3 +1,4 @@
+// Package options implements flux options.
 package options
 
 import (
