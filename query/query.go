@@ -1,3 +1,4 @@
+// Package query contains the InfluxDB 2.0 query engine.
 package query
 
 import (

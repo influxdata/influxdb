@@ -1,3 +1,4 @@
+// Package influxql implements the transpiler for executing influxql queries in the 2.0 query engine.
 package influxql
 
 import (

@@ -1,3 +1,4 @@
+// Package execute contains the implementation of the execution phase in the query engine.
 package execute
 
 import (

@@ -1,3 +1,4 @@
+// cmpgen generates comparison options for the asttest package.
 package main
 
 import (

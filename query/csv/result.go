@@ -1,3 +1,4 @@
+// Package csv contains the csv result encoders and decoders.
 package csv
 
 import (
