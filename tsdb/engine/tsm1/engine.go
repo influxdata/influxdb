@@ -39,7 +39,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl batch_cursor.gen.go.tmpl cursor_iterator.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
+//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl engine.gen.go.tmpl array_cursor.gen.go.tmpl array_cursor_iterator.gen.go.tmpl
 //go:generate go run ../../../_tools/tmpl/main.go -i -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store.gen.go
 //go:generate go run ../../../_tools/tmpl/main.go -i -d isArray=y -data=file_store.gen.go.tmpldata file_store.gen.go.tmpl=file_store_array.gen.go
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
