@@ -7,6 +7,14 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+type singleValue struct {
+	v interface{}
+}
+
+func (v *singleValue) Value(key string) (interface{}, bool) {
+	return v.v, true
+}
+
 func newAggregateArrayCursor(ctx context.Context, agg *Aggregate, cursor tsdb.Cursor) tsdb.Cursor {
 	if cursor == nil {
 		return nil
@@ -52,6 +60,15 @@ func newCountArrayCursor(cur tsdb.Cursor) tsdb.Cursor {
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
+}
+
+type cursorContext struct {
+	ctx   context.Context
+	req   *tsdb.CursorRequest
+	itrs  tsdb.CursorIterators
+	limit int64
+	count int64
+	err   error
 }
 
 type multiShardArrayCursors struct {

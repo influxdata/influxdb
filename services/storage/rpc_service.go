@@ -16,9 +16,8 @@ import (
 )
 
 //go:generate protoc -I$GOPATH/src/github.com/influxdata/influxdb/vendor -I. --gogofaster_out=Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,plugins=grpc:. storage.proto predicate.proto
-//go:generate tmpl -data=@batch_cursor.gen.go.tmpldata batch_cursor.gen.go.tmpl
-//go:generate tmpl -data=@batch_cursor.gen.go.tmpldata array_cursor.gen.go.tmpl
-//go:generate tmpl -data=@batch_cursor.gen.go.tmpldata response_writer.gen.go.tmpl
+//go:generate tmpl -data=@array_cursor.gen.go.tmpldata array_cursor.gen.go.tmpl
+//go:generate tmpl -data=@array_cursor.gen.go.tmpldata response_writer.gen.go.tmpl
 
 const (
 	batchSize  = 1000

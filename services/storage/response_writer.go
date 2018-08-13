@@ -129,17 +129,6 @@ func (w *responseWriter) streamCursor(cur tsdb.Cursor) {
 		// skip
 	case w.hints.NoPoints():
 		switch cur := cur.(type) {
-		case tsdb.IntegerBatchCursor:
-			w.streamIntegerSeries(cur)
-		case tsdb.FloatBatchCursor:
-			w.streamFloatSeries(cur)
-		case tsdb.UnsignedBatchCursor:
-			w.streamUnsignedSeries(cur)
-		case tsdb.BooleanBatchCursor:
-			w.streamBooleanSeries(cur)
-		case tsdb.StringBatchCursor:
-			w.streamStringSeries(cur)
-
 		case tsdb.IntegerArrayCursor:
 			w.streamIntegerArraySeries(cur)
 		case tsdb.FloatArrayCursor:
@@ -156,17 +145,6 @@ func (w *responseWriter) streamCursor(cur tsdb.Cursor) {
 
 	default:
 		switch cur := cur.(type) {
-		case tsdb.IntegerBatchCursor:
-			w.streamIntegerPoints(cur)
-		case tsdb.FloatBatchCursor:
-			w.streamFloatPoints(cur)
-		case tsdb.UnsignedBatchCursor:
-			w.streamUnsignedPoints(cur)
-		case tsdb.BooleanBatchCursor:
-			w.streamBooleanPoints(cur)
-		case tsdb.StringBatchCursor:
-			w.streamStringPoints(cur)
-
 		case tsdb.IntegerArrayCursor:
 			w.streamIntegerArrayPoints(cur)
 		case tsdb.FloatArrayCursor:
