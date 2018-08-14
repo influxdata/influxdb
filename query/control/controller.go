@@ -417,8 +417,6 @@ func (q *Query) Ready() <-chan map[string]query.Result {
 
 // finish informs the controller and the Ready channel that the query is finished.
 func (q *Query) finish() {
-	defer q.parentSpan.Finish()
-
 	switch q.state {
 	case Compiling:
 		q.compileSpan.Finish()
@@ -443,6 +441,7 @@ func (q *Query) finish() {
 		panic("unreachable, all states have been accounted for")
 	}
 
+	q.parentSpan.Finish()
 	q.c.queryDone <- q
 	close(q.ready)
 }
