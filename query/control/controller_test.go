@@ -11,6 +11,8 @@ import (
 	"github.com/influxdata/platform/query/execute"
 	"github.com/influxdata/platform/query/mock"
 	"github.com/influxdata/platform/query/plan"
+	"github.com/pkg/errors"
+	dto "github.com/prometheus/client_model/go"
 )
 
 var mockCompiler *mock.Compiler
@@ -19,6 +21,78 @@ func init() {
 	mockCompiler = new(mock.Compiler)
 	mockCompiler.CompileFn = func(ctx context.Context) (*query.Spec, error) {
 		return query.Compile(ctx, `from(bucket: "telegraf") |> range(start: -5m) |> mean()`, time.Now())
+	}
+}
+
+func TestController_CompileQuery_Failure(t *testing.T) {
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (*query.Spec, error) {
+			return nil, errors.New("expected")
+		},
+	}
+
+	ctrl := New(Config{})
+	req := &query.Request{
+		OrganizationID: platform.ID("a"),
+		Compiler:       compiler,
+	}
+
+	// Run the query. It should return an error.
+	if _, err := ctrl.Query(context.Background(), req); err == nil {
+		t.Fatal("expected error")
+	}
+
+	// Verify the metrics say there are no queries.
+	gauge, err := ctrl.metrics.all.GetMetricWithLabelValues(req.OrganizationID.String())
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	metric := &dto.Metric{}
+	if err := gauge.Write(metric); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if exp, want := int(metric.Gauge.GetValue()), 0; exp != want {
+		t.Fatalf("unexpected metric value: exp=%d want=%d", exp, want)
+	}
+}
+
+func TestController_EnqueueQuery_Failure(t *testing.T) {
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (*query.Spec, error) {
+			// This returns an invalid spec so that enqueueing the query fails.
+			// TODO(jsternberg): We should probably move the validation step to compilation
+			// instead as it makes more sense. In that case, we would still need to verify
+			// that enqueueing the query was successful in some way.
+			return &query.Spec{}, nil
+		},
+	}
+
+	ctrl := New(Config{})
+	req := &query.Request{
+		OrganizationID: platform.ID("a"),
+		Compiler:       compiler,
+	}
+
+	// Run the query. It should return an error.
+	if _, err := ctrl.Query(context.Background(), req); err == nil {
+		t.Fatal("expected error")
+	}
+
+	// Verify the metrics say there are no queries.
+	gauge, err := ctrl.metrics.all.GetMetricWithLabelValues(req.OrganizationID.String())
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	metric := &dto.Metric{}
+	if err := gauge.Write(metric); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if exp, want := int(metric.Gauge.GetValue()), 0; exp != want {
+		t.Fatalf("unexpected metric value: exp=%d want=%d", exp, want)
 	}
 }
 

@@ -92,12 +92,15 @@ func New(c Config) *Controller {
 // Done must be called on any returned Query objects.
 func (c *Controller) Query(ctx context.Context, req *query.Request) (query.Query, error) {
 	q := c.createQuery(ctx, req.OrganizationID)
-	err := c.compileQuery(q, req.Compiler)
-	if err != nil {
+	if err := c.compileQuery(q, req.Compiler); err != nil {
+		q.parentSpan.Finish()
 		return nil, err
 	}
-	err = c.enqueueQuery(q)
-	return q, err
+	if err := c.enqueueQuery(q); err != nil {
+		q.parentSpan.Finish()
+		return nil, err
+	}
+	return q, nil
 }
 
 func (c *Controller) createQuery(ctx context.Context, orgID platform.ID) *Query {
