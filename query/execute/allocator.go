@@ -71,6 +71,20 @@ func (a *Allocator) AppendBools(slice []bool, vs ...bool) []bool {
 	return s
 }
 
+func (a *Allocator) GrowBools(slice []bool, n int) []bool {
+	newCap := len(slice) + n
+	if newCap < cap(slice) {
+		return slice[:newCap]
+	}
+	// grow capacity same way as built-in append
+	newCap = newCap*3/2 + 1
+	s := make([]bool, len(slice)+n, newCap)
+	copy(s, slice)
+	diff := cap(s) - cap(slice)
+	a.account(diff, boolSize)
+	return s
+}
+
 // Ints makes a slice of int64 values.
 func (a *Allocator) Ints(l, c int) []int64 {
 	a.account(c, int64Size)
@@ -83,6 +97,20 @@ func (a *Allocator) AppendInts(slice []int64, vs ...int64) []int64 {
 		return append(slice, vs...)
 	}
 	s := append(slice, vs...)
+	diff := cap(s) - cap(slice)
+	a.account(diff, int64Size)
+	return s
+}
+
+func (a *Allocator) GrowInts(slice []int64, n int) []int64 {
+	newCap := len(slice) + n
+	if newCap < cap(slice) {
+		return slice[:newCap]
+	}
+	// grow capacity same way as built-in append
+	newCap = newCap*3/2 + 1
+	s := make([]int64, len(slice)+n, newCap)
+	copy(s, slice)
 	diff := cap(s) - cap(slice)
 	a.account(diff, int64Size)
 	return s
@@ -105,6 +133,20 @@ func (a *Allocator) AppendUInts(slice []uint64, vs ...uint64) []uint64 {
 	return s
 }
 
+func (a *Allocator) GrowUInts(slice []uint64, n int) []uint64 {
+	newCap := len(slice) + n
+	if newCap < cap(slice) {
+		return slice[:newCap]
+	}
+	// grow capacity same way as built-in append
+	newCap = newCap*3/2 + 1
+	s := make([]uint64, len(slice)+n, newCap)
+	copy(s, slice)
+	diff := cap(s) - cap(slice)
+	a.account(diff, uint64Size)
+	return s
+}
+
 // Floats makes a slice of float64 values.
 func (a *Allocator) Floats(l, c int) []float64 {
 	a.account(c, float64Size)
@@ -117,6 +159,20 @@ func (a *Allocator) AppendFloats(slice []float64, vs ...float64) []float64 {
 		return append(slice, vs...)
 	}
 	s := append(slice, vs...)
+	diff := cap(s) - cap(slice)
+	a.account(diff, float64Size)
+	return s
+}
+
+func (a *Allocator) GrowFloats(slice []float64, n int) []float64 {
+	newCap := len(slice) + n
+	if newCap < cap(slice) {
+		return slice[:newCap]
+	}
+	// grow capacity same way as built-in append
+	newCap = newCap*3/2 + 1
+	s := make([]float64, len(slice)+n, newCap)
+	copy(s, slice)
 	diff := cap(s) - cap(slice)
 	a.account(diff, float64Size)
 	return s
@@ -142,6 +198,20 @@ func (a *Allocator) AppendStrings(slice []string, vs ...string) []string {
 	return s
 }
 
+func (a *Allocator) GrowStrings(slice []string, n int) []string {
+	newCap := len(slice) + n
+	if newCap < cap(slice) {
+		return slice[:newCap]
+	}
+	// grow capacity same way as built-in append
+	newCap = newCap*3/2 + 1
+	s := make([]string, len(slice)+n, newCap)
+	copy(s, slice)
+	diff := cap(s) - cap(slice)
+	a.account(diff, stringSize)
+	return s
+}
+
 // Times makes a slice of Time values.
 func (a *Allocator) Times(l, c int) []Time {
 	a.account(c, timeSize)
@@ -154,6 +224,20 @@ func (a *Allocator) AppendTimes(slice []Time, vs ...Time) []Time {
 		return append(slice, vs...)
 	}
 	s := append(slice, vs...)
+	diff := cap(s) - cap(slice)
+	a.account(diff, timeSize)
+	return s
+}
+
+func (a *Allocator) GrowTimes(slice []Time, n int) []Time {
+	newCap := len(slice) + n
+	if newCap < cap(slice) {
+		return slice[:newCap]
+	}
+	// grow capacity same way as built-in append
+	newCap = newCap*3/2 + 1
+	s := make([]Time, len(slice)+n, newCap)
+	copy(s, slice)
 	diff := cap(s) - cap(slice)
 	a.account(diff, timeSize)
 	return s

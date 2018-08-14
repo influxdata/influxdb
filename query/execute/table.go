@@ -287,6 +287,9 @@ type TableBuilder interface {
 	SetString(i, j int, value string)
 	SetTime(i, j int, value Time)
 
+	// Append will add a single value to the end of a column.  Will set the number of
+	// rows in the table to the size of the new column. It's the caller's job to make sure
+	// that the expected number of rows in each column is equal.
 	AppendBool(j int, value bool)
 	AppendInt(j int, value int64)
 	AppendUInt(j int, value uint64)
@@ -294,12 +297,26 @@ type TableBuilder interface {
 	AppendString(j int, value string)
 	AppendTime(j int, value Time)
 
+	// AppendBools and similar functions will append multiple values to column j.  As above,
+	// it will set the numer of rows in the table to the size of the new column.  It's the
+	// caller's job to make sure that the expected number of rows in each column is equal.
 	AppendBools(j int, values []bool)
 	AppendInts(j int, values []int64)
 	AppendUInts(j int, values []uint64)
 	AppendFloats(j int, values []float64)
 	AppendStrings(j int, values []string)
 	AppendTimes(j int, values []Time)
+
+	// GrowBools and similar functions will extend column j by n zero-values for the respective type.
+	// If the column has enough capacity, no reallocation is necessary.  If the capacity is insufficient,
+	// a new slice is allocated with 1.5*newCapacity.  As with the Append functions, it is the
+	// caller's job to make sure that the expected number of rows in each column is equal.
+	GrowBools(j, n int)
+	GrowInts(j, n int)
+	GrowUInts(j, n int)
+	GrowFloats(j, n int)
+	GrowStrings(j, n int)
+	GrowTimes(j, n int)
 
 	// Sort the rows of the by the values of the columns in the order listed.
 	Sort(cols []string, desc bool)
@@ -395,6 +412,12 @@ func (b ColListTableBuilder) AppendBools(j int, values []bool) {
 	col.data = b.alloc.AppendBools(col.data, values...)
 	b.table.nrows = len(col.data)
 }
+func (b ColListTableBuilder) GrowBools(j, n int) {
+	b.checkColType(j, query.TBool)
+	col := b.table.cols[j].(*boolColumn)
+	col.data = b.alloc.GrowBools(col.data, n)
+	b.table.nrows = len(col.data)
+}
 
 func (b ColListTableBuilder) SetInt(i int, j int, value int64) {
 	b.checkColType(j, query.TInt)
@@ -410,6 +433,12 @@ func (b ColListTableBuilder) AppendInts(j int, values []int64) {
 	b.checkColType(j, query.TInt)
 	col := b.table.cols[j].(*intColumn)
 	col.data = b.alloc.AppendInts(col.data, values...)
+	b.table.nrows = len(col.data)
+}
+func (b ColListTableBuilder) GrowInts(j, n int) {
+	b.checkColType(j, query.TInt)
+	col := b.table.cols[j].(*intColumn)
+	col.data = b.alloc.GrowInts(col.data, n)
 	b.table.nrows = len(col.data)
 }
 
@@ -429,6 +458,12 @@ func (b ColListTableBuilder) AppendUInts(j int, values []uint64) {
 	col.data = b.alloc.AppendUInts(col.data, values...)
 	b.table.nrows = len(col.data)
 }
+func (b ColListTableBuilder) GrowUInts(j, n int) {
+	b.checkColType(j, query.TUInt)
+	col := b.table.cols[j].(*uintColumn)
+	col.data = b.alloc.GrowUInts(col.data, n)
+	b.table.nrows = len(col.data)
+}
 
 func (b ColListTableBuilder) SetFloat(i int, j int, value float64) {
 	b.checkColType(j, query.TFloat)
@@ -444,6 +479,12 @@ func (b ColListTableBuilder) AppendFloats(j int, values []float64) {
 	b.checkColType(j, query.TFloat)
 	col := b.table.cols[j].(*floatColumn)
 	col.data = b.alloc.AppendFloats(col.data, values...)
+	b.table.nrows = len(col.data)
+}
+func (b ColListTableBuilder) GrowFloats(j, n int) {
+	b.checkColType(j, query.TFloat)
+	col := b.table.cols[j].(*floatColumn)
+	col.data = b.alloc.GrowFloats(col.data, n)
 	b.table.nrows = len(col.data)
 }
 
@@ -464,6 +505,12 @@ func (b ColListTableBuilder) AppendStrings(j int, values []string) {
 	col.data = b.alloc.AppendStrings(col.data, values...)
 	b.table.nrows = len(col.data)
 }
+func (b ColListTableBuilder) GrowStrings(j, n int) {
+	b.checkColType(j, query.TString)
+	col := b.table.cols[j].(*stringColumn)
+	col.data = b.alloc.GrowStrings(col.data, n)
+	b.table.nrows = len(col.data)
+}
 
 func (b ColListTableBuilder) SetTime(i int, j int, value Time) {
 	b.checkColType(j, query.TTime)
@@ -479,6 +526,12 @@ func (b ColListTableBuilder) AppendTimes(j int, values []Time) {
 	b.checkColType(j, query.TTime)
 	col := b.table.cols[j].(*timeColumn)
 	col.data = b.alloc.AppendTimes(col.data, values...)
+	b.table.nrows = len(col.data)
+}
+func (b ColListTableBuilder) GrowTimes(j, n int) {
+	b.checkColType(j, query.TTime)
+	col := b.table.cols[j].(*timeColumn)
+	col.data = b.alloc.GrowTimes(col.data, n)
 	b.table.nrows = len(col.data)
 }
 
